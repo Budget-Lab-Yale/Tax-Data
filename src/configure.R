@@ -66,7 +66,7 @@ interface_paths = interface_versions %>%
          output_roots$production,
         .y,
         .x$type,
-        .x$version, 
+        paste0('v', .x$version), 
         runscript$dependency_info[[.y]]$vintage, 
         runscript$dependency_info[[.y]]$scenario
         )

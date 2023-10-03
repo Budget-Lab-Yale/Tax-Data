@@ -9,6 +9,10 @@ dependency_info:
     vintage: 2023091310
     scenario: historical
     
+  DINA: 
+    vintage: 2023082913
+    scenario: historical
+    
   Compiled-SOI-Tables:
     vintage: 2023092813
     scenario: historical

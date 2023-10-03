@@ -27,5 +27,8 @@ source('./src/configure.R')
 
 # 5) create 2019 PUF 
 
-# 6) create 2020 -> 2053 PUFs
+# 6) add nonfilers and do other imputations
+
+# 7) create 2020 -> 2053 PUFs
+
 
