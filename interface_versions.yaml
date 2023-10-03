@@ -1,22 +1,22 @@
 ---
-#---------------
-# Model version
-#---------------
 
-Tax-Data:
+#------------
+# Model info
+#------------
+
+Tax-Data: 
   type: model_data
   version: 1
 
-
-#---------------------
-# Dependency versions
-#---------------------
+#-----------------
+# Dependency info
+#-----------------
 
 IRS-PUF:
   type: raw_data
   version: 1
   
-Compiled-SOI-Tables
+Compiled-SOI-Tables:
   type: model_data
   version: 1
 

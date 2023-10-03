@@ -5,9 +5,14 @@
 #---------------------------------------------
 
 
+#----------------
+# Set parameters
+#----------------
 
 # Load required packages
 lapply(readLines('requirements.txt'), library, character.only = T)
+
+source('./src/configure.R')
 
 
 # TODO steps

@@ -1,0 +1,18 @@
+---
+runtime_options: 
+  user_id: jar335
+  write_locally: True
+  
+
+dependency_info:
+  IRS-PUF:
+    vintage: 2023091310
+    scenario: historical
+    
+  Compiled-SOI-Tables:
+    vintage: 2023092813
+    scenario: historical
+  
+  Macro-Projections: 
+    vintage: 2023092721
+    scenario: baseline
