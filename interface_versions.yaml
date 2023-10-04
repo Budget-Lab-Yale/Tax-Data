@@ -1,0 +1,29 @@
+---
+
+#------------
+# Model info
+#------------
+
+Tax-Data: 
+  type: model_data
+  version: 1
+
+#-----------------
+# Dependency info
+#-----------------
+
+IRS-PUF:
+  type: raw_data
+  version: 1
+  
+DINA:
+  type: raw_data
+  version: 1
+  
+Compiled-SOI-Tables:
+  type: model_data
+  version: 2
+
+Macro-Projections: 
+  type: model_data
+  version: 1
