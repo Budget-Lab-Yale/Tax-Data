@@ -1,4 +1,4 @@
-﻿variable,description,source,name_puf
+variable,description,source,name_puf
 id,record ID,imputed,NA
 weight,record weight,puf,S006
 filer,whether tax unit filed tax return,imputed,NA
@@ -37,10 +37,8 @@ sole_prop1,primary filer's share of Schedule C net income,imputed split,NA
 sole_prop2,secondary filer's share of Schedule C net income,imputed split,NA
 wagebill_sole_prop,owner's share of W2 wages paid in sole proprietorship,imputed,NA
 sstb_sole_prop,whether filer's sole prop income comes from a SSTB,imputed,NA
-kg_st,short-term net capital gain carryover,derived,NA
-kg_lt,long-term net capital gain,derived,NA
-kg_st_carry,short-term net capital gain carryover,derived,NA
-kg_lt_carry,long-term net capital gain carryover,derived,NA
+kg_st,short-term net capital gain carryover,puf,P22250
+kg_lt,long-term net capital gain,puf,P23250
 kg_1250,unrecaptured Section 1250 gain,puf,E24515
 kg_collect,28% collectibles gain,puf,E24518
 other_gains,other capital gains reported on Form 1040,puf,E01200
@@ -68,9 +66,6 @@ rent,rent/royalty net income,puf,E25850
 rent_loss,rent/royalty net loss,puf,E25860
 estate,estate or trust net income,puf,E26390
 estate_loss,estate or trust net loss,puf,E26400
-farm_rent,farm rental income,puf,E27200
-wagebill_farm_rent,owner's share of W2 wages paid in farm rental business,imputed,E27200
-sstb_farm_rent,whether filer's farm rental income comes from a SSTB,imputed,NA
 farm,net farm income,puf,E02100
 farm1,primary filer's share of net farm income,imputed split,NA
 farm2,secondary filer's share of net farm income,imputed split,NA
