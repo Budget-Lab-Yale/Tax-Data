@@ -64,8 +64,8 @@ interface_paths = interface_versions %>%
   map2(.y = names(.),
        .f = ~ file.path(
          output_roots$production,
-        .y,
         .x$type,
+        .y,
         paste0('v', .x$version), 
         runscript$dependency_info[[.y]]$vintage, 
         runscript$dependency_info[[.y]]$scenario
@@ -77,6 +77,7 @@ interface_paths = interface_versions %>%
 # Read target info
 #------------------
 
-target_info = read_yaml('./config/target_info/historical.yaml')
-
+target_info = paste0(runscript_id, '.csv') %>% 
+  file.path('./config/target_info', .) %>% 
+  read_csv()
 

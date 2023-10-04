@@ -22,7 +22,7 @@ DINA:
   
 Compiled-SOI-Tables:
   type: model_data
-  version: 1
+  version: 2
 
 Macro-Projections: 
   type: model_data

@@ -14,7 +14,7 @@ dependency_info:
     scenario: historical
     
   Compiled-SOI-Tables:
-    vintage: 2023092813
+    vintage: 2023100323
     scenario: historical
   
   Macro-Projections: 
