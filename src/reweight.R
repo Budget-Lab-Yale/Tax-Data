@@ -1,5 +1,12 @@
+#------------------------------------------------------------------------------
+# reweight.R 
+#
+# Contains functions to reweight PUF such that specified target values are hit
+#------------------------------------------------------------------------------
+
 
 reweight_lp = function(puf, targets, e_runs = 10) {
+  
   #----------------------------------------------------------------------------
   # Adjusts weights using Linear Programming such that PUF records match 
   # Statistics of Income totals for a given year.
@@ -15,15 +22,17 @@ reweight_lp = function(puf, targets, e_runs = 10) {
   
   
   # Calculate ratio at which to scale all weights from base year to target year
-  ratio = scale_ratio(puf, filter(targets, variable=="returns" &
-                                    str_length(filing_status) > 1 &
-                                    str_length(age_group) > 1))
-  
+  ratio = targets %>% 
+    filter(variable == "returns" &
+           str_length(filing_status) > 1 &
+           str_length(age_group) > 1) %>% 
+    scale_ratio(puf, .)
+
   # Adjust weights by scale ratio
-  puf %<>% group_by(AGI_Group) %>%
+  puf %<>% 
+    group_by(AGI_Group) %>%
     left_join(ratio, by = "AGI_Group") %>%
-    map(.x = S006,
-        .f = ~ .x * ratio) %>%
+    mutate(S006 = S006 * ratio) %>% 
     select(-ratio)
   
   # Construct left hand side of constraint equations
@@ -34,7 +43,10 @@ reweight_lp = function(puf, targets, e_runs = 10) {
   
 }
 
+
+
 build_lhs = function(puf, targets) {
+  
   #----------------------------------------------------------------------------
   # Constructs left hand side of constraint equations for the LP Solver
   # 
@@ -53,7 +65,7 @@ build_lhs = function(puf, targets) {
   # Construct output matrix
   lhs = matrix(nrow = nrow(puf), ncol = nrow(targets))
   
-  for(i in 1:nrow(targets)) {
+  for (i in 1:nrow(targets)) {
     
     # Select target row
     this_constraint = targets[i,]
@@ -93,7 +105,10 @@ build_lhs = function(puf, targets) {
   
 }
 
+
+
 scale_ratio = function(puf, ret_targets) {
+  
   #----------------------------------------------------------------------------
   # Calculates scale ratio between tax unit weights and number of returns for
   # the target year
@@ -116,7 +131,9 @@ scale_ratio = function(puf, ret_targets) {
 }
 
 
+
 run_lp = function(lhs, rhs, e_runs) {
+  
   #----------------------------------------------------------------------------
   # Runs Linear Programming solver to generate minimized scalars that 
   #  satisfies the targets.
@@ -144,7 +161,7 @@ run_lp = function(lhs, rhs, e_runs) {
   
   # Add each column of the left hand side as the constant for decision variable 
   # constraints, less than or equal to upper target range, less than or equal to lower
-  for(i in 1:ncol(lhs)) {
+  for (i in 1:ncol(lhs)) {
     add.constraint(lprw,
                    lhs[,i],
                    "<=",
@@ -175,8 +192,8 @@ run_lp = function(lhs, rhs, e_runs) {
 
 
 
-
 tune_epsilon = function(lp, ncol, iters) {
+  
   #----------------------------------------------------------------------------
   # Conducts binary search to find the tightest boundaries for scalars. Done to 
   #  ensure that synthetic weights differ as little as possible from reported values.
@@ -198,14 +215,14 @@ tune_epsilon = function(lp, ncol, iters) {
   epsilon = .5
   high = 1
   
-  for(i in 1:iters) {
+  for (i in 1:iters) {
     
     # Set decision variable boundaries with the test epsilon
     set.bounds(lp, lower = rep(1-test, ncol), columns = c(1:ncol)) 
     set.bounds(lp, upper = rep(1 + test, ncol), columns = c(1:ncol))
     
     # Check if solver finds a valid solution and narrow search field dependent on success
-    if(solve(lp)==0){
+    if (solve(lp) == 0){
       high = test
       epsilon = test
       test = (test - low)/2 + low
