@@ -227,6 +227,13 @@ puf %<>%
 # Other processing steps
 #------------------------
 
+agi_groups_2015 = tables$table_1_6 %>% 
+  filter(year == 2015) %>% 
+  distinct(agi) %>% 
+  unlist() %>% 
+  set_names(NULL) %>% 
+  c(1e99)
+
 puf %<>% 
   
   # Remove aggregate returns (for now)
@@ -236,8 +243,16 @@ puf %<>%
     
     # Add target variable dummies
     returns = 1, 
-    has_dep = 1
+    has_dep = 1,
     
+    # Add AGI group variable per table 1.6 
+    agi_group = cut(x              = E00100, 
+                    breaks         = agi_groups_2015, 
+                    include.lowest = T, 
+                    right          = F, 
+                    labels         = head(agi_groups_2015, -1)) %>% 
+      as.character() %>% 
+      as.numeric()
   )
 
 

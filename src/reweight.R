@@ -20,21 +20,6 @@ reweight_lp = function(puf, targets, e_runs = 10) {
   # Returns: vector of scalars for each tax unit weight
   #----------------------------------------------------------------------------  
   
-  
-  # Calculate ratio at which to scale all weights from base year to target year
-  ratio = targets %>% 
-    filter(variable == "returns" &
-           str_length(filing_status) > 1 &
-           str_length(age_group) > 1) %>% 
-    scale_ratio(puf, .)
-
-  # Adjust weights by scale ratio
-  puf %<>% 
-    group_by(AGI_Group) %>%
-    left_join(ratio, by = "AGI_Group") %>%
-    mutate(S006 = S006 * ratio) %>% 
-    select(-ratio)
-  
   # Construct left hand side of constraint equations
   lhs = build_lhs(puf, targets)
   
@@ -103,31 +88,6 @@ build_lhs = function(puf, targets) {
   
   return(lhs)
   
-}
-
-
-
-scale_ratio = function(puf, ret_targets) {
-  
-  #----------------------------------------------------------------------------
-  # Calculates scale ratio between tax unit weights and number of returns for
-  # the target year
-  # 
-  # Parameters:
-  #   - puf (df)            : tibble of tax units, processed, including AGI groups
-  #   - ret_targets (df)    : tibble of number of returns grouped by AGI
-  # 
-  # Returns: tibble containing AGI group and its scale ratio
-  #----------------------------------------------------------------------------  
-  
-  
-  puf %>%
-    group_by(AGI_Group) %>% 
-    summarize(group_wt = sum(S006)/100) %>%
-    left_join(select(ret_targets, AGI_Group, target), by="AGI_Group") %>%
-    mutate(ratio = target/group_wt) %>%
-    select(AGI_Group, ratio) %>%
-    return()
 }
 
 
