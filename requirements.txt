@@ -2,3 +2,4 @@ tidyverse
 magrittr
 yaml
 haven
+lpSolveAPI
