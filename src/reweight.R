@@ -1,222 +1,224 @@
 
-############### COMPLETED #####################
-
-build_rhs = function(path_soi, path_targ_info) {
+reweight_lp = function(puf, targets, e_runs = 10) {
+  #----------------------------------------------------------------------------
+  # Adjusts weights using Linear Programming such that PUF records match 
+  # Statistics of Income totals for a given year.
+  # 
+  # Parameters:
+  #   - puf (df)       : tibble of tax units, processed
+  #   - targets (df)   : tibble of target parameter totals, processed
+  #   - e_runs (int)   : number of iterations to attempt to find ideal maximum
+  #                         deviation from observed weights
+  # 
+  # Returns: vector of scalars for each tax unit weight
+  #----------------------------------------------------------------------------  
   
-  parse_soi(path_soi) %>%
-    calibrate_bounds(., parse_targ(path_targ_info)) %>%
-    rename(AGI = AGI_Group2) %>%
-    select(Year, AGI, Variable, targ, upper, lower) %>%
-    return()
+  
+  # Calculate ratio at which to scale all weights from base year to target year
+  ratio = scale_ratio(puf, filter(targets, variable=="returns" &
+                                    str_length(filing_status) > 1 &
+                                    str_length(age_group) > 1))
+  
+  # Adjust weights by scale ratio
+  puf %<>% group_by(AGI_Group) %>%
+    left_join(ratio, by = "AGI_Group") %>%
+    map(.x = S006,
+        .f = ~ .x * ratio) %>%
+    select(-ratio)
+  
+  # Construct left hand side of constraint equations
+  lhs = build_lhs(puf, targets)
+  
+  # Run Linear Programming Solver
+  return(run_lp(lhs, targets, e_runs))
   
 }
 
-parse_soi = function(path) {
+build_lhs = function(puf, targets) {
+  #----------------------------------------------------------------------------
+  # Constructs left hand side of constraint equations for the LP Solver
+  # 
+  # Parameters:
+  #   - puf (df)       : tibble of tax units, processed, weights scaled to 
+  #                         target year
+  #   - targets (df)   : tibble of target parameter totals, processed
+  # 
+  # Returns: matrix with rows representing each tax unit and columns for each 
+  #             target. Values are:
+  #                   0 (num)  : if the tax unit does not satisfy all of the target conditions
+  #       Scaled Weight (num)  : if the tax unit satisfies all the target conditions 
+  #----------------------------------------------------------------------------  
   
-  read_csv(path) %>%
-    filter(!grepl('taxable return', Variable)) %>%
-    mutate(targ_raw = as.numeric(gsub(",","", `#_of_returns`)),
-           AGI_Group2 = case_when(
-             AGI_Group == "No adjusted gross income"                            ~ "-Inf",
-             AGI_Group %in% c("$1 under $5,000", "$5,000 under $10,000")        ~ "0",
-             AGI_Group %in% c("$10,000 under $15,000", "$15,000 under $20,000") ~ "10000",
-             AGI_Group %in% c("$20,000 under $25,000", "$25,000 under $30,000") ~ "20000",
-             AGI_Group == "$30,000 under $40,000"                               ~ "30000",
-             AGI_Group == "$40,000 under $50,000"                               ~ "40000",
-             AGI_Group == "$50,000 under $75,000"                               ~ "50000", 
-             AGI_Group == "$75,000 under $100,000"                              ~ "75000", 
-             AGI_Group == "$100,000 under $200,000"                             ~ "100000",
-             AGI_Group == "$200,000 under $500,000"                             ~ "200000",
-             AGI_Group == "$500,000 under $1,000,000"                           ~ "500000", 
-             AGI_Group == "$1,000,000 under $1,500,000"                         ~ "1000000",
-             AGI_Group == "$1,500,000 under $2,000,000"                         ~ "1500000", 
-             AGI_Group == "$2,000,000 under $5,000,000"                         ~ "2000000",
-             AGI_Group == "$5,000,000 under $10,000,000"                        ~ "5000000", 
-             AGI_Group == "$10,000,000 or more"                                 ~ "10000000",
-             TRUE                                                               ~ NA
-           )) %>%
-    group_by(Year, Variable, AGI_Group2) %>%
-    summarise(targ = sum(targ_raw)) %>%
-    select(Year, AGI_Group2, Variable, targ) %>%
-    return()
-}
-
-parse_targ = function(path) {
   
-  raw_targ = read_yaml(path)
+  # Construct output matrix
+  lhs = matrix(nrow = nrow(puf), ncol = nrow(targets))
   
-  alphas = data.frame()
-  
-  for (iter in names(raw_targ)) {
-    alphas = bind_rows(alphas,
-                       data.frame(unlist(raw_targ[[iter]])) %>%
-                         mutate(AGI_Group2 = rownames(.),
-                                Variable = iter) %>%
-                         rename(alpha = colnames(.)[1])
-    )
+  for(i in 1:nrow(targets)) {
     
+    # Select target row
+    this_constraint = targets[i,]
+    
+    # Target variable
+    variable = this_constraint[["variable"]]
+    
+    # Valid filing statuses
+    filing_status = this_constraint[["filing_status"]] %>%
+      strsplit(' ') %>%
+      unlist() %>%
+      as.numeric()
+    
+    # Valid age groups
+    age_group = this_constraint[["age_group"]] %>%
+      strsplit(' ') %>%
+      unlist() %>%
+      as.numeric
+    
+    # Minimum and maximum AGIs
+    agi_min = this_constraint[["agi_min"]]
+    agi_max = this_constraint[["agi_max"]]
+    
+    # Adjust weight to accurate decimal place, then use binary flags to check validity
+    column = (puf$S006 / 100) * 
+      puf[[variable]] * 
+      (puf$MARS %in% filing_status) * 
+      (puf$AGERANGE %in% age_group) * 
+      (puf$E00100 >= agi_min) * 
+      (puf$E00100 < agi_max)
+    
+    # Add target variable as a column to matrix
+    lhs[,i] = column
   }
   
-  rownames(alphas) = 1:nrow(alphas)
+  return(lhs)
   
-  return(select(alphas, Variable, AGI_Group2, alpha))
 }
 
-calibrate_bounds = function(targs, alphas) {
+scale_ratio = function(puf, ret_targets) {
+  #----------------------------------------------------------------------------
+  # Calculates scale ratio between tax unit weights and number of returns for
+  # the target year
+  # 
+  # Parameters:
+  #   - puf (df)            : tibble of tax units, processed, including AGI groups
+  #   - ret_targets (df)    : tibble of number of returns grouped by AGI
+  # 
+  # Returns: tibble containing AGI group and its scale ratio
+  #----------------------------------------------------------------------------  
   
-  targs %>%
-    left_join(alphas) %>%
-    mutate(upper = targ * (1 + alpha),
-           lower = targ * (1 - alpha)) %>%
+  
+  puf %>%
+    group_by(AGI_Group) %>% 
+    summarize(group_wt = sum(S006)/100) %>%
+    left_join(select(ret_targets, AGI_Group, target), by="AGI_Group") %>%
+    mutate(ratio = target/group_wt) %>%
+    select(AGI_Group, ratio) %>%
     return()
-  
 }
 
 
-
-############### IN PROGRESS #####################
-
-
-
-reweight_lp = function(tax_units, alpha, epsilon) {
-  soi_14 = read_csv(PATH)
-  soi_21 = read_csv(PATH)
-  soi_23 = read_csv(PATH)
-  soi_33 = read_csv(PATH)
-  
-  years = select(soi_14, Year) %>% unique()
-  
-  soi_14 %<>% pivot_wider(names_from = Variable, values_from = )
-
-  tax_units %<>%
-    rename(wt = S006) %>%
-    mutate(AGI_Group = case_when(
-      # Group AGI to match SOI categories
-      AGIR1 == 0          ~ "No adjusted gross income",
-      AGIR1 %in% c(1:5)   ~ "$1 under $5,000",
-      AGIR1 %in% c(6:10)  ~ "$5,000 under $10,000",
-      AGIR1 %in% c(11:15) ~ "$10,000 under $15,000",
-      AGIR1 %in% c(16:20) ~ "$15,000 under $20,000",
-      AGIR1 == 21         ~ "$20,000 under $25,000",
-      AGIR1 == 22         ~ "$25,000 under $30,000",
-      AGIR1 == 23         ~ "$30,000 under $40,000", 
-      AGIR1 == 24         ~ "$40,000 under $50,000",
-      AGIR1 == 25         ~ "$50,000 under $75,000", 
-      AGIR1 == 26         ~ "$75,000 under $100,000", 
-      AGIR1 == 27         ~ "$100,000 under $200,000",
-      AGIR1 == 28         ~ "$200,000 under $500,000",
-      AGIR1 == 29         ~ "$500,000 under $1,000,000", 
-      AGIR1 == 30         ~ "$1,000,000 under $1,500,000",
-      AGIR1 == 31         ~ "$1,500,000 under $2,000,000", 
-      AGIR1 == 32         ~ "$2,000,000 under $5,000,000",
-      AGIR1 == 33         ~ "$5,000,000 under $10,000,000", 
-      AGIR1 == 34         ~ "$10,000,000 or more",
-      TRUE                ~ NA
-      ), 
-      # Make binary dummies for variables we want to target
-      wage_bin = E00200>0,
-      
-      ) %>%
-    filter(!is.na(AGI_Group)) %>%
-    mutate(val=1) %>%
-    spread(AGI_Group, val, 0)
-  
-  tax_units_grouped = tax_units  %>%
-    select(
-      "No adjusted gross income",
-      "$1 under $5,000",
-      "$5,000 under $10,000",
-      "$10,000 under $15,000",
-      "$15,000 under $20,000",
-      "$20,000 under $25,000",
-      "$25,000 under $30,000",
-      "$30,000 under $40,000",
-      "$40,000 under $50,000",
-      "$50,000 under $75,000",
-      "$75,000 under $100,000",
-      "$100,000 under $200,000",
-      "$200,000 under $500,000",
-      "$500,000 under $1,000,000",
-      "$1,000,000 under $1,500,000",
-      "$1,500,000 under $2,000,000",
-      "$2,000,000 under $5,000,000",
-      "$5,000,000 under $10,000,000",
-      "$10,000,000 or more"
-    )
+run_lp = function(lhs, rhs, e_runs) {
+  #----------------------------------------------------------------------------
+  # Runs Linear Programming solver to generate minimized scalars that 
+  #  satisfies the targets.
+  # 
+  # Parameters:
+  #   - lhs (matrix)       : Sparse matrix of scaled tax unit weights
+  #   - rhs (df)           : tibble of target parameter totals, processed
+  #   - e_runs (int)   : number of iterations to attempt to find ideal maximum
+  #                         deviation from observed weights
+  # 
+  # Returns: vector of scalars for each tax unit weight
+  #----------------------------------------------------------------------------  
   
   
-}
-
-build_lhs = function(tax_units) {
-  tax_units %<>%
-    rename(wt = S006) %>%
-    mutate(AGI_Group = case_when(
-      # Group AGI to match SOI categories
-      AGIR1 == 0          ~ "No adjusted gross income",
-      AGIR1 %in% c(1:5)   ~ "$1 under $5,000",
-      AGIR1 %in% c(6:10)  ~ "$5,000 under $10,000",
-      AGIR1 %in% c(11:15) ~ "$10,000 under $15,000",
-      AGIR1 %in% c(16:20) ~ "$15,000 under $20,000",
-      AGIR1 == 21         ~ "$20,000 under $25,000",
-      AGIR1 == 22         ~ "$25,000 under $30,000",
-      AGIR1 == 23         ~ "$30,000 under $40,000", 
-      AGIR1 == 24         ~ "$40,000 under $50,000",
-      AGIR1 == 25         ~ "$50,000 under $75,000", 
-      AGIR1 == 26         ~ "$75,000 under $100,000", 
-      AGIR1 == 27         ~ "$100,000 under $200,000",
-      AGIR1 == 28         ~ "$200,000 under $500,000",
-      AGIR1 == 29         ~ "$500,000 under $1,000,000", 
-      AGIR1 == 30         ~ "$1,000,000 under $1,500,000",
-      AGIR1 == 31         ~ "$1,500,000 under $2,000,000", 
-      AGIR1 == 32         ~ "$2,000,000 under $5,000,000",
-      AGIR1 == 33         ~ "$5,000,000 under $10,000,000", 
-      AGIR1 == 34         ~ "$10,000,000 or more",
-      TRUE                ~ NA
-    ), 
-    # Make binary dummies for variables we want to target
-    wage_bin = E00200>0,
-    
-    ) %>%
-    filter(!is.na(AGI_Group)) %>%
-    mutate(val=1) %>%
-    spread(AGI_Group, val, 0) %>%
-    
-}
-
-
-
-
-
-run_lp = function(puf_sel, targs, year, epsilon) {
-  
-  
-  lprw = make.lp(0, nrow(puf_sel))
+  # Construct solver reference
+  lprw = make.lp(0, nrow(lhs))
   
   # Objective Function
-  set.objfn(lprw, rep(1, nrow(puf_sel)))
-  
-  # Set up lhs
-  
-  # Set up directions
+  set.objfn(lprw, rep(1, nrow(lhs)))
   
   # Set up targets
-  rhs = targs %>%
-    filter(Year = year) %>%
-    select(-Year)
+  rhs %<>%
+    mutate(upper = target * (1 + tolerance),
+           lower = target * (1 - tolerance))
   
-  for(i in vars) {
-    add.constraint(lprw, 
-                   select(lhs, one_of(paste0(i, "_flag"))), 
-                   "<=", 
-                   select(filter(rhs, ), upper)
-                   )
+  # Add each column of the left hand side as the constant for decision variable 
+  # constraints, less than or equal to upper target range, less than or equal to lower
+  for(i in 1:ncol(lhs)) {
+    add.constraint(lprw,
+                   lhs[,i],
+                   "<=",
+                   rhs$upper[i]
+    )
+    
+    add.constraint(lprw,
+                   lhs[,i],
+                   ">=",
+                   rhs$lower[i]
+    )
   }
   
-  set.bounds(lprw, lower = rep(1-epsilon, nrow(FLAG)), upper = rep(1 + epsilon, nrow(FLAG)))
+  # Find ideal percent deviation from observed weights
+  epsilon = tune_epsilon(lprw, nrow(lhs), ncol(lhs), e_runs)
+  
+  # Set boundaries for new weight deviation from observed
+  set.bounds(lprw,
+             lower = rep(1-epsilon, nrow(lhs), columns = c(1:ncol(lhs))),
+             upper = rep(1 + epsilon, nrow(lhs), columns = c(1:ncol(lhs)))
+  )
   
   solve(lprw)
   
+  # Return decision variables
   return(get.variables(lprw))
+}
+
+
+
+
+tune_epsilon = function(lp, ncol, iters) {
+  #----------------------------------------------------------------------------
+  # Conducts binary search to find the tightest boundaries for scalars. Done to 
+  #  ensure that synthetic weights differ as little as possible from reported values.
+  # 
+  # Parameters:
+  #   - lp (reference)       : Linear Programming solver with objective function
+  #                               and constraint matrix.
+  #   - ncol (num)           : Number of columns in lp (equivalent to number of
+  #                               tax units)
+  #   - iters (num)          : number of iterations 
+  # 
+  # Returns:  Epsilon (num)  : Ideal boundary delta
+  #----------------------------------------------------------------------------  
+  
+  
+  # Initialize binary search
+  low = 0
+  test = .5
+  epsilon = .5
+  high = 1
+  
+  for(i in 1:iters) {
+    
+    # Set decision variable boundaries with the test epsilon
+    set.bounds(lp, lower = rep(1-test, ncol), columns = c(1:ncol)) 
+    set.bounds(lp, upper = rep(1 + test, ncol), columns = c(1:ncol))
+    
+    # Check if solver finds a valid solution and narrow search field dependent on success
+    if(solve(lp)==0){
+      high = test
+      epsilon = test
+      test = (test - low)/2 + low
+    } else {
+      l = test
+      test = (high - test)/2 + test
+    }
+  }
+  
+  # Display and return the ideal epsilon
+  print(paste0("Ideal Epsilon is ", epsilon))
+  
+  return(epsilon)
 }
 
 
