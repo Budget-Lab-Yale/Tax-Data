@@ -12,14 +12,23 @@
 # Load required packages
 lapply(readLines('requirements.txt'), library, character.only = T)
 
+# Read runtime configuration params and set filepaths
 source('./src/configure.R')
 
+# Set random seed 
+set.seed(76)
 
-# TODO steps
+
+
+#----------------
+# Build tax data
+#----------------
+
+# Read and process targets
+source('./src/process_targets.R')
 
 # 1) read and process PUF
 
-# 2) read and process targets
 
 # 3) create 2017 PUF
 
