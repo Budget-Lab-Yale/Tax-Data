@@ -27,17 +27,13 @@ set.seed(76)
 # Read and process targets
 source('./src/process_targets.R')
 
-# 1) read and process PUF
+# Read and process PUF
+source('./src/process_puf.R')
 
+# TODO create 2017 PUF
 
-# 3) create 2017 PUF
+# TODO add nonfilers and do other imputations
 
-# 4) create 2019 targets for censored vars
-
-# 5) create 2019 PUF 
-
-# 6) add nonfilers and do other imputations
-
-# 7) create 2020 -> 2053 PUFs
+# TODO create 2018 -> 2053 PUFs
 
 

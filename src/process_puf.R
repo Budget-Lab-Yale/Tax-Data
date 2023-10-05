@@ -221,11 +221,15 @@ puf %<>%
          dep_age_group2 = if_else(n_dep > 0, imputed_dep_age_group2, dep_age_group2), 
          dep_age_group3 = if_else(n_dep > 0, imputed_dep_age_group3, dep_age_group3))
     
-    
 
+#------------------------
+# Other processing steps
+#------------------------
 
-
-
+puf %<>% 
+  
+  # Remove aggregate returns (for now)
+  filter(RECID < 999996)
 
 
 
