@@ -59,7 +59,7 @@ puf %<>%
       T       ~ 6
     ),
     
-    # Recode age group variabe
+    # Recode age group variable
     age_group = if_else(DSI == 1,
                         case_when(AGERANGE == 0     ~ 0,
                                   AGERANGE %in% 1:2 ~ 1, 
@@ -67,9 +67,10 @@ puf %<>%
                         AGERANGE)
   )
 
+# Calculate CDF for age ranges by filing status / AGI group
 age_dist_cdf = age_dist %>% 
   
-  # Calculate difference between PUF  and actuals
+  # Calculate difference between PUF and actuals
   left_join(
     puf %>% 
       group_by(filing_status = MARS, 
@@ -81,7 +82,7 @@ age_dist_cdf = age_dist %>%
   ) %>% 
   mutate(diff = puf - actual) %>% 
   
-  # Calculate CDF for ages by filing status / AGI group
+  # Calculate CDF
   filter(diff < 0) %>%
   group_by(filing_status, agi_group) %>% 
   mutate(p = cumsum(diff / sum(diff))) %>% 
@@ -229,7 +230,15 @@ puf %<>%
 puf %<>% 
   
   # Remove aggregate returns (for now)
-  filter(RECID < 999996)
+  filter(RECID < 999996) %>% 
+  
+  mutate(
+    
+    # Add target variable dummies
+    returns = 1, 
+    has_dep = 1
+    
+  )
 
 
 
