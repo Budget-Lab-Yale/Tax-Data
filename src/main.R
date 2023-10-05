@@ -12,23 +12,28 @@
 # Load required packages
 lapply(readLines('requirements.txt'), library, character.only = T)
 
+# Read runtime configuration params and set filepaths
 source('./src/configure.R')
 
+# Set random seed 
+set.seed(76)
 
-# TODO steps
 
-# 1) read and process PUF
 
-# 2) read and process targets
+#----------------
+# Build tax data
+#----------------
 
-# 3) create 2017 PUF
+# Read and process targets
+source('./src/process_targets.R')
 
-# 4) create 2019 targets for censored vars
+# Read and process PUF
+source('./src/process_puf.R')
 
-# 5) create 2019 PUF 
+# TODO create 2017 PUF
 
-# 6) add nonfilers and do other imputations
+# TODO add nonfilers and do other imputations
 
-# 7) create 2020 -> 2053 PUFs
+# TODO create 2018 -> 2053 PUFs
 
 
