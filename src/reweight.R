@@ -18,12 +18,11 @@ reweight_lp = function(puf, targets, e_runs = 10) {
   ratio = scale_ratio(puf, filter(targets, variable=="returns" &
                                     str_length(filing_status) > 1 &
                                     str_length(age_group) > 1))
-  
+
   # Adjust weights by scale ratio
-  puf %<>% group_by(AGI_Group) %>%
-    left_join(ratio, by = "AGI_Group") %>%
-    map(.x = S006,
-        .f = ~ .x * ratio) %>%
+  puf %<>% group_by(agi_group) %>%
+    left_join(ratio, by = "agi_group") %>%
+    mutate(across(S006, ~ .x * ratio)) %>%
     select(-ratio)
   
   # Construct left hand side of constraint equations
@@ -107,11 +106,11 @@ scale_ratio = function(puf, ret_targets) {
   
   
   puf %>%
-    group_by(AGI_Group) %>% 
+    group_by(agi_group) %>% 
     summarize(group_wt = sum(S006)/100) %>%
-    left_join(select(ret_targets, AGI_Group, target), by="AGI_Group") %>%
+    left_join(select(ret_targets, agi_group, target), by="agi_group") %>%
     mutate(ratio = target/group_wt) %>%
-    select(AGI_Group, ratio) %>%
+    select(agi_group, ratio) %>%
     return()
 }
 
@@ -124,23 +123,23 @@ run_lp = function(lhs, rhs, e_runs) {
   # Parameters:
   #   - lhs (matrix)       : Sparse matrix of scaled tax unit weights
   #   - rhs (df)           : tibble of target parameter totals, processed
-  #   - e_runs (int)   : number of iterations to attempt to find ideal maximum
-  #                         deviation from observed weights
+  #   - e_runs (int)       : number of iterations to attempt to find ideal 
+  #                           maximum deviation from observed weights
   # 
   # Returns: vector of scalars for each tax unit weight
   #----------------------------------------------------------------------------  
   
   
   # Construct solver reference
-  lprw = make.lp(0, nrow(lhs))
+  lprw = make.lp(ncol(lhs), nrow(lhs))
   
   # Objective Function
   set.objfn(lprw, rep(1, nrow(lhs)))
   
   # Set up targets
   rhs %<>%
-    mutate(upper = target * (1 + tolerance),
-           lower = target * (1 - tolerance))
+    mutate(upper = target_value * (1 + tolerance),
+           lower = target_value * (1 - tolerance))
   
   # Add each column of the left hand side as the constant for decision variable 
   # constraints, less than or equal to upper target range, less than or equal to lower
@@ -159,7 +158,7 @@ run_lp = function(lhs, rhs, e_runs) {
   }
   
   # Find ideal percent deviation from observed weights
-  epsilon = tune_epsilon(lprw, nrow(lhs), ncol(lhs), e_runs)
+  epsilon = tune_epsilon(lprw, nrow(lhs), e_runs)
   
   # Set boundaries for new weight deviation from observed
   set.bounds(lprw,
@@ -200,6 +199,8 @@ tune_epsilon = function(lp, ncol, iters) {
   
   for(i in 1:iters) {
     
+    print(paste0("Currently testing ", test, "..."))
+    
     # Set decision variable boundaries with the test epsilon
     set.bounds(lp, lower = rep(1-test, ncol), columns = c(1:ncol)) 
     set.bounds(lp, upper = rep(1 + test, ncol), columns = c(1:ncol))
@@ -213,6 +214,7 @@ tune_epsilon = function(lp, ncol, iters) {
       l = test
       test = (high - test)/2 + test
     }
+    
   }
   
   # Display and return the ideal epsilon
