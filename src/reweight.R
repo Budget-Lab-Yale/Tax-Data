@@ -109,7 +109,7 @@ run_lp = function(lhs, rhs, e, e_runs) {
   
   
   # Construct solver reference
-  lprw = make.lp(0, nrow(lhs))
+  lprw = make.lp(ncol(lhs), nrow(lhs))
   
   # Objective Function
   set.objfn(lprw, rep(1, nrow(lhs)))
