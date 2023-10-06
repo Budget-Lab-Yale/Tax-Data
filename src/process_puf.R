@@ -243,7 +243,7 @@ puf %<>%
     
     # Add target variable dummies
     returns = 1, 
-    has_dep = 1,
+    has_dep = as.integer(n_dep > 0),
     
     # Add AGI group variable per table 1.6 
     agi_group = cut(x              = E00100, 

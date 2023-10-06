@@ -32,8 +32,15 @@ puf_2017 = puf %>%
 # Target specified count variables via LP method
 #------------------------------------------------
 
+# Get targets for all specified constraints
+targets = target_info %>% 
+  bind_cols(
+    map_df(.x = 1:nrow(target_info), 
+           .f = ~ get_target_value(target_info[.x, ]))
+  )
 
 
+test = reweight_lp(puf_2017, targets, e = 0.5)
 
 
 
