@@ -30,7 +30,9 @@ source('./src/process_targets.R')
 # Read and process PUF
 source('./src/process_puf.R')
 
-# TODO create 2017 PUF
+# Create 2017 PUF
+source('./src/reweight.R')
+source('./src/create_2017_puf.R')
 
 # TODO add nonfilers and do other imputations
 

@@ -80,9 +80,6 @@ tables$table_3_3 %<>%
 
 
 
-#-------------
-# Get targets
-#-------------
 
 # Define function to get targets for a given row in the constraints info
 get_target_value = function(constraint) {
@@ -123,12 +120,5 @@ get_target_value = function(constraint) {
 }
 
 
-
-# Get targets for all specified constraints
-target_info %<>% 
-  bind_cols(
-     map_df(.x = 1:nrow(target_info), 
-            .f = ~ get_target_value(target_info[.x, ]))
-  )
 
 

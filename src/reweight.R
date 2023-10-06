@@ -1,40 +1,38 @@
+#------------------------------------------------------------------------------
+# reweight.R 
+#
+# Contains functions to reweight PUF such that specified target values are hit
+#------------------------------------------------------------------------------
 
-reweight_lp = function(puf, targets, e_runs = 10) {
+
+reweight_lp = function(puf, targets, e = NULL, e_runs = 10) {
+  
   #----------------------------------------------------------------------------
   # Adjusts weights using Linear Programming such that PUF records match 
   # Statistics of Income totals for a given year.
   # 
   # Parameters:
-  #   - puf (df)       : tibble of tax units, processed
-  #   - targets (df)   : tibble of target parameter totals, processed
-  #   - e_runs (int)   : number of iterations to attempt to find ideal maximum
-  #                         deviation from observed weights
+  #   - puf (df)     : tibble of tax units, processed
+  #   - targets (df) : tibble of target parameter totals, processed
+  #   - e (dbl)      : episilon value; if NULL, find optimal value using e_runs
+  #   - e_runs (int) : number of iterations to attempt to find ideal maximum
+  #                    deviation from observed weights
   # 
-  # Returns: vector of scalars for each tax unit weight
+  # Returns: if solver finds a valid solution, vector of weight rescaling 
+  #          factors; if not, returns NULL
   #----------------------------------------------------------------------------  
-  
-  
-  # Calculate ratio at which to scale all weights from base year to target year
-  ratio = scale_ratio(puf, filter(targets, variable=="returns" &
-                                    str_length(filing_status) > 1 &
-                                    str_length(age_group) > 1))
-  
-  # Adjust weights by scale ratio
-  puf %<>% group_by(AGI_Group) %>%
-    left_join(ratio, by = "AGI_Group") %>%
-    map(.x = S006,
-        .f = ~ .x * ratio) %>%
-    select(-ratio)
   
   # Construct left hand side of constraint equations
   lhs = build_lhs(puf, targets)
   
-  # Run Linear Programming Solver
-  return(run_lp(lhs, targets, e_runs))
-  
+  # Run Linear Programming solver
+  return(run_lp(lhs, targets, e, e_runs))
 }
 
+
+
 build_lhs = function(puf, targets) {
+  
   #----------------------------------------------------------------------------
   # Constructs left hand side of constraint equations for the LP Solver
   # 
@@ -53,7 +51,7 @@ build_lhs = function(puf, targets) {
   # Construct output matrix
   lhs = matrix(nrow = nrow(puf), ncol = nrow(targets))
   
-  for(i in 1:nrow(targets)) {
+  for (i in 1:nrow(targets)) {
     
     # Select target row
     this_constraint = targets[i,]
@@ -63,15 +61,13 @@ build_lhs = function(puf, targets) {
     
     # Valid filing statuses
     filing_status = this_constraint[["filing_status"]] %>%
-      strsplit(' ') %>%
-      unlist() %>%
+      str_split_1(' ') %>%
       as.numeric()
     
     # Valid age groups
     age_group = this_constraint[["age_group"]] %>%
-      strsplit(' ') %>%
-      unlist() %>%
-      as.numeric
+      str_split_1(' ') %>%
+      as.numeric()
     
     # Minimum and maximum AGIs
     agi_min = this_constraint[["agi_min"]]
@@ -81,7 +77,7 @@ build_lhs = function(puf, targets) {
     column = (puf$S006 / 100) * 
       puf[[variable]] * 
       (puf$MARS %in% filing_status) * 
-      (puf$AGERANGE %in% age_group) * 
+      (puf$age_group %in% age_group) * 
       (puf$E00100 >= agi_min) * 
       (puf$E00100 < agi_max)
     
@@ -93,41 +89,22 @@ build_lhs = function(puf, targets) {
   
 }
 
-scale_ratio = function(puf, ret_targets) {
-  #----------------------------------------------------------------------------
-  # Calculates scale ratio between tax unit weights and number of returns for
-  # the target year
-  # 
-  # Parameters:
-  #   - puf (df)            : tibble of tax units, processed, including AGI groups
-  #   - ret_targets (df)    : tibble of number of returns grouped by AGI
-  # 
-  # Returns: tibble containing AGI group and its scale ratio
-  #----------------------------------------------------------------------------  
-  
-  
-  puf %>%
-    group_by(AGI_Group) %>% 
-    summarize(group_wt = sum(S006)/100) %>%
-    left_join(select(ret_targets, AGI_Group, target), by="AGI_Group") %>%
-    mutate(ratio = target/group_wt) %>%
-    select(AGI_Group, ratio) %>%
-    return()
-}
 
 
-run_lp = function(lhs, rhs, e_runs) {
+run_lp = function(lhs, rhs, e, e_runs) {
+  
   #----------------------------------------------------------------------------
   # Runs Linear Programming solver to generate minimized scalars that 
   #  satisfies the targets.
   # 
   # Parameters:
-  #   - lhs (matrix)       : Sparse matrix of scaled tax unit weights
-  #   - rhs (df)           : tibble of target parameter totals, processed
-  #   - e_runs (int)   : number of iterations to attempt to find ideal maximum
-  #                         deviation from observed weights
+  #   - lhs (matrix) : Sparse matrix of scaled tax unit weights
+  #   - rhs (df)     : tibble of target parameter totals, processed
+  #   - e (dbl)      : episilon value; if NULL, find optimal value using e_runs
+  #   - e_runs (int) : number of iterations to attempt to find ideal maximum
+  #                    deviation from observed weights
   # 
-  # Returns: vector of scalars for each tax unit weight
+  # Returns: vector of weight adjustment factors if solved; NULL otherwise
   #----------------------------------------------------------------------------  
   
   
@@ -139,12 +116,12 @@ run_lp = function(lhs, rhs, e_runs) {
   
   # Set up targets
   rhs %<>%
-    mutate(upper = target * (1 + tolerance),
-           lower = target * (1 - tolerance))
+    mutate(upper = target_value * (1 + tolerance),
+           lower = target_value * (1 - tolerance))
   
   # Add each column of the left hand side as the constant for decision variable 
   # constraints, less than or equal to upper target range, less than or equal to lower
-  for(i in 1:ncol(lhs)) {
+  for (i in 1:ncol(lhs)) {
     add.constraint(lprw,
                    lhs[,i],
                    "<=",
@@ -158,25 +135,34 @@ run_lp = function(lhs, rhs, e_runs) {
     )
   }
   
-  # Find ideal percent deviation from observed weights
-  epsilon = tune_epsilon(lprw, nrow(lhs), ncol(lhs), e_runs)
+  # Set epsilon (maximum percent deviation from observed weights). If not 
+  # supplied, search for optimal value
+  epsilon = e 
+  if (is.null(e)) {
+    epsilon = tune_epsilon(lprw, nrow(lhs), ncol(lhs), e_runs)
+  }
   
   # Set boundaries for new weight deviation from observed
   set.bounds(lprw,
-             lower = rep(1-epsilon, nrow(lhs), columns = c(1:ncol(lhs))),
+             lower = rep(1 - epsilon, nrow(lhs), columns = c(1:ncol(lhs))),
              upper = rep(1 + epsilon, nrow(lhs), columns = c(1:ncol(lhs)))
   )
   
-  solve(lprw)
+  # Attempt to solve system of equations
+  solution = solve(lprw)
   
-  # Return decision variables
-  return(get.variables(lprw))
+  # Return reweighting factors if a solution could be found; NULL if not
+  if (solution == 0) {
+    return(get.variables(lprw))
+  } else {
+    return(NULL)
+  }
 }
 
 
 
-
 tune_epsilon = function(lp, ncol, iters) {
+  
   #----------------------------------------------------------------------------
   # Conducts binary search to find the tightest boundaries for scalars. Done to 
   #  ensure that synthetic weights differ as little as possible from reported values.
@@ -193,25 +179,25 @@ tune_epsilon = function(lp, ncol, iters) {
   
   
   # Initialize binary search
-  low = 0
-  test = .5
-  epsilon = .5
-  high = 1
+  low     = 0
+  test    = 0.5
+  epsilon = 0.5
+  high    = 1
   
-  for(i in 1:iters) {
+  for (i in 1:iters) {
     
     # Set decision variable boundaries with the test epsilon
-    set.bounds(lp, lower = rep(1-test, ncol), columns = c(1:ncol)) 
+    set.bounds(lp, lower = rep(1 - test, ncol), columns = c(1:ncol)) 
     set.bounds(lp, upper = rep(1 + test, ncol), columns = c(1:ncol))
     
     # Check if solver finds a valid solution and narrow search field dependent on success
-    if(solve(lp)==0){
-      high = test
+    if (solve(lp) == 0){
+      high    = test
       epsilon = test
-      test = (test - low)/2 + low
+      test    = (test - low) / 2 + low
     } else {
-      l = test
-      test = (high - test)/2 + test
+      l    = test
+      test = (high - test) / 2 + test
     }
   }
   
