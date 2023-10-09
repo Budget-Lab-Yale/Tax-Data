@@ -18,9 +18,9 @@ raw_puf = interface_paths$`IRS-PUF` %>%
 puf = raw_puf
 
 
-#-------------------
-# Impute age groups
-#-------------------
+#-----------------------------------------------
+# Impute age groups (necessary for reweighting)
+#-----------------------------------------------
 
 # Set agi bins for age imputation modeling 
 age_dist_agi_groups = c(-1e99, 75000, 1e99)
