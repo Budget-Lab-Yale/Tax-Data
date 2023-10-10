@@ -1,9 +1,9 @@
 variable,description,source,name_puf
-id,record ID,imputed,NA
-weight,record weight,puf,S006
+id,record ID,puf,RECID
+weight,record weight,imputed,NA
 filer,whether tax unit filed tax return,imputed,NA
 dep_status,whether filer is a dependent,puf,DSI
-filing_status,filing status,puf,NA
+filing_status,filing status,puf,MARS
 age1,age of primary filer,imputed ,NA
 age2,age of secondary filer,imputed ,NA
 blind1,whether primary filer is blind,imputed ,NA

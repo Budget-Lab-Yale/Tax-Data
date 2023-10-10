@@ -10,7 +10,7 @@
 #--------------------------------------------------------------
 
 puf %<>%
-  mutate(married = as.integer(MARS == 2), 
+  mutate(married = as.integer(filing_status == 2), 
          senior  = as.integer(age_group == 6)) 
 
 # Calculate weight scaling factors by semi-aggregated filing status X age X AGI groups
@@ -23,16 +23,17 @@ weight_scaling_factors = tables$table_1_6 %>%
             .groups = 'drop') %>% 
   left_join(puf %>% 
               group_by(married, senior, agi_group) %>% 
-              summarise(puf = sum(S006 / 100), 
+              summarise(puf = sum(weight), 
                         .groups = 'drop'), 
             by = c('married', 'senior', 'agi_group')) %>%
-  mutate(factor = count2017 / puf)
+  mutate(factor = count2017 / puf) %>% 
+  select(-count2017, -puf)
 
   
 # Apply adjustment factors to PUF, creating 2017 tibble
 puf_2017 = puf %>% 
   left_join(weight_scaling_factors, by = c('married', 'senior', 'agi_group')) %>% 
-  mutate(S006 = S006 * factor) %>% 
+  mutate(weight = weight * factor) %>% 
   select(-factor)
 
 
@@ -51,5 +52,5 @@ targets = target_info %>%
 weight_deltas = reweight_lp(puf_2017, targets, e = 0.5)
 
 puf_2017 %<>% 
-  mutate(S006 = S006 * weight_deltas)
+  mutate(weight = weight * weight_deltas)
 

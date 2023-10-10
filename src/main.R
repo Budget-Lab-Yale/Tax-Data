@@ -19,7 +19,6 @@ source('./src/configure.R')
 set.seed(76)
 
 
-
 #----------------
 # Build tax data
 #----------------
@@ -34,7 +33,12 @@ source('./src/process_puf.R')
 source('./src/reweight.R')
 source('./src/create_2017_puf.R')
 
-# TODO add nonfilers and do other imputations
+# Impute variables
+# TODO source('./src/impute_variables.R')
+
+# Impute nonfilers
+source('./src/impute_nonfilers.R')
+
 
 # TODO create 2018 -> 2053 PUFs
 

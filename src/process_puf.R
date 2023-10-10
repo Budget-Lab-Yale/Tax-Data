@@ -223,10 +223,19 @@ puf %<>%
          dep_age_group3 = if_else(n_dep > 0, imputed_dep_age_group3, dep_age_group3))
     
 
-#------------------------
-# Other processing steps
-#------------------------
+#---------------------------------
+# Rename and subset PUF variables
+#---------------------------------
 
+# Read variable naming guide/crosswalk
+variable_guide = read_csv('./resources/variable_guide.csv')
+crosswalk = variable_guide %>% 
+  filter(!is.na(name_puf)) 
+crosswalk = crosswalk$variable %>% 
+  set_names(crosswalk$name_puf)
+  
+  
+# Define AGI groups
 agi_groups_2015 = tables$table_1_6 %>% 
   filter(year == 2015) %>% 
   distinct(agi) %>% 
@@ -234,12 +243,15 @@ agi_groups_2015 = tables$table_1_6 %>%
   set_names(NULL) %>% 
   c(1e99)
 
-puf %<>% 
+puf %<>%
   
   # Remove aggregate returns (for now)
   filter(RECID < 999996) %>% 
   
   mutate(
+    
+    # Create correct-unit weight variable
+    weight = S006 / 100,
     
     # Add target variable dummies
     returns = 1, 
@@ -253,7 +265,17 @@ puf %<>%
                     labels         = head(agi_groups_2015, -1)) %>% 
       as.character() %>% 
       as.numeric()
-  )
+    
+  ) %>% 
+  
+  # Rename and subset variables
+  rename_with(.fn = ~ if_else(. %in% names(crosswalk), crosswalk[.], .)) %>% 
+  select(any_of(variable_guide$variable), 
+         contains('age_group'), 
+         returns, 
+         has_dep, 
+         E00100,
+         agi_group)
 
 
 
