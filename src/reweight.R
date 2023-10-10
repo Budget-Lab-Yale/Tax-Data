@@ -74,9 +74,9 @@ build_lhs = function(puf, targets) {
     agi_max = this_constraint[["agi_max"]]
     
     # Adjust weight to accurate decimal place, then use binary flags to check validity
-    column = (puf$S006 / 100) * 
+    column = puf$weight * 
       puf[[variable]] * 
-      (puf$MARS %in% filing_status) * 
+      (puf$filing_status %in% filing_status) * 
       (puf$age_group %in% age_group) * 
       (puf$E00100 >= agi_min) * 
       (puf$E00100 < agi_max)
