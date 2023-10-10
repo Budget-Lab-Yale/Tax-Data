@@ -264,17 +264,47 @@ puf %<>%
                     right          = F, 
                     labels         = head(agi_groups_2015, -1)) %>% 
       as.character() %>% 
-      as.numeric()
+      as.numeric(),
     
+    # Derived variable: non-preferred dividend income
+    div_ord = E00600 - E00650,
+    
+    # Derived variable: partnership income subject to SECA
+    part_se = if_else(E25940 + E25980 - E25920 - E25960 != 0,  
+                      (E30400 + E30500) / 0.9235 - E00900 - E02100,
+                      0),
+    
+    # Other income residual in AGI
+    other_inc = E00100 - E00200 - E00300 - E00600 - E00700 - E00800 - E00900 - 
+                E01000 - E01100 - E01200 - E01400 - E01700 - E02000 - E02100 - 
+                E02300 - E02500,
+    
+    # Other itemized deductions
+    sch_a_4 = pmax(0, E17500 - pmax(0, E00100 * if_else(age_group == 6, 0.075, 0.1))), 
+    sch_a_9 = E18400 + E18500,
+    other_item_exp = if_else(FDED == 1, 
+                             P04470 + E21040 - sch_a_4 - sch_a_9 - E19200 - E19700 - E20500 - E20800, 
+                             0), 
+    
+    # Miscellaneous adjustments for AMT
+    amt_other_adj = if_else(F6251 == 0, 0, E60000 -
+                                           if_else(FDED == 1, 
+                                                   sch_a_4 + sch_a_9 + sch_a_9 - E21040 - E00700,
+                                                   0) - 
+                                           P60100)
   ) %>% 
   
   # Rename and subset variables
   rename_with(.fn = ~ if_else(. %in% names(crosswalk), crosswalk[.], .)) %>% 
   select(any_of(variable_guide$variable), 
+         GENDER,
+         EARNSPLIT,
          contains('age_group'), 
          returns, 
          has_dep, 
          E00100,
+         E30400,
+         E30500,
          agi_group)
 
 

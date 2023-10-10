@@ -9,8 +9,12 @@
 # - get actual distributions of ages within buckets
 # - improve secondary age imputation
 # - improve earnings split imputation
+# - vary SSN status by income
 
 tax_units = puf_2017
+
+
+
 
 #----------------------------
 # Primary and secondary ages
@@ -18,7 +22,6 @@ tax_units = puf_2017
 
 tax_units %<>% 
   mutate(
-    
     
     # Distribute ages uniformly within bands; top-code ages at 65
     age1 = case_when(
@@ -100,24 +103,59 @@ dep_ages = tax_units %>%
               names_sep   = '',
               values_from = age)
 
+# Add to dataframe
 tax_units %<>% 
   select(-starts_with('dep_age_group')) %>% 
   left_join(dep_ages, by = 'id')
   
   
-
 #--------------------------------
 # Impute SSN status for children
 #--------------------------------
 
-# TODO
+# Source: ITEP (https://itep.org/inclusive-child-tax-credit-reform-would-restore-benefit-to-1-million-young-dreamers/)
+share_without_ssn = 1098100 / 75e6
+
+# Assume perfect correlation of SSN status within tax units
+tax_units %<>% 
+  mutate(ssn          = runif(nrow(.)) > share_without_ssn,
+         dep_ssn1     = if_else(!is.na(dep_age1), ssn, NA),
+         dep_ssn2     = if_else(!is.na(dep_age2), ssn, NA),
+         dep_ssn3     = if_else(!is.na(dep_age3), ssn, NA),
+         dep_ctc_ssn1 = if_else(!is.na(dep_ctc_age1), ssn, NA),
+         dep_ctc_ssn2 = if_else(!is.na(dep_ctc_age2), ssn, NA),
+         dep_ctc_ssn3 = if_else(!is.na(dep_ctc_age3), ssn, NA)) %>% 
+  select(-ssn)
 
 
 #-----------------------
 # Impute earnings split
 #-----------------------
 
-# TODO
+
+
+# TODO 
+# 1) set 100% for filing_status != 2
+# 2) use EARNSPLIT where possible
+# 3) use GENDER for missings .... wait not possible
+
+# TODO wages, 
+
+# Impute self-employment component split in proportion to total
+tax_units %<>%
+  mutate(
+    se_primary_share = E30400 / (E30400 + E30500),
+    
+    sole_prop1 = sole_prop * se_primary_share,
+    sole_prop2 = sole_prop * (1 - se_primary_share),
+    
+    farm1 = farm * se_primary_share,
+    farm2 = farm * (1 - se_primary_share),
+    
+    part_se1 = part_se * se_primary_share,
+    part_se2 = part_se * (1 - se_primary_share)
+  )
+
 
 #------------------------------------------
 # W2 wages paid in pass through businesses
