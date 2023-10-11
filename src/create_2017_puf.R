@@ -52,5 +52,7 @@ targets = target_info %>%
 weight_deltas = reweight_lp(puf_2017, targets, e = 0.5)
 
 puf_2017 %<>% 
-  mutate(weight = weight * weight_deltas)
+  mutate(
+    raw_weight = weight,
+    weight = weight * weight_deltas)
 
