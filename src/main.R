@@ -34,7 +34,7 @@ source('./src/reweight.R')
 source('./src/create_2017_puf.R')
 
 # Impute variables
-# TODO source('./src/impute_variables.R')
+source('./src/impute_variables.R')
 
 # Impute nonfilers
 source('./src/impute_nonfilers.R')
