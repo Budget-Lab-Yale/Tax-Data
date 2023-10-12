@@ -65,12 +65,9 @@ nonfilers_2017 = dina_2017 %>%
                                                 (19 - 17) / 19))),
     
     # credit-qualifying children: assume all age-qualifying dependents qualify
-    dep_ctc_age_group1 = if_else(!is.na(dep_age_group1) & dep_age_group1 < 4, dep_age_group1, NA),
-    dep_ctc_age_group2 = if_else(!is.na(dep_age_group2) & dep_age_group2 < 4, dep_age_group2, NA),
-    dep_ctc_age_group3 = if_else(!is.na(dep_age_group3) & dep_age_group3 < 4, dep_age_group3, NA),
-    n_dep_ctc          = !is.na(dep_ctc_age_group1) + 
-                         !is.na(dep_ctc_age_group2) + 
-                         !is.na(dep_ctc_age_group3),
+    n_dep_ctc  = (!is.na(dep_age_group1) & dep_age_group1 < 4) + 
+                 (!is.na(dep_age_group2) & dep_age_group2 < 4) + 
+                 (!is.na(dep_age_group3) & dep_age_group3 < 4),
     n_dep_eitc = n_dep_ctc,
     
     # Wage earnings (assume 100% is earned by primary)

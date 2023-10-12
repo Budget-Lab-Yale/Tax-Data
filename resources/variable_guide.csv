@@ -18,12 +18,12 @@ dep_ssn3,whether oldest dependent has a SNN,imputed,NA
 n_dep_ctc,number of CTC-qualifying children under 2015 rules,puf,N24
 dep_ctc1,whether youngest dependent qualifies for CTC,imputed,NA
 dep_ctc2,whether second youngest dependent qualifies for CTC,imputed,NA
-dep_ctc3,whether oldest dependent qualifies for CTC,imputed ,NA
+dep_ctc3,whether oldest dependent qualifies for CTC,imputed,NA
 n_dep_eitc,number of EITC-qualifying children under 2015 rules,puf,EIC
 wages,W2 wages for tax unit,puf,E00200
 wages1,primary filer's share of wages,imputed,NA
 wages2,secondary filer's share of wages,imputed,NA
-trad_contr_er_1,primary filer's contributions to pretax savings accounts,imputed,NA
+trad_contr_er1,primary filer's contributions to pretax savings accounts,imputed,NA
 trad_contr_er2,secondary filer's contributions to pretax savings accounts,imputed,NA
 txbl_int,taxable interest income,puf,E00300
 exempt_int,tax-exempt interest income,puf,E00400
@@ -78,15 +78,15 @@ other_inc,other income,derived,NA
 ed_exp,educator expenses,puf,E03220
 hsa_contr,"health savings account contributions, nonwithheld",puf,E03290
 trad_contr_ira,pretax IRA contributions,puf,E03150
-sl_int_ded,student loan interest dedution,E03210
+sl_int_ded,student loan interest dedution,puf,E03210
 keogh_contr,payments to Keough accounts,puf,E03300
 se_health,self-employed health insurance deduction,puf,E03270
 early_penalty,penalty for early withdraw of retirement funds,puf,E03400
 alimony_exp,alimony paid,puf,E03500
 tuition_ded,tuition and fees deduction,puf,E03230
 dpad,domestic production activities deduction,puf,E03240
-char_cash,cash charitable contributions,imputed,NA
-char_noncash,noncash charitable contributions,imputed,NA
+char_cash,cash charitable contributions,puf,E19800
+char_noncash,noncash charitable contributions,puf,E20100
 other_above_ded,other above-the-line deductions,imputed,NA
 med_exp,medical expenses for itemizers,puf,E17500
 salt_inc_sales,greater of state and local income or sales tax paid for itemizers,puf,E18400
