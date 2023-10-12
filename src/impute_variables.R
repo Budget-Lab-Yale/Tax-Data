@@ -15,6 +15,22 @@
 
 
 
+
+#-----------
+# Blindness
+#-----------
+
+# Set parameter based on 1040 line item estimates
+share_blind = (260535 + 83983) / 104013115  # number of blind standard deductions taken over number of nonitemizers
+
+# Impute
+tax_units %<>% 
+  mutate(blind1 = runif(nrow(.)) < share_blind, 
+         blind2 = if_else(filing_status == 2, 
+                          runif(nrow(.)) < share_blind, 
+                          NA))
+
+
 #----------------------------
 # Primary and secondary ages
 #----------------------------
@@ -198,12 +214,9 @@ tax_units %<>%
     # Set to 100% for all non-joint returns
     wage_primary_share = if_else(filing_status != 2, 1, wage_primary_share),
     
-    # Set wages and placeholder pretax contribution variables
+    # Set wages
     wages1 = wages * wage_primary_share, 
-    wages2 = wages * (1 - wage_primary_share),
-    
-    trad_contr_er1 = 0, 
-    trad_contr_er2 = 0
+    wages2 = wages * (1 - wage_primary_share)
   )
 
 
@@ -305,4 +318,45 @@ tax_units %<>%
          wagebill_farm = if_else(farm > 0, farm, if_else(farm == 0, NA, 0)))
   
 
+#-------------------------------
+# Student loan interest expense 
+#-------------------------------
 
+# TODO
+
+#-----------
+# TODO LIST
+#-----------
+
+# This section includes placeholder imputations that will be revisited 
+# when time allows
+tax_units %<>% 
+  mutate(
+    
+    # Pretax contributions via employer
+    trad_contr_er1 = 0, 
+    trad_contr_er2 = 0,
+    
+    # Divorce year 
+    divorce_year = if_else(alimony_received > 0 | alimony_paid > 0, 0, NA),
+    
+    # Net operating losses (currently captured through other income residual)
+    nols = 0,
+    
+    # Other above-the-line deductions (currently captured through other income residual)
+    other_above_ded = 0, 
+    
+    # Mortgage and investment interest deduction info
+    first_mort_int   = E19200,
+    second_mort_int  = 0, 
+    first_mort_bal   = 0, 
+    second_mort_bal  = 0, 
+    first_mort_year  = 0, 
+    second_mort_year = 0, 
+    inv_int_exp      = 0,
+    
+    # Personal property taxes
+    salt_pers = 0
+    
+    
+  )
