@@ -338,7 +338,7 @@ tax_units %<>%
     trad_contr_er2 = 0,
     
     # Divorce year 
-    divorce_year = if_else(alimony_received > 0 | alimony_paid > 0, 0, NA),
+    divorce_year = if_else(alimony > 0 | alimony_exp > 0, 0, NA),
     
     # Net operating losses (currently captured through other income residual)
     nols = 0,
@@ -357,6 +357,4 @@ tax_units %<>%
     
     # Personal property taxes
     salt_pers = 0
-    
-    
   )

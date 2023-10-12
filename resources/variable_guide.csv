@@ -78,7 +78,7 @@ other_inc,other income,derived,NA
 ed_exp,educator expenses,puf,E03220
 hsa_contr,"health savings account contributions, nonwithheld",puf,E03290
 trad_contr_ira,pretax IRA contributions,puf,E03150
-sl_int_exp,student loan interest expense,imputed,NA
+sl_int_ded,student loan interest dedution,E03210
 keogh_contr,payments to Keough accounts,puf,E03300
 se_health,self-employed health insurance deduction,puf,E03270
 early_penalty,penalty for early withdraw of retirement funds,puf,E03400
