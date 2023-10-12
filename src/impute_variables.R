@@ -13,9 +13,6 @@
 # - actually impute pretax contributions
 # - higher fidelty wage earnings split for EARNINGS var, including consistent notion of gender/primary status interaction  
 
-tax_units = puf_2017
-
-
 
 
 #----------------------------
@@ -88,7 +85,7 @@ dep_ages = tax_units %>%
                            NA),
     dep_ctc_age3 = if_else(!is.na(dep_age3) & dep_age3 < 17 & n_dep_ctc > 2, 
                            dep_age3,
-                           NA)
+                           NA),
   ) %>%   
   select(id, dep_age1, dep_age2, dep_age3, dep_ctc_age1, dep_ctc_age2, dep_ctc_age3) %>% 
   
@@ -175,7 +172,7 @@ wage_primary_share = tax_units %>%
            as.numeric() %>% 
            replace_na(0)) %>% 
   
-  mutate(draw = runif(nrow(.))) %>% 
+  mutate(draw = runif(nrow(.), max = 0.999)) %>%  # due to rounding, some of the PDFs do not sum to exactly 1  
   left_join(wage_split_cdf, 
             by           = 'wage_pctile', 
             relationship = 'many-to-many') %>% 
@@ -213,7 +210,9 @@ tax_units %<>%
 # Impute self-employment component split in proportion to total split
 tax_units %<>%
   mutate(
-    se_primary_share = E30400 / (E30400 + E30500),
+    se_primary_share = if_else(E30400 + E30500 == 0,
+                               1,
+                               E30400 / (E30400 + E30500)),
     
     sole_prop1 = sole_prop * se_primary_share,
     sole_prop2 = sole_prop * (1 - se_primary_share),
@@ -302,7 +301,8 @@ tax_units %<>%
   left_join(qbi_variables, by = 'id') %>% 
   
   # Add placeholder farm QBI imputations: all farm income is eligible for QBI
-  mutate(sstb_farm = FALSE, wagebill_farm = farm)
+  mutate(sstb_farm     = if_else(farm == 0, NA, F),
+         wagebill_farm = if_else(farm > 0, farm, if_else(farm == 0, NA, 0)))
   
 
 
