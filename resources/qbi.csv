@@ -1,0 +1,67 @@
+industry,sstb,form,share_employer,n,wages,net_income
+"Agriculture, forestry, fishing, and hunting",0,part,0.216935182,145140,3157364,-1660644
+Mining,0,part,0.216935182,53027,6580399,37438643
+Utilities,0,part,0.216935182,5293,2035104,-23222451
+Construction,0,part,0.216935182,175631,15804556,18449823
+Manufacturing,0,part,0.216935182,73338,38438390,34770426
+Wholesale trade,0,part,0.216935182,63451,31160601,13920250
+Retail trade,0,part,0.216935182,192229,42113134,9855891
+Transportation and warehousing,0,part,0.216935182,38823,14142475,4331783
+Information,1,part,0.216935182,49991,33525289,46009132
+Finance and insurance,1,part,0.216935182,379436,86836560,422033750
+Real estate and rental and leasing,1,part,0.216935182,1933749,25394335,88769492
+"Professional, scientific, and technical services",1,part,0.216935182,265980,137817373,98337753
+"Management
+of companies
+(holding
+companies)",1,part,0.216935182,26448,5476432,14505816
+" Administrative and support and waste 
+management and remediation services ",1,part,0.216935182,72477,35495107,6624623
+ Health care and social assistance,1,part,0.216935182,86125,92158364,35971519
+"Arts, entertainment, and recreation",1,part,0.216935182,57914,26943683,395215
+Accommodation and food services,1,part,0.216935182,164349,49068330,95152
+Educational and  Other services,1,part,0.216935182,121935,10941102,3431374
+"Agriculture, forestry, fishing, and hunting",0,scorp,0.514450867,96322,10674710,2614119
+Mining,0,scorp,0.514450867,24810,4956721,4390303
+Utilities,0,scorp,0.514450867,3241,570589,449796
+Construction,0,scorp,0.514450867,613439,75678385,72361065
+Manufacturing,0,scorp,0.514450867,155012,72124435,58347345
+Wholesale trade,0,scorp,0.514450867,242417,90158553,51766528
+Retail trade,0,scorp,0.514450867,446796,113136305,37970750
+Transportation and warehousing,0,scorp,0.514450867,191902,35451719,11180540
+Information,1,scorp,0.514450867,90402,16445866,7178549
+Finance and insurance,1,scorp,0.514450867,172680,50140726,36246973
+Real estate and rental and leasing,1,scorp,0.514450867,529313,38655533,16198224
+"Professional, scientific, and technical services",1,scorp,0.514450867,770668,128326934,70351010
+"Management
+of companies
+(holding
+companies)",1,scorp,0.514450867,35893,5409841,14990755
+" Administrative and support and waste 
+management and remediation services ",1,scorp,0.514450867,227984,73940527,19343220
+ Health care and social assistance,1,scorp,0.514450867,418624,103749120,42575217
+"Arts, entertainment, and recreation",1,scorp,0.514450867,110252,13421466,6710733
+Accommodation and food services,1,scorp,0.514450867,256705,60109368,14245918
+Educational and  Other services,1,scorp,0.514450867,339224,32173127,13077448
+"Agriculture, forestry, fishing, and hunting",0,sole_prop,0.156343563,309265,1667636,1678932
+Mining,0,sole_prop,0.156343563,112515,556291,541208
+Utilities,0,sole_prop,0.156343563,13270,29124,153842
+Construction,0,sole_prop,0.156343563,2832288,12462042,43792246
+Manufacturing,0,sole_prop,0.156343563,401733,2607023,4346707
+Wholesale trade,0,sole_prop,0.156343563,333500,1904857,4888502
+Retail trade,0,sole_prop,0.156343563,2433961,7974293,10374360
+Transportation and warehousing,0,sole_prop,0.156343563,2354294,3408813,16781021
+Information,1,sole_prop,0.156343563,384766,695082,2841555
+Finance and insurance,1,sole_prop,0.156343563,660160,5011138,22874901
+Real estate and rental and leasing,1,sole_prop,0.156343563,1351705,2687313,33016641
+"Professional, scientific, and technical services",1,sole_prop,0.156343563,3536343,13934275,82794912
+"Management
+of companies
+(holding
+companies)",1,sole_prop,0.156343563,0,0,0
+" Administrative and support and waste 
+management and remediation services ",1,sole_prop,0.156343563,2601776,6473616,24356832
+ Health care and social assistance,1,sole_prop,0.156343563,2131198,17667627,47308254
+"Arts, entertainment, and recreation",1,sole_prop,0.156343563,1696089,2180984,11482848
+Accommodation and food services,1,sole_prop,0.156343563,552800,10384047,3326766
+Educational and  Other services,1,sole_prop,0.156343563,4286493,7503684,34532596

@@ -253,6 +253,9 @@ puf %<>%
     # Create correct-unit weight variable
     weight = S006 / 100,
     
+    # Add filer variable
+    filer = 1,
+    
     # Add target variable dummies
     returns = 1, 
     has_dep = as.integer(n_dep > 0),
@@ -305,6 +308,7 @@ puf %<>%
          E00100,
          E30400,
          E30500,
+         E19200,
          agi_group)
 
 

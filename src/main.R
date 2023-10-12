@@ -33,13 +33,12 @@ source('./src/process_puf.R')
 source('./src/reweight.R')
 source('./src/create_2017_puf.R')
 
-# Impute variables
-# TODO source('./src/impute_variables.R')
-
 # Impute nonfilers
 source('./src/impute_nonfilers.R')
 
+# Impute variables
+source('./src/impute_variables.R')
 
-# TODO create 2018 -> 2053 PUFs
-
+# Project PUF
+source('./src/project_puf.R')
 
