@@ -90,20 +90,10 @@ dep_ages = tax_units %>%
       dep_age_group3 == 5 ~ floor(runif(nrow(.), 19, 24)),
       dep_age_group3 == 6 ~ floor(runif(nrow(.), 24, 95)),
       T                   ~ NA
-    ),
+    )
     
-    # Assign age variables for CTC
-    dep_ctc_age1 = if_else(!is.na(dep_age1) & dep_age1 < 17 & n_dep_ctc > 0, 
-                           dep_age1,
-                           NA),
-    dep_ctc_age2 = if_else(!is.na(dep_age2) & dep_age2 < 17 & n_dep_ctc > 1, 
-                           dep_age2,
-                           NA),
-    dep_ctc_age3 = if_else(!is.na(dep_age3) & dep_age3 < 17 & n_dep_ctc > 2, 
-                           dep_age3,
-                           NA),
   ) %>%   
-  select(id, dep_age1, dep_age2, dep_age3, dep_ctc_age1, dep_ctc_age2, dep_ctc_age3) %>% 
+  select(id, dep_age1, dep_age2, dep_age3) %>% 
   
   # Re-sort ages 
   pivot_longer(cols      = -id, 
@@ -116,12 +106,16 @@ dep_ages = tax_units %>%
   ungroup() %>% 
   pivot_wider(names_from  = c(series, dep_number), 
               names_sep   = '',
-              values_from = age)
+              values_from = age) 
 
-# Add to dataframe
+
+# Add to dataframe and assign CTC status for each dependent
 tax_units %<>% 
   select(-starts_with('dep_age_group')) %>% 
-  left_join(dep_ages, by = 'id')
+  left_join(dep_ages, by = 'id') %>% 
+  mutate(dep_ctc1 = if_else(!is.na(dep_age1), dep_age1 < 17 & n_dep_ctc > 0, NA),
+         dep_ctc2 = if_else(!is.na(dep_age2), dep_age2 < 17 & n_dep_ctc > 1, NA),
+         dep_ctc3 = if_else(!is.na(dep_age3), dep_age3 < 17 & n_dep_ctc > 2, NA))
   
   
 #--------------------------------
@@ -136,10 +130,7 @@ tax_units %<>%
   mutate(ssn          = runif(nrow(.)) > share_without_ssn,
          dep_ssn1     = if_else(!is.na(dep_age1), ssn, NA),
          dep_ssn2     = if_else(!is.na(dep_age2), ssn, NA),
-         dep_ssn3     = if_else(!is.na(dep_age3), ssn, NA),
-         dep_ctc_ssn1 = if_else(!is.na(dep_ctc_age1), ssn, NA),
-         dep_ctc_ssn2 = if_else(!is.na(dep_ctc_age2), ssn, NA),
-         dep_ctc_ssn3 = if_else(!is.na(dep_ctc_age3), ssn, NA)) %>% 
+         dep_ssn3     = if_else(!is.na(dep_age3), ssn, NA)) %>% 
   select(-ssn)
 
 
@@ -317,12 +308,6 @@ tax_units %<>%
   mutate(sstb_farm     = if_else(farm == 0, NA, F),
          wagebill_farm = if_else(farm > 0, farm, if_else(farm == 0, NA, 0)))
   
-
-#-------------------------------
-# Student loan interest expense 
-#-------------------------------
-
-# TODO
 
 #-----------
 # TODO LIST
