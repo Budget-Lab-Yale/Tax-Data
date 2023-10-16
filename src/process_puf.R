@@ -223,9 +223,10 @@ puf %<>%
          dep_age_group3 = if_else(n_dep > 0, imputed_dep_age_group3, dep_age_group3))
     
 
-#---------------------------------
-# Rename and subset PUF variables
-#---------------------------------
+#-------------------------------------------
+# Rename, process, and subset PUF variables
+#-------------------------------------------
+
 
 # Read variable naming guide/crosswalk
 variable_guide = read_csv('./resources/variable_guide.csv')
@@ -238,9 +239,8 @@ crosswalk = crosswalk$variable %>%
 # Define AGI groups
 agi_groups_2015 = tables$table_1_6 %>% 
   filter(year == 2015) %>% 
-  distinct(agi) %>% 
-  unlist() %>% 
-  set_names(NULL) %>% 
+  distinct(agi) %>%
+  deframe() %>% 
   c(1e99)
 
 puf %<>%
@@ -309,7 +309,11 @@ puf %<>%
          E30400,
          E30500,
          E19200,
-         agi_group)
-
-
+         agi_group) %>%
+  
+  # Split income-loss variables 
+  mutate(across(.cols  = all_of(inc_loss_vars),
+                .fns   = list(income = ~ if_else(. > 0, ., 0), 
+                              loss   = ~ if_else(. < 0, ., 0)), 
+                .names = '{col}.{fn}'))
 

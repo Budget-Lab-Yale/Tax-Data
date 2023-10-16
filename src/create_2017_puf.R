@@ -48,9 +48,24 @@ targets = target_info %>%
            .f = ~ get_target_value(target_info[.x, ]))
   )
 
-
+# Solve reweighting problem and reweight data
 weight_deltas = reweight_lp(puf_2017, targets, e = 0.5)
 
 puf_2017 %<>% 
   mutate(weight = weight * weight_deltas)
+    
+
+#------------------------------------------------
+# Re-scale values to match dollar amount targets
+#------------------------------------------------
+
+
+# TODO
+
+
+
+# Re-join income-loss variables
+for (var in inc_loss_vars) {
+  puf_2017[var] = puf_2017[[paste0(var, '.income')]] + puf_2017[[paste0(var, '.loss')]]
+}
 

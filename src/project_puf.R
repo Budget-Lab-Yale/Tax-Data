@@ -63,8 +63,7 @@ tax_units_2019 = 2018:2019 %>%
              across(.cols = all_of(variable_guide %>% 
                                      filter(income_var == 1) %>% 
                                      select(variable) %>% 
-                                     unlist() %>%
-                                     set_names(NULL)), 
+                                     deframe()), 
                     .fns  = ~ . * income_factor)) %>% 
       select(-year, -age_group, -ends_with('_factor')) %>% 
       write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
@@ -160,8 +159,7 @@ for (y in 2024:2053) {
       grow_with = variable_guide %>% 
         filter(variable == var) %>% 
         select(grow_with) %>% 
-        unlist() %>% 
-        set_names(NULL)
+        deframe()
       if (!is.na(grow_with)) {
         output[[var]] = output[[var]] * output[[grow_with]]
       }

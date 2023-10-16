@@ -79,9 +79,23 @@ tables$table_3_3 %<>%
               values_from = value)
 
 
+# Get list of variables which are split by income and loss in the SOI tables, 
+# but are not split that way on the PUF
+inc_loss_vars = tables %>% 
+  map(.f = ~.x %>% 
+        filter(str_detect(variable, '[.]loss'))) %>% 
+  bind_rows() %>% 
+  distinct(variable) %>% 
+  mutate(variable = str_sub(variable, end = -6)) %>% 
+  filter(variable != 'txbl_kg') %>%  # this is an endogenous variable in Tax-Simulator
+  deframe()
 
 
-# Define function to get targets for a given row in the constraints info
+#----------------------
+# Function definitions
+#----------------------
+
+# Function to get targets for a given row in the constraints info
 get_target_value = function(constraint) {
   
   # Convert from row of tibble to list
