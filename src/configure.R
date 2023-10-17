@@ -56,6 +56,33 @@ output_path = file.path(
 dir.create(output_path, recursive = T)
 
 
+#-------------------------
+# Write dependencies file
+#-------------------------
+
+interface_versions %>% 
+  map2(.y = names(.),
+       .f = ~ tibble(interface = .y,
+                     version   = .x$version, 
+                     vintage   = runscript$dependency_info[[.y]]$vintage, 
+                     scenario  = runscript$dependency_info[[.y]]$scenario)
+      ) %>% 
+  bind_rows() %>% 
+  filter(interface != 'Tax-Data') %>% 
+  mutate(ID = runscript_id) %>% 
+  relocate(ID) %>% 
+  write_csv(
+    file.path(
+      output_root, 
+      interface_versions$`Tax-Data`$type, 
+      '/Tax-Data', 
+      paste0('v', interface_versions$`Tax-Data`$version), 
+      vintage,
+      'dependencies.csv'
+    )
+  )
+
+
 #-------------------------------------
 # Set data dependency input filepaths
 #-------------------------------------
