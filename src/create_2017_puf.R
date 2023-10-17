@@ -53,7 +53,7 @@ weight_deltas = reweight_lp(puf_2017, targets, e = 0.5)
 
 puf_2017 %<>% 
   mutate(weight = weight * weight_deltas)
-    
+
 
 #------------------------------------------------
 # Re-scale values to match dollar amount targets

@@ -1,7 +1,7 @@
 ---
 runtime_options: 
   user_id: jar335
-  write_locally: True
+  write_locally: False
   
 
 dependency_info:

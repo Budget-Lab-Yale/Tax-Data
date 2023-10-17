@@ -39,14 +39,14 @@ vintage = paste0(year(st),
 if (runscript$runtime_options$write_locally) {
   output_root = file.path(output_roots$local, runscript$runtime_options$user_id)
 } else {
-  output_root = output_roots$local
+  output_root = output_roots$production
 }
 
 # Set output path
 output_path = file.path(
   output_root, 
-  '/Tax-Data', 
   interface_versions$`Tax-Data`$type, 
+  '/Tax-Data', 
   paste0('v', interface_versions$`Tax-Data`$version), 
   vintage, 
   runscript_id
