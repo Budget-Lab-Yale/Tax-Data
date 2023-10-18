@@ -73,9 +73,12 @@ build_lhs = function(puf, targets) {
     agi_min = this_constraint[["agi_min"]]
     agi_max = this_constraint[["agi_max"]]
     
-    # Adjust weight to accurate decimal place, then use binary flags to check validity
+    # Flag if constraint needs variable's amount
+    val_flag = this_constraint[["val_flag"]]
+    
+    # Use binary flags to check validity
     column = puf$weight * 
-      puf[[variable]] * 
+      (((1-val_flag)*(puf[[variable]] != 0)) + ((val_flag) * (puf[[variable]]))) * 
       (puf$filing_status %in% filing_status) * 
       (puf$age_group %in% age_group) * 
       (puf$E00100 >= agi_min) * 
@@ -139,7 +142,7 @@ run_lp = function(lhs, rhs, e, e_runs) {
   # supplied, search for optimal value
   epsilon = e 
   if (is.null(e)) {
-    epsilon = tune_epsilon(lprw, nrow(lhs), ncol(lhs), e_runs)
+    epsilon = tune_epsilon(lprw, nrow(lhs), e_runs)
   }
   
   # Set boundaries for new weight deviation from observed
