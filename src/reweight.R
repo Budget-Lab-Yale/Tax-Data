@@ -78,7 +78,7 @@ build_lhs = function(puf, targets) {
     
     # Use binary flags to check validity
     column = puf$weight * 
-      (((1-val_flag)*(puf[[variable]] != 0)) + ((val_flag) * (puf[[variable]]))) * 
+      (((1 - val_flag) * (puf[[variable]] != 0)) + (val_flag * puf[[variable]])) * 
       (puf$filing_status %in% filing_status) * 
       (puf$age_group %in% age_group) * 
       (puf$E00100 >= agi_min) * 

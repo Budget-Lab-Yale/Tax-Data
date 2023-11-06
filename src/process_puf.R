@@ -1,8 +1,9 @@
-#------------------------------------
+#---------------------------------------------------
 # process_puf.R
 # 
-# TODO
-#------------------------------------
+# Reads, cleans, and imputes variables required for 
+# reweighting process
+#---------------------------------------------------
 
 
 
@@ -228,12 +229,11 @@ puf %<>%
 #-------------------------------------------
 
 
-# Read variable naming guide/crosswalk
-variable_guide = read_csv('./resources/variable_guide.csv')
-crosswalk = variable_guide %>% 
+# Create named list for to crosswalk between PUF and tax simulator names
+variable_name_crosswalk = variable_guide %>% 
   filter(!is.na(name_puf)) 
-crosswalk = crosswalk$variable %>% 
-  set_names(crosswalk$name_puf)
+variable_name_crosswalk = variable_name_crosswalk$variable %>% 
+  set_names(variable_name_crosswalk$name_puf)
   
   
 # Define AGI groups
@@ -242,6 +242,7 @@ agi_groups_2015 = tables$table_1_6 %>%
   distinct(agi) %>%
   deframe() %>% 
   c(1e99)
+
 
 puf %<>%
   
@@ -282,23 +283,21 @@ puf %<>%
                 E01000 - E01100 - E01200 - E01400 - E01700 - E02000 - E02100 - 
                 E02300 - E02500,
     
-    # Other itemized deductions
+    #  itemized deductions
     sch_a_4 = pmax(0, E17500 - pmax(0, E00100 * if_else(age_group == 6, 0.075, 0.1))), 
     sch_a_9 = E18400 + E18500,
     other_item_exp = if_else(FDED == 1, 
                              P04470 + E21040 - sch_a_4 - sch_a_9 - E19200 - E19700 - E20500 - E20800, 
                              0), 
     
-    # Miscellaneous adjustments for AMT
-    amt_other_adj = if_else(F6251 == 0, 0, E60000 -
-                                           if_else(FDED == 1, 
-                                                   sch_a_4 + sch_a_9 + sch_a_9 - E21040 - E00700,
-                                                   0) - 
-                                           P60100)
+    # Recode dependent status
+    DSI = DSI == 1
   ) %>% 
   
   # Rename and subset variables
-  rename_with(.fn = ~ if_else(. %in% names(crosswalk), crosswalk[.], .)) %>% 
+  rename_with(.fn = ~ if_else(. %in% names(variable_name_crosswalk), 
+                              variable_name_crosswalk[.], 
+                              .)) %>% 
   select(any_of(variable_guide$variable), 
          GENDER,
          EARNSPLIT,
@@ -308,12 +307,11 @@ puf %<>%
          E00100,
          E30400,
          E30500,
-         E19200,
          agi_group) %>%
   
   # Split income-loss variables 
   mutate(across(.cols  = all_of(inc_loss_vars),
                 .fns   = list(income = ~ if_else(. > 0, ., 0), 
-                              loss   = ~ if_else(. < 0, ., 0)), 
+                              loss   = ~ if_else(. < 0, - ., 0)), 
                 .names = '{col}.{fn}'))
 

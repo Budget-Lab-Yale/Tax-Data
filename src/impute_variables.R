@@ -332,7 +332,7 @@ tax_units %<>%
     other_above_ded = 0, 
     
     # Mortgage and investment interest deduction info
-    first_mort_int   = E19200,
+    first_mort_int   = int_exp,
     second_mort_int  = 0, 
     first_mort_bal   = 0, 
     second_mort_bal  = 0, 

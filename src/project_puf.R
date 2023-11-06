@@ -61,7 +61,7 @@ tax_units_2019 = 2018:2019 %>%
       left_join(growth_factors, by = c('year', 'filing_status', 'age_group')) %>% 
       mutate(weight = weight * population_factor, 
              across(.cols = all_of(variable_guide %>% 
-                                     filter(income_var == 1) %>% 
+                                     filter(!is.na(grow_with)) %>% 
                                      select(variable) %>% 
                                      deframe()), 
                     .fns  = ~ . * income_factor)) %>% 
@@ -94,10 +94,9 @@ tax_units_2023 = 2020:2023 %>%
                 by = 'year') %>% 
       mutate(weight = weight * population_factor, 
              across(.cols = all_of(variable_guide %>% 
-                                     filter(income_var == 1) %>% 
+                                     filter(!is.na(grow_with)) %>% 
                                      select(variable) %>% 
-                                     unlist() %>% 
-                                     set_names(NULL)), 
+                                     deframe()), 
                     .fns  = ~ . * income_factor)) %>% 
       select(-year, -age_group, -ends_with('_factor')) %>% 
       write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
@@ -167,7 +166,7 @@ for (y in 2024:2053) {
     
     # Clean up and write
     output %>% 
-      select(-age_group, -population_factor, -all_of(colnames(income_factors))) %>% 
+      select(all_of(variable_guide$variable)) %>% 
       write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
     
 }

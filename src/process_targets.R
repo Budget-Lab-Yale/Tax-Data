@@ -1,8 +1,8 @@
-#------------------------------------
+#---------------------------------------------------
 # process_targets.R
 # 
-# TODO
-#------------------------------------
+# Cleans and normalizes format of SOI target tables
+#---------------------------------------------------
 
 
 # Read tables 
@@ -111,7 +111,14 @@ get_target_value = function(constraint) {
     as.integer()
   
   # Get copy of table
-  this_table = tables[[paste0('table_', constraint$target_source)]]
+  table_name = variable_table_crosswalk %>% 
+    filter(variable == constraint$variable) %>% 
+    select(table) %>% 
+    deframe()
+  table_name = if_else(table_name == 'line_item_estimates', 
+                       table_name,
+                       paste0('table_', table_name))
+  this_table = tables[[table_name]]
   
   # Add fake grouping variables if not present in data 
   if (!('filing_status' %in% colnames(this_table))) {
@@ -123,12 +130,12 @@ get_target_value = function(constraint) {
   
   # Get target value and return
   this_table %>% 
-    filter(year == constraint$year,
-           variable == constraint$variable, 
+    filter(year          ==   constraint$year,
+           variable      ==   constraint$variable, 
            filing_status %in% constraint$filing_status, 
-           age_group %in% constraint$age_group, 
-           agi >= constraint$agi_min, 
-           agi < constraint$agi_max) %>% 
+           age_group     %in% constraint$age_group, 
+           agi           >=   constraint$agi_min, 
+           agi           <    constraint$agi_max) %>% 
     summarise(target_value = sum(count)) %>% 
     return()
 }
