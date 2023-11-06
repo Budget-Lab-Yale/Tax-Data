@@ -31,6 +31,7 @@ source('./src/process_puf.R')
 
 # Create 2017 PUF
 source('./src/reweight.R')
+source('./src/summary.R')
 source('./src/create_2017_puf.R')
 
 # Impute nonfilers

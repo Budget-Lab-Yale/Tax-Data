@@ -1,123 +1,123 @@
-variable,description,source,name_puf,income_var,grow_with
-id,record ID,puf,RECID,0,NA
-weight,record weight,imputed,NA,0,NA
-filer,whether tax unit filed tax return,imputed,NA,0,NA
-dep_status,whether filer is a dependent,puf,DSI,0,NA
-filing_status,filing status,puf,MARS,0,NA
-age1,age of primary filer,imputed,NA,0,NA
-age2,age of secondary filer,imputed,NA,0,NA
-blind1,whether primary filer is blind,imputed,NA,0,NA
-blind2,whether secondary filer is blind,imputed,NA,0,NA
-n_dep,number of dependents,derived,NA,0,NA
-dep_age1,age of youngest dependent,imputed,NA,0,NA
-dep_age2,age of second youngest dependent,imputed,NA,0,NA
-dep_age3,age of oldest dependent,imputed,NA,0,NA
-dep_ssn1,whether youngest dependent has a SNN,imputed,NA,0,NA
-dep_ssn2,whether second youngest dependent has a SNN,imputed,NA,0,NA
-dep_ssn3,whether oldest dependent has a SNN,imputed,NA,0,NA
-n_dep_ctc,number of CTC-qualifying children under 2015 rules,puf,N24,0,NA
-dep_ctc1,whether youngest dependent qualifies for CTC,imputed,NA,0,NA
-dep_ctc2,whether second youngest dependent qualifies for CTC,imputed,NA,0,NA
-dep_ctc3,whether oldest dependent qualifies for CTC,imputed,NA,0,NA
-n_dep_eitc,number of EITC-qualifying children under 2015 rules,puf,EIC,0,NA
-wages,W2 wages for tax unit,puf,E00200,1,gdp_wages
-wages1,primary filer's share of wages,imputed,NA,1,gdp_wages
-wages2,secondary filer's share of wages,imputed,NA,1,gdp_wages
-trad_contr_er1,primary filer's contributions to pretax savings accounts,imputed,NA,1,gdp_wages
-trad_contr_er2,secondary filer's contributions to pretax savings accounts,imputed,NA,1,gdp_wages
-txbl_int,taxable interest income,puf,E00300,1,gdp_interest
-exempt_int,tax-exempt interest income,puf,E00400,1,gdp_interest
-div_ord,non-preferred dividend income,derived,NA,1,gdp_div
-div_pref,preferred-rate dividend income,puf,E00650,1,gdp_div
-state_ref,state income tax refunds,puf,E00700,1,gdp
-alimony,alimony received,puf,E00800,1,gdp_wages
-divorce_year,year of divorce if divorced,imputed,NA,0,NA
-sole_prop,Schedule C net income,puf,E00900,1,gdp_proprietors
-sole_prop1,primary filer's share of Schedule C net income,imputed split,NA,1,gdp_proprietors
-sole_prop2,secondary filer's share of Schedule C net income,imputed split,NA,1,gdp_proprietors
-wagebill_sole_prop,owner's share of W2 wages paid in sole proprietorship,imputed,NA,1,gdp_wages
-sstb_sole_prop,whether filer's sole prop income comes from a SSTB,imputed,NA,0,NA
-kg_st,short-term net capital gain carryover,puf,P22250,1,gdp_corp
-kg_lt,long-term net capital gain,puf,P23250,1,gdp_corp
-kg_1250,unrecaptured Section 1250 gain,puf,E24515,1,gdp_corp
-kg_collect,28% collectibles gain,puf,E24518,1,gdp_corp
-other_gains,other capital gains reported on Form 1040,puf,E01200,1,gdp_corp
-txbl_ira_dist,taxable IRA distributions,puf,E01400,1,gdp
-gross_pens_dist,total pensions and annuities received,puf,E01500,1,gdp_wages
-txbl_pens_dist,taxable pensions and annueities received,puf,E01700,1,gdp_wages
-part_active,nonpassive partnership net income,puf,E25980,1,gdp
-part_active_loss,nonpassive partnership net loss,puf,E25960,1,gdp
-part_passive,passive partnership net income,puf,E25940,1,gdp
-part_passive_loss,passive partnership net loss,puf,E25920,1,gdp
-part_179,partnership Section 179 deduction,puf,E26110,1,gdp
-part_se,partnership income subject to SECA,derived,NA,1,gdp
-part_se1,primary filer's share of partnership income subject to SECA,imputed,NA,1,gdp
-part_se2,secondary filer's share of partnership income subject to SECA,imputed,NA,1,gdp
-wagebill_part,owner's share of W2 wages paid in partnerships,imputed,NA,1,gdp_wages
-sstb_part,whether filer's partnership income comes from a SSTB,imputed,NA,0,NA
-scorp_active,nonpassive S corp net income,puf,E26190,1,gdp
-scorp_active_loss,nonpassive S corp net loss,puf,E26180,1,gdp
-scorp_passive,passive S corp net income,puf,E26170,1,gdp
-scorp_passive_loss,passive S corp net loss,puf,E26160,1,gdp
-scorp_179,S corp Section 179 deduction,puf,E26100,1,gdp
-wagebill_scorp,owner's share of W2 wages paid in S corp,imputed,NA,1,gdp_wages
-sstb_scorp,whether filer's S corp income comes from a SSTB,puf,imputed,0,NA
-rent,rent/royalty net income,puf,E25850,1,gdp_rent
-rent_loss,rent/royalty net loss,puf,E25860,1,gdp_rent
-estate,estate or trust net income,puf,E26390,1,gdp_rent
-estate_loss,estate or trust net loss,puf,E26400,1,gdp_rent
-farm,net farm income,puf,E02100,1,gdp_proprietors
-farm1,primary filer's share of net farm income,imputed split,NA,1,gdp_proprietors
-farm2,secondary filer's share of net farm income,imputed split,NA,1,gdp_proprietors
-wagebill_farm,owner's share of W2 wages paid in farm business,imputed,NA,1,gdp_wages
-sstb_farm,whether filer's farm income comes from a SSTB,imputed,NA,0,NA
-ui,unemployment insurance income,puf,E02300,1,gdp_wages
-gross_ss,gross OASI benefits,puf,E02400,1,gdp_wages
-nols,net operating losses ,imputed,NA,1,gdp
-other_inc,other income,derived,NA,1,gdp
-ed_exp,educator expenses,puf,E03220,1,gdp
-hsa_contr,"health savings account contributions, nonwithheld",puf,E03290,1,gdp_wages
-trad_contr_ira,pretax IRA contributions,puf,E03150,1,gdp_wages
-sl_int_ded,student loan interest dedution,puf,E03210,1,gdp
-keogh_contr,payments to Keough accounts,puf,E03300,1,gdp_wages
-se_health,self-employed health insurance deduction,puf,E03270,1,gdp
-early_penalty,penalty for early withdraw of retirement funds,puf,E03400,1,gdp
-alimony_exp,alimony paid,puf,E03500,1,gdp_wages
-tuition_ded,tuition and fees deduction,puf,E03230,1,gdp
-dpad,domestic production activities deduction,puf,E03240,1,gdp
-char_cash,cash charitable contributions,puf,E19800,1,gdp
-char_noncash,noncash charitable contributions,puf,E20100,1,gdp
-other_above_ded,other above-the-line deductions,imputed,NA,1,gdp
-med_exp,medical expenses for itemizers,puf,E17500,1,gdp
-salt_inc_sales,greater of state and local income or sales tax paid for itemizers,puf,E18400,1,gdp
-salt_prop,state and local real estate tax paid,puf,E18500,1,gdp
-salt_pers,state and local personal property tax paid for itemizers,imputed,NA,1,gdp
-first_mort_bal,balance of first mortgage for itemizers,imputed,NA,1,gdp
-second_mort_bal,balance of second mortgage for itemizers,imputed,NA,1,gdp
-first_mort_year,year when first mortgage was incurred for itemizers,imputed,NA,0,NA
-second_mort_year,year when second mortgage was incurred for itemizers,imputed,NA,0,NA
-first_mort_int,interest paid on first mortgage for itemizers,imputed,NA,1,gdp_interest
-second_mort_int,interest paid on second mortgage for itemizers,imputed,NA,1,gdp_interest
-inv_int_exp,investment interest expense for itemizers,imputed,NA,1,gdp_interest
-casualty_exp,casualty and theft losses for itemizers,puf,E20500,1,gdp
-job_exp,unreimbursed employee expenses for itemizers,puf,E20550,1,gdp
-tax_prep_exp,tax preparation fees for itemizers,puf,E20600,1,gdp
-other_misc_exp,other miscellanous deductions subject to AGI limit for itemizers,puf,E20400,1,gdp
-other_item_exp,other itemized deductions,derived,NA,1,gdp
-amt_nols,AMT NOL preference plus other adjustments,puf,P60100,1,gdp
-amt_other_adj,miscellaneous adjustments for AMT,derived,NA,1,gdp
-amt_ftc,alternative minimum foreign tax credit,puf,E62900,1,gdp
-excess_ptc,excess advance PTC payment after limitation,puf,E85785,1,gdp
-ftc,foreign tax credit,puf,E07300,1,gdp
-care_exp,"Child and Dependent Care Tax Credt qualifying expenses, limited to $3K/$6K",puf,E32800,1,gdp
-aoc_exp,American Opprunity Credit expenses limited to $4K,puf,P87482,1,gdp
-llc_exp,Lifetime Learning Credit expenses,puf,E87530,1,gdp
-old_cred,elderly or disabled credit,puf,E07200,1,gdp
-savers_cred,retirement contribution credit,puf,E07240,1,gdp
-res_energy_cred,residential energy credits,puf,E07260,1,gdp
-gbc,General Business Credit,puf,E07400,1,gdp
-prior_yr_cred,credit for prior year minimum tax,puf,E07600,1,gdp
-other_nonref,other nonrefundable tax credits,puf,P08000,1,gdp
-net_ptc,net Premium Tax Credit,puf,E11560,1,gdp
-recapture_tax,recpature taxes,puf,E09700,1,gdp
-ira_penalty,penalty tax on IRA,puf,E09900,1,gdp
+variable,description,source,name_puf,grow_with
+id,record ID,puf,RECID,NA
+weight,record weight,imputed,NA,NA
+filer,whether tax unit filed tax return,imputed,NA,NA
+dep_status,whether filer is a dependent,puf,DSI,NA
+filing_status,filing status,puf,MARS,NA
+age1,age of primary filer,imputed,NA,NA
+age2,age of secondary filer,imputed,NA,NA
+blind1,whether primary filer is blind,imputed,NA,NA
+blind2,whether secondary filer is blind,imputed,NA,NA
+n_dep,number of dependents,derived,NA,NA
+dep_age1,age of youngest dependent,imputed,NA,NA
+dep_age2,age of second youngest dependent,imputed,NA,NA
+dep_age3,age of oldest dependent,imputed,NA,NA
+dep_ssn1,whether youngest dependent has a SNN,imputed,NA,NA
+dep_ssn2,whether second youngest dependent has a SNN,imputed,NA,NA
+dep_ssn3,whether oldest dependent has a SNN,imputed,NA,NA
+n_dep_ctc,number of CTC-qualifying children under 2015 rules,puf,N24,NA
+dep_ctc1,whether youngest dependent qualifies for CTC,imputed,NA,NA
+dep_ctc2,whether second youngest dependent qualifies for CTC,imputed,NA,NA
+dep_ctc3,whether oldest dependent qualifies for CTC,imputed,NA,NA
+n_dep_eitc,number of EITC-qualifying children under 2015 rules,puf,EIC,NA
+wages,W2 wages for tax unit,puf,E00200,gdp_wages
+wages1,primary filer's share of wages,imputed,NA,gdp_wages
+wages2,secondary filer's share of wages,imputed,NA,gdp_wages
+trad_contr_er1,primary filer's contributions to pretax savings accounts,imputed,NA,gdp_wages
+trad_contr_er2,secondary filer's contributions to pretax savings accounts,imputed,NA,gdp_wages
+txbl_int,taxable interest income,puf,E00300,gdp_interest
+exempt_int,tax-exempt interest income,puf,E00400,gdp_interest
+div_ord,non-preferred dividend income,derived,NA,gdp_div
+div_pref,preferred-rate dividend income,puf,E00650,gdp_div
+state_ref,state income tax refunds,puf,E00700,gdp
+alimony,alimony received,puf,E00800,gdp_wages
+divorce_year,year of divorce if divorced,imputed,NA,NA
+sole_prop,Schedule C net income,puf,E00900,gdp_proprietors
+sole_prop1,primary filer's share of Schedule C net income,imputed split,NA,gdp_proprietors
+sole_prop2,secondary filer's share of Schedule C net income,imputed split,NA,gdp_proprietors
+wagebill_sole_prop,owner's share of W2 wages paid in sole proprietorship,imputed,NA,gdp_wages
+sstb_sole_prop,whether filer's sole prop income comes from a SSTB,imputed,NA,NA
+kg_st,short-term net capital gain carryover,puf,P22250,gdp_corp
+kg_lt,long-term net capital gain,puf,P23250,gdp_corp
+kg_1250,unrecaptured Section 1250 gain,puf,E24515,gdp_corp
+kg_collect,28% collectibles gain,puf,E24518,gdp_corp
+other_gains,other capital gains reported on Form 1040,puf,E01200,gdp_corp
+txbl_ira_dist,taxable IRA distributions,puf,E01400,gdp
+gross_pens_dist,total pensions and annuities received,puf,E01500,gdp_wages
+txbl_pens_dist,taxable pensions and annueities received,puf,E01700,gdp_wages
+part_active,nonpassive partnership net income,puf,E25980,gdp
+part_active_loss,nonpassive partnership net loss,puf,E25960,gdp
+part_passive,passive partnership net income,puf,E25940,gdp
+part_passive_loss,passive partnership net loss,puf,E25920,gdp
+part_179,partnership Section 179 deduction,puf,E26110,gdp
+part_se,partnership income subject to SECA,derived,NA,gdp
+part_se1,primary filer's share of partnership income subject to SECA,imputed,NA,gdp
+part_se2,secondary filer's share of partnership income subject to SECA,imputed,NA,gdp
+wagebill_part,owner's share of W2 wages paid in partnerships,imputed,NA,gdp_wages
+sstb_part,whether filer's partnership income comes from a SSTB,imputed,NA,NA
+scorp_active,nonpassive S corp net income,puf,E26190,gdp
+scorp_active_loss,nonpassive S corp net loss,puf,E26180,gdp
+scorp_passive,passive S corp net income,puf,E26170,gdp
+scorp_passive_loss,passive S corp net loss,puf,E26160,gdp
+scorp_179,S corp Section 179 deduction,puf,E26100,gdp
+wagebill_scorp,owner's share of W2 wages paid in S corp,imputed,NA,gdp_wages
+sstb_scorp,whether filer's S corp income comes from a SSTB,puf,imputed,NA
+rent,rent/royalty net income,puf,E25850,gdp_rent
+rent_loss,rent/royalty net loss,puf,E25860,gdp_rent
+estate,estate or trust net income,puf,E26390,gdp_rent
+estate_loss,estate or trust net loss,puf,E26400,gdp_rent
+farm,net farm income,puf,E02100,gdp_proprietors
+farm1,primary filer's share of net farm income,imputed split,NA,gdp_proprietors
+farm2,secondary filer's share of net farm income,imputed split,NA,gdp_proprietors
+wagebill_farm,owner's share of W2 wages paid in farm business,imputed,NA,gdp_wages
+sstb_farm,whether filer's farm income comes from a SSTB,imputed,NA,NA
+ui,unemployment insurance income,puf,E02300,gdp_wages
+gross_ss,gross OASI benefits,puf,E02400,gdp_wages
+nols,net operating losses,imputed,NA,gdp
+other_inc,other income,derived,NA,gdp
+ed_exp,educator expenses,puf,E03220,gdp
+hsa_contr,"health savings account contributions, nonwithheld",puf,E03290,gdp_wages
+trad_contr_ira,pretax IRA contributions,puf,E03150,gdp
+sl_int_ded,student loan interest dedution,puf,E03210,gdp
+keogh_contr,payments to Keough accounts,puf,E03300,gdp_wages
+se_health,self-employed health insurance deduction,puf,E03270,gdp_wages
+early_penalty,penalty for early withdraw of retirement funds,puf,E03400,gdp
+alimony_exp,alimony paid,puf,E03500,gdp_wages
+tuition_ded,tuition and fees deduction,puf,E03230,gdp
+dpad,domestic production activities deduction,puf,E03240,gdp
+char_cash,cash charitable contributions,puf,E19800,gdp
+char_noncash,noncash charitable contributions,puf,E20100,gdp
+other_above_ded,other above-the-line deductions,imputed,NA,gdp
+med_exp,medical expenses for itemizers,puf,E17500,gdp
+salt_inc_sales,greater of state and local income or sales tax paid for itemizers,puf,E18400,gdp
+salt_prop,state and local real estate tax paid,puf,E18500,gdp
+salt_pers,state and local personal property tax paid for itemizers,imputed,NA,gdp
+int_exp,total deductible interest expense for itemizers,puf,E19200,gdp_interest
+first_mort_bal,balance of first mortgage for itemizers,imputed,NA,gdp
+second_mort_bal,balance of second mortgage for itemizers,imputed,NA,gdp
+first_mort_year,year when first mortgage was incurred for itemizers,imputed,NA,NA
+second_mort_year,year when second mortgage was incurred for itemizers,imputed,NA,NA
+first_mort_int,interest paid on first mortgage for itemizers,imputed,NA,gdp_interest
+second_mort_int,interest paid on second mortgage for itemizers,imputed,NA,gdp_interest
+inv_int_exp,investment interest expense for itemizers,imputed,NA,gdp_interest
+casualty_exp,casualty and theft losses for itemizers,puf,E20500,gdp
+job_exp,unreimbursed employee expenses for itemizers,puf,E20550,gdp
+tax_prep_exp,tax preparation fees for itemizers,puf,E20600,gdp
+other_misc_exp,other miscellanous deductions subject to AGI limit for itemizers,puf,E20400,gdp
+other_item_exp,other itemized deductions,derived,NA,gdp
+amt_nols,AMT NOL preference plus other adjustments,puf,P60100,gdp
+amt_ftc,alternative minimum foreign tax credit,puf,E62900,gdp
+excess_ptc,excess advance PTC payment after limitation,puf,E85785,gdp
+ftc,foreign tax credit,puf,E07300,gdp
+care_exp,"Child and Dependent Care Tax Credt qualifying expenses, limited to $3K/$6K",puf,E32800,gdp
+aoc_exp,American Opprunity Credit expenses limited to $4K,puf,P87482,gdp
+llc_exp,Lifetime Learning Credit expenses,puf,E87530,gdp
+old_cred,elderly or disabled credit,puf,E07200,gdp
+savers_cred,retirement contribution credit,puf,E07240,gdp
+res_energy_cred,residential energy credits,puf,E07260,gdp
+gbc,General Business Credit,puf,E07400,gdp
+prior_yr_cred,credit for prior year minimum tax,puf,E07600,gdp
+other_nonref,other nonrefundable tax credits,puf,P08000,gdp
+net_ptc,net Premium Tax Credit,puf,E11560,gdp
+recapture_tax,recpature taxes,puf,E09700,gdp
+ira_penalty,penalty tax on IRA,puf,E09900,gdp

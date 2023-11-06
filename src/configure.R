@@ -66,7 +66,7 @@ interface_versions %>%
                      version   = .x$version, 
                      vintage   = runscript$dependency_info[[.y]]$vintage, 
                      scenario  = runscript$dependency_info[[.y]]$scenario)
-      ) %>% 
+  ) %>% 
   bind_rows() %>% 
   filter(interface != 'Tax-Data') %>% 
   mutate(ID = runscript_id) %>% 
@@ -91,20 +91,25 @@ interface_paths = interface_versions %>%
   map2(.y = names(.),
        .f = ~ file.path(
          output_roots$production,
-        .x$type,
-        .y,
-        paste0('v', .x$version), 
-        runscript$dependency_info[[.y]]$vintage, 
-        runscript$dependency_info[[.y]]$scenario
-        )
-      )
+         .x$type,
+         .y,
+         paste0('v', .x$version), 
+         runscript$dependency_info[[.y]]$vintage, 
+         runscript$dependency_info[[.y]]$scenario
+       )
+  )
 
-
-#------------------
 # Read target info
-#------------------
-
 target_info = paste0(runscript_id, '.csv') %>% 
   file.path('./config/target_info', .) %>% 
   read_csv()
 
+# Read variable guide: the full set of variables used for tax simulator input, 
+# including crosswalk with PUF name if applicable, description and source, 
+# whether the variable is an income/dollar amount variable vs a categorical attribute,
+# an instructions for growing it historically and into the future
+variable_guide = read_csv('./resources/variable_guide.csv')
+
+# Read variable-table crosswalk: shows source for each variable available in 
+# SOI targets, and shows whether it's available by AGI or not
+variable_table_crosswalk = read_csv('./resources/variable_table_crosswalk.csv')
