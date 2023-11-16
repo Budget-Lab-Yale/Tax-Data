@@ -16,7 +16,9 @@ raw_puf = interface_paths$`IRS-PUF` %>%
               read_csv(), 
             by = 'RECID')
 
-puf = raw_puf
+# Remove aggregate returns (for now)
+puf = raw_puf %>% 
+  filter(RECID < 999996) 
 
 
 #-----------------------------------------------
@@ -68,8 +70,8 @@ puf %<>%
                         AGERANGE)
   )
 
-# Calculate CDF for age ranges by filing status / AGI group
-age_dist_cdf = age_dist %>% 
+# Calculate PDF for age ranges by filing status / AGI group
+age_dist_pdf = age_dist %>% 
   
   # Calculate difference between PUF and actuals
   left_join(
@@ -86,7 +88,7 @@ age_dist_cdf = age_dist %>%
   # Calculate CDF
   filter(diff < 0) %>%
   group_by(filing_status, agi_group) %>% 
-  mutate(p = cumsum(diff / sum(diff))) %>% 
+  mutate(p = diff / sum(diff)) %>% 
   select(filing_status, agi_group, p, age_group)
 
 
@@ -95,12 +97,11 @@ imputed_age_groups = puf %>%
   filter(is.na(age_group) | age_group == 0) %>%
   select(RECID, filing_status = MARS, agi_group) %>%
   mutate(draw = runif(nrow(.))) %>% 
-  left_join(age_dist_cdf, 
+  left_join(age_dist_pdf, 
             by           = c('filing_status', 'agi_group'), 
             relationship = 'many-to-many') %>% 
-  filter(draw <= p) %>% 
   group_by(RECID) %>% 
-  slice(1) %>% 
+  sample_n(size = 1, weight = p) %>% 
   ungroup() %>% 
   select(RECID, imputed_age_group = age_group)
 
@@ -129,9 +130,9 @@ puf %<>%
          dep_age_group2 = AGEDP2, 
          dep_age_group3 = AGEDP3)
 
-# Get age range CDFs by dependent types 
+# Get age range PDFs by dependent types 
 # ASSUMPTION: estimated on 1-dependent filers only 
-dep_age_cdf = puf %>% 
+dep_age_pdf = puf %>% 
   filter(!is.na(dep_age_group1), n_dep == 1) %>% 
   mutate(dep_type = case_when(
     N24             == 1 ~ 'kids_ctc',
@@ -144,7 +145,7 @@ dep_age_cdf = puf %>%
   summarise(n = sum(S006) / 100, 
             .groups = 'drop') %>%
   group_by(dep_type) %>% 
-  mutate(p = cumsum(n) / sum(n)) %>% 
+  mutate(p = n / sum(n)) %>% 
   ungroup() %>% 
   select(-n)
   
@@ -186,15 +187,15 @@ imputed_dep_age_groups = puf %>%
                names_prefix = 'n_to_impute_', 
                values_to    = 'n') %>% 
   filter(n > 0) %>% 
+  expand_grid(dep_id = 1:3) %>% 
+  filter(dep_id <= n) %>% 
   
   # Impute ages for each dependent
-  mutate(draw = runif(nrow(.))) %>% 
-  left_join(dep_age_cdf, 
+  left_join(dep_age_pdf, 
             by           = 'dep_type', 
             relationship = 'many-to-many') %>% 
-  filter(draw <= p) %>% 
-  group_by(RECID, dep_type) %>% 
-  slice(1) %>% 
+  group_by(RECID, dep_type, dep_id) %>% 
+  sample_n(size = 1, weight = p) %>% 
   ungroup() %>% 
   select(RECID, dep_age_group)
 
@@ -246,9 +247,6 @@ agi_groups_2015 = tables$table_1_6 %>%
 
 puf %<>%
   
-  # Remove aggregate returns (for now)
-  filter(RECID < 999996) %>% 
-  
   mutate(
     
     # Create correct-unit weight variable
@@ -269,6 +267,10 @@ puf %<>%
                     labels         = head(agi_groups_2015, -1)) %>% 
       as.character() %>% 
       as.numeric(),
+    
+    # Add partnership-scorp var for targeting
+    part_scorp      = if_else(E26270 > 0, E26270, 0),
+    part_scorp_loss = if_else(E26270 < 0, E26270, 0),
     
     # Derived variable: non-preferred dividend income
     div_ord = E00600 - E00650,
@@ -304,6 +306,8 @@ puf %<>%
          contains('age_group'), 
          returns, 
          has_dep, 
+         part_scorp, 
+         part_scorp_loss,
          E00100,
          E30400,
          E30500,
