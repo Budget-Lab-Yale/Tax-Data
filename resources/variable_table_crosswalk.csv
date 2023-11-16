@@ -21,6 +21,8 @@ other_gains.loss,1_4,1
 txbl_ira_dist,1_4,1
 gross_pens_dist,1_4,1
 txbl_pens_dist,1_4,1
+part_scorp,1_4,1
+part_scorp_loss,1_4,1
 part_active,line_item_estimates,0
 part_active_loss,line_item_estimates,0
 part_passive,line_item_estimates,0

@@ -116,8 +116,38 @@ tax_units %<>%
   mutate(dep_ctc1 = if_else(!is.na(dep_age1), dep_age1 < 17 & n_dep_ctc > 0, NA),
          dep_ctc2 = if_else(!is.na(dep_age2), dep_age2 < 17 & n_dep_ctc > 1, NA),
          dep_ctc3 = if_else(!is.na(dep_age3), dep_age3 < 17 & n_dep_ctc > 2, NA))
-  
-  
+
+# Simulate CTC ineligibility for 17 year old dependents -- some small share of 
+# this group will still not qualify for CTC under counterfactuals in which 17 year olds 
+# are CTC-qualifying children, per other rules. Estimate this parameter based on 
+# the gap between under-16 dependents and CTC-qualifying children 
+share_17yo_ineligible = dep_ages %>% 
+  left_join(tax_units %>% 
+              select(id, weight, n_dep_ctc), 
+            by = 'id') %>% 
+  mutate(n_16u = (!is.na(dep_age1) & dep_age1 < 17) + 
+                 (!is.na(dep_age2) & dep_age2 < 17) + 
+                 (!is.na(dep_age3) & dep_age3 < 17)) %>% 
+  filter(n_16u > 0) %>% 
+  group_by(ineligible = n_16u > n_dep_ctc) %>% 
+  summarise(n = sum(weight)) %>% 
+  mutate(share = n / sum(n)) %>% 
+  filter(ineligible) %>% 
+  select(share) %>% 
+  deframe()
+
+tax_units %<>% 
+  mutate(dep_ctc1 = if_else(!is.na(dep_age1) & dep_age1 == 17, 
+                            runif(nrow(.)) > share_17yo_ineligible, 
+                            dep_ctc1),
+         dep_ctc2 = if_else(!is.na(dep_age2) & dep_age2 == 17, 
+                            runif(nrow(.)) > share_17yo_ineligible, 
+                            dep_ctc2),
+         dep_ctc3 = if_else(!is.na(dep_age3) & dep_age3 == 17, 
+                            runif(nrow(.)) > share_17yo_ineligible, 
+                            dep_ctc3))
+
+
 #--------------------------------
 # Impute SSN status for children
 #--------------------------------
@@ -248,12 +278,12 @@ sstb_params = qbi_params %>%
   pivot_wider(names_from   = sstb, 
               names_prefix = 'sstb', 
               values_from  = n) %>% 
-  mutate(p_sstb = sstb1 / (sstb0 + sstb1)) %>% 
+  mutate(p_sstb = (sstb1 / (sstb0 + sstb1)) - 0.05) %>%  # Add factor calibrated to match QBI totals  
   select(form, p_sstb)
 
 # Assumption: wages paid are shared out in proportion to:
-# (1) equally (75%)
-# (2) share of positive net income (25%)
+# (1) equally (50%)
+# (2) share of positive net income (50%)
 # ...plus a Gaussian noise term. 
 # The idea is that wages are a linear function of (non-loss) profits, with a 
 # nonzero intercept to account for "fixed costs". The weights are arbitrary, 
@@ -288,8 +318,8 @@ qbi_variables = pass_thru_micro %>%
   mutate(share_count  = as.integer(employer * (net_income != 0))   / total_count, 
          share_profit = (employer * (net_income > 0) * net_income) / total_profit,
          random_term  = rnorm(nrow(.), mean = 1, sd = 0.15),
-         wagebill     = (share_count * total_wages * 0.75 + 
-                         share_profit * total_wages * 0.25) * random_term) %>% 
+         wagebill     = (share_count * total_wages * 0.5 + 
+                         share_profit * total_wages * 0.5) * random_term) %>% 
   
   # Convert SSTB to boolean and set values to NA for returns with no net income
   mutate(sstb = (sstb == 1),
