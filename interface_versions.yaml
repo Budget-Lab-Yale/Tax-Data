@@ -26,4 +26,14 @@ Compiled-SOI-Tables:
 
 Macro-Projections: 
   type: model_data
+  version: 2
+  
+CPS-ASEC:
+  type: raw_data
   version: 1
+  
+ACS:
+  type: raw_data
+  version: 1
+
+
