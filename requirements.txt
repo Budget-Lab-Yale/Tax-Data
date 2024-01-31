@@ -4,3 +4,4 @@ yaml
 haven
 lpSolveAPI
 Hmisc
+quantreg

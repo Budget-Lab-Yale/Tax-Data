@@ -25,6 +25,10 @@ dependency_info:
     vintage: 2024010721
     scenario: historical
     
+  CPS-ASEC-Panel:
+    vintage: 2024013021
+    scenario: historical
+    
   ACS:
     vintage: 2024011715
     scenario: historical

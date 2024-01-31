@@ -122,13 +122,12 @@ income_factors = income_far %>%
   ungroup()
 
 
-
 #---------------------------
 # Project data through 2019
 #---------------------------
 
 # Read and process intermediate IRS-based demographic growth targets through 2019
-irs_growth_factors = read_csv('./resources/return_counts_2019.csv') %>%
+irs_growth_factors_demog = read_csv('./resources/return_counts_2019.csv') %>%
   mutate(across(.cols = -c(filing_status, age_group), 
                 .fns  = ~ . / `2017`)) %>% 
   pivot_longer(cols      = -c(filing_status, age_group), 
@@ -136,61 +135,71 @@ irs_growth_factors = read_csv('./resources/return_counts_2019.csv') %>%
                values_to = 'population_factor') %>% 
   mutate(year = as.integer(year)) 
 
-
-tables$table_1_4 %>% 
-  filter(variable %in% c('income', 'wages', 'txbl_int', 'div', 'part_scorp', 
+irs_growth_factors_income = tables$table_1_4 %>% 
+  filter(variable %in% c('total_inc', 'wages', 'txbl_int', 'div', 'part_scorp', 
                          'txbl_kg.income', 'gross_pens_dist', 'rent', 'ui', 'gross_ss')) %>% 
+  group_by(year, variable) %>%
+  summarise(across(.cols = c(count, amount), 
+                   .fns  = sum), 
+            .groups = 'drop') %>% 
   mutate(average = amount / count) %>% 
   pivot_longer(cols      = c(count, amount, average), 
                names_to  = 'metric') %>% 
   pivot_wider(names_from = variable) %>% 
-  rename(int = txbl_int, pt = part_scorp, kg = txbl_kg.income, 
+  rename(income = total_inc, int = txbl_int, pt = part_scorp, kg = txbl_kg.income, 
          pensions = gross_pens_dist, ss = gross_ss) %>% 
   filter(metric == 'average') %>%
   select(-metric) %>% 
-  pivot_longer(cols      = -c(year, agi), 
+  pivot_longer(cols      = -year, 
                names_to  = 'variable', 
                values_to = 'average') %>% 
-  group_by(agi) %>% 
-  mutate(factor = average / average[year == 2017], 
-         factor = if_else(is.nan(factor), 1, factor))
-
-
-# WHY NOT WORKING
-  
-  
-  # Add per-capita income growth components
-  left_join(macro_projections %>% 
-              mutate(income_factor = (gdp / pop) / (gdp[year == 2017] / pop[year == 2017])) %>%
-              select(year, income_factor), 
-            by = 'year')
+  mutate(income_factor = average / average[year == 2017], 
+         income_factor = if_else(is.na(income_factor), 1, income_factor)) %>% 
+  select(-average)
 
 
 
 # Project tax unit data through 2019 and write output
-tax_units_2019 = 2018:2019 %>% 
-  map(.f = function(y) {
-    tax_units %>% 
-      mutate(year      = y, 
-             age_group = case_when(
-               age1 < 26 ~ 1, 
-               age1 < 35 ~ 2, 
-               age1 < 45 ~ 3, 
-               age1 < 55 ~ 4, 
-               age1 < 65 ~ 5, 
-               T         ~ 6)) %>% 
-      left_join(irs_growth_factors, by = c('year', 'filing_status', 'age_group')) %>% 
-      mutate(weight = weight * population_factor, 
-             across(.cols = all_of(variable_guide %>% 
-                                     filter(!is.na(grow_with)) %>% 
-                                     select(variable) %>% 
-                                     deframe()), 
-                    .fns  = ~ . * income_factor)) %>% 
-      select(-year, -age_group, -ends_with('_factor')) %>% 
-      write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
-  }) %>% 
-  `[[`(2)
-
+for (y in 2018:2019) {
+  
+  # Join and apply demographic growth factors
+  output = tax_units %>% 
+    
+    # Create requisite groups on which to join
+    mutate(year      = y, 
+           age_group = case_when(
+             age1 < 26 ~ 1, 
+             age1 < 35 ~ 2, 
+             age1 < 45 ~ 3, 
+             age1 < 55 ~ 4, 
+             age1 < 65 ~ 5, 
+             T         ~ 6)) %>% 
+    left_join(irs_growth_factors_demog, by = c('year', 'filing_status', 'age_group')) %>%
+    mutate(weight = weight * population_factor)
+  
+  # Apply intensive margin growth factors
+  vars_to_grow = variable_guide %>% 
+    filter(!is.na(grow_with)) %>% 
+    select(variable) %>% 
+    deframe() 
+  for (var in vars_to_grow) {
+    grow_with = variable_guide %>% 
+      filter(variable == 'care_exp') %>% 
+      select(grow_with) %>% 
+      deframe()
+    this_factor = irs_growth_factors_income %>% 
+      filter(year == y, variable == grow_with) %>%
+      select(income_factor) %>% 
+      deframe() 
+    output[[var]] = output[[var]] * this_factor
+  }
+  
+  # Write output
+  write_csv(output, file.path(output_path, paste0('tax_units_', y, '.csv')))
+}
+    
+tax_units_2019 = output    
+    
 #--------------------------------------------------------------
 # Project PUF beyond years with (noncovid) historical tax data
 #--------------------------------------------------------------
@@ -234,11 +243,10 @@ for (y in 2020:2053) {
     intensive_factors = output %>% 
       
       # First calculate extensive margin growth in each variable
-      summarise(across(.cols = variable_guide %>% 
-                         filter(!is.na(grow_with)) %>% 
-                         select(variable) %>% 
-                         deframe() %>% 
-                         all_of(), 
+      summarise(across(.cols = all_of(variable_guide %>% 
+                                        filter(!is.na(grow_with)) %>% 
+                                        select(variable) %>% 
+                                        deframe()), 
                        .fns  = ~ sum((. != 0) * new_weight) / sum((. != 0) * weight))) %>% 
       mutate(across(.cols = everything(), 
                     .fns  = ~ if_else(is.nan(.), 1, .))) %>% 
@@ -266,9 +274,9 @@ for (y in 2020:2053) {
       output[[var]] = output[[var]] * this_factor
     }
       
-    
     # Clean up and write
     output %>% 
+      mutate(weight = new_weight) %>%  
       select(all_of(variable_guide$variable)) %>% 
       write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
     
@@ -281,15 +289,3 @@ for (y in 2020:2053) {
   
   
 
-
-
-
-test = 2019:2053 %>% 
-  map(~ output_path %>% 
-        file.path(paste0('tax_units_', .x, '.csv')) %>% 
-        fread() %>% 
-        tibble() %>% 
-        summarise(year = .x,
-                  wages = sum(weight * wages) / 1e9, 
-                  kg = sum(pmax(-3000, kg_lt + kg_st) * weight) / 1e9)) %>% 
-  bind_rows()

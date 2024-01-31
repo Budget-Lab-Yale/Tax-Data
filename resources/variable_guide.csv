@@ -25,6 +25,7 @@ n_dep_eitc,number of EITC-qualifying children under 2015 rules,puf,EIC,NA
 wages,W2 wages for tax unit,puf,E00200,wages
 wages1,primary filer's share of wages,imputed,NA,wages
 wages2,secondary filer's share of wages,imputed,NA,wages
+ei_prior_yr,W2 wages and SE income in prior year for tax unit,puf,NA,wages
 trad_contr_er1,primary filer's contributions to pretax savings accounts,imputed,NA,wages
 trad_contr_er2,secondary filer's contributions to pretax savings accounts,imputed,NA,wages
 txbl_int,taxable interest income,puf,E00300,int
@@ -37,7 +38,7 @@ divorce_year,year of divorce if divorced,imputed,NA,NA
 sole_prop,Schedule C net income,puf,E00900,pt
 sole_prop1,primary filer's share of Schedule C net income,imputed split,NA,pt
 sole_prop2,secondary filer's share of Schedule C net income,imputed split,NA,pt
-wagebill_sole_prop,owner's share of W2 wages paid in sole proprietorship,imputed,NA,pt
+wagebill_sole_prop,owner's share of W2 wages paid in sole proprietorship,imputed,NA,wages
 sstb_sole_prop,whether filer's sole prop income comes from a SSTB,imputed,NA,NA
 kg_st,short-term net capital gain carryover,puf,P22250,kg
 kg_lt,long-term net capital gain,puf,P23250,kg
