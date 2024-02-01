@@ -153,8 +153,12 @@ irs_growth_factors_income = tables$table_1_4 %>%
   pivot_longer(cols      = -year, 
                names_to  = 'variable', 
                values_to = 'average') %>% 
-  mutate(income_factor = average / average[year == 2017], 
-         income_factor = if_else(is.na(income_factor), 1, income_factor)) %>% 
+  mutate(income_factor = average / average[year == 2017]) %>% 
+  group_by(year) %>% 
+  mutate(income_factor = ifelse(is.na(income_factor), 
+                                income_factor[variable == 'income'], 
+                                income_factor)) %>% 
+  ungroup() %>% 
   select(-average)
 
 
@@ -184,7 +188,7 @@ for (y in 2018:2019) {
     deframe() 
   for (var in vars_to_grow) {
     grow_with = variable_guide %>% 
-      filter(variable == 'care_exp') %>% 
+      filter(variable == var) %>% 
       select(grow_with) %>% 
       deframe()
     this_factor = irs_growth_factors_income %>% 
@@ -247,7 +251,7 @@ for (y in 2020:2053) {
                                         filter(!is.na(grow_with)) %>% 
                                         select(variable) %>% 
                                         deframe()), 
-                       .fns  = ~ sum((. != 0) * new_weight) / sum((. != 0) * weight))) %>% 
+                       .fns  = ~ sum((. != 0) * new_weight, na.rm = T) / sum((. != 0) * weight, na.rm = T))) %>% 
       mutate(across(.cols = everything(), 
                     .fns  = ~ if_else(is.nan(.), 1, .))) %>% 
       pivot_longer(cols      = everything(), 
@@ -267,8 +271,16 @@ for (y in 2020:2053) {
       
     # Apply intensive margin rescaling factors
     for (var in intensive_factors$variable) {
+      
+      # For split variables, use overall average
+      grow_with = var
+      if (str_sub(var, end = -2) %in% c('wages', 'sole_prop', 'farm', 'part_se')) {
+        grow_with = str_sub(var, end = -2)
+      }
+      
+      # Get factor and apply
       this_factor = intensive_factors %>% 
-        filter(variable == var) %>% 
+        filter(variable == grow_with) %>% 
         select(intensive_factor) %>% 
         deframe()
       output[[var]] = output[[var]] * this_factor
