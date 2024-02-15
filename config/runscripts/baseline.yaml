@@ -18,7 +18,7 @@ dependency_info:
     scenario: historical
   
   Macro-Projections: 
-    vintage: 2023121812
+    vintage: 2024021509
     scenario: baseline
     
   CPS-ASEC:
@@ -27,10 +27,6 @@ dependency_info:
     
   CPS-ASEC-Panel:
     vintage: 2024013021
-    scenario: historical
-    
-  ACS:
-    vintage: 2024011715
     scenario: historical
 
   

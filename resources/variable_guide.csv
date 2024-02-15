@@ -88,20 +88,20 @@ early_penalty,penalty for early withdraw of retirement funds,puf,E03400,income
 alimony_exp,alimony paid,puf,E03500,wages
 tuition_ded,tuition and fees deduction,puf,E03230,income
 dpad,domestic production activities deduction,puf,E03240,income
-char_cash,cash charitable contributions,puf,E19800,income
-char_noncash,noncash charitable contributions,puf,E20100,income
+char_cash,cash charitable contributions,puf,E19800,charity
+char_noncash,noncash charitable contributions,puf,E20100,charity
 other_above_ded,other above-the-line deductions,imputed,NA,income
 med_exp,medical expenses for itemizers,puf,E17500,income
 salt_inc_sales,greater of state and local income or sales tax paid for itemizers,puf,E18400,income
 salt_prop,state and local real estate tax paid,puf,E18500,income
 salt_pers,state and local personal property tax paid for itemizers,imputed,NA,income
-int_exp,total deductible interest expense for itemizers,puf,E19200,int
-first_mort_bal,balance of first mortgage for itemizers,imputed,NA,int
-second_mort_bal,balance of second mortgage for itemizers,imputed,NA,int
+int_exp,total deductible interest expense for itemizers,puf,E19200,mortgage
+first_mort_bal,balance of first mortgage for itemizers,imputed,NA,mortgage
+second_mort_bal,balance of second mortgage for itemizers,imputed,NA,mortgage
 first_mort_year,year when first mortgage was incurred for itemizers,imputed,NA,NA
 second_mort_year,year when second mortgage was incurred for itemizers,imputed,NA,NA
-first_mort_int,interest paid on first mortgage for itemizers,imputed,NA,int
-second_mort_int,interest paid on second mortgage for itemizers,imputed,NA,int
+first_mort_int,interest paid on first mortgage for itemizers,imputed,NA,mortgage
+second_mort_int,interest paid on second mortgage for itemizers,imputed,NA,mortgage
 inv_int_exp,investment interest expense for itemizers,imputed,NA,int
 casualty_exp,casualty and theft losses for itemizers,puf,E20500,income
 job_exp,unreimbursed employee expenses for itemizers,puf,E20550,income

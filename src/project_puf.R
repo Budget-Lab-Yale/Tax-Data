@@ -30,10 +30,9 @@ macro_projections = bind_rows(
   read_csv(file.path(interface_paths$`Macro-Projections`, 'projections.csv'))
 )
 
-
-# Read and process CBO's demographic projections for 2023 and on  
-# TODO put in Macro-Projections
-cbo_demog = read_csv('./resources/cbo_demographic_projections.csv') %>% 
+# Extract and process demographic projections   
+demog = macro_projections %>% 
+  select(year, contains('married_')) %>% 
   pivot_longer(cols      = -year, 
                names_sep = '_',
                names_to  = c('married', 'age'), 
@@ -43,23 +42,15 @@ cbo_demog = read_csv('./resources/cbo_demographic_projections.csv') %>%
   group_by(year, married, age) %>% 
   summarise(n = sum(n),
             .groups = 'drop')
-  
-
-# Read and process ACS data for 2019-2023 demographics
-# Read ACS and immediately do summary stats for memory reasons
-acs_demog = read_csv(file       = file.path(interface_paths$ACS, 'usa_00008.csv.gz'), 
-                     col_select = c(YEAR, PERNUM, PERWT, AGE, MARST)) %>% 
-  group_by(year = YEAR, age = pmin(80, AGE), married = as.integer(!(MARST %in% 3:6))) %>%
-  summarise(n = sum(PERWT),
-            .groups = 'drop')
-
-demog = bind_rows(acs_demog, cbo_demog)
-
 
 
 #--------------------------------
 # Build income projection inputs
 #--------------------------------
+
+# Read supplemental projections for itemized deductions
+itemized_deduction_projections = read_csv('resources/itemized_deduction_projections.csv') %>% 
+  mutate(across(.cols = -year, .fns  = ~ . / lag(.) - 1))
 
 # Read CBO's 1040 line item projections
 income_near = read_csv('resources/cbo_1040.csv') %>% 
@@ -68,13 +59,14 @@ income_near = read_csv('resources/cbo_1040.csv') %>%
   mutate(across(.cols = -year, 
                 .fns  = ~ . / lag(.) - 1)) %>% 
   
-  # Back out interest income growth rate -- based on interest's share of 
-  # taxable interest + nonqualified dividends as of 2019 
-  mutate(int = 1 + ((txbl_int_div_ord - 1) - (div_pref - 1) / 3) / (2 / 3)) %>% 
+  # Join itemized deduction projections and use where available
+  left_join(itemized_deduction_projections, by = 'year') %>% 
+  mutate(mortgage = if_else(is.na(mortgage), txbl_int_div_ord, mortgage), 
+         charity  = if_else(is.na(charity), income, charity)) %>% 
   
   # Map to larger categories and reshape long in variable
-  select(year, income, wages, int, div = div_pref, kg = txbl_kg, pt, 
-         pensions = txbl_pensions, ss = txbl_ss, ui) %>% 
+  select(year, income, wages, int = txbl_int_div_ord, div = div_pref, kg = txbl_kg, pt, 
+         pensions = txbl_pensions, ss = txbl_ss, ui, mortgage, charity) %>% 
   pivot_longer(cols      = -year, 
                names_to  = 'variable', 
                values_to = 'near')
@@ -88,9 +80,11 @@ income_far = macro_projections %>%
          kg       = gdp_corp, 
          pt       = gdp_proprietors + gdp_rent + gdp_corp, 
          rent     = gdp_rent,
-         pensions = outlays_mand_oasi,
-         ss       = outlays_mand_oasi,
-         ui       = u3) %>% 
+         pensions = outlays_mand_oasdi,
+         ss       = outlays_mand_oasdi,
+         ui       = gdp, 
+         mortgage = gdp_interest, 
+         charity  = gdp) %>% 
   select(year, all_of(variable_guide %>% 
                         filter(!is.na(grow_with)) %>% 
                         select(grow_with) %>% 
@@ -112,7 +106,7 @@ income_factors = income_far %>%
   left_join((.) %>% 
               filter(variable == 'income') %>% 
               select(year, rent = income_factor), 
-            by = c('year')) %>% 
+            by = 'year') %>% 
   mutate(income_factor = if_else(is.na(income_factor), rent, income_factor)) %>% 
   select(year, variable, income_factor) %>% 
   
@@ -159,10 +153,37 @@ irs_growth_factors_income = tables$table_1_4 %>%
                                 income_factor[variable == 'income'], 
                                 income_factor)) %>% 
   ungroup() %>% 
-  select(-average)
+  select(-average) %>% 
+  
+  # Add itemized deductions, adjusting factors to be per-capita
+  bind_rows(
+    itemized_deduction_projections %>% 
+      filter(year <= 2019) %>% 
+      pivot_longer(cols      = -year, 
+                   names_to  = 'variable', 
+                   values_to = 'growth') %>% 
+      group_by(variable) %>% 
+      mutate(income_factor = cumprod(1 + replace_na(growth, 0))) %>%
+      ungroup() %>% 
+      left_join(
+        read_csv('./resources/return_counts_2019.csv') %>% 
+          pivot_longer(cols = -c(filing_status, age_group), 
+                       names_to = 'year', 
+                       names_transform = as.integer, 
+                       values_to = 'n') %>% 
+          group_by(year) %>% 
+          summarise(n = sum(n), 
+                    .groups = 'drop') %>%
+          mutate(n = n / n[year == 2017]), 
+        by = 'year') %>% 
+      mutate(income_factor = income_factor / n) %>% 
+      select(-growth, -n)
+  )
+  
 
 
 
+  
 # Project tax unit data through 2019 and write output
 for (y in 2018:2019) {
   
@@ -219,7 +240,7 @@ population_factors = demog %>%
   ungroup() %>% 
   select(-n)
 
-for (y in 2020:2053) {
+for (y in 2020:2097) {
   
     # Calculate new weights based on tax unit age composition
     new_weights = tax_units_2019 %>%
