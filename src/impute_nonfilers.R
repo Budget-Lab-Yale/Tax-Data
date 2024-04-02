@@ -1,7 +1,8 @@
 #------------------------------------
 # impute_nonfilers.R
 # 
-# TODO
+# Appends DINA nonfiling population  
+# to the 2017 PUF 
 #------------------------------------
 
 # Read DINA mircodata 
