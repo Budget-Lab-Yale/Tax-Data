@@ -10,12 +10,13 @@ age1,age of primary filer,imputed,NA,NA
 age2,age of secondary filer,imputed,NA,NA
 blind1,whether primary filer is blind,imputed,NA,NA
 blind2,whether secondary filer is blind,imputed,NA,NA
+parent_rank,parent's rank in the income distribution as a child,imputed,NA,NA
 n_dep,number of dependents,derived,NA,NA
 dep_age1,age of youngest dependent,imputed,NA,NA
 dep_age2,age of second youngest dependent,imputed,NA,NA
 dep_age3,age of oldest dependent,imputed,NA,NA
 dep_ssn1,whether youngest dependent has a SNN,imputed,NA,NA
-dep_ssn2,whether second youngest dependent has a SNN,imputed,NA,NA
+dep_ssn2,whether second youngest dependent has a SNNi,mputed,NA,NA
 dep_ssn3,whether oldest dependent has a SNN,imputed,NA,NA
 n_dep_ctc,number of CTC-qualifying children under 2015 rules,puf,N24,NA
 dep_ctc1,whether youngest dependent qualifies for CTC,imputed,NA,NA
