@@ -181,6 +181,18 @@ irs_growth_factors_income = tables$table_1_4 %>%
   )
   
 
+# Get overall population growth factors for nonfilers
+population_factors = demog %>% 
+  filter(year %in% 2017:2019) %>% 
+  group_by(year, married) %>% 
+  summarise(n = sum(n), 
+            .groups = 'drop') %>% 
+  group_by(married) %>% 
+  mutate(population_factor = ifelse(n > 0, 
+                                    n / n[year == 2017], 
+                                    1)) %>% 
+  ungroup() %>% 
+  select(-n)
 
 
   
@@ -199,8 +211,17 @@ for (y in 2018:2019) {
              age1 < 55 ~ 4, 
              age1 < 65 ~ 5, 
              T         ~ 6)) %>% 
+    
+    # Rescale weights for filers
     left_join(irs_growth_factors_demog, by = c('year', 'filing_status', 'age_group')) %>%
-    mutate(weight = weight * population_factor)
+    mutate(weight = weight * if_else(filer == 1, population_factor, 1)) %>% 
+    select(-population_factor) %>%
+    
+    # Rescale weights for nonfilers
+    mutate(married = as.integer(filing_status == 2)) %>% 
+    left_join(population_factors, by = c('year', 'married')) %>%
+    mutate(weight = weight * if_else(filer == 0, population_factor, 1)) %>% 
+    select(-population_factor) 
   
   # Apply intensive margin growth factors
   vars_to_grow = variable_guide %>% 
