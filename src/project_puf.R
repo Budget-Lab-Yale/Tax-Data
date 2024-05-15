@@ -48,29 +48,6 @@ demog = macro_projections %>%
 # Build income projection inputs
 #--------------------------------
 
-# Read supplemental projections for itemized deductions
-itemized_deduction_projections = read_csv('resources/itemized_deduction_projections.csv') %>% 
-  mutate(across(.cols = -year, .fns  = ~ . / lag(.) - 1))
-
-# Read CBO's 1040 line item projections
-income_near = read_csv('resources/cbo_1040.csv') %>% 
-  
-  # Convert to growth rates
-  mutate(across(.cols = -year, 
-                .fns  = ~ . / lag(.) - 1)) %>% 
-  
-  # Join itemized deduction projections and use where available
-  left_join(itemized_deduction_projections, by = 'year') %>% 
-  mutate(mortgage = if_else(is.na(mortgage), txbl_int_div_ord, mortgage), 
-         charity  = if_else(is.na(charity), income, charity)) %>% 
-  
-  # Map to larger categories and reshape long in variable
-  select(year, income, wages, int = txbl_int_div_ord, div = div_pref, kg = txbl_kg, pt, 
-         pensions = txbl_pensions, ss = txbl_ss, ui, mortgage, charity) %>% 
-  pivot_longer(cols      = -year, 
-               names_to  = 'variable', 
-               values_to = 'near')
-
 # Get longer-term income factors
 income_far = macro_projections %>% 
   mutate(income   = gdp, 
@@ -98,133 +75,14 @@ income_far = macro_projections %>%
 
 # Combine, using near-term where possible
 income_factors = income_far %>% 
-  filter(year > 2019) %>%
-  left_join(income_near, by = c('year', 'variable')) %>% 
-  mutate(income_factor = if_else(is.na(near), far, near)) %>% 
-  
-  # Use income for rent which is missing for a few years
-  left_join((.) %>% 
-              filter(variable == 'income') %>% 
-              select(year, rent = income_factor), 
-            by = 'year') %>% 
-  mutate(income_factor = if_else(is.na(income_factor), rent, income_factor)) %>% 
-  select(year, variable, income_factor) %>% 
-  
+
   # Convert to index
+  filter(year >= 2018) %>% 
   group_by(variable) %>% 
-  mutate(income_factor = cumprod(1 + income_factor)) %>% 
+  mutate(income_factor = cumprod(1 + far)) %>% 
   ungroup()
 
 
-#---------------------------
-# Project data through 2019
-#---------------------------
-
-# Read and process intermediate IRS-based demographic growth targets through 2019
-irs_growth_factors_demog = read_csv('./resources/return_counts_2019.csv') %>%
-  mutate(across(.cols = -c(filing_status, age_group), 
-                .fns  = ~ . / `2017`)) %>% 
-  pivot_longer(cols      = -c(filing_status, age_group), 
-               names_to  = 'year', 
-               values_to = 'population_factor') %>% 
-  mutate(year = as.integer(year)) 
-
-irs_growth_factors_income = tables$table_1_4 %>% 
-  filter(variable %in% c('total_inc', 'wages', 'txbl_int', 'div', 'part_scorp', 
-                         'txbl_kg.income', 'gross_pens_dist', 'rent', 'ui', 'gross_ss')) %>% 
-  group_by(year, variable) %>%
-  summarise(across(.cols = c(count, amount), 
-                   .fns  = sum), 
-            .groups = 'drop') %>% 
-  mutate(average = amount / count) %>% 
-  pivot_longer(cols      = c(count, amount, average), 
-               names_to  = 'metric') %>% 
-  pivot_wider(names_from = variable) %>% 
-  rename(income = total_inc, int = txbl_int, pt = part_scorp, kg = txbl_kg.income, 
-         pensions = gross_pens_dist, ss = gross_ss) %>% 
-  filter(metric == 'average') %>%
-  select(-metric) %>% 
-  pivot_longer(cols      = -year, 
-               names_to  = 'variable', 
-               values_to = 'average') %>% 
-  mutate(income_factor = average / average[year == 2017]) %>% 
-  group_by(year) %>% 
-  mutate(income_factor = ifelse(is.na(income_factor), 
-                                income_factor[variable == 'income'], 
-                                income_factor)) %>% 
-  ungroup() %>% 
-  select(-average) %>% 
-  
-  # Add itemized deductions, adjusting factors to be per-capita
-  bind_rows(
-    itemized_deduction_projections %>% 
-      filter(year <= 2019) %>% 
-      pivot_longer(cols      = -year, 
-                   names_to  = 'variable', 
-                   values_to = 'growth') %>% 
-      group_by(variable) %>% 
-      mutate(income_factor = cumprod(1 + replace_na(growth, 0))) %>%
-      ungroup() %>% 
-      left_join(
-        read_csv('./resources/return_counts_2019.csv') %>% 
-          pivot_longer(cols = -c(filing_status, age_group), 
-                       names_to = 'year', 
-                       names_transform = as.integer, 
-                       values_to = 'n') %>% 
-          group_by(year) %>% 
-          summarise(n = sum(n), 
-                    .groups = 'drop') %>%
-          mutate(n = n / n[year == 2017]), 
-        by = 'year') %>% 
-      mutate(income_factor = income_factor / n) %>% 
-      select(-growth, -n)
-  )
-  
-
-
-
-  
-# Project tax unit data through 2019 and write output
-for (y in 2018:2019) {
-  
-  # Join and apply demographic growth factors
-  output = tax_units %>% 
-    
-    # Create requisite groups on which to join
-    mutate(year      = y, 
-           age_group = case_when(
-             age1 < 26 ~ 1, 
-             age1 < 35 ~ 2, 
-             age1 < 45 ~ 3, 
-             age1 < 55 ~ 4, 
-             age1 < 65 ~ 5, 
-             T         ~ 6)) %>% 
-    left_join(irs_growth_factors_demog, by = c('year', 'filing_status', 'age_group')) %>%
-    mutate(weight = weight * population_factor)
-  
-  # Apply intensive margin growth factors
-  vars_to_grow = variable_guide %>% 
-    filter(!is.na(grow_with)) %>% 
-    select(variable) %>% 
-    deframe() 
-  for (var in vars_to_grow) {
-    grow_with = variable_guide %>% 
-      filter(variable == var) %>% 
-      select(grow_with) %>% 
-      deframe()
-    this_factor = irs_growth_factors_income %>% 
-      filter(year == y, variable == grow_with) %>%
-      select(income_factor) %>% 
-      deframe() 
-    output[[var]] = output[[var]] * this_factor
-  }
-  
-  # Write output
-  write_csv(output, file.path(output_path, paste0('tax_units_', y, '.csv')))
-}
-    
-tax_units_2019 = output    
-    
 #--------------------------------------------------------------
 # Project PUF beyond years with (noncovid) historical tax data
 #--------------------------------------------------------------
@@ -232,18 +90,18 @@ tax_units_2019 = output
 
 # Get age-marital status demographic growth factors
 population_factors = demog %>% 
-  filter(year >= 2019) %>% 
+  filter(year >= 2017) %>% 
   group_by(married, age) %>% 
   mutate(population_factor = ifelse(n > 0, 
-                                    n / n[year == 2019], 
+                                    n / n[year == 2017], 
                                     1)) %>% 
   ungroup() %>% 
   select(-n)
 
-for (y in 2020:2097) {
+for (y in 2018:2091) {
   
     # Calculate new weights based on tax unit age composition
-    new_weights = tax_units_2019 %>%
+    new_weights = tax_units %>%
       mutate(married = as.integer(filing_status == 2)) %>% 
       select(id, weight, married, age1, age2, starts_with('dep_age')) %>% 
       pivot_longer(cols         = -c(id, weight, married), 
@@ -261,7 +119,7 @@ for (y in 2020:2097) {
                 .groups = 'drop')
   
     # Update weights 
-    output = tax_units_2019 %>% 
+    output = tax_units %>% 
       left_join(new_weights, by = 'id')
     
     # Calculate intensive margin growth factors

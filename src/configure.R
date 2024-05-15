@@ -8,7 +8,7 @@
 # Read runscript
 #----------------
 
-runscript_id = 'baseline'
+runscript_id = 'baseline_2017'
 runscript = file.path('./config/runscripts/') %>% 
   paste0(runscript_id, '.yaml') %>% 
   read_yaml()
