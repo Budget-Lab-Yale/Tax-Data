@@ -12,10 +12,16 @@
 
 # Write output
 tax_units %<>% 
+  
+  # Limit to subset of required variables, as defined by those listed in the variable guide
   select(all_of(variable_guide$variable)) %>%
+  
+  # Remove extraneous variables that were used for targeting only
+  select(-int_exp) %>% 
   write_csv(file.path(output_path, 'tax_units_2017.csv'))
 
-# clean up enviroment 
+
+# Clean up enviroment 
 rm(raw_puf, puf, puf_2017, qbi_variables, wage_primary_share)
 
 
