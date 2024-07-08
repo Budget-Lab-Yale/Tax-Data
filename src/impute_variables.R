@@ -41,7 +41,7 @@ cps = interface_paths$`CPS-ASEC` %>%
 age_gap_dist = cps %>% 
   filter(RELATE %in% c(0101, 0201), CPSID != 0, AGE >= 18) %>% 
   mutate(role = if_else(RELATE == 0101, 'primary', 'secondary')) %>% 
-  select(YEAR, CPSID, role, age = AGE, weight = ASECWTH ) %>%
+  select(YEAR, CPSID, role, age = AGE, weight = ASECWTH) %>%
   mutate(age = if_else(age >= 80, 80, age)) %>%
   pivot_wider(names_from  = role, 
               values_from = age) %>% 
@@ -726,6 +726,19 @@ tax_units %<>%
   left_join(parent_ranks %>% 
               bind_rows(), 
             by = 'id')
+
+
+#-----------------------------
+# (placeholder) tipped income 
+#-----------------------------
+
+p_tips    = 0.05   # share of W-2 workers reporting tipped income (per 2018 SOI)
+mean_tips = 6326   # average tipped income (per 2018 SOI)
+
+tax_units %<>% 
+  mutate(
+    tips = if_else(wages > 0 & runif(nrow(.)) < p_tips, pmin(6326, wages), 0)
+  )
 
 
 #-----------
