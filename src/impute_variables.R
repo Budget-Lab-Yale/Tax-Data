@@ -728,16 +728,100 @@ tax_units %<>%
             by = 'id')
 
 
-#-----------------------------
-# (placeholder) tipped income 
-#-----------------------------
+#---------------
+# Tipped income 
+#---------------
 
-p_tips    = 0.05   # share of W-2 workers reporting tipped income (per 2018 SOI)
-mean_tips = 6326   # average tipped income (per 2018 SOI)
+# Set benchmarks from 2017 IRS W2 data
+n_tipped_married       =  1164973 
+n_tipped_unmarried =  4800747 
+tip_avg_married        = 7072 
+tip_avg_unmarried      = 5686
 
-tax_units %<>% 
+
+# Read tip model parameters estimated from SIPP: propensity for nonzero tips 
+# and distribution of nonzero values by wage decile
+sipp_tip_model_params = read_csv('./resources/sipp_tip_model.csv') %>% 
+  select(decile = earn_dec, starts_with('p')) %>% 
+  filter(decile != 'total') 
+
+# Create long version of tip share parameters
+tip_share_quantiles = sipp_tip_model_params %>% 
+  select(-p) %>% 
+  pivot_longer(
+    cols            = -decile, 
+    names_prefix    = 'p',
+    names_transform = as.integer,
+    names_to        = 'q',
+    values_to       = 'tip_share'
+  )
+
+# Calculate wage decile cutoffs  
+wage_deciles = tax_units %>% 
+  select(weight, wages1, wages2) %>% 
+  pivot_longer(cols = -weight) %>% 
+  filter(value > 0) %>% 
+  reframe(
+    decile = seq(1, 10, 1), 
+    cutoff = wtd.quantile(value, weight, probs = seq(0, 0.9, 0.1))
+  )
+
+
+tips = tax_units %>% 
+  
+  # Assign wage deciles to workers and randomly assign tip share quantile 
   mutate(
-    tips = if_else(wages > 0 & runif(nrow(.)) < p_tips, pmin(6326, wages), 0)
+    decile1 = cut(wages1, c(wage_deciles$cutoff, Inf), include.lowest = T, labels = 1:10) %>% as.character(), 
+    decile2 = cut(wages2, c(wage_deciles$cutoff, Inf), include.lowest = T, labels = 1:10) %>% as.character(),
+    tip_share_q1 = sample(seq(0, 100, 10), nrow(.), replace = T), 
+    tip_share_q2 = sample(seq(0, 100, 10), nrow(.), replace = T)
+  ) %>% 
+  
+  # Join probability of nonzero tips
+  left_join(sipp_tip_model_params %>% select(decile1 = decile, p1 = p), by = 'decile1') %>% 
+  left_join(sipp_tip_model_params %>% select(decile2 = decile, p2 = p), by = 'decile2') %>% 
+  
+  # Join nonzero tip share quantile 
+  left_join(tip_share_quantiles %>% select(decile1 = decile, tip_share_q1 = q, tip_share1 = tip_share), by = c('decile1', 'tip_share_q1')) %>% 
+  left_join(tip_share_quantiles %>% select(decile2 = decile, tip_share_q2 = q, tip_share2 = tip_share), by = c('decile2', 'tip_share_q2')) %>% 
+  
+  # Pare down
+  mutate(married = filing_status == 2) %>%
+  select(filer, married, weight, wages1, decile1, p1, tip_share1, wages2, decile2, tip_share2, p2)
+
+  
+# Calculate scaling factor to match IRS aggregates
+scaling_factors = tips %>% 
+  filter(filer == 1) %>%
+  mutate(across(.cols = c(p1, p2, tip_share1, tip_share2), .fns = ~ replace_na(., 0))) %>% 
+  group_by(married) %>% 
+  summarise(
+    total     = sum((wages1 * tip_share1 * p1 + wages2 * tip_share2 * p2) * weight),
+    n         = sum(p1 * (wages1 > 0) * weight) + sum(p2 * (wages2 > 0) * weight), 
+    n_workers = sum(((wages1 > 0) + (wages2 > 0)) * weight), 
+    avg       = total / n
+  ) %>% 
+  mutate(
+    factor_p   = if_else(married, n_tipped_married, n_tipped_unmarried) / n, 
+    factor_avg = if_else(married, tip_avg_married, tip_avg_unmarried) / avg
+  )
+
+
+# Simulate tips accounting for scaling factors
+tips %<>%
+  left_join(scaling_factors, by = 'married') %>% 
+  mutate(
+    tips1 = replace_na(wages1 * tip_share1 * (runif(nrow(.)) < (p1 * factor_p)), 0) * factor_avg, 
+    tips2 = replace_na(wages2 * tip_share2 * (runif(nrow(.)) < (p2 * factor_p)), 0) * factor_avg, 
+    tips  = tips1 + tips2
+  ) 
+  
+
+# Add to tax unit data
+tax_units %<>% 
+  bind_cols(
+    tips %>% 
+      select(tips1, tips2, tips)
   )
 
 

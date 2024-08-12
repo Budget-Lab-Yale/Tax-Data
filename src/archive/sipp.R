@@ -212,7 +212,7 @@ build_tip_panel = function(year, write = F) {
   
   employed = an_data %>% filter(inc_earn > 0 & !is.na(inc_earn)) %>%
     mutate(
-      marriage = if_else(marriage < 3 & !is.na(marriage), T, F),
+      parent = as.integer(n_dep > 0),
       earn_dec = cut(
         inc_earn,
         breaks = wtd.quantile(
@@ -226,7 +226,7 @@ build_tip_panel = function(year, write = F) {
     )
   
   base_panel = employed %>%
-    group_by(earn_dec) %>%
+    group_by(earn_dec, parent) %>%
     reframe(
       count = sum(weight),
       n_rec = sum(1 * tipped),
@@ -235,11 +235,11 @@ build_tip_panel = function(year, write = F) {
       p = (t_count / count),
       mean = wtd.mean(tips_pct, (weight * tipped))
     ) %>%
-    select(earn_dec, t_count, n_rec, p, mean) %>%
+    select(earn_dec, parent, t_count, n_rec, p, mean) %>%
     left_join(
       employed %>%
         filter(tipped) %>%
-        group_by(earn_dec) %>%
+        group_by(earn_dec, parent) %>%
         reframe(
           p = paste0('p',seq(0, 100, 10)),
           val = wtd.quantile(tips_pct, weight, seq(0, 1, .1)),
@@ -248,12 +248,13 @@ build_tip_panel = function(year, write = F) {
           names_from = p, values_from = val
         )
     ) %>%
-    mutate(earn_dec = factor(earn_dec)) %>%
+    mutate(earn_dec = factor(earn_dec), parent = factor(parent)) %>%
     rbind(.,
           employed %>%
             filter(tipped) %>%
             reframe(
               earn_dec = factor('total'),
+              parent   = factor('total'),
               t_count = sum(weight),
               n_rec = n(),
               p = t_count / sum(employed$weight),

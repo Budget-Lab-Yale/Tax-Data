@@ -27,6 +27,8 @@ wages,W2 wages for tax unit,puf,E00200,wages
 wages1,primary filer's share of wages,imputed,NA,wages
 wages2,secondary filer's share of wages,imputed,NA,wages
 tips,tipped wage income for tax unit,imputed,NA,wages
+tips1,tipped wage income for primary earner,imputed,NA,wages
+tips2,tipped wage income for secondary earner,imputed,NA,wages
 ei_prior_yr,W2 wages and SE income in prior year for tax unit,puf,NA,wages
 trad_contr_er1,primary filer's contributions to pretax savings accounts,imputed,NA,wages
 trad_contr_er2,secondary filer's contributions to pretax savings accounts,imputed,NA,wages
