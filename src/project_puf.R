@@ -5,6 +5,8 @@
 # demographic and macroeconomic projections
 #---------------------------------------------------
 
+# Remove extraneous variables that were used for targeting only
+vars_to_ignore = c('int_exp')
 
 #------------------------------
 # Clean and save base year PUF
@@ -17,7 +19,7 @@ tax_units %<>%
   select(all_of(variable_guide$variable)) %>%
   
   # Remove extraneous variables that were used for targeting only
-  select(-int_exp) %>% 
+  select(-all_of(vars_to_ignore)) %>% 
   write_csv(file.path(output_path, 'tax_units_2017.csv'))
 
 
@@ -235,6 +237,9 @@ for (y in 2018:2019) {
     select(variable) %>% 
     deframe() 
   for (var in vars_to_grow) {
+    if (var %in% c(vars_to_ignore)) {
+      next
+    }
     grow_with = variable_guide %>% 
       filter(variable == var) %>% 
       select(grow_with) %>% 
@@ -296,7 +301,7 @@ for (y in 2020:2097) {
       
       # First calculate extensive margin growth in each variable
       summarise(across(.cols = all_of(variable_guide %>% 
-                                        filter(!is.na(grow_with)) %>% 
+                                        filter(!is.na(grow_with), !(variable %in% vars_to_ignore)) %>% 
                                         select(variable) %>% 
                                         deframe()), 
                        .fns  = ~ sum((. != 0) * new_weight, na.rm = T) / sum((. != 0) * weight, na.rm = T))) %>% 
@@ -337,15 +342,11 @@ for (y in 2020:2097) {
     # Clean up and write
     output %>% 
       mutate(weight = new_weight) %>%  
-      select(all_of(variable_guide$variable)) %>% 
+      select(variable_guide$variable[!(variable_guide$variable %in% vars_to_ignore)]) %>% 
       write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
     
 }
 
 
 
-
-  
-  
-  
 

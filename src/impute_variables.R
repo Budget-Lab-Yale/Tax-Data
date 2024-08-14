@@ -728,17 +728,210 @@ tax_units %<>%
             by = 'id')
 
 
-#-----------------------------
-# (placeholder) tipped income 
-#-----------------------------
+#---------------
+# Tipped income 
+#---------------
 
-p_tips    = 0.05   # share of W-2 workers reporting tipped income (per 2018 SOI)
-mean_tips = 6326   # average tipped income (per 2018 SOI)
+# Set benchmarks from 2017 IRS W2 data
+n_tipped_married   = 1164973
+n_tipped_unmarried = 4800747
+tip_avg_married    = 7072
+tip_avg_unmarried  = 5686
 
-tax_units %<>% 
+# Read and process SIPP data
+sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_data.csv') %>%
+  fread() %>%
+  tibble() %>% 
+  filter(inc_earn > 0, !is_dep, year < 2023) %>% 
   mutate(
-    tips = if_else(wages > 0 & runif(nrow(.)) < p_tips, pmin(6326, wages), 0)
+    year = year - 1, 
+    wages = case_when(  # real wages
+      year == 2017 ~ inc_earn / 1,
+      year == 2018 ~ inc_earn / 1.024,
+      year == 2019 ~ inc_earn / 1.043
+    ), 
+    parent  = as.integer(n_dep > 0), 
+    married = as.integer(!is.na(marriage) & marriage < 3)
+  ) %>% 
+  rename(tip_share = tips_pct)
+
+# Add industry category
+sipp_tipped = sipp %>% 
+  filter(tipped) %>%
+  left_join(
+    file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind.csv') %>%
+      fread() %>%
+      tibble() %>% 
+      mutate(year = year - 1) %>% 
+      select(u_ID, year, primary_ind), 
+    by = c('u_ID', 'year')
+  ) %>% 
+  filter(!is.na(primary_ind)) %>% 
+  mutate(lh = as.integer(primary_ind >= 8561 & primary_ind <= 8690))
+
+
+# Estimate model of being a tipped worker
+tip_qrf = quantregForest(
+  x        = sipp[c('wages', 'parent', 'married', 'age')],
+  y        = as.factor(sipp$tipped), 
+  nthreads = parallel::detectCores(),
+  weights  = sipp$weight,
+  mtry     = 3,
+  nodesize = 5
+)
+
+# Estimate distribution parameters of tip-share-of-wages among tipped workers
+tip_share_qrf = quantregForest(
+  x        = sipp_tipped[c('wages')],
+  y        = sipp_tipped$tip_share, 
+  nthreads = parallel::detectCores(),
+  weights  = sipp_tipped$weight,
+  mtry     = 1,
+  nodesize = 3
+)
+
+# Estimate model of industry
+tip_industry_qrf = quantregForest(
+  x        = sipp_tipped[c('tip_share', 'wages', 'parent', 'married', 'age')],
+  y        = as.factor(sipp_tipped$lh), 
+  nthreads = parallel::detectCores(),
+  weights  = sipp_tipped$weight,
+  mtry     = 4,
+  nodesize = 1
+)
+
+
+fit = sipp_tipped %>% 
+  mutate(
+    pred_lh = predict(
+      object  = tip_industry_qrf, 
+      newdata = (.)[c('tip_share', 'wages', 'parent', 'married', 'age')],
+      what    = function(x) mean(x - 1)
+    )
   )
+
+fit %>% 
+  group_by(
+    wage_group = case_when(
+      inc_earn < 10000 ~ 0, 
+      inc_earn < 20000 ~ 10, 
+      inc_earn < 30000 ~ 20, 
+      inc_earn < 40000 ~ 30,
+      inc_earn < 50000 ~ 40, 
+      inc_earn < Inf   ~ 50
+    ), 
+    mostly_tips = if_else(tip_share >= 0.5, 'Tip share >= 50%', 'Tip share < 50%')
+  ) %>% 
+  summarise(
+    'SIPP'  = weighted.mean(lh, weight), 
+    'Model' = weighted.mean(pred_lh, weight)
+  ) %>% 
+  pivot_longer(cols = c(SIPP, Model)) %>% 
+  ggplot(aes(x = wage_group, y = value, colour = name)) + 
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~mostly_tips) + 
+  ylim(0, 1) +
+  labs(
+    x = 'Earnings (thousands of 2017 dollars)', 
+    y = 'Leisure and hospitality share', 
+    colour = 'Source'
+  ) +
+  ggtitle('Share of tipped workers in leisure and hospitality jobs', 
+          subtitle = 'By earnings and tip share of earnings')
+
+
+# Fit values to tax data
+tips = tax_units %>% 
+  filter(wages1 > 0 | wages2 > 0) %>% 
+  mutate(
+    parent = (
+        (!is.na(dep_age1) & dep_age1 <= 17) | 
+        (!is.na(dep_age2) & dep_age2 <= 17) | 
+        (!is.na(dep_age3) & dep_age3 <= 17)
+      ) %>% 
+      as.integer() %>% 
+      as.character()
+  ) %>% 
+  select(id, weight, parent, married, wages1, wages2, age1, age2) %>% 
+  pivot_longer(
+    cols            = c(wages1, wages2), 
+    names_prefix    = 'wages', 
+    names_transform = as.integer, 
+    names_to        = 'index', 
+    values_to       = 'wages'
+  ) %>% 
+  mutate(age = if_else(index == 1, age1, age2)) %>% 
+  select(-age1, -age2) %>% 
+  filter(wages > 0) %>% 
+  mutate(
+    p = predict(
+      object  = tip_qrf, 
+      newdata = (.),
+      what    = function(x) mean(x - 1)
+    ), 
+    tip_share = predict(
+      object  = tip_share_qrf, 
+      newdata = (.),
+      what    = function(x) sample(x, 1)
+    )
+  ) %>% 
+  mutate( 
+    p_lh = predict(
+      object  = tip_industry_qrf, 
+      newdata = (.),
+      what    = function(x) mean(x - 1)
+    )
+  )
+
+# Calculate scaling factor to match IRS aggregates
+scaling_factors = tips %>% 
+  group_by(married) %>% 
+  summarise(
+    total     = sum(wages * tip_share * p * weight),
+    n         = sum(p * (wages > 0) * weight),
+    n_workers = sum((wages > 0) * weight),
+    avg       = total / n,
+  ) %>% 
+  mutate(
+    factor_p   = if_else(married == 1, n_tipped_married, n_tipped_unmarried) / n, 
+    factor_avg = if_else(married == 1, tip_avg_married,  tip_avg_unmarried)  / avg
+  )
+
+# Simulate tips accounting for scaling factors
+tips %<>%
+  left_join(scaling_factors, by = 'married') %>% 
+  mutate(
+    tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p)) * factor_avg, 
+    tip_industry_lh = (tips > 0) * (runif(nrow(.)) < p_lh)
+  )
+  
+tips %>% 
+  reframe(
+    quantile = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99), 
+    value    = wtd.quantile(tips, weight * (tips > 0), c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99))
+  )
+  
+# Add to tax unit data
+tax_units %<>% 
+  left_join(
+    tips %>% 
+      select(id, index, tips, tip_industry_lh) %>% 
+      pivot_wider(
+        names_from  = index,
+        names_sep   = '',
+        values_from = c(tips, tip_industry_lh),
+      ), 
+    by = 'id'
+  ) %>% 
+  mutate(
+    tips1 = replace_na(tips1, 0), 
+    tips2 = replace_na(tips2, 0), 
+    tips  = tips1 + tips2, 
+    tip_industry_lh1 = replace_na(tip_industry_lh1, 0), 
+    tip_industry_lh2 = replace_na(tip_industry_lh2, 0)
+  ) 
 
 
 #-----------
@@ -751,7 +944,7 @@ tax_units %<>%
   mutate(
     
     # Pretax contributions via employer
-    trad_contr_er1 = 0, 
+    trad_contr_er1 = 0,
     trad_contr_er2 = 0,
     
     # Divorce year 
@@ -761,11 +954,11 @@ tax_units %<>%
     nols = 0,
     
     # Other above-the-line deductions (currently captured through other income residual)
-    other_above_ded = 0, 
+    other_above_ded = 0,
     
     # Mortgage and investment interest deduction info
     first_mort_int   = int_exp,
-    second_mort_int  = 0, 
+    second_mort_int  = 0,
     first_mort_bal   = 0, 
     second_mort_bal  = 0, 
     first_mort_year  = 0, 
