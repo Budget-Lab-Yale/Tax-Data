@@ -6,3 +6,4 @@ lpSolveAPI
 Hmisc
 quantreg
 data.table
+quantregForest
