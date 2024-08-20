@@ -739,35 +739,42 @@ tip_avg_married    = 7072
 tip_avg_unmarried  = 5686
 
 # Read and process SIPP data
-sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_data.csv') %>%
+sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_full.csv') %>%
   fread() %>%
   tibble() %>% 
-  filter(inc_earn > 0, !is_dep, year < 2023) %>% 
+  
+  # Filter to nondependent workers 
+  filter(inc_earn > 0, !is_dep) %>% 
   mutate(
     year = year - 1, 
     wages = case_when(  # real wages
       year == 2017 ~ inc_earn / 1,
       year == 2018 ~ inc_earn / 1.024,
-      year == 2019 ~ inc_earn / 1.043
+      year == 2019 ~ inc_earn / 1.043, 
+      year == 2020 ~ inc_earn / 1.056, 
+      year == 2021 ~ inc_earn / 1.105, 
+      year == 2022 ~ inc_earn / 1.194
     ), 
     parent  = as.integer(n_dep > 0), 
-    married = as.integer(!is.na(marriage) & marriage < 3)
+    married = as.integer(!is.na(marriage) & marriage < 3), 
+    tipped  = as.integer(inc_tip > 0)
   ) %>% 
-  rename(tip_share = tips_pct)
+  rename(tip_share = tips_pct) %>% 
+  
+  # Assign new industry categories
+  mutate(lh = as.integer(ind_1 >= 8561 & ind_1 <= 8690)) %>% 
+  left_join(read_csv('./resources/industry.csv'), by = c('ind_1' = 'code'))
 
-# Add industry category
+
+# Create subsets for training data
 sipp_tipped = sipp %>% 
-  filter(tipped) %>%
-  left_join(
-    file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind.csv') %>%
-      fread() %>%
-      tibble() %>% 
-      mutate(year = year - 1) %>% 
-      select(u_ID, year, primary_ind), 
-    by = c('u_ID', 'year')
-  ) %>% 
-  filter(!is.na(primary_ind)) %>% 
-  mutate(lh = as.integer(primary_ind >= 8561 & primary_ind <= 8690))
+  filter(tipped == 1)
+
+sipp_21 = sipp %>% 
+  filter(year >= 2021)
+
+sipp_tipped_21 = sipp %>% 
+  filter(tipped == 1, year >= 2021)
 
 
 # Estimate model of being a tipped worker
@@ -780,6 +787,7 @@ tip_qrf = quantregForest(
   nodesize = 5
 )
 
+
 # Estimate distribution parameters of tip-share-of-wages among tipped workers
 tip_share_qrf = quantregForest(
   x        = sipp_tipped[c('wages')],
@@ -790,59 +798,33 @@ tip_share_qrf = quantregForest(
   nodesize = 3
 )
 
-# Estimate model of industry
-tip_industry_qrf = quantregForest(
-  x        = sipp_tipped[c('tip_share', 'wages', 'parent', 'married', 'age')],
-  y        = as.factor(sipp_tipped$lh), 
+
+# Estimate model of tipped industry "tier":
+# 1 = high tipped worker share, high tip share of wages
+# 2 = high tipped worker share, lower tip share of wages
+# 3 = low tipped worker share
+tip_tier_qrf = quantregForest(
+  x        = sipp_21[c('tip_share', 'wages', 'parent', 'married', 'age')],
+  y        = as.factor(sipp_21$tipped_industry_tier),
   nthreads = parallel::detectCores(),
-  weights  = sipp_tipped$weight,
+  weights  = sipp_21$weight,
   mtry     = 4,
   nodesize = 1
 )
 
 
-fit = sipp_tipped %>% 
-  mutate(
-    pred_lh = predict(
-      object  = tip_industry_qrf, 
-      newdata = (.)[c('tip_share', 'wages', 'parent', 'married', 'age')],
-      what    = function(x) mean(x - 1)
-    )
-  )
-
-fit %>% 
-  group_by(
-    wage_group = case_when(
-      inc_earn < 10000 ~ 0, 
-      inc_earn < 20000 ~ 10, 
-      inc_earn < 30000 ~ 20, 
-      inc_earn < 40000 ~ 30,
-      inc_earn < 50000 ~ 40, 
-      inc_earn < Inf   ~ 50
-    ), 
-    mostly_tips = if_else(tip_share >= 0.5, 'Tip share >= 50%', 'Tip share < 50%')
-  ) %>% 
-  summarise(
-    'SIPP'  = weighted.mean(lh, weight), 
-    'Model' = weighted.mean(pred_lh, weight)
-  ) %>% 
-  pivot_longer(cols = c(SIPP, Model)) %>% 
-  ggplot(aes(x = wage_group, y = value, colour = name)) + 
-  geom_line() +
-  geom_point() +
-  geom_hline(yintercept = 0) + 
-  facet_wrap(~mostly_tips) + 
-  ylim(0, 1) +
-  labs(
-    x = 'Earnings (thousands of 2017 dollars)', 
-    y = 'Leisure and hospitality share', 
-    colour = 'Source'
-  ) +
-  ggtitle('Share of tipped workers in leisure and hospitality jobs', 
-          subtitle = 'By earnings and tip share of earnings')
+# Estimate model of whether tipped worker works in a leisure & hospitality industry
+tip_lh_qrf = quantregForest(
+  x        = sipp_tipped_21[c('tipped_industry_tier', 'tip_share', 'wages', 'parent', 'married', 'age')],
+  y        = as.factor(sipp_tipped_21$lh), 
+  nthreads = parallel::detectCores(),
+  weights  = sipp_tipped_21$weight,
+  mtry     = 5,
+  nodesize = 1
+)
 
 
-# Fit values to tax data
+# Fit values for tipped probability and tip share of wages on tax data
 tips = tax_units %>% 
   filter(wages1 > 0 | wages2 > 0) %>% 
   mutate(
@@ -876,16 +858,10 @@ tips = tax_units %>%
       newdata = (.),
       what    = function(x) sample(x, 1)
     )
-  ) %>% 
-  mutate( 
-    p_lh = predict(
-      object  = tip_industry_qrf, 
-      newdata = (.),
-      what    = function(x) mean(x - 1)
-    )
-  )
+  ) 
 
-# Calculate scaling factor to match IRS aggregates
+
+# Calculate scaling factor to benchmark to IRS aggregates
 scaling_factors = tips %>% 
   group_by(married) %>% 
   summarise(
@@ -899,29 +875,56 @@ scaling_factors = tips %>%
     factor_avg = if_else(married == 1, tip_avg_married,  tip_avg_unmarried)  / avg
   )
 
-# Simulate tips accounting for scaling factors
+# ... and adjust pre-pandemic IRS benchmarking factors to account for extensive 
+# margin growth in tipped since the pandemic, 
+covid_factor = sipp %>% 
+  summarise(
+    pre_pandemic  = weighted.mean(tipped, weight * (year %in% 2017:2019)), 
+    post_pandemic = weighted.mean(tipped, weight * (year %in% 2021:2022))
+  ) %>% 
+  mutate(covid_factor = post_pandemic / pre_pandemic) %>% 
+  select(covid_factor) %>% 
+  deframe()
+
+
 tips %<>%
+  
+  # Simulate tips accounting for scaling factors
   left_join(scaling_factors, by = 'married') %>% 
+  mutate(tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p * covid_factor)) * factor_avg) %>% 
+
+  # Update tip share to reflect simulated tipped workers only  
+  mutate(tip_share = tip_share * (tips > 0)) %>% 
+  
+  # Fit tipped industry tier for all workers
   mutate(
-    tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p)) * factor_avg, 
-    tip_industry_lh = (tips > 0) * (runif(nrow(.)) < p_lh)
+    tipped_industry_tier = predict(
+      object  = tip_tier_qrf, 
+      newdata = (.),
+      what    = function(x) sample(x, 1)
+    )
+  ) %>% 
+  
+  # Fit LH indicator for tipped workers only
+  mutate(
+    p_lh = predict(
+      object  = tip_lh_qrf, 
+      newdata = (.),
+      what    = function(x) mean(x - 1)
+    ), 
+    tips_lh = (tips > 0) * (runif(nrow(.)) < p_lh)
   )
   
-tips %>% 
-  reframe(
-    quantile = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99), 
-    value    = wtd.quantile(tips, weight * (tips > 0), c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99))
-  )
-  
-# Add to tax unit data
+
+# Add tips-related info to tax unit data
 tax_units %<>% 
   left_join(
     tips %>% 
-      select(id, index, tips, tip_industry_lh) %>% 
+      select(id, index, tips, tips_lh, tipped_industry_tier) %>% 
       pivot_wider(
         names_from  = index,
         names_sep   = '',
-        values_from = c(tips, tip_industry_lh),
+        values_from = c(tips, tips_lh, tipped_industry_tier),
       ), 
     by = 'id'
   ) %>% 
@@ -929,9 +932,9 @@ tax_units %<>%
     tips1 = replace_na(tips1, 0), 
     tips2 = replace_na(tips2, 0), 
     tips  = tips1 + tips2, 
-    tip_industry_lh1 = replace_na(tip_industry_lh1, 0), 
-    tip_industry_lh2 = replace_na(tip_industry_lh2, 0)
-  ) 
+    tips_lh1 = replace_na(tips_lh1, 0), 
+    tips_lh2 = replace_na(tips_lh2, 0)
+  )
 
 
 #-----------

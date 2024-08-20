@@ -125,7 +125,7 @@ puf %<>%
          n_dep_other     = XOODEP,
          n_dep           = XOCAH + XOCAWH + XOPAR + XOODEP, 
          across(.cols = contains('AGEDP'), 
-                .fns  = ~ if_else(. == 0, NA, .))) %>% 
+                .fns  = ~ na_if(., 0))) %>% 
   rename(dep_age_group1 = AGEDP1, 
          dep_age_group2 = AGEDP2, 
          dep_age_group3 = AGEDP3)
