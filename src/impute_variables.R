@@ -5,7 +5,7 @@
 #--------------------------------------
 
 # TODO list for the future
-# - improve depedent age imputation
+# - improve dependent age imputation
 # - vary SSN status by income
 # - actually impute pretax contributions
 # - higher fidelty wage earnings split for EARNINGS var, including consistent notion of gender/primary status interaction  
@@ -739,39 +739,44 @@ tip_avg_married    = 7072
 tip_avg_unmarried  = 5686
 
 # Read and process SIPP data
-sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_full.csv') %>%
+sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_full_split_2.csv') %>%
   fread() %>%
   tibble() %>% 
   
-  # Filter to nondependent workers 
-  filter(inc_earn > 0, !is_dep) %>% 
+  # Filter to nondependent wage workers 
+  filter(!is_dep, inc_wages > 0) %>% 
   mutate(
-    year = year - 1, 
-    wages = case_when(  # real wages
-      year == 2017 ~ inc_earn / 1,
-      year == 2018 ~ inc_earn / 1.024,
-      year == 2019 ~ inc_earn / 1.043, 
-      year == 2020 ~ inc_earn / 1.056, 
-      year == 2021 ~ inc_earn / 1.105, 
-      year == 2022 ~ inc_earn / 1.194
-    ), 
-    parent  = as.integer(n_dep > 0), 
-    married = as.integer(!is.na(marriage) & marriage < 3), 
-    tipped  = as.integer(inc_tip > 0)
+    year      = year - 1, 
+    tipped    = as.integer(inc_wages_tips > 0),
+    tip_share = inc_wages_tips / inc_wages,
+    parent    = as.integer(n_dep > 0),
+    married   = as.integer(!is.na(marriage) & marriage < 3), 
+    wages     = case_when(  
+      year == 2017 ~ inc_wages / 1,
+      year == 2018 ~ inc_wages / 1.024,
+      year == 2019 ~ inc_wages / 1.043, 
+      year == 2020 ~ inc_wages / 1.056, 
+      year == 2021 ~ inc_wages / 1.105, 
+      year == 2022 ~ inc_wages / 1.194
+    )
   ) %>% 
-  rename(tip_share = tips_pct) %>% 
   
   # Assign new industry categories
-  mutate(lh = as.integer(ind_1 >= 8561 & ind_1 <= 8690)) %>% 
-  left_join(read_csv('./resources/industry.csv'), by = c('ind_1' = 'code'))
-
+  mutate(
+    tips_lh = replace_na(tips_wages_1 * (ind_1 >= 8561 & ind_1 <= 8690), 0) + 
+              replace_na(tips_wages_2 * (ind_2 >= 8561 & ind_2 <= 8690), 0) + 
+              replace_na(tips_wages_3 * (ind_3 >= 8561 & ind_3 <= 8690), 0) + 
+              replace_na(tips_wages_4 * (ind_4 >= 8561 & ind_4 <= 8690), 0),
+    tips_lh = as.integer(tips_lh / inc_wages_tips > 0.5)
+  ) %>% 
+  select(
+    u_ID, year, weight, age, n_dep, married, parent, wages, 
+    tipped, tips = inc_wages_tips, tip_share, tips_lh
+  )
 
 # Create subsets for training data
 sipp_tipped = sipp %>% 
   filter(tipped == 1)
-
-sipp_21 = sipp %>% 
-  filter(year >= 2021)
 
 sipp_tipped_21 = sipp %>% 
   filter(tipped == 1, year >= 2021)
@@ -787,7 +792,6 @@ tip_qrf = quantregForest(
   nodesize = 5
 )
 
-
 # Estimate distribution parameters of tip-share-of-wages among tipped workers
 tip_share_qrf = quantregForest(
   x        = sipp_tipped[c('wages')],
@@ -798,33 +802,18 @@ tip_share_qrf = quantregForest(
   nodesize = 3
 )
 
-
-# Estimate model of tipped industry "tier":
-# 1 = high tipped worker share, high tip share of wages
-# 2 = high tipped worker share, lower tip share of wages
-# 3 = low tipped worker share
-tip_tier_qrf = quantregForest(
-  x        = sipp_21[c('tip_share', 'wages', 'parent', 'married', 'age')],
-  y        = as.factor(sipp_21$tipped_industry_tier),
+# Estimate model of the whether tips are attributable to leisure and hospitality
+tip_lh_qrf = quantregForest(
+  x        = sipp_tipped_21[c('tip_share', 'wages', 'parent', 'married', 'age')],
+  y        = as.factor(sipp_tipped_21$tips_lh), 
   nthreads = parallel::detectCores(),
-  weights  = sipp_21$weight,
+  weights  = sipp_tipped_21$weight,
   mtry     = 4,
   nodesize = 1
 )
 
 
-# Estimate model of whether tipped worker works in a leisure & hospitality industry
-tip_lh_qrf = quantregForest(
-  x        = sipp_tipped_21[c('tipped_industry_tier', 'tip_share', 'wages', 'parent', 'married', 'age')],
-  y        = as.factor(sipp_tipped_21$lh), 
-  nthreads = parallel::detectCores(),
-  weights  = sipp_tipped_21$weight,
-  mtry     = 5,
-  nodesize = 1
-)
-
-
-# Fit values for tipped probability and tip share of wages on tax data
+# Fit values on tax data
 tips = tax_units %>% 
   filter(wages1 > 0 | wages2 > 0) %>% 
   mutate(
@@ -858,7 +847,14 @@ tips = tax_units %>%
       newdata = (.),
       what    = function(x) sample(x, 1)
     )
-  ) 
+  ) %>% 
+  mutate(
+    tips_lh = predict(
+      object  = tip_lh_qrf, 
+      newdata = (.),
+      what    = function(x) sample(x - 1, 1)
+    )
+  )
 
 
 # Calculate scaling factor to benchmark to IRS aggregates
@@ -876,7 +872,7 @@ scaling_factors = tips %>%
   )
 
 # ... and adjust pre-pandemic IRS benchmarking factors to account for extensive 
-# margin growth in tipped since the pandemic, 
+# margin growth in tipping since the pandemic
 covid_factor = sipp %>% 
   summarise(
     pre_pandemic  = weighted.mean(tipped, weight * (year %in% 2017:2019)), 
@@ -886,52 +882,31 @@ covid_factor = sipp %>%
   select(covid_factor) %>% 
   deframe()
 
-
+# Simulate tips accounting for scaling factors
 tips %<>%
-  
-  # Simulate tips accounting for scaling factors
   left_join(scaling_factors, by = 'married') %>% 
-  mutate(tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p * covid_factor)) * factor_avg) %>% 
-
-  # Update tip share to reflect simulated tipped workers only  
-  mutate(tip_share = tip_share * (tips > 0)) %>% 
-  
-  # Fit tipped industry tier for all workers
   mutate(
-    tipped_industry_tier = predict(
-      object  = tip_tier_qrf, 
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    )
-  ) %>% 
-  
-  # Fit LH indicator for tipped workers only
-  mutate(
-    p_lh = predict(
-      object  = tip_lh_qrf, 
-      newdata = (.),
-      what    = function(x) mean(x - 1)
-    ), 
-    tips_lh = (tips > 0) * (runif(nrow(.)) < p_lh)
+    tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p * covid_factor)) * factor_avg, 
+    tips_lh = na_if(tips_lh, tips == 0)
   )
-  
+
 
 # Add tips-related info to tax unit data
 tax_units %<>% 
   left_join(
     tips %>% 
-      select(id, index, tips, tips_lh, tipped_industry_tier) %>% 
+      select(id, index, tips, tips_lh) %>% 
       pivot_wider(
         names_from  = index,
         names_sep   = '',
-        values_from = c(tips, tips_lh, tipped_industry_tier),
+        values_from = c(tips, tips_lh),
       ), 
     by = 'id'
   ) %>% 
   mutate(
-    tips1 = replace_na(tips1, 0), 
-    tips2 = replace_na(tips2, 0), 
-    tips  = tips1 + tips2, 
+    tips1    = replace_na(tips1, 0), 
+    tips2    = replace_na(tips2, 0), 
+    tips     = tips1 + tips2, 
     tips_lh1 = replace_na(tips_lh1, 0), 
     tips_lh2 = replace_na(tips_lh2, 0)
   )
