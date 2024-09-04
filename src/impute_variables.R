@@ -739,7 +739,7 @@ tip_avg_married    = 7072
 tip_avg_unmarried  = 5686
 
 # Read and process SIPP data
-sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_full_split_2.csv') %>%
+sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_occ_full_split.csv') %>%
   fread() %>%
   tibble() %>% 
   
@@ -763,10 +763,10 @@ sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_full_sp
   
   # Assign new industry categories
   mutate(
-    tips_lh = replace_na(tips_wages_1 * (ind_1 >= 8561 & ind_1 <= 8690), 0) + 
-              replace_na(tips_wages_2 * (ind_2 >= 8561 & ind_2 <= 8690), 0) + 
-              replace_na(tips_wages_3 * (ind_3 >= 8561 & ind_3 <= 8690), 0) + 
-              replace_na(tips_wages_4 * (ind_4 >= 8561 & ind_4 <= 8690), 0),
+    tips_lh = replace_na(earn_tip_wages_i_1 * (ind_1 >= 8561 & ind_1 <= 8690), 0) + 
+              replace_na(earn_tip_wages_i_2 * (ind_2 >= 8561 & ind_2 <= 8690), 0) + 
+              replace_na(earn_tip_wages_i_3 * (ind_3 >= 8561 & ind_3 <= 8690), 0) + 
+              replace_na(earn_tip_wages_i_4 * (ind_4 >= 8561 & ind_4 <= 8690), 0),
     tips_lh = as.integer(tips_lh / inc_wages_tips > 0.5)
   ) %>% 
   select(
