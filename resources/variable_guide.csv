@@ -26,6 +26,9 @@ n_dep_eitc,number of EITC-qualifying children under 2015 rules,puf,EIC,NA
 wages,W2 wages for tax unit,puf,E00200,wages
 wages1,primary filer's share of wages,imputed,NA,wages
 wages2,secondary filer's share of wages,imputed,NA,wages
+ot,FLSA-eligible OT wages for tax unit,imputed,NA,wages
+ot1,FLSA-eligible OT wages for primary earner,imputed,NA,wages
+ot2,FLSA-eligible OT wages for secondary earner,imputed,NA,wages
 tips,tipped wage income for tax unit,imputed,NA,wages
 tips1,tipped wage income for primary earner,imputed,NA,wages
 tips2,tipped wage income for secondary earner,imputed,NA,wages
