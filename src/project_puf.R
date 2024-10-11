@@ -25,7 +25,7 @@ tax_units %<>%
 
 
 # Clean up enviroment 
-rm(raw_puf, puf, puf_2017, qbi_variables, wage_primary_share)
+rm(raw_puf, puf, puf_2017, scf, sipp, pctile_outcomes, person_level_data, ot, ot_microdata)
 
 
 
@@ -256,7 +256,7 @@ for (y in 2018:2019) {
   write_csv(output, file.path(output_path, paste0('tax_units_', y, '.csv')))
 }
     
-tax_units_2019 = output    
+tax_units_2019 = output
     
 #--------------------------------------------------------------
 # Project PUF beyond years with (noncovid) historical tax data

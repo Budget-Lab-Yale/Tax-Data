@@ -28,5 +28,9 @@ dependency_info:
   CPS-ASEC-Panel:
     vintage: 2024013021
     scenario: historical
+    
+  SCF:
+    vintage: 2022
+    scenario: historical
 
   

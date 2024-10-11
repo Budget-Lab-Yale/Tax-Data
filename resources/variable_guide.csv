@@ -100,6 +100,7 @@ dpad,domestic production activities deduction,puf,E03240,income
 char_cash,cash charitable contributions,puf,E19800,charity
 char_noncash,noncash charitable contributions,puf,E20100,charity
 other_above_ded,other above-the-line deductions,imputed,NA,income
+auto_int_exp,auto loan interest expense,imputed,NA,int
 med_exp,medical expenses for itemizers,puf,E17500,income
 salt_inc_sales,greater of state and local income or sales tax paid for itemizers,puf,E18400,income
 salt_prop,state and local real estate tax paid,puf,E18500,income

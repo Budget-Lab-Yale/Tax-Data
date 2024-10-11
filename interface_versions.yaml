@@ -35,3 +35,7 @@ CPS-ASEC:
 CPS-ASEC-Panel:
   type: raw_data
   version: 3
+  
+SCF:
+  type: raw_data
+  version: 1
