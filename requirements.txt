@@ -4,7 +4,6 @@ yaml
 haven
 lpSolveAPI
 Hmisc
-quantreg
 data.table
 quantregForest
 lubridate

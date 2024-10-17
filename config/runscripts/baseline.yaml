@@ -32,5 +32,8 @@ dependency_info:
   SCF:
     vintage: 2022
     scenario: historical
-
+  
+  SIPP:
+    vintage: 2024090311
+    scenario: baseline
   
