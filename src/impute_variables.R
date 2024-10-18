@@ -470,41 +470,41 @@ model_had_ei = income_model_presence = glm(
 
 
 # Estimate model of nonzero earnings in year 1 for those who have zero wages in year 2
-model_ei_0 = list() 
-for (pct in seq(0.05, 0.95, 0.05)) {
-  model_ei_0[[paste0('pctile_', pct)]] = rq(
-    log(ei.1) ~ 
-      log_inc + 
-      age + 
-      age_sq + 
-      married + 
-      male + 
-      has_kids + 
-      log(year), 
-    data = cps %>% 
-      filter(ei.1 > 0, ei.2 == 0), 
-    tau  = pct
-  )
-}
+# model_ei_0 = list() 
+# for (pct in seq(0.05, 0.95, 0.05)) {
+#   model_ei_0[[paste0('pctile_', pct)]] = rq(
+#     log(ei.1) ~ 
+#       log_inc + 
+#       age + 
+#       age_sq + 
+#       married + 
+#       male + 
+#       has_kids + 
+#       log(year), 
+#     data = cps %>% 
+#       filter(ei.1 > 0, ei.2 == 0), 
+#     tau  = pct
+#   )
+# }
 
 # Estimate model of earnings in year 1 for those who had nonzero wages in year 2
-model_ei = list()
-for (pct in seq(0.05, 0.95, 0.05)) {
-  model_ei[[paste0('pctile_', pct)]] = rq(
-    ei_growth ~
-      log_ei.2 + 
-      log_inc + 
-      age + 
-      age_sq + 
-      married + 
-      male + 
-      has_kids + 
-      log(year), 
-    data = cps %>% 
-      filter(ei.1 > 0, ei.2 > 0), 
-    tau  = pct
-  )
-}
+# model_ei = list()
+# for (pct in seq(0.05, 0.95, 0.05)) {
+#   model_ei[[paste0('pctile_', pct)]] = rq(
+#     ei_growth ~
+#       log_ei.2 + 
+#       log_inc + 
+#       age + 
+#       age_sq + 
+#       married + 
+#       male + 
+#       has_kids + 
+#       log(year), 
+#     data = cps %>% 
+#       filter(ei.1 > 0, ei.2 > 0), 
+#     tau  = pct
+#   )
+# }
 
 # Get person-level data for imputation
 person_level_data = tax_units %>% 
@@ -538,22 +538,22 @@ pctile_outcomes = seq(0.05, 0.95, 0.05) %>%
           pct = .x, 
           
           # Fit outcome for case when person had no earnings this year
-          yhat_0 = exp(predict(object  = model_ei_0[[paste0('pctile_', .x)]], 
-                               newdata = (.))),
+          # yhat_0 = exp(predict(object  = model_ei_0[[paste0('pctile_', .x)]], 
+          #                      newdata = (.))),
           
           # Fit outcome for case when person had earnings in both years
-          yhat = predict(object  = model_ei[[paste0('pctile_', .x)]], 
-                         newdata = (.)),
+          # yhat = predict(object  = model_ei[[paste0('pctile_', .x)]], 
+          #                newdata = (.)),
           
           # Assign based on conditions
-          ei_prior_yr = case_when(
-            !had_ei ~ 0, 
-            had_ei & ei == 0 ~ yhat_0,
-            had_ei & ei > 0  ~ pmax(0, ei * (1 / (1 + yhat))) 
-          )
-          
+          # ei_prior_yr = case_when(
+          #   !had_ei ~ 0, 
+          #   had_ei & ei == 0 ~ yhat_0,
+          #   had_ei & ei > 0  ~ pmax(0, ei * (1 / (1 + yhat))) 
+          # )
+          ei_prior_yr = 0
         ) %>%
-        select(id, index, ei, had_ei, pct, yhat_0, yhat, ei_prior_yr) %>% 
+        select(id, index, ei, had_ei, pct, ei_prior_yr) %>% #yhat_0, yhat, 
         return()
   ) %>% 
   bind_rows()
@@ -739,7 +739,7 @@ tip_avg_married    = 7072
 tip_avg_unmarried  = 5686
 
 # Read and process SIPP data
-sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_occ_full_split.csv') %>%
+sipp = file.path(interface_paths$SIPP, 'tip_ind_occ_full_split.csv') %>%
   fread() %>%
   tibble() %>% 
   
