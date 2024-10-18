@@ -18,7 +18,7 @@ dependency_info:
     scenario: historical
   
   Macro-Projections: 
-    vintage: 2024061815
+    vintage: 2024100910
     scenario: baseline
     
   CPS-ASEC:
@@ -32,5 +32,8 @@ dependency_info:
   SCF:
     vintage: 2022
     scenario: historical
-
+  
+  SIPP:
+    vintage: 2024090311
+    scenario: baseline
   

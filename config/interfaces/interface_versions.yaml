@@ -39,3 +39,8 @@ CPS-ASEC-Panel:
 SCF:
   type: raw_data
   version: 1
+
+SIPP:
+  type: raw_data
+  version: 1
+

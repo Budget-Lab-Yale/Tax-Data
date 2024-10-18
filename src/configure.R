@@ -9,8 +9,7 @@
 #----------------
 
 runscript_id = 'baseline'
-runscript = file.path('./config/runscripts/') %>% 
-  paste0(runscript_id, '.yaml') %>% 
+runscript = file.path('./config/runscripts', paste0(runscript_id, '.yaml')) %>% 
   read_yaml()
 
 
@@ -19,8 +18,8 @@ runscript = file.path('./config/runscripts/') %>%
 #-----------------
 
 # Read versioning info
-output_roots       = read_yaml('./output_roots.yaml')
-interface_versions = read_yaml('./interface_versions.yaml')
+output_roots       = read_yaml('./config/interfaces/output_roots.yaml')
+interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
 
 # Get current date/time to vintage this run
 st      = Sys.time()
