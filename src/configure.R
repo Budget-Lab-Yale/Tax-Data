@@ -22,17 +22,7 @@ output_roots       = read_yaml('./config/interfaces/output_roots.yaml')
 interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
 
 # Get current date/time to vintage this run
-st      = Sys.time()
-vintage = paste0(year(st), 
-                 month(st) %>%
-                   paste0('0', .) %>% 
-                   str_sub(-2), 
-                 day(st) %>%
-                   paste0('0', .) %>% 
-                   str_sub(-2), 
-                 hour(st) %>%
-                   paste0('0', .) %>% 
-                   str_sub(-2))
+vintage = format(Sys.time(), '%Y%m%d%H')
 
 # Set output root
 if (runscript$runtime_options$write_locally) {
@@ -107,7 +97,9 @@ target_info = paste0(runscript_id, '.csv') %>%
 # including crosswalk with PUF name if applicable, description and source, 
 # whether the variable is an income/dollar amount variable vs a categorical attribute,
 # an instructions for growing it historically and into the future
-variable_guide = read_csv('./resources/variable_guide.csv')
+variable_guide = paste0(runscript_id, '.csv') %>% 
+  file.path('./config/variable_guide', .) %>% 
+  read_csv()
 
 # Read variable-table crosswalk: shows source for each variable available in 
 # SOI targets, and shows whether it's available by AGI or not
