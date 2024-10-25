@@ -385,200 +385,6 @@ tax_units %<>%
   )
 
 
-#---------------------
-# Prior-year earnings
-#---------------------
-
-# Read CPS panel data
-cps = file.path(interface_paths$`CPS-ASEC-Panel`, 'cps_00015.csv.gz') %>% 
-  read_csv()  %>% 
-  
-  # Filter to adults with no earnings imputations
-  filter(AGE_1 >= 18, AGE_2 >= 18, 
-         QINCLONG_1...53  != 0 | 
-         QINCLONG_2...54  != 0 | 
-         QOINCWAGE_1...63 != 0 | 
-         QOINCWAGE_2...64 != 0 | 
-         QOINCBUS_1...41  != 0 | 
-         QOINCBUS_2...42  != 0) %>% 
-  
-  # Derive and recode variables
-  group_by(year = YEAR_2) %>% 
-  mutate(
-    
-    # Create record IDs 
-    id   = row_number(),
-    year = YEAR_2,
-    
-    # Add conditioning vars
-    age        = pmin(80, AGE_2),
-    age_sq     = age ^ 2, 
-    married    = as.integer(MARST_2 %in% 1:2),
-    male       = as.integer(SEX_2 == 1),
-    n_kids     = pmin(3, NCHILD_2),
-    has_kids   = as.integer(n_kids > 0),
-    inc_sq     = FTOTVAL_2 ^ 2,
-    log_inc    = log(pmax(0.01, FTOTVAL_2)),
-    inc_pctile = cut(
-      x      = FTOTVAL_2, 
-      breaks = wtd.quantile(x       = FTOTVAL_2, 
-                            weights = ASECWTH_2, 
-                            probs   = seq(0, 1, 0.1)), 
-      labels = F
-    ),
-    
-    # Earnings 
-    ei.1     = pmax(0, INCWAGE_1 + INCBUS_1), 
-    ei.2     = pmax(0, INCWAGE_2 + INCBUS_2),
-    log_ei.2 = log(pmax(0.01, ei.2)),
-    has_ei.1 = as.integer(ei.1 > 0),
-    has_ei.2 = as.integer(ei.2 > 0),
-    ei_growth = ei.2 / ei.1 - 1
-  ) %>%
-  
-  # Keep only the variables we need
-  select(id,
-         year, 
-         weight = ASECWT_2,
-         age, age_sq,
-         married,
-         male, 
-         n_kids, 
-         has_kids, 
-         inc = FTOTVAL_2,
-         inc_sq,
-         log_inc,
-         inc_pctile,
-         ei.1, ei.2, 
-         has_ei.1, has_ei.2,
-         log_ei.2,
-         ei_growth)
-
-
-# Estimate model having nonzero earnings last year
-model_had_ei = income_model_presence = glm(
-  has_ei.1 ~
-    has_ei.2 +  
-    log_ei.2 + 
-    age + 
-    age_sq + 
-    male + 
-    has_kids,
-  data   = cps,
-  family = 'binomial'
-) 
-
-
-# Estimate model of nonzero earnings in year 1 for those who have zero wages in year 2
-model_ei_0 = list() 
-for (pct in seq(0.05, 0.95, 0.05)) {
-  model_ei_0[[paste0('pctile_', pct)]] = rq(
-    log(ei.1) ~ 
-      log_inc + 
-      age + 
-      age_sq + 
-      married + 
-      male + 
-      has_kids + 
-      log(year), 
-    data = cps %>% 
-      filter(ei.1 > 0, ei.2 == 0), 
-    tau  = pct
-  )
-}
-
-# Estimate model of earnings in year 1 for those who had nonzero wages in year 2
-model_ei = list()
-for (pct in seq(0.05, 0.95, 0.05)) {
-  model_ei[[paste0('pctile_', pct)]] = rq(
-    ei_growth ~
-      log_ei.2 + 
-      log_inc + 
-      age + 
-      age_sq + 
-      married + 
-      male + 
-      has_kids + 
-      log(year), 
-    data = cps %>% 
-      filter(ei.1 > 0, ei.2 > 0), 
-    tau  = pct
-  )
-}
-
-# Get person-level data for imputation
-person_level_data = tax_units %>% 
-  mutate(married  = as.integer(filing_status == 2), 
-         has_kids = as.integer(n_dep_ctc > 0), 
-         inc      = E00100, 
-         inc_sq   = inc ^ 2,
-         log_inc  = log(pmax(0.01, inc)),
-         year     = 2017, 
-         ei1     = pmax(0, wages1 + sole_prop1 + part_se1), 
-         ei2     = pmax(0, wages2 + sole_prop2 + part_se2))%>% 
-  select(id, year, married, has_kids, inc, inc_sq, log_inc, age1, age2, male1, male2, ei1, ei2) %>% 
-  pivot_longer(cols = -c(id, year, married, has_kids, inc, inc_sq, log_inc)) %>% 
-  mutate(index = as.integer(str_sub(name, -1)), 
-         name  = str_sub(name, end = -2)) %>% 
-  pivot_wider() %>% 
-  filter(married == 1 | index == 1) %>% 
-  
-  # Impute presence of nonzero earnings last year
-  mutate(has_ei.2 = as.integer(ei > 0), 
-         age_sq      = age ^ 2, 
-         log_ei.2 = log(pmax(0.01, ei))) %>%
-  mutate(had_ei   = runif(nrow(.)) < predict(object  = model_had_ei, 
-                                             newdata = (.),
-                                             type    = 'response'))
-
-# Impute earnings last year
-pctile_outcomes = seq(0.05, 0.95, 0.05) %>% 
-  map(.f = ~ person_level_data %>% 
-        mutate(
-          pct = .x, 
-          
-          # Fit outcome for case when person had no earnings this year
-          yhat_0 = exp(predict(object  = model_ei_0[[paste0('pctile_', .x)]], 
-                               newdata = (.))),
-          
-          # Fit outcome for case when person had earnings in both years
-          yhat = predict(object  = model_ei[[paste0('pctile_', .x)]], 
-                         newdata = (.)),
-          
-          # Assign based on conditions
-          ei_prior_yr = case_when(
-            !had_ei ~ 0, 
-            had_ei & ei == 0 ~ yhat_0,
-            had_ei & ei > 0  ~ pmax(0, ei * (1 / (1 + yhat))) 
-          )
-          
-        ) %>%
-        select(id, index, ei, had_ei, pct, yhat_0, yhat, ei_prior_yr) %>% 
-        return()
-  ) %>% 
-  bind_rows()
-
-# Impute for all records and reshape back to tax unit concept
-ei_prior_yr = person_level_data %>% 
-  mutate(pct = sample(x       = seq(0.05, 0.95, 0.05), 
-                      size    = nrow(.), 
-                      replace = T)) %>% 
-  left_join(pctile_outcomes %>% 
-              select(id, index, pct, ei_prior_yr), 
-            by = c('id', 'index', 'pct')) %>% 
-  select(id, index, ei_prior_yr) %>% 
-  pivot_wider(names_from   = index, 
-              names_prefix = 'ei_prior_yr',
-              values_from  = ei_prior_yr) %>% 
-  mutate(ei_prior_yr2 = replace_na(ei_prior_yr2, 0),
-         ei_prior_yr  = ei_prior_yr1 + ei_prior_yr2)
-
-
-# Join with tax unit data
-tax_units %<>% 
-  left_join(ei_prior_yr %>% 
-              select(-ei_prior_yr1, -ei_prior_yr2), by = 'id')
-
 
 #-----------------------
 # QBI-related variables
@@ -739,7 +545,7 @@ tip_avg_married    = 7072
 tip_avg_unmarried  = 5686
 
 # Read and process SIPP data
-sipp = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP/tip_ind_occ_full_split.csv') %>%
+sipp = file.path(interface_paths$SIPP, 'tip_ind_occ_full_split.csv') %>%
   fread() %>%
   tibble() %>% 
   
@@ -1144,6 +950,9 @@ tax_units$auto_int_exp = auto_int_exp$auto_int_exp / 1.3886
 # when time allows
 tax_units %<>% 
   mutate(
+    
+    # Prior-year earnings
+    ei_prior_yr = 0,
     
     # Pretax contributions via employer
     trad_contr_er1 = 0,
