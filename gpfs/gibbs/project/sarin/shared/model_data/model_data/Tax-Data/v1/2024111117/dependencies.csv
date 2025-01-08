@@ -1,9 +1,0 @@
-ID,interface,version,vintage,scenario
-baseline,IRS-PUF,1,2023091310,historical
-baseline,DINA,1,2023082913,historical
-baseline,Compiled-SOI-Tables,2,2023100323,historical
-baseline,Macro-Projections,3,2024100910,baseline
-baseline,CPS-ASEC,1,2024110517,historical
-baseline,CPS-ASEC-Panel,3,NA,NA
-baseline,SCF,1,2022,historical
-baseline,SIPP,1,2024090311,baseline
