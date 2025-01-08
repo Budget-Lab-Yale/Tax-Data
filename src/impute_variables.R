@@ -34,7 +34,7 @@ tax_units %<>%
 
 # Read the CPS
 cps = interface_paths$`CPS-ASEC` %>% 
-  file.path('cps_00013.csv.gz') %>% 
+  file.path('cps_00027.csv.gz') %>% 
   read_csv()
 
 # Estimate age gap distribution 
@@ -941,6 +941,79 @@ auto_int_exp = tax_units %>%
 # income growth over the 2017-2022 period   
 tax_units$auto_int_exp = auto_int_exp$auto_int_exp / 1.3886
 
+
+
+#--------------------
+# Childcare expenses
+#--------------------
+
+childcare_train = cps %>%
+  filter(YEAR == 2017, RELATE %in% c(101, 201)) %>% 
+  mutate(
+    married   = as.integer(MARST %in% 1:2),
+    n_dep_old = NCHILD - NCHLT5,
+    care_exp  = if_else(married == 1, SPMCHXPNS / 2, SPMCHXPNS)
+  ) %>% 
+  select(SERIAL, FAMUNIT, weight = ASECWT, age = AGE, married, n_dep_young = NCHLT5, n_dep_old, wages = INCWAGE, care_exp)
+
+childcare_qrf = quantregForest(
+  x        = childcare_train[c('wages', 'married', 'n_dep_young', 'n_dep_old', 'age')],
+  y        = childcare_train$care_exp, 
+  nthreads = parallel::detectCores(),
+  weights  = childcare_train$weight,
+  mtry     = 4,
+  nodesize = 5
+)
+
+# Fit values on tax data
+childcare = tax_units %>% 
+  mutate(
+    n_dep_young = (
+      (!is.na(dep_age1) & dep_age1 <= 4) +
+      (!is.na(dep_age2) & dep_age2 <= 4) + 
+      (!is.na(dep_age3) & dep_age3 <= 4)
+    ),
+    n_dep_old = (
+      (!is.na(dep_age1) & dep_age1 > 4 & dep_age1 <= 24) +
+      (!is.na(dep_age2) & dep_age2 > 4 & dep_age2 <= 24) + 
+      (!is.na(dep_age3) & dep_age3 > 4 & dep_age3 <= 24)
+    ), 
+    married = as.integer(filing_status == 2)
+  ) %>% 
+  select(id, weight, married, n_dep_young, n_dep_old, wages1, wages2, age1, age2) %>% 
+  pivot_longer(
+    cols            = c(wages1, wages2), 
+    names_prefix    = 'wages', 
+    names_transform = as.integer, 
+    names_to        = 'index', 
+    values_to       = 'wages'
+  ) %>% 
+  mutate(age = if_else(index == 1, age1, age2)) %>% 
+  select(-age1, -age2) %>% 
+  filter(wages > 0) %>% 
+  mutate(
+    care_exp = predict(
+      object  = childcare_qrf, 
+      newdata = (.),
+      what    = function(x) sample(x, 1)
+    )
+  )
+
+# Add care expenses to tax unit data
+tax_units %<>% 
+  select(-care_exp) %>% 
+  left_join(
+    childcare %>% 
+      select(id, index, care_exp) %>% 
+      pivot_wider(
+        names_from   = index,
+        names_prefix = 'care_exp',
+        values_from  = care_exp,
+      ), 
+    by = 'id'
+  ) %>% 
+  mutate(care_exp = replace_na(care_exp1, 0) + replace_na(care_exp2, 0)) %>% 
+  select(-care_exp1, -care_exp2)
 
 #-----------
 # TODO LIST

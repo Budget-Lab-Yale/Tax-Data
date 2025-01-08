@@ -22,7 +22,7 @@ dependency_info:
     scenario: baseline
     
   CPS-ASEC:
-    vintage: 2024010721
+    vintage: 2024110517
     scenario: historical
     
   SCF:
