@@ -26,18 +26,18 @@ puf = raw_puf %>%
 #-----------------------------------------------
 
 # Set agi bins for age imputation modeling 
-age_dist_agi_groups = c(-1e99, 75000, 1e99)
+age_dist_agi_groups = c(-1e99, 25000, 50000, 75000, 100000, 200000, 1e99)
 
 # Get target distribution of ages from SOI table 1.6
 age_dist = tables$table_1_6 %>% 
   filter(year == 2015) %>% 
-  mutate(agi_group = cut(x              = agi, 
-                         breaks         = age_dist_agi_groups, 
-                         include.lowest = T, 
-                         right          = F, 
-                         labels         = head(age_dist_agi_groups, -1))) %>% 
-  group_by(filing_status, agi_group, age_group) %>% 
-  summarise(actual = sum(count), 
+  mutate(agi_group = cut(x              = agi,
+                         breaks         = age_dist_agi_groups,
+                         include.lowest = T,
+                         right          = F,
+                         labels         = head(age_dist_agi_groups, -1))) %>%
+  group_by(filing_status, agi_group, age_group) %>%
+  summarise(actual = sum(count),
             .groups = 'drop')
 
 
