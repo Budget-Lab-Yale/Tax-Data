@@ -65,8 +65,7 @@ itemized_deduction_projections = read_csv('resources/itemized_deduction_projecti
 income_near = read_csv('resources/cbo_1040.csv') %>% 
   
   # Convert to growth rates
-  mutate(across(.cols = -year, 
-                .fns  = ~ . / lag(.) - 1)) %>% 
+  mutate(across(.cols = -year, .fns  = ~ . / lag(.) - 1)) %>% 
   
   # Join itemized deduction projections and use where available
   left_join(itemized_deduction_projections, by = 'year') %>% 
@@ -267,9 +266,7 @@ tax_units_2019 = output
 population_factors = demog %>% 
   filter(year >= 2019) %>% 
   group_by(married, age) %>% 
-  mutate(population_factor = ifelse(n > 0, 
-                                    n / n[year == 2019], 
-                                    1)) %>% 
+  mutate(population_factor = ifelse(n > 0, n / n[year == 2019], 1)) %>% 
   ungroup() %>% 
   select(-n)
 
