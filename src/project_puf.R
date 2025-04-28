@@ -69,30 +69,36 @@ income_near = read_csv('resources/cbo_1040.csv') %>%
   
   # Join itemized deduction projections and use where available
   left_join(itemized_deduction_projections, by = 'year') %>% 
-  mutate(mortgage = if_else(is.na(mortgage), txbl_int_div_ord, mortgage), 
-         charity  = if_else(is.na(charity), income, charity)) %>% 
+  mutate(
+    salt_inc_sales = if_else(is.na(salt_inc_sales), income,           salt_inc_sales),
+    salt_prop      = if_else(is.na(salt_prop),      income,           salt_prop),
+    mortgage       = if_else(is.na(mortgage),       txbl_int_div_ord, mortgage), 
+    charity        = if_else(is.na(charity),        income,           charity)
+  ) %>% 
   
   # Map to larger categories and reshape long in variable
   select(year, income, wages, int = txbl_int_div_ord, div = div_pref, kg = txbl_kg, pt, 
-         pensions = txbl_pensions, ss = txbl_ss, ui, mortgage, charity) %>% 
+         pensions = txbl_pensions, ui, mortgage, charity, salt_inc_sales, salt_prop) %>% 
   pivot_longer(cols      = -year, 
                names_to  = 'variable', 
                values_to = 'near')
 
 # Get longer-term income factors
 income_far = macro_projections %>% 
-  mutate(income   = gdp, 
-         wages    = gdp_wages, 
-         int      = gdp_interest, 
-         div      = gdp_corp, 
-         kg       = gdp_corp, 
-         pt       = gdp_proprietors + gdp_rent + gdp_corp, 
-         rent     = gdp_rent,
-         pensions = outlays_mand_oasdi,
-         ss       = outlays_mand_oasdi,
-         ui       = gdp, 
-         mortgage = gdp_interest, 
-         charity  = gdp) %>% 
+  mutate(income         = gdp, 
+         wages          = gdp_wages, 
+         int            = gdp_interest, 
+         div            = gdp_corp, 
+         kg             = gdp_corp, 
+         pt             = gdp_proprietors + gdp_rent + gdp_corp, 
+         rent           = gdp_rent,
+         pensions       = outlays_mand_oasdi,
+         ss             = outlays_mand_oasdi,
+         ui             = gdp, 
+         mortgage       = gdp_interest, 
+         charity        = gdp, 
+         salt_inc_sales = gdp, 
+         salt_prop      = gdp) %>% 
   select(year, all_of(variable_guide %>% 
                         filter(!is.na(grow_with)) %>% 
                         select(grow_with) %>% 
@@ -270,6 +276,13 @@ population_factors = demog %>%
   ungroup() %>% 
   select(-n)
 
+# Manual adjustments to match CBO targets starting in 2025...this will be revised in the next overhaul
+ad_hoc_factors = list(
+  'salt_inc'       = 0.95,
+  'salt_prop'      = 0.95,
+  'first_mort_int' = 0.95
+)
+
 for (y in 2020:2097) {
   
     # Calculate new weights based on tax unit age composition
@@ -285,7 +298,7 @@ for (y in 2020:2097) {
       left_join(population_factors %>% 
                   filter(year == y), 
                 by = c('married', 'age')) %>% 
-      mutate(weight = weight * population_factor) %>% 
+      mutate(weight = weight * population_factor * if_else(age < 18, 0.99, 1)) %>%   # Ad-hoc adjustment factor to hit CTC targets 
       group_by(id) %>% 
       summarise(new_weight = mean(weight), 
                 .groups = 'drop')
@@ -329,11 +342,17 @@ for (y in 2020:2097) {
         grow_with = str_sub(var, end = -2)
       }
       
-      # Get factor and apply
+      # Get factor
       this_factor = intensive_factors %>% 
         filter(variable == grow_with) %>% 
         select(intensive_factor) %>% 
         deframe()
+      
+      # Adjust for ad-hoc matching factors
+      if (var %in% names(ad_hoc_factors)) {
+        this_factor = this_factor * ad_hoc_factors[[var]]
+      }
+      
       output[[var]] = output[[var]] * this_factor
     }
       

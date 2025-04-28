@@ -405,12 +405,12 @@ sstb_params = qbi_params %>%
   pivot_wider(names_from   = sstb, 
               names_prefix = 'sstb', 
               values_from  = n) %>% 
-  mutate(p_sstb = (sstb1 / (sstb0 + sstb1)) - 0.1) %>%  # Add factor calibrated to match QBI totals  
+  mutate(p_sstb = (sstb1 / (sstb0 + sstb1)) / 5) %>%  # Scaling factor calibrated to match QBI totals  
   select(form, p_sstb)
 
 # Assumption: wages paid are shared out in proportion to:
-# (1) equally (50%)
-# (2) share of positive net income (50%)
+# (1) equally
+# (2) share of positive net income
 # ...plus a Gaussian noise term. 
 # The idea is that wages are a linear function of (non-loss) profits, with a 
 # nonzero intercept to account for "fixed costs". The weights are arbitrary, 
@@ -431,7 +431,7 @@ pass_thru_micro = puf %>%
   left_join(qbi_params %>% 
               select(form, sstb, share_employer, total_wages = wages), 
             by = c('form', 'sstb')) %>% 
-  mutate(employer = runif(nrow(.)) < (share_employer + 0.15))  # 0.15: scale_up factor to account for the fact that employer share is defined w/r/t/ $10K, not $0K, wage definition
+  mutate(employer = runif(nrow(.)) < (share_employer + 0.2))  # scale up factor to account for the fact that employer share is defined w/r/t/ $10K, not $0K, wage definition
   
   
 # Impute wages paid
