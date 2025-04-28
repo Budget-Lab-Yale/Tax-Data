@@ -278,9 +278,9 @@ population_factors = demog %>%
 
 # Manual adjustments to match CBO targets starting in 2025...this will be revised in the next overhaul
 ad_hoc_factors = list(
-  'salt_inc'       = 0.95,
-  'salt_prop'      = 0.95,
-  'first_mort_int' = 0.95
+  'salt_inc_sales' = 0.97,
+  'salt_prop'      = 0.97,
+  'first_mort_int' = 0.97
 )
 
 for (y in 2020:2097) {
