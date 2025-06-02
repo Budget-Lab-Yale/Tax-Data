@@ -99,7 +99,7 @@ target_info = paste0(runscript_id, '.csv') %>%
 # an instructions for growing it historically and into the future
 variable_guide = paste0(runscript_id, '.csv') %>% 
   file.path('./config/variable_guide', .) %>% 
-  read_csv()
+  read_csv(show_col_types = F)
 
 # Read variable-table crosswalk: shows source for each variable available in 
 # SOI targets, and shows whether it's available by AGI or not
