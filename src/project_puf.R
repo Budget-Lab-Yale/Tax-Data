@@ -25,7 +25,7 @@ tax_units %<>%
 
 
 # Clean up enviroment 
-rm(raw_puf, puf, puf_2017, scf, sipp, ot, ot_microdata)
+rm(raw_puf, puf, puf_2017, sipp, ot, ot_microdata)
 
 
 
