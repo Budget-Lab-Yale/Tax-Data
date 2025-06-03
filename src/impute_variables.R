@@ -587,37 +587,46 @@ sipp_tipped = sipp %>%
 sipp_tipped_21 = sipp %>% 
   filter(tipped == 1, year >= 2021)
 
-
-# Estimate model of being a tipped worker
-tip_qrf = quantregForest(
-  x        = sipp[c('wages', 'parent', 'married', 'age')],
-  y        = as.factor(sipp$tipped), 
-  nthreads = parallel::detectCores(),
-  weights  = sipp$weight,
-  mtry     = 3,
-  nodesize = 5
-)
-
-# Estimate distribution parameters of tip-share-of-wages among tipped workers
-tip_share_qrf = quantregForest(
-  x        = sipp_tipped[c('wages')],
-  y        = sipp_tipped$tip_share, 
-  nthreads = parallel::detectCores(),
-  weights  = sipp_tipped$weight,
-  mtry     = 1,
-  nodesize = 3
-)
-
-# Estimate model of the whether tips are attributable to leisure and hospitality
-tip_lh_qrf = quantregForest(
-  x        = sipp_tipped_21[c('tip_share', 'wages', 'parent', 'married', 'age')],
-  y        = as.factor(sipp_tipped_21$tips_lh), 
-  nthreads = parallel::detectCores(),
-  weights  = sipp_tipped_21$weight,
-  mtry     = 4,
-  nodesize = 1
-)
-
+# Run or read in Quantile Regression Forest objects 
+if(estimate_models) {
+  # Estimate model of being a tipped worker
+  tip_qrf = quantregForest(
+    x        = sipp[c('wages', 'parent', 'married', 'age')],
+    y        = as.factor(sipp$tipped), 
+    nthreads = parallel::detectCores(),
+    weights  = sipp$weight,
+    mtry     = 3,
+    nodesize = 5
+  )
+  write_rds(tip_qrf, 'resources/cache/qrf/tip_qrf.rds')
+  
+  # Estimate distribution parameters of tip-share-of-wages among tipped workers
+  tip_share_qrf = quantregForest(
+    x        = sipp_tipped[c('wages')],
+    y        = sipp_tipped$tip_share, 
+    nthreads = parallel::detectCores(),
+    weights  = sipp_tipped$weight,
+    mtry     = 1,
+    nodesize = 3
+  )
+  write_rds(tip_share_qrf, 'resources/cache/qrf/tip_share_qrf.rds')
+  
+  # Estimate model of the whether tips are attributable to leisure and hospitality
+  tip_lh_qrf = quantregForest(
+    x        = sipp_tipped_21[c('tip_share', 'wages', 'parent', 'married', 'age')],
+    y        = as.factor(sipp_tipped_21$tips_lh), 
+    nthreads = parallel::detectCores(),
+    weights  = sipp_tipped_21$weight,
+    mtry     = 4,
+    nodesize = 1
+  )
+  
+  write_rds(tip_lh_qrf, 'resources/cache/qrf/tip_lh_qrf.rds')
+} else {
+  tip_qrf = read_rds('resources/cache/qrf/tip_qrf.rds')
+  tip_share_qrf = read_rds('resources/cache/qrf/tip_share_qrf.rds')
+  tip_lh_qrf = read_rds('resources/cache/qrf/tip_lh_qrf.rds')
+}
 
 # Fit values on tax data
 tips = tax_units %>% 
@@ -743,28 +752,36 @@ ot_microdata = haven::read_dta('./resources/otdata2023.dta') %>%
   ) %>% 
   filter(!is.na(wage_pctile)) 
 
-
-# Estimate model of presence of FLSA-eligible OT  
-has_ot_qrf = quantregForest(
-  x        = ot_microdata[c('wage_pctile', 'parent', 'married', 'age')],
-  y        = as.factor(ot_microdata$has_ot), 
-  nthreads = parallel::detectCores(),
-  weights  = ot_microdata$annualweight,
-  mtry     = 3,
-  nodesize = 1
-)
-
-# Estimate model of FLSA-eligible OT  
-has_ot_microdata = ot_microdata %>% 
-  filter(ot > 0)
-ot_share_qrf = quantregForest(
-  x        = has_ot_microdata[c('wage_pctile', 'parent', 'married', 'age')],
-  y        = has_ot_microdata$ot_share, 
-  nthreads = parallel::detectCores(),
-  weights  = has_ot_microdata$annualweight,
-  mtry     = 3,
-  nodesize = 5
-)
+if(estimate_models) {
+  # Estimate model of presence of FLSA-eligible OT  
+  has_ot_qrf = quantregForest(
+    x        = ot_microdata[c('wage_pctile', 'parent', 'married', 'age')],
+    y        = as.factor(ot_microdata$has_ot), 
+    nthreads = parallel::detectCores(),
+    weights  = ot_microdata$annualweight,
+    mtry     = 3,
+    nodesize = 1
+  )
+  write_rds(has_ot_qrf, 'resources/cache/qrf/has_ot_qrf.rds')
+  
+  # Estimate model of FLSA-eligible OT  
+  has_ot_microdata = ot_microdata %>% 
+    filter(ot > 0)
+  ot_share_qrf = quantregForest(
+    x        = has_ot_microdata[c('wage_pctile', 'parent', 'married', 'age')],
+    y        = has_ot_microdata$ot_share, 
+    nthreads = parallel::detectCores(),
+    weights  = has_ot_microdata$annualweight,
+    mtry     = 3,
+    nodesize = 5
+  ) 
+  write_rds(ot_share_qrf, 'resources/cache/qrf/ot_share_qrf.rds')
+  rm(has_ot_microdata)
+  
+} else{
+  has_ot_qrf = read_rds('resources/cache/qrf/has_ot_qrf.rds')
+  ot_share_qrf = read_rds('resources/cache/qrf/ot_share_qrf.rds')
+}
 
 
 # Fit values on tax data
@@ -838,69 +855,77 @@ tax_units %<>%
 # Auto loan interest
 #--------------------
 
-# Read and clean data 
-scf = interface_paths$SCF %>% 
-  file.path('SCFP2022.csv') %>% 
-  fread() %>% 
-  tibble() %>% 
+if(estimate_models) {
+
+  # Read and clean data 
+  scf = interface_paths$SCF %>% 
+    file.path('SCFP2022.csv') %>% 
+    fread() %>% 
+    tibble() %>% 
+    
+    # Select required variables 
+    select(
+      yy1 = YY1, y1 = Y1, weight = WGT, 
+      age1 = AGE, married = MARRIED, n_kids = KIDS,
+      wages = WAGEINC, income = INCOME, balance = VEH_INST
+    ) %>% 
+    
+    # Bring in Ernie's imputed auto loan interest
+    left_join(
+      read_dta('./resources/scf2022_carinterest.dta'), by = c('yy1', 'y1')
+    ) %>% 
+    rename(auto_int_exp = carinterest) %>% 
+    mutate(has_auto_int_exp = as.integer(auto_int_exp > 0)) %>% 
+    
+    # Create percentile variables
+    mutate(
+      wages  = if_else(wages > 0,  wages  + runif(nrow(.)), 0),
+      income = if_else(income > 0, income + runif(nrow(.)), 0),
+      across(
+        .cols = c(wages, income), 
+        .fns  = ~ cut(
+          x      = . , 
+          breaks = wtd.quantile(.[. > 0], weight[. > 0], 0:100/100), 
+          labels = 1:100
+        ) %>% as.character() %>% as.integer() %>% replace_na(0), 
+        .names = 'pctile_{col}'
+      ) 
+    ) %>% 
+    
+    # Recode kids and marital status variables to match PUF
+    mutate(
+      n_kids  = pmin(n_kids, 3), 
+      married = as.integer(married == 1)
+    )
   
-  # Select required variables 
-  select(
-    yy1 = YY1, y1 = Y1, weight = WGT, 
-    age1 = AGE, married = MARRIED, n_kids = KIDS,
-    wages = WAGEINC, income = INCOME, balance = VEH_INST
-  ) %>% 
-  
-  # Bring in Ernie's imputed auto loan interest
-  left_join(
-    read_dta('./resources/scf2022_carinterest.dta'), by = c('yy1', 'y1')
-  ) %>% 
-  rename(auto_int_exp = carinterest) %>% 
-  mutate(has_auto_int_exp = as.integer(auto_int_exp > 0)) %>% 
-  
-  # Create percentile variables
-  mutate(
-    wages  = if_else(wages > 0,  wages  + runif(nrow(.)), 0),
-    income = if_else(income > 0, income + runif(nrow(.)), 0),
-    across(
-      .cols = c(wages, income), 
-      .fns  = ~ cut(
-        x      = . , 
-        breaks = wtd.quantile(.[. > 0], weight[. > 0], 0:100/100), 
-        labels = 1:100
-      ) %>% as.character() %>% as.integer() %>% replace_na(0), 
-      .names = 'pctile_{col}'
-    ) 
-  ) %>% 
-  
-  # Recode kids and marital status variables to match PUF
-  mutate(
-    n_kids  = pmin(n_kids, 3), 
-    married = as.integer(married == 1)
+  # Estimate model of presence auto loan interest  
+  has_auto_qrf = quantregForest(
+    x        = scf[c('pctile_wages', 'pctile_income', 'n_kids', 'married', 'age1')],
+    y        = as.factor(scf$has_auto_int_exp), 
+    nthreads = parallel::detectCores(),
+    weights  = scf$weight,
+    mtry     = 4,
+    nodesize = 1
   )
-
-
-# Estimate model of presence auto loan interest  
-has_auto_qrf = quantregForest(
-  x        = scf[c('pctile_wages', 'pctile_income', 'n_kids', 'married', 'age1')],
-  y        = as.factor(scf$has_auto_int_exp), 
-  nthreads = parallel::detectCores(),
-  weights  = scf$weight,
-  mtry     = 4,
-  nodesize = 1
-)
-
-# Estimate model of auto loan interest among those with loans
-scf_int = scf %>% 
-  filter(auto_int_exp > 0)
-auto_qrf = quantregForest(
-  x        = scf_int[c('pctile_wages', 'pctile_income', 'n_kids', 'married', 'age1')],
-  y        = scf_int$auto_int_exp, 
-  nthreads = parallel::detectCores(),
-  weights  = scf_int$weight,
-  mtry     = 4,
-  nodesize = 5
-)
+  write_rds(has_auto_qrf, 'resources/cache/qrf/has_auto_qrf.rds')
+  
+  # Estimate model of auto loan interest among those with loans
+  scf_int = scf %>% 
+    filter(auto_int_exp > 0)
+  auto_qrf = quantregForest(
+    x        = scf_int[c('pctile_wages', 'pctile_income', 'n_kids', 'married', 'age1')],
+    y        = scf_int$auto_int_exp, 
+    nthreads = parallel::detectCores(),
+    weights  = scf_int$weight,
+    mtry     = 4,
+    nodesize = 5
+  )  
+  rm(scf_int)
+  write_rds(auto_qrf, 'resources/cache/qrf/auto_qrf.rds')
+} else {
+  has_auto_qrf = read_rds('resources/cache/qrf/has_auto_qrf.rds')
+  auto_qrf = read_rds('resources/cache/qrf/auto_qrf.rds')
+}
 
 
 # Impute on tax unit data observations
@@ -946,24 +971,29 @@ tax_units$auto_int_exp = auto_int_exp$auto_int_exp / 1.3886
 #--------------------
 # Childcare expenses
 #--------------------
+if(estimate_models) {
+  childcare_train = cps %>%
+    filter(YEAR == 2017, RELATE %in% c(101, 201)) %>% 
+    mutate(
+      married   = as.integer(MARST %in% 1:2),
+      n_dep_old = NCHILD - NCHLT5,
+      care_exp  = if_else(married == 1, SPMCHXPNS / 2, SPMCHXPNS)
+    ) %>% 
+    select(SERIAL, FAMUNIT, weight = ASECWT, age = AGE, married, n_dep_young = NCHLT5, n_dep_old, wages = INCWAGE, care_exp)
 
-childcare_train = cps %>%
-  filter(YEAR == 2017, RELATE %in% c(101, 201)) %>% 
-  mutate(
-    married   = as.integer(MARST %in% 1:2),
-    n_dep_old = NCHILD - NCHLT5,
-    care_exp  = if_else(married == 1, SPMCHXPNS / 2, SPMCHXPNS)
-  ) %>% 
-  select(SERIAL, FAMUNIT, weight = ASECWT, age = AGE, married, n_dep_young = NCHLT5, n_dep_old, wages = INCWAGE, care_exp)
-
-childcare_qrf = quantregForest(
-  x        = childcare_train[c('wages', 'married', 'n_dep_young', 'n_dep_old', 'age')],
-  y        = childcare_train$care_exp, 
-  nthreads = parallel::detectCores(),
-  weights  = childcare_train$weight,
-  mtry     = 4,
-  nodesize = 5
-)
+  childcare_qrf = quantregForest(
+    x        = childcare_train[c('wages', 'married', 'n_dep_young', 'n_dep_old', 'age')],
+    y        = childcare_train$care_exp, 
+    nthreads = parallel::detectCores(),
+    weights  = childcare_train$weight,
+    mtry     = 4,
+    nodesize = 5
+  )
+  write_rds(childcare_qrf, 'resources/cache/qrf/childcare_qrf.rds')
+  rm(childcare_train)
+} else{
+  childcare_qrf = read_rds('resources/cache/qrf/childcare_qrf.rds')  
+}
 
 # Fit values on tax data
 childcare = tax_units %>% 
@@ -1019,61 +1049,68 @@ tax_units %<>%
 #----------------------------------
 # Primary residence mortgage share
 #----------------------------------
-
-# Read and clean SCF data for mortgage analysis
-scf_mortgage = interface_paths$SCF %>% 
-  file.path('SCFP2022.csv') %>% 
-  fread() %>% 
-  tibble() %>% 
+estimate_models = 1
+if(estimate_models) {
+  # Read and clean SCF data for mortgage analysis
+  scf_mortgage = interface_paths$SCF %>% 
+    file.path('SCFP2022.csv') %>% 
+    fread() %>% 
+    tibble() %>% 
+    
+    # Select required variables 
+    select(
+      yy1 = YY1, y1 = Y1, weight = WGT, 
+      age1 = AGE, married = MARRIED, n_kids = KIDS,
+      wages = WAGEINC, income = INCOME,
+      prim_mort_bal = MRTHEL,      # Primary residence mortgage balance
+      sec_mort_bal = RESDBT,      # Secondary/other residential real estate debt
+    ) %>% 
+    
+    # Calculate total mortgage balance and primary residence share
+    mutate(
+      total_mort_bal  = prim_mort_bal + sec_mort_bal,
+      prim_mort_share = if_else(total_mort_bal > 0, prim_mort_bal / total_mort_bal, 1),  # Default to 100% primary if no mortgage
+    ) %>% 
+    
+    # Create percentile variables for income stratification
+    mutate(
+      income = if_else(income > 0, income + runif(nrow(.)), 0),
+      across(
+        .cols = income, 
+        .fns  = ~ cut(
+          x      = . , 
+          breaks = wtd.quantile(.[. > 0], weight[. > 0], 0:100/100), 
+          labels = 1:100
+        ) %>% as.character() %>% as.integer() %>% replace_na(0), 
+        .names = 'pctile_{col}'
+      ) 
+    ) %>% 
+    
+    # Recode kids and marital status variables to match PUF
+    mutate(
+      n_kids  = pmin(n_kids, 3), 
+      married = as.integer(married == 1)
+    ) %>% 
+    
+    # Filter to households with mortgages for the share model
+    filter(total_mort_bal > 0)
   
-  # Select required variables 
-  select(
-    yy1 = YY1, y1 = Y1, weight = WGT, 
-    age1 = AGE, married = MARRIED, n_kids = KIDS,
-    wages = WAGEINC, income = INCOME,
-    prim_mort_bal = MRTHEL,      # Primary residence mortgage balance
-    sec_mort_bal = RESDBT,      # Secondary/other residential real estate debt
-  ) %>% 
   
-  # Calculate total mortgage balance and primary residence share
-  mutate(
-    total_mort_bal  = prim_mort_bal + sec_mort_bal,
-    prim_mort_share = if_else(total_mort_bal > 0, prim_mort_bal / total_mort_bal, 1),  # Default to 100% primary if no mortgage
-  ) %>% 
+  # Estimate model of primary residence mortgage share among those with mortgages
+  prim_mort_share_qrf = quantregForest(
+    x        = scf_mortgage[c('pctile_income', 'n_kids', 'married', 'age1')],
+    y        = scf_mortgage$prim_mort_share, 
+    nthreads = parallel::detectCores(),
+    weights  = scf_mortgage$weight,
+    mtry     = 4,
+    nodesize = 5
+  )
   
-  # Create percentile variables for income stratification
-  mutate(
-    income = if_else(income > 0, income + runif(nrow(.)), 0),
-    across(
-      .cols = income, 
-      .fns  = ~ cut(
-        x      = . , 
-        breaks = wtd.quantile(.[. > 0], weight[. > 0], 0:100/100), 
-        labels = 1:100
-      ) %>% as.character() %>% as.integer() %>% replace_na(0), 
-      .names = 'pctile_{col}'
-    ) 
-  ) %>% 
-  
-  # Recode kids and marital status variables to match PUF
-  mutate(
-    n_kids  = pmin(n_kids, 3), 
-    married = as.integer(married == 1)
-  ) %>% 
-  
-  # Filter to households with mortgages for the share model
-  filter(total_mort_bal > 0)
-
-
-# Estimate model of primary residence mortgage share among those with mortgages
-prim_mort_share_qrf = quantregForest(
-  x        = scf_mortgage[c('pctile_income', 'n_kids', 'married', 'age1')],
-  y        = scf_mortgage$prim_mort_share, 
-  nthreads = parallel::detectCores(),
-  weights  = scf_mortgage$weight,
-  mtry     = 4,
-  nodesize = 5
-)
+  write_rds(prim_mort_share_qrf, 'resources/cache/qrf/prim_mort_share_qrf.rds')
+  rm(scf_mortgage)
+} else {
+  prim_mort_share_qrf = read_rds('resources/cache/qrf/prim_mort_share_qrf.rds')
+}
 
 
 # Impute primary residence mortgage share on tax unit data
