@@ -5,7 +5,7 @@
 #------------------------------------------------------------------------------
 
 
-reweight_lp = function(puf, targets, e = NULL, e_runs = 10) {
+reweight_lp = function(puf, targets, do_lp, e = NULL, e_runs = 10) {
   
   #----------------------------------------------------------------------------
   # Adjusts weights using Linear Programming such that PUF records match 
@@ -14,19 +14,26 @@ reweight_lp = function(puf, targets, e = NULL, e_runs = 10) {
   # Parameters:
   #   - puf (df)     : tibble of tax units, processed
   #   - targets (df) : tibble of target parameter totals, processed
+  #   - do_lp (bool) : flag for whether to run the Linear Programming solver
   #   - e (dbl)      : episilon value; if NULL, find optimal value using e_runs
   #   - e_runs (int) : number of iterations to attempt to find ideal maximum
-  #                    deviation from observed weights
   # 
   # Returns: if solver finds a valid solution, vector of weight rescaling 
   #          factors; if not, returns NULL
   #----------------------------------------------------------------------------  
   
-  # Construct left hand side of constraint equations
-  lhs = build_lhs(puf, targets)
-  
-  # Run Linear Programming solver
-  return(run_lp(lhs, targets, e, e_runs))
+  if(do_lp){
+    # Construct left hand side of constraint equations
+    lhs = build_lhs(puf, targets)
+    
+    # Run Linear Programming solver
+    weight_deltas = run_lp(lhs, targets, e, e_runs)
+    write_rds(weight_deltas, 'resources/cache/lp/weight_deltas.rds')
+    return(weight_deltas)
+  } else{
+    return(read_rds('resources/cache/lp/weight_deltas.rds'))
+  }
+ 
 }
 
 
