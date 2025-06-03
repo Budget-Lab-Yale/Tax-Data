@@ -364,6 +364,8 @@ for (y in 2020:2097) {
     
 }
 
-
+# Write variable guide as supplemental output
+variable_guide %>% 
+  write_csv(file.path(output_path, 'variable_guide.csv'))
 
 

@@ -4,8 +4,8 @@ weight,record weight,imputed,NA,NA
 filer,whether tax unit filed tax return,imputed,NA,NA
 dep_status,whether filer is a dependent,puf,DSI,NA
 filing_status,filing status,puf,MARS,NA
-male1,whether primary filer is male	imputed,NA,NA
-male2,whether secondary filer is male	imputed,NA,NA
+male1,whether primary filer is male,imputed,NA,NA
+male2,whether secondary filer is male,imputed,NA,NA
 age1,age of primary filer,imputed,NA,NA
 age2,age of secondary filer,imputed,NA,NA
 blind1,whether primary filer is blind,imputed,NA,NA
@@ -112,6 +112,7 @@ first_mort_year,year when first mortgage was incurred for itemizers,imputed,NA,N
 second_mort_year,year when second mortgage was incurred for itemizers,imputed,NA,NA
 first_mort_int,interest paid on first mortgage for itemizers,imputed,NA,mortgage
 second_mort_int,interest paid on second mortgage for itemizers,imputed,NA,mortgage
+prim_mort_share,share of mortgage interest attributable to mortgage on primary residence,imputed,NA,NA
 inv_int_exp,investment interest expense for itemizers,imputed,NA,int
 casualty_exp,casualty and theft losses for itemizers,puf,E20500,income
 job_exp,unreimbursed employee expenses for itemizers,puf,E20550,income
