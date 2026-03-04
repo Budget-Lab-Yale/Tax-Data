@@ -1291,11 +1291,13 @@ rm(cex, goods_qrf, goods_per_qrf, services_qrf, services_per_qrf)
 
 # Basis/sales ratio as function of holding period
 # Source: SOCA Table 4, gain-dollar-weighted, pooled 2013-2015
-basis_sales_fn = approxfun(
+# For h > 27.5 yrs, extrapolate using 3.5% annualized return (r = 1/(1.035)^h)
+basis_sales_fn_soca = approxfun(
   x = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50),
   y = c(0.848, 0.816, 0.802, 0.806, 0.769, 0.770, 0.636, 0.515, 0.413),
   rule = 2
 )
+basis_sales_fn = function(h) if_else(h <= 27.5, basis_sales_fn_soca(h), 1 / (1.035^h))
 
 tax_units %<>%
   mutate(
