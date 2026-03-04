@@ -125,9 +125,70 @@ income_factors = income_far %>%
   select(year, variable, income_factor) %>% 
   
   # Convert to index
-  group_by(variable) %>% 
-  mutate(income_factor = cumprod(1 + income_factor)) %>% 
+  group_by(variable) %>%
+  mutate(income_factor = cumprod(1 + income_factor)) %>%
   ungroup()
+
+
+#----------------------------------------------
+# Basis adjustment factors (cycle-aware model)
+#----------------------------------------------
+
+# Extend S&P 500 total return index beyond 2025 using CBO capital gains growth
+cbo_kg_levels = read_csv('resources/cbo_1040.csv') %>% select(year, txbl_kg)
+
+# Build year-over-year kg growth rates for 2026-2036
+kg_growth = cbo_kg_levels %>%
+  filter(year >= 2025) %>%
+  mutate(kg_growth = txbl_kg / lag(txbl_kg) - 1) %>%
+  filter(!is.na(kg_growth))
+
+# For 2037+, use gdp_corp growth from macro projections
+gdp_corp_growth = macro_projections %>%
+  select(year, gdp_corp) %>%
+  filter(year >= max(kg_growth$year)) %>%
+  mutate(gdp_corp_growth = gdp_corp / lag(gdp_corp) - 1) %>%
+  filter(!is.na(gdp_corp_growth))
+
+# Extend the S&P index
+sp500_extended = sp500_index %>% select(year, index)
+for (y in 2026:2097) {
+  prev_idx = sp500_extended$index[sp500_extended$year == y - 1]
+  if (y <= max(kg_growth$year)) {
+    g = kg_growth$kg_growth[kg_growth$year == y]
+  } else {
+    g = gdp_corp_growth$gdp_corp_growth[gdp_corp_growth$year == y]
+  }
+  sp500_extended = bind_rows(sp500_extended, tibble(year = y, index = prev_idx * (1 + g)))
+}
+sp500_interp_ext = approxfun(sp500_extended$year, sp500_extended$index, rule = 2)
+
+# Bucket definitions and pi_g weights for weighted average
+bucket_h   = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50)
+bucket_names = c('Under 18 months', '18 months under 2 years', '2 years under 3 years',
+                 '3 years under 4 years', '4 years under 5 years', '5 years under 10 years',
+                 '10 years under 15 years', '15 years under 20 years', '20 years or more')
+
+# Function to compute gain-dollar-weighted average basis/sales ratio for a given year
+predict_weighted_ratio = function(y, model, sp500_fn, h_vals, buckets, weights) {
+  newdata = tibble(
+    bucket       = buckets,
+    h            = h_vals,
+    h_log_return = h_vals * log(1 + (sp500_fn(y) / sp500_fn(y - h_vals))^(1 / h_vals) - 1)
+  )
+  predicted = exp(predict(model, newdata = newdata))
+  sum(weights * predicted)
+}
+
+# Compute weighted average ratio for base year 2017
+r_bar_2017 = predict_weighted_ratio(2017, basis_model, sp500_interp_ext, bucket_h, bucket_names, pi_g)
+
+# Compute basis adjustment factors for all projection years
+basis_adjustment_factors = list()
+for (y in 2018:2097) {
+  r_bar_y = predict_weighted_ratio(y, basis_model, sp500_interp_ext, bucket_h, bucket_names, pi_g)
+  basis_adjustment_factors[[as.character(y)]] = r_bar_y / r_bar_2017
+}
 
 
 #---------------------------
@@ -256,11 +317,14 @@ for (y in 2018:2019) {
       deframe() 
     output[[var]] = output[[var]] * this_factor
   }
-  
+
+  # Apply cycle-aware basis adjustment
+  output$kg_lt_basis = output$kg_lt_basis * basis_adjustment_factors[[as.character(y)]]
+
   # Write output
   write_csv(output, file.path(output_path, paste0('tax_units_', y, '.csv')))
 }
-    
+
 tax_units_2019 = output
     
 #--------------------------------------------------------------
@@ -355,11 +419,14 @@ for (y in 2020:2097) {
       
       output[[var]] = output[[var]] * this_factor
     }
-      
+
+    # Apply cycle-aware basis adjustment
+    output$kg_lt_basis = output$kg_lt_basis * basis_adjustment_factors[[as.character(y)]]
+
     # Clean up and write
-    output %>% 
-      mutate(weight = new_weight) %>%  
-      select(variable_guide$variable[!(variable_guide$variable %in% vars_to_ignore)]) %>% 
+    output %>%
+      mutate(weight = new_weight) %>%
+      select(variable_guide$variable[!(variable_guide$variable %in% vars_to_ignore)]) %>%
       write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
     
 }

@@ -1284,20 +1284,51 @@ tax_units %<>% left_join(cex)
 
 rm(cex, goods_qrf, goods_per_qrf, services_qrf, services_per_qrf)
 
-#----------------------------------
-# Capital gains basis and holding
-# period (SOCA 2013-2015)
-#----------------------------------
+#-----------------------------------------------
+# Capital gains basis and holding period (SOCA)
+#-----------------------------------------------
 
-# Basis/sales ratio as function of holding period
-# Source: SOCA Table 4, gain-dollar-weighted, pooled 2013-2015
-# For h > 27.5 yrs, extrapolate using 3.5% annualized return (r = 1/(1.035)^h)
-basis_sales_fn_soca = approxfun(
-  x = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50),
-  y = c(0.848, 0.816, 0.802, 0.806, 0.769, 0.770, 0.636, 0.515, 0.413),
+# Read SOCA basis/sales ratios and S&P 500 total return index
+soca_data  = read_csv('resources/soca_basis_sales.csv')
+sp500_index = read_csv('resources/sp500_total_return_index.csv')
+
+# Compute trailing annualized S&P 500 return for each SOCA cell
+# R(h, t) = (index[t] / index[t-h])^(1/h) - 1, with linear interpolation for fractional years
+sp500_interp = approxfun(sp500_index$year, sp500_index$index, rule = 2)
+soca_data = soca_data %>%
+  mutate(
+    trailing_return = (sp500_interp(year) / sp500_interp(year - h))^(1 / h) - 1,
+    h_log_return    = h * log(1 + trailing_return)
+  )
+
+# Estimate OLS model: log(ratio) = alpha_h + beta * h * log(1 + R)
+basis_model = lm(log(basis_sales_ratio) ~ factor(bucket) + I(h_log_return) - 1, data = soca_data)
+
+# Predict 2017 basis/sales ratios for each bucket
+buckets_2017 = tibble(
+  bucket = c('Under 18 months', '18 months under 2 years', '2 years under 3 years',
+             '3 years under 4 years', '4 years under 5 years', '5 years under 10 years',
+             '10 years under 15 years', '15 years under 20 years', '20 years or more'),
+  h = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50)
+) %>%
+  mutate(
+    trailing_return = (sp500_interp(2017) / sp500_interp(2017 - h))^(1 / h) - 1,
+    h_log_return    = h * log(1 + trailing_return),
+    predicted_ratio = exp(predict(basis_model, newdata = .))
+  )
+
+# Build basis/sales interpolation function from 2017 predicted knot points
+# For h > 27.5, extrapolate using model-implied annualized return at h=27.5
+g_extrap = (1 / buckets_2017$predicted_ratio[buckets_2017$h == 27.5])^(1 / 27.5) - 1
+basis_sales_fn_2017 = approxfun(
+  x = buckets_2017$h,
+  y = buckets_2017$predicted_ratio,
   rule = 2
 )
-basis_sales_fn = function(h) if_else(h <= 27.5, basis_sales_fn_soca(h), 1 / (1.035^h))
+basis_sales_fn = function(h) if_else(h <= 27.5, basis_sales_fn_2017(h), 1 / (1 + g_extrap)^h)
+
+# Gain-dollar-weighted holding period distribution (for projection-year adjustments)
+pi_g = c(0.093, 0.070, 0.105, 0.083, 0.074, 0.206, 0.117, 0.076, 0.176)
 
 tax_units %<>%
   mutate(
