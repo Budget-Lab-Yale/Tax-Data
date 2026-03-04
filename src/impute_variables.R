@@ -1313,9 +1313,9 @@ buckets_2017 = tibble(
 ) %>%
   mutate(
     trailing_return = (sp500_interp(2017) / sp500_interp(2017 - h))^(1 / h) - 1,
-    h_log_return    = h * log(1 + trailing_return),
-    predicted_ratio = exp(predict(basis_model, newdata = .))
-  )
+    h_log_return    = h * log(1 + trailing_return)
+  ) %>%
+  mutate(predicted_ratio = exp(predict(basis_model, newdata = .)))
 
 # Build basis/sales interpolation function from 2017 predicted knot points
 # For h > 27.5, extrapolate using model-implied annualized return at h=27.5
