@@ -51,6 +51,8 @@ wagebill_sole_prop,owner's share of W2 wages paid in sole proprietorship,imputed
 sstb_sole_prop,whether filer's sole prop income comes from a SSTB,imputed,NA,NA
 kg_st,short-term net capital gain carryover,puf,P22250,kg
 kg_lt,long-term net capital gain,puf,P23250,kg
+kg_lt_years_held,weighted-average holding period in years for long-term gains,imputed,NA,NA
+kg_lt_basis,imputed cost basis for long-term gains,imputed,NA,kg
 kg_1250,unrecaptured Section 1250 gain,puf,E24515,kg
 kg_collect,28% collectibles gain,puf,E24518,kg
 other_gains,other capital gains reported on Form 1040,puf,E01200,kg

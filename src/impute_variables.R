@@ -1284,6 +1284,36 @@ tax_units %<>% left_join(cex)
 
 rm(cex, goods_qrf, goods_per_qrf, services_qrf, services_per_qrf)
 
+#----------------------------------
+# Capital gains basis and holding
+# period (SOCA 2013-2015)
+#----------------------------------
+
+# Basis/sales ratio as function of holding period
+# Source: SOCA Table 4, gain-dollar-weighted, pooled 2013-2015
+basis_sales_fn = approxfun(
+  x = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50),
+  y = c(0.848, 0.816, 0.802, 0.806, 0.769, 0.770, 0.636, 0.515, 0.413),
+  rule = 2
+)
+
+tax_units %<>%
+  mutate(
+    # Holding period drawn from shifted Weibull fitted to SOCA pi_g
+    kg_lt_years_held = if_else(
+      kg_lt != 0,
+      1 + rweibull(n(), shape = 0.7711, scale = 9.1458),
+      NA_real_
+    ),
+    # Basis derived from SOCA basis/sales ratio: basis = |gain| * r/(1-r)
+    # Symmetric assumption: same ratio for gains and losses
+    kg_lt_basis = if_else(
+      kg_lt != 0,
+      abs(kg_lt) * basis_sales_fn(kg_lt_years_held) / (1 - basis_sales_fn(kg_lt_years_held)),
+      NA_real_
+    )
+  )
+
 #-----------
 # TODO LIST
 #-----------
