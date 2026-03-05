@@ -164,7 +164,13 @@ for (y in 2026:2097) {
 sp500_interp_ext = approxfun(sp500_extended$year, sp500_extended$index, rule = 2)
 
 # Bucket definitions and pi_g weights for weighted average
-bucket_h   = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50)
+# Representative h for '20 years or more': E[h | h >= 20] from shifted Weibull
+wb_shape = 0.7711
+wb_scale = 9.1458
+F20 = pweibull(20 - 1, shape = wb_shape, scale = wb_scale)
+h_top = 1 + integrate(function(x) x * dweibull(x, wb_shape, wb_scale),
+                       lower = 19, upper = Inf)$value / (1 - F20)
+bucket_h   = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, h_top)
 bucket_names = c('Under 18 months', '18 months under 2 years', '2 years under 3 years',
                  '3 years under 4 years', '4 years under 5 years', '5 years under 10 years',
                  '10 years under 15 years', '15 years under 20 years', '20 years or more')

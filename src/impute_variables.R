@@ -1379,8 +1379,8 @@ tax_units$agi_bin = cut(tax_units$agi_approx, breaks = agi_breaks,
 
 # Step 4: Calibrate NegBin overdispersion r(a) from Var(G) in PUF
 # Model: G = sum_{i=1}^{N} g_i, where N ~ NegBin(r, n_bar)
-# Var(G) = n_bar * E[g^2] + n_bar^2 / r * E[g]^2 + n_bar * E[g]^2
-# => r = n_bar^2 * E[g]^2 / (Var_G - n_bar * E[g^2] - n_bar * E[g]^2)
+# Var(G) = E[N]*Var(g) + Var(N)*E[g]^2 = n_bar*E[g^2] + n_bar^2/r * E[g]^2
+# => r = n_bar^2 * E[g]^2 / (Var_G - n_bar * E[g^2])
 calibrated = tax_units %>%
   filter(kg_lt > 0) %>%
   mutate(G_K = kg_lt / 1000) %>%
@@ -1398,7 +1398,7 @@ calibrated = tax_units %>%
     g_bar_a   = list(g_bar * scale),
     E_g       = sum(pi_n * g_bar * scale),
     E_g2      = sum(pi_n * (g_bar * scale)^2),
-    Var_pois  = n_bar * E_g2 + n_bar * E_g^2,
+    Var_pois  = n_bar * E_g2,
     excess    = Var_G - Var_pois,
     r         = if_else(excess > 0, n_bar^2 * E_g^2 / excess, Inf)
   ) %>%
