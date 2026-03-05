@@ -164,6 +164,7 @@ for (y in 2026:2097) {
 sp500_interp_ext = approxfun(sp500_extended$year, sp500_extended$index, rule = 2)
 
 # Bucket definitions and pi_g weights for weighted average
+pi_g = read_csv('resources/soca_hp_ingredients.csv')$pi_g
 # Representative h for '20 years or more': E[h | h >= 20] from shifted Weibull
 wb_shape = 0.7711
 wb_scale = 9.1458
