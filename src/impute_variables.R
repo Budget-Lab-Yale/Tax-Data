@@ -1337,118 +1337,20 @@ basis_sales_fn_2017 = approxfun(
 )
 basis_sales_fn = function(h) if_else(h <= h_top, basis_sales_fn_2017(h), 1 / (1 + g_extrap)^h)
 
-# ---- NegBin conditional holding period imputation ----
-# Uses SOCA Table 2 (transactions by AGI) and Table 4 (gain per transaction by HP)
-# to infer holding periods conditional on observed gain and AGI.
+# ---- Unconditional holding period imputation ----
+# Draw HP from SOCA gain-dollar-weighted (pi_g) or loss-dollar-weighted (pi_l)
+# bucket distribution, then smooth within buckets via truncated Weibull.
 
-# Read SOCA HP ingredients and AGI-specific inputs
 soca_hp   = read_csv('resources/soca_hp_ingredients.csv')
-soca_nbar = read_csv('resources/soca_nbar_by_agi.csv')
-soca_t2     = read_csv('resources/soca_table2.csv')
-soca_loss   = read_csv('resources/soca_loss_hp.csv')
+soca_loss = read_csv('resources/soca_loss_hp.csv')
 
 pi_g  = soca_hp$pi_g
-pi_n  = soca_hp$pi_n
-h_mid = soca_hp$h_midpoint
-h_mid[length(h_mid)] = h_top  # Replace arbitrary 27.5 with E[h | h >= 20] from Weibull
-g_bar = soca_hp$g_bar_per_txn  # $K per transaction by HP bucket
-n_h   = length(h_mid)
+n_h   = length(pi_g)
+pi_l  = soca_loss$pi_l
 
-# Step 2: AGI-specific g_bar scaling from SOCA Table 2 (2013-2015)
-t2_recent = soca_t2 %>% filter(year %in% c(2013, 2014, 2015))
-overall_avg_txn = sum(t2_recent$lt_gain_amount) / sum(t2_recent$n_transactions_lt_gain)
-
-agi_scale = t2_recent %>%
-  group_by(agi_bracket) %>%
-  summarise(avg_txn = sum(lt_gain_amount) / sum(n_transactions_lt_gain),
-            .groups = 'drop') %>%
-  mutate(scale = avg_txn / overall_avg_txn)
-
-# Step 3: Approximate AGI and bin tax units into SOCA brackets
-tax_units %<>% mutate(
-  agi_approx = wages + txbl_int + div_ord + kg_st + kg_lt + kg_1250 + kg_collect +
-               other_gains + sole_prop + part_active + part_passive +
-               scorp_active + scorp_passive + txbl_pens_dist + txbl_ira_dist +
-               rent + estate + farm + ui + other_inc + state_ref
-)
-
-agi_breaks = c(-Inf, 0, 20000, 50000, 100000, 200000, 500000, 1000000, Inf)
-agi_labels = soca_nbar$agi_bracket
-tax_units$agi_bin = cut(tax_units$agi_approx, breaks = agi_breaks,
-                        labels = agi_labels, right = FALSE)
-
-# Step 4: Calibrate NegBin overdispersion r(a) from Var(G) in PUF
-# Model: G = sum_{i=1}^{N} g_i, where N ~ NegBin(r, n_bar)
-# Var(G) = E[N]*Var(g) + Var(N)*E[g]^2 = n_bar*E[g^2] + n_bar^2/r * E[g]^2
-# => r = n_bar^2 * E[g]^2 / (Var_G - n_bar * E[g^2])
-calibrated = tax_units %>%
-  filter(kg_lt > 0) %>%
-  mutate(G_K = kg_lt / 1000) %>%
-  group_by(agi_bin) %>%
-  summarise(
-    E_G   = weighted.mean(G_K, weight),
-    E_G2  = weighted.mean(G_K^2, weight),
-    Var_G = E_G2 - E_G^2,
-    .groups = 'drop'
-  ) %>%
-  left_join(soca_nbar, by = c('agi_bin' = 'agi_bracket')) %>%
-  left_join(agi_scale %>% select(agi_bracket, scale), by = c('agi_bin' = 'agi_bracket')) %>%
-  rowwise() %>%
-  mutate(
-    g_bar_a   = list(g_bar * scale),
-    E_g       = sum(pi_n * g_bar * scale),
-    E_g2      = sum(pi_n * (g_bar * scale)^2),
-    Var_pois  = n_bar * E_g2,
-    excess    = Var_G - Var_pois,
-    r         = if_else(excess > 0, n_bar^2 * E_g^2 / excess, Inf)
-  ) %>%
-  ungroup()
-
-# Step 5: Build posterior P(h|G,AGI) lookup tables via log-spaced grid
-G_grid = 10^seq(-1, 5, length.out = 300)  # 0.1K to 100MK
-posterior_fns = list()  # posterior_fns[[agi_label]][[bucket_j]] = approxfun
-
-for (i in seq_len(nrow(calibrated))) {
-  row   = calibrated[i, ]
-  label = as.character(row$agi_bin)
-  n_bar_i = row$n_bar
-  r_i     = row$r
-  g_bar_a = row$g_bar_a[[1]]
-
-  post_matrix = matrix(0, nrow = length(G_grid), ncol = n_h)
-  for (k in seq_along(G_grid)) {
-    G_k = G_grid[k]
-    log_post = rep(-Inf, n_h)
-    for (j in seq_len(n_h)) {
-      if (g_bar_a[j] <= 0) next
-      N_int = max(1, round(G_k / g_bar_a[j]))
-      if (is.finite(r_i) && r_i > 0) {
-        p_nb = r_i / (r_i + n_bar_i)
-        log_pN = dnbinom(N_int, size = r_i, prob = p_nb, log = TRUE)
-      } else {
-        log_pN = dpois(N_int, lambda = n_bar_i, log = TRUE)
-      }
-      log_post[j] = log(max(pi_n[j], 1e-30)) + log_pN
-    }
-    max_lp = max(log_post)
-    if (is.infinite(max_lp)) {
-      post_matrix[k, ] = pi_g
-    } else {
-      post = exp(log_post - max_lp)
-      post_matrix[k, ] = post / sum(post)
-    }
-  }
-
-  bucket_fns = list()
-  for (j in seq_len(n_h)) {
-    bucket_fns[[j]] = approxfun(log(G_grid), post_matrix[, j], rule = 2)
-  }
-  posterior_fns[[label]] = bucket_fns
-}
-
-# Step 6: Draw HP from posterior for each record
-wb_shape = 0.7711
-wb_scale = 9.1458
+# Weibull smoothing within HP buckets
+wb_shape  = 0.7711
+wb_scale  = 9.1458
 bucket_lo = c(1.0, 1.5, 2.0, 3.0, 4.0,  5.0, 10.0, 15.0, 20.0)
 bucket_hi = c(1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0,  Inf)
 
@@ -1461,50 +1363,26 @@ rtrunc_weibull = function(n, lo, hi) {
   1 + qweibull(u, shape = wb_shape, scale = wb_scale)
 }
 
-# --- Gains (kg_lt > 0): draw bucket from posterior, then smooth within ---
-gain_idx = which(tax_units$kg_lt > 0)
-hp_assigned = numeric(length(gain_idx))
-
-for (ii in seq_along(gain_idx)) {
-  idx = gain_idx[ii]
-  label = as.character(tax_units$agi_bin[idx])
-  G_K = tax_units$kg_lt[idx] / 1000
-  G_K = max(G_K, G_grid[1])
-  G_K = min(G_K, G_grid[length(G_grid)])
-
-  if (!is.null(posterior_fns[[label]])) {
-    post = sapply(posterior_fns[[label]], function(f) f(log(G_K)))
-    post = pmax(post, 0)
-    if (sum(post) > 0) post = post / sum(post) else post = pi_g
-  } else {
-    post = pi_g
-  }
-
-  bucket = sample.int(n_h, size = 1, prob = post)
-  hp_assigned[ii] = rtrunc_weibull(1, bucket_lo[bucket], bucket_hi[bucket])
-}
-
-tax_units$kg_lt_years_held = NA_real_
-tax_units$kg_lt_years_held[gain_idx] = hp_assigned
-
-# --- Losses (kg_lt < 0): draw from loss-specific HP distribution (pi_l) ---
-pi_l = soca_loss$pi_l
-loss_idx = which(tax_units$kg_lt < 0)
-if (length(loss_idx) > 0) {
-  loss_buckets = sample(seq_len(n_h), size = length(loss_idx), replace = TRUE, prob = pi_l)
-  loss_hp = numeric(length(loss_idx))
+draw_hp = function(idx, probs) {
+  buckets = sample(seq_len(n_h), size = length(idx), replace = TRUE, prob = probs)
+  hp = numeric(length(idx))
   for (j in seq_len(n_h)) {
-    in_j = which(loss_buckets == j)
-    if (length(in_j) > 0) {
-      loss_hp[in_j] = rtrunc_weibull(length(in_j), bucket_lo[j], bucket_hi[j])
-    }
+    in_j = which(buckets == j)
+    if (length(in_j) > 0) hp[in_j] = rtrunc_weibull(length(in_j), bucket_lo[j], bucket_hi[j])
   }
-  tax_units$kg_lt_years_held[loss_idx] = loss_hp
+  hp
 }
 
-# Step 7: Basis computation
-# Gains: basis = |gain| * BSR/(1-BSR) using gain-transaction basis_sales_fn
-# Losses: basis = |loss| * loss_BSR/(loss_BSR-1) using loss-transaction BSR by HP bucket
+# Draw HP for gains and losses
+tax_units$kg_lt_years_held = NA_real_
+gain_idx = which(tax_units$kg_lt > 0)
+loss_idx = which(tax_units$kg_lt < 0)
+if (length(gain_idx) > 0) tax_units$kg_lt_years_held[gain_idx] = draw_hp(gain_idx, pi_g)
+if (length(loss_idx) > 0) tax_units$kg_lt_years_held[loss_idx] = draw_hp(loss_idx, pi_l)
+
+# Basis computation
+# Gains: basis = |gain| * BSR/(1-BSR)
+# Losses: basis = |loss| * loss_BSR/(loss_BSR-1)
 loss_bsr_fn = approxfun(
   x = c(soca_loss$h_midpoint[1:8], h_top),
   y = soca_loss$loss_bsr,
@@ -1519,12 +1397,8 @@ tax_units %<>% mutate(
   )
 )
 
-# Step 8: Clean up temporary columns
-tax_units %<>% select(-agi_approx, -agi_bin)
-
-rm(soca_hp, soca_nbar, soca_t2, soca_loss, t2_recent, agi_scale, calibrated,
-   G_grid, posterior_fns, gain_idx, hp_assigned, pi_l, loss_bsr_fn,
-   loss_idx, rtrunc_weibull, bucket_lo, bucket_hi, wb_shape, wb_scale)
+rm(soca_hp, soca_loss, pi_g, pi_l, gain_idx, loss_idx, loss_bsr_fn,
+   rtrunc_weibull, bucket_lo, bucket_hi, wb_shape, wb_scale, draw_hp)
 
 #-----------
 # TODO LIST
