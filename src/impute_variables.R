@@ -1309,8 +1309,18 @@ buckets_2017 = tibble(
   bucket = c('Under 18 months', '18 months under 2 years', '2 years under 3 years',
              '3 years under 4 years', '4 years under 5 years', '5 years under 10 years',
              '10 years under 15 years', '15 years under 20 years', '20 years or more'),
-  h = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, 27.50)
-) %>%
+  h = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, NA)
+)
+
+# Representative h for "20 years or more": E[h | h >= 20] from shifted Weibull
+wb_shape = 0.7711
+wb_scale = 9.1458
+F20 = pweibull(20 - 1, shape = wb_shape, scale = wb_scale)
+h_top = 1 + integrate(function(x) x * dweibull(x, wb_shape, wb_scale),
+                       lower = 19, upper = Inf)$value / (1 - F20)
+buckets_2017$h[9] = h_top
+
+buckets_2017 %<>%
   mutate(
     trailing_return = (sp500_interp(2017) / sp500_interp(2017 - h))^(1 / h) - 1,
     h_log_return    = h * log(1 + trailing_return)
@@ -1318,14 +1328,14 @@ buckets_2017 = tibble(
   mutate(predicted_ratio = exp(predict(basis_model, newdata = .)))
 
 # Build basis/sales interpolation function from 2017 predicted knot points
-# For h > 27.5, extrapolate using model-implied annualized return at h=27.5
-g_extrap = (1 / buckets_2017$predicted_ratio[buckets_2017$h == 27.5])^(1 / 27.5) - 1
+# For h beyond the last knot, extrapolate using model-implied annualized return
+g_extrap = (1 / buckets_2017$predicted_ratio[9])^(1 / h_top) - 1
 basis_sales_fn_2017 = approxfun(
   x = buckets_2017$h,
   y = buckets_2017$predicted_ratio,
   rule = 2
 )
-basis_sales_fn = function(h) if_else(h <= 27.5, basis_sales_fn_2017(h), 1 / (1 + g_extrap)^h)
+basis_sales_fn = function(h) if_else(h <= h_top, basis_sales_fn_2017(h), 1 / (1 + g_extrap)^h)
 
 # ---- NegBin conditional holding period imputation ----
 # Uses SOCA Table 2 (transactions by AGI) and Table 4 (gain per transaction by HP)
@@ -1339,6 +1349,7 @@ soca_t2   = read_csv('resources/soca_table2.csv')
 pi_g  = soca_hp$pi_g
 pi_n  = soca_hp$pi_n
 h_mid = soca_hp$h_midpoint
+h_mid[length(h_mid)] = h_top  # Replace arbitrary 27.5 with E[h | h >= 20] from Weibull
 g_bar = soca_hp$g_bar_per_txn  # $K per transaction by HP bucket
 n_h   = length(h_mid)
 
@@ -1455,22 +1466,51 @@ total_gain       = sum(gain_dollars)
 cum_gain         = cumsum(gain_dollars) / total_gain
 cum_pi_g         = cumsum(pi_g)
 
+# Smoothing: within each bucket, draw from shifted Weibull truncated to bucket interval
+# Shifted Weibull: h = 1 + Weibull(shape=0.7711, scale=9.1458), so x = h - 1 ~ Weibull
+wb_shape = 0.7711
+wb_scale = 9.1458
+bucket_lo = c(1.0, 1.5, 2.0, 3.0, 4.0,  5.0, 10.0, 15.0, 20.0)
+bucket_hi = c(1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0,  Inf)
+
+# Truncated Weibull draw: inverse CDF sampling on [lo, hi]
+# h = 1 + x where x ~ Weibull, so for bucket [a, b]: x in [a-1, b-1]
+rtrunc_weibull = function(n, lo, hi) {
+  x_lo = lo - 1  # shift to Weibull scale
+  x_hi = hi - 1
+  F_lo = pweibull(x_lo, shape = wb_shape, scale = wb_scale)
+  F_hi = if (is.infinite(hi)) 1 else pweibull(x_hi, shape = wb_shape, scale = wb_scale)
+  u = runif(n, min = F_lo, max = F_hi)
+  1 + qweibull(u, shape = wb_shape, scale = wb_scale)
+}
+
 hp_assigned = numeric(length(gain_idx_sorted))
 for (j in seq_len(n_h)) {
   lower = if (j == 1) 0 else cum_pi_g[j - 1]
   upper = cum_pi_g[j]
   mask  = if (j == 1) (cum_gain <= upper) else (cum_gain > lower & cum_gain <= upper)
-  hp_assigned[mask] = h_mid[j]
+  n_in_bucket = sum(mask)
+  if (n_in_bucket > 0) {
+    hp_assigned[mask] = rtrunc_weibull(n_in_bucket, bucket_lo[j], bucket_hi[j])
+  }
 }
 
 # Write back to tax_units
 tax_units$kg_lt_years_held = NA_real_
 tax_units$kg_lt_years_held[gain_idx_sorted] = hp_assigned
 
-# --- Losses (kg_lt < 0): unconditional pi_g assignment (random draw) ---
+# --- Losses (kg_lt < 0): unconditional smoothed draw ---
+# Assign bucket via pi_g, then smooth within bucket using truncated Weibull
 loss_idx = which(tax_units$kg_lt < 0)
 if (length(loss_idx) > 0) {
-  loss_hp = sample(h_mid, size = length(loss_idx), replace = TRUE, prob = pi_g)
+  loss_buckets = sample(seq_len(n_h), size = length(loss_idx), replace = TRUE, prob = pi_g)
+  loss_hp = numeric(length(loss_idx))
+  for (j in seq_len(n_h)) {
+    in_j = which(loss_buckets == j)
+    if (length(in_j) > 0) {
+      loss_hp[in_j] = rtrunc_weibull(length(in_j), bucket_lo[j], bucket_hi[j])
+    }
+  }
   tax_units$kg_lt_years_held[loss_idx] = loss_hp
 }
 
@@ -1488,7 +1528,8 @@ tax_units %<>% select(-agi_approx, -agi_bin)
 
 rm(soca_hp, soca_nbar, soca_t2, t2_recent, agi_scale, calibrated,
    G_grid, score_fns, gain_idx, scores, sort_order, gain_idx_sorted,
-   gain_dollars, total_gain, cum_gain, cum_pi_g, hp_assigned, loss_idx)
+   gain_dollars, total_gain, cum_gain, cum_pi_g, hp_assigned,
+   loss_idx, rtrunc_weibull, bucket_lo, bucket_hi, wb_shape, wb_scale)
 
 #-----------
 # TODO LIST
