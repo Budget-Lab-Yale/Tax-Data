@@ -426,8 +426,9 @@ for (y in 2020:2097) {
       output[[var]] = output[[var]] * this_factor
     }
 
-    # Apply cycle-aware basis adjustment
-    output$kg_lt_basis = output$kg_lt_basis * basis_adjustment_factors[[as.character(y)]]
+    # Apply cycle-aware basis adjustment (relative to 2019, since we start from tax_units_2019)
+    output$kg_lt_basis = output$kg_lt_basis * basis_adjustment_factors[[as.character(y)]] /
+                         basis_adjustment_factors[["2019"]]
 
     # Clean up and write
     output %>%
