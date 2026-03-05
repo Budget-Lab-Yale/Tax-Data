@@ -1327,25 +1327,168 @@ basis_sales_fn_2017 = approxfun(
 )
 basis_sales_fn = function(h) if_else(h <= 27.5, basis_sales_fn_2017(h), 1 / (1 + g_extrap)^h)
 
-# Gain-dollar-weighted holding period distribution (for projection-year adjustments)
-pi_g = c(0.093, 0.070, 0.105, 0.083, 0.074, 0.206, 0.117, 0.076, 0.176)
+# ---- NegBin conditional holding period imputation ----
+# Uses SOCA Table 2 (transactions by AGI) and Table 4 (gain per transaction by HP)
+# to infer holding periods conditional on observed gain and AGI.
 
-tax_units %<>%
+# Read SOCA HP ingredients and AGI-specific inputs
+soca_hp   = read_csv('resources/soca_hp_ingredients.csv')
+soca_nbar = read_csv('resources/soca_nbar_by_agi.csv')
+soca_t2   = read_csv('resources/soca_table2.csv')
+
+pi_g  = soca_hp$pi_g
+pi_n  = soca_hp$pi_n
+h_mid = soca_hp$h_midpoint
+g_bar = soca_hp$g_bar_per_txn  # $K per transaction by HP bucket
+n_h   = length(h_mid)
+
+# Step 2: AGI-specific g_bar scaling from SOCA Table 2 (2013-2015)
+t2_recent = soca_t2 %>% filter(year %in% c(2013, 2014, 2015))
+overall_avg_txn = sum(t2_recent$lt_gain_amount) / sum(t2_recent$n_transactions_lt_gain)
+
+agi_scale = t2_recent %>%
+  group_by(agi_bracket) %>%
+  summarise(avg_txn = sum(lt_gain_amount) / sum(n_transactions_lt_gain),
+            .groups = 'drop') %>%
+  mutate(scale = avg_txn / overall_avg_txn)
+
+# Step 3: Approximate AGI and bin tax units into SOCA brackets
+tax_units %<>% mutate(
+  agi_approx = wages + txbl_int + div_ord + kg_st + kg_lt + kg_1250 + kg_collect +
+               other_gains + sole_prop + part_active + part_passive +
+               scorp_active + scorp_passive + txbl_pens_dist + txbl_ira_dist +
+               rent + estate + farm + ui + other_inc + state_ref
+)
+
+agi_breaks = c(-Inf, 0, 20000, 50000, 100000, 200000, 500000, 1000000, Inf)
+agi_labels = soca_nbar$agi_bracket
+tax_units$agi_bin = cut(tax_units$agi_approx, breaks = agi_breaks,
+                        labels = agi_labels, right = FALSE)
+
+# Step 4: Calibrate NegBin overdispersion r(a) from Var(G) in PUF
+# Model: G = sum_{i=1}^{N} g_i, where N ~ NegBin(r, n_bar)
+# Var(G) = n_bar * E[g^2] + n_bar^2 / r * E[g]^2 + n_bar * E[g]^2
+# => r = n_bar^2 * E[g]^2 / (Var_G - n_bar * E[g^2] - n_bar * E[g]^2)
+calibrated = tax_units %>%
+  filter(kg_lt > 0) %>%
+  mutate(G_K = kg_lt / 1000) %>%
+  group_by(agi_bin) %>%
+  summarise(
+    E_G   = weighted.mean(G_K, weight),
+    E_G2  = weighted.mean(G_K^2, weight),
+    Var_G = E_G2 - E_G^2,
+    .groups = 'drop'
+  ) %>%
+  left_join(soca_nbar, by = c('agi_bin' = 'agi_bracket')) %>%
+  left_join(agi_scale %>% select(agi_bracket, scale), by = c('agi_bin' = 'agi_bracket')) %>%
+  rowwise() %>%
   mutate(
-    # Holding period drawn from shifted Weibull fitted to SOCA pi_g
-    kg_lt_years_held = if_else(
-      kg_lt != 0,
-      1 + rweibull(n(), shape = 0.7711, scale = 9.1458),
-      NA_real_
-    ),
-    # Basis derived from SOCA basis/sales ratio: basis = |gain| * r/(1-r)
-    # Symmetric assumption: same ratio for gains and losses
-    kg_lt_basis = if_else(
-      kg_lt != 0,
-      abs(kg_lt) * basis_sales_fn(kg_lt_years_held) / (1 - basis_sales_fn(kg_lt_years_held)),
-      NA_real_
-    )
+    g_bar_a   = list(g_bar * scale),
+    E_g       = sum(pi_n * g_bar * scale),
+    E_g2      = sum(pi_n * (g_bar * scale)^2),
+    Var_pois  = n_bar * E_g2 + n_bar * E_g^2,
+    excess    = Var_G - Var_pois,
+    r         = if_else(excess > 0, n_bar^2 * E_g^2 / excess, Inf)
+  ) %>%
+  ungroup()
+
+# Step 5: Build E[h|G,AGI] score lookup tables via log-spaced grid
+G_grid = 10^seq(-1, 5, length.out = 300)  # 0.1K to 100MK
+score_fns = list()
+
+for (i in seq_len(nrow(calibrated))) {
+  row   = calibrated[i, ]
+  label = as.character(row$agi_bin)
+  n_bar_i = row$n_bar
+  r_i     = row$r
+  g_bar_a = row$g_bar_a[[1]]
+
+  E_h_grid = numeric(length(G_grid))
+  for (k in seq_along(G_grid)) {
+    G_k = G_grid[k]
+    log_post = rep(-Inf, n_h)
+    for (j in seq_len(n_h)) {
+      if (g_bar_a[j] <= 0) next
+      N_int = max(1, round(G_k / g_bar_a[j]))
+      if (is.finite(r_i) && r_i > 0) {
+        p_nb = r_i / (r_i + n_bar_i)
+        log_pN = dnbinom(N_int, size = r_i, prob = p_nb, log = TRUE)
+      } else {
+        log_pN = dpois(N_int, lambda = n_bar_i, log = TRUE)
+      }
+      log_post[j] = log(max(pi_n[j], 1e-30)) + log_pN
+    }
+    max_lp = max(log_post)
+    if (is.infinite(max_lp)) {
+      E_h_grid[k] = sum(pi_g * h_mid)
+    } else {
+      post = exp(log_post - max_lp)
+      post = post / sum(post)
+      E_h_grid[k] = sum(post * h_mid)
+    }
+  }
+  score_fns[[label]] = approxfun(log(G_grid), E_h_grid, rule = 2)
+}
+
+# Step 6: Score records and constrained assignment
+# --- Gains (kg_lt > 0): NegBin conditional assignment ---
+gain_idx = which(tax_units$kg_lt > 0)
+scores = numeric(length(gain_idx))
+for (ii in seq_along(gain_idx)) {
+  idx = gain_idx[ii]
+  label = as.character(tax_units$agi_bin[idx])
+  G_K = tax_units$kg_lt[idx] / 1000
+  G_K = pmax(G_K, G_grid[1])
+  G_K = pmin(G_K, G_grid[length(G_grid)])
+  if (!is.null(score_fns[[label]])) {
+    scores[ii] = score_fns[[label]](log(G_K))
+  } else {
+    scores[ii] = sum(pi_g * h_mid)
+  }
+}
+
+# Sort gains by score and assign HP buckets to match pi_g quantiles
+sort_order = order(scores)
+gain_idx_sorted  = gain_idx[sort_order]
+gain_dollars     = tax_units$kg_lt[gain_idx_sorted] * tax_units$weight[gain_idx_sorted]
+total_gain       = sum(gain_dollars)
+cum_gain         = cumsum(gain_dollars) / total_gain
+cum_pi_g         = cumsum(pi_g)
+
+hp_assigned = numeric(length(gain_idx_sorted))
+for (j in seq_len(n_h)) {
+  lower = if (j == 1) 0 else cum_pi_g[j - 1]
+  upper = cum_pi_g[j]
+  mask  = if (j == 1) (cum_gain <= upper) else (cum_gain > lower & cum_gain <= upper)
+  hp_assigned[mask] = h_mid[j]
+}
+
+# Write back to tax_units
+tax_units$kg_lt_years_held = NA_real_
+tax_units$kg_lt_years_held[gain_idx_sorted] = hp_assigned
+
+# --- Losses (kg_lt < 0): unconditional pi_g assignment (random draw) ---
+loss_idx = which(tax_units$kg_lt < 0)
+if (length(loss_idx) > 0) {
+  loss_hp = sample(h_mid, size = length(loss_idx), replace = TRUE, prob = pi_g)
+  tax_units$kg_lt_years_held[loss_idx] = loss_hp
+}
+
+# Step 7: Basis computation (unchanged formula)
+tax_units %<>% mutate(
+  kg_lt_basis = if_else(
+    kg_lt != 0,
+    abs(kg_lt) * basis_sales_fn(kg_lt_years_held) / (1 - basis_sales_fn(kg_lt_years_held)),
+    NA_real_
   )
+)
+
+# Step 8: Clean up temporary columns
+tax_units %<>% select(-agi_approx, -agi_bin)
+
+rm(soca_hp, soca_nbar, soca_t2, t2_recent, agi_scale, calibrated,
+   G_grid, score_fns, gain_idx, scores, sort_order, gain_idx_sorted,
+   gain_dollars, total_gain, cum_gain, cum_pi_g, hp_assigned, loss_idx)
 
 #-----------
 # TODO LIST
