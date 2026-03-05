@@ -1344,7 +1344,8 @@ basis_sales_fn = function(h) if_else(h <= h_top, basis_sales_fn_2017(h), 1 / (1 
 # Read SOCA HP ingredients and AGI-specific inputs
 soca_hp   = read_csv('resources/soca_hp_ingredients.csv')
 soca_nbar = read_csv('resources/soca_nbar_by_agi.csv')
-soca_t2   = read_csv('resources/soca_table2.csv')
+soca_t2     = read_csv('resources/soca_table2.csv')
+soca_loss   = read_csv('resources/soca_loss_hp.csv')
 
 pi_g  = soca_hp$pi_g
 pi_n  = soca_hp$pi_n
@@ -1403,9 +1404,9 @@ calibrated = tax_units %>%
   ) %>%
   ungroup()
 
-# Step 5: Build E[h|G,AGI] score lookup tables via log-spaced grid
+# Step 5: Build posterior P(h|G,AGI) lookup tables via log-spaced grid
 G_grid = 10^seq(-1, 5, length.out = 300)  # 0.1K to 100MK
-score_fns = list()
+posterior_fns = list()  # posterior_fns[[agi_label]][[bucket_j]] = approxfun
 
 for (i in seq_len(nrow(calibrated))) {
   row   = calibrated[i, ]
@@ -1414,7 +1415,7 @@ for (i in seq_len(nrow(calibrated))) {
   r_i     = row$r
   g_bar_a = row$g_bar_a[[1]]
 
-  E_h_grid = numeric(length(G_grid))
+  post_matrix = matrix(0, nrow = length(G_grid), ncol = n_h)
   for (k in seq_along(G_grid)) {
     G_k = G_grid[k]
     log_post = rep(-Inf, n_h)
@@ -1431,52 +1432,28 @@ for (i in seq_len(nrow(calibrated))) {
     }
     max_lp = max(log_post)
     if (is.infinite(max_lp)) {
-      E_h_grid[k] = sum(pi_g * h_mid)
+      post_matrix[k, ] = pi_g
     } else {
       post = exp(log_post - max_lp)
-      post = post / sum(post)
-      E_h_grid[k] = sum(post * h_mid)
+      post_matrix[k, ] = post / sum(post)
     }
   }
-  score_fns[[label]] = approxfun(log(G_grid), E_h_grid, rule = 2)
-}
 
-# Step 6: Score records and constrained assignment
-# --- Gains (kg_lt > 0): NegBin conditional assignment ---
-gain_idx = which(tax_units$kg_lt > 0)
-scores = numeric(length(gain_idx))
-for (ii in seq_along(gain_idx)) {
-  idx = gain_idx[ii]
-  label = as.character(tax_units$agi_bin[idx])
-  G_K = tax_units$kg_lt[idx] / 1000
-  G_K = pmax(G_K, G_grid[1])
-  G_K = pmin(G_K, G_grid[length(G_grid)])
-  if (!is.null(score_fns[[label]])) {
-    scores[ii] = score_fns[[label]](log(G_K))
-  } else {
-    scores[ii] = sum(pi_g * h_mid)
+  bucket_fns = list()
+  for (j in seq_len(n_h)) {
+    bucket_fns[[j]] = approxfun(log(G_grid), post_matrix[, j], rule = 2)
   }
+  posterior_fns[[label]] = bucket_fns
 }
 
-# Sort gains by score and assign HP buckets to match pi_g quantiles
-sort_order = order(scores)
-gain_idx_sorted  = gain_idx[sort_order]
-gain_dollars     = tax_units$kg_lt[gain_idx_sorted] * tax_units$weight[gain_idx_sorted]
-total_gain       = sum(gain_dollars)
-cum_gain         = cumsum(gain_dollars) / total_gain
-cum_pi_g         = cumsum(pi_g)
-
-# Smoothing: within each bucket, draw from shifted Weibull truncated to bucket interval
-# Shifted Weibull: h = 1 + Weibull(shape=0.7711, scale=9.1458), so x = h - 1 ~ Weibull
+# Step 6: Draw HP from posterior for each record
 wb_shape = 0.7711
 wb_scale = 9.1458
 bucket_lo = c(1.0, 1.5, 2.0, 3.0, 4.0,  5.0, 10.0, 15.0, 20.0)
 bucket_hi = c(1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0,  Inf)
 
-# Truncated Weibull draw: inverse CDF sampling on [lo, hi]
-# h = 1 + x where x ~ Weibull, so for bucket [a, b]: x in [a-1, b-1]
 rtrunc_weibull = function(n, lo, hi) {
-  x_lo = lo - 1  # shift to Weibull scale
+  x_lo = lo - 1
   x_hi = hi - 1
   F_lo = pweibull(x_lo, shape = wb_shape, scale = wb_scale)
   F_hi = if (is.infinite(hi)) 1 else pweibull(x_hi, shape = wb_shape, scale = wb_scale)
@@ -1484,26 +1461,37 @@ rtrunc_weibull = function(n, lo, hi) {
   1 + qweibull(u, shape = wb_shape, scale = wb_scale)
 }
 
-hp_assigned = numeric(length(gain_idx_sorted))
-for (j in seq_len(n_h)) {
-  lower = if (j == 1) 0 else cum_pi_g[j - 1]
-  upper = cum_pi_g[j]
-  mask  = if (j == 1) (cum_gain <= upper) else (cum_gain > lower & cum_gain <= upper)
-  n_in_bucket = sum(mask)
-  if (n_in_bucket > 0) {
-    hp_assigned[mask] = rtrunc_weibull(n_in_bucket, bucket_lo[j], bucket_hi[j])
+# --- Gains (kg_lt > 0): draw bucket from posterior, then smooth within ---
+gain_idx = which(tax_units$kg_lt > 0)
+hp_assigned = numeric(length(gain_idx))
+
+for (ii in seq_along(gain_idx)) {
+  idx = gain_idx[ii]
+  label = as.character(tax_units$agi_bin[idx])
+  G_K = tax_units$kg_lt[idx] / 1000
+  G_K = max(G_K, G_grid[1])
+  G_K = min(G_K, G_grid[length(G_grid)])
+
+  if (!is.null(posterior_fns[[label]])) {
+    post = sapply(posterior_fns[[label]], function(f) f(log(G_K)))
+    post = pmax(post, 0)
+    if (sum(post) > 0) post = post / sum(post) else post = pi_g
+  } else {
+    post = pi_g
   }
+
+  bucket = sample.int(n_h, size = 1, prob = post)
+  hp_assigned[ii] = rtrunc_weibull(1, bucket_lo[bucket], bucket_hi[bucket])
 }
 
-# Write back to tax_units
 tax_units$kg_lt_years_held = NA_real_
-tax_units$kg_lt_years_held[gain_idx_sorted] = hp_assigned
+tax_units$kg_lt_years_held[gain_idx] = hp_assigned
 
-# --- Losses (kg_lt < 0): unconditional smoothed draw ---
-# Assign bucket via pi_g, then smooth within bucket using truncated Weibull
+# --- Losses (kg_lt < 0): draw from loss-specific HP distribution (pi_l) ---
+pi_l = soca_loss$pi_l
 loss_idx = which(tax_units$kg_lt < 0)
 if (length(loss_idx) > 0) {
-  loss_buckets = sample(seq_len(n_h), size = length(loss_idx), replace = TRUE, prob = pi_g)
+  loss_buckets = sample(seq_len(n_h), size = length(loss_idx), replace = TRUE, prob = pi_l)
   loss_hp = numeric(length(loss_idx))
   for (j in seq_len(n_h)) {
     in_j = which(loss_buckets == j)
@@ -1514,21 +1502,28 @@ if (length(loss_idx) > 0) {
   tax_units$kg_lt_years_held[loss_idx] = loss_hp
 }
 
-# Step 7: Basis computation (unchanged formula)
+# Step 7: Basis computation
+# Gains: basis = |gain| * BSR/(1-BSR) using gain-transaction basis_sales_fn
+# Losses: basis = |loss| * loss_BSR/(loss_BSR-1) using loss-transaction BSR by HP bucket
+loss_bsr_fn = approxfun(
+  x = c(soca_loss$h_midpoint[1:8], h_top),
+  y = soca_loss$loss_bsr,
+  rule = 2
+)
+
 tax_units %<>% mutate(
-  kg_lt_basis = if_else(
-    kg_lt != 0,
-    abs(kg_lt) * basis_sales_fn(kg_lt_years_held) / (1 - basis_sales_fn(kg_lt_years_held)),
-    NA_real_
+  kg_lt_basis = case_when(
+    kg_lt > 0 ~ abs(kg_lt) * basis_sales_fn(kg_lt_years_held) / (1 - basis_sales_fn(kg_lt_years_held)),
+    kg_lt < 0 ~ abs(kg_lt) * loss_bsr_fn(kg_lt_years_held) / (loss_bsr_fn(kg_lt_years_held) - 1),
+    TRUE ~ NA_real_
   )
 )
 
 # Step 8: Clean up temporary columns
 tax_units %<>% select(-agi_approx, -agi_bin)
 
-rm(soca_hp, soca_nbar, soca_t2, t2_recent, agi_scale, calibrated,
-   G_grid, score_fns, gain_idx, scores, sort_order, gain_idx_sorted,
-   gain_dollars, total_gain, cum_gain, cum_pi_g, hp_assigned,
+rm(soca_hp, soca_nbar, soca_t2, soca_loss, t2_recent, agi_scale, calibrated,
+   G_grid, posterior_fns, gain_idx, hp_assigned, pi_l, loss_bsr_fn,
    loss_idx, rtrunc_weibull, bucket_lo, bucket_hi, wb_shape, wb_scale)
 
 #-----------
