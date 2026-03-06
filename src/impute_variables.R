@@ -1312,12 +1312,46 @@ buckets_2017 = tibble(
   h = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, NA)
 )
 
-# Representative h for "20 years or more": E[h | h >= 20] from shifted Weibull
+# Representative h for "20 years or more": E[h | h >= 20] from mortality-attenuated Weibull
+# Mortality attenuation: each year, the original basis survives only if the holder
+# is alive OR (dies but gifted the asset, preserving carryover basis).
+# Uses SSA 2022 period life table for age-specific mortality.
 wb_shape = 0.7711
 wb_scale = 9.1458
-F20 = pweibull(20 - 1, shape = wb_shape, scale = wb_scale)
-h_top = 1 + integrate(function(x) x * dweibull(x, wb_shape, wb_scale),
-                       lower = 19, upper = Inf)$value / (1 - F20)
+
+ssa_life = read_csv('resources/ssa_life_table_2022.csv')
+ssa_qx   = 0.5 * ssa_life$male_qx + 0.5 * ssa_life$female_qx  # blended, indexed 1 = age 0
+
+# Acquisition age distribution: triangular centered at 50, spanning 25-70
+acq_ages    = 25:70
+acq_weights = pmax(0, 1 - abs(acq_ages - 50) / 25)
+acq_weights = acq_weights / sum(acq_weights)
+
+# P(holder survives h years), averaged over acquisition ages
+p_basis_survive = function(h) {
+  h_int = as.integer(round(h))
+  p = 0
+  for (i in seq_along(acq_ages)) {
+    a0 = acq_ages[i]
+    surv = 1
+    for (y in seq_len(h_int) - 1) {
+      age = a0 + y
+      if (age >= length(ssa_qx)) { surv = 0; break }
+      surv = surv * (1 - ssa_qx[age + 1])
+    }
+    p = p + acq_weights[i] * surv
+  }
+  p
+}
+
+# Compute mortality-attenuated E[h | h >= 20] by numerical integration
+# Attenuated density: f_weibull(h) * p_basis_survive(h)
+h_grid = seq(20, 120, by = 0.5)
+raw_dens   = dweibull(h_grid - 1, shape = wb_shape, scale = wb_scale)
+mort_weight = sapply(h_grid, p_basis_survive)
+att_dens   = raw_dens * mort_weight
+h_top = sum(h_grid * att_dens) / sum(att_dens)
+
 buckets_2017$h[9] = h_top
 
 buckets_2017 %<>%
@@ -1452,13 +1486,33 @@ wb_scale = 9.1458
 bucket_lo = c(1.0, 1.5, 2.0, 3.0, 4.0,  5.0, 10.0, 15.0, 20.0)
 bucket_hi = c(1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0,  Inf)
 
+# Precompute mortality survival weights on a grid for the 20+ bucket (accept/reject envelope)
+mort_grid_h = 20:120
+mort_grid_p = sapply(mort_grid_h, p_basis_survive)
+mort_max_p  = max(mort_grid_p)  # = p_basis_survive(20), used as envelope
+
 rtrunc_weibull = function(n, lo, hi) {
   x_lo = lo - 1
   x_hi = hi - 1
   F_lo = pweibull(x_lo, shape = wb_shape, scale = wb_scale)
   F_hi = if (is.infinite(hi)) 1 else pweibull(x_hi, shape = wb_shape, scale = wb_scale)
-  u = runif(n, min = F_lo, max = F_hi)
-  1 + qweibull(u, shape = wb_shape, scale = wb_scale)
+
+  if (lo >= 20) {
+    # Mortality-attenuated accept/reject for 20+ bucket
+    draws = numeric(n)
+    for (k in seq_len(n)) {
+      repeat {
+        u = runif(1, min = F_lo, max = F_hi)
+        h_cand = 1 + qweibull(u, shape = wb_shape, scale = wb_scale)
+        accept_prob = p_basis_survive(h_cand) / mort_max_p
+        if (runif(1) < accept_prob) { draws[k] = h_cand; break }
+      }
+    }
+    draws
+  } else {
+    u = runif(n, min = F_lo, max = F_hi)
+    1 + qweibull(u, shape = wb_shape, scale = wb_scale)
+  }
 }
 
 # --- Gains (kg_lt > 0): draw bucket from posterior, then smooth within ---
@@ -1524,7 +1578,9 @@ tax_units %<>% select(-agi_approx, -agi_bin)
 
 rm(soca_hp, soca_nbar, soca_t2, soca_loss, t2_recent, agi_scale, calibrated,
    G_grid, posterior_fns, gain_idx, hp_assigned, pi_l, loss_bsr_fn,
-   loss_idx, rtrunc_weibull, bucket_lo, bucket_hi, wb_shape, wb_scale)
+   loss_idx, rtrunc_weibull, bucket_lo, bucket_hi, wb_shape, wb_scale,
+   ssa_life, ssa_qx, acq_ages, acq_weights, p_basis_survive,
+   mort_grid_h, mort_grid_p, mort_max_p)
 
 #-----------
 # TODO LIST
