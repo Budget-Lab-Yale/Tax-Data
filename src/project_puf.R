@@ -165,12 +165,44 @@ sp500_interp_ext = approxfun(sp500_extended$year, sp500_extended$index, rule = 2
 
 # Bucket definitions and pi_g weights for weighted average
 pi_g = read_csv('resources/soca_hp_ingredients.csv')$pi_g
-# Representative h for '20 years or more': E[h | h >= 20] from shifted Weibull
+
+# Representative h for '20 years or more': E[h | h >= 20] from mortality-attenuated Weibull
+# Uses SSA life table to down-weight long HPs by probability that original basis
+# survives without step-up at death. See impute_variables.R for full derivation.
 wb_shape = 0.7711
 wb_scale = 9.1458
-F20 = pweibull(20 - 1, shape = wb_shape, scale = wb_scale)
-h_top = 1 + integrate(function(x) x * dweibull(x, wb_shape, wb_scale),
-                       lower = 19, upper = Inf)$value / (1 - F20)
+
+ssa_life_proj = read_csv('resources/ssa_life_table_2022.csv')
+ssa_qx_proj   = 0.5 * ssa_life_proj$male_qx + 0.5 * ssa_life_proj$female_qx
+acq_ages_proj    = 25:70
+acq_weights_proj = pmax(0, 1 - abs(acq_ages_proj - 50) / 25)
+acq_weights_proj = acq_weights_proj / sum(acq_weights_proj)
+
+p_basis_survive_proj = function(h) {
+  h_int = as.integer(round(h))
+  p = 0
+  for (i in seq_along(acq_ages_proj)) {
+    a0 = acq_ages_proj[i]
+    surv = 1
+    for (y in seq_len(h_int) - 1) {
+      age = a0 + y
+      if (age >= length(ssa_qx_proj)) { surv = 0; break }
+      surv = surv * (1 - ssa_qx_proj[age + 1])
+    }
+    p = p + acq_weights_proj[i] * surv
+  }
+  p
+}
+
+h_grid_proj  = seq(20, 120, by = 0.5)
+raw_dens_proj   = dweibull(h_grid_proj - 1, shape = wb_shape, scale = wb_scale)
+mort_weight_proj = sapply(h_grid_proj, p_basis_survive_proj)
+att_dens_proj   = raw_dens_proj * mort_weight_proj
+h_top = sum(h_grid_proj * att_dens_proj) / sum(att_dens_proj)
+
+rm(ssa_life_proj, ssa_qx_proj, acq_ages_proj, acq_weights_proj,
+   p_basis_survive_proj, h_grid_proj, raw_dens_proj, mort_weight_proj, att_dens_proj)
+
 bucket_h   = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, h_top)
 bucket_names = c('Under 18 months', '18 months under 2 years', '2 years under 3 years',
                  '3 years under 4 years', '4 years under 5 years', '5 years under 10 years',
