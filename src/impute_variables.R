@@ -1312,45 +1312,18 @@ buckets_2017 = tibble(
   h = c(1.25, 1.75, 2.50, 3.50, 4.50, 7.50, 12.50, 17.50, NA)
 )
 
-# Representative h for "20 years or more": E[h | h >= 20] from mortality-attenuated Weibull
-# Mortality attenuation: each year, the original basis survives only if the holder
-# is alive (step-up at death resets the holding period for bequeathed assets).
-# Uses SSA 2022 period life table for age-specific mortality.
+# Representative h for "20 years or more": mean of the exponential splice
+# used for HP draws. The exponential rate is pinned by density continuity
+# at h=20 (see draw code below), giving E[h | h >= 20] = 20 + 1/lambda.
 wb_shape = 0.7711
 wb_scale = 9.1458
 
-ssa_life = read_csv('resources/ssa_life_table_2022.csv')
-ssa_qx   = 0.5 * ssa_life$male_qx + 0.5 * ssa_life$female_qx  # blended, indexed 1 = age 0
-
-# Acquisition age distribution: triangular centered at 50, spanning 25-70
-acq_ages    = 25:70
-acq_weights = pmax(0, 1 - abs(acq_ages - 50) / 25)
-acq_weights = acq_weights / sum(acq_weights)
-
-# P(holder survives h years), averaged over acquisition ages
-p_basis_survive = function(h) {
-  h_int = as.integer(round(h))
-  p = 0
-  for (i in seq_along(acq_ages)) {
-    a0 = acq_ages[i]
-    surv = 1
-    for (y in seq_len(h_int) - 1) {
-      age = a0 + y
-      if (age >= length(ssa_qx)) { surv = 0; break }
-      surv = surv * (1 - ssa_qx[age + 1])
-    }
-    p = p + acq_weights[i] * surv
-  }
-  p
-}
-
-# Compute mortality-attenuated E[h | h >= 20] by numerical integration
-# Attenuated density: f_weibull(h) * p_basis_survive(h)
-h_grid = seq(20, 120, by = 0.5)
-raw_dens   = dweibull(h_grid - 1, shape = wb_shape, scale = wb_scale)
-mort_weight = sapply(h_grid, p_basis_survive)
-att_dens   = raw_dens * mort_weight
-h_top = sum(h_grid * att_dens) / sum(att_dens)
+soca_hp_pre = read_csv('resources/soca_hp_ingredients.csv')
+dw_at_boundary_pre   = dweibull(19, shape = wb_shape, scale = wb_scale)
+wb_mass_bucket_8_pre = pweibull(19, wb_shape, wb_scale) - pweibull(14, wb_shape, wb_scale)
+exp_lambda_pre       = dw_at_boundary_pre / wb_mass_bucket_8_pre * soca_hp_pre$pi_g[8] / soca_hp_pre$pi_g[9]
+h_top = 20 + 1 / exp_lambda_pre
+rm(soca_hp_pre, dw_at_boundary_pre, wb_mass_bucket_8_pre, exp_lambda_pre)
 
 buckets_2017$h[9] = h_top
 
@@ -1388,30 +1361,22 @@ wb_scale  = 9.1458
 bucket_lo = c(1.0, 1.5, 2.0, 3.0, 4.0,  5.0, 10.0, 15.0, 20.0)
 bucket_hi = c(1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0,  Inf)
 
-# Precompute mortality survival weights on a grid for the 20+ bucket (accept/reject envelope)
-mort_grid_h = 20:120
-mort_grid_p = sapply(mort_grid_h, p_basis_survive)
-mort_max_p  = max(mort_grid_p)  # = p_basis_survive(20), used as envelope
+# Exponential rate for the 20+ bucket, pinned by density continuity at h=20.
+# The Weibull density just below h=20 (in bucket 8) determines the required
+# density just above h=20, which pins lambda for the exponential splice.
+dw_at_boundary   = dweibull(19, shape = wb_shape, scale = wb_scale)
+wb_mass_bucket_8 = pweibull(19, wb_shape, wb_scale) - pweibull(14, wb_shape, wb_scale)
+exp_lambda_20p   = dw_at_boundary / wb_mass_bucket_8 * pi_g[8] / pi_g[9]
 
 rtrunc_weibull = function(n, lo, hi) {
-  x_lo = lo - 1
-  x_hi = hi - 1
-  F_lo = pweibull(x_lo, shape = wb_shape, scale = wb_scale)
-  F_hi = if (is.infinite(hi)) 1 else pweibull(x_hi, shape = wb_shape, scale = wb_scale)
-
   if (lo >= 20) {
-    # Mortality-attenuated accept/reject for 20+ bucket
-    draws = numeric(n)
-    for (k in seq_len(n)) {
-      repeat {
-        u = runif(1, min = F_lo, max = F_hi)
-        h_cand = 1 + qweibull(u, shape = wb_shape, scale = wb_scale)
-        accept_prob = p_basis_survive(h_cand) / mort_max_p
-        if (runif(1) < accept_prob) { draws[k] = h_cand; break }
-      }
-    }
-    draws
+    # Exponential splice for 20+ bucket (uncapped)
+    rexp(n, rate = exp_lambda_20p) + 20
   } else {
+    x_lo = lo - 1
+    x_hi = hi - 1
+    F_lo = pweibull(x_lo, shape = wb_shape, scale = wb_scale)
+    F_hi = pweibull(x_hi, shape = wb_shape, scale = wb_scale)
     u = runif(n, min = F_lo, max = F_hi)
     1 + qweibull(u, shape = wb_shape, scale = wb_scale)
   }
