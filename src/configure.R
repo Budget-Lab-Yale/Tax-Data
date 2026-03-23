@@ -8,9 +8,19 @@
 # Read runscript
 #----------------
 
-runscript_id = 'baseline'
+runscript_id = Sys.getenv('TAX_DATA_RUNSCRIPT_ID', unset = 'baseline')
 runscript = file.path('./config/runscripts', paste0(runscript_id, '.yaml')) %>% 
   read_yaml()
+
+write_locally_override = Sys.getenv('TAX_DATA_WRITE_LOCALLY', unset = '')
+if (write_locally_override != '') {
+  runscript$runtime_options$write_locally = tolower(write_locally_override) %in% c('1', 'true', 't', 'yes', 'y')
+}
+
+user_id_override = Sys.getenv('TAX_DATA_USER_ID', unset = '')
+if (user_id_override != '') {
+  runscript$runtime_options$user_id = user_id_override
+}
 
 
 #-----------------
@@ -20,6 +30,17 @@ runscript = file.path('./config/runscripts', paste0(runscript_id, '.yaml')) %>%
 # Read versioning info
 output_roots       = read_yaml('./config/interfaces/output_roots.yaml')
 interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
+
+# Allow local path overrides without editing tracked config files
+local_root_override = Sys.getenv('TAX_DATA_LOCAL_ROOT', unset = '')
+if (local_root_override != '') {
+  output_roots$local = local_root_override
+}
+
+production_root_override = Sys.getenv('TAX_DATA_PRODUCTION_ROOT', unset = '')
+if (production_root_override != '') {
+  output_roots$production = production_root_override
+}
 
 # Get current date/time to vintage this run
 vintage = format(Sys.time(), '%Y%m%d%H')
@@ -33,6 +54,18 @@ if (runscript$runtime_options$write_locally) {
   output_root = file.path(output_roots$local, runscript$runtime_options$user_id)
 } else {
   output_root = output_roots$production
+}
+
+# Resolve dependency reads from the active run context by default. Public/local
+# users can also supply an explicit input root when keeping inputs separate
+# from outputs.
+dependency_root_override = Sys.getenv('TAX_DATA_INPUT_ROOT', unset = '')
+if (dependency_root_override != '') {
+  dependency_root = dependency_root_override
+} else if (runscript$runtime_options$write_locally) {
+  dependency_root = output_roots$local
+} else {
+  dependency_root = output_roots$production
 }
 
 # Set output path
@@ -83,7 +116,7 @@ interface_versions %>%
 interface_paths = interface_versions %>% 
   map2(.y = names(.),
        .f = ~ file.path(
-         output_roots$production,
+         dependency_root,
          .x$type,
          .y,
          paste0('v', .x$version), 
