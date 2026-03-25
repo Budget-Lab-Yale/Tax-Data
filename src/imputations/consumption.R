@@ -30,7 +30,7 @@
 #   # qrf modelling.
 #   # TODO Let external users opt out of this if they don't have tons of spare compute
 #   goods_qrf = quantregForest(
-#     x = cex_training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1')],
+#     x = cex_training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep', 'n_dep_ctc', 'male1')],
 #     y = cex_training$goods,
 #     nthreads = 8,
 #     mtry = 5,
@@ -39,7 +39,7 @@
 #   write_rds(goods_qrf, "resources/cache/qrf/goods_qrf.rds")
 #
 #   goods_per_qrf = quantregForest(
-#     x = pct_train[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1')],
+#     x = pct_train[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep', 'n_dep_ctc', 'male1')],
 #     y = pct_train$goods_per,
 #     nthreads = 8,
 #     mtry = 5,
@@ -48,7 +48,7 @@
 #   write_rds(goods_per_qrf, "resources/cache/qrf/goods_per_qrf.rds")
 #
 #   services_qrf = quantregForest(
-#     x = cex_training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1', 'goods')],
+#     x = cex_training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep', 'n_dep_ctc', 'male1', 'goods')],
 #     y = cex_training$services,
 #     nthreads = 8,
 #     mtry = 5,
@@ -57,7 +57,7 @@
 #   write_rds(services_qrf, "resources/cache/qrf/services_qrf.rds")
 #
 #   services_per_qrf = quantregForest(
-#     x = pct_train[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1', 'goods')],
+#     x = pct_train[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep', 'n_dep_ctc', 'male1', 'goods')],
 #     y = pct_train$services_per,
 #     nthreads = 8,
 #     mtry = 5,
@@ -80,7 +80,7 @@
 #     income = wages + sole_prop + part_active + part_passive - part_active_loss -
 #       part_passive_loss - part_179 + scorp_active + scorp_passive -
 #       scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
-#       txbl_int + div_ord + div_pref + gross_pens_dist + rent - rent_loss,
+#       txbl_int + div_ord + div_pref + gross_pens_dist,
 #
 #     has_income = case_when(
 #       income >  0 ~ 1,
@@ -99,7 +99,7 @@
 #       .names = 'pctile_income'
 #     )
 #   ) %>%
-#   select(id, weight, male1, age1, married, pctile_income, n_dep_ctc, income, size, has_income) %>%
+#   select(id, weight, male1, age1, married, pctile_income, n_dep, n_dep_ctc, income, size, has_income) %>%
 #   mutate(
 #     goods = predict(
 #       object  = goods_qrf,

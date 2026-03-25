@@ -37,7 +37,7 @@ build_cex_training = function() {
     ) %>%
     ungroup() %>%
     mutate(
-      # XM-based income (BLS multiply-imputed: actual if reported, imputed if missing)
+      # XM-based income (BLS multiply-imputed; assumed actual if reported, imputed if missing — verify against BLS CEX documentation)
       inc = SALARYXM + SEMPFRMM + SOCRRXM + INTEARNM + PENSIONM + DIVIDM,
 
       # Tax unit ID from NEWID + TAX_UNIT (not TU_CODE)
