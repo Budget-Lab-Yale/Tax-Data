@@ -201,3 +201,19 @@ BLS prescribes `FINLWT21 / 4 * (MO_SCOPE / 3)` where `MO_SCOPE` counts how many 
 2. Bootstrap sampling (`slice_sample` weight_by)
 
 Interviews with MO_SCOPE = 0 (e.g., January interview referencing only prior-year months) get zero weight and are effectively excluded. Both `FINLWT21` and `WT_ANNUAL` are carried in the output for diagnostics.
+
+---
+
+## 16. Added NTAXI validation function
+
+**File:** `src/cex.R:359-478`
+
+The pipeline constructs tax units from MEMI using BLS's `TAX_UNIT`, `TU_CODE`, and `TU_DPNDT` fields but had no way to verify the construction was correct. BLS publishes NTAXI files containing one record per tax unit per interview quarter with `DEPCNT` (dependent count), `FILESTAT` (filing status), and `TAX_UNIT` (unit number within CU).
+
+**Fix:** Added `validate_tax_units_against_ntaxi()` — an optional diagnostic function (not called during normal pipeline execution) that reads NTAXI quarterly files, rebuilds tax units from MEMI using the same logic as `build_cex_training()`, and reports:
+- Dependent count agreement (`our_n_dep` vs `NTAXI.DEPCNT`)
+- Married flag agreement (`our_married` vs `NTAXI.FILESTAT == 2`)
+- TU count per CU agreement
+- Crosstabs of disagreements to identify systematic patterns
+
+Returns a list with match rates and the full comparison table for further inspection. Expect >95% on dependent counts and >90% on married flag; lower rates warrant investigation.

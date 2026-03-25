@@ -84,6 +84,8 @@ dependent counts, >90% on filing status. Lower rates warrant investigation.
 
 **Decision**: Yes, add as optional check function. (2026-03-25)
 
+**Implemented**: `validate_tax_units_against_ntaxi()` in `src/cex.R`. (2026-03-25)
+
 ---
 
 ## 4. Health Care Classification (External Proportions)

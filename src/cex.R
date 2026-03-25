@@ -354,3 +354,148 @@ build_cex_training = function() {
     slice_sample(n = 100000, replace = T, weight_by = WT_ANNUAL) %>%
     return()
 }
+
+
+#' Validate tax unit construction against NTAXI
+#'
+#' Optional diagnostic function — not called during normal pipeline execution.
+#' Reads NTAXI (BLS tax-unit-level) files and compares dependent counts, filing
+#' status, and TU counts per CU against our MEMI-based construction.
+#'
+#' @param cex_path Path to CEX data directory
+#' @param years Target year(s)
+#' @return List with match rates and crosstabs of disagreements
+validate_tax_units_against_ntaxi = function(
+    cex_path = '/gpfs/gibbs/project/sarin/shared/raw_data/CEX/2023',
+    years    = c(2023)) {
+
+  # -------------------------------------------------------------------------
+  # 1. Read NTAXI: one record per tax unit per interview quarter
+  # -------------------------------------------------------------------------
+  ntaxi = years %>%
+    map(.f = ~ lapply(dir(path       = cex_path,
+                          pattern    = paste0('^ntaxi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
+                          full.names = TRUE),
+                      fread,
+                      select = c('NEWID', 'TAX_UNIT', 'DEPCNT', 'FILESTAT')) %>%
+          bind_rows()
+    ) %>%
+    bind_rows() %>%
+    mutate(
+      TU_ID_NTAXI = as.numeric(paste0(NEWID, "00", TAX_UNIT)),
+      # BLS FILESTAT: 1=single, 2=MFJ, 3=MFS, 5=HoH, 6=QW
+      ntaxi_married = as.numeric(FILESTAT == 2)
+    )
+
+  # -------------------------------------------------------------------------
+  # 2. Read MEMI and build tax units (same logic as build_cex_training)
+  # -------------------------------------------------------------------------
+  memi = years %>%
+    map(.f = ~ lapply(dir(path       = cex_path,
+                          pattern    = paste0('^memi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
+                          full.names = TRUE),
+                      fread) %>%
+          bind_rows()
+    ) %>%
+    bind_rows()
+
+  cex_tus = memi %>%
+    select(NEWID, AGE, CU_CODE, SEX, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT,
+           SALARYXM, SEMPFRMM, SOCRRXM, INTEARNM, PENSIONM, DIVIDM
+    ) %>%
+    group_by(NEWID) %>%
+    mutate(
+      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "INTEARNM", "PENSIONM", "DIVIDM")),
+             ~ if_else(is.na(.x), 0, .x))
+    ) %>%
+    ungroup() %>%
+    group_by(NEWID, TAX_UNIT) %>%
+    mutate(
+      no_payer  = !any(TU_CODE == 1),
+      no_spouse = !any(TU_CODE == 2) & any(CU_CODE == 2),
+      TU_CODE = if_else(no_payer  & CU_CODE == 1, 1, TU_CODE),
+      TU_CODE = if_else(no_spouse & CU_CODE == 2, 2, TU_CODE),
+    ) %>%
+    ungroup() %>%
+    mutate(
+      TU_ID = as.numeric(paste0(NEWID, "00", TAX_UNIT)),
+      has_valid_dpndt = !is.na(TU_DPNDT) & TU_DPNDT != "" & TU_DPNDT != "B",
+      claiming_TU_ID = if_else(
+        has_valid_dpndt,
+        as.numeric(paste0(NEWID, "00", TU_DPNDT)),
+        NA_real_
+      ),
+      is_dep = as.numeric(TU_CODE == 3 | has_valid_dpndt),
+      TU_ID = if_else(
+        !is.na(claiming_TU_ID) & claiming_TU_ID != TU_ID,
+        claiming_TU_ID,
+        TU_ID
+      )
+    ) %>%
+    group_by(NEWID, TU_ID) %>%
+    summarise(
+      our_n_dep  = sum(is_dep),
+      our_married = as.numeric(any(TU_CODE == 2)),
+      our_size   = n(),
+      .groups = 'drop'
+    )
+
+  # -------------------------------------------------------------------------
+  # 3. Compare: join on NEWID + TU_ID
+  # -------------------------------------------------------------------------
+  comparison = cex_tus %>%
+    inner_join(ntaxi, by = c('NEWID', 'TU_ID' = 'TU_ID_NTAXI'))
+
+  n_matched = nrow(comparison)
+
+  dep_match_rate     = mean(comparison$our_n_dep == comparison$DEPCNT, na.rm = TRUE)
+  married_match_rate = mean(comparison$our_married == comparison$ntaxi_married, na.rm = TRUE)
+
+  # TU count per CU
+  our_tu_counts   = cex_tus %>% count(NEWID, name = 'our_n_tu')
+  ntaxi_tu_counts = ntaxi %>% count(NEWID, name = 'ntaxi_n_tu')
+  tu_count_compare = our_tu_counts %>%
+    inner_join(ntaxi_tu_counts, by = 'NEWID')
+  tu_count_match_rate = mean(tu_count_compare$our_n_tu == tu_count_compare$ntaxi_n_tu, na.rm = TRUE)
+
+  # Crosstabs of disagreements
+  dep_disagree = comparison %>%
+    filter(our_n_dep != DEPCNT) %>%
+    count(our_n_dep, DEPCNT, name = 'n_disagreements') %>%
+    arrange(desc(n_disagreements))
+
+  married_disagree = comparison %>%
+    filter(our_married != ntaxi_married) %>%
+    count(our_married, FILESTAT, name = 'n_disagreements') %>%
+    arrange(desc(n_disagreements))
+
+  # -------------------------------------------------------------------------
+  # 4. Report
+  # -------------------------------------------------------------------------
+  cat("NTAXI Validation Report\n")
+  cat("=======================\n")
+  cat(sprintf("Tax units matched:          %d\n", n_matched))
+  cat(sprintf("Dependent count agreement:  %.1f%%\n", dep_match_rate * 100))
+  cat(sprintf("Married flag agreement:     %.1f%%\n", married_match_rate * 100))
+  cat(sprintf("TU count per CU agreement:  %.1f%%\n", tu_count_match_rate * 100))
+
+  if (nrow(dep_disagree) > 0) {
+    cat("\nDependent count disagreements (top 10):\n")
+    print(head(dep_disagree, 10))
+  }
+
+  if (nrow(married_disagree) > 0) {
+    cat("\nMarried/filing status disagreements (top 10):\n")
+    print(head(married_disagree, 10))
+  }
+
+  invisible(list(
+    n_matched            = n_matched,
+    dep_match_rate       = dep_match_rate,
+    married_match_rate   = married_match_rate,
+    tu_count_match_rate  = tu_count_match_rate,
+    dep_disagree         = dep_disagree,
+    married_disagree     = married_disagree,
+    comparison           = comparison
+  ))
+}
