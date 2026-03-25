@@ -1,0 +1,187 @@
+# CEX Processing Pipeline: Changes Log
+
+Changes to `src/cex.R` and `src/imputations/consumption.R` made in the `cex-resumption` branch.
+
+---
+
+## 1. Eliminated CQ + PQ double-counting (~2x consumption overstatement)
+
+**Files:** `src/cex.R:164-166`, `src/cex.R:205-207`
+
+Each FMLI row reports two overlapping expenditure windows: CQ (current quarter, the 3 months before this interview) and PQ (prior quarter, the 3 months before the *previous* interview). PQ exists so researchers can see revised figures for the same calendar quarter without merging files — CQ and PQ are not additive. The old code summed them:
+
+```r
+# Old (wrong): ~6 months of spending per row
+.fns = ~ (.x + get(gsub('CQ$', 'PQ', cur_column())))
+```
+
+Downstream in `consumption.R`, the QRF prediction was multiplied by 4 under the assumption each observation represents one quarter. With the CQ+PQ sum, each observation actually represented ~6 months, producing `6 months * 4 = 24 months` of imputed annual consumption — roughly double the true value.
+
+**Fix:** Drop PQ entirely. Expenditure vectors now contain only CQ columns, and the `across()` call is an identity rename from `_CQ` to `_exp`:
+
+```r
+# New: CQ only — 3 months of spending per row
+.fns = ~ .x
+```
+
+---
+
+## 2. Added complete income reporter filter
+
+**File:** `src/cex.R:125`, `src/cex.R:143`
+
+BLS flags CUs where income data is unreliable via `COMP_INC`. The old code had no filter, so the training data included CUs whose income BLS itself considers untrustworthy. This distorts income percentile bins and the conditional spending distributions the QRF learns from.
+
+**Fix:** Added `COMP_INC` to the FMLI variable read and filter to `COMP_INC == 1` after the join, before percentile construction.
+
+---
+
+## 3. Removed life insurance from services; dropped savings categories
+
+**Files:** `src/cex.R:116-122`, `src/cex.R:170`, `src/cex.R:211`
+
+Life insurance (`LIFINS_exp`) is a savings vehicle, not consumption, but it was included in the `services` aggregate. Cash contributions (`CASHCO`) and retirement/pension contributions (`RETPEN`) were read and processed but never entered the goods/services split — pure dead weight.
+
+**Fix:** Removed `LIFINS_exp` from the services sum. Removed `CASHCOCQ`, `LIFINSCQ`, `RETPENCQ` (and their PQ counterparts, now moot) from the expenditure vectors entirely.
+
+---
+
+## 4. Fixed TU_DPNDT handling (3 upstream bugs + 1 reassignment bug)
+
+**File:** `src/cex.R:44-66`
+
+The old code constructed a "claiming TU" identifier from `TU_DPNDT` using `TU_CODE` (the person's *role* — 1=payer, 2=spouse, 3=dependent) instead of `TAX_UNIT` (the person's *tax unit number*). These are different variables that happen to share the same value space (1, 2, 3, ...).
+
+```r
+# Old (wrong): used TU_CODE (role) instead of TAX_UNIT (unit number)
+TU_DPNDT = case_when(
+  is.na(TU_DPNDT) ~ paste0(NEWID, "00", TU_CODE),   # e.g., "003" for a dependent — points to "TU #3", which may not exist
+  TU_DPNDT == "B" ~ paste0(NEWID, "00", TU_CODE),
+  ...
+)
+```
+
+Additionally, the old code:
+- Constructed spurious caretaker IDs for non-dependents (taxpayers and spouses whose `TU_DPNDT` is correctly blank)
+- Only reassigned people with `TU_CODE == 3`, missing "dependent filers" — e.g., a teenager with a summer job who has their own `TAX_UNIT` (`TU_CODE == 1`) but is claimed on a parent's return via `TU_DPNDT`
+
+**Fix:** Complete rewrite. `TU_ID` is now always constructed from `TAX_UNIT`. Dependency is determined by whether `TU_DPNDT` contains a valid value (not NA, not blank, not "B"). Anyone with a valid `TU_DPNDT` pointing to a different TU — whether `TU_CODE` is 1 or 3 — gets reassigned:
+
+```r
+has_valid_dpndt = !is.na(TU_DPNDT) & TU_DPNDT != "" & TU_DPNDT != "B",
+claiming_TU_ID = if_else(has_valid_dpndt, as.numeric(paste0(NEWID, "00", TU_DPNDT)), NA_real_),
+is_dep = as.numeric(TU_CODE == 3 | has_valid_dpndt),
+TU_ID = if_else(!is.na(claiming_TU_ID) & claiming_TU_ID != TU_ID, claiming_TU_ID, TU_ID)
+```
+
+---
+
+## 5. Fixed dependent numbering from CU-wide to TU-specific
+
+**File:** `src/cex.R:69`
+
+Dependents were numbered sequentially across the entire CU (`group_by(NEWID, is_dep)`). In a CU with two tax units each having 2 dependents, the dependents would be numbered 1-4 across the CU. After the pivot to tax-unit rows, dep3 and dep4 from TU #2 could land in TU #1's columns.
+
+**Fix:** Changed grouping to `group_by(NEWID, TU_ID, is_dep)` so dependents are numbered within their own tax unit.
+
+---
+
+## 6. Expanded income definition (CEX and PUF sides)
+
+**Files:** `src/cex.R:20-21`, `src/cex.R:41`, `src/imputations/consumption.R:80-83`
+
+The old code used only 3 income sources from MEMI: wages (`SALARYXM`), self-employment (`SEMPFRMM`), and Social Security (`SOCRRXM`). This misses investment, pension, and dividend income — understating income for retirees, investors, and transfer recipients and distorting percentile assignment.
+
+A comment in `consumption.R` claimed income was "restricted to what is available in MEMI," but MEMI contains additional income fields.
+
+**Fix:** Added `INTEARNM` (interest), `PENSIONM` (pensions/annuities), and `DIVIDM` (dividends) to the MEMI read and income sum. On the PUF prediction side, added `txbl_int`, `div_ord`, `div_pref`, and `gross_pens_dist` to match. Rental income was excluded from both sides because MEMI lacks a clean rental income variable — keeping the definitions aligned is more important than including every source.
+
+---
+
+## 7. Dropped filing_status; added n_dep as QRF feature
+
+**Files:** `src/cex.R:103-113`, `src/imputations/consumption.R:33,42,51,60,102`
+
+The old code computed `filing_status` (1=single, 2=married, 4=HoH) and assigned head-of-household to all single filers with dependents. Real HoH requires paying >50% of household costs, which MEMI cannot verify — so HoH was overstated and single filers understated.
+
+**Fix:** Removed `filing_status` entirely. The QRF now conditions on `married` (0/1) and `n_dep` (count of dependents) directly, which are observable from the data. Added `n_dep` to all four QRF feature vectors and the prediction-side select in `consumption.R`.
+
+---
+
+## 8. Dropped self-reported income; unified to XM-based income
+
+**Files:** `src/cex.R:20-22,26-28,41-43,110,113`
+
+The old code maintained two parallel income variables: `inc` (self-reported: `SALARYX + SEMPFRMX + SOCRRX`) and `incm` (BLS multiply-imputed: `SALARYXM + SEMPFRMM + SOCRRXM`). Only `income2` (from `incm`) was used for percentiles and ratios, but `income` (from `inc`) was carried through the pipeline. Self-reported NAs were set to 0, conflating "not reported" with "truly zero."
+
+**Fix:** Removed self-reported income variables entirely. A single `income` column is now constructed from XM variables only. The NA-to-0 treatment is retained for XM variables as a safety measure, though BLS XM variables are believed to always have values (this should be verified against BLS CEX documentation).
+
+---
+
+## 9. Removed unused MEMI variables
+
+**File:** `src/cex.R:20`
+
+`IN_COLL`, `IN_COLL_`, `INCNONWK`, and `EARNER` were selected from MEMI but never referenced downstream. Removed from the select.
+
+---
+
+## 10. Moved payer/spouse promotions inside grouped mutate
+
+**File:** `src/cex.R:31-37`
+
+The payer and spouse promotion logic (promoting `CU_CODE == 1` to `TU_CODE = 1` when no payer exists, etc.) previously ran in an ungrouped `mutate()` and relied on per-TU flags (`no_payer`, `no_spouse`) broadcast from an earlier `group_by(NEWID, TAX_UNIT)` block. While this happened to work because the flags were TU-specific, performing the promotions inside the grouped block makes the TU-scoping explicit and prevents any possibility of cross-TU promotion.
+
+---
+
+## 11. Fixed training object name mismatch in consumption.R
+
+**File:** `src/imputations/consumption.R:23,33-34,51-52`
+
+`build_cex_training()` was assigned to `cex_training`, but all QRF training calls referenced `training` — an undefined variable. Re-enabling the module would crash with `object 'training' not found`.
+
+**Fix:** Replaced all `training` references with `cex_training`.
+
+---
+
+## 12. Fixed irregular-income blend logic (operator precedence bug)
+
+**File:** `src/imputations/consumption.R:128-131`
+
+The old blending expressions had an operator precedence bug. The intent was to give irregular-income units 100% weight on direct-dollar prediction and 0% on the ratio-to-income prediction:
+
+```r
+# Old (wrong): (1 + has_income) != 1, not 1 + (has_income != 1)
+goods.c = ((.5 * goods * (1 + has_income != 1)) + (.5 * goods_per * income * (1 - has_income != 1))) * 4
+```
+
+In R, `!=` binds looser than `+`, so `1 + has_income != 1` parses as `(1 + has_income) != 1`. For zero-income units (`has_income = 0`): `(1+0) != 1` evaluates to FALSE, zeroing out *both* terms — imputing zero consumption. For negative-income units (`has_income = -1`): both terms evaluate to TRUE, applying the 50/50 blend with negative income in the ratio term.
+
+**Fix:** Replaced with explicit weight variables:
+
+```r
+w_direct = if_else(has_income == 1, 0.5, 1.0),
+w_ratio  = if_else(has_income == 1, 0.5, 0.0),
+goods.c    = (w_direct * goods    + w_ratio * goods_per    * income) * 4,
+services.c = (w_direct * services + w_ratio * services_per * income) * 4,
+```
+
+---
+
+## 13. Fixed outlier cap: 400x to 4x
+
+**File:** `src/imputations/consumption.R:23`
+
+The ratio-model training filter was intended to exclude observations where consumption exceeds 400% of income. But `expenses_per` is defined as `expenses / income` (a ratio, not a percentage), so 400% = 4.0. The old filter `expenses_per < 400` allowed spending up to 40,000% of income.
+
+**Fix:** Changed to `expenses_per < 4`.
+
+---
+
+## 14. Aligned has_income threshold between training and prediction
+
+**Files:** `src/cex.R:150`, `src/imputations/consumption.R:86`
+
+Training defined regular income as `income > 0`; prediction used `income > 1`. Tax units with small positive income in (0, 1] were treated as regular during training but irregular during prediction — the model was trained and applied under different feature definitions.
+
+**Fix:** Both sides now use `income > 0`.
