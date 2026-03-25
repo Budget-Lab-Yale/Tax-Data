@@ -1,0 +1,21 @@
+category,pce_name,pce_billions,nipa_line,in_cex
+clothing,Clothing and footwear,513.3,104,TRUE
+motor_vehicles,Motor vehicles and parts,750.4,4,TRUE
+other_durables,Other durable goods,277.8,62,TRUE
+furnishings,Furnishings and durable household equipment,479.9,23,TRUE
+rec_goods,Recreational goods and vehicles,633.0,38,TRUE
+other_nondurables,Other nondurable goods,1558.1,120,TRUE
+food_off_premises,Food and beverages purchased for off-premises consumption,1438.3,73,TRUE
+communication,Communication,302.7,281,TRUE
+npish,Final consumption expenditures of NPISH,554.1,342,FALSE
+other_services,Other services (residual after removing communication/education/net foreign travel),896.0,280,TRUE
+transport_services,Transportation services,616.9,190,TRUE
+rec_services,Recreation services,739.3,209,TRUE
+net_foreign_travel,Net foreign travel,45.7,333,FALSE
+food_accommodations,Food services and accommodations,1362.5,234,TRUE
+health_care,Health care,3060.4,172,TRUE
+utilities,Household utilities,434.8,165,TRUE
+gasoline,Gasoline and other energy goods,464.9,113,TRUE
+education,Education,338.6,290,TRUE
+financial_insurance,Financial services and insurance,1425.8,252,TRUE
+housing,Housing,2940.7,153,TRUE

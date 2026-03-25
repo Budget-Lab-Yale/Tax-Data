@@ -112,18 +112,44 @@ build_cex_training = function() {
     ungroup() %>%
     select(NEWID, TU_ID, tu_size, filer, married, age1, male1, income, n_dep, n_dep_ctc)
 
-  # Current quarter expenditures only (PQ dropped to avoid double-counting)
-  expcq = c('ETOTALC', 'TOTEXPCQ', 'FOODCQ', 'ALCBEVCQ', 'HOUSCQ', 'APPARCQ',
-            'TRANSCQ', 'HEALTHCQ', 'ENTERTCQ', 'PERSCACQ', 'READCQ', 'EDUCACQ',
-            'TOBACCCQ', 'EMISCELC', 'MISCCQ')
-  # Names for expenditure variables
-  exp   = c('FOOD_exp', 'ALCBEV_exp', 'HOUS_exp', 'APPAR_exp', 'TRANS_exp',
-            'HEALTH_exp', 'ENTERT_exp', 'PERSCA_exp', 'READ_exp', 'EDUCA_exp',
-            'TOBACC_exp', 'EMISCEL_exp', 'MISC_exp')
+  #---------------------------------------------------------------------------
+  # FMLI expenditure data: PCE-aligned sub-variables
+  #---------------------------------------------------------------------------
+  #
+  # We read FMLI sub-variables (not top-level aggregates like TRANSCQ, HOUSCQ)
+  # so that each variable maps to exactly one of 18 BEA PCE major categories.
+  # This replaces the prior goods/services split.
+  #
+  # See docs/pce_benchmarking.md for the complete crosswalk and methodology.
+  # See resources/pce_targets_2023.csv for NIPA PCE control totals.
 
-  # Technical variables
+  expcq = c(
+    # Food (sub-vars of FOODCQ)
+    'FDHOMECQ', 'FDAWAYCQ',
+    # Alcohol
+    'ALCBEVCQ',
+    # Shelter (sub-vars of SHELTCQ <- HOUSCQ)
+    'OWNDWECQ', 'RENDWECQ', 'OTHLODCQ',
+    # Utilities (sub-vars of UTILCQ <- HOUSCQ)
+    'NTLGASCQ', 'ELCTRCCQ', 'ALLFULCQ', 'TELEPHCQ', 'WATRPSCQ',
+    # Household operations and furnishings (sub-vars of HOUSCQ)
+    'HOUSOPCQ', 'HOUSEQCQ',
+    # Apparel
+    'APPARCQ',
+    # Transportation (sub-vars of TRANSCQ)
+    'CARTKNCQ', 'CARTKUCQ', 'OTHVEHCQ', 'GASMOCQ',
+    'VEHFINCQ', 'MAINRPCQ', 'VEHINSCQ', 'VRNTLOCQ', 'PUBTRACQ',
+    # Health
+    'HEALTHCQ',
+    # Entertainment (sub-vars of ENTERTCQ)
+    'FEEADMCQ', 'TVRDIOCQ', 'OTHEQPCQ', 'PETTOYCQ', 'OTHENTCQ',
+    # Remaining top-level categories
+    'PERSCACQ', 'READCQ', 'EDUCACQ', 'TOBACCCQ', 'MISCCQ',
+    # Life insurance (in ETOTALC, outside TOTEXPCQ)
+    'LIFINSCQ'
+  )
+
   tech = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE', 'COMP_INC')
-  # Demographic variables
   demo = c('FAM_SIZE')
 
   fmli = years %>%
@@ -135,8 +161,14 @@ build_cex_training = function() {
           bind_rows() %>%
           rename_with(.fn   = ~gsub('(C|CQ)$', '_CQ', .x),
                       .cols = all_of(expcq))
-    ) %>% bind_rows()
+    ) %>% bind_rows() %>%
+    # Replace NAs in sub-variables with 0 (no expenditure in that category)
+    mutate(across(all_of(gsub('(C|CQ)$', '_CQ', expcq)), ~ replace_na(.x, 0)))
 
+
+  #---------------------------------------------------------------------------
+  # Join tax units to expenditure data
+  #---------------------------------------------------------------------------
 
   joined = cex_tus %>% left_join(fmli, by = "NEWID") %>%
     # Filter to complete income reporters
@@ -157,33 +189,79 @@ build_cex_training = function() {
     # Adults
     filter(!is.na(age1) & age1 > 17)
 
-  irregular_income = joined %>% filter(has_income < 1)  %>%
+  # All 20 BEA PCE major categories
+  # 18 constructed from CEX FMLI sub-variables; NPISH and net foreign travel
+  # have no CEX analogue and are distributed proportional to total consumption
+  pce_cats     = c('clothing', 'motor_vehicles', 'other_durables', 'furnishings',
+                   'rec_goods', 'other_nondurables', 'food_off_premises', 'communication',
+                   'npish', 'other_services', 'transport_services', 'rec_services',
+                   'net_foreign_travel', 'food_accommodations', 'health_care', 'utilities',
+                   'gasoline', 'education', 'financial_insurance', 'housing')
+  pce_cats_per = paste0(pce_cats, '_per')
+
+  #---------------------------------------------------------------------------
+  # Irregular income (zero or negative): direct consumption only
+  #---------------------------------------------------------------------------
+
+  irregular_income = joined %>% filter(has_income < 1) %>%
     mutate(
       pctile_income = -1,
-      # CQ only — rename to _exp
+      # CQ only -- rename to _exp
       across(.cols  = all_of(gsub('(C|CQ)$', '_CQ', expcq)),
              .fns   = ~ .x,
              .names = '{gsub("CQ$", "exp", .col)}'),
 
-      # Scale consumption by share of consumption unit in this tax unit
-      goods    = (FOOD_exp + ALCBEV_exp + APPAR_exp + TOBACC_exp) * CU_pct,
-      services = (HOUS_exp + HEALTH_exp + TRANS_exp + ENTERT_exp + PERSCA_exp + READ_exp + EDUCA_exp) * CU_pct,
-      expenses = goods + services,
-
-      # Can't do percentage of zero or negative income
-      goods_per    = 0,
-      services_per = 0,
-      expenses_per = 0,
+      # PCE categories (quarterly $, scaled by TU share of CU)
+      # Crosswalk: FMLI sub-variable -> PCE category
+      clothing            = APPAR_exp * CU_pct,
+      motor_vehicles      = (CARTKN_exp + CARTKU_exp + OTHVEH_exp) * CU_pct,
+      other_durables      = PETTOY_exp * CU_pct,
+      furnishings         = HOUSEQ_exp * CU_pct,
+      rec_goods           = (TVRDIO_exp + OTHEQP_exp) * CU_pct,
+      other_nondurables   = (TOBACC_exp + PERSCA_exp + READ_exp) * CU_pct,
+      food_off_premises   = (FDHOME_exp + ALCBEV_exp) * CU_pct,
+      communication       = TELEPH_exp * CU_pct,
+      other_services      = (HOUSOP_exp + MISC_exp + OTHENT_exp) * CU_pct,
+      transport_services  = (MAINRP_exp + VRNTLO_exp + PUBTRA_exp) * CU_pct,
+      rec_services        = FEEADM_exp * CU_pct,
+      food_accommodations = (FDAWAY_exp + OTHLOD_exp) * CU_pct,
+      health_care         = HEALTH_exp * CU_pct,
+      utilities           = (NTLGAS_exp + ELCTRC_exp + ALLFUL_exp + WATRPS_exp) * CU_pct,
+      gasoline            = GASMO_exp * CU_pct,
+      education           = EDUCA_exp * CU_pct,
+      financial_insurance = (LIFINS_exp + VEHINS_exp + VEHFIN_exp) * CU_pct,
+      housing             = (OWNDWE_exp + RENDWE_exp) * CU_pct,
+      # Sum of CEX-observed categories (before adding neutral-distribution categories)
+      cex_consumption     = clothing + motor_vehicles + other_durables + furnishings +
+                            rec_goods + other_nondurables + food_off_premises + communication +
+                            other_services + transport_services + rec_services +
+                            food_accommodations + health_care + utilities + gasoline +
+                            education + financial_insurance + housing,
+      # NPISH and net foreign travel: no CEX source, distributed proportional
+      # to total consumption (neutral distribution, following BLS method)
+      npish               = 0,
+      net_foreign_travel  = 0,
+      total_consumption   = cex_consumption,
 
       # Cap age at PUF max
       age1      = pmin(age1, 80),
       n_dep_ctc = pmin(n_dep_ctc, 3)
     ) %>%
+    # Can't compute consumption-to-income ratios for zero/negative income
+    mutate(
+      across(all_of(pce_cats), ~ 0, .names = '{.col}_per'),
+      total_consumption_per = 0
+    ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc, male1, income, has_income,
-      goods, services, expenses,
-      goods_per, services_per, expenses_per
+      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc,
+      male1, income, has_income,
+      all_of(pce_cats), total_consumption,
+      all_of(pce_cats_per), total_consumption_per
     )
+
+  #---------------------------------------------------------------------------
+  # Regular income (positive): consumption levels and ratios
+  #---------------------------------------------------------------------------
 
   joined %<>% filter(has_income == 1)
 
@@ -201,29 +279,54 @@ build_cex_training = function() {
                           include.lowest = TRUE),
       pctile_income = as.numeric(levels(pctile_income))[pctile_income],
 
-      # CQ only — rename to _exp
+      # CQ only -- rename to _exp
       across(.cols  = all_of(gsub('(C|CQ)$', '_CQ', expcq)),
              .fns   = ~ .x,
              .names = '{gsub("CQ$", "exp", .col)}'),
 
-      # Scale consumption by share of consumption unit in this tax unit
-      goods    = (FOOD_exp + ALCBEV_exp + APPAR_exp + TOBACC_exp) * CU_pct,
-      services = (HOUS_exp + HEALTH_exp + TRANS_exp + ENTERT_exp + PERSCA_exp + READ_exp + EDUCA_exp) * CU_pct,
-      expenses = goods + services,
-
-      # Forms of consumption as a percent of income
-      goods_per    = goods / income,
-      services_per = services / income,
-      expenses_per = expenses / income,
+      # PCE categories (quarterly $, scaled by TU share of CU)
+      clothing            = APPAR_exp * CU_pct,
+      motor_vehicles      = (CARTKN_exp + CARTKU_exp + OTHVEH_exp) * CU_pct,
+      other_durables      = PETTOY_exp * CU_pct,
+      furnishings         = HOUSEQ_exp * CU_pct,
+      rec_goods           = (TVRDIO_exp + OTHEQP_exp) * CU_pct,
+      other_nondurables   = (TOBACC_exp + PERSCA_exp + READ_exp) * CU_pct,
+      food_off_premises   = (FDHOME_exp + ALCBEV_exp) * CU_pct,
+      communication       = TELEPH_exp * CU_pct,
+      other_services      = (HOUSOP_exp + MISC_exp + OTHENT_exp) * CU_pct,
+      transport_services  = (MAINRP_exp + VRNTLO_exp + PUBTRA_exp) * CU_pct,
+      rec_services        = FEEADM_exp * CU_pct,
+      food_accommodations = (FDAWAY_exp + OTHLOD_exp) * CU_pct,
+      health_care         = HEALTH_exp * CU_pct,
+      utilities           = (NTLGAS_exp + ELCTRC_exp + ALLFUL_exp + WATRPS_exp) * CU_pct,
+      gasoline            = GASMO_exp * CU_pct,
+      education           = EDUCA_exp * CU_pct,
+      financial_insurance = (LIFINS_exp + VEHINS_exp + VEHFIN_exp) * CU_pct,
+      housing             = (OWNDWE_exp + RENDWE_exp) * CU_pct,
+      cex_consumption     = clothing + motor_vehicles + other_durables + furnishings +
+                            rec_goods + other_nondurables + food_off_premises + communication +
+                            other_services + transport_services + rec_services +
+                            food_accommodations + health_care + utilities + gasoline +
+                            education + financial_insurance + housing,
+      # NPISH and net foreign travel: distributed proportional to total consumption
+      npish               = 0,
+      net_foreign_travel  = 0,
+      total_consumption   = cex_consumption,
 
       # Cap age at PUF max
       age1      = pmin(age1, 80),
       n_dep_ctc = pmin(n_dep_ctc, 3)
     ) %>%
+    # Consumption-to-income ratios (used for dual QRF prediction approach)
+    mutate(
+      across(all_of(pce_cats), ~ .x / income, .names = '{.col}_per'),
+      total_consumption_per = total_consumption / income
+    ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc, male1, income, has_income,
-      goods, services, expenses,
-      goods_per, services_per, expenses_per
+      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc,
+      male1, income, has_income,
+      all_of(pce_cats), total_consumption,
+      all_of(pce_cats_per), total_consumption_per
     ) %>%
     bind_rows(irregular_income)
 
