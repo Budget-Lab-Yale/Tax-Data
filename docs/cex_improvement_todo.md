@@ -64,33 +64,9 @@ that can condition on household structure. (2026-03-25)
 
 ---
 
-## 3. NTAXI Validation
+## 3. Health Care Classification (External Proportions)
 
-**Status**: Approved — implement as optional diagnostic function
-
-**Problem**: Tax units are constructed from MEMI using BLS's `TAX_UNIT`,
-`TU_CODE`, and `TU_DPNDT` fields, but never validated against NTAXI (BLS's
-tax-unit-level file with `DEPCNT`, `FILESTAT`, and TU counts per CU).
-
-**Fix**: Add an optional, not-typically-called function that reads NTAXI
-quarterly files, joins to `cex_tus` on `NEWID` + `TAX_UNIT`, and reports:
-- Dependent count agreement (`n_dep` vs `NTAXI.DEPCNT`)
-- Filing status agreement (`married` vs `NTAXI.FILESTAT`)
-- TU count per CU agreement
-- Crosstabs of disagreements
-
-Diagnostic only — does not change pipeline output. Expect >95% agreement on
-dependent counts, >90% on filing status. Lower rates warrant investigation.
-
-**Decision**: Yes, add as optional check function. (2026-03-25)
-
-**Implemented**: `validate_tax_units_against_ntaxi()` in `src/cex.R`. (2026-03-25)
-
----
-
-## 4. Health Care Classification (External Proportions)
-
-**Status**: Skipping — subsumed by #6 (UCC-level MTBI)
+**Status**: Skipping — subsumed by #5 (UCC-level MTBI)
 
 **Problem**: HEALTHCQ maps 100% to `health_care`, but PCE splits it across
 health care (provider services), other_nondurables (drugs), other_durables
@@ -99,30 +75,30 @@ HEALTHCQ has no FMLI sub-variables — the second Claude's claim that HLTHINCQ,
 MEDSRVCQ, PREDRGCQ, MEDSUPCQ exist was incorrect.
 
 **Why skipping**: An external-proportions fix is approximate and doesn't capture
-household-level variation. The real fix requires UCC-level MTBI data (#6). If we
-pursue #6, the health split comes for free. (2026-03-25)
+household-level variation. The real fix requires UCC-level MTBI data (#5). If we
+pursue #5, the health split comes for free. (2026-03-25)
 
 ---
 
-## 5. Vehicle Insurance Split
+## 4. Vehicle Insurance Split
 
-**Status**: Skipping — subsumed by #6 (UCC-level MTBI)
+**Status**: Skipping — subsumed by #5 (UCC-level MTBI)
 
 **Problem**: VEHINSCQ maps 100% to `financial_insurance`, but BLS splits motor
 vehicle insurance across motor_vehicles (collision claims for parts),
 transport_services (repair labor claims), health_care (medical claims), and
 financial_insurance (net margin only). Fixing precisely requires UCC-level data
-or external proportions. If we pursue #6, this comes for free. (2026-03-25)
+or external proportions. If we pursue #5, this comes for free. (2026-03-25)
 
 ---
 
-## 6. UCC-Level MTBI Integration
+## 5. UCC-Level MTBI Integration
 
 **Status**: Approved — requires standalone implementation plan before starting
 
 **Problem**: FMLI sub-variables are a lossy compression of underlying UCC detail.
 Health, vehicle insurance, and other durables cross PCE category boundaries at
-the FMLI level. Fixes #4 (health split) and #5 (vehicle insurance split).
+the FMLI level. Fixes #3 (health split) and #4 (vehicle insurance split).
 
 **Scope**:
 - Read MTBI quarterly files (same 5-quarter pattern as FMLI/MEMI)
@@ -147,7 +123,7 @@ substantially more involved than the other items. (2026-03-25)
 
 ---
 
-## 7. Diary Integration
+## 6. Diary Integration
 
 **Status**: Skipping
 
@@ -162,7 +138,7 @@ training on broad categories. (2026-03-25)
 
 ---
 
-## 8. EXPN Detail Files
+## 7. EXPN Detail Files
 
 **Status**: Skipping
 
