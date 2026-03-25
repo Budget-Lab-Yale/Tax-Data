@@ -217,3 +217,26 @@ The pipeline constructs tax units from MEMI using BLS's `TAX_UNIT`, `TU_CODE`, a
 - Crosstabs of disagreements to identify systematic patterns
 
 Returns a list with match rates and the full comparison table for further inspection. Expect >95% on dependent counts and >90% on married flag; lower rates warrant investigation.
+
+---
+
+## 17. Replaced FMLI sub-variables with UCC-level MTBI data
+
+**Files:** `src/cex.R:115-199`, `resources/ucc_pce_bridge.csv`, `src/build_ucc_bridge.R`
+
+The pipeline previously read 33 FMLI sub-variables (e.g., HEALTHCQ, VEHINSCQ, PETTOYCQ) and mapped them to 18 PCE categories via hardcoded R formulas. This was lossy: HEALTHCQ lumped drugs, equipment, insurance, and provider services into one `health_care` bucket; VEHINSCQ put all vehicle insurance into `financial_insurance`; PETTOYCQ was the sole source for `other_durables`, missing jewelry and therapeutic equipment.
+
+**Fix:** Read MTBI (Monthly Tabulation — Interview) files at the UCC level (~594 active codes), join to a bridge CSV (`resources/ucc_pce_bridge.csv`) that maps each UCC to one of 20 PCE categories, and aggregate by NEWID + PCE category. The bridge was generated from BLS CE PUMD hierarchical groupings (`resources/cex_ucc/stubs/CE-HG-Integ-2023.txt`) via a one-time script (`src/build_ucc_bridge.R`).
+
+Key classification fixes enabled by UCC-level data:
+- Health insurance (580xxx) → `financial_insurance` (was `health_care`)
+- Prescription drugs (540000) → `other_nondurables` (was `health_care`)
+- Medical equipment (550xxx) → `other_durables` (was `health_care`)
+- Jewelry/watches (430110/430120) → `other_durables` (was `clothing`)
+- Internet service (690114) → `communication` (was `other_services`)
+- Cable/satellite TV (270310/270311) → `communication` (was `rec_goods`)
+- Non-consumption UCCs (contributions, pensions) → `exclude` (filtered out)
+
+The bridge validates completeness at runtime: any MTBI UCC not in the bridge CSV triggers a hard stop. Non-consumption UCCs are marked `exclude` in the bridge and filtered during aggregation.
+
+FMLI is still read for weights (FINLWT21, WT_ANNUAL), demographics (FAM_SIZE), and tech variables (COMP_INC, QINTRVMO, QINTRVYR). The 2×18-line duplicated formula blocks were replaced by a single `across(all_of(pce_cats), ~ .x * CU_pct)`, eliminating code duplication.

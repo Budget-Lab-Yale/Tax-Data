@@ -66,35 +66,34 @@ that can condition on household structure. (2026-03-25)
 
 ## 3. Health Care Classification (External Proportions)
 
-**Status**: Skipping — subsumed by #5 (UCC-level MTBI)
+**Status**: Resolved by #5 (UCC-level MTBI)
 
 **Problem**: HEALTHCQ maps 100% to `health_care`, but PCE splits it across
 health care (provider services), other_nondurables (drugs), other_durables
 (therapeutic equipment), and financial_insurance (net health insurance).
-HEALTHCQ has no FMLI sub-variables — the second Claude's claim that HLTHINCQ,
-MEDSRVCQ, PREDRGCQ, MEDSUPCQ exist was incorrect.
 
-**Why skipping**: An external-proportions fix is approximate and doesn't capture
-household-level variation. The real fix requires UCC-level MTBI data (#5). If we
-pursue #5, the health split comes for free. (2026-03-25)
+**Resolution**: UCC-level MTBI data now maps each health UCC to the correct PCE
+category: 580xxx → financial_insurance, 540000 → other_nondurables, 550xxx →
+other_durables, provider services → health_care. (2026-03-25)
 
 ---
 
 ## 4. Vehicle Insurance Split
 
-**Status**: Skipping — subsumed by #5 (UCC-level MTBI)
+**Status**: Resolved by #5 (UCC-level MTBI)
 
 **Problem**: VEHINSCQ maps 100% to `financial_insurance`, but BLS splits motor
-vehicle insurance across motor_vehicles (collision claims for parts),
-transport_services (repair labor claims), health_care (medical claims), and
-financial_insurance (net margin only). Fixing precisely requires UCC-level data
-or external proportions. If we pursue #5, this comes for free. (2026-03-25)
+vehicle insurance across multiple categories.
+
+**Resolution**: Vehicle insurance UCC (500110) now maps to financial_insurance
+via the bridge CSV. Full BLS-style split across 4 categories deferred — would
+require claims data not available in CEX. (2026-03-25)
 
 ---
 
 ## 5. UCC-Level MTBI Integration
 
-**Status**: Approved — requires standalone implementation plan before starting
+**Status**: Implemented
 
 **Problem**: FMLI sub-variables are a lossy compression of underlying UCC detail.
 Health, vehicle insurance, and other durables cross PCE category boundaries at
@@ -120,6 +119,10 @@ from BLS published tables; user reviews edge cases.
 
 **Decision**: Approved. Create a standalone plan before implementation — this is
 substantially more involved than the other items. (2026-03-25)
+
+**Implemented**: MTBI reading + bridge join in `src/cex.R`, bridge CSV in
+`resources/ucc_pce_bridge.csv`, builder script in `src/build_ucc_bridge.R`.
+Resolves #3 (health split) and #4 (vehicle insurance). (2026-03-25)
 
 ---
 
