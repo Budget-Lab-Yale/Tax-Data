@@ -1,11 +1,11 @@
 
 build_cex_training = function() {
   set.seed(54321)
-  
+
   cex_path = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/CEX/2023')
   years = c(2023)
-  
-  # Read in individual members of consumption units to create their constituents tax units
+
+  # Read in individual members of consumption units to create their constituent tax units
   memi = years %>%
     map(.f = ~ lapply(dir(path       = cex_path,
                           pattern    = paste0('^memi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
@@ -14,92 +14,70 @@ build_cex_training = function() {
           bind_rows()
     ) %>%
     bind_rows()
-  
-  
+
+
   cex_tus = memi %>%
-    select(NEWID, AGE, CU_CODE, SEX, IN_COLL, IN_COLL_, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT, INCNONWK,
-           EARNER, SALARYX, SEMPFRMX, SOCRRX,
-           SALARYXM, SEMPFRMM, SOCRRXM
+    select(NEWID, AGE, CU_CODE, SEX, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT,
+           SALARYXM, SEMPFRMM, SOCRRXM, INTEARNM, PENSIONM, DIVIDM
     ) %>%
     group_by(NEWID) %>%
     mutate(
       SEX = SEX %% 2,
-      # Set NAs for income to 0 for future merging
-      across(all_of(c("SALARYX", "SEMPFRMX", "SOCRRX")), ~ if_else(is.na(.x), 0, .x)),
-      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM")), ~ if_else(is.na(.x), 0, .x))
+      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "INTEARNM", "PENSIONM", "DIVIDM")),
+             ~ if_else(is.na(.x), 0, .x))
     ) %>%
     ungroup() %>%
+    # Flag and fix missing payer/spouse within each tax unit
     group_by(NEWID, TAX_UNIT) %>%
     mutate(
-      # Flag if tax unit doesn't have a payer or a spouse
-      no_payer = !any(TU_CODE == 1),
+      no_payer  = !any(TU_CODE == 1),
       no_spouse = !any(TU_CODE == 2) & any(CU_CODE == 2),
+      TU_CODE = if_else(no_payer  & CU_CODE == 1, 1, TU_CODE),
+      TU_CODE = if_else(no_spouse & CU_CODE == 2, 2, TU_CODE),
     ) %>%
     ungroup() %>%
     mutate(
-      # Self reported yearly income
-      inc = SALARYX + SEMPFRMX + SOCRRX,
-      # Mean of 5 income imputations
-      incm = SALARYXM + SEMPFRMM + SOCRRXM,
-      
-      # If there is no taxpayer, whomever is listed as the first member of the
-      # consumption unit is the "payer"
-      TU_CODE = if_else(
-        no_payer,
-        if_else(
-          CU_CODE == 1,
-          1,
-          TU_CODE
-        ),
-        TU_CODE
-      ),
-      # If there is no spouse, whomever is listed as the spouse of the payer in the
-      # consumption unit is the spouse
-      TU_CODE = if_else(
-        no_spouse,
-        if_else(
-          CU_CODE == 2,
-          2,
-          TU_CODE
-        ),
-        TU_CODE
-      ),
-      
-      # Unique tax unit id codes
+      # XM-based income (BLS multiply-imputed: actual if reported, imputed if missing)
+      inc = SALARYXM + SEMPFRMM + SOCRRXM + INTEARNM + PENSIONM + DIVIDM,
+
+      # Tax unit ID from NEWID + TAX_UNIT (not TU_CODE)
       TU_ID = as.numeric(paste0(NEWID, "00", TAX_UNIT)),
-      # The tax unit of which you are a dependent
-      TU_DPNDT = case_when(
-        is.na(TU_DPNDT) ~ as.numeric(paste0(NEWID, "00", TU_CODE)),
-        TU_DPNDT == ""  ~ as.numeric(paste0(NEWID, "00", TU_CODE)),
-        TU_DPNDT == "B" ~ as.numeric(paste0(NEWID, "00", TU_CODE)),
-        T               ~ as.numeric(paste0(NEWID, "00", TU_DPNDT))
+
+      # Valid TU_DPNDT means this person is claimed on another TU's return
+      has_valid_dpndt = !is.na(TU_DPNDT) & TU_DPNDT != "" & TU_DPNDT != "B",
+
+      # Claiming TU's ID (only for people with valid TU_DPNDT)
+      claiming_TU_ID = if_else(
+        has_valid_dpndt,
+        as.numeric(paste0(NEWID, "00", TU_DPNDT)),
+        NA_real_
       ),
-      
-      # Are a dependent if you aren't the taxpayer or their spouse
-      is_dep = as.numeric(TU_CODE == 3),
-      # Are CTC aged if under 17
+
+      # A person is a dependent if TU_CODE == 3 OR they have a valid TU_DPNDT
+      # (catches dependent filers: TU_CODE == 1 on own return but claimed elsewhere)
+      is_dep = as.numeric(TU_CODE == 3 | has_valid_dpndt),
       is_ctc = as.numeric(AGE < 17),
-      
-      # Count dependents who need to file taxes as part of their caretaker unit
-      TU_ID = if_else(is_dep == 1 & as.character(TU_ID) != TU_DPNDT, TU_DPNDT, TU_ID)
-      
+
+      # Reassign dependents to claiming TU when TU_DPNDT points elsewhere
+      TU_ID = if_else(
+        !is.na(claiming_TU_ID) & claiming_TU_ID != TU_ID,
+        claiming_TU_ID,
+        TU_ID
+      )
     ) %>%
-    group_by(NEWID, is_dep) %>%
+    # Number dependents within each tax unit (not CU-wide)
+    group_by(NEWID, TU_ID, is_dep) %>%
     arrange(MEMBNO, .by_group = T) %>%
     mutate(
-      # Count the number of dependents and give them numbers
-      dep_no = if_else(is_dep==1, row_number(), NA_integer_)
+      dep_no = if_else(is_dep == 1, row_number(), NA_integer_)
     ) %>%
     ungroup() %>%
     mutate(
-      # Tax unit members
-      # 1 is payer
-      # 2 is spouse
-      # dep.[x] is dependent number
+      # Tax unit member role labels
+      # 1 = payer, 2 = spouse, dep.[x] = dependent number
       TU_NO = if_else(is_dep == 1, paste0("dep", dep_no), as.character(TU_CODE))
     ) %>%
-    ungroup() %>%
-    select(NEWID, TU_ID, is_dep, TU_CODE, MEMBNO, AGE, SEX, MARITAL, is_dep, is_ctc, TU_NO, TU_DPNDT, inc, incm) %>%
+    select(NEWID, TU_ID, AGE, SEX, is_dep, is_ctc, TU_NO, inc) %>%
     pivot_longer(!c(NEWID, TU_ID, TU_NO), names_to = 'vars', values_to = 'values')  %>%
     pivot_wider(
       names_from = c(vars, TU_NO),
@@ -116,167 +94,139 @@ build_cex_training = function() {
       male1 = SEX.1,
       age2 = AGE.2,
       male2 = SEX.2,
-      
+
       dep_age1 = AGE.dep1,
       dep_age2 = AGE.dep2,
       dep_age3 = AGE.dep3,
-      
-    )%>%
+
+    ) %>%
     group_by(TU_ID) %>%
     mutate(
-      married = !is.na(age2),
-      n_dep = sum(c_across(all_of(contains("is_dep"))), na.rm = T),
+      married   = !is.na(age2),
+      n_dep     = sum(c_across(all_of(contains("is_dep"))), na.rm = T),
       n_dep_ctc = sum(c_across(all_of(contains("is_ctc"))), na.rm = T),
+      filer     = !is.na(age1),
+      tu_size   = as.numeric(!is.na(age1)) + as.numeric(!is.na(age2)) + n_dep,
+      income    = sum(c_across(all_of(contains('inc.'))), na.rm = T)
     ) %>%
-    mutate(
-      across(all_of(contains("TU_DPNDT")), ~ .x == TU_ID),
-      dep_ctc1 = if_else(!is.na(dep_age1), dep_age1 < 17, NA),
-      dep_ctc2 = if_else(!is.na(dep_age2), dep_age2 < 17, NA),
-      dep_ctc3 = if_else(!is.na(dep_age3), dep_age3 < 17, NA),
-      filer = !is.na(age1)
-    ) %>%
-    mutate(
-      filing_status = case_when(
-        !is.na(age2) ~ 2,
-        !is.na(age1) & is.na(age2) & !is.na(n_dep) & n_dep > 0 ~ 4,
-        !is.na(age1) & is.na(age2) & !is.na(n_dep) & n_dep == 0 ~ 1,
-        T ~ -1
-      ),
-      tu_size = as.numeric(!is.na(age1)) + as.numeric(!is.na(age2)) + n_dep
-    ) %>%
-    group_by(TU_ID) %>%
-    mutate(income = sum(c_across(all_of(contains('inc.'))), na.rm = T),
-           income2 = sum(c_across(all_of(contains('incm.'))), na.rm = T)) %>%
     ungroup() %>%
-    # Restrict to the variables we end up using in QRF and vars needed for
-    # merging
-    select(NEWID, TU_ID, tu_size, filer, filing_status, married, age1, male1,
-           income, income2, n_dep_ctc)
-  
-  # current quarter expenditures
+    select(NEWID, TU_ID, tu_size, filer, married, age1, male1, income, n_dep, n_dep_ctc)
+
+  # Current quarter expenditures only (PQ dropped to avoid double-counting)
   expcq = c('ETOTALC', 'TOTEXPCQ', 'FOODCQ', 'ALCBEVCQ', 'HOUSCQ', 'APPARCQ',
             'TRANSCQ', 'HEALTHCQ', 'ENTERTCQ', 'PERSCACQ', 'READCQ', 'EDUCACQ',
-            'TOBACCCQ', 'EMISCELC', 'CASHCOCQ', 'LIFINSCQ', 'MISCCQ', 'RETPENCQ')
-  # prior quarter expenditures
-  exppq = c('ETOTALP', 'TOTEXPPQ', 'FOODPQ', 'ALCBEVPQ', 'HOUSPQ', 'APPARPQ',
-            'TRANSPQ', 'HEALTHPQ', 'ENTERTPQ', 'PERSCAPQ', 'READPQ', 'EDUCAPQ',
-            'TOBACCPQ', 'EMISCELP', 'CASHCOPQ', 'LIFINSPQ', 'MISCPQ', 'RETPENPQ')
-  # Names for merged expenditure
+            'TOBACCCQ', 'EMISCELC', 'MISCCQ')
+  # Names for expenditure variables
   exp   = c('FOOD_exp', 'ALCBEV_exp', 'HOUS_exp', 'APPAR_exp', 'TRANS_exp',
             'HEALTH_exp', 'ENTERT_exp', 'PERSCA_exp', 'READ_exp', 'EDUCA_exp',
-            'TOBACC_exp', 'EMISCEL_exp', 'CASHCO_exp', 'LIFINS_exp', "MISC_exp", "RETPEN_exp")
-  
-  # technical variables
-  tech = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', "FAM_TYPE")
-  # demographic variables
+            'TOBACC_exp', 'EMISCEL_exp', 'MISC_exp')
+
+  # Technical variables
+  tech = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE', 'COMP_INC')
+  # Demographic variables
   demo = c('FAM_SIZE')
-  
+
   fmli = years %>%
     map(.f = ~ lapply(dir(path       = cex_path,
                           pattern    = paste0('^fmli((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
                           full.names = TRUE),
                       fread,
-                      select = c(tech, demo, 
-                                 expcq, exppq)) %>%
+                      select = c(tech, demo, expcq)) %>%
           bind_rows() %>%
-          
           rename_with(.fn   = ~gsub('(C|CQ)$', '_CQ', .x),
-                      .cols = all_of(expcq)) %>%
-          rename_with(.fn   = ~gsub('(P|PQ)$', '_PQ', .x),
-                      .cols = all_of(exppq)) 
+                      .cols = all_of(expcq))
     ) %>% bind_rows()
-  
-  
-  joined = cex_tus %>% left_join(fmli, by="NEWID") %>%
+
+
+  joined = cex_tus %>% left_join(fmli, by = "NEWID") %>%
+    # Filter to complete income reporters
+    filter(COMP_INC == 1) %>%
     group_by(NEWID) %>%
     mutate(
-      # Calculate what percent of the members of the Consumption Unit are in 
-      # this tax unit
+      # Calculate what percent of the CU members are in this tax unit
       CU_pct = tu_size / FAM_SIZE,
       # Flags for irregular income
       has_income = case_when(
-        income2  > 0 ~ 1,
-        income2 == 0 ~ 0,
-        T            ~ -1
+        income  > 0 ~ 1,
+        income == 0 ~ 0,
+        T           ~ -1
       )
     )  %>%
     # Want valid income
-    filter(!is.na(income2)) %>%
+    filter(!is.na(income)) %>%
     # Adults
-    filter(!is.na(age1) & age1 > 17) 
-  
+    filter(!is.na(age1) & age1 > 17)
+
   irregular_income = joined %>% filter(has_income < 1)  %>%
     mutate(
-      # Flag for irregular income
       pctile_income = -1,
+      # CQ only — rename to _exp
       across(.cols  = all_of(gsub('(C|CQ)$', '_CQ', expcq)),
-             .fns   = ~ (.x + get(gsub('CQ$', 'PQ', cur_column()))),
+             .fns   = ~ .x,
              .names = '{gsub("CQ$", "exp", .col)}'),
-      
+
       # Scale consumption by share of consumption unit in this tax unit
       goods    = (FOOD_exp + ALCBEV_exp + APPAR_exp + TOBACC_exp) * CU_pct,
-      services = (HOUS_exp + HEALTH_exp + TRANS_exp + ENTERT_exp + PERSCA_exp + READ_exp + EDUCA_exp + LIFINS_exp) * CU_pct,  
+      services = (HOUS_exp + HEALTH_exp + TRANS_exp + ENTERT_exp + PERSCA_exp + READ_exp + EDUCA_exp) * CU_pct,
       expenses = goods + services,
-      
-      # Can't do percentage of zero or negative income (irregular income is not
-      # used to impute consumption as a percent of income)
+
+      # Can't do percentage of zero or negative income
       goods_per    = 0,
       services_per = 0,
       expenses_per = 0,
-      
+
       # Cap age at PUF max
       age1      = pmin(age1, 80),
-      # Cap at number of ctc elligible children
-      n_dep_ctc = pmin(n_dep_ctc, 3) 
+      n_dep_ctc = pmin(n_dep_ctc, 3)
     ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep_ctc, male1, income2, has_income,
+      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc, male1, income, has_income,
       goods, services, expenses,
       goods_per, services_per, expenses_per
     )
-  
+
   joined %<>% filter(has_income == 1)
-  
+
   pct_breaks = c(-Inf,
-                 wtd.quantile(x       = joined$income2,
+                 wtd.quantile(x       = joined$income,
                               probs   = seq(0.01, 0.99, 0.01),
                               weights = joined$FINLWT21),
                  Inf)
-  
+
   joined = joined %>%
     mutate(
-      pctile_income = cut(x              = income2,
+      pctile_income = cut(x              = income,
                           breaks         = pct_breaks,
                           labels         = seq(1, 100, 1),
                           include.lowest = TRUE),
       pctile_income = as.numeric(levels(pctile_income))[pctile_income],
-      
+
+      # CQ only — rename to _exp
       across(.cols  = all_of(gsub('(C|CQ)$', '_CQ', expcq)),
-             .fns   = ~ (.x + get(gsub('CQ$', 'PQ', cur_column()))),
+             .fns   = ~ .x,
              .names = '{gsub("CQ$", "exp", .col)}'),
-      
+
       # Scale consumption by share of consumption unit in this tax unit
       goods    = (FOOD_exp + ALCBEV_exp + APPAR_exp + TOBACC_exp) * CU_pct,
-      services = (HOUS_exp + HEALTH_exp + TRANS_exp + ENTERT_exp + PERSCA_exp + READ_exp + EDUCA_exp + LIFINS_exp) * CU_pct,
+      services = (HOUS_exp + HEALTH_exp + TRANS_exp + ENTERT_exp + PERSCA_exp + READ_exp + EDUCA_exp) * CU_pct,
       expenses = goods + services,
-      
+
       # Forms of consumption as a percent of income
-      goods_per    = goods / income2,
-      services_per = services / income2,
-      expenses_per = expenses / income2,
-      
+      goods_per    = goods / income,
+      services_per = services / income,
+      expenses_per = expenses / income,
+
       # Cap age at PUF max
       age1      = pmin(age1, 80),
-      # Cap at number of ctc elligible children
-      n_dep_ctc = pmin(n_dep_ctc, 3) 
+      n_dep_ctc = pmin(n_dep_ctc, 3)
     ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep_ctc, male1, income2, has_income,
+      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc, male1, income, has_income,
       goods, services, expenses,
       goods_per, services_per, expenses_per
     ) %>%
     bind_rows(irregular_income)
-  
+
   # Select a random sample using weights to sample
   joined %>%
     slice_sample(n = 100000, replace = T, weight_by = FINLWT21) %>%

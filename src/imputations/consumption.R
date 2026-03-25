@@ -20,7 +20,7 @@
 #   # Training data for consumption as a share of income
 #   # Restricted to consumption being less than 400% of income and to tax units
 #   # with positive income
-#   pct_train = training %>% filter(expenses_per < 400) %>% filter(has_income == 1)
+#   pct_train = cex_training %>% filter(expenses_per < 4) %>% filter(has_income == 1)
 #
 #   # We impute consumption directly and consumption as a percent of income to
 #   # account for CEX's weaker measurement of income. The resulting imputations
@@ -30,8 +30,8 @@
 #   # qrf modelling.
 #   # TODO Let external users opt out of this if they don't have tons of spare compute
 #   goods_qrf = quantregForest(
-#     x = training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1')],
-#     y = training$goods,
+#     x = cex_training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1')],
+#     y = cex_training$goods,
 #     nthreads = 8,
 #     mtry = 5,
 #     nodesize = 10
@@ -48,8 +48,8 @@
 #   write_rds(goods_per_qrf, "resources/cache/qrf/goods_per_qrf.rds")
 #
 #   services_qrf = quantregForest(
-#     x = training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1', 'goods')],
-#     y = training$services,
+#     x = cex_training[c("has_income", 'pctile_income', 'married', 'age1', 'n_dep_ctc', 'male1', 'goods')],
+#     y = cex_training$services,
 #     nthreads = 8,
 #     mtry = 5,
 #     nodesize = 10
@@ -76,13 +76,14 @@
 #   mutate(
 #     married = as.numeric(!is.na(male2)),
 #     size = 1 + married + n_dep,
-#     # Income here is restricted to what is available in MEMI
+#     # Income definition expanded to match CEX MEMI XM variables
 #     income = wages + sole_prop + part_active + part_passive - part_active_loss -
 #       part_passive_loss - part_179 + scorp_active + scorp_passive -
-#       scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss,
+#       scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
+#       txbl_int + div_ord + div_pref + gross_pens_dist + rent - rent_loss,
 #
 #     has_income = case_when(
-#       income >  1 ~ 1,
+#       income >  0 ~ 1,
 #       income == 0 ~ 0,
 #       T           ~ -1
 #     )
@@ -124,8 +125,10 @@
 #   mutate(
 #     # If a tax unit has irregular income, consumption is just the direct imputation
 #     # and consumption as a percent of income is weighted 0
-#     goods.c    = ((.5 * goods    * (1 + has_income != 1)) + (.5 * goods_per    * income * (1 - has_income != 1))) * 4,
-#     services.c = ((.5 * services * (1 + has_income != 1)) + (.5 * services_per * income * (1 - has_income != 1))) * 4,
+#     w_direct = if_else(has_income == 1, 0.5, 1.0),
+#     w_ratio  = if_else(has_income == 1, 0.5, 0.0),
+#     goods.c    = (w_direct * goods    + w_ratio * goods_per    * income) * 4,
+#     services.c = (w_direct * services + w_ratio * services_per * income) * 4,
 #     C          = goods.c + services.c
 #   ) %>%
 #   select(id, goods.c, services.c, C)
