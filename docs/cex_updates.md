@@ -185,3 +185,19 @@ The ratio-model training filter was intended to exclude observations where consu
 Training defined regular income as `income > 0`; prediction used `income > 1`. Tax units with small positive income in (0, 1] were treated as regular during training but irregular during prediction — the model was trained and applied under different feature definitions.
 
 **Fix:** Both sides now use `income > 0`.
+
+---
+
+## 15. Added MO_SCOPE annual weighting
+
+**File:** `src/cex.R:166-185`, `src/cex.R:290`, `src/cex.R:354`
+
+The pipeline uses 5 quarters of Interview data (year t Q1–Q4 plus year t+1 Q1) to build calendar-year estimates. Each interview's CQ covers the 3 months before the interview, but not all 3 reference months necessarily fall in the target year. For example, a February 2023 interview references Nov 2022–Jan 2023 — only 1 of 3 months is in 2023. The old code treated all interviews equally via raw `FINLWT21`, systematically overweighting boundary-quarter interviews whose reference months partially fall outside the target year.
+
+BLS prescribes `FINLWT21 / 4 * (MO_SCOPE / 3)` where `MO_SCOPE` counts how many of the 3 CQ reference months fall in the target calendar year (0, 1, 2, or 3). See https://www.bls.gov/cex/pumd-getting-started-guide.htm.
+
+**Fix:** Added `MO_SCOPE` computation from `QINTRVMO`/`QINTRVYR` and derived `WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3)` in the FMLI processing step. Replaced `FINLWT21` with `WT_ANNUAL` in two places:
+1. Weighted percentile construction (`wtd.quantile` weights)
+2. Bootstrap sampling (`slice_sample` weight_by)
+
+Interviews with MO_SCOPE = 0 (e.g., January interview referencing only prior-year months) get zero weight and are effectively excluded. Both `FINLWT21` and `WT_ANNUAL` are carried in the output for diagnostics.

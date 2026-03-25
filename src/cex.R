@@ -163,7 +163,26 @@ build_cex_training = function() {
                       .cols = all_of(expcq))
     ) %>% bind_rows() %>%
     # Replace NAs in sub-variables with 0 (no expenditure in that category)
-    mutate(across(all_of(gsub('(C|CQ)$', '_CQ', expcq)), ~ replace_na(.x, 0)))
+    mutate(across(all_of(gsub('(C|CQ)$', '_CQ', expcq)), ~ replace_na(.x, 0))) %>%
+    # MO_SCOPE: how many of this interview's 3 CQ reference months fall in the
+    # target calendar year. BLS prescribed annual weighting formula:
+    #   WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3)
+    # Interviews with MO_SCOPE = 0 (e.g., Jan interview referencing only prior
+    # year) get zero weight and are effectively excluded from annual estimates.
+    # See https://www.bls.gov/cex/pumd-getting-started-guide.htm
+    mutate(
+      MO_SCOPE = case_when(
+        QINTRVYR == years[1]     & QINTRVMO <= 1  ~ 0L,
+        QINTRVYR == years[1]     & QINTRVMO == 2  ~ 1L,
+        QINTRVYR == years[1]     & QINTRVMO == 3  ~ 2L,
+        QINTRVYR == years[1]     & QINTRVMO >= 4  ~ 3L,
+        QINTRVYR == years[1] + 1 & QINTRVMO == 1  ~ 3L,
+        QINTRVYR == years[1] + 1 & QINTRVMO == 2  ~ 2L,
+        QINTRVYR == years[1] + 1 & QINTRVMO == 3  ~ 1L,
+        TRUE                                       ~ 0L
+      ),
+      WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3)
+    )
 
 
   #---------------------------------------------------------------------------
@@ -253,7 +272,7 @@ build_cex_training = function() {
       total_consumption_per = 0
     ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc,
+      NEWID, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
       male1, income, has_income,
       all_of(pce_cats), total_consumption,
       all_of(pce_cats_per), total_consumption_per
@@ -268,7 +287,7 @@ build_cex_training = function() {
   pct_breaks = c(-Inf,
                  wtd.quantile(x       = joined$income,
                               probs   = seq(0.01, 0.99, 0.01),
-                              weights = joined$FINLWT21),
+                              weights = joined$WT_ANNUAL),
                  Inf)
 
   joined = joined %>%
@@ -323,7 +342,7 @@ build_cex_training = function() {
       total_consumption_per = total_consumption / income
     ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, pctile_income, married, age1, n_dep, n_dep_ctc,
+      NEWID, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
       male1, income, has_income,
       all_of(pce_cats), total_consumption,
       all_of(pce_cats_per), total_consumption_per
@@ -332,6 +351,6 @@ build_cex_training = function() {
 
   # Select a random sample using weights to sample
   joined %>%
-    slice_sample(n = 100000, replace = T, weight_by = FINLWT21) %>%
+    slice_sample(n = 100000, replace = T, weight_by = WT_ANNUAL) %>%
     return()
 }
