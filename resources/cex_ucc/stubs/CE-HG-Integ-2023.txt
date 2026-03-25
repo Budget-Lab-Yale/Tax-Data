@@ -1,0 +1,1487 @@
+1  1  Integrated stub parameter file                                 HEADINTG  H  1  CUCHARS 
+1  1  Number of consumer units (in thousands)                        CONSUNIT  S  1  CUCHARS 
+1  1  Lower limit                                                    QUINTLIM  S  1  CUCHARS 
+1  1  Percent distribution of consumer units                         CUDISTRB  S  1  CUCHARS 
+1  1  Consumer unit characteristics:                                 TITLECU   T  1  CUCHARS 
+1  2    Income before taxes                                          INCBFTAX  G  1  CUCHARS 
+1  3      Meals as pay                                               800700    I  1  CUCHARS 
+1  3      Rent as pay                                                800710    I  1  CUCHARS 
+1  3      Income before taxes                                        980000    I  1  CUCHARS 
+1  2    Income after taxes                                           INCAFTAX  G  1  CUCHARS 
+1  3      Meals as pay                                               800700    I  1  CUCHARS 
+1  3      Rent as pay                                                800710    I  1  CUCHARS 
+1  3      Income after taxes                                         980071    I  1  CUCHARS 
+1  2    Age of reference person                                      980020    I  1  CUCHARS 
+1  2    Average number in consumer unit:                             TITLEACU  T  1  CUCHARS 
+1  3      People                                                     980010    I  1  CUCHARS 
+1  3      Children under 18                                          980050    I  1  CUCHARS 
+1  3      Adults 65 and older                                        980060    I  1  CUCHARS 
+1  3      Earners                                                    980030    I  1  CUCHARS 
+1  3      Vehicles                                                   VEHICLES  G  1  CUCHARS 
+1  4        Vehicles (owned)                                         980040    I  1  CUCHARS 
+1  4        Vehicles (leased)                                        980360    I  1  CUCHARS 
+1  1  Percent distribution:                                          TITLEPD   T  1  CUCHARS 
+1  2    Reference person:                                            TITLESRP  T  1  CUCHARS 
+1  3      Men                                                        980210    I  1  CUCHARS 
+1  3      Women                                                      980220    I  1  CUCHARS 
+1  2    Housing tenure:                                              TITLEHT   T  1  CUCHARS 
+1  3      Homeowner                                                  HOMEOWN   G  1  CUCHARS 
+1  4        With mortgage                                            980230    I  1  CUCHARS 
+1  4        Without mortgage                                         980240    I  1  CUCHARS 
+1  3      Renter                                                     980260    I  1  CUCHARS 
+1  2    Race of reference person:                                    TITLERRP  T  1  CUCHARS 
+1  3      Black or African-American                                  980270    I  1  CUCHARS 
+1  3      White, Asian, and all other races, not including Black or  WHTNDOTH  G  1  CUCHARS 
+2           African-American                                                                 
+1  4        White                                                    980281    I  1  CUCHARS 
+1  4        Asian                                                    980282    I  1  CUCHARS 
+1  4        All other races not including Black or African-American  980283    I  1  CUCHARS 
+1  2    Hispanic or Latino origin of reference person:               TITLEHOP  T  1  CUCHARS 
+1  3      Hispanic or Latino                                         980285    I  1  CUCHARS 
+1  3      Not Hispanic or Latino                                     980286    I  1  CUCHARS 
+1  2    Education of reference person:                               TITLEEDU  T  1  CUCHARS 
+1  3      Elementary (1-8)                                           980290    I  1  CUCHARS 
+1  3      High school (9-12)                                         980300    I  1  CUCHARS 
+1  3      College                                                    980310    I  1  CUCHARS 
+1  3      Never attended and other                                   980320    I  1  CUCHARS 
+1  2    At least one vehicle owned or leased                         980350    I  1  CUCHARS 
+1  2    At least one vehicle owned                                   980330    I  1  CUCHARS 
+1  2    At least one vehicle leased                                  980340    I  1  CUCHARS 
+1  1  Average annual expenditures                                    TOTALEXP  G  1  EXPEND  
+1  2    Food                                                         FOODTOTL  G  1  EXPEND  
+1  3      Food at home                                               FOODHOME  G  1  FOOD    
+1  4        Cereals and bakery products                              CERBAKRY  G  1  FOOD    
+1  5          Cereals and cereal products                            CEREAL    G  1  FOOD    
+1  6            Flour and prepared flour mixes (new UCC Q20231)      010119    D  1  FOOD    
+1  6            Cereal, breakfast, and granola bars                  010210    D  1  FOOD    
+1  6            Rice                                                 010310    D  1  FOOD    
+1  6            Pasta, cornmeal, and other cereal products           010320    D  1  FOOD    
+1  5          Bakery products                                        BAKERY    G  1  FOOD    
+1  6            Bread (new UCC Q20231)                               020219    D  1  FOOD    
+1  6            Cookies and crackers                                 CRAKCOOK  G  1  FOOD    
+1  7              Cookies                                            020510    D  1  FOOD    
+1  7              Crackers                                           020610    D  1  FOOD    
+1  6            Frozen and refrigerated bakery products              020810    D  1  FOOD    
+1  6            Other bakery products                                OTHBAKRY  G  1  FOOD    
+1  7              Biscuits and rolls                                 020310    D  1  FOOD    
+1  7              Cakes and cupcakes                                 020410    D  1  FOOD    
+1  7              Bread and cracker products                         020620    D  1  FOOD    
+1  7              Sweetrolls, coffee cakes, and doughnuts            020710    D  1  FOOD    
+1  7              Pies, tarts, and turnovers                         020820    D  1  FOOD    
+1  4        Meats, poultry, fish, and eggs                           ANIMAL    G  1  FOOD    
+1  5          Beef                                                   BEEF      G  1  FOOD    
+1  6            Ground beef                                          030110    D  1  FOOD    
+1  6            Roasts (new UCC Q20231)                              030219    D  1  FOOD    
+1  6            Steak (new UCC Q20231)                               030519    D  1  FOOD    
+1  6            Other beef                                           030810    D  1  FOOD    
+1  5          Pork                                                   PORK      G  1  FOOD    
+1  6            Bacon, breakfast sausage, and related products (new  040119    D  1  FOOD    
+2                 UCC Q20231)                                                                
+1  6            Pork chops                                           040210    D  1  FOOD    
+1  6            Ham (new UCC Q20231)                                 040319    D  1  FOOD    
+1  6            Other pork                                           040410    D  1  FOOD    
+1  5          Other meats                                            OTHRMEAT  G  1  FOOD    
+1  6            Frankfurters                                         050110    D  1  FOOD    
+1  6            Lunchmeats (new UCC Q20231)                          050319    D  1  FOOD    
+1  6            Lamb, organ meat, and game (new UCC Q20231)          050419    D  1  FOOD    
+1  5          Poultry                                                POULTRY   G  1  FOOD    
+1  6            Chicken (new UCC Q20231)                             060119    D  1  FOOD    
+1  6            Other poultry                                        060310    D  1  FOOD    
+1  5          Fish and seafood                                       FISHSEA   G  1  FOOD    
+1  6            Fresh fish and shellfish                             070230    D  1  FOOD    
+1  6            Processed fish and seafood (new UCC Q20231)          070119    D  1  FOOD    
+1  5          Eggs                                                   080110    D  1  FOOD    
+1  4        Dairy products                                           DAIRY     G  1  FOOD    
+1  5          Fresh milk and cream                                   MILKCRM   G  1  FOOD    
+1  6            Fresh milk, all types                                090110    D  1  FOOD    
+1  5          Other dairy products                                   OTHDAIRY  G  1  FOOD    
+1  6            Butter and margarine (new UCC Q20231)                100119    D  1  FOOD    
+1  6            Cheese                                               100210    D  1  FOOD    
+1  6            Ice cream and related products                       100410    D  1  FOOD    
+1  6            Other dairy and related products (new UCC Q20231)    100519    D  1  FOOD    
+1  4        Fruits and vegetables                                    FRUITVEG  G  1  FOOD    
+1  5          Fresh fruits                                           FRSHFRUT  G  1  FOOD    
+1  6            Apples                                               110110    D  1  FOOD    
+1  6            Bananas                                              110210    D  1  FOOD    
+1  6            Citrus fruits (new UCC Q20231)                       110319    D  1  FOOD    
+1  6            Other fresh fruits                                   110410    D  1  FOOD    
+1  5          Fresh vegetables                                       FRESHVEG  G  1  FOOD    
+1  6            Potatoes                                             120110    D  1  FOOD    
+1  6            Lettuce                                              120210    D  1  FOOD    
+1  6            Tomatoes                                             120310    D  1  FOOD    
+1  6            Other fresh vegetables                               120410    D  1  FOOD    
+1  5          Processed fruits and vegetables                        PROCFRVG  G  1  FOOD    
+1  6            Frozen fruits and vegetables (new UCC Q20231)        130129    D  1  FOOD    
+1  6            Canned fruits and vegetables (new UCC Q20231)        140219    D  1  FOOD    
+1  6            Dried fruits and vegetables (new UCC Q20231)         140349    D  1  FOOD    
+1  6            Frozen noncarbonated juices and drinks (new UCC      130119    D  1  FOOD    
+2                 Q20231)                                                                    
+1  4        Other food at home                                       OTHRFOOD  G  1  FOOD    
+1  5          Sugar and other sweets                                 SWEETS    G  1  FOOD    
+1  6            Candy and chewing gum                                150110    D  1  FOOD    
+1  6            Sugar and artificial sweeteners (new UCC Q20231)     150219    D  1  FOOD    
+1  6            Jams, preserves, and other sweets                    150310    D  1  FOOD    
+1  5          Fats and oils                                          FATSOILS  G  1  FOOD    
+1  6            Fats and oils                                        160211    D  1  FOOD    
+1  6            Salad dressings                                      160212    D  1  FOOD    
+1  6            Peanut butter                                        160320    D  1  FOOD    
+1  5          Miscellaneous foods                                    MISCFOOD  G  1  FOOD    
+1  6            Frozen prepared foods                                FRZNPREP  G  1  FOOD    
+1  7              Frozen meals                                       180210    D  1  FOOD    
+1  7              Other frozen prepared foods                        180220    D  1  FOOD    
+1  6            Canned and packaged soups                            180110    D  1  FOOD    
+1  6            Potato chips, nuts, and other snacks                 SNACKS    G  1  FOOD    
+1  7              Potato chips and other snacks                      180310    D  1  FOOD    
+1  7              Nuts                                               180320    D  1  FOOD    
+1  6            Condiments and seasonings                            CONDMNTS  G  1  FOOD    
+1  7              Salt, spices, and other seasonings                 180410    D  1  FOOD    
+1  7              Olives, pickles, and relishes                      180420    D  1  FOOD    
+1  7              Sauces and gravies                                 180510    D  1  FOOD    
+1  7              Baking needs and miscellaneous products            180520    D  1  FOOD    
+1  6            Other canned and packaged prepared foods             OTHRPREP  G  1  FOOD    
+1  7              Prepared salads                                    180611    D  1  FOOD    
+1  7              Prepared desserts                                  180612    D  1  FOOD    
+1  7              Baby food                                          180620    D  1  FOOD    
+1  7              Miscellaneous prepared foods                       180710    D  1  FOOD    
+1  5          Nonalcoholic beverages                                 NALCBEVG  G  1  FOOD    
+1  6            Cola                                                 170110    D  1  FOOD    
+1  6            Other carbonated drinks                              170210    D  1  FOOD    
+1  6            Tea                                                  170520    D  1  FOOD    
+1  6            Coffee (new UCC Q20231)                              170319    D  1  FOOD    
+1  6            Nonfrozen noncarbonated juices and drinks (new UCC   170539    D  1  FOOD    
+2                 Q20231)                                                                    
+1  6            Other noncarbonated beverages and ice                170531    D  1  FOOD    
+1  5          Food prepared by consumer unit on out of town trips    190904    I  1  FOOD    
+1  3      Food away from home                                        FOODAWAY  G  1  FOOD    
+1  4        Food and nonalcoholic beverages at fast food             190400    D  1  FOOD    
+1  4        Food and nonalcoholic beverages at full service          190500    D  1  FOOD    
+2             restaurants                                                                    
+1  4        Food and nonalcoholic beverages at vending machines and  190600    D  1  FOOD    
+2             mobile vendors                                                                 
+1  4        Food and nonalcoholic beverages at employer              190700    D  1  FOOD    
+1  4        School meals and board (new UCC Q20232)                  190905    I  1  FOOD    
+1  4        Food or board at school (through Q20231)                 190901    I  1  FOOD    
+1  4        Catered affairs                                          190902    I  1  FOOD    
+1  4        Food on out of town trips                                190903    I  1  FOOD    
+1  4        School lunches (through Q20231)                          790430    I  1  FOOD    
+1  4        Meals as pay                                             800700    I  1  FOOD    
+1  2    Alcoholic beverages                                          ALCBEVG   G  1  EXPEND  
+1  3      At home                                                    ALCHOME   G  1  EXPEND  
+1  4        Beer, ale, and other malt beverage (new UCC Q20231)      200119    D  1  EXPEND  
+1  4        Distilled spirits (new UCC Q20231)                       200219    D  1  EXPEND  
+1  4        Wine                                                     200310    D  1  EXPEND  
+1  3      Away from home                                             ALCAWAY   G  1  EXPEND  
+1  4        Alcoholic beverages purchased on trips                   200900    I  1  EXPEND  
+1  4        Alcoholic beverages at restaurants, taverns              790420    D  1  EXPEND  
+1  2    Housing                                                      HOUSING   G  1  EXPEND  
+1  3      Shelter                                                    SHELTER   G  1  EXPEND  
+1  4        Owned dwellings                                          OWNDWELL  G  1  EXPEND  
+1  5          Mortgage interest and charges                          OWNMORTG  G  1  EXPEND  
+1  6            Mortgage interest                                    220311    I  1  EXPEND  
+1  6            Interest paid, home equity loan                      220313    I  1  EXPEND  
+1  6            Interest paid, home equity line of credit            880110    I  1  EXPEND  
+1  5          Property taxes                                         220211    I  1  EXPEND  
+1  5          Maintenance, repairs, insurance, and other expenses    OWNEXPEN  G  1  EXPEND  
+1  6            Homeowners insurance                                 220121    I  1  EXPEND  
+1  6            Ground rent                                          210901    I  1  EXPEND  
+1  6            Maintenance and repair services                      OWNREPSV  G  1  EXPEND  
+1  7              Painting and papering                              230112    I  1  EXPEND  
+1  7              Plumbing and water heating                         230113    I  1  EXPEND  
+1  7              Heat, a/c, and electrical work                     230114    I  1  EXPEND  
+1  7              Roofing and gutters                                230115    I  1  EXPEND  
+1  7              Other repair and maintenance services              230151    I  1  EXPEND  
+1  7              Repair of built-in appliances                      230142    I  1  EXPEND  
+1  7              Flooring installation, repair, and replacement     320625    I  1  EXPEND  
+1  6            Maintenance and repair commodities                   OWNREPSP  G  1  EXPEND  
+1  7              Paints, wallpaper, and supplies                    240112    I  1  EXPEND  
+1  7              Tools and equipment for painting and wallpapering  240122    I  1  EXPEND  
+1  7              Plumbing supplies and equipment                    240312    I  1  EXPEND  
+1  7              Electrical supplies, heating, and cooling          240322    I  1  EXPEND  
+2                   equipment                                                                
+1  7              Materials and equipment for roofs and gutters      240213    I  1  EXPEND  
+1  7              Materials for plaster, panel, siding, windows,     240212    I  1  EXPEND  
+2                   doors, screens, and awnings                                              
+1  7              Materials for patio, walk, fence, driveway,        240222    I  1  EXPEND  
+2                   masonry, brick, and stucco work                                          
+1  7              Materials for landscaping maintenance              320632    I  1  EXPEND  
+1  7              Miscellaneous supplies and equipment               OWNMISC   G  1  EXPEND  
+1  8                Material for insulation, other maintenance, and  320612    I  1  EXPEND  
+2                     repair                                                                 
+1  8                Materials to finish basements, remodel rooms,    990930    I  1  EXPEND  
+2                     or build patios or walkways                                            
+1  6            Property management and security                     OWNMNAGE  G  1  EXPEND  
+1  7              Property management                                230901    I  1  EXPEND  
+1  7              Management and upkeep services for security        340911    I  1  EXPEND  
+1  6            Parking                                              220901    I  1  EXPEND  
+1  4        Rented dwellings                                         RNTDWELL  G  1  EXPEND  
+1  5          Rent                                                   210110    I  1  EXPEND  
+1  5          Rent as pay                                            800710    I  1  EXPEND  
+1  5          Maintenance, insurance, and other expenses             RNTEXPEN  G  1  EXPEND  
+1  6            Tenant's insurance                                   350110    I  1  EXPEND  
+1  6            Maintenance and repair services                      RNTREPSV  G  1  EXPEND  
+1  7              Repair or maintenance services                     230150    I  1  EXPEND  
+1  7              Repair of built-in appliances                      230141    I  1  EXPEND  
+1  7              Flooring installation, repair, and replacement     320624    I  1  EXPEND  
+1  6            Maintenance and repair commodities                   RNTREPSP  G  1  EXPEND  
+1  7              Paint, wallpaper, and supplies                     240111    I  1  EXPEND  
+1  7              Tools and equipment for painting and wallpapering  240121    I  1  EXPEND  
+1  7              Materials for plastering, panels, roofing, and     240211    I  1  EXPEND  
+2                   gutters, etc.                                                            
+1  7              Materials for patio, walk, fence, driveway,        240221    I  1  EXPEND  
+2                   masonry, brick and stucco work                                           
+1  7              Plumbing supplies and equipment                    240311    I  1  EXPEND  
+1  7              Electrical supplies, heating, and cooling          240321    I  1  EXPEND  
+2                   equipment                                                                
+1  7              Miscellaneous supplies and equipment               RNTMISC   G  1  EXPEND  
+1  8                Material for insulation, other maintenance, and  320611    I  1  EXPEND  
+2                     repair                                                                 
+1  8                Materials for additions, finishing basements,    990920    I  1  EXPEND  
+2                     and remodeling rooms                                                   
+1  8                Construction materials for jobs not started      790690    I  1  EXPEND  
+1  7              Material for landscape maintenance                 320631    I  1  EXPEND  
+1  4        Other lodging                                            OTHLODGE  G  1  EXPEND  
+1  5          Owned vacation homes                                   OWVHOME   G  1  EXPEND  
+1  6            Mortgage interest and charges                        OWNVMORT  G  1  EXPEND  
+1  7              Mortgage interest                                  220312    I  1  EXPEND  
+1  7              Interest paid, home equity loan                    220314    I  1  EXPEND  
+1  7              Interest paid, home equity line of credit          880310    I  1  EXPEND  
+1  6            Property taxes                                       220212    I  1  EXPEND  
+1  6            Maintenance, insurance, and other expenses           OWVEXPEN  G  1  EXPEND  
+1  7              Homeowners insurance                               220122    I  1  EXPEND  
+1  7              Ground rent                                        210902    I  1  EXPEND  
+1  7              Maintenance and repair services                    OWVREPSV  G  1  EXPEND  
+1  8                Repair and remodeling services                   230152    I  1  EXPEND  
+1  8                Flooring installation, repair, and replacement   320626    I  1  EXPEND  
+1  7              Maintenance and repair commodities                 OWVREPSP  G  1  EXPEND  
+1  8                Paints, wallpaper, and supplies                  240113    I  1  EXPEND  
+1  8                Tools and equipment for painting and             240123    I  1  EXPEND  
+2                     wallpapering                                                           
+1  8                Materials for plastering, paneling, roofing,     240214    I  1  EXPEND  
+2                     gutters, downspouts, siding, windows, doors,                           
+2                     screens, and awnings                                                   
+1  8                Material for patio, walk, fence, drive,          240223    I  1  EXPEND  
+2                     masonry, brick, and stucco                                             
+1  8                Plumbing supplies and equipment                  240313    I  1  EXPEND  
+1  8                Electrical supplies, heating, and cooling        240323    I  1  EXPEND  
+2                     equipment                                                              
+1  8                Miscellaneous supplies and equipment             OWVMISC   G  1  EXPEND  
+1  9                  Material for insulation, other maintenance,    320613    I  1  EXPEND  
+2                       and repair                                                           
+1  9                  Material for finishing basements and           990940    I  1  EXPEND  
+2                       remodeling rooms                                                     
+1  8                Materials for landscaping maintenance            320633    I  1  EXPEND  
+1  7              Property management and security                   OWVMNAGE  G  1  EXPEND  
+1  8                Property management                              230902    I  1  EXPEND  
+1  8                Management and upkeep services for security      340912    I  1  EXPEND  
+1  7              Parking                                            220902    I  1  EXPEND  
+1  5          Housing while attending school                         210310    I  1  EXPEND  
+1  5          Lodging on out of town trips                           210210    I  1  EXPEND  
+1  3      Utilities, fuels, and public services                      UTILS     G  1  EXPEND  
+1  4        Natural gas                                              NATRLGAS  G  1  EXPEND  
+1  5          Natural gas (renter)                                   260211    I  1  EXPEND  
+1  5          Natural gas (owned home)                               260212    I  1  EXPEND  
+1  5          Natural gas (owned vacation)                           260213    I  1  EXPEND  
+1  5          Natural gas (rented vacation)                          260214    I  1  EXPEND  
+1  4        Electricity                                              ELECTRIC  G  1  EXPEND  
+1  5          Electricity (renter)                                   260111    I  1  EXPEND  
+1  5          Electricity (owned home)                               260112    I  1  EXPEND  
+1  5          Electricity (owned vacation)                           260113    I  1  EXPEND  
+1  5          Electricity (rented vacation)                          260114    I  1  EXPEND  
+1  4        Fuel oil and other fuels                                 OTHRFUEL  G  1  EXPEND  
+1  5          Fuel oil                                               FUELOIL   G  1  EXPEND  
+1  6            Fuel oil (renter)                                    250111    I  1  EXPEND  
+1  6            Fuel oil (owned home)                                250112    I  1  EXPEND  
+1  6            Fuel oil (owned vacation)                            250113    I  1  EXPEND  
+1  6            Fuel oil (rented vacation)                           250114    I  1  EXPEND  
+1  5          Coal, wood, and other fuels                            CLWDOTFL  G  1  EXPEND  
+1  6            Coal, wood, and other fuels (renter)                 250911    I  1  EXPEND  
+1  6            Coal, wood, and other fuels (owned home)             250912    I  1  EXPEND  
+1  6            Coal, wood, and other fuels (owned vacation)         250913    I  1  EXPEND  
+1  6            Coal, wood, and other fuels (rented vacation)        250914    I  1  EXPEND  
+1  5          Bottled gas                                            BOTTLGAS  G  1  EXPEND  
+1  6            Gas, bottled/tank (renter)                           250211    I  1  EXPEND  
+1  6            Gas, bottled/tank (owned home)                       250212    I  1  EXPEND  
+1  6            Gas, bottled/tank (owned vacation)                   250213    I  1  EXPEND  
+1  6            Gas, bottled/tank (rented vacation)                  250214    I  1  EXPEND  
+1  4        Telephone services                                       PHONE     G  1  EXPEND  
+1  5          Residential phone service, VOIP, and phone cards       RESPHONE  G  1  EXPEND  
+1  6            Phone cards                                          270104    I  1  EXPEND  
+1  6            Residential telephone including VOIP                 270106    I  1  EXPEND  
+1  5          Cellular phone service                                 270102    I  1  EXPEND  
+1  4        Water and other public services                          WATER     G  1  EXPEND  
+1  5          Water and sewerage maintenance                         SEWER     G  1  EXPEND  
+1  6            Water/sewer maintenance (renter)                     270211    I  1  EXPEND  
+1  6            Water/sewer maintenance (owned home)                 270212    I  1  EXPEND  
+1  6            Water/sewer maintenance (owned vacation)             270213    I  1  EXPEND  
+1  6            Water/sewer maintenance (rented vacation)            270214    I  1  EXPEND  
+1  5          Trash and garbage collection                           TRASH     G  1  EXPEND  
+1  6            Trash/garbage collection (renter)                    270411    I  1  EXPEND  
+1  6            Trash/garbage collection (owned home)                270412    I  1  EXPEND  
+1  6            Trash/garbage collection (owned vacation)            270413    I  1  EXPEND  
+1  6            Trash/garbage collection (rented vacation)           270414    I  1  EXPEND  
+1  5          Septic tank cleaning                                   SEPTANK   G  1  EXPEND  
+1  6            Septic tank cleaning (renter)                        270901    I  1  EXPEND  
+1  6            Septic tank cleaning (owned home)                    270902    I  1  EXPEND  
+1  6            Septic tank cleaning (owned vacation)                270903    I  1  EXPEND  
+1  6            Septic tank cleaning (rented vacation)               270904    I  1  EXPEND  
+1  3      Household operations                                       HHOPER    G  1  EXPEND  
+1  4        Personal services                                        HHPERSRV  G  1  EXPEND  
+1  5          Babysitting and childcare (through Q20231)             340210    I  1  EXPEND  
+1  5          Care for elderly, invalids, handicapped, etc.          340906    I  1  EXPEND  
+1  5          Adult day care centers                                 340910    I  1  EXPEND  
+1  5          Day care centers, nurseries, and preschools (through   670310    I  1  EXPEND  
+2               Q20231)                                                                      
+1  5          Babysitting, childcare, daycare, preschool (new UCC    670320    I  1  EXPEND  
+2               Q20232)                                                                      
+1  4        Other household expenses                                 HHOTHXPN  G  1  EXPEND  
+1  5          Housekeeping services                                  340310    I  1  EXPEND  
+1  5          Gardening and lawn care service                        340410    I  1  EXPEND  
+1  5          Water softening services                               340420    I  1  EXPEND  
+1  5          Household laundry and dry cleaning, sent out           340520    D  1  EXPEND  
+2               (nonclothing) not coin-operated                                              
+1  5          Coin-operated household laundry and dry cleaning       340530    D  1  EXPEND  
+2               (nonclothing)                                                                
+1  5          Services for termite/pest control                      340914    I  1  EXPEND  
+1  5          Home security system service fees                      340915    I  1  EXPEND  
+1  5          Other home services                                    340903    I  1  EXPEND  
+1  5          Termite/pest control products                          330511    I  1  EXPEND  
+1  5          Moving, storage, and freight                           340510    I  1  EXPEND  
+1  5          Appliance repair, including service center             340620    I  1  EXPEND  
+1  5          Reupholstering, furniture repair                       340630    I  1  EXPEND  
+1  5          Repairs/rentals of lawn and garden equipment, hand or  340901    I  1  EXPEND  
+2               power tools, and other household equipment                                   
+1  5          Appliance rentals                                      340907    I  1  EXPEND  
+1  5          Rental of office equipment for nonbusiness use         340908    I  1  EXPEND  
+1  5          Repair of miscellaneous household equipment and        340913    D  1  EXPEND  
+2               furnishings                                                                  
+1  5          Repair of computer systems for nonbusiness use         690113    I  1  EXPEND  
+1  5          Computer information services (internet)               690114    I  1  EXPEND  
+1  5          Installation of computers                              690310    I  1  EXPEND  
+1  5          Rental and installation of dishwashers, range hoods,   990900    I  1  EXPEND  
+2               and garbage disposals                                                        
+1  3      Housekeeping supplies                                      HKPGSUPP  G  1  EXPEND  
+1  4        Laundry and cleaning products (new UCC Q20231)           330119    D  1  EXPEND  
+1  4        Other household products                                 HKPGOTHR  G  1  EXPEND  
+1  5          Paper towels, napkins, and toilet tissue               330310    D  1  EXPEND  
+1  5          Miscellaneous household products                       330510    D  1  EXPEND  
+1  5          Lawn and garden supplies                               330610    D  1  EXPEND  
+1  4        Postage and stationery                                   POSTAGE   G  1  EXPEND  
+1  5          Stationery, stationery supplies, and gift wrap         330410    D  1  EXPEND  
+1  5          Postage                                                340110    D  1  EXPEND  
+1  5          Delivery services                                      340120    D  1  EXPEND  
+1  3      Household furnishings and equipment                        HHFURNSH  G  1  EXPEND  
+1  4        Household textiles                                       HHTXTILE  G  1  EXPEND  
+1  5          Bathroom linens                                        280110    D  1  EXPEND  
+1  5          Bedroom linens                                         280120    D  1  EXPEND  
+1  5          Curtains and draperies                                 280210    I  1  EXPEND  
+1  5          Slipcovers and decorative pillows                      280220    I  1  EXPEND  
+1  5          Kitchen, dining room, and other linens                 280140    D  1  EXPEND  
+1  4        Furniture                                                FURNITUR  G  1  EXPEND  
+1  5          Mattresses and springs                                 290110    I  1  EXPEND  
+1  5          Other bedroom furniture                                290120    I  1  EXPEND  
+1  5          Sofas                                                  290210    I  1  EXPEND  
+1  5          Living room chairs                                     290310    I  1  EXPEND  
+1  5          Living room tables                                     290320    I  1  EXPEND  
+1  5          Kitchen and dining room furniture                      290410    I  1  EXPEND  
+1  5          Infants' furniture                                     290420    I  1  EXPEND  
+1  5          Outdoor furniture                                      290430    I  1  EXPEND  
+1  5          Wall units, cabinets, and other furniture              290440    I  1  EXPEND  
+1  4        Floor coverings                                          FLOORCOV  G  1  EXPEND  
+1  5          Floor coverings, nonpermanent                          320111    I  1  EXPEND  
+1  4        Major appliances                                         MAJAPPL   G  1  EXPEND  
+1  5          Dishwashers (built-in), garbage disposals, and range   230117    I  1  EXPEND  
+2               hoods (renter)                                                               
+1  5          Dishwashers (built-in), garbage disposals, and range   230118    I  1  EXPEND  
+2               hoods (owned home)                                                           
+1  5          Refrigerators and freezers (renter)                    300111    I  1  EXPEND  
+1  5          Refrigerators and freezers (owned home)                300112    I  1  EXPEND  
+1  5          Clothes washers or dryers (renter)                     300216    I  1  EXPEND  
+1  5          Clothes washers or dryers (owned home)                 300217    I  1  EXPEND  
+1  5          Cooking stoves and ovens (renter)                      300311    I  1  EXPEND  
+1  5          Cooking stoves and ovens (owned home)                  300312    I  1  EXPEND  
+1  5          Microwave ovens (renter)                               300321    I  1  EXPEND  
+1  5          Microwave ovens (owned home)                           300322    I  1  EXPEND  
+1  5          Portable dishwashers (renter)                          300331    I  1  EXPEND  
+1  5          Portable dishwashers (owned home)                      300332    I  1  EXPEND  
+1  5          Window air conditioners (renter)                       300411    I  1  EXPEND  
+1  5          Window air conditioners (owned home)                   300412    I  1  EXPEND  
+1  5          Electric floor cleaning equipment                      320511    I  1  EXPEND  
+1  5          Sewing machines                                        320512    I  1  EXPEND  
+1  5          Miscellaneous household appliances                     300900    D  1  EXPEND  
+1  4        Small appliances and miscellaneous housewares            SMAPPHWR  G  1  EXPEND  
+1  5          Housewares                                             HOUSWARE  G  1  EXPEND  
+1  6            Flatware                                             320330    D  1  EXPEND  
+1  6            Dinnerware, glassware, and serving pieces            320345    D  1  EXPEND  
+1  6            Nonelectric cookware                                 320370    D  1  EXPEND  
+1  6            Tableware and nonelectric kitchenware                320380    D  1  EXPEND  
+1  5          Small appliances                                       SMLLAPPL  G  1  EXPEND  
+1  6            Small electric kitchen appliances                    320521    I  1  EXPEND  
+1  6            Portable heating and cooling equipment               320522    I  1  EXPEND  
+1  4        Miscellaneous household equipment                        MISCHHEQ  G  1  EXPEND  
+1  5          Window coverings                                       320120    I  1  EXPEND  
+1  5          Infants' equipment                                     320130    D  1  EXPEND  
+1  5          Laundry and cleaning equipment                         320140    D  1  EXPEND  
+1  5          Outdoor equipment                                      320150    D  1  EXPEND  
+1  5          Lamps, lighting fixtures, and ceiling fans             320221    D  1  EXPEND  
+1  5          Clocks and other household decorative items            320233    D  1  EXPEND  
+1  5          Telephones and accessories                             320232    I  1  EXPEND  
+1  5          Lawn and garden equipment                              320410    D  1  EXPEND  
+1  5          Power tools                                            320420    I  1  EXPEND  
+1  5          Office furniture for home use                          320901    I  1  EXPEND  
+1  5          Hand tools                                             320902    D  1  EXPEND  
+1  5          Indoor plants and fresh flowers                        320903    I  1  EXPEND  
+1  5          Closet and storage items                               320904    D  1  EXPEND  
+1  5          Rental of furniture                                    340904    I  1  EXPEND  
+1  5          Luggage                                                430130    D  1  EXPEND  
+1  5          Computers and computer hardware for nonbusiness use    690111    I  1  EXPEND  
+1  5          Portable memory                                        690117    I  1  EXPEND  
+1  5          Computer software                                      690119    D  1  EXPEND  
+1  5          Computer accessories                                   690120    D  1  EXPEND  
+1  5          Internet services away from home                       690116    I  1  EXPEND  
+1  5          Business equipment for home use                        690230    I  1  EXPEND  
+1  5          Other hardware                                         320430    D  1  EXPEND  
+1  5          Other household appliances (owned home)                690245    I  1  EXPEND  
+1  5          Other household appliances (renter)                    690244    I  1  EXPEND  
+1  5          Miscellaneous household equipment and parts            320905    D  1  EXPEND  
+1  2    Apparel and services                                         APPAREL   G  1  EXPEND  
+1  3      Men and boys                                               MENBOYS   G  1  EXPEND  
+1  4        Men, 16 and over                                         MENS      G  1  EXPEND  
+1  5          Men's suits                                            360110    I  1  EXPEND  
+1  5          Men's sportcoats and tailored jackets                  360120    D  1  EXPEND  
+1  5          Men's coats and jackets                                360210    D  1  EXPEND  
+1  5          Men's underwear, hosiery, nightwear, and swimwear      360319    D  1  EXPEND  
+2               (new UCC Q20231)                                                             
+1  5          Men's accessories                                      360330    D  1  EXPEND  
+1  5          Men's shirts, sweaters, and vests                      360420    D  1  EXPEND  
+1  5          Men's pants and shorts                                 360513    D  1  EXPEND  
+1  5          Men's uniforms                                         360901    D  1  EXPEND  
+1  5          Men's costumes                                         360902    D  1  EXPEND  
+1  4        Boys, 2 to 15                                            BOYS      G  1  EXPEND  
+1  5          Boys' coats and jackets                                370110    D  1  EXPEND  
+1  5          Boy's underwear, hosiery, nightwear, and swimwear      370219    D  1  EXPEND  
+2               (new UCC Q20231)                                                             
+1  5          Boy's suits, sportscoats, pants, and shorts (new UCC   370319    D  1  EXPEND  
+2               Q20231)                                                                      
+1  5          Boys' shirts and sweaters                              370125    D  1  EXPEND  
+1  5          Boys' accessories                                      370220    D  1  EXPEND  
+1  5          Boys' costumes                                         370902    D  1  EXPEND  
+1  5          Boys' uniforms                                         370903    D  1  EXPEND  
+1  3      Women and girls                                            WMNSGRLS  G  1  EXPEND  
+1  4        Women, 16 and over                                       WOMENS    G  1  EXPEND  
+1  5          Women's coats and jackets                              380110    D  1  EXPEND  
+1  5          Women's dresses                                        380210    D  1  EXPEND  
+1  5          Women's tops (new UCC Q20231)                          380319    D  1  EXPEND  
+1  5          Women's skirts, pants, and shorts (new UCC Q20231)     380339    D  1  EXPEND  
+1  5          Women's undergarments, nightwear, and swimwear (new    380429    D  1  EXPEND  
+2               UCC Q20231)                                                                  
+1  5          Women's costumes and uniforms (new UCC Q20231)         380909    D  1  EXPEND  
+1  5          Women's hosiery                                        380430    D  1  EXPEND  
+1  5          Women's suits                                          380510    D  1  EXPEND  
+1  5          Women's accessories                                    380901    D  1  EXPEND  
+1  4        Girls, 2 to 15                                           GIRLS     G  1  EXPEND  
+1  5          Girls' coats and jackets                               390110    D  1  EXPEND  
+1  5          Girls' dresses and suits                               390120    D  1  EXPEND  
+1  5          Girls' shirts, blouses, sweaters, and vests            390210    D  1  EXPEND  
+1  5          Girls' skirts, pants, and shorts                       390223    D  1  EXPEND  
+1  5          Girls' accessories                                     390322    D  1  EXPEND  
+1  5          Girl's underwear, nightwear, hosiery, and swimwear     390319    D  1  EXPEND  
+2               (new UCC Q20231)                                                             
+1  5          Girls' uniforms                                        390901    D  1  EXPEND  
+1  5          Girls' costumes                                        390902    D  1  EXPEND  
+1  3      Children under 2                                           INFANT    G  1  EXPEND  
+1  4        Infant's and toddler's outerwear, dresses, nightwear,    410119    D  1  EXPEND  
+2             and accessories (new UCC Q20231)                                               
+1  4        Infant underwear                                         410130    D  1  EXPEND  
+1  3      Footwear                                                   FOOTWEAR  G  1  EXPEND  
+1  4        Men's footwear                                           400110    D  1  EXPEND  
+1  4        Boys' footwear                                           400210    D  1  EXPEND  
+1  4        Women's footwear                                         400310    D  1  EXPEND  
+1  4        Girls' footwear                                          400220    D  1  EXPEND  
+1  3      Other apparel products and services                        OTHAPPRL  G  1  EXPEND  
+1  4        Material and supplies for sewing, needlework, and        420115    D  1  EXPEND  
+2             quilting (includes household items)                                            
+1  4        Jewelry                                                  430120    I  1  EXPEND  
+1  4        Shoe repair and other shoe services                      440110    I  1  EXPEND  
+1  4        Coin-operated apparel laundry and dry cleaning           440120    I  1  EXPEND  
+1  4        Alteration, repair, and tailoring of apparel and         440130    I  1  EXPEND  
+2             accessories                                                                    
+1  4        Clothing rental                                          440140    I  1  EXPEND  
+1  4        Watch and jewelry repair                                 440150    I  1  EXPEND  
+1  4        Apparel laundry and dry cleaning not coin-operated       440210    I  1  EXPEND  
+1  4        Clothing storage                                         440900    I  1  EXPEND  
+1  4        Watches                                                  430110    I  1  EXPEND  
+1  2    Transportation                                               TRANS     G  1  EXPEND  
+1  3      Vehicle purchases (net outlay)                             VEHPURCH  G  1  EXPEND  
+1  4        Cars and trucks, new                                     NEWCARS   G  1  EXPEND  
+1  5          New cars                                               450110    I  1  EXPEND  
+1  5          New trucks                                             450210    I  1  EXPEND  
+1  4        Cars and trucks, used                                    USEDCARS  G  1  EXPEND  
+1  5          Used cars                                              460110    I  1  EXPEND  
+1  5          Used trucks                                            460901    I  1  EXPEND  
+1  4        Other vehicles                                           OTHVEHCL  G  1  EXPEND  
+1  5          New motorcycles                                        450220    I  1  EXPEND  
+1  5          New aircraft                                           450900    I  1  EXPEND  
+1  5          Used motorcycles                                       460902    I  1  EXPEND  
+1  5          Used aircraft                                          460903    I  1  EXPEND  
+1  3      Gasoline, other fuels, and motor oil                       GASOIL    G  1  EXPEND  
+1  4        Alternative fuels (through Q20231)                       470114    I  1  EXPEND  
+1  4        Motor oil (through Q20231)                               470211    I  1  EXPEND  
+1  3      Gasoline and other fuels                                   GASFUEL   G  1  EXPEND  
+1  4        Gasoline                                                 470111    I  1  EXPEND  
+1  4        Diesel fuel                                              470112    I  1  EXPEND  
+1  4        Gasoline on out of town trips                            470113    I  1  EXPEND  
+1  4        Electric vehicle charging                                470311    I  1  EXPEND  
+1  3      Other vehicle expenses                                     VEHOTHXP  G  1  EXPEND  
+1  4        Vehicle finance charges                                  VEHFINCH  G  1  EXPEND  
+1  5          Automobile finance charges                             510110    I  1  EXPEND  
+1  5          Truck finance charges                                  510901    I  1  EXPEND  
+1  5          Motorcycle and plane finance charges                   510902    I  1  EXPEND  
+1  5          Other vehicle finance charges                          850300    I  1  EXPEND  
+1  4        Maintenance and repairs                                  CAREPAIR  G  1  EXPEND  
+1  5          Coolant, brake fluid, transmission fluid, and other    470220    I  1  EXPEND  
+2               additives (through Q20231)                                                   
+1  5          Vehicle maintenance/repair excluding tire purchase     490100    I  1  EXPEND  
+2               (new UCC Q20232)                                                             
+1  5          Tires - purchased, replaced, and installed             480110    I  1  EXPEND  
+1  5          Motor oil on out of town trips                         470212    I  1  EXPEND  
+1  5          Vehicle parts, accessories, fluid excluding tires      480100    I  1  EXPEND  
+2               (new UCC Q20232)                                                             
+1  5          Parts, equipment, and accessories (through Q20231)     480213    I  1  EXPEND  
+1  5          Body work and painting (through Q20231)                490110    I  1  EXPEND  
+1  5          Vehicle or engine repairs (through Q20231)             490300    I  1  EXPEND  
+1  5          Motor tune up (through Q20231)                         490311    I  1  EXPEND  
+1  5          Lube, oil change, and oil filters (through Q20231)     490312    I  1  EXPEND  
+1  5          Front end alignment, wheel balance, and rotation       490313    I  1  EXPEND  
+2               (through Q20231)                                                             
+1  5          Shock absorber replacement (through Q20231)            490314    I  1  EXPEND  
+1  5          Repair tires and other repair work (through Q20231)    490318    I  1  EXPEND  
+1  5          Auto repair service policy                             490900    I  1  EXPEND  
+1  4        Vehicle rental, leases, licenses, and other charges      VEHRNTLC  G  1  EXPEND  
+1  5          Leased and rented vehicles                             VEHRENT   G  1  EXPEND  
+1  6            Rented vehicles                                      RENTVEH   G  1  EXPEND  
+1  7              Auto/truck rental                                  520516    I  1  EXPEND  
+1  7              Auto/truck rental on out of town trips             520517    I  1  EXPEND  
+1  7              Motorcycle rental                                  520902    I  1  EXPEND  
+1  7              Motorcycle rental on out of town trips             520905    I  1  EXPEND  
+1  7              Aircraft rental                                    520903    I  1  EXPEND  
+1  7              Aircraft rental on out of town trips               520906    I  1  EXPEND  
+1  6            Leased vehicles                                      LEASVEH   G  1  EXPEND  
+1  7              Car/truck lease payments                           450350    I  1  EXPEND  
+1  7              Cash down payment car/truck lease                  450353    I  1  EXPEND  
+1  7              Termination fee for car/truck lease                450354    I  1  EXPEND  
+1  7              Extra fees for car/truck lease                     450351    I  1  EXPEND  
+1  7              Trade in allowance for car/truck lease             450352    I  1  EXPEND  
+1  5          State and local vehicle registration                   520110    I  1  EXPEND  
+1  5          Vehicle registrations, state (through Q20231)          520111    I  1  EXPEND  
+1  5          Vehicle registrations, local (through Q20231)          520112    I  1  EXPEND  
+1  5          Drivers' licenses                                      520310    I  1  EXPEND  
+1  5          Vehicle inspections                                    520410    I  1  EXPEND  
+1  5          Parking fees                                           PARKING   G  1  EXPEND  
+1  6            Parking fees in home city, excluding residence       520531    I  1  EXPEND  
+1  6            Parking fees on out of town trips                    520532    I  1  EXPEND  
+1  5          Tolls or electronic toll passes                        520541    I  1  EXPEND  
+1  5          Tolls on out of town trips                             520542    I  1  EXPEND  
+1  5          Towing charges                                         520550    I  1  EXPEND  
+1  5          Automobile service clubs and GPS services              620114    I  1  EXPEND  
+1  4        Vehicle insurance                                        500110    I  1  EXPEND  
+1  3      Public and other transportation                            PUBTRANS  G  1  EXPEND  
+1  4        Airline fares                                            530110    I  1  EXPEND  
+1  4        Intercity bus fares                                      530210    I  1  EXPEND  
+1  4        Intracity mass transit fares                             530311    I  1  EXPEND  
+1  4        Local transportation on out of town trips                530312    I  1  EXPEND  
+1  4        Taxi fares and limousine services on trips               530411    I  1  EXPEND  
+1  4        Taxi fares and limousine services                        530412    I  1  EXPEND  
+1  4        Intercity train fares                                    530510    I  1  EXPEND  
+1  4        Ship fares                                               530901    I  1  EXPEND  
+1  4        School bus                                               530902    I  1  EXPEND  
+1  2    Healthcare                                                   HEALTH    G  1  EXPEND  
+1  3      Health insurance                                           HLTHINSR  G  1  EXPEND  
+1  4        Commercial health insurance                              COMHLTIN  G  1  EXPEND  
+1  5          Fee for service health plan (not BCBS)                 580115    I  1  EXPEND  
+1  4        Blue Cross, Blue Shield                                  BCBS      G  1  EXPEND  
+1  5          Fee for service health plan (BCBS)                     580116    I  1  EXPEND  
+1  5          Health maintenance organization (BCBS)                 580312    I  1  EXPEND  
+1  5          Commercial medicare supplement (BCBS)                  580904    I  1  EXPEND  
+1  5          Dental care insurance (BCBS)                           580412    I  1  EXPEND  
+1  5          Vision care insurance (BCBS)                           580432    I  1  EXPEND  
+1  5          Other single service insurance (BCBS)                  580442    I  1  EXPEND  
+1  5          Prescription drug insurance (BCBS)                     580422    I  1  EXPEND  
+1  4        Health maintenance organization (not BCBS)               580311    I  1  EXPEND  
+1  4        Medicare payments                                        580901    I  1  EXPEND  
+1  4        Medicare prescription drug premiums                      580907    I  1  EXPEND  
+1  4        Medicaid premiums                                        580908    I  1  EXPEND  
+1  4        Tricare/military premiums                                580909    I  1  EXPEND  
+1  4        Children's Health Insurance Program (CHIP) premiums      580910    I  1  EXPEND  
+1  4        Commercial medicare supplements and other health         COMEDOTH  G  1  EXPEND  
+2             insurance                                                                      
+1  5          Commercial medicare supplement (not BCBS)              580903    I  1  EXPEND  
+1  5          Dental care insurance (not BCBS)                       580411    I  1  EXPEND  
+1  5          Vision care insurance (not BCBS)                       580431    I  1  EXPEND  
+1  5          Other single service insurance (not BCBS)              580441    I  1  EXPEND  
+1  5          Prescription drug insurance (not BCBS)                 580421    I  1  EXPEND  
+1  4        Long term care insurance (not BCBS)                      580401    I  1  EXPEND  
+1  4        Long term care insurance (BCBS)                          580402    I  1  EXPEND  
+1  3      Medical services                                           MEDSERVS  G  1  EXPEND  
+1  4        Physician's services                                     560110    I  1  EXPEND  
+1  4        Dental services                                          560210    I  1  EXPEND  
+1  4        Eyecare services                                         560310    I  1  EXPEND  
+1  4        Non physician services inside the home                   560410    I  1  EXPEND  
+1  4        Non physician services outside the home                  560420    I  1  EXPEND  
+1  4        Lab tests and x-rays                                     560330    I  1  EXPEND  
+1  4        Hospital room and services                               570111    I  1  EXPEND  
+1  4        Medical care in retirement community                     570240    I  1  EXPEND  
+1  4        Care in convalescent or nursing home                     570220    I  1  EXPEND  
+1  4        Repair of medical equipment                              570902    D  1  EXPEND  
+1  4        Other medical care services                              570230    I  1  EXPEND  
+1  3      Drugs                                                      DRUGS     G  1  EXPEND  
+1  4        Nonprescription drugs                                    550210    D  1  EXPEND  
+1  4        Vitamins and supplements (new UCC Q20231)                550219    D  1  EXPEND  
+1  4        Prescription drugs                                       540000    I  1  EXPEND  
+1  3      Medical supplies                                           MEDSUPPL  G  1  EXPEND  
+1  4        Eyeglasses and contact lenses                            550110    I  1  EXPEND  
+1  4        Hearing aids                                             550340    I  1  EXPEND  
+1  4        Topicals and dressings                                   550310    D  1  EXPEND  
+1  4        Adult diapers (through Q20231)                           640430    I  1  EXPEND  
+1  4        Medical equipment for general use                        550320    D  1  EXPEND  
+1  4        Supportive and convalescent medical equipment            550330    D  1  EXPEND  
+1  4        Rental of medical equipment                              570901    I  1  EXPEND  
+1  4        Rental of supportive and convalescent medical equipment  570903    I  1  EXPEND  
+1  2    Entertainment                                                ENTRTAIN  G  1  EXPEND  
+1  3      Fees and admissions                                        FEESADM   G  1  EXPEND  
+1  4        Recreation expenses on out of town trips                 610900    I  1  EXPEND  
+1  4        Social, recreation, and health club memberships          620111    I  1  EXPEND  
+1  4        Fees for participant sports                              620121    D  1  EXPEND  
+1  4        Participant sports on out of town trips                  620122    I  1  EXPEND  
+1  4        Plays, theater, operas, and concerts                     620213    I  1  EXPEND  
+1  4        Tickets to movies                                        620215    I  1  EXPEND  
+1  4        Tickets to parks or museums                              620216    I  1  EXPEND  
+1  4        Movie and other admissions on out of town trips          620212    I  1  EXPEND  
+1  4        Admission to sporting events                             620221    I  1  EXPEND  
+1  4        Admission to sports events on out of town trips          620222    I  1  EXPEND  
+1  4        Fees for recreational lessons                            620310    I  1  EXPEND  
+1  4        Other entertainment services on out of town trips        620903    I  1  EXPEND  
+1  3      Audio and visual equipment and services                    TVAUDIO   G  1  EXPEND  
+1  4        Stereos, radios, speakers, and sound components          310316    I  1  EXPEND  
+2             including those in vehicles                                                    
+1  4        Phonographs                                              310312    D  1  EXPEND  
+1  4        Televisions                                              310140    I  1  EXPEND  
+1  4        Cable and satellite television services                  270310    I  1  EXPEND  
+1  4        Miscellaneous sound equipment                            310331    D  1  EXPEND  
+1  4        Miscellaneous video equipment                            310335    D  1  EXPEND  
+1  4        Satellite radio services                                 270311    I  1  EXPEND  
+1  4        Sound equipment accessories                              310332    D  1  EXPEND  
+1  4        Online gaming services                                   620930    D  1  EXPEND  
+1  4        VCR's and video disc players                             310210    I  1  EXPEND  
+1  4        Digital video players and recorders                      310315    D  1  EXPEND  
+1  4        Video cassettes, tapes, and discs                        310220    D  1  EXPEND  
+1  4        Video game software                                      310231    I  1  EXPEND  
+1  4        Video game hardware and accessories                      310232    I  1  EXPEND  
+1  4        Rental, streaming, and downloading videos                310243    I  1  EXPEND  
+1  4        Applications, games, and ringtones for handheld devices  310400    I  1  EXPEND  
+1  4        Repair of televisions, radio, and sound equipment        340610    I  1  EXPEND  
+1  4        Rental of televisions                                    340902    I  1  EXPEND  
+1  4        Personal digital audio players                           310314    I  1  EXPEND  
+1  4        Satellite dishes                                         310334    I  1  EXPEND  
+1  4        CDs, records, and audio tapes                            310340    I  1  EXPEND  
+1  4        Streaming and downloading audio                          310350    I  1  EXPEND  
+1  4        Rental of VCR, radio, and sound equipment                340905    I  1  EXPEND  
+1  4        Musical instruments and accessories                      610130    I  1  EXPEND  
+1  4        Rental and repair of musical instruments                 620904    I  1  EXPEND  
+1  4        Rental of video hardware/accessories                     620917    I  1  EXPEND  
+1  4        Rental of video software                                 620918    I  1  EXPEND  
+1  4        Installation of televisions                              690320    I  1  EXPEND  
+1  4        Installation of satellite television equipment           690330    I  1  EXPEND  
+1  4        Installation of sound systems                            690340    I  1  EXPEND  
+1  4        Installation of other video equipment or sound systems   690350    I  1  EXPEND  
+1  3      Pets, toys, hobbies, and playground equipment              PETSPLAY  G  1  EXPEND  
+1  4        Pets                                                     PETS      G  1  EXPEND  
+1  5          Pet food                                               610310    D  1  EXPEND  
+1  5          Pet purchase, supplies, and medicine                   610320    I  1  EXPEND  
+1  5          Pet services                                           620410    I  1  EXPEND  
+1  5          Vet services                                           620420    D  1  EXPEND  
+1  4        Toys, hobbies, and playground equipment                  TOYS      G  1  EXPEND  
+1  5          Toys, games, arts and crafts, and tricycles            610110    D  1  EXPEND  
+1  5          Stamp and coin collecting                              610140    I  1  EXPEND  
+1  5          Playground equipment                                   610120    I  1  EXPEND  
+1  3      Other entertainment supplies, equipment, and services      ENTEROTH  G  1  EXPEND  
+1  4        Non-motored recreational vehicles                        UNMTRBOT  G  1  EXPEND  
+1  5          Boats without motor and boat trailers                  600121    I  1  EXPEND  
+1  5          Trailer and other attachable campers                   600122    I  1  EXPEND  
+1  4        Motorized recreational vehicles                          PWRSPVEH  G  1  EXPEND  
+1  5          Purchase of motorized campers                          600141    I  1  EXPEND  
+1  5          Purchase of other vehicles                             600142    I  1  EXPEND  
+1  5          Purchase of boats with motor                           600132    I  1  EXPEND  
+1  4        Rental of recreational vehicles                          RNTSPVEH  G  1  EXPEND  
+1  5          Rental noncamper trailers                              520904    I  1  EXPEND  
+1  5          Boat and trailer rentals on out of town trips          520907    I  1  EXPEND  
+1  5          Rental of campers on out of town trips                 620909    I  1  EXPEND  
+1  5          Rental of other vehicles on out of town trips          620919    I  1  EXPEND  
+1  5          Rental of boats                                        620906    I  1  EXPEND  
+1  5          Rental of motorized campers                            620921    I  1  EXPEND  
+1  5          Rental of other recreational vehicles                  620922    I  1  EXPEND  
+1  4        Outboard motors                                          600110    I  1  EXPEND  
+1  4        Docking and landing fees                                 520901    I  1  EXPEND  
+1  4        Sports, recreation, and exercise equipment               RECEQUIP  G  1  EXPEND  
+1  5          Athletic gear, game tables, and exercise equipment     600210    I  1  EXPEND  
+1  5          Bicycles                                               600310    I  1  EXPEND  
+1  5          Scooters and other single-rider transportation         600315    D  1  EXPEND  
+1  5          Bike and E-scooter sharing or rental                   600311    I  1  EXPEND  
+1  5          Camping equipment                                      600410    D  1  EXPEND  
+1  5          Hunting and fishing equipment                          600420    D  1  EXPEND  
+1  5          Winter sports equipment                                600430    I  1  EXPEND  
+1  5          Water sports equipment                                 600901    I  1  EXPEND  
+1  5          Other sports equipment                                 600902    I  1  EXPEND  
+1  5          Global positioning system devices                      600903    D  1  EXPEND  
+1  5          Rental and repair of miscellaneous sports equipment    620908    I  1  EXPEND  
+1  4        Photographic equipment, supplies, and services           PHOTOEQ   G  1  EXPEND  
+1  5          Film                                                   610210    I  1  EXPEND  
+1  5          Other photographic supplies                            610220    D  1  EXPEND  
+1  5          Photo processing                                       620330    I  1  EXPEND  
+1  5          Repair and rental of photographic equipment            620905    I  1  EXPEND  
+1  5          Photographic equipment                                 610230    I  1  EXPEND  
+1  5          Photographer fees                                      620320    I  1  EXPEND  
+1  4        Fireworks                                                610901    D  1  EXPEND  
+1  4        Souvenirs                                                610902    D  1  EXPEND  
+1  4        Visual goods                                             610903    D  1  EXPEND  
+1  4        Pinball and electronic video games                       620913    D  1  EXPEND  
+1  4        Live entertainment for catered affairs                   680310    I  1  EXPEND  
+1  4        Rental of party supplies for catered affairs             680320    I  1  EXPEND  
+1  2    Personal care products and services                          PERSCARE  G  1  EXPEND  
+1  3      Personal care products                                     PERSPROD  G  1  EXPEND  
+1  4        Products for the hair (new UCC Q20231)                   640119    D  1  EXPEND  
+1  4        Wigs and hairpieces                                      640130    I  1  EXPEND  
+1  4        Nonelectric dental and shaving products (new UCC         640219    D  1  EXPEND  
+2             Q20231)                                                                        
+1  4        Cosmetics, perfume, and bath preparations                640310    D  1  EXPEND  
+1  4        Deodorants, feminine hygiene, and miscellaneous          640410    D  1  EXPEND  
+2             personal care                                                                  
+1  4        Electric personal care appliances                        640420    I  1  EXPEND  
+1  3      Personal care services                                     PERSSERV  G  1  EXPEND  
+1  4        Personal care services                                   650310    I  1  EXPEND  
+1  4        Repair of personal care appliances                       650900    D  1  EXPEND  
+1  2    Reading                                                      READING   G  1  EXPEND  
+1  3      Newspapers                                                 590110    D  1  EXPEND  
+1  3      Magazines                                                  590210    D  1  EXPEND  
+1  3      Newsletters                                                590900    D  1  EXPEND  
+1  3      Books through book clubs                                   590220    D  1  EXPEND  
+1  3      Books, digital books, or book subscriptions                590230    I  1  EXPEND  
+1  3      Encyclopedias and other sets of reference books            660310    D  1  EXPEND  
+1  3      Digital book readers                                       690118    I  1  EXPEND  
+1  2    Education                                                    EDUCATN   G  1  EXPEND  
+1  3      College tuition                                            670110    I  1  EXPEND  
+1  3      Elementary and high school tuition                         670210    I  1  EXPEND  
+1  3      Vocational and technical school tuition                    670410    I  1  EXPEND  
+1  3      Finance, late, and interest charges for student loans      005520    I  4  EXPEND  
+1  3      Test preparation and tutoring services                     670903    I  1  EXPEND  
+1  3      Other schools' tuition (through Q20231)                    670901    I  1  EXPEND  
+1  3      Educational books, supplies, and other expenditures (new   660001    I  1  EXPEND  
+2           UCC Q20232)                                                                      
+1  3      Other school expenses including rentals (through Q20231)   670902    I  1  EXPEND  
+1  3      Educational savings account (new UCC Q20232)               920050    I  1  EXPEND  
+1  3      Prepaid tuition (new UCC Q20232)                           671000    I  1  EXPEND  
+1  3      School books for college (through Q20231)                  660115    I  1  EXPEND  
+1  3      School books for elementary and high schools (through      660215    I  1  EXPEND  
+2           Q20231)                                                                          
+1  3      School books for vocational and technical schools          660415    I  1  EXPEND  
+2           (through Q20231)                                                                 
+1  3      School books for day cares and nurseries (through Q20231)  660903    I  1  EXPEND  
+1  3      School books for other schools (through Q20231)            660905    I  1  EXPEND  
+1  3      School supplies and equipment (through Q20231)             660906    I  1  EXPEND  
+1  3      School supplies, etc., unspecified                         660000    D  1  EXPEND  
+1  2    Tobacco products and smoking supplies                        TOBACCO   G  1  EXPEND  
+1  3      Cigarettes                                                 630110    I  1  EXPEND  
+1  3      Other tobacco products                                     630210    I  1  EXPEND  
+1  3      Smoking accessories                                        630220    D  1  EXPEND  
+1  3      Marijuana                                                  630900    D  1  EXPEND  
+1  2    Miscellaneous                                                MISC      G  1  EXPEND  
+1  3      Miscellaneous fees                                         620925    D  1  EXPEND  
+1  3      Lotteries and pari-mutuel losses                           620926    D  1  EXPEND  
+1  3      Legal fees                                                 680110    I  1  EXPEND  
+1  3      Funeral expenses                                           680140    I  1  EXPEND  
+1  3      Safe deposit box rental                                    680210    I  1  EXPEND  
+1  3      Checking accounts, other bank service charges              680220    I  1  EXPEND  
+1  3      Cemetery lots, vaults, and maintenance fees                680901    I  1  EXPEND  
+1  3      Accounting fees                                            680902    I  1  EXPEND  
+1  3      Miscellaneous personal services                            680903    D  1  EXPEND  
+1  3      Dating services                                            680904    I  1  EXPEND  
+1  3      Finance, late, and interest charges for credit cards       005420    I  4  EXPEND  
+1  3      Finance, late, and interest charges for other loans        005620    I  4  EXPEND  
+1  3      Occupational expenses                                      900002    I  1  EXPEND  
+1  3      Expenses for other properties                              790600    I  1  EXPEND  
+1  3      Interest paid, home equity line of credit (other           880210    I  1  EXPEND  
+2           property)                                                                        
+1  3      Credit card memberships                                    620112    I  1  EXPEND  
+1  3      Shopping club membership fees                              620115    I  1  EXPEND  
+1  3      Vacation clubs                                             680905    I  1  EXPEND  
+1  2    Cash contributions                                           CASHCONT  G  1  EXPEND  
+1  3      Support for college students                               800804    I  1  EXPEND  
+1  3      Alimony expenditures                                       800111    I  1  EXPEND  
+1  3      Child support expenditures                                 800121    I  1  EXPEND  
+1  3      Gift to non-CU members of stocks, bonds, and mutual funds  800811    I  1  EXPEND  
+1  3      Cash contributions to charities and other organizations    800821    I  1  EXPEND  
+1  3      Cash contributions to churches and other religious         800831    I  1  EXPEND  
+2           organizations                                                                    
+1  3      Cash contribution to educational institutions              800841    I  1  EXPEND  
+1  3      Cash contribution to political organizations               800851    I  1  EXPEND  
+1  3      Other cash gifts                                           800861    I  1  EXPEND  
+1  2    Personal insurance and pensions                              INSPENSN  G  1  EXPEND  
+1  3      Life and other personal insurance                          LIFEINSR  G  1  EXPEND  
+1  4        Life, endowment, annuity, and other personal insurance   700110    I  1  EXPEND  
+1  4        Other non-health insurance                               002120    I  1  EXPEND  
+1  3      Pensions and Social Security                               PENSIONS  G  1  EXPEND  
+1  4        Deductions for government retirement                     800910    I  1  EXPEND  
+1  4        Deductions for railroad retirement                       800920    I  1  EXPEND  
+1  4        Deductions for private pensions                          800931    I  1  EXPEND  
+1  4        Contributions to retirement plans                        800932    I  1  EXPEND  
+1  4        Deductions for Social Security                           800940    I  1  EXPEND  
+1  1  Sources of income and personal taxes:                          TITLESI   T  1  INCOME  
+1  2    Income before taxes                                          INCBEFTX  G  1  INCOME  
+1  3      Wages and salaries                                         900000    I  1  INCOME  
+1  3      Self-employment income                                     SFEMPINC  G  1  INCOME  
+1  4        Self-employment income                                   900160    I  1  INCOME  
+1  3      Social Security, private and government retirement         RETIRINC  G  1  INCOME  
+1  4        Social Security and railroad retirement income           900030    I  1  INCOME  
+1  4        Retirement, survivors, and disability income             900170    I  1  INCOME  
+1  3      Interest, dividends, rental income, and other property     INDIVRNT  G  1  INCOME  
+2           income                                                                           
+1  4        Interest and dividends                                   900180    I  1  INCOME  
+1  4        Net room/rental income                                   900190    I  1  INCOME  
+1  4        Royalty, estate, and trust income                        900200    I  1  INCOME  
+1  3      Public assistance, Supplemental Security Income,           WELFARE   G  1  INCOME  
+2           Supplementary Nutrition Assistance Program (SNAP)                                
+1  4        Supplemental Security Income                             900090    I  1  INCOME  
+1  4        Public assistance                                        900120    I  1  INCOME  
+1  4        Supplementary Nutrition Assistance Program (SNAP)        900150    I  1  INCOME  
+1  3      Unemployment and workers' compensation, veterans'          OTHREGIN  G  1  INCOME  
+2           benefits, and regular contributions for support                                  
+1  4        Other regular income                                     900210    I  1  INCOME  
+1  3      Other income                                               OTHRINC   G  1  INCOME  
+1  4        Meals as pay                                             800700    I  1  INCOME  
+1  4        Rent as pay                                              800710    I  1  INCOME  
+1  4        Other income                                             900140    I  1  INCOME  
+1  2    Personal taxes (contains some imputed values)                PERSTAX   G  1  INCOME  
+1  3      Federal income taxes                                       FEDTAXES  G  1  INCOME  
+1  4        Federal income tax (imputed)                             950004    I  1  INCOME  
+1  3      State and local income taxes                               STATETAX  G  1  INCOME  
+1  4        State and local income taxes (imputed)                   950014    I  1  INCOME  
+1  3      Other taxes                                                OTHRTAX   G  1  INCOME  
+1  4        Vehicle personal property taxes                          950024    I  1  INCOME  
+1  4        Other taxes                                              950021    I  1  INCOME  
+1  2    Income after taxes                                           INCAFTTX  G  1  INCOME  
+1  3      Meals as pay                                               800700    I  1  INCOME  
+1  3      Rent as pay                                                800710    I  1  INCOME  
+1  3      Income after taxes                                         980071    I  1  INCOME  
+1  1  Addenda:                                                       TITLEADD  T  1  ASSETS  
+1  2    Net change in total assets and liabilities                   CHGASLI   S  1  ASSETS  
+1  3      Net change in total assets                                 CHGASSET  G  1  ASSETS  
+1  4        Change in accounts                                       CHGACCNT  G  1  ASSETS  
+1  5          Change in value of savings, checking, money market,    CHGSAVNG  G  1  ASSETS  
+2               and CDs                                                                      
+1  6            Value of savings, checking, money market, and CDs    005100    I  4  ASSETS  
+1  6            Value of savings, checking, money market, and CDs    005110    I -4  ASSETS  
+2                 one year ago                                                               
+1  5          Change in securities                                   CHGSECUR  G  1  ASSETS  
+1  6            Value of stocks, bonds, and mutual funds             005800    I  4  ASSETS  
+1  6            Value of stocks, bonds, and mutual funds one year    005810    I -4  ASSETS  
+2                 ago                                                                        
+1  4        Change in surrender of insurance policies                CHGINSUR  G  1  ASSETS  
+1  5          Surrender value of whole life insurance policies       005300    I  4  ASSETS  
+1  5          Surrender value of whole life insurance policies one   005310    I -4  ASSETS  
+2               year ago                                                                     
+1  4        Change in value of retirement plans                      CHGRET    G  1  ASSETS  
+1  5          Value of retirement plans                              005200    I  4  ASSETS  
+1  5          Value of retirement plans one year ago                 005210    I -4  ASSETS  
+1  4        Change in value of other financial assets                CHGOTHFN  G  1  ASSETS  
+1  5          Value of other financial assets                        005700    I  4  ASSETS  
+1  5          Value of other financial assets one year ago           005710    I -4  ASSETS  
+1  4        Change in net property holdings (owned home)             CHGPRTOH  G  1  ASSETS  
+1  5          Purchase price of property (owned home)                810101    I  1  ASSETS  
+1  5          Closing costs purchase of property (owned home)        810301    I  1  ASSETS  
+1  5          Special assessments (owned home)                       840101    I  1  ASSETS  
+1  5          Sale price of property or trade-in amount (owned       820101    I  1  ASSETS  
+2               home)                                                                        
+1  5          Total expenses in sale of property (owned home)        820301    I -1  ASSETS  
+1  4        Change in capital improvements (owned home)              CHGCAPOH  G  1  ASSETS  
+1  5          Capital improvements: labor and materials (owned       220611    I  1  ASSETS  
+2               home)                                                                        
+1  5          Capital improvement material (owned home)              CAPIMPOH  G  1  ASSETS  
+1  6            Materials and supplies purchased for insulation,     220512    I  1  ASSETS  
+2                 dwellings under construction, additions, finishing,                        
+2                 remodeling, landscaping, etc.                                              
+1  6            Dishwasher, disposal, or range hood                  220612    I  1  ASSETS  
+1  6            Labor and materials for dwellings under              990950    I  1  ASSETS  
+2                 construction and additions                                                 
+1  4        Change in net property holdings (owned vacation)         CHGPRTOV  G  1  ASSETS  
+1  5          Purchase price of property (owned vacation)            810102    I  1  ASSETS  
+1  5          Closing costs on purchase of property (owned           810302    I  1  ASSETS  
+2               vacation)                                                                    
+1  5          Special assessments (owned vacation)                   840102    I  1  ASSETS  
+1  5          Sale price of property or trade-in amount (owned       820102    I  1  ASSETS  
+2               vacation)                                                                    
+1  5          Mortgage principal held after sale of real estate      820202    I  1  ASSETS  
+2               (owned vacation)                                                             
+1  5          Total expenses in sale of property (owned vacation)    820302    I -1  ASSETS  
+1  4        Change in capital improvements (owned vacation)          CHGCAPOV  G  1  ASSETS  
+1  5          Capital improvements: labor and materials (owned       220615    I  1  ASSETS  
+2               vacation)                                                                    
+1  5          Supplies purchased for additions, maintenance,         220513    I  1  ASSETS  
+2               repairs, and new construction                                                
+1  4        Change in net property holdings (other property)         CHGPRTOP  G  1  ASSETS  
+1  5          Purchase price of property (other property)            790710    I  1  ASSETS  
+1  5          Closing costs purchase of property (other property)    790730    I  1  ASSETS  
+1  5          Special assessments (other property)                   790630    I  1  ASSETS  
+1  5          Sale price of property or trade-in amount (other       790810    I  1  ASSETS  
+2               property)                                                                    
+1  5          Total expenses in sale of property (other property)    790830    I -1  ASSETS  
+1  4        Change in capital improvements (other property)          CHGCAPOP  G  1  ASSETS  
+1  5          Property management, security, parking (other          790640    I  1  ASSETS  
+2               property)                                                                    
+1  5          Capital improvement services, labor, materials, and    CAPIMPOP  G  1  ASSETS  
+2               equipment (other property)                                                   
+1  6            Contractors labor and materials, supplies CU         790610    I  1  ASSETS  
+2                 obtained, appliances provided by contractor, and                           
+2                 other property                                                             
+1  6            Management services and improvements of other        790620    I  1  ASSETS  
+2                 properties                                                                 
+1  6            Dishwasher, disposal, and range hood capital         790611    I  1  ASSETS  
+2                 improvement (other property)                                               
+1  4        Change in vehicle sales                                  CHGVEH    G  1  ASSETS  
+1  5          Sale of automobiles                                    860100    I  1  ASSETS  
+1  5          Sale of trucks, including vans                         860200    I  1  ASSETS  
+1  5          Sale of motor camper                                   860301    I  1  ASSETS  
+1  5          Sale of other vehicles                                 860302    I  1  ASSETS  
+1  5          Sale of trailer type and other attachable campers      860400    I  1  ASSETS  
+1  5          Sale of motorcycles                                    860500    I  1  ASSETS  
+1  5          Sale of boats, with motors                             860600    I  1  ASSETS  
+1  5          Sale of boats, without motors and boat trailers        860700    I  1  ASSETS  
+1  5          Sale of aircraft                                       860800    I  1  ASSETS  
+1  3      Net change in total liabilities                            CHGLIAB   G  1  ASSETS  
+1  4        Change in amount owed to creditors                       CHGCREDT  G  1  ASSETS  
+1  5          Amount owed on credit cards                            005400    I  4  ASSETS  
+1  5          Amount owed on credit cards one year ago               005410    I -4  ASSETS  
+1  5          Amount owed on student loans                           005500    I  4  ASSETS  
+1  5          Amount owed on student loans one year ago              005510    I -4  ASSETS  
+1  5          Amount owed on other loans                             005600    I  4  ASSETS  
+1  5          Amount owed on other loans one year ago                005610    I -4  ASSETS  
+1  4        Change in mortgage principal (owned home)                CHGMTGOH  G  1  ASSETS  
+1  5          Special lump sum mortgage payment (owned home)         830101    I  1  ASSETS  
+1  5          Reduction of mortgage principal (owned home)           830201    I  1  ASSETS  
+1  5          Reduction of mortgage principal, home equity loan      830203    I  1  ASSETS  
+2               (owned home)                                                                 
+1  5          Original loan amount (mortgage obtained during         830301    I  1  ASSETS  
+2               interview quarter) (owned home)                                              
+1  5          Original loan amount, home equity loan (loan obtained  830303    I  1  ASSETS  
+2               during interview quarter) (owned home)                                       
+1  5          Principal paid, home equity line of credit (owned      880120    I  1  ASSETS  
+2               home)                                                                        
+1  4        Change in mortgage principal (owned vacation)            CHGMTGOV  G  1  ASSETS  
+1  5          Special lump sum mortgage payment (owned vacation)     830102    I  1  ASSETS  
+1  5          Reduction of mortgage principal (owned vacation)       830202    I  1  ASSETS  
+1  5          Reduction mortgage principal, home equity loan (owned  830204    I  1  ASSETS  
+2               vacation)                                                                    
+1  5          Original loan amount (mortgage obtained during         830302    I  1  ASSETS  
+2               interview quarter) (owned vacation)                                          
+1  5          Original loan amount, home equity loan (loan obtained  830304    I  1  ASSETS  
+2               during interview quarter) (owned vacation)                                   
+1  5          Principal paid, home equity line of credit (owned      880320    I  1  ASSETS  
+2               vacation)                                                                    
+1  4        Change in mortgage principal (other property)            CHGMTGOP  G  1  ASSETS  
+1  5          Special lump sum mortgage payments (other property)    790910    I  1  ASSETS  
+1  5          Reduction of mortgage principal (other property)       790920    I  1  ASSETS  
+1  5          Reduction mortgage principal, home equity loan (other  790940    I  1  ASSETS  
+2               property)                                                                    
+1  5          Original loan amount (mortgage obtained during         790930    I  1  ASSETS  
+2               interview quarter) (other property)                                          
+1  5          Original loan amount, home equity loan (loan obtained  790950    I  1  ASSETS  
+2               during interview quarter) (other property)                                   
+1  5          Principal paid, home equity line of credit (other      880220    I  1  ASSETS  
+2               property)                                                                    
+1  4        Change in principal on vehicles                          CHGVEHPR  G  1  ASSETS  
+1  5          Reduction of vehicle loan principal                    850100    I  1  ASSETS  
+1  5          Vehicle principal balance (loan obtained during        850200    I  1  ASSETS  
+2               interview quarter)                                                           
+1  2    Other financial information:                                 TITLEOFI  T  1  ADDENDA 
+1  3      Other money receipts                                       OTHRMONY  G  1  ADDENDA 
+1  4        Lump sum payment received                                900220    I  1  ADDENDA 
+1  4        Monthly transit subsidy (through Q20231)                 910042    I  1  ADDENDA 
+1  3      Mortgage principal paid on owned property                  MRTPRINP  G  1  ADDENDA 
+1  4        Reduction of mortgage principal (owned home)             830201    I  1  ADDENDA 
+1  4        Reduction of mortgage principal (owned vacation)         830202    I  1  ADDENDA 
+1  4        Reduction of mortgage principal (other property)         790920    I  1  ADDENDA 
+1  4        Reduction of mortgage principal, home equity loan        830203    I  1  ADDENDA 
+2             (owned home)                                                                   
+1  4        Reduction mortgage principal, home equity loan (owned    830204    I  1  ADDENDA 
+2             vacation)                                                                      
+1  4        Reduction mortgage principal, home equity loan (other    790940    I  1  ADDENDA 
+2             property)                                                                      
+1  4        Principal paid, home equity line of credit (owned home)  880120    I  1  ADDENDA 
+1  4        Principal paid, home equity line of credit (owned        880320    I  1  ADDENDA 
+2             vacation)                                                                      
+1  4        Principal paid, home equity line of credit (other        880220    I  1  ADDENDA 
+2             property)                                                                      
+1  3      Estimated market value of owned home                       800721    I  1  ADDENDA 
+1  3      Estimated monthly rental value of owned home               910050    I  1  ADDENDA 
+1  3      Estimated monthly rental value of vacation home not        910101    I  1  ADDENDA 
+2           available for rent                                                               
+1  3      Estimated monthly rental value of vacation home available  910102    I  1  ADDENDA 
+2           for rent                                                                         
+1  3      Estimated annual rental value of timeshare                 910103    I  1  ADDENDA 
+1  2    Gifts of goods and services, total                           GFTTOTL   G  1  ADDENDA 
+1  3      Food                                                       GFTFOOD   G  1  ADDENDA 
+1  4        Flour and prepared flour mixes (new UCC Q20231)          010119    D  1  ADDENDA 
+1  4        Cereal, breakfast, and granola bars                      010210    D  1  ADDENDA 
+1  4        Rice                                                     010310    D  1  ADDENDA 
+1  4        Pasta, cornmeal, and other cereal products               010320    D  1  ADDENDA 
+1  4        Bread (new UCC Q20231)                                   020219    D  1  ADDENDA 
+1  4        Cookies                                                  020510    D  1  ADDENDA 
+1  4        Crackers                                                 020610    D  1  ADDENDA 
+1  4        Frozen and refrigerated bakery products                  020810    D  1  ADDENDA 
+1  4        Biscuits and rolls                                       020310    D  1  ADDENDA 
+1  4        Cakes and cupcakes                                       020410    D  1  ADDENDA 
+1  4        Bread and cracker products                               020620    D  1  ADDENDA 
+1  4        Sweetrolls, coffee cakes, and doughnuts                  020710    D  1  ADDENDA 
+1  4        Pies, tarts, and turnovers                               020820    D  1  ADDENDA 
+1  4        Ground beef                                              030110    D  1  ADDENDA 
+1  4        Roasts (new UCC Q20231)                                  030219    D  1  ADDENDA 
+1  4        Steak (new UCC Q20231)                                   030519    D  1  ADDENDA 
+1  4        Other beef                                               030810    D  1  ADDENDA 
+1  4        Bacon, breakfast sausage, and related products (new UCC  040119    D  1  ADDENDA 
+2             Q20231)                                                                        
+1  4        Ham (new UCC Q20231)                                     040319    D  1  ADDENDA 
+1  4        Other pork                                               040410    D  1  ADDENDA 
+1  4        Frankfurters                                             050110    D  1  ADDENDA 
+1  4        Lunchmeats (new UCC Q20231)                              050319    D  1  ADDENDA 
+1  4        Lamb, organ meat, and game (new UCC Q20231)              050419    D  1  ADDENDA 
+1  4        Chicken (new UCC Q20231)                                 060119    D  1  ADDENDA 
+1  4        Other poultry                                            060310    D  1  ADDENDA 
+1  4        Processed fish and seafood (new UCC Q20231)              070119    D  1  ADDENDA 
+1  4        Fresh fish and shellfish                                 070230    D  1  ADDENDA 
+1  4        Eggs                                                     080110    D  1  ADDENDA 
+1  4        Fresh milk, all types                                    090110    D  1  ADDENDA 
+1  4        Butter and margarine (new UCC Q20231)                    100119    D  1  ADDENDA 
+1  4        Cheese                                                   100210    D  1  ADDENDA 
+1  4        Ice cream and related products                           100410    D  1  ADDENDA 
+1  4        Other dairy and related products (new UCC Q20231)        100519    D  1  ADDENDA 
+1  4        Apples                                                   110110    D  1  ADDENDA 
+1  4        Bananas                                                  110210    D  1  ADDENDA 
+1  4        Citrus fruits (new UCC Q20231)                           110319    D  1  ADDENDA 
+1  4        Other fresh fruits                                       110410    D  1  ADDENDA 
+1  4        Potatoes                                                 120110    D  1  ADDENDA 
+1  4        Lettuce                                                  120210    D  1  ADDENDA 
+1  4        Tomatoes                                                 120310    D  1  ADDENDA 
+1  4        Other fresh vegetables                                   120410    D  1  ADDENDA 
+1  4        Frozen noncarbonated juices and drinks (new UCC Q20231)  130119    D  1  ADDENDA 
+1  4        Frozen fruits and vegetables (new UCC Q20231)            130129    D  1  ADDENDA 
+1  4        Canned fruits and vegetables (new UCC Q20231)            140219    D  1  ADDENDA 
+1  4        Dried fruits and vegetables (new UCC Q20231)             140349    D  1  ADDENDA 
+1  4        Candy and chewing gum                                    150110    D  1  ADDENDA 
+1  4        Sugar and artificial sweeteners (new UCC Q20231)         150219    D  1  ADDENDA 
+1  4        Jams, preserves, and other sweets                        150310    D  1  ADDENDA 
+1  4        Fats and oils                                            160211    D  1  ADDENDA 
+1  4        Salad dressings                                          160212    D  1  ADDENDA 
+1  4        Peanut butter                                            160320    D  1  ADDENDA 
+1  4        Frozen meals                                             180210    D  1  ADDENDA 
+1  4        Other frozen prepared foods                              180220    D  1  ADDENDA 
+1  4        Canned and packaged soups                                180110    D  1  ADDENDA 
+1  4        Potato chips and other snacks                            180310    D  1  ADDENDA 
+1  4        Nuts                                                     180320    D  1  ADDENDA 
+1  4        Salt, spices, and other seasonings                       180410    D  1  ADDENDA 
+1  4        Olives, pickles, and relishes                            180420    D  1  ADDENDA 
+1  4        Sauces and gravies                                       180510    D  1  ADDENDA 
+1  4        Baking needs and miscellaneous products                  180520    D  1  ADDENDA 
+1  4        Prepared salads                                          180611    D  1  ADDENDA 
+1  4        Prepared desserts                                        180612    D  1  ADDENDA 
+1  4        Baby food                                                180620    D  1  ADDENDA 
+1  4        Miscellaneous prepared foods                             180710    D  1  ADDENDA 
+1  4        Cola                                                     170110    D  1  ADDENDA 
+1  4        Other carbonated drinks                                  170210    D  1  ADDENDA 
+1  4        Coffee (new UCC Q20231)                                  170319    D  1  ADDENDA 
+1  4        Tea                                                      170520    D  1  ADDENDA 
+1  4        Nonfrozen noncarbonated juices and drinks (new UCC       170539    D  1  ADDENDA 
+2             Q20231)                                                                        
+1  4        Other noncarbonated beverages and ice                    170531    D  1  ADDENDA 
+1  4        School meals and board (new UCC Q20232)                  190905    I  1  ADDENDA 
+1  4        Food or board at school (through Q20231)                 190901    I  1  ADDENDA 
+1  4        Catered affairs                                          190902    I  1  ADDENDA 
+1  4        Gifts of food and beverages (new UCC Q20232)             800600    I  1  ADDENDA 
+1  4        Food on out of town trips                                190903    I  1  ADDENDA 
+1  3      Alcoholic beverages                                        GFTALCBV  G  1  ADDENDA 
+1  4        Beer, ale, and other malt beverage (new UCC Q20231)      200119    D  1  ADDENDA 
+1  4        Distilled spirits (new UCC Q20231)                       200219    D  1  ADDENDA 
+1  4        Wine                                                     200310    D  1  ADDENDA 
+1  4        Alcoholic beverages purchased on trips                   200900    I  1  ADDENDA 
+1  3      Housing                                                    GFTHOUS   G  1  ADDENDA 
+1  4        Housekeeping supplies                                    GFTHKPGS  G  1  ADDENDA 
+1  5          Laundry and cleaning products (new UCC Q20231)         330119    D  1  ADDENDA 
+1  5          Other household products                               GFTOHKPG  G  1  ADDENDA 
+1  6            Paper towels, napkins, and toilet tissue             330310    D  1  ADDENDA 
+1  6            Miscellaneous household products                     330510    D  1  ADDENDA 
+1  6            Lawn and garden supplies                             330610    D  1  ADDENDA 
+1  5          Postage and stationery                                 GFTPOST   G  1  ADDENDA 
+1  6            Stationery, stationery supplies, and gift wrap       330410    D  1  ADDENDA 
+1  6            Postage                                              340110    D  1  ADDENDA 
+1  6            Delivery services                                    340120    D  1  ADDENDA 
+1  4        Household textiles                                       GFTHHTXT  G  1  ADDENDA 
+1  5          Bathroom linens                                        280110    D  1  ADDENDA 
+1  5          Bedroom linens                                         280120    D  1  ADDENDA 
+1  5          Kitchen, dining room, and other linens                 280140    D  1  ADDENDA 
+1  5          Curtains and draperies                                 280210    I  1  ADDENDA 
+1  5          Slipcovers and decorative pillows                      280220    I  1  ADDENDA 
+1  4        Appliances and miscellaneous housewares                  GFTHWARS  G  1  ADDENDA 
+1  5          Major appliances                                       GFTMAPPG  G  1  ADDENDA 
+1  6            Dishwashers (built-in), garbage disposals, and       230117    I  1  ADDENDA 
+2                 range hoods (renter)                                                       
+1  6            Dishwashers (built-in), garbage disposals, and       230118    I  1  ADDENDA 
+2                 range hoods (owned home)                                                   
+1  6            Refrigerators and freezers (renter)                  300111    I  1  ADDENDA 
+1  6            Refrigerators and freezers (owned home)              300112    I  1  ADDENDA 
+1  6            Clothes washers or dryers (renter)                   300216    I  1  ADDENDA 
+1  6            Clothes washers or dryers (owned home)               300217    I  1  ADDENDA 
+1  6            Cooking stoves and ovens (renter)                    300311    I  1  ADDENDA 
+1  6            Cooking stoves and ovens (owned home)                300312    I  1  ADDENDA 
+1  6            Microwave ovens (renter)                             300321    I  1  ADDENDA 
+1  6            Microwave ovens (owned home)                         300322    I  1  ADDENDA 
+1  6            Portable dishwashers (renter)                        300331    I  1  ADDENDA 
+1  6            Portable dishwashers (owned home)                    300332    I  1  ADDENDA 
+1  6            Window air conditioners (renter)                     300411    I  1  ADDENDA 
+1  6            Window air conditioners (owned home)                 300412    I  1  ADDENDA 
+1  6            Electric floor cleaning equipment                    320511    I  1  ADDENDA 
+1  6            Sewing machines                                      320512    I  1  ADDENDA 
+1  6            Miscellaneous household appliances                   300900    D  1  ADDENDA 
+1  5          Small appliances and miscellaneous housewares          GFTSAPPG  G  1  ADDENDA 
+1  6            Flatware                                             320330    D  1  ADDENDA 
+1  6            Dinnerware, glassware, and serving pieces            320345    D  1  ADDENDA 
+1  6            Nonelectric cookware                                 320370    D  1  ADDENDA 
+1  6            Tableware and nonelectric kitchenware                320380    D  1  ADDENDA 
+1  6            Small electric kitchen appliances                    320521    I  1  ADDENDA 
+1  6            Portable heating and cooling equipment               320522    I  1  ADDENDA 
+1  4        Miscellaneous household equipment                        GFTMISCH  G  1  ADDENDA 
+1  5          Window coverings                                       320120    I  1  ADDENDA 
+1  5          Infants' equipment                                     320130    D  1  ADDENDA 
+1  5          Laundry and cleaning equipment                         320140    D  1  ADDENDA 
+1  5          Outdoor equipment                                      320150    D  1  ADDENDA 
+1  5          Lamps, lighting fixtures, and ceiling fans             320221    D  1  ADDENDA 
+1  5          Clocks and other household decorative items            320233    D  1  ADDENDA 
+1  5          Telephones and accessories                             320232    I  1  ADDENDA 
+1  5          Lawn and garden equipment                              320410    D  1  ADDENDA 
+1  5          Power tools                                            320420    I  1  ADDENDA 
+1  5          Office furniture for home use                          320901    I  1  ADDENDA 
+1  5          Hand tools                                             320902    D  1  ADDENDA 
+1  5          Indoor plants and fresh flowers                        320903    I  1  ADDENDA 
+1  5          Closet and storage items                               320904    D  1  ADDENDA 
+1  5          Luggage                                                430130    D  1  ADDENDA 
+1  5          Computers and computer hardware for nonbusiness use    690111    I  1  ADDENDA 
+1  5          Portable memory                                        690117    I  1  ADDENDA 
+1  5          Computer software                                      690119    D  1  ADDENDA 
+1  5          Computer accessories                                   690120    D  1  ADDENDA 
+1  5          Internet services away from home                       690116    I  1  ADDENDA 
+1  5          Business equipment for home use                        690230    I  1  ADDENDA 
+1  5          Other hardware                                         320430    D  1  ADDENDA 
+1  5          Other household appliances (owned home)                690245    I  1  ADDENDA 
+1  5          Other household appliances (renter)                    690244    I  1  ADDENDA 
+1  5          Miscellaneous household equipment and parts            320905    D  1  ADDENDA 
+1  4        Other housing                                            GFTOTHH   G  1  ADDENDA 
+1  5          Repair or maintenance services                         230150    I  1  ADDENDA 
+1  5          Paint, wallpaper, and supplies                         240111    I  1  ADDENDA 
+1  5          Tools and equipment for painting and wallpapering      240121    I  1  ADDENDA 
+1  5          Materials for plastering, panels, roofing, and         240211    I  1  ADDENDA 
+2               gutters, etc.                                                                
+1  5          Materials for patio, walk, fence, driveway, masonry,   240221    I  1  ADDENDA 
+2               brick and stucco work                                                        
+1  5          Plumbing supplies and equipment                        240311    I  1  ADDENDA 
+1  5          Electrical supplies, heating, and cooling equipment    240321    I  1  ADDENDA 
+1  5          Material for insulation, other maintenance, and        320611    I  1  ADDENDA 
+2               repair                                                                       
+1  5          Materials for additions, finishing basements, and      990920    I  1  ADDENDA 
+2               remodeling rooms                                                             
+1  5          Material for landscape maintenance                     320631    I  1  ADDENDA 
+1  5          Housing while attending school                         210310    I  1  ADDENDA 
+1  5          Lodging on out of town trips                           210210    I  1  ADDENDA 
+1  5          Natural gas (renter)                                   260211    I  1  ADDENDA 
+1  5          Electricity (renter)                                   260111    I  1  ADDENDA 
+1  5          Fuel oil (renter)                                      250111    I  1  ADDENDA 
+1  5          Coal, wood, and other fuels (renter)                   250911    I  1  ADDENDA 
+1  5          Gas, bottled/tank (renter)                             250211    I  1  ADDENDA 
+1  5          Residential telephone including VOIP                   270106    I  1  ADDENDA 
+1  5          Water/sewer maintenance (renter)                       270211    I  1  ADDENDA 
+1  5          Trash/garbage collection (renter)                      270411    I  1  ADDENDA 
+1  5          Septic tank cleaning (renter)                          270901    I  1  ADDENDA 
+1  5          Babysitting and childcare (through Q20231)             340210    I  1  ADDENDA 
+1  5          Babysitting, childcare, daycare, preschool (new UCC    670320    I  1  ADDENDA 
+2               Q20232)                                                                      
+1  5          Care for elderly, invalids, handicapped, etc.          340906    I  1  ADDENDA 
+1  5          Adult day care centers                                 340910    I  1  ADDENDA 
+1  5          Day care centers, nurseries, and preschools (through   670310    I  1  ADDENDA 
+2               Q20231)                                                                      
+1  5          Housekeeping services                                  340310    I  1  ADDENDA 
+1  5          Gardening and lawn care service                        340410    I  1  ADDENDA 
+1  5          Water softening services                               340420    I  1  ADDENDA 
+1  5          Home security system service fees                      340915    I  1  ADDENDA 
+1  5          Other home services                                    340903    I  1  ADDENDA 
+1  5          Moving, storage, and freight                           340510    I  1  ADDENDA 
+1  5          Appliance rentals                                      340907    I  1  ADDENDA 
+1  5          Repair of miscellaneous household equipment and        340913    D  1  ADDENDA 
+2               furnishings                                                                  
+1  5          Computer information services (internet)               690114    I  1  ADDENDA 
+1  5          Installation of computers                              690310    I  1  ADDENDA 
+1  5          Mattresses and springs                                 290110    I  1  ADDENDA 
+1  5          Other bedroom furniture                                290120    I  1  ADDENDA 
+1  5          Sofas                                                  290210    I  1  ADDENDA 
+1  5          Living room chairs                                     290310    I  1  ADDENDA 
+1  5          Living room tables                                     290320    I  1  ADDENDA 
+1  5          Outdoor furniture                                      290430    I  1  ADDENDA 
+1  5          Kitchen and dining room furniture                      290410    I  1  ADDENDA 
+1  5          Infants' furniture                                     290420    I  1  ADDENDA 
+1  5          Wall units, cabinets, and other furniture              290440    I  1  ADDENDA 
+1  5          Floor coverings, nonpermanent                          320111    I  1  ADDENDA 
+1  3      Apparel and services                                       GFTCLOTH  G  1  ADDENDA 
+1  4        Males, 2 and over                                        GFTMALE   G  1  ADDENDA 
+1  5          Men's suits                                            360110    I  1  ADDENDA 
+1  5          Men's sportcoats and tailored jackets                  360120    D  1  ADDENDA 
+1  5          Men's coats and jackets                                360210    D  1  ADDENDA 
+1  5          Men's accessories                                      360330    D  1  ADDENDA 
+1  5          Men's underwear, hosiery, nightwear, and swimwear      360319    D  1  ADDENDA 
+2               (new UCC Q20231)                                                             
+1  5          Men's shirts, sweaters, and vests                      360420    D  1  ADDENDA 
+1  5          Men's pants and shorts                                 360513    D  1  ADDENDA 
+1  5          Men's uniforms                                         360901    D  1  ADDENDA 
+1  5          Men's costumes                                         360902    D  1  ADDENDA 
+1  5          Boys' coats and jackets                                370110    D  1  ADDENDA 
+1  5          Boys' shirts and sweaters                              370125    D  1  ADDENDA 
+1  5          Boy's underwear, hosiery, nightwear, and swimwear      370219    D  1  ADDENDA 
+2               (new UCC Q20231)                                                             
+1  5          Boys' accessories                                      370220    D  1  ADDENDA 
+1  5          Boy's suits, sportscoats, pants, and shorts (new UCC   370319    D  1  ADDENDA 
+2               Q20231)                                                                      
+1  5          Boys' costumes                                         370902    D  1  ADDENDA 
+1  5          Boys' uniforms                                         370903    D  1  ADDENDA 
+1  4        Females, 2 and over                                      GFTFEMAL  G  1  ADDENDA 
+1  5          Women's coats and jackets                              380110    D  1  ADDENDA 
+1  5          Women's dresses                                        380210    D  1  ADDENDA 
+1  5          Women's tops (new UCC Q20231)                          380319    D  1  ADDENDA 
+1  5          Women's skirts, pants, and shorts (new UCC Q20231)     380339    D  1  ADDENDA 
+1  5          Women's undergarments, nightwear, and swimwear (new    380429    D  1  ADDENDA 
+2               UCC Q20231)                                                                  
+1  5          Women's suits                                          380510    D  1  ADDENDA 
+1  5          Women's accessories                                    380901    D  1  ADDENDA 
+1  5          Women's costumes and uniforms (new UCC Q20231)         380909    D  1  ADDENDA 
+1  5          Girls' coats and jackets                               390110    D  1  ADDENDA 
+1  5          Girls' dresses and suits                               390120    D  1  ADDENDA 
+1  5          Girls' shirts, blouses, sweaters, and vests            390210    D  1  ADDENDA 
+1  5          Girls' skirts, pants, and shorts                       390223    D  1  ADDENDA 
+1  5          Girl's underwear, nightwear, hosiery, and swimwear     390319    D  1  ADDENDA 
+2               (new UCC Q20231)                                                             
+1  5          Girls' accessories                                     390322    D  1  ADDENDA 
+1  5          Girls' uniforms                                        390901    D  1  ADDENDA 
+1  5          Girls' costumes                                        390902    D  1  ADDENDA 
+1  4        Children under 2                                         GFTINFNT  G  1  ADDENDA 
+1  5          Infant's and toddler's outerwear, dresses, nightwear,  410119    D  1  ADDENDA 
+2               and accessories (new UCC Q20231)                                             
+1  5          Infant underwear                                       410130    D  1  ADDENDA 
+1  4        Other apparel products and services                      GFTOTHCL  G  1  ADDENDA 
+1  5          Jewelry and watches                                    GFTJWLRY  G  1  ADDENDA 
+1  6            Jewelry                                              430120    I  1  ADDENDA 
+1  6            Watches                                              430110    I  1  ADDENDA 
+1  5          All other apparel products and services                GFTOAPS   G  1  ADDENDA 
+1  6            Men's footwear                                       400110    D  1  ADDENDA 
+1  6            Boys' footwear                                       400210    D  1  ADDENDA 
+1  6            Women's footwear                                     400310    D  1  ADDENDA 
+1  6            Girls' footwear                                      400220    D  1  ADDENDA 
+1  6            Material and supplies for sewing, needlework, and    420115    D  1  ADDENDA 
+2                 quilting (includes household items)                                        
+1  6            Shoe repair and other shoe services                  440110    I  1  ADDENDA 
+1  6            Alteration, repair, and tailoring of apparel and     440130    I  1  ADDENDA 
+2                 accessories                                                                
+1  6            Clothing rental                                      440140    I  1  ADDENDA 
+1  6            Watch and jewelry repair                             440150    I  1  ADDENDA 
+1  6            Clothing storage                                     440900    I  1  ADDENDA 
+1  3      Transportation                                             GFTTRANS  G  1  ADDENDA 
+1  4        New cars                                                 450110    I  1  ADDENDA 
+1  4        New trucks                                               450210    I  1  ADDENDA 
+1  4        Used cars                                                460110    I  1  ADDENDA 
+1  4        Used trucks                                              460901    I  1  ADDENDA 
+1  4        New motorcycles                                          450220    I  1  ADDENDA 
+1  4        New aircraft                                             450900    I  1  ADDENDA 
+1  4        Used motorcycles                                         460902    I  1  ADDENDA 
+1  4        Used aircraft                                            460903    I  1  ADDENDA 
+1  4        Gasoline on out of town trips                            470113    I  1  ADDENDA 
+1  4        Alternative fuels (through Q20231)                       470114    I  1  ADDENDA 
+1  4        Motor oil on out of town trips                           470212    I  1  ADDENDA 
+1  4        Electric vehicle charging                                470311    I  1  ADDENDA 
+1  4        Vehicle maintenance/repair excluding tire purchase (new  490100    I  1  ADDENDA 
+2             UCC Q20232)                                                                    
+1  4        Automobile finance charges                               510110    I  1  ADDENDA 
+1  4        Truck finance charges                                    510901    I  1  ADDENDA 
+1  4        Motorcycle and plane finance charges                     510902    I  1  ADDENDA 
+1  4        Other vehicle finance charges                            850300    I  1  ADDENDA 
+1  4        Tolls or electronic toll passes                          520541    I  1  ADDENDA 
+1  4        Tolls on out of town trips                               520542    I  1  ADDENDA 
+1  4        Automobile service clubs and GPS services                620114    I  1  ADDENDA 
+1  4        Airline fares                                            530110    I  1  ADDENDA 
+1  4        Intercity bus fares                                      530210    I  1  ADDENDA 
+1  4        Local transportation on out of town trips                530312    I  1  ADDENDA 
+1  4        Taxi fares and limousine services on trips               530411    I  1  ADDENDA 
+1  4        Taxi fares and limousine services                        530412    I  1  ADDENDA 
+1  4        Intercity train fares                                    530510    I  1  ADDENDA 
+1  4        Ship fares                                               530901    I  1  ADDENDA 
+1  4        School bus                                               530902    I  1  ADDENDA 
+1  3      Healthcare                                                 GFTHEALT  G  1  ADDENDA 
+1  4        Fee for service health plan (not BCBS)                   580115    I  1  ADDENDA 
+1  4        Fee for service health plan (BCBS)                       580116    I  1  ADDENDA 
+1  4        Health maintenance organization (BCBS)                   580312    I  1  ADDENDA 
+1  4        Commercial medicare supplement (BCBS)                    580904    I  1  ADDENDA 
+1  4        Dental care insurance (BCBS)                             580412    I  1  ADDENDA 
+1  4        Vision care insurance (BCBS)                             580432    I  1  ADDENDA 
+1  4        Other single service insurance (BCBS)                    580442    I  1  ADDENDA 
+1  4        Prescription drug insurance (BCBS)                       580422    I  1  ADDENDA 
+1  4        Health maintenance organization (not BCBS)               580311    I  1  ADDENDA 
+1  4        Long term care insurance (not BCBS)                      580401    I  1  ADDENDA 
+1  4        Long term care insurance (BCBS)                          580402    I  1  ADDENDA 
+1  4        Commercial medicare supplement (not BCBS)                580903    I  1  ADDENDA 
+1  4        Dental care insurance (not BCBS)                         580411    I  1  ADDENDA 
+1  4        Vision care insurance (not BCBS)                         580431    I  1  ADDENDA 
+1  4        Other single service insurance (not BCBS)                580441    I  1  ADDENDA 
+1  4        Prescription drug insurance (not BCBS)                   580421    I  1  ADDENDA 
+1  4        Physician's services                                     560110    I  1  ADDENDA 
+1  4        Dental services                                          560210    I  1  ADDENDA 
+1  4        Eyecare services                                         560310    I  1  ADDENDA 
+1  4        Non physician services inside the home                   560410    I  1  ADDENDA 
+1  4        Non physician services outside the home                  560420    I  1  ADDENDA 
+1  4        Lab tests and x-rays                                     560330    I  1  ADDENDA 
+1  4        Hospital room and services                               570111    I  1  ADDENDA 
+1  4        Care in convalescent or nursing home                     570220    I  1  ADDENDA 
+1  4        Repair of medical equipment                              570902    D  1  ADDENDA 
+1  4        Other medical care services                              570230    I  1  ADDENDA 
+1  4        Nonprescription drugs                                    550210    D  1  ADDENDA 
+1  4        Vitamins and supplements (new UCC Q20231)                550219    D  1  ADDENDA 
+1  4        Prescription drugs                                       540000    I  1  ADDENDA 
+1  4        Eyeglasses and contact lenses                            550110    I  1  ADDENDA 
+1  4        Hearing aids                                             550340    I  1  ADDENDA 
+1  4        Topicals and dressings                                   550310    D  1  ADDENDA 
+1  4        Adult diapers (through Q20231)                           640430    I  1  ADDENDA 
+1  4        Medical equipment for general use                        550320    D  1  ADDENDA 
+1  4        Supportive and convalescent medical equipment            550330    D  1  ADDENDA 
+1  4        Rental of medical equipment                              570901    I  1  ADDENDA 
+1  4        Rental of supportive and convalescent medical equipment  570903    I  1  ADDENDA 
+1  3      Entertainment                                              GFTENTRT  G  1  ADDENDA 
+1  4        Toys, games, arts and crafts, and tricycles              610110    D  1  ADDENDA 
+1  4        Other entertainment                                      GFTOENT   G  1  ADDENDA 
+1  5          Recreation expenses on out of town trips               610900    I  1  ADDENDA 
+1  5          Social, recreation, and health club memberships        620111    I  1  ADDENDA 
+1  5          Participant sports on out of town trips                620122    I  1  ADDENDA 
+1  5          Video game software                                    310231    I  1  ADDENDA 
+1  5          Video game hardware and accessories                    310232    I  1  ADDENDA 
+1  5          Rental of video hardware/accessories                   620917    I  1  ADDENDA 
+1  5          Rental of video software                               620918    I  1  ADDENDA 
+1  5          Applications, games, and ringtones for handheld        310400    I  1  ADDENDA 
+2               devices                                                                      
+1  5          Plays, theater, operas, and concerts                   620213    I  1  ADDENDA 
+1  5          Tickets to movies                                      620215    I  1  ADDENDA 
+1  5          Tickets to parks or museums                            620216    I  1  ADDENDA 
+1  5          Movie and other admissions on out of town trips        620212    I  1  ADDENDA 
+1  5          Admission to sporting events                           620221    I  1  ADDENDA 
+1  5          Phonographs                                            310312    D  1  ADDENDA 
+1  5          Admission to sports events on out of town trips        620222    I  1  ADDENDA 
+1  5          Fees for recreational lessons                          620310    I  1  ADDENDA 
+1  5          Digital video players and recorders                    310315    D  1  ADDENDA 
+1  5          Other entertainment services on out of town trips      620903    I  1  ADDENDA 
+1  5          Miscellaneous sound equipment                          310331    D  1  ADDENDA 
+1  5          Sound equipment accessories                            310332    D  1  ADDENDA 
+1  5          Pet food                                               610310    D  1  ADDENDA 
+1  5          Cable and satellite television services                270310    I  1  ADDENDA 
+1  5          Miscellaneous video equipment                          310335    D  1  ADDENDA 
+1  5          Televisions                                            310140    I  1  ADDENDA 
+1  5          Vet services                                           620420    D  1  ADDENDA 
+1  5          VCR's and video disc players                           310210    I  1  ADDENDA 
+1  5          Athletic gear, game tables, and exercise equipment     600210    I  1  ADDENDA 
+1  5          Video cassettes, tapes, and discs                      310220    D  1  ADDENDA 
+1  5          Camping equipment                                      600410    D  1  ADDENDA 
+1  5          Hunting and fishing equipment                          600420    D  1  ADDENDA 
+1  5          Rental, streaming, and downloading videos              310243    I  1  ADDENDA 
+1  5          Global positioning system devices                      600903    D  1  ADDENDA 
+1  5          Other photographic supplies                            610220    D  1  ADDENDA 
+1  5          Photographer fees                                      620320    I  1  ADDENDA 
+1  5          Online gaming services                                 620930    D  1  ADDENDA 
+1  5          Fireworks                                              610901    D  1  ADDENDA 
+1  5          Personal digital audio players                         310314    I  1  ADDENDA 
+1  5          Souvenirs                                              610902    D  1  ADDENDA 
+1  5          Visual goods                                           610903    D  1  ADDENDA 
+1  5          Satellite dishes                                       310334    I  1  ADDENDA 
+1  5          Pinball and electronic video games                     620913    D  1  ADDENDA 
+1  5          CDs, records, and audio tapes                          310340    I  1  ADDENDA 
+1  5          Streaming and downloading audio                        310350    I  1  ADDENDA 
+1  5          Musical instruments and accessories                    610130    I  1  ADDENDA 
+1  5          Pet purchase, supplies, and medicine                   610320    I  1  ADDENDA 
+1  5          Pet services                                           620410    I  1  ADDENDA 
+1  5          Playground equipment                                   610120    I  1  ADDENDA 
+1  5          Boats without motor and boat trailers                  600121    I  1  ADDENDA 
+1  5          Trailer and other attachable campers                   600122    I  1  ADDENDA 
+1  5          Purchase of motorized campers                          600141    I  1  ADDENDA 
+1  5          Purchase of other vehicles                             600142    I  1  ADDENDA 
+1  5          Purchase of boats with motor                           600132    I  1  ADDENDA 
+1  5          Outboard motors                                        600110    I  1  ADDENDA 
+1  5          Bicycles                                               600310    I  1  ADDENDA 
+1  5          Winter sports equipment                                600430    I  1  ADDENDA 
+1  5          Water sports equipment                                 600901    I  1  ADDENDA 
+1  5          Other sports equipment                                 600902    I  1  ADDENDA 
+1  5          Photographic equipment                                 610230    I  1  ADDENDA 
+1  5          Live entertainment for catered affairs                 680310    I  1  ADDENDA 
+1  5          Rental of party supplies for catered affairs           680320    I  1  ADDENDA 
+1  3      Personal care products and services                        GFTPRSCR  G  1  ADDENDA 
+1  4        Haircare products                                        640110    D  1  ADDENDA 
+1  4        Nonelectric articles for hair                            640120    D  1  ADDENDA 
+1  4        Wigs and hairpieces                                      640130    I  1  ADDENDA 
+1  4        Oral hygiene products and articles                       640210    D  1  ADDENDA 
+1  4        Shaving needs                                            640220    D  1  ADDENDA 
+1  4        Cosmetics, perfume, and bath preparations                640310    D  1  ADDENDA 
+1  4        Deodorants, feminine hygiene, and miscellaneous          640410    D  1  ADDENDA 
+2             personal care                                                                  
+1  4        Electric personal care appliances                        640420    I  1  ADDENDA 
+1  4        Personal care services                                   650310    I  1  ADDENDA 
+1  3      Reading                                                    GIFTREAD  G  1  ADDENDA 
+1  4        Newspapers                                               590110    D  1  ADDENDA 
+1  4        Magazines                                                590210    D  1  ADDENDA 
+1  4        Books through book clubs                                 590220    D  1  ADDENDA 
+1  4        Books, digital books, or book subscriptions              590230    I  1  ADDENDA 
+1  4        Newsletters                                              590900    D  1  ADDENDA 
+1  4        Encyclopedias and other sets of reference books          660310    D  1  ADDENDA 
+1  4        Digital book readers                                     690118    I  1  ADDENDA 
+1  3      Education                                                  GFTEDUC   G  1  ADDENDA 
+1  4        College tuition                                          670110    I  1  ADDENDA 
+1  4        Elementary and high school tuition                       670210    I  1  ADDENDA 
+1  4        Vocational and technical school tuition                  670410    I  1  ADDENDA 
+1  4        Test preparation and tutoring services                   670903    I  1  ADDENDA 
+1  4        Other schools' tuition (through Q20231)                  670901    I  1  ADDENDA 
+1  4        Educational books, supplies, and other expenditures      660001    I  1  ADDENDA 
+2             (new UCC Q20232)                                                               
+1  4        Other school expenses including rentals (through         670902    I  1  ADDENDA 
+2             Q20231)                                                                        
+1  4        Educational savings account (new UCC Q20232)             920050    I  1  ADDENDA 
+1  4        Prepaid tuition (new UCC Q20232)                         671000    I  1  ADDENDA 
+1  4        School books for vocational and technical schools        660415    I  1  ADDENDA 
+2             (through Q20231)                                                               
+1  4        School books for day cares and nurseries (through        660903    I  1  ADDENDA 
+2             Q20231)                                                                        
+1  4        School books for other schools (through Q20231)          660905    I  1  ADDENDA 
+1  4        School supplies and equipment (through Q20231)           660906    I  1  ADDENDA 
+1  4        School books for college (through Q20231)                660115    I  1  ADDENDA 
+1  4        School books for elementary and high schools (through    660215    I  1  ADDENDA 
+2             Q20231)                                                                        
+1  4        School supplies, etc., unspecified                       660000    D  1  ADDENDA 
+1  3      All other gifts                                            GIFTSOTH  G  1  ADDENDA 
+1  4        Gifts of out of town trip expenses                       810400    I  1  ADDENDA 
+1  4        Miscellaneous fees                                       620925    D  1  ADDENDA 
+1  4        Lotteries and pari-mutuel losses                         620926    D  1  ADDENDA 
+1  4        Smoking accessories                                      630220    D  1  ADDENDA 
+1  4        Miscellaneous personal services                          680903    D  1  ADDENDA 
+1  4        Credit card memberships                                  620112    I  1  ADDENDA 
+1  4        Shopping club membership fees                            620115    I  1  ADDENDA 
+1  4        Legal fees                                               680110    I  1  ADDENDA 
+1  4        Funeral expenses                                         680140    I  1  ADDENDA 
+1  4        Cemetery lots, vaults, and maintenance fees              680901    I  1  ADDENDA 
+1  4        Accounting fees                                          680902    I  1  ADDENDA 
+1  4        Dating services                                          680904    I  1  ADDENDA 
+1  4        Vacation clubs                                           680905    I  1  ADDENDA 
+1  4        Occupational expenses                                    900002    I  1  ADDENDA 
+1  1  All CU column weight interview                                 ALLWTINT  S  1  ADDENDA 
+1  1  All CU column weight diary                                     ALLWTDRY  S  1  ADDENDA 
