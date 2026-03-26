@@ -24,7 +24,6 @@ read_cex = function(base_path, prefix, year, ...) {
 
 
 build_cex_training = function() {
-  set.seed(54321)
 
   cex_base = '/gpfs/gibbs/project/sarin/shared/raw_data/CEX'
   years = c(2022, 2023, 2024)
@@ -32,25 +31,24 @@ build_cex_training = function() {
   # CPI-U (IRS year avg) deflators to 2017 dollars: cpiu_irs[year] / cpiu_irs[2017]
   cpi_deflator = c('2022' = 1.17443, '2023' = 1.23825, '2024' = 1.27760)
 
-  income_vars = c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM", "ANGOVRTM", "ANPRVPNM")
+  income_vars = c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM")
 
   # Read in individual members of consumption units to create their constituent tax units
   memi = years %>%
     map(.f = ~ read_cex(cex_base, 'memi', .x) %>% mutate(SURVEY_YEAR = .x)) %>%
     bind_rows() %>%
-    distinct(NEWID, MEMBNO, .keep_all = TRUE) %>%
     # CPI-deflate income variables to 2017 dollars
     mutate(across(all_of(income_vars), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)]))
 
 
   cex_tus = memi %>%
     select(NEWID, SURVEY_YEAR, AGE, CU_CODE, SEX, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT,
-           SALARYXM, SEMPFRMM, SOCRRXM, SSIXM, ANGOVRTM, ANPRVPNM
+           SALARYXM, SEMPFRMM, SOCRRXM, SSIXM
     ) %>%
     group_by(NEWID) %>%
     mutate(
       SEX = SEX %% 2,
-      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM", "ANGOVRTM", "ANPRVPNM")),
+      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM")),
              ~ if_else(is.na(.x), 0, .x))
     ) %>%
     ungroup() %>%
@@ -66,7 +64,7 @@ build_cex_training = function() {
     mutate(
       # Member-level income (BLS multiply-imputed): wages, self-emp, SS, SSI, pensions
       # Capital income (interest+dividends, rent) is CU-level and allocated after FMLI join
-      inc = SALARYXM + SEMPFRMM + SOCRRXM + SSIXM + ANGOVRTM + ANPRVPNM,
+      inc = SALARYXM + SEMPFRMM + SOCRRXM + SSIXM,
 
       # Tax unit ID from NEWID + TAX_UNIT (not TU_CODE)
       TU_ID = as.numeric(paste0(NEWID, "00", TAX_UNIT)),
@@ -75,15 +73,16 @@ build_cex_training = function() {
       has_valid_dpndt = !is.na(TU_DPNDT) & TU_DPNDT != "" & TU_DPNDT != "B",
 
       # Claiming TU's ID (only for people with valid TU_DPNDT)
-      claiming_TU_ID = if_else(
-        has_valid_dpndt,
-        as.numeric(paste0(NEWID, "00", TU_DPNDT)),
-        NA_real_
-      ),
+      claiming_TU_ID = as.numeric(paste0(NEWID, "00", replace(TU_DPNDT, !has_valid_dpndt, "0"))),
+      claiming_TU_ID = if_else(has_valid_dpndt, claiming_TU_ID, NA_real_),
 
-      # A person is a dependent if TU_CODE == 3 OR they have a valid TU_DPNDT
-      # (catches dependent filers: TU_CODE == 1 on own return but claimed elsewhere)
-      is_dep = as.numeric(TU_CODE == 3 | has_valid_dpndt),
+      # A person is a dependent if TU_CODE == 3 OR TU_DPNDT points to a
+      # different tax unit (catches dependent filers: TU_CODE == 1 on own
+      # return but claimed elsewhere). In 2022-2023 TU_DPNDT indicates TU
+      # membership for ALL members; in 2024+ it only flags dependents.
+      # Comparing claiming_TU_ID != TU_ID handles both semantics correctly.
+      is_dep = as.numeric(TU_CODE == 3 |
+        (has_valid_dpndt & !is.na(claiming_TU_ID) & claiming_TU_ID != TU_ID)),
       is_ctc = as.numeric(AGE < 17),
 
       # Reassign dependents to claiming TU when TU_DPNDT points elsewhere
@@ -146,7 +145,7 @@ build_cex_training = function() {
 
   tech    = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE')
   demo    = c('FAM_SIZE')
-  cap_inc = c('INTRDVXM', 'NETRENTM')  # CU-level capital income (allocated to TUs below)
+  cu_inc = c('INTRDVXM', 'NETRENTM', 'RETSURVM', 'OTHREGXM', 'ROYESTXM')  # CU-level income (allocated to TUs below)
 
   # FMLI expenditure sub-variables: CQ + PQ together = full 3-month reference period.
   # CQ and PQ cover different portions of the quarter and ARE additive.
@@ -157,21 +156,21 @@ build_cex_training = function() {
             'CARTKNCQ', 'CARTKUCQ', 'OTHVEHCQ', 'GASMOCQ',
             'VEHFINCQ', 'MAINRPCQ', 'VEHINSCQ', 'VRNTLOCQ', 'PUBTRACQ',
             'HEALTHCQ',
-            'FEEADMCQ', 'TVRDIOCQ', 'OTHEQPCQ', 'PETTOYCQ', 'OTHENTCQ',
+            'FEEADMCQ', 'TVRDIOCQ', 'PETTOYCQ', 'OTHENTCQ',
             'PERSCACQ', 'READCQ', 'EDUCACQ', 'TOBACCCQ', 'MISCCQ',
             'LIFINSCQ')
   exppq = sub('CQ$', 'PQ', expcq)
 
   fmli = years %>%
-    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cap_inc, expcq, exppq)) %>% mutate(SURVEY_YEAR = .x)) %>%
+    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cu_inc, expcq, exppq)) %>% mutate(SURVEY_YEAR = .x)) %>%
     bind_rows() %>%
-    distinct(NEWID, .keep_all = TRUE) %>%
     # Sum CQ + PQ for each expenditure category (together = full 3-month reference period)
-    mutate(across(all_of(c(cap_inc, expcq, exppq)), ~ replace_na(.x, 0))) %>%
-    mutate(across(all_of(expcq), ~ .x + get(sub('CQ$', 'PQ', cur_column())))) %>%
+    # then annualize: CQ+PQ covers one quarter, so multiply by 4 for annual
+    mutate(across(all_of(c(cu_inc, expcq, exppq)), ~ replace_na(.x, 0))) %>%
+    mutate(across(all_of(expcq), ~ (.x + get(sub('CQ$', 'PQ', cur_column()))) * 4)) %>%
     # CPI-deflate monetary variables to 2017 dollars
     mutate(
-      across(all_of(c(cap_inc, expcq)), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)])
+      across(all_of(c(cu_inc, expcq)), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)])
     ) %>%
     # MO_SCOPE: how many of this interview's 3 CQ reference months fall in the
     # target calendar year. Uses SURVEY_YEAR (not a fixed year) for multi-year pooling.
@@ -213,13 +212,13 @@ build_cex_training = function() {
     left_join(fmli, by = c("NEWID", "SURVEY_YEAR")) %>%
     group_by(NEWID) %>%
     mutate(
-      # Allocate CU-level capital income (interest+dividends, rent) to TUs.
+      # Allocate CU-level income (interest+dividends, rent, pensions, other) to TUs.
       # Pro-rata by member-level income; equal split when all TUs have zero member income.
       cu_member_inc = sum(pmax(income, 0)),
       n_tu = n(),
-      cap_share = if_else(cu_member_inc > 0, pmax(income, 0) / cu_member_inc, 1 / n_tu),
-      capital_income = (INTRDVXM + NETRENTM) * cap_share,
-      income = income + capital_income,
+      cu_share = if_else(cu_member_inc > 0, pmax(income, 0) / cu_member_inc, 1 / n_tu),
+      cu_level_income = (INTRDVXM + NETRENTM + RETSURVM + OTHREGXM + ROYESTXM) * cu_share,
+      income = income + cu_level_income,
 
       # Calculate what percent of the CU members are in this tax unit
       CU_pct = tu_size / FAM_SIZE,
@@ -240,7 +239,7 @@ build_cex_training = function() {
       motor_vehicles      = (CARTKNCQ + CARTKUCQ + OTHVEHCQ) * CU_pct,
       other_durables      = PETTOYCQ * CU_pct,
       furnishings         = HOUSEQCQ * CU_pct,
-      rec_goods           = (TVRDIOCQ + OTHEQPCQ) * CU_pct,
+      rec_goods           = TVRDIOCQ * CU_pct,
       other_nondurables   = (TOBACCCQ + PERSCACQ + READCQ) * CU_pct,
       food_off_premises   = (FDHOMECQ + ALCBEVCQ) * CU_pct,
       communication       = TELEPHCQ * CU_pct,
@@ -274,7 +273,7 @@ build_cex_training = function() {
       total_consumption_per = 0
     ) %>%
     as_tibble() %>% select(
-      NEWID, SURVEY_YEAR, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
+      TU_ID, NEWID, SURVEY_YEAR, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
       male1, income, has_income,
       all_of(pce_cats), total_consumption,
       all_of(pce_cats_per), total_consumption_per
@@ -302,7 +301,7 @@ build_cex_training = function() {
       total_consumption_per = total_consumption / income
     ) %>%
     as_tibble() %>% select(
-      NEWID, SURVEY_YEAR, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
+      TU_ID, NEWID, SURVEY_YEAR, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
       male1, income, has_income,
       all_of(pce_cats), total_consumption,
       all_of(pce_cats_per), total_consumption_per
@@ -350,11 +349,11 @@ validate_tax_units_against_ntaxi = function(
 
   cex_tus = memi %>%
     select(NEWID, AGE, CU_CODE, SEX, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT,
-           SALARYXM, SEMPFRMM, SOCRRXM, INTEARNM, PENSIONM, DIVIDM
+           SALARYXM, SEMPFRMM, SOCRRXM, SSIXM
     ) %>%
     group_by(NEWID) %>%
     mutate(
-      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "INTEARNM", "PENSIONM", "DIVIDM")),
+      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM")),
              ~ if_else(is.na(.x), 0, .x))
     ) %>%
     ungroup() %>%
@@ -374,7 +373,8 @@ validate_tax_units_against_ntaxi = function(
         as.numeric(paste0(NEWID, "00", TU_DPNDT)),
         NA_real_
       ),
-      is_dep = as.numeric(TU_CODE == 3 | has_valid_dpndt),
+      is_dep = as.numeric(TU_CODE == 3 |
+        (has_valid_dpndt & !is.na(claiming_TU_ID) & claiming_TU_ID != TU_ID)),
       TU_ID = if_else(
         !is.na(claiming_TU_ID) & claiming_TU_ID != TU_ID,
         claiming_TU_ID,

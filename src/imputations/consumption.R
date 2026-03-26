@@ -5,8 +5,7 @@
 # CEX data and ranger quantile forests.
 #--------------------------------------
 
-# The models here impute quarterly consumption (FMLI CQ = 3-month expenditures)
-# We annualize by multiplying by 4
+# The models here impute annual consumption (CEX training data is annualized in cex.R)
 
 source('src/cex.R')
 cex_training = build_cex_training()
@@ -99,10 +98,9 @@ pred_ratio  = predict_ranger_draw(consumption_per_rf, cex[features])
 cex = cex %>%
   mutate(
     # 50% direct + 50% ratio*income for positive income; 100% direct otherwise
-    # Multiply by 4 to annualize (FMLI CQ training data is quarterly)
     C = ifelse(has_income == 1,
                0.5 * pred_direct + 0.5 * pred_ratio * income,
-               pred_direct) * 4,
+               pred_direct),
     C = pmax(C, 0)
   )
 
