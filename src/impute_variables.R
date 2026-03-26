@@ -26,6 +26,6 @@ source('src/imputations/overtime.R')
 source('src/imputations/auto_loan.R')
 source('src/imputations/childcare.R')
 source('src/imputations/mortgage.R')
-# source('src/imputations/consumption.R')  # currently disabled
+source('src/imputations/consumption.R')
 source('src/imputations/capital_gains.R')
 source('src/imputations/placeholders.R')

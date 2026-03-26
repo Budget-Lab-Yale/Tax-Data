@@ -1,38 +1,38 @@
 ucc,ucc_description,pce_major,survey,notes
-002120,Other non-health insurance,financial_insurance,I,PCE: net life insurance cost
-005420,"Finance, late, and interest charges for credit cards",other_services,I,""
-005520,"Finance, late, and interest charges for student loans",education,I,""
-005620,"Finance, late, and interest charges for other loans",other_services,I,""
-010119,Flour and prepared flour mixes (new UCC Q20231),food_off_premises,D,""
-010210,"Cereal, breakfast, and granola bars",food_off_premises,D,""
-010310,Rice,food_off_premises,D,""
-010320,"Pasta, cornmeal, and other cereal products",food_off_premises,D,""
-020219,Bread (new UCC Q20231),food_off_premises,D,""
-020310,Biscuits and rolls,food_off_premises,D,""
-020410,Cakes and cupcakes,food_off_premises,D,""
-020510,Cookies,food_off_premises,D,""
-020610,Crackers,food_off_premises,D,""
-020620,Bread and cracker products,food_off_premises,D,""
-020710,"Sweetrolls, coffee cakes, and doughnuts",food_off_premises,D,""
-020810,Frozen and refrigerated bakery products,food_off_premises,D,""
-020820,"Pies, tarts, and turnovers",food_off_premises,D,""
-030110,Ground beef,food_off_premises,D,""
-030219,Roasts (new UCC Q20231),food_off_premises,D,""
-030519,Steak (new UCC Q20231),food_off_premises,D,""
-030810,Other beef,food_off_premises,D,""
-040119,"Bacon, breakfast sausage, and related products (new UCC Q20231)",food_off_premises,D,""
-040210,Pork chops,food_off_premises,D,""
-040319,Ham (new UCC Q20231),food_off_premises,D,""
-040410,Other pork,food_off_premises,D,""
-050110,Frankfurters,food_off_premises,D,""
-050319,Lunchmeats (new UCC Q20231),food_off_premises,D,""
-050419,"Lamb, organ meat, and game (new UCC Q20231)",food_off_premises,D,""
-060119,Chicken (new UCC Q20231),food_off_premises,D,""
-060310,Other poultry,food_off_premises,D,""
-070119,Processed fish and seafood (new UCC Q20231),food_off_premises,D,""
-070230,Fresh fish and shellfish,food_off_premises,D,""
-080110,Eggs,food_off_premises,D,""
-090110,"Fresh milk, all types",food_off_premises,D,""
+2120,Other non-health insurance,financial_insurance,I,PCE: net life insurance cost
+5420,"Finance, late, and interest charges for credit cards",other_services,I,""
+5520,"Finance, late, and interest charges for student loans",education,I,""
+5620,"Finance, late, and interest charges for other loans",other_services,I,""
+10119,Flour and prepared flour mixes (new UCC Q20231),food_off_premises,D,""
+10210,"Cereal, breakfast, and granola bars",food_off_premises,D,""
+10310,Rice,food_off_premises,D,""
+10320,"Pasta, cornmeal, and other cereal products",food_off_premises,D,""
+20219,Bread (new UCC Q20231),food_off_premises,D,""
+20310,Biscuits and rolls,food_off_premises,D,""
+20410,Cakes and cupcakes,food_off_premises,D,""
+20510,Cookies,food_off_premises,D,""
+20610,Crackers,food_off_premises,D,""
+20620,Bread and cracker products,food_off_premises,D,""
+20710,"Sweetrolls, coffee cakes, and doughnuts",food_off_premises,D,""
+20810,Frozen and refrigerated bakery products,food_off_premises,D,""
+20820,"Pies, tarts, and turnovers",food_off_premises,D,""
+30110,Ground beef,food_off_premises,D,""
+30219,Roasts (new UCC Q20231),food_off_premises,D,""
+30519,Steak (new UCC Q20231),food_off_premises,D,""
+30810,Other beef,food_off_premises,D,""
+40119,"Bacon, breakfast sausage, and related products (new UCC Q20231)",food_off_premises,D,""
+40210,Pork chops,food_off_premises,D,""
+40319,Ham (new UCC Q20231),food_off_premises,D,""
+40410,Other pork,food_off_premises,D,""
+50110,Frankfurters,food_off_premises,D,""
+50319,Lunchmeats (new UCC Q20231),food_off_premises,D,""
+50419,"Lamb, organ meat, and game (new UCC Q20231)",food_off_premises,D,""
+60119,Chicken (new UCC Q20231),food_off_premises,D,""
+60310,Other poultry,food_off_premises,D,""
+70119,Processed fish and seafood (new UCC Q20231),food_off_premises,D,""
+70230,Fresh fish and shellfish,food_off_premises,D,""
+80110,Eggs,food_off_premises,D,""
+90110,"Fresh milk, all types",food_off_premises,D,""
 100119,Butter and margarine (new UCC Q20231),food_off_premises,D,""
 100210,Cheese,food_off_premises,D,""
 100410,Ice cream and related products,food_off_premises,D,""
@@ -593,3 +593,143 @@ ucc,ucc_description,pce_major,survey,notes
 990920,"Materials for additions, finishing basements, and remodeling rooms",housing,I,""
 990930,"Materials to finish basements, remodel rooms, or build patios or walkways",housing,I,""
 990940,Material for finishing basements and remodeling rooms,food_accommodations,I,""
+230143,Multi-year UCC (2022/2024),furnishings,I,not in 2023 stubs; neighbor-classified
+230144,Multi-year UCC (2022/2024),furnishings,I,not in 2023 stubs; neighbor-classified
+270906,Multi-year UCC (2022/2024),utilities,I,not in 2023 stubs; neighbor-classified
+270907,Multi-year UCC (2022/2024),utilities,I,not in 2023 stubs; neighbor-classified
+310333,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+340421,Multi-year UCC (2022/2024),other_services,I,not in 2023 stubs; neighbor-classified
+340422,Multi-year UCC (2022/2024),other_services,I,not in 2023 stubs; neighbor-classified
+450116,Multi-year UCC (2022/2024),motor_vehicles,I,not in 2023 stubs; neighbor-classified
+450216,Multi-year UCC (2022/2024),motor_vehicles,I,not in 2023 stubs; neighbor-classified
+450226,Multi-year UCC (2022/2024),motor_vehicles,I,not in 2023 stubs; neighbor-classified
+460116,Multi-year UCC (2022/2024),motor_vehicles,I,not in 2023 stubs; neighbor-classified
+460907,Multi-year UCC (2022/2024),motor_vehicles,I,not in 2023 stubs; neighbor-classified
+460908,Multi-year UCC (2022/2024),motor_vehicles,I,not in 2023 stubs; neighbor-classified
+480216,Multi-year UCC (2022/2024),transport_services,I,not in 2023 stubs; neighbor-classified
+490501,Multi-year UCC (2022/2024),transport_services,I,not in 2023 stubs; neighbor-classified
+510115,Multi-year UCC (2022/2024),financial_insurance,I,not in 2023 stubs; neighbor-classified
+550350,Multi-year UCC (2022/2024),other_durables,I,not in 2023 stubs; neighbor-classified
+590310,Multi-year UCC (2022/2024),other_nondurables,I,not in 2023 stubs; neighbor-classified
+590410,Multi-year UCC (2022/2024),other_nondurables,I,not in 2023 stubs; neighbor-classified
+600127,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+600133,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+600138,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+600139,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+600144,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+600151,Multi-year UCC (2022/2024),rec_goods,I,not in 2023 stubs; neighbor-classified
+620910,Multi-year UCC (2022/2024),rec_services,I,not in 2023 stubs; neighbor-classified
+620924,Multi-year UCC (2022/2024),rec_services,I,not in 2023 stubs; neighbor-classified
+720110,Food at home (summary),exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+720210,Food away from home (summary),exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+720310,Alcoholic beverages (summary),exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+790210,Food/housing aggregate,exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+790240,Food/housing aggregate,exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+790330,Food/housing aggregate,exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+790400,Food aggregate,exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+790410,Food aggregate,exclude,I,summary/aggregate code; risk of double-counting with detailed UCCs
+220512,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+220513,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+220611,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+220612,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+220615,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790610,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790611,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790620,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790630,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790640,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790710,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790730,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790810,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790830,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790910,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790920,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+790930,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+800600,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+800721,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+810101,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+810102,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+810301,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+810302,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+810400,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+820101,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+820102,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+820301,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+820302,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830101,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830102,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830201,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830202,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830203,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830204,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830301,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830302,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830303,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830304,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+840101,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+840102,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+850100,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+850200,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860100,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860200,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860301,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860302,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860400,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860500,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860600,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+860700,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+880120,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+880320,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+910042,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+910050,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+910101,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+910102,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+910103,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+950024,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+990950,Asset/addenda/income item,exclude,I,ASSETS/ADDENDA/INCOME in 2023 stubs
+830111,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+860405,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+860701,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+910104,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+910105,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+910106,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+910107,Non-consumption (range-classified),exclude,I,not in 2023 stubs; classified by UCC range
+870101,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870102,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870103,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870104,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870201,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870202,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870203,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870204,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870301,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870302,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870303,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870304,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870401,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870403,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870404,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870411,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870412,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870413,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870414,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870501,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870502,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870503,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870504,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870605,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870606,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870607,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870608,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870615,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870616,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870617,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870618,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870701,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870702,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870703,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870704,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870801,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870802,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870803,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption
+870804,Financial transaction/savings,exclude,I,not in 2023 stubs; 870xxx range = non-consumption

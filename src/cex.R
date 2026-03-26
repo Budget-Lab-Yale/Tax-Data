@@ -1,29 +1,59 @@
 
+# Read CEX files for a calendar year from BLS survey-year directories.
+# Each BLS annual release contains Q2-Q4 of year N plus Q1 of year N+1:
+#   CEX/2022/: *222, *223, *224, *231
+#   CEX/2023/: *232, *233, *234, *241
+# A calendar-year read searches two directories:
+#   CEX/{year-1}/ for Q1 (^{prefix}{yy}1\.csv$)
+#   CEX/{year}/   for Q2-Q4 + boundary Q1 of next year
+read_cex = function(base_path, prefix, year, ...) {
+  yy = year %% 100
+  # Q1 of target year lives in the prior survey-year release
+  files_q1 = dir(path       = file.path(base_path, year - 1),
+                 pattern    = paste0('^', prefix, yy, '1\\.csv$'),
+                 full.names = TRUE)
+  # Q2-Q4 of target year
+  files_q234 = dir(path       = file.path(base_path, year),
+                   pattern    = paste0('^', prefix, yy, '[2-4]\\.csv$'),
+                   full.names = TRUE)
+  # Boundary Q1 of next year (in same release as target year Q2-Q4)
+  files_boundary = dir(path       = file.path(base_path, year),
+                       pattern    = paste0('^', prefix, yy + 1, '1\\.csv$'),
+                       full.names = TRUE)
+  all_files = c(files_q1, files_q234, files_boundary)
+  if (length(all_files) == 0) return(data.table::data.table())
+  lapply(all_files, fread, ...) %>% bind_rows()
+}
+
+
 build_cex_training = function() {
   set.seed(54321)
 
-  cex_path = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/CEX/2023')
-  years = c(2023)
+  cex_base = '/gpfs/gibbs/project/sarin/shared/raw_data/CEX'
+  years = c(2022, 2023, 2024)
+
+  # CPI-U (IRS year avg) deflators to 2017 dollars: cpiu_irs[year] / cpiu_irs[2017]
+  cpi_deflator = c('2022' = 1.17443, '2023' = 1.23825, '2024' = 1.27760)
+
+  income_vars = c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM", "ANGOVRTM", "ANPRVPNM")
 
   # Read in individual members of consumption units to create their constituent tax units
   memi = years %>%
-    map(.f = ~ lapply(dir(path       = cex_path,
-                          pattern    = paste0('^memi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
-                          full.names = TRUE),
-                      fread) %>%
-          bind_rows()
-    ) %>%
-    bind_rows()
+    map(.f = ~ read_cex(cex_base, 'memi', .x) %>% mutate(SURVEY_YEAR = .x)) %>%
+    bind_rows() %>%
+    distinct(NEWID, MEMBNO, .keep_all = TRUE) %>%
+    # CPI-deflate income variables to 2017 dollars
+    mutate(across(all_of(income_vars), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)]))
 
 
   cex_tus = memi %>%
-    select(NEWID, AGE, CU_CODE, SEX, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT,
-           SALARYXM, SEMPFRMM, SOCRRXM, INTEARNM, PENSIONM, DIVIDM
+    select(NEWID, SURVEY_YEAR, AGE, CU_CODE, SEX, MARITAL, MEMBNO, TAX_UNIT, TU_CODE, TU_CODE_, TU_DPNDT,
+           SALARYXM, SEMPFRMM, SOCRRXM, SSIXM, ANGOVRTM, ANPRVPNM
     ) %>%
     group_by(NEWID) %>%
     mutate(
       SEX = SEX %% 2,
-      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "INTEARNM", "PENSIONM", "DIVIDM")),
+      across(all_of(c("SALARYXM", "SEMPFRMM", "SOCRRXM", "SSIXM", "ANGOVRTM", "ANPRVPNM")),
              ~ if_else(is.na(.x), 0, .x))
     ) %>%
     ungroup() %>%
@@ -37,8 +67,9 @@ build_cex_training = function() {
     ) %>%
     ungroup() %>%
     mutate(
-      # XM-based income (BLS multiply-imputed; assumed actual if reported, imputed if missing — verify against BLS CEX documentation)
-      inc = SALARYXM + SEMPFRMM + SOCRRXM + INTEARNM + PENSIONM + DIVIDM,
+      # Member-level income (BLS multiply-imputed): wages, self-emp, SS, SSI, pensions
+      # Capital income (interest+dividends, rent) is CU-level and allocated after FMLI join
+      inc = SALARYXM + SEMPFRMM + SOCRRXM + SSIXM + ANGOVRTM + ANPRVPNM,
 
       # Tax unit ID from NEWID + TAX_UNIT (not TU_CODE)
       TU_ID = as.numeric(paste0(NEWID, "00", TAX_UNIT)),
@@ -77,8 +108,8 @@ build_cex_training = function() {
       # 1 = payer, 2 = spouse, dep.[x] = dependent number
       TU_NO = if_else(is_dep == 1, paste0("dep", dep_no), as.character(TU_CODE))
     ) %>%
-    select(NEWID, TU_ID, AGE, SEX, is_dep, is_ctc, TU_NO, inc) %>%
-    pivot_longer(!c(NEWID, TU_ID, TU_NO), names_to = 'vars', values_to = 'values')  %>%
+    select(NEWID, SURVEY_YEAR, TU_ID, AGE, SEX, is_dep, is_ctc, TU_NO, inc) %>%
+    pivot_longer(!c(NEWID, SURVEY_YEAR, TU_ID, TU_NO), names_to = 'vars', values_to = 'values')  %>%
     pivot_wider(
       names_from = c(vars, TU_NO),
       names_sep = ".",
@@ -110,61 +141,58 @@ build_cex_training = function() {
       income    = sum(c_across(all_of(contains('inc.'))), na.rm = T)
     ) %>%
     ungroup() %>%
-    select(NEWID, TU_ID, tu_size, filer, married, age1, male1, income, n_dep, n_dep_ctc)
+    select(NEWID, SURVEY_YEAR, TU_ID, tu_size, filer, married, age1, male1, income, n_dep, n_dep_ctc)
 
   #---------------------------------------------------------------------------
   # FMLI: weights, demographics, and tech variables (no expenditure data)
   #---------------------------------------------------------------------------
 
-  tech = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE', 'COMP_INC')
-  demo = c('FAM_SIZE')
+  tech    = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE')
+  demo    = c('FAM_SIZE')
+  cap_inc = c('INTRDVXM', 'NETRENTM')  # CU-level capital income (allocated to TUs below)
 
   fmli = years %>%
-    map(.f = ~ lapply(dir(path       = cex_path,
-                          pattern    = paste0('^fmli((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
-                          full.names = TRUE),
-                      fread,
-                      select = c(tech, demo)) %>%
-          bind_rows()
-    ) %>% bind_rows() %>%
+    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cap_inc)) %>% mutate(SURVEY_YEAR = .x)) %>%
+    bind_rows() %>%
+    distinct(NEWID, .keep_all = TRUE) %>%
+    # CPI-deflate CU-level capital income to 2017 dollars
+    mutate(
+      across(all_of(cap_inc), ~ replace_na(.x, 0)),
+      across(all_of(cap_inc), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)])
+    ) %>%
     # MO_SCOPE: how many of this interview's 3 CQ reference months fall in the
-    # target calendar year. BLS prescribed annual weighting formula:
-    #   WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3)
-    # Interviews with MO_SCOPE = 0 (e.g., Jan interview referencing only prior
-    # year) get zero weight and are effectively excluded from annual estimates.
-    # See https://www.bls.gov/cex/pumd-getting-started-guide.htm
+    # target calendar year. Uses SURVEY_YEAR (not a fixed year) for multi-year pooling.
+    #   WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3) / length(years)
+    # Division by length(years) prevents triple-counting the population.
     mutate(
       MO_SCOPE = case_when(
-        QINTRVYR == years[1]     & QINTRVMO <= 1  ~ 0L,
-        QINTRVYR == years[1]     & QINTRVMO == 2  ~ 1L,
-        QINTRVYR == years[1]     & QINTRVMO == 3  ~ 2L,
-        QINTRVYR == years[1]     & QINTRVMO >= 4  ~ 3L,
-        QINTRVYR == years[1] + 1 & QINTRVMO == 1  ~ 3L,
-        QINTRVYR == years[1] + 1 & QINTRVMO == 2  ~ 2L,
-        QINTRVYR == years[1] + 1 & QINTRVMO == 3  ~ 1L,
-        TRUE                                       ~ 0L
+        QINTRVYR == SURVEY_YEAR     & QINTRVMO <= 1  ~ 0L,
+        QINTRVYR == SURVEY_YEAR     & QINTRVMO == 2  ~ 1L,
+        QINTRVYR == SURVEY_YEAR     & QINTRVMO == 3  ~ 2L,
+        QINTRVYR == SURVEY_YEAR     & QINTRVMO >= 4  ~ 3L,
+        QINTRVYR == SURVEY_YEAR + 1 & QINTRVMO == 1  ~ 3L,
+        QINTRVYR == SURVEY_YEAR + 1 & QINTRVMO == 2  ~ 2L,
+        QINTRVYR == SURVEY_YEAR + 1 & QINTRVMO == 3  ~ 1L,
+        TRUE                                           ~ 0L
       ),
-      WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3)
+      WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3) / length(years)
     )
 
   #---------------------------------------------------------------------------
   # MTBI: UCC-level expenditure detail
   #---------------------------------------------------------------------------
   #
-  # Replaces FMLI sub-variables with UCC-level data from MTBI, enabling
-  # correct PCE classification (e.g., health insurance → financial_insurance,
-  # prescription drugs → other_nondurables, medical equipment → other_durables).
-  # See resources/ucc_pce_bridge.csv for the UCC→PCE mapping.
+  # Uses UCC-level data from MTBI for correct PCE classification
+  # (e.g., health insurance -> financial_insurance, prescription drugs ->
+  # other_nondurables, medical equipment -> other_durables).
+  # See resources/ucc_pce_bridge.csv for the UCC->PCE mapping.
 
   mtbi = years %>%
-    map(.f = ~ lapply(dir(path       = cex_path,
-                          pattern    = paste0('^mtbi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
-                          full.names = TRUE),
-                      fread,
-                      select = c('NEWID', 'UCC', 'COST')) %>%
-          bind_rows()
-    ) %>%
-    bind_rows()
+    map(.f = ~ read_cex(cex_base, 'mtbi', .x, select = c('NEWID', 'UCC', 'COST')) %>% mutate(SURVEY_YEAR = .x)) %>%
+    bind_rows() %>%
+    distinct() %>%
+    # CPI-deflate COST to 2017 dollars
+    mutate(COST = COST / cpi_deflator[as.character(SURVEY_YEAR)])
 
   # Read bridge and validate completeness — every UCC in the data must have
   # a row in the bridge CSV (even non-consumption UCCs, which are marked 'exclude')
@@ -203,14 +231,20 @@ build_cex_training = function() {
   #---------------------------------------------------------------------------
 
   joined = cex_tus %>%
-    left_join(fmli, by = "NEWID") %>%
+    left_join(fmli, by = c("NEWID", "SURVEY_YEAR")) %>%
     left_join(mtbi_agg, by = "NEWID") %>%
-    # Filter to complete income reporters
-    filter(COMP_INC == 1) %>%
     # Fill NAs in PCE columns (CUs with no MTBI records)
     mutate(across(all_of(pce_cats), ~ replace_na(.x, 0))) %>%
     group_by(NEWID) %>%
     mutate(
+      # Allocate CU-level capital income (interest+dividends, rent) to TUs.
+      # Pro-rata by member-level income; equal split when all TUs have zero member income.
+      cu_member_inc = sum(pmax(income, 0)),
+      n_tu = n(),
+      cap_share = if_else(cu_member_inc > 0, pmax(income, 0) / cu_member_inc, 1 / n_tu),
+      capital_income = (INTRDVXM + NETRENTM) * cap_share,
+      income = income + capital_income,
+
       # Calculate what percent of the CU members are in this tax unit
       CU_pct = tu_size / FAM_SIZE,
       # Flags for irregular income
@@ -245,7 +279,7 @@ build_cex_training = function() {
       total_consumption_per = 0
     ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
+      NEWID, SURVEY_YEAR, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
       male1, income, has_income,
       all_of(pce_cats), total_consumption,
       all_of(pce_cats_per), total_consumption_per
@@ -257,37 +291,32 @@ build_cex_training = function() {
 
   joined %<>% filter(has_income == 1)
 
-  pct_breaks = c(-Inf,
-                 wtd.quantile(x       = joined$income,
-                              probs   = seq(0.01, 0.99, 0.01),
-                              weights = joined$WT_ANNUAL),
-                 Inf)
+  pct_quantiles = wtd.quantile(x       = joined$income,
+                               probs   = seq(0.01, 0.99, 0.01),
+                               weights = joined$WT_ANNUAL)
 
   joined = joined %>%
     mutate(
-      pctile_income = cut(x              = income,
-                          breaks         = pct_breaks,
-                          labels         = seq(1, 100, 1),
-                          include.lowest = TRUE),
-      pctile_income = as.numeric(levels(pctile_income))[pctile_income]
+      # findInterval handles tied quantile breaks (common with concentrated incomes)
+      pctile_income = findInterval(income, pct_quantiles) + 1L,
+      pctile_income = pmin(pctile_income, 100L)
     ) %>%
-    # Consumption-to-income ratios (used for dual QRF prediction approach)
+    # Consumption-to-income ratios (used for dual prediction approach)
     mutate(
       across(all_of(pce_cats), ~ .x / income, .names = '{.col}_per'),
       total_consumption_per = total_consumption / income
     ) %>%
     as_tibble() %>% select(
-      NEWID, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
+      NEWID, SURVEY_YEAR, QINTRVYR, FINLWT21, WT_ANNUAL, pctile_income, married, age1, n_dep, n_dep_ctc,
       male1, income, has_income,
       all_of(pce_cats), total_consumption,
       all_of(pce_cats_per), total_consumption_per
     ) %>%
     bind_rows(irregular_income)
 
-  # Select a random sample using weights to sample
-  joined %>%
-    slice_sample(n = 100000, replace = T, weight_by = WT_ANNUAL) %>%
-    return()
+  # NOTE: PCE benchmarking (scaling category totals to match BEA aggregates)
+  # is deferred to project_puf.R, where it can be applied in projection-year dollars
+  joined
 }
 
 
@@ -301,20 +330,15 @@ build_cex_training = function() {
 #' @param years Target year(s)
 #' @return List with match rates and crosstabs of disagreements
 validate_tax_units_against_ntaxi = function(
-    cex_path = '/gpfs/gibbs/project/sarin/shared/raw_data/CEX/2023',
+    cex_base = '/gpfs/gibbs/project/sarin/shared/raw_data/CEX',
     years    = c(2023)) {
 
   # -------------------------------------------------------------------------
   # 1. Read NTAXI: one record per tax unit per interview quarter
   # -------------------------------------------------------------------------
   ntaxi = years %>%
-    map(.f = ~ lapply(dir(path       = cex_path,
-                          pattern    = paste0('^ntaxi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
-                          full.names = TRUE),
-                      fread,
-                      select = c('NEWID', 'TAX_UNIT', 'DEPCNT', 'FILESTAT')) %>%
-          bind_rows()
-    ) %>%
+    map(.f = ~ read_cex(cex_base, 'ntaxi', .x,
+                        select = c('NEWID', 'TAX_UNIT', 'DEPCNT', 'FILESTAT'))) %>%
     bind_rows() %>%
     mutate(
       TU_ID_NTAXI = as.numeric(paste0(NEWID, "00", TAX_UNIT)),
@@ -326,12 +350,7 @@ validate_tax_units_against_ntaxi = function(
   # 2. Read MEMI and build tax units (same logic as build_cex_training)
   # -------------------------------------------------------------------------
   memi = years %>%
-    map(.f = ~ lapply(dir(path       = cex_path,
-                          pattern    = paste0('^memi((', .x%%100, ')[1-4]|(', .x%%100+1, '1))[.]csv$'),
-                          full.names = TRUE),
-                      fread) %>%
-          bind_rows()
-    ) %>%
+    map(.f = ~ read_cex(cex_base, 'memi', .x)) %>%
     bind_rows()
 
   cex_tus = memi %>%

@@ -6,4 +6,5 @@ lpSolveAPI
 Hmisc
 data.table
 quantregForest
+ranger
 lubridate

@@ -96,6 +96,8 @@ A comment in `consumption.R` claimed income was "restricted to what is available
 
 **Fix:** Added `INTEARNM` (interest), `PENSIONM` (pensions/annuities), and `DIVIDM` (dividends) to the MEMI read and income sum. On the PUF prediction side, added `txbl_int`, `div_ord`, `div_pref`, and `gross_pens_dist` to match. Rental income was excluded from both sides because MEMI lacks a clean rental income variable — keeping the definitions aligned is more important than including every source.
 
+**Superseded by #18:** `INTEARNM`, `PENSIONM`, and `DIVIDM` do not exist in MEMI. See entry #18 for the corrected income definition.
+
 ---
 
 ## 7. Dropped filing_status; added n_dep as QRF feature
@@ -240,3 +242,135 @@ Key classification fixes enabled by UCC-level data:
 The bridge validates completeness at runtime: any MTBI UCC not in the bridge CSV triggers a hard stop. Non-consumption UCCs are marked `exclude` in the bridge and filtered during aggregation.
 
 FMLI is still read for weights (FINLWT21, WT_ANNUAL), demographics (FAM_SIZE), and tech variables (COMP_INC, QINTRVMO, QINTRVYR). The 2×18-line duplicated formula blocks were replaced by a single `across(all_of(pce_cats), ~ .x * CU_pct)`, eliminating code duplication.
+
+---
+
+## 18. Corrected income definition: actual MEMI vars + CU-level capital income
+
+**Files:** `src/cex.R`
+
+Entry #6 added `INTEARNM`, `PENSIONM`, and `DIVIDM` to the MEMI income definition, but these columns do not exist in the MEMI files. The code would crash at the `select()` call. This was a latent bug — the expanded income definition was never successfully run.
+
+The actual MEMI multiply-imputed income variables are:
+
+| Variable | Content |
+|---|---|
+| `SALARYXM` | Wages/salary |
+| `SEMPFRMM` | Self-employment |
+| `SOCRRXM` | Social Security |
+| `SSIXM` | SSI |
+| `ANGOVRTM` | Government retirement/pension |
+| `ANPRVPNM` | Private pension |
+
+Interest, dividends, and rental income exist only at the CU level in FMLI (`INTRDVXM`, `NETRENTM`), not at the member level.
+
+**Fix:** Member-level income uses the 6 MEMI variables above. CU-level capital income (`INTRDVXM + NETRENTM`) is read from FMLI, CPI-deflated, and allocated to TUs within each CU pro-rata by member-level income. When all TUs in a CU have zero member income, capital income is split equally across TUs.
+
+```r
+# Member-level (clean TU allocation)
+inc = SALARYXM + SEMPFRMM + SOCRRXM + SSIXM + ANGOVRTM + ANPRVPNM
+
+# CU-level capital income allocation (after FMLI join, within group_by(NEWID))
+cu_member_inc = sum(pmax(income, 0)),
+cap_share = if_else(cu_member_inc > 0, pmax(income, 0) / cu_member_inc, 1 / n_tu),
+capital_income = (INTRDVXM + NETRENTM) * cap_share,
+income = income + capital_income
+```
+
+This gives the broadest possible income definition while correctly handling the member-vs-CU distinction. The PUF prediction side (`consumption.R`) already includes `txbl_int`, `div_ord`, `div_pref`, and `gross_pens_dist`, so the two sides are now better aligned.
+
+---
+
+## 19. Fixed `read_cex` to match BLS on-disk layout
+
+**File:** `src/cex.R:1-26`
+
+Each BLS annual release contains Q2-Q4 of year N plus Q1 of year N+1, not Q1-Q4 of year N:
+```
+CEX/2022/: *222, *223, *224, *231
+CEX/2023/: *232, *233, *234, *241
+CEX/2024/: *241x, *242, *243, *244, *251
+```
+
+The old `read_cex` looked for all quarters in `CEX/{year}/` and the boundary Q1 in `CEX/{year+1}/`. This was incorrect: Q1 of any year lives in the *prior* release directory.
+
+**Fix:** Rewritten to search two directories per calendar year:
+- `CEX/{year-1}/` for `^{prefix}{yy}1\.csv$` (Q1 from prior release)
+- `CEX/{year}/` for `^{prefix}{yy}[2-4]\.csv$` (Q2-Q4) and `^{prefix}{yy+1}1\.csv$` (boundary Q1 of next year)
+
+For year=2022, the Q1 file would require `CEX/2021/` which doesn't exist — handled gracefully (`dir()` returns `character(0)`).
+
+---
+
+## 20. Multi-year pooling (2022-2024)
+
+**File:** `src/cex.R`
+
+The pipeline previously read only survey year 2023 (~6k CUs/quarter). This limits tail coverage for the QRF/ranger training data.
+
+**Fix:** Set `years = c(2022, 2023, 2024)`. Each `map()` call adds a `SURVEY_YEAR` column. After binding, deduplication removes boundary-file overlap: `distinct(NEWID, MEMBNO)` for MEMI, `distinct(NEWID)` for FMLI, full-row `distinct()` for MTBI. The output now includes a `SURVEY_YEAR` column.
+
+---
+
+## 21. CPI deflation to 2017 dollars
+
+**File:** `src/cex.R`
+
+With multi-year pooling, monetary values from different survey years are in different nominal dollars. The PUF base year is 2017, so all CEX income and expenditure values must be deflated to 2017 dollars for consistent training.
+
+**Fix:** Hardcoded CPI-U (IRS year-average) deflators from Macro-Projections `historical.csv`:
+```r
+cpi_deflator = c('2022' = 1.17443, '2023' = 1.23825, '2024' = 1.27760)
+```
+
+Applied to:
+- MEMI income variables (6 vars) immediately after read, before tax unit construction
+- FMLI capital income variables (`INTRDVXM`, `NETRENTM`) after read, before join
+- MTBI `COST` after read, before aggregation
+
+FMLI weights (`FINLWT21`) are not deflated — they are not monetary values.
+
+---
+
+## 22. Fixed MO_SCOPE to use SURVEY_YEAR; divided weights by pool size
+
+**File:** `src/cex.R`
+
+With multi-year pooling, the MO_SCOPE calculation used `years[1]` (always 2022) instead of each observation's actual survey year. This gave incorrect scope for 2023 and 2024 observations. Additionally, the WT_ANNUAL formula produced weights that represented the full US population for *each* year, triple-counting when pooled.
+
+**Fix:**
+- MO_SCOPE `case_when` now uses `SURVEY_YEAR` instead of `years[1]`
+- `WT_ANNUAL = FINLWT21 / 4 * (MO_SCOPE / 3) / length(years)` — dividing by 3 (number of pooled years) so that `sum(WT_ANNUAL)` represents one year's worth of tax units (~130M), not three (~400M)
+
+---
+
+## 23. Removed bootstrap resampling
+
+**File:** `src/cex.R`
+
+The pipeline previously bootstrap-resampled 100k rows from the CEX data using `slice_sample(n = 100000, replace = TRUE, weight_by = WT_ANNUAL)`. This baked the survey weights into resampling rather than passing them as case weights to the model, discarding information about the joint distribution and capping training data at 100k regardless of pool size.
+
+**Fix:** Removed `slice_sample` block. `build_cex_training()` now returns all observations (~30-40k rows with 3 years pooled) with `WT_ANNUAL` as a column. The ranger models in `consumption.R` use `case.weights` to handle the weights properly.
+
+A comment notes that PCE benchmarking (scaling category totals to BEA aggregates) is deferred to `project_puf.R`, where it can be applied in projection-year dollars.
+
+---
+
+## 24. Switched consumption imputation from quantregForest to ranger
+
+**Files:** `src/imputations/consumption.R`, `src/imputations/helpers.R`, `requirements.txt`, `src/impute_variables.R`
+
+The old consumption imputation was disabled (commented out in `impute_variables.R`) and used `quantregForest` with separate goods/services models. quantregForest does not support case weights natively, which was the motivation for bootstrap resampling.
+
+**Fix:** Complete rewrite of `consumption.R` using ranger with `quantreg = TRUE`:
+- Two models: `consumption_rf` (total consumption, direct) and `consumption_per_rf` (consumption-to-income ratio)
+- Both trained with `case.weights = WT_ANNUAL` — no bootstrap needed
+- Prediction: 50% direct + 50% ratio×income for positive income; 100% direct for irregular income; annualized by ×4
+
+Added to `helpers.R`:
+- `train_or_load_ranger()`: formula-based interface matching `train_or_load_qrf()` pattern
+- `predict_ranger_draw()`: stochastic quantile prediction — predicts 1%-99% quantile grid, draws one random quantile per observation
+
+After predicting total consumption, distributes across 20 PCE categories using average expenditure shares by income percentile computed from CEX training data. Shares are normalized to sum to 1 within each percentile bin.
+
+Added `ranger` to `requirements.txt`. Uncommented `source('src/imputations/consumption.R')` in `impute_variables.R`.

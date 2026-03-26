@@ -81,3 +81,46 @@ pivot_to_spouses = function(df) {
     select(-age1, -age2) %>%
     filter(wages > 0)
 }
+
+
+#' Train or load a ranger quantile regression forest model
+#'
+#' If estimate_models is TRUE, trains a new ranger model and caches it.
+#' Otherwise, loads the cached model from disk.
+#'
+#' @param name           Model name (used for cache file path)
+#' @param formula        Model formula
+#' @param data           Training data
+#' @param case_weights   Observation weights
+#' @param mtry           Number of variables sampled at each split
+#' @param min_node_size  Minimum node size
+#' @param num_trees      Number of trees
+#' @return               A ranger object with quantreg = TRUE
+train_or_load_ranger = function(name, formula, data, case_weights = NULL,
+                                 mtry = 3, min_node_size = 5, num_trees = 500) {
+  cache_path = paste0('resources/cache/qrf/', name, '.rds')
+  if (estimate_models) {
+    rf = ranger(formula, data = data, case.weights = case_weights,
+                quantreg = TRUE, num.trees = num_trees, mtry = mtry,
+                min.node.size = min_node_size, num.threads = parallel::detectCores())
+    write_rds(rf, cache_path)
+  } else {
+    rf = read_rds(cache_path)
+  }
+  rf
+}
+
+
+#' Draw a random quantile prediction from a ranger model
+#'
+#' For each observation, predicts the full quantile function and draws
+#' one random quantile to produce stochastic imputations.
+#'
+#' @param model   A ranger object trained with quantreg = TRUE
+#' @param newdata Prediction data
+#' @return        Numeric vector of predictions (one per row of newdata)
+predict_ranger_draw = function(model, newdata) {
+  grid = seq(0.01, 0.99, 0.01)
+  pred = predict(model, data = newdata, type = 'quantiles', quantiles = grid)$predictions
+  sapply(1:nrow(newdata), function(i) pred[i, sample(length(grid), 1)])
+}
