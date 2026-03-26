@@ -38,7 +38,7 @@ pce_observed = setdiff(pce_categories, pce_neutral)
 #' @param income_col Name of the income column (default: income)
 #' @param target_file Path to CSV with columns: category, pce_billions
 #' @param cap_pctile  Percentile cap for consumption-to-income ratio (default: 0.95)
-#' @param annualize   Multiplier to annualize data (12 for monthly CEX CQ data,
+#' @param annualize   Multiplier to annualize data (4 for quarterly CEX CQ data,
 #'                    1 if data is already annual)
 #' @return List with:
 #'   $data            - benchmarked data frame
@@ -49,7 +49,7 @@ benchmark_to_pce = function(data,
                             income_col  = 'income',
                             target_file = 'resources/pce_targets_2023.csv',
                             cap_pctile  = 0.95,
-                            annualize   = 12) {
+                            annualize   = 4) {
 
   targets    = fread(target_file)
   target_map = setNames(targets$pce_billions, targets$category)
@@ -74,7 +74,7 @@ benchmark_to_pce = function(data,
 
   for (cat in pce_neutral) {
     nipa_target = target_map[cat]
-    # Each unit's share of total consumption * NIPA target (in monthly $)
+    # Each unit's share of total consumption * NIPA target (in quarterly $)
     data[[cat]] = ifelse(
       weighted_total > 0,
       cex_total * (nipa_target / weighted_total),
