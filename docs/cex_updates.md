@@ -4,25 +4,13 @@ Changes to `src/cex.R` and `src/imputations/consumption.R` made in the `cex-resu
 
 ---
 
-## 1. Eliminated CQ + PQ double-counting (~2x consumption overstatement)
+## 1. ~~Eliminated CQ + PQ double-counting~~ — RETRACTED
 
-**Files:** `src/cex.R:164-166`, `src/cex.R:205-207`
+**This entry was wrong.** CQ and PQ are NOT overlapping windows — they cover different portions of the 3-month reference period and ARE additive. BLS codebook: "TOTEXP (sum of TOTEXPPQ and TOTEXPCQ) describes total expenditures the family incurred for the three months prior to the interview." Empirically: `(CQ + PQ) * 4 = $73,481`, matching BLS published annual of $72,967. CQ alone gives only ~$24,700.
 
-Each FMLI row reports two overlapping expenditure windows: CQ (current quarter, the 3 months before this interview) and PQ (prior quarter, the 3 months before the *previous* interview). PQ exists so researchers can see revised figures for the same calendar quarter without merging files — CQ and PQ are not additive. The old code summed them:
+The original code that summed CQ + PQ was correct. The "fix" that dropped PQ removed ~2/3 of expenditure data.
 
-```r
-# Old (wrong): ~6 months of spending per row
-.fns = ~ (.x + get(gsub('CQ$', 'PQ', cur_column())))
-```
-
-Downstream in `consumption.R`, the QRF prediction was multiplied by 4 under the assumption each observation represents one quarter. With the CQ+PQ sum, each observation actually represented ~6 months, producing `6 months * 4 = 24 months` of imputed annual consumption — roughly double the true value.
-
-**Fix:** Drop PQ entirely. Expenditure vectors now contain only CQ columns, and the `across()` call is an identity rename from `_CQ` to `_exp`:
-
-```r
-# New: CQ only — 3 months of spending per row
-.fns = ~ .x
-```
+**Current status:** CQ + PQ are now summed for each expenditure category in the FMLI read.
 
 ---
 

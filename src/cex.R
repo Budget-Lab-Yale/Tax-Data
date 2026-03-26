@@ -151,7 +151,8 @@ build_cex_training = function() {
   demo    = c('FAM_SIZE')
   cap_inc = c('INTRDVXM', 'NETRENTM')  # CU-level capital income (allocated to TUs below)
 
-  # FMLI CQ expenditure sub-variables (integrate both Interview + Diary data)
+  # FMLI expenditure sub-variables: CQ + PQ together = full 3-month reference period.
+  # CQ and PQ cover different portions of the quarter and ARE additive.
   expcq = c('FDHOMECQ', 'FDAWAYCQ', 'ALCBEVCQ',
             'OWNDWECQ', 'RENDWECQ', 'OTHLODCQ',
             'NTLGASCQ', 'ELCTRCCQ', 'ALLFULCQ', 'TELEPHCQ', 'WATRPSCQ',
@@ -162,14 +163,17 @@ build_cex_training = function() {
             'FEEADMCQ', 'TVRDIOCQ', 'OTHEQPCQ', 'PETTOYCQ', 'OTHENTCQ',
             'PERSCACQ', 'READCQ', 'EDUCACQ', 'TOBACCCQ', 'MISCCQ',
             'LIFINSCQ')
+  exppq = sub('CQ$', 'PQ', expcq)
 
   fmli = years %>%
-    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cap_inc, expcq)) %>% mutate(SURVEY_YEAR = .x)) %>%
+    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cap_inc, expcq, exppq)) %>% mutate(SURVEY_YEAR = .x)) %>%
     bind_rows() %>%
     distinct(NEWID, .keep_all = TRUE) %>%
+    # Sum CQ + PQ for each expenditure category (together = full 3-month reference period)
+    mutate(across(all_of(c(cap_inc, expcq, exppq)), ~ replace_na(.x, 0))) %>%
+    mutate(across(all_of(expcq), ~ .x + get(sub('CQ$', 'PQ', cur_column())))) %>%
     # CPI-deflate monetary variables to 2017 dollars
     mutate(
-      across(all_of(c(cap_inc, expcq)), ~ replace_na(.x, 0)),
       across(all_of(c(cap_inc, expcq)), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)])
     ) %>%
     # MO_SCOPE: how many of this interview's 3 CQ reference months fall in the
