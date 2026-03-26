@@ -144,21 +144,33 @@ build_cex_training = function() {
     select(NEWID, SURVEY_YEAR, TU_ID, tu_size, filer, married, age1, male1, income, n_dep, n_dep_ctc)
 
   #---------------------------------------------------------------------------
-  # FMLI: weights, demographics, and tech variables (no expenditure data)
+  # FMLI: weights, demographics, tech variables, and CQ expenditure sub-variables
   #---------------------------------------------------------------------------
 
   tech    = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE')
   demo    = c('FAM_SIZE')
   cap_inc = c('INTRDVXM', 'NETRENTM')  # CU-level capital income (allocated to TUs below)
 
+  # FMLI CQ expenditure sub-variables (integrate both Interview + Diary data)
+  expcq = c('FDHOMECQ', 'FDAWAYCQ', 'ALCBEVCQ',
+            'OWNDWECQ', 'RENDWECQ', 'OTHLODCQ',
+            'NTLGASCQ', 'ELCTRCCQ', 'ALLFULCQ', 'TELEPHCQ', 'WATRPSCQ',
+            'HOUSOPCQ', 'HOUSEQCQ', 'APPARCQ',
+            'CARTKNCQ', 'CARTKUCQ', 'OTHVEHCQ', 'GASMOCQ',
+            'VEHFINCQ', 'MAINRPCQ', 'VEHINSCQ', 'VRNTLOCQ', 'PUBTRACQ',
+            'HEALTHCQ',
+            'FEEADMCQ', 'TVRDIOCQ', 'OTHEQPCQ', 'PETTOYCQ', 'OTHENTCQ',
+            'PERSCACQ', 'READCQ', 'EDUCACQ', 'TOBACCCQ', 'MISCCQ',
+            'LIFINSCQ')
+
   fmli = years %>%
-    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cap_inc)) %>% mutate(SURVEY_YEAR = .x)) %>%
+    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cap_inc, expcq)) %>% mutate(SURVEY_YEAR = .x)) %>%
     bind_rows() %>%
     distinct(NEWID, .keep_all = TRUE) %>%
-    # CPI-deflate CU-level capital income to 2017 dollars
+    # CPI-deflate monetary variables to 2017 dollars
     mutate(
-      across(all_of(cap_inc), ~ replace_na(.x, 0)),
-      across(all_of(cap_inc), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)])
+      across(all_of(c(cap_inc, expcq)), ~ replace_na(.x, 0)),
+      across(all_of(c(cap_inc, expcq)), ~ .x / cpi_deflator[as.character(SURVEY_YEAR)])
     ) %>%
     # MO_SCOPE: how many of this interview's 3 CQ reference months fall in the
     # target calendar year. Uses SURVEY_YEAR (not a fixed year) for multi-year pooling.
@@ -179,29 +191,8 @@ build_cex_training = function() {
     )
 
   #---------------------------------------------------------------------------
-  # MTBI: UCC-level expenditure detail
+  # PCE category definitions
   #---------------------------------------------------------------------------
-  #
-  # Uses UCC-level data from MTBI for correct PCE classification
-  # (e.g., health insurance -> financial_insurance, prescription drugs ->
-  # other_nondurables, medical equipment -> other_durables).
-  # See resources/ucc_pce_bridge.csv for the UCC->PCE mapping.
-
-  mtbi = years %>%
-    map(.f = ~ read_cex(cex_base, 'mtbi', .x, select = c('NEWID', 'UCC', 'COST')) %>% mutate(SURVEY_YEAR = .x)) %>%
-    bind_rows() %>%
-    distinct() %>%
-    # CPI-deflate COST to 2017 dollars
-    mutate(COST = COST / cpi_deflator[as.character(SURVEY_YEAR)])
-
-  # Read bridge and validate completeness — every UCC in the data must have
-  # a row in the bridge CSV (even non-consumption UCCs, which are marked 'exclude')
-  bridge = fread('resources/ucc_pce_bridge.csv')
-  unmapped = setdiff(unique(mtbi$UCC), bridge$ucc)
-  if (length(unmapped) > 0) {
-    stop(paste0("Unmapped UCCs in MTBI data: ", paste(unmapped, collapse = ", "),
-                ". Add these to resources/ucc_pce_bridge.csv"))
-  }
 
   # All 20 BEA PCE major categories
   # NPISH and net_foreign_travel have no CEX source — set to 0 here,
@@ -213,28 +204,12 @@ build_cex_training = function() {
                    'gasoline', 'education', 'financial_insurance', 'housing')
   pce_cats_per = paste0(pce_cats, '_per')
 
-  # Join to bridge, exclude non-consumption UCCs, aggregate by NEWID + PCE category
-  mtbi_agg = mtbi %>%
-    inner_join(bridge %>% select(ucc, pce_major), by = c('UCC' = 'ucc')) %>%
-    filter(pce_major != 'exclude') %>%
-    group_by(NEWID, pce_major) %>%
-    summarise(cost = sum(COST, na.rm = TRUE), .groups = 'drop') %>%
-    pivot_wider(names_from = pce_major, values_from = cost, values_fill = 0)
-
-  # Ensure all 20 PCE columns exist (npish, net_foreign_travel will be missing)
-  for (cat in pce_cats) {
-    if (!(cat %in% names(mtbi_agg))) mtbi_agg[[cat]] = 0
-  }
-
   #---------------------------------------------------------------------------
-  # Join tax units to FMLI (weights/demo) and MTBI (consumption)
+  # Join tax units to FMLI (weights, demo, expenditures)
   #---------------------------------------------------------------------------
 
   joined = cex_tus %>%
     left_join(fmli, by = c("NEWID", "SURVEY_YEAR")) %>%
-    left_join(mtbi_agg, by = "NEWID") %>%
-    # Fill NAs in PCE columns (CUs with no MTBI records)
-    mutate(across(all_of(pce_cats), ~ replace_na(.x, 0))) %>%
     group_by(NEWID) %>%
     mutate(
       # Allocate CU-level capital income (interest+dividends, rent) to TUs.
@@ -258,11 +233,30 @@ build_cex_training = function() {
     filter(!is.na(income)) %>%
     # Adults
     filter(!is.na(age1) & age1 > 17) %>%
-    # Apply CU_pct allocation and compute consumption totals
+    # Map FMLI CQ sub-variables to 20 PCE categories, scaled by CU_pct
     mutate(
-      across(all_of(pce_cats), ~ .x * CU_pct),
-      cex_consumption   = rowSums(across(all_of(setdiff(pce_cats, c('npish', 'net_foreign_travel'))))),
-      total_consumption = cex_consumption,
+      clothing            = APPARCQ * CU_pct,
+      motor_vehicles      = (CARTKNCQ + CARTKUCQ + OTHVEHCQ) * CU_pct,
+      other_durables      = PETTOYCQ * CU_pct,
+      furnishings         = HOUSEQCQ * CU_pct,
+      rec_goods           = (TVRDIOCQ + OTHEQPCQ) * CU_pct,
+      other_nondurables   = (TOBACCCQ + PERSCACQ + READCQ) * CU_pct,
+      food_off_premises   = (FDHOMECQ + ALCBEVCQ) * CU_pct,
+      communication       = TELEPHCQ * CU_pct,
+      other_services      = (HOUSOPCQ + MISCCQ + OTHENTCQ) * CU_pct,
+      transport_services  = (MAINRPCQ + VRNTLOCQ + PUBTRACQ) * CU_pct,
+      rec_services        = FEEADMCQ * CU_pct,
+      food_accommodations = (FDAWAYCQ + OTHLODCQ) * CU_pct,
+      health_care         = HEALTHCQ * CU_pct,
+      utilities           = (NTLGASCQ + ELCTRCCQ + ALLFULCQ + WATRPSCQ) * CU_pct,
+      gasoline            = GASMOCQ * CU_pct,
+      education           = EDUCACQ * CU_pct,
+      financial_insurance = (LIFINSCQ + VEHINSCQ + VEHFINCQ) * CU_pct,
+      housing             = (OWNDWECQ + RENDWECQ) * CU_pct,
+      npish               = 0,
+      net_foreign_travel  = 0,
+      cex_consumption     = rowSums(across(all_of(setdiff(pce_cats, c('npish', 'net_foreign_travel'))))),
+      total_consumption   = cex_consumption,
       # Cap age at PUF max
       age1      = pmin(age1, 80),
       n_dep_ctc = pmin(n_dep_ctc, 3)
