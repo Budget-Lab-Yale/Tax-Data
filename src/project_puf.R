@@ -23,7 +23,7 @@ if ('C' %in% names(tax_units)) {
     scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
     txbl_int + div_ord + div_pref + gross_pens_dist + rent - rent_loss)
   bench = benchmark_to_pce(tax_units, weight_col = 'weight', income_col = '.bench_income',
-                           annualize = 4)
+                           annualize = 1)
   tax_units = bench$data
   tax_units$.bench_income = NULL
 }
