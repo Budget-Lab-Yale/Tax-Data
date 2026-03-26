@@ -3,24 +3,21 @@
 # Each BLS annual release contains Q2-Q4 of year N plus Q1 of year N+1:
 #   CEX/2022/: *222, *223, *224, *231
 #   CEX/2023/: *232, *233, *234, *241
-# A calendar-year read searches two directories:
-#   CEX/{year-1}/ for Q1 (^{prefix}{yy}1\.csv$)
-#   CEX/{year}/   for Q2-Q4 + boundary Q1 of next year
+# We read Q2-Q4 + boundary Q1 from the release directory only. The boundary
+# Q1 (e.g., 231 for year=2022) captures Oct-Dec of the target year via
+# MO_SCOPE. We do NOT also read Q1 from the prior release, which would
+# create duplicate NEWIDs across year pools requiring dedup that loses data.
 read_cex = function(base_path, prefix, year, ...) {
   yy = year %% 100
-  # Q1 of target year lives in the prior survey-year release
-  files_q1 = dir(path       = file.path(base_path, year - 1),
-                 pattern    = paste0('^', prefix, yy, '1\\.csv$'),
-                 full.names = TRUE)
   # Q2-Q4 of target year
   files_q234 = dir(path       = file.path(base_path, year),
                    pattern    = paste0('^', prefix, yy, '[2-4]\\.csv$'),
                    full.names = TRUE)
-  # Boundary Q1 of next year (in same release as target year Q2-Q4)
+  # Boundary Q1 of next year (in same release directory)
   files_boundary = dir(path       = file.path(base_path, year),
                        pattern    = paste0('^', prefix, yy + 1, '1\\.csv$'),
                        full.names = TRUE)
-  all_files = c(files_q1, files_q234, files_boundary)
+  all_files = c(files_q234, files_boundary)
   if (length(all_files) == 0) return(data.table::data.table())
   lapply(all_files, fread, ...) %>% bind_rows()
 }

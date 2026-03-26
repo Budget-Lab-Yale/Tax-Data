@@ -73,11 +73,13 @@ cex = tax_units %>%
   mutate(
     married = as.numeric(!is.na(male2)),
     size = 1 + married + n_dep,
-    # Income definition expanded to match CEX MEMI XM variables
+    # Income definition to match CEX training: member-level (wages, self-emp, SS,
+    # pensions) + CU-level capital income (interest+dividends, net rent)
     income = wages + sole_prop + part_active + part_passive - part_active_loss -
       part_passive_loss - part_179 + scorp_active + scorp_passive -
       scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
-      txbl_int + div_ord + div_pref + gross_pens_dist,
+      txbl_int + div_ord + div_pref + gross_pens_dist +
+      rent - rent_loss,
     has_income = case_when(
       income >  0 ~ 1,
       income == 0 ~ 0,

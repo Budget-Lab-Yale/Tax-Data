@@ -137,3 +137,24 @@ other_nonref,other nonrefundable tax credits,puf,P08000,income
 net_ptc,net Premium Tax Credit,puf,E11560,income
 recapture_tax,recpature taxes,puf,E09700,income
 ira_penalty,penalty tax on IRA,puf,E09900,income
+C,total annual consumption,imputed,NA,consumption
+clothing,PCE: clothing and footwear,imputed,NA,consumption
+motor_vehicles,PCE: motor vehicles and parts,imputed,NA,consumption
+other_durables,PCE: other durable goods,imputed,NA,consumption
+furnishings,PCE: furnishings and household equipment,imputed,NA,consumption
+rec_goods,PCE: recreational goods,imputed,NA,consumption
+other_nondurables,PCE: other nondurable goods,imputed,NA,consumption
+food_off_premises,PCE: food and beverages off premises,imputed,NA,consumption
+communication,PCE: communication,imputed,NA,consumption
+npish,PCE: NPISH,imputed,NA,consumption
+other_services,PCE: other services,imputed,NA,consumption
+transport_services,PCE: transportation services,imputed,NA,consumption
+rec_services,PCE: recreation services,imputed,NA,consumption
+net_foreign_travel,PCE: net foreign travel,imputed,NA,consumption
+food_accommodations,PCE: food and accommodations,imputed,NA,consumption
+health_care,PCE: health care,imputed,NA,consumption
+utilities,PCE: utilities,imputed,NA,consumption
+gasoline,PCE: gasoline and energy,imputed,NA,consumption
+education,PCE: education,imputed,NA,consumption
+financial_insurance,PCE: financial services and insurance,imputed,NA,consumption
+housing,PCE: housing and utilities,imputed,NA,consumption
