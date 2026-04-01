@@ -26,7 +26,7 @@ assign_ranks = function(values, weights, quantiles, pos_only = T) {
 
 build_tip_panel = function(year, write = F) {
   
-  an_data = file.path('/gpfs/gibbs/project/sarin/shared/raw_data/SIPP', year, 'annual_data.csv') %>%
+  an_data = file.path('/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP', year, 'annual_data.csv') %>%
     fread() %>%
     tibble()
   
@@ -92,7 +92,7 @@ build_tip_panel = function(year, write = F) {
   
   if(write){
      write_csv(base_panel, 
-               file.path('/gpfs/gibbs/project/sarin/shared/model_data/SIPP', year, 'tip_panel.csv')
+               file.path('/nfs/roberts/project/pi_nrs36/shared/model_data/SIPP', year, 'tip_panel.csv')
                )
   }
   
@@ -243,7 +243,7 @@ assign_tips = function(tax_units, panel) {
   
 }
 
-tax_units = read_csv('/gpfs/gibbs/project/sarin/shared/model_data/Tax-Data/v1/2024070817/baseline/tax_units_2018.csv') 
+tax_units = read_csv('/nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Data/v1/2024070817/baseline/tax_units_2018.csv') 
 
 check = assign_tips(tax_units, base_panel)
 

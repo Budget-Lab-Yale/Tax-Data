@@ -141,11 +141,13 @@ predict_ranger_draw = function(model, newdata) {
 #' @return               A drf object
 train_or_load_drf = function(name, X, Y, num.trees = 500,
                               splitting.rule = "FourierMMD",
+                              mtry = ncol(X),
                               min.node.size = 20, honesty = TRUE) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
     model = drf::drf(X = X, Y = Y, num.trees = num.trees,
                      splitting.rule = splitting.rule,
+                     mtry = mtry,
                      min.node.size = min.node.size,
                      honesty = honesty,
                      num.threads = parallel::detectCores())

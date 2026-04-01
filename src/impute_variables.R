@@ -18,6 +18,7 @@ source('src/imputations/helpers.R')
 # Imputation modules
 source('src/imputations/demographics.R')
 source('src/imputations/ages.R')
+source('src/imputations/ssn.R')
 source('src/imputations/earnings_split.R')
 source('src/imputations/qbi.R')
 source('src/imputations/mobility.R')

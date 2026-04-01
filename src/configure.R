@@ -25,8 +25,8 @@ interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
 vintage = format(Sys.time(), '%Y%m%d%H')
 
 # Set additional boolean parameters
-do_lp           = 0
-estimate_models = 0
+do_lp           = 1
+estimate_models = 1
 
 # Set output root
 if (runscript$runtime_options$write_locally) {
