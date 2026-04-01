@@ -162,7 +162,14 @@ build_cex_training = function() {
   exppq = sub('CQ$', 'PQ', expcq)
 
   fmli = years %>%
-    map(.f = ~ read_cex(cex_base, 'fmli', .x, select = c(tech, demo, cu_inc, expcq, exppq)) %>% mutate(SURVEY_YEAR = .x)) %>%
+    map(.f = ~ {
+      cols = c(tech, demo, cu_inc, expcq, exppq)
+      # BLS renamed FDHOMECQ/PQ → GROCERCQ/PQ in 2024
+      if (.x >= 2024) cols = c(cols, 'GROCERCQ', 'GROCERPQ')
+      d = read_cex(cex_base, 'fmli', .x, select = cols) %>% mutate(SURVEY_YEAR = .x)
+      if (.x >= 2024) d = d %>% mutate(FDHOMECQ = GROCERCQ, FDHOMEPQ = GROCERPQ)
+      d
+    }) %>%
     bind_rows() %>%
     # Sum CQ + PQ for each expenditure category (together = full 3-month reference period)
     # then annualize: CQ+PQ covers one quarter, so multiply by 4 for annual
@@ -191,17 +198,13 @@ build_cex_training = function() {
     )
 
   #---------------------------------------------------------------------------
-  # PCE category definitions
+  # Consumption category definitions (8 collapsed from 20 BEA PCE categories)
   #---------------------------------------------------------------------------
 
-  # All 20 BEA PCE major categories
-  # NPISH and net_foreign_travel have no CEX source — set to 0 here,
-  # allocated proportionally to total consumption in pce_benchmark.R
-  pce_cats     = c('clothing', 'motor_vehicles', 'other_durables', 'furnishings',
-                   'rec_goods', 'other_nondurables', 'food_off_premises', 'communication',
-                   'npish', 'other_services', 'transport_services', 'rec_services',
-                   'net_foreign_travel', 'food_accommodations', 'health_care', 'utilities',
-                   'gasoline', 'education', 'financial_insurance', 'housing')
+  # Collapsed for tariff analysis: goods categories with distinct tariff exposure
+  # stay separate; services (uniformly low tariff) are grouped together.
+  pce_cats = c('clothing', 'motor_vehicles', 'durables', 'other_nondurables',
+               'food_off_premises', 'gasoline', 'housing_utilities', 'other_services_health')
   pce_cats_per = paste0(pce_cats, '_per')
 
   #---------------------------------------------------------------------------
@@ -233,29 +236,19 @@ build_cex_training = function() {
     filter(!is.na(income)) %>%
     # Adults
     filter(!is.na(age1) & age1 > 17) %>%
-    # Map FMLI CQ sub-variables to 20 PCE categories, scaled by CU_pct
+    # Map FMLI CQ sub-variables to 8 consumption categories, scaled by CU_pct
     mutate(
-      clothing            = APPARCQ * CU_pct,
-      motor_vehicles      = (CARTKNCQ + CARTKUCQ + OTHVEHCQ) * CU_pct,
-      other_durables      = PETTOYCQ * CU_pct,
-      furnishings         = HOUSEQCQ * CU_pct,
-      rec_goods           = TVRDIOCQ * CU_pct,
-      other_nondurables   = (TOBACCCQ + PERSCACQ + READCQ) * CU_pct,
-      food_off_premises   = (FDHOMECQ + ALCBEVCQ) * CU_pct,
-      communication       = TELEPHCQ * CU_pct,
-      other_services      = (HOUSOPCQ + MISCCQ + OTHENTCQ) * CU_pct,
-      transport_services  = (MAINRPCQ + VRNTLOCQ + PUBTRACQ) * CU_pct,
-      rec_services        = FEEADMCQ * CU_pct,
-      food_accommodations = (FDAWAYCQ + OTHLODCQ) * CU_pct,
-      health_care         = HEALTHCQ * CU_pct,
-      utilities           = (NTLGASCQ + ELCTRCCQ + ALLFULCQ + WATRPSCQ) * CU_pct,
-      gasoline            = GASMOCQ * CU_pct,
-      education           = EDUCACQ * CU_pct,
-      financial_insurance = (LIFINSCQ + VEHINSCQ + VEHFINCQ) * CU_pct,
-      housing             = (OWNDWECQ + RENDWECQ) * CU_pct,
-      npish               = 0,
-      net_foreign_travel  = 0,
-      cex_consumption     = rowSums(across(all_of(setdiff(pce_cats, c('npish', 'net_foreign_travel'))))),
+      clothing              = APPARCQ * CU_pct,
+      motor_vehicles        = (CARTKNCQ + CARTKUCQ + OTHVEHCQ) * CU_pct,
+      durables              = (HOUSEQCQ + PETTOYCQ + TVRDIOCQ) * CU_pct,
+      other_nondurables     = (TOBACCCQ + PERSCACQ + READCQ) * CU_pct,
+      food_off_premises     = (FDHOMECQ + ALCBEVCQ) * CU_pct,
+      gasoline              = GASMOCQ * CU_pct,
+      housing_utilities     = (OWNDWECQ + RENDWECQ + NTLGASCQ + ELCTRCCQ + ALLFULCQ + WATRPSCQ) * CU_pct,
+      other_services_health = (TELEPHCQ + HOUSOPCQ + MISCCQ + OTHENTCQ + MAINRPCQ + VRNTLOCQ +
+                               PUBTRACQ + FEEADMCQ + FDAWAYCQ + OTHLODCQ + HEALTHCQ + EDUCACQ +
+                               LIFINSCQ + VEHINSCQ + VEHFINCQ) * CU_pct,
+      cex_consumption     = rowSums(across(all_of(pce_cats))),
       total_consumption   = cex_consumption,
       # Cap age at PUF max
       age1      = pmin(age1, 80),
@@ -307,6 +300,22 @@ build_cex_training = function() {
       all_of(pce_cats_per), total_consumption_per
     ) %>%
     bind_rows(irregular_income)
+
+  #---------------------------------------------------------------------------
+  # Estimate top-tail elasticity: log(C) = a + b*log(Y) on P80-P100
+  # Used in consumption.R to scale QRF draws for PUF units above CEX coverage
+  #---------------------------------------------------------------------------
+
+  p80_plus = joined %>% filter(has_income == 1, income > 0, total_consumption > 0,
+                               pctile_income >= 80)
+  elas_fit = lm(log(total_consumption) ~ log(income), data = p80_plus,
+                weights = p80_plus$WT_ANNUAL)
+
+  p98_plus = p80_plus %>% filter(pctile_income >= 98)
+  y_ref    = wtd.quantile(p98_plus$income, p98_plus$WT_ANNUAL, probs = 0.5)
+
+  attr(joined, 'elasticity_beta') = coef(elas_fit)[['log(income)']]
+  attr(joined, 'y_ref')           = as.numeric(y_ref)
 
   # NOTE: PCE benchmarking (scaling category totals to match BEA aggregates)
   # is deferred to project_puf.R, where it can be applied in projection-year dollars

@@ -124,3 +124,34 @@ predict_ranger_draw = function(model, newdata) {
   pred = predict(model, data = newdata, type = 'quantiles', quantiles = grid)$predictions
   sapply(1:nrow(newdata), function(i) pred[i, sample(length(grid), 1)])
 }
+
+
+#' Train or load a cached DRF (Distributional Random Forest)
+#'
+#' Fits a DRF model on a multivariate response (e.g., expenditure share vectors)
+#' and caches to disk. Uses FourierMMD splitting rule from the drf package.
+#'
+#' @param name           Cache name (saved to resources/cache/qrf/{name}.rds)
+#' @param X              Matrix of features
+#' @param Y              Matrix of responses (e.g., share vectors)
+#' @param num.trees      Number of trees (default 500)
+#' @param splitting.rule Splitting rule (default "FourierMMD")
+#' @param min.node.size  Minimum node size (default 20)
+#' @param honesty        Use honesty splitting (default TRUE)
+#' @return               A drf object
+train_or_load_drf = function(name, X, Y, num.trees = 500,
+                              splitting.rule = "FourierMMD",
+                              min.node.size = 20, honesty = TRUE) {
+  cache_path = paste0('resources/cache/qrf/', name, '.rds')
+  if (estimate_models) {
+    model = drf::drf(X = X, Y = Y, num.trees = num.trees,
+                     splitting.rule = splitting.rule,
+                     min.node.size = min.node.size,
+                     honesty = honesty,
+                     num.threads = parallel::detectCores())
+    write_rds(model, cache_path)
+  } else {
+    model = read_rds(cache_path)
+  }
+  model
+}

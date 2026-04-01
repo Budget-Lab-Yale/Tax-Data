@@ -2,73 +2,69 @@
 # consumption.R
 #
 # Imputes consumer expenditure using
-# CEX data and ranger quantile forests.
+# CEX data, ranger quantile forests
+# for total consumption levels, and
+# DRF for expenditure composition.
 #--------------------------------------
 
 # The models here impute annual consumption (CEX training data is annualized in cex.R)
+# Stage A: Ranger QRF predicts total consumption C, with power-law top-tail adjustment
+# Stage B: DRF on household-level share vectors gives composition
 
 source('src/cex.R')
-cex_training = build_cex_training()
+cex_training    = build_cex_training()
+elasticity_beta = attr(cex_training, 'elasticity_beta')
+y_ref           = attr(cex_training, 'y_ref')
 
-features = c('has_income', 'pctile_income', 'married', 'age1', 'n_dep', 'n_dep_ctc', 'male1')
+features = c('has_income', 'pctile_income', 'married', 'age1', 'n_dep', 'male1')
 
-# All 20 BEA PCE major categories
-pce_cats = c('clothing', 'motor_vehicles', 'other_durables', 'furnishings',
-             'rec_goods', 'other_nondurables', 'food_off_premises', 'communication',
-             'npish', 'other_services', 'transport_services', 'rec_services',
-             'net_foreign_travel', 'food_accommodations', 'health_care', 'utilities',
-             'gasoline', 'education', 'financial_insurance', 'housing')
+# 8 consumption categories (collapsed from 20 BEA PCE for tariff analysis)
+pce_cats = c('clothing', 'motor_vehicles', 'durables', 'other_nondurables',
+             'food_off_premises', 'gasoline', 'housing_utilities', 'other_services_health')
 
 #---------------------------------------------------------------------------
-# Train ranger models for total consumption
+# Stage A: Train ranger models for total consumption level
 #---------------------------------------------------------------------------
 
 consumption_rf = train_or_load_ranger(
-  name         = 'consumption_rf',
-  formula      = total_consumption ~ .,
-  data         = cex_training[c(features, 'total_consumption')],
-  case_weights = cex_training$WT_ANNUAL,
-  mtry         = 5,
-  min_node_size = 10
-)
-
-pct_train = cex_training %>% filter(has_income == 1, total_consumption_per < 4)
-
-consumption_per_rf = train_or_load_ranger(
-  name         = 'consumption_per_rf',
-  formula      = total_consumption_per ~ .,
-  data         = pct_train[c(features, 'total_consumption_per')],
-  case_weights = pct_train$WT_ANNUAL,
-  mtry         = 5,
+  name          = 'consumption_rf',
+  formula       = total_consumption ~ .,
+  data          = cex_training[c(features, 'total_consumption')],
+  case_weights  = cex_training$WT_ANNUAL,
+  mtry          = length(features),
   min_node_size = 10
 )
 
 #---------------------------------------------------------------------------
-# Compute PCE expenditure shares by income percentile from CEX training data
+# Stage B: DRF composition model on weight-unpacked CEX sample
 #---------------------------------------------------------------------------
 
-pce_sourced = setdiff(pce_cats, c('npish', 'net_foreign_travel'))
+# Create unweighted representative sample from CEX via bootstrap resampling
+n_boot = 200000
+boot_probs = cex_training$WT_ANNUAL / sum(cex_training$WT_ANNUAL)
+boot_idx = sample.int(nrow(cex_training), size = n_boot, replace = TRUE, prob = boot_probs)
+cex_boot = cex_training[boot_idx, ]
 
-pce_shares = cex_training %>%
-  filter(total_consumption > 0) %>%
-  mutate(pctile_bin = pmax(pctile_income, 0)) %>%
-  group_by(pctile_bin) %>%
-  summarise(
-    across(all_of(pce_sourced), ~ weighted.mean(.x / total_consumption, WT_ANNUAL, na.rm = TRUE)),
-    .groups = 'drop'
-  ) %>%
-  # Normalize so shares sum to exactly 1 within each bin
-  mutate(
-    share_total = rowSums(across(all_of(pce_sourced))),
-    across(all_of(pce_sourced), ~ .x / share_total)
-  ) %>%
-  select(-share_total)
+# Compute household-level expenditure shares (normalized over sourced categories)
+sourced_total = rowSums(cex_boot[pce_cats])
+share_matrix = as.matrix(cex_boot[pce_cats] / sourced_total)
+share_matrix[!is.finite(share_matrix)] = 0
+
+# DRF features include total_consumption (the level of C) — composition depends
+# on spending level
+drf_features = c(features, 'total_consumption')
+
+share_drf = train_or_load_drf(
+  name = 'share_drf',
+  X    = as.matrix(cex_boot[drf_features]),
+  Y    = share_matrix
+)
 
 #---------------------------------------------------------------------------
 # Predict consumption on PUF tax units
 #---------------------------------------------------------------------------
 
-cex = tax_units %>%
+puf = tax_units %>%
   mutate(
     married = as.numeric(!is.na(male2)),
     size = 1 + married + n_dep,
@@ -92,36 +88,59 @@ cex = tax_units %>%
          income, size, has_income)
 
 # Stochastic quantile predictions from ranger
-pred_direct = predict_ranger_draw(consumption_rf, cex[features])
-pred_ratio  = predict_ranger_draw(consumption_per_rf, cex[features])
+pred_direct = predict_ranger_draw(consumption_rf, puf[features])
 
-cex = cex %>%
+puf = puf %>%
   mutate(
-    # 50% direct + 50% ratio*income for positive income; 100% direct otherwise
-    C = ifelse(has_income == 1,
-               0.5 * pred_direct + 0.5 * pred_ratio * income,
-               pred_direct),
+    C = pred_direct,
+    # Top-tail adjustment: for PUF units above CEX coverage (Y_ref = CEX P98
+    # median income), scale QRF draw by (Y/Y_ref)^beta to extrapolate the
+    # consumption-income gradient into the far right tail
+    C = ifelse(income > y_ref,
+               C * (income / y_ref) ^ elasticity_beta,
+               C),
     C = pmax(C, 0)
   )
 
 #---------------------------------------------------------------------------
-# Distribute total consumption across 20 PCE categories using shares
+# Distribute total consumption across 20 PCE categories via DRF donor sampling
 #---------------------------------------------------------------------------
 
-cex = cex %>%
-  mutate(pctile_bin = pmax(pctile_income, 0)) %>%
-  left_join(pce_shares, by = 'pctile_bin')
+# Use predicted C as total_consumption for DRF feature matching
+puf$total_consumption = puf$C
 
-# Multiply shares by total consumption to get category amounts
-for (cat in pce_sourced) {
-  cex[[cat]] = cex[[cat]] * cex$C
+batch_size = 5000
+donor_shares = matrix(0, nrow = nrow(puf), ncol = length(pce_cats),
+                      dimnames = list(NULL, pce_cats))
+
+for (start in seq(1, nrow(puf), by = batch_size)) {
+  end = min(start + batch_size - 1, nrow(puf))
+  idx = start:end
+
+  W = drf::get_sample_weights(share_drf,
+        newdata = as.matrix(puf[idx, drf_features]))
+
+  # Sample one donor per PUF unit (vectorized within batch)
+  donors = apply(W, 1, function(p) sample.int(n_boot, size = 1, prob = p))
+  donor_shares[idx, ] = share_matrix[donors, , drop = FALSE]
 }
-cex$npish = 0
-cex$net_foreign_travel = 0
 
-cex = cex %>% select(id, C, all_of(pce_cats))
+# Category amounts = C * donor share
+for (cat in pce_cats) {
+  puf[[cat]] = puf$C * donor_shares[, cat]
+}
 
-tax_units %<>% left_join(cex, by = 'id')
+puf = puf %>% select(id, C, all_of(pce_cats))
 
-rm(cex, cex_training, pct_train, pce_shares, consumption_rf, consumption_per_rf,
-   pred_direct, pred_ratio)
+tax_units %<>% left_join(puf, by = 'id')
+
+# Save diagnostics for plotting (only during test runs)
+if (exists('save_consumption_diagnostics') && save_consumption_diagnostics) {
+  write_rds(list(puf = puf, elasticity_beta = elasticity_beta, y_ref = y_ref),
+            'resources/cache/consumption_diagnostics.rds')
+}
+
+rm(puf, cex_training, cex_boot, share_matrix, donor_shares,
+   boot_probs, boot_idx, sourced_total, W, donors,
+   consumption_rf, share_drf, pred_direct,
+   elasticity_beta, y_ref)
