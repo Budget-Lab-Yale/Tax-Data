@@ -19,8 +19,8 @@ y_ref           = attr(cex_training, 'y_ref')
 features = c('has_income', 'pctile_income', 'married', 'age1', 'n_dep', 'male1')
 
 # 8 consumption categories (collapsed from 20 BEA PCE for tariff analysis)
-pce_cats = c('clothing', 'motor_vehicles', 'durables', 'other_nondurables',
-             'food_off_premises', 'gasoline', 'housing_utilities', 'other_services_health')
+pce_cats = c('c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables',
+             'c_food_off_premises', 'c_gasoline', 'c_housing_utilities', 'c_other_services_health')
 
 #---------------------------------------------------------------------------
 # Stage A: Train ranger models for total consumption level

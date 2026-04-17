@@ -26,7 +26,7 @@ read_cex = function(base_path, prefix, year, ...) {
 build_cex_training = function() {
 
   cex_base = '/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX'
-  years = c(2022, 2023, 2024)
+  years = c(2022, 2023)
 
   # CPI-U (IRS year avg) deflators to 2017 dollars: cpiu_irs[year] / cpiu_irs[2017]
   cpi_deflator = c('2022' = 1.17443, '2023' = 1.23825, '2024' = 1.27760)
@@ -149,13 +149,18 @@ build_cex_training = function() {
 
   # FMLI expenditure sub-variables: CQ + PQ together = full 3-month reference period.
   # CQ and PQ cover different portions of the quarter and ARE additive.
+  #
+  # Health is decomposed into its 4 FMLI children so drugs and medical
+  # supplies route to the correct NIPA categories (drugs → other_nondurables,
+  # med supplies → durables, services + insurance → services). HEALTHCQ
+  # itself equals HLTHINCQ + MEDSRVCQ + PREDRGCQ + MEDSUPCQ exactly.
   expcq = c('FDHOMECQ', 'FDAWAYCQ', 'ALCBEVCQ',
             'OWNDWECQ', 'RENDWECQ', 'OTHLODCQ',
             'NTLGASCQ', 'ELCTRCCQ', 'ALLFULCQ', 'TELEPHCQ', 'WATRPSCQ',
             'HOUSOPCQ', 'HOUSEQCQ', 'APPARCQ',
             'CARTKNCQ', 'CARTKUCQ', 'OTHVEHCQ', 'GASMOCQ',
             'VEHFINCQ', 'MAINRPCQ', 'VEHINSCQ', 'VRNTLOCQ', 'PUBTRACQ',
-            'HEALTHCQ',
+            'HLTHINCQ', 'MEDSRVCQ', 'PREDRGCQ', 'MEDSUPCQ',
             'FEEADMCQ', 'TVRDIOCQ', 'PETTOYCQ', 'OTHENTCQ',
             'PERSCACQ', 'READCQ', 'EDUCACQ', 'TOBACCCQ', 'MISCCQ',
             'LIFINSCQ')
@@ -203,8 +208,8 @@ build_cex_training = function() {
 
   # Collapsed for tariff analysis: goods categories with distinct tariff exposure
   # stay separate; services (uniformly low tariff) are grouped together.
-  pce_cats = c('clothing', 'motor_vehicles', 'durables', 'other_nondurables',
-               'food_off_premises', 'gasoline', 'housing_utilities', 'other_services_health')
+  pce_cats = c('c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables',
+               'c_food_off_premises', 'c_gasoline', 'c_housing_utilities', 'c_other_services_health')
   pce_cats_per = paste0(pce_cats, '_per')
 
   #---------------------------------------------------------------------------
@@ -236,20 +241,24 @@ build_cex_training = function() {
     filter(!is.na(income)) %>%
     # Adults
     filter(!is.na(age1) & age1 > 17) %>%
-    # Map FMLI CQ sub-variables to 8 consumption categories, scaled by CU_pct
+    # Map FMLI CQ sub-variables to 8 consumption categories, scaled by CU_pct.
+    # HKPGSUPP (housekeeping supplies: detergents, paper products, postage)
+    # has no dedicated FMLI CQ variable — those UCCs are absorbed elsewhere
+    # in the FMLI roll-up and are not directly retrievable here. This leaves
+    # a known ~$200B residual undercoverage in c_other_nondurables that
+    # benchmarking has to absorb.
     mutate(
-      clothing              = APPARCQ * CU_pct,
-      motor_vehicles        = (CARTKNCQ + CARTKUCQ + OTHVEHCQ) * CU_pct,
-      durables              = (HOUSEQCQ + PETTOYCQ + TVRDIOCQ) * CU_pct,
-      other_nondurables     = (TOBACCCQ + PERSCACQ + READCQ) * CU_pct,
-      food_off_premises     = (FDHOMECQ + ALCBEVCQ) * CU_pct,
-      gasoline              = GASMOCQ * CU_pct,
-      housing_utilities     = (OWNDWECQ + RENDWECQ + NTLGASCQ + ELCTRCCQ + ALLFULCQ + WATRPSCQ) * CU_pct,
-      other_services_health = (TELEPHCQ + HOUSOPCQ + MISCCQ + OTHENTCQ + MAINRPCQ + VRNTLOCQ +
-                               PUBTRACQ + FEEADMCQ + FDAWAYCQ + OTHLODCQ + HEALTHCQ + EDUCACQ +
-                               LIFINSCQ + VEHINSCQ + VEHFINCQ) * CU_pct,
-      cex_consumption     = rowSums(across(all_of(pce_cats))),
-      total_consumption   = cex_consumption,
+      c_clothing              = APPARCQ * CU_pct,
+      c_motor_vehicles        = (CARTKNCQ + CARTKUCQ + OTHVEHCQ) * CU_pct,
+      c_durables              = (HOUSEQCQ + PETTOYCQ + TVRDIOCQ + MEDSUPCQ) * CU_pct,
+      c_other_nondurables     = (TOBACCCQ + PERSCACQ + READCQ + PREDRGCQ) * CU_pct,
+      c_food_off_premises     = (FDHOMECQ + ALCBEVCQ) * CU_pct,
+      c_gasoline              = GASMOCQ * CU_pct,
+      c_housing_utilities     = (OWNDWECQ + RENDWECQ + NTLGASCQ + ELCTRCCQ + ALLFULCQ + WATRPSCQ) * CU_pct,
+      c_other_services_health = (TELEPHCQ + HOUSOPCQ + MISCCQ + OTHENTCQ + MAINRPCQ + VRNTLOCQ +
+                               PUBTRACQ + FEEADMCQ + FDAWAYCQ + OTHLODCQ + HLTHINCQ + MEDSRVCQ +
+                               EDUCACQ + LIFINSCQ + VEHINSCQ + VEHFINCQ) * CU_pct,
+      total_consumption   = rowSums(across(all_of(pce_cats))),
       # Cap age at PUF max
       age1      = pmin(age1, 80),
       n_dep_ctc = pmin(n_dep_ctc, 3)
