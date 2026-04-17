@@ -16,16 +16,8 @@ vars_to_ignore = c('int_exp')
 # Scale imputed consumption categories to NIPA PCE control totals
 source('src/pce_benchmark.R')
 if ('C' %in% names(tax_units)) {
-  # Compute income for ratio capping (matching consumption.R definition)
-  tax_units$.bench_income = with(tax_units,
-    wages + sole_prop + part_active + part_passive - part_active_loss -
-    part_passive_loss - part_179 + scorp_active + scorp_passive -
-    scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
-    txbl_int + div_ord + div_pref + gross_pens_dist + rent - rent_loss)
-  bench = benchmark_to_pce(tax_units, weight_col = 'weight', income_col = '.bench_income',
-                           annualize = 1)
+  bench = benchmark_to_pce(tax_units, weight_col = 'weight', annualize = 1)
   tax_units = bench$data
-  tax_units$.bench_income = NULL
 }
 
 #------------------------------
