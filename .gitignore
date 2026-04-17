@@ -3,3 +3,10 @@
 .RData
 .Ruserdata
 config/interfaces/output_roots.yaml
+
+# Local / generated
+.claude/
+plots/
+resources/cache/
+slurm_*.out
+slurm_*.err
