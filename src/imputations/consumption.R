@@ -130,7 +130,7 @@ for (cat in pce_cats) {
   puf[[cat]] = puf$C * donor_shares[, cat]
 }
 
-puf = puf %>% select(id, C, all_of(pce_cats))
+puf = puf %>% select(id, all_of(pce_cats))
 
 tax_units %<>% left_join(puf, by = 'id')
 

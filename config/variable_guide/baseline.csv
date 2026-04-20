@@ -137,12 +137,11 @@ other_nonref,other nonrefundable tax credits,puf,P08000,income
 net_ptc,net Premium Tax Credit,puf,E11560,income
 recapture_tax,recpature taxes,puf,E09700,income
 ira_penalty,penalty tax on IRA,puf,E09900,income
-C,total annual consumption,imputed,NA,consumption
-c_clothing,PCE: clothing and footwear,imputed,NA,consumption
-c_motor_vehicles,PCE: motor vehicles and parts,imputed,NA,consumption
-c_durables,"PCE: other durables, furnishings, and recreational goods (collapsed)",imputed,NA,consumption
-c_other_nondurables,PCE: other nondurable goods,imputed,NA,consumption
-c_food_off_premises,PCE: food and beverages off premises,imputed,NA,consumption
-c_gasoline,PCE: gasoline and energy goods,imputed,NA,consumption
-c_housing_utilities,PCE: housing and utilities (collapsed),imputed,NA,consumption
-c_other_services_health,PCE: other services and health care (collapsed),imputed,NA,consumption
+c_clothing,PCE: clothing and footwear,imputed,NA,c_clothing
+c_motor_vehicles,PCE: motor vehicles and parts,imputed,NA,c_motor_vehicles
+c_durables,"PCE: other durables, furnishings, and recreational goods (collapsed)",imputed,NA,c_durables
+c_other_nondurables,PCE: other nondurable goods,imputed,NA,c_other_nondurables
+c_food_off_premises,PCE: food and beverages off premises,imputed,NA,c_food_off_premises
+c_gasoline,PCE: gasoline and energy goods,imputed,NA,c_gasoline
+c_housing_utilities,PCE: housing and utilities (collapsed),imputed,NA,c_housing_utilities
+c_other_services_health,PCE: other services and health care (collapsed),imputed,NA,c_other_services_health

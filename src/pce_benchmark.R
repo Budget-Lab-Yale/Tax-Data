@@ -62,7 +62,7 @@ pce_collapse_map = list(
 #'                      pre/post totals, and per-category deficit allocations
 benchmark_to_pce = function(data,
                             weight_col  = 'FINLWT21',
-                            target_file = 'resources/pce_targets_2023.csv',
+                            target_file = 'resources/pce_targets_2017.csv',
                             sf_cap      = 2,
                             annualize   = 1) {
 

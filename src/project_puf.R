@@ -15,7 +15,7 @@ vars_to_ignore = c('int_exp')
 
 # Scale imputed consumption categories to NIPA PCE control totals
 source('src/pce_benchmark.R')
-if ('C' %in% names(tax_units)) {
+if ('c_clothing' %in% names(tax_units)) {
   bench = benchmark_to_pce(tax_units, weight_col = 'weight', annualize = 1)
   tax_units = bench$data
 }
@@ -46,9 +46,19 @@ rm(raw_puf, puf, puf_2017, sipp, ot, ot_microdata)
 
 # Read macro projections
 macro_projections = bind_rows(
-  read_csv(file.path(interface_paths$`Macro-Projections`, 'historical.csv')), 
+  read_csv(file.path(interface_paths$`Macro-Projections`, 'historical.csv')),
   read_csv(file.path(interface_paths$`Macro-Projections`, 'projections.csv'))
 )
+
+# Read NIPA PCE historical (2017 - latest year) as the per-category near-term
+# series for consumption aging. Macro-Projections does not expose per-category
+# PCE, and gdp_c is missing from historical.csv, so this file fills both roles
+# for years 2017+ up to the last year BEA has published. Projection-year
+# fallback is total PCE (gdp_c) via income_far below.
+pce_historical = read_csv('resources/pce_historical.csv', show_col_types = F) %>%
+  pivot_longer(cols      = -year,
+               names_to  = 'variable',
+               values_to = 'value')
 
 # Extract and process demographic projections   
 demog = macro_projections %>% 
@@ -88,28 +98,48 @@ income_near = read_csv('resources/cbo_1040.csv') %>%
   ) %>% 
   
   # Map to larger categories and reshape long in variable
-  select(year, income, wages, int = txbl_int_div_ord, div = div_pref, kg = txbl_kg, pt, 
-         pensions = txbl_pensions, ui, mortgage, charity, salt_inc_sales, salt_prop) %>% 
-  pivot_longer(cols      = -year, 
-               names_to  = 'variable', 
-               values_to = 'near')
+  select(year, income, wages, int = txbl_int_div_ord, div = div_pref, kg = txbl_kg, pt,
+         pensions = txbl_pensions, ui, mortgage, charity, salt_inc_sales, salt_prop) %>%
+  pivot_longer(cols      = -year,
+               names_to  = 'variable',
+               values_to = 'near') %>%
+
+  # Supplement with NIPA PCE per-category and total (gdp_c) growth rates.
+  # These dominate income_far (gdp_c) wherever BEA has published actuals.
+  bind_rows(
+    pce_historical %>%
+      arrange(variable, year) %>%
+      group_by(variable) %>%
+      mutate(near = value / lag(value) - 1) %>%
+      ungroup() %>%
+      filter(!is.na(near)) %>%
+      select(year, variable, near)
+  )
 
 # Get longer-term income factors
-income_far = macro_projections %>% 
-  mutate(income         = gdp, 
-         wages          = gdp_wages, 
-         int            = gdp_interest, 
-         div            = gdp_corp, 
-         kg             = gdp_corp, 
-         pt             = gdp_proprietors + gdp_rent + gdp_corp, 
+income_far = macro_projections %>%
+  mutate(income         = gdp,
+         wages          = gdp_wages,
+         int            = gdp_interest,
+         div            = gdp_corp,
+         kg             = gdp_corp,
+         pt             = gdp_proprietors + gdp_rent + gdp_corp,
          rent           = gdp_rent,
          pensions       = outlays_mand_oasdi,
          ss             = outlays_mand_oasdi,
-         ui             = gdp, 
-         mortgage       = gdp_interest, 
-         charity        = gdp, 
-         salt_inc_sales = gdp, 
-         salt_prop      = gdp) %>% 
+         ui             = gdp,
+         mortgage       = gdp_interest,
+         charity        = gdp,
+         salt_inc_sales = gdp,
+         salt_prop      = gdp,
+         c_clothing              = gdp_c,
+         c_motor_vehicles        = gdp_c,
+         c_durables              = gdp_c,
+         c_other_nondurables     = gdp_c,
+         c_food_off_premises     = gdp_c,
+         c_gasoline              = gdp_c,
+         c_housing_utilities     = gdp_c,
+         c_other_services_health = gdp_c) %>%
   select(year, all_of(variable_guide %>% 
                         filter(!is.na(grow_with)) %>% 
                         select(grow_with) %>% 
@@ -274,10 +304,34 @@ irs_growth_factors_income = tables$table_1_4 %>%
                     .groups = 'drop') %>%
           mutate(n = n / n[year == 2017]), 
         by = 'year') %>% 
-      mutate(income_factor = income_factor / n) %>% 
+      mutate(income_factor = income_factor / n) %>%
       select(-growth, -n)
+  ) %>%
+
+  # Add NIPA PCE factors (8 c_* + gdp_c) indexed to 2017 = 1, then
+  # divided by total-return-count growth to put them in per-return units
+  # like the SOI-derived factors above.
+  bind_rows(
+    pce_historical %>%
+      group_by(variable) %>%
+      mutate(income_factor = value / value[year == 2017]) %>%
+      ungroup() %>%
+      filter(year %in% 2018:2019) %>%
+      left_join(
+        read_csv('./resources/return_counts_2019.csv') %>%
+          pivot_longer(cols            = -c(filing_status, age_group),
+                       names_to        = 'year',
+                       names_transform = as.integer,
+                       values_to       = 'n') %>%
+          group_by(year) %>%
+          summarise(n = sum(n),
+                    .groups = 'drop') %>%
+          mutate(n = n / n[year == 2017]),
+        by = 'year') %>%
+      mutate(income_factor = income_factor / n) %>%
+      select(year, variable, income_factor)
   )
-  
+
 
 # Get overall population growth factors for nonfilers
 population_factors = demog %>% 
