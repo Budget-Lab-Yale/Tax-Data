@@ -6,6 +6,18 @@
 #--------------------------------------
 
 
+#' Resolve the number of CPU threads to use.
+#'
+#' On SLURM, parallel::detectCores() returns the node's physical core count,
+#' not the allocation — which oversubscribes and wastes time on context
+#' switching. Prefer SLURM_CPUS_PER_TASK when set; off-cluster, fall back to
+#' parallel::detectCores().
+n_threads = function() {
+  n = Sys.getenv('SLURM_CPUS_PER_TASK')
+  if (nzchar(n)) as.integer(n) else parallel::detectCores()
+}
+
+
 #' Train or load a quantile regression forest model
 #'
 #' If estimate_models is TRUE, trains a new QRF and caches it.
@@ -27,7 +39,7 @@ train_or_load_qrf = function(name, x = NULL, y = NULL, weights = NULL,
     qrf = quantregForest(
       x        = x,
       y        = y,
-      nthreads = parallel::detectCores(),
+      nthreads = n_threads(),
       weights  = weights,
       mtry     = mtry,
       nodesize = nodesize
@@ -50,14 +62,14 @@ train_or_load_qrf = function(name, x = NULL, y = NULL, weights = NULL,
 #' @param weight Weight vector (same length as x)
 #' @return       Integer vector of percentile bins (0-100)
 compute_percentile = function(x, weight) {
-  cut(
-    x      = x,
-    breaks = wtd.quantile(x[x > 0], weight[x > 0], 0:100 / 100),
-    labels = 1:100
-  ) %>%
-    as.character() %>%
-    as.integer() %>%
-    replace_na(0)
+  # findInterval tolerates tied weighted-quantile breaks (common in skewed
+  # distributions with concentrated values or topcoding), unlike cut() which
+  # errors on duplicate breaks. Matches the construction in src/cex.R.
+  breaks = wtd.quantile(x[x > 0], weight[x > 0], seq(0.01, 0.99, 0.01))
+  pct = findInterval(x, breaks) + 1L
+  pct = pmin(pct, 100L)
+  pct[x <= 0 | is.na(x)] = 0L
+  as.integer(pct)
 }
 
 
@@ -102,7 +114,7 @@ train_or_load_ranger = function(name, formula, data, case_weights = NULL,
   if (estimate_models) {
     rf = ranger(formula, data = data, case.weights = case_weights,
                 quantreg = TRUE, num.trees = num_trees, mtry = mtry,
-                min.node.size = min_node_size, num.threads = parallel::detectCores())
+                min.node.size = min_node_size, num.threads = n_threads())
     write_rds(rf, cache_path)
   } else {
     rf = read_rds(cache_path)
@@ -142,7 +154,8 @@ predict_ranger_draw = function(model, newdata) {
 train_or_load_drf = function(name, X, Y, num.trees = 500,
                               splitting.rule = "FourierMMD",
                               mtry = ncol(X),
-                              min.node.size = 20, honesty = TRUE) {
+                              min.node.size = 20, honesty = TRUE,
+                              response.scaling = FALSE) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
     model = drf::drf(X = X, Y = Y, num.trees = num.trees,
@@ -150,7 +163,8 @@ train_or_load_drf = function(name, X, Y, num.trees = 500,
                      mtry = mtry,
                      min.node.size = min.node.size,
                      honesty = honesty,
-                     num.threads = parallel::detectCores())
+                     response.scaling = response.scaling,
+                     num.threads = n_threads())
     write_rds(model, cache_path)
   } else {
     model = read_rds(cache_path)

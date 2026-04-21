@@ -103,27 +103,57 @@ puf = puf %>%
   )
 
 #---------------------------------------------------------------------------
-# Distribute total consumption across 20 PCE categories via DRF donor sampling
+# Distribute total consumption across 8 PCE categories via DRF donor sampling.
+#
+# Sparse leaf-traversal sampling: instead of materializing the dense
+# n_pred × n_boot weight matrix and running apply+sample.int, pick one
+# random tree per row, walk to its leaf, uniformly draw one training row
+# from the leaf. Distributionally equivalent to the dense apply+sample.int
+# it replaces (marginalizing over tree choice recovers drf's weights).
+# Matches the fix applied to src/imputations/wealth.R. See
+# src/eda/bench_sparse_sample.R for the equivalence benchmark.
 #---------------------------------------------------------------------------
 
 # Use predicted C as total_consumption for DRF feature matching
 puf$total_consumption = puf$C
 
-batch_size = 5000
-donor_shares = matrix(0, nrow = nrow(puf), ncol = length(pce_cats),
-                      dimnames = list(NULL, pce_cats))
+n_trees = share_drf[['_num_trees']]
+root    = sapply(share_drf[['_root_nodes']], identity)
+child_L = lapply(share_drf[['_child_nodes']], `[[`, 1L)
+child_R = lapply(share_drf[['_child_nodes']], `[[`, 2L)
+split_v = share_drf[['_split_vars']]
+split_s = share_drf[['_split_values']]
+leaves  = share_drf[['_leaf_samples']]
 
-for (start in seq(1, nrow(puf), by = batch_size)) {
-  end = min(start + batch_size - 1, nrow(puf))
-  idx = start:end
-
-  W = drf::get_sample_weights(share_drf,
-        newdata = as.matrix(puf[idx, drf_features]))
-
-  # Sample one donor per PUF unit (vectorized within batch)
-  donors = apply(W, 1, function(p) sample.int(n_boot, size = 1, prob = p))
-  donor_shares[idx, ] = share_matrix[donors, , drop = FALSE]
+walk_to_leaf = function(t, x_row) {
+  L  = child_L[[t]]; R  = child_R[[t]]
+  v  = split_v[[t]]; s  = split_s[[t]]
+  ll = leaves[[t]]
+  node = root[t] + 1L
+  repeat {
+    if (length(ll[[node]]) > 0L) return(node)
+    xv = x_row[v[node] + 1L]; sv = s[node]
+    node = if (is.na(xv) || is.na(sv) || xv <= sv) L[node] + 1L else R[node] + 1L
+  }
 }
+
+X_puf     = as.matrix(puf[, drf_features])
+n_pred    = nrow(X_puf)
+tree_pick = sample.int(n_trees, size = n_pred, replace = TRUE)
+donors    = integer(n_pred)
+
+t0 = Sys.time()
+for (i in seq_len(n_pred)) {
+  t  = tree_pick[i]
+  nd = walk_to_leaf(t, X_puf[i, ])
+  lr = leaves[[t]][[nd]] + 1L
+  donors[i] = as.integer(lr[sample.int(length(lr), 1L)])
+}
+cat(sprintf('consumption.R: sparse donor sampling over %d rows: %.1f s\n',
+            n_pred, as.numeric(Sys.time() - t0, units = 'secs')))
+
+donor_shares = share_matrix[donors, , drop = FALSE]
+colnames(donor_shares) = pce_cats
 
 # Category amounts = C * donor share
 for (cat in pce_cats) {
@@ -141,6 +171,8 @@ if (exists('save_consumption_diagnostics') && save_consumption_diagnostics) {
 }
 
 rm(puf, cex_training, cex_boot, share_matrix, donor_shares,
-   boot_probs, boot_idx, sourced_total, W, donors,
+   boot_probs, boot_idx, sourced_total, donors,
    consumption_rf, share_drf, pred_direct,
-   elasticity_beta, y_ref)
+   elasticity_beta, y_ref,
+   X_puf, tree_pick, n_pred, n_trees, root,
+   child_L, child_R, split_v, split_s, leaves, walk_to_leaf)

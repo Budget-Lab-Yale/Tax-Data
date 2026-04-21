@@ -38,14 +38,18 @@ y_ref = diag$y_ref
 
 cat(sprintf("elasticity_beta = %.4f, y_ref = $%.0f\n\n", elasticity_beta, y_ref))
 
-# Build analysis dataset
+# Build analysis dataset. C is not a stored field on tax_units (production
+# drops total C after benchmarking); reconstruct as sum of the 8 c_*
+# categories for diagnostic purposes.
 d = tax_units %>%
   mutate(
     income = wages + sole_prop + part_active + part_passive - part_active_loss -
       part_passive_loss - part_179 + scorp_active + scorp_passive -
       scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
       txbl_int + div_ord + div_pref + gross_pens_dist +
-      rent - rent_loss
+      rent - rent_loss,
+    C = c_clothing + c_motor_vehicles + c_durables + c_other_nondurables +
+        c_food_off_premises + c_gasoline + c_housing_utilities + c_other_services_health
   ) %>%
   filter(income > 0, C > 0) %>%
   mutate(CY = C / income)

@@ -57,7 +57,7 @@ if (estimate_models) {
   prim_mort_share_qrf = quantregForest(
     x        = scf_mortgage[c('pctile_income', 'n_kids', 'married', 'age1')],
     y        = scf_mortgage$prim_mort_share,
-    nthreads = parallel::detectCores(),
+    nthreads = n_threads(),
     weights  = scf_mortgage$weight,
     mtry     = 4,
     nodesize = 5

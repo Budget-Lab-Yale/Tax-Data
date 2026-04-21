@@ -1,32 +1,34 @@
 
 # Read CEX files for a calendar year from BLS survey-year directories.
-# Each BLS annual release contains Q2-Q4 of year N plus Q1 of year N+1:
+# BLS PUMD convention (2020+): each annual release contains Q2-Q4 of year N
+# plus Q1 of year N+1 (the boundary quarter, needed to cover Oct-Dec of
+# year N via MO_SCOPE):
 #   CEX/2022/: *222, *223, *224, *231
 #   CEX/2023/: *232, *233, *234, *241
-# We read Q2-Q4 + boundary Q1 from the release directory only. The boundary
-# Q1 (e.g., 231 for year=2022) captures Oct-Dec of the target year via
-# MO_SCOPE. We do NOT also read Q1 from the prior release, which would
-# create duplicate NEWIDs across year pools requiring dedup that loses data.
+# All four files are required. A missing file is a data-setup bug
+# (misfiled or never downloaded), not a gracefully-handled absence — we
+# error loudly because silent skips previously let the 2022 memi files go
+# missing undetected, which silently trained the pipeline on 2023 alone.
 read_cex = function(base_path, prefix, year, ...) {
-  yy = year %% 100
-  # Q2-Q4 of target year
-  files_q234 = dir(path       = file.path(base_path, year),
-                   pattern    = paste0('^', prefix, yy, '[2-4]\\.csv$'),
-                   full.names = TRUE)
-  # Boundary Q1 of next year (in same release directory)
-  files_boundary = dir(path       = file.path(base_path, year),
-                       pattern    = paste0('^', prefix, yy + 1, '1\\.csv$'),
-                       full.names = TRUE)
-  all_files = c(files_q234, files_boundary)
-  if (length(all_files) == 0) return(data.table::data.table())
-  lapply(all_files, fread, ...) %>% bind_rows()
+  yy       = year %% 100
+  dir_path = file.path(base_path, year)
+  expected = paste0(prefix, c(paste0(yy, 2:4), paste0(yy + 1, 1)), '.csv')
+  paths    = file.path(dir_path, expected)
+  missing  = expected[!file.exists(paths)]
+  if (length(missing) > 0) {
+    stop(sprintf(
+      "Missing CEX file(s) in %s: %s. Expected Q2-Q4 of %d plus boundary Q1 of %d.",
+      dir_path, paste(missing, collapse = ', '), year, year + 1
+    ))
+  }
+  lapply(paths, fread, ...) %>% bind_rows()
 }
 
 
 build_cex_training = function() {
 
   cex_base = '/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX'
-  years = c(2022, 2023)
+  years = c(2022, 2023, 2024)
 
   # CPI-U (IRS year avg) deflators to 2017 dollars: cpiu_irs[year] / cpiu_irs[2017]
   cpi_deflator = c('2022' = 1.17443, '2023' = 1.23825, '2024' = 1.27760)
@@ -143,7 +145,7 @@ build_cex_training = function() {
   # FMLI: weights, demographics, tech variables, and CQ expenditure sub-variables
   #---------------------------------------------------------------------------
 
-  tech    = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE')
+  tech    = c('NEWID', 'FINLWT21', 'QINTRVMO', 'QINTRVYR', 'FAM_TYPE', 'FINCBTXI')
   demo    = c('FAM_SIZE')
   cu_inc = c('INTRDVXM', 'NETRENTM', 'RETSURVM', 'OTHREGXM', 'ROYESTXM')  # CU-level income (allocated to TUs below)
 
@@ -176,6 +178,13 @@ build_cex_training = function() {
       d
     }) %>%
     bind_rows() %>%
+    # Restrict to complete income reporters. FINCBTXI is BLS's imputation-status
+    # flag on CU pre-tax income: 100 = complete (no fields imputed), 2xx = at
+    # least one field imputed. Empirically, dropping incomplete reporters
+    # shifts the top-tail β estimate by ~0.08 and the weighted income
+    # quantiles by 9-15% (complete reporters skew poorer); see
+    # src/eda/check_comp_inc.R.
+    filter(FINCBTXI == 100) %>%
     # Sum CQ + PQ for each expenditure category (together = full 3-month reference period)
     # then annualize: CQ+PQ covers one quarter, so multiply by 4 for annual
     mutate(across(all_of(c(cu_inc, expcq, exppq)), ~ replace_na(.x, 0))) %>%
