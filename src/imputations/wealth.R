@@ -99,7 +99,7 @@ if (!exists('scf_tax_units', inherits = TRUE)) {
   # See config/variable_guide/baseline.csv for the full PUF-side menu.
   #---------------------------------------------------------------------------
 
-  features = c('has_income', 'pctile_income', 'married', 'age1', 'n_dep', 'male1')
+  features = c('has_income', 'pctile_income', 'married', 'age1', 'n_dep')
 
   #---------------------------------------------------------------------------
   # Training frame from SCF tax units
@@ -122,16 +122,20 @@ if (!exists('scf_tax_units', inherits = TRUE)) {
     scf_to_y() %>%
     select(weight, all_of(features), all_of(wealth_y_vars))
 
-  # Bootstrap-resample to ~200K unweighted rows so DRF sees an equal-weighted
-  # sample. Matches the CEX Stage B convention
-  # (src/imputations/consumption.R:43-46). The bootstrap is deterministic
-  # under a fixed seed (set upstream in main.R / test scripts) so the same
-  # index set is reconstructed when loading the cached model.
-  n_boot = 200000
+  # Bootstrap-expand to n_boot rows sampled with probability proportional
+  # to SCF weight. Under unweighted MMD this gives each tree a roughly
+  # uniform-weight training pool where heavy rows appear with their
+  # population-relative frequency. Keeps tree structure fine-grained
+  # (unlike weighted MMD, which carves tight leaves around heavy rows)
+  # while still producing correct donor-draw probabilities in expectation.
+  # n_boot = 250k is large enough that each heavy row's per-tree copy count
+  # (~3-4) stays well below min.node.size (default 20), so leaf pooling is
+  # automatic — no need to bump min.node.size.
+  n_boot = 250000
   boot_probs = scf_training$weight / sum(scf_training$weight)
-  boot_idx = sample.int(nrow(scf_training), size = n_boot,
-                        replace = TRUE, prob = boot_probs)
-  scf_boot = scf_training[boot_idx, ]
+  boot_idx   = sample.int(nrow(scf_training), size = n_boot,
+                          replace = TRUE, prob = boot_probs)
+  scf_boot   = scf_training[boot_idx, ]
 
   Y_mat = as.matrix(scf_boot[wealth_y_vars])
   X_mat = as.matrix(scf_boot[features])
@@ -230,6 +234,10 @@ if (!exists('scf_tax_units', inherits = TRUE)) {
   tree_pick = sample.int(n_trees, size = n_pred, replace = TRUE)
   donors    = integer(n_pred)
 
+  # Under bootstrap expansion each training row has (implicit) weight 1,
+  # so uniform leaf sampling already produces weight-proportional donor
+  # draws in expectation. The heavy rows' effective probability = their
+  # bootstrap-copy count in the leaf, which tracks their population share.
   t0 = Sys.time()
   for (i in seq_len(n_pred)) {
     t  = tree_pick[i]
@@ -262,7 +270,7 @@ if (!exists('scf_tax_units', inherits = TRUE)) {
   }
 
   rm(puf, puf_wealth, scf_training, scf_boot, Y_mat, X_mat, donors,
-     donor_y, boot_idx, boot_probs, wealth_drf, scf_to_y,
+     donor_y, boot_idx, boot_probs, n_boot, wealth_drf, scf_to_y,
      wealth_asset_vars, wealth_debt_vars, wealth_kg_vars, wealth_y_vars,
      features, X_puf, tree_pick, n_pred, n_trees, root,
      child_L, child_R, split_v, split_s, leaves, walk_to_leaf)

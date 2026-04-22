@@ -603,6 +603,17 @@ scf_tax_units = scfp_joined %>%
     taxunit_code = TAXUNIT_final,
     income = INCOME,
 
+    # SCF-side income composition (post tax-unit split; NPEU-adjusted).
+    # Carried through for X-ablation diagnostics
+    # (src/eda/test_wealth_X_ablation.R). Not used by production wealth.R.
+    wages_scf         = WAGEINC,
+    business_scf      = BUSSEFARMINC,
+    int_div_scf       = INTDIVINC,
+    capital_gains_scf = KGINC,
+    rent_scf          = RENT,
+    ss_pens_scf       = SSRETINC,
+    ui_other_scf      = TRANSFOTHINC,
+
     # Canonical wealth schema (from Wealth-Tax-Simulator/src/data.R:28-84)
     cash             = LIQ + CDS,
     equities         = STOCKS + STMUTF + COMUTF,

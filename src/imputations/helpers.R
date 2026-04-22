@@ -65,7 +65,10 @@ compute_percentile = function(x, weight) {
   # findInterval tolerates tied weighted-quantile breaks (common in skewed
   # distributions with concentrated values or topcoding), unlike cut() which
   # errors on duplicate breaks. Matches the construction in src/cex.R.
-  breaks = wtd.quantile(x[x > 0], weight[x > 0], seq(0.01, 0.99, 0.01))
+  # Sort explicitly: Hmisc::wtd.quantile can emit FP-noise inversions on
+  # heavy-tailed weighted inputs (adjacent breaks equal to ~1e-10 but with
+  # reversed order), which findInterval rejects as "not sorted".
+  breaks = sort(wtd.quantile(x[x > 0], weight[x > 0], seq(0.01, 0.99, 0.01)))
   pct = findInterval(x, breaks) + 1L
   pct = pmin(pct, 100L)
   pct[x <= 0 | is.na(x)] = 0L
@@ -146,19 +149,26 @@ predict_ranger_draw = function(model, newdata) {
 #' @param name           Cache name (saved to resources/cache/qrf/{name}.rds)
 #' @param X              Matrix of features
 #' @param Y              Matrix of responses (e.g., share vectors)
+#' @param sample.weights Optional numeric vector of sample weights (one per row of X/Y).
+#'                       When supplied, drf uses weighted MMD splitting, weighted
+#'                       tree-subsampling, and weighted leaf predictions — no need to
+#'                       bootstrap-expand the training set.
 #' @param num.trees      Number of trees (default 500)
 #' @param splitting.rule Splitting rule (default "FourierMMD")
 #' @param min.node.size  Minimum node size (default 20)
 #' @param honesty        Use honesty splitting (default TRUE)
 #' @return               A drf object
-train_or_load_drf = function(name, X, Y, num.trees = 500,
+train_or_load_drf = function(name, X, Y, sample.weights = NULL,
+                              num.trees = 500,
                               splitting.rule = "FourierMMD",
                               mtry = ncol(X),
                               min.node.size = 20, honesty = TRUE,
                               response.scaling = FALSE) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
-    model = drf::drf(X = X, Y = Y, num.trees = num.trees,
+    model = drf::drf(X = X, Y = Y,
+                     sample.weights = sample.weights,
+                     num.trees = num.trees,
                      splitting.rule = splitting.rule,
                      mtry = mtry,
                      min.node.size = min.node.size,
