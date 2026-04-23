@@ -62,6 +62,7 @@ source('./src/project_puf.R')
 # added to factor_ledger — follow-up task. Wealth values therefore stay
 # frozen at 2022 levels through 2097 for this PR.
 source('./src/materialize.R')
+source('./src/record_bucket.R')
 module_deltas = list()
 
 # Wealth — SCF 2022 donor, runs at 2022 base.
@@ -70,6 +71,13 @@ source('./src/imputations/wealth.R')
 
 puf_2022 = materialize(2022L, tax_units, factor_ledger, weight_ledger,
                        module_deltas)
+
+# Freeze per-record income bucket at 2022. Used by Phase 4 together with
+# bucketed_factors (built in a follow-up) to age wealth Y-vars by DFA
+# income percentile.
+record_bucket = build_record_bucket(puf_2022)
+write_rds(record_bucket, file.path(output_path, 'record_bucket.rds'))
+
 wealth_delta = run_wealth_imputation(puf_2022, scf_tax_units)
 module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_delta)
 rm(puf_2022, wealth_delta)
