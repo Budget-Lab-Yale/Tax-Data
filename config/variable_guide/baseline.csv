@@ -145,26 +145,26 @@ c_food_off_premises,PCE: food and beverages off premises,imputed,NA,c_food_off_p
 c_gasoline,PCE: gasoline and energy goods,imputed,NA,c_gasoline,2017,NA,NA
 c_housing_utilities,PCE: housing and utilities (collapsed),imputed,NA,c_housing_utilities,2017,NA,NA
 c_other_services_health,PCE: other services and health care (collapsed),imputed,NA,c_other_services_health,2017,NA,NA
-cash,SCF liquid + CDs,imputed,NA,NA,2017,NA,NA
-equities,SCF directly-held stocks + stock and combined mutual funds,imputed,NA,NA,2017,NA,NA
-bonds,SCF bonds + savings bonds + tax-free/govt/other bond mutual funds,imputed,NA,NA,2017,NA,NA
-retirement,SCF IRA/Keogh + thrift + future + current pension accounts,imputed,NA,NA,2017,NA,NA
-life_ins,SCF cash-value life insurance,imputed,NA,NA,2017,NA,NA
-annuities,SCF annuities,imputed,NA,NA,2017,NA,NA
-trusts,SCF managed trusts and annuities in trust,imputed,NA,NA,2017,NA,NA
-other_fin,SCF other financial assets + other mutual funds,imputed,NA,NA,2017,NA,NA
-pass_throughs,SCF business equity (sole prop/S-corp/partnership/farm),imputed,NA,NA,2017,NA,NA
-primary_home,SCF primary residence value,imputed,NA,NA,2017,NA,NA
-other_home,SCF other residential real estate value,imputed,NA,NA,2017,NA,NA
-re_fund,SCF non-residential real estate value,imputed,NA,NA,2017,NA,NA
-other_nonfin,SCF vehicles + other nonfinancial assets,imputed,NA,NA,2017,NA,NA
-primary_mortgage,SCF primary residence mortgage + HELOC balance,imputed,NA,NA,2017,NA,NA
-other_mortgage,SCF other residential real estate debt,imputed,NA,NA,2017,NA,NA
-credit_lines,SCF other lines of credit (non-RE),imputed,NA,NA,2017,NA,NA
-credit_cards,SCF credit card balance,imputed,NA,NA,2017,NA,NA
-installment_debt,SCF installment loan balance,imputed,NA,NA,2017,NA,NA
-other_debt,SCF other debt,imputed,NA,NA,2017,NA,NA
-kg_primary_home,SCF unrealized capital gains on primary residence,imputed,NA,NA,2017,NA,NA
-kg_other_re,SCF unrealized capital gains on other real estate,imputed,NA,NA,2017,NA,NA
-kg_pass_throughs,SCF unrealized capital gains on business equity,imputed,NA,NA,2017,NA,NA
-kg_other,SCF unrealized capital gains on stocks + mutual funds,imputed,NA,NA,2017,NA,NA
+cash,SCF liquid + CDs,imputed,NA,NA,2022,imputations/wealth.R,NA
+equities,SCF directly-held stocks + stock and combined mutual funds,imputed,NA,NA,2022,imputations/wealth.R,NA
+bonds,SCF bonds + savings bonds + tax-free/govt/other bond mutual funds,imputed,NA,NA,2022,imputations/wealth.R,NA
+retirement,SCF IRA/Keogh + thrift + future + current pension accounts,imputed,NA,NA,2022,imputations/wealth.R,NA
+life_ins,SCF cash-value life insurance,imputed,NA,NA,2022,imputations/wealth.R,NA
+annuities,SCF annuities,imputed,NA,NA,2022,imputations/wealth.R,NA
+trusts,SCF managed trusts and annuities in trust,imputed,NA,NA,2022,imputations/wealth.R,NA
+other_fin,SCF other financial assets + other mutual funds,imputed,NA,NA,2022,imputations/wealth.R,NA
+pass_throughs,SCF business equity (sole prop/S-corp/partnership/farm),imputed,NA,NA,2022,imputations/wealth.R,NA
+primary_home,SCF primary residence value,imputed,NA,NA,2022,imputations/wealth.R,NA
+other_home,SCF other residential real estate value,imputed,NA,NA,2022,imputations/wealth.R,NA
+re_fund,SCF non-residential real estate value,imputed,NA,NA,2022,imputations/wealth.R,NA
+other_nonfin,SCF vehicles + other nonfinancial assets,imputed,NA,NA,2022,imputations/wealth.R,NA
+primary_mortgage,SCF primary residence mortgage + HELOC balance,imputed,NA,NA,2022,imputations/wealth.R,NA
+other_mortgage,SCF other residential real estate debt,imputed,NA,NA,2022,imputations/wealth.R,NA
+credit_lines,SCF other lines of credit (non-RE),imputed,NA,NA,2022,imputations/wealth.R,NA
+credit_cards,SCF credit card balance,imputed,NA,NA,2022,imputations/wealth.R,NA
+installment_debt,SCF installment loan balance,imputed,NA,NA,2022,imputations/wealth.R,NA
+other_debt,SCF other debt,imputed,NA,NA,2022,imputations/wealth.R,NA
+kg_primary_home,SCF unrealized capital gains on primary residence,imputed,NA,NA,2022,imputations/wealth.R,NA
+kg_other_re,SCF unrealized capital gains on other real estate,imputed,NA,NA,2022,imputations/wealth.R,NA
+kg_pass_throughs,SCF unrealized capital gains on business equity,imputed,NA,NA,2022,imputations/wealth.R,NA
+kg_other,SCF unrealized capital gains on stocks + mutual funds,imputed,NA,NA,2022,imputations/wealth.R,NA

@@ -53,10 +53,26 @@ source('./src/project_puf.R')
 # Phase 3: donor-year imputations
 #-----------------------
 
-# Modules with base_year > 2017 attach their outputs to module_deltas and
-# extend factor_ledger with their post-base growth series. Empty for now —
-# wealth migration (task 14) will populate this block.
+# Modules with base_year > 2017 attach their outputs to module_deltas.
+# Each module: (i) materializes the PUF at its base_year using the ledger
+# built in Phase 2, (ii) imputes its variables against that state, (iii)
+# stores the base-year values in module_deltas.
+#
+# Wealth aging factors post-2022 (DFA 2023–25, macro 2026+) are NOT yet
+# added to factor_ledger — follow-up task. Wealth values therefore stay
+# frozen at 2022 levels through 2097 for this PR.
+source('./src/materialize.R')
 module_deltas = list()
+
+# Wealth — SCF 2022 donor, runs at 2022 base.
+source('./src/imputations/stage1_scf_tax_units.R')
+source('./src/imputations/wealth.R')
+
+puf_2022 = materialize(2022L, tax_units, factor_ledger, weight_ledger,
+                       module_deltas)
+wealth_delta = run_wealth_imputation(puf_2022, scf_tax_units)
+module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_delta)
+rm(puf_2022, wealth_delta)
 
 
 #-----------------------
