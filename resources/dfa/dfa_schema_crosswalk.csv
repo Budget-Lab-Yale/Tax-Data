@@ -1,0 +1,24 @@
+y_var,dfa_category,note
+cash,Other assets,DFA's "Other assets" is a residual bucket that includes deposits + bonds + life_ins + annuities + trusts + other_fin; calibrate as a group via the aggregate
+equities,Corporate equities and mutual fund shares,direct match
+bonds,Other assets,in DFA's "Other assets" residual; calibrate as part of that group
+retirement,DB pension entitlements + DC pension entitlements,"sum the two DFA lines; covers 401k/IRA + DB pensions"
+life_ins,Other assets,in DFA residual
+annuities,Other assets,in DFA residual
+trusts,Other assets,in DFA residual
+other_fin,Other assets,direct match to residual
+pass_throughs,Private businesses,direct match (DFA "Private businesses" is noncorporate + S-corp equity)
+primary_home,Real estate,DFA aggregates all real estate into one line; primary + other residential + RE fund all go here
+other_home,Real estate,in DFA aggregate
+re_fund,Real estate,in DFA aggregate
+other_nonfin,Consumer durables,direct match
+primary_mortgage,Home mortgages,DFA aggregates residential mortgages by property; primary + other share this bucket
+other_mortgage,Home mortgages,in DFA aggregate
+credit_lines,Consumer credit,DFA aggregates all consumer credit; credit_lines + credit_cards + installment_debt share
+credit_cards,Consumer credit,in DFA aggregate
+installment_debt,Consumer credit,in DFA aggregate
+other_debt,Other liabilities,direct match
+kg_primary_home,,"NO DFA SERIES — unrealized gains not in DFA; derive from real-estate appreciation (HPI)"
+kg_other_re,,"NO DFA SERIES — derive from real-estate appreciation"
+kg_pass_throughs,,"NO DFA SERIES — derive from corporate-equity / private-business appreciation"
+kg_other,,"NO DFA SERIES — derive from equities/mutual-fund appreciation"
