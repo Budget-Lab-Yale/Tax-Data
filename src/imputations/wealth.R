@@ -42,6 +42,38 @@ source('src/imputations/wealth_schema.R')
 source('src/imputations/stage3_target_qc.R')
 
 
+# Module-scope so eda harnesses can reuse. Collapses SCFP raw fields to
+# the 23 Y-var schema; no-op if already in that form.
+scf_to_y = function(df) {
+  if (all(wealth_y_vars %in% names(df))) return(df)
+  df %>% mutate(
+    cash             = LIQ + CDS,
+    equities         = STOCKS + STMUTF + COMUTF,
+    bonds            = BOND + SAVBND + TFBMUTF + GBMUTF + OBMUTF,
+    retirement       = IRAKH + THRIFT + FUTPEN + CURRPEN,
+    life_ins         = CASHLI,
+    annuities        = ANNUIT,
+    trusts           = TRUSTS,
+    other_fin        = OTHFIN + OMUTF,
+    pass_throughs    = BUS,
+    primary_home     = HOUSES,
+    other_home       = ORESRE,
+    re_fund          = NNRESRE,
+    other_nonfin     = VEHIC + OTHNFIN,
+    primary_mortgage = MRTHEL,
+    other_mortgage   = RESDBT,
+    credit_lines     = OTHLOC,
+    credit_cards     = CCBAL,
+    installment_debt = INSTALL,
+    other_debt       = ODEBT,
+    kg_primary_home  = KGHOUSE,
+    kg_other_re      = KGORE,
+    kg_pass_throughs = KGBUS,
+    kg_other         = KGSTMF
+  )
+}
+
+
 #--------------------------------------
 # run_wealth_imputation
 #
@@ -61,44 +93,13 @@ source('src/imputations/stage3_target_qc.R')
 #                   ui_other_scf).
 #
 # Returns:
-#   tibble keyed by puf_tax_units$id with 23 wealth columns populated.
+#   list(y, y_pre_tilt, qc_report, rescale_factors) — y keyed by
+#   puf_tax_units$id with 23 wealth columns populated.
 #--------------------------------------
 run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
 
-  #---------------------------------------------------------------------------
-  # Schema + helpers
-  #---------------------------------------------------------------------------
-
-  scf_to_y = function(df) {
-    if (all(wealth_y_vars %in% names(df))) return(df)
-    df %>% mutate(
-      cash             = LIQ + CDS,
-      equities         = STOCKS + STMUTF + COMUTF,
-      bonds            = BOND + SAVBND + TFBMUTF + GBMUTF + OBMUTF,
-      retirement       = IRAKH + THRIFT + FUTPEN + CURRPEN,
-      life_ins         = CASHLI,
-      annuities        = ANNUIT,
-      trusts           = TRUSTS,
-      other_fin        = OTHFIN + OMUTF,
-      pass_throughs    = BUS,
-      primary_home     = HOUSES,
-      other_home       = ORESRE,
-      re_fund          = NNRESRE,
-      other_nonfin     = VEHIC + OTHNFIN,
-      primary_mortgage = MRTHEL,
-      other_mortgage   = RESDBT,
-      credit_lines     = OTHLOC,
-      credit_cards     = CCBAL,
-      installment_debt = INSTALL,
-      other_debt       = ODEBT,
-      kg_primary_home  = KGHOUSE,
-      kg_other_re      = KGORE,
-      kg_pass_throughs = KGBUS,
-      kg_other         = KGSTMF
-    )
-  }
-
-  features = c('has_income_act', 'has_income_pos', 'pctile_income',
+  features = c('has_income_act', 'has_income_pos', 'has_negative_income',
+               'pctile_income',
                'married', 'age_older', 'age_younger', 'n_dep_hh',
                'pctile_wages',         'has_wages',
                'pctile_business',      'has_business_act',
@@ -134,19 +135,20 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
                rent_scf + ss_pens_scf + ui_other_scf,
       has_income_act        = as.integer(income != 0),
       has_income_pos        = as.integer(income >  0),
-      pctile_income         = compute_percentile(income, weight),
+      has_negative_income   = as.integer(income <  0),
+      pctile_income         = compute_percentile(income, weight, FINE_PCTILE_PROBS),
       has_wages             = make_has(wages_scf),
-      pctile_wages          = compute_percentile(wages_scf, weight),
+      pctile_wages          = compute_percentile(wages_scf, weight, FINE_PCTILE_PROBS),
       has_business_act      = as.integer(business_scf != 0),
       has_business_pos      = as.integer(business_scf >  0),
-      pctile_business       = compute_percentile(business_scf, weight),
+      pctile_business       = compute_percentile(business_scf, weight, FINE_PCTILE_PROBS),
       has_int_div           = make_has(int_div_scf),
-      pctile_int_div        = compute_percentile(int_div_scf, weight),
+      pctile_int_div        = compute_percentile(int_div_scf, weight, FINE_PCTILE_PROBS),
       has_capital_gains_act = as.integer(capital_gains_scf != 0),
       has_capital_gains_pos = as.integer(capital_gains_scf >  0),
-      pctile_capital_gains  = compute_percentile(capital_gains_scf, weight),
+      pctile_capital_gains  = compute_percentile(capital_gains_scf, weight, FINE_PCTILE_PROBS),
       has_ss_pens           = make_has(ss_pens_scf),
-      pctile_ss_pens        = compute_percentile(ss_pens_scf, weight)
+      pctile_ss_pens        = compute_percentile(ss_pens_scf, weight, FINE_PCTILE_PROBS)
     )
 
   scf_training = scf_tax_units %>%
@@ -166,11 +168,16 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
   # Fit/load DRF (hits cache on repeat runs)
   #---------------------------------------------------------------------------
 
+  # min.node.size = 5 (down from default 20): smaller leaves → more
+  # homogeneous donor pools → less heavy-tail leaf contamination (a few
+  # ultra-wealth donors sharing a leaf with bottom-quintile records is
+  # what was driving the 10× per-cell seed variance).
   wealth_drf = train_or_load_drf(
-    name         = 'wealth_drf',
-    X            = X_mat,
-    Y            = Y_mat,
-    num.features = 50
+    name          = 'wealth_drf',
+    X             = X_mat,
+    Y             = Y_mat,
+    num.features  = 50,
+    min.node.size = 5
   )
 
   #---------------------------------------------------------------------------
@@ -232,24 +239,25 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
       capital_gains_puf = kg_lt + kg_st,
       ss_pens_puf       = gross_ss + gross_pens_dist,
 
-      has_income_act = as.integer(income != 0),
-      has_income_pos = as.integer(income >  0),
-      pctile_income  = compute_percentile(income, weight),
+      has_income_act      = as.integer(income != 0),
+      has_income_pos      = as.integer(income >  0),
+      has_negative_income = as.integer(income <  0),
+      pctile_income       = compute_percentile(income, weight, FINE_PCTILE_PROBS),
 
       has_wages             = make_has(wages_puf),
-      pctile_wages          = compute_percentile(wages_puf, weight),
+      pctile_wages          = compute_percentile(wages_puf, weight, FINE_PCTILE_PROBS),
       has_business_act      = as.integer(business_puf != 0),
       has_business_pos      = as.integer(business_puf >  0),
-      pctile_business       = compute_percentile(business_puf, weight),
+      pctile_business       = compute_percentile(business_puf, weight, FINE_PCTILE_PROBS),
       has_int_div           = make_has(int_div_puf),
-      pctile_int_div        = compute_percentile(int_div_puf, weight),
+      pctile_int_div        = compute_percentile(int_div_puf, weight, FINE_PCTILE_PROBS),
       has_capital_gains_act = as.integer(capital_gains_puf != 0),
       has_capital_gains_pos = as.integer(capital_gains_puf >  0),
-      pctile_capital_gains  = compute_percentile(capital_gains_puf, weight),
+      pctile_capital_gains  = compute_percentile(capital_gains_puf, weight, FINE_PCTILE_PROBS),
       has_ss_pens           = make_has(ss_pens_puf),
-      pctile_ss_pens        = compute_percentile(ss_pens_puf, weight)
+      pctile_ss_pens        = compute_percentile(ss_pens_puf, weight, FINE_PCTILE_PROBS)
     ) %>%
-    select(id, all_of(features))
+    select(id, weight, income, age_older, all_of(features))
 
   #---------------------------------------------------------------------------
   # Stage 2: walk forest + collect per-record leaf donor lists.
@@ -293,33 +301,59 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
               median(lengths(leaf_donors_list))))
 
   #---------------------------------------------------------------------------
-  # Stage 3: per-cell exponential tilt to hit SCF 2022 targets.
+  # Stage 3: TWO-STEP calibration per cell (income × age).
   #
-  # Cells      : income pctile × age (senior ≥ 65).  7 × 2 = 14.
-  # Categories : {nw, equities, bonds, homes, other, debt}.
-  #              nw excludes kg_*. homes = primary_home only. other =
-  #              all assets except {equities, bonds, primary_home}.
-  #              debt = sum of 6 debt vars.
-  # Margins    : {intensive = weighted $ total,
-  #               extensive = weighted count > 0}.
+  #   Step A — extensive-only exponential tilt.
+  #     Solve the convex dual with ONLY "count > 0" targets. 6 categories
+  #     {nw, equities, bonds, homes, other, debt} × 1 margin × up to 14
+  #     cells = ≤ 84 targets total, pruned to ~68 after QC.
+  #   Step B — per-(cell × category) intensive rescale.
+  #     For each cell and each category C ∈ {equities, bonds, homes,
+  #     other, debt}, compute
+  #        s = SCF_total(cell, C) / PUF_post_tilt_total(cell, C)
+  #     and multiply every underlying Y-var of C on every record in the
+  #     cell by s. This hits SCF intensive aggregates EXACTLY per cell.
+  #     NW isn't rescaled directly (it's assets−debts and falls out).
   #
-  # Caller requests up to 6 × 2 × 14 = 168 targets (default via
-  # default_wealth_target_spec()). The viability check drops thin cells
-  # and degenerate-extensive targets automatically and logs what went.
-  # Also emits the pre-tilt (uniform leaf draw) donors alongside the
-  # post-tilt ones for diagnostic comparison.
+  # Design rationale: the two margins are orthogonal. Extensive is a
+  # discrete donor-support problem; intensive is a continuous levels
+  # problem. Combining them in one lambda caused the 12-target solver
+  # to collapse onto a few donors (ESS→1) and inflate top shares.
+  # Decoupling restores clean convergence on A and hits B exactly by
+  # construction.
+  #
+  # Rescaling synthesizes values no SCF donor had — accepted tradeoff.
+  # Within-cell distribution shape (and thus top-share within cell)
+  # is preserved under rescaling.
+  #
+  # Categories-to-Y-vars map for rescaling:
+  CAT_MEMBERS = list(
+    equities = 'equities',
+    bonds    = 'bonds',
+    homes    = 'primary_home',
+    other    = setdiff(wealth_asset_vars, c('equities', 'bonds',
+                                             'primary_home')),
+    debt     = wealth_debt_vars
+  )
+  # kg_* rescale follows the inheritance rule (same as in dfa_factors):
+  KG_PARENT = list(
+    kg_primary_home  = 'homes',
+    kg_other_re      = 'other',
+    kg_pass_throughs = 'other',
+    kg_other         = 'equities'
+  )
   #---------------------------------------------------------------------------
 
-  # ---------- Donor-side category values + 12-column feature matrix ----------
+  # ---------- Donor-side category values + 6-column feature matrix -----------
+  # Extensive-only: 6 binary columns, one per category.
   donor_y_tbl = as.data.frame(Y_mat)
   names(donor_y_tbl) = wealth_y_vars
   donor_cats = compute_category_values(donor_y_tbl)
 
-  # Build F_donor: n_boot × 12, ordered by (category × margin).
   F_donor_parts = lapply(CALIB_CATEGORIES, function(cc) {
     v = donor_cats[[paste0('cat_', cc)]]
-    m = cbind(v, as.numeric(v > 0))
-    colnames(m) = c(paste0(cc, '.intensive'), paste0(cc, '.extensive'))
+    m = matrix(as.numeric(v > 0), ncol = 1)
+    colnames(m) = paste0(cc, '.extensive')
     m
   })
   F_donor = do.call(cbind, F_donor_parts)
@@ -371,8 +405,10 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
   puf_cells = assign_calibration_cells(puf_cells, puf_cells$income,
                                         puf_cells$age_older, puf_cells$weight)
 
-  # ---------- Target viability QC ----------
-  requested_spec = default_wealth_target_spec()
+  # ---------- Target viability QC (EXTENSIVE ONLY for the tilt) -------------
+  # Intensive is handled by rescaling below; never enters the solver.
+  requested_spec = default_wealth_target_spec() %>%
+    filter(margin == 'extensive')
   qc_report = assess_target_viability(requested_spec, scf_cells_df)
   summarize_qc(qc_report)
   kept = qc_report %>% filter(status == 'keep') %>%
@@ -516,11 +552,87 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
   pre_y  = Y_mat[pre_tilt_donors,  , drop = FALSE]
   colnames(pre_y)  = wealth_y_vars
 
+  #---------------------------------------------------------------------------
+  # Step B: per-(cell × category) intensive rescale.
+  # For each cell c and category C, compute s = SCF_total / PUF_total and
+  # multiply every Y-var of C on records in c by s. Also applies to kg_*
+  # via KG_PARENT inheritance. Safe fallback: skip when either total
+  # rounds to 0.
+  #---------------------------------------------------------------------------
+
+  cat('wealth.R: applying per-(cell × category) intensive rescale\n')
+  rescale_rows = list()
+  for (ci in CALIB_INCOME_BUCKETS) {
+    for (ca in CALIB_AGE_BUCKETS) {
+      rec_cell = which(puf_cells$cell_income == ci & puf_cells$cell_age == ca)
+      if (length(rec_cell) == 0L) next
+      rec_w    = puf_w[rec_cell]
+
+      scf_mask = scf_cells_df$cell_income == ci & scf_cells_df$cell_age == ca
+      scf_w    = scf_cells_df$weight[scf_mask]
+
+      for (cat_name in names(CAT_MEMBERS)) {
+        members = CAT_MEMBERS[[cat_name]]
+        # SCF target (intensive total)
+        scf_vals = if (length(members) == 1L) scf_y[scf_mask, members]
+                   else rowSums(scf_y[scf_mask, members, drop = FALSE])
+        scf_total = sum(scf_w * scf_vals)
+
+        # PUF post-tilt aggregate
+        puf_vals = if (length(members) == 1L) post_y[rec_cell, members]
+                   else rowSums(post_y[rec_cell, members, drop = FALSE])
+        puf_total = sum(rec_w * puf_vals)
+
+        # Safe fallback on near-zero denominator; also if target is zero
+        # while PUF has anything, skip (would zero out the category).
+        skip = abs(puf_total) < max(1e3, 1e-6 * max(abs(scf_total), 1)) ||
+               abs(scf_total) < max(1e3, 1e-6 * max(abs(puf_total), 1))
+        factor = if (skip) 1 else scf_total / puf_total
+
+        if (!skip) {
+          for (m in members) post_y[rec_cell, m] = post_y[rec_cell, m] * factor
+          # Apply same factor to kg_* with this parent category.
+          for (kv in names(KG_PARENT)) {
+            if (KG_PARENT[[kv]] == cat_name)
+              post_y[rec_cell, kv] = post_y[rec_cell, kv] * factor
+          }
+        }
+
+        rescale_rows[[length(rescale_rows) + 1L]] = tibble(
+          cell_income          = ci,
+          cell_age             = ca,
+          category             = cat_name,
+          scf_total            = scf_total,
+          puf_pre_rescale_total = puf_total,
+          factor               = factor,
+          applied              = !skip
+        )
+      }
+    }
+  }
+  rescale_factors = bind_rows(rescale_rows)
+
+  # Summary print: distribution of factors.
+  f_applied = rescale_factors %>% filter(applied)
+  cat(sprintf(
+    'wealth.R: rescale factors applied=%d skipped=%d  min=%.3f p10=%.3f median=%.3f p90=%.3f max=%.3f\n',
+    sum(rescale_factors$applied), sum(!rescale_factors$applied),
+    min(f_applied$factor), quantile(f_applied$factor, 0.10),
+    median(f_applied$factor), quantile(f_applied$factor, 0.90),
+    max(f_applied$factor)))
+  extreme = f_applied %>% filter(factor < 0.5 | factor > 2.0)
+  if (nrow(extreme) > 0) {
+    cat(sprintf('  %d factors outside [0.5, 2.0]:\n', nrow(extreme)))
+    print(extreme %>% select(cell_income, cell_age, category, factor),
+          n = Inf)
+  }
+
   # Return a list so the caller can route post-tilt into module_deltas and
-  # save pre-tilt + qc_report as diagnostic artifacts.
+  # save pre-tilt + qc_report + rescale_factors as diagnostic artifacts.
   list(
-    y          = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
-    y_pre_tilt = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
-    qc_report  = qc_report
+    y               = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
+    y_pre_tilt      = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+    qc_report       = qc_report,
+    rescale_factors = rescale_factors
   )
 }

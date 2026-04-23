@@ -60,20 +60,38 @@ train_or_load_qrf = function(name, x = NULL, y = NULL, weights = NULL,
 #'
 #' @param x      Numeric vector to bin
 #' @param weight Weight vector (same length as x)
-#' @return       Integer vector of percentile bins (0-100)
-compute_percentile = function(x, weight) {
+#' @param probs  Cumulative probability cutpoints in (0, 1). Default is
+#'               1-percentile increments (0.01..0.99). Pass a finer vector
+#'               to get sub-percentile resolution at the top (e.g. for the
+#'               wealth forest, use `FINE_PCTILE_PROBS` so splits can
+#'               discriminate within the top 1% of income).
+#' @return       Integer vector of percentile bins, range 0..length(probs)+1.
+compute_percentile = function(x, weight, probs = seq(0.01, 0.99, 0.01)) {
   # findInterval tolerates tied weighted-quantile breaks (common in skewed
   # distributions with concentrated values or topcoding), unlike cut() which
   # errors on duplicate breaks. Matches the construction in src/cex.R.
   # Sort explicitly: Hmisc::wtd.quantile can emit FP-noise inversions on
   # heavy-tailed weighted inputs (adjacent breaks equal to ~1e-10 but with
   # reversed order), which findInterval rejects as "not sorted".
-  breaks = sort(wtd.quantile(x[x > 0], weight[x > 0], seq(0.01, 0.99, 0.01)))
+  breaks = sort(wtd.quantile(x[x > 0], weight[x > 0], probs))
   pct = findInterval(x, breaks) + 1L
-  pct = pmin(pct, 100L)
+  pct = pmin(pct, length(probs) + 1L)
   pct[x <= 0 | is.na(x)] = 0L
   as.integer(pct)
 }
+
+
+# Fine-grained percentile cutpoints: standard 1-percentile increments
+# through the 99th, then 0.1-percentile increments from 99.1..99.9, then
+# one at 99.99. Gives the wealth forest enough resolution to discriminate
+# within the top 1% of income (where a 99.5-income household has very
+# different wealth than a 99.95-income household but both were binned
+# identically under the 1-percentile scheme).
+FINE_PCTILE_PROBS = c(
+  seq(0.01, 0.99, 0.01),
+  seq(0.991, 0.999, 0.001),
+  0.9999
+)
 
 
 #' Pivot spouse-level wage and age columns to long form

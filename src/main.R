@@ -70,6 +70,10 @@ source('./src/imputations/wealth.R')
 puf_2022 = materialize(2022L, tax_units, factor_ledger, weight_ledger,
                        module_deltas)
 
+# Snapshot the pre-wealth 2022 PUF so src/eda/wealth_harness.R can
+# iterate on Stage 3 designs in ~1-2 min without rerunning Phase 1/2.
+write_rds(puf_2022, file.path(output_path, 'puf_2022_snapshot.rds'))
+
 # Freeze per-record income bucket at 2022. Used by Phase 4 together with
 # bucketed_factor_ledger to age wealth Y-vars by DFA income percentile.
 record_bucket = build_record_bucket(puf_2022)
@@ -91,12 +95,14 @@ wealth_result = run_wealth_imputation(puf_2022, scf_tax_units)
 module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
 
 # Diagnostic artifacts for src/eda/wealth_summary_diagnostics.R: the
-# pre-tilt (Stage 2 only, uniform leaf draw) donors and the QC report
-# describing which requested Stage 3 targets were kept/dropped.
+# pre-tilt (Stage 2 only, uniform leaf draw) donors, the QC report, and
+# the per-(cell × category) rescale factors from Step B.
 write_rds(wealth_result$y_pre_tilt,
           file.path(output_path, 'wealth_pre_tilt.rds'))
 write_rds(wealth_result$qc_report,
           file.path(output_path, 'stage3_qc_report.rds'))
+write_rds(wealth_result$rescale_factors,
+          file.path(output_path, 'rescale_factors.rds'))
 
 rm(puf_2022, wealth_result)
 
