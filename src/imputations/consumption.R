@@ -36,14 +36,18 @@ consumption_rf = train_or_load_ranger(
 )
 
 #---------------------------------------------------------------------------
-# Stage B: DRF composition model on weight-unpacked CEX sample
+# Stage B: DRF composition model on bootstrap-expanded CEX sample
 #---------------------------------------------------------------------------
 
-# Create unweighted representative sample from CEX via bootstrap resampling
+# Bootstrap-expand to n_boot rows sampled with probability proportional to
+# CEX weight. Under unweighted MMD this gives each tree a uniform-weight
+# training pool while preserving weighted representation in expectation.
+# See src/imputations/wealth.R for the rationale (heavy-tail handling).
 n_boot = 200000
 boot_probs = cex_training$WT_ANNUAL / sum(cex_training$WT_ANNUAL)
-boot_idx = sample.int(nrow(cex_training), size = n_boot, replace = TRUE, prob = boot_probs)
-cex_boot = cex_training[boot_idx, ]
+boot_idx   = sample.int(nrow(cex_training), size = n_boot,
+                        replace = TRUE, prob = boot_probs)
+cex_boot   = cex_training[boot_idx, ]
 
 # Compute household-level expenditure shares (normalized over sourced categories)
 sourced_total = rowSums(cex_boot[pce_cats])
@@ -142,6 +146,9 @@ n_pred    = nrow(X_puf)
 tree_pick = sample.int(n_trees, size = n_pred, replace = TRUE)
 donors    = integer(n_pred)
 
+# Uniform leaf sampling is correct under bootstrap expansion: all training
+# rows have implicit weight 1, and heavy-weight CEX rows get their
+# population share via bootstrap-copy count in the leaf.
 t0 = Sys.time()
 for (i in seq_len(n_pred)) {
   t  = tree_pick[i]

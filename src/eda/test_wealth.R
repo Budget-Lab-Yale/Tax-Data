@@ -31,7 +31,7 @@ save_wealth_diagnostics = TRUE
 # the PUF source and SOI targets are unchanged. If you change either,
 # set this back to 1 once to regenerate the cache.
 do_lp = 0
-set.seed(76)
+set.seed(1337)
 
 #---------------------------------------------------------------------------
 # Minimal pipeline up to consumption (wealth runs right after)
@@ -44,19 +44,12 @@ source('./src/summary.R')
 source('./src/create_2017_puf.R')
 source('./src/impute_nonfilers.R')
 
+# Minimal imputation set for wealth.R: needs male1 (demographics) and
+# age1 (ages); everything else is skipped. n_dep is set upstream in
+# process_puf.R / impute_nonfilers.R.
 source('./src/imputations/helpers.R')
 source('./src/imputations/demographics.R')
 source('./src/imputations/ages.R')
-source('./src/imputations/ssn.R')
-source('./src/imputations/earnings_split.R')
-source('./src/imputations/qbi.R')
-source('./src/imputations/mobility.R')
-source('./src/imputations/tips.R')
-source('./src/imputations/overtime.R')
-source('./src/imputations/auto_loan.R')
-source('./src/imputations/childcare.R')
-source('./src/imputations/mortgage.R')
-source('./src/imputations/consumption.R')
 
 #---------------------------------------------------------------------------
 # Provide scf_tax_units
@@ -133,6 +126,7 @@ if (!all(wealth_y_vars %in% names(tax_units))) {
 
 d = tax_units %>%
   mutate(
+    married = as.integer(!is.na(male2)),
     income = wages + sole_prop + part_active + part_passive - part_active_loss -
       part_passive_loss - part_179 + scorp_active + scorp_passive -
       scorp_active_loss - scorp_passive_loss - scorp_179 + gross_ss +
@@ -150,6 +144,16 @@ pctiles = Hmisc::wtd.quantile(d$income[d$income > 0], d$weight[d$income > 0],
 d$pctile = findInterval(d$income, pctiles[-101]) + 1L
 d$pctile = pmin(d$pctile, 100L)
 
+# Persist the analysis frame for downstream EDA (src/eda/wealth_eda.R).
+# Keep only the columns that EDA scripts need to avoid a huge file.
+write_rds(
+  d %>% select(id, weight, age1, age2, married, n_dep, male1, filing_status,
+               income, pctile,
+               all_of(wealth_y_vars),
+               total_assets, total_debts, net_worth, total_kg),
+  'resources/cache/wealth_analysis.rds'
+)
+
 #---------------------------------------------------------------------------
 # Aggregate sanity table — per category, weighted total on PUF vs SCF
 #---------------------------------------------------------------------------
@@ -160,7 +164,31 @@ wd = read_rds(diag_path)
 Y_train = wd$Y_mat  # bootstrap-resampled SCF rows; equal-weighted
 
 puf_agg = sapply(wealth_y_vars, function(v) sum(d[[v]] * d$weight)) / 1e9
-scf_agg = colSums(Y_train) * (sum(scf_tax_units$weight) / nrow(Y_train)) / 1e9
+# SCF aggregates: harmonize raw SCFP fields to the canonical Y schema and
+# sum weighted. Previously used colSums(Y_mat) × (total_weight / n_boot),
+# which was only correct under bootstrap-expanded training (equal-weight
+# rows). Native weighted training has variable weights, so that shortcut is
+# wrong — go straight to scf_tax_units.
+scf_h_for_agg = scf_tax_units
+if (!all(wealth_y_vars %in% names(scf_h_for_agg))) {
+  scf_h_for_agg = scf_h_for_agg %>% mutate(
+    cash             = LIQ + CDS,
+    equities         = STOCKS + STMUTF + COMUTF,
+    bonds            = BOND + SAVBND + TFBMUTF + GBMUTF + OBMUTF,
+    retirement       = IRAKH + THRIFT + FUTPEN + CURRPEN,
+    life_ins         = CASHLI, annuities = ANNUIT, trusts = TRUSTS,
+    other_fin        = OTHFIN + OMUTF, pass_throughs = BUS,
+    primary_home     = HOUSES, other_home = ORESRE, re_fund = NNRESRE,
+    other_nonfin     = VEHIC + OTHNFIN,
+    primary_mortgage = MRTHEL, other_mortgage = RESDBT,
+    credit_lines = OTHLOC, credit_cards = CCBAL,
+    installment_debt = INSTALL, other_debt = ODEBT,
+    kg_primary_home = KGHOUSE, kg_other_re = KGORE,
+    kg_pass_throughs = KGBUS, kg_other = KGSTMF
+  )
+}
+scf_agg = sapply(wealth_y_vars,
+                 function(v) sum(scf_h_for_agg[[v]] * scf_h_for_agg$weight)) / 1e9
 
 agg_tbl = tibble(
   variable = wealth_y_vars,

@@ -546,45 +546,88 @@ p_nw = nw_by_p %>%
 ggsave(file.path(out_dir, '02_nw_by_pctile.png'),
        p_nw, width = 9, height = 5, dpi = 140)
 
-cond_cdf_df = map_dfr(names(cell_defs), function(cell_nm) {
-  scf_sel = scf_native[cell_defs[[cell_nm]](scf_native), ]
-  puf_cdfs = map_dfr(spec_names, function(nm) {
-    d = puf_by_spec[[nm]]
-    sel = d[cell_defs[[cell_nm]](d), ]
-    if (nrow(sel) == 0) return(tibble())
-    o = order(sel$net_worth)
-    tibble(cell = cell_nm, source = nm,
-           nw = sel$net_worth[o],
-           cdf = cumsum(sel$weight[o]) / sum(sel$weight[o]))
-  })
-  scf_cdf = if (nrow(scf_sel) > 0) {
-    o = order(scf_sel$net_worth)
-    tibble(cell = cell_nm, source = 'SCF (truth)',
-           nw = scf_sel$net_worth[o],
-           cdf = cumsum(scf_sel$weight[o]) / sum(scf_sel$weight[o]))
-  } else tibble()
-  bind_rows(puf_cdfs, scf_cdf)
-})
+#---------------------------------------------------------------------------
+# NW CDFs: overall, per income decile, top 1%, top 0.1%.
+# Replaces the ad-hoc conditional cells — gives a consistent view of
+# distribution match at the slices the user actually cares about for
+# policy analysis (aggregate, by-decile, and extreme top tail).
+#---------------------------------------------------------------------------
 
-p_cond = cond_cdf_df %>%
+# Helper: emit weighted CDF points for a frame's net_worth
+cdf_points = function(nw, w, tag, group_label) {
+  if (length(nw) == 0) return(tibble())
+  o = order(nw)
+  tibble(group = group_label, source = tag,
+         nw = nw[o],
+         cdf = cumsum(w[o]) / sum(w[o]))
+}
+
+# Top-fraction helpers (use PUF income on each side to define "top X% income")
+top_frac_cutoffs = c(top1 = 0.01, top01 = 0.001)
+
+cdf_groups = c(
+  'overall',
+  sprintf('dec %d', 1:10),
+  'top 1% income',
+  'top 0.1% income'
+)
+cdf_groups = factor(cdf_groups, levels = cdf_groups)
+
+build_cdfs_for = function(d, tag) {
+  # overall
+  overall = cdf_points(d$net_worth, d$weight, tag, 'overall')
+  # per decile
+  dec_inc = {
+    pos = d$income > 0
+    brks = sort(wtd.quantile(d$income[pos], d$weight[pos],
+                             probs = seq(0, 1, 0.1)))
+    bin = findInterval(d$income, brks, all.inside = TRUE)
+    ifelse(pos, bin, 0L)
+  }
+  per_dec = map_dfr(1:10, function(dd) {
+    sel = dec_inc == dd
+    cdf_points(d$net_worth[sel], d$weight[sel], tag, sprintf('dec %d', dd))
+  })
+  # top 1%, top 0.1% by income
+  top_cuts = map_dfr(names(top_frac_cutoffs), function(nm) {
+    tf   = top_frac_cutoffs[[nm]]
+    thr  = wtd.quantile(d$income, d$weight, 1 - tf)
+    sel  = d$income > thr
+    label = if (nm == 'top1') 'top 1% income' else 'top 0.1% income'
+    cdf_points(d$net_worth[sel], d$weight[sel], tag, label)
+  })
+  bind_rows(overall, per_dec, top_cuts)
+}
+
+nw_cdf_df = bind_rows(
+  map_dfr(spec_names, function(nm) build_cdfs_for(puf_by_spec[[nm]], nm)),
+  build_cdfs_for(scf_native, 'SCF (truth)')
+) %>%
+  mutate(group  = factor(group, levels = levels(cdf_groups)),
+         source = factor(source, levels = c(spec_names, 'SCF (truth)')))
+
+p_cdfs = nw_cdf_df %>%
   ggplot(aes(nw / 1000, cdf, color = source, linetype = source)) +
-  geom_step(linewidth = 0.7) +
-  facet_wrap(~ cell, scales = 'free_x', ncol = 2) +
-  # pseudo-log x: handles negatives and spreads the fat right tail.
+  geom_step(linewidth = 0.6) +
+  facet_wrap(~ group, ncol = 4, scales = 'free_x') +
   scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 10, base = 10),
                      breaks = c(-1000, -100, 0, 100, 1000, 10000, 100000),
                      labels = scales::label_comma()) +
-  scale_color_manual(values = c(small = '#4daf4a', medium = '#377eb8', large_binv2 = '#984ea3',
-                                large = '#e41a1c', `SCF (truth)` = 'black')) +
-  scale_linetype_manual(values = c(small = 'solid', medium = 'solid', large_binv2 = 'dotdash',
+  scale_color_manual(values = c(small = '#4daf4a', medium = '#377eb8',
+                                large = '#e41a1c',
+                                `SCF (truth)` = 'black')) +
+  scale_linetype_manual(values = c(small = 'solid', medium = 'solid',
                                     large = 'solid',
                                     `SCF (truth)` = 'dashed')) +
-  labs(title = 'Conditional NW CDF within cell, by spec vs SCF truth',
+  labs(title = 'Net-worth CDF: overall, by income decile, top 1%, top 0.1%',
+       subtitle = 'PUF specs (solid) vs SCF (dashed). Pseudo-log x.',
        x = 'Net worth ($ thousands, pseudo-log)', y = 'CDF') +
-  theme_minimal(base_size = 9)
+  theme_minimal(base_size = 9) +
+  theme(strip.text = element_text(face = 'bold'),
+        legend.position = 'bottom')
 
-ggsave(file.path(out_dir, '03_conditional_cdfs.png'),
-       p_cond, width = 11, height = 8, dpi = 140)
+ggsave(file.path(out_dir, '03_nw_cdfs.png'),
+       p_cdfs, width = 13, height = 10, dpi = 140)
 
 leaf_long = map_dfr(spec_names,
                     ~ tibble(spec = .x, leaf_size = spec_artifacts[[.x]]$leaf_size))
@@ -606,6 +649,6 @@ ggsave(file.path(out_dir, '04_leaf_size.png'),
 cat(sprintf('\nPlots written to %s/\n', out_dir))
 cat('  01_aggregate_gap.png      — per-category $ aggregate gap, by spec\n')
 cat('  02_nw_by_pctile.png       — median NW by income pctile, by spec + truth\n')
-cat('  03_conditional_cdfs.png   — within-cell NW CDFs, by spec + truth\n')
+cat('  03_nw_cdfs.png            — NW CDFs: overall, deciles, top 1%, top 0.1%\n')
 cat('  04_leaf_size.png          — donor-leaf-size distributions, by spec\n')
 cat('\nDone.\n')
