@@ -213,7 +213,11 @@ build_wealth_bucketed_factors = function(weight_ledger,
   stopifnot(!any(is.na(out$factor)))
   stopifnot(setequal(unique(out$variable), wealth_y_vars))
   stopifnot(setequal(unique(out$bucket), DFA_INCOME_BUCKETS))
-  expected_years = (base_year + 1L):max(macro_projections$year)
+  # Every year the pipeline will materialize against must have ledger
+  # entries. That range is bounded by weight_ledger, not by
+  # macro_projections (which in production extends ~2 years past
+  # weight_ledger's terminal year).
+  expected_years = (base_year + 1L):max(weight_ledger$year)
   stopifnot(all(expected_years %in% unique(out$year)))
 
   out
@@ -299,17 +303,21 @@ if (sys.nframe() == 0L) {
               !file.exists('resources/dfa/dfa_schema_crosswalk.csv')
   if (!skip_real) {
     # Tiny synthetic weight_ledger spanning exactly the DFA years + a few
-    # macro years, and a tiny record_bucket.
+    # macro years. macro_projections extends TWO YEARS PAST the ledger to
+    # mirror production (macro goes to 2099, weight_ledger to 2097). The
+    # end-of-function invariant must use weight_ledger's terminal year,
+    # not macro's.
     record_bucket_fx = tibble(
       id     = 1:6,
       bucket = DFA_INCOME_BUCKETS
     )
-    years_fx = 2022L:2030L
+    weight_years = 2022L:2028L
+    macro_years  = 2022L:2030L
     weight_ledger_fx = tidyr::crossing(
-      id = 1:6, year = years_fx
-    ) %>% mutate(weight = 1 + 0.01 * (year - 2022))   # trivially growing
+      id = 1:6, year = weight_years
+    ) %>% mutate(weight = 1 + 0.01 * (year - 2022))
     macro_fx = tibble(
-      year = years_fx,
+      year = macro_years,
       gdp  = 25000 * (1.03 ^ (year - 2022))
     )
 
@@ -321,7 +329,7 @@ if (sys.nframe() == 0L) {
     stopifnot(setequal(unique(out$variable), wealth_y_vars))
     stopifnot(setequal(unique(out$bucket),   DFA_INCOME_BUCKETS))
     # Expected years = 2023..max(macro_fx)
-    stopifnot(setequal(unique(out$year), 2023L:2030L))
+    stopifnot(setequal(unique(out$year), 2023L:2028L))  # bounded by weight_ledger
     stopifnot(!any(is.na(out$factor)))
 
     # Inherited factors must equal their parent at every (year, bucket).
