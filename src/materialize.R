@@ -10,12 +10,42 @@
 #                     imputed columns
 # optionally (4) weight_ledger — per-(year, id)
 #                     record weights.
+# optionally (5) bucketed_factors + record_bucket —
+#                     per-(year, variable, bucket)
+#                     growth factors for variables
+#                     whose growth varies by a
+#                     per-record bucket (e.g. DFA
+#                     income percentile for wealth).
 #
 # Pure function, no side effects. Called once
 # per target year in main.R's Phase 4, and once
 # per module's base_year in Phase 3 (to hand
 # the module a year-appropriate PUF).
 #--------------------------------------
+
+
+# Fail loudly when a bucketed lookup yields NA. Distinguishes the two
+# failure modes (record has no bucket vs. record's bucket is not in the
+# ledger) so the caller can fix the right object.
+.report_bucket_na = function(year, variable, rec_buckets, ledger_buckets) {
+  unassigned     = is.na(rec_buckets)
+  missing_bucket = !unassigned & !(rec_buckets %in% ledger_buckets)
+  msg = sprintf(
+    'materialize(): bucketed factor lookup returned NA for (year=%d, variable=%s). ',
+    year, variable)
+  if (any(unassigned)) {
+    msg = paste0(msg, sprintf(
+      '%d record(s) have no bucket assignment in record_bucket. ',
+      sum(unassigned)))
+  }
+  if (any(missing_bucket)) {
+    bad = unique(rec_buckets[missing_bucket])
+    msg = paste0(msg, sprintf(
+      '%d record(s) have bucket(s) not present in bucketed_factors: %s.',
+      sum(missing_bucket), paste(bad, collapse = ', ')))
+  }
+  stop(msg, call. = FALSE)
+}
 
 
 #' Materialize the PUF tibble at a given year.
@@ -25,35 +55,58 @@
 #'      present in `base` as NA placeholders.
 #'   2. For each variable appearing in `factor_ledger` and present in `base`,
 #'      multiply by the cumulative factor from 2017+1..target_year.
-#'   3. If `weight_ledger` is provided, overwrite `weight` with that year's
+#'   3. For each variable appearing in `bucketed_factors` (optional sibling
+#'      ledger with a per-record-bucket dimension), multiply by the
+#'      record-specific cumulative factor. Bucket is resolved via
+#'      `record_bucket`. A (year, variable) pair must appear in exactly ONE
+#'      of factor_ledger / bucketed_factors — overlap errors.
+#'   4. If `weight_ledger` is provided, overwrite `weight` with that year's
 #'      record weights.
-#'   4. For each module in `module_deltas` whose base_year ≤ target_year:
+#'   5. For each module in `module_deltas` whose base_year ≤ target_year:
 #'        - Age the module's column values from its base_year to target_year
-#'          via factor_ledger.
+#'          via factor_ledger AND/OR bucketed_factors.
 #'        - Overwrite (not left_join) the module's columns in `out`.
 #'      Modules whose base_year > target_year are skipped; those columns
 #'      remain NA from the base initialization.
 #'
-#' @param target_year    Integer; the year to materialize.
-#' @param base           Tibble with `id` column + 2017 values + NA
-#'                       placeholders for all module-imputed variables.
-#' @param factor_ledger  Tibble with columns (year, variable, factor,
-#'                       source). `factor` is CUMULATIVE from each
-#'                       variable's base_year to `year` (not year-over-year).
-#'                       Absence of (year, variable) means factor = 1.
-#' @param weight_ledger  Optional tibble with (year, id, weight). NULL skips
-#'                       weight override.
-#' @param module_deltas  Named list of the form
-#'                       list(<name> = list(base_year, values)), where
-#'                       `values` is a tibble with `id` + that module's
-#'                       imputed columns at base_year.
-#' @return               Tibble of the same row shape as `base` with values
-#'                       at `target_year`.
+#' @param target_year      Integer; the year to materialize.
+#' @param base             Tibble with `id` column + 2017 values + NA
+#'                         placeholders for all module-imputed variables.
+#' @param factor_ledger    Tibble with columns (year, variable, factor,
+#'                         source). `factor` is CUMULATIVE from each
+#'                         variable's base_year to `year`. Absence of
+#'                         (year, variable) means factor = 1.
+#' @param weight_ledger    Optional tibble with (year, id, weight). NULL
+#'                         skips weight override.
+#' @param module_deltas    Named list of the form
+#'                         list(<name> = list(base_year, values)), where
+#'                         `values` is a tibble with `id` + that module's
+#'                         imputed columns at base_year.
+#' @param bucketed_factors Optional tibble with (year, variable, bucket,
+#'                         factor, source). For variables whose growth
+#'                         varies by a per-record bucket (e.g. DFA income
+#'                         percentile). Each row's factor is CUMULATIVE
+#'                         from the variable's base_year. Strict: when a
+#'                         variable appears at year Y, every bucket
+#'                         present in `record_bucket` must have a
+#'                         corresponding row at (Y, variable, bucket);
+#'                         an unmatched lookup errors rather than
+#'                         silently defaulting. Variables absent at year
+#'                         Y are untouched — "absence = no-op" applies
+#'                         at the variable level, not the bucket level.
+#' @param record_bucket    Required iff `bucketed_factors` non-NULL.
+#'                         Tibble with (id, bucket), one row per record
+#'                         in `base`. Bucket labels must match the
+#'                         `bucket` column in `bucketed_factors`.
+#' @return                 Tibble of the same row shape as `base` with
+#'                         values at `target_year`.
 materialize = function(target_year,
                        base,
                        factor_ledger,
                        weight_ledger = NULL,
-                       module_deltas = list()) {
+                       module_deltas = list(),
+                       bucketed_factors = NULL,
+                       record_bucket = NULL) {
 
   stopifnot(is.data.frame(base))
   stopifnot('id' %in% names(base))
@@ -61,7 +114,31 @@ materialize = function(target_year,
   stopifnot(all(c('year', 'variable', 'factor') %in% names(factor_ledger)))
   stopifnot(is.list(module_deltas))
 
+  if (!is.null(bucketed_factors)) {
+    stopifnot(is.data.frame(bucketed_factors))
+    stopifnot(all(c('year', 'variable', 'bucket', 'factor') %in%
+                  names(bucketed_factors)))
+    stopifnot(!is.null(record_bucket))
+    stopifnot(is.data.frame(record_bucket))
+    stopifnot(all(c('id', 'bucket') %in% names(record_bucket)))
+
+    # Invariant: a (year, variable) pair must live in at most one ledger.
+    fl_key = paste(factor_ledger$year, factor_ledger$variable)
+    bf_key = paste(bucketed_factors$year, bucketed_factors$variable)
+    overlap = intersect(fl_key, bf_key)
+    if (length(overlap) > 0L) {
+      stop('materialize(): (year, variable) pairs appear in both ',
+           'factor_ledger and bucketed_factors: ',
+           paste(head(unique(overlap), 5), collapse = '; '))
+    }
+  }
+
   out = base
+
+  # Per-record bucket vector (NULL if no bucketed_factors supplied).
+  rec_buckets = if (!is.null(bucketed_factors)) {
+    record_bucket$bucket[match(out$id, record_bucket$id)]
+  } else NULL
 
   # ---------------------------------------------------------------------------
   # (1) Apply cumulative factors to base-native variables.
@@ -75,6 +152,25 @@ materialize = function(target_year,
   for (v in base_vars_with_factors) {
     cf = fl_year$factor[match(v, fl_year$variable)]
     out[[v]] = out[[v]] * cf
+  }
+
+  # ---------------------------------------------------------------------------
+  # (1b) Apply per-record bucketed factors to base-native variables.
+  # Strict: every record must have a bucket, and every assigned bucket must
+  # have a factor row at this (year, variable). NAs are a schema bug, not a
+  # no-op — surface them rather than silently coalescing to 1.
+  # ---------------------------------------------------------------------------
+
+  if (!is.null(bucketed_factors)) {
+    bf_year = bucketed_factors[bucketed_factors$year == target_year, ]
+    for (v in intersect(unique(bf_year$variable), names(base))) {
+      v_rows  = bf_year[bf_year$variable == v, ]
+      factors = v_rows$factor[match(rec_buckets, v_rows$bucket)]
+      if (any(is.na(factors))) {
+        .report_bucket_na(target_year, v, rec_buckets, v_rows$bucket)
+      }
+      out[[v]] = out[[v]] * factors
+    }
   }
 
   # ---------------------------------------------------------------------------
@@ -116,6 +212,26 @@ materialize = function(target_year,
         v  = fl_m_year$variable[i]
         cf = fl_m_year$factor[i]
         m_values[[v]] = m_values[[v]] * cf
+      }
+
+      # Per-record bucketed path for module vars. Strict on NAs (see 1b).
+      if (!is.null(bucketed_factors)) {
+        bf_m_year = bucketed_factors[
+          bucketed_factors$year == target_year &
+          bucketed_factors$variable %in% m_vars,
+        ]
+        if (nrow(bf_m_year) > 0L) {
+          m_rec_buckets = record_bucket$bucket[match(m_values$id,
+                                                     record_bucket$id)]
+          for (v in unique(bf_m_year$variable)) {
+            v_rows  = bf_m_year[bf_m_year$variable == v, ]
+            factors = v_rows$factor[match(m_rec_buckets, v_rows$bucket)]
+            if (any(is.na(factors))) {
+              .report_bucket_na(target_year, v, m_rec_buckets, v_rows$bucket)
+            }
+            m_values[[v]] = m_values[[v]] * factors
+          }
+        }
       }
     }
 
@@ -244,6 +360,108 @@ if (sys.nframe() == 0L) {
   r_ng = materialize(2024L, base_no_grow, factor_ledger, NULL, list())
   stopifnot(identical(r_ng$flag, c(1L, 0L, 1L)))
   cat('  [PASS] variables without factor_ledger entries untouched\n')
+
+  # Bucketed-factor fixtures. 3 records × 3 buckets. `cash` moved out of the
+  # uniform ledger into the bucketed one (no-overlap invariant).
+  record_bucket = data.frame(
+    id     = 1:3,
+    bucket = c('low', 'mid', 'high'),
+    stringsAsFactors = FALSE
+  )
+  bucketed_factors = data.frame(
+    year     = rep(2023L:2024L, each = 3L),
+    variable = 'cash',
+    bucket   = rep(c('low', 'mid', 'high'), times = 2L),
+    factor   = c(1.05, 1.08, 1.12,       # 2023 cumulative from 2022
+                 1.10, 1.17, 1.25),      # 2024 cumulative from 2022
+    source   = 'DFA:cash',
+    stringsAsFactors = FALSE
+  )
+  factor_ledger_no_cash = factor_ledger[factor_ledger$variable != 'cash', ]
+
+  # Test 9: bucketed factor applied per-record to a MODULE col.
+  r23b = materialize(2023L, base_puf, factor_ledger_no_cash, NULL,
+                     module_deltas, bucketed_factors, record_bucket)
+  # cash at 2022 = c(1000, 2000, 3000); per-bucket multiplied:
+  stopifnot(max(abs(r23b$cash - c(1000*1.05, 2000*1.08, 3000*1.12))) < 1e-10)
+  cat('  [PASS] bucketed factor applied per-record to module col\n')
+
+  # Test 10: bucketed factor applied per-record to a BASE-NATIVE col.
+  base_bn = data.frame(id = 1:3, wp = c(1000, 2000, 3000), cash = NA_real_)
+  bf_bn = data.frame(
+    year = 2023L, variable = 'wp',
+    bucket = c('low', 'mid', 'high'),
+    factor = c(1.05, 1.08, 1.12),
+    source = 'DFA:wp',
+    stringsAsFactors = FALSE
+  )
+  r_bn = materialize(2023L, base_bn, factor_ledger_no_cash, NULL,
+                     list(), bf_bn, record_bucket)
+  stopifnot(max(abs(r_bn$wp - c(1050, 2160, 3360))) < 1e-10)
+  cat('  [PASS] bucketed factor applied per-record to base-native col\n')
+
+  # Test 11: (year, variable) in both ledgers → error.
+  err_msg = tryCatch(
+    materialize(2023L, base_puf, factor_ledger, NULL,
+                module_deltas, bucketed_factors, record_bucket),
+    error = function(e) conditionMessage(e)
+  )
+  stopifnot(grepl('appear in both', err_msg))
+  cat('  [PASS] overlap between factor_ledger and bucketed_factors errors\n')
+
+  # Test 12a: record with a bucket not present in the ledger → error.
+  record_bucket_unknown = data.frame(
+    id     = 1:3,
+    bucket = c('low', 'mid', 'unknown'),
+    stringsAsFactors = FALSE
+  )
+  err_unk = tryCatch(
+    materialize(2023L, base_puf, factor_ledger_no_cash, NULL,
+                module_deltas, bucketed_factors, record_bucket_unknown),
+    error = function(e) conditionMessage(e)
+  )
+  stopifnot(grepl('not present in bucketed_factors', err_unk))
+  stopifnot(grepl('unknown', err_unk))
+  cat('  [PASS] bucket not in ledger errors with useful message\n')
+
+  # Test 12b: record missing from record_bucket entirely → error.
+  record_bucket_partial = data.frame(
+    id     = 1:2,
+    bucket = c('low', 'mid'),
+    stringsAsFactors = FALSE
+  )
+  err_part = tryCatch(
+    materialize(2023L, base_puf, factor_ledger_no_cash, NULL,
+                module_deltas, bucketed_factors, record_bucket_partial),
+    error = function(e) conditionMessage(e)
+  )
+  stopifnot(grepl('no bucket assignment', err_part))
+  cat('  [PASS] record missing from record_bucket errors\n')
+
+  # Test 12c: NA in the factor column → error (not silently skipped).
+  bf_with_na = bucketed_factors
+  bf_with_na$factor[1] = NA_real_
+  err_nafac = tryCatch(
+    materialize(2023L, base_puf, factor_ledger_no_cash, NULL,
+                module_deltas, bf_with_na, record_bucket),
+    error = function(e) conditionMessage(e)
+  )
+  stopifnot(grepl('NA', err_nafac))
+  cat('  [PASS] NA in factor column errors\n')
+
+  # Test 13: bucketed_factors = NULL is byte-identical to the old 5-arg call.
+  r24_old = materialize(2024L, base_puf, factor_ledger, NULL, module_deltas)
+  r24_new = materialize(2024L, base_puf, factor_ledger, NULL, module_deltas,
+                        bucketed_factors = NULL, record_bucket = NULL)
+  stopifnot(identical(r24_old, r24_new))
+  cat('  [PASS] bucketed_factors=NULL preserves prior behavior\n')
+
+  # Test 14: cumulative compose — materialize(2024) with bucketed cash ages
+  # the module col by the 2024 per-bucket factor (not a y/y cumprod).
+  r24b = materialize(2024L, base_puf, factor_ledger_no_cash, NULL,
+                     module_deltas, bucketed_factors, record_bucket)
+  stopifnot(max(abs(r24b$cash - c(1000*1.10, 2000*1.17, 3000*1.25))) < 1e-10)
+  cat('  [PASS] bucketed factor at 2024 is cumulative, not y/y\n')
 
   cat('\nAll tests passed.\n')
 }
