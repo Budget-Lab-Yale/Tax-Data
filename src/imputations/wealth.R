@@ -96,7 +96,8 @@ scf_to_y = function(df) {
 #   list(y, y_pre_tilt, qc_report, rescale_factors) — y keyed by
 #   puf_tax_units$id with 23 wealth columns populated.
 #--------------------------------------
-run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
+run_wealth_imputation = function(puf_tax_units, scf_tax_units,
+                                  debug_output = FALSE) {
 
   features = c('has_income_act', 'has_income_pos', 'has_negative_income',
                'pctile_income',
@@ -629,10 +630,26 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
 
   # Return a list so the caller can route post-tilt into module_deltas and
   # save pre-tilt + qc_report + rescale_factors as diagnostic artifacts.
-  list(
+  result = list(
     y               = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
     y_pre_tilt      = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
     qc_report       = qc_report,
     rescale_factors = rescale_factors
   )
+  if (debug_output) {
+    # Let src/eda/wealth_diagnosis.R trace each PUF record back to the
+    # SCF donor it picked. pre_tilt_donors holds indices into scf_boot
+    # (250k rows); boot_idx maps scf_boot back to the original SCF
+    # tax-unit table.
+    result$pre_tilt_donor_boot_idx = pre_tilt_donors
+    result$boot_idx                = boot_idx
+    result$scf_boot_income         = scf_boot$income
+    result$puf_cells               = puf_cells
+    result$scf_cells_df            = scf_cells_df
+    # Expose also the forest leaf each PUF record landed in, for the
+    # heavy-tail leaf census.
+    result$tree_pick               = tree_pick
+    result$leaf_donors_list        = leaf_donors_list
+  }
+  result
 }
