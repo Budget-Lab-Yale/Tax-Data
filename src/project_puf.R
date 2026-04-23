@@ -1,111 +1,80 @@
 #---------------------------------------------------
-# project_puf.R 
-# 
-# Projects PUF past historical years based on CBO's 
-# demographic and macroeconomic projections
+# project_puf.R  (Phase 2: factor-ledger producer)
+#
+# Produces factor_ledger and weight_ledger. Does NOT
+# mutate tax_units, does NOT write per-year CSVs.
+# Those happen in Phase 4 (src/write_outputs.R) via
+# materialize().
+#
+# factor_ledger: (year, variable, factor, source)
+#   factor is CUMULATIVE from each variable's base
+#   year (2017 for base-PUF variables) to `year`.
+# weight_ledger: (year, id, weight)
+#   per-(year, record) weight; 2017..2097.
 #---------------------------------------------------
 
 
-# Remove extraneous variables that were used for targeting only
+# Variables used for targeting only, dropped from per-year output.
 vars_to_ignore = c('int_exp')
 
 #------------------------------
 # PCE benchmark consumption
 #------------------------------
 
-# Scale imputed consumption categories to NIPA PCE control totals
+# Scale imputed consumption categories to NIPA PCE control totals. This
+# modifies tax_units in place (Phase 1's final touch on the 2017 base).
 source('src/pce_benchmark.R')
 if ('c_clothing' %in% names(tax_units)) {
   bench = benchmark_to_pce(tax_units, weight_col = 'weight', annualize = 1)
   tax_units = bench$data
 }
 
-#------------------------------
-# Clean and save base year PUF
-#------------------------------
-
-# Write output
-tax_units %<>%
-
-  # Limit to subset of required variables, as defined by those listed in the variable guide
-  select(all_of(variable_guide$variable)) %>%
-
-  # Remove extraneous variables that were used for targeting only
-  select(-all_of(vars_to_ignore)) %>%
-  write_csv(file.path(output_path, 'tax_units_2017.csv'))
-
-
-# Clean up enviroment 
+# Clean up Phase 1 intermediates.
 rm(raw_puf, puf, puf_2017, sipp, ot, ot_microdata)
 
-
-
 #-------------------------------------
-# Build demographic projection inputs
+# Factor-source inputs (unchanged)
 #-------------------------------------
 
-# Read macro projections
 macro_projections = bind_rows(
   read_csv(file.path(interface_paths$`Macro-Projections`, 'historical.csv')),
   read_csv(file.path(interface_paths$`Macro-Projections`, 'projections.csv'))
 )
 
-# Read NIPA PCE historical (2017 - latest year) as the per-category near-term
-# series for consumption aging. Macro-Projections does not expose per-category
-# PCE, and gdp_c is missing from historical.csv, so this file fills both roles
-# for years 2017+ up to the last year BEA has published. Projection-year
-# fallback is total PCE (gdp_c) via income_far below.
 pce_historical = read_csv('resources/pce_historical.csv', show_col_types = F) %>%
   pivot_longer(cols      = -year,
                names_to  = 'variable',
                values_to = 'value')
 
-# Extract and process demographic projections   
-demog = macro_projections %>% 
-  select(year, contains('married_')) %>% 
-  pivot_longer(cols      = -year, 
+demog = macro_projections %>%
+  select(year, contains('married_')) %>%
+  pivot_longer(cols      = -year,
                names_sep = '_',
-               names_to  = c('married', 'age'), 
-               values_to = 'n') %>% 
-  mutate(married = as.integer(married == 'married'), 
-         age     = pmin(80, as.integer(age))) %>% 
-  group_by(year, married, age) %>% 
+               names_to  = c('married', 'age'),
+               values_to = 'n') %>%
+  mutate(married = as.integer(married == 'married'),
+         age     = pmin(80, as.integer(age))) %>%
+  group_by(year, married, age) %>%
   summarise(n = sum(n),
             .groups = 'drop')
 
-
-#--------------------------------
-# Build income projection inputs
-#--------------------------------
-
-# Read supplemental projections for itemized deductions
-itemized_deduction_projections = read_csv('resources/itemized_deduction_projections.csv') %>% 
+itemized_deduction_projections = read_csv('resources/itemized_deduction_projections.csv') %>%
   mutate(across(.cols = -year, .fns  = ~ . / lag(.) - 1))
 
-# Read CBO's 1040 line item projections
-income_near = read_csv('resources/cbo_1040.csv') %>% 
-  
-  # Convert to growth rates
-  mutate(across(.cols = -year, .fns  = ~ . / lag(.) - 1)) %>% 
-  
-  # Join itemized deduction projections and use where available
-  left_join(itemized_deduction_projections, by = 'year') %>% 
+income_near = read_csv('resources/cbo_1040.csv') %>%
+  mutate(across(.cols = -year, .fns  = ~ . / lag(.) - 1)) %>%
+  left_join(itemized_deduction_projections, by = 'year') %>%
   mutate(
     salt_inc_sales = if_else(is.na(salt_inc_sales), income,           salt_inc_sales),
     salt_prop      = if_else(is.na(salt_prop),      income,           salt_prop),
-    mortgage       = if_else(is.na(mortgage),       txbl_int_div_ord, mortgage), 
+    mortgage       = if_else(is.na(mortgage),       txbl_int_div_ord, mortgage),
     charity        = if_else(is.na(charity),        income,           charity)
-  ) %>% 
-  
-  # Map to larger categories and reshape long in variable
+  ) %>%
   select(year, income, wages, int = txbl_int_div_ord, div = div_pref, kg = txbl_kg, pt,
          pensions = txbl_pensions, ui, mortgage, charity, salt_inc_sales, salt_prop) %>%
   pivot_longer(cols      = -year,
                names_to  = 'variable',
                values_to = 'near') %>%
-
-  # Supplement with NIPA PCE per-category and total (gdp_c) growth rates.
-  # These dominate income_far (gdp_c) wherever BEA has published actuals.
   bind_rows(
     pce_historical %>%
       arrange(variable, year) %>%
@@ -116,7 +85,6 @@ income_near = read_csv('resources/cbo_1040.csv') %>%
       select(year, variable, near)
   )
 
-# Get longer-term income factors
 income_far = macro_projections %>%
   mutate(income         = gdp,
          wages          = gdp_wages,
@@ -140,58 +108,49 @@ income_far = macro_projections %>%
          c_gasoline              = gdp_c,
          c_housing_utilities     = gdp_c,
          c_other_services_health = gdp_c) %>%
-  select(year, all_of(variable_guide %>% 
-                        filter(!is.na(grow_with)) %>% 
-                        select(grow_with) %>% 
-                        deframe())) %>% 
-  pivot_longer(cols      = -year, 
-               names_to  = 'variable', 
-               values_to = 'far') %>% 
-  group_by(variable) %>% 
-  mutate(far = far / lag(far) - 1) %>% 
+  select(year, all_of(variable_guide %>%
+                        filter(!is.na(grow_with)) %>%
+                        select(grow_with) %>%
+                        deframe())) %>%
+  pivot_longer(cols      = -year,
+               names_to  = 'variable',
+               values_to = 'far') %>%
+  group_by(variable) %>%
+  mutate(far = far / lag(far) - 1) %>%
   ungroup()
 
-# Combine, using near-term where possible
-income_factors = income_far %>% 
+# income_factors: cumulative-from-2019 growth index per (year >= 2020, variable)
+income_factors = income_far %>%
   filter(year > 2019) %>%
-  left_join(income_near, by = c('year', 'variable')) %>% 
-  mutate(income_factor = if_else(is.na(near), far, near)) %>% 
-  
-  # Use income for rent which is missing for a few years
-  left_join((.) %>% 
-              filter(variable == 'income') %>% 
-              select(year, rent = income_factor), 
-            by = 'year') %>% 
-  mutate(income_factor = if_else(is.na(income_factor), rent, income_factor)) %>% 
-  select(year, variable, income_factor) %>% 
-  
-  # Convert to index
+  left_join(income_near, by = c('year', 'variable')) %>%
+  mutate(income_factor = if_else(is.na(near), far, near)) %>%
+  left_join((.) %>%
+              filter(variable == 'income') %>%
+              select(year, rent = income_factor),
+            by = 'year') %>%
+  mutate(income_factor = if_else(is.na(income_factor), rent, income_factor)) %>%
+  select(year, variable, income_factor) %>%
   group_by(variable) %>%
   mutate(income_factor = cumprod(1 + income_factor)) %>%
   ungroup()
-
 
 #----------------------------------------------
 # Basis adjustment factors (cycle-aware model)
 #----------------------------------------------
 
-# Extend S&P 500 total return index beyond 2025 using CBO capital gains growth
 cbo_kg_levels = read_csv('resources/cbo_1040.csv') %>% select(year, txbl_kg)
 
-# Build year-over-year kg growth rates for 2026-2036
 kg_growth = cbo_kg_levels %>%
   filter(year >= 2025) %>%
   mutate(kg_growth = txbl_kg / lag(txbl_kg) - 1) %>%
   filter(!is.na(kg_growth))
 
-# For 2037+, use gdp_corp growth from macro projections
 gdp_corp_growth = macro_projections %>%
   select(year, gdp_corp) %>%
   filter(year >= max(kg_growth$year)) %>%
   mutate(gdp_corp_growth = gdp_corp / lag(gdp_corp) - 1) %>%
   filter(!is.na(gdp_corp_growth))
 
-# Extend the S&P index
 sp500_extended = sp500_index %>% select(year, index)
 for (y in 2026:2097) {
   prev_idx = sp500_extended$index[sp500_extended$year == y - 1]
@@ -204,11 +163,8 @@ for (y in 2026:2097) {
 }
 sp500_interp_ext = approxfun(sp500_extended$year, sp500_extended$index, rule = 2)
 
-# Bucket definitions and pi_g weights for weighted average
 pi_g = read_csv('resources/soca_hp_ingredients.csv')$pi_g
 
-# Representative h for '20 years or more': mean of the exponential splice.
-# Rate pinned by density continuity at h=20; E[h | h>=20] = 20 + 1/lambda.
 wb_shape = 0.7711
 wb_scale = 9.1458
 dw_at_boundary   = dweibull(19, shape = wb_shape, scale = wb_scale)
@@ -222,7 +178,6 @@ bucket_names = c('Under 18 months', '18 months under 2 years', '2 years under 3 
                  '3 years under 4 years', '4 years under 5 years', '5 years under 10 years',
                  '10 years under 15 years', '15 years under 20 years', '20 years or more')
 
-# Function to compute gain-dollar-weighted average basis/sales ratio for a given year
 predict_weighted_ratio = function(y, model, sp500_fn, h_vals, buckets, weights) {
   newdata = tibble(
     bucket       = buckets,
@@ -233,84 +188,74 @@ predict_weighted_ratio = function(y, model, sp500_fn, h_vals, buckets, weights) 
   sum(weights * predicted)
 }
 
-# Compute weighted average ratio for base year 2017
 r_bar_2017 = predict_weighted_ratio(2017, basis_model, sp500_interp_ext, bucket_h, bucket_names, pi_g)
 
-# Compute basis adjustment factors for all projection years
 basis_adjustment_factors = list()
 for (y in 2018:2097) {
   r_bar_y = predict_weighted_ratio(y, basis_model, sp500_interp_ext, bucket_h, bucket_names, pi_g)
   basis_adjustment_factors[[as.character(y)]] = r_bar_y / r_bar_2017
 }
 
+#-------------------------------------
+# Weight-source inputs
+#-------------------------------------
 
-#---------------------------
-# Project data through 2019
-#---------------------------
-
-# Read and process intermediate IRS-based demographic growth targets through 2019
 irs_growth_factors_demog = read_csv('./resources/return_counts_2019.csv') %>%
-  mutate(across(.cols = -c(filing_status, age_group), 
-                .fns  = ~ . / `2017`)) %>% 
-  pivot_longer(cols      = -c(filing_status, age_group), 
-               names_to  = 'year', 
-               values_to = 'population_factor') %>% 
-  mutate(year = as.integer(year)) 
+  mutate(across(.cols = -c(filing_status, age_group),
+                .fns  = ~ . / `2017`)) %>%
+  pivot_longer(cols      = -c(filing_status, age_group),
+               names_to  = 'year',
+               values_to = 'population_factor') %>%
+  mutate(year = as.integer(year))
 
-irs_growth_factors_income = tables$table_1_4 %>% 
-  filter(variable %in% c('total_inc', 'wages', 'txbl_int', 'div', 'part_scorp', 
-                         'txbl_kg.income', 'gross_pens_dist', 'rent', 'ui', 'gross_ss')) %>% 
+irs_growth_factors_income = tables$table_1_4 %>%
+  filter(variable %in% c('total_inc', 'wages', 'txbl_int', 'div', 'part_scorp',
+                         'txbl_kg.income', 'gross_pens_dist', 'rent', 'ui', 'gross_ss')) %>%
   group_by(year, variable) %>%
-  summarise(across(.cols = c(count, amount), 
-                   .fns  = sum), 
-            .groups = 'drop') %>% 
-  mutate(average = amount / count) %>% 
-  pivot_longer(cols      = c(count, amount, average), 
-               names_to  = 'metric') %>% 
-  pivot_wider(names_from = variable) %>% 
-  rename(income = total_inc, int = txbl_int, pt = part_scorp, kg = txbl_kg.income, 
-         pensions = gross_pens_dist, ss = gross_ss) %>% 
+  summarise(across(.cols = c(count, amount),
+                   .fns  = sum),
+            .groups = 'drop') %>%
+  mutate(average = amount / count) %>%
+  pivot_longer(cols      = c(count, amount, average),
+               names_to  = 'metric') %>%
+  pivot_wider(names_from = variable) %>%
+  rename(income = total_inc, int = txbl_int, pt = part_scorp, kg = txbl_kg.income,
+         pensions = gross_pens_dist, ss = gross_ss) %>%
   filter(metric == 'average') %>%
-  select(-metric) %>% 
-  pivot_longer(cols      = -year, 
-               names_to  = 'variable', 
-               values_to = 'average') %>% 
-  mutate(income_factor = average / average[year == 2017]) %>% 
-  group_by(year) %>% 
-  mutate(income_factor = ifelse(is.na(income_factor), 
-                                income_factor[variable == 'income'], 
-                                income_factor)) %>% 
-  ungroup() %>% 
-  select(-average) %>% 
-  
-  # Add itemized deductions, adjusting factors to be per-capita
+  select(-metric) %>%
+  pivot_longer(cols      = -year,
+               names_to  = 'variable',
+               values_to = 'average') %>%
+  mutate(income_factor = average / average[year == 2017]) %>%
+  group_by(year) %>%
+  mutate(income_factor = ifelse(is.na(income_factor),
+                                income_factor[variable == 'income'],
+                                income_factor)) %>%
+  ungroup() %>%
+  select(-average) %>%
   bind_rows(
-    itemized_deduction_projections %>% 
-      filter(year <= 2019) %>% 
-      pivot_longer(cols      = -year, 
-                   names_to  = 'variable', 
-                   values_to = 'growth') %>% 
-      group_by(variable) %>% 
+    itemized_deduction_projections %>%
+      filter(year <= 2019) %>%
+      pivot_longer(cols      = -year,
+                   names_to  = 'variable',
+                   values_to = 'growth') %>%
+      group_by(variable) %>%
       mutate(income_factor = cumprod(1 + replace_na(growth, 0))) %>%
-      ungroup() %>% 
+      ungroup() %>%
       left_join(
-        read_csv('./resources/return_counts_2019.csv') %>% 
-          pivot_longer(cols = -c(filing_status, age_group), 
-                       names_to = 'year', 
-                       names_transform = as.integer, 
-                       values_to = 'n') %>% 
-          group_by(year) %>% 
-          summarise(n = sum(n), 
+        read_csv('./resources/return_counts_2019.csv') %>%
+          pivot_longer(cols = -c(filing_status, age_group),
+                       names_to = 'year',
+                       names_transform = as.integer,
+                       values_to = 'n') %>%
+          group_by(year) %>%
+          summarise(n = sum(n),
                     .groups = 'drop') %>%
-          mutate(n = n / n[year == 2017]), 
-        by = 'year') %>% 
+          mutate(n = n / n[year == 2017]),
+        by = 'year') %>%
       mutate(income_factor = income_factor / n) %>%
       select(-growth, -n)
   ) %>%
-
-  # Add NIPA PCE factors (8 c_* + gdp_c) indexed to 2017 = 1, then
-  # divided by total-return-count growth to put them in per-return units
-  # like the SOI-derived factors above.
   bind_rows(
     pce_historical %>%
       group_by(variable) %>%
@@ -332,185 +277,202 @@ irs_growth_factors_income = tables$table_1_4 %>%
       select(year, variable, income_factor)
   )
 
-
-# Get overall population growth factors for nonfilers
-population_factors = demog %>% 
-  filter(year %in% 2017:2019) %>% 
-  group_by(year, married) %>% 
-  summarise(n = sum(n), 
-            .groups = 'drop') %>% 
-  group_by(married) %>% 
-  mutate(population_factor = ifelse(n > 0, 
-                                    n / n[year == 2017], 
-                                    1)) %>% 
-  ungroup() %>% 
+# Two population_factors variants: 2018-19 uses a married-only table,
+# 2020+ uses a married × age table. Rename to avoid the clobber that
+# the original in-place mutation relied on.
+population_factors_2018_19 = demog %>%
+  filter(year %in% 2017:2019) %>%
+  group_by(year, married) %>%
+  summarise(n = sum(n),
+            .groups = 'drop') %>%
+  group_by(married) %>%
+  mutate(population_factor = ifelse(n > 0,
+                                    n / n[year == 2017],
+                                    1)) %>%
+  ungroup() %>%
   select(-n)
 
-
-  
-# Project tax unit data through 2019 and write output
-for (y in 2018:2019) {
-  
-  # Join and apply demographic growth factors
-  output = tax_units %>% 
-    
-    # Create requisite groups on which to join
-    mutate(year      = y, 
-           age_group = case_when(
-             age1 < 26 ~ 1, 
-             age1 < 35 ~ 2, 
-             age1 < 45 ~ 3, 
-             age1 < 55 ~ 4, 
-             age1 < 65 ~ 5, 
-             T         ~ 6)) %>% 
-    
-    # Rescale weights for filers
-    left_join(irs_growth_factors_demog, by = c('year', 'filing_status', 'age_group')) %>%
-    mutate(weight = weight * if_else(filer == 1, population_factor, 1)) %>% 
-    select(-population_factor) %>%
-    
-    # Rescale weights for nonfilers
-    mutate(married = as.integer(filing_status == 2)) %>% 
-    left_join(population_factors, by = c('year', 'married')) %>%
-    mutate(weight = weight * if_else(filer == 0, population_factor, 1)) %>% 
-    select(-population_factor) 
-  
-  # Apply intensive margin growth factors
-  vars_to_grow = variable_guide %>% 
-    filter(!is.na(grow_with)) %>% 
-    select(variable) %>% 
-    deframe() 
-  for (var in vars_to_grow) {
-    if (var %in% c(vars_to_ignore)) {
-      next
-    }
-    grow_with = variable_guide %>% 
-      filter(variable == var) %>% 
-      select(grow_with) %>% 
-      deframe()
-    this_factor = irs_growth_factors_income %>% 
-      filter(year == y, variable == grow_with) %>%
-      select(income_factor) %>% 
-      deframe() 
-    output[[var]] = output[[var]] * this_factor
-  }
-
-  # Apply cycle-aware basis adjustment
-  output$kg_lt_basis = output$kg_lt_basis * basis_adjustment_factors[[as.character(y)]]
-
-  # Write output
-  write_csv(output, file.path(output_path, paste0('tax_units_', y, '.csv')))
-}
-
-tax_units_2019 = output
-    
-#--------------------------------------------------------------
-# Project PUF beyond years with (noncovid) historical tax data
-#--------------------------------------------------------------
-
-
-# Get age-marital status demographic growth factors
-population_factors = demog %>% 
-  filter(year >= 2019) %>% 
-  group_by(married, age) %>% 
-  mutate(population_factor = ifelse(n > 0, n / n[year == 2019], 1)) %>% 
-  ungroup() %>% 
+population_factors_2020plus = demog %>%
+  filter(year >= 2019) %>%
+  group_by(married, age) %>%
+  mutate(population_factor = ifelse(n > 0, n / n[year == 2019], 1)) %>%
+  ungroup() %>%
   select(-n)
 
-# Manual adjustments to match CBO targets starting in 2025...this will be revised in the next overhaul
+# Ad-hoc level adjustments applied at every year 2020+ to hit CBO targets.
 ad_hoc_factors = list(
   'salt_inc_sales' = 0.97,
   'salt_prop'      = 0.97,
   'first_mort_int' = 0.97
 )
 
-for (y in 2020:2097) {
-  
-    # Calculate new weights based on tax unit age composition
-    new_weights = tax_units_2019 %>%
-      mutate(married = as.integer(filing_status == 2)) %>% 
-      select(id, weight, married, age1, age2, starts_with('dep_age')) %>% 
-      pivot_longer(cols         = -c(id, weight, married), 
-                   names_prefix = 'age', 
-                   names_to     = 'person', 
-                   values_to    = 'age') %>% 
-      filter(!is.na(age)) %>% 
-      mutate(married = if_else(person == '1' | person == '2', married, 0)) %>% 
-      left_join(population_factors %>% 
-                  filter(year == y), 
-                by = c('married', 'age')) %>% 
-      mutate(weight = weight * population_factor * if_else(age < 18, 0.99, 1)) %>%   # Ad-hoc adjustment factor to hit CTC targets 
-      group_by(id) %>% 
-      summarise(new_weight = mean(weight), 
-                .groups = 'drop')
-  
-    # Update weights 
-    output = tax_units_2019 %>% 
-      left_join(new_weights, by = 'id')
-    
-    # Calculate intensive margin growth factors
-    intensive_factors = output %>% 
-      
-      # First calculate extensive margin growth in each variable
-      summarise(across(.cols = all_of(variable_guide %>% 
-                                        filter(!is.na(grow_with), !(variable %in% vars_to_ignore)) %>% 
-                                        select(variable) %>% 
-                                        deframe()), 
-                       .fns  = ~ sum((. != 0) * new_weight, na.rm = T) / sum((. != 0) * weight, na.rm = T))) %>% 
-      mutate(across(.cols = everything(), 
-                    .fns  = ~ if_else(is.nan(.), 1, .))) %>% 
-      pivot_longer(cols      = everything(), 
-                   names_to  = 'variable', 
-                   values_to = 'extensive_factor') %>% 
-      
-      # Add totals and derive intensive margin growth as a residual
-      left_join(variable_guide %>% 
-                  select(variable, grow_with), 
-                by = 'variable') %>% 
-      left_join(income_factors %>% 
-                  filter(year == y) %>% 
-                  select(-year), 
-                by = c('grow_with' = 'variable')) %>% 
-      mutate(intensive_factor = income_factor / extensive_factor) %>% 
-      select(variable, intensive_factor) 
-      
-    # Apply intensive margin rescaling factors
-    for (var in intensive_factors$variable) {
-      
-      # For split variables, use overall average
-      grow_with = var
-      if (str_sub(var, end = -2) %in% c('wages', 'sole_prop', 'farm', 'part_se')) {
-        grow_with = str_sub(var, end = -2)
-      }
-      
-      # Get factor
-      this_factor = intensive_factors %>% 
-        filter(variable == grow_with) %>% 
-        select(intensive_factor) %>% 
-        deframe()
-      
-      # Adjust for ad-hoc matching factors
-      if (var %in% names(ad_hoc_factors)) {
-        this_factor = this_factor * ad_hoc_factors[[var]]
-      }
-      
-      output[[var]] = output[[var]] * this_factor
-    }
+#-------------------------------------
+# Helpers: compute weights + extensive factors per year
+#-------------------------------------
 
-    # Apply cycle-aware basis adjustment (relative to 2019, since we start from tax_units_2019)
-    output$kg_lt_basis = output$kg_lt_basis * basis_adjustment_factors[[as.character(y)]] /
-                         basis_adjustment_factors[["2019"]]
+# Per-year weight vector; pure function over the Phase-1 tax_units + source
+# tables. Returns a tibble (id, weight, year).
+compute_weights_for_year = function(y) {
+  if (y == 2017L) {
+    return(tax_units %>% select(id, weight) %>% mutate(year = 2017L))
+  }
 
-    # Clean up and write
-    output %>%
-      mutate(weight = new_weight) %>%
-      select(variable_guide$variable[!(variable_guide$variable %in% vars_to_ignore)]) %>%
-      write_csv(file.path(output_path, paste0('tax_units_', y, '.csv')))
-    
+  if (y <= 2019L) {
+    return(
+      tax_units %>%
+        mutate(year = y,
+               age_group = case_when(
+                 age1 < 26 ~ 1,
+                 age1 < 35 ~ 2,
+                 age1 < 45 ~ 3,
+                 age1 < 55 ~ 4,
+                 age1 < 65 ~ 5,
+                 TRUE      ~ 6)) %>%
+        left_join(irs_growth_factors_demog,
+                  by = c('year', 'filing_status', 'age_group')) %>%
+        mutate(weight = weight * if_else(filer == 1, population_factor, 1)) %>%
+        select(-population_factor) %>%
+        mutate(married = as.integer(filing_status == 2)) %>%
+        left_join(population_factors_2018_19,
+                  by = c('year', 'married')) %>%
+        mutate(weight = weight * if_else(filer == 0, population_factor, 1)) %>%
+        select(id, weight) %>%
+        mutate(year = y)
+    )
+  }
+
+  # y >= 2020: start from 2019 weights (which implicitly carry the 2018-19
+  # demographic adjustment). Ages are NOT aged by project_puf — they stay at
+  # their 2017 values in tax_units, which matches the legacy behavior.
+  w2019 = compute_weights_for_year(2019L) %>% select(id, w2019 = weight)
+
+  tax_units %>%
+    mutate(married_flag = as.integer(filing_status == 2)) %>%
+    select(id, married_flag, age1, age2, starts_with('dep_age')) %>%
+    left_join(w2019, by = 'id') %>%
+    pivot_longer(cols         = -c(id, married_flag, w2019),
+                 names_prefix = 'age',
+                 names_to     = 'person',
+                 values_to    = 'age') %>%
+    filter(!is.na(age)) %>%
+    mutate(married = if_else(person == '1' | person == '2', married_flag, 0L)) %>%
+    left_join(population_factors_2020plus %>% filter(year == y),
+              by = c('married', 'age')) %>%
+    mutate(weight = w2019 * population_factor * if_else(age < 18, 0.99, 1)) %>%
+    group_by(id) %>%
+    summarise(weight = mean(weight),
+              .groups = 'drop') %>%
+    mutate(year = y)
 }
 
-# Write variable guide as supplemental output
-variable_guide %>% 
-  write_csv(file.path(output_path, 'variable_guide.csv'))
+#-------------------------------------
+# Build weight_ledger
+#-------------------------------------
 
+t0 = Sys.time()
+weight_ledger = map_dfr(2017L:2097L, compute_weights_for_year) %>%
+  arrange(year, id)
+cat(sprintf('project_puf.R: weight_ledger built (%d rows, %.1fs)\n',
+            nrow(weight_ledger), as.numeric(Sys.time() - t0, units = 'secs')))
 
+#-------------------------------------
+# Build factor_ledger
+#-------------------------------------
+
+# Resolved grow_with map (handles split variables like 'wages1' → 'wages').
+var_growth_map = variable_guide %>%
+  filter(!is.na(grow_with), !(variable %in% vars_to_ignore)) %>%
+  select(variable, grow_with_vg = grow_with) %>%
+  mutate(grow_with_resolved = if_else(
+    str_sub(variable, end = -2) %in% c('wages', 'sole_prop', 'farm', 'part_se'),
+    str_sub(variable, end = -2),
+    grow_with_vg
+  ))
+
+# 2018-2019 factors (cumulative-from-2017 via irs_growth_factors_income).
+fl_2018_2019 = var_growth_map %>%
+  tidyr::crossing(year = 2018L:2019L) %>%
+  left_join(irs_growth_factors_income %>%
+              select(year, variable, income_factor) %>%
+              rename(grow_with_resolved = variable),
+            by = c('year', 'grow_with_resolved')) %>%
+  transmute(year,
+            variable,
+            factor = income_factor,
+            source = paste0('irs:', grow_with_resolved))
+
+factor_2019_per_var = fl_2018_2019 %>%
+  filter(year == 2019L) %>%
+  select(variable, factor_2019 = factor)
+
+# 2020-2097 factors. Reconstructs the legacy computation:
+#   applied(V, Y) = intensive_factor(grow_with_resolved(V), Y) × ad_hoc(V)
+#   intensive_factor = income_factors[Y, g] / extensive_factor(V, Y)
+#   extensive_factor = sum((V != 0) × weight_Y) / sum((V != 0) × weight_2019)
+#
+# Cumulative-from-2017: factor_2019 × applied.
+build_factor_rows_2020plus = function(y) {
+  nw_y = weight_ledger %>% filter(year == y) %>% select(id, nw = weight)
+  w19  = weight_ledger %>% filter(year == 2019L) %>% select(id, w19 = weight)
+
+  ext_df = tax_units %>%
+    select(id, all_of(var_growth_map$variable)) %>%
+    left_join(w19, by = 'id') %>%
+    left_join(nw_y, by = 'id') %>%
+    summarise(across(.cols = all_of(var_growth_map$variable),
+                     .fns  = ~ sum((. != 0) * nw, na.rm = TRUE) /
+                              sum((. != 0) * w19, na.rm = TRUE))) %>%
+    mutate(across(everything(), ~ if_else(is.nan(.), 1, .))) %>%
+    pivot_longer(cols      = everything(),
+                 names_to  = 'variable',
+                 values_to = 'extensive_factor')
+
+  income_y = income_factors %>%
+    filter(year == y) %>%
+    select(grow_with_resolved = variable, income_factor_y = income_factor)
+
+  var_growth_map %>%
+    left_join(ext_df, by = 'variable') %>%
+    left_join(income_y, by = 'grow_with_resolved') %>%
+    mutate(intensive_factor = income_factor_y / extensive_factor,
+           ad_hoc_val = vapply(variable, function(v) {
+             if (v %in% names(ad_hoc_factors)) ad_hoc_factors[[v]] else 1.0
+           }, numeric(1)),
+           applied = intensive_factor * ad_hoc_val) %>%
+    left_join(factor_2019_per_var, by = 'variable') %>%
+    transmute(year = y,
+              variable,
+              factor = factor_2019 * applied,
+              source = 'income_factors × ad_hoc')
+}
+
+t0 = Sys.time()
+fl_2020_2097 = map_dfr(2020L:2097L, build_factor_rows_2020plus)
+cat(sprintf('project_puf.R: factor_ledger 2020-2097 built (%d rows, %.1fs)\n',
+            nrow(fl_2020_2097), as.numeric(Sys.time() - t0, units = 'secs')))
+
+# Special case: kg_lt_basis uses its own cycle-aware basis adjustment.
+fl_kg_lt_basis = tibble(
+  year     = 2018L:2097L,
+  variable = 'kg_lt_basis',
+  factor   = vapply(2018:2097, function(y)
+                     basis_adjustment_factors[[as.character(y)]],
+                    numeric(1)),
+  source   = 'basis_adjustment'
+)
+
+factor_ledger = bind_rows(
+  fl_2018_2019 %>% filter(variable != 'kg_lt_basis'),
+  fl_2020_2097 %>% filter(variable != 'kg_lt_basis'),
+  fl_kg_lt_basis
+) %>%
+  arrange(year, variable)
+
+cat(sprintf('project_puf.R: factor_ledger final (%d rows)\n', nrow(factor_ledger)))
+
+#-------------------------------------
+# Cache (diagnostic; main artifact is in-memory for Phase 4)
+#-------------------------------------
+
+write_rds(factor_ledger, file.path(output_path, 'factor_ledger.rds'))
+write_rds(weight_ledger, file.path(output_path, 'weight_ledger.rds'))

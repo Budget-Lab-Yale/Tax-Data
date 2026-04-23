@@ -1,13 +1,23 @@
 #---------------------------------------------
 # main.R
-# 
-# Entry point into Tax-Data processing module
+#
+# Entry point into Tax-Data processing module.
+# Four explicit phases:
+#   1. Base construction  — 2017-native PUF + imputations.
+#   2. Projection ledger  — project_puf.R produces factor_ledger +
+#                            weight_ledger, no per-year tibble mutation.
+#   3. Donor-year imputations — modules with base_year > 2017 run at
+#                            their native year, producing module_deltas.
+#                            (Empty until wealth migration lands.)
+#   4. Materialize + write — for each year 2017..2097, materialize via
+#                            (base, factor_ledger, weight_ledger,
+#                            module_deltas) and write tax_units_{year}.csv.
 #---------------------------------------------
 
 
-#----------------
-# Set parameters
-#----------------
+#-----------------------
+# Bootstrap
+#-----------------------
 
 # Load required packages
 lapply(readLines('requirements.txt'), library, character.only = T)
@@ -15,31 +25,42 @@ lapply(readLines('requirements.txt'), library, character.only = T)
 # Read runtime configuration params and set filepaths
 source('./src/configure.R')
 
-# Set random seed 
+# Set random seed
 set.seed(76)
 
 
-#----------------
-# Build tax data
-#----------------
+#-----------------------
+# Phase 1: base construction
+#-----------------------
 
-# Read and process targets
 source('./src/process_targets.R')
-
-# Read and process PUF
 source('./src/process_puf.R')
-
-# Create 2017 PUF
 source('./src/reweight.R')
 source('./src/summary.R')
 source('./src/create_2017_puf.R')
-
-# Impute nonfilers
 source('./src/impute_nonfilers.R')
-
-# Impute variables
 source('./src/impute_variables.R')
 
-# Project PUF
+
+#-----------------------
+# Phase 2: projection ledger
+#-----------------------
+
 source('./src/project_puf.R')
 
+
+#-----------------------
+# Phase 3: donor-year imputations
+#-----------------------
+
+# Modules with base_year > 2017 attach their outputs to module_deltas and
+# extend factor_ledger with their post-base growth series. Empty for now —
+# wealth migration (task 14) will populate this block.
+module_deltas = list()
+
+
+#-----------------------
+# Phase 4: materialize + write
+#-----------------------
+
+source('./src/write_outputs.R')
