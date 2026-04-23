@@ -56,12 +56,6 @@ puf_raw = read_rds('resources/cache/consumption_analysis.rds')
 puf = puf_raw %>%
   transmute(
     weight,
-    income = wages + sole_prop + part_active + part_passive -
-             part_active_loss - part_passive_loss - part_179 +
-             scorp_active + scorp_passive -
-             scorp_active_loss - scorp_passive_loss - scorp_179 +
-             gross_ss + txbl_int + div_ord + div_pref +
-             gross_pens_dist + rent - rent_loss,
     wages         = wages,
     business      = sole_prop + farm +
                     scorp_active  - scorp_active_loss  - scorp_179 +
@@ -73,13 +67,14 @@ puf = puf_raw %>%
     rent          = rent - rent_loss + estate - estate_loss,
     ss_pens       = gross_ss + gross_pens_dist,
     ui_other      = ui,
+    income        = wages + business + int_div + capital_gains +
+                    rent + ss_pens + ui_other,
     source = 'PUF'
   )
 
 scf = scf %>%
   transmute(
     weight,
-    income,
     wages         = wages_scf,
     business      = business_scf,
     int_div       = int_div_scf,
@@ -87,6 +82,8 @@ scf = scf %>%
     rent          = rent_scf,
     ss_pens       = ss_pens_scf,
     ui_other      = ui_other_scf,
+    income        = wages + business + int_div + capital_gains +
+                    rent + ss_pens + ui_other,
     source = 'SCF'
   )
 

@@ -51,7 +51,11 @@
 args = commandArgs(trailingOnly = TRUE)
 if (length(args) < 1)
   stop('Usage: Rscript test_wealth_X_ablation.R <spec>  (small|medium|large)')
-valid_specs = c('small', 'medium', 'large')
+valid_specs = c('small', 'medium', 'large', 'large_no_intdiv',
+                'small_plus_wages', 'small_plus_biz', 'small_plus_intdiv',
+                'small_plus_cg', 'small_plus_sspens',
+                paste0('ladder', 1:10),
+                'ladder10_no_ndep', 'large_no_ndep')
 SPEC = args[1]
 if (!(SPEC %in% valid_specs))
   stop('Unknown spec: ', SPEC,
@@ -62,7 +66,15 @@ lapply(readLines('requirements.txt'), library, character.only = TRUE)
 source('./src/configure.R')
 estimate_models = 1
 do_lp = 0
-set.seed(1337)
+
+# Seeds. TRAIN_SEED controls bootstrap row selection and DRF fit. DONOR_SEED
+# controls per-PUF-row donor sampling after the DRF is fit. Separated so we
+# can measure training MC variance vs donor-sampling MC variance
+# independently. Both default to 1337 to preserve legacy behaviour.
+TRAIN_SEED = as.integer(Sys.getenv('TRAIN_SEED', unset = '1337'))
+DONOR_SEED = as.integer(Sys.getenv('DONOR_SEED', unset = '1337'))
+cat(sprintf('seeds: TRAIN_SEED=%d, DONOR_SEED=%d\n', TRAIN_SEED, DONOR_SEED))
+set.seed(TRAIN_SEED)
 
 #---------------------------------------------------------------------------
 # Minimal pipeline up to demographics + ages (matches test_wealth.R).
@@ -154,6 +166,15 @@ make_has = function(x) {
 # fresh here using the same definitions as src/imputations/wealth.R.
 scf_tax_units = scf_tax_units %>%
   mutate(
+    # SCF n_dep is already household-kids-only (KIDS_u from roster, per
+    # stage1_scf_tax_units.R:496). Alias to n_dep_hh to match the PUF side's
+    # kids-only reconstruction below. This aligns the dependent-count
+    # concept across datasets — the raw PUF n_dep (= XOCAH + XOCAWH +
+    # XOPAR + XOODEP) includes adult parents and other adult dependents
+    # that SCF's roster-based KIDS does not capture, producing a huge
+    # density mismatch at 55-64 and 65+ households that drives the
+    # aggregate wealth gap.
+    n_dep_hh = n_dep,
     # Cap ages at 80 (PUF topcode). Then recode as older/younger to remove
     # the PUF primary-filer vs SCF respondent arbitrariness — whichever
     # spouse is "age1" vs "age2" is a labeling accident and DRF shouldn't
@@ -248,6 +269,15 @@ if (any(na_report > 0)) {
 #   already bundled on the PUF side.
 tax_units = tax_units %>%
   mutate(
+    # Household-kids-only dependent count. The raw PUF n_dep (from
+    # process_puf.R:126) = XOCAH + XOCAWH + XOPAR + XOODEP — includes
+    # adult parents (XOPAR) and other adult dependents (XOODEP) that
+    # SCF's household-roster KIDS does not capture. Reconstruct by
+    # counting dep_age1/2/3 slots with age < 18, matching the pattern
+    # in src/imputations/mortgage.R:78-80 and similar.
+    n_dep_hh = (!is.na(dep_age1) & dep_age1 < 18) +
+               (!is.na(dep_age2) & dep_age2 < 18) +
+               (!is.na(dep_age3) & dep_age3 < 18),
     # Age harmonization + labeling-invariant recoding (see SCF-side note).
     age1_capped = pmin(as.integer(age1), 80L),
     age2_capped = if_else(!is.na(age2), pmin(as.integer(age2), 80L), NA_integer_),
@@ -317,7 +347,7 @@ tax_units = tax_units %>%
 #---------------------------------------------------------------------------
 
 small_feats  = c('has_income_act', 'has_income_pos', 'pctile_income',
-                 'married', 'age_older', 'age_younger', 'n_dep')
+                 'married', 'age_older', 'age_younger', 'n_dep_hh')
 
 medium_feats = c(small_feats,
                  'pctile_wages',    'has_wages',
@@ -346,9 +376,59 @@ large_feats  = c(small_feats,
 # and missed the wealth signal in loss-holders. wages / int_div / ss_pens
 # can't go negative, so single has_* (ordinal) suffices.
 
-specs = list(small  = small_feats,
-             medium = medium_feats,
-             large  = large_feats)
+# large_no_intdiv: large spec with pctile_int_div and has_int_div removed,
+# used to directly test whether removing the int_div features reduces the
+# aggregate gap (user's empirical request).
+large_no_intdiv_feats = setdiff(large_feats,
+                                c('pctile_int_div', 'has_int_div'))
+
+# Forward-stepwise single-feature-group additions to small, for marginal
+# contribution analysis. Each adds one income-composition feature group.
+small_plus_wages_feats   = c(small_feats, 'pctile_wages', 'has_wages')
+small_plus_biz_feats     = c(small_feats, 'pctile_business',
+                             'has_business_act', 'has_business_pos')
+small_plus_intdiv_feats  = c(small_feats, 'pctile_int_div', 'has_int_div')
+small_plus_cg_feats      = c(small_feats, 'pctile_capital_gains',
+                             'has_capital_gains_act', 'has_capital_gains_pos')
+small_plus_sspens_feats  = c(small_feats, 'pctile_ss_pens', 'has_ss_pens')
+
+# Ladder: from-the-ground-up stepwise feature build-up. Each rung adds one
+# feature group to the previous. ladder10 is identical in feature set to
+# the `large` spec.
+ladder1  = c('married')
+ladder2  = c(ladder1, 'age_older', 'age_younger')
+ladder3  = c(ladder2, 'n_dep_hh')
+ladder4  = c(ladder3, 'has_income_act', 'has_income_pos')
+ladder5  = c(ladder4, 'pctile_income')
+ladder6  = c(ladder5, 'pctile_wages', 'has_wages')
+ladder7  = c(ladder6, 'pctile_business', 'has_business_act', 'has_business_pos')
+ladder8  = c(ladder7, 'pctile_int_div', 'has_int_div')
+ladder9  = c(ladder8, 'pctile_capital_gains',
+             'has_capital_gains_act', 'has_capital_gains_pos')
+ladder10 = c(ladder9, 'pctile_ss_pens', 'has_ss_pens')
+
+# ladder10_no_ndep: same features as ladder10 but with n_dep_hh removed —
+# direct test of whether the dependent-count feature is a gap driver after
+# it's been properly restricted to household kids only.
+ladder10_no_ndep = setdiff(ladder10, 'n_dep_hh')
+large_no_ndep    = setdiff(large_feats, 'n_dep_hh')
+
+specs = list(small              = small_feats,
+             medium             = medium_feats,
+             large              = large_feats,
+             large_no_intdiv    = large_no_intdiv_feats,
+             small_plus_wages   = small_plus_wages_feats,
+             small_plus_biz     = small_plus_biz_feats,
+             small_plus_intdiv  = small_plus_intdiv_feats,
+             small_plus_cg      = small_plus_cg_feats,
+             small_plus_sspens  = small_plus_sspens_feats,
+             ladder1  = ladder1,  ladder2  = ladder2,
+             ladder3  = ladder3,  ladder4  = ladder4,
+             ladder5  = ladder5,  ladder6  = ladder6,
+             ladder7  = ladder7,  ladder8  = ladder8,
+             ladder9  = ladder9,  ladder10 = ladder10,
+             ladder10_no_ndep = ladder10_no_ndep,
+             large_no_ndep    = large_no_ndep)
 feats = specs[[SPEC]]
 
 cat(sprintf('spec %-7s: %2d feats — %s\n\n',
@@ -412,23 +492,35 @@ walk_to_leaf_factory = function(fit) {
 DRF_NUM_TREES     = 500L
 DRF_MIN_NODE_SIZE = 20L
 DRF_HONESTY       = TRUE
+# num.features = dimension of the random Fourier basis for FourierMMD
+# approximation. drf default is 10; higher reduces approximation variance
+# at ~1/√D rate. Expose via env var so we can sweep it.
+DRF_NUM_FEATURES  = as.integer(Sys.getenv('NUM_FEATURES', unset = '10'))
 
-cat(sprintf('\ntraining DRF: %d trees, min.node.size = %d, honesty = %s, mtry = %d\n',
-            DRF_NUM_TREES, DRF_MIN_NODE_SIZE, DRF_HONESTY, ncol(X_mat)))
+cat(sprintf('\ntraining DRF: %d trees, min.node.size = %d, honesty = %s, mtry = %d, num.features = %d\n',
+            DRF_NUM_TREES, DRF_MIN_NODE_SIZE, DRF_HONESTY,
+            ncol(X_mat), DRF_NUM_FEATURES))
 
 t_fit = Sys.time()
+# Cache tag includes TRAIN_SEED and NUM_FEATURES so sweeps don't collide.
 fit = train_or_load_drf(
-  name          = paste0('wealth_drf_ablation_', SPEC),
+  name          = paste0('wealth_drf_ablation_', SPEC, '_t', TRAIN_SEED,
+                         '_f', DRF_NUM_FEATURES),
   X             = X_mat,
   Y             = Y_mat,
   num.trees     = DRF_NUM_TREES,
   min.node.size = DRF_MIN_NODE_SIZE,
-  honesty       = DRF_HONESTY
+  honesty       = DRF_HONESTY,
+  num.features  = DRF_NUM_FEATURES
 )
 fit_min = as.numeric(Sys.time() - t_fit, units = 'mins')
 cat(sprintf('  fit time: %.2f min\n', fit_min))
 
 wtl = walk_to_leaf_factory(fit)
+
+# Reset seed for donor sampling so training-seed variance and donor-seed
+# variance can be measured independently.
+set.seed(DONOR_SEED)
 
 X_puf     = as.matrix(tax_units[, feats])
 n_pred    = nrow(X_puf)
@@ -460,7 +552,14 @@ colnames(donor_y) = wealth_y_vars
 # Save per-spec artifact. Postproc will merge by `id` across the three.
 #---------------------------------------------------------------------------
 
-out_path = sprintf('resources/cache/wealth_ablation_%s.rds', SPEC)
+out_path = if (TRAIN_SEED == 1337L && DONOR_SEED == 1337L && DRF_NUM_FEATURES == 10L) {
+  # Default knobs preserve the legacy canonical cache path so downstream
+  # postproc / diagnostic scripts keep working without changes.
+  sprintf('resources/cache/wealth_ablation_%s.rds', SPEC)
+} else {
+  sprintf('resources/cache/wealth_ablation_%s_t%d_d%d_f%d.rds',
+          SPEC, TRAIN_SEED, DONOR_SEED, DRF_NUM_FEATURES)
+}
 write_rds(
   list(
     spec        = SPEC,
@@ -473,7 +572,8 @@ write_rds(
                        num.trees = DRF_NUM_TREES,
                        min.node.size = DRF_MIN_NODE_SIZE,
                        honesty = DRF_HONESTY,
-                       seed = 1337),
+                       train_seed = TRAIN_SEED,
+                       donor_seed = DONOR_SEED),
     fit_minutes = fit_min,
     samp_sec    = samp_sec,
     boot_idx    = boot_idx
