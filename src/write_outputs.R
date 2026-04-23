@@ -16,6 +16,13 @@ if (!exists('module_deltas')) {
   module_deltas = list()
 }
 
+# Bucketed-factor path: non-NULL iff Phase 3 built both objects.
+# build_wealth_bucketed_factors + build_record_bucket are responsible for
+# producing them. When absent (legacy call sites), materialize() falls
+# through to the uniform-ledger-only path.
+bucketed_factors = if (exists('bucketed_factor_ledger')) bucketed_factor_ledger else NULL
+rb               = if (exists('record_bucket'))         record_bucket         else NULL
+
 # Columns to emit per year: variable_guide vars minus vars_to_ignore. The
 # 2018-19 legacy loop didn't apply this select (wrote all helper cols too);
 # the 2020+ legacy loop did. We apply it consistently now.
@@ -24,7 +31,10 @@ out_cols = variable_guide$variable[!(variable_guide$variable %in% vars_to_ignore
 cat('Phase 4: materializing and writing per-year CSVs...\n')
 t0 = Sys.time()
 for (y in 2017L:2097L) {
-  out = materialize(y, tax_units, factor_ledger, weight_ledger, module_deltas)
+  out = materialize(y, tax_units, factor_ledger, weight_ledger,
+                    module_deltas,
+                    bucketed_factors = bucketed_factors,
+                    record_bucket    = rb)
   out = out[, intersect(out_cols, names(out)), drop = FALSE]
   write_csv(out, file.path(output_path, paste0('tax_units_', y, '.csv')))
 }
