@@ -166,21 +166,23 @@ top_share = function(x, w, top_frac) {
 
 cat('\n=== Table 1: aggregate dollar totals per category ===\n')
 
+# Per-frame, per-category weighted sum. Explicit; avoids dplyr
+# across()/all_of()/named-vector naming surprises.
+sum_per_cat = function(df, label) {
+  tibble(
+    source_label  = label,
+    category      = CALIB_CATEGORIES,
+    total_dollars = vapply(unname(CAT_COL),
+                           function(c) sum(df$weight * df[[c]]),
+                           numeric(1))
+  )
+}
+
 agg_totals = bind_rows(
-  scf      %>% group_by(source_label = 'SCF') %>%
-    summarise(across(all_of(CAT_COL),
-                     ~ sum(weight * .x)), .groups = 'drop'),
-  puf_pre  %>% group_by(source_label = 'PUF_pre_tilt') %>%
-    summarise(across(all_of(CAT_COL),
-                     ~ sum(weight * .x)), .groups = 'drop'),
-  puf_post %>% group_by(source_label = 'PUF_post_tilt') %>%
-    summarise(across(all_of(CAT_COL),
-                     ~ sum(weight * .x)), .groups = 'drop')
+  sum_per_cat(scf,      'SCF'),
+  sum_per_cat(puf_pre,  'PUF_pre_tilt'),
+  sum_per_cat(puf_post, 'PUF_post_tilt')
 ) %>%
-  pivot_longer(cols = starts_with('cat_'),
-               names_to  = 'category',
-               names_prefix = 'cat_',
-               values_to = 'total_dollars') %>%
   pivot_wider(names_from = source_label, values_from = total_dollars) %>%
   mutate(
     pre_vs_scf_pct  = 100 * (PUF_pre_tilt  - SCF) / SCF,
@@ -216,16 +218,25 @@ print(top_tab %>% mutate(across(-source_label, ~ round(.x, 4))))
 cat('\n=== Table 3: per-cell aggregates (SCF vs PUF_post) ===\n')
 
 cell_agg = function(df) {
-  df %>%
+  out = df %>%
     group_by(cell_income, cell_age) %>%
-    summarise(
-      n_wt = sum(weight),
-      across(all_of(CAT_COL),
-             list(total = ~ sum(weight * .x),
-                  pos_n = ~ sum(weight * (.x > 0))),
-             .names = '{.col}__{.fn}'),
-      .groups = 'drop'
-    )
+    summarise(n_wt = sum(weight), .groups = 'drop')
+  # Per-category aggregation done imperatively to avoid across()/all_of()
+  # naming surprises.
+  for (cat_name in CALIB_CATEGORIES) {
+    c_col = CAT_COL[[cat_name]]  # e.g. "cat_nw"
+    tot = df %>% group_by(cell_income, cell_age) %>%
+      summarise(tot = sum(weight * .data[[c_col]]),
+                pos = sum(weight * (.data[[c_col]] > 0)),
+                .groups = 'drop')
+    out[[paste0(c_col, '__total')]] = tot$tot[
+      match(paste(out$cell_income, out$cell_age),
+            paste(tot$cell_income, tot$cell_age))]
+    out[[paste0(c_col, '__pos_n')]] = tot$pos[
+      match(paste(out$cell_income, out$cell_age),
+            paste(tot$cell_income, tot$cell_age))]
+  }
+  out
 }
 scf_c  = cell_agg(scf)
 post_c = cell_agg(puf_post)
