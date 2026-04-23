@@ -10,3 +10,10 @@ plots/
 resources/cache/
 slurm_*.out
 slurm_*.err
+
+# Raw downloads — regenerate via src/eda/ingest_dfa.R
+resources/dfa/dfa_raw_networth_levels.csv
+
+# Local validation runners
+run_pipeline_*.sh
+validation_diff.log
