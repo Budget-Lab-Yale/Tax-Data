@@ -87,9 +87,18 @@ write_rds(bucketed_factor_ledger,
 cat(sprintf('main.R: bucketed_factor_ledger built (%d rows)\n',
             nrow(bucketed_factor_ledger)))
 
-wealth_delta = run_wealth_imputation(puf_2022, scf_tax_units)
-module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_delta)
-rm(puf_2022, wealth_delta)
+wealth_result = run_wealth_imputation(puf_2022, scf_tax_units)
+module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
+
+# Diagnostic artifacts for src/eda/wealth_summary_diagnostics.R: the
+# pre-tilt (Stage 2 only, uniform leaf draw) donors and the QC report
+# describing which requested Stage 3 targets were kept/dropped.
+write_rds(wealth_result$y_pre_tilt,
+          file.path(output_path, 'wealth_pre_tilt.rds'))
+write_rds(wealth_result$qc_report,
+          file.path(output_path, 'stage3_qc_report.rds'))
+
+rm(puf_2022, wealth_result)
 
 
 #-----------------------

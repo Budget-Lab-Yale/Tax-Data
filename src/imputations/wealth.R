@@ -39,6 +39,7 @@
 
 
 source('src/imputations/wealth_schema.R')
+source('src/imputations/stage3_target_qc.R')
 
 
 #--------------------------------------
@@ -292,57 +293,101 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
               median(lengths(leaf_donors_list))))
 
   #---------------------------------------------------------------------------
-  # Stage 3: per-decile exponential tilt to hit SCF 2022 intensive + extensive
-  # targets. Targets: {cash, equities, net_worth} × {total $, positive count}.
-  # SCF-for-levels, DFA-for-changes (changes enter post-2022 via factor_ledger).
+  # Stage 3: per-cell exponential tilt to hit SCF 2022 targets.
+  #
+  # Cells      : income pctile × age (senior ≥ 65).  7 × 2 = 14.
+  # Categories : {nw, equities, bonds, homes, other, debt}.
+  #              nw excludes kg_*. homes = primary_home only. other =
+  #              all assets except {equities, bonds, primary_home}.
+  #              debt = sum of 6 debt vars.
+  # Margins    : {intensive = weighted $ total,
+  #               extensive = weighted count > 0}.
+  #
+  # Caller requests up to 6 × 2 × 14 = 168 targets (default via
+  # default_wealth_target_spec()). The viability check drops thin cells
+  # and degenerate-extensive targets automatically and logs what went.
+  # Also emits the pre-tilt (uniform leaf draw) donors alongside the
+  # post-tilt ones for diagnostic comparison.
   #---------------------------------------------------------------------------
 
-  # Donor feature matrix F: n_boot × 6 target statistics.
-  asset_mat = Y_mat[, wealth_asset_vars, drop = FALSE]
-  debt_mat  = Y_mat[, wealth_debt_vars,  drop = FALSE]
-  donor_nw   = rowSums(asset_mat) - rowSums(debt_mat)
-  donor_cash = Y_mat[, 'cash']
-  donor_eq   = Y_mat[, 'equities']
+  # ---------- Donor-side category values + 12-column feature matrix ----------
+  donor_y_tbl = as.data.frame(Y_mat)
+  names(donor_y_tbl) = wealth_y_vars
+  donor_cats = compute_category_values(donor_y_tbl)
 
-  F_donor = cbind(
-    nw_total       = donor_nw,
-    nw_pos_count   = as.numeric(donor_nw   > 0),
-    cash_total     = donor_cash,
-    cash_pos_count = as.numeric(donor_cash > 0),
-    eq_total       = donor_eq,
-    eq_pos_count   = as.numeric(donor_eq   > 0)
+  # Build F_donor: n_boot × 12, ordered by (category × margin).
+  F_donor_parts = lapply(CALIB_CATEGORIES, function(cc) {
+    v = donor_cats[[paste0('cat_', cc)]]
+    m = cbind(v, as.numeric(v > 0))
+    colnames(m) = c(paste0(cc, '.intensive'), paste0(cc, '.extensive'))
+    m
+  })
+  F_donor = do.call(cbind, F_donor_parts)
+
+  # ---------- Cell assignment on SCF side ----------
+  # Age: pmin(80) to match the PUF topcode; 0 for the synthetic 2nd
+  # filer on singles. Income: unfloored sum of the 7 SCF composition
+  # cols (same formula as the forest feature, matching build_record_bucket's
+  # PUF-side formula).
+  scf_y = scf_to_y(scf_tax_units)
+  scf_age2    = ifelse(is.na(scf_tax_units$age2), 0L, scf_tax_units$age2)
+  scf_age_older = pmax(pmin(80L, scf_tax_units$age1), pmin(80L, scf_age2))
+  scf_income  = with(scf_tax_units,
+    wages_scf + business_scf + int_div_scf + capital_gains_scf +
+    rent_scf + ss_pens_scf + ui_other_scf
   )
-  target_names = colnames(F_donor)
+  scf_cells_df = data.frame(
+    weight    = scf_y$weight,
+    age_older = scf_age_older,
+    income    = scf_income
+  )
+  scf_cells_df = cbind(scf_cells_df, compute_category_values(scf_y))
+  scf_cells_df = assign_calibration_cells(scf_cells_df,
+                                          scf_cells_df$income,
+                                          scf_cells_df$age_older,
+                                          scf_cells_df$weight)
 
-  # SCF 2022 per-decile target vector.
-  scf_y     = scf_to_y(scf_tax_units)
-  scf_nw    = rowSums(scf_y[, wealth_asset_vars]) -
-              rowSums(scf_y[, wealth_debt_vars])
-  scf_cash  = scf_y$cash
-  scf_eq    = scf_y$equities
-  scf_w     = scf_y$weight
-  scf_pct   = scf_y$pctile_income
-  scf_dec   = pmin(pmax(ceiling(scf_pct / 10), 1L), 10L)
+  # ---------- Cell assignment on PUF side ----------
+  puf_w = puf_tax_units$weight
+  puf_age2 = ifelse(is.na(puf_tax_units$age2), 0L, puf_tax_units$age2)
+  puf_age_older = pmax(pmin(80L, puf_tax_units$age1), pmin(80L, puf_age2))
+  puf_income_vec = with(puf_tax_units,
+    wages + sole_prop + farm +
+    scorp_active  - scorp_active_loss  - scorp_179 +
+    scorp_passive - scorp_passive_loss +
+    part_active   - part_active_loss   - part_179 +
+    part_passive  - part_passive_loss +
+    txbl_int + exempt_int + div_ord + div_pref +
+    kg_lt + kg_st +
+    gross_ss + gross_pens_dist + ui +
+    rent - rent_loss + estate - estate_loss
+  )
+  puf_cells = data.frame(
+    id        = puf_tax_units$id,
+    weight    = puf_w,
+    age_older = puf_age_older,
+    income    = puf_income_vec
+  )
+  puf_cells = assign_calibration_cells(puf_cells, puf_cells$income,
+                                        puf_cells$age_older, puf_cells$weight)
 
-  compute_cell_target = function(dec_val) {
-    sel = scf_dec == dec_val
-    ww  = scf_w[sel]
-    c(nw_total       = sum(ww * scf_nw[sel]),
-      nw_pos_count   = sum(ww * (scf_nw[sel]   > 0)),
-      cash_total     = sum(ww * scf_cash[sel]),
-      cash_pos_count = sum(ww * (scf_cash[sel] > 0)),
-      eq_total       = sum(ww * scf_eq[sel]),
-      eq_pos_count   = sum(ww * (scf_eq[sel]   > 0)))
+  # ---------- Target viability QC ----------
+  requested_spec = default_wealth_target_spec()
+  qc_report = assess_target_viability(requested_spec, scf_cells_df)
+  summarize_qc(qc_report)
+  kept = qc_report %>% filter(status == 'keep') %>%
+    mutate(feature_col = paste(category, margin, sep = '.'))
+
+  # ---------- Pre-tilt donors (uniform leaf draw) ----------
+  pre_tilt_donors = integer(n_pred)
+  for (i in seq_len(n_pred)) {
+    lr = leaf_donors_list[[i]]
+    pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
   }
-  scf_targets = lapply(1:10, compute_cell_target)
-
-  # PUF decile assignment. `puf` has pctile_income from feature engineering.
-  puf_dec = pmin(pmax(ceiling(puf$pctile_income / 10), 1L), 10L)
-  puf_w   = puf_tax_units$weight
 
   # Convex-Newton dual solver (RMS feature rescaling + Levenberg-Marquardt
   # style damping + gradient-descent fallback). Port of the v2 prototype
-  # at src/eda/stage3_prototype_v2.R.
+  # at src/eda/stage3_prototype_v2.R. k-general.
   solve_tilt = function(records, weights, leaf_donors, F_mat, T_target,
                         max_iter = 80, tol_rel = 1e-5,
                         max_bt = 30) {
@@ -416,39 +461,66 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
          ess = as.vector(tapply(cur$p_all, rec_idx, function(p) 1 / sum(p^2))))
   }
 
-  # Per-decile solve.
-  cat('wealth.R: solving per-decile tilts\n')
-  tilt_results = vector('list', 10)
+  # Per-cell solve over income × age. Cells with zero viable targets
+  # (should be rare / zero in practice) fall through to the pre-tilt
+  # uniform draw for those records.
+  cat('wealth.R: solving per-cell tilts (income × age)\n')
+  tilt_results = list()
+  post_tilt_donors = integer(n_pred)
   t0 = Sys.time()
-  for (d in 1:10) {
-    rec_d = which(puf_dec == d)
-    res   = solve_tilt(rec_d, puf_w[rec_d], leaf_donors_list[rec_d],
-                       F_donor, scf_targets[[d]])
-    cat(sprintf('  d%2d: n=%6d iter=%2d rel=%.2e ||lam||=%.3g ESS p10=%.1f\n',
-                d, length(rec_d), res$iter, res$rel,
-                sqrt(sum(res$lambda^2)),
-                as.numeric(quantile(res$ess, 0.10))))
-    tilt_results[[d]] = res
+
+  for (ci in CALIB_INCOME_BUCKETS) {
+    for (ca in CALIB_AGE_BUCKETS) {
+      rec_cell = which(puf_cells$cell_income == ci & puf_cells$cell_age == ca)
+      if (length(rec_cell) == 0L) next
+
+      kept_cell = kept %>%
+        filter(cell_income == ci, cell_age == ca)
+
+      if (nrow(kept_cell) == 0L) {
+        post_tilt_donors[rec_cell] = pre_tilt_donors[rec_cell]
+        cat(sprintf('  %-10s × %-9s: n=%6d  [no viable targets → pre-tilt]\n',
+                    ci, ca, length(rec_cell)))
+        next
+      }
+
+      F_cell = F_donor[, kept_cell$feature_col, drop = FALSE]
+      T_cell = setNames(kept_cell$target_value, kept_cell$feature_col)
+
+      res = solve_tilt(rec_cell, puf_w[rec_cell],
+                       leaf_donors_list[rec_cell],
+                       F_cell, T_cell)
+
+      cat(sprintf(
+        '  %-10s × %-9s: n=%6d k=%2d iter=%2d rel=%.2e ESS p10=%.1f\n',
+        ci, ca, length(rec_cell), ncol(F_cell),
+        res$iter, res$rel,
+        as.numeric(quantile(res$ess, 0.10))))
+      tilt_results[[paste(ci, ca, sep = ':')]] = res
+
+      # Sample donors for this cell under tilted probabilities.
+      for (local_i in seq_along(rec_cell)) {
+        sl = (res$seg_start[local_i] + 1L):res$seg_end[local_i]
+        donor_pool = res$all_donors[sl]
+        prob_pool  = res$p_all[sl]
+        post_tilt_donors[rec_cell[local_i]] =
+          donor_pool[sample.int(length(donor_pool), 1L, prob = prob_pool)]
+      }
+    }
   }
   cat(sprintf('wealth.R: tilt solver %.1fs\n',
               as.numeric(Sys.time() - t0, units = 'secs')))
 
-  # Redraw donors under the tilted per-record probabilities.
-  donors = integer(n_pred)
-  for (d in 1:10) {
-    rec_d = which(puf_dec == d)
-    res   = tilt_results[[d]]
-    for (local_i in seq_along(rec_d)) {
-      sl = (res$seg_start[local_i] + 1L):res$seg_end[local_i]
-      donor_pool = res$all_donors[sl]
-      prob_pool  = res$p_all[sl]
-      donors[rec_d[local_i]] =
-        donor_pool[sample.int(length(donor_pool), 1L, prob = prob_pool)]
-    }
-  }
+  post_y = Y_mat[post_tilt_donors, , drop = FALSE]
+  colnames(post_y) = wealth_y_vars
+  pre_y  = Y_mat[pre_tilt_donors,  , drop = FALSE]
+  colnames(pre_y)  = wealth_y_vars
 
-  donor_y = Y_mat[donors, , drop = FALSE]
-  colnames(donor_y) = wealth_y_vars
-
-  bind_cols(tibble(id = puf$id), as_tibble(donor_y))
+  # Return a list so the caller can route post-tilt into module_deltas and
+  # save pre-tilt + qc_report as diagnostic artifacts.
+  list(
+    y          = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
+    y_pre_tilt = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+    qc_report  = qc_report
+  )
 }
