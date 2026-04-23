@@ -156,21 +156,30 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     scf_to_y() %>%
     select(weight, all_of(features), all_of(wealth_y_vars))
 
-  # UNIFORM bootstrap (was: weight-proportional). The weight-proportional
-  # version mathematically excludes ultra-wealthy donors (SCF weights ~5-8
-  # from Fed high-wealth oversample -> expected bootstrap appearances
-  # ~0.005 over 250k draws). Forest never saw them, couldn't produce
-  # their wealth. Uniform gives each SCF row ~8.6 expected appearances in
-  # scf_boot (250k / 29k) regardless of SCF weight. Diagnosed via
-  # src/eda/wealth_diagnosis.R on 2026-04-23 -- top-15 highest-NW SCF
-  # donors were picked 0 times by PUF records.
+  # GUARANTEED-K + weight-proportional bootstrap.
+  # First, give every SCF row exactly K guaranteed copies (K=2 → 1 for
+  # the split half of honest DRF, 1 for the leaf half). Then fill the
+  # remainder weight-proportionally. Balances: every donor exists in
+  # training (forest can learn their Y|X), but the population majority
+  # still dominates through the weight-proportional remainder.
   #
-  # Tradeoff: the training sample now OVER-represents low-weight
-  # oversample donors relative to population. Per memory, earlier work
-  # rejected "weighted MMD" (sample.weights passed to DRF) for producing
-  # tight leaves around heavy rows. Leaving sample.weights = NULL below.
+  # History of attempts (see diagnosis e462c8f):
+  #   - weight-proportional only: ultra-wealthy got 0.005 copies → forest
+  #     never saw them → top-1% income PUF under-imputed by 50%.
+  #   - uniform: ultra-wealthy got 8.6 copies (same as modest) → total
+  #     NW inflated to $369T (2.65x SCF).
+  #   - cap-min 1/(2n): 50% of donors capped → same over-inflation.
+  # guaranteed-K with K=2 gives ultra-wealthy the minimum representation
+  # to be trainable while keeping population proportions roughly right.
   n_boot = 250000
-  boot_idx = sample.int(nrow(scf_training), size = n_boot, replace = TRUE)
+  K_guaranteed  = 2
+  guaranteed_idx = rep(seq_len(nrow(scf_training)), each = K_guaranteed)
+  n_remainder    = n_boot - length(guaranteed_idx)
+  stopifnot(n_remainder > 0)
+  extra_idx = sample.int(nrow(scf_training), size = n_remainder,
+                          replace = TRUE,
+                          prob = scf_training$weight)
+  boot_idx = c(guaranteed_idx, extra_idx)
   scf_boot = scf_training[boot_idx, ]
 
   Y_mat = as.matrix(scf_boot[wealth_y_vars])
