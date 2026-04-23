@@ -282,6 +282,7 @@ Map DFA categories to our 23-dim Y schema — this is the non-trivial curated st
 - **3c within-cell**: income-decile cells, SCF-conditional targets on category totals. Fixes within-decile structural mismatch.
 - **3d participation**: add `f = 1{Y > 0}` targets. Addresses extensive-margin residuals.
 - **3e production**: promote to `src/imputations/stage3_calibrate_wealth.R`; wire into pipeline.
+- **Phase 4 — Forbes top-tail augmentation** (deferred). SCF explicitly excludes Forbes-listed individuals from its high-wealth sampling frame, so DFA (which uses SCF shares) inherits the gap. Fabricate ~400 synthetic tax units from the Forbes 400 list with plausible Y-schema composition (mostly pass_throughs + equities + other_home), assign small weights, append to the SCF donor pool before Stage 2 bootstrap. Open design questions: Forbes NW → 23-var composition rule; weight convention; interaction with Stage 3 calibration targets (Forbes donors push aggregates above both SCF and DFA totals, so targets may need Forbes-adjusted versions); longitudinal consistency as the Forbes list churns. See task #18.
 
 Each phase is its own eda script, its own diagnostics, its own go/no-go with you.
 

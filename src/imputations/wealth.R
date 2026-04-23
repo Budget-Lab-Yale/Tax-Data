@@ -251,9 +251,9 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
     select(id, all_of(features))
 
   #---------------------------------------------------------------------------
-  # Stage 2: sparse donor sampling (pick tree → walk leaf → uniform draw).
-  # See pre-refactor wealth.R for the equivalence proof vs DRF's dense
-  # sample-weights path.
+  # Stage 2: walk forest + collect per-record leaf donor lists.
+  # (Donor selection itself happens under tilted probabilities in Stage 3;
+  # Stage 2 here just identifies each record's leaf.)
   #---------------------------------------------------------------------------
 
   n_trees = wealth_drf[['_num_trees']]
@@ -279,17 +279,173 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units) {
   X_puf     = as.matrix(puf[, features])
   n_pred    = nrow(X_puf)
   tree_pick = sample.int(n_trees, size = n_pred, replace = TRUE)
-  donors    = integer(n_pred)
+  leaf_donors_list = vector('list', n_pred)
 
   t0 = Sys.time()
   for (i in seq_len(n_pred)) {
     t  = tree_pick[i]
     nd = walk_to_leaf(t, X_puf[i, ])
-    lr = leaves[[t]][[nd]] + 1L
-    donors[i] = as.integer(lr[sample.int(length(lr), 1L)])
+    leaf_donors_list[[i]] = leaves[[t]][[nd]] + 1L
   }
-  cat(sprintf('wealth.R: sparse donor sampling over %d rows: %.1f s\n',
-              n_pred, as.numeric(Sys.time() - t0, units = 'secs')))
+  cat(sprintf('wealth.R: leaf walk over %d rows: %.1fs (median leaf size = %d)\n',
+              n_pred, as.numeric(Sys.time() - t0, units = 'secs'),
+              median(lengths(leaf_donors_list))))
+
+  #---------------------------------------------------------------------------
+  # Stage 3: per-decile exponential tilt to hit SCF 2022 intensive + extensive
+  # targets. Targets: {cash, equities, net_worth} × {total $, positive count}.
+  # SCF-for-levels, DFA-for-changes (changes enter post-2022 via factor_ledger).
+  #---------------------------------------------------------------------------
+
+  # Donor feature matrix F: n_boot × 6 target statistics.
+  asset_mat = Y_mat[, wealth_asset_vars, drop = FALSE]
+  debt_mat  = Y_mat[, wealth_debt_vars,  drop = FALSE]
+  donor_nw   = rowSums(asset_mat) - rowSums(debt_mat)
+  donor_cash = Y_mat[, 'cash']
+  donor_eq   = Y_mat[, 'equities']
+
+  F_donor = cbind(
+    nw_total       = donor_nw,
+    nw_pos_count   = as.numeric(donor_nw   > 0),
+    cash_total     = donor_cash,
+    cash_pos_count = as.numeric(donor_cash > 0),
+    eq_total       = donor_eq,
+    eq_pos_count   = as.numeric(donor_eq   > 0)
+  )
+  target_names = colnames(F_donor)
+
+  # SCF 2022 per-decile target vector.
+  scf_y     = scf_to_y(scf_tax_units)
+  scf_nw    = rowSums(scf_y[, wealth_asset_vars]) -
+              rowSums(scf_y[, wealth_debt_vars])
+  scf_cash  = scf_y$cash
+  scf_eq    = scf_y$equities
+  scf_w     = scf_y$weight
+  scf_pct   = scf_y$pctile_income
+  scf_dec   = pmin(pmax(ceiling(scf_pct / 10), 1L), 10L)
+
+  compute_cell_target = function(dec_val) {
+    sel = scf_dec == dec_val
+    ww  = scf_w[sel]
+    c(nw_total       = sum(ww * scf_nw[sel]),
+      nw_pos_count   = sum(ww * (scf_nw[sel]   > 0)),
+      cash_total     = sum(ww * scf_cash[sel]),
+      cash_pos_count = sum(ww * (scf_cash[sel] > 0)),
+      eq_total       = sum(ww * scf_eq[sel]),
+      eq_pos_count   = sum(ww * (scf_eq[sel]   > 0)))
+  }
+  scf_targets = lapply(1:10, compute_cell_target)
+
+  # PUF decile assignment. `puf` has pctile_income from feature engineering.
+  puf_dec = pmin(pmax(ceiling(puf$pctile_income / 10), 1L), 10L)
+  puf_w   = puf_tax_units$weight
+
+  # Convex-Newton dual solver (RMS feature rescaling + Levenberg-Marquardt
+  # style damping + gradient-descent fallback). Port of the v2 prototype
+  # at src/eda/stage3_prototype_v2.R.
+  solve_tilt = function(records, weights, leaf_donors, F_mat, T_target,
+                        max_iter = 80, tol_rel = 1e-5,
+                        max_bt = 30) {
+    n = length(records); k = ncol(F_mat)
+    ls       = lengths(leaf_donors)
+    all_d    = unlist(leaf_donors, use.names = FALSE)
+    rec_idx  = rep(seq_len(n), times = ls)
+    F_raw    = F_mat[all_d, , drop = FALSE]
+    w_expand = rep(weights, times = ls)
+
+    # Per-column RMS rescale — invariant change of coordinates on λ that
+    # makes the Newton system better-conditioned under mixed dollar/count
+    # targets.
+    col_scale  = pmax(sqrt(colMeans(F_raw^2)), 1e-12)
+    F_all      = sweep(F_raw, 2, col_scale, `/`)
+    T_eff      = T_target / col_scale
+    t_scale    = pmax(abs(T_eff), 1)
+
+    eval_fit = function(lam) {
+      u     = as.vector(F_all %*% lam)
+      u_max = ave(u, rec_idx, FUN = max)
+      eu    = exp(u - u_max)
+      Z     = ave(eu, rec_idx, FUN = sum)
+      p_all = eu / Z
+      ach   = as.vector(crossprod(F_all, w_expand * p_all))
+      list(p_all = p_all, grad = ach - T_eff,
+           rel = max(abs(ach - T_eff) / t_scale))
+    }
+
+    lambda = rep(0, k)
+    cur    = eval_fit(lambda)
+    for (iter in seq_len(max_iter)) {
+      if (cur$rel < tol_rel) break
+      wp = w_expand * cur$p_all
+      H1 = crossprod(F_all * sqrt(wp))
+
+      E_per = matrix(0, nrow = n, ncol = k)
+      for (kk in seq_len(k))
+        E_per[, kk] = rowsum(cur$p_all * F_all[, kk], rec_idx)[, 1]
+      H2 = crossprod(E_per * sqrt(weights))
+
+      H     = H1 - H2
+      reg   = 1e-6 * max(1, max(abs(diag(H))))
+      step  = tryCatch(solve(H + diag(reg, k), cur$grad),
+                       error = function(e) cur$grad / max(diag(H) + reg))
+
+      alpha    = 1
+      improved = FALSE
+      for (bt in seq_len(max_bt)) {
+        lam_try = lambda - alpha * step
+        fit_try = eval_fit(lam_try)
+        if (fit_try$rel < cur$rel) { improved = TRUE; break }
+        alpha = alpha / 2
+      }
+      if (!improved) {
+        # Gradient-descent retry on scaled coordinates.
+        alpha_gd = 1 / (max(diag(H)) + reg)
+        lam_try  = lambda - alpha_gd * cur$grad
+        fit_try  = eval_fit(lam_try)
+        if (fit_try$rel < cur$rel) improved = TRUE
+        else break
+      }
+      lambda = lam_try; cur = fit_try
+    }
+
+    seg_end   = cumsum(ls)
+    seg_start = c(0L, head(seg_end, -1L))
+    list(iter = iter, rel = cur$rel, lambda = lambda,
+         p_all = cur$p_all, all_donors = all_d,
+         seg_start = seg_start, seg_end = seg_end,
+         ess = as.vector(tapply(cur$p_all, rec_idx, function(p) 1 / sum(p^2))))
+  }
+
+  # Per-decile solve.
+  cat('wealth.R: solving per-decile tilts\n')
+  tilt_results = vector('list', 10)
+  t0 = Sys.time()
+  for (d in 1:10) {
+    rec_d = which(puf_dec == d)
+    res   = solve_tilt(rec_d, puf_w[rec_d], leaf_donors_list[rec_d],
+                       F_donor, scf_targets[[d]])
+    cat(sprintf('  d%2d: n=%6d iter=%2d rel=%.2e ||lam||=%.3g ESS p10=%.1f\n',
+                d, length(rec_d), res$iter, res$rel,
+                sqrt(sum(res$lambda^2)),
+                as.numeric(quantile(res$ess, 0.10))))
+    tilt_results[[d]] = res
+  }
+  cat(sprintf('wealth.R: tilt solver %.1fs\n',
+              as.numeric(Sys.time() - t0, units = 'secs')))
+
+  # Redraw donors under the tilted per-record probabilities.
+  donors = integer(n_pred)
+  for (d in 1:10) {
+    rec_d = which(puf_dec == d)
+    res   = tilt_results[[d]]
+    for (local_i in seq_along(rec_d)) {
+      sl = (res$seg_start[local_i] + 1L):res$seg_end[local_i]
+      donor_pool = res$all_donors[sl]
+      prob_pool  = res$p_all[sl]
+      donors[rec_d[local_i]] =
+        donor_pool[sample.int(length(donor_pool), 1L, prob = prob_pool)]
+    }
+  }
 
   donor_y = Y_mat[donors, , drop = FALSE]
   colnames(donor_y) = wealth_y_vars
