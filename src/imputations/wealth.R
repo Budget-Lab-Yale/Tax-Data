@@ -156,11 +156,22 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     scf_to_y() %>%
     select(weight, all_of(features), all_of(wealth_y_vars))
 
+  # UNIFORM bootstrap (was: weight-proportional). The weight-proportional
+  # version mathematically excludes ultra-wealthy donors (SCF weights ~5-8
+  # from Fed high-wealth oversample -> expected bootstrap appearances
+  # ~0.005 over 250k draws). Forest never saw them, couldn't produce
+  # their wealth. Uniform gives each SCF row ~8.6 expected appearances in
+  # scf_boot (250k / 29k) regardless of SCF weight. Diagnosed via
+  # src/eda/wealth_diagnosis.R on 2026-04-23 -- top-15 highest-NW SCF
+  # donors were picked 0 times by PUF records.
+  #
+  # Tradeoff: the training sample now OVER-represents low-weight
+  # oversample donors relative to population. Per memory, earlier work
+  # rejected "weighted MMD" (sample.weights passed to DRF) for producing
+  # tight leaves around heavy rows. Leaving sample.weights = NULL below.
   n_boot = 250000
-  boot_probs = scf_training$weight / sum(scf_training$weight)
-  boot_idx   = sample.int(nrow(scf_training), size = n_boot,
-                          replace = TRUE, prob = boot_probs)
-  scf_boot   = scf_training[boot_idx, ]
+  boot_idx = sample.int(nrow(scf_training), size = n_boot, replace = TRUE)
+  scf_boot = scf_training[boot_idx, ]
 
   Y_mat = as.matrix(scf_boot[wealth_y_vars])
   X_mat = as.matrix(scf_boot[features])
