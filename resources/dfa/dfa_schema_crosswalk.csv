@@ -1,24 +1,24 @@
-y_var,dfa_category,note
-cash,Other assets,DFA's "Other assets" is a residual bucket that includes deposits + bonds + life_ins + annuities + trusts + other_fin; calibrate as a group via the aggregate
-equities,Corporate equities and mutual fund shares,direct match
-bonds,Other assets,in DFA's "Other assets" residual; calibrate as part of that group
-retirement,DB pension entitlements + DC pension entitlements,"sum the two DFA lines; covers 401k/IRA + DB pensions"
-life_ins,Other assets,in DFA residual
-annuities,Other assets,in DFA residual
-trusts,Other assets,in DFA residual
-other_fin,Other assets,direct match to residual
-pass_throughs,Private businesses,direct match (DFA "Private businesses" is noncorporate + S-corp equity)
-primary_home,Real estate,DFA aggregates all real estate into one line; primary + other residential + RE fund all go here
-other_home,Real estate,in DFA aggregate
-re_fund,Real estate,in DFA aggregate
-other_nonfin,Consumer durables,direct match
-primary_mortgage,Home mortgages,DFA aggregates residential mortgages by property; primary + other share this bucket
-other_mortgage,Home mortgages,in DFA aggregate
-credit_lines,Consumer credit,DFA aggregates all consumer credit; credit_lines + credit_cards + installment_debt share
-credit_cards,Consumer credit,in DFA aggregate
-installment_debt,Consumer credit,in DFA aggregate
-other_debt,Other liabilities,direct match
-kg_primary_home,,"NO DFA SERIES — unrealized gains not in DFA; derive from real-estate appreciation (HPI)"
-kg_other_re,,"NO DFA SERIES — derive from real-estate appreciation"
-kg_pass_throughs,,"NO DFA SERIES — derive from corporate-equity / private-business appreciation"
-kg_other,,"NO DFA SERIES — derive from equities/mutual-fund appreciation"
+y_var,dfa_variable,aggregation,note
+cash,Deposits + Money market fund shares,sum,"cash = checking/savings/CDs (Deposits) + MMF (Money market fund shares)"
+equities,Corporate equities and mutual fund shares,direct,"note: DFA definition excludes equities/MMF held via DC pensions"
+bonds,U.S. government and municipal securities + Corporate and foreign bonds,sum,"equals DFA aggregate 'Debt securities'"
+retirement,DC pension entitlements + DB pension entitlements,sum,"DFA splits DC vs DB; our 'retirement' bundle is both"
+life_ins,Life insurance reserves,direct,
+annuities,Annuities,direct,
+trusts,,none,"DFA doesn't split trusts out; partially captured in 'Miscellaneous other equity' / 'Miscellaneous assets' but mixed with other equity holdings — flag as not directly calibratable"
+other_fin,Miscellaneous assets + Loans (Assets) + Miscellaneous other equity (residual after trusts+pass_throughs),residual,"DFA residual; depends on how trusts + pass_throughs are resolved"
+pass_throughs,Miscellaneous other equity,direct_approx,"DFA detail file rolls private-business equity into 'Misc other equity'; aggregate file has a clean 'Private businesses' column if we prefer that"
+primary_home,Real estate,share_of,"DFA Real estate is total owner-occupied+other+nonresidential; primary_home is a subset; use SCF share to split"
+other_home,Real estate,share_of,see primary_home
+re_fund,Real estate,share_of,see primary_home
+other_nonfin,Consumer durables,direct,
+primary_mortgage,Home mortgages,share_of,"DFA splits residential mortgage debt by property; split via SCF share"
+other_mortgage,Home mortgages,share_of,see primary_mortgage
+credit_lines,Consumer credit,share_of,"DFA doesn't separate lines/cards/installment; use SCF share"
+credit_cards,Consumer credit,share_of,see credit_lines
+installment_debt,Consumer credit,share_of,see credit_lines
+other_debt,Depository institutions loans n.e.c. + Other loans and advances (Liabilities) + Deferred and unpaid life insurance premiums,sum,
+kg_primary_home,,derived,"no DFA series; derive from real-estate price appreciation (FHFA HPI or OFHEO)"
+kg_other_re,,derived,"see kg_primary_home"
+kg_pass_throughs,,derived,"no DFA series; derive from Private businesses quarter-over-quarter growth"
+kg_other,,derived,"no DFA series; derive from S&P 500 / equities appreciation"

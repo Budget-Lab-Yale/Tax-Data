@@ -12,6 +12,8 @@ slurm_*.out
 slurm_*.err
 
 # Raw downloads — regenerate via src/eda/ingest_dfa.R
+resources/dfa/dfa.zip
+resources/dfa/raw/
 resources/dfa/dfa_raw_networth_levels.csv
 
 # Local validation runners
