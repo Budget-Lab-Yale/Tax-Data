@@ -156,31 +156,25 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     scf_to_y() %>%
     select(weight, all_of(features), all_of(wealth_y_vars))
 
-  # GUARANTEED-K + weight-proportional bootstrap.
-  # First, give every SCF row exactly K guaranteed copies (K=2 → 1 for
-  # the split half of honest DRF, 1 for the leaf half). Then fill the
-  # remainder weight-proportionally. Balances: every donor exists in
-  # training (forest can learn their Y|X), but the population majority
-  # still dominates through the weight-proportional remainder.
+  # NO BOOTSTRAP. Use raw SCF tax units directly as training rows.
+  # Separates structure-learning (the forest sees every donor once and
+  # can learn splits involving the oversample) from population-representation
+  # (handled at inference-time by weight-proportional leaf sampling, below).
   #
   # History of attempts (see diagnosis e462c8f):
-  #   - weight-proportional only: ultra-wealthy got 0.005 copies → forest
-  #     never saw them → top-1% income PUF under-imputed by 50%.
-  #   - uniform: ultra-wealthy got 8.6 copies (same as modest) → total
-  #     NW inflated to $369T (2.65x SCF).
-  #   - cap-min 1/(2n): 50% of donors capped → same over-inflation.
-  # guaranteed-K with K=2 gives ultra-wealthy the minimum representation
-  # to be trainable while keeping population proportions roughly right.
-  n_boot = 250000
-  K_guaranteed  = 2
-  guaranteed_idx = rep(seq_len(nrow(scf_training)), each = K_guaranteed)
-  n_remainder    = n_boot - length(guaranteed_idx)
-  stopifnot(n_remainder > 0)
-  extra_idx = sample.int(nrow(scf_training), size = n_remainder,
-                          replace = TRUE,
-                          prob = scf_training$weight)
-  boot_idx = c(guaranteed_idx, extra_idx)
-  scf_boot = scf_training[boot_idx, ]
+  #   - weight-proportional bootstrap + uniform leaf: ultra-wealthy got
+  #     0.005 expected copies in scf_boot → forest never saw them → top-1%
+  #     income PUF under-imputed by 50%.
+  #   - uniform bootstrap + uniform leaf: oversample 10-20% of training
+  #     (vs ~1% in population) → total NW inflated to $369T (+165%).
+  #   - cap-min, guaranteed-2 hybrids: compromise schemes, still
+  #     structurally over-represent oversample in training.
+  #   - drf::drf(sample.weights = ...) is a no-op in installed drf version
+  #     (empirical probe 2026-04-23). Can't do principled weighted-MMD.
+  #
+  # This is the only remaining principled path: forest trained unweighted
+  # on all donors, sampling weighted by SCF weight at inference.
+  scf_boot = scf_training
 
   Y_mat = as.matrix(scf_boot[wealth_y_vars])
   X_mat = as.matrix(scf_boot[features])
@@ -435,11 +429,18 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   kept = qc_report %>% filter(status == 'keep') %>%
     mutate(feature_col = paste(category, margin, sep = '.'))
 
-  # ---------- Pre-tilt donors (uniform leaf draw) ----------
+  # ---------- Pre-tilt donors (weighted leaf draw) ----------
+  # Sample each PUF record's donor from its leaf with probability
+  # proportional to the donor's SCF weight. This expresses the
+  # population-weighted inference (see notes above): forest proximity
+  # α_i(x) × sample weight w_i gives the population-correct conditional
+  # density; sampling from this product yields a draw from that density.
+  donor_weights_scf = scf_boot$weight
   pre_tilt_donors = integer(n_pred)
   for (i in seq_len(n_pred)) {
     lr = leaf_donors_list[[i]]
-    pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
+    pre_tilt_donors[i] = lr[sample.int(length(lr), 1L,
+                                        prob = donor_weights_scf[lr])]
   }
 
   # Convex-Newton dual solver (RMS feature rescaling + Levenberg-Marquardt
@@ -447,13 +448,28 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # at src/eda/stage3_prototype_v2.R. k-general.
   solve_tilt = function(records, weights, leaf_donors, F_mat, T_target,
                         max_iter = 80, tol_rel = 1e-5,
-                        max_bt = 30) {
+                        max_bt = 30,
+                        base_weights = NULL) {
     n = length(records); k = ncol(F_mat)
     ls       = lengths(leaf_donors)
     all_d    = unlist(leaf_donors, use.names = FALSE)
     rec_idx  = rep(seq_len(n), times = ls)
     F_raw    = F_mat[all_d, , drop = FALSE]
     w_expand = rep(weights, times = ls)
+
+    # Base distribution within each leaf (prior on donor selection before
+    # tilting). If base_weights is given, p_all ∝ base × exp(λ·f) — this
+    # is the correct extension of the exp-tilt to a non-uniform base, so
+    # that under λ=0 the distribution reduces to weighted leaf sampling
+    # rather than uniform. Pass as log so we don't accumulate rounding
+    # in the exp.
+    if (is.null(base_weights)) {
+      log_base = rep(0, length(all_d))
+    } else {
+      bw = base_weights[all_d]
+      stopifnot(all(bw > 0))
+      log_base = log(bw)
+    }
 
     # Per-column RMS rescale — invariant change of coordinates on λ that
     # makes the Newton system better-conditioned under mixed dollar/count
@@ -464,7 +480,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     t_scale    = pmax(abs(T_eff), 1)
 
     eval_fit = function(lam) {
-      u     = as.vector(F_all %*% lam)
+      u     = as.vector(F_all %*% lam) + log_base
       u_max = ave(u, rec_idx, FUN = max)
       eu    = exp(u - u_max)
       Z     = ave(eu, rec_idx, FUN = sum)
@@ -546,7 +562,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
 
       res = solve_tilt(rec_cell, puf_w[rec_cell],
                        leaf_donors_list[rec_cell],
-                       F_cell, T_cell)
+                       F_cell, T_cell,
+                       base_weights = donor_weights_scf)
 
       cat(sprintf(
         '  %-10s × %-9s: n=%6d k=%2d iter=%2d rel=%.2e ESS p10=%.1f\n',
