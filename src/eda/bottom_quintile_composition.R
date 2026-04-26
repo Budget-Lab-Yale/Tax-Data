@@ -1,10 +1,10 @@
 #---------------------------------------------
 # bottom_quintile_composition.R
 #
-# Diagnose why pre-tilt PUF p0-20 by income
+# Diagnose why pre-swap PUF p0-20 by income
 # holds 25% of NW while SCF p0-20 holds 1.7%.
 # Compares age, income composition, and the
-# distribution of pre-tilt wealth within p0-20.
+# distribution of pre-swap wealth within p0-20.
 #
 # Tests three hypotheses:
 #   (1) compositional mismatch (different ages /
@@ -30,11 +30,11 @@ args = commandArgs(trailingOnly = TRUE)
 if (length(args) < 1L) stop('Usage: Rscript .../bottom_quintile_composition.R <output_dir>')
 output_dir = args[1]
 
-cat('Loading SCF, PUF, pre-tilt wealth...\n')
+cat('Loading SCF, PUF, pre-swap wealth...\n')
 scf      = read_rds('resources/cache/scf_tax_units.rds')
 puf_full = read_csv(file.path(output_dir, 'tax_units_2022.csv'),
                     show_col_types = FALSE)
-puf_pre  = read_rds(file.path(output_dir, 'wealth_pre_tilt.rds'))
+puf_pre  = read_rds(file.path(output_dir, 'wealth_pre_swap.rds'))
 
 
 #--- SCF prep --------------------------------------------------------------
@@ -60,7 +60,7 @@ scf$income = with(scf, wages_scf + business_scf + int_div_scf +
 scf = cbind(scf, compute_category_values(scf))
 scf$pctile = compute_percentile(scf$income, scf$weight)
 
-#--- PUF prep (pre-tilt wealth) --------------------------------------------
+#--- PUF prep (pre-swap wealth) --------------------------------------------
 
 puf_age2 = ifelse(is.na(puf_full$age2), 0L, puf_full$age2)
 puf_full$age_older = pmax(pmin(80L, puf_full$age1), pmin(80L, puf_age2))
@@ -75,7 +75,7 @@ puf_full$income = with(puf_full,
   gross_ss + gross_pens_dist + ui +
   rent - rent_loss + estate - estate_loss)
 
-# Bring in PRE-TILT wealth (Stage 2 only; no calibration).
+# Bring in PRE-SWAP wealth (Stage 2 only; no calibration).
 puf = puf_full %>% select(-any_of(wealth_y_vars)) %>%
   inner_join(puf_pre, by = 'id') %>%
   bind_cols(compute_category_values(.))
@@ -180,9 +180,9 @@ demog_row('int_div | >0', '$%10.0f',
                puf_q1$div_ord + puf_q1$div_pref, puf_q1$weight))
 
 
-#--- Hypothesis 3 — pre-tilt wealth distribution --------------------------
+#--- Hypothesis 3 — pre-swap wealth distribution --------------------------
 
-cat('\n\nPRE-TILT NET WORTH DISTRIBUTION WITHIN p0-20\n')
+cat('\n\nPRE-SWAP NET WORTH DISTRIBUTION WITHIN p0-20\n')
 demog_row('mean NW',       '$%10.0f', wmean(scf_q1$cat_nw, scf_q1$weight),
                                        wmean(puf_q1$cat_nw, puf_q1$weight))
 demog_row('median NW',     '$%10.0f', wqtile(scf_q1$cat_nw, scf_q1$weight, 0.5),

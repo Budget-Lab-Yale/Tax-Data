@@ -32,8 +32,17 @@ if (length(args) < 1L)
 output_dir = args[1]
 stopifnot(dir.exists(output_dir))
 
-estimate_models = 0L     # mns50 forest already cached
+# mns_run controls which forest cache is hit. mns=20 and mns=50 are cached.
+# Pass a different mns via env var WEALTH_MNS_OVERRIDE; estimate_models is
+# flipped on automatically when training a new forest.
+mns_run = {
+  e = Sys.getenv('WEALTH_MNS_OVERRIDE')
+  if (nzchar(e)) as.integer(e) else 50L
+}
+estimate_models = if (mns_run %in% c(20L, 50L)) 0L else 1L
 do_lp           = 0L
+cat(sprintf('joint_objective_sweep: mns_run=%d  estimate_models=%d\n',
+            mns_run, estimate_models))
 
 source('src/imputations/helpers.R')
 source('src/imputations/wealth_schema.R')
@@ -59,14 +68,14 @@ source('src/imputations/wealth.R')
 #--- Define arms -----------------------------------------------------------
 
 run_arm = function(label, amount_weight) {
-  cat(sprintf('\n========= ARM: %s  (amount_weight=%g) =========\n',
-              label, amount_weight))
+  cat(sprintf('\n========= ARM: %s  (amount_weight=%g, mns=%d) =========\n',
+              label, amount_weight, mns_run))
   set.seed(76)
   t0 = Sys.time()
+  swap_opts = list(amount_weight = amount_weight)
   result = run_wealth_imputation(puf_2022, scf_tax_units,
-                                  stage3_method = 'swap',
-                                  min_node_size = 50L,
-                                  swap_options  = list(amount_weight = amount_weight))
+                                  min_node_size = mns_run,
+                                  swap_options  = swap_opts)
   result$arm = label
   result$amount_weight = amount_weight
   result$elapsed_secs = as.numeric(Sys.time() - t0, units = 'secs')
@@ -76,9 +85,10 @@ run_arm = function(label, amount_weight) {
 
 arms_def = list(
   list(label = 'aw_0',    amount_weight = 0.0),
-  list(label = 'aw_0p5',  amount_weight = 0.5),
-  list(label = 'aw_1',    amount_weight = 1.0),
-  list(label = 'aw_2',    amount_weight = 2.0)
+  list(label = 'aw_0p5',  amount_weight = 0.5)
+  # aw_1 and aw_2 dropped after the mns=75 timeout — they add wall time
+  # but barely move from aw_0p5 (we have full per-bucket evidence). Add
+  # them back if you want a wider sweep.
 )
 arms = lapply(arms_def, function(d) run_arm(d$label, d$amount_weight))
 names(arms) = sapply(arms, `[[`, 'arm')
@@ -125,7 +135,8 @@ scf_meta = assign_calibration_cells(scf_meta, scf_meta$income,
 
 #--- Per-arm stats: counts and PRE-RESCALE amounts -------------------------
 
-CATS = c('nw','equities','bonds','homes','other','debt')
+CATS = c('nw', 'equities', 'bonds', 'homes',
+         'retirement', 'business', 'other', 'debt')
 
 cell_cat_stats = function(df, label) {
   out = list()
@@ -274,18 +285,76 @@ print(rbind(do.call(rbind, ts_rows_post),
       row.names = FALSE)
 
 
+#--- Aggregate amount comparison across arms (printed FIRST) ---------------
+# The user's headline question is about per-category aggregate amount gaps,
+# so print and save these before the per-cell detail loop runs (so a crash
+# downstream doesn't take out the headline numbers).
+
+cat('\n========= Aggregate (sum across all 16 buckets) per category and arm =========\n')
+
+agg_per_arm = function(res) {
+  s = cell_cat_stats(attach_meta(res$y_post_step_a_pre_rescale),
+                     res$arm)
+  s %>% group_by(category) %>%
+    summarise(count_M  = round(sum(count_wt) / 1e6,  2),
+              amount_T = round(sum(total)    / 1e12, 3),
+              .groups = 'drop') %>%
+    mutate(arm = res$arm)
+}
+scf_agg_pre = scf_stats %>% group_by(category) %>%
+  summarise(count_scf_M  = round(sum(count_wt) / 1e6, 2),
+            amount_scf_T = round(sum(total) / 1e12, 3), .groups = 'drop')
+
+agg_arms_pre = bind_rows(lapply(arms, agg_per_arm))
+agg_compact = agg_arms_pre %>%
+  select(arm, category, count_M, amount_T) %>%
+  pivot_wider(names_from = arm, values_from = c(count_M, amount_T)) %>%
+  inner_join(scf_agg_pre, by = 'category') %>%
+  mutate(category = factor(category, levels = CATS)) %>%
+  arrange(category)
+print(as.data.frame(agg_compact), row.names = FALSE)
+
+# Save partial results now, before the per-cell loop, so they survive any
+# crash in the formatting code.
+partial_results = list(
+  output_dir = output_dir,
+  match_quality = q_count,
+  rescale_factor_summary =
+    do.call(rbind, lapply(arms, rf_summary)),
+  topshare_pre_rescale =
+    do.call(rbind, ts_rows_post),
+  topshare_post_rescale =
+    do.call(rbind, ts_rows_final),
+  agg_per_arm = agg_compact,
+  per_arm_diag = setNames(lapply(arms, `[[`, 'step_a_diagnostics'),
+                          names(arms)),
+  rescale_factors_per_arm = setNames(lapply(arms, `[[`, 'rescale_factors'),
+                                      names(arms))
+)
+out_path = file.path(output_dir, 'joint_objective_sweep_results.rds')
+write_rds(partial_results, out_path)
+cat(sprintf('\nWrote partial results to %s\n', out_path))
+
+
 #--- Per-cat detail: SCF / pre-swap / aw=1 post-swap (pre-rescale) --------
 
 cat('\n========= Per-(cell × cat) detail for aw=1 (pre-rescale) =========\n')
 cat('counts in M, amounts in $T, gap_post = signed % deviation post-swap vs SCF\n\n')
 
 # pre-Step-A (uniform draw) — same for all arms (random init seeded the same)
-pre  = attach_meta(arms[[1]]$y_pre_tilt)
+pre  = attach_meta(arms[[1]]$y_pre_swap)
 pre_stats = cell_cat_stats(pre, 'pre')
 
-aw1 = arms[['aw_1']]
-post1 = attach_meta(aw1$y_post_step_a_pre_rescale)
-post1_stats = cell_cat_stats(post1, 'aw_1')
+# Pick a "joint" arm for the per-cat detail. Prefer aw_1 when present
+# (canonical equal-weight); otherwise fall back to the last arm in the
+# sweep, which is the highest-amount-weight arm we have.
+detail_arm = if ('aw_1' %in% names(arms)) {
+  arms[['aw_1']]
+} else {
+  arms[[length(arms)]]
+}
+post1 = attach_meta(detail_arm$y_post_step_a_pre_rescale)
+post1_stats = cell_cat_stats(post1, detail_arm$arm)
 
 cell_levels = paste(rep(CALIB_INCOME_BUCKETS, each = 2),
                     rep(CALIB_AGE_BUCKETS,
@@ -334,53 +403,11 @@ for (cc in CATS) {
 }
 
 
-#--- Aggregate amount comparison across arms -------------------------------
-
-cat('\n========= Aggregate (sum across all 16 buckets) per category and arm =========\n')
-
-agg_per_arm = function(res) {
-  s = cell_cat_stats(attach_meta(res$y_post_step_a_pre_rescale),
-                     res$arm)
-  s %>% group_by(category) %>%
-    summarise(count_M  = round(sum(count_wt) / 1e6,  2),
-              amount_T = round(sum(total)    / 1e12, 3),
-              .groups = 'drop') %>%
-    mutate(arm = res$arm)
-}
-scf_agg = scf_stats %>% group_by(category) %>%
-  summarise(count_scf_M  = round(sum(count_wt) / 1e6, 2),
-            amount_scf_T = round(sum(total) / 1e12, 3), .groups = 'drop')
-
-agg_arms = bind_rows(lapply(arms, agg_per_arm))
-agg_compact = agg_arms %>%
-  select(arm, category, count_M, amount_T) %>%
-  pivot_wider(names_from = arm, values_from = c(count_M, amount_T)) %>%
-  inner_join(scf_agg, by = 'category') %>%
-  mutate(category = factor(category, levels = CATS)) %>%
-  arrange(category)
-print(as.data.frame(agg_compact), row.names = FALSE)
-
-
-#--- Save ------------------------------------------------------------------
-
-results = list(
-  output_dir = output_dir,
-  match_quality = q_count,
-  rescale_factor_summary =
-    do.call(rbind, lapply(arms, rf_summary)),
-  topshare_pre_rescale =
-    do.call(rbind, ts_rows_post),
-  topshare_post_rescale =
-    do.call(rbind, ts_rows_final),
-  per_cat_aw1 = setNames(lapply(CATS, format_cat), CATS),
-  agg_per_arm = agg_compact,
-  per_arm_diag = setNames(lapply(arms, `[[`, 'step_a_diagnostics'),
-                          names(arms)),
-  rescale_factors_per_arm = setNames(lapply(arms, `[[`, 'rescale_factors'),
-                                      names(arms))
-)
-out_path = file.path(output_dir, 'joint_objective_sweep_results.rds')
-write_rds(results, out_path)
-cat(sprintf('\nWrote %s\n', out_path))
+#--- Re-save with per-cat detail ------------------------------------------
+# Augment partial_results with the per-cat detail tables now that the
+# format_cat loop has run successfully.
+partial_results$per_cat_aw1 = setNames(lapply(CATS, format_cat), CATS)
+write_rds(partial_results, out_path)
+cat(sprintf('\nUpdated %s with per-cat detail\n', out_path))
 
 cat('\nDone.\n')

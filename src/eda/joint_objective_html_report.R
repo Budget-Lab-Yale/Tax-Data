@@ -61,11 +61,13 @@ run_arm = function(label, ...) {
 }
 
 res_count_only = run_arm('count_only',
-                          stage3_method = 'swap', min_node_size = 50L,
+                          min_node_size = 50L,
                           swap_options  = list(amount_weight = 0))
 res_joint      = run_arm('joint',
-                          stage3_method = 'swap', min_node_size = 50L,
-                          swap_options  = list(amount_weight = 0.5))
+                          min_node_size = 50L,
+                          swap_options  = list(amount_weight   = 0.5,
+                                                max_iters       = 5000000L,
+                                                n_trials_stuck  = 50000L))
 
 
 #--- Cell-keyed dataframes --------------------------------------------------
@@ -107,7 +109,8 @@ scf_meta = assign_calibration_cells(scf_meta, scf_meta$income,
 
 #--- Per-source per-cell stats ----------------------------------------------
 
-CATS = c('nw','equities','bonds','homes','other','debt')
+CATS = c('nw', 'equities', 'bonds', 'homes',
+         'retirement', 'business', 'other', 'debt')
 
 cell_cat_stats = function(df, label) {
   out = list()
@@ -125,7 +128,7 @@ cell_cat_stats = function(df, label) {
 }
 
 # pre-swap: uniform-init forest output (same in both arms — same seed).
-pre_df = attach_meta(res_count_only$y_pre_tilt)
+pre_df = attach_meta(res_count_only$y_pre_swap)
 co_df  = attach_meta(res_count_only$y_post_step_a_pre_rescale)
 jt_df  = attach_meta(res_joint$y_post_step_a_pre_rescale)
 
@@ -283,29 +286,37 @@ top_share_tbl = tibble(
 cat('\nGenerating charts...\n')
 
 cat_explain = list(
-  nw       = list(
+  nw         = list(
     title = 'Net worth (NW = total assets − total debts)',
-    note  = 'NW is the headline wealth measure. Note: the joint solver does not target nw amount directly (it is implicit, derived from the 5 component amount targets).'
+    note  = 'The headline wealth measure. The joint solver does not target nw amount directly — it falls out as a linear combination of the 7 component amount targets.'
   ),
-  equities = list(
+  equities   = list(
     title = 'Equities (publicly traded stocks and stock funds)',
-    note  = 'A direct amount target. Joint swap fits SCF amount essentially exactly in the middle income cells.'
+    note  = 'A direct amount target.'
   ),
-  bonds    = list(
+  bonds      = list(
     title = 'Bonds (taxable, tax-free, savings, mutual fund bonds)',
-    note  = 'A direct amount target. Joint hits SCF amount essentially exactly in 14 of 16 cells.'
+    note  = 'A direct amount target.'
   ),
-  homes    = list(
+  homes      = list(
     title = 'Primary residence',
     note  = 'A direct amount target. Counts are donor-pool-limited in two senior cells (60–80 senior and 80–90 senior) — too few non-homeowner donors.'
   ),
-  other    = list(
-    title = 'Other assets (cash, retirement, business, other real estate, vehicles, …)',
-    note  = '<strong>The hardest category.</strong> "Other" lumps 9 distinct wealth components into one aggregate. The solver has only one knob (the aggregate amount) for an aggregate determined by 9 underlying values. This is a structural limitation, not a solver issue.'
+  retirement = list(
+    title = 'Retirement (IRAs, 401k/403b, pensions current and future)',
+    note  = 'New direct amount target as of the 2026-04-26 split. Was previously buried inside the monolithic "other" category.'
   ),
-  debt     = list(
+  business   = list(
+    title = 'Business (privately held business interests, "pass-throughs")',
+    note  = 'New direct amount target as of the 2026-04-26 split. The most concentrated, heaviest-tail wealth component — single SCF donors can hold $50M+. Pulling this out of "other" gives the solver direct control over the dominant top-tail amount driver.'
+  ),
+  other      = list(
+    title = 'Other assets (cash, life insurance cash value, annuities, trusts, other financial, other real estate, RE funds, vehicles)',
+    note  = 'After the 2026-04-26 split, this is the residual: 8 wealth y-vars whose individual aggregates are smaller and more homogeneous. Retirement and business were taken out of this bucket and made into their own targets.'
+  ),
+  debt       = list(
     title = 'Debt (mortgages, credit lines, credit cards, installment, other)',
-    note  = 'A direct amount target. Joint hits SCF essentially exactly in 12 of 16 cells.'
+    note  = 'A direct amount target.'
   )
 )
 
@@ -393,7 +404,7 @@ html = tags$html(
     tags$h2('What problem are we solving?'),
     tags$p(HTML('We have ~180k filer tax units from the PUF, plus ~41k DINA nonfiler units appended in <code>impute_nonfilers.R</code>, so Stage 3 processes ~221k rows in total. Each one needs to get a wealth profile (23 dollar variables: equities, bonds, primary home, debts, etc.). We do this by <em>donor matching</em>: pick an SCF household with similar income and demographics, copy its wealth profile.')),
     tags$p(HTML('The matching happens via a <em>random forest</em>. For each PUF tax unit, the forest gives a "leaf" of ~30–50 SCF donors that look like it on income/demographics. Step A picks one donor per record from that leaf.')),
-    tags$p(HTML('We split the population into 16 cells (8 income buckets × 2 age groups) and 6 wealth categories (nw, equities, bonds, homes, other, debt), giving 96 buckets. For each bucket, SCF gives us:')),
+    tags$p(HTML('We split the population into 16 cells (8 income buckets × 2 age groups) and 8 wealth categories (nw, equities, bonds, homes, retirement, business, other, debt), giving 128 buckets. The 8-category split is new as of 2026-04-26: <code>retirement</code> and <code>business</code> were previously bundled inside <code>other</code>, but pulling them out lets the solver target each one directly. For each bucket, SCF gives us:')),
     tags$ul(
       tags$li(tags$strong('count target'), ' — how many households (weighted) hold a positive amount of this category in this cell.'),
       tags$li(tags$strong('amount target'), ' — the total dollars (weighted) held in this category in this cell.')
@@ -479,7 +490,7 @@ html = tags$html(
       tags$li('Top-1 NW share gap +0.35pp (was +1.35pp) — well inside the original ≤+1.5pp target.'),
       tags$li('Production output is real donor rows with negligible corrective scaling. The "ugly" data manipulation you were worried about is essentially gone.')
     ),
-    tags$p(class = 'small', 'See docs/swap_vs_tilt_experiment.md for the full experimental record including all the variants we tested before landing here.')
+    tags$p(class = 'small', 'This report is the canonical record of the joint-mode swap solver design.')
   )
 )
 

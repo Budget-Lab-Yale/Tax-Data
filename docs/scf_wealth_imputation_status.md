@@ -56,7 +56,7 @@ Per-cell forest is internally consistent on its own training data.
 
 ### PUF end-to-end (`src/eda/wealth_harness.R` under the new `wealth.R`)
 
-| metric | PUF pre-tilt | PUF post-Stage-3 | SCF truth |
+| metric | PUF pre-swap | PUF post-Stage-3 | SCF truth |
 |---|---|---|---|
 | Aggregate NW ($T) | 201.06 | **139.12** (exact) | 139.12 |
 | Overshoot vs SCF | +44.5% | 0% (by construction) | — |
@@ -65,8 +65,8 @@ Per-cell forest is internally consistent on its own training data.
 | top-10 share | 0.804 | 0.786 | 0.773 |
 | Gini | 0.884 | 0.878 | 0.863 |
 
-Post-Stage-3, top-1 share is +2.8pp over truth (vs +5.9pp pre-tilt); top-0.1
-share is +1.5pp over truth (vs +4.6pp pre-tilt). The top-0.1 residual is
+Post-Stage-3, top-1 share is +2.8pp over truth (vs +5.9pp pre-swap); top-0.1
+share is +1.5pp over truth (vs +4.6pp pre-swap). The top-0.1 residual is
 the more policy-relevant one because wealth-tax proposals typically bite
 there.
 
@@ -82,7 +82,7 @@ light calibration, not structural rescue.
 
 ## Decomposition of the +$62T PUF overshoot
 
-Pre-tilt forest: $201T. SCF truth: $139T. Gap $62T. Arithmetic
+Pre-swap forest: $201T. SCF truth: $139T. Gap $62T. Arithmetic
 decomposition (from `src/eda/wealth_reweight_scf.R`):
 
 1. **Pop-scale: $14.6T** (24% of gap).
@@ -210,10 +210,10 @@ Same dollars, ~3× more "holders" in PUF — PUF's 1099-INT/DIV catches every re
 **Committed**: PUF int_div is now thresholded to zero in the (0, $100] band before computing `has_int_div` and `pctile_int_div`. SCF unchanged. Closes the share-positive gap to within 1pp at 0.1% aggregate cost ($0.7B of $628B).
 
 End-to-end harness with $100 threshold:
-- Pre-tilt aggregate: **$187.23T** (was $201.06T, −$14T)
-- Post-tilt: matches SCF $139T by construction; top-1 0.411, top-0.1 0.174
+- Pre-swap aggregate: **$187.23T** (was $201.06T, −$14T)
+- Post-swap: matches SCF $139T by construction; top-1 0.411, top-0.1 0.174
 
-Stage 3 absorbs most of the pre-tilt distributional improvement (post-tilt top shares barely move), so the threshold is reducing how hard rescale has to work, not directly improving post-tilt distribution.
+Stage 3 absorbs most of the pre-swap distributional improvement (post-swap top shares barely move), so the threshold is reducing how hard rescale has to work, not directly improving post-swap distribution.
 
 ### Bootstrap is faithful
 
@@ -256,7 +256,7 @@ addition.
 | **age × cell joint (PUF all)**             | **165.51**   | **43% ($26.4T)**       |
 | age × cell joint (PUF filers only)         | 162.03       | 37% ($22.9T)           |
 | (existing) age × int_div                   | 180.64       | 67%                    |
-| Forest pre-tilt                            | 201.06       | 100%                   |
+| Forest pre-swap                            | 201.06       | 100%                   |
 
 Tax-unit-count mismatch (age × cell) accounts for ~43% of the +$62T overshoot.
 Almost the same fraction as (age × int_div), so they're capturing
@@ -365,7 +365,7 @@ fields = 0.
 | pct00to20 × 18-24                     | 2.85M     | 14.54M           | 10.87M     |
 | pct20to40 × 18-24                     | 3.09M     | 3.47M            | 5.85M      |
 | (age × cell) reweight aggregate       | $165.51T  | **$156.75T**     | —          |
-| Forest pre-tilt (ref)                 | $201.06T  | —                | —          |
+| Forest pre-swap (ref)                 | $201.06T  | —                | —          |
 | SCF truth                             | $139.12T  | $139.12T         | —          |
 
 Closes ~$8.8T (14%) of the +$62T forest overshoot, or 33% of the
@@ -411,7 +411,7 @@ the path forward — see open question 1.
 
 4. **Revisit int_div threshold value.** $100 closes 59% of the age×int_div gap; $200 closes 79%. Picked $100 because it matches SCF share-positive; $200 also defensible (matches SCF mean|pos better). Worth re-examining once the tax-unit-construction work above lands, since X-shift accounting will shift.
 
-5. **Stage 3 cell-level over-correction at p0-20.** Mean NW post-tilt $51,603 vs SCF's $62,735. PUF's pct00to20 has 42.5M tax units vs SCF's 37.4M — same cell aggregate forced via rescale spreads thinner per unit. Diagnoses point to the tax-unit-frame issue (item 1).
+5. **Stage 3 cell-level over-correction at p0-20.** Mean NW post-swap $51,603 vs SCF's $62,735. PUF's pct00to20 has 42.5M tax units vs SCF's 37.4M — same cell aggregate forced via rescale spreads thinner per unit. Diagnoses point to the tax-unit-frame issue (item 1).
 
 ## Next steps
 
@@ -431,7 +431,7 @@ the path forward — see open question 1.
 4. **Threshold revisit** (open question 4) — re-examine $100 vs $200 once
    the tax-unit work above lands.
 5. **`pct99to99.9` interaction structure** (open question 2) — would help
-   close the post-tilt top-0.1 residual.
+   close the post-swap top-0.1 residual.
 
 ## Key files
 

@@ -25,7 +25,18 @@ CALIB_INCOME_EDGES   = c(0, 20, 40, 60, 80, 90, 99, 99.9, 100)
 CALIB_AGE_BUCKETS = c('nonsenior', 'senior')
 SENIOR_AGE        = 65L
 
-CALIB_CATEGORIES = c('nw', 'equities', 'bonds', 'homes', 'other', 'debt')
+# 2026-04-26: split "other" into 3 sub-categories (retirement, business,
+# residual other) to give Step A direct amount control over the two largest
+# aggregate-driver components. Previously cat_other lumped 10 wealth y-vars
+# together, including retirement (~$30T aggregate) and pass_throughs/
+# business (~$15T, very heavy-tailed) — the joint solver had only one knob
+# for an aggregate determined by 10 underlying values, so within-other
+# composition could be wrong even when the aggregate matched. After the
+# split: retirement and business have their own targets; "other" becomes
+# the residual (cash, life_ins, annuities, trusts, other_fin, other_home,
+# re_fund, other_nonfin) — 8 vars instead of 10, more homogeneous.
+CALIB_CATEGORIES = c('nw', 'equities', 'bonds', 'homes',
+                     'retirement', 'business', 'other', 'debt')
 CALIB_MARGINS    = c('intensive', 'extensive')
 
 
@@ -45,26 +56,32 @@ default_wealth_target_spec = function() {
 #' The `cat_` prefix avoids clobbering the 23-var raw names (the input
 #' tibble already has columns named `equities`, `bonds`, etc.).
 #'
-#' Definitions (fixed 2026-04-23 with user):
-#'   cat_nw       = sum(13 assets) - sum(6 debts)    (kg_* NOT included)
-#'   cat_equities = equities                         (single var)
-#'   cat_bonds    = bonds                            (single var)
-#'   cat_homes    = primary_home                     (user: primary only)
-#'   cat_other    = all assets except equities/bonds/primary_home
-#'   cat_debt     = sum(6 debt vars)
+#' Definitions (last revised 2026-04-26):
+#'   cat_nw         = sum(13 assets) - sum(6 debts)  (kg_* NOT included)
+#'   cat_equities   = equities                       (single var)
+#'   cat_bonds      = bonds                          (single var)
+#'   cat_homes      = primary_home                   (primary residence)
+#'   cat_retirement = retirement                     (IRA + 401k + pensions)
+#'   cat_business   = pass_throughs                  (private business)
+#'   cat_other      = residual: cash + life_ins + annuities + trusts +
+#'                    other_fin + other_home + re_fund + other_nonfin
+#'   cat_debt       = sum(6 debt vars)
 compute_category_values = function(df) {
-  other_asset_vars = setdiff(wealth_asset_vars,
-                             c('equities', 'bonds', 'primary_home'))
+  residual_other_vars = setdiff(
+    wealth_asset_vars,
+    c('equities', 'bonds', 'primary_home', 'retirement', 'pass_throughs'))
   stopifnot(all(wealth_asset_vars %in% names(df)))
   stopifnot(all(wealth_debt_vars  %in% names(df)))
   total_debt = rowSums(df[, wealth_debt_vars, drop = FALSE])
   data.frame(
-    cat_nw       = rowSums(df[, wealth_asset_vars, drop = FALSE]) - total_debt,
-    cat_equities = df$equities,
-    cat_bonds    = df$bonds,
-    cat_homes    = df$primary_home,
-    cat_other    = rowSums(df[, other_asset_vars, drop = FALSE]),
-    cat_debt     = total_debt
+    cat_nw         = rowSums(df[, wealth_asset_vars, drop = FALSE]) - total_debt,
+    cat_equities   = df$equities,
+    cat_bonds      = df$bonds,
+    cat_homes      = df$primary_home,
+    cat_retirement = df$retirement,
+    cat_business   = df$pass_throughs,
+    cat_other      = rowSums(df[, residual_other_vars, drop = FALSE]),
+    cat_debt       = total_debt
   )
 }
 
@@ -161,7 +178,7 @@ assess_target_viability = function(requested, scf_cells,
 #'
 #' For each PUF record's leaf, is there AT LEAST ONE donor with the
 #' category value > 0? If too many records have dead leaves for a
-#' target, the tilt can't hit it. Flag cells where the supported
+#' target, the swap can't reach it. Flag cells where the supported
 #' fraction falls below `min_supported`.
 #'
 #' Returns a tibble (cell_income, cell_age, category, frac_supported).
@@ -264,8 +281,12 @@ if (sys.nframe() == 0L) {
 
   # Test 1: default spec size.
   spec = default_wealth_target_spec()
-  stopifnot(nrow(spec) == 7 * 2 * 6 * 2)  # 168
-  cat('  [PASS] default spec has 168 rows\n')
+  expected_rows = length(CALIB_INCOME_BUCKETS) *
+                  length(CALIB_AGE_BUCKETS) *
+                  length(CALIB_CATEGORIES) *
+                  length(CALIB_MARGINS)
+  stopifnot(nrow(spec) == expected_rows)
+  cat(sprintf('  [PASS] default spec has %d rows\n', expected_rows))
 
   # Test 2: assess_target_viability returns one row per requested target.
   qc = assess_target_viability(spec, scf_fx)

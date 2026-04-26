@@ -6,15 +6,19 @@
 #
 # For one (cell_income × cell_age) bucket of
 # PUF records, each record starts with a uniform
-# random donor from its DRF leaf. We then
-# repeatedly propose (record, new_donor) swaps
-# and accept any swap that reduces the bucket-
-# global count error
+# random donor from its DRF leaf. The solver
+# repeatedly proposes (record, new_donor) swaps
+# and accepts any swap that reduces a global
+# bucket-level error
 #
-#   global_err(count) = Σ_k |count_k − target_k|
-#                       / max(target_k, 1)
+#   global_err = Σ_k |count_k − cnt_target_k| / dn_count_k
+#              + amount_weight ·
+#                Σ_k |amount_k − amt_target_k| / dn_amount_k
 #
-# where count_k = Σ_i puf_w[i] * (cat_k(donor_i) > 0).
+# where count_k = Σ_i puf_w[i] · (cat_k(donor_i) > 0)
+# and   amount_k = Σ_i puf_w[i] · cat_k(donor_i).
+# Setting amount_weight = 0 gives a count-only
+# objective; the production default is 0.5.
 #
 # Exits with one of three statuses:
 #   - "converged" : every category within tol_rel
@@ -23,27 +27,16 @@
 #                   pool is the binding constraint)
 #   - "cap"       : max_iters proposals tried
 #
-# Why swap (not tilt):
-#   - Hits per-category counts EXACTLY when
-#     feasible. Tilt's exp-tilt over leaf donors
-#     hits a soft target and collapses ESS when λ
-#     has to be extreme.
+# Properties of this design:
+#   - Hits per-category counts EXACTLY when the
+#     leaf donor pool supports it (no soft target).
 #   - Preserves record-level joint Y consistency
 #     by always assigning a whole donor row (no
-#     Frankenstein records, unlike trim).
+#     Frankenstein records).
 #   - Decomposes by (cell × age) — leaves contain
 #     only same-cell donors (per-cell forest), so
 #     a swap of record i changes counts only in
 #     (cell_i, age_i, *).
-#
-# Background: src/eda/training_reweight_1d_test.R
-# established that Y-conditional reweighting at
-# training time moves the intensive aggregate but
-# not the extensive count, because tree splits
-# in the top cell don't cleanly stratify by age.
-# Swap-based reassignment IS Y-conditional but
-# operates on hard assignments, not smooth
-# probabilities, so it's not constrained by ESS.
 #---------------------------------------------
 
 

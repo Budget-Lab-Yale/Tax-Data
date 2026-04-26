@@ -12,7 +12,7 @@
 # within-cell X distribution difference.
 #
 # Uses the cached per-cell forests from
-# wealth_percell_diagnostic.R. Pre-tilt (no
+# wealth_percell_diagnostic.R. Pre-swap (no
 # Stage 3) so we're measuring forest-routing
 # bias directly.
 #
@@ -317,7 +317,7 @@ for (cell_name in CALIB_INCOME_BUCKETS) {
 #--- Consolidated report --------------------------------------------------
 
 cat('\n\n=============================================\n')
-cat('Summary: per-cell, per-group deltas ($T, pre-tilt)\n')
+cat('Summary: per-cell, per-group deltas ($T, pre-swap)\n')
 cat('=============================================\n\n')
 
 summary_tbl = bind_rows(grp_deltas_by_cell)

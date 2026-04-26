@@ -2,7 +2,7 @@
 # wealth_diagnosis.R
 #
 # Root-cause diagnosis for the PUF vs SCF per-
-# income-quintile wealth-share mismatch (pre-tilt).
+# income-quintile wealth-share mismatch (pre-swap).
 #
 # Four questions, each addressed by a self-
 # contained test:
@@ -29,7 +29,7 @@
 #
 #   Q3. Where does PUF's imputed wealth come from?
 #       → For each PUF record, look up its
-#         pre-tilt donor's SCF income quintile.
+#         pre-swap donor's SCF income quintile.
 #         Cross-tab PUF_quintile × donor_quintile.
 #         Under a perfect match, this is the
 #         identity matrix. Deviations reveal
@@ -87,7 +87,7 @@ set.seed(76)
 result = run_wealth_imputation(puf_2022, scf_tax_units, debug_output = TRUE)
 cat(sprintf('  took %.1fs\n', as.numeric(Sys.time() - t0, units = 'secs')))
 
-pre_tilt_donor_boot_idx = result$pre_tilt_donor_boot_idx
+pre_swap_donor_boot_idx = result$pre_swap_donor_boot_idx
 boot_idx                = result$boot_idx
 
 
@@ -205,9 +205,9 @@ cat('\n\n==============================================================\n')
 cat('Q3. Where does each PUF record\'s donor come from (by SCF quintile)?\n')
 cat('==============================================================\n\n')
 
-# PUF record i's donor is scf_boot[pre_tilt_donor_boot_idx[i]], which
-# corresponds to original SCF row boot_idx[pre_tilt_donor_boot_idx[i]].
-puf_donor_scf_row = boot_idx[pre_tilt_donor_boot_idx]
+# PUF record i's donor is scf_boot[pre_swap_donor_boot_idx[i]], which
+# corresponds to original SCF row boot_idx[pre_swap_donor_boot_idx[i]].
+puf_donor_scf_row = boot_idx[pre_swap_donor_boot_idx]
 stopifnot(length(puf_donor_scf_row) == nrow(puf_2022))
 
 # Bin both PUF records and SCF donors with the SAME percentile breakpoints

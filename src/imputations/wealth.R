@@ -5,36 +5,35 @@
 # the SCF donor year (2022) as part of
 # Phase 3 (donor-year imputations).
 #
-# Exports `run_wealth_imputation()`, a
-# pure function that takes a materialized
-# 2022 PUF tibble + the cached
-# `scf_tax_units` and returns a tibble
-# (id, 23 wealth cols) at 2022 values.
+# Exports run_wealth_imputation(), a pure
+# function that takes a materialized 2022
+# PUF tibble + the cached scf_tax_units
+# and returns a tibble (id, 23 wealth
+# cols) at 2022 values.
 #
-# Stage architecture (see design memo
-# `stage3_calibration_design.md`):
+# Stage architecture:
 #   Stage 1 (upstream) — SCF PEU →
 #             tax-unit split, produces
-#             `scf_tax_units`.
-#   Stage 2 (this file, current) —
-#             joint DRF over the 23-dim
-#             Y vector; uniform donor
-#             draw from DRF leaf.
-#   Stage 3 (this file, follow-up PR) —
-#             exponential-tilt donor
-#             selection against SCF
-#             extensive + DFA intensive
-#             margin targets. Not yet
-#             implemented here; the v2
-#             prototype lives in
-#             `src/eda/stage3_prototype_v2.R`.
+#             scf_tax_units.
+#   Stage 2 (this file) —
+#             per-cell DRFs over the
+#             23-dim Y vector; uniform
+#             donor draw from each leaf
+#             gives a starting assignment
+#             for Stage 3.
+#   Stage 3 (this file) —
+#             Step A: joint count + amount
+#             swap solver (see
+#             src/imputations/swap_solver.R)
+#             over 8 wealth categories ×
+#             16 (income × age) cells.
+#             Step B: per-(cell × category)
+#             intensive rescale fixes any
+#             residual SCF aggregate gap.
 #
-# Feature spec: "large" (19 features)
-# with dual-binary encoding for
-# sign-bearing variables — matches
-# the X-ablation (2026-04-22) and the
-# cached DRF
-# `wealth_drf_ablation_large_t1337_f50`.
+# Feature spec: "large" (19 features) with
+# dual-binary encoding for sign-bearing
+# variables.
 #--------------------------------------
 
 
@@ -94,12 +93,11 @@ scf_to_y = function(df) {
 #                   ui_other_scf).
 #
 # Returns:
-#   list(y, y_pre_tilt, qc_report, rescale_factors) — y keyed by
+#   list(y, y_pre_swap, qc_report, rescale_factors) — y keyed by
 #   puf_tax_units$id with 23 wealth columns populated.
 #--------------------------------------
 run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                                   debug_output         = FALSE,
-                                  stage3_method        = NULL,
                                   min_node_size        = NULL,
                                   swap_options         = list(),
                                   n_restarts           = 1L,
@@ -107,44 +105,27 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
 
   # swap_options: list of args forwarded to solve_swap_bucket (objective,
   # anneal_T0, anneal_iters, proposal_strategy, max_iters, n_trials_stuck,
-  # tol_rel). Has no effect when stage3_method == 'tilt'.
+  # tol_rel, amount_weight, amount_denom_floor). Defaults give joint
+  # count + amount mode at amount_weight = 0.5.
   # n_restarts: > 1 → use solve_swap_bucket_multistart (best of N seeds).
   # init_donors_override: if non-NULL, an integer vector of donor indices
-  #   (length n_puf) used to initialize the swap solver. Lets the harness
-  #   warm-start swap from tilt's output. Indices are scf_boot rows.
+  #   (length n_puf) used to initialize the swap solver instead of the
+  #   uniform leaf draw. Lets a harness warm-start from a non-uniform
+  #   starting assignment.
   stopifnot(is.list(swap_options), n_restarts >= 1L)
 
-  # Stage 3 Step A method dispatch.
-  #   'tilt' — exponential-tilt donor selection (legacy). Hits soft count
-  #            targets via convex Newton on λ; ESS collapses when λ goes
-  #            extreme, leaving ~15-30% of (cell × age × cat) buckets
-  #            outside ±5% count match.
-  #   'swap' — randomized swap-based reassignment (new). Hits per-bucket
-  #            counts EXACTLY when the leaf donor pool supports it;
-  #            decomposes by (cell × age) for parallelism. See
-  #            src/imputations/swap_solver.R.
-  # Default: env var WEALTH_STAGE3_METHOD if set, else 'tilt' (legacy
-  # production behavior). Switch to 'swap' as the default after the
-  # comparison harness validates swap on count match + top shares + joint
-  # correlation — flipping the default silently changes results for every
-  # caller (main.R, wealth_harness.R, etc.) so don't preempt that decision.
-  if (is.null(stage3_method)) {
-    e = Sys.getenv('WEALTH_STAGE3_METHOD')
-    stage3_method = if (nzchar(e)) e else 'tilt'
-  }
-  stopifnot(stage3_method %in% c('tilt', 'swap'))
-
   # Per-cell DRF leaf-size knob. Bigger leaves = larger donor pool per leaf
-  # (helps swap reach feasibility on tight buckets) at cost of marginal
-  # Y|X precision. Default 20 matches the production cache.
+  # (helps reach feasibility on tight buckets) at cost of marginal Y|X
+  # precision. Production default is 50 — see swap_results.html for the
+  # forest-size sweep that picked this.
   if (is.null(min_node_size)) {
     e = Sys.getenv('WEALTH_MIN_NODE_SIZE')
-    min_node_size = if (nzchar(e)) as.integer(e) else 20L
+    min_node_size = if (nzchar(e)) as.integer(e) else 50L
   }
   stopifnot(min_node_size >= 1L)
 
-  cat(sprintf('wealth.R: Stage 3 method=%s  min.node.size=%d\n',
-              stage3_method, min_node_size))
+  cat(sprintf('wealth.R: Stage 3 swap solver, min.node.size=%d\n',
+              min_node_size))
 
   features = c('has_income_act', 'has_income_pos', 'has_negative_income',
                'pctile_income',
@@ -270,12 +251,11 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     cat(sprintf('wealth.R: cell %s — SCF rows %d, bootstrap %d\n',
                 ci, length(scf_rows_in_cell), n_boot_cell[[ci]]))
 
-    # Cache name suffix encodes min.node.size when non-default so different
-    # leaf sizes don't collide on the same cache file.
-    cache_suffix = if (min_node_size != 20L)
-                     paste0('_mns', min_node_size) else ''
+    # Cache name encodes min.node.size in the suffix so different leaf
+    # sizes (production = 50) don't collide on the same cache file.
     drf_cell = train_or_load_drf(
-      name          = paste0('wealth_percell_', ci, cache_suffix),
+      name          = paste0('wealth_percell_', ci,
+                              '_mns', min_node_size),
       X             = as.matrix(scf_boot_list[[ci_idx]][features]),
       Y             = as.matrix(scf_boot_list[[ci_idx]][wealth_y_vars]),
       num.features  = 50,
@@ -447,43 +427,44 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   #---------------------------------------------------------------------------
   # Stage 3: TWO-STEP calibration per cell (income × age).
   #
-  #   Step A — extensive-only exponential tilt.
-  #     Solve the convex dual with ONLY "count > 0" targets. 6 categories
-  #     {nw, equities, bonds, homes, other, debt} × 1 margin × up to 14
-  #     cells = ≤ 84 targets total, pruned to ~68 after QC.
+  #   Step A — joint count + amount swap solver.
+  #     Each PUF record starts with a uniform random pick from its forest
+  #     leaf. The swap solver then proposes (record, new_leaf_donor) swaps
+  #     and accepts iff the bucket-global count + amount error decreases.
+  #     8 categories {nw, equities, bonds, homes, retirement, business,
+  #     other, debt} × 16 (cell × age) buckets = 128 buckets, ~105 kept
+  #     after QC. See src/imputations/swap_solver.R.
   #   Step B — per-(cell × category) intensive rescale.
   #     For each cell and each category C ∈ {equities, bonds, homes,
-  #     other, debt}, compute
-  #        s = SCF_total(cell, C) / PUF_post_tilt_total(cell, C)
+  #     retirement, business, other, debt}, compute
+  #        s = SCF_total(cell, C) / PUF_post_step_a_total(cell, C)
   #     and multiply every underlying Y-var of C on every record in the
-  #     cell by s. This hits SCF intensive aggregates EXACTLY per cell.
-  #     NW isn't rescaled directly (it's assets−debts and falls out).
+  #     cell by s. With the joint Step A above, the median rescale factor
+  #     is ~1.0 — Step B is a residual cleanup, not a load-bearing
+  #     calibrator. NW isn't rescaled directly (assets − debts; falls out).
   #
-  # Design rationale: the two margins are orthogonal. Extensive is a
-  # discrete donor-support problem; intensive is a continuous levels
-  # problem. Combining them in one lambda caused the 12-target solver
-  # to collapse onto a few donors (ESS→1) and inflate top shares.
-  # Decoupling restores clean convergence on A and hits B exactly by
-  # construction.
-  #
-  # Rescaling synthesizes values no SCF donor had — accepted tradeoff.
-  # Within-cell distribution shape (and thus top-share within cell)
-  # is preserved under rescaling.
-  #
-  # Categories-to-Y-vars map for rescaling:
+  # Categories: retirement and business (pass_throughs) are first-class
+  # targets, NOT bundled inside "other". The monolithic "other" used to
+  # cover 10 y-vars and gave the solver one knob for an aggregate of 10
+  # heterogeneous components, leaving an irreducible +30% amount gap.
+  # After the split "other" is the residual (8 vars, more homogeneous).
   CAT_MEMBERS = list(
-    equities = 'equities',
-    bonds    = 'bonds',
-    homes    = 'primary_home',
-    other    = setdiff(wealth_asset_vars, c('equities', 'bonds',
-                                             'primary_home')),
-    debt     = wealth_debt_vars
+    equities   = 'equities',
+    bonds      = 'bonds',
+    homes      = 'primary_home',
+    retirement = 'retirement',
+    business   = 'pass_throughs',
+    other      = setdiff(wealth_asset_vars,
+                          c('equities', 'bonds', 'primary_home',
+                            'retirement', 'pass_throughs')),
+    debt       = wealth_debt_vars
   )
-  # kg_* rescale follows the inheritance rule (same as in dfa_factors):
+  # kg_* rescale follows the inheritance rule (same as in dfa_factors).
+  # kg_pass_throughs now follows 'business' (was 'other').
   KG_PARENT = list(
     kg_primary_home  = 'homes',
     kg_other_re      = 'other',
-    kg_pass_throughs = 'other',
+    kg_pass_throughs = 'business',
     kg_other         = 'equities'
   )
   #---------------------------------------------------------------------------
@@ -493,14 +474,6 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   donor_y_tbl = as.data.frame(Y_mat)
   names(donor_y_tbl) = wealth_y_vars
   donor_cats = compute_category_values(donor_y_tbl)
-
-  F_donor_parts = lapply(CALIB_CATEGORIES, function(cc) {
-    v = donor_cats[[paste0('cat_', cc)]]
-    m = matrix(as.numeric(v > 0), ncol = 1)
-    colnames(m) = paste0(cc, '.extensive')
-    m
-  })
-  F_donor = do.call(cbind, F_donor_parts)
 
   # ---------- Cell assignment on SCF side ----------
   # Age: pmin(80) to match the PUF topcode; 0 for the synthetic 2nd
@@ -549,8 +522,10 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   puf_cells = assign_calibration_cells(puf_cells, puf_cells$income,
                                         puf_cells$age_older, puf_cells$weight)
 
-  # ---------- Target viability QC (EXTENSIVE ONLY for the tilt) -------------
-  # Intensive is handled by rescaling below; never enters the solver.
+  # ---------- Target viability QC (extensive margin, count targets) --------
+  # Amount targets are constructed below from SCF aggregates and don't
+  # need a separate viability pass — they're computed only for cats that
+  # passed the count QC, and only when amount_weight > 0.
   requested_spec = default_wealth_target_spec() %>%
     filter(margin == 'extensive')
   qc_report = assess_target_viability(requested_spec, scf_cells_df)
@@ -558,124 +533,32 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   kept = qc_report %>% filter(status == 'keep') %>%
     mutate(feature_col = paste(category, margin, sep = '.'))
 
-  # ---------- Pre-tilt donors (UNIFORM leaf draw) ----------
-  # Uniform within-leaf sampling: the per-cell weighted bootstrap already
-  # encodes population weights structurally (low-weight donors appear
-  # proportionally in the bootstrap), so each leaf's empirical composition
-  # is already population-weighted. Uniform draw at inference correctly
-  # samples F_pop(Y | X ∈ leaf). This matches src/eda/wealth_percell_*
-  # which validated +0.4% aggregate on SCF self-test.
-  pre_tilt_donors = integer(n_pred)
+  # ---------- Initial donor assignment (uniform leaf draw) -----------------
+  # The per-cell weighted bootstrap already encodes SCF population weights
+  # structurally (low-weight donors appear proportionally in the
+  # bootstrap), so each leaf's empirical composition is already
+  # population-weighted. A uniform within-leaf draw at inference correctly
+  # samples F_pop(Y | X ∈ leaf). The swap solver below then refines this
+  # initial assignment toward count + amount targets.
+  pre_swap_donors = integer(n_pred)
   for (i in seq_len(n_pred)) {
     lr = leaf_donors_list[[i]]
-    pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
+    pre_swap_donors[i] = lr[sample.int(length(lr), 1L)]
   }
 
-  # Convex-Newton dual solver (RMS feature rescaling + Levenberg-Marquardt
-  # style damping + gradient-descent fallback). Port of the v2 prototype
-  # at src/eda/stage3_prototype_v2.R. k-general.
-  solve_tilt = function(records, weights, leaf_donors, F_mat, T_target,
-                        max_iter = 80, tol_rel = 1e-5,
-                        max_bt = 30,
-                        base_weights = NULL) {
-    n = length(records); k = ncol(F_mat)
-    ls       = lengths(leaf_donors)
-    all_d    = unlist(leaf_donors, use.names = FALSE)
-    rec_idx  = rep(seq_len(n), times = ls)
-    F_raw    = F_mat[all_d, , drop = FALSE]
-    w_expand = rep(weights, times = ls)
-
-    # Base distribution within each leaf (prior on donor selection before
-    # tilting). If base_weights is given, p_all ∝ base × exp(λ·f) — this
-    # is the correct extension of the exp-tilt to a non-uniform base, so
-    # that under λ=0 the distribution reduces to weighted leaf sampling
-    # rather than uniform. Pass as log so we don't accumulate rounding
-    # in the exp.
-    if (is.null(base_weights)) {
-      log_base = rep(0, length(all_d))
-    } else {
-      bw = base_weights[all_d]
-      stopifnot(all(bw > 0))
-      log_base = log(bw)
-    }
-
-    # Per-column RMS rescale — invariant change of coordinates on λ that
-    # makes the Newton system better-conditioned under mixed dollar/count
-    # targets.
-    col_scale  = pmax(sqrt(colMeans(F_raw^2)), 1e-12)
-    F_all      = sweep(F_raw, 2, col_scale, `/`)
-    T_eff      = T_target / col_scale
-    t_scale    = pmax(abs(T_eff), 1)
-
-    eval_fit = function(lam) {
-      u     = as.vector(F_all %*% lam) + log_base
-      u_max = ave(u, rec_idx, FUN = max)
-      eu    = exp(u - u_max)
-      Z     = ave(eu, rec_idx, FUN = sum)
-      p_all = eu / Z
-      ach   = as.vector(crossprod(F_all, w_expand * p_all))
-      list(p_all = p_all, grad = ach - T_eff,
-           rel = max(abs(ach - T_eff) / t_scale))
-    }
-
-    lambda = rep(0, k)
-    cur    = eval_fit(lambda)
-    for (iter in seq_len(max_iter)) {
-      if (cur$rel < tol_rel) break
-      wp = w_expand * cur$p_all
-      H1 = crossprod(F_all * sqrt(wp))
-
-      E_per = matrix(0, nrow = n, ncol = k)
-      for (kk in seq_len(k))
-        E_per[, kk] = rowsum(cur$p_all * F_all[, kk], rec_idx)[, 1]
-      H2 = crossprod(E_per * sqrt(weights))
-
-      H     = H1 - H2
-      reg   = 1e-6 * max(1, max(abs(diag(H))))
-      step  = tryCatch(solve(H + diag(reg, k), cur$grad),
-                       error = function(e) cur$grad / max(diag(H) + reg))
-
-      alpha    = 1
-      improved = FALSE
-      for (bt in seq_len(max_bt)) {
-        lam_try = lambda - alpha * step
-        fit_try = eval_fit(lam_try)
-        if (fit_try$rel < cur$rel) { improved = TRUE; break }
-        alpha = alpha / 2
-      }
-      if (!improved) {
-        # Gradient-descent retry on scaled coordinates.
-        alpha_gd = 1 / (max(diag(H)) + reg)
-        lam_try  = lambda - alpha_gd * cur$grad
-        fit_try  = eval_fit(lam_try)
-        if (fit_try$rel < cur$rel) improved = TRUE
-        else break
-      }
-      lambda = lam_try; cur = fit_try
-    }
-
-    seg_end   = cumsum(ls)
-    seg_start = c(0L, head(seg_end, -1L))
-    list(iter = iter, rel = cur$rel, lambda = lambda,
-         p_all = cur$p_all, all_donors = all_d,
-         seg_start = seg_start, seg_end = seg_end,
-         ess = as.vector(tapply(cur$p_all, rec_idx, function(p) 1 / sum(p^2))))
-  }
-
-  # Per-cell donor-side category positivity matrix (donors × 6). Used by the
-  # swap solver to score Δglobal_err in O(K) per proposal. Cheap precompute,
-  # ~5MB for a 850k-donor combined scf_boot.
+  # Per-cell donor-side category positivity matrix (donors × 8). Used by
+  # the swap solver to score Δglobal_err in O(K) per proposal. Cheap
+  # precompute, ~5MB for a 850k-donor combined scf_boot.
   cat_pos_matrix = vapply(CALIB_CATEGORIES,
     function(cc) as.integer(donor_cats[[paste0('cat_', cc)]] > 0L),
     integer(nrow(donor_cats)))
   colnames(cat_pos_matrix) = CALIB_CATEGORIES
 
-  # Donor-side category AMOUNT matrix (donors × 5). Indexed by the same 5
-  # categories that Step B rescales (equities, bonds, homes, other, debt).
-  # nw is intentionally excluded — it's a linear combination of the other
-  # 5 (assets − debts), so including it would double-weight the asset/debt
-  # balance in the joint count + amount objective. Used by the swap solver
-  # in joint mode to track running per-bucket dollar totals.
+  # Donor-side category AMOUNT matrix (donors × 7). Indexed by the same 7
+  # categories that Step B rescales (equities, bonds, homes, retirement,
+  # business, other, debt). nw is intentionally excluded — it's a linear
+  # combination of the other 7 (assets − debts), so including it in the
+  # joint amount objective would double-weight the asset/debt balance.
   AMOUNT_CATS = setdiff(CALIB_CATEGORIES, 'nw')
   cat_amount_matrix = vapply(AMOUNT_CATS, function(cc) {
     members = CAT_MEMBERS[[cc]]
@@ -684,180 +567,139 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   }, numeric(nrow(donor_y_tbl)))
   colnames(cat_amount_matrix) = AMOUNT_CATS
 
-  # Pull amount weight + denom floor out of swap_options so we can also
-  # use them when constructing per-bucket amount targets. Defaults match
-  # solve_swap_bucket's defaults (amount_weight = 0 → joint mode off).
-  amount_weight       = swap_options$amount_weight       %||% 0
+  # Default amount_weight = 0.5 enables joint count + amount mode (the
+  # production setting). Override via swap_options$amount_weight = 0 to get
+  # count-only behavior for diagnostics / comparisons.
+  amount_weight       = swap_options$amount_weight       %||% 0.5
   amount_denom_floor  = swap_options$amount_denom_floor  %||% 1e6
 
-  # Per-cell Step A: choose post-Step-A donor for each PUF record. Two
-  # implementations dispatch on stage3_method; both produce the same shape
-  # of output (post_tilt_donors integer vector + a per-bucket diagnostics
-  # list). Cells with zero viable targets fall through to the pre-tilt
-  # uniform draw.
-  post_tilt_donors      = integer(n_pred)
-  step_a_diagnostics    = list()
+  # Per-cell Step A. Cells with zero viable count targets after QC fall
+  # through to the uniform initial assignment for those records.
+  post_swap_donors   = integer(n_pred)
+  step_a_diagnostics = list()
   t0 = Sys.time()
 
-  if (stage3_method == 'tilt') {
-    cat('wealth.R: solving per-cell tilts (income × age)\n')
+  cat(sprintf(
+    'wealth.R: solving per-cell swaps  [n_restarts=%d, init=%s, options=%s]\n',
+    n_restarts,
+    if (is.null(init_donors_override)) 'uniform' else 'override',
+    if (length(swap_options) == 0L) '<defaults>'
+      else paste(names(swap_options), unlist(swap_options),
+                 sep = '=', collapse = ' ')))
 
-    for (ci in CALIB_INCOME_BUCKETS) {
-      for (ca in CALIB_AGE_BUCKETS) {
-        rec_cell = which(puf_cells$cell_income == ci & puf_cells$cell_age == ca)
-        if (length(rec_cell) == 0L) next
+  init_swap = if (is.null(init_donors_override)) pre_swap_donors
+              else as.integer(init_donors_override)
+  stopifnot(length(init_swap) == n_pred)
 
-        kept_cell = kept %>%
-          filter(cell_income == ci, cell_age == ca)
+  bucket_idx = 0L
+  for (ci in CALIB_INCOME_BUCKETS) {
+    for (ca in CALIB_AGE_BUCKETS) {
+      bucket_idx = bucket_idx + 1L
+      rec_cell = which(puf_cells$cell_income == ci & puf_cells$cell_age == ca)
+      if (length(rec_cell) == 0L) next
 
-        if (nrow(kept_cell) == 0L) {
-          post_tilt_donors[rec_cell] = pre_tilt_donors[rec_cell]
-          cat(sprintf('  %-10s × %-9s: n=%6d  [no viable targets → pre-tilt]\n',
-                      ci, ca, length(rec_cell)))
-          next
-        }
+      kept_cell = kept %>%
+        filter(cell_income == ci, cell_age == ca)
 
-        F_cell = F_donor[, kept_cell$feature_col, drop = FALSE]
-        T_cell = setNames(kept_cell$target_value, kept_cell$feature_col)
+      if (nrow(kept_cell) == 0L) {
+        post_swap_donors[rec_cell] = init_swap[rec_cell]
+        cat(sprintf('  %-10s × %-9s: n=%6d  [no viable targets → uniform init]\n',
+                    ci, ca, length(rec_cell)))
+        next
+      }
 
-        res = solve_tilt(rec_cell, puf_w[rec_cell],
-                         leaf_donors_list[rec_cell],
-                         F_cell, T_cell,
-                         base_weights = NULL)
+      # Subset cat_pos_matrix to the categories with viable count targets
+      # in this bucket (may be a strict subset of the 8).
+      cats_here      = kept_cell$category
+      cat_pos_bucket = cat_pos_matrix[, cats_here, drop = FALSE]
+      target_bucket  = setNames(kept_cell$target_value, cats_here)
 
-        cat(sprintf(
-          '  %-10s × %-9s: n=%6d k=%2d iter=%2d rel=%.2e ESS p10=%.1f\n',
-          ci, ca, length(rec_cell), ncol(F_cell),
-          res$iter, res$rel,
-          as.numeric(quantile(res$ess, 0.10))))
-        step_a_diagnostics[[paste(ci, ca, sep = ':')]] = list(
-          method = 'tilt', n = length(rec_cell), k = ncol(F_cell),
-          iter = res$iter, rel = res$rel,
-          ess_p10 = as.numeric(quantile(res$ess, 0.10))
-        )
-
-        # Sample donors for this cell under tilted probabilities.
-        for (local_i in seq_along(rec_cell)) {
-          sl = (res$seg_start[local_i] + 1L):res$seg_end[local_i]
-          donor_pool = res$all_donors[sl]
-          prob_pool  = res$p_all[sl]
-          post_tilt_donors[rec_cell[local_i]] =
-            donor_pool[sample.int(length(donor_pool), 1L, prob = prob_pool)]
+      # Amount targets from SCF aggregates for the non-nw cats present
+      # in this bucket. Per-bucket amount_denom_floor avoids the
+      # solver burning iterations on small-target cells: floor =
+      # max($1B, 0.1% × sum of bucket amount targets), so cells whose
+      # SCF amount target is sub-floor get capped at the floor instead
+      # of contributing massive relative-error spikes.
+      amount_args = list()
+      if (amount_weight > 0) {
+        amt_cats = intersect(cats_here, AMOUNT_CATS)
+        if (length(amt_cats) > 0L) {
+          scf_mask = scf_cells_df$cell_income == ci &
+                     scf_cells_df$cell_age == ca
+          scf_w_b  = scf_cells_df$weight[scf_mask]
+          tgt_amt  = vapply(amt_cats, function(cc) {
+            members = CAT_MEMBERS[[cc]]
+            vals = if (length(members) == 1L) scf_y[scf_mask, members]
+                   else rowSums(scf_y[scf_mask, members, drop = FALSE])
+            sum(scf_w_b * vals)
+          }, numeric(1))
+          names(tgt_amt) = amt_cats
+          bucket_floor = max(1e9, 0.001 * sum(abs(tgt_amt)))
+          amount_args = list(
+            cat_amount_matrix  = cat_amount_matrix[, amt_cats, drop = FALSE],
+            target_amounts     = tgt_amt,
+            amount_denom_floor = bucket_floor
+          )
         }
       }
-    }
-  } else {
-    # stage3_method == 'swap'
-    cat(sprintf('wealth.R: solving per-cell swaps (income × age)  [n_restarts=%d, init=%s, options=%s]\n',
-                n_restarts,
-                if (is.null(init_donors_override)) 'uniform' else 'override',
-                if (length(swap_options) == 0L) '<defaults>'
-                  else paste(names(swap_options), unlist(swap_options),
-                             sep = '=', collapse = ' ')))
 
-    init_swap = if (is.null(init_donors_override)) pre_tilt_donors
-                else as.integer(init_donors_override)
-    stopifnot(length(init_swap) == n_pred)
+      # Strip amount_denom_floor from swap_options if the user passed it
+      # globally — the bucket-adaptive value in amount_args takes
+      # precedence and a duplicate named arg would error in do.call.
+      swap_opts_eff = swap_options
+      swap_opts_eff$amount_denom_floor = NULL
 
-    bucket_idx = 0L
-    for (ci in CALIB_INCOME_BUCKETS) {
-      for (ca in CALIB_AGE_BUCKETS) {
-        bucket_idx = bucket_idx + 1L
-        rec_cell = which(puf_cells$cell_income == ci & puf_cells$cell_age == ca)
-        if (length(rec_cell) == 0L) next
-
-        kept_cell = kept %>%
-          filter(cell_income == ci, cell_age == ca)
-
-        if (nrow(kept_cell) == 0L) {
-          post_tilt_donors[rec_cell] = init_swap[rec_cell]
-          cat(sprintf('  %-10s × %-9s: n=%6d  [no viable targets → pre-tilt]\n',
-                      ci, ca, length(rec_cell)))
-          next
-        }
-
-        # Subset cat_pos_matrix to the categories with viable targets in
-        # this bucket (may be a strict subset of the 6).
-        cats_here = kept_cell$category
-        cat_pos_bucket = cat_pos_matrix[, cats_here, drop = FALSE]
-        target_bucket  = setNames(kept_cell$target_value, cats_here)
-
-        # In joint mode, build amount targets from SCF aggregates for the
-        # 5 non-nw cats (intersected with cats_here). nw is excluded from
-        # the amount objective by construction.
-        amount_args = list()
-        if (amount_weight > 0) {
-          amt_cats = intersect(cats_here, AMOUNT_CATS)
-          if (length(amt_cats) > 0L) {
-            scf_mask = scf_cells_df$cell_income == ci &
-                       scf_cells_df$cell_age == ca
-            scf_w_b  = scf_cells_df$weight[scf_mask]
-            tgt_amt  = vapply(amt_cats, function(cc) {
-              members = CAT_MEMBERS[[cc]]
-              vals = if (length(members) == 1L) scf_y[scf_mask, members]
-                     else rowSums(scf_y[scf_mask, members, drop = FALSE])
-              sum(scf_w_b * vals)
-            }, numeric(1))
-            names(tgt_amt) = amt_cats
-            amount_args = list(
-              cat_amount_matrix = cat_amount_matrix[, amt_cats, drop = FALSE],
-              target_amounts    = tgt_amt
-            )
-          }
-        }
-
-        solver_args = c(
-          list(
-            puf_weights            = puf_w[rec_cell],
-            leaf_donors_per_record = leaf_donors_list[rec_cell],
-            cat_pos_matrix         = cat_pos_bucket,
-            target_counts          = target_bucket,
-            init_donors            = init_swap[rec_cell],
-            init_seed              = 1000L + bucket_idx
-          ),
-          amount_args,
-          swap_options
-        )
-        res = if (n_restarts > 1L) {
-          do.call(solve_swap_bucket_multistart,
-                  c(list(n_restarts = n_restarts), solver_args))
-        } else {
-          do.call(solve_swap_bucket, solver_args)
-        }
-
-        amt_str = if (!is.null(res$final_amount_max_rel) &&
-                       !is.na(res$final_amount_max_rel))
-                    sprintf(' amt_max_rel=%.2e', res$final_amount_max_rel)
-                  else ''
-        cat(sprintf(
-          '  %-10s × %-9s: n=%6d k=%2d swaps=%6d props=%6d max_rel=%.2e%s %s\n',
-          ci, ca, length(rec_cell), ncol(cat_pos_bucket),
-          res$swaps_accepted, res$total_proposals,
-          res$final_max_rel, amt_str, res$status))
-
-        step_a_diagnostics[[paste(ci, ca, sep = ':')]] = list(
-          method = 'swap', n = length(rec_cell), k = ncol(cat_pos_bucket),
-          status = res$status,
-          swaps_accepted = res$swaps_accepted,
-          total_proposals = res$total_proposals,
-          final_amount_max_rel = res$final_amount_max_rel,
-          final_amounts = res$final_amounts,
-          final_target_amounts = res$final_target_amounts,
-          final_max_rel = res$final_max_rel,
-          final_global_err = res$final_global_err,
-          final_residuals = res$final_residuals
-        )
-
-        post_tilt_donors[rec_cell] = res$donor_assignment
+      solver_args = c(
+        list(
+          puf_weights            = puf_w[rec_cell],
+          leaf_donors_per_record = leaf_donors_list[rec_cell],
+          cat_pos_matrix         = cat_pos_bucket,
+          target_counts          = target_bucket,
+          init_donors            = init_swap[rec_cell],
+          init_seed              = 1000L + bucket_idx
+        ),
+        amount_args,
+        swap_opts_eff
+      )
+      res = if (n_restarts > 1L) {
+        do.call(solve_swap_bucket_multistart,
+                c(list(n_restarts = n_restarts), solver_args))
+      } else {
+        do.call(solve_swap_bucket, solver_args)
       }
+
+      amt_str = if (!is.null(res$final_amount_max_rel) &&
+                     !is.na(res$final_amount_max_rel))
+                  sprintf(' amt_max_rel=%.2e', res$final_amount_max_rel)
+                else ''
+      cat(sprintf(
+        '  %-10s × %-9s: n=%6d k=%2d swaps=%6d props=%6d max_rel=%.2e%s %s\n',
+        ci, ca, length(rec_cell), ncol(cat_pos_bucket),
+        res$swaps_accepted, res$total_proposals,
+        res$final_max_rel, amt_str, res$status))
+
+      step_a_diagnostics[[paste(ci, ca, sep = ':')]] = list(
+        n = length(rec_cell), k = ncol(cat_pos_bucket),
+        status = res$status,
+        swaps_accepted = res$swaps_accepted,
+        total_proposals = res$total_proposals,
+        final_amount_max_rel = res$final_amount_max_rel,
+        final_amounts = res$final_amounts,
+        final_target_amounts = res$final_target_amounts,
+        final_max_rel = res$final_max_rel,
+        final_global_err = res$final_global_err,
+        final_residuals = res$final_residuals
+      )
+
+      post_swap_donors[rec_cell] = res$donor_assignment
     }
   }
-  cat(sprintf('wealth.R: %s solver %.1fs\n',
-              stage3_method, as.numeric(Sys.time() - t0, units = 'secs')))
+  cat(sprintf('wealth.R: swap solver %.1fs\n',
+              as.numeric(Sys.time() - t0, units = 'secs')))
 
-  post_y = Y_mat[post_tilt_donors, , drop = FALSE]
+  post_y = Y_mat[post_swap_donors, , drop = FALSE]
   colnames(post_y) = wealth_y_vars
-  pre_y  = Y_mat[pre_tilt_donors,  , drop = FALSE]
+  pre_y  = Y_mat[pre_swap_donors,  , drop = FALSE]
   colnames(pre_y)  = wealth_y_vars
 
   # Dependent returns (dep_status==1) are filed by people claimed as
@@ -874,9 +716,9 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   }
 
   # Snapshot of Step A's output BEFORE Step B's intensive rescale.
-  # Useful for diagnostics that need to see what swap (or tilt) achieved on
-  # amounts on its own, separate from the deterministic rescale that always
-  # forces aggregates to SCF totals.
+  # Useful for diagnostics that need to see what the swap solver achieved
+  # on amounts on its own, separate from the deterministic rescale that
+  # always forces aggregates to SCF totals.
   post_y_pre_rescale = post_y
 
   #---------------------------------------------------------------------------
@@ -905,7 +747,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                    else rowSums(scf_y[scf_mask, members, drop = FALSE])
         scf_total = sum(scf_w * scf_vals)
 
-        # PUF post-tilt aggregate
+        # PUF post-Step-A aggregate
         puf_vals = if (length(members) == 1L) post_y[rec_cell, members]
                    else rowSums(post_y[rec_cell, members, drop = FALSE])
         puf_total = sum(rec_w * puf_vals)
@@ -956,27 +798,24 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
 
   # Return a list so the caller can route post-Step-A into module_deltas
   # and save pre-Step-A + qc_report + rescale_factors as diagnostic artifacts.
-  # `y_pre_tilt` is named for backward compatibility but holds the pre-Step-A
-  # uniform draw regardless of whether stage3_method is 'tilt' or 'swap'.
   result = list(
-    y                  = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
-    y_pre_tilt         = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+    y                         = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
+    y_pre_swap                = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
     y_post_step_a_pre_rescale = bind_cols(tibble(id = puf$id),
                                           as_tibble(post_y_pre_rescale)),
     qc_report          = qc_report,
     rescale_factors    = rescale_factors,
-    stage3_method      = stage3_method,
     min_node_size      = min_node_size,
     step_a_diagnostics = step_a_diagnostics,
-    step_a_donors      = post_tilt_donors,
-    pre_step_a_donors  = pre_tilt_donors
+    post_swap_donors   = post_swap_donors,
+    pre_swap_donors    = pre_swap_donors
   )
   if (debug_output) {
-    # Let src/eda/wealth_diagnosis.R trace each PUF record back to the
-    # SCF donor it picked. pre_tilt_donors holds indices into scf_boot
-    # (250k rows); boot_idx maps scf_boot back to the original SCF
+    # Let diagnostic harnesses trace each PUF record back to the SCF
+    # donor it picked. pre_swap_donors holds indices into scf_boot
+    # (~850k rows); boot_idx maps scf_boot back to the original SCF
     # tax-unit table.
-    result$pre_tilt_donor_boot_idx = pre_tilt_donors
+    result$pre_swap_donor_boot_idx = pre_swap_donors
     result$boot_idx                = boot_idx
     result$scf_boot_income         = scf_boot$income
     result$puf_cells               = puf_cells

@@ -216,8 +216,8 @@ summary_tbl = tibble(
     'age × cell joint (PUF all)',
     'age × cell joint (PUF filers only)',
     'age × int_div joint  (existing, ref: $180.64T)',
-    'Pre-tilt forest      (existing, ref: $201.06T)',
-    'Pre-tilt forest w/ $100 int_div thresh (ref: $187.23T)',
+    'Pre-swap forest      (existing, ref: $201.06T)',
+    'Pre-swap forest w/ $100 int_div thresh (ref: $187.23T)',
     'SCF truth target     (ref: $139.12T)'
   ),
   agg_T = c(scf_truth_total,

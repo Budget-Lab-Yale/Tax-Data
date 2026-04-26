@@ -2,8 +2,8 @@
 # wealth_summary_diagnostics.R
 #
 # Post-run diagnostic harness comparing SCF
-# (ground truth), PUF pre-tilt (Stage 2 only;
-# uniform leaf draw), and PUF post-tilt
+# (ground truth), PUF pre-swap (Stage 2 only;
+# uniform leaf draw), and PUF post-swap
 # (Stage 3 calibrated) wealth distributions.
 #
 # Produces tables + plots:
@@ -18,7 +18,7 @@
 #
 # Inputs:
 #   output_dir: directory with tax_units_2022.csv,
-#               wealth_pre_tilt.rds, stage3_qc_report.rds
+#               wealth_pre_swap.rds, stage3_qc_report.rds
 #               (produced by a completed pipeline run).
 #
 # Outputs:
@@ -52,15 +52,15 @@ stopifnot(dir.exists(output_dir))
 #--- Load inputs ------------------------------------------------------------
 
 puf_csv_path  = file.path(output_dir, 'tax_units_2022.csv')
-pre_tilt_path = file.path(output_dir, 'wealth_pre_tilt.rds')
+pre_swap_path = file.path(output_dir, 'wealth_pre_swap.rds')
 qc_path       = file.path(output_dir, 'stage3_qc_report.rds')
-for (p in c(puf_csv_path, pre_tilt_path, qc_path)) {
+for (p in c(puf_csv_path, pre_swap_path, qc_path)) {
   if (!file.exists(p)) stop('Missing: ', p)
 }
 
 cat('Loading inputs...\n')
 puf_post = read_csv(puf_csv_path, show_col_types = FALSE)
-puf_pre  = read_rds(pre_tilt_path)    # id + 23 y_vars; pre-tilt donors
+puf_pre  = read_rds(pre_swap_path)    # id + 23 y_vars; pre-swap donors
 qc       = read_rds(qc_path)
 scf      = read_rds('resources/cache/scf_tax_units.rds')
 
@@ -104,7 +104,7 @@ scf = assign_calibration_cells(scf, scf$income_recon,
                                scf$age_older, scf$weight)
 scf$source_label = 'SCF'
 
-# PUF post-tilt: reconstitute income + cell from csv cols.
+# PUF post-swap: reconstitute income + cell from csv cols.
 puf_post_age2 = ifelse(is.na(puf_post$age2), 0L, puf_post$age2)
 puf_post$age_older = pmax(pmin(80L, puf_post$age1), pmin(80L, puf_post_age2))
 puf_post$income_recon = with(puf_post,
@@ -121,10 +121,10 @@ puf_post$income_recon = with(puf_post,
 puf_post = cbind(puf_post, compute_category_values(puf_post))
 puf_post = assign_calibration_cells(puf_post, puf_post$income_recon,
                                     puf_post$age_older, puf_post$weight)
-puf_post$source_label = 'PUF_post_tilt'
+puf_post$source_label = 'PUF_post_swap'
 
-# PUF pre-tilt: the pre-tilt tibble is {id, 23 y_vars}. Attach its
-# demographic context by id-joining to the post-tilt frame.
+# PUF pre-swap: the pre-swap tibble is {id, 23 y_vars}. Attach its
+# demographic context by id-joining to the post-swap frame.
 stopifnot(nrow(puf_pre) == nrow(puf_post))
 puf_pre = puf_pre %>%
   inner_join(
@@ -133,7 +133,7 @@ puf_pre = puf_pre %>%
     by = 'id'
   )
 puf_pre = cbind(puf_pre, compute_category_values(puf_pre))
-puf_pre$source_label = 'PUF_pre_tilt'
+puf_pre$source_label = 'PUF_pre_swap'
 
 
 #--- Shared helpers ---------------------------------------------------------
@@ -180,17 +180,17 @@ sum_per_cat = function(df, label) {
 
 agg_totals = bind_rows(
   sum_per_cat(scf,      'SCF'),
-  sum_per_cat(puf_pre,  'PUF_pre_tilt'),
-  sum_per_cat(puf_post, 'PUF_post_tilt')
+  sum_per_cat(puf_pre,  'PUF_pre_swap'),
+  sum_per_cat(puf_post, 'PUF_post_swap')
 ) %>%
   pivot_wider(names_from = source_label, values_from = total_dollars) %>%
   mutate(
-    pre_vs_scf_pct  = 100 * (PUF_pre_tilt  - SCF) / SCF,
-    post_vs_scf_pct = 100 * (PUF_post_tilt - SCF) / SCF
+    pre_vs_scf_pct  = 100 * (PUF_pre_swap  - SCF) / SCF,
+    post_vs_scf_pct = 100 * (PUF_post_swap - SCF) / SCF
   )
 
 print(agg_totals %>%
-        mutate(across(c(SCF, PUF_pre_tilt, PUF_post_tilt),
+        mutate(across(c(SCF, PUF_pre_swap, PUF_post_swap),
                       ~ paste0('$', round(.x / 1e9, 1), 'B'))),
       n = Inf)
 
@@ -261,17 +261,17 @@ make_gap = function(sc, pf, src_name) {
     mutate(diff_pct = 100 * (puf_value - scf_value) / pmax(abs(scf_value), 1),
            source   = src_name)
 }
-gap_post = make_gap(scf_c, post_c, 'post_tilt')
-gap_pre  = make_gap(scf_c, pre_c,  'pre_tilt')
+gap_post = make_gap(scf_c, post_c, 'post_swap')
+gap_pre  = make_gap(scf_c, pre_c,  'pre_swap')
 
-cat('\nPost-tilt worst 15 gaps (|pct| > 10):\n')
+cat('\nPost-swap worst 15 gaps (|pct| > 10):\n')
 print(gap_post %>% filter(abs(diff_pct) > 10) %>%
         arrange(desc(abs(diff_pct))) %>%
         select(metric, category, cell_income, cell_age,
                scf_value, puf_value, diff_pct) %>%
         head(15))
 
-cat('\nPre-tilt worst 15 gaps (|pct| > 10):\n')
+cat('\nPre-swap worst 15 gaps (|pct| > 10):\n')
 print(gap_pre %>% filter(abs(diff_pct) > 10) %>%
         arrange(desc(abs(diff_pct))) %>%
         select(metric, category, cell_income, cell_age,
@@ -318,8 +318,8 @@ dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
 # NW CDF overlay (log-x on the positive side).
 nw_cdf_df = bind_rows(
   scf      %>% transmute(source = 'SCF',           x = cat_nw, w = weight),
-  puf_pre  %>% transmute(source = 'PUF_pre_tilt',  x = cat_nw, w = weight),
-  puf_post %>% transmute(source = 'PUF_post_tilt', x = cat_nw, w = weight)
+  puf_pre  %>% transmute(source = 'PUF_pre_swap',  x = cat_nw, w = weight),
+  puf_post %>% transmute(source = 'PUF_post_swap', x = cat_nw, w = weight)
 ) %>%
   filter(x > 0) %>%
   group_by(source) %>%
@@ -338,7 +338,7 @@ ggsave(file.path(plot_dir, 'nw_cdf.pdf'), p1, width = 8, height = 5)
 
 # Aggregate total per category, 3-way bar.
 p2 = agg_totals %>%
-  pivot_longer(cols = c(SCF, PUF_pre_tilt, PUF_post_tilt),
+  pivot_longer(cols = c(SCF, PUF_pre_swap, PUF_post_swap),
                names_to = 'source', values_to = 'dollars') %>%
   ggplot(aes(x = category, y = dollars / 1e12,
              fill = source)) +

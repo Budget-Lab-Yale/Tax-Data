@@ -76,10 +76,10 @@ cat(sprintf('wealth_harness: total time %.1fs\n',
 #--- Compact diagnostic ----------------------------------------------------
 
 y_post = result$y
-y_pre  = result$y_pre_tilt
+y_pre  = result$y_pre_swap
 rf     = result$rescale_factors
 
-# Join to get weights + cell assignments on post-tilt + pre-tilt.
+# Join to get weights + cell assignments on post-swap + pre-swap.
 puf_base = puf_2022 %>%
   select(id, weight, age1, age2,
          wages, sole_prop, farm,

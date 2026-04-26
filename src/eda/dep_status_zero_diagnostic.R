@@ -16,12 +16,12 @@
 #   (1) dep_status field anatomy: count, age,
 #       cell distribution, filer cross-tab
 #   (2) Imputed NW that lives in dep_status==1
-#       rows (pre-tilt and post-tilt)
+#       rows (pre-swap and post-swap)
 #   (3) Counterfactual aggregate after zeroing
-#       (i)  pre-tilt → zero deps → Σ
-#       (ii) post-tilt → zero deps → Σ
+#       (i)  pre-swap → zero deps → Σ
+#       (ii) post-swap → zero deps → Σ
 #   (4) Top shares + Gini before vs after dep
-#       zeroing (using post-tilt as baseline)
+#       zeroing (using post-swap as baseline)
 #   (5) Per-cell decomposition: how much wealth
 #       lives in dep rows by cell?
 #---------------------------------------------
@@ -101,7 +101,7 @@ result = run_wealth_imputation(puf_2022, scf_tax_units)
 cat(sprintf('Total time %.1fs\n', as.numeric(Sys.time() - t0, units = 'secs')))
 
 y_post = result$y          # post-Stage-3
-y_pre  = result$y_pre_tilt # pre-Stage-3 (raw forest output)
+y_pre  = result$y_pre_swap # pre-Stage-3 (raw forest output)
 
 
 #--- Build per-row PUF frame with cells + dep flag --------------------
@@ -169,10 +169,10 @@ nondep_pre_total = sum(nondep_pre$weight * nondep_pre$cat_nw) / 1e12
 dep_post_total = sum(dep_post$weight * dep_post$cat_nw) / 1e12
 
 cat(sprintf('SCF truth                                 : $%6.2fT\n', scf_total))
-cat(sprintf('PUF pre-tilt total NW (current)           : $%6.2fT\n', pre_total))
-cat(sprintf('PUF post-tilt total NW (current)          : $%6.2fT\n', post_total))
-cat(sprintf('  of which: dep_status==1 (post-tilt)     : $%6.2fT\n', dep_post_total))
-cat(sprintf('  of which: dep_status==1 (pre-tilt)      : $%6.2fT\n', dep_pre_total))
+cat(sprintf('PUF pre-swap total NW (current)           : $%6.2fT\n', pre_total))
+cat(sprintf('PUF post-swap total NW (current)          : $%6.2fT\n', post_total))
+cat(sprintf('  of which: dep_status==1 (post-swap)     : $%6.2fT\n', dep_post_total))
+cat(sprintf('  of which: dep_status==1 (pre-swap)      : $%6.2fT\n', dep_pre_total))
 
 cat(sprintf('\nIf we zero dep_status==1 BEFORE Stage 3   : $%.2fT (%.1f%% of $62T closed)\n',
             nondep_pre_total, 100 * (pre_total - nondep_pre_total) /
@@ -207,7 +207,7 @@ merged = all_per_cell %>%
 print(as.data.frame(merged), row.names = FALSE)
 
 
-#--- (4) Top shares + Gini: post-tilt vs post-tilt-with-deps-zeroed ----
+#--- (4) Top shares + Gini: post-swap vs post-swap-with-deps-zeroed ----
 
 cat('\n--- (4) Top shares + Gini ---\n')
 weighted_quantile = function(x, w, probs) {

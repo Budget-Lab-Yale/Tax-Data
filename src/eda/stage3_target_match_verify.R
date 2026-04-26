@@ -54,7 +54,7 @@ result = run_wealth_imputation(puf_2022, scf_tax_units)
 cat(sprintf('Total time %.1fs\n\n', as.numeric(Sys.time() - t0, units = 'secs')))
 
 y_post = result$y
-y_pre  = result$y_pre_tilt
+y_pre  = result$y_pre_swap
 
 
 #--- Build per-row PUF + SCF frames with cells + cat_* columns ----------
@@ -175,7 +175,7 @@ err_summary = all_stats %>%
   mutate(count_err = abs(count_wt - count_scf) / pmax(count_scf, 1),
          total_err = abs(total - total_scf)    / pmax(abs(total_scf), 1))
 
-cat('\nFraction of 96 (cell × age × cat) buckets where post-tilt is within...\n')
+cat('\nFraction of 96 (cell × age × cat) buckets where post-swap is within...\n')
 for (tol in c(0.01, 0.05, 0.10, 0.25, 0.50)) {
   cat(sprintf('  ±%4.0f%% : count match=%4.1f%%  total match=%4.1f%%\n',
               tol * 100,
@@ -183,7 +183,7 @@ for (tol in c(0.01, 0.05, 0.10, 0.25, 0.50)) {
               100 * mean(err_summary$total_err <= tol, na.rm = TRUE)))
 }
 
-cat('\nWorst-matched (cell × age × cat) buckets by post-tilt count error:\n')
+cat('\nWorst-matched (cell × age × cat) buckets by post-swap count error:\n')
 worst_count = err_summary %>% arrange(desc(count_err)) %>%
   slice_head(n = 10) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
@@ -191,7 +191,7 @@ worst_count = err_summary %>% arrange(desc(count_err)) %>%
          count_scf, count_wt, count_err)
 print(as.data.frame(worst_count), row.names = FALSE)
 
-cat('\nWorst-matched (cell × age × cat) buckets by post-tilt total error:\n')
+cat('\nWorst-matched (cell × age × cat) buckets by post-swap total error:\n')
 worst_total = err_summary %>% arrange(desc(total_err)) %>%
   slice_head(n = 10) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%

@@ -94,11 +94,11 @@ cat(sprintf('main.R: bucketed_factor_ledger built (%d rows)\n',
 wealth_result = run_wealth_imputation(puf_2022, scf_tax_units)
 module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
 
-# Diagnostic artifacts for src/eda/wealth_summary_diagnostics.R: the
-# pre-tilt (Stage 2 only, uniform leaf draw) donors, the QC report, and
-# the per-(cell × category) rescale factors from Step B.
-write_rds(wealth_result$y_pre_tilt,
-          file.path(output_path, 'wealth_pre_tilt.rds'))
+# Diagnostic artifacts for downstream analysis: the pre-swap (Stage 2
+# only, uniform leaf draw) donors, the QC report, and the per-(cell ×
+# category) rescale factors from Step B.
+write_rds(wealth_result$y_pre_swap,
+          file.path(output_path, 'wealth_pre_swap.rds'))
 write_rds(wealth_result$qc_report,
           file.path(output_path, 'stage3_qc_report.rds'))
 write_rds(wealth_result$rescale_factors,

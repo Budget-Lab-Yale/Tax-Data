@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=html_report
 #SBATCH --partition=day
-#SBATCH --time=00:25:00
+#SBATCH --time=00:45:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --output=/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/slurm_html_report.out
