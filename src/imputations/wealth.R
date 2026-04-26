@@ -670,6 +670,26 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     integer(nrow(donor_cats)))
   colnames(cat_pos_matrix) = CALIB_CATEGORIES
 
+  # Donor-side category AMOUNT matrix (donors × 5). Indexed by the same 5
+  # categories that Step B rescales (equities, bonds, homes, other, debt).
+  # nw is intentionally excluded — it's a linear combination of the other
+  # 5 (assets − debts), so including it would double-weight the asset/debt
+  # balance in the joint count + amount objective. Used by the swap solver
+  # in joint mode to track running per-bucket dollar totals.
+  AMOUNT_CATS = setdiff(CALIB_CATEGORIES, 'nw')
+  cat_amount_matrix = vapply(AMOUNT_CATS, function(cc) {
+    members = CAT_MEMBERS[[cc]]
+    if (length(members) == 1L) donor_y_tbl[[members]]
+    else                       rowSums(donor_y_tbl[, members, drop = FALSE])
+  }, numeric(nrow(donor_y_tbl)))
+  colnames(cat_amount_matrix) = AMOUNT_CATS
+
+  # Pull amount weight + denom floor out of swap_options so we can also
+  # use them when constructing per-bucket amount targets. Defaults match
+  # solve_swap_bucket's defaults (amount_weight = 0 → joint mode off).
+  amount_weight       = swap_options$amount_weight       %||% 0
+  amount_denom_floor  = swap_options$amount_denom_floor  %||% 1e6
+
   # Per-cell Step A: choose post-Step-A donor for each PUF record. Two
   # implementations dispatch on stage3_method; both produce the same shape
   # of output (post_tilt_donors integer vector + a per-bucket diagnostics
@@ -762,6 +782,30 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         cat_pos_bucket = cat_pos_matrix[, cats_here, drop = FALSE]
         target_bucket  = setNames(kept_cell$target_value, cats_here)
 
+        # In joint mode, build amount targets from SCF aggregates for the
+        # 5 non-nw cats (intersected with cats_here). nw is excluded from
+        # the amount objective by construction.
+        amount_args = list()
+        if (amount_weight > 0) {
+          amt_cats = intersect(cats_here, AMOUNT_CATS)
+          if (length(amt_cats) > 0L) {
+            scf_mask = scf_cells_df$cell_income == ci &
+                       scf_cells_df$cell_age == ca
+            scf_w_b  = scf_cells_df$weight[scf_mask]
+            tgt_amt  = vapply(amt_cats, function(cc) {
+              members = CAT_MEMBERS[[cc]]
+              vals = if (length(members) == 1L) scf_y[scf_mask, members]
+                     else rowSums(scf_y[scf_mask, members, drop = FALSE])
+              sum(scf_w_b * vals)
+            }, numeric(1))
+            names(tgt_amt) = amt_cats
+            amount_args = list(
+              cat_amount_matrix = cat_amount_matrix[, amt_cats, drop = FALSE],
+              target_amounts    = tgt_amt
+            )
+          }
+        }
+
         solver_args = c(
           list(
             puf_weights            = puf_w[rec_cell],
@@ -771,6 +815,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
             init_donors            = init_swap[rec_cell],
             init_seed              = 1000L + bucket_idx
           ),
+          amount_args,
           swap_options
         )
         res = if (n_restarts > 1L) {
@@ -780,17 +825,24 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
           do.call(solve_swap_bucket, solver_args)
         }
 
+        amt_str = if (!is.null(res$final_amount_max_rel) &&
+                       !is.na(res$final_amount_max_rel))
+                    sprintf(' amt_max_rel=%.2e', res$final_amount_max_rel)
+                  else ''
         cat(sprintf(
-          '  %-10s × %-9s: n=%6d k=%2d swaps=%6d props=%6d max_rel=%.2e %s\n',
+          '  %-10s × %-9s: n=%6d k=%2d swaps=%6d props=%6d max_rel=%.2e%s %s\n',
           ci, ca, length(rec_cell), ncol(cat_pos_bucket),
           res$swaps_accepted, res$total_proposals,
-          res$final_max_rel, res$status))
+          res$final_max_rel, amt_str, res$status))
 
         step_a_diagnostics[[paste(ci, ca, sep = ':')]] = list(
           method = 'swap', n = length(rec_cell), k = ncol(cat_pos_bucket),
           status = res$status,
           swaps_accepted = res$swaps_accepted,
           total_proposals = res$total_proposals,
+          final_amount_max_rel = res$final_amount_max_rel,
+          final_amounts = res$final_amounts,
+          final_target_amounts = res$final_target_amounts,
           final_max_rel = res$final_max_rel,
           final_global_err = res$final_global_err,
           final_residuals = res$final_residuals

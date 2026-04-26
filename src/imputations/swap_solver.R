@@ -96,7 +96,12 @@ solve_swap_bucket = function(puf_weights,
                               objective         = 'l1',     # 'l1' or 'l2'
                               anneal_T0         = 0,        # 0 = no anneal
                               anneal_iters      = 0L,       # decay window
-                              proposal_strategy = 'uniform' # 'uniform' or 'guided'
+                              proposal_strategy = 'uniform',# 'uniform' or 'guided'
+                              # ---- joint count + amount knobs ----
+                              cat_amount_matrix  = NULL,    # donors × Ka numeric
+                              target_amounts     = NULL,    # named numeric Ka
+                              amount_weight      = 0,       # 0 = count-only
+                              amount_denom_floor = 1e6      # $ floor on amount denom
                               ) {
 
   n = length(puf_weights)
@@ -111,7 +116,25 @@ solve_swap_bucket = function(puf_weights,
             identical(names(target_counts), cat_names),
             objective %in% c('l1', 'l2'),
             proposal_strategy %in% c('uniform', 'guided'),
-            anneal_T0 >= 0, anneal_iters >= 0L)
+            anneal_T0 >= 0, anneal_iters >= 0L,
+            amount_weight >= 0)
+
+  # Joint count + amount mode: enabled when amount_weight > 0 AND
+  # cat_amount_matrix + target_amounts are both supplied. The amount
+  # categories may be a STRICT SUBSET of the count categories (e.g., the
+  # caller drops 'nw' from amount targets because nw is a derived linear
+  # combination of the other 5 — including it in the amount objective
+  # double-weights the asset-vs-debt balance).
+  joint_mode = amount_weight > 0 &&
+               !is.null(cat_amount_matrix) && !is.null(target_amounts)
+  if (joint_mode) {
+    stopifnot(is.matrix(cat_amount_matrix),
+              nrow(cat_amount_matrix) == nrow(cat_pos_matrix),
+              !is.null(colnames(cat_amount_matrix)),
+              length(target_amounts) == ncol(cat_amount_matrix),
+              identical(names(target_amounts), colnames(cat_amount_matrix)),
+              all(colnames(cat_amount_matrix) %in% cat_names))
+  }
 
   # ---------- per-bucket RNG state ----------
   # Don't touch the global RNG: capture, set, restore on exit. This makes the
@@ -131,51 +154,84 @@ solve_swap_bucket = function(puf_weights,
   count = as.numeric(crossprod(pos_at_current, puf_weights))
   names(count) = cat_names
 
-  denom = pmax(target_counts, 1)
+  denom_count = pmax(target_counts, 1)
 
-  # Objective: 'l1' = Σ |count_k − target_k| / denom_k (current default,
-  # piecewise-linear, can plateau). 'l2' = Σ ((count_k − target_k)/denom_k)^2
-  # (smooth gradient everywhere, cleaner descent on stochastic moves).
-  err_fn = if (objective == 'l1') {
-    function(cnt) sum(abs(cnt - target_counts) / denom)
+  if (joint_mode) {
+    amt_at_current = cat_amount_matrix[current, , drop = FALSE]
+    amount = as.numeric(crossprod(amt_at_current, puf_weights))
+    names(amount) = colnames(cat_amount_matrix)
+    # Floor the amount denominator so cells with near-zero SCF totals don't
+    # blow up the objective. Production amount targets are 1e8–1e13, so
+    # the default floor of 1e6 keeps relative-error semantics intact for
+    # all real cells. Tests use a lower floor.
+    denom_amount = pmax(abs(target_amounts), amount_denom_floor)
   } else {
-    function(cnt) sum(((cnt - target_counts) / denom)^2)
+    amount       = numeric(0)
+    denom_amount = numeric(0)
   }
 
-  global_err = err_fn(count)
-  max_rel    = max(abs(count - target_counts) / denom)
+  # Objective: 'l1' (sum of absolute relative deviations, piecewise-linear)
+  # or 'l2' (sum of squared relative deviations, smooth gradient). When
+  # joint_mode = TRUE, both count and amount terms enter, with the amount
+  # term weighted by amount_weight.
+  err_fn = if (objective == 'l1') {
+    function(cnt, amt) {
+      e = sum(abs(cnt - target_counts) / denom_count)
+      if (joint_mode)
+        e = e + amount_weight *
+                sum(abs(amt - target_amounts) / denom_amount)
+      e
+    }
+  } else {
+    function(cnt, amt) {
+      e = sum(((cnt - target_counts) / denom_count)^2)
+      if (joint_mode)
+        e = e + amount_weight *
+                sum(((amt - target_amounts) / denom_amount)^2)
+      e
+    }
+  }
+
+  # max_rel drives the convergence test. In joint mode it's the worse of
+  # count-side and amount-side max relative deviation, so 'converged'
+  # means both within tol.
+  compute_max_rel = function(cnt, amt) {
+    mx_c = max(abs(cnt - target_counts) / denom_count)
+    if (joint_mode)
+      max(mx_c, max(abs(amt - target_amounts) / denom_amount))
+    else
+      mx_c
+  }
+
+  global_err = err_fn(count, amount)
+  max_rel    = compute_max_rel(count, amount)
+
+  build_return = function(status_val) list(
+    donor_assignment    = current,
+    final_counts        = count,
+    final_amounts       = if (joint_mode) amount else NULL,
+    final_target_amounts = if (joint_mode) target_amounts else NULL,
+    final_residuals     = count - target_counts,
+    final_max_rel       = max_rel,
+    final_global_err    = global_err,
+    swaps_accepted      = 0L,
+    swaps_anneal        = 0L,
+    total_proposals     = 0L,
+    iters_used          = 0L,
+    status              = status_val
+  )
 
   # Pre-screen records that cannot move (single-donor leaves). Drawing from
   # these wastes proposal budget, so we sample from "movable" records only.
   ll = lengths(leaf_donors_per_record)
   movable_records = which(ll >= 2L)
   if (length(movable_records) == 0L) {
-    return(list(
-      donor_assignment   = current,
-      final_counts       = count,
-      final_residuals    = count - target_counts,
-      final_max_rel      = max_rel,
-      final_global_err   = global_err,
-      swaps_accepted     = 0L,
-      total_proposals    = 0L,
-      iters_used         = 0L,
-      status             = if (max_rel < tol_rel) 'converged' else 'stuck'
-    ))
+    return(build_return(if (max_rel < tol_rel) 'converged' else 'stuck'))
   }
 
   # Quick out: already converged from initial uniform draw.
   if (max_rel < tol_rel) {
-    return(list(
-      donor_assignment   = current,
-      final_counts       = count,
-      final_residuals    = count - target_counts,
-      final_max_rel      = max_rel,
-      final_global_err   = global_err,
-      swaps_accepted     = 0L,
-      total_proposals    = 0L,
-      iters_used         = 0L,
-      status             = 'converged'
-    ))
+    return(build_return('converged'))
   }
 
   # ---------- main proposal loop ----------
@@ -189,6 +245,7 @@ solve_swap_bucket = function(puf_weights,
   # Without this, anneal can degrade results when T cools too slowly.
   best_donors    = current
   best_count     = count
+  best_amount    = amount
   best_global    = global_err
   best_max_rel   = max_rel
 
@@ -206,7 +263,7 @@ solve_swap_bucket = function(puf_weights,
     # ---------- propose (i, new_d) ----------
     if (use_guided) {
       # Find the category with the largest signed relative miss.
-      rel = (count - target_counts) / denom
+      rel = (count - target_counts) / denom_count
       kw  = which.max(abs(rel))
       over = rel[kw] > 0   # over-target → need to drop this cat from a record
                             # under-target → need to add this cat to a record
@@ -249,14 +306,23 @@ solve_swap_bucket = function(puf_weights,
     }
 
     diff_pos = cat_pos_matrix[new_d, ] - cat_pos_matrix[old_d, ]
-    if (all(diff_pos == 0L)) {
+    if (joint_mode) {
+      diff_amt = cat_amount_matrix[new_d, ] - cat_amount_matrix[old_d, ]
+      no_progress = all(diff_pos == 0L) && all(diff_amt == 0)
+    } else {
+      diff_amt = NULL
+      no_progress = all(diff_pos == 0L)
+    }
+    if (no_progress) {
       trial_streak = trial_streak + 1L
       if (trial_streak >= n_trials_stuck) { status = 'stuck'; break }
       next
     }
 
-    new_count = count + puf_weights[i] * diff_pos
-    new_err   = err_fn(new_count)
+    new_count  = count + puf_weights[i] * diff_pos
+    new_amount = if (joint_mode) amount + puf_weights[i] * diff_amt
+                 else amount    # empty in count-only mode
+    new_err    = err_fn(new_count, new_amount)
 
     # ---------- accept / reject ----------
     accept = FALSE
@@ -280,18 +346,25 @@ solve_swap_bucket = function(puf_weights,
     if (accept) {
       current[i]      = new_d
       count           = new_count
+      if (joint_mode) amount = new_amount
       global_err      = new_err
       swaps_accepted  = swaps_accepted + 1L
       trial_streak    = 0L
-      max_rel         = max(abs(count - target_counts) / denom)
+      max_rel         = compute_max_rel(count, amount)
 
       if (global_err < best_global) {
         best_donors  = current
         best_count   = count
+        if (joint_mode) best_amount = amount
         best_global  = global_err
         best_max_rel = max_rel
       }
 
+      # Convergence is on the count side only — amounts are continuous and
+      # have no clean "within tol" criterion, so we keep the count-only
+      # convergence test. The amount term shapes the trajectory; if counts
+      # converge and amounts are well-fit, status is 'converged' and the
+      # amount-side gap is reportable in the diagnostics.
       if (max_rel < tol_rel) { status = 'converged'; break }
     } else {
       trial_streak = trial_streak + 1L
@@ -304,15 +377,29 @@ solve_swap_bucket = function(puf_weights,
   if (best_global < global_err) {
     current    = best_donors
     count      = best_count
+    if (joint_mode) amount = best_amount
     global_err = best_global
     max_rel    = best_max_rel
+  }
+
+  # Amount-side residual reporting (NA when not in joint mode).
+  if (joint_mode) {
+    amt_residuals = amount - target_amounts
+    amt_max_rel   = max(abs(amt_residuals) / denom_amount)
+  } else {
+    amt_residuals = NA
+    amt_max_rel   = NA_real_
   }
 
   list(
     donor_assignment   = current,
     final_counts       = count,
+    final_amounts      = if (joint_mode) amount else NULL,
+    final_target_amounts = if (joint_mode) target_amounts else NULL,
     final_residuals    = count - target_counts,
+    final_amount_residuals = amt_residuals,
     final_max_rel      = max_rel,
+    final_amount_max_rel = amt_max_rel,
     final_global_err   = global_err,
     swaps_accepted     = swaps_accepted,
     swaps_anneal       = swaps_anneal,
@@ -456,6 +543,46 @@ if (sys.nframe() == 0L) {
   )
   stopifnot(res_g$status == 'converged')
   cat('  [PASS] guided proposals converge on toy problem\n')
+
+  # Joint count + amount mode: build a problem where uniform init has an
+  # amount-mismatch even when count is right, and verify the joint solver
+  # moves the amount toward target.
+  cat_amt = matrix(c(
+    100, 0,    # donor 1
+    100, 0,    # donor 2: same as 1
+    100, 0,    # donor 3
+    100, 0,    # donor 4
+    1000, 0    # donor 5: high-amount in cat 'a'
+  ), ncol = 2, byrow = TRUE)
+  colnames(cat_amt) = c('a', 'b')
+
+  # Targets: count_a = 5, count_b = 0 (everyone has cat_a > 0, no one has cat_b).
+  # Amount target a = 500 (i.e., we want about 5 records contributing $100 each).
+  # Init at all donor 5: count_a = 5 (correct), but amount_a = 5*1000 = 5000 (way over).
+  # Joint solver should swap donor 5 → donors 1-4 to drop amount while keeping count.
+  cat_pos_amt = matrix(c(1L,0L, 1L,0L, 1L,0L, 1L,0L, 1L,0L), ncol = 2, byrow = TRUE)
+  colnames(cat_pos_amt) = c('a', 'b')
+
+  res_joint = solve_swap_bucket(
+    puf_weights            = rep(1.0, 5),
+    leaf_donors_per_record = list(1:5, 1:5, 1:5, 1:5, 1:5),
+    cat_pos_matrix         = cat_pos_amt,
+    target_counts          = c(a = 5, b = 0),
+    init_donors            = c(5L, 5L, 5L, 5L, 5L),
+    cat_amount_matrix      = cat_amt,
+    target_amounts         = c(a = 500, b = 0),
+    amount_weight          = 1.0,
+    amount_denom_floor     = 1.0,        # toy scale, not the production $1M
+    max_iters              = 5000L,
+    n_trials_stuck         = 500L,
+    tol_rel                = 1e-6,
+    init_seed              = 21L
+  )
+  # Count is already at target; amount should have moved much closer to 500.
+  stopifnot(res_joint$final_counts['a'] == 5,
+            res_joint$final_amounts['a'] < 1000)  # was 5000, target 500
+  cat(sprintf('  [PASS] joint count+amount drives amount %.0f → %.0f (target 500)\n',
+              5000, res_joint$final_amounts['a']))
 
   # Multistart returns no worse than single-shot best.
   res_ms = solve_swap_bucket_multistart(
