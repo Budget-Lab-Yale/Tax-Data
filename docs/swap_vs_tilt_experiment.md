@@ -1,12 +1,13 @@
 # Stage 3 Step A: swap vs tilt — experiment results
 
-**Date:** 2026-04-25 / 2026-04-26 (overnight)
+**Date:** 2026-04-25 / 2026-04-26 (overnight + morning follow-up)
 **Branch:** `donor-year-wealth`
-**SLURM jobs:** 9523788 (mns20 head-to-head), 9523789 (mns50), 9524323 (variant sweep)
+**SLURM jobs:** 9523788 (mns20 head-to-head), 9523789 (mns50), 9524323 (variant sweep), 9532223 (mns50 + warm-start follow-up)
 **Saved artifacts:**
 - `2026042315/baseline/swap_vs_tilt_results.rds`
 - `2026042315/baseline/swap_vs_tilt_results_mns50.rds`
 - `2026042315/baseline/swap_variants_results.rds`
+- `2026042315/baseline/mns50_warmstart_results.rds`
 
 ## TL;DR
 
@@ -14,28 +15,37 @@ The swap idea **works**, but only after one specific knob is turned: **min.node.
 
 The variant sweep at mns20 isolates exactly *why* swap struggles there: 14 of 16 buckets get stuck because the leaf donor pool can't reach the count target, not because the optimizer is finding bad local minima. Multi-restart, annealing, longer runs, smarter proposals — none move the needle. Only **warm-starting from tilt** delivers a meaningful within-mns20 improvement (44.8% within ±5%, 5 buckets converge), and that's mostly because it lands closer to the donor-feasible frontier before swap takes over.
 
-**Recommendation:** ship swap with **mns=50 + warm-start from tilt**. This combo (untested; recommended next experiment) is the natural product of the two effective tweaks. Alternatively, a hybrid solver — swap on the easy buckets, tilt on the donor-poor buckets — is a safer fallback.
+**The combination of both effective tweaks (mns50 + warm-start from tilt_mns50) is the count-match champion**: 52.1% within ±5%, 28.1% within ±1%, 7 of 16 buckets converge with 0 cap-outs, in 16 seconds total Step A time. It also runs faster than uniform-init swap because tilt landed close. The cost is a top-share regression vs uniform-init swap (+1.87pp top-1 vs +1.35pp): warm-start inherits tilt's slightly inflated top-shares, and the swap solver only optimizes count match so doesn't undo them.
+
+**Recommendation:** the choice is a Pareto frontier with two clean points.
+
+- For **count-match-first** production (matches the original Stage 3 design intent): use `stage3_method='swap', min_node_size=50, init_donors_override=tilt_mns50`. 52.1% ±5%, but +1.87pp top-1.
+- For **top-shares-first** production: use `stage3_method='swap', min_node_size=50` (uniform init). 45.8% ±5%, but +1.35pp top-1 — tightest top-share preservation we have.
+
+Both arms are clear improvements over the current production `tilt_mns20`. A natural follow-up that isn't yet tested: warm-start *only* the stuck buckets and leave the converging ones alone — that should recover both top shares (from uniform init's wins on easy buckets) and count match (from warm start's wins on hard ones).
 
 ## Validation table
 
 Headline metric is "% of (cell × age × cat) buckets within ±5% count error" (96 → 75 kept after QC). Top-share Δ is in pp vs SCF actual (SCF top1 = 0.384, top0.1 = 0.162). Joint corr L1 is the entrywise L1 distance between the 5×5 (equities, bonds, homes, other, debt) correlation matrix and SCF's. Step A runtime is the per-cell solver only, excluding forest training and Step B rescale.
 
-| Metric                      | Tilt (legacy) | Swap mns20 | Swap mns50 | Plan target | Verdict |
-|-----------------------------|---------------|------------|------------|-------------|---------|
-| % within ±1% count          | 15.6%         | 17.7%      | **24.0%**  | —           | mns50 wins |
-| % within ±5% count          | 42.7%         | 37.5%      | **45.8%**  | ≥ 80%       | mns50 wins, both miss plan target |
-| % within ±10% count         | 57.3%         | 56.2%      | **66.7%**  | ≥ 90%       | mns50 wins, both miss plan target |
-| % within ±25% count         | 80.2%         | 82.3%      | **82.3%**  | —           | swap (either) ≥ tilt |
-| % within ±50% count         | 89.6%         | 88.5%      | **90.6%**  | —           | mns50 wins |
-| Aggregate (post-Step-B)     | exact         | exact      | exact      | exact       | tied (Step B is unchanged) |
-| Top-1 NW share Δ vs SCF     | +1.63 pp      | **+1.13**  | +1.35      | ≤ +1.5 pp   | both swap arms hit the plan target; tilt misses |
-| Top-0.1 NW share Δ vs SCF   | +1.18 pp      | +1.25      | **+0.40**  | ≤ +0.8 pp   | mns50 hits, tilt misses, mns20 misses |
-| Gini Δ vs SCF               | +1.48 pp      | **+1.36**  | +1.28      | —           | swap (either) ≥ tilt |
-| Joint corr 5×5 L1 dist      | 1.156         | **0.935**  | 1.051      | ≤ tilt      | swap (either) wins by construction |
-| Buckets STUCK / cap / conv  | n/a           | 14 / 1 / 1 | 11 / 1 / 4 | ≤ 5 stuck   | both miss; mns50 has 4× more conv |
-| Step A runtime              | 293 s         | **29 s**   | ~37 s      | ≤ tilt + 60s | swap 8–10× faster |
+| Metric                      | Tilt mns20 (prod) | Tilt mns50 | Swap mns20 | Swap mns50 | **Swap mns50+ws** | Plan target |
+|-----------------------------|-------------------|------------|------------|------------|---------------|-------------|
+| % within ±1% count          | 15.6%             | 19.8%      | 17.7%      | 24.0%      | **28.1%**     | —           |
+| % within ±5% count          | 42.7%             | 47.9%      | 37.5%      | 45.8%      | **52.1%**     | ≥ 80%       |
+| % within ±10% count         | 57.3%             | 64.6%      | 56.2%      | 66.7%      | **68.8%**     | ≥ 90%       |
+| % within ±25% count         | 80.2%             | 79.2%      | 82.3%      | 82.3%      | **82.3%**     | —           |
+| % within ±50% count         | 89.6%             | 92.7%      | 88.5%      | 90.6%      | 91.7%         | —           |
+| Aggregate (post-Step-B)     | exact             | exact      | exact      | exact      | exact         | exact       |
+| Top-1 NW share Δ vs SCF     | +1.63 pp          | +1.98      | +1.13      | **+1.35**  | +1.87         | ≤ +1.5 pp   |
+| Top-0.1 NW share Δ vs SCF   | +1.18 pp          | +0.72      | +1.25      | **+0.40**  | +0.83         | ≤ +0.8 pp   |
+| Gini Δ vs SCF               | +1.48 pp          | +1.49      | +1.36      | **+1.28**  | +1.44         | —           |
+| Joint corr 5×5 L1 dist      | 1.156             | 1.173      | 0.935      | **1.051**  | 1.131         | ≤ tilt      |
+| Buckets converged / stuck   | n/a               | n/a        | 1 / 14     | 4 / 11     | **7 / 9**     | ≤ 5 stuck   |
+| Step A runtime              | 293 s             | 271 s      | 29 s       | 43 s       | **16 s**      | —           |
 
-The first plan target (≥ 80% within ±5%) is missed by every arm. That target was set under the optimistic theory that the donor pool would generally support the SCF count distribution if the optimizer were strong enough; the data show that's not the case at the production target granularity (96 buckets after the 99.9 split). The honest read is that *no* solver can hit ±5% on the buckets where the leaf pool genuinely doesn't contain enough donors of the right type — and that's most of the senior top-tail buckets even after tripling leaf size.
+The first plan target (≥ 80% within ±5%) is still missed by every arm. That target was set under the optimistic theory that the donor pool would generally support the SCF count distribution if the optimizer were strong enough; the data show that's not the case at the production target granularity (96 buckets after the 99.9 split). The honest read is that *no* solver can hit ±5% on the buckets where the leaf pool genuinely doesn't contain enough donors of the right type — that's the senior top-tail cluster which persists across every variant including mns50 and warm-start.
+
+**The Pareto frontier between count match and top shares is real and visible above.** No single arm dominates: `swap_mns50_ws` is the count-match leader, `swap_mns50` (uniform init) is the top-shares + joint-structure leader. Both beat current production `tilt_mns20` overall.
 
 ## Variant sweep — does the swap idea have headroom at mns20?
 
@@ -108,9 +118,9 @@ Swap preserves joint Y better than tilt at both leaf sizes. The mechanism is exa
 
 ## Recommendations
 
-1. **Do not flip the `stage3_method` default to `'swap'` at mns20.** Production keeps tilt for now.
-2. **Run an mns50 + warm-start experiment.** That combination wasn't tested and is the natural product of the two effective single-axis tweaks. Expected: best top shares, best count match, joint corr similar to mns50 alone. SLURM script: easy one-line change to `slurm_swap_compare_mns50.sh` adding `init_donors_override`.
-3. **For senior top-tail (pct80to90/senior, pct99.9to100/senior, pct99.9to100/nonsenior):** bigger leaves don't fully resolve these. Three options worth a separate experiment:
+1. **Production switch worth seriously considering**: `stage3_method='swap', min_node_size=50, init_donors_override=tilt_mns50` (count-match-first) OR uniform-init `swap_mns50` (top-shares-first). Both clearly beat `tilt_mns20`. The choice depends on which dimension Tax-Simulator downstream cares more about — worth checking with the consumer before flipping the default.
+2. **Untested follow-up that should give the best of both**: warm-start *only the stuck buckets*, leave the converging ones at uniform init. Implementation is small: run swap_mns50 first, identify stuck buckets, re-run those with tilt-init. Expected to recover swap_mns50's top shares while keeping swap_mns50_ws's count match on the hard cells.
+3. **For the senior top-tail (pct80to90/senior, pct99.9to100/senior, pct99.9to100/nonsenior):** bigger leaves only partially resolve these. The pct99.9to100/senior cluster sits at ~0.7–0.9 max-rel under every variant tested — it's a genuine SCF-side thin-sample issue (~570 senior rows in that cell). Three options worth a separate experiment:
    - (a) Coarsen the cell grid back to a single `pct99to100` bucket for seniors (gives up the 99.9 resolution we added but unblocks the targets).
    - (b) Allow donor pool augmentation by *age* within the same income cell: a senior in `pct99.9to100` could draw from `pct99.9to100` non-senior donors when leaf is donor-poor. Trades age-conditional precision for count match.
    - (c) Targeted trim for stuck buckets only: when swap stalls > 25% off, randomly demote some over-target donors. Sacrifices joint consistency on those buckets only.
@@ -134,7 +144,8 @@ What remains: **the per-cell DRF leaf is the binding feasibility set**, and the 
 - `src/imputations/wealth.R` — adds `stage3_method`, `min_node_size`, `swap_options`, `n_restarts`, `init_donors_override` arguments to `run_wealth_imputation`. The legacy tilt path is preserved unchanged. `step_a_donors` and `pre_step_a_donors` exposed in the result for warm-start orchestration.
 - `src/eda/swap_vs_tilt_compare.R` (new) — head-to-head harness, optional CLI arg for `min_node_size`.
 - `src/eda/swap_variants_compare.R` (new) — sweep over 8 swap variants vs tilt.
-- `slurm_swap_compare.sh`, `slurm_swap_compare_mns50.sh`, `slurm_swap_variants.sh` (new) — SLURM wrappers.
+- `src/eda/mns50_warmstart_test.R` (new) — focused 4-arm comparison (tilt_mns20, tilt_mns50, swap_mns50, swap_mns50_ws).
+- `slurm_swap_compare.sh`, `slurm_swap_compare_mns50.sh`, `slurm_swap_variants.sh`, `slurm_mns50_warmstart.sh` (new) — SLURM wrappers.
 
 The default `stage3_method` is `'tilt'` so existing pipeline runs (`src/main.R`, all other harnesses) are unchanged.
 
