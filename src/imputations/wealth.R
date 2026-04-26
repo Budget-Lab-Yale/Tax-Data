@@ -821,6 +821,12 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     post_y[dep_rows, ] = 0
   }
 
+  # Snapshot of Step A's output BEFORE Step B's intensive rescale.
+  # Useful for diagnostics that need to see what swap (or tilt) achieved on
+  # amounts on its own, separate from the deterministic rescale that always
+  # forces aggregates to SCF totals.
+  post_y_pre_rescale = post_y
+
   #---------------------------------------------------------------------------
   # Step B: per-(cell × category) intensive rescale.
   # For each cell c and category C, compute s = SCF_total / PUF_total and
@@ -903,6 +909,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   result = list(
     y                  = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
     y_pre_tilt         = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+    y_post_step_a_pre_rescale = bind_cols(tibble(id = puf$id),
+                                          as_tibble(post_y_pre_rescale)),
     qc_report          = qc_report,
     rescale_factors    = rescale_factors,
     stage3_method      = stage3_method,
