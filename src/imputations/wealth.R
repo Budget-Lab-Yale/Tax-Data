@@ -154,45 +154,96 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
 
   scf_training = scf_tax_units %>%
     scf_to_y() %>%
-    select(weight, all_of(features), all_of(wealth_y_vars))
+    mutate(income = wages_scf + business_scf + int_div_scf +
+                    capital_gains_scf + rent_scf + ss_pens_scf +
+                    ui_other_scf) %>%
+    select(weight, income, all_of(features), all_of(wealth_y_vars))
 
-  # NO BOOTSTRAP. Use raw SCF tax units directly as training rows.
-  # Separates structure-learning (the forest sees every donor once and
-  # can learn splits involving the oversample) from population-representation
-  # (handled at inference-time by weight-proportional leaf sampling, below).
+  # Per-cell weighted-bootstrap architecture (2026-04-24).
   #
-  # History of attempts (see diagnosis e462c8f):
-  #   - weight-proportional bootstrap + uniform leaf: ultra-wealthy got
-  #     0.005 expected copies in scf_boot → forest never saw them → top-1%
-  #     income PUF under-imputed by 50%.
-  #   - uniform bootstrap + uniform leaf: oversample 10-20% of training
-  #     (vs ~1% in population) → total NW inflated to $369T (+165%).
-  #   - cap-min, guaranteed-2 hybrids: compromise schemes, still
-  #     structurally over-represent oversample in training.
-  #   - drf::drf(sample.weights = ...) is a no-op in installed drf version
-  #     (empirical probe 2026-04-23). Can't do principled weighted-MMD.
+  # Single global forest + weight-prop leaf draw (the prior scheme) produced
+  # +22.8% SCF self-consistency error and was structurally leaking heavy-
+  # tail donors across middle-income leaves. Per-cell stratification limits
+  # that leakage to the cell where top-NW donors actually live, and lets
+  # each cell's weighted bootstrap reach low-weight donors because within-
+  # cell weight dispersion collapses from ~600× (global) to ~10-20× (most
+  # cells) and ~200× (top 0.1%). See src/eda/wealth_cell_sizes.R and the
+  # SCF-self test in src/eda/wealth_percell_diagnostic.R (+0.4%).
   #
-  # This is the only remaining principled path: forest trained unweighted
-  # on all donors, sampling weighted by SCF weight at inference.
-  scf_boot = scf_training
+  # Architecture:
+  #   - Assign each SCF row to one of 8 income cells (CALIB_INCOME_BUCKETS).
+  #   - Per cell: weighted bootstrap to n_boot_cell rows, train unweighted
+  #     DRF with min.node.size=20, mtry=10, num.features=50.
+  #   - Per cell: uniform leaf draw at inference (no per-row weights at
+  #     sampling — bootstrap already encodes them).
+  #   - Combined scf_boot = stacked cell bootstraps; leaf_donors_list
+  #     indexes into this combined scf_boot so Stage 3 code runs unchanged.
 
-  Y_mat = as.matrix(scf_boot[wealth_y_vars])
-  X_mat = as.matrix(scf_boot[features])
+  scf_cells_training = assign_calibration_cells(
+    data.frame(weight = scf_training$weight),
+    scf_training$income, scf_training$age_older, scf_training$weight
+  )$cell_income
 
-  #---------------------------------------------------------------------------
-  # Fit/load DRF (hits cache on repeat runs)
-  #---------------------------------------------------------------------------
+  n_boot_cell = c(
+    'pct00to20'    = 100000L, 'pct20to40'    = 100000L,
+    'pct40to60'    = 100000L, 'pct60to80'    = 100000L,
+    'pct80to90'    = 100000L, 'pct90to99'    = 100000L,
+    'pct99to99.9'  = 100000L, 'pct99.9to100' = 150000L
+  )
 
-  # min.node.size = 5 (down from default 20): smaller leaves → more
-  # homogeneous donor pools → less heavy-tail leaf contamination (a few
-  # ultra-wealth donors sharing a leaf with bottom-quintile records is
-  # what was driving the 10× per-cell seed variance).
-  wealth_drf = train_or_load_drf(
-    name          = 'wealth_drf',
-    X             = X_mat,
-    Y             = Y_mat,
-    num.features  = 50,
-    min.node.size = 5
+  extract_forest = function(m) list(
+    n_trees = m[['_num_trees']],
+    root    = sapply(m[['_root_nodes']], identity),
+    child_L = lapply(m[['_child_nodes']], `[[`, 1L),
+    child_R = lapply(m[['_child_nodes']], `[[`, 2L),
+    split_v = m[['_split_vars']],
+    split_s = m[['_split_values']],
+    leaves  = m[['_leaf_samples']]
+  )
+
+  scf_boot_list = vector('list', length(CALIB_INCOME_BUCKETS))
+  f_cell_list   = setNames(vector('list', length(CALIB_INCOME_BUCKETS)),
+                           CALIB_INCOME_BUCKETS)
+  boot_idx_list = vector('list', length(CALIB_INCOME_BUCKETS))
+
+  for (ci_idx in seq_along(CALIB_INCOME_BUCKETS)) {
+    ci = CALIB_INCOME_BUCKETS[ci_idx]
+    scf_rows_in_cell = which(scf_cells_training == ci)
+    cell_w = scf_training$weight[scf_rows_in_cell]
+
+    set.seed(100 + ci_idx)
+    boot_in_cell = sample.int(length(scf_rows_in_cell),
+                               size = n_boot_cell[[ci]],
+                               replace = TRUE, prob = cell_w)
+    boot_scf_row = scf_rows_in_cell[boot_in_cell]
+
+    scf_boot_list[[ci_idx]] = scf_training[boot_scf_row, , drop = FALSE]
+    boot_idx_list[[ci_idx]] = boot_scf_row
+
+    cat(sprintf('wealth.R: cell %s — SCF rows %d, bootstrap %d\n',
+                ci, length(scf_rows_in_cell), n_boot_cell[[ci]]))
+
+    drf_cell = train_or_load_drf(
+      name          = paste0('wealth_percell_', ci),
+      X             = as.matrix(scf_boot_list[[ci_idx]][features]),
+      Y             = as.matrix(scf_boot_list[[ci_idx]][wealth_y_vars]),
+      num.features  = 50,
+      min.node.size = 20L,
+      mtry          = 10L
+    )
+    f_cell_list[[ci]] = extract_forest(drf_cell)
+  }
+
+  # Combined scf_boot (all cell bootstraps stacked). Stage 3 code downstream
+  # uses this as a flat table with leaf_donors_list indexing into it.
+  scf_boot = bind_rows(scf_boot_list)
+  Y_mat    = as.matrix(scf_boot[wealth_y_vars])
+  boot_idx = unlist(boot_idx_list)  # combined scf_boot row -> SCF row
+
+  # Per-cell offsets into the combined scf_boot (0-indexed for addition).
+  cell_offsets = setNames(
+    cumsum(c(0L, sapply(scf_boot_list, nrow)))[seq_along(CALIB_INCOME_BUCKETS)],
+    CALIB_INCOME_BUCKETS
   )
 
   #---------------------------------------------------------------------------
@@ -250,7 +301,17 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                           scorp_passive - scorp_passive_loss +
                           part_active   - part_active_loss   - part_179 +
                           part_passive  - part_passive_loss,
-      int_div_puf       = txbl_int + exempt_int + div_ord + div_pref,
+      int_div_puf_raw   = txbl_int + exempt_int + div_ord + div_pref,
+      # $100 threshold on PUF int_div only (SCF is unchanged). PUF captures
+      # every reportable 1099-INT/DIV dollar, SCF's survey only captures
+      # "substantial" holdings. Thresholding the low end harmonizes the
+      # has_int_div concept between datasets: PUF share-positive drops
+      # from 29.8% → 20.4%, matching SCF's 19.4% to within 1pp, with
+      # 0.1% loss of int_div aggregate. The threshold reweight analysis
+      # (src/eda/intdiv_threshold_reweight.R) shows this closes ~$16T of
+      # the $27T (age × int_div) X-shift.
+      int_div_puf       = if_else(int_div_puf_raw > 0 & int_div_puf_raw <= 100,
+                                  0, int_div_puf_raw),
       capital_gains_puf = kg_lt + kg_st,
       ss_pens_puf       = gross_ss + gross_pens_dist,
 
@@ -274,25 +335,25 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     ) %>%
     select(id, weight, income, age_older, all_of(features))
 
+  # PUF cell assignment (used both here for walk routing and below for
+  # Stage 3 cell-keyed operations).
+  puf_cells_raw = assign_calibration_cells(
+    data.frame(weight = puf$weight),
+    puf$income, puf$age_older, puf$weight
+  )
+
   #---------------------------------------------------------------------------
-  # Stage 2: walk forest + collect per-record leaf donor lists.
-  # (Donor selection itself happens under tilted probabilities in Stage 3;
-  # Stage 2 here just identifies each record's leaf.)
+  # Stage 2: walk per-cell forests for PUF. Each PUF record routes by its
+  # own income-cell; within the cell, the cell's forest produces the leaf
+  # donor pool. Leaf donor indices are shifted by cell_offsets so they
+  # index into the combined scf_boot.
   #---------------------------------------------------------------------------
 
-  n_trees = wealth_drf[['_num_trees']]
-  root    = sapply(wealth_drf[['_root_nodes']], identity)
-  child_L = lapply(wealth_drf[['_child_nodes']], `[[`, 1L)
-  child_R = lapply(wealth_drf[['_child_nodes']], `[[`, 2L)
-  split_v = wealth_drf[['_split_vars']]
-  split_s = wealth_drf[['_split_values']]
-  leaves  = wealth_drf[['_leaf_samples']]
-
-  walk_to_leaf = function(t, x_row) {
-    L  = child_L[[t]]; R  = child_R[[t]]
-    v  = split_v[[t]]; s  = split_s[[t]]
-    ll = leaves[[t]]
-    node = root[t] + 1L
+  walk_to_leaf = function(f, t, x_row) {
+    L  = f$child_L[[t]]; R  = f$child_R[[t]]
+    v  = f$split_v[[t]]; s  = f$split_s[[t]]
+    ll = f$leaves[[t]]
+    node = f$root[t] + 1L
     repeat {
       if (length(ll[[node]]) > 0L) return(node)
       xv = x_row[v[node] + 1L]; sv = s[node]
@@ -300,18 +361,35 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     }
   }
 
-  X_puf     = as.matrix(puf[, features])
-  n_pred    = nrow(X_puf)
-  tree_pick = sample.int(n_trees, size = n_pred, replace = TRUE)
+  X_puf  = as.matrix(puf[, features])
+  n_pred = nrow(X_puf)
   leaf_donors_list = vector('list', n_pred)
+  tree_pick = integer(n_pred)
 
   t0 = Sys.time()
-  for (i in seq_len(n_pred)) {
-    t  = tree_pick[i]
-    nd = walk_to_leaf(t, X_puf[i, ])
-    leaf_donors_list[[i]] = leaves[[t]][[nd]] + 1L
+  for (ci_idx in seq_along(CALIB_INCOME_BUCKETS)) {
+    ci     = CALIB_INCOME_BUCKETS[ci_idx]
+    f_cell = f_cell_list[[ci]]
+    offset = cell_offsets[[ci]]
+
+    puf_rows_in_cell = which(puf_cells_raw$cell_income == ci)
+    if (length(puf_rows_in_cell) == 0L) next
+
+    set.seed(300 + ci_idx)
+    local_tree_pick = sample.int(f_cell$n_trees,
+                                  size = length(puf_rows_in_cell),
+                                  replace = TRUE)
+
+    for (j in seq_along(puf_rows_in_cell)) {
+      i  = puf_rows_in_cell[j]
+      t  = local_tree_pick[j]
+      nd = walk_to_leaf(f_cell, t, X_puf[i, ])
+      lr_local = f_cell$leaves[[t]][[nd]] + 1L
+      leaf_donors_list[[i]] = offset + lr_local
+      tree_pick[i] = t
+    }
   }
-  cat(sprintf('wealth.R: leaf walk over %d rows: %.1fs (median leaf size = %d)\n',
+  cat(sprintf('wealth.R: per-cell leaf walk over %d rows: %.1fs (median leaf size = %d)\n',
               n_pred, as.numeric(Sys.time() - t0, units = 'secs'),
               median(lengths(leaf_donors_list))))
 
@@ -429,18 +507,17 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   kept = qc_report %>% filter(status == 'keep') %>%
     mutate(feature_col = paste(category, margin, sep = '.'))
 
-  # ---------- Pre-tilt donors (weighted leaf draw) ----------
-  # Sample each PUF record's donor from its leaf with probability
-  # proportional to the donor's SCF weight. This expresses the
-  # population-weighted inference (see notes above): forest proximity
-  # α_i(x) × sample weight w_i gives the population-correct conditional
-  # density; sampling from this product yields a draw from that density.
-  donor_weights_scf = scf_boot$weight
+  # ---------- Pre-tilt donors (UNIFORM leaf draw) ----------
+  # Uniform within-leaf sampling: the per-cell weighted bootstrap already
+  # encodes population weights structurally (low-weight donors appear
+  # proportionally in the bootstrap), so each leaf's empirical composition
+  # is already population-weighted. Uniform draw at inference correctly
+  # samples F_pop(Y | X ∈ leaf). This matches src/eda/wealth_percell_*
+  # which validated +0.4% aggregate on SCF self-test.
   pre_tilt_donors = integer(n_pred)
   for (i in seq_len(n_pred)) {
     lr = leaf_donors_list[[i]]
-    pre_tilt_donors[i] = lr[sample.int(length(lr), 1L,
-                                        prob = donor_weights_scf[lr])]
+    pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
   }
 
   # Convex-Newton dual solver (RMS feature rescaling + Levenberg-Marquardt
@@ -563,7 +640,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       res = solve_tilt(rec_cell, puf_w[rec_cell],
                        leaf_donors_list[rec_cell],
                        F_cell, T_cell,
-                       base_weights = donor_weights_scf)
+                       base_weights = NULL)
 
       cat(sprintf(
         '  %-10s × %-9s: n=%6d k=%2d iter=%2d rel=%.2e ESS p10=%.1f\n',
@@ -589,6 +666,19 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   colnames(post_y) = wealth_y_vars
   pre_y  = Y_mat[pre_tilt_donors,  , drop = FALSE]
   colnames(pre_y)  = wealth_y_vars
+
+  # Dependent returns (dep_status==1) are filed by people claimed as
+  # dependents on someone else's return. Their household wealth lives on
+  # the parents' return, not theirs — imputing wealth here double-counts.
+  # Zero before Step B so the rescale calibrates the survivors to hit
+  # the SCF cell aggregate. ~10M tax units (~5% of PUF), mostly 18-29.
+  dep_rows = which(puf_tax_units$dep_status == 1L)
+  if (length(dep_rows) > 0L) {
+    cat(sprintf('wealth.R: zeroing wealth for %d dep_status==1 rows (%.2fM tax units)\n',
+                length(dep_rows), sum(puf_w[dep_rows]) / 1e6))
+    pre_y[dep_rows,  ] = 0
+    post_y[dep_rows, ] = 0
+  }
 
   #---------------------------------------------------------------------------
   # Step B: per-(cell × category) intensive rescale.

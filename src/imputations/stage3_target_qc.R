@@ -19,8 +19,8 @@ source('src/imputations/wealth_schema.R')
 # User-facing bucket grid (cells × categories × margins).
 CALIB_INCOME_BUCKETS = c('pct00to20', 'pct20to40', 'pct40to60',
                          'pct60to80', 'pct80to90', 'pct90to99',
-                         'pct99to100')
-CALIB_INCOME_EDGES   = c(0, 20, 40, 60, 80, 90, 99, 100)
+                         'pct99to99.9', 'pct99.9to100')
+CALIB_INCOME_EDGES   = c(0, 20, 40, 60, 80, 90, 99, 99.9, 100)
 
 CALIB_AGE_BUCKETS = c('nonsenior', 'senior')
 SENIOR_AGE        = 65L
@@ -79,10 +79,15 @@ CAT_COL = setNames(paste0('cat_', CALIB_CATEGORIES), CALIB_CATEGORIES)
 #' @return     df with two new columns added: cell_income, cell_age.
 assign_calibration_cells = function(df, income, age_older, weight) {
   stopifnot(length(income) == nrow(df))
-  pctile = compute_percentile(income, weight)
-  idx    = findInterval(pctile, CALIB_INCOME_EDGES,
-                        rightmost.closed = TRUE,
-                        all.inside       = TRUE)
+  # Continuous 0..100 rank from weighted income (not quantized to integer
+  # percentiles). Needed because CALIB_INCOME_EDGES now includes a 99.9
+  # break, which compute_percentile's integer output can't resolve.
+  ord        = order(income)
+  cum_w      = cumsum(weight[ord]) / sum(weight)
+  rank_0_100 = numeric(length(income))
+  rank_0_100[ord] = 100 * cum_w
+  idx = findInterval(rank_0_100, CALIB_INCOME_EDGES,
+                     rightmost.closed = TRUE, all.inside = TRUE)
   df$cell_income = CALIB_INCOME_BUCKETS[idx]
   df$cell_age    = if_else(age_older >= SENIOR_AGE, 'senior', 'nonsenior')
   df
