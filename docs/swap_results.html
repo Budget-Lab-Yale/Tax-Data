@@ -5,7 +5,7 @@
     <h2>TLDR</h2>
     <p>We added an amount term to the swap solver's objective. The result is that <strong>Step B (the per-cell rescale that was distorting top shares) is essentially eliminated</strong> — the typical cell now needs no rescale at all (median factor 1.000 vs 0.840 before). Top-1% NW share is +0.35pp from SCF (was +1.35pp). Counts are slightly worse on the headline ±5% metric (43.8% vs 47.9%), an acceptable trade for the much better amounts and top shares.</p>
     <h2>What problem are we solving?</h2>
-    <p>We have ~221k PUF tax units. Each one needs to get a wealth profile (23 dollar variables: equities, bonds, primary home, debts, etc.). We do this by <em>donor matching</em>: pick an SCF household with similar income and demographics, copy its wealth profile.</p>
+    <p>We have ~180k filer tax units from the PUF, plus ~41k DINA nonfiler units appended in <code>impute_nonfilers.R</code>, so Stage 3 processes ~221k rows in total. Each one needs to get a wealth profile (23 dollar variables: equities, bonds, primary home, debts, etc.). We do this by <em>donor matching</em>: pick an SCF household with similar income and demographics, copy its wealth profile.</p>
     <p>The matching happens via a <em>random forest</em>. For each PUF tax unit, the forest gives a "leaf" of ~30–50 SCF donors that look like it on income/demographics. Step A picks one donor per record from that leaf.</p>
     <p>We split the population into 16 cells (8 income buckets × 2 age groups) and 6 wealth categories (nw, equities, bonds, homes, other, debt), giving 96 buckets. For each bucket, SCF gives us:</p>
     <ul>
