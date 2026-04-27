@@ -31,11 +31,17 @@ dfa_income_edges   = c(0, 20, 40, 60, 80, 99, 100)
 #' Build per-record (id, bucket) from a reference-year PUF tibble.
 #'
 #' Income is reconstructed as the same unfloored sum used in the wealth
-#' forest feature at src/imputations/wealth.R (lines ~212–222). Weighted
-#' percentile uses compute_percentile() from src/imputations/helpers.R,
-#' which assigns percentile 0 to non-positive income; those records land
-#' in `pct00to20` — consistent with DFA's treatment of the bottom of the
-#' income distribution.
+#' forest feature at src/imputations/wealth.R (lines ~212–222). Bucket
+#' assignment uses a continuous weighted rank over the full income
+#' distribution (zeros and losses included), matching the rule in
+#' assign_calibration_cells() at src/imputations/stage3_target_qc.R. Same
+#' percentile method ensures the DFA aging bucket is a deterministic
+#' coarsening of the imputation cell — a record's calibration cell maps
+#' uniquely to a DFA bucket since dfa_income_edges is a subset of
+#' CALIB_INCOME_EDGES. Records with negative or zero income fall to the
+#' bottom of the weighted rank and land in pct00to20 only if they are
+#' in the bottom 20% by weight; an asset-rich household with a one-year
+#' loss no longer gets permanently routed to the bottom bucket.
 #'
 #' @param puf_ref  PUF tibble at the reference year. Must carry `id`,
 #'                 `weight`, and the income composition columns listed
@@ -84,11 +90,11 @@ build_record_bucket = function(puf_ref) {
          sum(is.na(income)), ' NA(s). Check upstream imputations.')
   }
 
-  pctile = compute_percentile(income, puf_ref$weight)
-  # findInterval with rightmost.closed=TRUE maps pctile=100 into the last
-  # bucket; all.inside=TRUE guards against edge cases (shouldn't occur
-  # given compute_percentile's 0..100 range but cheap belt-and-braces).
-  bucket_idx = findInterval(pctile, dfa_income_edges,
+  ord = order(income)
+  cum_w = cumsum(puf_ref$weight[ord]) / sum(puf_ref$weight)
+  rank_0_100 = numeric(length(income))
+  rank_0_100[ord] = 100 * cum_w
+  bucket_idx = findInterval(rank_0_100, dfa_income_edges,
                             rightmost.closed = TRUE,
                             all.inside       = TRUE)
 
@@ -112,13 +118,14 @@ if (sys.nframe() == 0L) {
   })
   source('src/imputations/helpers.R')
 
-  # Build a small fixture with known income ranks. 10 records uniform on
-  # weight 1, income = 1..10; quantiles will be at 1, 2, …, 10 so pctile
-  # equals 10 * rank (approximately). Zero-income rows should land in
-  # pct00to20.
-  make_row = function(id, wages_val) {
+  # Build a small fixture with known income ranks. The bucket assignment
+  # uses continuous weighted rank over the FULL distribution (zeros and
+  # losses included, no special routing) — same rule as
+  # assign_calibration_cells in src/imputations/stage3_target_qc.R, with
+  # a coarser set of edges.
+  make_row = function(id, wages_val, weight_val = 1) {
     tibble(
-      id     = id,   weight = 1,
+      id     = id,   weight = weight_val,
       wages  = wages_val,
       sole_prop = 0, farm = 0,
       scorp_active = 0, scorp_active_loss = 0, scorp_179 = 0,
@@ -145,17 +152,37 @@ if (sys.nframe() == 0L) {
   stopifnot(rb$bucket[rb$id == 100] == 'pct99to100')
   cat('  [PASS] monotone rank -> correct extreme buckets\n')
 
-  # Test 2: non-positive income routes to pct00to20.
+  # Test 2: monotonicity across the negative/zero/positive boundary. The
+  # bucket label is determined by weighted rank, so id=1 (-100) ≤ id=2 (0)
+  # ≤ id=3 ≤ id=4 by dfa_income_buckets order. With 4 equal-weight records
+  # the negative-income one sits at rank 25, NOT pct00to20 — that's the
+  # design (no special routing of non-positive income).
   puf_neg = bind_rows(
-    make_row(1, -100),  # losses
-    make_row(2, 0),     # zero
+    make_row(1, -100),
+    make_row(2, 0),
     make_row(3, 50000),
     make_row(4, 100000)
   )
   rb_neg = build_record_bucket(puf_neg)
-  stopifnot(rb_neg$bucket[rb_neg$id == 1] == 'pct00to20')
-  stopifnot(rb_neg$bucket[rb_neg$id == 2] == 'pct00to20')
-  cat('  [PASS] non-positive income -> pct00to20\n')
+  stopifnot(match(rb_neg$bucket[rb_neg$id == 1], dfa_income_buckets) <=
+            match(rb_neg$bucket[rb_neg$id == 2], dfa_income_buckets))
+  stopifnot(match(rb_neg$bucket[rb_neg$id == 2], dfa_income_buckets) <=
+            match(rb_neg$bucket[rb_neg$id == 3], dfa_income_buckets))
+  stopifnot(match(rb_neg$bucket[rb_neg$id == 3], dfa_income_buckets) <=
+            match(rb_neg$bucket[rb_neg$id == 4], dfa_income_buckets))
+  cat('  [PASS] monotone bucket assignment across negative/zero/positive\n')
+
+  # Test 2b: when a negative-income record is firmly in the bottom 20% by
+  # weight, it lands in pct00to20. Heavy weights on the positive-income
+  # records push the loser into the bottom rank slice.
+  puf_heavy = bind_rows(
+    make_row(1, -100, weight_val = 1),
+    make_row(2,  100, weight_val = 100),
+    make_row(3, 1000, weight_val = 100)
+  )
+  rb_heavy = build_record_bucket(puf_heavy)
+  stopifnot(rb_heavy$bucket[rb_heavy$id == 1] == 'pct00to20')
+  cat('  [PASS] negative income at bottom of weighted rank -> pct00to20\n')
 
   # Test 3: missing required column errors explicitly.
   puf_short = puf[, setdiff(names(puf), 'ui')]
@@ -172,8 +199,9 @@ if (sys.nframe() == 0L) {
   stopifnot(grepl('NA', err_na))
   cat('  [PASS] NA in income component errors\n')
 
-  # Test 5: losses partially offset wages in the unfloored definition.
-  # A record with wages=100 but scorp_active_loss=200 has income=-100 → pct=0.
+  # Test 5: losses pull a record's bucket down. id=3 starts with wages=100
+  # but a scorp_active_loss=200 leaves it with the lowest income of the
+  # three, so it lands at the bottom of the weighted rank.
   puf_loss = bind_rows(
     make_row(1, 10),
     make_row(2, 20),
@@ -182,8 +210,9 @@ if (sys.nframe() == 0L) {
   puf_loss$wages[3]             = 100
   puf_loss$scorp_active_loss[3] = 200
   rb_loss = build_record_bucket(puf_loss)
-  stopifnot(rb_loss$bucket[rb_loss$id == 3] == 'pct00to20')
-  cat('  [PASS] losses drive income negative -> pct00to20\n')
+  stopifnot(match(rb_loss$bucket[rb_loss$id == 3], dfa_income_buckets) <=
+            match(rb_loss$bucket[rb_loss$id == 1], dfa_income_buckets))
+  cat('  [PASS] losses pass through unfloored, push bucket down\n')
 
   cat('\nAll tests passed.\n')
 }
