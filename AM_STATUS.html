@@ -1,0 +1,435 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Tilt Wealth Imputation — v3 Report</title><style>
+body { font-family: -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
+       max-width: 1100px; margin: 2em auto; padding: 0 1em; line-height: 1.5; color: #222; }
+h1 { border-bottom: 2px solid #333; padding-bottom: 0.3em; }
+h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2em; margin-top: 2em; }
+h3 { margin-top: 1.5em; }
+code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 3px; font-size: 0.92em; }
+pre { background: #f4f4f4; padding: 0.8em; border-radius: 4px; overflow-x: auto;
+      border-left: 3px solid #999; }
+pre code { background: transparent; padding: 0; }
+table { border-collapse: collapse; margin: 1em 0; font-variant-numeric: tabular-nums; }
+th, td { border: 1px solid #bbb; padding: 0.4em 0.8em; text-align: left; }
+th { background: #f0f0f0; }
+td:not(:first-child) { text-align: right; }
+tr:nth-child(even) { background: #fafafa; }
+strong { color: #1a3a6a; }
+</style></head><body><h1 id="tilt-wealth-imputation-v3-report">Tilt Wealth Imputation — v3 Report</h1>
+<h2 id="method">Method</h2>
+<p>For each PUF tax unit, we ask the per-(income-cell) DRF for forest-
+averaged donor probabilities <code>p_ij</code> over the cell’s SCF bootstrap, then
+tilt them by <code>q_ij ∝ p_ij · exp(Z_jᵀ λ)</code> where <code>Z_j</code> are donor-side
+wealth target features (8 categories × {amount, count}) and <code>λ</code> is
+optimized per (income × age) bucket against SCF cell aggregates via
+BFGS. Solver runs on a normalized basis (<code>Z_n = Z / max|Z|</code> per column)
+so condition number stays in check across count vs amount targets.
+One donor per record is then sampled from <code>q_ij</code> with top-K=300
+sparsification.</p>
+<p>A residual rescale (Step B) closes any per-(cell × cat) dollar gap
+that the tilt couldn’t reach. Three modes:</p>
+<ul>
+<li><code>multiplicative</code> — <code>factor = SCF_total / PUF_total</code> when both alive</li>
+<li><code>fallback_uniform</code> — when tilt collapsed donors to zero in a
+category (PUF total ≈ 0 but SCF target &gt; 0), distribute SCF
+aggregate uniformly across PUF records in the cell</li>
+<li><code>skip</code> — when SCF target ≈ 0 (don’t fabricate amounts)</li>
+</ul>
+<p>DRF <code>min.node.size = 50</code>. Per-cell forests cached at
+<code>resources/cache/qrf/wealth_percell_&lt;ci&gt;_mns50.rds</code>.</p>
+<hr />
+<h2 id="table-1-net-worth-t-by-income-percentile">Table 1 — Net worth ($T) by income percentile</h2>
+<p>Income percentile is computed within-frame (each source ranks its own
+records). NW = sum(13 assets) − sum(6 debts). Excludes <code>kg_*</code>
+unrealized capital gains (consistent with <code>cat_nw</code> definition in
+<code>stage3_target_qc.R</code>).</p>
+<table>
+<thead>
+<tr>
+<th align="left">bin</th>
+<th align="right">SCF</th>
+<th align="right">raw_DRF</th>
+<th align="right">post_tilt</th>
+<th align="right">post_rescale</th>
+<th align="right">rescale_factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">p0-20</td>
+<td align="right">$2.35T</td>
+<td align="right">$2.92T</td>
+<td align="right">$0.19T</td>
+<td align="right">$2.19T</td>
+<td align="right">11.716</td>
+</tr>
+<tr>
+<td align="left">p20-40</td>
+<td align="right">$3.63T</td>
+<td align="right">$4.15T</td>
+<td align="right">$3.54T</td>
+<td align="right">$3.80T</td>
+<td align="right">1.074</td>
+</tr>
+<tr>
+<td align="left">p40-60</td>
+<td align="right">$8.26T</td>
+<td align="right">$8.74T</td>
+<td align="right">$8.09T</td>
+<td align="right">$8.23T</td>
+<td align="right">1.017</td>
+</tr>
+<tr>
+<td align="left">p60-80</td>
+<td align="right">$14.58T</td>
+<td align="right">$19.23T</td>
+<td align="right">$14.14T</td>
+<td align="right">$14.78T</td>
+<td align="right">1.045</td>
+</tr>
+<tr>
+<td align="left">p80-90</td>
+<td align="right">$15.78T</td>
+<td align="right">$19.19T</td>
+<td align="right">$15.06T</td>
+<td align="right">$16.10T</td>
+<td align="right">1.069</td>
+</tr>
+<tr>
+<td align="left">p90-99</td>
+<td align="right">$41.89T</td>
+<td align="right">$52.18T</td>
+<td align="right">$46.52T</td>
+<td align="right">$44.80T</td>
+<td align="right">0.963</td>
+</tr>
+<tr>
+<td align="left">p99-99.9</td>
+<td align="right">$12.83T</td>
+<td align="right">$10.91T</td>
+<td align="right">$10.41T</td>
+<td align="right">$9.94T</td>
+<td align="right">0.955</td>
+</tr>
+<tr>
+<td align="left">top0.1%</td>
+<td align="right">$39.80T</td>
+<td align="right">$60.45T</td>
+<td align="right">$42.79T</td>
+<td align="right">$39.28T</td>
+<td align="right">0.918</td>
+</tr>
+<tr>
+<td align="left">TOTAL</td>
+<td align="right">$139.12T</td>
+<td align="right">$177.79T</td>
+<td align="right">$140.73T</td>
+<td align="right">$139.12T</td>
+<td align="right">0.989</td>
+</tr>
+</tbody>
+</table>
+<h2 id="table-2-net-worth-t-by-age-group">Table 2 — Net worth ($T) by age group</h2>
+<p>Age group from <code>age_older</code> = max(age1, age2), capped at 80. SCF and PUF
+use the same definition.</p>
+<table>
+<thead>
+<tr>
+<th align="left">bin</th>
+<th align="right">SCF</th>
+<th align="right">raw_DRF</th>
+<th align="right">post_tilt</th>
+<th align="right">post_rescale</th>
+<th align="right">rescale_factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">18-24</td>
+<td align="right">$0.75T</td>
+<td align="right">$0.72T</td>
+<td align="right">$0.52T</td>
+<td align="right">$0.94T</td>
+<td align="right">1.796</td>
+</tr>
+<tr>
+<td align="left">25-34</td>
+<td align="right">$4.26T</td>
+<td align="right">$4.37T</td>
+<td align="right">$3.89T</td>
+<td align="right">$4.04T</td>
+<td align="right">1.040</td>
+</tr>
+<tr>
+<td align="left">35-44</td>
+<td align="right">$11.67T</td>
+<td align="right">$15.96T</td>
+<td align="right">$13.32T</td>
+<td align="right">$12.93T</td>
+<td align="right">0.971</td>
+</tr>
+<tr>
+<td align="left">45-54</td>
+<td align="right">$19.84T</td>
+<td align="right">$29.31T</td>
+<td align="right">$22.61T</td>
+<td align="right">$21.83T</td>
+<td align="right">0.966</td>
+</tr>
+<tr>
+<td align="left">55-64</td>
+<td align="right">$36.21T</td>
+<td align="right">$44.58T</td>
+<td align="right">$34.11T</td>
+<td align="right">$32.98T</td>
+<td align="right">0.967</td>
+</tr>
+<tr>
+<td align="left">65-74</td>
+<td align="right">$39.84T</td>
+<td align="right">$46.70T</td>
+<td align="right">$37.67T</td>
+<td align="right">$37.82T</td>
+<td align="right">1.004</td>
+</tr>
+<tr>
+<td align="left">75+</td>
+<td align="right">$26.55T</td>
+<td align="right">$36.14T</td>
+<td align="right">$28.61T</td>
+<td align="right">$28.58T</td>
+<td align="right">0.999</td>
+</tr>
+<tr>
+<td align="left">TOTAL</td>
+<td align="right">$139.12T</td>
+<td align="right">$177.79T</td>
+<td align="right">$140.73T</td>
+<td align="right">$139.12T</td>
+<td align="right">0.989</td>
+</tr>
+</tbody>
+</table>
+<h2 id="table-3-net-worth-shares-thresholds-by-wealth-percentile">Table 3 — Net worth shares + thresholds by wealth percentile</h2>
+<p>Wealth percentile is computed within-frame on net worth. Share is
+fraction of total NW. Threshold is the lower-edge wealth value at the
+bin boundary (e.g., <code>p50-90</code> lower threshold = the median NW; <code>top0.1%</code>
+lower threshold = 99.9th percentile NW).</p>
+<table>
+<thead>
+<tr>
+<th align="left">bin</th>
+<th align="right">SCF</th>
+<th align="right">raw_DRF</th>
+<th align="right">post_tilt</th>
+<th align="right">post_rescale</th>
+<th align="right">SCF thr</th>
+<th align="right">raw_DRF thr</th>
+<th align="right">post_tilt thr</th>
+<th align="right">post_rescale thr</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">bot50</td>
+<td align="right">0.008</td>
+<td align="right">0.004</td>
+<td align="right">-0.001</td>
+<td align="right">0.011</td>
+<td align="right">$-0.56M</td>
+<td align="right">$-0.54M</td>
+<td align="right">$-0.43M</td>
+<td align="right">$-0.47M</td>
+</tr>
+<tr>
+<td align="left">p50-90</td>
+<td align="right">0.219</td>
+<td align="right">0.193</td>
+<td align="right">0.206</td>
+<td align="right">0.216</td>
+<td align="right">$0.10M</td>
+<td align="right">$0.08M</td>
+<td align="right">$0.05M</td>
+<td align="right">$0.07M</td>
+</tr>
+<tr>
+<td align="left">p90-99</td>
+<td align="right">0.389</td>
+<td align="right">0.369</td>
+<td align="right">0.402</td>
+<td align="right">0.403</td>
+<td align="right">$1.39M</td>
+<td align="right">$1.48M</td>
+<td align="right">$1.25M</td>
+<td align="right">$1.28M</td>
+</tr>
+<tr>
+<td align="left">p99-99.9</td>
+<td align="right">0.222</td>
+<td align="right">0.235</td>
+<td align="right">0.251</td>
+<td align="right">0.237</td>
+<td align="right">$11.49M</td>
+<td align="right">$12.81M</td>
+<td align="right">$11.27M</td>
+<td align="right">$10.69M</td>
+</tr>
+<tr>
+<td align="left">top0.1%</td>
+<td align="right">0.162</td>
+<td align="right">0.198</td>
+<td align="right">0.142</td>
+<td align="right">0.133</td>
+<td align="right">$54.45M</td>
+<td align="right">$66.86M</td>
+<td align="right">$54.00M</td>
+<td align="right">$49.16M</td>
+</tr>
+</tbody>
+</table>
+<h2 id="table-4-counts-and-amounts-by-wealth-category">Table 4 — Counts and amounts by wealth category</h2>
+<p>Eight categories: total NW, plus the seven dollar-target categories
+(equities, bonds, homes [primary residence], retirement [IRA + 401k +
+pensions], business [pass-throughs], other [residual assets], debt).
+Count = weighted M-households with <code>cat &gt; 0</code>; amount = weighted $T sum.
+NW count is <code>cat_nw &gt; 0</code> (positive net worth).</p>
+<table>
+<thead>
+<tr>
+<th align="left">category</th>
+<th align="right">SCF cnt</th>
+<th align="right">raw_DRF cnt</th>
+<th align="right">post_tilt cnt</th>
+<th align="right">post_rescale cnt</th>
+<th align="right">rescale_factor cnt</th>
+<th align="right">SCF amt</th>
+<th align="right">raw_DRF amt</th>
+<th align="right">post_tilt amt</th>
+<th align="right">post_rescale amt</th>
+<th align="right">rescale_factor amt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">nw</td>
+<td align="right">134.4M</td>
+<td align="right">146.0M</td>
+<td align="right">120.2M</td>
+<td align="right">157.3M</td>
+<td align="right">1.308</td>
+<td align="right">$139.12T</td>
+<td align="right">$177.79T</td>
+<td align="right">$140.73T</td>
+<td align="right">$139.12T</td>
+<td align="right">0.989</td>
+</tr>
+<tr>
+<td align="left">equities</td>
+<td align="right">38.8M</td>
+<td align="right">41.5M</td>
+<td align="right">35.6M</td>
+<td align="right">73.3M</td>
+<td align="right">2.057</td>
+<td align="right">$21.06T</td>
+<td align="right">$28.19T</td>
+<td align="right">$22.52T</td>
+<td align="right">$21.06T</td>
+<td align="right">0.935</td>
+</tr>
+<tr>
+<td align="left">bonds</td>
+<td align="right">13.1M</td>
+<td align="right">13.2M</td>
+<td align="right">12.7M</td>
+<td align="right">50.3M</td>
+<td align="right">3.969</td>
+<td align="right">$4.84T</td>
+<td align="right">$5.66T</td>
+<td align="right">$5.25T</td>
+<td align="right">$4.84T</td>
+<td align="right">0.922</td>
+</tr>
+<tr>
+<td align="left">homes</td>
+<td align="right">95.5M</td>
+<td align="right">99.9M</td>
+<td align="right">85.3M</td>
+<td align="right">122.9M</td>
+<td align="right">1.442</td>
+<td align="right">$40.85T</td>
+<td align="right">$45.85T</td>
+<td align="right">$38.39T</td>
+<td align="right">$40.85T</td>
+<td align="right">1.064</td>
+</tr>
+<tr>
+<td align="left">retirement</td>
+<td align="right">78.7M</td>
+<td align="right">85.0M</td>
+<td align="right">72.3M</td>
+<td align="right">110.0M</td>
+<td align="right">1.521</td>
+<td align="right">$23.84T</td>
+<td align="right">$26.80T</td>
+<td align="right">$22.74T</td>
+<td align="right">$23.84T</td>
+<td align="right">1.048</td>
+</tr>
+<tr>
+<td align="left">business</td>
+<td align="right">18.5M</td>
+<td align="right">18.0M</td>
+<td align="right">17.3M</td>
+<td align="right">48.3M</td>
+<td align="right">2.783</td>
+<td align="right">$30.77T</td>
+<td align="right">$46.93T</td>
+<td align="right">$32.78T</td>
+<td align="right">$30.77T</td>
+<td align="right">0.939</td>
+</tr>
+<tr>
+<td align="left">other</td>
+<td align="right">143.1M</td>
+<td align="right">154.9M</td>
+<td align="right">131.6M</td>
+<td align="right">162.5M</td>
+<td align="right">1.235</td>
+<td align="right">$34.41T</td>
+<td align="right">$43.06T</td>
+<td align="right">$34.48T</td>
+<td align="right">$34.41T</td>
+<td align="right">0.998</td>
+</tr>
+<tr>
+<td align="left">debt</td>
+<td align="right">113.9M</td>
+<td align="right">122.0M</td>
+<td align="right">103.3M</td>
+<td align="right">134.2M</td>
+<td align="right">1.299</td>
+<td align="right">$16.66T</td>
+<td align="right">$18.70T</td>
+<td align="right">$15.43T</td>
+<td align="right">$16.66T</td>
+<td align="right">1.079</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="microdata-for-re-cuts">Microdata for re-cuts</h2>
+<p>All record-level microdata is saved — you can build new tables without
+re-running the harness:</p>
+<ul>
+<li>3-stage record-level Y matrices: /nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline/wealth_harness_tilt_diag.rds
+(y_pre_tilt = raw DRF leaf draw; y_post_tilt_pre_rescale =
+after tilt, before Step B; y_post_rescale = final.
+Each is a tibble with id + 23 wealth Y vars.)</li>
+<li>PUF X-side covariates: /nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline/tax_units_2022.csv</li>
+<li>SCF target side: resources/cache/scf_tax_units.rds</li>
+</ul>
+<p>Re-run this report after editing <code>src/eda/report_v3.R</code>:</p>
+<pre><code>sbatch slurm_render_status.sh   # re-renders HTML from AM_STATUS.md
+</code></pre>
+<p>(or call <code>Rscript src/eda/report_v3.R &lt;output_dir&gt;</code> via sbatch to
+rebuild AM_STATUS.md from microdata first, then re-render HTML.)</p>
+</body></html>

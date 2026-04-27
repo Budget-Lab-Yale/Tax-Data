@@ -36,25 +36,34 @@
 
 SYEAR = 2022
 
-cache_path = 'resources/cache/scf_tax_units.rds'
-dir.create(dirname(cache_path), showWarnings = FALSE, recursive = TRUE)
+#---------------------------------------------------------------------------
+# Stage-1 config knobs. Default reproduces Moore's port verbatim.
+# eda harnesses (e.g., src/eda/scf_taxunit_permutations.R) can pass
+# non-default values to study how DoFs in tax-unit construction shift
+# the (age × income-cell) joint distribution vs PUF.
+#---------------------------------------------------------------------------
 
-raw_path  = interface_paths$SCF %>% file.path('p22i6.dta')
-scfp_path = interface_paths$SCF %>% file.path('SCFP2022.csv')
+default_stage1_config = function() list(
+  cohab_threshold      = 1L,    # X7370 >= this required for MARRIED (Moore line 405)
+  unclassified_taxunit = 0L,    # default for records failing both Moore split branches
+  kids1_inherit        = TRUE,  # if TRUE, split PEU with KIDS=1 → both clones inherit (Moore SAS quirk)
+  mfs_edge_keep_joint  = TRUE   # if TRUE, X5746==2 + X7377!=2 + X7392!=2 stays TAXUNIT=0
+)
 
-# If the cache is newer than the raw inputs, load and skip the rebuild.
-cache_usable = FALSE
-if (file.exists(cache_path)) {
-  cache_mtime = file.mtime(cache_path)
-  raw_mtime   = max(file.mtime(raw_path), file.mtime(scfp_path))
-  cache_usable = cache_mtime > raw_mtime
-}
+#---------------------------------------------------------------------------
+# build_scf_tax_units(config, raw_path, scfp_path, syear)
+#
+# Returns the scf_tax_units tibble. The body is the original rebuild block,
+# parameterized by `config` at four knob sites. With the default config
+# the output matches Moore's port byte-for-byte.
+#---------------------------------------------------------------------------
 
-if (cache_usable) {
-  message('stage1: loading cached scf_tax_units from ', cache_path,
-          ' (cache is newer than raw inputs)')
-  scf_tax_units = read_rds(cache_path)
-} else {
+build_scf_tax_units = function(config = default_stage1_config(),
+                                raw_path,
+                                scfp_path,
+                                syear = 2022) {
+
+SYEAR = syear
 
 #---------------------------------------------------------------------------
 # Load raw SCF (p22i6.dta). Lowercase in file; uppercased so we can match
@@ -97,7 +106,7 @@ raw = raw %>%
     X7370 = if_else(SYEAR == X8005, -1L, as.integer(SYEAR - X8005)),
     ABSP_P = as.integer((X100 == 5) | (X106 == 5 & X107 %in% c(2, 5, 12))),
     PERSEXP = 1L + as.integer(X105 %in% c(1, 2)) * as.integer(ABSP_P == 0),
-    MARRIED = as.integer(X8023 == 1 & X105 == 1 & X7370 >= 1 & X7020 == 2),
+    MARRIED = as.integer(X8023 == 1 & X105 == 1 & X7370 >= config$cohab_threshold & X7020 == 2),
     LWP     = as.integer(X8023 == 2),
     RAGE    = X14,
     SPAGE   = X19 * as.integer(X7020 == 2)
@@ -239,7 +248,7 @@ raw = raw %>%
       # Condition set for TAXUNIT = 0 (one PEU tax unit)
       (filed(X5744) & X5746 == 1 & MARRIED == 1) |
       (MARRIED == 1 & ((X5744 == 5 | X5746 %in% c(3, 4)) |
-                       (X5746 == 2 & X7377 != 2 & X7392 != 2))) |
+                       (config$mfs_edge_keep_joint & X5746 == 2 & X7377 != 2 & X7392 != 2))) |
       (X8023 > 0 & X105 == 0 & (X5744 == 5 | (filed(X5744) & X5746 == 0))) |
       (X8023 > 0 & X105 > 0 & X5744 %in% c(1, 5, 6) & X5746 == 0 & X7020 == 1) |
       (X8023 == 8 & X105 == 0 & X5744 == 1 & X5746 == 1) ~ 0L,
@@ -258,8 +267,8 @@ n_unclassified = sum(is.na(raw$TAXUNIT))
 if (n_unclassified > 0) {
   cat(sprintf('stage1: WARN — %d records unclassified by Moore split rule; ',
               n_unclassified))
-  cat('defaulting to TAXUNIT=0 (one PEU unit).\n')
-  raw$TAXUNIT[is.na(raw$TAXUNIT)] = 0L
+  cat(sprintf('defaulting to TAXUNIT=%d.\n', config$unclassified_taxunit))
+  raw$TAXUNIT[is.na(raw$TAXUNIT)] = config$unclassified_taxunit
 }
 
 #---------------------------------------------------------------------------
@@ -302,22 +311,22 @@ peu_units = peu_units %>%
   mutate(
     PERSEXP_u = if_else(TAXUNIT_final %in% c(1L, 2L), 1L, PERSEXP),
     KIDSU13_u = case_when(
-      TAXUNIT_final == 0L        ~ KIDSU13,
-      KIDS == 1L                  ~ KIDSU13,    # Moore's "KIDS>1" gate — skip split
-      KIDSU13 %% 2L == 0L        ~ as.integer(KIDSU13 / 2),
-      TRUE                        ~ alloc_odd(KIDSU13, TAXUNIT_final, R_TINCOME, SP_TINCOME)
+      TAXUNIT_final == 0L                          ~ KIDSU13,
+      config$kids1_inherit & KIDS == 1L            ~ KIDSU13,    # Moore's "KIDS>1" gate (configurable)
+      KIDSU13 %% 2L == 0L                          ~ as.integer(KIDSU13 / 2),
+      TRUE                                          ~ alloc_odd(KIDSU13, TAXUNIT_final, R_TINCOME, SP_TINCOME)
     ),
     KIDSU17_u = case_when(
-      TAXUNIT_final == 0L        ~ KIDSU17,
-      KIDS == 1L                  ~ KIDSU17,
-      KIDSU17 %% 2L == 0L        ~ as.integer(KIDSU17 / 2),
-      TRUE                        ~ alloc_odd(KIDSU17, TAXUNIT_final, R_TINCOME, SP_TINCOME)
+      TAXUNIT_final == 0L                          ~ KIDSU17,
+      config$kids1_inherit & KIDS == 1L            ~ KIDSU17,
+      KIDSU17 %% 2L == 0L                          ~ as.integer(KIDSU17 / 2),
+      TRUE                                          ~ alloc_odd(KIDSU17, TAXUNIT_final, R_TINCOME, SP_TINCOME)
     ),
     KIDSU18_u = case_when(
-      TAXUNIT_final == 0L        ~ KIDSU18,
-      KIDS == 1L                  ~ KIDSU18,
-      KIDSU18 %% 2L == 0L        ~ as.integer(KIDSU18 / 2),
-      TRUE                        ~ alloc_odd(KIDSU18, TAXUNIT_final, R_TINCOME, SP_TINCOME)
+      TAXUNIT_final == 0L                          ~ KIDSU18,
+      config$kids1_inherit & KIDS == 1L            ~ KIDSU18,
+      KIDSU18 %% 2L == 0L                          ~ as.integer(KIDSU18 / 2),
+      TRUE                                          ~ alloc_odd(KIDSU18, TAXUNIT_final, R_TINCOME, SP_TINCOME)
     ),
     # Recompute KIDS post-split
     KIDS_u = if_else(TAXUNIT_final %in% c(1L, 2L) & KIDS > 1L,
@@ -675,14 +684,42 @@ cat(sprintf('stage1: weighted net worth = $%.1f trillion\n',
                  scf_tax_units$credit_lines - scf_tax_units$credit_cards -
                  scf_tax_units$installment_debt - scf_tax_units$other_debt)) / 1e12))
 
-write_rds(scf_tax_units, cache_path)
-cat(sprintf('stage1: cached scf_tax_units to %s\n', cache_path))
+return(scf_tax_units)
 
-# Release the raw SCF frame (~1-2 GB) and intermediates so downstream
-# imputations (wealth.R's DRF training) don't inherit the overhang.
-rm(raw, scfp, scfp_joined, peu_base, peu_clone, peu_units,
-   peu_out, npeu_out, npeu_rows, tu_frame, is_child, aconv,
-   npeu_pos, npeu_from_row, alloc_odd, filed)
-gc()
+}  # end build_scf_tax_units
 
-}  # end if (cache_usable) else
+
+#---------------------------------------------------------------------------
+# Cache management. With default config the function output matches
+# Moore's port verbatim; that's what production caches at this path.
+#---------------------------------------------------------------------------
+
+cache_path = 'resources/cache/scf_tax_units.rds'
+dir.create(dirname(cache_path), showWarnings = FALSE, recursive = TRUE)
+
+raw_path  = interface_paths$SCF %>% file.path('p22i6.dta')
+scfp_path = interface_paths$SCF %>% file.path('SCFP2022.csv')
+
+# If the cache is newer than the raw inputs, load and skip the rebuild.
+cache_usable = FALSE
+if (file.exists(cache_path)) {
+  cache_mtime = file.mtime(cache_path)
+  raw_mtime   = max(file.mtime(raw_path), file.mtime(scfp_path))
+  cache_usable = cache_mtime > raw_mtime
+}
+
+if (cache_usable) {
+  message('stage1: loading cached scf_tax_units from ', cache_path,
+          ' (cache is newer than raw inputs)')
+  scf_tax_units = read_rds(cache_path)
+} else {
+  scf_tax_units = build_scf_tax_units(
+    config    = default_stage1_config(),
+    raw_path  = raw_path,
+    scfp_path = scfp_path,
+    syear     = SYEAR
+  )
+  write_rds(scf_tax_units, cache_path)
+  cat(sprintf('stage1: cached scf_tax_units to %s\n', cache_path))
+  gc()
+}

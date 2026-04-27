@@ -42,13 +42,18 @@ cps_ages = cps %>%
 age_dist = cps_ages %>%
   mutate(age = if_else(age >= 80, 80, age)) %>%
   filter(age >= 18) %>%
+  # Cuts use `<` to match IRS AGERANGE: band 6 is "65 and over"
+  # (see Internal Revenue Bulletin/SOI Tab 1.6 footnote). Must agree
+  # with project_puf.R:325-330 — otherwise CPS draws of e.g. age 65
+  # land in band 5 here but are re-binned to band 6 downstream,
+  # leaking ~10% of each band's top-year mass into the next band up.
   group_by(age_group = case_when(
-    age <= 26 ~ 1,
-    age <= 35 ~ 2,
-    age <= 45 ~ 3,
-    age <= 55 ~ 4,
-    age <= 65 ~ 5,
-    T         ~ 6
+    age < 26 ~ 1,
+    age < 35 ~ 2,
+    age < 45 ~ 3,
+    age < 55 ~ 4,
+    age < 65 ~ 5,
+    T        ~ 6
   )) %>%
   mutate(p = n / sum(n)) %>%
   select(-n)

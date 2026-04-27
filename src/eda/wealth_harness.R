@@ -75,9 +75,10 @@ cat(sprintf('wealth_harness: total time %.1fs\n',
 
 #--- Compact diagnostic ----------------------------------------------------
 
-y_post = result$y
-y_pre  = result$y_pre_swap
-rf     = result$rescale_factors
+y_post  = result$y                           # post-tilt + post-rescale (Step B)
+y_pre   = result$y_pre_swap                  # pre-tilt: raw DRF leaf draw
+y_tilt  = result$y_post_tilt_pre_rescale     # post-tilt, BEFORE Step B
+rf      = result$rescale_factors
 
 # Join to get weights + cell assignments on post-swap + pre-swap.
 puf_base = puf_2022 %>%
@@ -114,6 +115,7 @@ attach_cells = function(df_y) {
 }
 post = attach_cells(y_post)
 pre  = attach_cells(y_pre)
+tilt = if (!is.null(y_tilt)) attach_cells(y_tilt) else NULL
 
 # SCF with category values.
 scf_age2 = ifelse(is.na(scf_tax_units$age2), 0L, scf_tax_units$age2)
@@ -129,20 +131,34 @@ scf = assign_calibration_cells(scf, scf$income, scf$age_older, scf$weight)
 
 #--- Aggregate table -------------------------------------------------------
 
-cat('\n=== Aggregate totals per category (SCF / pre / post) ===\n')
+# 4-column report:
+#   SCF target | raw DRF (pre-tilt) | post-tilt (pre Step B) | post-rescale (final)
+cat('\n=== Aggregate totals per category ===\n')
+cat('  SCF target | raw DRF (pre-tilt) | post-tilt (pre Step B) | post-rescale (final)\n')
 totals = function(df, lab) tibble(
   source = lab,
   category = CALIB_CATEGORIES,
   total = vapply(unname(CAT_COL),
                  function(c) sum(df$weight * df[[c]]), numeric(1))
 )
-agg = bind_rows(totals(scf,'SCF'), totals(pre,'pre'), totals(post,'post')) %>%
+agg_long = bind_rows(
+  totals(scf,  'SCF'),
+  totals(pre,  'raw_DRF'),
+  if (!is.null(tilt)) totals(tilt, 'post_tilt') else NULL,
+  totals(post, 'post_rescale')
+)
+agg = agg_long %>%
   pivot_wider(names_from = source, values_from = total) %>%
-  mutate(pre_gap  = 100 * (pre  - SCF) / SCF,
-         post_gap = 100 * (post - SCF) / SCF,
-         across(c(SCF, pre, post),
-                ~ paste0('$', round(.x / 1e12, 2), 'T')))
-print(agg, n = Inf)
+  mutate(
+    raw_DRF_gap_pct      = 100 * (raw_DRF      - SCF) / SCF,
+    post_tilt_gap_pct    = if ('post_tilt' %in% names(.))
+                             100 * (post_tilt - SCF) / SCF
+                           else NA_real_,
+    post_rescale_gap_pct = 100 * (post_rescale - SCF) / SCF,
+    across(any_of(c('SCF', 'raw_DRF', 'post_tilt', 'post_rescale')),
+           ~ paste0('$', round(.x / 1e12, 2), 'T'))
+  )
+print(agg, n = Inf, width = Inf)
 
 
 #--- Top shares + Gini -----------------------------------------------------
@@ -163,6 +179,7 @@ weighted_gini = function(x, w) {
 }
 
 cat('\n=== Top NW shares + Gini ===\n')
+cat('  SCF | raw_DRF | post_tilt | post_rescale\n')
 tb = function(df, lab) tibble(
   source = lab,
   top_01 = top_share(df$cat_nw, df$weight, 0.001),
@@ -171,8 +188,13 @@ tb = function(df, lab) tibble(
   top_10 = top_share(df$cat_nw, df$weight, 0.10),
   gini   = weighted_gini(df$cat_nw, df$weight)
 )
-print(bind_rows(tb(scf,'SCF'), tb(pre,'pre'), tb(post,'post')) %>%
-      mutate(across(-source, ~ round(.x, 4))))
+print(bind_rows(
+        tb(scf,  'SCF'),
+        tb(pre,  'raw_DRF'),
+        if (!is.null(tilt)) tb(tilt, 'post_tilt') else NULL,
+        tb(post, 'post_rescale')) %>%
+      mutate(across(-source, ~ round(.x, 4))),
+      n = Inf, width = Inf)
 
 
 #--- Share of aggregate NW by INCOME percentile bin ------------------------
@@ -201,22 +223,28 @@ debug_p020 = function(df, lab) {
               sum(df$weight[s] * df$cat_nw[s]) / 1e12,
               sum(df$weight[s] * df$cat_nw[s]) / sum(df$weight * df$cat_nw)))
 }
-debug_p020(scf, 'SCF')
-debug_p020(pre, 'pre')
-debug_p020(post, 'post')
+debug_p020(scf,  'SCF        ')
+debug_p020(pre,  'raw_DRF    ')
+if (!is.null(tilt)) debug_p020(tilt, 'post_tilt  ')
+debug_p020(post, 'post_rescale')
 
 cat('\n=== Share of aggregate NW by INCOME percentile ===\n')
+cat('  SCF | raw_DRF | post_tilt | post_rescale\n')
 inc_share_tbl = bind_rows(
   inc_shares(scf,  'SCF'),
-  inc_shares(pre,  'pre'),
-  inc_shares(post, 'post')
+  inc_shares(pre,  'raw_DRF'),
+  if (!is.null(tilt)) inc_shares(tilt, 'post_tilt') else NULL,
+  inc_shares(post, 'post_rescale')
 ) %>%
   select(bin, source, share) %>%
   pivot_wider(names_from = source, values_from = share) %>%
-  mutate(across(c(SCF, pre, post), ~ round(.x, 3))) %>%
-  mutate(pre_minus_scf  = round(pre  - SCF, 3),
-         post_minus_scf = round(post - SCF, 3))
-print(inc_share_tbl, n = Inf)
+  mutate(across(any_of(c('SCF', 'raw_DRF', 'post_tilt', 'post_rescale')),
+                ~ round(.x, 3))) %>%
+  mutate(raw_minus_scf       = round(raw_DRF      - SCF, 3),
+         post_tilt_minus_scf = if ('post_tilt' %in% names(.))
+                                round(post_tilt - SCF, 3) else NA_real_,
+         post_minus_scf      = round(post_rescale - SCF, 3))
+print(inc_share_tbl, n = Inf, width = Inf)
 
 
 #--- Share of aggregate NW by WEALTH percentile bin ------------------------
@@ -237,17 +265,22 @@ w_shares = function(df, lab) {
 }
 
 cat('\n=== Share of aggregate NW by WEALTH percentile ===\n')
+cat('  SCF | raw_DRF | post_tilt | post_rescale\n')
 w_share_tbl = bind_rows(
   w_shares(scf,  'SCF'),
-  w_shares(pre,  'pre'),
-  w_shares(post, 'post')
+  w_shares(pre,  'raw_DRF'),
+  if (!is.null(tilt)) w_shares(tilt, 'post_tilt') else NULL,
+  w_shares(post, 'post_rescale')
 ) %>%
   select(bin, source, share) %>%
   pivot_wider(names_from = source, values_from = share) %>%
-  mutate(across(c(SCF, pre, post), ~ round(.x, 3))) %>%
-  mutate(pre_minus_scf  = round(pre  - SCF, 3),
-         post_minus_scf = round(post - SCF, 3))
-print(w_share_tbl, n = Inf)
+  mutate(across(any_of(c('SCF', 'raw_DRF', 'post_tilt', 'post_rescale')),
+                ~ round(.x, 3))) %>%
+  mutate(raw_minus_scf       = round(raw_DRF      - SCF, 3),
+         post_tilt_minus_scf = if ('post_tilt' %in% names(.))
+                                round(post_tilt - SCF, 3) else NA_real_,
+         post_minus_scf      = round(post_rescale - SCF, 3))
+print(w_share_tbl, n = Inf, width = Inf)
 
 
 #--- Rescale factor report -------------------------------------------------
@@ -293,5 +326,28 @@ if (nrow(skipped) > 0) {
 } else {
   cat('  (none)\n')
 }
+
+# Save full diagnostic dump for follow-up analysis (tilt harness).
+# All three y matrices are saved so a downstream script can build the
+# 4-column SCF | raw DRF | post-tilt | post-rescale aggregate without
+# re-running the imputation.
+diag_path = file.path(output_dir, 'wealth_harness_tilt_diag.rds')
+saveRDS(list(
+  cell_info        = list(
+    n_records      = nrow(post),
+    cells_present  = unique(post$cell_income),
+    age_buckets    = unique(post$cell_age)),
+  tilt_diagnostics = result$tilt_diagnostics,
+  rescale_factors  = result$rescale_factors,
+  qc_report        = result$qc_report,
+  agg_table        = agg,
+  inc_share_tbl    = inc_share_tbl,
+  w_share_tbl      = w_share_tbl,
+  cat_summary      = cat_summary,
+  y_pre_tilt              = result$y_pre_tilt,
+  y_post_tilt_pre_rescale = result$y_post_tilt_pre_rescale,
+  y_post_rescale          = result$y
+), diag_path)
+cat(sprintf('Saved tilt diagnostics to %s\n', diag_path))
 
 cat('\nDone.\n')

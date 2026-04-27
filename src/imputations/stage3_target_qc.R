@@ -164,6 +164,9 @@ assess_target_viability = function(requested, scf_cells,
         n_unwt < thin_unwt_n                            ~ 'drop_thin',
         margin == 'extensive' & frac_pos < degen_lo     ~ 'drop_near_zero',
         margin == 'extensive' & frac_pos > degen_hi     ~ 'drop_near_one',
+        # Intensive: drop when the cell has no positive-amount support, so
+        # the tilt has nothing to push toward the target.
+        margin == 'intensive' & frac_pos < degen_lo     ~ 'drop_no_support',
         TRUE                                            ~ 'keep'
       ),
       status = if_else(status_reason == 'keep', 'keep', 'drop')
@@ -295,13 +298,12 @@ if (sys.nframe() == 0L) {
   cat(sprintf('  [PASS] assess produced %d rows, %d kept, %d dropped\n',
               nrow(qc), sum(qc$status == 'keep'), sum(qc$status == 'drop')))
 
-  # Test 3: intensive targets should never be dropped for degeneracy
-  #         (only thin or no_data can drop intensive).
+  # Test 3: intensive targets dropped only for thin/no_data/no_support.
   intensive_dropped = qc %>%
     filter(margin == 'intensive', status == 'drop')
   stopifnot(all(intensive_dropped$status_reason %in%
-                c('drop_thin', 'drop_no_data')))
-  cat('  [PASS] intensive-margin targets not dropped for degeneracy\n')
+                c('drop_thin', 'drop_no_data', 'drop_no_support')))
+  cat('  [PASS] intensive-margin targets dropped only for thin/no_data/no_support\n')
 
   # Test 4: A near-zero extensive target should drop. Build one manually by
   #         shrinking bonds to near-zero in pct00to20 nonsenior.
