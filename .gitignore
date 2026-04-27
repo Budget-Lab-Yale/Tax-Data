@@ -10,6 +10,7 @@ plots/
 docs/
 src/eda/
 resources/cache/
+slurm_*.sh
 slurm_*.out
 slurm_*.err
 AM_STATUS.md
