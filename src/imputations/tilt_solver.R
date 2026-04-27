@@ -72,7 +72,15 @@ solve_tilt_block = function(W, Z, puf_w, target, scale,
                              max_iters   = 200L,
                              tol_rel     = 0.01,
                              init_lambda = NULL,
-                             init_seed   = 42L) {
+                             init_seed   = 42L,
+                             lambda_max  = NULL) {
+
+  # lambda_max: if non-NULL, switch to L-BFGS-B with box constraints
+  # [-lambda_max, +lambda_max] on every component of lambda. Belt-and-
+  # suspenders against runaway tilt in feasibility-limited cells. With
+  # Z_n in [-1, 1], lambda_max=5 gives tilt factors exp(±5) ~ [0.007, 148]
+  # — plenty of dynamic range without the corner-collapse that uncapped
+  # BFGS exhibited in v1.
   stopifnot(is.matrix(W), is.matrix(Z),
             ncol(W) == nrow(Z),
             nrow(W) == length(puf_w),
@@ -206,15 +214,20 @@ solve_tilt_block = function(W, Z, puf_w, target, scale,
     g
   }
 
-  # BFGS without bounds tends to do fewer fn/gr calls than L-BFGS-B
-  # (no projected gradient line search). The objective is unbounded but
-  # we control runaway via the ridge penalty + the diagnostic
-  # attainable-bounds check. Tolerances are deliberately loose -- Step B
-  # cleans up any residual aggregate gap.
+  # Optimizer choice: BFGS (unconstrained) by default, L-BFGS-B with box
+  # constraints when lambda_max is set. L-BFGS-B has slightly more line-
+  # search overhead but won't blow up.
   opt = tryCatch(
-    optim(par = init_lambda, fn = fn, gr = gr,
-          method = "BFGS",
-          control = list(maxit = max_iters, reltol = 1e-4)),
+    if (!is.null(lambda_max) && is.finite(lambda_max) && lambda_max > 0) {
+      optim(par = init_lambda, fn = fn, gr = gr,
+            method = "L-BFGS-B",
+            lower = -lambda_max, upper = +lambda_max,
+            control = list(maxit = max_iters, factr = 1e9))
+    } else {
+      optim(par = init_lambda, fn = fn, gr = gr,
+            method = "BFGS",
+            control = list(maxit = max_iters, reltol = 1e-4))
+    },
     error = function(e) list(par = init_lambda, value = NA, convergence = -1L,
                               message = conditionMessage(e))
   )

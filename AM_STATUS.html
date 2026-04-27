@@ -14,7 +14,14 @@ th { background: #f0f0f0; }
 td:not(:first-child) { text-align: right; }
 tr:nth-child(even) { background: #fafafa; }
 strong { color: #1a3a6a; }
-</style></head><body><h1 id="tilt-wealth-imputation-v3-report">Tilt Wealth Imputation — v3 Report</h1>
+</style></head><body><h1 id="tilt-wealth-imputation-v4-report">Tilt Wealth Imputation — v4 Report</h1>
+<p>v4 changes vs v3: <code>lambda_max=5</code> per-component cap on the tilt + Step
+B <code>fallback_uniform</code> branch disabled (it inflated counts when tilt
+collapsed in infeasible cells; now Step B falls back to <code>skip</code> if PUF
+total is near zero, but in v4 no cells hit that — every (cell × cat)
+has positive PUF mass after the constrained tilt). Plus the upstream
+age fix that tightened cell-pop ratios.</p>
+<p>See <code>slurm_tilt_v4.out</code> for full per-bucket diagnostics.</p>
 <h2 id="method">Method</h2>
 <p>For each PUF tax unit, we ask the per-(income-cell) DRF for forest-
 averaged donor probabilities <code>p_ij</code> over the cell’s SCF bootstrap, then
@@ -57,74 +64,74 @@ unrealized capital gains (consistent with <code>cat_nw</code> definition in
 <tr>
 <td align="left">p0-20</td>
 <td align="right">$2.35T</td>
-<td align="right">$2.92T</td>
-<td align="right">$0.19T</td>
-<td align="right">$2.19T</td>
-<td align="right">11.716</td>
+<td align="right">$3.08T</td>
+<td align="right">$2.07T</td>
+<td align="right">$2.20T</td>
+<td align="right">1.059</td>
 </tr>
 <tr>
 <td align="left">p20-40</td>
 <td align="right">$3.63T</td>
-<td align="right">$4.15T</td>
-<td align="right">$3.54T</td>
-<td align="right">$3.80T</td>
-<td align="right">1.074</td>
+<td align="right">$4.42T</td>
+<td align="right">$3.47T</td>
+<td align="right">$3.83T</td>
+<td align="right">1.105</td>
 </tr>
 <tr>
 <td align="left">p40-60</td>
 <td align="right">$8.26T</td>
-<td align="right">$8.74T</td>
-<td align="right">$8.09T</td>
-<td align="right">$8.23T</td>
-<td align="right">1.017</td>
+<td align="right">$8.56T</td>
+<td align="right">$8.17T</td>
+<td align="right">$8.40T</td>
+<td align="right">1.028</td>
 </tr>
 <tr>
 <td align="left">p60-80</td>
 <td align="right">$14.58T</td>
-<td align="right">$19.23T</td>
-<td align="right">$14.14T</td>
-<td align="right">$14.78T</td>
-<td align="right">1.045</td>
+<td align="right">$17.88T</td>
+<td align="right">$14.27T</td>
+<td align="right">$14.60T</td>
+<td align="right">1.023</td>
 </tr>
 <tr>
 <td align="left">p80-90</td>
 <td align="right">$15.78T</td>
-<td align="right">$19.19T</td>
-<td align="right">$15.06T</td>
-<td align="right">$16.10T</td>
-<td align="right">1.069</td>
+<td align="right">$19.34T</td>
+<td align="right">$15.11T</td>
+<td align="right">$16.11T</td>
+<td align="right">1.066</td>
 </tr>
 <tr>
 <td align="left">p90-99</td>
 <td align="right">$41.89T</td>
-<td align="right">$52.18T</td>
-<td align="right">$46.52T</td>
-<td align="right">$44.80T</td>
-<td align="right">0.963</td>
+<td align="right">$51.17T</td>
+<td align="right">$44.58T</td>
+<td align="right">$44.67T</td>
+<td align="right">1.002</td>
 </tr>
 <tr>
 <td align="left">p99-99.9</td>
 <td align="right">$12.83T</td>
-<td align="right">$10.91T</td>
-<td align="right">$10.41T</td>
-<td align="right">$9.94T</td>
-<td align="right">0.955</td>
+<td align="right">$11.06T</td>
+<td align="right">$10.02T</td>
+<td align="right">$9.93T</td>
+<td align="right">0.991</td>
 </tr>
 <tr>
 <td align="left">top0.1%</td>
 <td align="right">$39.80T</td>
-<td align="right">$60.45T</td>
-<td align="right">$42.79T</td>
-<td align="right">$39.28T</td>
-<td align="right">0.918</td>
+<td align="right">$59.49T</td>
+<td align="right">$44.43T</td>
+<td align="right">$39.37T</td>
+<td align="right">0.886</td>
 </tr>
 <tr>
 <td align="left">TOTAL</td>
 <td align="right">$139.12T</td>
-<td align="right">$177.79T</td>
-<td align="right">$140.73T</td>
+<td align="right">$175.00T</td>
+<td align="right">$142.12T</td>
 <td align="right">$139.12T</td>
-<td align="right">0.989</td>
+<td align="right">0.979</td>
 </tr>
 </tbody>
 </table>
@@ -146,66 +153,66 @@ use the same definition.</p>
 <tr>
 <td align="left">18-24</td>
 <td align="right">$0.75T</td>
-<td align="right">$0.72T</td>
-<td align="right">$0.52T</td>
-<td align="right">$0.94T</td>
-<td align="right">1.796</td>
+<td align="right">$0.83T</td>
+<td align="right">$0.59T</td>
+<td align="right">$0.57T</td>
+<td align="right">0.969</td>
 </tr>
 <tr>
 <td align="left">25-34</td>
 <td align="right">$4.26T</td>
-<td align="right">$4.37T</td>
-<td align="right">$3.89T</td>
-<td align="right">$4.04T</td>
-<td align="right">1.040</td>
+<td align="right">$4.74T</td>
+<td align="right">$3.71T</td>
+<td align="right">$3.70T</td>
+<td align="right">0.996</td>
 </tr>
 <tr>
 <td align="left">35-44</td>
 <td align="right">$11.67T</td>
-<td align="right">$15.96T</td>
-<td align="right">$13.32T</td>
-<td align="right">$12.93T</td>
-<td align="right">0.971</td>
+<td align="right">$16.57T</td>
+<td align="right">$13.24T</td>
+<td align="right">$12.82T</td>
+<td align="right">0.968</td>
 </tr>
 <tr>
 <td align="left">45-54</td>
 <td align="right">$19.84T</td>
-<td align="right">$29.31T</td>
-<td align="right">$22.61T</td>
-<td align="right">$21.83T</td>
-<td align="right">0.966</td>
+<td align="right">$29.94T</td>
+<td align="right">$23.19T</td>
+<td align="right">$22.38T</td>
+<td align="right">0.965</td>
 </tr>
 <tr>
 <td align="left">55-64</td>
 <td align="right">$36.21T</td>
-<td align="right">$44.58T</td>
-<td align="right">$34.11T</td>
-<td align="right">$32.98T</td>
-<td align="right">0.967</td>
+<td align="right">$45.82T</td>
+<td align="right">$34.20T</td>
+<td align="right">$33.26T</td>
+<td align="right">0.972</td>
 </tr>
 <tr>
 <td align="left">65-74</td>
 <td align="right">$39.84T</td>
-<td align="right">$46.70T</td>
-<td align="right">$37.67T</td>
-<td align="right">$37.82T</td>
-<td align="right">1.004</td>
+<td align="right">$43.65T</td>
+<td align="right">$39.42T</td>
+<td align="right">$38.95T</td>
+<td align="right">0.988</td>
 </tr>
 <tr>
 <td align="left">75+</td>
 <td align="right">$26.55T</td>
-<td align="right">$36.14T</td>
-<td align="right">$28.61T</td>
-<td align="right">$28.58T</td>
-<td align="right">0.999</td>
+<td align="right">$33.46T</td>
+<td align="right">$27.77T</td>
+<td align="right">$27.44T</td>
+<td align="right">0.988</td>
 </tr>
 <tr>
 <td align="left">TOTAL</td>
 <td align="right">$139.12T</td>
-<td align="right">$177.79T</td>
-<td align="right">$140.73T</td>
+<td align="right">$175.00T</td>
+<td align="right">$142.12T</td>
 <td align="right">$139.12T</td>
-<td align="right">0.989</td>
+<td align="right">0.979</td>
 </tr>
 </tbody>
 </table>
@@ -233,56 +240,56 @@ lower threshold = 99.9th percentile NW).</p>
 <td align="left">bot50</td>
 <td align="right">0.008</td>
 <td align="right">0.004</td>
-<td align="right">-0.001</td>
-<td align="right">0.011</td>
+<td align="right">0.001</td>
+<td align="right">0.001</td>
 <td align="right">$-0.56M</td>
 <td align="right">$-0.54M</td>
-<td align="right">$-0.43M</td>
-<td align="right">$-0.47M</td>
+<td align="right">$-0.42M</td>
+<td align="right">$-0.48M</td>
 </tr>
 <tr>
 <td align="left">p50-90</td>
 <td align="right">0.219</td>
-<td align="right">0.193</td>
-<td align="right">0.206</td>
-<td align="right">0.216</td>
+<td align="right">0.191</td>
+<td align="right">0.212</td>
+<td align="right">0.222</td>
 <td align="right">$0.10M</td>
 <td align="right">$0.08M</td>
-<td align="right">$0.05M</td>
+<td align="right">$0.06M</td>
 <td align="right">$0.07M</td>
 </tr>
 <tr>
 <td align="left">p90-99</td>
 <td align="right">0.389</td>
-<td align="right">0.369</td>
-<td align="right">0.402</td>
-<td align="right">0.403</td>
+<td align="right">0.367</td>
+<td align="right">0.393</td>
+<td align="right">0.406</td>
 <td align="right">$1.39M</td>
-<td align="right">$1.48M</td>
-<td align="right">$1.25M</td>
+<td align="right">$1.51M</td>
 <td align="right">$1.28M</td>
+<td align="right">$1.31M</td>
 </tr>
 <tr>
 <td align="left">p99-99.9</td>
 <td align="right">0.222</td>
 <td align="right">0.235</td>
-<td align="right">0.251</td>
-<td align="right">0.237</td>
+<td align="right">0.241</td>
+<td align="right">0.231</td>
 <td align="right">$11.49M</td>
-<td align="right">$12.81M</td>
-<td align="right">$11.27M</td>
-<td align="right">$10.69M</td>
+<td align="right">$12.45M</td>
+<td align="right">$10.73M</td>
+<td align="right">$10.79M</td>
 </tr>
 <tr>
 <td align="left">top0.1%</td>
 <td align="right">0.162</td>
-<td align="right">0.198</td>
-<td align="right">0.142</td>
-<td align="right">0.133</td>
+<td align="right">0.203</td>
+<td align="right">0.153</td>
+<td align="right">0.139</td>
 <td align="right">$54.45M</td>
-<td align="right">$66.86M</td>
-<td align="right">$54.00M</td>
-<td align="right">$49.16M</td>
+<td align="right">$69.36M</td>
+<td align="right">$55.42M</td>
+<td align="right">$49.55M</td>
 </tr>
 </tbody>
 </table>
@@ -313,105 +320,105 @@ NW count is <code>cat_nw &gt; 0</code> (positive net worth).</p>
 <td align="left">nw</td>
 <td align="right">134.4M</td>
 <td align="right">146.0M</td>
-<td align="right">120.2M</td>
-<td align="right">157.3M</td>
-<td align="right">1.308</td>
+<td align="right">132.8M</td>
+<td align="right">132.1M</td>
+<td align="right">0.995</td>
 <td align="right">$139.12T</td>
-<td align="right">$177.79T</td>
-<td align="right">$140.73T</td>
+<td align="right">$175.00T</td>
+<td align="right">$142.12T</td>
 <td align="right">$139.12T</td>
-<td align="right">0.989</td>
+<td align="right">0.979</td>
 </tr>
 <tr>
 <td align="left">equities</td>
 <td align="right">38.8M</td>
-<td align="right">41.5M</td>
-<td align="right">35.6M</td>
-<td align="right">73.3M</td>
-<td align="right">2.057</td>
+<td align="right">41.3M</td>
+<td align="right">36.8M</td>
+<td align="right">36.8M</td>
+<td align="right">1.000</td>
 <td align="right">$21.06T</td>
-<td align="right">$28.19T</td>
-<td align="right">$22.52T</td>
+<td align="right">$27.45T</td>
+<td align="right">$22.24T</td>
 <td align="right">$21.06T</td>
-<td align="right">0.935</td>
+<td align="right">0.947</td>
 </tr>
 <tr>
 <td align="left">bonds</td>
 <td align="right">13.1M</td>
-<td align="right">13.2M</td>
-<td align="right">12.7M</td>
-<td align="right">50.3M</td>
-<td align="right">3.969</td>
+<td align="right">13.4M</td>
+<td align="right">12.9M</td>
+<td align="right">12.9M</td>
+<td align="right">1.000</td>
 <td align="right">$4.84T</td>
-<td align="right">$5.66T</td>
-<td align="right">$5.25T</td>
+<td align="right">$5.57T</td>
+<td align="right">$5.21T</td>
 <td align="right">$4.84T</td>
-<td align="right">0.922</td>
+<td align="right">0.929</td>
 </tr>
 <tr>
 <td align="left">homes</td>
 <td align="right">95.5M</td>
-<td align="right">99.9M</td>
-<td align="right">85.3M</td>
-<td align="right">122.9M</td>
-<td align="right">1.442</td>
+<td align="right">97.9M</td>
+<td align="right">92.3M</td>
+<td align="right">92.3M</td>
+<td align="right">1.000</td>
 <td align="right">$40.85T</td>
-<td align="right">$45.85T</td>
-<td align="right">$38.39T</td>
+<td align="right">$45.27T</td>
+<td align="right">$39.55T</td>
 <td align="right">$40.85T</td>
-<td align="right">1.064</td>
+<td align="right">1.033</td>
 </tr>
 <tr>
 <td align="left">retirement</td>
 <td align="right">78.7M</td>
 <td align="right">85.0M</td>
-<td align="right">72.3M</td>
-<td align="right">110.0M</td>
-<td align="right">1.521</td>
+<td align="right">75.0M</td>
+<td align="right">75.0M</td>
+<td align="right">1.000</td>
 <td align="right">$23.84T</td>
-<td align="right">$26.80T</td>
-<td align="right">$22.74T</td>
+<td align="right">$26.69T</td>
+<td align="right">$23.31T</td>
 <td align="right">$23.84T</td>
-<td align="right">1.048</td>
+<td align="right">1.023</td>
 </tr>
 <tr>
 <td align="left">business</td>
 <td align="right">18.5M</td>
-<td align="right">18.0M</td>
-<td align="right">17.3M</td>
-<td align="right">48.3M</td>
-<td align="right">2.783</td>
+<td align="right">17.5M</td>
+<td align="right">18.3M</td>
+<td align="right">18.3M</td>
+<td align="right">1.000</td>
 <td align="right">$30.77T</td>
-<td align="right">$46.93T</td>
-<td align="right">$32.78T</td>
+<td align="right">$45.65T</td>
+<td align="right">$32.34T</td>
 <td align="right">$30.77T</td>
-<td align="right">0.939</td>
+<td align="right">0.952</td>
 </tr>
 <tr>
 <td align="left">other</td>
 <td align="right">143.1M</td>
-<td align="right">154.9M</td>
-<td align="right">131.6M</td>
-<td align="right">162.5M</td>
-<td align="right">1.235</td>
+<td align="right">155.6M</td>
+<td align="right">139.7M</td>
+<td align="right">139.7M</td>
+<td align="right">1.000</td>
 <td align="right">$34.41T</td>
-<td align="right">$43.06T</td>
-<td align="right">$34.48T</td>
+<td align="right">$42.77T</td>
+<td align="right">$35.21T</td>
 <td align="right">$34.41T</td>
-<td align="right">0.998</td>
+<td align="right">0.977</td>
 </tr>
 <tr>
 <td align="left">debt</td>
 <td align="right">113.9M</td>
-<td align="right">122.0M</td>
-<td align="right">103.3M</td>
-<td align="right">134.2M</td>
-<td align="right">1.299</td>
+<td align="right">123.0M</td>
+<td align="right">104.8M</td>
+<td align="right">104.8M</td>
+<td align="right">1.000</td>
 <td align="right">$16.66T</td>
-<td align="right">$18.70T</td>
-<td align="right">$15.43T</td>
+<td align="right">$18.40T</td>
+<td align="right">$15.75T</td>
 <td align="right">$16.66T</td>
-<td align="right">1.079</td>
+<td align="right">1.058</td>
 </tr>
 </tbody>
 </table>
@@ -420,11 +427,11 @@ NW count is <code>cat_nw &gt; 0</code> (positive net worth).</p>
 <p>All record-level microdata is saved — you can build new tables without
 re-running the harness:</p>
 <ul>
-<li>3-stage record-level Y matrices: /nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline/wealth_harness_tilt_diag.rds
+<li>3-stage record-level Y matrices: /nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Data/v1/2026042712/baseline/wealth_harness_tilt_diag.rds
 (y_pre_tilt = raw DRF leaf draw; y_post_tilt_pre_rescale =
 after tilt, before Step B; y_post_rescale = final.
 Each is a tibble with id + 23 wealth Y vars.)</li>
-<li>PUF X-side covariates: /nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline/tax_units_2022.csv</li>
+<li>PUF X-side covariates: /nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Data/v1/2026042712/baseline/tax_units_2022.csv</li>
 <li>SCF target side: resources/cache/scf_tax_units.rds</li>
 </ul>
 <p>Re-run this report after editing <code>src/eda/report_v3.R</code>:</p>

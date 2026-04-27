@@ -10,7 +10,7 @@
 module load R/4.4.1-foss-2022b
 cd /nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data
 
-OUTPUT_DIR=/nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline
+OUTPUT_DIR=/nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Data/v1/2026042712/baseline
 
 # Step 1: build AM_STATUS.md from saved microdata.
 Rscript src/eda/report_v3.R "$OUTPUT_DIR"

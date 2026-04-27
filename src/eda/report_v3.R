@@ -70,8 +70,20 @@ cat(sprintf('Loading scf_tax_units...\n'))
 scf_tax_units = read_rds('resources/cache/scf_tax_units.rds')
 
 cat(sprintf('Loading puf_2022 from %s...\n', output_dir))
-puf_2022 = read_csv(file.path(output_dir, 'tax_units_2022.csv'),
-                    show_col_types = FALSE)
+# Prefer the Phase-3 snapshot RDS (no wealth columns yet — exactly what
+# we want for X-side joins). Fall back to tax_units_2022.csv (Phase-4
+# output) which has wealth columns we'd ignore.
+snap_path = file.path(output_dir, 'puf_2022_snapshot.rds')
+csv_path  = file.path(output_dir, 'tax_units_2022.csv')
+puf_2022 = if (file.exists(snap_path)) {
+  cat(sprintf('  using snapshot: %s\n', snap_path))
+  read_rds(snap_path)
+} else if (file.exists(csv_path)) {
+  cat(sprintf('  using CSV: %s\n', csv_path))
+  read_csv(csv_path, show_col_types = FALSE)
+} else {
+  stop('Neither puf_2022_snapshot.rds nor tax_units_2022.csv found in ', output_dir)
+}
 
 diag_path = file.path(output_dir, 'wealth_harness_tilt_diag.rds')
 cat(sprintf('Loading tilt diagnostics from %s...\n', diag_path))
@@ -315,7 +327,16 @@ microdata_paths = c(
 #--- Build markdown -------------------------------------------------------
 
 md_lines = c(
-  '# Tilt Wealth Imputation — v3 Report',
+  '# Tilt Wealth Imputation — v4 Report',
+  '',
+  'v4 changes vs v3: `lambda_max=5` per-component cap on the tilt + Step',
+  'B `fallback_uniform` branch disabled (it inflated counts when tilt',
+  'collapsed in infeasible cells; now Step B falls back to `skip` if PUF',
+  'total is near zero, but in v4 no cells hit that — every (cell × cat)',
+  'has positive PUF mass after the constrained tilt). Plus the upstream',
+  'age fix that tightened cell-pop ratios.',
+  '',
+  'See `slurm_tilt_v4.out` for full per-bucket diagnostics.',
   '',
   '## Method',
   '',

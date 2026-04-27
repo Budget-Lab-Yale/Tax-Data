@@ -1,4 +1,13 @@
-# Tilt Wealth Imputation — v3 Report
+# Tilt Wealth Imputation — v4 Report
+
+v4 changes vs v3: `lambda_max=5` per-component cap on the tilt + Step
+B `fallback_uniform` branch disabled (it inflated counts when tilt
+collapsed in infeasible cells; now Step B falls back to `skip` if PUF
+total is near zero, but in v4 no cells hit that — every (cell × cat)
+has positive PUF mass after the constrained tilt). Plus the upstream
+age fix that tightened cell-pop ratios.
+
+See `slurm_tilt_v4.out` for full per-bucket diagnostics.
 
 ## Method
 
@@ -35,15 +44,15 @@ unrealized capital gains (consistent with `cat_nw` definition in
 
 |bin      |      SCF|  raw_DRF| post_tilt| post_rescale| rescale_factor|
 |:--------|--------:|--------:|---------:|------------:|--------------:|
-|p0-20    |   $2.35T|   $2.92T|    $0.19T|       $2.19T|         11.716|
-|p20-40   |   $3.63T|   $4.15T|    $3.54T|       $3.80T|          1.074|
-|p40-60   |   $8.26T|   $8.74T|    $8.09T|       $8.23T|          1.017|
-|p60-80   |  $14.58T|  $19.23T|   $14.14T|      $14.78T|          1.045|
-|p80-90   |  $15.78T|  $19.19T|   $15.06T|      $16.10T|          1.069|
-|p90-99   |  $41.89T|  $52.18T|   $46.52T|      $44.80T|          0.963|
-|p99-99.9 |  $12.83T|  $10.91T|   $10.41T|       $9.94T|          0.955|
-|top0.1%  |  $39.80T|  $60.45T|   $42.79T|      $39.28T|          0.918|
-|TOTAL    | $139.12T| $177.79T|  $140.73T|     $139.12T|          0.989|
+|p0-20    |   $2.35T|   $3.08T|    $2.07T|       $2.20T|          1.059|
+|p20-40   |   $3.63T|   $4.42T|    $3.47T|       $3.83T|          1.105|
+|p40-60   |   $8.26T|   $8.56T|    $8.17T|       $8.40T|          1.028|
+|p60-80   |  $14.58T|  $17.88T|   $14.27T|      $14.60T|          1.023|
+|p80-90   |  $15.78T|  $19.34T|   $15.11T|      $16.11T|          1.066|
+|p90-99   |  $41.89T|  $51.17T|   $44.58T|      $44.67T|          1.002|
+|p99-99.9 |  $12.83T|  $11.06T|   $10.02T|       $9.93T|          0.991|
+|top0.1%  |  $39.80T|  $59.49T|   $44.43T|      $39.37T|          0.886|
+|TOTAL    | $139.12T| $175.00T|  $142.12T|     $139.12T|          0.979|
 
 ## Table 2 — Net worth ($T) by age group
 
@@ -52,14 +61,14 @@ use the same definition.
 
 |bin   |      SCF|  raw_DRF| post_tilt| post_rescale| rescale_factor|
 |:-----|--------:|--------:|---------:|------------:|--------------:|
-|18-24 |   $0.75T|   $0.72T|    $0.52T|       $0.94T|          1.796|
-|25-34 |   $4.26T|   $4.37T|    $3.89T|       $4.04T|          1.040|
-|35-44 |  $11.67T|  $15.96T|   $13.32T|      $12.93T|          0.971|
-|45-54 |  $19.84T|  $29.31T|   $22.61T|      $21.83T|          0.966|
-|55-64 |  $36.21T|  $44.58T|   $34.11T|      $32.98T|          0.967|
-|65-74 |  $39.84T|  $46.70T|   $37.67T|      $37.82T|          1.004|
-|75+   |  $26.55T|  $36.14T|   $28.61T|      $28.58T|          0.999|
-|TOTAL | $139.12T| $177.79T|  $140.73T|     $139.12T|          0.989|
+|18-24 |   $0.75T|   $0.83T|    $0.59T|       $0.57T|          0.969|
+|25-34 |   $4.26T|   $4.74T|    $3.71T|       $3.70T|          0.996|
+|35-44 |  $11.67T|  $16.57T|   $13.24T|      $12.82T|          0.968|
+|45-54 |  $19.84T|  $29.94T|   $23.19T|      $22.38T|          0.965|
+|55-64 |  $36.21T|  $45.82T|   $34.20T|      $33.26T|          0.972|
+|65-74 |  $39.84T|  $43.65T|   $39.42T|      $38.95T|          0.988|
+|75+   |  $26.55T|  $33.46T|   $27.77T|      $27.44T|          0.988|
+|TOTAL | $139.12T| $175.00T|  $142.12T|     $139.12T|          0.979|
 
 ## Table 3 — Net worth shares + thresholds by wealth percentile
 
@@ -70,11 +79,11 @@ lower threshold = 99.9th percentile NW).
 
 |bin      |   SCF| raw_DRF| post_tilt| post_rescale| SCF thr| raw_DRF thr| post_tilt thr| post_rescale thr|
 |:--------|-----:|-------:|---------:|------------:|-------:|-----------:|-------------:|----------------:|
-|bot50    | 0.008|   0.004|    -0.001|        0.011| $-0.56M|     $-0.54M|       $-0.43M|          $-0.47M|
-|p50-90   | 0.219|   0.193|     0.206|        0.216|  $0.10M|      $0.08M|        $0.05M|           $0.07M|
-|p90-99   | 0.389|   0.369|     0.402|        0.403|  $1.39M|      $1.48M|        $1.25M|           $1.28M|
-|p99-99.9 | 0.222|   0.235|     0.251|        0.237| $11.49M|     $12.81M|       $11.27M|          $10.69M|
-|top0.1%  | 0.162|   0.198|     0.142|        0.133| $54.45M|     $66.86M|       $54.00M|          $49.16M|
+|bot50    | 0.008|   0.004|     0.001|        0.001| $-0.56M|     $-0.54M|       $-0.42M|          $-0.48M|
+|p50-90   | 0.219|   0.191|     0.212|        0.222|  $0.10M|      $0.08M|        $0.06M|           $0.07M|
+|p90-99   | 0.389|   0.367|     0.393|        0.406|  $1.39M|      $1.51M|        $1.28M|           $1.31M|
+|p99-99.9 | 0.222|   0.235|     0.241|        0.231| $11.49M|     $12.45M|       $10.73M|          $10.79M|
+|top0.1%  | 0.162|   0.203|     0.153|        0.139| $54.45M|     $69.36M|       $55.42M|          $49.55M|
 
 ## Table 4 — Counts and amounts by wealth category
 
@@ -86,14 +95,14 @@ NW count is `cat_nw > 0` (positive net worth).
 
 |category   | SCF cnt| raw_DRF cnt| post_tilt cnt| post_rescale cnt| rescale_factor cnt|  SCF amt| raw_DRF amt| post_tilt amt| post_rescale amt| rescale_factor amt|
 |:----------|-------:|-----------:|-------------:|----------------:|------------------:|--------:|-----------:|-------------:|----------------:|------------------:|
-|nw         |  134.4M|      146.0M|        120.2M|           157.3M|              1.308| $139.12T|    $177.79T|      $140.73T|         $139.12T|              0.989|
-|equities   |   38.8M|       41.5M|         35.6M|            73.3M|              2.057|  $21.06T|     $28.19T|       $22.52T|          $21.06T|              0.935|
-|bonds      |   13.1M|       13.2M|         12.7M|            50.3M|              3.969|   $4.84T|      $5.66T|        $5.25T|           $4.84T|              0.922|
-|homes      |   95.5M|       99.9M|         85.3M|           122.9M|              1.442|  $40.85T|     $45.85T|       $38.39T|          $40.85T|              1.064|
-|retirement |   78.7M|       85.0M|         72.3M|           110.0M|              1.521|  $23.84T|     $26.80T|       $22.74T|          $23.84T|              1.048|
-|business   |   18.5M|       18.0M|         17.3M|            48.3M|              2.783|  $30.77T|     $46.93T|       $32.78T|          $30.77T|              0.939|
-|other      |  143.1M|      154.9M|        131.6M|           162.5M|              1.235|  $34.41T|     $43.06T|       $34.48T|          $34.41T|              0.998|
-|debt       |  113.9M|      122.0M|        103.3M|           134.2M|              1.299|  $16.66T|     $18.70T|       $15.43T|          $16.66T|              1.079|
+|nw         |  134.4M|      146.0M|        132.8M|           132.1M|              0.995| $139.12T|    $175.00T|      $142.12T|         $139.12T|              0.979|
+|equities   |   38.8M|       41.3M|         36.8M|            36.8M|              1.000|  $21.06T|     $27.45T|       $22.24T|          $21.06T|              0.947|
+|bonds      |   13.1M|       13.4M|         12.9M|            12.9M|              1.000|   $4.84T|      $5.57T|        $5.21T|           $4.84T|              0.929|
+|homes      |   95.5M|       97.9M|         92.3M|            92.3M|              1.000|  $40.85T|     $45.27T|       $39.55T|          $40.85T|              1.033|
+|retirement |   78.7M|       85.0M|         75.0M|            75.0M|              1.000|  $23.84T|     $26.69T|       $23.31T|          $23.84T|              1.023|
+|business   |   18.5M|       17.5M|         18.3M|            18.3M|              1.000|  $30.77T|     $45.65T|       $32.34T|          $30.77T|              0.952|
+|other      |  143.1M|      155.6M|        139.7M|           139.7M|              1.000|  $34.41T|     $42.77T|       $35.21T|          $34.41T|              0.977|
+|debt       |  113.9M|      123.0M|        104.8M|           104.8M|              1.000|  $16.66T|     $18.40T|       $15.75T|          $16.66T|              1.058|
 
 ---
 
@@ -102,11 +111,11 @@ NW count is `cat_nw > 0` (positive net worth).
 All record-level microdata is saved — you can build new tables without
 re-running the harness:
 
-  - 3-stage record-level Y matrices: /nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline/wealth_harness_tilt_diag.rds
+  - 3-stage record-level Y matrices: /nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Data/v1/2026042712/baseline/wealth_harness_tilt_diag.rds
      (y_pre_tilt = raw DRF leaf draw; y_post_tilt_pre_rescale =
       after tilt, before Step B; y_post_rescale = final.
      Each is a tibble with id + 23 wealth Y vars.)
-  - PUF X-side covariates: /nfs/roberts/scratch/pi_nrs36/jar335/jar335/model_data/Tax-Data/v1/2026042315/baseline/tax_units_2022.csv
+  - PUF X-side covariates: /nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Data/v1/2026042712/baseline/tax_units_2022.csv
   - SCF target side: resources/cache/scf_tax_units.rds
 
 Re-run this report after editing `src/eda/report_v3.R`:

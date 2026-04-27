@@ -107,7 +107,14 @@ scf_to_y = function(df) {
 run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                                   debug_output  = FALSE,
                                   min_node_size = NULL,
-                                  tilt_options  = list()) {
+                                  tilt_options  = list(),
+                                  skip_tilt     = FALSE) {
+
+  # skip_tilt = TRUE: bail out after Stage 2's uniform-leaf-draw
+  # (pre_tilt_donors). No tilt, no Step B rescale. Returns the same shape
+  # of result list with `y` = `y_pre_tilt`, empty diagnostics. Used by
+  # eda/diagnose_age_income.R to inspect raw-DRF behavior on new data
+  # before deciding on tilt design.
 
   # tilt_options: list of arguments forwarded to solve_tilt_block /
   # sample_tilt_donors. Recognized fields:
@@ -124,13 +131,20 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   #   chunk_size   (default 2000)  -- PUF rows per drf::get_sample_weights
   #                                   call
   stopifnot(is.list(tilt_options))
-  ridge_eta          = tilt_options$ridge_eta          %||% 1e-4
-  tilt_max_iters     = tilt_options$max_iters          %||% 30L
-  tilt_tol_rel       = tilt_options$tol_rel            %||% 0.01
-  amount_denom_floor = tilt_options$amount_denom_floor %||% 1e9
-  q_threshold        = tilt_options$q_threshold        %||% 1e-6
-  top_k              = tilt_options$top_k              %||% 300L
-  chunk_size         = tilt_options$chunk_size         %||% 2000L
+  ridge_eta            = tilt_options$ridge_eta            %||% 1e-4
+  tilt_max_iters       = tilt_options$max_iters            %||% 30L
+  tilt_tol_rel         = tilt_options$tol_rel              %||% 0.01
+  amount_denom_floor   = tilt_options$amount_denom_floor   %||% 1e9
+  q_threshold          = tilt_options$q_threshold          %||% 1e-6
+  top_k                = tilt_options$top_k                %||% 300L
+  chunk_size           = tilt_options$chunk_size           %||% 2000L
+  lambda_max           = tilt_options$lambda_max           %||% 7
+  use_fallback_uniform = tilt_options$use_fallback_uniform %||% FALSE
+  # Wealth-percentile-share targets: at each SCF percentile p in this
+  # vector, add a per-bucket target of "dollar mass in cat_nw above the
+  # SCF p-th percentile threshold". Default: top 1% and top 0.1%.
+  # Set to NULL or empty vector to disable.
+  wealth_share_pcts    = tilt_options$wealth_share_pcts    %||% c(0.99, 0.999)
 
   # Per-cell DRF leaf-size knob. Bigger leaves = larger donor pool per leaf
   # (helps reach feasibility on tight buckets) at cost of marginal Y|X
@@ -589,6 +603,28 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   kept = qc_report %>% filter(status == 'keep') %>%
     mutate(feature_col = paste(category, margin, sep = '.'))
 
+  # ---------- Wealth-percentile-share thresholds (SCF-derived) -----------
+  # For each requested percentile p, compute the SCF cat_nw threshold —
+  # the cutoff above which p×100% of SCF tax units sit in NW. These
+  # thresholds are FIXED inputs to the tilt: each donor j contributes
+  # cat_nw_j * 1{cat_nw_j > threshold} to the tilt's Z, and the
+  # per-bucket target equals the SCF cell's actual dollar mass above
+  # that threshold. Sum across buckets gives global SCF top-N share.
+  scf_nw_thresholds = numeric(0)
+  if (length(wealth_share_pcts) > 0L) {
+    scf_nw_thresholds = wtd.quantile(scf_cells_df$cat_nw,
+                                     scf_cells_df$weight,
+                                     probs = wealth_share_pcts)
+    names(scf_nw_thresholds) = paste0('top_', sprintf('%g',
+                                       100 * (1 - wealth_share_pcts)))
+    cat(sprintf('wealth.R: wealth-share thresholds (SCF):\n'))
+    for (k in seq_along(scf_nw_thresholds)) {
+      cat(sprintf('  %-12s NW > $%.2fM\n',
+                  names(scf_nw_thresholds)[k],
+                  scf_nw_thresholds[k] / 1e6))
+    }
+  }
+
   # ---------- Pre-tilt diagnostic baseline (uniform leaf draw) ------------
   # Kept ONLY as a diagnostic so harnesses can compare raw-DRF leaf draw
   # vs tilted output. Not fed into the solver.
@@ -598,6 +634,35 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     if (length(lr) > 0L) {
       pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
     }
+  }
+
+  # ---------- Early exit: skip_tilt mode -----------------------------------
+  if (skip_tilt) {
+    cat('wealth.R: skip_tilt=TRUE, returning Stage-2 output (uniform leaf draw)\n')
+    pre_y = Y_mat[pre_tilt_donors, , drop = FALSE]
+    colnames(pre_y) = wealth_y_vars
+    dep_rows = which(puf_tax_units$dep_status == 1L)
+    if (length(dep_rows) > 0L) {
+      cat(sprintf('  zeroing wealth for %d dep_status==1 rows\n', length(dep_rows)))
+      pre_y[dep_rows, ] = 0
+    }
+    return(list(
+      y                       = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      y_pre_tilt              = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      y_post_tilt_pre_rescale = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      qc_report               = qc_report,
+      rescale_factors         = tibble(),
+      tilt_diagnostics        = list(),
+      pre_tilt_donors         = pre_tilt_donors,
+      post_tilt_donors        = pre_tilt_donors,
+      # Back-compat aliases
+      y_pre_swap              = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      y_post_step_a_pre_rescale = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      step_a_diagnostics      = list(),
+      pre_swap_donors         = pre_tilt_donors,
+      post_swap_donors        = pre_tilt_donors,
+      min_node_size           = min_node_size
+    ))
   }
 
   # ---------- Per-bucket tilt + sample loop -------------------------------
@@ -681,6 +746,42 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       names(target_b)   = col_names
       names(scale_b)    = col_names
 
+      # ---- Append wealth-percentile-share targets ----
+      # For each SCF threshold p, donor j's contribution is
+      #   cat_nw_j * 1{cat_nw_j > scf_threshold_p}
+      # Per-bucket target = SCF cell × age dollar mass above threshold.
+      # Sum of per-bucket targets across all buckets = SCF total
+      # dollar mass above threshold = SCF top-N share × SCF total NW.
+      if (length(scf_nw_thresholds) > 0L) {
+        scf_mask_bucket = scf_cells_df$cell_income == ci &
+                          scf_cells_df$cell_age == ca
+        scf_w_b   = scf_cells_df$weight[scf_mask_bucket]
+        scf_nw_b  = scf_cells_df$cat_nw[scf_mask_bucket]
+        donor_nw  = donor_cats$cat_nw[offset + donor_keep_idx_local]
+
+        extra_Z   = matrix(0, nrow = nrow(donor_Z),
+                            ncol = length(scf_nw_thresholds))
+        extra_tgt = numeric(length(scf_nw_thresholds))
+        extra_scl = numeric(length(scf_nw_thresholds))
+        extra_nm  = character(length(scf_nw_thresholds))
+
+        for (k in seq_along(scf_nw_thresholds)) {
+          thr = scf_nw_thresholds[k]
+          extra_Z[, k]    = donor_nw * (donor_nw > thr)
+          extra_tgt[k]    = sum(scf_w_b * scf_nw_b * (scf_nw_b > thr))
+          extra_scl[k]    = max(abs(extra_tgt[k]), amount_denom_floor)
+          extra_nm[k]     = paste0('share.', names(scf_nw_thresholds)[k])
+        }
+        colnames(extra_Z) = extra_nm
+        names(extra_tgt)  = extra_nm
+        names(extra_scl)  = extra_nm
+
+        donor_Z = cbind(donor_Z, extra_Z)
+        target_b = c(target_b, extra_tgt)
+        scale_b  = c(scale_b,  extra_scl)
+        col_names = c(col_names, extra_nm)
+      }
+
       # Defensive: any NA in donor_Z would propagate through exp(Z lambda)
       # and break L-BFGS-B. SCFP source fields are usually clean but a
       # stray NA on a debt or kg field can sneak through. Zero them out.
@@ -742,7 +843,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         ridge_eta   = ridge_eta,
         max_iters   = tilt_max_iters,
         tol_rel     = tilt_tol_rel,
-        init_lambda = NULL
+        init_lambda = NULL,
+        lambda_max  = lambda_max
       )
       cat(sprintf('  %-12s × %-9s: solve %.1fs (iters=%s status=%s)\n',
                   ci, ca,
@@ -880,8 +982,12 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         # Decide which case (a) / (b) / (c) applies.
         scf_alive = abs(scf_total) >= max(1e3, 1e-6 * max(abs(puf_total), 1))
         puf_alive = abs(puf_total) >= max(1e3, 1e-6 * max(abs(scf_total), 1))
-        skip       = !scf_alive
-        fallback_uniform = scf_alive && !puf_alive
+        # `fallback_uniform` is gated by use_fallback_uniform (default
+        # FALSE in v4 — when tilt is well-behaved, the fallback is
+        # unnecessary and inflates counts). When disabled, treat the
+        # zero-PUF case as `skip`.
+        skip = !scf_alive || (!puf_alive && !use_fallback_uniform)
+        fallback_uniform = use_fallback_uniform && scf_alive && !puf_alive
         factor = if (skip || fallback_uniform) 1 else scf_total / puf_total
 
         if (fallback_uniform) {
