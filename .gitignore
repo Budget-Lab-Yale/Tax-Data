@@ -7,11 +7,16 @@ config/interfaces/output_roots.yaml
 # Local / generated
 .claude/
 plots/
+docs/
+src/eda/
 resources/cache/
 slurm_*.out
 slurm_*.err
+AM_STATUS.md
+AM_STATUS.html
+.last_phase12_output_path
 
-# Raw downloads — regenerate via src/eda/ingest_dfa.R
+# Raw downloads — regenerate via ingest scripts (now in eda, gitignored)
 resources/dfa/dfa.zip
 resources/dfa/raw/
 resources/dfa/dfa_raw_networth_levels.csv

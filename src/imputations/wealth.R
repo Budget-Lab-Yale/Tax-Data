@@ -139,7 +139,6 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   top_k                = tilt_options$top_k                %||% 300L
   chunk_size           = tilt_options$chunk_size           %||% 2000L
   lambda_max           = tilt_options$lambda_max           %||% 7
-  use_fallback_uniform = tilt_options$use_fallback_uniform %||% FALSE
   # Wealth-percentile-share targets: at each SCF percentile p in this
   # vector, add a per-bucket target of "dollar mass in cat_nw above the
   # SCF p-th percentile threshold". Default: top 1% and top 0.1%.
@@ -946,14 +945,12 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # Step B: per-(cell × category) intensive rescale.
   # For each cell c and category C, compute s = SCF_total / PUF_total and
   # multiply every Y-var of C on records in c by s. Also applies to kg_*
-  # via KG_PARENT inheritance. Three cases:
-  #   (a) puf_total > 0 and scf_total > 0  → multiplicative rescale
-  #   (b) puf_total ~ 0 and scf_total > 0  → uniform additive fallback
-  #       (otherwise the cell stays at zero forever; this case is the
-  #        proposal §16 "tilt too strong" failure mode where tilt
-  #        collapsed onto donors with 0 in the category).
-  #   (c) scf_total ~ 0  → skip (don't fabricate amounts SCF says aren't
-  #       there).
+  # via KG_PARENT inheritance. Two cases:
+  #   (a) both alive (PUF and SCF totals well above 0) → multiplicative
+  #   (b) either dead → skip (don't fabricate amounts SCF says aren't
+  #       there, don't divide by ~0). With the lambda_max cap on the
+  #       tilt, case (b) rarely fires in practice — the v3 fallback_uniform
+  #       branch was for an uncapped-tilt failure mode that no longer occurs.
   #---------------------------------------------------------------------------
 
   cat('wealth.R: applying per-(cell × category) intensive rescale\n')
@@ -979,36 +976,16 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                    else rowSums(post_y[rec_cell, members, drop = FALSE])
         puf_total = sum(rec_w * puf_vals)
 
-        # Decide which case (a) / (b) / (c) applies.
+        # Two cases:
+        #   - both alive → multiplicative rescale
+        #   - SCF dead OR PUF dead → skip (don't fabricate amounts that
+        #     SCF says aren't there, and don't divide by ~zero).
         scf_alive = abs(scf_total) >= max(1e3, 1e-6 * max(abs(puf_total), 1))
         puf_alive = abs(puf_total) >= max(1e3, 1e-6 * max(abs(scf_total), 1))
-        # `fallback_uniform` is gated by use_fallback_uniform (default
-        # FALSE in v4 — when tilt is well-behaved, the fallback is
-        # unnecessary and inflates counts). When disabled, treat the
-        # zero-PUF case as `skip`.
-        skip = !scf_alive || (!puf_alive && !use_fallback_uniform)
-        fallback_uniform = use_fallback_uniform && scf_alive && !puf_alive
-        factor = if (skip || fallback_uniform) 1 else scf_total / puf_total
+        skip   = !scf_alive || !puf_alive
+        factor = if (skip) 1 else scf_total / puf_total
 
-        if (fallback_uniform) {
-          # Distribute scf_total uniformly across rec_cell records, split
-          # equally across category members. Each record gets
-          #   scf_total / (sum(rec_w) * length(members))
-          # ASSIGNED (not multiplied — post_y was zero in this case). The
-          # weighted PUF total then comes back to scf_total exactly.
-          per_record_per_member = scf_total /
-                                  (max(sum(rec_w), 1) * length(members))
-          for (m in members) {
-            post_y[rec_cell, m] = post_y[rec_cell, m] + per_record_per_member
-          }
-          for (kv in names(KG_PARENT)) {
-            if (KG_PARENT[[kv]] == cat_name) {
-              # kg_* fallback: keep at zero (no SCF target for kg_* by cat,
-              # and synthesizing kg gains in a frame-mismatch cell would be
-              # spurious).
-            }
-          }
-        } else if (!skip) {
+        if (!skip) {
           for (m in members) post_y[rec_cell, m] = post_y[rec_cell, m] * factor
           # Apply same factor to kg_* with this parent category.
           for (kv in names(KG_PARENT)) {
@@ -1025,9 +1002,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
           puf_pre_rescale_total = puf_total,
           factor                = factor,
           applied               = !skip,
-          mode                  = if (skip) 'skip'
-                                  else if (fallback_uniform) 'fallback_uniform'
-                                  else 'multiplicative'
+          mode                  = if (skip) 'skip' else 'multiplicative'
         )
       }
     }
