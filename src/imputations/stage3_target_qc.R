@@ -40,14 +40,17 @@ CALIB_CATEGORIES = c('nw', 'equities', 'bonds', 'homes',
 CALIB_MARGINS    = c('intensive', 'extensive')
 
 
-#' Return the default user-requested target spec (7 × 2 × 6 × 2 = 168 rows).
+#' Return the default user-requested target spec.
+#' Drops (nw, intensive) — net worth is sum(assets) − sum(debts), so an
+#' explicit nw amount target would double-weight what the per-cat amount
+#' targets already constrain.
 default_wealth_target_spec = function() {
   tidyr::crossing(
     cell_income = CALIB_INCOME_BUCKETS,
     cell_age    = CALIB_AGE_BUCKETS,
     category    = CALIB_CATEGORIES,
     margin      = CALIB_MARGINS
-  )
+  ) %>% filter(!(category == 'nw' & margin == 'intensive'))
 }
 
 

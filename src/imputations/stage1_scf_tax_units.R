@@ -700,11 +700,17 @@ dir.create(dirname(cache_path), showWarnings = FALSE, recursive = TRUE)
 raw_path  = interface_paths$SCF %>% file.path('p22i6.dta')
 scfp_path = interface_paths$SCF %>% file.path('SCFP2022.csv')
 
-# If the cache is newer than the raw inputs, load and skip the rebuild.
+# If the cache is newer than the raw inputs AND newer than this source
+# file, load and skip the rebuild. Including the source mtime means edits
+# to the construction logic (definitions, target columns, etc.) invalidate
+# the cache automatically — silently using a stale cache after a code
+# change has bitten us before.
 cache_usable = FALSE
 if (file.exists(cache_path)) {
   cache_mtime = file.mtime(cache_path)
-  raw_mtime   = max(file.mtime(raw_path), file.mtime(scfp_path))
+  raw_mtime   = max(file.mtime(raw_path),
+                    file.mtime(scfp_path),
+                    file.mtime('src/imputations/stage1_scf_tax_units.R'))
   cache_usable = cache_mtime > raw_mtime
 }
 

@@ -502,14 +502,10 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                             'retirement', 'pass_throughs')),
     debt       = wealth_debt_vars
   )
-  # kg_* rescale follows the inheritance rule (same as in dfa_factors).
-  # kg_pass_throughs now follows 'business' (was 'other').
-  KG_PARENT = list(
-    kg_primary_home  = 'homes',
-    kg_other_re      = 'other',
-    kg_pass_throughs = 'business',
-    kg_other         = 'equities'
-  )
+  # Step B (further below) rescales each of the 23 wealth y-vars
+  # individually against its own SCF (cell × age) total — no KG_PARENT or
+  # cat-inheritance machinery needed. Cat-level structure remains for the
+  # tilt's targets (CAT_MEMBERS above feeds cat_amount_matrix).
   #---------------------------------------------------------------------------
 
   # ---------- Donor-side category values + cat-level matrices -----------
@@ -584,6 +580,22 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   puf_cells = assign_calibration_cells(puf_cells, puf_cells$income,
                                         puf_cells$age_older, puf_cells$weight)
 
+  # ---------- Zero dep_status==1 weights BEFORE tilt -----------------------
+  # Dependent returns get their wealth zeroed out post-Step-A (further
+  # below), but the tilt's count and amount targets must also exclude
+  # them — otherwise extensive targets are computed against full PUF
+  # weight, then dependents are removed, leaving final ownership counts
+  # too low. Setting weight=0 means dep records contribute nothing to
+  # any aggregate or gradient. Cell membership was already computed
+  # above using the original weight (so weighted ranks aren't perturbed).
+  dep_rows_pre = which(puf_tax_units$dep_status == 1L)
+  if (length(dep_rows_pre) > 0L) {
+    cat(sprintf('wealth.R: zeroing weights for %d dep_status==1 rows before Stage 3\n',
+                length(dep_rows_pre)))
+    puf_w[dep_rows_pre] = 0
+    puf_cells$weight[dep_rows_pre] = 0
+  }
+
   # ---------- Donor-side age bucket (for cross-age masking) ---------------
   # scf_boot inherits age_older from scf_training (carried via features).
   # Map the bootstrap-row age to a senior/nonsenior flag, matching the PUF
@@ -601,6 +613,31 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   summarize_qc(qc_report)
   kept = qc_report %>% filter(status == 'keep') %>%
     mutate(feature_col = paste(category, margin, sep = '.'))
+
+  # ---------- PUF-side donor support QC (extensive targets) --------------
+  # SCF-side viability already ran; now check whether each kept extensive
+  # target is reachable given each PUF record's actual leaf-restricted
+  # donor set. If too many records have leaves with no positive-cat
+  # donors, the count target can't be hit no matter what lambda does.
+  # Drop those targets BEFORE the tilt burns iterations on them.
+  donor_cats_named = setNames(
+    lapply(CALIB_CATEGORIES,
+           function(c) donor_cats[[paste0('cat_', c)]]),
+    CALIB_CATEGORIES)
+  puf_support = assess_puf_donor_support(
+    puf_cells, leaf_donors_list, donor_cats_named, min_supported = 0.80)
+  n_kept_before = nrow(kept %>% filter(margin == 'extensive'))
+  kept = kept %>%
+    left_join(puf_support %>%
+                select(cell_income, cell_age, category, donor_support_ok),
+              by = c('cell_income', 'cell_age', 'category')) %>%
+    filter(margin != 'extensive' | donor_support_ok | is.na(donor_support_ok)) %>%
+    select(-donor_support_ok)
+  n_kept_after = nrow(kept %>% filter(margin == 'extensive'))
+  if (n_kept_after < n_kept_before) {
+    cat(sprintf('PUF donor-support QC: dropped %d extensive targets (insufficient leaf support)\n',
+                n_kept_before - n_kept_after))
+  }
 
   # ---------- Wealth-percentile-share thresholds (SCF-derived) -----------
   # For each requested percentile p, compute the SCF cat_nw threshold —
@@ -701,8 +738,23 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
 
       kept_b = kept %>% filter(cell_income == ci, cell_age == ca)
       if (nrow(kept_b) == 0L) {
-        post_tilt_donors[rec_cell] = pre_tilt_donors[rec_cell]
-        cat(sprintf('  %-12s × %-9s: n=%6d  [no viable targets → uniform leaf]\n',
+        # No viable targets in this bucket — fall back to a uniform leaf
+        # draw RESTRICTED to the donor age that matches the bucket. Using
+        # pre_tilt_donors (any-age leaf) here would leak senior donors into
+        # nonsenior buckets and vice versa, undoing the age control that
+        # calibrated buckets enforce.
+        target_senior = (ca == 'senior')
+        for (i in rec_cell) {
+          lr = leaf_donors_list[[i]]
+          if (length(lr) == 0L) next
+          lr_age_ok = lr[scf_boot_is_senior[lr] == target_senior]
+          if (length(lr_age_ok) > 0L) {
+            post_tilt_donors[i] = lr_age_ok[sample.int(length(lr_age_ok), 1L)]
+          } else {
+            post_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
+          }
+        }
+        cat(sprintf('  %-12s × %-9s: n=%6d  [no viable targets → age-restricted leaf draw]\n',
                     ci, ca, n_b))
         next
       }
@@ -942,18 +994,23 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   post_y_pre_rescale = post_y
 
   #---------------------------------------------------------------------------
-  # Step B: per-(cell × category) intensive rescale.
-  # For each cell c and category C, compute s = SCF_total / PUF_total and
-  # multiply every Y-var of C on records in c by s. Also applies to kg_*
-  # via KG_PARENT inheritance. Two cases:
+  # Step B: per-(cell × y-var) intensive rescale.
+  # For each cell c and each of the 23 wealth y-vars y, compute factor =
+  # SCF_total(y, c) / PUF_total(y, c) and multiply column y on records in
+  # c by factor. Two cases:
   #   (a) both alive (PUF and SCF totals well above 0) → multiplicative
   #   (b) either dead → skip (don't fabricate amounts SCF says aren't
-  #       there, don't divide by ~0). With the lambda_max cap on the
-  #       tilt, case (b) rarely fires in practice — the v3 fallback_uniform
-  #       branch was for an uncapped-tilt failure mode that no longer occurs.
+  #       there, don't divide by ~0)
+  # NOTE: per-y-var (vs cat-level) means every y-var aggregate matches SCF
+  # at the cell level — including the 8 'other' subcomponents, the 6 debt
+  # subcomponents, and the 4 kg_* unrealized gains. Donor's per-record
+  # composition within a cat is not preserved (the cash/other_home/etc.
+  # mix is forced to SCF, not the donor's own mix), but cat-level rescale
+  # left subvar drift visible (Tables 5 and 6 of report_v3) so this is
+  # the correction.
   #---------------------------------------------------------------------------
 
-  cat('wealth.R: applying per-(cell × category) intensive rescale\n')
+  cat('wealth.R: applying per-(cell × y-var) intensive rescale\n')
   rescale_rows = list()
   for (ci in CALIB_INCOME_BUCKETS) {
     for (ca in CALIB_AGE_BUCKETS) {
@@ -964,40 +1021,21 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       scf_mask = scf_cells_df$cell_income == ci & scf_cells_df$cell_age == ca
       scf_w    = scf_cells_df$weight[scf_mask]
 
-      for (cat_name in names(CAT_MEMBERS)) {
-        members = CAT_MEMBERS[[cat_name]]
-        # SCF target (intensive total)
-        scf_vals = if (length(members) == 1L) scf_y[scf_mask, members]
-                   else rowSums(scf_y[scf_mask, members, drop = FALSE])
-        scf_total = sum(scf_w * scf_vals)
+      for (yv in wealth_y_vars) {
+        scf_total = sum(scf_w * scf_y[scf_mask, yv])
+        puf_total = sum(rec_w * post_y[rec_cell, yv])
 
-        # PUF post-Step-A aggregate
-        puf_vals = if (length(members) == 1L) post_y[rec_cell, members]
-                   else rowSums(post_y[rec_cell, members, drop = FALSE])
-        puf_total = sum(rec_w * puf_vals)
-
-        # Two cases:
-        #   - both alive → multiplicative rescale
-        #   - SCF dead OR PUF dead → skip (don't fabricate amounts that
-        #     SCF says aren't there, and don't divide by ~zero).
         scf_alive = abs(scf_total) >= max(1e3, 1e-6 * max(abs(puf_total), 1))
         puf_alive = abs(puf_total) >= max(1e3, 1e-6 * max(abs(scf_total), 1))
         skip   = !scf_alive || !puf_alive
         factor = if (skip) 1 else scf_total / puf_total
 
-        if (!skip) {
-          for (m in members) post_y[rec_cell, m] = post_y[rec_cell, m] * factor
-          # Apply same factor to kg_* with this parent category.
-          for (kv in names(KG_PARENT)) {
-            if (KG_PARENT[[kv]] == cat_name)
-              post_y[rec_cell, kv] = post_y[rec_cell, kv] * factor
-          }
-        }
+        if (!skip) post_y[rec_cell, yv] = post_y[rec_cell, yv] * factor
 
         rescale_rows[[length(rescale_rows) + 1L]] = tibble(
           cell_income           = ci,
           cell_age              = ca,
-          category              = cat_name,
+          yvar                  = yv,
           scf_total             = scf_total,
           puf_pre_rescale_total = puf_total,
           factor                = factor,
@@ -1027,7 +1065,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   extreme = f_applied %>% filter(factor < 0.5 | factor > 2.0)
   if (nrow(extreme) > 0) {
     cat(sprintf('  %d factors outside [0.5, 2.0] (very large rescale):\n', nrow(extreme)))
-    print(extreme %>% select(cell_income, cell_age, category, factor),
+    print(extreme %>% select(cell_income, cell_age, yvar, factor),
           n = Inf)
   }
 
