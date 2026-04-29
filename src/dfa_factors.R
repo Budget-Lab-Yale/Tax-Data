@@ -24,7 +24,7 @@
 #---------------------------------------------
 
 
-source('src/imputations/wealth_schema.R')   # wealth_y_vars etc.
+source('src/imputations/wealth_schema.R')   # wealth_y_vars / wealth_output_vars etc.
 
 
 # DFA bucket labels as they appear in dfa_totals.csv (income slice).
@@ -120,7 +120,7 @@ build_wealth_bucketed_factors = function(weight_ledger,
 
   # ---------- Crosswalk ----------
   crosswalk = read_csv(crosswalk_path, show_col_types = FALSE)
-  stopifnot(all(wealth_y_vars %in% crosswalk$y_var))
+  stopifnot(all(wealth_output_vars %in% crosswalk$y_var))
   dfa_cats = resolve_dfa_categories(crosswalk)
 
   # ---------- Bucket-total weights ----------
@@ -147,28 +147,65 @@ build_wealth_bucketed_factors = function(weight_ledger,
   })
   dfa_factor_tbl = bind_rows(dfa_factors_list)
 
-  # ---------- Inheritance: kg_* + trusts ----------
+  # ---------- Inheritance: basis.* + value.trusts ----------
+  # basis.* fields inherit their grower from the corresponding value.<asset>
+  # (so basis stays a constant fraction of value over the projection — gain
+  # is recovered as `value − basis`). value.trusts has no DFA series, so it
+  # inherits from value.equities as a placeholder portfolio proxy.
   inherit_map = list(
-    kg_primary_home  = 'primary_home',
-    kg_other_re      = 'other_home',       # re_fund has same factor
-    kg_pass_throughs = 'pass_throughs',
-    kg_other         = 'equities',
-    trusts           = 'equities'
+    basis.primary_home     = 'value.primary_home',
+    basis.other_home       = 'value.other_home',
+    basis.re_fund          = 'value.re_fund',
+    basis.pass_throughs    = 'value.pass_throughs',
+    basis.equities         = 'value.equities',
+    value.trusts           = 'value.equities',
+    # Accruals inherit their parent value.* grower so the per-record
+    # accrual rate stays fixed in projection (accrual = rate × value).
+    accruals.equities      = 'value.equities',
+    accruals.pass_throughs = 'value.pass_throughs',
+    accruals.primary_home  = 'value.primary_home',
+    accruals.other_home    = 'value.other_home',
+    accruals.re_fund       = 'value.re_fund',
+    accruals.dc            = 'value.dc',
+    accruals.trusts        = 'value.trusts'
   )
-  stopifnot(all(names(inherit_map) %in% wealth_y_vars))
-  stopifnot(all(unlist(inherit_map) %in% dfa_factor_tbl$variable))
+  stopifnot(all(names(inherit_map) %in% wealth_output_vars))
+  # Every parent must be resolvable: either present in dfa_factor_tbl
+  # (direct DFA grower) or present elsewhere in inherit_map (resolved
+  # transitively below).
+  stopifnot(all(unlist(inherit_map) %in%
+                c(dfa_factor_tbl$variable, names(inherit_map))))
 
-  inherited_tbl = bind_rows(lapply(names(inherit_map), function(v) {
-    parent = inherit_map[[v]]
-    dfa_factor_tbl %>%
-      filter(variable == parent) %>%
-      mutate(variable = v,
-             source   = paste0('inherit:', parent))
-  }))
+  # Topological inheritance: process inherit_map in passes, each pass
+  # adding rows whose parent is now available in the cumulative table.
+  # Handles two-level chains like accruals.trusts → value.trusts →
+  # value.equities cleanly. Bounded by the depth of the chain (~3 here).
+  inherited_tbl = tibble()
+  remaining     = inherit_map
+  available     = dfa_factor_tbl
+  while (length(remaining) > 0L) {
+    ready = vapply(remaining,
+                   function(p) p %in% available$variable,
+                   logical(1))
+    if (!any(ready)) {
+      stop('inherit_map: unresolvable parents: ',
+           paste(unlist(remaining), collapse = ', '))
+    }
+    new_rows = bind_rows(lapply(names(remaining)[ready], function(v) {
+      parent = remaining[[v]]
+      available %>%
+        filter(variable == parent) %>%
+        mutate(variable = v,
+               source   = paste0('inherit:', parent))
+    }))
+    inherited_tbl = bind_rows(inherited_tbl, new_rows)
+    available     = bind_rows(available, new_rows)
+    remaining     = remaining[!ready]
+  }
 
   ledger_dfa = bind_rows(dfa_factor_tbl, inherited_tbl)
 
-  stopifnot(setequal(unique(ledger_dfa$variable), wealth_y_vars))
+  stopifnot(setequal(unique(ledger_dfa$variable), wealth_output_vars))
 
   # ---------- 2026+ macro extension ----------
   # Per-household GDP = gdp / W_total, uniform across buckets. Factor at
@@ -211,7 +248,7 @@ build_wealth_bucketed_factors = function(weight_ledger,
 
   # Invariants.
   stopifnot(!any(is.na(out$factor)))
-  stopifnot(setequal(unique(out$variable), wealth_y_vars))
+  stopifnot(setequal(unique(out$variable), wealth_output_vars))
   stopifnot(setequal(unique(out$bucket), DFA_INCOME_BUCKETS))
   # Every year the pipeline will materialize against must have ledger
   # entries. That range is bounded by weight_ledger, not by
@@ -326,7 +363,7 @@ if (sys.nframe() == 0L) {
       base_year = 2022L
     )
 
-    stopifnot(setequal(unique(out$variable), wealth_y_vars))
+    stopifnot(setequal(unique(out$variable), wealth_output_vars))
     stopifnot(setequal(unique(out$bucket),   DFA_INCOME_BUCKETS))
     # Expected years = 2023..max(macro_fx)
     stopifnot(setequal(unique(out$year), 2023L:2028L))  # bounded by weight_ledger
@@ -334,14 +371,27 @@ if (sys.nframe() == 0L) {
 
     # Inherited factors must equal their parent at every (year, bucket).
     inherited = out %>%
-      filter(variable %in% c('kg_primary_home','kg_other_re',
-                             'kg_pass_throughs','kg_other','trusts')) %>%
+      filter(variable %in% c('basis.primary_home','basis.other_home',
+                             'basis.re_fund','basis.pass_throughs',
+                             'basis.equities','value.trusts',
+                             'accruals.equities','accruals.pass_throughs',
+                             'accruals.primary_home','accruals.other_home',
+                             'accruals.re_fund','accruals.dc',
+                             'accruals.trusts')) %>%
       mutate(parent = case_when(
-        variable == 'kg_primary_home'  ~ 'primary_home',
-        variable == 'kg_other_re'      ~ 'other_home',
-        variable == 'kg_pass_throughs' ~ 'pass_throughs',
-        variable == 'kg_other'         ~ 'equities',
-        variable == 'trusts'           ~ 'equities'))
+        variable == 'basis.primary_home'     ~ 'value.primary_home',
+        variable == 'basis.other_home'       ~ 'value.other_home',
+        variable == 'basis.re_fund'          ~ 'value.re_fund',
+        variable == 'basis.pass_throughs'    ~ 'value.pass_throughs',
+        variable == 'basis.equities'         ~ 'value.equities',
+        variable == 'value.trusts'           ~ 'value.equities',
+        variable == 'accruals.equities'      ~ 'value.equities',
+        variable == 'accruals.pass_throughs' ~ 'value.pass_throughs',
+        variable == 'accruals.primary_home'  ~ 'value.primary_home',
+        variable == 'accruals.other_home'    ~ 'value.other_home',
+        variable == 'accruals.re_fund'       ~ 'value.re_fund',
+        variable == 'accruals.dc'            ~ 'value.dc',
+        variable == 'accruals.trusts'        ~ 'value.trusts'))
     parent_tbl = out %>%
       select(year, bucket, parent_var = variable,
              parent_factor = factor)
@@ -361,7 +411,7 @@ if (sys.nframe() == 0L) {
                                show_col_types = FALSE)$slice == 'income'])
     # (cheap; done in-test to avoid plumbing more state.)
     eq_low = out %>%
-      filter(variable == 'equities', bucket == 'pct00to20') %>%
+      filter(variable == 'value.equities', bucket == 'pct00to20') %>%
       arrange(year)
     f_last   = eq_low$factor[eq_low$year == last_dfa]
     f_after  = eq_low$factor[eq_low$year > last_dfa]

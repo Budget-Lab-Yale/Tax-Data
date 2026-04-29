@@ -8,8 +8,9 @@
 # Exports run_wealth_imputation(), a pure
 # function that takes a materialized 2022
 # PUF tibble + the cached scf_tax_units
-# and returns a tibble (id, 23 wealth
-# cols) at 2022 values.
+# and returns a tibble (id, 25 wealth
+# cols: value.<asset>×14, value.<debt>×6,
+# basis.<...>×5) at 2022 values.
 #
 # Stage architecture:
 #   Stage 1 (upstream) — SCF PEU →
@@ -46,17 +47,19 @@
 source('src/imputations/wealth_schema.R')
 source('src/imputations/stage3_target_qc.R')
 source('src/imputations/tilt_solver.R')
+source('src/imputations/accruals.R')
 
 
 # Module-scope so eda harnesses can reuse. Collapses SCFP raw fields to
-# the 23 Y-var schema; no-op if already in that form.
+# the 24 Y-var schema; no-op if already in that form.
 scf_to_y = function(df) {
   if (all(wealth_y_vars %in% names(df))) return(df)
   df %>% mutate(
     cash             = LIQ + CDS,
     equities         = STOCKS + STMUTF + COMUTF,
     bonds            = BOND + SAVBND + TFBMUTF + GBMUTF + OBMUTF,
-    retirement       = IRAKH + THRIFT + FUTPEN + CURRPEN,
+    dc               = IRAKH + THRIFT,
+    db               = FUTPEN + CURRPEN,
     life_ins         = CASHLI,
     annuities        = ANNUIT,
     trusts           = TRUSTS,
@@ -77,6 +80,30 @@ scf_to_y = function(df) {
     kg_pass_throughs = KGBUS,
     kg_other         = KGSTMF
   )
+}
+
+
+# Post-impute schema transformation. Takes a tibble with `id` + the 24
+# imputation-internal Y-vars (wealth_y_vars: assets, debts, kg_*) and
+# returns a tibble with `id` + the 25 output Y-vars (wealth_output_vars:
+# value.<asset>, value.<debt>, basis.<...>). The kg_* columns are dropped
+# in favor of basis.* derived as `value − kg`. KGORE is allocated between
+# `other_home` and `re_fund` proportionally to their imputed values.
+to_output_schema = function(df) {
+  denom_re = df$other_home + df$re_fund
+  share_oh = ifelse(denom_re > 0, df$other_home / denom_re, 0.5)
+  out = df %>% mutate(
+    basis.primary_home  = primary_home  - kg_primary_home,
+    basis.pass_throughs = pass_throughs - kg_pass_throughs,
+    basis.equities      = equities      - kg_other,
+    basis.other_home    = other_home    - kg_other_re * share_oh,
+    basis.re_fund       = re_fund       - kg_other_re * (1 - share_oh)
+  )
+  out = out %>%
+    rename_with(~ paste0('value.', .),
+                all_of(c(wealth_asset_vars, wealth_debt_vars))) %>%
+    select(-all_of(wealth_kg_vars))
+  out
 }
 
 
@@ -495,11 +522,11 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     equities   = 'equities',
     bonds      = 'bonds',
     homes      = 'primary_home',
-    retirement = 'retirement',
+    retirement = c('dc', 'db'),
     business   = 'pass_throughs',
     other      = setdiff(wealth_asset_vars,
                           c('equities', 'bonds', 'primary_home',
-                            'retirement', 'pass_throughs')),
+                            'dc', 'db', 'pass_throughs')),
     debt       = wealth_debt_vars
   )
   # Step B (further below) rescales each of the 23 wealth y-vars
@@ -672,6 +699,27 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     }
   }
 
+  # ---------- attach_accruals helper --------------------------------------
+  # Looks up each PUF record's chosen donor's SCF DC equity share + DC
+  # total (via boot_idx → original SCF row), then calls compute_accruals
+  # to produce the 7 accruals.* columns. Used identically by the 4
+  # snapshot paths (post_y, pre_y, post_y_pre_rescale, and the skip_tilt
+  # early-return). donor_idx[i] == 0 occurs for dep_status==1 records that
+  # never went through tilt: pmax→1 makes the lookup safe; the looked-up
+  # values are irrelevant because value.* are zero for dep rows so
+  # accruals come out zero anyway.
+  attach_accruals = function(out_tbl, donor_idx, age_older) {
+    safe_idx     = pmax(donor_idx, 1L)
+    orig_scf_idx = boot_idx[safe_idx]
+    acc = compute_accruals(
+      value_tbl         = out_tbl,
+      donor_dc_eq_share = scf_tax_units$dc_equity_share_scf[orig_scf_idx],
+      donor_dc_total    = scf_tax_units$dc[orig_scf_idx],
+      age_older         = age_older
+    )
+    bind_cols(out_tbl, acc)
+  }
+
   # ---------- Early exit: skip_tilt mode -----------------------------------
   if (skip_tilt) {
     cat('wealth.R: skip_tilt=TRUE, returning Stage-2 output (uniform leaf draw)\n')
@@ -682,18 +730,23 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       cat(sprintf('  zeroing wealth for %d dep_status==1 rows\n', length(dep_rows)))
       pre_y[dep_rows, ] = 0
     }
+    pre_y_out = attach_accruals(
+      to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(pre_y))),
+      donor_idx = pre_tilt_donors,
+      age_older = puf_age_older
+    )
     return(list(
-      y                       = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
-      y_pre_tilt              = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
-      y_post_tilt_pre_rescale = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      y                       = pre_y_out,
+      y_pre_tilt              = pre_y_out,
+      y_post_tilt_pre_rescale = pre_y_out,
       qc_report               = qc_report,
       rescale_factors         = tibble(),
       tilt_diagnostics        = list(),
       pre_tilt_donors         = pre_tilt_donors,
       post_tilt_donors        = pre_tilt_donors,
       # Back-compat aliases
-      y_pre_swap              = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
-      y_post_step_a_pre_rescale = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
+      y_pre_swap              = pre_y_out,
+      y_post_step_a_pre_rescale = pre_y_out,
       step_a_diagnostics      = list(),
       pre_swap_donors         = pre_tilt_donors,
       post_swap_donors        = pre_tilt_donors,
@@ -1071,11 +1124,28 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
 
   # Return a list so the caller can route post-Step-A into module_deltas
   # and save pre-Step-A + qc_report + rescale_factors as diagnostic artifacts.
+  # All wealth tibbles are transformed to the output schema (value.* / basis.*)
+  # before return. Diagnostic artifacts (qc_report, rescale_factors, donors)
+  # remain in the imputation-internal schema.
+  post_y_tbl              = attach_accruals(
+    to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(post_y))),
+    donor_idx = post_tilt_donors,
+    age_older = puf_age_older
+  )
+  pre_y_tbl               = attach_accruals(
+    to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(pre_y))),
+    donor_idx = pre_tilt_donors,
+    age_older = puf_age_older
+  )
+  post_y_pre_rescale_tbl  = attach_accruals(
+    to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(post_y_pre_rescale))),
+    donor_idx = post_tilt_donors,
+    age_older = puf_age_older
+  )
   result = list(
-    y                         = bind_cols(tibble(id = puf$id), as_tibble(post_y)),
-    y_pre_tilt                = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
-    y_post_tilt_pre_rescale   = bind_cols(tibble(id = puf$id),
-                                          as_tibble(post_y_pre_rescale)),
+    y                         = post_y_tbl,
+    y_pre_tilt                = pre_y_tbl,
+    y_post_tilt_pre_rescale   = post_y_pre_rescale_tbl,
     qc_report         = qc_report,
     rescale_factors   = rescale_factors,
     min_node_size     = min_node_size,
@@ -1083,9 +1153,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     post_tilt_donors  = post_tilt_donors,
     pre_tilt_donors   = pre_tilt_donors,
     # Back-compat aliases so older harnesses still work (deprecate later).
-    y_pre_swap        = bind_cols(tibble(id = puf$id), as_tibble(pre_y)),
-    y_post_step_a_pre_rescale = bind_cols(tibble(id = puf$id),
-                                          as_tibble(post_y_pre_rescale)),
+    y_pre_swap        = pre_y_tbl,
+    y_post_step_a_pre_rescale = post_y_pre_rescale_tbl,
     step_a_diagnostics = tilt_diagnostics,
     post_swap_donors   = post_tilt_donors,
     pre_swap_donors    = pre_tilt_donors

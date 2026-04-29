@@ -33,9 +33,12 @@ source('src/imputations/placeholders.R')
 
 # Wealth imputation has moved to Phase 3 (donor-year block, runs at 2022
 # base). Add NA placeholders here so the 2017 base PUF has a slot for every
-# wealth Y-var — materialize() will fill them in from module_deltas for
-# years >= 2022 and leave NA for earlier years.
+# wealth output var — materialize() will fill them in from module_deltas
+# for years >= 2022 and leave NA for earlier years. Output schema is
+# wealth_output_vars (value.* / basis.*); the imputation-internal schema
+# (wealth_y_vars: kg_*, dc/db split) is renamed inside run_wealth_imputation
+# before the result lands here.
 source('src/imputations/wealth_schema.R')
-for (v in wealth_y_vars) {
+for (v in wealth_output_vars) {
   if (!(v %in% names(tax_units))) tax_units[[v]] = NA_real_
 }

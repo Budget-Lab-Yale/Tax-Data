@@ -233,6 +233,64 @@ raw = raw %>%
   )
 
 #---------------------------------------------------------------------------
+# DC retirement asset allocation, household level. Used downstream by
+# accruals.R to build a per-record DC equity share (50/50 blend with a
+# lifecycle glide). See docs/wealth_accruals_design.md for design.
+#
+# Up to 9 SCF sub-account allocation flags per household:
+#   - 3 IRA accounts:           X3631 / X3635 / X3637
+#   - 6 thrift/401k accounts:   X11036 / X11136 / X11236 (R, 3 jobs)
+#                                X11436 / X11536 / X11636 (S, 3 jobs)
+# Allocation codes (SCF):
+#   1 = mostly/all stocks       → 1.0
+#   3 = split between           → 0.5
+#   2 = mostly/all interest     → 0.0
+#   anything else (real estate, other, inappropriate, missing) → NA
+#
+# Per-household share = unweighted mean across non-NA flags. NA when the
+# household has zero DC sub-accounts that answered the question (in which
+# case compute_accruals() falls back to the lifecycle glide alone).
+#
+# v1 simplification: unweighted mean rather than dollar-weighted across
+# accounts. Most households have 1–2 DC accounts of similar magnitude;
+# the 50/50 blend with the lifecycle glide downstream further dampens
+# any overweighting from this.
+#---------------------------------------------------------------------------
+
+alloc_field_codes = c('X3631', 'X3635', 'X3637',
+                      'X11036', 'X11136', 'X11236',
+                      'X11436', 'X11536', 'X11636')
+alloc_missing = setdiff(alloc_field_codes, names(raw))
+if (length(alloc_missing) > 0L) {
+  cat(sprintf(
+    'stage1: WARN — SCF allocation fields not present in raw: %s\n',
+    paste(alloc_missing, collapse = ', ')))
+  cat('stage1:        affected slots → NA, lifecycle-glide fallback in accruals\n')
+  for (cc in alloc_missing) raw[[cc]] = NA_real_
+}
+
+recode_alloc_flag = function(x) {
+  case_when(x == 1 ~ 1.0,    # mostly/all stocks
+            x == 3 ~ 0.5,    # split
+            x == 2 ~ 0.0,    # mostly/all interest-bearing
+            TRUE   ~ NA_real_)
+}
+
+alloc_mat = sapply(alloc_field_codes,
+                   function(cc) recode_alloc_flag(raw[[cc]]))
+n_alloc_present   = rowSums(!is.na(alloc_mat))
+sum_alloc_present = rowSums(alloc_mat, na.rm = TRUE)
+raw$dc_equity_share_scf = if_else(n_alloc_present > 0L,
+                                   sum_alloc_present / n_alloc_present,
+                                   NA_real_)
+
+cat(sprintf(
+  'stage1: dc_equity_share_scf — %d/%d (%.1f%%) households with at least one allocation flag, mean share = %.3f\n',
+  sum(n_alloc_present > 0L), nrow(raw),
+  100 * mean(n_alloc_present > 0L),
+  mean(raw$dc_equity_share_scf, na.rm = TRUE)))
+
+#---------------------------------------------------------------------------
 # PEU split decision (Moore lines 555-566).
 # TAXUNIT = 0  → one PEU tax unit
 # TAXUNIT = 1  → first half of split PEU (clone second half below)
@@ -508,7 +566,10 @@ peu_out = peu_units %>%
     Y1_row = Y1, YY1, taxunitid, implicate, weight, age1, age2, n_dep,
     married = MARRIED, male1, male2, filestat = FILESTAT,
     TAXUNIT_final, share_earn, share_labor, share_business, share_housing,
-    R_TINCOME, SP_TINCOME
+    R_TINCOME, SP_TINCOME,
+    # Carried unscaled (it's a portfolio-mix flag, not a dollar amount —
+    # both halves of a split PEU inherit the same household preference).
+    dc_equity_share_scf
   )
 
 # NPEU units — no SCFP-aggregate allocation; wealth=0, income from
@@ -526,11 +587,15 @@ if (nrow(npeu_rows) > 0) {
       age2 = NA_integer_,
       n_dep = 0L,
       male1 = NA_integer_,   # not recovered for NPEU
-      male2 = NA_integer_
+      male2 = NA_integer_,
+      # NPEU members typically have no DC accounts; lifecycle-glide
+      # fallback is the right behavior in compute_accruals.
+      dc_equity_share_scf = NA_real_
     ) %>%
     select(Y1_row = Y1, YY1, taxunitid, implicate, age1, age2, n_dep,
            married = MARRIED, male1, male2, filestat = FILESTAT,
            TAXUNIT_final, share_earn, share_labor, share_business, share_housing,
+           dc_equity_share_scf,
            WSINCOME, GSSINC, TBUSINC, INTINC, DIVINC, RENTINC, PENINC,
            AFDCINC, CAPGLINC, UNEMPINC, OTHINC)
 
@@ -623,11 +688,12 @@ scf_tax_units = scfp_joined %>%
     ss_pens_scf       = SSRETINC,
     ui_other_scf      = TRANSFOTHINC,
 
-    # Canonical wealth schema (from Wealth-Tax-Simulator/src/data.R:28-84)
+    # Canonical wealth schema (matches scf_to_y() in src/imputations/wealth.R).
     cash             = LIQ + CDS,
     equities         = STOCKS + STMUTF + COMUTF,
     bonds            = BOND + SAVBND + TFBMUTF + GBMUTF + OBMUTF,
-    retirement       = IRAKH + THRIFT + FUTPEN + CURRPEN,
+    dc               = IRAKH + THRIFT,
+    db               = FUTPEN + CURRPEN,
     life_ins         = CASHLI,
     annuities        = ANNUIT,
     trusts           = TRUSTS,
@@ -646,7 +712,12 @@ scf_tax_units = scfp_joined %>%
     kg_primary_home  = KGHOUSE,
     kg_other_re      = KGORE,
     kg_pass_throughs = KGBUS,
-    kg_other         = KGSTMF
+    kg_other         = KGSTMF,
+
+    # DC retirement equity-share flag (household level; ∈ [0,1] or NA).
+    # Read by run_wealth_imputation, which threads each PUF record's
+    # donor's value into compute_accruals via boot_idx[post_tilt_donors].
+    dc_equity_share_scf = dc_equity_share_scf
   )
 
 #---------------------------------------------------------------------------
@@ -675,7 +746,7 @@ print(table(scf_tax_units$filestat, useNA = 'ifany'))
 cat(sprintf('stage1: weighted net worth = $%.1f trillion\n',
             sum(scf_tax_units$weight *
                 (scf_tax_units$cash + scf_tax_units$equities + scf_tax_units$bonds +
-                 scf_tax_units$retirement + scf_tax_units$life_ins +
+                 scf_tax_units$dc + scf_tax_units$db + scf_tax_units$life_ins +
                  scf_tax_units$annuities + scf_tax_units$trusts +
                  scf_tax_units$other_fin + scf_tax_units$pass_throughs +
                  scf_tax_units$primary_home + scf_tax_units$other_home +
@@ -705,8 +776,12 @@ scfp_path = interface_paths$SCF %>% file.path('SCFP2022.csv')
 # to the construction logic (definitions, target columns, etc.) invalidate
 # the cache automatically — silently using a stale cache after a code
 # change has bitten us before.
+#
+# estimate_models = 1 is the master "rebuild from source" flag and forces
+# a rebuild here too, so a front-to-back re-estimation run cannot silently
+# inherit a stale Stage 1 cache.
 cache_usable = FALSE
-if (file.exists(cache_path)) {
+if (!estimate_models && file.exists(cache_path)) {
   cache_mtime = file.mtime(cache_path)
   raw_mtime   = max(file.mtime(raw_path),
                     file.mtime(scfp_path),

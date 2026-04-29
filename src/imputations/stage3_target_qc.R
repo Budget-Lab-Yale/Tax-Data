@@ -35,6 +35,11 @@ SENIOR_AGE        = 65L
 # split: retirement and business have their own targets; "other" becomes
 # the residual (cash, life_ins, annuities, trusts, other_fin, other_home,
 # re_fund, other_nonfin) — 8 vars instead of 10, more homogeneous.
+#
+# 2026-04-29: retirement Y-vars split into `dc` and `db` (formerly a single
+# `retirement` Y-var). The 'retirement' calibration category still targets
+# the SCF retirement aggregate (sum of dc + db); the split happens upstream
+# at Stage 1 and propagates through the DRF.
 CALIB_CATEGORIES = c('nw', 'equities', 'bonds', 'homes',
                      'retirement', 'business', 'other', 'debt')
 CALIB_MARGINS    = c('intensive', 'extensive')
@@ -59,12 +64,12 @@ default_wealth_target_spec = function() {
 #' The `cat_` prefix avoids clobbering the 23-var raw names (the input
 #' tibble already has columns named `equities`, `bonds`, etc.).
 #'
-#' Definitions (last revised 2026-04-26):
-#'   cat_nw         = sum(13 assets) - sum(6 debts)  (kg_* NOT included)
+#' Definitions (last revised 2026-04-29):
+#'   cat_nw         = sum(14 assets) - sum(6 debts)  (kg_* NOT included)
 #'   cat_equities   = equities                       (single var)
 #'   cat_bonds      = bonds                          (single var)
 #'   cat_homes      = primary_home                   (primary residence)
-#'   cat_retirement = retirement                     (IRA + 401k + pensions)
+#'   cat_retirement = dc + db                        (IRA + 401k + pensions)
 #'   cat_business   = pass_throughs                  (private business)
 #'   cat_other      = residual: cash + life_ins + annuities + trusts +
 #'                    other_fin + other_home + re_fund + other_nonfin
@@ -72,7 +77,7 @@ default_wealth_target_spec = function() {
 compute_category_values = function(df) {
   residual_other_vars = setdiff(
     wealth_asset_vars,
-    c('equities', 'bonds', 'primary_home', 'retirement', 'pass_throughs'))
+    c('equities', 'bonds', 'primary_home', 'dc', 'db', 'pass_throughs'))
   stopifnot(all(wealth_asset_vars %in% names(df)))
   stopifnot(all(wealth_debt_vars  %in% names(df)))
   total_debt = rowSums(df[, wealth_debt_vars, drop = FALSE])
@@ -81,7 +86,7 @@ compute_category_values = function(df) {
     cat_equities   = df$equities,
     cat_bonds      = df$bonds,
     cat_homes      = df$primary_home,
-    cat_retirement = df$retirement,
+    cat_retirement = df$dc + df$db,
     cat_business   = df$pass_throughs,
     cat_other      = rowSums(df[, residual_other_vars, drop = FALSE]),
     cat_debt       = total_debt
@@ -259,11 +264,12 @@ if (sys.nframe() == 0L) {
     income    = rlnorm(n, log(60000), 1.5) *
                   sign(runif(n, -0.05, 1)),   # 5% negative
     age_older = sample(25:85, n, replace = TRUE),
-    # all 23 wealth y_vars; populate with plausible zeros + magnitudes
+    # all 24 wealth y_vars; populate with plausible zeros + magnitudes
     cash             = rexp(n, 1/5000) * rbinom(n, 1, 0.7),
     equities         = rexp(n, 1/20000) * rbinom(n, 1, 0.35),
     bonds            = rexp(n, 1/10000) * rbinom(n, 1, 0.10),
-    retirement       = rexp(n, 1/40000) * rbinom(n, 1, 0.6),
+    dc               = rexp(n, 1/30000) * rbinom(n, 1, 0.5),
+    db               = rexp(n, 1/20000) * rbinom(n, 1, 0.3),
     life_ins         = rexp(n, 1/5000)  * rbinom(n, 1, 0.2),
     annuities        = rexp(n, 1/10000) * rbinom(n, 1, 0.05),
     trusts           = rexp(n, 1/50000) * rbinom(n, 1, 0.02),
