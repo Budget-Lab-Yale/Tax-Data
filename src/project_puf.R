@@ -379,15 +379,16 @@ cat(sprintf('project_puf.R: weight_ledger built (%d rows, %.1fs)\n',
 # Build factor_ledger
 #-------------------------------------
 
-# Resolved grow_with map (handles split variables like 'wages1' → 'wages').
+# Resolved grow_with map. Split variables (wages1/2, sole_prop1/2, farm1/2,
+# part_se1/2) inherit their parent's grow_with from variable_guide ("wages"
+# and "pt"), which is what irs_growth_factors_income / income_factors are
+# keyed on. An earlier str_sub("sole_prop1") -> "sole_prop" override here
+# pointed the join at lookup keys that don't exist in either table, which
+# silently produced factor = NA for all 6 SE-split variables at every year
+# 2018+ and propagated NA through every record.
 var_growth_map = variable_guide %>%
   filter(!is.na(grow_with), !(variable %in% vars_to_ignore)) %>%
-  select(variable, grow_with_vg = grow_with) %>%
-  mutate(grow_with_resolved = if_else(
-    str_sub(variable, end = -2) %in% c('wages', 'sole_prop', 'farm', 'part_se'),
-    str_sub(variable, end = -2),
-    grow_with_vg
-  ))
+  select(variable, grow_with_resolved = grow_with)
 
 # 2018-2019 factors (cumulative-from-2017 via irs_growth_factors_income).
 fl_2018_2019 = var_growth_map %>%
