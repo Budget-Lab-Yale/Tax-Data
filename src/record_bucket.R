@@ -28,44 +28,45 @@ dfa_income_buckets = c('pct00to20',  'pct20to40',  'pct40to60',
 dfa_income_edges   = c(0, 20, 40, 60, 80, 99, 100)
 
 
-#' Build per-record (id, bucket) from a reference-year PUF tibble.
+# Income components used to construct the broad-income weighted rank.
+# Same definition as the wealth.R forest feature and assign_calibration_cells()
+# in src/imputations/stage3_target_qc.R. Zeros and losses pass through
+# unfloored.
+broad_income_components = c(
+  'wages',
+  'sole_prop', 'farm',
+  'scorp_active',  'scorp_active_loss',  'scorp_179',
+  'scorp_passive', 'scorp_passive_loss',
+  'part_active',   'part_active_loss',   'part_179',
+  'part_passive',  'part_passive_loss',
+  'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
+  'kg_lt', 'kg_st',
+  'gross_ss', 'gross_pens_dist',
+  'ui',
+  'rent', 'rent_loss', 'estate', 'estate_loss'
+)
+
+
+#' Compute per-record continuous weighted rank (0..100) over broad income.
 #'
-#' Income is reconstructed as the same unfloored sum used in the wealth
-#' forest feature at src/imputations/wealth.R (lines ~212–222). Bucket
-#' assignment uses a continuous weighted rank over the full income
-#' distribution (zeros and losses included), matching the rule in
-#' assign_calibration_cells() at src/imputations/stage3_target_qc.R. Same
-#' percentile method ensures the DFA aging bucket is a deterministic
-#' coarsening of the imputation cell — a record's calibration cell maps
-#' uniquely to a DFA bucket since dfa_income_edges is a subset of
-#' CALIB_INCOME_EDGES. Records with negative or zero income fall to the
-#' bottom of the weighted rank and land in pct00to20 only if they are
-#' in the bottom 20% by weight; an asset-rich household with a one-year
-#' loss no longer gets permanently routed to the bottom bucket.
+#' Internal helper for build_record_bucket() (DFA aging bucket).
+#'
+#' Note: the mortality module does NOT call this. Mortality needs a
+#' within-(sex, age) rank to match Chetty 2016's percentile construction
+#' faithfully (see build_chetty_pctile in src/mortality_ledger.R). This
+#' global rank serves DFA-style distributional aging, where the income
+#' concept is "where does this household sit in the overall income
+#' distribution".
 #'
 #' @param puf_ref  PUF tibble at the reference year. Must carry `id`,
-#'                 `weight`, and the income composition columns listed
-#'                 below.
-#' @return         Tibble (id, bucket). bucket is a character column
-#'                 whose values are a subset of `dfa_income_buckets`.
-build_record_bucket = function(puf_ref) {
-  required = c(
-    'id', 'weight',
-    'wages',
-    'sole_prop', 'farm',
-    'scorp_active',  'scorp_active_loss',  'scorp_179',
-    'scorp_passive', 'scorp_passive_loss',
-    'part_active',   'part_active_loss',   'part_179',
-    'part_passive',  'part_passive_loss',
-    'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
-    'kg_lt', 'kg_st',
-    'gross_ss', 'gross_pens_dist',
-    'ui',
-    'rent', 'rent_loss', 'estate', 'estate_loss'
-  )
+#'                 `weight`, and `broad_income_components`.
+#' @return         Tibble (id, rank_0_100), where rank is the cumulative
+#'                 weight share at each record's income, in [0, 100].
+compute_broad_income_rank = function(puf_ref) {
+  required = c('id', 'weight', broad_income_components)
   missing = setdiff(required, names(puf_ref))
   if (length(missing) > 0L) {
-    stop('build_record_bucket(): missing columns in puf_ref: ',
+    stop('compute_broad_income_rank(): missing columns in puf_ref: ',
          paste(missing, collapse = ', '))
   }
 
@@ -86,7 +87,7 @@ build_record_bucket = function(puf_ref) {
   # NA guard — income should be fully defined at the reference year.
   # Surface counts rather than silently dropping.
   if (any(is.na(income))) {
-    stop('build_record_bucket(): income computation produced ',
+    stop('compute_broad_income_rank(): income computation produced ',
          sum(is.na(income)), ' NA(s). Check upstream imputations.')
   }
 
@@ -94,12 +95,39 @@ build_record_bucket = function(puf_ref) {
   cum_w = cumsum(puf_ref$weight[ord]) / sum(puf_ref$weight)
   rank_0_100 = numeric(length(income))
   rank_0_100[ord] = 100 * cum_w
-  bucket_idx = findInterval(rank_0_100, dfa_income_edges,
-                            rightmost.closed = TRUE,
-                            all.inside       = TRUE)
 
   tibble::tibble(
-    id     = puf_ref$id,
+    id         = puf_ref$id,
+    rank_0_100 = rank_0_100
+  )
+}
+
+
+#' Build per-record (id, bucket) from a reference-year PUF tibble.
+#'
+#' Bucket assignment uses a continuous weighted rank over the full income
+#' distribution (zeros and losses included), matching the rule in
+#' assign_calibration_cells() at src/imputations/stage3_target_qc.R. Same
+#' percentile method ensures the DFA aging bucket is a deterministic
+#' coarsening of the imputation cell — a record's calibration cell maps
+#' uniquely to a DFA bucket since dfa_income_edges is a subset of
+#' CALIB_INCOME_EDGES. Records with negative or zero income fall to the
+#' bottom of the weighted rank and land in pct00to20 only if they are
+#' in the bottom 20% by weight; an asset-rich household with a one-year
+#' loss no longer gets permanently routed to the bottom bucket.
+#'
+#' @param puf_ref  PUF tibble at the reference year. Must carry `id`,
+#'                 `weight`, and the income composition columns listed
+#'                 in `broad_income_components`.
+#' @return         Tibble (id, bucket). bucket is a character column
+#'                 whose values are a subset of `dfa_income_buckets`.
+build_record_bucket = function(puf_ref) {
+  rank_df = compute_broad_income_rank(puf_ref)
+  bucket_idx = findInterval(rank_df$rank_0_100, dfa_income_edges,
+                            rightmost.closed = TRUE,
+                            all.inside       = TRUE)
+  tibble::tibble(
+    id     = rank_df$id,
     bucket = dfa_income_buckets[bucket_idx]
   )
 }

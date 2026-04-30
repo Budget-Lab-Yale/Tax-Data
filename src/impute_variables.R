@@ -42,3 +42,10 @@ source('src/imputations/wealth_schema.R')
 for (v in wealth_output_vars) {
   if (!(v %in% names(tax_units))) tax_units[[v]] = NA_real_
 }
+
+# Mortality is computed in Phase 3 (mortality_ledger.R) and overwritten
+# per year by materialize() via mortality_ledger. Add NA placeholders
+# here so the schema is consistent across years even before Phase 3 runs.
+for (v in c('q_death1', 'q_death2')) {
+  if (!(v %in% names(tax_units))) tax_units[[v]] = NA_real_
+}

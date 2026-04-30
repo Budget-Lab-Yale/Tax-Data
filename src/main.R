@@ -79,6 +79,15 @@ write_rds(puf_2022, file.path(output_path, 'puf_2022_snapshot.rds'))
 record_bucket = build_record_bucket(puf_2022)
 write_rds(record_bucket, file.path(output_path, 'record_bucket.rds'))
 
+# Freeze per-person within-(sex, age) income percentile at 2022 for the
+# Chetty 2016 income gradient match in mortality_ledger.R. Within-cell
+# rank (not the global rank used by DFA) — Chetty's percentiles are
+# constructed within (gender × age × year), so a within-cell match is
+# the only one that preserves the SSA marginal exactly. Output is
+# wide: (id, pctile1, pctile2). Bespoke to mortality; not used elsewhere.
+chetty_pctile = build_chetty_pctile(puf_2022)
+write_rds(chetty_pctile, file.path(output_path, 'chetty_pctile.rds'))
+
 # Bucketed growth factors for wealth Y-vars: DFA 2023..last_dfa_year, then
 # per-household GDP compounding 2026+ on top of each bucket's final DFA
 # cumulative. All 23 wealth Y-vars live in this ledger (none in
@@ -93,6 +102,23 @@ cat(sprintf('main.R: bucketed_factor_ledger built (%d rows)\n',
 
 wealth_result = run_wealth_imputation(puf_2022, scf_tax_units)
 module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
+
+# Mortality ledger: per-(year, id) q_death1/q_death2. Built once over
+# the full projection range; consumed by materialize() in Phase 4 like
+# weight_ledger. See src/mortality_ledger.R for the layered functional
+# form and the methodology resolutions (esp. the male-only marital
+# adjustment, which departs from Ricco 2020 PWBM §4.2).
+source('./src/mortality_ledger.R')
+t0 = Sys.time()
+mortality_ledger = build_mortality_ledger(
+  tax_units     = tax_units,
+  chetty_pctile = chetty_pctile,
+  years         = 2017L:2097L
+)
+write_rds(mortality_ledger, file.path(output_path, 'mortality_ledger.rds'))
+cat(sprintf('main.R: mortality_ledger built (%d rows, %.1fs)\n',
+            nrow(mortality_ledger),
+            as.numeric(Sys.time() - t0, units = 'secs')))
 
 # Diagnostic artifacts for downstream analysis: the pre-swap (Stage 2
 # only, uniform leaf draw) donors, the QC report, and the per-(cell ×

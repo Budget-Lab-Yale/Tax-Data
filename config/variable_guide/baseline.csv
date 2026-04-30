@@ -177,3 +177,5 @@ accruals.other_home,Annual unrealized capital-gain accrual on other residential 
 accruals.re_fund,Annual unrealized capital-gain accrual on non-residential RE (Z.1 real estate mean × value.re_fund),imputed,NA,NA,2022,imputations/wealth.R,NA
 accruals.dc,Annual unrealized capital-gain accrual on DC retirement (per-record equity-share blend × eq/bond rates × value.dc),imputed,NA,NA,2022,imputations/wealth.R,NA
 accruals.trusts,Annual unrealized capital-gain accrual on managed trusts (computed 60/40 portfolio mix × value.trusts),imputed,NA,NA,2022,imputations/wealth.R,NA
+q_death1,probability primary filer dies in this year (SSA TR2024 Alt2 baseline × Chetty income gradient × Johnson 2000 marital factor for males),imputed,NA,NA,2017,mortality_ledger.R,NA
+q_death2,probability secondary filer dies in this year (NA when filing_status != 2),imputed,NA,NA,2017,mortality_ledger.R,NA

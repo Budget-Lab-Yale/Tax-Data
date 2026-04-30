@@ -78,6 +78,11 @@
 #'                         (year, variable) means factor = 1.
 #' @param weight_ledger    Optional tibble with (year, id, weight). NULL
 #'                         skips weight override.
+#' @param mortality_ledger Optional tibble with (year, id, q_death1,
+#'                         q_death2). NULL skips mortality fill. When
+#'                         provided, q_death1/q_death2 in `out` are
+#'                         overwritten with the year-target row from the
+#'                         ledger; records absent from the ledger get NA.
 #' @param module_deltas    Named list of the form
 #'                         list(<name> = list(base_year, values)), where
 #'                         `values` is a tibble with `id` + that module's
@@ -103,10 +108,11 @@
 materialize = function(target_year,
                        base,
                        factor_ledger,
-                       weight_ledger = NULL,
-                       module_deltas = list(),
+                       weight_ledger    = NULL,
+                       module_deltas    = list(),
                        bucketed_factors = NULL,
-                       record_bucket = NULL) {
+                       record_bucket    = NULL,
+                       mortality_ledger = NULL) {
 
   stopifnot(is.data.frame(base))
   stopifnot('id' %in% names(base))
@@ -183,6 +189,24 @@ materialize = function(target_year,
     wl = weight_ledger[weight_ledger$year == target_year, c('id', 'weight')]
     if (nrow(wl) > 0L) {
       out$weight = wl$weight[match(out$id, wl$id)]
+    }
+  }
+
+  # ---------------------------------------------------------------------------
+  # (2b) Apply mortality_ledger if provided.
+  # Same pattern as weight_ledger: target-year filter + match-by-id overwrite.
+  # ---------------------------------------------------------------------------
+
+  if (!is.null(mortality_ledger)) {
+    stopifnot(is.data.frame(mortality_ledger))
+    stopifnot(all(c('year', 'id', 'q_death1', 'q_death2') %in%
+                  names(mortality_ledger)))
+    ml = mortality_ledger[mortality_ledger$year == target_year,
+                          c('id', 'q_death1', 'q_death2')]
+    if (nrow(ml) > 0L) {
+      idx = match(out$id, ml$id)
+      out$q_death1 = ml$q_death1[idx]
+      out$q_death2 = ml$q_death2[idx]
     }
   }
 
@@ -462,6 +486,36 @@ if (sys.nframe() == 0L) {
                      module_deltas, bucketed_factors, record_bucket)
   stopifnot(max(abs(r24b$cash - c(1000*1.10, 2000*1.17, 3000*1.25))) < 1e-10)
   cat('  [PASS] bucketed factor at 2024 is cumulative, not y/y\n')
+
+  # Mortality ledger fixtures.
+  base_with_qd = cbind(base_puf,
+                       q_death1 = NA_real_,
+                       q_death2 = NA_real_)
+  mortality_ledger_fix = data.frame(
+    year     = rep(2017L:2018L, each = 3L),
+    id       = rep(1:3, 2L),
+    q_death1 = c(0.001, 0.002, 0.003,    # 2017
+                 0.004, 0.005, 0.006),   # 2018
+    q_death2 = c(NA, 0.0021, NA,         # 2017 — only id=2 has secondary
+                 NA, 0.0051, NA)         # 2018
+  )
+
+  # Test 15: mortality_ledger fills q_death1/q_death2 by year, NA for non-MFJ.
+  r17m = materialize(2017L, base_with_qd, factor_ledger, weight_ledger,
+                     module_deltas,
+                     mortality_ledger = mortality_ledger_fix)
+  stopifnot(identical(r17m$q_death1, c(0.001, 0.002, 0.003)))
+  stopifnot(is.na(r17m$q_death2[1]))
+  stopifnot(abs(r17m$q_death2[2] - 0.0021) < 1e-12)
+  stopifnot(is.na(r17m$q_death2[3]))
+  cat('  [PASS] mortality_ledger fills q_death1/q_death2 by year\n')
+
+  # Test 16: mortality_ledger = NULL leaves q_death cols as base NAs.
+  r17_no_m = materialize(2017L, base_with_qd, factor_ledger, weight_ledger,
+                         module_deltas)
+  stopifnot(all(is.na(r17_no_m$q_death1)))
+  stopifnot(all(is.na(r17_no_m$q_death2)))
+  cat('  [PASS] mortality_ledger=NULL preserves base NA placeholders\n')
 
   cat('\nAll tests passed.\n')
 }

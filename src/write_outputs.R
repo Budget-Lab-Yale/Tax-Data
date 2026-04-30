@@ -22,6 +22,7 @@ if (!exists('module_deltas')) {
 # through to the uniform-ledger-only path.
 bucketed_factors = if (exists('bucketed_factor_ledger')) bucketed_factor_ledger else NULL
 rb               = if (exists('record_bucket'))         record_bucket         else NULL
+ml               = if (exists('mortality_ledger'))      mortality_ledger      else NULL
 
 # Columns to emit per year: variable_guide vars minus vars_to_ignore. The
 # 2018-19 legacy loop didn't apply this select (wrote all helper cols too);
@@ -34,7 +35,8 @@ for (y in 2017L:2097L) {
   out = materialize(y, tax_units, factor_ledger, weight_ledger,
                     module_deltas,
                     bucketed_factors = bucketed_factors,
-                    record_bucket    = rb)
+                    record_bucket    = rb,
+                    mortality_ledger = ml)
   out = out[, intersect(out_cols, names(out)), drop = FALSE]
   write_csv(out, file.path(output_path, paste0('tax_units_', y, '.csv')))
 }
