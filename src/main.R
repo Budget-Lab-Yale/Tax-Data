@@ -79,6 +79,10 @@ write_rds(puf_2022, file.path(output_path, 'puf_2022_snapshot.rds'))
 record_bucket = build_record_bucket(puf_2022)
 write_rds(record_bucket, file.path(output_path, 'record_bucket.rds'))
 
+# Mortality module — sourced here so build_chetty_pctile is available
+# alongside the other puf_2022-derived rank artifacts.
+source('./src/mortality_ledger.R')
+
 # Freeze per-person within-(sex, age) income percentile at 2022 for the
 # Chetty 2016 income gradient match in mortality_ledger.R. Within-cell
 # rank (not the global rank used by DFA) — Chetty's percentiles are
@@ -108,7 +112,7 @@ module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
 # weight_ledger. See src/mortality_ledger.R for the layered functional
 # form and the methodology resolutions (esp. the male-only marital
 # adjustment, which departs from Ricco 2020 PWBM §4.2).
-source('./src/mortality_ledger.R')
+# (mortality_ledger.R already sourced above for build_chetty_pctile.)
 t0 = Sys.time()
 mortality_ledger = build_mortality_ledger(
   tax_units     = tax_units,
