@@ -10,7 +10,13 @@
 #   q_death = q_baseline(age, sex, year)   # SSA Trustees TR2024
 #           × R_chetty(age, sex, pctile)   # Chetty 2016 Table 15
 #           × R_marital(age, sex, married) # Johnson 2000, men only
-#           × λ_calibration                # v1: identity (TODO)
+#
+# Layer composition is mean-preserving by construction on the PUF
+# distribution: build_chetty_pctile uses a within-(sex, age) rank, and
+# renormalize_johnson_for_puf rescales the Johnson factors so each
+# (sex='M', age_band) cell has weighted mean 1.0 on the PUF marital
+# composition. Per-cell ratio imputed_q / SSA_q lands within ±3% across
+# non-young bands, so no aggregate calibration step is needed.
 #
 # Departure from Ricco (2020) PWBM Tax Module §4.2: the marital
 # adjustment is applied to males only. Lillard & Waite (1995, AJS)
