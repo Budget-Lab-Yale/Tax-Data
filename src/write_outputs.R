@@ -10,6 +10,7 @@
 #---------------------------------------------------
 
 source('src/materialize.R')
+source('src/forbes_splice.R')
 
 # Default: empty module_deltas when Phase 3 has not produced any.
 if (!exists('module_deltas')) {
@@ -23,6 +24,7 @@ if (!exists('module_deltas')) {
 bucketed_factors = if (exists('bucketed_factor_ledger')) bucketed_factor_ledger else NULL
 rb               = if (exists('record_bucket'))         record_bucket         else NULL
 ml               = if (exists('mortality_ledger'))      mortality_ledger      else NULL
+fs               = if (exists('forbes_splice'))         forbes_splice         else NULL
 
 # Columns to emit per year: variable_guide vars minus vars_to_ignore. The
 # 2018-19 legacy loop didn't apply this select (wrote all helper cols too);
@@ -37,6 +39,10 @@ for (y in 2017L:2097L) {
                     bucketed_factors = bucketed_factors,
                     record_bucket    = rb,
                     mortality_ledger = ml)
+  out = apply_forbes_splice_to_materialized(
+    out, y, fs,
+    factor_ledger    = factor_ledger,
+    bucketed_factors = bucketed_factors)
   out = out[, intersect(out_cols, names(out)), drop = FALSE]
   write_csv(out, file.path(output_path, paste0('tax_units_', y, '.csv')))
 }
