@@ -370,8 +370,19 @@ build_forbes_rows_for_year = function(base_df, forbes_year_df, params,
 }
 
 
+# Build the source (weights lowered) and receiver (weights raised) pools for
+# the weight calibration.
+#
+# Source pool = (largest source_n/2 by income) UNION (largest source_n/2 by
+# net worth). The income half supplies wage/income content to offset the
+# billionaires' income injection; the wealth half supplies the CAPITAL-income
+# content (dividends, capital gains, interest) that a pure income-density
+# pool lacks. A pure income-density source pool was structurally thin on
+# dividends — billionaires inject more dividends than such a pool held — so
+# the dividend constraint was infeasible. Pulling in the wealthiest records
+# (where capital income concentrates) gives the LP something to shrink.
 build_splice_pools = function(base_df,
-                              source_n = 5000L,
+                              source_n = 20000L,
                               receiver_n = 10000L,
                               billionaire_threshold = 1e9) {
   nw = forbes_net_worth(base_df)
@@ -381,42 +392,34 @@ build_splice_pools = function(base_df,
   if (nrow(cand) < 2L) {
     stop('Forbes splice calibration needs at least two candidate rows.')
   }
+  cand$.__nw  = nw[ok]
+  cand$.__inc = abs(forbes_fiscal_income(cand))
 
-  source_take = min(source_n, max(1L, floor(nrow(cand) / 2L)))
-  receiver_take = min(receiver_n, nrow(cand) - source_take)
+  # Source = top half by income  ∪  top half by net worth.
+  half = min(as.integer(ceiling(source_n / 2)), nrow(cand))
+  by_income  = cand$id[order(cand$.__inc, decreasing = TRUE)][seq_len(half)]
+  by_wealth  = cand$id[order(cand$.__nw,  decreasing = TRUE)][seq_len(half)]
+  source_ids = unique(c(by_income, by_wealth))
 
-  income_signal = forbes_income_signal(cand)
-  nw_cand = nw[ok]
-  cand$.__income_density = income_signal / pmax(nw_cand, 1)
-  cand$.__wealth_density = nw_cand / pmax(income_signal, 1)
-
-  source = cand %>%
-    dplyr::mutate(
-      .__score = forbes_rank01(abs(forbes_fiscal_income(cand))) +
-                 forbes_rank01(.__income_density)
-    ) %>%
-    dplyr::arrange(dplyr::desc(.__score)) %>%
-    utils::head(source_take)
-
+  # Receiver = wealth-density records not already sourced; weights raised to
+  # add net worth back, holding the net-worth constraint when sources shrink.
+  receiver_take = max(min(receiver_n, nrow(cand) - length(source_ids)), 0L)
   receiver = cand %>%
-    dplyr::mutate(
-      .__score = forbes_rank01(nw_cand) +
-                 forbes_rank01(.__wealth_density)
-    ) %>%
-    dplyr::filter(!(id %in% source$id)) %>%
+    dplyr::filter(!(id %in% source_ids)) %>%
+    dplyr::mutate(.__wealth_density = .__nw / pmax(.__inc, 1),
+                  .__score = forbes_rank01(.__nw) +
+                             forbes_rank01(.__wealth_density)) %>%
     dplyr::arrange(dplyr::desc(.__score)) %>%
     utils::head(receiver_take)
 
-  list(source_ids = source$id, receiver_ids = receiver$id)
+  list(source_ids = source_ids, receiver_ids = receiver$id)
 }
 
 
 solve_forbes_weight_calibration = function(base_df, forbes_rows,
                                            source_ids, receiver_ids,
-                                           rel_tol = 0.001,
-                                           income_abs_tol = 1e3,
-                                           count_abs_tol = 1e-6,
-                                           wealth_abs_tol = 1e6,
+                                           rel_tol = 0.005,
+                                           wealth_rel_tol = 0.001,
                                            receiver_max_factor = 10,
                                            receiver_penalty = 1.1) {
   if (nrow(forbes_rows) == 0L) {
@@ -461,9 +464,17 @@ solve_forbes_weight_calibration = function(base_df, forbes_rows,
   targets = sapply(constraint_names, function(nm) {
     if (nm == 'net_worth') 0 else -sum(forbes_rows$weight * x_forbes[[nm]])
   })
+  # Tolerances are fractions of a meaningful scale, not fixed absolute floors
+  # (which were sized for the unit-test fixture and are meaningless against
+  # real trillion-dollar aggregates). Count and the six income constraints:
+  # a fraction `rel_tol` of their own injection. Net worth (target 0): a
+  # fraction `wealth_rel_tol` of the spliced billionaire wealth — the
+  # quantity whose pollution by existing-record reweighting we are bounding.
+  # The $1 floor keeps tolerance positive when a category has no injection.
+  spliced_nw = sum(forbes_rows$weight * x_forbes[['net_worth']])
   abs_tol = sapply(constraint_names, function(nm) {
-    floor = if (nm == 'count') count_abs_tol else if (nm == 'net_worth') wealth_abs_tol else income_abs_tol
-    max(abs(targets[[nm]]) * rel_tol, floor)
+    if (nm == 'net_worth') wealth_rel_tol * abs(spliced_nw)
+    else max(abs(targets[[nm]]) * rel_tol, 1)
   })
 
   lprw = lpSolveAPI::make.lp(0, n_vars)
@@ -505,7 +516,11 @@ solve_forbes_weight_calibration = function(base_df, forbes_rows,
       achieved_delta = achieved,
       gap = achieved - targets[[nm]],
       tolerance = abs_tol[[nm]],
-      ok = abs(achieved - targets[[nm]]) <= abs_tol[[nm]] + 1e-8
+      # Relative slack: the LP parks binding constraints exactly on the
+      # tolerance edge, and recomputing the gap here carries FP noise of
+      # order (magnitude × 1e-15), which swamps a fixed 1e-8 absolute slack
+      # at billion-dollar magnitudes and spuriously flips ok to FALSE.
+      ok = abs(achieved - targets[[nm]]) <= abs_tol[[nm]] * (1 + 1e-6)
     )
   }) %>% dplyr::bind_rows()
 
@@ -785,10 +800,13 @@ if (sys.nframe() == 0L) {
   for (v in wealth_basis_vars) base_fx[[v]] = 0
   for (v in wealth_accrual_vars) base_fx[[v]] = 0
 
-  pools_fx = build_splice_pools(base_fx, source_n = 1, receiver_n = 1)
-  stopifnot(pools_fx$source_ids == 1L,
-            pools_fx$receiver_ids == 2L)
-  cat('  [PASS] calibration pools separate income and wealth roles\n')
+  # Source pool = top half by income (id 1, highest fiscal income) UNION top
+  # half by net worth (id 2, highest value.equities). Receiver = wealthiest
+  # remaining (id 3 or 4). source_n = 2 -> one record per half.
+  pools_fx = build_splice_pools(base_fx, source_n = 2, receiver_n = 1)
+  stopifnot(setequal(pools_fx$source_ids, c(1L, 2L)),
+            pools_fx$receiver_ids %in% c(3L, 4L))
+  cat('  [PASS] source pool spans top-income AND top-wealth records\n')
 
   forbes_input_fx = tibble(
     year = 2022L,
