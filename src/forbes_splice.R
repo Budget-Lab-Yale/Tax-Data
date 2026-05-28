@@ -573,8 +573,27 @@ build_forbes_splice = function(base,
     diag_list[[as.character(y)]] = diag_y
   }
 
+  all_rows = dplyr::bind_rows(row_list)
+
+  # Synthetic ids must be unique among themselves and disjoint from the base
+  # PUF ids — Tax-Simulator joins on id, so a collision would silently merge
+  # or overwrite records downstream. make_forbes_id's fallback branch makes
+  # collisions improbable but not impossible; assert rather than hope.
+  if (nrow(all_rows) > 0L) {
+    dup_within = unique(all_rows$id[duplicated(all_rows$id)])
+    if (length(dup_within) > 0L) {
+      stop('Forbes splice produced duplicate synthetic ids: ',
+           paste(utils::head(dup_within, 5L), collapse = ', '))
+    }
+    clash = intersect(all_rows$id, base$id)
+    if (length(clash) > 0L) {
+      stop('Forbes synthetic ids collide with base PUF ids: ',
+           paste(utils::head(clash, 5L), collapse = ', '))
+    }
+  }
+
   list(
-    rows = dplyr::bind_rows(row_list),
+    rows = all_rows,
     weight_adjustments = dplyr::bind_rows(weight_list),
     constraints = dplyr::bind_rows(constraint_list),
     diagnostics = dplyr::bind_rows(diag_list),
@@ -631,6 +650,11 @@ apply_forbes_splice_to_materialized = function(out, target_year,
     return(out)
   }
 
+  # Forbes data ends at max(years) (2025). Each year 2022-2025 carries its
+  # own per-year weight calibration (solved independently in
+  # build_forbes_splice); 2026+ intentionally freezes at the 2025 solution —
+  # there is no Forbes list beyond 2025 to recalibrate against — and ages the
+  # 2025 synthetic rows forward via project_forbes_rows.
   splice_year = if (target_year %in% forbes_splice$years) {
     target_year
   } else {
@@ -751,6 +775,22 @@ if (sys.nframe() == 0L) {
             abs(forbes_category_value(forbes_rows_fx, 'business') + 1e6) < 1,
             abs(forbes_rows_fx$E00100 - 2e7) < 1)
   cat('  [PASS] Forbes row construction hits wealth and income targets\n')
+
+  # Negative business target (BSYZ top-100 business share is negative —
+  # billionaires report net business losses). Donor row 3 has zero business
+  # income, so set_category_on_row must rebuild the category from the loss/
+  # 179 components and land exactly on the negative target. This is the
+  # least-traveled branch (sign(current) != sign(target)); test it directly.
+  neg_row  = base_fx[3, , drop = FALSE]
+  neg_out  = set_category_on_row(neg_row, -5e5, 'business', base_fx)
+  neg_val  = forbes_category_value(neg_out, 'business')
+  pos_part = neg_out$sole_prop + neg_out$farm +
+             neg_out$scorp_active + neg_out$scorp_passive +
+             neg_out$part_active + neg_out$part_passive
+  stopifnot(abs(neg_val - (-5e5)) < 1,   # hits the negative target
+            neg_val < 0,                  # net-negative as intended
+            pos_part == 0)                # positive components zeroed
+  cat('  [PASS] negative business target builds net-negative composition\n')
 
   proj_ledger_fx = tibble(
     year = 2023L,
