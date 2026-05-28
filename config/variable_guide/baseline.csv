@@ -179,3 +179,12 @@ accruals.dc,Annual unrealized capital-gain accrual on DC retirement (per-record 
 accruals.trusts,Annual unrealized capital-gain accrual on managed trusts (computed 60/40 portfolio mix × value.trusts),imputed,NA,NA,2022,imputations/wealth.R,NA
 q_death1,probability primary filer dies in this year (SSA TR2024 Alt2 baseline × Chetty income gradient × Johnson 2000 marital factor for males),imputed,NA,NA,2017,mortality_ledger.R,NA
 q_death2,probability secondary filer dies in this year (NA when filing_status != 2),imputed,NA,NA,2017,mortality_ledger.R,NA
+forbes_flag,whether record is an appended Forbes billionaire tax unit,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_source_year,Forbes list year used to create the synthetic record,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_rank,rank on Forbes billionaire list in source year,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_name,name from Forbes billionaire list,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_source_category,Forbes source or industry category,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_rank_group,BSYZ rank group used for fiscal-income parameters,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_donor_id,PUF donor id used for synthetic record composition,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_net_worth,Forbes net worth assigned to synthetic record,imputed,NA,NA,2022,forbes_splice.R,NA
+forbes_fiscal_income,BSYZ-implied fiscal income assigned to synthetic record,imputed,NA,NA,2022,forbes_splice.R,NA

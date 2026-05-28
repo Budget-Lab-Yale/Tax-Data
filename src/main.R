@@ -66,6 +66,31 @@ module_deltas = list()
 # Wealth — SCF 2022 donor, runs at 2022 base.
 source('./src/imputations/stage1_scf_tax_units.R')
 source('./src/imputations/wealth.R')
+source('./src/forbes_splice.R')
+
+# Remove SCF billionaire-like donors before baseline wealth imputation only
+# when explicit Forbes records are available to add back. The resource file in
+# the repo is a schema template, so an empty input must preserve the legacy
+# wealth path.
+forbes_input_preview = read_forbes_input()
+if (nrow(forbes_input_preview) > 0L) {
+  scf_purge_result = purge_scf_billionaires(scf_tax_units, threshold = 1e9)
+  scf_tax_units_wealth = scf_purge_result$scf_tax_units
+} else {
+  scf_purge_result = list(
+    scf_tax_units = scf_tax_units,
+    diagnostics = tibble(
+      threshold = 1e9,
+      rows_before = nrow(scf_tax_units),
+      rows_dropped = 0L,
+      rows_after = nrow(scf_tax_units),
+      weighted_count_dropped = 0,
+      net_worth_dropped = 0,
+      status = 'skipped_empty_forbes_input'
+    )
+  )
+  scf_tax_units_wealth = scf_tax_units
+}
 
 puf_2022 = materialize(2022L, tax_units, factor_ledger, weight_ledger,
                        module_deltas)
@@ -104,8 +129,20 @@ write_rds(bucketed_factor_ledger,
 cat(sprintf('main.R: bucketed_factor_ledger built (%d rows)\n',
             nrow(bucketed_factor_ledger)))
 
-wealth_result = run_wealth_imputation(puf_2022, scf_tax_units)
+wealth_result = run_wealth_imputation(puf_2022, scf_tax_units_wealth)
 module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
+
+# Forbes billionaire splice. If the Forbes input file is empty or absent, this
+# returns an empty splice object and Phase 4 writes the baseline wealth output.
+forbes_splice = build_forbes_splice(
+  base             = tax_units,
+  factor_ledger    = factor_ledger,
+  weight_ledger    = weight_ledger,
+  module_deltas    = module_deltas,
+  bucketed_factors = bucketed_factor_ledger,
+  record_bucket    = record_bucket,
+  years            = 2022L:2025L
+)
 
 # Mortality ledger: per-(year, id) q_death1/q_death2. Built once over
 # the full projection range; consumed by materialize() in Phase 4 like
@@ -133,8 +170,19 @@ write_rds(wealth_result$qc_report,
           file.path(output_path, 'stage3_qc_report.rds'))
 write_rds(wealth_result$rescale_factors,
           file.path(output_path, 'rescale_factors.rds'))
+write_rds(scf_purge_result$diagnostics,
+          file.path(output_path, 'forbes_scf_purge_diagnostics.rds'))
+write_rds(forbes_splice$rows,
+          file.path(output_path, 'forbes_splice_rows.rds'))
+write_rds(forbes_splice$weight_adjustments,
+          file.path(output_path, 'forbes_weight_adjustments.rds'))
+write_rds(forbes_splice$constraints,
+          file.path(output_path, 'forbes_splice_constraints.rds'))
+write_rds(forbes_splice$diagnostics,
+          file.path(output_path, 'forbes_splice_diagnostics.rds'))
 
-rm(puf_2022, wealth_result)
+rm(puf_2022, wealth_result, scf_purge_result, scf_tax_units_wealth,
+   forbes_input_preview)
 
 
 #-----------------------
