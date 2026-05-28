@@ -428,6 +428,26 @@ build_factor_rows_2020plus = function(y) {
                  names_to  = 'variable',
                  values_to = 'extensive_factor')
 
+  # Pin split variables' extensive_factor to their parent's. Splits are
+  # non-zero on a different record set than the parent (e.g. wages1=0 for
+  # joint filers with wage_primary_share=0 even though wages>0), so a
+  # per-variable extensive_factor gives split and parent different final
+  # factors and breaks the wages1+wages2=wages identity that Tax-Simulator
+  # depends on. Sharing the parent's extensive_factor — combined with
+  # already-shared grow_with_resolved (income_factor_y) and ad_hoc_val=1
+  # for splits — restores factor(split) == factor(parent) exactly.
+  split_parent = c(wages1     = 'wages',     wages2     = 'wages',
+                   sole_prop1 = 'sole_prop', sole_prop2 = 'sole_prop',
+                   farm1      = 'farm',      farm2      = 'farm',
+                   part_se1   = 'part_se',   part_se2   = 'part_se')
+  ef_lookup = setNames(ext_df$extensive_factor, ext_df$variable)
+  ext_df = ext_df %>%
+    mutate(extensive_factor = if_else(
+      variable %in% names(split_parent),
+      unname(ef_lookup[split_parent[variable]]),
+      extensive_factor
+    ))
+
   income_y = income_factors %>%
     filter(year == y) %>%
     select(grow_with_resolved = variable, income_factor_y = income_factor)
