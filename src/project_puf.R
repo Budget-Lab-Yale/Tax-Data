@@ -53,7 +53,7 @@ demog = macro_projections %>%
                names_to  = c('married', 'age'),
                values_to = 'n') %>%
   mutate(married = as.integer(married == 'married'),
-         age     = pmin(80, as.integer(age))) %>%
+         age     = pmin(MAX_AGE, as.integer(age))) %>%
   group_by(year, married, age) %>%
   summarise(n = sum(n),
             .groups = 'drop')
@@ -386,8 +386,16 @@ cat(sprintf('project_puf.R: weight_ledger built (%d rows, %.1fs)\n',
 # pointed the join at lookup keys that don't exist in either table, which
 # silently produced factor = NA for all 6 SE-split variables at every year
 # 2018+ and propagated NA through every record.
+#
+# kg_lt_basis is excluded here: its growth follows a cycle-aware S&P-
+# tracking model (basis_adjustment_factors, built below), not the generic
+# income_factor × extensive_factor formula. Adding it to var_growth_map
+# would just run the generic path and discard the result downstream. By
+# excluding it upfront, the set of variables flowing through the
+# extensive-factor sums below is exactly the set where that math applies.
 var_growth_map = variable_guide %>%
-  filter(!is.na(grow_with), !(variable %in% vars_to_ignore)) %>%
+  filter(!is.na(grow_with),
+         !(variable %in% c(vars_to_ignore, 'kg_lt_basis'))) %>%
   select(variable, grow_with_resolved = grow_with)
 
 # 2018-2019 factors (cumulative-from-2017 via irs_growth_factors_income).
@@ -416,6 +424,22 @@ build_factor_rows_2020plus = function(y) {
   nw_y = weight_ledger %>% filter(year == y) %>% select(id, nw = weight)
   w19  = weight_ledger %>% filter(year == 2019L) %>% select(id, w19 = weight)
 
+  # Extensive factor per variable V: ratio of (year-y weight) to (2019
+  # weight), summed over the 2017 records with V != 0. Captures growth in
+  # the weighted count of V-holders between 2019 and y, holding the
+  # 2017-fixed nonzero-mask of records constant.
+  #
+  # `na.rm = TRUE` handles variables that are legitimately NA outside
+  # their imputation universe — currently the QBI wagebill_* family
+  # (NA when the record has no matching pass-through entity, per
+  # qbi.R). Dropping those NA records from BOTH sums computes the
+  # extensive factor against the in-universe set, which is what we
+  # want for a per-pass-through wage-bill aggregate. All other in-scope
+  # variables are fully populated in tax_units, so na.rm is a no-op for
+  # them. If a future imputation leaves NAs on a variable that ISN'T
+  # universe-restricted, na.rm will silently swallow them — re-audit if
+  # the audit_ext_factor_nas.R script (or its successor) starts flagging
+  # variables outside the wagebill_* family.
   ext_df = tax_units %>%
     select(id, all_of(var_growth_map$variable)) %>%
     left_join(w19, by = 'id') %>%
@@ -482,9 +506,12 @@ fl_kg_lt_basis = tibble(
   source   = 'basis_adjustment'
 )
 
+# kg_lt_basis isn't in var_growth_map (excluded above), so fl_2018_2019 /
+# fl_2020_2097 already don't produce rows for it. fl_kg_lt_basis carries
+# the basis-adjustment series for 2018-2097.
 factor_ledger = bind_rows(
-  fl_2018_2019 %>% filter(variable != 'kg_lt_basis'),
-  fl_2020_2097 %>% filter(variable != 'kg_lt_basis'),
+  fl_2018_2019,
+  fl_2020_2097,
   fl_kg_lt_basis
 ) %>%
   arrange(year, variable)

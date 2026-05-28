@@ -166,7 +166,7 @@ load_johnson_marital = function(path = 'resources/johnson_2000_marital_hr.csv') 
 # Magnitude of the approximation error is small relative to the cap-
 # correction itself.
 make_q_baseline_ssa_tr2024 = function(resources_dir = 'resources',
-                                       cap_age       = 80L) {
+                                       cap_age       = MAX_AGE) {
   read_one = function(path) {
     # SSA file format: 4 prose header lines, then a CSV header
     # `Year,x,q(x),l(x),d(x),L(x),...`. We need (Year, x, q(x), L(x)).
@@ -280,55 +280,26 @@ make_q_baseline_static_2022 = function(path = 'resources/ssa_life_table_2022.csv
 #---------------------------------------------
 
 build_chetty_pctile = function(puf_ref) {
-  # Income component list — matches `broad_income_components` in
-  # src/record_bucket.R. Inlined to keep mortality_ledger.R self-
-  # contained; if you change the list here, change it there too.
-  income_cols = c(
-    'wages',
-    'sole_prop', 'farm',
-    'scorp_active',  'scorp_active_loss',  'scorp_179',
-    'scorp_passive', 'scorp_passive_loss',
-    'part_active',   'part_active_loss',   'part_179',
-    'part_passive',  'part_passive_loss',
-    'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
-    'kg_lt', 'kg_st',
-    'gross_ss', 'gross_pens_dist',
-    'ui',
-    'rent', 'rent_loss', 'estate', 'estate_loss'
-  )
+  # Broad-income definition lives in src/imputations/helpers.R; this module
+  # uses the same definition as record_bucket.R and wealth.R for cross-
+  # module rank coherence.
   required = c('id', 'weight', 'age1', 'age2', 'male1', 'male2',
-               'filing_status', income_cols)
+               'filing_status', broad_income_components)
   missing = setdiff(required, names(puf_ref))
   if (length(missing) > 0L) {
     stop('build_chetty_pctile(): missing columns: ',
          paste(missing, collapse = ', '))
   }
 
-  income = with(puf_ref,
-    wages +
-    sole_prop + farm +
-    scorp_active  - scorp_active_loss  - scorp_179 +
-    scorp_passive - scorp_passive_loss +
-    part_active   - part_active_loss   - part_179 +
-    part_passive  - part_passive_loss +
-    txbl_int + exempt_int + div_ord + div_pref +
-    kg_lt + kg_st +
-    gross_ss + gross_pens_dist +
-    ui +
-    rent - rent_loss + estate - estate_loss
-  )
-  if (any(is.na(income))) {
-    stop('build_chetty_pctile(): income computation produced ',
-         sum(is.na(income)), ' NA(s).')
-  }
+  income = compute_broad_income(puf_ref)
 
   # Ages are capped at 80 in tax_units (search `pmin(80,` in src/).
   # Within-cell rank uses the same capped age, so a record at age=80
   # is ranked among the entire 80+ pool — consistent with the
   # cap-age correction in q_baseline.
-  age1_cap = pmin(80L, as.integer(puf_ref$age1))
+  age1_cap = pmin(MAX_AGE, as.integer(puf_ref$age1))
   age2_cap = dplyr::if_else(!is.na(puf_ref$age2),
-                            pmin(80L, as.integer(puf_ref$age2)),
+                            pmin(MAX_AGE, as.integer(puf_ref$age2)),
                             NA_integer_)
 
   # Long format: one row per person.
@@ -620,7 +591,9 @@ if (sys.nframe() == 0L) {
     library(tidyr)
     library(readr)
     library(purrr)
+    library(Hmisc)   # wtd.quantile, used transitively via helpers.R
   })
+  source('src/imputations/helpers.R')   # broad_income_components + compute_broad_income
 
   cat('--- mortality_ledger.R tests ---\n')
 

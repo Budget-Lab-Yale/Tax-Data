@@ -159,6 +159,88 @@ predict_ranger_draw = function(model, newdata) {
 }
 
 
+#' PUF age top-code — every person-age column in tax_units (age1, age2,
+#' dep_ageN) is clamped to MAX_AGE upstream. The literal value is load-
+#' bearing for mortality: q_baseline at MAX_AGE uses the L-weighted
+#' average q across [MAX_AGE, 119] (see mortality_ledger.R cap_age) to
+#' represent the entire 80+ population, not just exact-age-80.
+#'
+#' Relaxing the cap requires coordinated changes in:
+#'   - src/imputations/ages.R         (CPS → PUF imputation)
+#'   - src/project_puf.R              (demographic pivot)
+#'   - src/mortality_ledger.R         (cap_age default + cap correction)
+#'   - src/imputations/wealth.R       (SCF/PUF feature engineering)
+#'   - src/cex.R                      (CEX consumption imputation)
+#' Don't change this constant in isolation.
+MAX_AGE = 80L
+
+
+#' Broad-income definition used for all per-record income-rank constructions
+#' across the pipeline:
+#'   - DFA aging bucket            (src/record_bucket.R)
+#'   - Chetty within-(sex, age) pctile for mortality (src/mortality_ledger.R)
+#'   - Stage 3 wealth calibration cell (src/imputations/wealth.R, via
+#'     assign_calibration_cells in src/imputations/stage3_target_qc.R)
+#'
+#' One definition, three rank-binning resolutions. Drift between any two
+#' call sites breaks the implicit "DFA bucket is a coarsening of the
+#' calibration cell" invariant in materialize().
+#'
+#' Sign convention: losses subtracted, 179 subtracted, no flooring at zero
+#' (records with net negative income land at the bottom of the weighted
+#' rank).
+broad_income_components = c(
+  'wages',
+  'sole_prop', 'farm',
+  'scorp_active',  'scorp_active_loss',  'scorp_179',
+  'scorp_passive', 'scorp_passive_loss',
+  'part_active',   'part_active_loss',   'part_179',
+  'part_passive',  'part_passive_loss',
+  'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
+  'kg_lt', 'kg_st',
+  'gross_ss', 'gross_pens_dist',
+  'ui',
+  'rent', 'rent_loss', 'estate', 'estate_loss'
+)
+
+
+#' Compute the per-record broad-income amount.
+#'
+#' Vectorized. Errors on NA — the broad-income components should be fully
+#' populated at every call site (record_bucket build, Chetty pctile build,
+#' wealth.R calibration cell assignment); an NA here indicates an upstream
+#' imputation regression that must be surfaced rather than swept.
+#'
+#' @param df  Tibble or data.frame carrying every column in
+#'            `broad_income_components`.
+#' @return    Numeric vector of length nrow(df) with the broad-income amount.
+compute_broad_income = function(df) {
+  missing = setdiff(broad_income_components, names(df))
+  if (length(missing) > 0L) {
+    stop('compute_broad_income(): missing columns: ',
+         paste(missing, collapse = ', '))
+  }
+  income = with(df,
+    wages +
+    sole_prop + farm +
+    scorp_active  - scorp_active_loss  - scorp_179 +
+    scorp_passive - scorp_passive_loss +
+    part_active   - part_active_loss   - part_179 +
+    part_passive  - part_passive_loss +
+    txbl_int + exempt_int + div_ord + div_pref +
+    kg_lt + kg_st +
+    gross_ss + gross_pens_dist +
+    ui +
+    rent - rent_loss + estate - estate_loss
+  )
+  if (any(is.na(income))) {
+    stop('compute_broad_income(): produced ', sum(is.na(income)),
+         ' NA(s). Check upstream imputations.')
+  }
+  income
+}
+
+
 #' Train or load a cached DRF (Distributional Random Forest)
 #'
 #' Fits a DRF model on a multivariate response (e.g., expenditure share vectors)

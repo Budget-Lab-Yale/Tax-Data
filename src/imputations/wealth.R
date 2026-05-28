@@ -8,9 +8,19 @@
 # Exports run_wealth_imputation(), a pure
 # function that takes a materialized 2022
 # PUF tibble + the cached scf_tax_units
-# and returns a tibble (id, 25 wealth
-# cols: value.<asset>×14, value.<debt>×6,
-# basis.<...>×5) at 2022 values.
+# and returns a tibble (id + 32 wealth
+# cols at 2022 values):
+#   value.<asset>×14   stock values, 14 asset categories
+#   value.<debt>×6     stock values, 6 debt categories
+#   basis.<...>×5      cost basis, 5 categories with
+#                       appreciation tracked
+#   accruals.<...>×7   annual unrealized-gain flow, 7
+#                       appreciation-bearing categories
+# Imputation-internal schema (kg_* + dc/db split, 24
+# cols) lives in wealth_y_vars; output schema after
+# to_output_schema() is wealth_output_vars. See
+# src/imputations/wealth_schema.R for the canonical
+# definitions.
 #
 # Stage architecture:
 #   Stage 1 (upstream) — SCF PEU →
@@ -18,7 +28,7 @@
 #             scf_tax_units.
 #   Stage 2 (this file) —
 #             per-cell DRFs over the
-#             23-dim Y vector. drf gives
+#             24-dim Y vector. drf gives
 #             forest-averaged donor probs
 #             p_ij = get_sample_weights().
 #   Stage 3 (this file) —
@@ -129,7 +139,8 @@ to_output_schema = function(df) {
 #   list(y, y_pre_tilt, y_post_tilt_pre_rescale, qc_report,
 #        rescale_factors, tilt_diagnostics, post_tilt_donors,
 #        pre_tilt_donors). y is a tibble keyed by puf_tax_units$id with
-#   the 23 wealth columns populated.
+#   the 32 wealth columns in the wealth_output_vars schema (value.* /
+#   basis.* / accruals.*) populated.
 #--------------------------------------
 run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                                   debug_output  = FALSE,
@@ -211,8 +222,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   scf_tax_units = scf_tax_units %>%
     mutate(
       n_dep_hh    = n_dep,
-      age1_capped = pmin(as.integer(age1), 80L),
-      age2_capped = if_else(!is.na(age2), pmin(as.integer(age2), 80L),
+      age1_capped = pmin(as.integer(age1), MAX_AGE),
+      age2_capped = if_else(!is.na(age2), pmin(as.integer(age2), MAX_AGE),
                             NA_integer_),
       age_older   = if_else(!is.na(age2_capped),
                             pmax(age1_capped, age2_capped), age1_capped),
@@ -361,10 +372,15 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     stop('wealth.R: missing PUF composition inputs: ',
          paste(missing_cols, collapse = ', '))
 
+  # Broad income: shared definition lives in helpers.R / compute_broad_income.
+  # Stash it as a vector so the mutate below (and the cell-assignment block
+  # further down) reference the same numbers.
+  puf_income_vec = compute_broad_income(puf_tax_units)
+
   puf = puf_tax_units %>%
     mutate(
-      age1_capped = pmin(as.integer(age1), 80L),
-      age2_capped = if_else(!is.na(age2), pmin(as.integer(age2), 80L),
+      age1_capped = pmin(as.integer(age1), MAX_AGE),
+      age2_capped = if_else(!is.na(age2), pmin(as.integer(age2), MAX_AGE),
                             NA_integer_),
       age_older   = if_else(!is.na(age2_capped),
                             pmax(age1_capped, age2_capped), age1_capped),
@@ -377,17 +393,7 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                  (!is.na(dep_age2) & dep_age2 < 18) +
                  (!is.na(dep_age3) & dep_age3 < 18),
 
-      income  = wages +
-                sole_prop + farm +
-                scorp_active  - scorp_active_loss  - scorp_179 +
-                scorp_passive - scorp_passive_loss +
-                part_active   - part_active_loss   - part_179 +
-                part_passive  - part_passive_loss +
-                txbl_int + exempt_int + div_ord + div_pref +
-                kg_lt + kg_st +
-                gross_ss + gross_pens_dist +
-                ui +
-                rent - rent_loss + estate - estate_loss,
+      income = puf_income_vec,
 
       wages_puf         = wages,
       business_puf      = sole_prop + farm +
@@ -561,13 +567,13 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   colnames(cat_amount_matrix) = AMOUNT_CATS
 
   # ---------- Cell assignment on SCF side ----------
-  # Age: pmin(80) to match the PUF topcode; 0 for the synthetic 2nd
+  # Age: pmin(MAX_AGE) to match the PUF topcode; 0 for the synthetic 2nd
   # filer on singles. Income: unfloored sum of the 7 SCF composition
   # cols (same formula as the forest feature, matching build_record_bucket's
   # PUF-side formula).
   scf_y = scf_to_y(scf_tax_units)
   scf_age2    = ifelse(is.na(scf_tax_units$age2), 0L, scf_tax_units$age2)
-  scf_age_older = pmax(pmin(80L, scf_tax_units$age1), pmin(80L, scf_age2))
+  scf_age_older = pmax(pmin(MAX_AGE, scf_tax_units$age1), pmin(MAX_AGE, scf_age2))
   scf_income  = with(scf_tax_units,
     wages_scf + business_scf + int_div_scf + capital_gains_scf +
     rent_scf + ss_pens_scf + ui_other_scf
@@ -586,18 +592,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # ---------- Cell assignment on PUF side ----------
   puf_w = puf_tax_units$weight
   puf_age2 = ifelse(is.na(puf_tax_units$age2), 0L, puf_tax_units$age2)
-  puf_age_older = pmax(pmin(80L, puf_tax_units$age1), pmin(80L, puf_age2))
-  puf_income_vec = with(puf_tax_units,
-    wages + sole_prop + farm +
-    scorp_active  - scorp_active_loss  - scorp_179 +
-    scorp_passive - scorp_passive_loss +
-    part_active   - part_active_loss   - part_179 +
-    part_passive  - part_passive_loss +
-    txbl_int + exempt_int + div_ord + div_pref +
-    kg_lt + kg_st +
-    gross_ss + gross_pens_dist + ui +
-    rent - rent_loss + estate - estate_loss
-  )
+  puf_age_older = pmax(pmin(MAX_AGE, puf_tax_units$age1), pmin(MAX_AGE, puf_age2))
+  # puf_income_vec was computed once above on puf_tax_units; reuse.
   puf_cells = data.frame(
     id        = puf_tax_units$id,
     weight    = puf_w,
@@ -702,15 +698,14 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # ---------- attach_accruals helper --------------------------------------
   # Looks up each PUF record's chosen donor's SCF DC equity share + DC
   # total (via boot_idx → original SCF row), then calls compute_accruals
-  # to produce the 7 accruals.* columns. Used identically by the 4
-  # snapshot paths (post_y, pre_y, post_y_pre_rescale, and the skip_tilt
-  # early-return). donor_idx[i] == 0 occurs for dep_status==1 records that
-  # never went through tilt: pmax→1 makes the lookup safe; the looked-up
-  # values are irrelevant because value.* are zero for dep rows so
-  # accruals come out zero anyway.
+  # to produce the 7 accruals.* columns. Used by the 3 snapshot paths
+  # (post_y, pre_y, post_y_pre_rescale) and the skip_tilt early-return.
+  # Invariant: donor_idx is all-positive at every call site — the
+  # stopifnot checks at the Y_mat indexing sites upstream guarantee no
+  # zero indices reach here. The assert below is defense in depth.
   attach_accruals = function(out_tbl, donor_idx, age_older) {
-    safe_idx     = pmax(donor_idx, 1L)
-    orig_scf_idx = boot_idx[safe_idx]
+    stopifnot(all(donor_idx > 0L))
+    orig_scf_idx = boot_idx[donor_idx]
     acc = compute_accruals(
       value_tbl         = out_tbl,
       donor_dc_eq_share = scf_tax_units$dc_equity_share_scf[orig_scf_idx],
@@ -720,37 +715,71 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     bind_cols(out_tbl, acc)
   }
 
-  # ---------- Early exit: skip_tilt mode -----------------------------------
-  if (skip_tilt) {
-    cat('wealth.R: skip_tilt=TRUE, returning Stage-2 output (uniform leaf draw)\n')
-    pre_y = Y_mat[pre_tilt_donors, , drop = FALSE]
-    colnames(pre_y) = wealth_y_vars
-    dep_rows = which(puf_tax_units$dep_status == 1L)
-    if (length(dep_rows) > 0L) {
-      cat(sprintf('  zeroing wealth for %d dep_status==1 rows\n', length(dep_rows)))
-      pre_y[dep_rows, ] = 0
-    }
-    pre_y_out = attach_accruals(
+  # ---------- assemble_result helper --------------------------------------
+  # Build the return list from the four snapshot matrices. Used twice:
+  # once by the skip_tilt early-return (with post == pre == pre-tilt
+  # snapshot) and once by the main exit (with the post-tilt and rescaled
+  # snapshots distinct). Closes over puf$id, puf_age_older,
+  # pre_tilt_donors, min_node_size, attach_accruals, to_output_schema —
+  # only the snapshots and the post-tilt-side diagnostics vary between
+  # call sites, so they're the parameters.
+  assemble_result = function(post_y, pre_y, post_y_pre_rescale,
+                              post_tilt_donors_arg, qc_report,
+                              rescale_factors, tilt_diagnostics) {
+    post_y_tbl = attach_accruals(
+      to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(post_y))),
+      donor_idx = post_tilt_donors_arg,
+      age_older = puf_age_older
+    )
+    pre_y_tbl = attach_accruals(
       to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(pre_y))),
       donor_idx = pre_tilt_donors,
       age_older = puf_age_older
     )
-    return(list(
-      y                       = pre_y_out,
-      y_pre_tilt              = pre_y_out,
-      y_post_tilt_pre_rescale = pre_y_out,
-      qc_report               = qc_report,
-      rescale_factors         = tibble(),
-      tilt_diagnostics        = list(),
-      pre_tilt_donors         = pre_tilt_donors,
-      post_tilt_donors        = pre_tilt_donors,
-      # Back-compat aliases
-      y_pre_swap              = pre_y_out,
-      y_post_step_a_pre_rescale = pre_y_out,
-      step_a_diagnostics      = list(),
-      pre_swap_donors         = pre_tilt_donors,
-      post_swap_donors        = pre_tilt_donors,
-      min_node_size           = min_node_size
+    post_y_pre_rescale_tbl = attach_accruals(
+      to_output_schema(bind_cols(tibble(id = puf$id),
+                                  as_tibble(post_y_pre_rescale))),
+      donor_idx = post_tilt_donors_arg,
+      age_older = puf_age_older
+    )
+    list(
+      y                         = post_y_tbl,
+      y_pre_tilt                = pre_y_tbl,
+      y_post_tilt_pre_rescale   = post_y_pre_rescale_tbl,
+      qc_report                 = qc_report,
+      rescale_factors           = rescale_factors,
+      min_node_size             = min_node_size,
+      tilt_diagnostics          = tilt_diagnostics,
+      post_tilt_donors          = post_tilt_donors_arg,
+      pre_tilt_donors           = pre_tilt_donors
+    )
+  }
+
+  # ---------- Early exit: skip_tilt mode -----------------------------------
+  if (skip_tilt) {
+    cat('wealth.R: skip_tilt=TRUE, returning Stage-2 output (uniform leaf draw)\n')
+    if (any(pre_tilt_donors == 0L)) {
+      empty_recs = which(pre_tilt_donors == 0L)
+      stop(sprintf(
+        'wealth.R: %d record(s) have no donor assigned in pre_tilt_donors (empty leaf); first ids: %s',
+        length(empty_recs),
+        paste(puf$id[head(empty_recs, 5L)], collapse = ', ')))
+    }
+    pre_y_snap = Y_mat[pre_tilt_donors, , drop = FALSE]
+    colnames(pre_y_snap) = wealth_y_vars
+    dep_rows = which(puf_tax_units$dep_status == 1L)
+    if (length(dep_rows) > 0L) {
+      cat(sprintf('  zeroing wealth for %d dep_status==1 rows\n', length(dep_rows)))
+      pre_y_snap[dep_rows, ] = 0
+    }
+    return(assemble_result(
+      post_y               = pre_y_snap,
+      pre_y                = pre_y_snap,
+      post_y_pre_rescale   = pre_y_snap,
+      post_tilt_donors_arg = pre_tilt_donors,
+      qc_report            = qc_report,
+      rescale_factors      = tibble(),
+      tilt_diagnostics     = list()
     ))
   }
 
@@ -964,6 +993,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       set.seed(bucket_seed)
       eff_donors_sampled = numeric(n_b)
       k_used_vec         = integer(n_b)
+      degenerate_rows    = integer(0)  # bucket-local PUF row indices that
+                                        # hit the argmax fallback
       for (j in seq_len(n_b)) {
         qrow = Q_b[j, ]
         keep = which(qrow >= q_threshold)
@@ -971,7 +1002,14 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
           ord  = order(qrow[keep], decreasing = TRUE)
           keep = keep[ord[seq_len(top_k)]]
         }
-        if (length(keep) == 0L) keep = which.max(qrow)
+        if (length(keep) == 0L) {
+          # No donor above q_threshold — every q is sub-threshold. Should
+          # not happen with lambda_max cap + uniform fallback at the W-
+          # renormalize step, but if it does, fall back to argmax and
+          # surface for diagnosis below.
+          keep = which.max(qrow)
+          degenerate_rows = c(degenerate_rows, j)
+        }
         qi = qrow[keep] / sum(qrow[keep])
         local_donor = keep[sample.int(length(keep), 1L, prob = qi)]
         # local_donor is an index into the matching-age donor pool. Map
@@ -982,6 +1020,15 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         k_used_vec[j]         = length(keep)
       }
       rm(Q_b, W_b); gc(verbose = FALSE)
+
+      if (length(degenerate_rows) > 0L) {
+        warning(sprintf(
+          'wealth.R: bucket %s × %s — %d/%d records hit the argmax fallback (every q_ij below q_threshold=%g). First PUF ids: %s.',
+          ci, ca, length(degenerate_rows), n_b, q_threshold,
+          paste(puf_tax_units$id[rec_cell[head(degenerate_rows, 5L)]],
+                collapse = ', ')),
+          call. = FALSE)
+      }
 
       attain = attainable_bounds(donor_Z, puf_w[rec_cell])
       out_of_range = (target_b < attain['min', ]) | (target_b > attain['max', ])
@@ -1021,6 +1068,26 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   }
   cat(sprintf('wealth.R: tilt solver %.1fs\n',
               as.numeric(Sys.time() - t0, units = 'secs')))
+
+  # Guard against the silent row-count corruption R will produce if any
+  # donor index is 0 (Y_mat[c(1, 0, 3), ] returns 2 rows, not 3). With
+  # min.node.size >= 50 in production this can't fire, but the failure
+  # mode of "shorter-than-expected matrix" is uniquely hard to debug, so
+  # we make it loud.
+  if (any(post_tilt_donors == 0L)) {
+    empty_recs = which(post_tilt_donors == 0L)
+    stop(sprintf(
+      'wealth.R: %d record(s) have no donor assigned in post_tilt_donors; first ids: %s',
+      length(empty_recs),
+      paste(puf$id[head(empty_recs, 5L)], collapse = ', ')))
+  }
+  if (any(pre_tilt_donors == 0L)) {
+    empty_recs = which(pre_tilt_donors == 0L)
+    stop(sprintf(
+      'wealth.R: %d record(s) have no donor assigned in pre_tilt_donors (empty leaf); first ids: %s',
+      length(empty_recs),
+      paste(puf$id[head(empty_recs, 5L)], collapse = ', ')))
+  }
 
   post_y = Y_mat[post_tilt_donors, , drop = FALSE]
   colnames(post_y) = wealth_y_vars
@@ -1064,6 +1131,18 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   #---------------------------------------------------------------------------
 
   cat('wealth.R: applying per-(cell × y-var) intensive rescale\n')
+
+  # Step B alive-check thresholds. A (cell × y-var) pair is rescaled only if
+  # BOTH totals exceed
+  #   max(ALIVE_ABS_FLOOR, ALIVE_REL_TOL × other_side_magnitude).
+  # ALIVE_ABS_FLOOR guards against tiny absolute aggregates (don't divide by
+  # ~$0). ALIVE_REL_TOL guards against fabricating amounts from a near-zero
+  # PUF total up to a large SCF target. The two regimes switch at totals
+  # of magnitude ALIVE_ABS_FLOOR / ALIVE_REL_TOL ≈ $1B: above that the
+  # relative-tolerance check binds, below it the absolute floor binds.
+  ALIVE_ABS_FLOOR = 1e3
+  ALIVE_REL_TOL   = 1e-6
+
   rescale_rows = list()
   for (ci in CALIB_INCOME_BUCKETS) {
     for (ca in CALIB_AGE_BUCKETS) {
@@ -1078,10 +1157,17 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         scf_total = sum(scf_w * scf_y[scf_mask, yv])
         puf_total = sum(rec_w * post_y[rec_cell, yv])
 
-        scf_alive = abs(scf_total) >= max(1e3, 1e-6 * max(abs(puf_total), 1))
-        puf_alive = abs(puf_total) >= max(1e3, 1e-6 * max(abs(scf_total), 1))
+        scf_alive = abs(scf_total) >= max(ALIVE_ABS_FLOOR,
+                                          ALIVE_REL_TOL * max(abs(puf_total), 1))
+        puf_alive = abs(puf_total) >= max(ALIVE_ABS_FLOOR,
+                                          ALIVE_REL_TOL * max(abs(scf_total), 1))
         skip   = !scf_alive || !puf_alive
         factor = if (skip) 1 else scf_total / puf_total
+
+        skip_reason = if (!skip)             'applied'
+                      else if (!scf_alive && !puf_alive) 'both_dead'
+                      else if (!scf_alive)   'scf_dead'
+                      else                   'puf_dead_only'
 
         if (!skip) post_y[rec_cell, yv] = post_y[rec_cell, yv] * factor
 
@@ -1093,12 +1179,40 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
           puf_pre_rescale_total = puf_total,
           factor                = factor,
           applied               = !skip,
-          mode                  = if (skip) 'skip' else 'multiplicative'
+          mode                  = if (skip) 'skip' else 'multiplicative',
+          skip_reason           = skip_reason
         )
       }
     }
   }
   rescale_factors = bind_rows(rescale_rows)
+
+  # Per-reason skip summary. `puf_dead_only` is the asymmetric case where
+  # the tilt failed to seed the (cell × y-var) at all while SCF has real
+  # mass there — Step B would have fabricated those amounts from nothing,
+  # and we suppress it. A nonzero count here is a signal that the tilt
+  # underperformed on a target the calibration assumes is reachable.
+  skip_summary = rescale_factors %>%
+    filter(!applied) %>%
+    count(skip_reason, sort = TRUE)
+  if (nrow(skip_summary) > 0L) {
+    cat('wealth.R: Step B alive-check skips by reason:\n')
+    for (k in seq_len(nrow(skip_summary))) {
+      cat(sprintf('  %-15s  %4d\n',
+                  skip_summary$skip_reason[k],
+                  skip_summary$n[k]))
+    }
+    n_puf_dead_only = skip_summary$n[skip_summary$skip_reason == 'puf_dead_only']
+    if (length(n_puf_dead_only) > 0L && n_puf_dead_only > 0L) {
+      puf_dead = rescale_factors %>%
+        filter(skip_reason == 'puf_dead_only') %>%
+        select(cell_income, cell_age, yvar, scf_total, puf_pre_rescale_total)
+      cat(sprintf(
+        '  NOTE: %d (cell × y-var) pairs had SCF mass but no PUF support after the tilt:\n',
+        n_puf_dead_only))
+      print(puf_dead, n = Inf)
+    }
+  }
 
   # Summary print: distribution of factors. With the tilt absorbing the
   # cell × cat dollar work, factors are expected to be tight around 1.0.
@@ -1125,39 +1239,16 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # Return a list so the caller can route post-Step-A into module_deltas
   # and save pre-Step-A + qc_report + rescale_factors as diagnostic artifacts.
   # All wealth tibbles are transformed to the output schema (value.* / basis.*)
-  # before return. Diagnostic artifacts (qc_report, rescale_factors, donors)
-  # remain in the imputation-internal schema.
-  post_y_tbl              = attach_accruals(
-    to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(post_y))),
-    donor_idx = post_tilt_donors,
-    age_older = puf_age_older
-  )
-  pre_y_tbl               = attach_accruals(
-    to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(pre_y))),
-    donor_idx = pre_tilt_donors,
-    age_older = puf_age_older
-  )
-  post_y_pre_rescale_tbl  = attach_accruals(
-    to_output_schema(bind_cols(tibble(id = puf$id), as_tibble(post_y_pre_rescale))),
-    donor_idx = post_tilt_donors,
-    age_older = puf_age_older
-  )
-  result = list(
-    y                         = post_y_tbl,
-    y_pre_tilt                = pre_y_tbl,
-    y_post_tilt_pre_rescale   = post_y_pre_rescale_tbl,
-    qc_report         = qc_report,
-    rescale_factors   = rescale_factors,
-    min_node_size     = min_node_size,
-    tilt_diagnostics  = tilt_diagnostics,
-    post_tilt_donors  = post_tilt_donors,
-    pre_tilt_donors   = pre_tilt_donors,
-    # Back-compat aliases so older harnesses still work (deprecate later).
-    y_pre_swap        = pre_y_tbl,
-    y_post_step_a_pre_rescale = post_y_pre_rescale_tbl,
-    step_a_diagnostics = tilt_diagnostics,
-    post_swap_donors   = post_tilt_donors,
-    pre_swap_donors    = pre_tilt_donors
+  # by assemble_result. Diagnostic artifacts (qc_report, rescale_factors,
+  # donors) remain in the imputation-internal schema.
+  result = assemble_result(
+    post_y               = post_y,
+    pre_y                = pre_y,
+    post_y_pre_rescale   = post_y_pre_rescale,
+    post_tilt_donors_arg = post_tilt_donors,
+    qc_report            = qc_report,
+    rescale_factors      = rescale_factors,
+    tilt_diagnostics     = tilt_diagnostics
   )
   if (debug_output) {
     # Let diagnostic harnesses trace each PUF record back to the SCF

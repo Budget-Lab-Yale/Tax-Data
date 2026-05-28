@@ -28,28 +28,11 @@ dfa_income_buckets = c('pct00to20',  'pct20to40',  'pct40to60',
 dfa_income_edges   = c(0, 20, 40, 60, 80, 99, 100)
 
 
-# Income components used to construct the broad-income weighted rank.
-# Same definition as the wealth.R forest feature and assign_calibration_cells()
-# in src/imputations/stage3_target_qc.R. Zeros and losses pass through
-# unfloored.
-broad_income_components = c(
-  'wages',
-  'sole_prop', 'farm',
-  'scorp_active',  'scorp_active_loss',  'scorp_179',
-  'scorp_passive', 'scorp_passive_loss',
-  'part_active',   'part_active_loss',   'part_179',
-  'part_passive',  'part_passive_loss',
-  'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
-  'kg_lt', 'kg_st',
-  'gross_ss', 'gross_pens_dist',
-  'ui',
-  'rent', 'rent_loss', 'estate', 'estate_loss'
-)
-
-
 #' Compute per-record continuous weighted rank (0..100) over broad income.
 #'
-#' Internal helper for build_record_bucket() (DFA aging bucket).
+#' Internal helper for build_record_bucket() (DFA aging bucket). The broad-
+#' income definition lives in src/imputations/helpers.R
+#' (`broad_income_components` / `compute_broad_income`).
 #'
 #' Note: the mortality module does NOT call this. Mortality needs a
 #' within-(sex, age) rank to match Chetty 2016's percentile construction
@@ -59,37 +42,14 @@ broad_income_components = c(
 #' distribution".
 #'
 #' @param puf_ref  PUF tibble at the reference year. Must carry `id`,
-#'                 `weight`, and `broad_income_components`.
+#'                 `weight`, and the columns named in `broad_income_components`.
 #' @return         Tibble (id, rank_0_100), where rank is the cumulative
 #'                 weight share at each record's income, in [0, 100].
 compute_broad_income_rank = function(puf_ref) {
-  required = c('id', 'weight', broad_income_components)
-  missing = setdiff(required, names(puf_ref))
-  if (length(missing) > 0L) {
-    stop('compute_broad_income_rank(): missing columns in puf_ref: ',
-         paste(missing, collapse = ', '))
+  if (!('weight' %in% names(puf_ref))) {
+    stop('compute_broad_income_rank(): missing `weight` column.')
   }
-
-  income = with(puf_ref,
-    wages +
-    sole_prop + farm +
-    scorp_active  - scorp_active_loss  - scorp_179 +
-    scorp_passive - scorp_passive_loss +
-    part_active   - part_active_loss   - part_179 +
-    part_passive  - part_passive_loss +
-    txbl_int + exempt_int + div_ord + div_pref +
-    kg_lt + kg_st +
-    gross_ss + gross_pens_dist +
-    ui +
-    rent - rent_loss + estate - estate_loss
-  )
-
-  # NA guard — income should be fully defined at the reference year.
-  # Surface counts rather than silently dropping.
-  if (any(is.na(income))) {
-    stop('compute_broad_income_rank(): income computation produced ',
-         sum(is.na(income)), ' NA(s). Check upstream imputations.')
-  }
+  income = compute_broad_income(puf_ref)
 
   ord = order(income)
   cum_w = cumsum(puf_ref$weight[ord]) / sum(puf_ref$weight)

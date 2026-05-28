@@ -20,7 +20,7 @@ age_gap_dist = cps %>%
   filter(RELATE %in% c(0101, 0201), CPSID != 0, AGE >= 18) %>%
   mutate(role = if_else(RELATE == 0101, 'primary', 'secondary')) %>%
   select(YEAR, CPSID, role, age = AGE, weight = ASECWTH) %>%
-  mutate(age = if_else(age >= 80, 80, age)) %>%
+  mutate(age = if_else(age >= MAX_AGE, MAX_AGE, age)) %>%
   pivot_wider(names_from  = role,
               values_from = age) %>%
   group_by(age1 = primary, age2 = secondary) %>%
@@ -35,12 +35,12 @@ age_gap_dist = cps %>%
 
 # Estimate distribution of ages within PUF age categories
 cps_ages = cps %>%
-  mutate(age = if_else(AGE >= 80, 80, AGE)) %>%
+  mutate(age = if_else(AGE >= MAX_AGE, MAX_AGE, AGE)) %>%
   group_by(age) %>%
   summarise(n = sum(ASECWT))
 
 age_dist = cps_ages %>%
-  mutate(age = if_else(age >= 80, 80, age)) %>%
+  mutate(age = if_else(age >= MAX_AGE, MAX_AGE, age)) %>%
   filter(age >= 18) %>%
   # Cuts use `<` to match IRS AGERANGE: band 6 is "65 and over"
   # (see Internal Revenue Bulletin/SOI Tab 1.6 footnote). Must agree
@@ -103,7 +103,7 @@ dep_ages = tax_units %>%
       dep_age_group1 == 3 ~ floor(runif(nrow(.), 13, 17)),
       dep_age_group1 == 4 ~ floor(runif(nrow(.), 17, 19)),
       dep_age_group1 == 5 ~ floor(runif(nrow(.), 19, 24)),
-      dep_age_group1 == 6 ~ pmin(80, floor(runif(nrow(.), 24, 95))),
+      dep_age_group1 == 6 ~ pmin(MAX_AGE, floor(runif(nrow(.), 24, 95))),
       T                   ~ NA
     ),
     dep_age2 = case_when(
@@ -112,7 +112,7 @@ dep_ages = tax_units %>%
       dep_age_group2 == 3 ~ floor(runif(nrow(.), 13, 17)),
       dep_age_group2 == 4 ~ floor(runif(nrow(.), 17, 19)),
       dep_age_group2 == 5 ~ floor(runif(nrow(.), 19, 24)),
-      dep_age_group2 == 6 ~ pmin(80, floor(runif(nrow(.), 24, 95))),
+      dep_age_group2 == 6 ~ pmin(MAX_AGE, floor(runif(nrow(.), 24, 95))),
       T                   ~ NA
     ),
     dep_age3 = case_when(
@@ -121,7 +121,7 @@ dep_ages = tax_units %>%
       dep_age_group3 == 3 ~ floor(runif(nrow(.), 13, 17)),
       dep_age_group3 == 4 ~ floor(runif(nrow(.), 17, 19)),
       dep_age_group3 == 5 ~ floor(runif(nrow(.), 19, 24)),
-      dep_age_group3 == 6 ~ pmin(80, floor(runif(nrow(.), 24, 95))),
+      dep_age_group3 == 6 ~ pmin(MAX_AGE, floor(runif(nrow(.), 24, 95))),
       T                   ~ NA
     )
 

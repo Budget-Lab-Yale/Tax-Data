@@ -48,6 +48,49 @@
 }
 
 
+# Apply year-`target_year` cumulative factors to a set of columns in `tbl`.
+# Used by both the base-native pass (step 1) and each module's aging pass
+# (step 3) inside materialize(). Strict on bucketed NA lookups; calls
+# .report_bucket_na on any miss.
+#
+# Arguments:
+#   tbl              : tibble to mutate (out, or m_values).
+#   target_year      : year being materialized.
+#   vars_in_scope    : character vector — only ledger variables in this set
+#                       are applied. For the base pass: names(base). For a
+#                       module pass: that module's column names.
+#   factor_ledger    : (year, variable, factor, ...) tibble.
+#   bucketed_factors : optional (year, variable, bucket, factor, ...) tibble.
+#   tbl_buckets      : per-row bucket vector aligned to `tbl`, or NULL when
+#                       bucketed_factors is NULL. Caller is responsible for
+#                       building it once via match-by-id against record_bucket.
+.apply_factors = function(tbl, target_year, vars_in_scope,
+                          factor_ledger, bucketed_factors, tbl_buckets) {
+  fl_year = factor_ledger[factor_ledger$year == target_year &
+                          factor_ledger$variable %in% vars_in_scope, ]
+  for (i in seq_len(nrow(fl_year))) {
+    v  = fl_year$variable[i]
+    cf = fl_year$factor[i]
+    tbl[[v]] = tbl[[v]] * cf
+  }
+
+  if (!is.null(bucketed_factors)) {
+    bf_year = bucketed_factors[bucketed_factors$year == target_year &
+                                bucketed_factors$variable %in% vars_in_scope, ]
+    for (v in unique(bf_year$variable)) {
+      v_rows  = bf_year[bf_year$variable == v, ]
+      factors = v_rows$factor[match(tbl_buckets, v_rows$bucket)]
+      if (any(is.na(factors))) {
+        .report_bucket_na(target_year, v, tbl_buckets, v_rows$bucket)
+      }
+      tbl[[v]] = tbl[[v]] * factors
+    }
+  }
+
+  tbl
+}
+
+
 #' Materialize the PUF tibble at a given year.
 #'
 #' Semantics:
@@ -147,37 +190,17 @@ materialize = function(target_year,
   } else NULL
 
   # ---------------------------------------------------------------------------
-  # (1) Apply cumulative factors to base-native variables.
+  # (1) Apply cumulative factors to base-native variables (uniform + bucketed).
   # Base-native means: present in `base` with non-NA values. Module-imputed
-  # columns are NA here and handled in step (4). Factor is already cumulative
-  # from 2017 — just look up and multiply.
+  # columns are NA here and handled in step (3). Factor is already cumulative
+  # from 2017. Strict on bucketed NA lookups via .apply_factors.
   # ---------------------------------------------------------------------------
 
-  fl_year = factor_ledger[factor_ledger$year == target_year, ]
-  base_vars_with_factors = intersect(fl_year$variable, names(base))
-  for (v in base_vars_with_factors) {
-    cf = fl_year$factor[match(v, fl_year$variable)]
-    out[[v]] = out[[v]] * cf
-  }
-
-  # ---------------------------------------------------------------------------
-  # (1b) Apply per-record bucketed factors to base-native variables.
-  # Strict: every record must have a bucket, and every assigned bucket must
-  # have a factor row at this (year, variable). NAs are a schema bug, not a
-  # no-op — surface them rather than silently coalescing to 1.
-  # ---------------------------------------------------------------------------
-
-  if (!is.null(bucketed_factors)) {
-    bf_year = bucketed_factors[bucketed_factors$year == target_year, ]
-    for (v in intersect(unique(bf_year$variable), names(base))) {
-      v_rows  = bf_year[bf_year$variable == v, ]
-      factors = v_rows$factor[match(rec_buckets, v_rows$bucket)]
-      if (any(is.na(factors))) {
-        .report_bucket_na(target_year, v, rec_buckets, v_rows$bucket)
-      }
-      out[[v]] = out[[v]] * factors
-    }
-  }
+  out = .apply_factors(out, target_year,
+                       vars_in_scope    = names(base),
+                       factor_ledger    = factor_ledger,
+                       bucketed_factors = bucketed_factors,
+                       tbl_buckets      = rec_buckets)
 
   # ---------------------------------------------------------------------------
   # (2) Apply weight_ledger if provided.
@@ -225,38 +248,17 @@ materialize = function(target_year,
     m_vars = setdiff(names(m$values), 'id')
     m_values = m$values
 
-    # Apply cumulative factor (from m$base_year to target_year) per module var.
-    # Factor is already cumulative — just look up (year == target_year).
+    # Apply cumulative factor (from m$base_year to target_year) per module var
+    # via the shared .apply_factors helper. Factor is already cumulative — just
+    # look up (year == target_year).
     if (target_year > m$base_year) {
-      fl_m_year = factor_ledger[
-        factor_ledger$year == target_year &
-        factor_ledger$variable %in% m_vars,
-      ]
-      for (i in seq_len(nrow(fl_m_year))) {
-        v  = fl_m_year$variable[i]
-        cf = fl_m_year$factor[i]
-        m_values[[v]] = m_values[[v]] * cf
-      }
-
-      # Per-record bucketed path for module vars. Strict on NAs (see 1b).
-      if (!is.null(bucketed_factors)) {
-        bf_m_year = bucketed_factors[
-          bucketed_factors$year == target_year &
-          bucketed_factors$variable %in% m_vars,
-        ]
-        if (nrow(bf_m_year) > 0L) {
-          m_rec_buckets = record_bucket$bucket[match(m_values$id,
-                                                     record_bucket$id)]
-          for (v in unique(bf_m_year$variable)) {
-            v_rows  = bf_m_year[bf_m_year$variable == v, ]
-            factors = v_rows$factor[match(m_rec_buckets, v_rows$bucket)]
-            if (any(is.na(factors))) {
-              .report_bucket_na(target_year, v, m_rec_buckets, v_rows$bucket)
-            }
-            m_values[[v]] = m_values[[v]] * factors
-          }
-        }
-      }
+      m_rec_buckets = if (!is.null(bucketed_factors))
+        record_bucket$bucket[match(m_values$id, record_bucket$id)] else NULL
+      m_values = .apply_factors(m_values, target_year,
+                                vars_in_scope    = m_vars,
+                                factor_ledger    = factor_ledger,
+                                bucketed_factors = bucketed_factors,
+                                tbl_buckets      = m_rec_buckets)
     }
 
     row_match = match(out$id, m_values$id)

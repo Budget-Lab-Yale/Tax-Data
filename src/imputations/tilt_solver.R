@@ -272,7 +272,9 @@ solve_tilt_block = function(W, Z, puf_w, target, scale,
     status                = status,
     optim_convergence     = if (is.null(opt$convergence)) NA else opt$convergence,
     optim_message         = if (is.null(opt$message)) NA else opt$message,
-    n_iters               = if (!is.null(opt$counts)) opt$counts['function'] else NA,
+    # opt$counts is a named integer vector; strip the name so downstream
+    # consumers get a bare scalar rather than `function = 47`.
+    n_iters               = if (!is.null(opt$counts)) unname(opt$counts['function']) else NA,
     effective_donors_mean = fwd_final$eff_donor_mean,
     effective_donors_p10  = fwd_final$eff_donor_p10,
     kl_to_uniform_mean    = fwd_final$kl_mean,
@@ -400,7 +402,7 @@ solve_tilt_global = function(cell_payload,
 
   status_summary = sapply(per_cell, function(r) r$status)
   total_iters    = sum(sapply(per_cell, function(r)
-                              if (is.na(r$n_iters)) 0 else as.integer(r$n_iters)))
+                              if (is.na(r$n_iters)) 0L else r$n_iters))
 
   lambda_global = unlist(lapply(per_cell, function(r) r$lambda))
 
@@ -454,6 +456,7 @@ sample_tilt_donors = function(tilt_result, cell_payload,
     eff_donor_vec = numeric(n_puf)
     k_used_vec    = integer(n_puf)
     qkm_vec       = numeric(n_puf)
+    degenerate_rows = integer(0)   # PUF indices that hit the argmax fallback
 
     chunks = split(seq_len(n_puf),
                    ceiling(seq_len(n_puf) / chunk_size))
@@ -477,8 +480,12 @@ sample_tilt_donors = function(tilt_result, cell_payload,
           keep = keep[ord[seq_len(top_k)]]
         }
         if (length(keep) == 0L) {
-          # Degenerate row: fall back to argmax of qrow.
+          # Degenerate row: fall back to argmax of qrow. Should be rare —
+          # if any cell shows a nontrivial degenerate count below, the
+          # tilt is on the verge of blowing up for that record and
+          # warrants investigation.
           keep = which.max(qrow)
+          degenerate_rows = c(degenerate_rows, i)
         }
         qi = qrow[keep] / sum(qrow[keep])
         donor_assignment[i] = keep[sample.int(length(keep), 1L, prob = qi)]
@@ -489,6 +496,14 @@ sample_tilt_donors = function(tilt_result, cell_payload,
       rm(W_k, Q)
     }
     gc(verbose = FALSE)
+
+    if (length(degenerate_rows) > 0L) {
+      warning(sprintf(
+        'sample_tilt_donors: cell %s — %d/%d records hit the argmax fallback (every q_ij below q_threshold=%g). First PUF row indices: %s.',
+        ci, length(degenerate_rows), n_puf, q_threshold,
+        paste(head(degenerate_rows, 5L), collapse = ', ')),
+        call. = FALSE)
+    }
 
     if (verbose) {
       cat(sprintf('  sample %-12s n=%6d  ESS_mean=%.1f  k_used_mean=%.0f  q_kept_mean=%.3f\n',

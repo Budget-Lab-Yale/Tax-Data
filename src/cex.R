@@ -274,7 +274,7 @@ build_cex_training = function() {
       across(all_of(pce_cats), ~ pmax(0, .x)),
       total_consumption   = rowSums(across(all_of(pce_cats))),
       # Cap age at PUF max
-      age1      = pmin(age1, 80),
+      age1      = pmin(age1, MAX_AGE),
       n_dep_ctc = pmin(n_dep_ctc, 3)
     )
 
