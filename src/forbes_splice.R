@@ -122,33 +122,42 @@ read_forbes_input = function(path = 'resources/forbes/forbes_billionaires_2022_2
 }
 
 
+# BSYZ params are stored WIDE: one row per rank_group, with a column per
+# income category holding that category's share of fiscal income. Wide
+# format makes the rank_group join in forbes_target_categories provably
+# many-to-one (each billionaire -> its single group row), so there is no
+# fan-out and no risk of a stray duplicate row double-counting a category —
+# the failure mode a long (one-row-per-category) layout invited.
 read_bsyz_params = function(path = 'resources/forbes/bsyz_fiscal_income_params.csv') {
   if (!file.exists(path)) {
     stop('BSYZ parameter file not found: ', path)
   }
   params = readr::read_csv(path, show_col_types = FALSE)
+  cats = names(forbes_income_categories)
   required = c('rank_group', 'rank_min', 'rank_max',
-               'fiscal_income_to_wealth', 'category', 'share')
+               'fiscal_income_to_wealth', cats)
   missing = setdiff(required, names(params))
   if (length(missing) > 0L) {
     stop('BSYZ params missing required columns: ',
          paste(missing, collapse = ', '))
   }
-  if (!all(params$category %in% names(forbes_income_categories))) {
-    stop('BSYZ params contain unknown categories: ',
-         paste(setdiff(unique(params$category),
-                       names(forbes_income_categories)), collapse = ', '))
+  if (any(duplicated(params$rank_group))) {
+    stop('BSYZ params has duplicate rank_group row(s): ',
+         paste(unique(params$rank_group[duplicated(params$rank_group)]),
+               collapse = ', '))
   }
-  params %>%
+  params = params %>%
     dplyr::mutate(
       rank_min = as.integer(rank_min),
       rank_max = as.integer(rank_max),
-      fiscal_income_to_wealth = as.numeric(fiscal_income_to_wealth),
-      share = as.numeric(share)
-    ) %>%
-    dplyr::group_by(rank_group) %>%
-    dplyr::mutate(share = share / sum(share)) %>%
-    dplyr::ungroup()
+      fiscal_income_to_wealth = as.numeric(fiscal_income_to_wealth)
+    )
+  # Normalize each group's category shares to sum to 1 (raw BSYZ shares sum
+  # to ~1.01 and include a negative business share). Row-wise across the
+  # category columns.
+  share_mat = as.matrix(params[, cats])
+  params[, cats] = share_mat / rowSums(share_mat)
+  params
 }
 
 
@@ -168,17 +177,31 @@ assign_bsyz_rank_group = function(rank, params) {
 }
 
 
+# Returns long (year, rank, name, rank_group, category, target): one row per
+# (billionaire × category). Internally the join is many-to-one on rank_group
+# (wide params, one row per group); the long shape the solver consumes is
+# built explicitly from the per-category columns rather than via a
+# many-to-many fan-out join.
 forbes_target_categories = function(forbes_df, params) {
   if (nrow(forbes_df) == 0L) return(tibble::tibble())
-  forbes_df = forbes_df %>%
-    dplyr::mutate(rank_group = assign_bsyz_rank_group(rank, params))
-  params_key = params %>%
-    dplyr::select(rank_group, category, fiscal_income_to_wealth, share)
-  forbes_df %>%
+  cats = names(forbes_income_categories)
+  fdf = forbes_df %>%
+    dplyr::mutate(rank_group = assign_bsyz_rank_group(rank, params)) %>%
     dplyr::select(year, rank, name, net_worth, rank_group) %>%
-    dplyr::left_join(params_key, by = 'rank_group') %>%
-    dplyr::mutate(target = net_worth * fiscal_income_to_wealth * share) %>%
-    dplyr::select(year, rank, name, rank_group, category, target)
+    dplyr::left_join(
+      params %>% dplyr::select(rank_group, fiscal_income_to_wealth,
+                               dplyr::all_of(cats)),
+      by = 'rank_group')
+  dplyr::bind_rows(lapply(cats, function(cat) {
+    tibble::tibble(
+      year       = fdf$year,
+      rank       = fdf$rank,
+      name       = fdf$name,
+      rank_group = fdf$rank_group,
+      category   = cat,
+      target     = fdf$net_worth * fdf$fiscal_income_to_wealth * fdf[[cat]]
+    )
+  }))
 }
 
 
@@ -716,14 +739,22 @@ if (sys.nframe() == 0L) {
             purged$diagnostics$rows_dropped == 1L)
   cat('  [PASS] SCF billionaire purge\n')
 
+  # Wide fixture: one row per rank_group, a column per income category.
+  # Shares already sum to 1.0 (so they equal what read_bsyz_params would
+  # return after row-normalization); this fixture is built inline and does
+  # not pass through read_bsyz_params.
   params_fx = tibble(
-    rank_group = rep(c('top100', 'next300'), each = 6),
-    rank_min = rep(c(1L, 101L), each = 6),
-    rank_max = rep(c(100L, 400L), each = 6),
-    fiscal_income_to_wealth = rep(c(0.02, 0.03), each = 6),
-    category = rep(names(forbes_income_categories), 2),
-    share = rep(c(0.6, 0.2, 0.1, -0.05, 0.1, 0.05), 2)
-  ) %>% group_by(rank_group) %>% mutate(share = share / sum(share)) %>% ungroup()
+    rank_group              = c('top100', 'next300'),
+    rank_min                = c(1L, 101L),
+    rank_max                = c(100L, 400L),
+    fiscal_income_to_wealth = c(0.02, 0.03),
+    capital_gains           = c(0.6, 0.6),
+    dividends               = c(0.2, 0.2),
+    interest                = c(0.1, 0.1),
+    business                = c(-0.05, -0.05),
+    rent_estate_other       = c(0.1, 0.1),
+    wages_pensions          = c(0.05, 0.05)
+  )
   stopifnot(assign_bsyz_rank_group(c(1L, 250L), params_fx)[1] == 'top100')
   cat('  [PASS] rank group assignment\n')
 
