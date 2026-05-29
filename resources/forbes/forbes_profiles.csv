@@ -1,0 +1,1019 @@
+uri,birth_date,gender,marital_status,children,family,self_made,self_made_type,residence_state,industry,n_assets,public_equity_interactive,public_equity_all
+"abel-avellan","1971-02-01","m","",0,false,true,"self-made","Florida","telecom",1,0,9086786100
+"abigail-bennett","1980-12-27","f","Married",2,false,false,"inherited","New York","food-beverage",1,0,470823959.99999994
+"abigail-johnson","1961-12-19","f","Married",2,false,false,"inherited and growing","Massachusetts","finance-investments",0,0,0
+"adam-foroughi","1980-05-07","m","Married",0,false,true,"self-made","California","media-entertainment",1,0,18334251686.72
+"adam-forste","1978-01-01","m","Married",0,false,true,"self-made","Wyoming","diversified",1,0,2004414842.38
+"adarsh-hiremath","2003-03-27","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"adebayo-ogunlesi","1953-12-20","","Married",2,false,true,"self-made","New York","finance-investments",1,0,1932855600.0000002
+"aerin-lauder","1970-04-23","f","Married",2,false,false,"inherited","New York","fashion-retail",1,0,1025973495.4
+"a-jayson-adair","1969-10-16","m","Married",2,false,true,"self-made","Texas","automotive",2,0,1116431880
+"alan-gerry","1928-12-25","m","Married",3,false,true,"self-made","New York","media-entertainment",0,0,0
+"alan-miller-1","1937-08-17","m","Married",3,false,true,"self-made","Pennsylvania","healthcare",13,0,1694821062.7900002
+"alan-trefler","1956-03-10","m","Married",0,false,true,"self-made","Massachusetts","technology",6,0,2673234153.1699996
+"albert-chao","1949-07-15","m","",0,false,true,"self-made","Texas","manufacturing",2,0,2838955590
+"albert-nahmad","1940-10-15","m","Married",2,false,true,"self-made","Florida","manufacturing",1,0,1066059000.0000001
+"alec-gores","1953-03-18","m","Married",6,false,true,"self-made","California","finance-investments",15,0,178821859.868
+"alejandro-santo-domingo","1977-02-13","m","Married",0,false,false,"inherited and growing","New York","food-beverage",6,0,3117490500
+"alexander-karp","1967-10-01","m","Single",0,false,true,"self-made","New Hampshire","technology",2,0,11152433800
+"alexandra-daitch","1963-01-01","f","Married",1,false,false,"inherited","Connecticut","food-beverage",0,0,0
+"alexandr-wang","1997-01-19","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"alexis-le-quoc","1974-11-14","m","Married",1,false,true,"self-made","New York","technology",4,0,3533222700
+"alfred-west-jr","1942-12-07","m","Married",3,false,true,"self-made","Pennsylvania","finance-investments",9,0,1501714960
+"alice-schwartz","1926-07-02","f","Widowed",2,false,true,"self-made","California","healthcare",1,0,2239796970
+"alice-walton","1949-10-07","f","Divorced",0,false,false,"inherited","Texas","fashion-retail",1,0,105937141829.23
+"aman-sanger","2000-06-22","m","","",false,false,"","California","technology",0,0,0
+"amos-hostetter-jr","1937-01-12","m","Married",3,false,true,"self-made","Massachusetts","media-entertainment",2,0,176529709.26
+"amy-adams-strunk","1955-09-29","f","Widowed, Remarried",3,false,false,"inherited and growing","Tennessee","sports",1,0,0
+"amy-goldman-fowler","1954-04-19","f","Married",0,false,false,"inherited","New York","real-estate",0,0,0
+"amy-wyss","1971-01-01","f","",0,false,false,"inherited","Wyoming","healthcare",0,0,0
+"andres-santo-domingo","1978-06-01","m","Married",2,false,false,"inherited","New York","food-beverage",7,0,1403425625.3483517
+"andrew-beal","1952-11-29","m","Divorced",6,false,true,"self-made","Texas","finance-investments",0,0,0
+"andrew-bialecki","1985-10-01","m","",0,false,true,"self-made","Massachusetts","technology",1,0,1121300700
+"andrew-cherng-1","1947-05-02","m","Married",3,false,true,"self-made","Nevada","food-beverage",2,0,0
+"andrew-karam","1982-02-12","m","",0,false,true,"self-made","California","technology",1,0,5502368000
+"andrew-peggy-cherng","","","Married",0,false,true,"self-made","Nevada","food-beverage",1,0,62297746.13256838
+"andrew-tisch","1949-08-15","m","Married",4,false,false,"inherited and growing","New York","diversified",2,0,1551855031.8500001
+"andy-fang","1992-06-21","m","",0,false,true,"self-made","California","technology",2,0,916777400
+"andy-mills","1961-04-01","m","","",false,false,"","Illinois","healthcare",1,0,1507085628.4799998
+"aneel-bhusri","1966-02-04","m","Married",2,false,true,"self-made","California","technology",1,0,1057518540
+"anita-zucker","1952-01-19","f","Widowed",3,false,false,"inherited and growing","South Carolina","manufacturing",9,0,80990785.0329543
+"ankur-jain","1990-02-10","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"anne-dinning","1963-01-02","f","Single",0,false,true,"self-made","New York","finance-investments",0,0,0
+"annette-lerner","1930-02-27","f","Widowed",3,false,false,"inherited","Maryland","real-estate",0,0,0
+"ann-walton-kroenke","1948-12-18","f","Married",2,false,false,"inherited","Texas","fashion-retail",1,0,7124871300
+"anthony-casalena","1982-04-24","m","Single",0,false,true,"self-made","Maryland","technology",0,0,0
+"anthony-pritzker","1961-01-07","m","Divorced",6,false,false,"inherited","California","service",0,0,0
+"anthony-wood","1965-12-04","m","Married",3,false,true,"self-made","California","technology",1,0,2199485960
+"antonio-gracias","1970-11-06","m","Divorced",3,false,true,"self-made","Illinois","finance-investments",1,0,469822948.34999996
+"antony-ressler","1960-10-12","m","Married",3,false,true,"self-made","California","finance-investments",2,0,7357743000
+"archie-aldis-emmerson","1929-04-10","m","Married",3,false,true,"self-made","California","manufacturing",0,0,0
+"arnold-schwarzenegger","1947-07-30","m","Divorced",5,false,true,"self-made","California","media-entertainment",0,0,0
+"arthur-blank","1942-09-27","m","Divorced",6,false,true,"self-made","Georgia","sports",1,0,4037020000.0000005
+"arthur-dantchik","1957-11-25","m","Single",0,false,true,"self-made","Pennsylvania","finance-investments",0,0,0
+"arthur-levine","1951-09-28","m","Married",3,false,true,"self-made","Florida","finance-investments",0,0,0
+"art-levinson","1950-03-31","m","",0,false,true,"self-made","California","diversified",2,0,1541540150
+"arturo-moreno","1946-08-14","m","Married",3,false,true,"self-made","Arizona","sports",8,0,622310290
+"august-troendle","1956-01-01","m","",0,false,true,"self-made","Ohio","healthcare",5,0,2431663812.71
+"austen-cargill-ii","1951-03-09","m","Divorced",2,false,false,"inherited","Montana","food-beverage",0,0,0
+"autry-stephens","1938-03-08","m","",2,false,true,"self-made","","energy",0,0,0
+"avram-glazer","1960-10-15","m","",0,false,false,"inherited and growing","Florida","sports",0,0,0
+"axel-stawski","1950-11-14","m","Married",0,false,true,"self-made","New York","real-estate",0,0,0
+"baiju-bhatt","1985-01-01","m","Married",1,false,true,"self-made","California","finance-investments",1,0,3852291175.6800003
+"barbara-banke-1","1953-08-01","f","Widowed",3,false,true,"self-made","California","food-beverage",0,0,0
+"barbara-tyson","1949-03-06","f","Widowed",0,false,false,"inherited","Arkansas","food-beverage",1,0,2163227820
+"barry-diller","1942-02-02","m","Married",0,false,true,"self-made","New York","media-entertainment",7,0,1866936754.94
+"barry-sternlicht","1960-11-27","m","Divorced",3,false,true,"self-made","Florida","finance-investments",3,0,331604025.2
+"behdad-eghbali","1976-05-06","m","Married",0,false,true,"self-made","California","finance-investments",0,0,0
+"ben-ashkenazy","1969-09-23","m","Married",3,false,true,"self-made","New York","real-estate",0,0,0
+"ben-chestnut","1974-06-15","m","Married",2,false,true,"self-made","Georgia","technology",1,0,799416057.9000001
+"ben-lamm","1981-12-04","m","Married",1,false,true,"self-made","Texas","technology",0,0,0
+"ben-navarro","1962-11-02","m","",0,false,true,"self-made","South Carolina","finance-investments",0,0,0
+"bennett-dorrance","1946-02-09","m","Married",2,false,false,"inherited","Arizona","food-beverage",1,0,904481160
+"bennett-rosenthal","1963-09-24","m","Married",0,false,true,"self-made","California","finance-investments",1,0,1163431261.44
+"benoit-dageville","1966-06-29","m","Married",2,false,true,"self-made","California","technology",5,0,929025600
+"ben-silbermann","1982-07-14","m","Married",2,false,true,"self-made","California","media-entertainment",1,0,908529329.9999999
+"bernard-marcus","1929-05-12","m","",3,false,true,"self-made","","fashion-retail",1,0,9727066300
+"bernard-saul-ii","1932-04-15","m","Married",5,false,false,"inherited and growing","Maryland","finance-investments",10,0,409205565.12999994
+"bert-beveridge","1962-01-01","m","Married",3,false,true,"self-made","Texas","food-beverage",0,0,0
+"bharat-desai","1952-11-20","m","Married",2,false,true,"self-made","Florida","technology",0,0,0
+"bijan-tehrani","1994-01-01","m","",0,false,true,"self-made","","gambling-casinos",1,0,2737125
+"bill-alfond","1948-05-16","m","Married",3,false,false,"inherited","Massachusetts","fashion-retail",1,0,2277103500
+"bill-austin","1942-02-25","m","Married",3,false,true,"self-made","Texas","manufacturing",0,0,0
+"bill-cummings","1937-03-11","m","Married",4,false,true,"self-made","Massachusetts","real-estate",0,0,0
+"bill-gates","1955-10-28","m","Divorced",3,false,true,"self-made","Washington","technology",25,9558289250,62962301318.00186
+"bill-gross","1944-04-13","m","Divorced",3,false,true,"self-made","California","finance-investments",0,0,0
+"bill-haslam","1958-08-23","m","Married",3,false,false,"inherited","Tennessee","fashion-retail",1,0,1486515.3499999999
+"billy-joe-red-mccombs","1927-10-19","m","",3,false,true,"self-made","","diversified",0,0,0
+"blair-parry-okeden","1950-05-21","f","Divorced",2,false,false,"inherited","","media-entertainment",0,0,0
+"bobby-murphy","1988-07-19","m","Single",0,false,true,"self-made","California","technology",1,0,979915638.25
+"bob-muglia","1959-10-02","m","Married",1,false,true,"self-made","Washington","technology",1,0,646108800
+"bob-parsons","1950-11-27","m","Married",0,false,true,"self-made","Arizona","technology",0,0,0
+"bom-kim","1978-10-01","m","Married",1,false,true,"self-made","","technology",2,0,2543438170
+"brad-jacobs","1956-07-01","m","Married",4,false,true,"self-made","Connecticut","logistics",7,0,7444163490
+"brad-kelley","1956-12-23","m","Married",3,false,true,"self-made","Tennessee","real-estate",2,0,319443.76
+"brad-keywell","1969-10-27","m","Divorced",2,false,true,"self-made","Illinois","technology",1,0,599532986.86
+"brannin-mcbee","1985-03-26","m","",0,false,true,"self-made","Montana","technology",3,0,2427210580
+"brendan-foody","2003-04-02","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"brett-adcock","1986-04-06","m","Married",2,false,true,"self-made","California","technology",1,0,70438200
+"brett-hildebrand","1962-01-01","m","",0,false,true,"self-made","South Carolina","finance-investments",0,0,0
+"brian-acton","1972-02-17","m","Married",1,false,true,"self-made","California","technology",0,0,0
+"brian-armstrong","1983-01-25","m","",0,false,true,"self-made","California","finance-investments",3,0,7334147430
+"brian-chesky","1981-08-29","m","Single",0,false,true,"self-made","California","technology",1,0,8878680240.000002
+"brian-higgins","1965-02-08","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"brian-roberts","1959-06-28","m","Married",3,false,false,"inherited and growing","Pennsylvania","media-entertainment",10,0,928915250
+"brian-venturo","1984-10-21","m","",0,false,true,"self-made","New Jersey","technology",4,0,3698420030
+"bruce-beal-jr","1970-02-01","m","Married",0,false,true,"self-made","New York","real-estate",0,0,0
+"bruce-karsh","1955-10-10","m","Married",3,false,true,"self-made","California","finance-investments",2,0,0
+"bruce-kovner","1945-02-25","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"bruce-springsteen","1949-09-23","m","Married",3,false,true,"self-made","New Jersey","media-entertainment",0,0,0
+"bruce-toll","1943-04-29","m","",0,false,true,"self-made","Florida","real-estate",1,0,136609350
+"bryan-glazer","1964-10-15","m","",0,false,false,"inherited and growing","Illinois","sports",0,0,0
+"bubba-cathy","1954-04-22","m","Married",6,false,false,"inherited and growing","Georgia","food-beverage",0,0,0
+"b-wayne-hughes-jr","1959-05-27","m","Married",0,false,false,"inherited","Wyoming","real-estate",1,0,1542140550.0000002
+"byron-trott","1958-12-02","m","Married",0,false,true,"self-made","Illinois","finance-investments",0,0,0
+"cameron-winklevoss","1981-08-21","m","",0,false,true,"self-made","New York","finance-investments",3,0,2676095709.61
+"cargill-macmillan-iii","1959-12-21","m","",2,false,false,"inherited","Colorado","food-beverage",0,0,0
+"carl-cook","1962-08-19","m","Married",0,false,false,"inherited and growing","Indiana","healthcare",0,0,0
+"carl-desantis","1939-07-19","m","",3,false,true,"self-made","","food-beverage",5,0,3194784654
+"carl-icahn","1936-02-16","m","Married",2,false,true,"self-made","Florida","finance-investments",1,3735619200,3735619200
+"carlie-irsay-gordon","1981-02-16","f","Married",3,false,false,"inherited and growing","Indiana","sports",0,0,0
+"carl-thoma","1948-10-12","m","Married",2,false,true,"self-made","Texas","finance-investments",0,0,0
+"carson-brice","1967-10-01","f","Married",3,false,false,"inherited and growing","North Carolina","finance-investments",2,0,1404169680
+"casey-foyt","1983-02-10","f","Married",5,false,false,"inherited and growing","Indiana","sports",0,0,0
+"catherine-lozick","1945-05-01","f","",3,false,false,"inherited","","manufacturing",0,0,0
+"catherine-malone","1984-12-01","f","",0,false,false,"inherited","Florida","food-beverage",1,0,535672605.92999995
+"c-dean-metropoulos","1946-05-05","m","Married",2,false,true,"self-made","Florida","food-beverage",3,0,3927931.56
+"chad-richison","1970-10-10","m","Married",4,false,true,"self-made","Oklahoma","technology",1,0,901183700
+"charles-b-johnson","1933-01-06","m","Married",6,false,false,"inherited and growing","Florida","finance-investments",1,0,2980843740
+"charles-butt","1938-02-03","m","Single",0,false,false,"inherited and growing","Texas","fashion-retail",0,0,0
+"charles-cohen","1952-02-08","m","Married",4,false,false,"inherited and growing","New York","real-estate",0,0,0
+"charles-dolan","1926-10-16","m","",6,false,true,"self-made","","media-entertainment",4,0,1879683880
+"charles-ergen","1953-03-01","m","Married",5,false,true,"self-made","Colorado","media-entertainment",5,0,18003895044
+"charles-koch","1935-11-01","m","Married",2,false,false,"inherited and growing","Kansas","diversified",0,0,0
+"charles-liang","1958-01-01","m","Married",0,false,true,"self-made","California","technology",1,0,1976020200
+"charles-munger","1924-01-01","m","",8,false,true,"self-made","","finance-investments",4,0,2409251322.62
+"charles-schwab","1937-07-29","m","Married",5,false,true,"self-made","California","finance-investments",10,0,8728782000
+"charles-simonyi","1948-09-10","m","Married",2,false,true,"self-made","Washington","technology",1,0,4134506139.9999995
+"charles-zegar","1948-02-29","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"charlie-mills","1961-09-01","m","","",false,false,"","Illinois","healthcare",1,0,3113931779.2
+"charlotte-colket-weber","1942-11-19","f","Divorced",4,false,false,"inherited","Florida","food-beverage",1,0,178694010
+"chase-coleman-iii","1975-06-21","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"chetan-dube","1966-01-05","m","",0,false,true,"self-made","New York","technology",0,0,0
+"chi-fung-cheng","1968-09-01","m","",0,false,true,"self-made","California","technology",1,0,1502925546.84
+"chris-britt","1973-03-17","m","",0,false,true,"self-made","California","finance-investments",0,0,0
+"chris-larsen","1960-06-15","m","Married",2,false,true,"self-made","California","finance-investments",1,0,3403278480
+"christian-chabot","1972-01-23","m","",0,false,true,"self-made","Washington","technology",2,0,304499215.24
+"christopher-goldsbury","1943-01-01","m","Married",1,false,false,"inherited and growing","Texas","food-beverage",0,0,0
+"christopher-stolte","1972-12-06","m","Married",2,false,true,"self-made","Washington","technology",2,0,147955000.60000002
+"christy-walton","1949-02-08","f","Widowed",1,false,false,"inherited","Wyoming","fashion-retail",2,17562709934.25,17999734688.75
+"claire-bristow","1966-10-15","f","Married",0,false,false,"inherited and growing","North Carolina","finance-investments",2,0,1404494280
+"clark-hunt","1965-02-15","m","",0,false,false,"inherited and growing","Texas","sports",0,0,0
+"clayton-mathile","1941-01-11","m","",5,false,true,"self-made","","food-beverage",0,0,0
+"clifford-asness","1966-10-17","m","Married",4,false,true,"self-made","Connecticut","finance-investments",0,0,0
+"craig-abod","1963-07-01","m","Married",0,false,true,"self-made","Virginia","technology",0,0,0
+"craig-mccaw","1949-08-11","m","Married",3,false,false,"inherited and growing","Washington","telecom",3,0,95890640
+"dagmar-dolby","1941-06-28","f","Widowed",2,false,false,"inherited","California","technology",1,0,1955894850
+"dan-cathy","1953-03-01","m","Married",2,false,false,"inherited and growing","Georgia","food-beverage",0,0,0
+"dan-friedkin","1965-02-27","m","Married",4,false,false,"inherited and growing","Texas","automotive",0,0,0
+"daniela-amodei","1987-08-01","f","Married",2,false,true,"self-made","California","technology",0,0,0
+"daniel-daniello","1946-09-14","m","Married",2,false,true,"self-made","Virginia","finance-investments",1,0,1483807599.9999998
+"daniel-gilbert","1962-01-17","m","Married",5,false,true,"self-made","Michigan","finance-investments",1,0,15965409306.599998
+"daniel-hirschfeld","1941-05-31","m","Married",3,false,false,"inherited and growing","Nebraska","fashion-retail",1,0,792990000
+"daniel-hunt","1976-11-15","m","",0,false,false,"inherited and growing","Texas","sports",0,0,0
+"daniel-loeb","1961-12-18","m","Married",0,false,true,"self-made","New York","finance-investments",1,0,154435334.48000002
+"daniel-lubetzky","1968-09-28","m","Married",4,false,true,"self-made","New York","food-beverage",0,0,0
+"daniel-och","1961-01-27","m","Married",3,false,true,"self-made","Florida","finance-investments",0,0,0
+"daniel-pritzker","1959-09-15","m","Married",5,false,false,"inherited","California","finance-investments",1,0,359040
+"daniel-sundheim","1977-03-29","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"daniel-ziff","1971-11-02","m","Married",4,false,false,"inherited","New York","finance-investments",0,0,0
+"dan-kurzius","1971-12-01","m","Married",2,false,true,"self-made","Georgia","technology",1,0,949267650.0000001
+"dannine-avara","1964-03-09","f","Married",0,false,false,"inherited","Texas","energy",1,0,6647074483.2
+"danny-harris","1972-05-15","m","Married",4,false,true,"self-made","California","fashion-retail",0,0,0
+"dan-snyder","1964-11-23","m","Married",3,false,true,"self-made","Maryland","sports",0,0,0
+"dan-wilks","1956-05-30","m","Married",6,false,true,"self-made","Texas","energy",11,0,1403577108.0756266
+"darcie-glazer-kassewitz","1968-06-15","f","",0,false,false,"inherited and growing","Florida","sports",0,0,0
+"dario-amodei","1983-01-01","m","",0,false,true,"self-made","California","technology",0,0,0
+"darwin-deason","1940-05-14","m","Divorced",3,false,true,"self-made","Texas","service",0,0,0
+"david-adelman","1972-03-11","m","Married",2,false,true,"self-made","Pennsylvania","real-estate",0,0,0
+"david-baszucki","1963-01-20","m","Married",4,false,true,"self-made","California","technology",2,0,2219868000
+"david-blitzer","1969-09-07","m","Married",5,false,true,"self-made","New York","sports",0,0,0
+"david-bonderman","1942-11-27","m","",5,false,true,"self-made","","finance-investments",1,0,2587362450
+"david-booth","1946-01-01","m","Married",0,false,true,"self-made","Texas","finance-investments",0,0,0
+"david-dean-halbert","1955-12-19","m","Married",3,false,true,"self-made","Texas","healthcare",2,0,1929896480
+"david-duffield","1940-09-21","m","Married",10,false,true,"self-made","Nevada","technology",1,0,5211838803.599999
+"david-filo","1966-04-15","m","Married",1,false,true,"self-made","California","technology",1,0,0
+"david-geffen","1943-02-21","m","Separated",0,false,true,"self-made","California","media-entertainment",2,0,1310400000
+"david-golub","1962-04-16","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"david-green","1941-11-13","m","Married",3,false,true,"self-made","Oklahoma","fashion-retail",0,0,0
+"david-hindawi","1944-12-08","m","Married",2,false,true,"self-made","Washington","technology",0,0,0
+"david-hoffmann","1952-08-07","m","Married",0,false,true,"self-made","Florida","diversified",1,0,5239080
+"david-humphreys","1956-11-01","m","",0,false,false,"inherited and growing","Missouri","manufacturing",0,0,0
+"david-kabiller","1963-07-02","m","Single",0,false,true,"self-made","Connecticut","finance-investments",0,0,0
+"david-kaplan","1967-08-29","m","Married",0,false,true,"self-made","California","finance-investments",1,0,1165936861.44
+"david-lichtenstein","1961-11-21","m","Married",0,false,true,"self-made","New York","real-estate",0,0,0
+"david-murdock","1923-04-10","m","",3,false,true,"self-made","","food-beverage",1,0,163501240
+"david-paul","1966-12-25","m","Married",0,false,true,"self-made","Pennsylvania","healthcare",10,0,1982691712.4999998
+"david-rubenstein","1949-08-11","m","Divorced",3,false,true,"self-made","Maryland","finance-investments",1,0,1255329350
+"david-shaw","1951-03-29","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"david-siegel-1","1961-07-15","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"david-steward","1951-07-02","m","Married",0,false,true,"self-made","Missouri","technology",0,0,0
+"david-sun","1951-10-12","m","Married",2,false,true,"self-made","California","technology",0,0,0
+"david-tepper","1957-09-11","m","Married",3,false,true,"self-made","Florida","finance-investments",0,0,0
+"david-tran","1945-11-19","m","Married",2,false,true,"self-made","California","food-beverage",0,0,0
+"david-walentas","1938-08-07","m","Widowed",1,false,true,"self-made","New York","real-estate",0,0,0
+"david-zalik","1974-02-02","m","Married",3,false,true,"self-made","Georgia","technology",1,0,1757316840
+"dean-solon","1965-01-01","m","Married",0,false,true,"self-made","Tennessee","energy",1,0,0
+"denise-prenosil","1960-01-01","f","Divorced",0,false,false,"inherited","Pennsylvania","fashion-retail",1,0,930335571.9
+"denise-york","1950-10-21","f","Married",4,false,false,"inherited","Ohio","sports",0,0,0
+"dennis-washington","1934-07-27","m","Married",2,false,true,"self-made","Montana","logistics",0,0,0
+"dharmesh-shah","1967-11-06","m","Married",0,false,true,"self-made","Massachusetts","technology",10,0,914540903.6399999
+"diane-hendricks","1947-03-02","f","Widowed",7,false,true,"self-made","Wisconsin","construction-engineering",0,0,0
+"diane-kemper","1945-07-21","f","Widowed",0,false,false,"inherited","New York","real-estate",0,0,0
+"dick-portillo","1939-10-28","m","Married",3,false,true,"self-made","Florida","food-beverage",0,0,0
+"dick-wolf-1","1946-12-20","m","Divorced",5,false,true,"self-made","California","media-entertainment",0,0,0
+"dirk-ziff","1964-04-01","m","Married",2,false,false,"inherited","Florida","finance-investments",0,0,0
+"don-ahern","1953-10-01","m","Married",0,false,false,"inherited and growing","Nevada","service",0,0,0
+"donald-bren","1932-05-11","m","Married",7,false,true,"self-made","California","real-estate",0,0,0
+"donald-friese","1940-10-03","m","Married",0,false,true,"self-made","California","manufacturing",0,0,0
+"donald-horton","1950-03-05","m","",2,false,true,"self-made","","real-estate",1,0,5484589130
+"donald-newhouse","1929-08-05","m","Widowed",3,false,false,"inherited and growing","New York","media-entertainment",4,0,5704789131
+"donald-sterling","1934-04-26","m","Married",3,false,true,"self-made","California","real-estate",0,0,0
+"donald-trump","1946-06-14","m","Married",5,false,false,"inherited and growing","Florida","real-estate",1,0,950129999.9999999
+"don-hankey","1943-06-13","m","Married",4,false,true,"self-made","California","finance-investments",0,0,0
+"don-levin","1951-10-02","m","Married",1,false,true,"self-made","Illinois","manufacturing",0,0,0
+"don-vultaggio","1952-02-26","m","Married",2,false,true,"self-made","New York","food-beverage",0,0,0
+"doris-fisher","1931-08-23","f","Widowed",3,false,true,"self-made","California","fashion-retail",2,0,366350120
+"dorothy-chao-jenkins","1945-09-15","f","",0,false,false,"inherited","Florida","manufacturing",2,0,2838955590
+"douglas-leone","1957-07-04","m","Married",4,false,true,"self-made","California","finance-investments",17,0,8879308410
+"doug-meijer","1954-01-22","m","Divorced",1,false,false,"inherited and growing","Michigan","fashion-retail",0,0,0
+"doug-ostrover","1962-06-08","m","Married",4,false,true,"self-made","Connecticut","finance-investments",1,0,771483005.6
+"drayton-mclane-jr","1936-07-22","m","Married",2,false,false,"inherited and growing","Texas","fashion-retail",1,0,2143597387.4999998
+"drew-houston","1983-03-04","m","Single",0,false,true,"self-made","California","technology",2,0,1810788664.06
+"duke-reyes","1957-03-23","m","Married",0,false,false,"inherited and growing","Florida","food-beverage",0,0,0
+"duncan-macmillan","1937-12-17","m","Married",2,false,true,"self-made","New Jersey","finance-investments",0,0,0
+"dustin-moskovitz","1984-05-22","m","Married",0,false,true,"self-made","California","technology",3,0,6294079401.300001
+"dwight-schar","1942-02-08","m","Married",3,false,true,"self-made","Florida","construction-engineering",3,0,333030195.9
+"dylan-field","1992-03-23","m","",1,false,true,"self-made","California","technology",1,0,1155042812.88
+"ed-hallen","1982-02-01","m","",0,false,true,"self-made","Colorado","technology",1,0,938207159.9999999
+"eduardo-vivas","1985-10-01","m","Married",0,false,true,"self-made","California","media-entertainment",2,0,3785177681.28
+"edward-bass","1945-09-10","m","Married",1,false,false,"inherited and growing","Texas","energy",1,0,773015704.94
+"edward-debartolo-jr","1946-11-06","m","Married",3,false,false,"inherited and growing","Florida","real-estate",1,0,1655520000
+"edward-glazer","1969-12-15","m","",0,false,false,"inherited and growing","California","sports",0,0,0
+"edward-johnson-iv","1964-11-18","m","",0,false,false,"inherited","Massachusetts","finance-investments",0,0,0
+"edward-lampert","1962-07-19","m","Married",3,false,true,"self-made","Florida","finance-investments",4,0,969606018.6
+"edward-roski-jr","1938-12-25","m","Widowed",3,false,false,"inherited and growing","California","real-estate",0,0,0
+"edward-stack","1954-12-27","m","Married",0,false,true,"self-made","Pennsylvania","fashion-retail",3,0,4917405961.14
+"edwin-chen","1987-12-01","m","",0,false,true,"self-made","New York","technology",0,0,0
+"edythe-broad","1936-01-01","f","Widowed",2,false,false,"inherited","California","diversified",0,0,0
+"egon-durban","1973-08-23","m","Married",3,false,true,"self-made","California","finance-investments",0,0,0
+"e-joe-shoen","1949-10-28","m","Married",0,false,false,"inherited and growing","Arizona","automotive",2,0,1999047310.28
+"elaine-marshall","1942-07-22","f","",2,false,false,"inherited","Texas","diversified",0,0,0
+"elaine-wynn","1942-04-28","f","",2,false,true,"self-made","","gambling-casinos",2,0,703780300.0000001
+"eleanor-butt-crook","1932-07-21","f","Widowed",3,false,false,"inherited","Texas","fashion-retail",0,0,0
+"elisabeth-deluca","1947-07-25","f","Widowed",1,false,false,"inherited","Florida","food-beverage",0,0,0
+"elizabeth-johnson","1963-05-07","f","",0,false,false,"inherited","Massachusetts","finance-investments",0,0,0
+"elizabeth-uihlein","1945-07-07","f","Married",3,false,true,"self-made","Illinois","manufacturing",0,0,0
+"elon-musk","1971-06-28","m","Divorced",11,false,true,"self-made","Texas","automotive",2,179138622941.31,310932908167.11
+"eren-ozmen","1958-09-03","f","Married",2,false,true,"self-made","Nevada","manufacturing",0,0,0
+"eric-glyman","1990-05-01","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"eric-lefkofsky","1969-09-02","m","Married",3,false,true,"self-made","Illinois","technology",4,0,2104206709.9999998
+"eric-schmidt","1955-04-27","m","Married",2,false,true,"self-made","California","technology",2,15477768741.24,34443446341.24
+"eric-smidt","1960-01-01","m","Married",0,false,true,"self-made","California","fashion-retail",0,0,0
+"eric-yuan","1970-02-20","m","Married",3,false,true,"self-made","California","technology",3,0,3665395890
+"ernest-garcia-ii","1957-05-21","m","Married",0,false,true,"self-made","Arizona","automotive",1,0,15335842250.000002
+"ernest-garcia-iii","1982-05-01","m","",0,false,false,"inherited and growing","Arizona","automotive",9,0,10473745750
+"evan-spiegel","1990-06-04","m","Married",3,false,true,"self-made","California","technology",1,0,891438042.25
+"evan-williams","1972-03-31","m","Married",2,false,true,"self-made","California","technology",1,0,0
+"evgeny-eugene-shvidler","1964-03-23","m","Married",5,false,true,"self-made","","metals-mining",0,0,0
+"farris-wilks","1952-02-09","m","Married",11,false,true,"self-made","Texas","energy",5,0,719244640.9356269
+"fatih-ozmen","1958-02-02","m","Married",0,false,true,"self-made","Nevada","manufacturing",0,0,0
+"felix-baker","1969-03-29","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"fernando-de-leon","1978-10-01","m","Married",4,false,true,"self-made","Texas","real-estate",0,0,0
+"forrest-preston","1933-03-22","m","Married",4,false,true,"self-made","Tennessee","healthcare",0,0,0
+"frank-fertitta-iii","1962-02-24","m","Married",3,false,false,"inherited and growing","Nevada","sports",1,0,1545329038.78
+"frank-holding","1961-07-01","m","",0,false,false,"inherited and growing","North Carolina","finance-investments",2,0,1231037500
+"frank-holding-jr","1961-07-01","m","",0,false,false,"inherited and growing","North Carolina","finance-investments",2,0,1296024400
+"frank-laukien","1960-02-04","m","Married",0,false,false,"inherited and growing","Massachusetts","manufacturing",5,0,1650551760
+"frank-mccourt","1953-08-14","m","",0,false,true,"self-made","Florida","sports",0,0,0
+"frank-slootman","1958-10-03","m","Married",2,false,true,"self-made","California","technology",4,0,1552329139.2
+"frank-vandersloot","1948-08-14","m","Married",14,false,true,"self-made","Idaho","fashion-retail",0,0,0
+"fred-ehrsam","1988-05-10","m","",0,false,true,"self-made","California","finance-investments",1,0,1526844820
+"frederic-luddy","1954-11-24","m","Single",1,false,true,"self-made","California","technology",1,0,80435600
+"fred-smith-1","1944-08-11","m","",10,false,true,"self-made","","logistics",8,0,4545510692.8
+"gabe-newell","1962-11-03","m","Divorced",2,false,true,"self-made","Washington","media-entertainment",0,0,0
+"gail-miller","1943-10-14","f","Widowed, Remarried",5,false,true,"self-made","Utah","automotive",0,0,0
+"gary-chouest","1944-07-28","m","Married",5,false,false,"inherited and growing","Louisiana","logistics",0,0,0
+"gary-friedman","1957-08-06","m","Married",2,false,true,"self-made","California","fashion-retail",3,0,948835470
+"gary-lauder","1962-05-05","m","Married",2,false,false,"inherited","California","fashion-retail",2,0,764376674.2500001
+"gary-magness","1954-02-26","m","Married",3,false,false,"inherited","Colorado","media-entertainment",11,0,571211700
+"gary-michelson","1949-01-14","m","Married",1,false,true,"self-made","California","healthcare",0,0,0
+"gary-rollins","1944-08-30","m","Divorced",4,false,false,"inherited and growing","Georgia","service",3,0,5594365180
+"gary-tharaldson","1945-10-17","m","Married",6,false,true,"self-made","North Dakota","real-estate",0,0,0
+"gary-wang-1","1993-06-13","m","",0,false,true,"self-made","","finance-investments",1,0,0
+"gayle-benson","1947-01-26","f","Widowed",0,false,false,"inherited","Louisiana","sports",0,0,0
+"gene-lee","1991-03-08","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"geoffrey-palmer","1950-05-11","m","Married",0,false,true,"self-made","California","real-estate",0,0,0
+"george-argyros","1937-02-04","m","Married",3,false,true,"self-made","California","real-estate",5,0,131926382
+"george-bishop","1937-10-06","m","Married",0,false,true,"self-made","Texas","energy",0,0,0
+"george-christ","1955-01-01","m","",0,false,true,"self-made","Arizona","technology",0,0,0
+"george-joseph","1921-09-11","m","Married",5,false,true,"self-made","California","finance-investments",1,0,1987326080
+"george-kaiser","1942-07-29","m","Married",3,false,false,"inherited and growing","Oklahoma","energy",4,0,8558553683.679999
+"george-kurtz","1970-10-01","m","Married",2,false,true,"self-made","Arizona","technology",1,0,7687904399.999999
+"george-lucas","1944-05-14","m","Married",4,false,true,"self-made","California","media-entertainment",3,0,1708889620
+"george-marcus","1941-08-15","m","",4,false,true,"self-made","California","real-estate",4,0,920416820
+"george-pedersen","1935-08-18","m","Married",3,false,true,"self-made","Virginia","manufacturing",2,0,1264740596
+"george-roberts","1943-09-14","m","Widowed, Remarried",3,false,true,"self-made","California","finance-investments",1,0,7929100270
+"george-sakellaris","1946-06-03","m","Married",2,false,true,"self-made","Massachusetts","energy",1,0,938740000
+"george-soros","1930-08-12","m","Married",5,false,true,"self-made","New York","finance-investments",0,0,0
+"george-yancopoulos","1959-09-10","m","Divorced",2,false,true,"self-made","New York","healthcare",6,0,1113265000.26
+"gerald-ford","1944-08-04","m","Married",6,false,true,"self-made","Texas","finance-investments",3,0,917603063.84
+"gerry-cardinale","1967-05-01","m","",0,false,true,"self-made","Florida","finance-investments",0,0,0
+"gina-vecchiarelli","1961-09-01","f","",0,false,false,"inherited","Colorado","food-beverage",0,0,0
+"glenn-dubin","1957-04-13","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"glen-taylor","1941-04-20","m","Married",5,false,true,"self-made","Minnesota","service",0,0,0
+"gordon-getty","1933-12-20","m","Widowed",7,false,false,"inherited","California","energy",0,0,0
+"gordon-moore","1929-01-03","m","",2,false,true,"self-made","","technology",2,0,5903967840
+"greg-brown","1960-08-15","m","Married",0,false,true,"self-made","Illinois","technology",8,0,764654458.4000001
+"gregg-hymowitz","1965-11-16","m","Married",6,false,true,"self-made","New York","finance-investments",0,0,0
+"greg-mondre","1974-05-20","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"gwendolyn-sontheim-meyer","1961-10-27","f","Divorced",2,false,false,"inherited","California","food-beverage",0,0,0
+"gwynne-shotwell","1963-11-23","f","Married",2,false,true,"self-made","Texas","technology",0,0,0
+"haim-saban","1944-10-15","m","Married",4,false,true,"self-made","California","media-entertainment",0,0,0
+"hal-steinbrenner","1968-12-03","m","Married",1,false,false,"inherited and growing","Florida","sports",0,0,0
+"hamilton-james","1951-08-03","m","Married",3,false,true,"self-made","New York","finance-investments",2,0,1550074532
+"hank-doug-meijer","","m","",0,false,false,"inherited and growing","Michigan","fashion-retail",0,0,0
+"hank-meijer","1952-02-15","m","Married",3,false,false,"inherited and growing","Michigan","fashion-retail",0,0,0
+"hao-hong","1956-01-01","m","Married",0,false,true,"self-made","","healthcare",1,0,1746650361.7049487
+"harold-hamm","1945-12-11","m","Divorced",5,false,true,"self-made","Oklahoma","energy",0,0,0
+"harry-stine","1941-11-30","m","Married",4,false,true,"self-made","Iowa","food-beverage",0,0,0
+"harry-stine-family","1941-11-30","m","Married",4,false,true,"self-made","Iowa","food-beverage",0,0,0
+"hartley-rogers","1959-10-20","m","Married",3,false,true,"self-made","New York","finance-investments",1,0,623574360
+"harvey-jones","1953-01-01","m","",0,false,true,"self-made","Florida","technology",1,0,1489684540.8000002
+"hayes-barnard","1972-02-15","m","Married",3,false,true,"self-made","Texas","finance-investments",0,0,0
+"helen-johnson-leipold","1956-12-30","f","Married",5,false,false,"inherited","Wisconsin","manufacturing",2,0,201329960
+"hemant-taneja","1975-02-24","m","",0,false,true,"self-made","California","technology",0,0,0
+"henry-davis","1951-02-16","m","Divorced",0,false,false,"inherited and growing","Nebraska","food-beverage",0,0,0
+"henry-engelhardt","1958-01-17","m","Married",4,false,true,"self-made","","finance-investments",1,0,918533100.2017484
+"henry-kravis","1944-01-06","m","Married",2,false,true,"self-made","New York","finance-investments",1,0,7300171480
+"henry-laufer","1945-08-13","m","Married",0,false,true,"self-made","Florida","finance-investments",0,0,0
+"henry-nicholas-iii","1959-10-08","m","Divorced",3,false,true,"self-made","California","technology",1,0,19256316300
+"henry-samueli","1954-09-20","m","Married",3,false,true,"self-made","California","technology",1,0,36106993713.69
+"henry-swieca","1957-05-09","m","Married",4,false,true,"self-made","New York","finance-investments",0,0,0
+"herald-chen","1970-02-12","m","Married",3,false,true,"self-made","California","technology",3,0,589590190.33
+"herb-chambers","1942-01-01","m","Single",0,false,true,"self-made","Massachusetts","automotive",0,0,0
+"herbert-allen-jr","1940-03-05","m","Divorced",4,false,false,"inherited and growing","New York","finance-investments",1,0,1067060519.9999999
+"herbert-wertheim","1939-05-23","m","Divorced",2,false,true,"self-made","Florida","finance-investments",9,0,5082167783.779999
+"herb-simon","1934-10-23","m","Married",8,false,true,"self-made","Indiana","real-estate",2,0,1918294665
+"herriot-tabuteau","1968-07-23","m","Married",2,false,true,"self-made","New York","healthcare",11,0,2125210896.4
+"h-fisk-johnson","1958-05-19","m","Divorced",1,false,false,"inherited and growing","Wisconsin","manufacturing",2,0,117563790
+"holden-spaht","1974-07-03","m","Married",2,false,true,"self-made","California","finance-investments",0,0,0
+"howard-butt-iii","1952-04-04","m","Married",3,false,false,"inherited and growing","Texas","fashion-retail",0,0,0
+"howard-lutnick","1961-07-14","m","",0,false,true,"self-made","District of Columbia","finance-investments",2,0,1427416476.82
+"howard-marks","1946-04-23","m","Married",2,false,true,"self-made","New York","finance-investments",2,0,25841674.512928225
+"howard-schultz","1953-07-19","m","Married",2,false,true,"self-made","Washington","food-beverage",1,0,1487424097.28
+"h-ross-perot-jr","1958-11-07","m","Married",4,false,false,"inherited and growing","Texas","real-estate",0,0,0
+"hua-shen","1963-01-01","m","Married",0,false,true,"self-made","","technology",1,0,1367962060.318536
+"igor-olenicoff","1942-09-20","m","Married",2,false,true,"self-made","Florida","real-estate",0,0,0
+"igor-tulchinsky","1966-08-01","m","",0,false,true,"self-made","Connecticut","finance-investments",0,0,0
+"ingrid-wu","","f","Married",0,false,true,"self-made","","manufacturing",1,0,1491139054.424807
+"ira-rennert","1934-05-31","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"irving-grousbeck","1934-07-20","m","",4,false,true,"self-made","California","sports",0,0,0
+"isaac-perlmutter","1942-12-01","m","Married",0,false,true,"self-made","Florida","media-entertainment",0,0,0
+"israel-englander","1948-09-30","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"itzhak-ezratti","1952-10-14","m","",3,false,true,"self-made","Florida","real-estate",0,0,0
+"jack-clark","","m","",0,false,true,"self-made","California","technology",0,0,0
+"jack-cogen","1956-04-14","m","",0,false,true,"self-made","New York","technology",1,0,1602009810
+"jack-dangermond","1945-07-23","m","Married",0,false,true,"self-made","California","technology",0,0,0
+"jack-dorsey","1976-11-19","m","Single",0,false,true,"self-made","California","technology",3,0,3378539480
+"jack-link","1946-02-22","m","","",false,false,"","Wisconsin","food-beverage",0,0,0
+"jacqueline-mars","1939-10-10","f","Divorced",3,false,false,"inherited","Virginia","food-beverage",0,0,0
+"jahm-najafi","1963-03-19","m","Married",3,false,true,"self-made","Arizona","finance-investments",1,0,0
+"james-cargill-ii","1949-04-07","m","Married",2,false,false,"inherited","Wisconsin","food-beverage",0,0,0
+"james-chambers","1957-04-12","m","Married",2,false,false,"inherited","New York","media-entertainment",0,0,0
+"james-chao","1947-09-15","m","",0,false,true,"self-made","Texas","manufacturing",2,0,2838955590
+"james-clark","1944-03-23","m","Married",4,false,true,"self-made","Florida","technology",5,0,5350885428.379999
+"james-dinan","1959-05-22","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"james-duff","1961-03-07","m","Married",2,false,true,"self-made","Mississippi","diversified",0,0,0
+"james-france","1944-10-24","m","Married",3,false,false,"inherited and growing","Florida","sports",1,0,279882790
+"james-goodnight","1943-01-06","m","Married",3,false,true,"self-made","North Carolina","technology",1,0,0
+"james-irsay","1959-06-13","m","",3,false,false,"inherited","","sports",0,0,0
+"james-jannard","1949-06-08","m","Married",4,false,true,"self-made","Washington","fashion-retail",0,0,0
+"james-leininger","1945-03-30","m","Married",4,false,true,"self-made","Texas","healthcare",0,0,0
+"james-leprino","1937-11-22","m","",2,false,false,"inherited and growing","","food-beverage",0,0,0
+"james-scapa","1957-01-23","m","Married",4,false,true,"self-made","California","technology",0,0,0
+"james-tisch","1953-01-15","m","",0,false,false,"inherited and growing","New York","diversified",2,0,1745864942.3600001
+"james-truchard","1943-06-25","m","Married",4,false,true,"self-made","Texas","technology",1,0,0
+"jamie-dimon","1956-03-13","m","Married",3,false,true,"self-made","New York","finance-investments",1,0,1910683460
+"jane-goldman","1955-07-29","f","Married",2,false,false,"inherited and growing","New York","real-estate",0,0,0
+"jane-lauder","1973-01-01","f","Married",0,false,false,"inherited","New York","fashion-retail",2,0,1728694613.37
+"janice-mcnair","1936-09-30","f","Widowed",4,false,false,"inherited","Texas","sports",0,0,0
+"jan-koum","1976-02-24","m","Single",0,false,true,"self-made","California","technology",1,0,2273984599.32
+"jared-isaacman","1983-02-11","m","Married",0,false,true,"self-made","Pennsylvania","technology",1,0,757970587.5
+"jared-kaplan","1984-05-01","m","",0,false,true,"self-made","California","technology",0,0,0
+"jared-kushner","1981-01-10","m","Married",3,false,false,"inherited and growing","Florida","finance-investments",0,0,0
+"jared-smith-1","1974-10-02","m","Married",0,false,true,"self-made","Utah","technology",0,0,0
+"jason-murray","1979-04-01","m","Married",0,false,true,"self-made","Utah","healthcare",1,0,2123320355.1299999
+"jay-chaudhry","1959-08-26","m","Married",3,false,true,"self-made","Nevada","technology",1,0,10325135438.8
+"jay-paul","1947-07-08","m","Married",0,false,true,"self-made","California","real-estate",0,0,0
+"jayshree-ullal","1961-03-27","f","Married",2,false,true,"self-made","California","technology",5,0,4617161226
+"jay-z","1969-12-04","m","Married",3,false,true,"self-made","New York","media-entertainment",2,0,86979970
+"jb-pritzker","1965-01-19","m","Married",2,false,false,"inherited and growing","Illinois","finance-investments",0,0,0
+"jb-straubel","1975-12-20","m","",0,false,true,"self-made","Nevada","automotive",2,0,2325570
+"j-christopher-flowers","1957-10-27","m","Married",2,false,true,"self-made","Florida","finance-investments",2,0,73758850
+"j-christopher-reyes","1953-12-29","m","Married",4,false,true,"self-made","Florida","food-beverage",0,0,0
+"jean-gigi-pritzker","1962-07-01","f","Married",3,false,false,"inherited","California","service",2,0,3153470592
+"jean-marc-chapus","1959-04-01","m","Married",7,false,true,"self-made","California","finance-investments",0,0,0
+"jed-mccaleb","1975-01-01","m","",0,false,true,"self-made","California","finance-investments",0,0,0
+"jeff-bezos","1964-01-12","m","Engaged",4,false,true,"self-made","Florida","technology",1,234039368580.00003,234039368580.00003
+"jeffery-hildebrand","1959-03-05","m","Married",3,false,true,"self-made","Texas","energy",0,0,0
+"jeff-greene","1954-12-10","m","Married",3,false,true,"self-made","Florida","real-estate",0,0,0
+"jeff-lawson","1977-06-21","m","Married",2,false,true,"self-made","California","technology",7,0,1284210613.05
+"jeffrey-gundlach","1959-01-01","m","Divorced",0,false,true,"self-made","California","finance-investments",0,0,0
+"jeffrey-lorberbaum","1954-10-25","m","Married",0,false,false,"inherited and growing","Tennessee","manufacturing",1,0,985269600
+"jeffrey-lurie","1951-09-08","m","Married",2,false,false,"inherited and growing","Pennsylvania","sports",0,0,0
+"jeffrey-michael","1956-07-18","m","Married",4,false,true,"self-made","Minnesota","technology",6,0,1181073300
+"jeffrey-soffer","1967-12-13","m","Married",0,false,false,"inherited and growing","Florida","real-estate",0,0,0
+"jeffrey-talpins","1975-03-06","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"jeff-rothschild","1955-01-02","m","Married",3,false,true,"self-made","California","technology",2,0,7254600
+"jeff-skoll","1965-01-16","m","Single",0,false,true,"self-made","Florida","technology",2,0,1206114000
+"jeff-sprecher","1955-02-23","m","Married",0,false,true,"self-made","Georgia","finance-investments",9,0,830018868
+"jeff-sutton","1960-01-17","m","Married",5,false,true,"self-made","New York","real-estate",0,0,0
+"jeff-tangney","1972-08-09","m","Married",3,false,true,"self-made","California","healthcare",6,0,1070496320
+"jeff-t-green","1977-03-30","m","",0,false,true,"self-made","California","media-entertainment",4,0,999723576
+"jeff-yass","1958-07-17","m","Married",4,false,true,"self-made","Pennsylvania","finance-investments",0,0,0
+"jennifer-gilbert","1968-06-01","f","Divorced",5,false,false,"inherited","Michigan","finance-investments",1,0,4409337591.36
+"jennifer-pritzker","1950-08-13","f","Divorced",3,false,false,"inherited","Illinois","finance-investments",1,0,283641600
+"jennifer-steinbrenner-swindal","1959-07-28","f","Married",2,false,false,"inherited","Florida","sports",0,0,0
+"jensen-huang","1963-02-17","m","Married",0,false,true,"self-made","California","technology",4,0,182761595560.62003
+"jensen-huang-1","1963-02-17","m","Married",0,false,true,"self-made","California","technology",4,0,105417770300
+"jeremy-allaire","1971-05-13","m","",0,false,true,"self-made","","finance-investments",1,0,1935166090
+"jeremy-jacobs-sr","1940-01-21","m","Married",6,false,false,"inherited and growing","New York","service",0,0,0
+"jerry-jones","1942-10-13","m","Married",3,false,true,"self-made","Texas","sports",1,0,2745395107.12
+"jerry-moyes","1944-01-15","m","Married",10,false,true,"self-made","Arizona","logistics",1,0,406657680.00000006
+"jerry-reinsdorf","1936-02-25","m","Married",4,false,true,"self-made","Illinois","sports",0,0,0
+"jerry-seinfeld","1954-04-29","m","Married",3,false,true,"self-made","New York","media-entertainment",0,0,0
+"jerry-speyer","1940-06-23","m","Married",4,false,true,"self-made","New York","real-estate",0,0,0
+"jerry-yang","1968-11-06","m","Married",2,false,true,"self-made","California","technology",5,0,237851782.21
+"jessica-steinbrenner","1964-03-26","f","Divorced",4,false,false,"inherited","Florida","sports",0,0,0
+"j-hyatt-brown","1937-07-12","m","Married",0,false,false,"inherited and growing","Florida","finance-investments",2,0,2051526020
+"jim-breyer","1961-07-26","m","Widowed",4,false,true,"self-made","Texas","finance-investments",3,0,788157280
+"jim-coulter","1959-12-01","m","Married",3,false,true,"self-made","California","finance-investments",1,0,1678342590
+"jim-crane","1954-01-17","m","Married",3,false,true,"self-made","Texas","sports",0,0,0
+"jim-davis","1943-05-17","m","Married",2,false,true,"self-made","Massachusetts","manufacturing",0,0,0
+"jim-davis-1","1960-03-13","m","Married",2,false,true,"self-made","Maryland","service",0,0,0
+"jim-kavanaugh","1962-10-17","m","",0,false,true,"self-made","Missouri","technology",0,0,0
+"jim-kennedy","1947-11-29","m","Married",3,false,false,"inherited and growing","Georgia","media-entertainment",0,0,0
+"jim-koch","1949-05-27","m","Married",4,false,true,"self-made","Massachusetts","food-beverage",1,0,389414720
+"jim-mckelvey","1965-10-19","m","Married",2,false,true,"self-made","Missouri","technology",2,0,835089410
+"jimmy-haslam","1954-03-09","m","Married",3,false,false,"inherited and growing","Tennessee","fashion-retail",0,0,0
+"jimmy-john-liautaud","1964-01-12","m","Married",3,false,true,"self-made","Florida","food-beverage",0,0,0
+"jimmy-rane","1946-09-15","m","Married",3,false,true,"self-made","Alabama","manufacturing",0,0,0
+"jim-simons","1938-04-25","m","",3,false,true,"self-made","","finance-investments",0,0,0
+"jim-thompson","1940-01-14","m","Married",2,false,true,"self-made","","logistics",0,0,0
+"jim-walton","1948-06-07","m","Married",4,false,false,"inherited and growing","Arkansas","fashion-retail",1,0,108448009673.15999
+"jitendra-mohan","1973-05-01","m","",0,false,true,"self-made","California","technology",1,0,2272474556.1600003
+"j-joe-ricketts","1941-07-16","m","Married",4,false,true,"self-made","Wyoming","finance-investments",2,0,2959620167.3999996
+"joe-agresti","1972-05-23","m","Married",0,false,true,"self-made","Texas","diversified",0,0,0
+"joeben-bevirt","1973-09-04","m","",0,false,true,"self-made","California","manufacturing",1,0,1061210880
+"joe-gebbia","1981-08-21","m","In Relationship",0,false,true,"self-made","Texas","technology",2,0,5308845039
+"joe-kiani","1964-09-16","m","Married",3,false,true,"self-made","California","healthcare",9,0,538742110
+"joe-lacob","1956-01-10","m","Married",4,false,true,"self-made","California","sports",0,0,0
+"joe-lau","1989-07-01","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"joel-glazer","1967-03-15","m","",0,false,false,"inherited and growing","Maryland","sports",0,0,0
+"joel-greenberg","1957-08-19","m","Married",3,false,true,"self-made","Pennsylvania","finance-investments",0,0,0
+"joe-lonsdale","1982-09-12","m","Married",4,false,true,"self-made","Texas","technology",1,0,2102492560
+"joe-mansueto","1956-09-03","m","Married",3,false,true,"self-made","Illinois","finance-investments",1,0,2644593460
+"joe-rogers-jr","1946-12-02","m","Married",0,false,false,"inherited and growing","Georgia","food-beverage",0,0,0
+"john-abele","1937-02-02","m","Married",3,false,true,"self-made","Vermont","healthcare",0,0,0
+"john-arnold","1974-03-09","m","Married",2,false,true,"self-made","Texas","finance-investments",0,0,0
+"john-a-sobrato","1939-05-23","m","Married",3,false,true,"self-made","California","real-estate",0,0,0
+"john-bicket","1980-03-20","m","Married",2,false,true,"self-made","California","technology",2,0,3140342472.44
+"john-brown","1934-09-15","m","Married",2,false,true,"self-made","Georgia","healthcare",3,0,6288448420
+"john-catsimatidis","1948-09-07","m","Married",2,false,true,"self-made","New York","energy",0,0,0
+"john-doerr","1951-06-29","m","Married",2,false,true,"self-made","California","finance-investments",8,0,22485089650
+"johnelle-hunt","1932-01-04","f","Widowed",2,false,true,"self-made","Arkansas","logistics",1,0,4904587380
+"john-farber","1925-08-23","m","",1,false,true,"self-made","","manufacturing",2,0,186450080.00000003
+"john-fish","1960-03-09","m","Married",3,false,true,"self-made","Massachusetts","construction-engineering",0,0,0
+"john-fisher","1961-06-01","m","Married",4,false,false,"inherited","California","fashion-retail",1,0,968633639.9999999
+"john-goff","1955-08-26","m","Married",0,false,true,"self-made","Texas","real-estate",1,0,121814000
+"john-henry","1949-09-13","m","Married",2,false,true,"self-made","Florida","sports",0,0,0
+"john-krystynak","1968-05-01","m","",0,false,true,"self-made","Nevada","technology",1,0,0
+"john-liew","1967-08-20","m","Married",2,false,true,"self-made","Connecticut","finance-investments",0,0,0
+"john-macmillan-1","1949-09-20","m","",4,false,false,"inherited","Minnesota","food-beverage",0,0,0
+"john-malone","1941-03-07","m","Married",2,false,true,"self-made","Colorado","media-entertainment",22,0,2588423482.4
+"john-mars","1935-10-15","m","Married",3,false,false,"inherited","Wyoming","food-beverage",0,0,0
+"john-menard-jr","1940-01-22","m","Married",6,false,true,"self-made","Wisconsin","fashion-retail",1,0,1580560
+"john-middleton","1955-03-02","m","Married",2,false,false,"inherited","Pennsylvania","food-beverage",0,0,0
+"john-morgan-2","1956-03-31","m","Married",3,false,true,"self-made","Florida","service",0,0,0
+"john-morris","1948-03-19","m","Married",4,false,true,"self-made","Missouri","fashion-retail",0,0,0
+"john-ocampo","1959-04-05","m","",3,false,true,"self-made","","technology",1,0,1585921840
+"john-overdeck","1969-12-21","m","Separated",3,false,true,"self-made","New Jersey","finance-investments",0,0,0
+"john-oyler","1968-04-03","m","Married",0,false,true,"self-made","Nevada","healthcare",11,0,1459509508.0800002
+"john-paul-dejoria","1944-04-13","m","Married",6,false,true,"self-made","Texas","fashion-retail",2,0,116909186.68
+"john-paulson","1955-12-14","m","Separated",2,false,true,"self-made","New York","finance-investments",0,0,0
+"john-pritzker","1953-08-10","m","Married",3,false,false,"inherited and growing","California","finance-investments",0,0,0
+"john-sall","1948-04-04","m","Married",4,false,true,"self-made","North Carolina","technology",0,0,0
+"john-stanton","1955-07-31","m","Married",2,false,true,"self-made","Washington","telecom",5,0,85197655.50999999
+"john-tu","1941-08-12","m","Married",2,false,true,"self-made","California","technology",0,0,0
+"john-tyson","1953-09-05","m","Single",2,false,false,"inherited and growing","Arkansas","food-beverage",9,0,2801762340
+"jonathan-gray","1970-02-04","m","Married",0,false,true,"self-made","New York","finance-investments",3,0,5232478610
+"jonathan-nelson","1956-05-18","m","Widowed, Remarried",3,false,true,"self-made","Rhode Island","finance-investments",0,0,0
+"jonathan-oringer","1974-05-02","m","Single",0,false,true,"self-made","Florida","technology",2,0,601915860
+"jonathan-tisch","1953-12-07","m","Married",2,false,false,"inherited","New York","diversified",1,0,870967141.88
+"jon-stryker","1958-05-03","m","Married",2,false,false,"inherited","New York","healthcare",1,0,2885898812
+"jon-winkelried","1959-09-15","m","Married",0,false,true,"self-made","California","finance-investments",1,0,753075324.5400001
+"jon-yarbrough","1957-05-10","m","Married",2,false,true,"self-made","Tennessee","gambling-casinos",0,0,0
+"jorge-mas","1963-02-28","m","Married",3,false,false,"inherited and growing","Florida","construction-engineering",1,0,4433840250
+"jorge-perez","1949-10-17","m","Married",4,false,true,"self-made","Florida","real-estate",0,0,0
+"jose-e-feliciano","1973-05-29","m","Married",0,false,true,"self-made","California","finance-investments",0,0,0
+"joseph-bae","1972-01-12","m","Married",4,false,true,"self-made","New York","finance-investments",1,0,1741268339.3
+"joseph-baratta","1971-01-04","m","",0,false,true,"self-made","New York","finance-investments",1,0,818645103.65
+"joseph-edelman","1955-06-10","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"joseph-grendys","1961-12-01","m","Single",0,false,true,"self-made","Illinois","food-beverage",0,0,0
+"joseph-liemandt","1968-08-05","m","Single",0,false,true,"self-made","Texas","technology",0,0,0
+"joseph-pitt-reeves-hyde-iii","1942-12-27","m","Married",3,false,false,"inherited and growing","Tennessee","automotive",0,0,0
+"joseph-steinberg","1944-02-05","m","Married",3,false,true,"self-made","New York","finance-investments",2,0,1089321750
+"josh-harris","1964-12-29","m","Married",5,false,true,"self-made","Florida","finance-investments",3,0,4457601830
+"josh-kushner","1985-06-12","m","Married",2,false,true,"self-made","New York","finance-investments",0,0,0
+"j-tomilson-hill","1948-05-24","m","Married",2,false,true,"self-made","New York","finance-investments",1,0,1063080000
+"jude-reyes","1955-09-16","m","Married",3,false,true,"self-made","Florida","food-beverage",0,0,0
+"judy-faulkner","1943-08-01","f","Married",3,false,true,"self-made","Wisconsin","technology",0,0,0
+"judy-love","1937-06-17","f","",4,false,true,"self-made","","fashion-retail",0,0,0
+"julia-koch","1962-04-12","f","Widowed",3,false,false,"inherited","New York","diversified",0,0,0
+"julian-baker","1966-05-21","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"justin-ishbia","1977-09-18","m","Married",4,false,false,"inherited and growing","Illinois","finance-investments",1,0,941087937.53
+"j-wayne-weaver","1935-09-01","m","Married",2,false,true,"self-made","Florida","diversified",1,0,71677320
+"kalen-jackson","1987-07-06","f","Married",2,false,false,"inherited and growing","Indiana","sports",0,0,0
+"kamal-ghaffarian","1958-04-28","m","Engaged",0,false,true,"self-made","Florida","energy",2,0,4071125936.13
+"karen-pritzker","1958-01-07","f","Widowed",4,false,false,"inherited","Connecticut","finance-investments",8,0,4468999528
+"karim-atiyeh","1989-09-15","m","",0,false,true,"self-made","Florida","finance-investments",0,0,0
+"katharine-rayner","1945-01-12","f","Widowed",0,false,false,"inherited","New York","media-entertainment",0,0,0
+"kathy-britton","1969-09-03","f","Married",3,false,false,"inherited and growing","Texas","real-estate",0,0,0
+"kavitark-ram-shriram","1957-01-21","m","Married",2,false,true,"self-made","California","technology",2,0,1842618400
+"keith-dunleavy","1969-06-25","m","Married",4,false,true,"self-made","Maryland","healthcare",0,0,0
+"kelcy-warren","1955-11-09","m","Married",1,false,true,"self-made","Texas","energy",1,0,5921610800
+"ken-fisher","1950-11-29","m","Married",3,false,true,"self-made","Texas","finance-investments",0,0,0
+"ken-griffin","1968-10-15","m","Divorced",3,false,true,"self-made","Florida","finance-investments",0,0,0
+"ken-kendrick","1943-09-02","m","Married",2,false,true,"self-made","Arizona","sports",0,0,0
+"ken-langone","1935-09-16","m","Married",3,false,true,"self-made","New York","finance-investments",5,0,8223758830
+"kenneth-feld","1948-10-31","m","Separated",3,false,false,"inherited and growing","Florida","media-entertainment",0,0,0
+"kenneth-hao","1968-09-11","m","",0,false,true,"self-made","California","finance-investments",0,0,0
+"kenneth-tuchman","1959-10-23","m","Married",2,false,true,"self-made","Colorado","service",1,0,134888280
+"kenny-troutt","1948-01-08","m","Married",3,false,true,"self-made","Texas","telecom",0,0,0
+"ken-xie","1963-01-26","m","Married",0,false,true,"self-made","California","technology",9,0,9094385713.720001
+"kevin-glazer","1962-02-15","m","",0,false,false,"inherited and growing","New York","sports",0,0,0
+"kevin-marchetti","1978-01-01","m","Married",0,false,true,"self-made","California","diversified",1,0,2004414842.38
+"kevin-plank","1972-08-13","m","Married",2,false,true,"self-made","Maryland","fashion-retail",8,194987000,294361100
+"kevin-systrom","1983-12-30","m","Married",1,false,true,"self-made","California","technology",2,0,538859200
+"kim-kardashian","1980-10-21","f","Divorced",4,false,true,"self-made","California","fashion-retail",0,0,0
+"lamar-hunt-jr","1956-10-15","m","",0,false,false,"inherited","Kansas","sports",0,0,0
+"larry-connor","1950-01-07","m","Married",3,false,true,"self-made","Ohio","real-estate",0,0,0
+"larry-culp","1963-03-15","m","Married",0,false,true,"self-made","Ohio","manufacturing",3,0,758868327.8000001
+"larry-ellison","1944-08-17","m","In Relationship",4,false,true,"self-made","California","technology",4,206908579920,228145618920
+"larry-fink","1952-11-02","m","Married",3,false,true,"self-made","New York","finance-investments",1,0,256785361.20000002
+"larry-page","1973-03-26","m","Married",1,false,true,"self-made","California","technology",2,150695513660.52,302497910534.36
+"larry-robbins","1969-10-21","m","Married",4,false,true,"self-made","New Jersey","finance-investments",0,0,0
+"larry-silverstein","1931-05-30","m","Married",0,false,true,"self-made","New York","real-estate",0,0,0
+"laurans-mendelson","1938-07-07","m","Married",2,false,true,"self-made","Florida","construction-engineering",5,0,1416272220
+"laurene-powell-jobs","1963-11-06","f","Widowed",3,false,false,"inherited","California","technology",2,552134880,10418694880
+"lauren-leichtman","1949-11-03","f","Married",3,false,true,"self-made","Florida","finance-investments",0,0,0
+"laurie-tisch","1951-02-19","f","Divorced",2,false,false,"inherited","New York","diversified",1,0,131243124.48
+"lawrence-golub","1959-10-03","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"lebron-james","1984-12-30","m","Married",3,false,true,"self-made","California","sports",0,0,0
+"lee-bass","1956-05-24","m","Married",0,false,false,"inherited and growing","Texas","energy",1,0,866411154
+"lee-sang-hoon","1963-01-01","m","Married",1,false,true,"self-made","","healthcare",1,0,1009601096.7503941
+"len-blavatnik","1957-06-01","m","Married",0,false,true,"self-made","","diversified",17,0,22962811126.441723
+"leo-koguan","1955-02-15","m","Divorced",1,false,true,"self-made","","technology",1,0,3000442800
+"leonard-abess","1948-07-23","m","",0,false,false,"inherited and growing","Florida","finance-investments",0,0,0
+"leonard-lauder","1933-03-19","m","",2,false,false,"inherited and growing","","fashion-retail",1,0,4890811910
+"leonard-schleifer","1952-07-07","m","Married",3,false,true,"self-made","New York","healthcare",5,0,1846824162.12
+"leonard-stern","1938-03-28","m","Married",3,false,false,"inherited and growing","New York","real-estate",0,0,0
+"leon-black","1951-07-31","m","Married",4,false,true,"self-made","New York","finance-investments",1,0,6843009250
+"leon-g-cooperman","1943-04-25","m","Married",2,false,true,"self-made","Florida","finance-investments",0,0,0
+"leonid-radvinsky","1982-05-30","m","Married",0,false,true,"self-made","Florida","technology",0,0,0
+"leslie-alexander","1943-06-30","m","Divorced",1,false,true,"self-made","Texas","sports",1,0,0
+"les-wexner","1937-09-08","m","Married",4,false,true,"self-made","Ohio","fashion-retail",3,0,2052077875
+"liesel-pritzker-simmons","1984-03-15","f","Single",0,false,false,"inherited","Massachusetts","diversified",0,0,0
+"li-ge","1967-01-01","m","Widowed",0,false,true,"self-made","","healthcare",2,0,4328446107.022841
+"lin-bin","1968-02-01","m","Married",0,false,true,"self-made","","technology",1,0,8655635143.239967
+"linda-pritzker","1953-09-14","f","Divorced",3,false,false,"inherited","Montana","service",0,0,0
+"lisa-su","1969-11-07","f","",0,false,true,"self-made","Texas","technology",7,0,2450695137
+"liu-xiucai","1957-03-01","m","Married",0,false,true,"self-made","","manufacturing",1,0,1041970914.7967528
+"lloyd-blankfein","1954-09-20","m","Married",3,false,true,"self-made","New York","finance-investments",1,0,714004694.28
+"lorenzo-fertitta","1969-01-03","m","Married",3,false,false,"inherited and growing","Nevada","sports",1,0,1545329038.78
+"louis-bacon","1956-07-25","m","Divorced",7,false,true,"self-made","New York","finance-investments",0,0,0
+"lucy-guo","1994-10-14","f","Single",0,false,true,"self-made","California","technology",0,0,0
+"lucy-stitzer","1960-01-01","f","Married",3,false,false,"inherited","Connecticut","food-beverage",0,0,0
+"luis-von-ahn","1978-08-19","m","",0,false,true,"self-made","Pennsylvania","technology",4,0,951028960
+"lukas-walton","1986-09-19","m","Married",0,false,false,"inherited","Illinois","fashion-retail",2,0,35724047912.33
+"lyndal-stephens-greth","1974-10-12","f","Married",0,false,false,"inherited and growing","Texas","energy",1,0,20304057020
+"lynda-resnick","1943-01-18","f","Married",5,false,true,"self-made","California","food-beverage",0,0,0
+"lynn-schusterman","1939-01-21","f","Widowed",3,false,false,"inherited","Oklahoma","energy",0,0,0
+"lynsi-snyder","1982-05-05","f","Married",0,false,false,"inherited and growing","California","food-beverage",0,0,0
+"mackenzie-scott","1970-04-07","f","Divorced",4,false,false,"inherited","Washington","technology",1,0,21510243780
+"maggie-hardy","1965-12-07","f","Married",1,false,false,"inherited and growing","Pennsylvania","service",0,0,0
+"maggie-hardy-knox","1965-12-07","f","Married",1,false,false,"inherited and growing","Pennsylvania","service",0,0,0
+"magic-johnson","1959-08-14","m","Married",3,false,true,"self-made","California","diversified",0,0,0
+"marc-andreessen","1971-07-09","m","Married",1,false,true,"self-made","California","finance-investments",9,0,772421917.21
+"marc-benioff","1964-09-25","m","Married",2,false,true,"self-made","California","technology",7,0,4075712879.9200006
+"marcelo-claure","1970-12-09","m","Married",6,false,true,"self-made","Florida","telecom",1,0,1344267740
+"marc-lasry","1960-09-23","m","Married",5,false,true,"self-made","New York","finance-investments",0,0,0
+"marc-lipschultz","1969-01-25","m","",0,false,true,"self-made","New York","finance-investments",1,0,623473070.6999999
+"marc-lore","1971-05-16","m","",0,false,true,"self-made","New York","technology",2,0,0
+"marco-degeorge","1973-05-16","m","Married",4,false,true,"self-made","California","fashion-retail",0,0,0
+"marc-rowan","1962-08-19","m","Separated",0,false,true,"self-made","New York","finance-investments",1,0,4460200030
+"margaret-baker","1965-09-01","f","","",false,false,"","Idaho","healthcare",1,0,909456110.0799999
+"margaretta-taylor","1942-04-15","f","",2,false,false,"inherited","New York","media-entertainment",0,0,0
+"margot-birmingham-perot","1933-11-15","f","Widowed",5,false,false,"inherited","Texas","technology",0,0,0
+"marian-ilitch","1933-01-07","f","Widowed",7,false,true,"self-made","Michigan","food-beverage",0,0,0
+"marianne-liebmann","1953-07-11","f","Married",2,false,false,"inherited","Montana","food-beverage",0,0,0
+"marijke-mars","1964-07-28","f","Divorced",0,false,false,"inherited","California","food-beverage",0,0,0
+"marilyn-simons","1951-01-04","f","Widowed",0,false,false,"inherited","New York","finance-investments",0,0,0
+"mario-gabelli","1942-03-31","m","Married",4,false,true,"self-made","Connecticut","finance-investments",5,0,872438298.04
+"marissa-mayer","1975-05-30","f","Married",3,false,true,"self-made","California","technology",3,0,788896420
+"mark-attanasio","1957-09-29","m","Married",2,false,true,"self-made","California","finance-investments",0,0,0
+"mark-cuban","1958-07-31","m","Married",3,false,true,"self-made","Texas","media-entertainment",1,0,180972.75
+"mark-davis-1","1955-05-18","m","",0,false,false,"inherited and growing","Nevada","sports",0,0,0
+"mark-hancock","1975-05-01","m","Married",0,false,true,"self-made","Utah","healthcare",1,0,2123320355.1299999
+"mark-jones","1962-01-01","m","Married",6,false,true,"self-made","Texas","finance-investments",1,0,426067200
+"mark-meijer","1957-10-21","m","",0,false,false,"inherited and growing","Michigan","fashion-retail",0,0,0
+"mark-pincus","1966-02-13","m","Divorced",3,false,true,"self-made","California","technology",5,0,156298990
+"mark-rein","1963-05-02","m","Married",3,false,true,"self-made","North Carolina","media-entertainment",0,0,0
+"mark-robyn-jones","","","Married",6,false,true,"self-made","Texas","finance-investments",1,0,567708335.34
+"mark-shoen","1950-11-20","m","Married",1,false,false,"inherited and growing","Arizona","automotive",2,0,2025583148.4499998
+"mark-stevens","1960-02-17","m","Married",3,false,true,"self-made","Colorado","finance-investments",38,0,7705309320.000001
+"mark-walter","1960-05-22","m","Married",1,false,true,"self-made","Illinois","finance-investments",0,0,0
+"mark-zuckerberg","1984-05-14","m","Married",3,false,true,"self-made","California","technology",1,207623869164.12003,207623869164.12003
+"martha-ingram","1935-08-20","f","Widowed",4,false,false,"inherited and growing","Tennessee","media-entertainment",0,0,0
+"martha-macmillan","1951-10-01","f","Divorced",5,false,false,"inherited","Minnesota","food-beverage",0,0,0
+"martine-rothblatt","1954-10-10","f","Married",4,false,true,"self-made","Florida","healthcare",10,0,1661533812.27
+"martin-selig","1936-12-31","m","Married",3,false,true,"self-made","Washington","real-estate",0,0,0
+"marty-horton","1951-05-28","f","Widowed",2,false,false,"inherited","Texas","real-estate",1,0,1044680000
+"marvy-finger","1935-12-08","m","",2,false,true,"self-made","","real-estate",0,0,0
+"mary-alice-dorrance-malone","1950-02-03","f","",2,false,false,"inherited","","food-beverage",1,0,1688886860
+"mary-alice-malone-jr","1983-02-23","f","",0,false,false,"inherited","","food-beverage",1,0,546646777.38
+"mat-ishbia","1980-01-06","m","Divorced",3,false,false,"inherited and growing","Michigan","finance-investments",1,0,3068765013.8199997
+"matt-dan-walsh","","m","",2,false,false,"inherited and growing","IL","construction-engineering",0,0,0
+"matthew-prince","1975-01-01","m","Married",0,false,true,"self-made","Utah","technology",1,0,5801356720
+"matthew-pritzker","1982-05-15","m","Single",0,false,false,"inherited","Illinois","diversified",0,0,0
+"matthew-roszak","1972-12-09","m","Married",0,false,true,"self-made","Illinois","finance-investments",3,0,1683698069.15
+"max-levchin","1975-07-11","m","Married",2,false,true,"self-made","California","finance-investments",2,0,2024138670
+"meg-whitman","1956-08-04","f","Married",2,false,true,"self-made","California","technology",9,0,1900243657.89
+"melinda-french-gates","1964-08-15","f","Divorced",3,false,false,"inherited","Washington","technology",10,0,4718512838
+"michael-arougheti","1972-10-10","m","Married",0,false,true,"self-made","New York","finance-investments",2,0,893195886.88
+"michael-bloomberg","1942-02-14","m","In Relationship",2,false,true,"self-made","New York","finance-investments",0,0,0
+"michael-cagney","1971-02-01","m","Married",0,false,true,"self-made","California","technology",2,0,1364255575.44
+"michael-chae","1968-10-05","m","",0,false,true,"self-made","New York","finance-investments",1,0,876110900
+"michael-dell","1965-02-23","m","Married",4,false,true,"self-made","Texas","technology",3,0,167577132870.41998
+"michael-dorrell","1973-08-14","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"michael-dunlap","1963-09-01","m","Married",3,false,true,"self-made","Nebraska","finance-investments",1,0,1073119859.9999999
+"michael-intrator","1969-03-05","m","",0,false,true,"self-made","New York","technology",4,0,6598005900
+"michael-jordan","1963-02-17","m","Married",5,false,true,"self-made","Florida","sports",0,0,0
+"michael-kim","1963-10-01","m","Married",2,false,true,"self-made","","finance-investments",0,0,0
+"michael-krasny","1953-08-08","m","Married",1,false,true,"self-made","Illinois","technology",0,0,0
+"michael-milken","1946-07-04","m","Married",3,false,true,"self-made","California","finance-investments",3,0,0
+"michael-moritz","1954-09-12","m","Married",2,false,true,"self-made","California","finance-investments",20,0,6525235725
+"michael-novogratz","1964-11-26","m","Married",4,false,true,"self-made","New York","finance-investments",1,0,5690446300
+"michael-patterson","1974-12-01","m","",0,false,true,"self-made","New York","finance-investments",1,0,1290725200
+"michael-polsky","1949-01-01","m","Married",4,false,true,"self-made","Illinois","energy",0,0,0
+"michael-rees","1975-03-19","m","Married",2,false,true,"self-made","Connecticut","finance-investments",1,0,830331110.1
+"michael-rubin","1972-07-21","m","Divorced",3,false,true,"self-made","Pennsylvania","fashion-retail",0,0,0
+"michael-sabel","1967-01-20","m","Married",0,false,true,"self-made","District of Columbia","energy",1,0,12687655731.810001
+"michael-saylor","1965-02-04","m","Single",0,false,true,"self-made","Florida","technology",2,0,4483862720
+"michael-s-smith","1955-05-09","m","Married",2,false,true,"self-made","Florida","energy",0,0,0
+"michael-steinhardt","1940-12-07","m","Married",0,false,true,"self-made","New York","finance-investments",1,0,0
+"michael-teel","1951-05-15","m","Married",0,false,false,"inherited and growing","California","fashion-retail",0,0,0
+"michael-truell","2000-09-04","m","","",false,false,"","California","technology",0,0,0
+"michael-xie","1969-02-20","m","Married",0,false,true,"self-made","California","technology",8,0,7685777904.88
+"michele-kang","1959-06-26","f","Divorced",0,false,true,"self-made","Florida","technology",0,0,0
+"michelle-xia","1966-11-01","f","",0,false,true,"self-made","","healthcare",2,0,1168898171.0585082
+"micky-arison","1949-06-29","m","Married",2,false,false,"inherited and growing","Florida","service",1,0,2243319480
+"mike-brown-1","1935-08-10","m","Married",2,false,false,"inherited and growing","Ohio","sports",0,0,0
+"mike-repole","1968-01-21","m","Married",0,false,true,"self-made","Florida","food-beverage",0,0,0
+"mike-speiser","1971-01-25","m","Single",0,false,true,"self-made","California","technology",2,0,433344000
+"milane-frantz","1969-08-12","f","Married",0,false,false,"inherited","Texas","energy",1,0,6647074483.2
+"min-kao","1949-01-10","m","Married",2,false,true,"self-made","Kansas","technology",1,0,4345778070
+"miriam-adelson","1945-10-10","f","Widowed",5,false,false,"inherited","Nevada","gambling-casinos",1,0,19244693000
+"mitchell-jacobson","1951-03-06","m","Married",0,false,false,"inherited","New York","service",1,0,843666450
+"mitchell-morgan","1954-07-29","m","Married",3,false,true,"self-made","Pennsylvania","real-estate",0,0,0
+"mitchell-rales","1956-08-21","m","Married",2,false,true,"self-made","Maryland","manufacturing",5,0,3108151220
+"mortimer-zuckerman","1937-06-04","m","Divorced",2,false,true,"self-made","New York","real-estate",1,0,491715656.40999997
+"nancy-lerner","1960-05-11","f","Married",5,false,false,"inherited","Ohio","finance-investments",0,0,0
+"nancy-mills-barnett","1963-09-01","f","","",false,false,"","Illinois","healthcare",1,0,1171470891.52
+"nancy-walton-laurie","1951-05-15","f","Married",1,false,false,"inherited","Nevada","fashion-retail",2,0,16863191479.999998
+"nathan-blecharczyk","1983-06-11","m","Married",2,false,true,"self-made","California","technology",7,0,8276221225.44
+"neal-aronson","1965-02-01","m","Married",2,false,true,"self-made","Georgia","finance-investments",0,0,0
+"neal-blue","1935-04-04","m","Widowed",4,false,true,"self-made","California","manufacturing",0,0,0
+"neerja-sethi","1955-01-16","f","Married",2,false,true,"self-made","Florida","technology",0,0,0
+"neil-bluhm","1938-01-12","m","Divorced",3,false,true,"self-made","Illinois","real-estate",4,0,2890348760.22
+"nelson-peltz","1942-06-01","m","Married",10,false,true,"self-made","New York","finance-investments",1,0,75241280
+"nicholas-howley","1962-03-12","m","",0,false,true,"self-made","Florida","manufacturing",3,0,782808220
+"nicholas-pritzker","1944-01-01","m","Married",4,false,false,"inherited and growing","California","finance-investments",4,0,76086350
+"nicholas-woodman","1975-06-24","m","Married",3,false,true,"self-made","Montana","technology",1,0,31039200
+"nick-caporella","1936-01-15","m","Married",4,false,true,"self-made","Florida","food-beverage",1,0,2441161800
+"nicolas-berggruen","1961-08-10","m","Single",0,false,false,"inherited and growing","California","real-estate",4,0,0
+"nikesh-arora","1968-02-15","m","Married",0,false,true,"self-made","California","technology",2,0,493609834.25
+"nikil-viswanathan-1","1987-10-16","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"niraj-shah","1974-03-10","m","Married",2,false,true,"self-made","Massachusetts","technology",1,0,765444560
+"nir-zuk","1971-03-07","m","",0,false,true,"self-made","","technology",2,0,1636524500
+"noam-gottesman","1961-05-24","m","Married",4,false,true,"self-made","New York","finance-investments",1,0,102916800.00000001
+"norma-lerner","1936-03-28","f","Widowed",2,false,false,"inherited","Ohio","finance-investments",0,0,0
+"norman-braman","1932-08-22","m","Married",2,false,true,"self-made","Florida","automotive",0,0,0
+"noubar-afeyan","1962-07-25","m","Married",0,false,true,"self-made","Massachusetts","healthcare",5,0,135691778.48
+"o-francis-biondi","1964-07-04","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"olivia-holding-1","1964-09-14","f","",0,false,false,"inherited and growing","North Carolina","finance-investments",2,0,1586089360
+"oprah-winfrey","1954-01-29","f","In Relationship",0,false,true,"self-made","","media-entertainment",1,0,11853000
+"orion-hindawi","1980-01-10","m","Married",2,false,true,"self-made","Washington","technology",0,0,0
+"orlando-bravo","1970-09-23","m","Married",4,false,true,"self-made","Florida","finance-investments",0,0,0
+"osman-kibar","1971-04-01","m","Married",4,false,true,"self-made","California","healthcare",0,0,0
+"pablo-legorreta","1963-10-30","m","Married",2,false,true,"self-made","New York","finance-investments",2,0,4199569140
+"palmer-luckey","1992-09-19","m","Single",0,false,true,"self-made","California","technology",1,0,444191436
+"pamela-mars","1960-08-01","f","Married",3,false,false,"inherited","Virginia","food-beverage",0,0,0
+"pantas-sutardja","","","",0,false,true,"self-made","California","",1,0,1306741565.76
+"parker-conrad","1980-04-13","m","Married",0,false,true,"self-made","California","technology",0,0,0
+"pat-neal","1949-03-04","m","Married",0,false,true,"self-made","Florida","real-estate",0,0,0
+"patrick-hanrahan","1955-05-08","m","",0,false,true,"self-made","California","technology",2,0,1220072040
+"patrick-ryan","1937-05-15","m","Married",3,false,true,"self-made","Illinois","finance-investments",1,0,4119585590
+"patrick-soon-shiong","1952-07-29","m","Married",2,false,true,"self-made","California","healthcare",14,0,5713736847.811702
+"patrick-zalupski","1980-11-29","m","Married",3,false,true,"self-made","Florida","real-estate",1,0,1030601250
+"patrizio-vinciarelli","1946-10-26","m","Divorced",0,false,true,"self-made","Massachusetts","technology",4,0,6963801741.1
+"pat-stryker","1956-04-06","f","Divorced",3,false,false,"inherited","Colorado","healthcare",1,0,2081011800
+"paul-fireman","1944-02-14","m","Married",3,false,true,"self-made","Massachusetts","fashion-retail",0,0,0
+"paul-foster","1957-10-08","m","Married",2,false,true,"self-made","Texas","energy",4,0,1411138520
+"pauline-macmillan-keinath","1934-01-01","f","Married",4,false,false,"inherited","Missouri","food-beverage",0,0,0
+"paul-lee-1","1958-01-01","m","Married",0,false,true,"self-made","","manufacturing",2,0,2394079330.514343
+"paul-novelly","1943-08-20","m","",4,false,true,"self-made","","energy",2,0,124778837.16
+"paul-saville","1955-12-14","m","",0,false,true,"self-made","Florida","real-estate",3,0,1030852084.6800001
+"paul-sciarra","1981-02-15","m","Married",0,false,true,"self-made","California","technology",2,0,1286189930
+"paul-singer","1944-08-22","m","In Relationship",2,false,true,"self-made","New York","finance-investments",0,0,0
+"paul-tudor-jones-ii","1954-09-28","m","Married",4,false,true,"self-made","Florida","finance-investments",0,0,0
+"peggy-cherng","1947-12-18","f","Married",3,false,true,"self-made","Nevada","food-beverage",2,0,0
+"penny-pritzker","1959-05-02","f","Married",2,false,false,"inherited","Illinois","finance-investments",2,0,1186108570
+"peter-cancro","1957-05-01","m","Married",4,false,true,"self-made","Florida","food-beverage",0,0,0
+"peter-gassner","1965-02-26","m","Married",2,false,true,"self-made","California","technology",5,0,2497320350
+"peter-guber","1942-03-01","m","Married",4,false,true,"self-made","California","sports",0,0,0
+"peter-kellogg","1942-09-01","m","Married",3,false,false,"inherited and growing","New Jersey","finance-investments",1,0,2232697400
+"peter-sperling","1959-11-22","m","Married",2,false,false,"inherited and growing","Arizona","service",1,0,0
+"peter-thiel","1967-10-11","m","Married",1,false,true,"self-made","California","finance-investments",3,0,13342541600
+"philip-anschutz","1939-12-28","m","Married",3,false,false,"inherited and growing","Colorado","finance-investments",0,0,0
+"philippe-laffont","1967-09-16","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"phil-knight","1938-02-24","m","Married",3,false,true,"self-made","Oregon","fashion-retail",1,13697577180,13697577180
+"phillip-frost","1936-11-11","m","Married",0,false,true,"self-made","Florida","healthcare",27,0,696070383.3312066
+"phillip-t-terry-ragon","1949-06-01","m","Married",0,false,true,"self-made","Massachusetts","technology",0,0,0
+"phil-ruffin","1935-03-17","m","Married",5,false,true,"self-made","Nevada","diversified",0,0,0
+"phil-shawe","1969-08-18","m","",0,false,true,"self-made","Puerto Rico","technology",0,0,0
+"pierre-omidyar","1967-06-21","m","Married",3,false,true,"self-made","Hawaii","technology",2,3719900599.9999995,4543042999.999999
+"rajiv-jain","1968-01-27","m","",0,false,true,"self-made","Florida","finance-investments",1,0,2170911797.5917435
+"raj-sardana","1960-03-08","m","Married",3,false,true,"self-made","Georgia","technology",0,0,0
+"rakesh-gangwal","1953-07-25","m","Married",1,false,true,"self-made","Florida","service",2,0,1567323127.0809302
+"ralph-lauren","1939-10-14","m","Married",3,false,true,"self-made","New York","fashion-retail",1,6471766356.99,6471766356.99
+"ralph-lauren-family","1939-10-14","m","","",false,false,"","New York","fashion-retail",1,8468262179.999999,8468262179.999999
+"ramzi-musallam","1968-09-17","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"randa-duncan-williams","1961-08-28","f","Married",1,false,false,"inherited","Texas","energy",1,0,6697574400
+"randal-j-kirk","1954-03-01","m","Married",3,false,true,"self-made","Florida","healthcare",28,0,493269622
+"randal-nardone","1955-06-22","m","Married",1,false,true,"self-made","New York","finance-investments",2,0,490651080
+"randolph-lerner","1962-02-21","m","Married",4,false,false,"inherited","Ohio","finance-investments",1,0,0
+"ray-dalio","1949-08-08","m","Married",4,false,true,"self-made","Connecticut","finance-investments",0,0,0
+"ray-davis","1941-12-18","m","Married",3,false,true,"self-made","Texas","energy",1,0,1411004000
+"ray-lee-hunt","1943-04-06","m","Married",5,false,false,"inherited and growing","Texas","energy",0,0,0
+"reagan-horton","1975-05-01","m","",0,false,false,"inherited","Texas","real-estate",1,0,2138136000
+"reed-hastings","1960-10-08","m","Married",2,false,true,"self-made","California","technology",121,0,3661401062.400001
+"reid-hoffman","1967-08-05","m","Married",0,false,true,"self-made","California","technology",8,0,226628780
+"reinhold-schmieding","1955-01-03","m","Married",2,false,true,"self-made","Florida","healthcare",0,0,0
+"riaz-valani","1976-09-01","m","",0,false,true,"self-made","California","finance-investments",0,0,0
+"ric-elias","1967-05-21","m","Married",2,false,true,"self-made","North Carolina","media-entertainment",0,0,0
+"richard-barton","1967-06-02","m","Married",3,false,true,"self-made","Washington","real-estate",12,0,744729899.2200001
+"richard-fairbank","1950-09-01","m","Married",8,false,true,"self-made","Virginia","finance-investments",2,0,760966440
+"richard-hayne","1947-09-01","m","Married",0,false,true,"self-made","Pennsylvania","fashion-retail",1,0,2072013660
+"richard-kayne","1946-01-01","m","Married",3,false,true,"self-made","California","finance-investments",0,0,0
+"richard-kinder","1944-10-19","m","Married",1,false,true,"self-made","Texas","energy",1,0,8483319689.999999
+"richard-kurtz","1940-05-15","m","Divorced",0,false,true,"self-made","Florida","real-estate",0,0,0
+"richard-lefrak","1945-08-29","m","Married",2,false,false,"inherited and growing","New York","real-estate",4,0,10046630
+"richard-peery","1938-10-01","m","Married",4,false,true,"self-made","California","real-estate",0,0,0
+"richard-saghian","1981-08-06","m","Single",0,false,true,"self-made","California","fashion-retail",0,0,0
+"richard-sands","1951-03-03","m","",0,false,false,"inherited and growing","Florida","food-beverage",7,0,695105065.1199999
+"richard-schulze","1941-01-02","m","Widowed, Remarried",10,false,true,"self-made","Florida","fashion-retail",1,0,953863360
+"richard-uihlein","1945-08-27","m","Married",3,false,true,"self-made","Illinois","manufacturing",0,0,0
+"richard-yuengling-jr","1943-03-10","m","Divorced",4,false,false,"inherited and growing","Pennsylvania","food-beverage",0,0,0
+"rick-caruso","1959-01-07","m","Married",4,false,true,"self-made","California","real-estate",0,0,0
+"rick-cohen","1952-07-25","m","Married",3,false,false,"inherited and growing","New Hampshire","technology",1,0,21232380520
+"rick-cohen-family","1952-07-25","m","Married",3,false,false,"inherited and growing","New Hampshire","technology",1,0,16311240000
+"rick-smith","1970-05-20","m","Married",0,false,true,"self-made","Arizona","technology",3,0,1138721449.0000002
+"riley-bechtel","1952-03-25","m","Married",3,false,false,"inherited and growing","California","construction-engineering",0,0,0
+"robert-bass","1948-03-19","m","Married",4,false,false,"inherited and growing","Texas","energy",4,0,854742398.41
+"robert-clark","1959-01-30","m","",0,false,true,"self-made","Missouri","construction-engineering",0,0,0
+"robert-duggan","1944-04-28","m","Married",8,false,true,"self-made","Florida","healthcare",18,0,11884680122.447227
+"robert-faith","1963-10-03","m","Married",3,false,true,"self-made","South Carolina","real-estate",0,0,0
+"robert-fisher","1953-08-01","m","Married",3,false,false,"inherited","California","fashion-retail",1,0,875942100
+"robert-friedland","1950-08-18","m","Married",3,false,true,"self-made","","metals-mining",5,0,1575070817.3369544
+"robert-f-smith","1962-12-01","m","Married",7,false,true,"self-made","Texas","finance-investments",0,0,0
+"robert-hale-jr","1966-07-08","m","Married",0,false,true,"self-made","Massachusetts","telecom",0,0,0
+"robert-johnson-3","1947-04-12","m","Married",5,false,false,"inherited and growing","Florida","sports",1,0,1238368400
+"robert-kraft","1941-06-05","m","Widowed, Remarried",4,false,true,"self-made","Massachusetts","sports",0,0,0
+"robert-langer","1948-08-29","m","Married",3,false,true,"self-made","Massachusetts","healthcare",10,0,1002432303.0619999
+"robert-pender","1953-06-06","m","","",false,false,"","Virginia","energy",1,0,12687652780
+"robert-pera","1978-03-10","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"robert-rich-jr","1941-01-25","m","Married",4,false,false,"inherited and growing","Florida","food-beverage",0,0,0
+"robert-rowling","1953-09-26","m","Married",2,false,false,"inherited and growing","Texas","service",0,0,0
+"robert-sands","1958-06-10","m","Married",0,false,false,"inherited and growing","Florida","food-beverage",6,0,1064879484.6399999
+"robert-ziff","1966-08-12","m","Married",2,false,false,"inherited","New York","finance-investments",0,0,0
+"rob-walton","1944-10-27","m","Married",3,false,false,"inherited and growing","Arkansas","fashion-retail",1,108697362264.59,108697362264.59
+"robyn-jones","1962-07-22","f","Married",6,false,true,"self-made","Texas","finance-investments",1,0,426067200
+"rocco-commisso","1949-11-25","m","Married",2,false,true,"self-made","New Jersey","telecom",0,0,0
+"rodger-riney","1946-01-01","m","Married",3,false,true,"self-made","Missouri","finance-investments",0,0,0
+"rodney-sacks","1949-12-24","m","",0,false,true,"self-made","California","food-beverage",2,0,3353606040
+"roger-penske","1937-02-20","m","Married",5,false,true,"self-made","Michigan","automotive",1,0,2438877600
+"roger-wang","1949-01-01","m","Married",2,false,true,"self-made","Jiangsu","fashion-retail",2,0,968850890.065718
+"romesh-t-wadhwani","1947-08-25","m","Married",1,false,true,"self-made","California","technology",0,0,0
+"ronald-clarke","1955-08-15","m","Married",2,false,true,"self-made","Georgia","technology",2,0,1116654340
+"ronald-lauder","1944-02-26","m","Married",2,false,false,"inherited and growing","New York","fashion-retail",1,0,209658600
+"ronald-perelman","1943-01-01","m","Married",8,false,true,"self-made","New York","finance-investments",3,0,162216920
+"ronald-wanek","1941-05-19","m","Married",3,false,true,"self-made","Florida","manufacturing",0,0,0
+"ron-baron","1943-05-23","m","Married",2,false,true,"self-made","New York","finance-investments",0,0,0
+"ron-burkle","1952-11-12","m","Divorced",3,false,true,"self-made","","finance-investments",1,0,4920362.34
+"ron-corio","1961-10-04","m","Divorced",2,false,true,"self-made","New Mexico","energy",1,0,0
+"ronda-stryker","1954-05-01","f","Married",3,false,false,"inherited","Michigan","healthcare",1,0,5333434238
+"ron-shaich","1953-12-30","m","Divorced",2,false,true,"self-made","Florida","food-beverage",3,0,426868279.99999994
+"roy-carroll-ii","1962-11-01","m","Married",3,false,true,"self-made","North Carolina","real-estate",0,0,0
+"rupert-johnson-jr","1940-08-10","m","Married",0,false,false,"inherited and growing","California","finance-investments",1,0,3263751850
+"rupert-murdoch","1931-03-11","m","Married",6,false,false,"inherited and growing","New York","media-entertainment",3,0,13362381184.7
+"russell-savage","1970-05-05","m","","",false,false,"","Florida","food-beverage",0,0,0
+"russ-weiner","1970-05-05","m","Single",0,false,true,"self-made","Florida","food-beverage",0,0,0
+"ryan-breslow","1994-05-20","m","Single",0,false,true,"self-made","California","technology",0,0,0
+"ryan-graves","1983-07-03","m","Married",4,false,true,"self-made","Hawaii","technology",3,0,626629905.44
+"ryan-horton","1973-04-01","m","",0,false,false,"inherited","Texas","real-estate",1,0,2142504000
+"ryan-israel","1985-04-08","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"ryan-smith","1978-06-28","m","Married",5,false,true,"self-made","Utah","technology",0,0,0
+"safra-catz","1961-12-01","f","Married",2,false,true,"self-made","Florida","technology",6,0,217936970.72
+"sam-altman","1985-04-22","m","",0,false,true,"self-made","California","finance-investments",2,0,668877312.64
+"sami-mnaymneh","1961-07-13","m","",0,false,true,"self-made","Florida","finance-investments",0,0,0
+"sam-mccandlish","1990-07-01","m","",0,false,true,"self-made","California","technology",0,0,0
+"sam-zell","1941-09-28","m","",3,false,true,"self-made","","real-estate",12,0,1312376219.283417
+"sanjay-gajendra","1974-12-01","m","","",false,false,"","California","technology",1,0,2357321007.36
+"sanjit-biswas","1982-01-12","m","Married",3,false,true,"self-made","California","technology",3,0,3267905000
+"sara-blakely","1971-02-27","f","Married",4,false,true,"self-made","Georgia","fashion-retail",0,0,0
+"sarah-humphreys-atkins","1958-03-01","f","Married",0,false,false,"inherited and growing","Virginia","manufacturing",0,0,0
+"sarah-macmillan","1954-01-01","f","Divorced",3,false,false,"inherited","California","food-beverage",0,0,0
+"satya-nadella","1967-08-19","m","Married",3,false,true,"self-made","Washington","technology",1,0,373010417.84999996
+"scot-french","1970-10-01","m","",0,false,true,"self-made","Florida","finance-investments",1,0,1290725200
+"scott-cook","1952-07-26","m","Married",3,false,true,"self-made","California","technology",6,0,2528250436.0000005
+"scott-crabill","1970-02-07","m","Married",2,false,true,"self-made","California","finance-investments",0,0,0
+"scott-duncan","1982-11-01","m","Single",0,false,false,"inherited","Texas","energy",1,0,6377356800
+"scott-kapnick","1959-02-09","m","",0,false,true,"self-made","Florida","finance-investments",1,0,3227890400.0000005
+"scott-nuttall","1972-11-25","m","",5,false,true,"self-made","New York","finance-investments",1,0,1913254573.58
+"scott-shleifer","1977-06-14","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"scott-smith-1","1949-04-12","m","Married",9,false,true,"self-made","Utah","technology",0,0,0
+"scott-watterson","1955-05-18","m","Married",5,false,true,"self-made","Utah","technology",0,0,0
+"s-curtis-johnson","1955-05-05","m","Married",4,false,false,"inherited","Wisconsin","manufacturing",1,0,83962800
+"s-daniel-abraham","1924-08-15","m","Married",6,false,true,"self-made","Florida","food-beverage",0,0,0
+"sean-parker","1979-12-03","m","Married",2,false,true,"self-made","California","technology",1,0,12246800
+"sehat-sutardja","1961-07-09","m","",2,false,true,"self-made","","technology",2,0,469994688.6517638
+"sergey-brin","1973-08-21","m","Separated",3,false,true,"self-made","California","technology",2,138463876476.72,278098841914.07996
+"seth-boro","1975-09-17","m","Married",2,false,true,"self-made","California","finance-investments",0,0,0
+"seth-klarman","1957-05-01","m","Married",0,false,true,"self-made","Massachusetts","finance-investments",0,0,0
+"shahid-khan","1950-07-18","m","Married",2,false,true,"self-made","Florida","automotive",0,0,0
+"sharron-hunt","1958-02-15","f","",0,false,false,"inherited","Texas","sports",0,0,0
+"shayne-coplan","1998-05-23","m","","",false,false,"","New York","technology",0,0,0
+"sheila-johnson","1949-01-25","f","Married",2,false,true,"self-made","Virginia","media-entertainment",0,0,0
+"sheldon-lavin","1932-06-17","m","",3,false,true,"self-made","","food-beverage",0,0,0
+"sheryl-sandberg","1969-08-28","f","Widowed, Remarried",5,false,true,"self-made","California","technology",4,0,777612403.02
+"shuo-wang","1989-02-19","f","","",false,false,"","Washington","technology",0,0,0
+"shyam-sankar","1982-03-01","m","","",false,false,"","California","technology",3,0,713500190.8799999
+"sid-bass","1942-04-09","m","Divorced",2,false,false,"inherited and growing","Texas","energy",1,0,1928665924.8
+"sidney-kimmel","1928-01-16","m","Married",0,false,true,"self-made","New York","fashion-retail",0,0,0
+"stanley-druckenmiller","1953-06-14","m","Married",0,false,true,"self-made","New York","finance-investments",0,0,0
+"stanley-hubbard","1933-05-28","m","Married",5,false,false,"inherited and growing","Minnesota","media-entertainment",1,0,427842000
+"stanley-kroenke","1947-07-29","m","Married",2,false,true,"self-made","Texas","sports",0,0,0
+"stanley-tang","1992-10-27","m","",0,false,true,"self-made","California","technology",2,0,602547665.2
+"stefan-soloviev","1975-05-21","m","Divorced",22,false,false,"inherited and growing","Florida","real-estate",0,0,0
+"stephen-bisciotti","1960-04-10","m","Married",2,false,true,"self-made","Florida","sports",0,0,0
+"stephen-butt","1955-05-24","m","Married",2,false,false,"inherited and growing","Texas","fashion-retail",0,0,0
+"stephen-cohen","1982-09-30","m","",0,false,true,"self-made","California","technology",3,0,4508073200
+"stephen-deckoff","1965-11-04","m","Married",3,false,true,"self-made","U.S. Virgin Islands","finance-investments",0,0,0
+"stephen-feinberg","1960-03-29","m","Married",3,false,true,"self-made","New York","finance-investments",0,0,0
+"stephen-fredette","1983-09-14","m","",0,false,true,"self-made","Massachusetts","technology",5,0,853624500.56
+"stephen-ketchum","1961-07-01","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"stephen-mandel-jr","1956-03-12","m","Married",3,false,true,"self-made","Connecticut","finance-investments",0,0,0
+"stephen-orenstein","1963-12-28","m","Married",0,false,false,"inherited and growing","","diversified",0,0,0
+"stephen-ross","1940-05-10","m","Married",4,false,true,"self-made","Florida","real-estate",0,0,0
+"stephen-schwarzman","1947-02-14","m","Married",3,false,true,"self-made","New York","finance-investments",2,0,28277484009.16
+"stephen-winn","1946-09-12","m","Married",0,false,true,"self-made","Texas","real-estate",0,0,0
+"steve-ballmer","1956-03-24","m","Married",3,false,true,"self-made","Washington","technology",3,0,105219999340
+"steve-case","1958-08-21","m","Married",5,false,true,"self-made","Virginia","technology",2,0,103129843.50000001
+"steve-cohen","1956-06-11","m","Married",7,false,true,"self-made","Connecticut","finance-investments",1,0,26280295.897780765
+"steve-conine","1972-08-28","m","Married",3,false,true,"self-made","Massachusetts","technology",2,0,766673212
+"steve-huffman","1983-11-12","m","","",false,false,"","California","technology",6,0,917166168.72
+"steve-koltes","1956-03-03","m","Married",0,false,true,"self-made","","finance-investments",1,0,841946348.8844762
+"steve-lavin","1955-07-27","m","",0,false,false,"inherited and growing","Illinois","food-beverage",0,0,0
+"steven-klinsky","1956-05-30","m","",0,false,true,"self-made","New York","finance-investments",0,0,0
+"steven-rales","1951-03-31","m","Married",3,false,true,"self-made","California","manufacturing",6,0,4534425060
+"steven-sarowitz","1965-11-07","m","Married",0,false,true,"self-made","Illinois","technology",3,0,930174714.4
+"steven-schonfeld","1959-07-03","m","","",false,false,"","New York","finance-investments",0,0,0
+"steven-spielberg","1946-12-18","m","Married",7,false,true,"self-made","California","media-entertainment",1,0,0
+"steven-tisch","1949-02-14","m","",5,false,false,"inherited","California","diversified",1,0,131243124.48
+"steven-udvar-hazy","1946-02-23","m","Married",4,false,true,"self-made","Texas","service",17,0,1604485619.2199059
+"steven-witkoff","1957-03-15","m","Married",2,false,true,"self-made","Florida","real-estate",0,0,0
+"steve-wynn","1942-01-27","m","Married",2,false,true,"self-made","Florida","gambling-casinos",0,0,0
+"stewart-horejsi","1937-09-19","m","Divorced",2,false,true,"self-made","Arizona","finance-investments",2,0,3583299000
+"stewart-lynda-resnick","","","Married",5,false,true,"self-made","California","food-beverage",0,0,0
+"stewart-rahr","1946-02-18","m","Divorced",2,false,false,"inherited and growing","New York","healthcare",0,0,0
+"stewart-resnick","1936-12-24","m","Married",5,false,true,"self-made","California","food-beverage",0,0,0
+"stuart-miller","1957-08-08","m","",0,false,false,"inherited and growing","Florida","real-estate",1,0,885668280
+"sue-gross","1950-02-17","f","Divorced",1,false,false,"inherited","California","finance-investments",0,0,0
+"summerfield-johnston-jr","1932-09-01","m","Married",5,false,false,"inherited and growing","Tennessee","food-beverage",1,0,1081630000
+"sundar-pichai","1972-06-10","m","Married",2,false,true,"self-made","California","technology",2,0,1132564452.8
+"sun-hongbin","1963-01-01","m","",0,false,true,"self-made","","real-estate",2,0,547117488.09677
+"sunjay-kapur","1971-10-15","m","",4,false,false,"inherited and growing","","automotive",1,0,1057081219.6987237
+"surya-midha","2003-06-03","m","","",false,false,"","California","technology",0,0,0
+"susan-alfond","1945-07-19","f","",3,false,false,"inherited","Maine","fashion-retail",1,0,2277103500
+"susan-ocampo","1958-02-01","f","Widowed",3,false,true,"self-made","Hawaii","technology",1,0,2909299503.6
+"tamara-gustavson","1961-11-16","f","Married",2,false,false,"inherited","Kentucky","service",2,0,5952810150
+"tarek-mansour","1996-05-07","m","","",false,false,"","New York","finance-investments",0,0,0
+"taylor-swift","1989-12-13","f","In Relationship",0,false,true,"self-made","","media-entertainment",0,0,0
+"t-denny-sanford","1935-12-23","m","Divorced",2,false,true,"self-made","South Dakota","finance-investments",0,0,0
+"ted-alfond","1944-08-19","m","Married",3,false,false,"inherited","Massachusetts","fashion-retail",1,0,2277103500
+"ted-lerner","1925-10-15","m","",3,false,true,"self-made","","real-estate",0,0,0
+"ted-turner","1938-11-19","m","Divorced",5,false,false,"inherited and growing","Georgia","media-entertainment",0,0,0
+"tench-coxe","1958-01-14","m","Married",3,false,true,"self-made","California","finance-investments",4,0,7340993823.54
+"terrence-pegula","1951-03-27","m","Married",5,false,true,"self-made","Florida","energy",2,0,125733476.03999999
+"terry-leprino","1960-03-15","f","","",false,false,"","Colorado","food-beverage",0,0,0
+"terry-taylor","1951-04-01","m","",0,false,true,"self-made","Florida","automotive",0,0,0
+"thai-lee","1958-11-27","f","Divorced",2,false,true,"self-made","Texas","technology",0,0,0
+"theodore-leonsis","1956-01-08","m","Married",2,false,true,"self-made","Maryland","sports",3,0,17468659.82
+"theresia-gouw","1968-03-19","f","",2,false,true,"self-made","California","finance-investments",1,0,488034980
+"thierry-cruanes","1967-06-23","m","Married",2,false,true,"self-made","California","technology",3,0,722121600
+"thomas-bailey","1937-01-01","m","Divorced",2,false,true,"self-made","Colorado","finance-investments",0,0,0
+"thomas-crowley-jr","1967-01-01","m","","",false,false,"","Florida","logistics",0,0,0
+"thomas-duff","1956-12-31","m","Divorced",2,false,true,"self-made","Mississippi","diversified",0,0,0
+"thomas-frist-jr","1938-08-12","m","Married",3,false,true,"self-made","Tennessee","healthcare",1,0,27201769560
+"thomas-hagen","1936-01-01","m","Widowed",2,false,false,"inherited","Pennsylvania","finance-investments",1,0,3843496100
+"thomas-james","1942-05-10","m","Married",2,false,false,"inherited and growing","Florida","finance-investments",1,0,2941281420
+"thomas-lee","1944-03-27","m","",5,false,true,"self-made","","finance-investments",0,0,0
+"thomas-peterffy","1944-09-30","m","Divorced",3,false,true,"self-made","Florida","finance-investments",2,0,90458159360
+"thomas-pritzker","1950-06-06","m","Married",3,false,false,"inherited and growing","Illinois","finance-investments",10,0,4299985167.360001
+"thomas-secunda","1954-06-23","m","Married",2,false,true,"self-made","New York","finance-investments",0,0,0
+"thomas-siebel","1952-11-22","m","Married",4,false,true,"self-made","California","technology",9,0,243170868.07999998
+"thomas-steyer","1957-06-27","m","Separated",4,false,true,"self-made","California","finance-investments",0,0,0
+"thomas-tull","1970-06-11","m","Married",0,false,true,"self-made","Pennsylvania","media-entertainment",0,0,0
+"tiger-woods","1975-12-30","m","",0,false,true,"self-made","Florida","sports",0,0,0
+"tilman-fertitta","1957-06-25","m","Married",4,false,true,"self-made","Texas","food-beverage",2,0,1547434550
+"tim-cook","1960-11-01","m","",0,false,true,"self-made","California","technology",2,0,1016041100
+"tim-draper","1958-06-11","m","Married",3,false,false,"inherited and growing","California","finance-investments",1,0,1575891600
+"timothy-boyle","1949-09-07","m","Married",2,false,true,"self-made","Oregon","fashion-retail",2,0,1505060703.33
+"timothy-dunn","1955-12-18","m","Married",6,false,true,"self-made","Texas","energy",1,0,0
+"timothy-headington","1950-04-24","m","Single",0,false,false,"inherited and growing","Texas","energy",0,0,0
+"timothy-springer","1948-02-23","m","Married",0,false,true,"self-made","Massachusetts","healthcare",9,0,815210777.8100001
+"tim-sweeney","1970-12-13","m","",0,false,true,"self-made","North Carolina","media-entertainment",0,0,0
+"toby-neugebauer","1971-12-01","m","","",false,false,"","Texas","real-estate",1,0,1217476988.19
+"todd-boehly","1973-09-20","m","Married",3,false,true,"self-made","Florida","finance-investments",0,0,0
+"todd-christopher","1962-10-08","m","Married",0,false,true,"self-made","Florida","fashion-retail",0,0,0
+"todd-graves","1972-02-20","m","Married",2,false,true,"self-made","Louisiana","food-beverage",0,0,0
+"todd-wagner","1960-08-02","m","Married",1,false,true,"self-made","Texas","media-entertainment",0,0,0
+"todd-wanek","1964-03-16","m","Married",2,false,false,"inherited and growing","Florida","manufacturing",0,0,0
+"tom-brown","1987-04-01","m","",0,false,true,"self-made","California","technology",0,0,0
+"tom-ford-1","1961-08-27","m","Widowed",1,false,true,"self-made","California","fashion-retail",0,0,0
+"tom-golisano","1941-11-14","m","Married",2,false,true,"self-made","Florida","service",2,0,3324157290
+"tom-gores","1964-07-31","m","Married",3,false,true,"self-made","California","finance-investments",0,0,0
+"tom-judy-love","","","",4,false,true,"self-made","","fashion-retail",0,0,0
+"tom-love","1937-10-10","m","",4,false,true,"self-made","","fashion-retail",0,0,0
+"tom-preston-werner","1979-10-28","m","Married",0,false,true,"self-made","California","technology",1,0,0
+"tom-werner-1","1950-04-12","m","",0,false,true,"self-made","California","sports",0,0,0
+"tony-tamer","1957-10-12","m","Married",4,false,true,"self-made","New York","finance-investments",0,0,0
+"tony-townley","1962-05-01","m","Married",4,false,true,"self-made","Georgia","food-beverage",0,0,0
+"tony-xu","1984-09-20","m","Married",0,false,true,"self-made","California","technology",2,0,1156848000
+"tope-awotona","1981-04-22","m","Married",0,false,true,"self-made","Georgia","technology",0,0,0
+"tor-peterson","1964-08-07","m","Single",0,false,true,"self-made","","metals-mining",1,0,1955066005.3799596
+"tory-burch","1966-06-17","f","Married",3,false,true,"self-made","New York","fashion-retail",0,0,0
+"trae-stephens","1983-11-17","m","","",false,false,"","California","technology",0,0,0
+"travis-boersma","1971-01-01","m","",0,false,true,"self-made","Oregon","food-beverage",1,0,2851316820
+"travis-kalanick","1976-08-06","m","Single",0,false,true,"self-made","Texas","technology",1,0,0
+"trevor-burgess","1972-10-01","m","","",false,false,"","Florida","finance-investments",2,0,1435279300
+"trevor-rees-jones","1951-08-12","m","Married",2,false,true,"self-made","Texas","energy",1,0,571176550
+"trudy-cathy-white","1955-12-17","f","Married",4,false,false,"inherited","Georgia","food-beverage",0,0,0
+"tyler-perry","1969-09-13","m","In Relationship",1,false,true,"self-made","Georgia","media-entertainment",0,0,0
+"tyler-winklevoss","1981-08-21","m","",0,false,true,"self-made","New York","finance-investments",3,0,2676095709.61
+"ty-warner","1944-09-03","m","Single",0,false,true,"self-made","Illinois","real-estate",1,0,6535095049.559999
+"valerie-mars","1959-01-26","f","Married",2,false,false,"inherited","New York","food-beverage",0,0,0
+"vasily-shikin","1985-04-15","m","",0,false,true,"self-made","California","technology",2,0,2198339488.96
+"victor-fung","1945-10-16","m","Married",3,false,false,"inherited and growing","","logistics",5,0,9239344.09494035
+"victoria-mars","1956-12-15","f","Married",4,false,false,"inherited","Pennsylvania","food-beverage",0,0,0
+"vincent-mcmahon","1945-08-24","m","Married",2,false,true,"self-made","Connecticut","sports",1,0,1211736909.25
+"vincent-viola","1956-02-12","m","Married",3,false,true,"self-made","New York","finance-investments",4,0,3562315760
+"vinod-khosla","1955-01-28","m","Married",4,false,true,"self-made","California","technology",18,0,13562643340
+"vivek-ramaswamy","1985-09-01","m","Married",0,false,true,"self-made","Ohio","healthcare",6,0,2460145115
+"vlad-tenev","1987-02-13","m","Married",1,false,true,"self-made","California","finance-investments",1,0,4095858938.9
+"walter-kortschak","1959-05-01","m","",0,false,true,"self-made","Colorado","finance-investments",0,0,0
+"walter-wang-1","1965-01-01","m","Married",3,false,false,"inherited and growing","California","manufacturing",1,0,90683007.52358079
+"warren-buffett","1930-08-30","m","Widowed, Remarried",3,false,true,"self-made","Nebraska","finance-investments",2,142231666500,142232217826.8
+"warren-kanders","1957-11-01","m","","",false,false,"","Florida","manufacturing",9,0,460941144.65999997
+"warren-stephens","1957-02-18","m","Married",3,false,false,"inherited and growing","Arkansas","finance-investments",1,0,32874750
+"wayne-rothbaum","1968-02-17","m","Married",3,false,true,"self-made","Florida","healthcare",2,0,122999999.99999999
+"weili-dai","1961-09-14","f","Widowed",2,false,true,"self-made","Nevada","technology",1,0,2030535000
+"wendy-abrams","1964-12-01","f","","",false,false,"","Illinois","healthcare",1,0,1044551533.4399999
+"wesley-edens","1961-10-31","m","Married",4,false,true,"self-made","New York","finance-investments",2,0,56712278
+"w-herbert-hunt","1929-03-06","m","",5,false,false,"inherited and growing","","energy",0,0,0
+"wilbur-ed-bosarge-jr","1939-07-28","m","Engaged",2,false,true,"self-made","Texas","finance-investments",0,0,0
+"william-ackman","1966-05-11","m","Married",3,false,true,"self-made","New York","finance-investments",2,0,2782761950.16
+"william-berkley","1946-09-01","m","Married",3,false,true,"self-made","Florida","finance-investments",1,0,5243054430
+"william-boyd","1931-11-04","m","Divorced",3,false,true,"self-made","Nevada","gambling-casinos",2,0,2298384500
+"william-chisholm","1969-01-01","m","Married",3,false,true,"self-made","California","finance-investments",0,0,0
+"william-conway-jr","1949-08-27","m","Married",1,false,true,"self-made","Virginia","finance-investments",1,0,1369454350
+"william-fisher","1957-04-01","m","Married",3,false,false,"inherited","California","fashion-retail",1,0,990244439.9999999
+"william-foley-ii","1944-12-29","m","Married",0,false,true,"self-made","Nevada","finance-investments",6,0,584039856
+"william-franke","1937-04-15","m","Married",5,false,true,"self-made","Texas","diversified",3,0,506827935.72735447
+"william-goldring","1943-01-24","m","",3,false,false,"inherited and growing","Louisiana","food-beverage",0,0,0
+"william-hockey","1989-09-21","m","",0,false,true,"self-made","California","finance-investments",0,0,0
+"william-koch","1940-05-03","m","Married",6,false,false,"inherited and growing","Florida","energy",0,0,0
+"william-lauder","1960-04-11","m","Divorced",0,false,false,"inherited and growing","New York","fashion-retail",1,0,1086471043
+"william-macmillan","1954-05-25","m","",0,false,false,"inherited","Colorado","food-beverage",0,0,0
+"william-stone","1955-04-09","m","Married",3,false,true,"self-made","Connecticut","technology",10,0,2501896795.8399997
+"william-wrigley-jr","1963-11-01","m","Divorced",4,false,false,"inherited and growing","Florida","food-beverage",0,0,0
+"william-young","1941-01-01","m","Married",4,false,true,"self-made","Michigan","manufacturing",0,0,0
+"willis-johnson","1947-05-26","m","Married",2,false,true,"self-made","Tennessee","automotive",1,0,1802605200
+"wilma-tisch","1927-06-25","f","Widowed",4,false,false,"inherited","New York","diversified",1,0,1268934880
+"winifred-j-marquart","1959-04-06","f","Married",4,false,false,"inherited","Virginia","manufacturing",2,0,104870490
+"zachary-stern","1982-01-09","m","Married",1,false,false,"inherited","Wyoming","food-beverage",1,0,440557759.99999994
+"zach-mcleroy","1962-08-01","m","Divorced",0,false,true,"self-made","","food-beverage",0,0,0
+"zach-perret","1987-09-17","m","",0,false,true,"self-made","California","finance-investments",0,0,0
+"zhong-peifeng-1","1963-01-01","m","Married",0,false,true,"self-made","Beijing","telecom",1,0,1013146612.0548671

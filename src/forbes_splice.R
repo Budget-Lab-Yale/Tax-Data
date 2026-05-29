@@ -100,7 +100,19 @@ add_forbes_metadata_defaults = function(df) {
 }
 
 
-read_forbes_input = function(path = 'resources/forbes/forbes_billionaires_2022_2025.csv') {
+# Profile fields the v2 assembler consumes, with their post-read types. The
+# assembler does the demographic MAPPING (birth_date->age, marital->filing
+# status, etc.); read_forbes_input only joins and coerces, leaving the raw
+# Forbes values intact. Missing-profile coverage is handled (with documented
+# defaults) in the assembler, not silently dropped here.
+forbes_profile_vars = c('birth_date', 'gender', 'marital_status', 'children',
+                        'family', 'self_made', 'self_made_type',
+                        'residence_state', 'industry', 'n_assets',
+                        'public_equity_interactive', 'public_equity_all')
+
+
+read_forbes_input = function(path = 'resources/forbes/forbes_billionaires_2022_2025.csv',
+                             profiles_path = 'resources/forbes/forbes_profiles.csv') {
   if (!file.exists(path)) {
     warning('Forbes input not found: ', path, '. Skipping Forbes splice.')
     return(tibble::tibble())
@@ -113,12 +125,44 @@ read_forbes_input = function(path = 'resources/forbes/forbes_billionaires_2022_2
     stop('Forbes input missing required columns: ',
          paste(missing, collapse = ', '))
   }
-  out %>%
+  out = out %>%
     dplyr::mutate(
       year = as.integer(year),
       rank = as.integer(rank),
       net_worth = as.numeric(net_worth)
     )
+
+  # v2 enrichment: left-join per-profile demographics + asset composition by
+  # uri (one profile row per uri; the per-year base repeats a uri across
+  # years). Absent profiles file -> v1-style behavior: the assembler sees the
+  # columns as NA and falls back to documented demographic/composition
+  # defaults. We WARN rather than fail so the pipeline degrades gracefully.
+  if (file.exists(profiles_path) && 'forbes_uri' %in% names(out)) {
+    profiles = readr::read_csv(profiles_path, show_col_types = FALSE) %>%
+      dplyr::distinct(uri, .keep_all = TRUE) %>%
+      dplyr::mutate(
+        children                  = suppressWarnings(as.integer(children)),
+        n_assets                  = suppressWarnings(as.integer(n_assets)),
+        family                    = as.logical(family),
+        self_made                 = as.logical(self_made),
+        public_equity_interactive = suppressWarnings(as.numeric(public_equity_interactive)),
+        public_equity_all         = suppressWarnings(as.numeric(public_equity_all))
+      )
+    out = out %>% dplyr::left_join(profiles, by = c('forbes_uri' = 'uri'))
+
+    # Reconcile the public-equity figure: prefer the interactive (live-tracker
+    # direct stake); fall back to the all-holdings sum when interactive is 0
+    # (some inherited holders carry their entire stake as a single
+    # interactive=false row — see resources/forbes/README.md). NA -> 0.
+    pei = coalesce_col(out, 'public_equity_interactive', 0)
+    pea = coalesce_col(out, 'public_equity_all', 0)
+    out$public_equity_value = ifelse(pei > 0, pei, pea)
+  } else {
+    warning('Forbes profiles not found: ', profiles_path,
+            '. v2 assembler will use demographic/composition defaults.')
+    for (v in c(forbes_profile_vars, 'public_equity_value')) out[[v]] = NA
+  }
+  out
 }
 
 
@@ -231,19 +275,26 @@ forbes_income_signal = function(df) {
 }
 
 
-choose_forbes_composition_donors = function(base_df,
-                                            n_donors = 500L,
-                                            billionaire_threshold = 1e9) {
+# v2 repurpose: this is no longer a wholesale-copy donor pool. The v2
+# assembler builds each synthetic record from sourced components and never
+# copies a PUF row. We keep this top-of-distribution selection only as the
+# reference pool from which category_default_shares derives AGGREGATE
+# within-category income shares (the user-chosen "PUF-top aggregate shares"
+# allocation): e.g. how capital_gains splits across kg_lt / kg_st /
+# other_gains among the wealthiest filers. No per-record identity is carried.
+choose_forbes_share_pool = function(base_df,
+                                    n_records = 500L,
+                                    billionaire_threshold = 1e9) {
   nw = forbes_net_worth(base_df)
   ok = !is.na(nw) & nw > 0 & nw < billionaire_threshold &
        coalesce_col(base_df, 'weight', 0) > 0
-  if (!any(ok)) stop('No positive-net-worth non-billionaire donor rows found.')
+  if (!any(ok)) stop('No positive-net-worth non-billionaire records for share pool.')
   cand = base_df[ok, , drop = FALSE]
   cand$.__score = hybrid_top_tail_score(cand)
   cand %>%
     dplyr::arrange(dplyr::desc(.__score)) %>%
     dplyr::select(-.__score) %>%
-    utils::head(n_donors)
+    utils::head(n_records)
 }
 
 
@@ -286,25 +337,201 @@ set_category_on_row = function(row, target, category, donor_pool,
 }
 
 
-scale_wealth_to_net_worth = function(row, target_net_worth) {
-  current_nw = forbes_net_worth(row)
-  wealth_vars = intersect(wealth_output_vars, names(row))
+# ===========================================================================
+# v2 assembler: build each synthetic record from sourced components.
+#
+# v1 copied a donor PUF row wholesale and overwrote its wealth + 6 income
+# aggregates, leaving demographics, basis, deductions, mortality, and the
+# split-sum components donor-inherited (wrong in load-bearing ways for the
+# deemed-realization / estate / wealth-tax policies this feeds). v2 starts
+# from a zeroed schema template and populates every load-bearing field from
+# Forbes /info, /assets, the founder model, BSYZ, and PUF-top relationships.
+# ===========================================================================
 
-  if (!is.na(current_nw) && abs(current_nw) > 1e-6) {
-    # Scale donor values to the Forbes net-worth target.
-    factor = target_net_worth / current_nw
-    for (v in wealth_vars) row[[v]] = coalesce_col(row, v, 0) * factor
+# Zero/NA template carrying base_df's EXACT schema (names + types). Only the
+# column STRUCTURE is borrowed (not values), so appended rows stay schema-
+# compatible for the downstream bind_rows. The long tail (credits, AMT,
+# consumption c_*, ...) is left at its light default — 0 — negligible for the
+# wealth / estate / income-at-top policies this feeds (documented choice).
+make_forbes_template = function(base_df) {
+  tmpl = base_df[1, , drop = FALSE]
+  for (v in names(tmpl)) {
+    tmpl[[v]] = if (is.numeric(tmpl[[v]])) 0 else NA
+  }
+  tmpl
+}
+
+
+forbes_birth_year = function(birth_date) {
+  suppressWarnings(as.integer(substr(as.character(birth_date), 1, 4)))
+}
+
+
+# Demographics from Forbes /info. age1 from birthDate; male1 from gender;
+# filing_status from maritalStatus (MARS: 1 single, 2 MFJ, 4 HoH); spouse
+# (age2/male2) assumed for MFJ (opposite sex, same age — Forbes gives the
+# principal only). Coverage gaps default to married male, no dependents
+# (user-confirmed: billionaires skew married/male). Dependents: children are
+# overwhelmingly adult at billionaire ages, so deps are claimed only for a
+# young (<45) principal, capped at 3 at plausible minor ages — negligible
+# either way for the target policies.
+set_forbes_demographics = function(row, f, list_year) {
+  by = forbes_birth_year(f$birth_date)
+  age1 = if (length(by) == 1L && !is.na(by)) list_year - by else 65L
+  if (is.na(age1) || age1 < 18L || age1 > 100L) age1 = 65L
+  row$age1 = as.integer(age1)
+
+  g = tolower(as.character(f$gender))
+  row$male1 = if (length(g) == 1L && g %in% c('m', 'male')) 1L else
+              if (length(g) == 1L && g %in% c('w', 'f', 'female')) 0L else 1L
+
+  ms = tolower(as.character(f$marital_status))
+  married = length(ms) != 1L || is.na(ms) || ms == '' ||
+            grepl('married|remarried', ms)        # "Widowed, Remarried" -> married
+  nch = suppressWarnings(as.integer(f$children)); if (is.na(nch)) nch = 0L
+  n_dep = if (row$age1 < 45L) min(nch, 3L) else 0L
+
+  row$filing_status = if (married) 2L else if (n_dep > 0L) 4L else 1L
+  if ('filer' %in% names(row)) row$filer = 1L
+  if ('dep_status' %in% names(row)) row$dep_status = 0L
+  if ('blind1' %in% names(row)) row$blind1 = 0L
+  if ('blind2' %in% names(row)) row$blind2 = 0L
+
+  if (row$filing_status == 2L) {
+    row$age2 = row$age1
+    row$male2 = 1L - row$male1
+  } else {
+    row$age2 = NA_integer_
+    row$male2 = NA_integer_
   }
 
-  # If the donor had no usable wealth vector, or if all wealth vars were
-  # absent, fall back to a simple public-equity-only allocation.
-  if (length(wealth_vars) == 0L || abs(forbes_net_worth(row) - target_net_worth) > 1e-3) {
-    for (v in wealth_output_vars) if (!(v %in% names(row))) row[[v]] = 0
-    row[, wealth_output_vars] = 0
-    row[['value.equities']] = target_net_worth
-    row[['basis.equities']] = 0.2 * target_net_worth
-    row[['accruals.equities']] = 0.118 * target_net_worth
+  row$n_dep = as.integer(n_dep)
+  dep_ages = c(12L, 9L, 6L)
+  for (k in 1:3) {
+    col = paste0('dep_age', k)
+    if (col %in% names(row)) row[[col]] = if (k <= n_dep) dep_ages[k] else NA_integer_
   }
+  if ('n_dep_ctc' %in% names(row))  row$n_dep_ctc  = as.integer(n_dep)
+  if ('n_dep_eitc' %in% names(row)) row$n_dep_eitc = as.integer(n_dep)
+  row
+}
+
+
+# Wealth composition from Forbes /assets + industry. Public ticker'd holdings
+# -> value.equities; the residual (net_worth - public) -> value.pass_throughs,
+# or value.re_fund when the industry is real estate. Reconciled so value.*
+# sums EXACTLY to net_worth. Debts are left at 0: Forbes net worth is already
+# net, so we model gross assets ~ net worth (documented simplification).
+set_forbes_wealth = function(row, net_worth, public_equity_value, industry) {
+  wv = intersect(wealth_output_vars, names(row))
+  for (v in wealth_output_vars) if (!(v %in% names(row))) row[[v]] = 0
+  row[, wealth_output_vars] = 0
+
+  nw = max(as.numeric(net_worth), 0)
+  pub = as.numeric(public_equity_value); if (is.na(pub)) pub = 0
+  pub = min(max(pub, 0), nw)                       # cap public at net worth
+  residual = nw - pub
+
+  row[['value.equities']] = pub
+  ind = tolower(as.character(industry))
+  is_re = length(ind) == 1L && !is.na(ind) && grepl('real.?estate', ind)
+  if (is_re) row[['value.re_fund']] = residual
+  else       row[['value.pass_throughs']] = residual
+  row
+}
+
+
+# Founder basis model keyed on selfMade.type. Self-made (and unknown ->
+# treated self-made: only ~1.5% unknown, and zero basis is the higher-tax-base
+# default for deemed realization) carry ~0 basis on the APPRECIATING founding
+# assets (equities, pass_throughs, re_fund) -> deemed-realization base ~ full
+# value. Inherited carry stepped-up basis ~ value. Homes keep basis ~ value in
+# both (not the founding gain). basis.* mirror wealth.R::to_output_schema.
+set_forbes_basis = function(row, self_made_type) {
+  t = tolower(as.character(self_made_type))
+  inherited = length(t) == 1L && !is.na(t) && grepl('inherit', t)
+  founder = !inherited
+  vv = function(col) coalesce_col(row, col, 0)
+  row[['basis.equities']]      = if (founder) 0 else vv('value.equities')
+  row[['basis.pass_throughs']] = if (founder) 0 else vv('value.pass_throughs')
+  row[['basis.re_fund']]       = if (founder) 0 else vv('value.re_fund')
+  row[['basis.primary_home']]  = vv('value.primary_home')
+  row[['basis.other_home']]    = vv('value.other_home')
+  row
+}
+
+
+# Split-sum identities. Tax-Simulator depends on x1 + x2 == x to machine
+# precision (see CLAUDE.md). v1 left these donor-inherited while overwriting
+# the aggregates, breaking the identity on synthetic rows. v2 assigns all to
+# the primary filer (x1 = x, x2 = 0): exact by construction, and billionaires'
+# wage/SE content is near-zero anyway. wagebill_* / sstb_* are W-2-paid /
+# SSTB-flag fields, not split-pair identities; left at their template 0.
+forbes_split_pairs = list(
+  c('wages', 'wages1', 'wages2'),
+  c('ot', 'ot1', 'ot2'),
+  c('tips', 'tips1', 'tips2'),
+  c('sole_prop', 'sole_prop1', 'sole_prop2'),
+  c('part_se', 'part_se1', 'part_se2'),
+  c('farm', 'farm1', 'farm2')
+)
+
+set_business_splits_primary = function(row) {
+  for (p in forbes_split_pairs) {
+    if (all(p %in% names(row))) {
+      row[[p[2]]] = coalesce_col(row, p[1], 0)
+      row[[p[3]]] = 0
+    }
+  }
+  row
+}
+
+
+# Deduction estimation on PUF-top relationships (user-confirmed approach).
+# Charity is the high-leverage, flagged piece: fit log(char_total) ~
+# log(net_worth) on the PUF top (net worth >= top_q quantile) with positive
+# charity, predict at billionaire wealth, then CAP at cap_frac x net_worth to
+# stop lognormal overshoot. Cash/noncash split by the top's weighted ratio.
+# salt_prop ~ a flat share of wealth (capped at $10k downstream anyway).
+# Mortgage interest ~ 0 (billionaires pay cash). All flagged for review.
+fit_forbes_deduction_model = function(base_df, top_q = 0.999, cap_frac = 0.05) {
+  nw = forbes_net_worth(base_df)
+  w  = coalesce_col(base_df, 'weight', 0)
+  ok = !is.na(nw) & nw > 0 & w > 0
+  if (!any(ok)) return(list(b0 = NA, b1 = NA, cash_share = 0.5,
+                            cap_frac = cap_frac, salt_prop_rate = 0))
+  thr = stats::quantile(nw[ok], top_q, names = FALSE)
+  top = ok & nw >= thr
+  char_cash = coalesce_col(base_df, 'char_cash', 0)
+  char_nc   = coalesce_col(base_df, 'char_noncash', 0)
+  char_tot  = char_cash + char_nc
+
+  reg = top & char_tot > 0
+  b0 = NA; b1 = NA
+  if (sum(reg) >= 30L) {
+    fit = stats::lm(log(char_tot[reg]) ~ log(nw[reg]), weights = w[reg])
+    cf = stats::coef(fit); b0 = unname(cf[1]); b1 = unname(cf[2])
+  }
+  den_c = sum(w[top] * char_tot[top])
+  cash_share = if (den_c > 0) sum(w[top] * char_cash[top]) / den_c else 0.5
+  sp = coalesce_col(base_df, 'salt_prop', 0)
+  den_w = sum(w[top] * nw[top])
+  salt_prop_rate = if (den_w > 0) sum(w[top] * sp[top]) / den_w else 0
+
+  list(b0 = b0, b1 = b1, cash_share = cash_share,
+       cap_frac = cap_frac, salt_prop_rate = salt_prop_rate)
+}
+
+set_forbes_deductions = function(row, model, net_worth) {
+  nw = max(as.numeric(net_worth), 0)
+  char_tot = 0
+  if (!is.na(model$b0) && !is.na(model$b1) && nw > 0) {
+    char_tot = min(exp(model$b0 + model$b1 * log(nw)), model$cap_frac * nw)
+  }
+  if ('char_cash' %in% names(row))    row$char_cash    = char_tot * model$cash_share
+  if ('char_noncash' %in% names(row)) row$char_noncash = char_tot * (1 - model$cash_share)
+  if ('salt_prop' %in% names(row))    row$salt_prop    = model$salt_prop_rate * nw
+  # Mortgage interest ~ 0: first/second_mort_* stay at template 0.
   row
 }
 
@@ -316,30 +543,41 @@ make_forbes_id = function(year, rank, max_existing_id) {
 }
 
 
+# Assemble one synthetic record per Forbes billionaire from sourced
+# components. share_pool feeds the within-category income allocation (PUF-top
+# aggregate shares); dedn_model is the fitted PUF-top deduction model. No
+# donor row is copied — each field is set explicitly. q_death1/q_death2 are
+# left at the template default here and filled by build_forbes_mortality_ledger
+# (pinned p100) via apply_forbes_splice_to_materialized.
 build_forbes_rows_for_year = function(base_df, forbes_year_df, params,
+                                      share_pool, dedn_model,
                                       billionaire_threshold = 1e9) {
   if (nrow(forbes_year_df) == 0L) return(tibble::tibble())
-  donor_pool = choose_forbes_composition_donors(
-    base_df, n_donors = max(500L, nrow(forbes_year_df)),
-    billionaire_threshold = billionaire_threshold)
   targets = forbes_target_categories(forbes_year_df, params)
   max_id = max(base_df$id, na.rm = TRUE)
+  template = make_forbes_template(base_df)
+  list_year = as.integer(forbes_year_df$year[1])
   out = vector('list', nrow(forbes_year_df))
 
   for (i in seq_len(nrow(forbes_year_df))) {
     f = forbes_year_df[i, , drop = FALSE]
-    donor = donor_pool[((i - 1L) %% nrow(donor_pool)) + 1L, , drop = FALSE]
-    row = donor
-    row = add_forbes_metadata_defaults(row)
-    row = scale_wealth_to_net_worth(row, f$net_worth)
+    row = add_forbes_metadata_defaults(template)
 
+    # --- demographics, wealth composition, founder basis (from /info, /assets) ---
+    row = set_forbes_demographics(row, f, list_year)
+    pev = if ('public_equity_value' %in% names(f)) f$public_equity_value else NA
+    ind = if ('industry' %in% names(f)) f$industry else NA
+    smt = if ('self_made_type' %in% names(f)) f$self_made_type else NA
+    row = set_forbes_wealth(row, f$net_worth, pev, ind)
+    row = set_forbes_basis(row, smt)
+
+    # --- BSYZ income, allocated within-category from PUF-top aggregate shares ---
     t_i = targets %>% dplyr::filter(rank == f$rank)
     for (cat in names(forbes_income_categories)) {
       target = t_i$target[t_i$category == cat]
       if (length(target) == 0L) target = 0
-      row = set_category_on_row(row, target, cat, donor_pool)
+      row = set_category_on_row(row, target, cat, share_pool)
     }
-
     fiscal = sum(t_i$target)
     if ('E00100' %in% names(row)) row$E00100 = fiscal
     if ('txbl_pens_dist' %in% names(row) && 'gross_pens_dist' %in% names(row)) {
@@ -350,6 +588,11 @@ build_forbes_rows_for_year = function(base_df, forbes_year_df, params,
       row[[v]] = 0
     }
 
+    # --- split-sum identities (all to primary), then deductions ---
+    row = set_business_splits_primary(row)
+    row = set_forbes_deductions(row, dedn_model, f$net_worth)
+
+    # --- identifiers + metadata ---
     row$id = make_forbes_id(f$year, f$rank, max_id)
     row$weight = if ('weight' %in% names(f) && !is.na(f$weight)) {
       as.numeric(f$weight)
@@ -360,13 +603,44 @@ build_forbes_rows_for_year = function(base_df, forbes_year_df, params,
     row$forbes_name = as.character(f$name)
     row$forbes_source_category = as.character(f$source_category)
     row$forbes_rank_group = assign_bsyz_rank_group(f$rank, params)
-    row$forbes_donor_id = donor$id
+    row$forbes_donor_id = NA_real_           # v2: no donor copied
     row$forbes_net_worth = f$net_worth
     row$forbes_fiscal_income = fiscal
     out[[i]] = row
   }
 
-  dplyr::bind_rows(out)
+  out_rows = dplyr::bind_rows(out)
+
+  # accruals.* = Z1-rate x value, reusing the tested compute_accruals (DC and
+  # trusts are 0 for billionaires, so the DC equity-share blend is moot).
+  # Guarded: in the standalone test block accruals.R is not sourced, and these
+  # are consumed by nothing downstream (verified), so 0 is harmless there.
+  if (exists('compute_accruals') && nrow(out_rows) > 0L) {
+    n = nrow(out_rows)
+    acc = compute_accruals(out_rows,
+                           donor_dc_eq_share = rep(NA_real_, n),
+                           donor_dc_total    = rep(0, n),
+                           age_older         = out_rows$age1)
+    for (v in names(acc)) out_rows[[v]] = acc[[v]]
+  }
+  out_rows
+}
+
+
+# Per-record synthetic mortality, pinned to national p100. build_chetty_pctile
+# ranks WITHIN its input, so running it on billionaires-only would spread them
+# across percentiles instead of pinning the top; we hardcode pctile = 100 and
+# go straight to build_record_modifier -> build_mortality_ledger. The age/sex
+# gradient still flows through q_baseline + R_marital. Returns (year, id,
+# q_death1, q_death2), keyed by synthetic id across the projection range.
+build_forbes_mortality_ledger = function(rows, years = 2017L:2097L) {
+  if (nrow(rows) == 0L) return(tibble::tibble())
+  # weight is needed by renormalize_johnson_for_puf (inside build_record_modifier)
+  # to make the marital layer mean-preserving on this population's composition.
+  tu = rows %>%
+    dplyr::select(id, weight, age1, age2, male1, male2, filing_status)
+  pctile = tibble::tibble(id = rows$id, pctile1 = 100L, pctile2 = 100L)
+  build_mortality_ledger(tax_units = tu, chetty_pctile = pctile, years = years)
 }
 
 
@@ -617,8 +891,15 @@ build_forbes_splice = function(base,
     f_y = forbes_input %>% dplyr::filter(year == y)
     if (nrow(f_y) == 0L) next
 
+    # Per-year income-share pool (within-category allocation) and deduction
+    # model, both estimated from this year's materialized PUF top.
+    share_pool = choose_forbes_share_pool(
+      puf_y, n_records = max(500L, nrow(f_y)),
+      billionaire_threshold = billionaire_threshold)
+    dedn_model = fit_forbes_deduction_model(puf_y)
+
     rows_y = build_forbes_rows_for_year(
-      puf_y, f_y, params,
+      puf_y, f_y, params, share_pool, dedn_model,
       billionaire_threshold = billionaire_threshold)
     pools = build_splice_pools(puf_y,
                                billionaire_threshold = billionaire_threshold)
@@ -664,11 +945,20 @@ build_forbes_splice = function(base,
     }
   }
 
+  # Per-record synthetic mortality, pinned to national p100 (billionaires are
+  # unambiguously the top). Keyed by synthetic id across the full projection
+  # range; consumed by apply_forbes_splice_to_materialized. build_*_ledger is
+  # available because main.R sources mortality_ledger.R before this runs.
+  forbes_mortality = if (nrow(all_rows) > 0L && exists('build_mortality_ledger')) {
+    build_forbes_mortality_ledger(all_rows)
+  } else tibble::tibble()
+
   list(
     rows = all_rows,
     weight_adjustments = dplyr::bind_rows(weight_list),
     constraints = dplyr::bind_rows(constraint_list),
     diagnostics = dplyr::bind_rows(diag_list),
+    mortality = forbes_mortality,
     years = years
   )
 }
@@ -746,13 +1036,17 @@ apply_forbes_splice_to_materialized = function(out, target_year,
   rows = project_forbes_rows(rows, target_year, splice_year,
                              factor_ledger, bucketed_factors)
 
-  if (all(c('q_death1', 'forbes_donor_id') %in% names(rows)) &&
-      'q_death1' %in% names(out)) {
-    didx = match(rows$forbes_donor_id, out$id)
-    rows$q_death1 = out$q_death1[didx]
-    if ('q_death2' %in% names(rows) && 'q_death2' %in% names(out)) {
-      rows$q_death2 = out$q_death2[didx]
-    }
+  # Mortality: look up the synthetic rows' OWN q_death (pinned-p100 ledger,
+  # keyed by synthetic id x target_year) rather than copying a donor's. v1
+  # copied the donor's q_death — driven by the donor's age, not the
+  # billionaire's. The ledger covers freeze years (2026+) too, keyed by the
+  # 2025 ids that are reused there.
+  ml = forbes_splice$mortality
+  if (!is.null(ml) && nrow(ml) > 0L && 'q_death1' %in% names(rows)) {
+    ml_y = ml[ml$year == target_year, , drop = FALSE]
+    mi = match(rows$id, ml_y$id)
+    rows$q_death1 = ml_y$q_death1[mi]
+    if ('q_death2' %in% names(rows)) rows$q_death2 = ml_y$q_death2[mi]
   }
 
   missing_out = setdiff(names(rows), names(out))
@@ -833,6 +1127,18 @@ if (sys.nframe() == 0L) {
   )
   for (v in wealth_basis_vars) base_fx[[v]] = 0
   for (v in wealth_accrual_vars) base_fx[[v]] = 0
+  # v2 assembler reads/writes these (split-sum pairs, demographics, deduction
+  # inputs); present them on the template fixture, zeroed.
+  for (v in c('age1', 'male1', 'age2', 'male2', 'filing_status', 'n_dep',
+              'dep_age1', 'dep_age2', 'dep_age3', 'filer', 'dep_status',
+              'blind1', 'blind2', 'n_dep_ctc', 'n_dep_eitc',
+              'wages1', 'wages2', 'ot', 'ot1', 'ot2', 'tips', 'tips1', 'tips2',
+              'sole_prop1', 'sole_prop2', 'part_se', 'part_se1', 'part_se2',
+              'farm1', 'farm2', 'txbl_pens_dist', 'ui', 'gross_ss',
+              'state_ref', 'alimony', 'txbl_ira_dist',
+              'char_cash', 'char_noncash', 'salt_prop')) {
+    base_fx[[v]] = 0
+  }
 
   # Source pool = top half by income (id 1, highest fiscal income) UNION top
   # half by net worth (id 2, highest value.equities). Receiver = wealthiest
@@ -842,38 +1148,96 @@ if (sys.nframe() == 0L) {
             pools_fx$receiver_ids %in% c(3L, 4L))
   cat('  [PASS] source pool spans top-income AND top-wealth records\n')
 
+  # v2 enriched input: /info demographics + /assets public-equity value +
+  # selfMade.type. Self-made tech founder, $1B net worth, $0.6B public.
   forbes_input_fx = tibble(
-    year = 2022L,
-    rank = 1L,
-    name = 'Fixture Billionaire',
-    net_worth = 1e9,
-    source_category = 'technology'
+    year = 2022L, rank = 1L, name = 'Fixture Billionaire',
+    net_worth = 1e9, source_category = 'technology',
+    birth_date = '1960-01-01', gender = 'm', marital_status = 'Married',
+    children = 2L, self_made_type = 'self-made', industry = 'technology',
+    public_equity_value = 6e8
   )
+  share_pool_fx = choose_forbes_share_pool(base_fx, n_records = 4)
+  dedn_fx = fit_forbes_deduction_model(base_fx)
   forbes_rows_fx = build_forbes_rows_for_year(
-    base_fx, forbes_input_fx, params_fx)
+    base_fx, forbes_input_fx, params_fx, share_pool_fx, dedn_fx)
   stopifnot(nrow(forbes_rows_fx) == 1L,
             forbes_rows_fx$forbes_flag == 1L,
+            is.na(forbes_rows_fx$forbes_donor_id),                # v2: no donor
             abs(forbes_net_worth(forbes_rows_fx) - 1e9) < 1,
             abs(forbes_fiscal_income(forbes_rows_fx) - 2e7) < 1,
             abs(forbes_category_value(forbes_rows_fx, 'business') + 1e6) < 1,
             abs(forbes_rows_fx$E00100 - 2e7) < 1)
-  cat('  [PASS] Forbes row construction hits wealth and income targets\n')
+  cat('  [PASS] assembled row hits wealth and income targets (no donor)\n')
+
+  # Wealth composition: public ticker'd -> value.equities; residual ->
+  # value.pass_throughs (tech, not real estate); sums exactly to net worth.
+  stopifnot(abs(forbes_rows_fx$`value.equities`     - 6e8) < 1,
+            abs(forbes_rows_fx$`value.pass_throughs` - 4e8) < 1,
+            abs(forbes_rows_fx$`value.re_fund`)       < 1)
+  cat('  [PASS] wealth composition splits public vs private residual\n')
+
+  # Founder basis: self-made -> ~0 basis on the appreciating founding assets.
+  stopifnot(forbes_rows_fx$`basis.equities`      == 0,
+            forbes_rows_fx$`basis.pass_throughs`  == 0)
+  # Inherited counterpart -> stepped-up basis ~ value.
+  inh_input = forbes_input_fx; inh_input$self_made_type = 'inherited'
+  inh_row = build_forbes_rows_for_year(
+    base_fx, inh_input, params_fx, share_pool_fx, dedn_fx)
+  stopifnot(abs(inh_row$`basis.equities`     - inh_row$`value.equities`)     < 1,
+            abs(inh_row$`basis.pass_throughs` - inh_row$`value.pass_throughs`) < 1)
+  cat('  [PASS] founder basis ~0; inherited basis ~ value (stepped-up)\n')
+
+  # Demographics: birthDate->age, gender->male1, Married->MFJ + assumed
+  # spouse (opposite sex, same age), older principal -> no dependents.
+  stopifnot(forbes_rows_fx$age1 == 2022L - 1960L,
+            forbes_rows_fx$male1 == 1L,
+            forbes_rows_fx$filing_status == 2L,
+            forbes_rows_fx$age2 == forbes_rows_fx$age1,
+            forbes_rows_fx$male2 == 0L,
+            forbes_rows_fx$n_dep == 0L)
+  cat('  [PASS] demographics map from /info (age, sex, MFJ, spouse)\n')
+
+  # Split-sum identities must hold to MACHINE PRECISION (Tax-Simulator depends
+  # on these). v2 sets all to the primary filer.
+  for (p in forbes_split_pairs) {
+    if (all(p %in% names(forbes_rows_fx))) {
+      lhs = forbes_rows_fx[[p[2]]] + forbes_rows_fx[[p[3]]]
+      stopifnot(identical(lhs, forbes_rows_fx[[p[1]]]),
+                forbes_rows_fx[[p[3]]] == 0)
+    }
+  }
+  cat('  [PASS] split-sum identities exact on synthetic row (all-to-primary)\n')
 
   # Negative business target (BSYZ top-100 business share is negative —
-  # billionaires report net business losses). Donor row 3 has zero business
-  # income, so set_category_on_row must rebuild the category from the loss/
-  # 179 components and land exactly on the negative target. This is the
-  # least-traveled branch (sign(current) != sign(target)); test it directly.
-  neg_row  = base_fx[3, , drop = FALSE]
+  # billionaires report net business losses). On a zeroed assembler row,
+  # set_category_on_row rebuilds the category from the loss/179 components and
+  # must land exactly on the negative target.
+  neg_row  = base_fx[3, , drop = FALSE]; neg_row[, names(neg_row)] = 0
   neg_out  = set_category_on_row(neg_row, -5e5, 'business', base_fx)
   neg_val  = forbes_category_value(neg_out, 'business')
   pos_part = neg_out$sole_prop + neg_out$farm +
              neg_out$scorp_active + neg_out$scorp_passive +
              neg_out$part_active + neg_out$part_passive
-  stopifnot(abs(neg_val - (-5e5)) < 1,   # hits the negative target
-            neg_val < 0,                  # net-negative as intended
-            pos_part == 0)                # positive components zeroed
+  stopifnot(abs(neg_val - (-5e5)) < 1, neg_val < 0, pos_part == 0)
   cat('  [PASS] negative business target builds net-negative composition\n')
+
+  # Deduction model: charity ~ wealth fit on a synthetic PUF top, capped.
+  set.seed(1)
+  n_d = 400L
+  nw_d = exp(rnorm(n_d, log(5e7), 1))
+  char_d = pmax(0, 0.01 * nw_d * exp(rnorm(n_d, 0, 0.3)))
+  dedn_base = tibble(
+    weight = 1, char_cash = 0.6 * char_d, char_noncash = 0.4 * char_d,
+    salt_prop = 1e4, `value.equities` = nw_d
+  )
+  for (v in setdiff(wealth_output_vars, 'value.equities')) dedn_base[[v]] = 0
+  dm = fit_forbes_deduction_model(dedn_base, top_q = 0.9, cap_frac = 0.05)
+  ded_row = set_forbes_deductions(forbes_rows_fx, dm, net_worth = 1e9)
+  char_tot = ded_row$char_cash + ded_row$char_noncash
+  stopifnot(!is.na(dm$b1), char_tot > 0, char_tot <= 0.05 * 1e9 + 1,
+            abs(ded_row$char_cash / char_tot - 0.6) < 0.05)
+  cat('  [PASS] deduction model fits charity ~ wealth and caps the tail\n')
 
   proj_ledger_fx = tibble(
     year = 2023L,
@@ -893,16 +1257,17 @@ if (sys.nframe() == 0L) {
   cat('  [PASS] projected Forbes metadata recomputes from aged values\n')
 
   forbes_rows_fx$splice_year = 2022L
+  # v2 mortality: looked up from the synthetic ledger by (year, synthetic id),
+  # NOT copied from a donor. Fixture ledger pins q_death for the synthetic id.
   splice_fx = list(
     rows = forbes_rows_fx,
     weight_adjustments = tibble(
-      year = 2022L,
-      id = 1L,
-      old_weight = 10,
-      delta_weight = -5,
-      role = 'source',
-      new_weight = 5,
-      weight_factor = 0.5
+      year = 2022L, id = 1L, old_weight = 10, delta_weight = -5,
+      role = 'source', new_weight = 5, weight_factor = 0.5
+    ),
+    mortality = tibble(
+      year = 2022L, id = forbes_rows_fx$id,
+      q_death1 = 0.05, q_death2 = 0.04
     ),
     years = 2022L:2025L
   )
@@ -912,9 +1277,9 @@ if (sys.nframe() == 0L) {
   stopifnot(nrow(applied_fx) == nrow(base_fx) + 1L,
             applied_fx$weight[applied_fx$id == 1L] == 5,
             nrow(appended_fx) == 1L,
-            appended_fx$q_death1 ==
-              base_fx$q_death1[base_fx$id == appended_fx$forbes_donor_id])
-  cat('  [PASS] materialized output applies weights and appends Forbes rows\n')
+            appended_fx$q_death1 == 0.05,        # own pinned-p100 mortality
+            appended_fx$q_death2 == 0.04)
+  cat('  [PASS] materialized output applies weights, appends rows, sets q_death\n')
 
   forbes_fx = base_fx[1, , drop = FALSE]
   forbes_fx$id = 2025000001
