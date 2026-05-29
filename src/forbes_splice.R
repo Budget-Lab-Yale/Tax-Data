@@ -416,117 +416,151 @@ build_splice_pools = function(base_df,
 }
 
 
+# Weight calibration: nudge existing-record weights so that appending the
+# Forbes billionaires preserves count + the six income-category totals while
+# net worth is allowed to grow by exactly the spliced wealth.
+#
+# Primary method is a RIDGE QP (osqp): minimize sum (delta_i / w_i)^2 — the
+# squared relative weight change — so the adjustment SPREADS gently across
+# many records instead of the sparse corner solution an L1 objective produces
+# (which zeroed ~1,300 records and pinned a dozen at the cap). Every source
+# weight is floored at `factor_lo` x its original (no record loses more than
+# (1 - factor_lo) of its weight; no silent deletions); receivers are capped at
+# `receiver_max_factor`x.
+#
+# If osqp is unavailable or fails to certify every constraint within tolerance
+# (a single year can fail to converge), we WARN and fall back to the L1 LP
+# (lpSolveAPI), which is exact but sparse — so the pipeline always gets a
+# valid calibration rather than crashing or shipping an uncalibrated splice.
+#
+# Tolerances are fractions of a meaningful scale, not fixed absolute floors
+# (those were sized for the unit-test fixture and are meaningless against real
+# trillion-dollar aggregates): count + income to `rel_tol` of their own
+# injection; net worth (target 0) to `wealth_rel_tol` of the spliced wealth.
 solve_forbes_weight_calibration = function(base_df, forbes_rows,
                                            source_ids, receiver_ids,
                                            rel_tol = 0.005,
                                            wealth_rel_tol = 0.001,
+                                           factor_lo = 0.1,
                                            receiver_max_factor = 10,
+                                           receiver_ridge = 1.0,
+                                           max_iter = 200000L,
                                            receiver_penalty = 1.1) {
   if (nrow(forbes_rows) == 0L) {
-    return(list(
-      weights = tibble::tibble(),
-      constraints = tibble::tibble(),
-      status = 'empty'
-    ))
-  }
-  if (!requireNamespace('lpSolveAPI', quietly = TRUE)) {
-    stop('lpSolveAPI is required for Forbes splice calibration.')
+    return(list(weights = tibble::tibble(), constraints = tibble::tibble(),
+                status = 'empty', method = 'none'))
   }
 
   source = base_df[match(source_ids, base_df$id), , drop = FALSE]
   receiver = base_df[match(receiver_ids, base_df$id), , drop = FALSE]
   source = source[!is.na(source$id), , drop = FALSE]
   receiver = receiver[!is.na(receiver$id), , drop = FALSE]
-  n_s = nrow(source)
-  n_r = nrow(receiver)
-  n_vars = n_s + n_r
+  n_s = nrow(source); n_r = nrow(receiver); n_vars = n_s + n_r
   if (n_vars == 0L) stop('Forbes splice calibration has no candidate rows.')
+  ws = source$weight; wr = receiver$weight
 
   constraint_names = c('count', 'net_worth', names(forbes_income_categories))
-  x_source = list(
-    count = rep(1, n_s),
-    net_worth = forbes_net_worth(source)
-  )
-  x_receiver = list(
-    count = rep(1, n_r),
-    net_worth = forbes_net_worth(receiver)
-  )
-  x_forbes = list(
-    count = rep(1, nrow(forbes_rows)),
-    net_worth = forbes_net_worth(forbes_rows)
-  )
+  x_source   = list(count = rep(1, n_s), net_worth = forbes_net_worth(source))
+  x_receiver = list(count = rep(1, n_r), net_worth = forbes_net_worth(receiver))
+  x_forbes   = list(count = rep(1, nrow(forbes_rows)),
+                    net_worth = forbes_net_worth(forbes_rows))
   for (cat in names(forbes_income_categories)) {
-    x_source[[cat]] = forbes_category_value(source, cat)
+    x_source[[cat]]   = forbes_category_value(source, cat)
     x_receiver[[cat]] = forbes_category_value(receiver, cat)
-    x_forbes[[cat]] = forbes_category_value(forbes_rows, cat)
+    x_forbes[[cat]]   = forbes_category_value(forbes_rows, cat)
+  }
+  targets = sapply(constraint_names, function(nm)
+    if (nm == 'net_worth') 0 else -sum(forbes_rows$weight * x_forbes[[nm]]))
+  spliced_nw = sum(forbes_rows$weight * x_forbes[['net_worth']])
+  abs_tol = sapply(constraint_names, function(nm)
+    if (nm == 'net_worth') wealth_rel_tol * abs(spliced_nw)
+    else max(abs(targets[[nm]]) * rel_tol, 1))
+
+  # Assemble the standard result list from a (d_source, d_receiver) solution.
+  # weight_factor relative slack on `ok`: the optimizer parks binding
+  # constraints on the tolerance edge, and recomputing the gap carries FP
+  # noise of order (magnitude x 1e-15) that swamps a fixed absolute slack.
+  build_result = function(d_source, d_receiver, method) {
+    weight_rows = dplyr::bind_rows(
+      tibble::tibble(id = source$id,   old_weight = ws,
+                     delta_weight = -d_source, role = 'source'),
+      tibble::tibble(id = receiver$id, old_weight = wr,
+                     delta_weight =  d_receiver, role = 'receiver')
+    ) %>%
+      dplyr::filter(abs(delta_weight) > 1e-10) %>%
+      dplyr::mutate(new_weight = pmax(old_weight + delta_weight, 0),
+                    weight_factor = new_weight / old_weight)
+    constraint_rows = lapply(constraint_names, function(nm) {
+      achieved = sum(-d_source * x_source[[nm]]) + sum(d_receiver * x_receiver[[nm]])
+      tibble::tibble(constraint = nm, target_delta = targets[[nm]],
+                     achieved_delta = achieved, gap = achieved - targets[[nm]],
+                     tolerance = abs_tol[[nm]],
+                     ok = abs(achieved - targets[[nm]]) <= abs_tol[[nm]] * (1 + 1e-6))
+    }) %>% dplyr::bind_rows()
+    list(weights = weight_rows, constraints = constraint_rows,
+         status = 'solved', method = method)
   }
 
-  targets = sapply(constraint_names, function(nm) {
-    if (nm == 'net_worth') 0 else -sum(forbes_rows$weight * x_forbes[[nm]])
-  })
-  # Tolerances are fractions of a meaningful scale, not fixed absolute floors
-  # (which were sized for the unit-test fixture and are meaningless against
-  # real trillion-dollar aggregates). Count and the six income constraints:
-  # a fraction `rel_tol` of their own injection. Net worth (target 0): a
-  # fraction `wealth_rel_tol` of the spliced billionaire wealth — the
-  # quantity whose pollution by existing-record reweighting we are bounding.
-  # The $1 floor keeps tolerance positive when a category has no injection.
-  spliced_nw = sum(forbes_rows$weight * x_forbes[['net_worth']])
-  abs_tol = sapply(constraint_names, function(nm) {
-    if (nm == 'net_worth') wealth_rel_tol * abs(spliced_nw)
-    else max(abs(targets[[nm]]) * rel_tol, 1)
+  # ---- Primary: ridge QP via osqp ------------------------------------------
+  # Change of variables u = delta / w (relative change) + per-row tolerance
+  # scaling condition the QP: bounds become O(1) and the ridge objective is a
+  # clean diagonal. u_source in [0, 1-factor_lo], u_receiver in [0, maxf-1].
+  ridge = tryCatch({
+    if (!requireNamespace('osqp', quietly = TRUE) ||
+        !requireNamespace('Matrix', quietly = TRUE))
+      stop('osqp/Matrix not installed')
+    A_agg = matrix(0, length(constraint_names), n_vars)
+    for (i in seq_along(constraint_names)) {
+      nm = constraint_names[i]
+      A_agg[i, ] = c(-ws * x_source[[nm]], wr * x_receiver[[nm]])
+    }
+    A_agg = sweep(A_agg, 1, abs_tol, '/')
+    A  = Matrix::rbind2(Matrix::Diagonal(n_vars),
+                        Matrix::Matrix(A_agg, sparse = TRUE))
+    lo = c(rep(0, n_vars),                       targets / abs_tol - 1)
+    up = c(rep(1 - factor_lo, n_s),
+           rep(receiver_max_factor - 1, n_r),    targets / abs_tol + 1)
+    P  = Matrix::Diagonal(n_vars,
+                          x = 2 * c(rep(1, n_s), rep(receiver_ridge, n_r)))
+    m = osqp::osqp(P, rep(0, n_vars), A, lo, up,
+                   pars = osqp::osqpSettings(verbose = FALSE, eps_abs = 1e-7,
+                                             eps_rel = 1e-7, max_iter = max_iter,
+                                             polish = TRUE))
+    s = m$Solve(); uu = s$x; uu[uu < 0] = 0
+    list(d_source = uu[seq_len(n_s)] * ws,
+         d_receiver = uu[n_s + seq_len(n_r)] * wr,
+         osqp_status = s$info$status)
+  }, error = function(e) {
+    warning('Forbes ridge calibration errored: ', conditionMessage(e)); NULL
   })
 
+  if (!is.null(ridge)) {
+    res = build_result(ridge$d_source, ridge$d_receiver, 'ridge')
+    if (all(res$constraints$ok)) return(res)
+    warning(sprintf(
+      'Forbes ridge calibration did not certify all constraints (osqp: %s); falling back to L1.',
+      ridge$osqp_status))
+  }
+
+  # ---- Fallback: L1 LP via lpSolveAPI (exact, sparse) ----------------------
+  if (!requireNamespace('lpSolveAPI', quietly = TRUE))
+    stop('lpSolveAPI required for the L1 fallback calibration.')
   lprw = lpSolveAPI::make.lp(0, n_vars)
   lpSolveAPI::set.objfn(lprw, c(rep(1, n_s), rep(receiver_penalty, n_r)))
-  upper = c(source$weight, receiver$weight * (receiver_max_factor - 1))
-  lpSolveAPI::set.bounds(lprw, lower = rep(0, n_vars),
-                         upper = upper, columns = seq_len(n_vars))
-
+  # L1 honors the same source floor + receiver cap as the ridge path.
+  upper = c(ws * (1 - factor_lo), wr * (receiver_max_factor - 1))
+  lpSolveAPI::set.bounds(lprw, lower = rep(0, n_vars), upper = upper,
+                         columns = seq_len(n_vars))
   for (nm in constraint_names) {
     coef = c(-x_source[[nm]], x_receiver[[nm]])
     lpSolveAPI::add.constraint(lprw, coef, '<=', targets[[nm]] + abs_tol[[nm]])
     lpSolveAPI::add.constraint(lprw, coef, '>=', targets[[nm]] - abs_tol[[nm]])
   }
-
   solution = solve(lprw)
-  if (solution != 0) {
-    stop('Forbes splice calibration failed with lpSolve status ', solution)
-  }
+  if (solution != 0)
+    stop('Forbes splice L1 fallback failed with lpSolve status ', solution)
   sol = lpSolveAPI::get.variables(lprw)
-  d_source = sol[seq_len(n_s)]
-  d_receiver = sol[n_s + seq_len(n_r)]
-
-  weight_rows = dplyr::bind_rows(
-    tibble::tibble(id = source$id, old_weight = source$weight,
-                   delta_weight = -d_source, role = 'source'),
-    tibble::tibble(id = receiver$id, old_weight = receiver$weight,
-                   delta_weight = d_receiver, role = 'receiver')
-  ) %>%
-    dplyr::filter(abs(delta_weight) > 1e-10) %>%
-    dplyr::mutate(new_weight = old_weight + delta_weight,
-                  weight_factor = new_weight / old_weight)
-
-  constraint_rows = lapply(constraint_names, function(nm) {
-    achieved = sum(-d_source * x_source[[nm]]) +
-               sum( d_receiver * x_receiver[[nm]])
-    tibble::tibble(
-      constraint = nm,
-      target_delta = targets[[nm]],
-      achieved_delta = achieved,
-      gap = achieved - targets[[nm]],
-      tolerance = abs_tol[[nm]],
-      # Relative slack: the LP parks binding constraints exactly on the
-      # tolerance edge, and recomputing the gap here carries FP noise of
-      # order (magnitude × 1e-15), which swamps a fixed 1e-8 absolute slack
-      # at billion-dollar magnitudes and spuriously flips ok to FALSE.
-      ok = abs(achieved - targets[[nm]]) <= abs_tol[[nm]] * (1 + 1e-6)
-    )
-  }) %>% dplyr::bind_rows()
-
-  list(weights = weight_rows,
-       constraints = constraint_rows,
-       status = 'solved')
+  build_result(sol[seq_len(n_s)], sol[n_s + seq_len(n_r)], 'l1_fallback')
 }
 
 

@@ -3,6 +3,7 @@ magrittr
 yaml
 haven
 lpSolveAPI
+osqp
 Hmisc
 data.table
 quantregForest
