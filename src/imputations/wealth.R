@@ -146,7 +146,24 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
                                   debug_output  = FALSE,
                                   min_node_size = NULL,
                                   tilt_options  = list(),
-                                  skip_tilt     = FALSE) {
+                                  skip_tilt     = FALSE,
+                                  target_scf    = NULL,
+                                  cache_tag     = '') {
+
+  # target_scf: optional SCF table used as the *calibration target source*
+  # (Stage 3 target QC + Step B per-cell SCF totals) in place of the donor
+  # pool. The donor pool (bootstrap / per-cell DRF / tilt / accruals) always
+  # uses `scf_tax_units`. This separation lets a pooled-donor prototype feed
+  # a multi-wave pool into the donors while keeping targets pinned to a
+  # single wave (e.g. target_scf = pooled[donor_wave == 2022, ]). It must
+  # carry the same columns scf_to_y() + the income-composition fields need
+  # (the stage1 schema does). Default NULL => target source = scf_tax_units,
+  # i.e. byte-identical to production.
+  #
+  # cache_tag: optional suffix appended to the per-cell DRF cache names so a
+  # prototype trained on a different donor pool trains fresh forests and
+  # never clobbers production caches. Default '' => production names
+  # (wealth_percell_<cell>_mns<mns>) are unchanged.
 
   # skip_tilt = TRUE: bail out after Stage 2's uniform-leaf-draw
   # (pre_tilt_donors). No tilt, no Step B rescale. Returns the same shape
@@ -328,7 +345,8 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     # sizes (production = 50) don't collide on the same cache file.
     drf_cell = train_or_load_drf(
       name          = paste0('wealth_percell_', ci,
-                              '_mns', min_node_size),
+                              '_mns', min_node_size,
+                              if (nzchar(cache_tag)) paste0('_', cache_tag) else ''),
       X             = as.matrix(scf_boot_list[[ci_idx]][features]),
       Y             = as.matrix(scf_boot_list[[ci_idx]][wealth_y_vars]),
       num.features  = 50,
@@ -571,10 +589,17 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # filer on singles. Income: unfloored sum of the 7 SCF composition
   # cols (same formula as the forest feature, matching build_record_bucket's
   # PUF-side formula).
-  scf_y = scf_to_y(scf_tax_units)
-  scf_age2    = ifelse(is.na(scf_tax_units$age2), 0L, scf_tax_units$age2)
-  scf_age_older = pmax(pmin(MAX_AGE, scf_tax_units$age1), pmin(MAX_AGE, scf_age2))
-  scf_income  = with(scf_tax_units,
+  # Calibration-target source. Defaults to the donor pool (scf_tax_units)
+  # unless target_scf was supplied, in which case targets (and Step B's SCF
+  # totals, which read scf_y / scf_cells_df below) are pinned to that table.
+  # Donor-side objects (Y_mat, donor_cats, the cat matrices, boot_idx) are
+  # built above off scf_tax_units and are deliberately untouched here.
+  scf_target = if (is.null(target_scf)) scf_tax_units else target_scf
+
+  scf_y = scf_to_y(scf_target)
+  scf_age2    = ifelse(is.na(scf_target$age2), 0L, scf_target$age2)
+  scf_age_older = pmax(pmin(MAX_AGE, scf_target$age1), pmin(MAX_AGE, scf_age2))
+  scf_income  = with(scf_target,
     wages_scf + business_scf + int_div_scf + capital_gains_scf +
     rent_scf + ss_pens_scf + ui_other_scf
   )

@@ -24,9 +24,15 @@ interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
 # Get current date/time to vintage this run
 vintage = format(Sys.time(), '%Y%m%d%H')
 
-# Set additional boolean parameters
-do_lp           = 1
-estimate_models = 1
+# Set additional boolean parameters. Default to a full from-scratch run
+# (re-solve LP, retrain all imputation models). Override via env for a
+# cache-loading run — e.g. a wealth-only iteration that reuses the Phase-1/2
+# fits + the LP solve unchanged:
+#   TAXDATA_DO_LP=0 TAXDATA_ESTIMATE_MODELS=0 Rscript src/main.R
+# A downstream wrapper that assigns these after sourcing configure (e.g.
+# main_placeholder.R) still overrides whatever is set here.
+do_lp           = as.integer(Sys.getenv('TAXDATA_DO_LP',           unset = '1'))
+estimate_models = as.integer(Sys.getenv('TAXDATA_ESTIMATE_MODELS', unset = '1'))
 
 # Set output root
 if (runscript$runtime_options$write_locally) {

@@ -63,10 +63,11 @@ source('./src/record_bucket.R')
 source('./src/dfa_factors.R')
 module_deltas = list()
 
-# Wealth — SCF 2022 donor, runs at 2022 base.
+# Wealth — pooled (2019+2022) SCF donor, runs at 2022 base.
 source('./src/imputations/stage1_scf_tax_units.R')
 source('./src/imputations/wealth.R')
 source('./src/forbes_splice.R')
+source('./src/imputations/pool_scf_donors.R')
 
 # Remove SCF billionaire-like donors before baseline wealth imputation only
 # when explicit Forbes records are available to add back. The resource file in
@@ -90,6 +91,22 @@ if (nrow(forbes_input_preview) > 0L) {
     )
   )
   scf_tax_units_wealth = scf_tax_units
+}
+
+# Pooled donor set (SCF 2019 reflated to 2022$ ⊕ SCF 2022), built to de-lump
+# the imputed wealth top tail (DRF is empirical-support, so a thin SCF top
+# clones donors across high-weight PUF records). The pool feeds ONLY the
+# donor side of run_wealth_imputation; calibration targets stay pinned to
+# 2022 via target_scf = scf_tax_units_wealth (the full-weight, purged 2022
+# table built above). The pool's own equal-population reweighting must NOT
+# reach the targets — see pool_scf_donors.R. Billionaires are purged from
+# the pool under the same Forbes-input gate as the 2022 path.
+# (TODO: once validated, retire the SCF-2022-only donor path entirely.)
+pooled_donors = build_pooled_scf_donors(scf_2022 = scf_tax_units)
+pooled_donors_wealth = if (nrow(forbes_input_preview) > 0L) {
+  purge_scf_billionaires(pooled_donors, threshold = 1e9)$scf_tax_units
+} else {
+  pooled_donors
 }
 
 puf_2022 = materialize(2022L, tax_units, factor_ledger, weight_ledger,
@@ -129,7 +146,16 @@ write_rds(bucketed_factor_ledger,
 cat(sprintf('main.R: bucketed_factor_ledger built (%d rows)\n',
             nrow(bucketed_factor_ledger)))
 
-wealth_result = run_wealth_imputation(puf_2022, scf_tax_units_wealth)
+# Donor pool = pooled 2019+2022 (de-lumped). Target source = full-weight,
+# purged 2022 (target_scf). cache_tag keeps the pooled per-cell DRF forests
+# in their own cache namespace. chunk_size halves the tilt's peak donor-
+# weight matrix (the pooled bottom cell has ~2x the donors); memory only,
+# no effect on results.
+wealth_result = run_wealth_imputation(
+  puf_2022, pooled_donors_wealth,
+  target_scf   = scf_tax_units_wealth,
+  cache_tag    = 'pool1922',
+  tilt_options = list(chunk_size = 1000L))
 module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
 
 # Forbes billionaire splice. If the Forbes input file is empty or absent, this
@@ -182,7 +208,7 @@ write_rds(forbes_splice$diagnostics,
           file.path(output_path, 'forbes_splice_diagnostics.rds'))
 
 rm(puf_2022, wealth_result, scf_purge_result, scf_tax_units_wealth,
-   forbes_input_preview)
+   forbes_input_preview, pooled_donors, pooled_donors_wealth)
 
 
 #-----------------------
