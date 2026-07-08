@@ -173,15 +173,15 @@ stopifnot(!any(is.na(puf[features])))
 # consumption.R). Floor at 0: DINA `ditas` can be negative (net state refunds),
 # so a few training rates are < 0; a negative combined state+local burden rate
 # is not meaningful for the ATR use, so clip it away.
-puf$state_local_tax_rate = pmax(predict_ranger_draw(salt_rate_rf, puf[features]), 0)
+puf$dina_other_taxes_rate = pmax(predict_ranger_draw(salt_rate_rf, puf[features]), 0)
 
 cat(sprintf(paste0('state_local_tax.R: imputed rate onto %d PUF units; ',
                    'weighted mean rate = %.3f, median = %.3f\n'),
             nrow(puf),
-            weighted.mean(puf$state_local_tax_rate, puf$weight),
-            median(puf$state_local_tax_rate)))
+            weighted.mean(puf$dina_other_taxes_rate, puf$weight),
+            median(puf$dina_other_taxes_rate)))
 
-tax_units %<>% left_join(puf %>% select(id, state_local_tax_rate), by = 'id')
+tax_units %<>% left_join(puf %>% select(id, dina_other_taxes_rate), by = 'id')
 
 # Save diagnostics for the validation script (only during test runs)
 if (exists('save_salt_diagnostics') && save_salt_diagnostics) {
