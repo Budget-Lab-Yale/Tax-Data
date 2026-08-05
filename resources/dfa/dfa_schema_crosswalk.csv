@@ -1,0 +1,33 @@
+y_var,dfa_variable,aggregation,note
+value.cash,Deposits + Money market fund shares,sum,"cash = checking/savings/CDs (Deposits) + MMF (Money market fund shares)"
+value.equities,Corporate equities and mutual fund shares,direct,"note: DFA definition excludes equities/MMF held via DC pensions"
+value.bonds,U.S. government and municipal securities + Corporate and foreign bonds,sum,"equals DFA aggregate 'Debt securities'"
+value.dc,DC pension entitlements,direct,"split out from prior 'retirement' bundle (2026-04-29)"
+value.db,DB pension entitlements,direct,"split out from prior 'retirement' bundle (2026-04-29)"
+value.life_ins,Life insurance reserves,direct,
+value.annuities,Annuities,direct,
+value.trusts,,none,"DFA doesn't split trusts out; partially captured in 'Miscellaneous other equity' / 'Miscellaneous assets' but mixed with other equity holdings — flag as not directly calibratable"
+value.other_fin,Miscellaneous assets + Loans (Assets) + Miscellaneous other equity (residual after trusts+pass_throughs),residual,"DFA residual; depends on how trusts + pass_throughs are resolved"
+value.pass_throughs,Miscellaneous other equity,direct_approx,"DFA detail file rolls private-business equity into 'Misc other equity'; aggregate file has a clean 'Private businesses' column if we prefer that"
+value.primary_home,Real estate,share_of,"DFA Real estate is total owner-occupied+other+nonresidential; primary_home is a subset; use SCF share to split"
+value.other_home,Real estate,share_of,see value.primary_home
+value.re_fund,Real estate,share_of,see value.primary_home
+value.other_nonfin,Consumer durables,direct,
+value.primary_mortgage,Home mortgages,share_of,"DFA splits residential mortgage debt by property; split via SCF share"
+value.other_mortgage,Home mortgages,share_of,see value.primary_mortgage
+value.credit_lines,Consumer credit,share_of,"DFA doesn't separate lines/cards/installment; use SCF share"
+value.credit_cards,Consumer credit,share_of,see value.credit_lines
+value.installment_debt,Consumer credit,share_of,see value.credit_lines
+value.other_debt,Depository institutions loans n.e.c. + Other loans and advances (Liabilities) + Deferred and unpaid life insurance premiums,sum,
+basis.primary_home,,derived,"basis inherits primary_home grower (basis = value − unrealized gain; preserved as constant fraction)"
+basis.other_home,,derived,"basis inherits other_home grower"
+basis.re_fund,,derived,"basis inherits re_fund grower"
+basis.pass_throughs,,derived,"basis inherits pass_throughs grower"
+basis.equities,,derived,"basis inherits equities grower"
+accruals.equities,,derived,"accruals inherits value.equities grower (rate × value, rate frozen at 2022 donor year)"
+accruals.pass_throughs,,derived,"accruals inherits value.pass_throughs grower"
+accruals.primary_home,,derived,"accruals inherits value.primary_home grower"
+accruals.other_home,,derived,"accruals inherits value.other_home grower"
+accruals.re_fund,,derived,"accruals inherits value.re_fund grower"
+accruals.dc,,derived,"accruals inherits value.dc grower (per-record DC equity share is donor-frozen at 2022)"
+accruals.trusts,,derived,"accruals inherits value.trusts grower (trust portfolio mix frozen at 2022)"

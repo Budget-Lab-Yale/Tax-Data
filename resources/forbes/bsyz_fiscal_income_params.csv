@@ -1,0 +1,4 @@
+rank_group,rank_min,rank_max,fiscal_income_to_wealth,capital_gains,dividends,interest,business,rent_estate_other,wages_pensions
+top100,1,100,0.0175148043,0.62,0.28,0.11,-0.11,0.06,0.05
+next300,101,400,0.0346266277,0.60,0.16,0.08,0.04,0.06,0.05
+rest_billionaires,401,999999,0.0346266277,0.60,0.16,0.08,0.04,0.06,0.05

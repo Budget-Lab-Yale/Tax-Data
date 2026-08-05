@@ -22,10 +22,13 @@ reweight_lp = function(puf, targets, do_lp, e = NULL, e_runs = 10) {
   #          factors; if not, returns NULL
   #----------------------------------------------------------------------------  
   
-  if(do_lp){
+  # estimate_models = 1 is the master "rebuild from source" flag and forces
+  # a fresh LP solve here too, so a front-to-back re-estimation run cannot
+  # silently inherit a stale weight_deltas cache when do_lp = 0.
+  if (do_lp || estimate_models) {
     # Construct left hand side of constraint equations
     lhs = build_lhs(puf, targets)
-    
+
     # Run Linear Programming solver
     weight_deltas = run_lp(lhs, targets, e, e_runs)
     write_rds(weight_deltas, 'resources/cache/lp/weight_deltas.rds')

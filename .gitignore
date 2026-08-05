@@ -3,3 +3,26 @@
 .RData
 .Ruserdata
 config/interfaces/output_roots.yaml
+
+# Local / generated
+.claude/
+plots/
+docs/
+src/eda/
+resources/cache/
+resources/forbes/cache/
+slurm_*.sh
+slurm_*.out
+slurm_*.err
+AM_STATUS.md
+AM_STATUS.html
+.last_phase12_output_path
+
+# Raw downloads — regenerate via ingest scripts (now in eda, gitignored)
+resources/dfa/dfa.zip
+resources/dfa/raw/
+resources/dfa/dfa_raw_networth_levels.csv
+
+# Local validation runners
+run_pipeline_*.sh
+validation_diff.log
