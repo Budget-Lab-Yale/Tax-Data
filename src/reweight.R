@@ -209,7 +209,7 @@ tune_epsilon = function(lp, ncol, iters) {
       epsilon = test
       test    = (test - low) / 2 + low
     } else {
-      l    = test
+      low  = test
       test = (high - test) / 2 + test
     }
   }
