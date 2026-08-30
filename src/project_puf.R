@@ -440,7 +440,38 @@ build_factor_rows_2020plus = function(y) {
   # universe-restricted, na.rm will silently swallow them — re-audit if
   # the audit_ext_factor_nas.R script (or its successor) starts flagging
   # variables outside the wagebill_* family.
+  # FILERS ONLY (changed 2026-08-30, Tax-Simulator group D proposal 1).
+  #
+  # This mask used to run over every record, non-filers included, because
+  # main.R appends them (line 41) before project_puf runs (line 49). The
+  # factor it produces has no filer dimension, so whatever the non-filers did
+  # to it landed on filer values too -- and the two groups' weights grow at
+  # different rates by construction (compute_weights_for_year gives filers IRS
+  # return-count growth and non-filers pure demographic growth, and non-filers
+  # skew old). Measured divergence from 2019: +4.66% by 2025, +18.56% by 2055.
+  #
+  # The resulting bias in the shared factor, from
+  #   extensive_new / extensive_old - 1 = s * (r_N / r_F - 1),
+  # s being the non-filer share of the mask:
+  #
+  #     interest   9.0% of mask   +0.42% (2025)  +1.67% (2055)   NEW channel
+  #     dividends  4.0%           +0.19%         +0.74%          NEW channel
+  #     wages      7.2%           +0.34%         +1.34%          already open
+  #     pensions   8.5%           +0.39%         +1.57%          already open
+  #
+  # Because the extensive factor DIVIDES, a positive bias makes filer values
+  # grow too slowly. Note the last two rows: DINA carries wages and pension
+  # income, so this channel is ALREADY open on main -- E2's tripwire does not
+  # hold today either. The ASEC pool widens it on two more variables because
+  # DINA carries exactly 0.0% interest and dividend receipt.
+  #
+  # Restricting to filers is also the more defensible reading on its own
+  # terms: the numerator this divides into (income_factors, from SOI and CBO
+  # 1040 series) is a filer-derived quantity, so the denominator should be too.
+  # Diagnostic: Tax-Simulator research/state_weights/nonfiler_pool/
+  # 11_extensive_factor_contamination.R
   ext_df = tax_units %>%
+    filter(filer == 1) %>%
     select(id, all_of(var_growth_map$variable)) %>%
     left_join(w19, by = 'id') %>%
     left_join(nw_y, by = 'id') %>%
