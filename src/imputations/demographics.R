@@ -38,7 +38,10 @@ male_dist = dina_2017 %>%
 
 # Back out imputation probabilities by targeting DINA male shares
 male_dist_impute = tax_units %>%
-  mutate(sex = as.integer(if_else(filer == 0, NA, GENDER == 1))) %>%
+  # filer == 0 used to be forced to NA because the DINA append carried no
+  # sex at all. The ASEC pool carries it OBSERVED (S14), so those records now
+  # report like filers do and stop being imputed against a DINA target.
+  mutate(sex = as.integer(GENDER == 1)) %>%
   filter(filing_status != 2) %>%
   group_by(filer, has_kids = n_dep_ctc > 0, employed = wages > 0) %>%
   summarise(male     = sum((!is.na(sex) & sex == 1) * weight),
@@ -64,8 +67,11 @@ tax_units %<>%
             by = c('filer', 'has_kids', 'employed')) %>%
   mutate(
 
-    # Choose randomly for all nonfilers
-    GENDER = if_else(filer == 0, NA, GENDER),
+    # (was: GENDER = if_else(filer == 0, NA, GENDER) -- blanked every
+    # non-filer's sex so the case_when below drew it at random. The pool
+    # reports sex, so blanking it would discard an observation and reinstate
+    # the four filer = 0 cells S14 exists to remove. Any non-filer record that
+    # genuinely lacks GENDER still falls through to the random branch.)
 
     # Primary earner
     male1 = case_when(

@@ -16,6 +16,16 @@ IRS-PUF:
   type: raw_data
   version: 1
   
+# The constructed non-filer population (Tax-Simulator branch state-tax,
+# research/state_weights/nonfiler_pool). Replaces the DINA non-filer append.
+ASEC-Nonfilers:
+  type: model_data
+  version: 1
+
+# DINA STAYS until its second consumer is also retired. impute_nonfilers.R no
+# longer reads it, but src/imputations/demographics.R still uses its sex split
+# for the filer = 1 cells. Removing the entry before that lands would break a
+# pipeline that currently runs.
 DINA:
   type: raw_data
   version: 1
