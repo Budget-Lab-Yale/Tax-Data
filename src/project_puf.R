@@ -200,13 +200,35 @@ for (y in 2018:2097) {
 # Weight-source inputs
 #-------------------------------------
 
-irs_growth_factors_demog = read_csv('./resources/return_counts_2019.csv') %>%
+# Observed IRS return counts by filing status x age group, Pub 1304 Table
+# 1.6, THROUGH 2023 (was return_counts_2019.csv, through 2019). The extension
+# matters because the filing rate was anything but the constant the
+# demographic factors assume: returns per adult ran .5991 (2018), .6101
+# (2019), .6314 (2020, the stimulus-filing spike), .6142, .6118, .6008 (2023
+# -- fully reverted). A demographic path from 2019 misses the excursion; a
+# base inside it would bake part of the spike into every projected year.
+# Built and gated (2017-2019 reproduce the old file exactly) by Tax-Simulator
+# research/state_weights/nonfiler_pool/13_filer_return_counts.R.
+FILER_OBS_LAST = 2023L
+irs_growth_factors_demog = read_csv('./resources/return_counts_2023.csv') %>%
   mutate(across(.cols = -c(filing_status, age_group),
                 .fns  = ~ . / `2017`)) %>%
   pivot_longer(cols      = -c(filing_status, age_group),
                names_to  = 'year',
                values_to = 'population_factor') %>%
   mutate(year = as.integer(year))
+
+# Non-filer weight path (S18(b), JI 2026-08-30): one cumulative-from-2017
+# factor per (age band, year), 2018-2097 -- the OBSERVED residual count of
+# non-filing adults through 2023 (it fell to 40.8M in 2020 and recovered,
+# movement no demographic factor produces), then a 10-year phase from the
+# 2023 residual share of band adults to its 2017-2019 norm, times the CBO
+# band population. A 5-year variant ships in the same file as
+# `factor_phase5`. Built by Tax-Simulator
+# research/state_weights/nonfiler_pool/14_nonfiler_weight_targets.R;
+# assumes the claimed-dependent netting share within band is stable in time.
+nonfiler_band_factors = read_csv('./resources/nonfiler_weight_targets.csv') %>%
+  select(band, year, nonfiler_factor = factor_phase10)
 
 irs_growth_factors_income = tables$table_1_4 %>%
   filter(variable %in% c('total_inc', 'wages', 'txbl_int', 'div', 'part_scorp',
@@ -280,22 +302,15 @@ irs_growth_factors_income = tables$table_1_4 %>%
 # Two population_factors variants: 2018-19 uses a married-only table,
 # 2020+ uses a married × age table. Rename to avoid the clobber that
 # the original in-place mutation relied on.
-population_factors_2018_19 = demog %>%
-  filter(year %in% 2017:2019) %>%
-  group_by(year, married) %>%
-  summarise(n = sum(n),
-            .groups = 'drop') %>%
-  group_by(married) %>%
-  mutate(population_factor = ifelse(n > 0,
-                                    n / n[year == 2017],
-                                    1)) %>%
-  ungroup() %>%
-  select(-n)
+# (population_factors_2018_19, the married-only non-filer table, is gone:
+# both of its consumers are replaced -- filers by observed IRS counts, the
+# non-filers by the S18(b) band series above.)
 
-population_factors_2020plus = demog %>%
-  filter(year >= 2019) %>%
+population_factors_2024plus = demog %>%
+  filter(year >= FILER_OBS_LAST) %>%
   group_by(married, age) %>%
-  mutate(population_factor = ifelse(n > 0, n / n[year == 2019], 1)) %>%
+  mutate(population_factor = ifelse(n > 0,
+                                    n / n[year == FILER_OBS_LAST], 1)) %>%
   ungroup() %>%
   select(-n)
 
@@ -317,52 +332,82 @@ compute_weights_for_year = function(y) {
     return(tax_units %>% select(id, weight) %>% mutate(year = 2017L))
   }
 
-  if (y <= 2019L) {
-    return(
-      tax_units %>%
-        mutate(year = y,
-               age_group = case_when(
-                 age1 < 26 ~ 1,
-                 age1 < 35 ~ 2,
-                 age1 < 45 ~ 3,
-                 age1 < 55 ~ 4,
-                 age1 < 65 ~ 5,
-                 TRUE      ~ 6)) %>%
-        left_join(irs_growth_factors_demog,
-                  by = c('year', 'filing_status', 'age_group')) %>%
-        mutate(weight = weight * if_else(filer == 1, population_factor, 1)) %>%
-        select(-population_factor) %>%
-        mutate(married = as.integer(filing_status == 2)) %>%
-        left_join(population_factors_2018_19,
-                  by = c('year', 'married')) %>%
-        mutate(weight = weight * if_else(filer == 0, population_factor, 1)) %>%
-        select(id, weight) %>%
-        mutate(year = y)
-    )
+  # NON-FILERS, every year: one cumulative-from-2017 factor per age band --
+  # observed residual counts through 2023, the phased demographic target
+  # after (see nonfiler_band_factors above). No recursion and no person-slot
+  # demography: the factor is already cumulative, and a unit's non-filing
+  # adults share the head's band.
+  nonfilers = tax_units %>%
+    filter(filer == 0) %>%
+    mutate(band = case_when(age1 < 26 ~ '18_25',
+                            age1 < 35 ~ '26_34',
+                            age1 < 45 ~ '35_44',
+                            age1 < 55 ~ '45_54',
+                            age1 < 65 ~ '55_64',
+                            TRUE      ~ '65p')) %>%
+    left_join(nonfiler_band_factors %>% filter(year == y) %>% select(-year),
+              by = 'band') %>%
+    mutate(weight = weight * nonfiler_factor) %>%
+    select(id, weight)
+  stopifnot(!any(is.na(nonfilers$weight)))
+
+  # FILERS through 2023: observed IRS return counts by filing status x age
+  # group. This is the old 2018-19 branch with the observation window
+  # extended -- the demographic handoff moves from 2019 to 2023, past the
+  # 2020-2022 filing spike rather than inside or before it.
+  if (y <= FILER_OBS_LAST) {
+    filers = tax_units %>%
+      filter(filer == 1) %>%
+      mutate(year = y,
+             age_group = case_when(
+               age1 < 26 ~ 1,
+               age1 < 35 ~ 2,
+               age1 < 45 ~ 3,
+               age1 < 55 ~ 4,
+               age1 < 65 ~ 5,
+               TRUE      ~ 6)) %>%
+      left_join(irs_growth_factors_demog,
+                by = c('year', 'filing_status', 'age_group')) %>%
+      mutate(weight = weight * population_factor) %>%
+      select(id, weight)
+  } else {
+    # FILERS past 2023: start from the 2023 weights (which carry the observed
+    # IRS path) and scale by married x age population factors relative to
+    # 2023. Ages are NOT aged by project_puf — they stay at their 2017 values
+    # in tax_units: each record is an age SLICE (age-a people in year y),
+    # rescaled to the year's cell population, not an aging cohort.
+    #
+    # KNOWN QUIRK, replicated from the legacy code rather than fixed here
+    # (it changes filer results on main and is the repo owner's call): the
+    # pivot below feeds dep_age_group1-3 -- which hold GROUP CODES 1-4, not
+    # ages -- into the same `age` column the population factors are joined
+    # on, so a dependent matches the factor for age 1-4 and takes the
+    # under-18 0.99. See NONFILER_BRANCH_NOTES.md.
+    w2023 = compute_weights_for_year(FILER_OBS_LAST) %>%
+      select(id, w_base = weight)
+
+    filers = tax_units %>%
+      filter(filer == 1) %>%
+      mutate(married_flag = as.integer(filing_status == 2)) %>%
+      select(id, married_flag, age1, age2, starts_with('dep_age')) %>%
+      left_join(w2023, by = 'id') %>%
+      pivot_longer(cols         = -c(id, married_flag, w_base),
+                   names_prefix = 'age',
+                   names_to     = 'person',
+                   values_to    = 'age') %>%
+      filter(!is.na(age)) %>%
+      mutate(married = if_else(person == '1' | person == '2', married_flag, 0L)) %>%
+      left_join(population_factors_2024plus %>% filter(year == y),
+                by = c('married', 'age')) %>%
+      mutate(weight = w_base * population_factor * if_else(age < 18, 0.99, 1)) %>%
+      group_by(id) %>%
+      summarise(weight = mean(weight),
+                .groups = 'drop')
   }
+  stopifnot(!any(is.na(filers$weight)),
+            nrow(filers) + nrow(nonfilers) == nrow(tax_units))
 
-  # y >= 2020: start from 2019 weights (which implicitly carry the 2018-19
-  # demographic adjustment). Ages are NOT aged by project_puf — they stay at
-  # their 2017 values in tax_units, which matches the legacy behavior.
-  w2019 = compute_weights_for_year(2019L) %>% select(id, w2019 = weight)
-
-  tax_units %>%
-    mutate(married_flag = as.integer(filing_status == 2)) %>%
-    select(id, married_flag, age1, age2, starts_with('dep_age')) %>%
-    left_join(w2019, by = 'id') %>%
-    pivot_longer(cols         = -c(id, married_flag, w2019),
-                 names_prefix = 'age',
-                 names_to     = 'person',
-                 values_to    = 'age') %>%
-    filter(!is.na(age)) %>%
-    mutate(married = if_else(person == '1' | person == '2', married_flag, 0L)) %>%
-    left_join(population_factors_2020plus %>% filter(year == y),
-              by = c('married', 'age')) %>%
-    mutate(weight = w2019 * population_factor * if_else(age < 18, 0.99, 1)) %>%
-    group_by(id) %>%
-    summarise(weight = mean(weight),
-              .groups = 'drop') %>%
-    mutate(year = y)
+  bind_rows(filers, nonfilers) %>% mutate(year = y)
 }
 
 #-------------------------------------
