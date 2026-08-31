@@ -11,10 +11,15 @@ dependency_info:
     
   # Pinned deliberately: the baseline must never float to the latest published
   # pool. This value changes only when a rebuild is published and this line is
-  # updated to name it. NOTE: 2026082801 predates the producer's scenario-level
-  # path fix, so it will not resolve -- update on the next publish.
+  # updated to name it. 2026090101 carries all of 2017-2023 (div_pref schema,
+  # {vintage}/historical layout, S19 ssArea scale on the 2023 file). The
+  # 2020-21 files are built under S20: the pandemic made the projected hazard
+  # level infeasible, so it is deflated per age band by observed excess filing
+  # -- the deflators and their sensitivity bracket ship in the vintage as
+  # pandemic_filing_adjustment_{year}.csv. The five non-pandemic years are
+  # byte-identical to vintage 2026083101.
   ASEC-Nonfilers:
-    vintage: 2026082801
+    vintage: 2026090101
     scenario: historical
 
   DINA: 

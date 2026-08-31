@@ -14,13 +14,26 @@
 # columns zero-filled, column order matched. Stops on any real violation.
 #------------------------------------------------------------------------------
 
-# Impute-module columns. The pool carries these as OBSERVED values, but
-# imputations/ages.R and imputations/demographics.R own them, run after the
-# append, and overwrite every record -- so they are dropped here. The loss is
-# real and worth naming: for non-filers `age1` is redrawn within its observed
-# band rather than taken as observed. Band membership itself survives, via
-# `age_group`, whose cut points match ages.R (<26/<35/<45/<55/<65/65+).
-NONFILER_DROPPED_IMPUTED_VARS = c('age1', 'age2', 'male1', 'male2')
+# Impute-module columns. The pool carries these as OBSERVED values, but the
+# imputation modules own them, run after the append, and overwrite every
+# record -- so they are dropped here. The loss is real and worth naming:
+#   * age1/age2, male1/male2 -- imputations/ages.R and demographics.R redraw
+#     them; for non-filers `age1` is redrawn within its observed band. Band
+#     membership itself survives, via `age_group`, whose cut points match
+#     ages.R (<26/<35/<45/<55/<65/65+).
+#   * wages1/wages2, sole_prop1/sole_prop2 -- imputations/earnings_split.R
+#     recomputes every record's split from `wages`/`sole_prop` (which the
+#     pool DOES supply) times an EARNSPLIT-gated Saez draw, and the pool
+#     ships EARNSPLIT = NA, so the observed splits would be overwritten
+#     anyway. Taking them as observed means guarding earnings_split.R, which
+#     changes its RNG draw count and shifts filer splits -- the same E2
+#     contamination the age1 decision avoids. Future option: code EARNSPLIT
+#     from the observed split where it lands on a category (1 primary-all,
+#     2 even, 3 secondary-all); that is a producer+owner decision, not a
+#     drop-list entry.
+NONFILER_DROPPED_IMPUTED_VARS = c('age1', 'age2', 'male1', 'male2',
+                                  'wages1', 'wages2',
+                                  'sole_prop1', 'sole_prop2')
 
 # Provenance describes how the record was constructed, not its tax situation.
 # Dropped rather than rejected; the per-file facts (vintage, scenario, years,

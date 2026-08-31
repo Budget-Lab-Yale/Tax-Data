@@ -4,6 +4,48 @@
 **Repos** `Tax-Data` @ `asec-nonfiler-pool` (981a695 + uncommitted), `Tax-Simulator` @ `state-tax` (064b54f67 + uncommitted).
 **Nothing is committed in either repo.** Review the diffs before you push anything.
 
+**Executed on-cluster 2026-08-31** (both branches since committed and pulled). Status:
+- **A1, A2, A3 PASS.** Contract test 20/20 on R 4.4.2; config resolution clean. A3 (job
+  24303124, ~3.5h on 16cpu/384G, cached fits): every checkpoint green — configure.R
+  resolves vintage 2026090101, non-zero append (166,938 records / 31.19M units / 81
+  zero-filled), drop line printed (now incl. wages1/2, sole_prop1/2 — see below), past
+  demographics.R, ran to completion, wrote Tax-Data vintage **2026083111** (97 files).
+  Output spot-check: non-filer interest receipt 13.9% / dividends 3.8% (DINA: exactly
+  0.0%), wages $281.8B = the emitted pool exactly, male1 observed (0.482 vs filer
+  0.618, no NAs). Two failed attempts first, both real findings: quantregForest/drf
+  missing from the 4.4.2 module bundle (installed to ~/r_libs_4.4), and the pool's
+  observed wages1/2, sole_prop1/2 are owned by earnings_split.R AFTER the append —
+  added to the declared-and-dropped list (the contract test's original comment
+  believed they existed at append time; corrected). **Block B skipped** — all six
+  2020–21 intermediates survive in `results/`.
+  Quality note for A4/A5 review: the wealth tilt's pct80to90 × senior cell exits at
+  the iteration cap (max_rel 0.159) rather than converged; check against a main-branch
+  log before attributing it to this branch.
+- **C2: 2020 and 2021 are INFEASIBLE, stop rule honored.** Band 18_25's fixed
+  contributions (above-threshold hazard at the held Pub 5785 level + GQ) exceed the
+  residual target: 2.090M vs 1.621M in 2020 (−0.469M), 2.298M vs 2.202M in 2021
+  (−0.096M). The stimulus filing spike collapsed the young-adult residual faster than
+  the held hazard allows. Feasible years' slack in that band was already thin
+  (+0.139M in 2019, +0.129M in 2022). Substantive C1 answer, not the benign one;
+  unblocking them needs a decision on the hazard's identifying restriction (JI).
+- **Block D DONE** — S19 scale applied in `05_emit_pool.R` at the 2023 emit, gated
+  pre/post against the alignment table (residuals ~1e-8 adults); audit written and
+  published; `06_acceptance.R` detects and divides the scale back out for its
+  PEP-basis comparisons. Doc fixes (wedge range, "merge time") landed.
+- **C3/C4 DONE for the five feasible years**: acceptance 2023 passes (4/5, wage mass
+  untestable); vintage **2026083101** published with 2017–2019, 2022, 2023 under
+  `{vintage}/historical` + manifest + S19 tables, `div_pref` schema; `baseline.yaml`
+  pin updated. Three stragglers of the qual_div→div_pref rename fixed in
+  `06_acceptance.R`, `11_…contamination.R`, `12_aging_check.R`.
+- **2020–21 RESOLVED via S20** (2026-08-31, later the same day): the hazard level is
+  deflated per band by observed pandemic excess filing
+  (`16_pandemic_filing_adjustment.R` → 02 → 04; decision S20 in the log). Both years
+  calibrate, pass acceptance (pool better on every testable dimension), and are
+  published in vintage **2026090101** with all seven years — the five non-pandemic
+  files byte-identical to 2026083101. Pin updated to 2026090101. The aging check now
+  runs for 2020–21: aged-from-2017 misses the built 2020 by −23.3% adults / −33.5%
+  wages, the strongest S18(c) evidence yet.
+
 Full evaluation and the deferred tiers: `~/.claude/plans/find-the-document-entitled-atomic-codd.md`.
 Cross-repo map: `Tax-Simulator/research/state_weights/handoff.md`. Branch review: `NONFILER_BRANCH_NOTES.md`.
 

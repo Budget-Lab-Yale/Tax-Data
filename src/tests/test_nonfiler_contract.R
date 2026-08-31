@@ -74,11 +74,13 @@ make_fixture = function() {
 #
 # Stated explicitly rather than derived from the variable guide. The guide
 # cannot answer this question: presence depends on WHEN a column is created,
-# not on its metadata. `weight`, `wages1` and `wages2` are all
-# `source = imputed, name_puf = NA` -- the same metadata as age1/male1 -- yet
-# they exist here because process_puf.R / create_2017_puf.R / reweight.R build
-# them before the append, while imputations/ages.R (age1, age2) and
-# imputations/demographics.R (male1, male2) run after it.
+# not on its metadata -- `weight` is `source = imputed, name_puf = NA` yet
+# exists here because reweight.R builds it before the append, while
+# imputations/ages.R (age1, age2), demographics.R (male1, male2) and
+# earnings_split.R (wages1/2, sole_prop1/2) run after it. The first version
+# of this file believed the earnings splits existed at append time; the first
+# real main.R run (job 24301947, 2026-08-31) disproved it, which is why they
+# are in the drop list now.
 #
 # So the two invariants the contract depends on are asserted directly below,
 # and the rest of this list is a fixture: enough real column names to exercise
@@ -98,7 +100,8 @@ puf_cols = c(
 # The invariant that made the old assertion pair unsatisfiable: these columns
 # are NOT on the PUF when the append runs, so a contract that both requires and
 # forbids them cannot be satisfied.
-stopifnot(!any(c('age1', 'age2', 'male1', 'male2') %in% puf_cols))
+stopifnot(!any(c('age1', 'age2', 'male1', 'male2',
+                 'wages1', 'wages2', 'sole_prop1', 'sole_prop2') %in% puf_cols))
 
 # The invariant a producer-side rename breaks: these must be present, or the
 # pool's economic content is silently zero-filled.
