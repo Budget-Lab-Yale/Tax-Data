@@ -98,6 +98,42 @@ interface_paths = interface_versions %>%
        )
   )
 
+#---------------------------------------------------------------------------
+# Every declared interface must resolve to exactly one existing directory.
+#
+# Without this, an interface declared in interface_versions.yaml but absent
+# from the runscript's dependency_info yields NULL vintage and scenario, and
+# file.path() propagates zero length rather than erroring: the path becomes
+# character(0). Downstream, read_csv(character(0)) returns a 0x0 tibble, so
+# every assertion written against the missing data passes VACUOUSLY
+# (all(logical(0)) is TRUE, min(NULL) is Inf) and bind_rows appends nothing.
+# The pipeline then completes having silently dropped a whole population.
+#
+# 'Tax-Data' is this model's own output interface and has no dependency row,
+# so it is excluded. Interfaces declared but not consumed by this runscript
+# are reported rather than tolerated -- a declared interface with no vintage
+# is a configuration error, not a default.
+#---------------------------------------------------------------------------
+
+unresolved = interface_paths %>%
+  keep(~ length(.x) != 1) %>%
+  names() %>%
+  setdiff('Tax-Data')
+if (length(unresolved) > 0) {
+  stop('Interfaces declared in config/interfaces/interface_versions.yaml but ',
+       'missing a vintage/scenario in config/runscripts/', runscript_id,
+       '.yaml: ', paste(unresolved, collapse = ', '),
+       '. Add them, or remove them from interface_versions.yaml.')
+}
+
+missing_dirs = interface_paths[setdiff(names(interface_paths), 'Tax-Data')] %>%
+  keep(~ !dir.exists(.x))
+if (length(missing_dirs) > 0) {
+  stop('Interface paths do not exist:\n',
+       paste0('  ', names(missing_dirs), ': ', unlist(missing_dirs),
+              collapse = '\n'))
+}
+
 # Read target info
 target_info = paste0(runscript_id, '.csv') %>% 
   file.path('./config/target_info', .) %>% 

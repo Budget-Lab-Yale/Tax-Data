@@ -24,6 +24,17 @@ tax_units %<>%
 # Gender for adults
 #-------------------
 
+# Read DINA microdata. This read used to live in impute_nonfilers.R, which
+# needed the file for the non-filer append; S13 replaced that append with the
+# ASEC pool and the read went with it, leaving this script's only remaining
+# DINA consumer with an undefined object. It is read here now because this is
+# the one place left that uses it -- the filer = 1 sex split (S14 replaces the
+# filer = 0 cells, not these). Retiring the DINA interface entirely means
+# replacing the target below with the W-2 study / ASEC approach in S14.
+dina_2017 = interface_paths$DINA %>%
+  file.path('usdina2017.dta') %>%
+  read_dta()
+
 # Estimate target male distribution parameters for unmarried tax units on DINA data
 male_dist = dina_2017 %>%
   filter(married == 0) %>%

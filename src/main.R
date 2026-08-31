@@ -38,6 +38,7 @@ source('./src/process_puf.R')
 source('./src/reweight.R')
 source('./src/summary.R')
 source('./src/create_2017_puf.R')
+source('./src/nonfiler_contract.R')
 source('./src/impute_nonfilers.R')
 source('./src/impute_variables.R')
 

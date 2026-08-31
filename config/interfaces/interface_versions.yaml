@@ -42,10 +42,11 @@ CPS-ASEC:
   type: raw_data
   version: 1
   
-CPS-ASEC-Panel:
-  type: raw_data
-  version: 3
-  
+# CPS-ASEC-Panel removed 2026-08-31: declared here but supplied no vintage by
+# any runscript and read by no code, so it resolved to character(0) and wrote
+# an all-NA row into dependencies.csv. configure.R now rejects that state
+# rather than tolerating it. Re-add with a vintage when a consumer exists.
+
 SCF:
   type: raw_data
   version: 1
