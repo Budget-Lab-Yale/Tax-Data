@@ -21,6 +21,28 @@
   Quality note for A4/A5 review: the wealth tilt's pct80to90 × senior cell exits at
   the iteration cap (max_rel 0.159) rather than converged; check against a main-branch
   log before attributing it to this branch.
+- **A4 and A5 PASS** (2026-08-31, three-way attribution: `main` vintage 2026083115,
+  commits-1-2 vintage 2026083117, branch vintage 2026083111; worktrees
+  `Tax-Data-main` / `Tax-Data-c12` share the branch run's cache).
+  **A5 / E2 tripwire**: every filer 1040 aggregate (wages, interest, dividends, gains,
+  SS, pensions, sole prop, UI) is EXACTLY identical between commits-1-2 and the branch
+  in 2017 and 2020 — the swap is non-filer-only through 2023, because filer weights
+  key on the deterministic filing_status × age_group through FILER_OBS_LAST. From
+  2024 the person-slot demography keys on IMPUTED exact ages, which sit downstream of
+  the RNG stream shift from deleting DINA's runif draws: filer weights differ +0.020%
+  at 2025 and aggregates drift ≤0.1% (wages −0.005%; volatile kg_st ±1%). Inherent to
+  removing the DINA draws, not a pool defect; Block E's id-keyed draws would close it.
+  At 2017, main vs commits-1-2 filers differ ONLY in q_death1/q_death2/
+  prim_mort_share (donor-year modules materialize on the changed ledger); commits-1-2
+  vs branch moves only RNG-imputed families (tips/ot/consumption/wagebill), never a
+  deterministic column. Intended commit-2 movement confirmed: 2025 filer weight
+  166.18M → 163.91M (−1.4%).
+  **A4**: filer male1/male2 unmoved (main = c12 exactly, 0.6185 / 0.1211; branch
+  within 0.03pp via the unconditional male2 redraw). Non-filer male1 0.4404 (drawn)
+  → 0.4816 (observed) — the swap's intended effect. EITC/CDCTC routing on the filer
+  side is untouched.
+  **Solver-cap note CLOSED**: main and c12 logs show 15 cap exits vs the branch's 13
+  — normal solver behavior, not branch-specific.
 - **C2: 2020 and 2021 are INFEASIBLE, stop rule honored.** Band 18_25's fixed
   contributions (above-threshold hazard at the held Pub 5785 level + GQ) exceed the
   residual target: 2.090M vs 1.621M in 2020 (−0.469M), 2.298M vs 2.202M in 2021
