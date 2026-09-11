@@ -96,7 +96,7 @@ Diagnostic scripts: `src/eda/validate_top_tail.R`, `src/eda/verify_pce_bench.R`,
 
 The DINA append is replaced by a pool built from the CPS ASEC: tax units constructed rule-by-rule, a two-model filing decision (Mok probits below the filing threshold, a Pub 5785 hazard above it), group quarters from the ACS, calibrated so emitted adults plus claimed-dependent netting equal the administrative residual (population adults minus Pub 1304 filing adults) per age band, per year 2017–2023. The build lives in `research/state_weights/nonfiler_pool/01`–`16` with modules in `src/nonfilers/`; it publishes to the `ASEC-Nonfilers` interface, which `impute_nonfilers.R` reads through the contract in `nonfiler_contract.R`. Decisions are the S-series in `research/decisions_log.md` (S13–S21); the method of record is `research/state_weights/nonfiler_residual_design.md`; the plan is `research/state_weights/plan.md`.
 
-Two things to know before touching it: `project_puf.R` pins the non-filer band level from 2023 on to the S19 partition table shipped in the vintage (`ssarea_alignment_2023.csv`) and asserts it; and the per-year pools reuse ids across years, so consuming them annually (Block E) is an architecture change in both repos, not a loader — read the review brief before starting it.
+Two things to know before touching it: `project_puf.R` pins the non-filer band level from 2023 on to the built 2023 pool via the S21 partition table shipped in the vintage (`ssarea_partition_2023.csv`) and asserts the identity; and the per-year pools reuse ids across years, so consuming them annually (Block E) is an architecture change in both repos, not a loader — read the review brief before starting it.
 
 ## Out of scope for this repo
 

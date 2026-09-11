@@ -82,7 +82,7 @@ in the Tax-Simulator bundle.
   41.23M the handoff partition requires on CBO's Social Security area
   universe; the producer's per-band ssArea scale lived only in the 2023 pool
   file, which this pipeline never read. `project_puf.R` now pins the
-  non-filer band level from 2023 on to `ssarea_alignment_2023.csv` (shipped
+  non-filer band level from 2023 on to `ssarea_alignment_2023.csv` (since superseded by S21's `ssarea_partition_2023.csv`, next item; shipped
   in the pinned vintage) and uses the S18(b) series for growth relative to
   its 2023 value; years through 2022 are unchanged. The partition is asserted
   (non-filer side exact) and printed (full identity, soft) after the weight
@@ -100,6 +100,15 @@ in the Tax-Simulator bundle.
   materialized file, whose non-filer weights changed, so its receiver set
   differs slightly from 2023 (2022 identical). Not a defect of the anchor;
   worth knowing when reading any 2023+ filer diff against older vintages.
+- **S21 built (2026-09-11):** the per-band S19 scale on the 2023 pool is
+  retired; `15_ssarea_alignment.R` builds the partition on the Social Security
+  area universe for every year 2017–2023 with a named not-in-universe block;
+  vintage **2026091201** published (2017–2022 byte-identical to 2026090101,
+  2023 unscaled at 37.45M adults) and pinned; `project_puf.R` pins the 2023
+  non-filer level to the built 2023 pool. Non-filer adults now run 35.05M
+  (2022 pool) → 37.45M (2023), the observed +6.8%, with no universe step.
+  Caveat found while building: the block is Jan-1/Jul-1 timing + series
+  vintage + geography, negative in some bands before 2022 (see the S21 entry).
 - **HT2 reaches TY2023.** SOI published Historic Table 2 for TY2023 in
   August 2026; it is mirrored at `raw_data/IRS-Ind/state/HT2/ht2_2023.csv.gz`
   (2026-09-08). The state ceiling and the national ceiling now coincide at

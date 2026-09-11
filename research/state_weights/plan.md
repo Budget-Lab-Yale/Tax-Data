@@ -364,6 +364,12 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 
 ## Revision history
 
+- **2026-09-11 (later)** — S21 set and built: per-year ssArea partition with a
+  named not-in-universe block, no scale on any pool, vintage 2026091201
+  published (2017–2022 byte-identical to 2026090101). The block's composition
+  is Jan-1/Jul-1 timing + series vintage + geography, not geography alone —
+  see the S21 caveat. Block E (design A, union base) starts next.
+
 - **2026-09-11** — The workstream moved to **Tax-Data** (this copy is the live
   one; Tax-Simulator's is frozen behind `MOVED.md`). Finding 1 of the 2026-09-11
   review closed in Tax-Data's `project_puf.R`: the S19 partition now reaches the

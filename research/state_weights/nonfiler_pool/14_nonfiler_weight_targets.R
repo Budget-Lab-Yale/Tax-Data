@@ -32,12 +32,12 @@
 # side of this series and the rest of Tax-Data's aging share one demography.
 # R_b is PEP-based (the anchor basis); the s_b ratio therefore straddles the
 # ~1.2% PEP-vs-ssArea universe wedge. The factors are RATIOS anchored at
-# 2017, so a stable wedge cancels within this series -- but the wedge is
-# 2.6-11.7% on the RESIDUAL by band (S19), and applying this series to the
-# 2017 pool landed 2023 at 38.26M adults against the 41.23M ssArea target
-# (measured 2026-09-11). The consumer therefore pins the band LEVEL from
-# 2023 on to ssarea_alignment_2023.csv and uses this series only for growth
-# relative to its 2023 value (Tax-Data project_puf.R, nonfiler_handoff_anchor).
+# 2017, so a stable wedge cancels within this series. Under S21 (2026-09-11)
+# no scale is applied to the pool and the wedge is a named block in
+# ssarea_partition_{year}.csv; the consumer pins the band LEVEL from 2023 on
+# to the built 2023 pool's adults and uses this series only for growth
+# relative to its 2023 value (Tax-Data project_puf.R, nonfiler_handoff_anchor),
+# until Block E puts every year's pool in the base and the anchor is moot.
 # Years through 2022 take this series as written.
 #
 # ASSUMPTION carried to Tax-Data: the emitted pool's weights sum to the

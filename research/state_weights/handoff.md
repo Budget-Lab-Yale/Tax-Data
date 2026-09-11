@@ -95,13 +95,13 @@ script per stage, gates printed and committed. The method reference is the
   `N_b(y)/N_b(T)`. The PEP↔ssArea wedge is published, not absorbed: ~1.5% on
   adults, amplified to **2.6–11.7% in the residual** (2.6% in 18_25; the five
   bands 26_34–65p span 5.6–11.7%) because the residual is a small difference
-  of large numbers (`ssarea_alignment_2023.csv`, `ssarea_wedge_2023.csv`).
+  of large numbers (`ssarea_wedge_2023.csv`; the S19 alignment table is retired under S21, replaced by `ssarea_partition_{year}.csv` for every year).
   The band×married split is deliberately NOT asserted: T1.6's primary-band
   convention makes it unidentifiable, and the unmarried 35_44 cell proves it
   by arithmetic.
 - **The pool's per-band ssArea scale** (1.061–1.134) is applied at the 2023
   emit, in `05_emit_pool.R` — upstream, exactly once, gated pre and post
-  against the alignment table (audit: `ssarea_scale_audit_2023.csv`).
+  against the alignment table (audit: `ssarea_scale_audit_2023.csv`). **Retired 2026-09-11 under S21: no year is scaled; the wedge is a named not-in-universe block in the per-year partition tables.**
 
 ## (d) The state work that follows
 
@@ -140,6 +140,6 @@ should survive the move.
 | non-filer file rebuildable through | **2023**, national and state alike since HT2 TY2023 landed (2026-09); state products for 2023 wait on the anchor pair moving to 2017/2023 (S18 premise note). Was "2023 national, 2022 with state products". 2020–21 build under **S20**: the held Pub 5785 hazard level is infeasible there (band 18_25 over-subscribed by the stimulus filing spike), so it is deflated per band by observed excess filing — level 12.39M → 8.89M units in 2020, 12.49M → 10.89M in 2021 (`16_pandemic_filing_adjustment.R`) |
 | filer weight targets observed through | **2023** (then CBO demography) |
 | income growth factors observed through | 2022, with a 2020–21 gap (upstream) |
-| projection universe | CBO ssArea ≡ Macro-Projections cells (verified to the person) |
-| anchor universe, 2014–2022 | Census PEP resident (state work stays here) |
+| projection universe | CBO ssArea ≡ Macro-Projections cells (verified to the person; SSA Trustees' Jan-1 series before CBO's first year). Under S21 the partition on it is built for every year with a named not-in-universe block; no pool is scaled |
+| anchor universe | Census PEP resident, every year (state work stays here); `ssarea_partition_{year}.csv` reconciles it to the projection universe |
 | Pub 5785 (obligated non-filers) published | 2014–2016 only; later years projected |
