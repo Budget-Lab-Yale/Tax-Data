@@ -68,6 +68,13 @@
   runs for 2020–21: aged-from-2017 misses the built 2020 by −23.3% adults / −33.5%
   wages, the strongest S18(c) evidence yet.
 
+- **E2E with the S19 anchor (2026-09-11): vintage 2026091113, job 25945655, PASS.**
+  3h16m, exit 0, sentinel printed, 98 files, peak 380 GB of 384 GB. 2017/2020/2022
+  identical to 2026083111 on both sides; 2023 non-filer adults 41.23M = target;
+  filer weights and factor_ledger identical every year; sixth-figure filer dollar
+  movement from 2023 is the Forbes splice re-selecting receivers on the changed
+  materialized file. Details in `NONFILER_BRANCH_NOTES.md`.
+
 Full evaluation and the deferred tiers: `~/.claude/plans/find-the-document-entitled-atomic-codd.md`.
 Cross-repo map: `Tax-Simulator/research/state_weights/handoff.md`. Branch review: `NONFILER_BRANCH_NOTES.md`.
 

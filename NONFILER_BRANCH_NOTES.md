@@ -87,6 +87,19 @@ in the Tax-Simulator bundle.
   its 2023 value; years through 2022 are unchanged. The partition is asserted
   (non-filer side exact) and printed (full identity, soft) after the weight
   ledger is built, and written to `ssarea_partition_2023.csv` in the output.
+- **End-to-end run with the anchor: vintage 2026091113** (job 25945655,
+  2026-09-11, 3h16m, 16 cpu / 384G with cached fits; peak memory 380 GB of
+  384 -- request more next time). Against 2026083111: 2017, 2020 and 2022
+  identical on every filer and non-filer aggregate; 2023 non-filer adults
+  38.26M -> 41.23M, the S19 target exactly, with the partition printed and
+  written (`ssarea_partition_2023.csv`: non-filer side to 1e-16 per band,
+  full identity +0.70%). Filer weights and `factor_ledger` are identical in
+  every year. Filer dollar aggregates move at the sixth significant figure
+  from 2023 on (2023 wages -6e-7) through one channel: the Forbes billionaire
+  splice recomputes its receiver weight adjustments on each year's
+  materialized file, whose non-filer weights changed, so its receiver set
+  differs slightly from 2023 (2022 identical). Not a defect of the anchor;
+  worth knowing when reading any 2023+ filer diff against older vintages.
 - **HT2 reaches TY2023.** SOI published Historic Table 2 for TY2023 in
   August 2026; it is mirrored at `raw_data/IRS-Ind/state/HT2/ht2_2023.csv.gz`
   (2026-09-08). The state ceiling and the national ceiling now coincide at
