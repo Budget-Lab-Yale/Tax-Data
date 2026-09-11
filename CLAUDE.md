@@ -31,6 +31,8 @@ Read the actual files before editing. This sequence changes — don't trust this
 | `config/interfaces/`      | Version pointers to upstream models (`Macro-Projections`, etc.).                                      | Bump per vintage.           |
 | `resources/`              | Small, static, human-curated inputs committed to git (CEX dictionaries, PCE targets, crosswalks, mortality tables). | Carefully.                  |
 | `resources/cache/`        | Cached model fits (ranger QRF, DRF). **Gitignored, rebuildable from code.**                           | Pipeline writes here.       |
+| `src/nonfilers/`          | The ASEC non-filer builder's shared modules (`asec_tax_units.R`, `filing_model.R`, `state_weights.R`), moved from Tax-Simulator 2026-09-11. Sourced by `research/state_weights/` scripts; not yet by `main.R`. | Yes.                        |
+| `research/`               | Population-construction research corpus (non-filer pool, residual anchors, split state weights): plans, method of record, decisions log, numbered build scripts with their committed gate CSVs. Moved from Tax-Simulator 2026-09-11; `research/README.md` is the index. Large intermediates under `**/results/` are gitignored. | Per `research/CONVENTIONS.md`. |
 | `plots/`                  | Diagnostic plot output. **Gitignored.**                                                               | Freely.                     |
 
 **Rule:** if it is large, changes frequently, or comes from another model, it belongs in `config/interfaces/` as a version pointer — *not* in `resources/`.
@@ -90,10 +92,16 @@ Diagnostic scripts: `src/eda/validate_top_tail.R`, `src/eda/verify_pce_bench.R`,
 
 **Known caveat — PUF-Y vs CEX-Y definitional gap.** PUF income and CEX income are defined differently. At the same within-dataset rank, CEX income runs 22–48% lower than PUF income. The imputation is correct on the numerator (C distributions reproduce CEX at rank), but **any `C / Y` analysis inherits this gap.** Do not report C/Y ratios without flagging it.
 
+## Non-filer population (as of 2026-09)
+
+The DINA append is replaced by a pool built from the CPS ASEC: tax units constructed rule-by-rule, a two-model filing decision (Mok probits below the filing threshold, a Pub 5785 hazard above it), group quarters from the ACS, calibrated so emitted adults plus claimed-dependent netting equal the administrative residual (population adults minus Pub 1304 filing adults) per age band, per year 2017–2023. The build lives in `research/state_weights/nonfiler_pool/01`–`16` with modules in `src/nonfilers/`; it publishes to the `ASEC-Nonfilers` interface, which `impute_nonfilers.R` reads through the contract in `nonfiler_contract.R`. Decisions are the S-series in `research/decisions_log.md` (S13–S21); the method of record is `research/state_weights/nonfiler_residual_design.md`; the plan is `research/state_weights/plan.md`.
+
+Two things to know before touching it: `project_puf.R` pins the non-filer band level from 2023 on to the S19 partition table shipped in the vintage (`ssarea_alignment_2023.csv`) and asserts it; and the per-year pools reuse ids across years, so consuming them annually (Block E) is an architecture change in both repos, not a loader — read the review brief before starting it.
+
 ## Out of scope for this repo
 
 - Tax calculation — lives in **Tax-Simulator**.
-- Reweighting *target generation* — upstream; consumed here as SOI / CBO target inputs.
+- Reweighting *target generation* for the filer LP — upstream; consumed here as SOI / CBO target inputs. (Non-filer anchors and state-weight targets are built here, in `research/`.)
 - Public data release cleaning.
 - Policy scenarios and behavioral responses.
 

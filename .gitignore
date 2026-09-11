@@ -26,3 +26,11 @@ resources/dfa/dfa_raw_networth_levels.csv
 # Local validation runners
 run_pipeline_*.sh
 validation_diff.log
+# research/ (moved from Tax-Simulator 2026-09-11): renders and logs are regenerable
+research/**/*.html
+research/**/*.log
+research/**/*.tex
+research/**/*.docx
+!research/tools/reference.docx
+!research/docx_sources/*.docx
+!research/archive/*.docx
