@@ -157,6 +157,23 @@ cat('\nA well-formed pool\n')
 
 expect_ok('the fixture passes the contract', validate(make_fixture()))
 
+# Block E: pools reuse ids across years; the offset makes them disjoint
+expect_ok('two pool years with identical raw ids are disjoint after the offset',
+          stopifnot(length(intersect(
+            offset_nonfiler_ids(make_fixture(), 2017L)$id,
+            offset_nonfiler_ids(make_fixture(), 2018L)$id)) == 0,
+            all(offset_nonfiler_ids(make_fixture(), 2023L)$id >= 7e6),
+            identical(offset_nonfiler_ids(make_fixture(), 2017L)$id,
+                      make_fixture()$id)))
+expect_ok('an offset pool still passes the contract against the earlier pools\' ids',
+          validate_nonfiler_pool(offset_nonfiler_ids(make_fixture(), 2020L),
+                                 puf_cols = puf_cols,
+                                 puf_ids  = c(puf_ids, offset_nonfiler_ids(make_fixture(), 2017L)$id),
+                                 label = 'test') %>% invisible())
+expect_stop('a raw pool id at or above 2e6 is rejected before it can collide',
+             offset_nonfiler_ids(make_fixture() %>% mutate(id = id + 1e6), 2018L),
+             'id')
+
 out = validate(make_fixture())
 
 expect_ok('output carries exactly the PUF columns, in order',

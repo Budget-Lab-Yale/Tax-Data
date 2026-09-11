@@ -152,12 +152,31 @@ cat(sprintf('main.R: bucketed_factor_ledger built (%d rows)\n',
 # in their own cache namespace. chunk_size halves the tilt's peak donor-
 # weight matrix (the pooled bottom cell has ~2x the donors); memory only,
 # no effect on results.
+# Block E (union base): wealth is imputed for the records that carry weight
+# in any year the module exists (2022+): filers, the 2022 pool and the 2023
+# pool, which carries 2024 onward. Pool records for 2017-2021 have zero weight
+# in every year from 2022 on, so their wealth cannot reach any aggregate; they
+# receive 0 rather than NA (the universe is explicit here, and zero keeps
+# downstream arithmetic over zero-weight rows finite) and are left out of the
+# imputation, which would otherwise run on 3x the records.
+wealth_ids = weight_ledger %>%
+  filter(year >= 2022L, weight > 0) %>%
+  distinct(id) %>%
+  pull(id)
+puf_2022_wealth = puf_2022 %>% filter(id %in% wealth_ids)
+cat(sprintf('main.R: wealth universe %s of %s records (positive weight in some year >= 2022)\n',
+            format(nrow(puf_2022_wealth), big.mark = ','),
+            format(nrow(puf_2022), big.mark = ',')))
 wealth_result = run_wealth_imputation(
-  puf_2022, pooled_donors_wealth,
+  puf_2022_wealth, pooled_donors_wealth,
   target_scf   = scf_tax_units_wealth,
   cache_tag    = 'pool1922',
   tilt_options = list(chunk_size = 1000L))
-module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_result$y)
+wealth_zero_rows = tibble(id = setdiff(puf_2022$id, wealth_result$y$id))
+for (v in setdiff(names(wealth_result$y), 'id')) wealth_zero_rows[[v]] = 0
+wealth_values = bind_rows(wealth_result$y, wealth_zero_rows)
+stopifnot(setequal(wealth_values$id, puf_2022$id), !any(duplicated(wealth_values$id)))
+module_deltas[['wealth']] = list(base_year = 2022L, values = wealth_values)
 
 # Forbes billionaire splice. If the Forbes input file is empty or absent, this
 # returns an empty splice object and Phase 4 writes the baseline wealth output.
@@ -208,7 +227,8 @@ write_rds(forbes_splice$constraints,
 write_rds(forbes_splice$diagnostics,
           file.path(output_path, 'forbes_splice_diagnostics.rds'))
 
-rm(puf_2022, wealth_result, scf_purge_result, scf_tax_units_wealth,
+rm(puf_2022, puf_2022_wealth, wealth_ids, wealth_zero_rows, wealth_values,
+   wealth_result, scf_purge_result, scf_tax_units_wealth,
    forbes_input_preview, pooled_donors, pooled_donors_wealth)
 
 

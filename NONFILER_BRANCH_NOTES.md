@@ -116,6 +116,24 @@ in the Tax-Simulator bundle.
   constraint -- the anchor pair (2017/2022) has simply not been rebuilt yet
   (Tax-Simulator decisions log S18, premise note).
 
+## Block E (branch `block-e`, 2026-09-11) — design A, the union base
+
+- `impute_nonfilers.R` appends every pool year in the pinned vintage (from
+  the manifest), each in its own id block (`offset_nonfiler_ids()`), tagged
+  `base_year` / `weight_own`; `weight` is the 2017 weight (zero for later
+  pools). D4 extended: one record set, unique ids, filer order untouched.
+- `materialize()` applies `factor(y) / factor(base_year)` (tests 17–18).
+- `project_puf.R`: the year-y pool carries its own weight in y and zero
+  elsewhere; the 2023 pool carries 2023+ on the S18(b) series relative to
+  2023; the S21 partition is asserted for every pool year (non-filer side
+  equals the pool, hard; full identity printed) and written to
+  `ssarea_partition_check.csv`. The morning's 2023 handoff anchor is gone.
+- `main.R`: wealth imputed for records with positive weight in some year
+  ≥ 2022 (filers + 2022 + 2023 pools); other pool records get 0, not NA.
+- Known limitation: later pools' nominal dollars rank against 2017 cut points
+  in Phase 1 imputations (deflate-at-append is the fix, blocked on having the
+  income factors before the append).
+
 ## Deliberately left undone
 
 - No filer dimension on `factor_ledger` income growth (S18(a)): non-filer

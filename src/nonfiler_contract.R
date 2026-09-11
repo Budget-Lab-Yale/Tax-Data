@@ -47,6 +47,28 @@ NONFILER_PROVENANCE_VARS = c('source', 'tax_year')
 NONFILER_POPULATED_ECONOMIC_VARS = c('wages', 'txbl_int', 'div_pref', 'gross_ss')
 
 
+# Block E: every published pool year is appended to one base (design A, the
+# union base), and every pool numbers its records from 1e6 + 1. The year-y
+# pool is moved into its own block of a million ids -- 2017 keeps 1000001...,
+# 2018 starts at 2000001, 2023 at 7000001 -- so ids are disjoint across pools
+# and still above every filer id (< 1e6). A raw pool id at or above 2e6
+# would collide with the next block and is rejected.
+NONFILER_BASE_YEAR = 2017L
+NONFILER_ID_STRIDE = 1000000L
+
+offset_nonfiler_ids = function(pool, tax_year) {
+  stopifnot(is.numeric(pool$id),
+            all(pool$id >= NONFILER_ID_STRIDE),
+            all(pool$id <  2L * NONFILER_ID_STRIDE),
+            tax_year >= NONFILER_BASE_YEAR)
+  # Computed outside the data mask: the pool carries its own `tax_year`
+  # column, and inside mutate() that column would shadow the argument.
+  shift = (as.integer(tax_year) - NONFILER_BASE_YEAR) * NONFILER_ID_STRIDE
+  pool$id = pool$id + shift
+  pool
+}
+
+
 validate_nonfiler_pool = function(pool, puf_cols, puf_ids, label = 'ASEC-Nonfilers') {
 
   # 0. Not empty. This guards every check below, all of which are VACUOUSLY

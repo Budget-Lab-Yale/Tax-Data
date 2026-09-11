@@ -347,18 +347,19 @@ Currently `impute_nonfilers.R` hardcodes `nonfiler_pool_2017.csv.gz`, and `proje
 that ages stay at 2017 values. So composition is frozen and only six band scalars move. That
 is what S18(c) says not to do.
 
-- [ ] Add `load_nonfiler_pool(tax_year)` in Tax-Data, reading the year's file from the pinned
-      interface and running it through `validate_nonfiler_pool()` (already factored out for
-      exactly this).
-- [ ] For years **through 2023**: replace the non-filer cross-section with that year's pool
-      after projecting the filer population.
-- [ ] For years **after 2023**: project the 2023 pool forward with documented factors.
+- [x] ~~Add `load_nonfiler_pool(tax_year)`~~ **Done differently (2026-09-11, S22): the naive
+      per-year swap collides with both repos' fixed-id architecture (review brief §9), so
+      `impute_nonfilers.R` appends EVERY pool year to one base (design A, the union base),
+      each pool in its own id block, and `materialize()` ages by `factor(y)/factor(base_year)`.**
+- [x] For years **through 2023**: the year-y pool carries its own weight in y (zero elsewhere).
+- [x] For years **after 2023**: the 2023 pool carries them, grown per band on the S18(b) series
+      relative to 2023.
 - [ ] **Random draws must be deterministic and keyed by `(record id, tax_year)`** — *not*
       positional. `run.R:348-357` binds precomputed random numbers positionally, and a
       changing annual cross-section has exactly the silent re-randomisation hazard D4 exists
       to catch. This is the single highest-risk item in this block.
-- [ ] Ids unique within a year and unambiguous across years. Do **not** imply longitudinal
-      identity — these are independent ASEC cross-sections, not a panel.
+- [x] Ids unique within a year and unambiguous across years: `id + (year − 2017)·1e6`. No
+      longitudinal identity is implied; a record represents one cross-section.
 - [ ] Reconcile the ceiling in docs while you are here: `decisions_log.md:56` (S18(c)) says
       "through 2022"; `handoff.md` says "2023 national, 2022 with state products";
       `14_nonfiler_weight_targets.R:57` sets `LAST_OBS <- 2023L`. Intent is coherent (2023

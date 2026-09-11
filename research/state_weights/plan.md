@@ -364,6 +364,13 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 
 ## Revision history
 
+- **2026-09-11 (Block E)** — S22: the union base (design A) implemented on
+  branch `block-e`: all seven pools in the base with per-record `base_year`,
+  `materialize()` divides by the base-year factor, the weight path gives each
+  pool its own year and grows the 2023 pool forward, wealth on the 2022+
+  universe, the S21 partition asserted for every pool year. Open: JI to
+  confirm A over B/C; deflate-at-append; id-keyed Phase 1 draws.
+
 - **2026-09-11 (later)** — S21 set and built: per-year ssArea partition with a
   named not-in-universe block, no scale on any pool, vintage 2026091201
   published (2017–2022 byte-identical to 2026090101). The block's composition
