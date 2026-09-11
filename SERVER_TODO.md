@@ -322,8 +322,12 @@ upstream keeps the "applied exactly once" property a downstream merge step canno
 - [ ] Write a pre/post audit table: pre-scale count, post-scale count, scale factor, target,
       residual, per band and total.
 - [ ] Every band and the total close to a predeclared tolerance.
-- [ ] Add a downstream assertion in Tax-Data that filer + non-filer adults close to the
-      handoff universe by band and in total.
+- [x] Add a downstream assertion in Tax-Data that filer + non-filer adults close to the
+      handoff universe by band and in total. **Done 2026-09-11, and it would have failed**:
+      the aged 2017 pool sat at 38.26M adults in 2023 against the 41.23M target, because the
+      S19 scale lived only in the 2023 pool file. `project_puf.R` now anchors the non-filer
+      band level to `ssarea_alignment_2023.csv` from 2023 on (hard on the non-filer side,
+      soft table for the full identity).
 - [ ] Minor doc fix: S19's stated wedge range "5.6–11.7%" is the **5-band** range; the 18_25
       band is 2.65%. Either say 2.7–11.7% or say explicitly which bands the range covers.
 
@@ -352,6 +356,10 @@ is what S18(c) says not to do.
       "through 2022"; `handoff.md` says "2023 national, 2022 with state products";
       `14_nonfiler_weight_targets.R:57` sets `LAST_OBS <- 2023L`. Intent is coherent (2023
       nationally, 2022 where HT2 binds) but S18(c)'s headline sentence needs amending to say so.
+      **Superseded 2026-09: HT2 TY2023 is published and mirrored** (`IRS-Ind/state/HT2/
+      ht2_2023.csv.gz`; one schema change, the Form 5695 split `07260 -> 07262 + 07265`, which
+      `read_ht2()` ignores since neither is in `HT2_TARGET_MAP`). Both ceilings are 2023. What
+      remains is moving the anchor pair from 2017/2022 to 2017/2023 (S18 premise note).
 
 ---
 

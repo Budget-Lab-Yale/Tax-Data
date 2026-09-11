@@ -75,6 +75,25 @@ Run the pipeline end-to-end on a sample and check, in order: filer totals vs
 distributions, then the non-filer aggregates against the acceptance battery
 in the Tax-Simulator bundle.
 
+## Closed after the 2026-09-11 review
+
+- **S19 reached Tax-Data's output (finding 1).** The 2017 pool aged on the
+  PEP-basis band series landed 2023 at 38.26M non-filer adults against the
+  41.23M the handoff partition requires on CBO's Social Security area
+  universe; the producer's per-band ssArea scale lived only in the 2023 pool
+  file, which this pipeline never read. `project_puf.R` now pins the
+  non-filer band level from 2023 on to `ssarea_alignment_2023.csv` (shipped
+  in the pinned vintage) and uses the S18(b) series for growth relative to
+  its 2023 value; years through 2022 are unchanged. The partition is asserted
+  (non-filer side exact) and printed (full identity, soft) after the weight
+  ledger is built, and written to `ssarea_partition_2023.csv` in the output.
+- **HT2 reaches TY2023.** SOI published Historic Table 2 for TY2023 in
+  August 2026; it is mirrored at `raw_data/IRS-Ind/state/HT2/ht2_2023.csv.gz`
+  (2026-09-08). The state ceiling and the national ceiling now coincide at
+  2023, so "2023 national, 2022 with state products" is no longer the
+  constraint -- the anchor pair (2017/2022) has simply not been rebuilt yet
+  (Tax-Simulator decisions log S18, premise note).
+
 ## Deliberately left undone
 
 - No filer dimension on `factor_ledger` income growth (S18(a)): non-filer

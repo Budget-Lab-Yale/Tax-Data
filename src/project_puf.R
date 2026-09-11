@@ -230,6 +230,58 @@ irs_growth_factors_demog = read_csv('./resources/return_counts_2023.csv') %>%
 nonfiler_band_factors = read_csv('./resources/nonfiler_weight_targets.csv') %>%
   select(band, year, nonfiler_factor = factor_phase10)
 
+# Age band of the non-filer unit's head, in the producer's labels. Cut points
+# match ages.R and the filer age_group above; a unit's adults share the head's
+# band, which is the T1.6 primary-band convention the S19 partition uses.
+nonfiler_band = function(age) {
+  case_when(age < 26 ~ '18_25',
+            age < 35 ~ '26_34',
+            age < 45 ~ '35_44',
+            age < 55 ~ '45_54',
+            age < 65 ~ '55_64',
+            TRUE     ~ '65p')
+}
+
+# S19 handoff anchor (decision JI 2026-08-30; consumer side added 2026-09-11).
+#
+# The series above is a RATIO on the Census PEP residual, so applied to the
+# 2017 pool it lands 2023 on the PEP basis net of 2017's claimed-dependent
+# netting share: 38.26M non-filer adults, against the 41.23M the handoff
+# partition requires on CBO's Social Security area (ssArea) universe -- the
+# universe every weight is carried forward on. The producer applies the
+# per-band ssArea scale (1.061-1.134) to the 2023 POOL FILE, which this
+# pipeline does not read, so the alignment never reached these weights.
+#
+# From the handoff year on, the non-filer band LEVEL is therefore pinned to
+# the published partition -- nonfiler_target_b / (2017 pool adults in b) --
+# and the S18(b) series supplies only growth RELATIVE to its handoff-year
+# value. Years through 2022 are unchanged. The partition is asserted after
+# weight_ledger is built, below.
+NONFILER_HANDOFF_YEAR = FILER_OBS_LAST
+ssarea_alignment_file = interface_paths$`ASEC-Nonfilers` %>%
+  file.path(sprintf('ssarea_alignment_%d.csv', NONFILER_HANDOFF_YEAR))
+if (!file.exists(ssarea_alignment_file)) {
+  stop('S19 alignment table not found in the ASEC-Nonfilers vintage: ',
+       ssarea_alignment_file)
+}
+ssarea_alignment = read_csv(ssarea_alignment_file, show_col_types = F)
+
+nonfiler_handoff_anchor = tax_units %>%
+  filter(filer == 0) %>%
+  mutate(band = nonfiler_band(age1)) %>%
+  group_by(band) %>%
+  summarise(adults_2017 = sum(weight * (1 + (filing_status == 2))),
+            .groups = 'drop') %>%
+  inner_join(ssarea_alignment %>% select(band, nonfiler_target), by = 'band') %>%
+  inner_join(nonfiler_band_factors %>%
+               filter(year == NONFILER_HANDOFF_YEAR) %>%
+               select(band, factor_handoff = nonfiler_factor),
+             by = 'band') %>%
+  mutate(anchor = nonfiler_target / adults_2017)
+stopifnot(nrow(nonfiler_handoff_anchor) == 6,
+          all(is.finite(nonfiler_handoff_anchor$anchor)),
+          all(nonfiler_handoff_anchor$anchor > 0))
+
 irs_growth_factors_income = tables$table_1_4 %>%
   filter(variable %in% c('total_inc', 'wages', 'txbl_int', 'div', 'part_scorp',
                          'txbl_kg.income', 'gross_pens_dist', 'rent', 'ui', 'gross_ss')) %>%
@@ -337,16 +389,26 @@ compute_weights_for_year = function(y) {
   # after (see nonfiler_band_factors above). No recursion and no person-slot
   # demography: the factor is already cumulative, and a unit's non-filing
   # adults share the head's band.
+  #
+  # From the handoff year on, the level is the S19 partition's and the series
+  # contributes growth relative to its handoff-year value (see
+  # nonfiler_handoff_anchor above).
+  band_factors_y = nonfiler_band_factors %>%
+    filter(year == y) %>%
+    select(band, nonfiler_factor)
+  if (y >= NONFILER_HANDOFF_YEAR) {
+    band_factors_y = band_factors_y %>%
+      inner_join(nonfiler_handoff_anchor %>% select(band, anchor, factor_handoff),
+                 by = 'band') %>%
+      mutate(nonfiler_factor = anchor * nonfiler_factor / factor_handoff) %>%
+      select(band, nonfiler_factor)
+  }
+  stopifnot(nrow(band_factors_y) == 6)
+
   nonfilers = tax_units %>%
     filter(filer == 0) %>%
-    mutate(band = case_when(age1 < 26 ~ '18_25',
-                            age1 < 35 ~ '26_34',
-                            age1 < 45 ~ '35_44',
-                            age1 < 55 ~ '45_54',
-                            age1 < 65 ~ '55_64',
-                            TRUE      ~ '65p')) %>%
-    left_join(nonfiler_band_factors %>% filter(year == y) %>% select(-year),
-              by = 'band') %>%
+    mutate(band = nonfiler_band(age1)) %>%
+    left_join(band_factors_y, by = 'band') %>%
     mutate(weight = weight * nonfiler_factor) %>%
     select(id, weight)
   stopifnot(!any(is.na(nonfilers$weight)))
@@ -419,6 +481,67 @@ weight_ledger = map_dfr(2017L:2097L, compute_weights_for_year) %>%
   arrange(year, id)
 cat(sprintf('project_puf.R: weight_ledger built (%d rows, %.1fs)\n',
             nrow(weight_ledger), as.numeric(Sys.time() - t0, units = 'secs')))
+
+#-------------------------------------
+# S19 partition at the handoff year
+#-------------------------------------
+
+# filing adults + non-filer target + claimed-dependent netting = ssArea adults,
+# per age band, at T = 2023 (Tax-Simulator 15_ssarea_alignment.R). Two checks:
+#
+#   HARD  the non-filer side equals the published target by construction of
+#         nonfiler_handoff_anchor. A miss means the anchor, the band helper
+#         or the ledger changed independently.
+#   SOFT  the full partition, printed. The filer side here is Tax-Data's own
+#         T1.6-scaled weights and differs from the table's filing_adults by
+#         (i) the S15 level correction (out-of-state and QSS filers, ~0.6%,
+#         removed there and not here), (ii) the 2017 reweight's fit to T1.6
+#         cells, and (iii) the under-18 convention: ages.R draws every band-1
+#         age at 18+, so under-18 returns sit in 18_25 here and are excluded
+#         there. Expect ~+1% overall and several percent in 18_25. A hard
+#         tolerance would encode those conventions; the table is for the
+#         reviewer.
+handoff_partition = tax_units %>%
+  select(id, filer, age1, filing_status) %>%
+  inner_join(weight_ledger %>%
+               filter(year == NONFILER_HANDOFF_YEAR) %>%
+               select(id, weight),
+             by = 'id') %>%
+  mutate(band   = nonfiler_band(age1),
+         adults = weight * (1 + (filing_status == 2))) %>%
+  group_by(band) %>%
+  summarise(filer_adults    = sum(adults * filer),
+            nonfiler_adults = sum(adults * (1 - filer)),
+            .groups = 'drop') %>%
+  inner_join(ssarea_alignment %>%
+               select(band, ss_adults, filing_adults_t16 = filing_adults,
+                      netting, nonfiler_target),
+             by = 'band') %>%
+  mutate(nonfiler_gap  = nonfiler_adults / nonfiler_target - 1,
+         partition_sum = filer_adults + nonfiler_adults + netting,
+         partition_gap = partition_sum / ss_adults - 1)
+stopifnot(nrow(handoff_partition) == 6,
+          all(abs(handoff_partition$nonfiler_gap) < 1e-6))
+
+cat(sprintf(paste0('project_puf.R: S19 partition at %d -- non-filer adults ',
+                   '%.2fM = target %.2fM (hard); filer + non-filer + netting ',
+                   '= %.2fM vs ssArea %.2fM (%+.2f%%, soft)\n'),
+            NONFILER_HANDOFF_YEAR,
+            sum(handoff_partition$nonfiler_adults) / 1e6,
+            sum(handoff_partition$nonfiler_target) / 1e6,
+            sum(handoff_partition$partition_sum) / 1e6,
+            sum(handoff_partition$ss_adults) / 1e6,
+            100 * (sum(handoff_partition$partition_sum) /
+                     sum(handoff_partition$ss_adults) - 1)))
+print(handoff_partition %>%
+        mutate(across(c(filer_adults, nonfiler_adults, ss_adults,
+                        filing_adults_t16, netting, nonfiler_target,
+                        partition_sum), ~ round(. / 1e6, 3)),
+              across(c(nonfiler_gap, partition_gap), ~ round(., 4))),
+      width = 200)
+write_csv(handoff_partition,
+          file.path(output_path,
+                    sprintf('ssarea_partition_%d.csv', NONFILER_HANDOFF_YEAR)))
 
 #-------------------------------------
 # Build factor_ledger
