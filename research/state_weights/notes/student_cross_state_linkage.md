@@ -3,7 +3,7 @@ title: "Cross-state student linkage — the IPEDS option, and the question it do
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-08-24
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null

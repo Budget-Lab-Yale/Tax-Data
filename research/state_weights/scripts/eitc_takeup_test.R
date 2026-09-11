@@ -4,7 +4,8 @@
 # inconsistent with the eligibility-based x-vector, signed error should be
 # NEGATIVELY correlated with take-up (overshoot where take-up is low).
 suppressPackageStartupMessages({ library(data.table) })
-SCRATCH <- '/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp'
+source('src/nonfilers/state_weights.R')   # scratch_root()
+SCRATCH <- file.path(scratch_root(), 'state_weights_tmp')
 
 h5  <- readRDS(file.path(SCRATCH, 'hardened_fit_2022.rds'))
 p   <- h5$inputs$filers

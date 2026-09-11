@@ -28,7 +28,7 @@ suppressPackageStartupMessages({
 })
 source('src/nonfilers/state_weights.R')
 
-SCRATCH   <- '/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp'
+SCRATCH   <- file.path(scratch_root(), 'state_weights_tmp')
 SWEEP_DIR <- file.path(SCRATCH, 'sweep')
 VAL_DIR   <- file.path(SWEEP_DIR, 'validation')
 YEAR      <- 2022L

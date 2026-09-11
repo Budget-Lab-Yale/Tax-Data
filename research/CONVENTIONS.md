@@ -3,7 +3,7 @@ title: "Research documentation conventions"
 role: procedure
 workstream: cross-cutting
 status: current
-updated: 2026-08-20
+updated: 2026-09-11
 sot: self
 supersedes: []
 superseded_by: null

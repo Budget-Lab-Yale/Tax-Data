@@ -3,7 +3,7 @@ title: "Source documents and hand-transcribed resources"
 role: index
 workstream: state_weights
 status: current
-updated: 2026-08-24
+updated: 2026-09-11
 sot: research/state_weights/nonfiler_residual_design.md
 supersedes: []
 superseded_by: null

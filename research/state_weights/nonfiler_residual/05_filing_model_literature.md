@@ -3,7 +3,7 @@ title: "Filing-Model Literature — Are Cilke (1998) and Pub 5785 Still Current?
 role: evidence
 workstream: state_weights
 status: frozen
-updated: 2026-08-19
+updated: 2026-09-11
 true_as_of: 2026-08-18
 sot: research/state_weights/nonfiler_residual_design.md
 supersedes: []

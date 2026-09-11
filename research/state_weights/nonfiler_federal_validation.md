@@ -3,7 +3,7 @@ title: "Non-filer rework — federal validation procedure"
 role: procedure
 workstream: state_weights
 status: current
-updated: 2026-08-19
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null

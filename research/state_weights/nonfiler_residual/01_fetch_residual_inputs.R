@@ -35,7 +35,7 @@ suppressPackageStartupMessages({
 source('src/nonfilers/state_weights.R')   # raw_data_root(), FIPS_TO_STATE
 
 ANCHOR_YEARS <- c(2017, 2022)
-SCRATCH <- '/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp/nonfiler_residual'
+SCRATCH <- file.path(scratch_root(), 'state_weights_tmp', 'nonfiler_residual')
 dir.create(SCRATCH, recursive = TRUE, showWarnings = FALSE)
 
 #---------------------------------------

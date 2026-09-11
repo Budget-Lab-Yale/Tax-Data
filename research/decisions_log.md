@@ -3,7 +3,7 @@ title: "State-tax research decisions log"
 role: status
 workstream: cross-cutting
 status: current
-updated: 2026-08-31
+updated: 2026-09-11
 sot: self
 supersedes: []
 superseded_by: null

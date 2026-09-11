@@ -3,7 +3,7 @@ title: "SSA-EEDATA-SC: Notes on the data"
 role: notes
 workstream: state_weights
 status: current
-updated: 2026-08-19
+updated: 2026-09-11
 sot: research/state_weights/nonfiler_residual_design.md
 supersedes: []
 superseded_by: null

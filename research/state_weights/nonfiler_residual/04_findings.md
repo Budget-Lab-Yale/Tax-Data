@@ -3,7 +3,7 @@ title: "Stage D Findings — Residual Non-Filer Diagnostics"
 role: evidence
 workstream: state_weights
 status: frozen
-updated: 2026-08-23
+updated: 2026-09-11
 true_as_of: 2026-08-23
 sot: research/state_weights/nonfiler_residual_design.md
 supersedes: []

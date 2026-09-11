@@ -3,7 +3,7 @@ title: "State weights — alternative approaches (brainstorm, 2026-07-13)"
 role: notes
 workstream: state_weights
 status: deferred
-updated: 2026-08-19
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null

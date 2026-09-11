@@ -3,7 +3,7 @@ title: "State weights — issues from the first full-scale fit (2026-07-13)"
 role: notes
 workstream: state_weights
 status: current
-updated: 2026-08-20
+updated: 2026-09-11
 true_as_of: 2026-07-13
 sot: research/state_weights/plan.md
 supersedes: []

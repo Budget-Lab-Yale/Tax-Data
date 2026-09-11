@@ -3,7 +3,7 @@ title: "State Split Weights — Phase 1 Bake-off Summary"
 role: method
 workstream: state_weights
 status: current
-updated: 2026-08-27
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -370,9 +370,9 @@ series, take-up covariate, pilot liability) run before adoption.
 
 ## 9. Reproduction
 
-All artifacts were written to
-`/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp/` (`sweep/` for fits
-and metrics, `sweep/validation/` for the battery).
+All artifacts were written to `{TAXDATA_SCRATCH}/state_weights_tmp/`
+(`sweep/` for fits and metrics, `sweep/validation/` for the battery), the
+scratch root the scripts read from `~/.Renviron` since 2026-09-11.
 
 > **⚠ Verified 2026-08-27: `sweep/` is empty (0 bytes).** Scratch has been
 > reclaimed, so the config-7 fit, the 13 per-config metric files and

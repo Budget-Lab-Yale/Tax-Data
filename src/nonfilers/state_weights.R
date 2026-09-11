@@ -75,6 +75,24 @@ model_data_root <- function() {
             "model_data")
 }
 
+#' Root for large, regenerable research intermediates (fits, sweeps, PDFs).
+#'
+#' Added 2026-09-11 on the move to Tax-Data: four scripts carried the same
+#' absolute scratch path, which had already been reclaimed once (2026-08-27)
+#' and which no tracked file should name. Machine-specific values live in
+#' ~/.Renviron (TAXDATA_SCRATCH=/some/scratch/dir) and are read here; there is
+#' deliberately no default, because a default would be another server path.
+#' Accepted artifacts belong in-repo (results/), not under this root.
+scratch_root <- function() {
+  p <- Sys.getenv("TAXDATA_SCRATCH", unset = "")
+  if (!nzchar(p)) {
+    stop("TAXDATA_SCRATCH is not set. Add TAXDATA_SCRATCH=<scratch dir> to ",
+         "~/.Renviron; research scripts write regenerable intermediates there.",
+         call. = FALSE)
+  }
+  p
+}
+
 #' Path into one model's published vintage, e.g.
 #' model_data_path("Tax-Data", "v1", "2026081216", "baseline").
 model_data_path <- function(model, version, vintage, ...) {
@@ -185,7 +203,7 @@ read_ht2 <- function(path, year) {
 # HT2 covers filers only, so the non-filer PUF partition is targeted to ACS/Census
 # state × age × income margins instead (plan §2.1). This builds those margins from
 # the local IPUMS USA extract; shared cluster copies live at
-# /nfs/roberts/project/pi_nrs36/shared/raw_data/ACS/acs_common_v2 (us{year}a/
+# {raw_data_root()}/ACS/acs_common_v2 (us{year}a/
 # vintages 2006-2024: usa_{year}a.dat.gz + DDI xml + variables.csv). Re-pointed
 # from acs_common 2026-09-04; record counts are identical sample-for-sample, so
 # the state x age x income margins this builds are unchanged. The authority for WHO is a non-filer is the Tax-Data

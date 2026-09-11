@@ -3,7 +3,7 @@ title: "Which source sets the level: the anchor basis comparison"
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-08-30
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null

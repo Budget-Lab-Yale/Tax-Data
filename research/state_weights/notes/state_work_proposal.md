@@ -3,7 +3,7 @@ title: "Proposal: the state work that follows the non-filer handoff"
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-08-30
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 ---

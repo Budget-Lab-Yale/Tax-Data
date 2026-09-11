@@ -3,7 +3,7 @@ title: "Building tax units and income concepts on the CPS ASEC"
 role: method
 workstream: state_weights
 status: current
-updated: 2026-08-27
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null

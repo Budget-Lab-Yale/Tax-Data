@@ -3,7 +3,7 @@ title: "Rewriting the non-filer proposal for co-authors"
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-08-19
+updated: 2026-09-11
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
