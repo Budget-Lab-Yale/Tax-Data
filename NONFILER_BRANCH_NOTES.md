@@ -146,14 +146,35 @@ in the Tax-Simulator bundle.
   share 0.305 -> 0.352 -> 0.348 -> 0.300 -> 0.313; share with dependents
   0.161 -> 0.145 -> 0.163; interest receipt 0.139 -> 0.162. Every one of
   these was frozen at its 2017 value before.
-- **Filers are bit-identical at 2017 and 2020** to the S21 run (vintage
-  2026091118) on wages, interest, dividends, gains, Social Security and sole
-  proprietorship. Phase 1's positional draws survive tripling the base
-  because the filers occupy the first rows and the later pools carry zero
-  weight there, so both `runif(nrow(.))` prefixes and every weighted
-  quantile are unchanged. This was not guaranteed by the design; it means
-  Block E costs no filer drift of its own. From 2023 filer aggregates move
-  ~0.013% through the Forbes-splice receiver channel already documented.
+- **Filer PUF-NATIVE aggregates are bit-identical** at 2017 and 2020 to the
+  S21 run (vintage 2026091118): wages, interest, dividends, gains, Social
+  Security, sole proprietorship, and every filer weight. Those columns are
+  read from the PUF and scaled by deterministic factors, so the union base
+  cannot touch them.
+- **Filer IMPUTED variables DO move**, and this is the cost the review brief
+  predicted under "what design A does not fix". Phase 1's draws are
+  positional, and tripling the base changes how many each module consumes,
+  so every module downstream of the first sees a shifted stream. Measured at
+  the record level by `05_preflight_vintage.R` (46 of 188 columns at 2017)
+  and in aggregate against the S21 run:
+
+  | filer aggregate | 2017 | 2023 |
+  |---|---|---|
+  | `wagebill_sole_prop` | −3.9% | −3.4% |
+  | `care_exp` | +2.0% | +2.2% |
+  | `auto_int_exp` | −1.3% | −1.2% |
+  | `tips` | +0.7% | +1.3% |
+  | `kg_lt_basis` | +0.6% | +1.1% |
+  | consumption categories | ≤0.9% | ≤0.5% |
+  | `wages1` / `wages2` | ≤0.03% | ≤0.04% |
+
+  Monte Carlo noise from a reshuffled stream, not a bias -- but the QBI wage
+  bill and childcare expenses route real tax, so the E2 tripwire will read
+  this as filer-side movement under a non-filer-only change. **Keying the
+  Phase 1 draws by record id is what closes it**, and it is the one
+  follow-up that should land before merge. An earlier note in this file
+  claimed the filer side was bit-identical; it is not, and this table
+  replaces that claim.
 - **Tax-Simulator's contract holds.** After `filter(id %in% sample_ids)`
   every year has exactly 1,399,234 rows in identical order to 2017, so
   `bind_cols(random_numbers)` pairs the same record with the same draw in
