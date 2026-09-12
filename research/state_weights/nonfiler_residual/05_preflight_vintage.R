@@ -41,8 +41,11 @@
 # about 3x the rows; check 2 compares the filer slice, which is the same 207k
 # records in both, and check 1 is what guarantees the extra rows are harmless.
 #
-# Login-node safe: reads one year at a time, and only the columns each check
-# needs except on the years named by --full.
+# Login-node safe, and deliberately so: it reads at most BATCH columns from
+# each vintage at a time rather than two whole files. Two 930MB files held
+# open together is about 12GB in memory, over the ~5GB interactive cgroup cap,
+# and the kill reads as a mysterious exit rather than an OOM -- which is what
+# happened on the first run of this script against a Block E vintage.
 #
 #   Rscript research/state_weights/nonfiler_residual/05_preflight_vintage.R \
 #     --old=2026083115 --new=2026091119 [--years=2017:2035] [--full=2017,2020]
@@ -69,6 +72,9 @@ FULL  <- as.integer(strsplit(arg('full', '2017,2020'), ',')[[1]])
 SCEN  <- arg('scenario', 'baseline')
 OUT   <- arg('out', file.path('research/state_weights/nonfiler_residual/results',
                               sprintf('preflight_%s_%s.csv', OLD, NEW)))
+# Columns read from each vintage at once. 24 columns of 1.4M rows is ~270MB a
+# side, so the peak stays well inside an interactive session.
+BATCH <- as.integer(arg('batch', '24'))
 
 vintage_dir <- function(v) {
   d <- file.path(model_data_root(), 'Tax-Data/v1', v, SCEN)
@@ -129,10 +135,13 @@ for (v in c('old', 'new')) {
 # 2. Filer-slice equality between vintages -- the "non-filer only" proof
 #-------------------------------------------------------------------------------
 message('=== 2. filer slice, old vs new (every column, including weight)')
+KEY_COLS <- c('weight', 'wages', 'txbl_int', 'div_pref', 'kg_lt', 'gross_ss',
+              'sole_prop', 'filing_status', 'age1', 'male1', 'n_dep')
+
 for (y in YEARS) {
   full <- y %in% FULL
-  o <- fread(year_file('old', y)); n <- fread(year_file('new', y))
-  cols_o <- names(o); cols_n <- names(n)
+  cols_o <- names(fread(year_file('old', y), nrows = 0L))
+  cols_n <- names(fread(year_file('new', y), nrows = 0L))
   if (!identical(sort(cols_o), sort(cols_n))) {
     note('column set', y, 'FAIL',
          sprintf('old-only: %s | new-only: %s',
@@ -143,54 +152,64 @@ for (y in YEARS) {
     note('qual_div absent', y, 'FAIL', 'the producer-side rename is back')
   }
   common <- intersect(cols_o, cols_n)
-  of <- o[filer == 1][order(id)]; nf <- n[filer == 1][order(id)]
-  if (nrow(of) != nrow(nf)) {
-    note('filer slice', y, 'FAIL',
-         sprintf('%d filer rows old vs %d new', nrow(of), nrow(nf)))
-  } else if (!identical(of$id, nf$id)) {
-    note('filer slice', y, 'FAIL', 'filer id sets differ')
-  } else {
-    cmp_cols <- if (full) common else intersect(common,
-      c('id', 'weight', 'wages', 'txbl_int', 'div_pref', 'kg_lt', 'gross_ss',
-        'sole_prop', 'filing_status', 'age1', 'male1', 'n_dep'))
-    moved <- cmp_cols[!vapply(cmp_cols, function(cc)
-      isTRUE(all.equal(of[[cc]], nf[[cc]], tolerance = 0)), logical(1))]
-    if (length(moved)) {
-      worst <- vapply(moved, function(cc) {
-        a <- suppressWarnings(as.numeric(of[[cc]])); b <- suppressWarnings(as.numeric(nf[[cc]]))
-        if (all(is.na(a))) NA_real_ else
-          max(abs(b - a) / pmax(abs(a), 1e-9), na.rm = TRUE)
-      }, numeric(1))
-      note(if (full) 'filer slice, ALL columns' else 'filer slice, key columns',
-           y, 'MOVED',
-           sprintf('%d of %d columns: %s', length(moved), length(cmp_cols),
-                   paste(sprintf('%s(%.1e)', moved, worst), collapse = ' ')))
-    } else {
-      note(if (full) 'filer slice, ALL columns' else 'filer slice, key columns',
-           y, 'ok', sprintf('identical across %d columns', length(cmp_cols)))
-    }
-  }
 
-  # 4. Domain, both vintages
+  # The filer key, read once: id and filer from each side. Everything below
+  # compares the filer rows in id order without ever holding a whole file.
+  ko <- fread(year_file('old', y), select = c('id', 'filer', 'dep_status', 'weight'))
+  kn <- fread(year_file('new', y), select = c('id', 'filer', 'dep_status', 'weight'))
   for (v in c('old', 'new')) {
-    d <- if (v == 'old') o else n
+    d <- if (v == 'old') ko else kn
     bad <- d[!(filer %in% c(0, 1)) | !(dep_status %in% c(0, 1)) |
              is.na(filer) | is.na(dep_status) | (filer == 0 & dep_status != 0), .N]
     if (bad > 0L) note(sprintf('%s: filer/dep_status domain', v), y, 'FAIL',
                        sprintf('%d offending rows', bad))
   }
+  oo <- which(ko$filer == 1); oo <- oo[order(ko$id[oo])]
+  nn <- which(kn$filer == 1); nn <- nn[order(kn$id[nn])]
+  if (length(oo) != length(nn)) {
+    note('filer slice', y, 'FAIL',
+         sprintf('%d filer rows old vs %d new', length(oo), length(nn)))
+  } else if (!identical(ko$id[oo], kn$id[nn])) {
+    note('filer slice', y, 'FAIL', 'filer id sets differ')
+  } else {
+    cmp_cols <- setdiff(if (full) common else intersect(common, c('id', KEY_COLS)), 'id')
+    moved <- character(0); worst <- numeric(0)
+    for (grp in split(cmp_cols, ceiling(seq_along(cmp_cols) / BATCH))) {
+      bo <- fread(year_file('old', y), select = grp)
+      bn <- fread(year_file('new', y), select = grp)
+      for (cc in grp) {
+        a <- bo[[cc]][oo]; b <- bn[[cc]][nn]
+        if (isTRUE(all.equal(a, b, tolerance = 0))) next
+        moved <- c(moved, cc)
+        an <- suppressWarnings(as.numeric(a)); bn2 <- suppressWarnings(as.numeric(b))
+        worst <- c(worst, if (all(is.na(an))) NA_real_ else
+          max(abs(bn2 - an) / pmax(abs(an), 1e-9), na.rm = TRUE))
+      }
+      rm(bo, bn); invisible(gc())
+    }
+    label <- if (full) 'filer slice, ALL columns' else 'filer slice, key columns'
+    if (length(moved)) {
+      note(label, y, 'MOVED',
+           sprintf('%d of %d columns: %s', length(moved), length(cmp_cols),
+                   paste(sprintf('%s(%.1e)', moved, worst), collapse = ' ')))
+    } else {
+      note(label, y, 'ok', sprintf('identical across %d columns', length(cmp_cols)))
+    }
+  }
 
-  # 5. Non-filer mass, reported
+  # Non-filer mass, reported. Needs three columns, read once per side.
   for (v in c('old', 'new')) {
-    d <- if (v == 'old') o else n
-    nfr <- d[filer == 0 & weight > 0]
+    k <- if (v == 'old') ko else kn
+    fs <- fread(year_file(v, y), select = c('filing_status', 'wages'))
+    sel <- k$filer == 0 & k$weight > 0
     note(sprintf('%s: non-filer mass', v), y, 'info',
          sprintf('%.2fM units | %.2fM adults | $%.1fB wages',
-                 nfr[, sum(weight)] / 1e6,
-                 nfr[, sum(weight * (1 + (filing_status == 2)))] / 1e6,
-                 nfr[, sum(weight * wages)] / 1e9))
+                 sum(k$weight[sel]) / 1e6,
+                 sum(k$weight[sel] * (1 + (fs$filing_status[sel] == 2))) / 1e6,
+                 sum(k$weight[sel] * fs$wages[sel]) / 1e9))
+    rm(fs)
   }
-  rm(o, n, of, nf); invisible(gc())
+  rm(ko, kn, oo, nn); invisible(gc())
 }
 
 #-------------------------------------------------------------------------------
