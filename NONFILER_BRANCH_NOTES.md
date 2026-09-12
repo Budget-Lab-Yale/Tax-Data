@@ -134,6 +134,39 @@ in the Tax-Simulator bundle.
   in Phase 1 imputations (deflate-at-append is the fix, blocked on having the
   income factors before the append).
 
+**Verified end to end: vintage 2026091119** (job 25972897, 2h22m55s, peak
+685 GB of 900 GB requested; 16 cpu, cached fits).
+
+- **Every year reproduces its pool exactly.** Non-filer units, adults AND
+  wages in `tax_units_{year}.csv` equal the published `nonfiler_pool_{year}`
+  for all of 2017-2023 -- wages too, which is what proves the base-year
+  factor division. 2025 and 2040 carry the 2023 pool's 168,785 records.
+- **Composition now moves with the year** (the Block F test): mean age 51.9
+  (2017) -> 54.1 (2019) -> 55.1 (2020) -> 52.0 (2022) -> 52.2 (2023); 65+
+  share 0.305 -> 0.352 -> 0.348 -> 0.300 -> 0.313; share with dependents
+  0.161 -> 0.145 -> 0.163; interest receipt 0.139 -> 0.162. Every one of
+  these was frozen at its 2017 value before.
+- **Filers are bit-identical at 2017 and 2020** to the S21 run (vintage
+  2026091118) on wages, interest, dividends, gains, Social Security and sole
+  proprietorship. Phase 1's positional draws survive tripling the base
+  because the filers occupy the first rows and the later pools carry zero
+  weight there, so both `runif(nrow(.))` prefixes and every weighted
+  quantile are unchanged. This was not guaranteed by the design; it means
+  Block E costs no filer drift of its own. From 2023 filer aggregates move
+  ~0.013% through the Forbes-splice receiver channel already documented.
+- **Tax-Simulator's contract holds.** After `filter(id %in% sample_ids)`
+  every year has exactly 1,399,234 rows in identical order to 2017, so
+  `bind_cols(random_numbers)` pairs the same record with the same draw in
+  every year -- the property design A exists to preserve.
+- **Cost:** 930 MB per year against 320 MB, 78 GB total against 27 GB;
+  about 1.02M zero-weight rows per file; wealth ran on 548,807 records of
+  1,399,234. Runtime was *shorter* than the 374,630-record baseline
+  (2h23m against 2h50m), on a different node.
+- **Pre-existing defect surfaced, not caused, by the id checks:** the Forbes
+  synthetic billionaire rows (749 from 2022, 935 from 2025) are absent from
+  the 2017 file `sample_ids` is taken from, so Tax-Simulator drops all of
+  them. True on `main` too. Recorded in `SERVER_TODO.md`.
+
 ## Deliberately left undone
 
 - No filer dimension on `factor_ledger` income growth (S18(a)): non-filer
