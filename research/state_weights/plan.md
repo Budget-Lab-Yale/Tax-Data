@@ -364,6 +364,17 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 
 ## Revision history
 
+- **2026-09-12 (federal validation, first run)** — The battery ran on vintages
+  2026083115 / 2026091118 / 2026091119. **The E2 tripwire FAILS**: 187 of 209
+  filer-gated 1040 columns move under identical law. Cause is not the
+  population but that both repos derive draws from record POSITION and set
+  SIZE rather than identity — Tax-Data's positional Phase 1 draws (dominant)
+  and a `sample_frac` shuffle at `config_parser.R:222` that consumes RNG in
+  proportion to the record count (inflates the extremes). Payroll moves as
+  predicted. Written up in
+  [`nonfiler_federal_validation_findings.md`](nonfiler_federal_validation_findings.md);
+  id-keyed draws in both repos are now a blocker, not a follow-up.
+
 - **2026-09-11 (later)** — S21 set and built: per-year ssArea partition with a
   named not-in-universe block, no scale on any pool, vintage 2026091201
   published (2017–2022 byte-identical to 2026090101). The block's composition
