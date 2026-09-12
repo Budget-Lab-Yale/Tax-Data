@@ -75,6 +75,28 @@
   movement from 2023 is the Forbes splice re-selecting receivers on the changed
   materialized file. Details in `NONFILER_BRANCH_NOTES.md`.
 
+- **S21 e2e (2026-09-11): vintage 2026091118, job 25972109, PASS.** 2h49m53s, peak
+  372 GB. 2017/2020/2022 identical to 2026091113 on both sides; 2023 non-filer adults
+  37.45M = the built pool; identity +0.26%.
+- **Block E e2e (2026-09-11): vintage 2026091119, job 25972897, PASS** (branch `block-e`,
+  worktree `../Tax-Data-blocke`). 2h22m55s, peak 685 GB of 900 GB. Every year 2017-2023
+  reproduces its published pool's units, adults AND wages exactly; composition now moves
+  with the year (mean age 51.9 -> 55.1 at 2020 -> 52.2 at 2023; 65+ share 0.305 -> 0.352
+  at 2019 -> 0.313; interest receipt 0.139 -> 0.162). Filer aggregates at 2017 and 2020
+  are BIT-IDENTICAL to the S21 run: Phase 1's positional draws are preserved because the
+  filers occupy the first rows and the later pools carry zero weight in the base. After
+  Tax-Simulator's `filter(id %in% sample_ids)` every year has 1,399,234 rows in identical
+  order to 2017, so `bind_cols(random_numbers)` holds. Cost: 930 MB/year (was 320 MB),
+  78 GB total (was 27 GB), ~1.02M zero-weight rows per file.
+- **Pre-existing defect surfaced by that check, NOT a Block E regression: the Forbes
+  billionaire records never reach Tax-Simulator.** `apply_forbes_splice_to_materialized()`
+  appends 749 synthetic rows from 2022 and 935 from 2025 (ids `{year}000001`+), but they
+  are absent from the 2017 file that `config_parser.R:219` takes `sample_ids` from, so
+  `run.R:352` drops every one of them. Present on `main` as well (220,896 rows at 2017
+  against 221,645 at 2023). Fix belongs with the splice, not here: either seed the ids
+  into the 2017 file at zero weight, or have Tax-Simulator take sample_ids from the year
+  it is running.
+
 Full evaluation and the deferred tiers: `~/.claude/plans/find-the-document-entitled-atomic-codd.md`.
 Cross-repo map: `Tax-Simulator/research/state_weights/handoff.md`. Branch review: `NONFILER_BRANCH_NOTES.md`.
 
