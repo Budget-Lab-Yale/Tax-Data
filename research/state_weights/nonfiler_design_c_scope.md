@@ -152,6 +152,46 @@ excludes them explicitly in `in_subsample()` rather than as a side effect of
 where `sample_ids` was read from — which also makes the A vintage on the
 branch comparable to the A vintage on `state-tax`, isolating the emit rule.
 
+## 5b. Steps 2-3 EXECUTED 2026-09-13: design C is exactly neutral
+
+Built and measured. The C vintage `2026091119C` was produced from design A's
+own vintage by the emit rule, and verified byte-exact: `md5sum` of A's
+positive-weight lines equals `md5sum` of the C file at 2017, 2022 and 2030.
+**78 G -> 25 G.**
+
+Three Tax-Simulator arms, baseline law, 2017:2026, full sample:
+
+| comparison | 1040 | payroll | receipts | by-AGI |
+|---|---|---|---|---|
+| `state-tax` vs `design-c`, both on vintage A | **0 of 210** | 0 of 36 | 0 of 8 | — |
+| **design A vs design C, same branch** | **0 of 210** | **0 of 36** | **0 of 8** | **0 of 210**, 160 rows both |
+
+The first row says the Tax-Simulator changes are inert on the existing
+vintage. The second is the acceptance test in section 4, and it passes as
+exact equality: **dropping the zero-weight records changes no reported number
+at all.** The `by_agi` edge case flagged in section 4 does not materialise —
+same 160 rows, no NaN cells in either.
+
+**Two things had to be fixed to get here, both pre-existing.**
+
+`src/calc/functions/credits/eitc.R:137` read the pre-certification draw as
+`globals$random_numbers$r.eitc_precert` -- the whole precomputed vector,
+recycled against whatever frame `calc_eitc` was handed -- where its siblings
+use the record's own bound column (`cdctc.R` with `r.cdctc_takeup`, `agi.R`
+with `r.bus_loss`). That is correct only when the frame is the full record set
+in file order; on any subset it silently misaligns the draw. Design C made it
+error outright instead of misalign. Fixed to the sibling idiom, and
+numerically inert at full sample, which the first row above demonstrates.
+
+A first attempt at the C vintage went through `fread`/`fwrite` and lost the
+last bits of 138 of 174 numeric columns (`weight` 776.89506153070169603 ->
+...203709). That run showed 189 of 210 columns moving, worst 0.6% on
+`n_ref_iit` -- **1e-16 of input noise moving a reported count by 41,000 tax
+units.** Threshold flipping: records crossing itemise/standard, credit
+phase-in and AMT boundaries. It is a good argument for why section 4a is
+written as exact equality rather than a tolerance, and a warning that any
+vintage comparison must preserve full numeric precision end to end.
+
 ## 6. Validation gate changes
 
 `nonfiler_residual/05_preflight_vintage.R` check 1 — "the id vector after
