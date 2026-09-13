@@ -111,8 +111,14 @@ RNG_STREAMS = c(
   kg_bucket               = 111L,
   # consumption (cex.R / consumption.R)
   consumption_quantile    = 120L,
-  # wealth.R -- the per-record donor pick inside the Stage 3 tilt
-  wealth_donor            = 130L
+  # consumption.R -- Stage B, the sparse DRF donor walk
+  consumption_tree        = 121L,
+  consumption_leaf        = 122L,
+  # wealth.R -- the per-record donor picks
+  wealth_donor            = 130L,
+  wealth_tree             = 131L,
+  wealth_leaf_pre         = 132L,
+  wealth_leaf_post        = 133L
 )
 stopifnot(!anyDuplicated(RNG_STREAMS), !anyDuplicated(names(RNG_STREAMS)))
 
