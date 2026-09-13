@@ -493,10 +493,10 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     puf_rows_in_cell = which(puf_cells_raw$cell_income == ci)
     if (length(puf_rows_in_cell) == 0L) next
 
-    set.seed(300 + ci_idx)
-    local_tree_pick = sample.int(f_cell$n_trees,
-                                  size = length(puf_rows_in_cell),
-                                  replace = TRUE)
+    # S23: which tree a record walks is keyed by its id, not by its position
+    # in the cell.
+    local_tree_pick = column_by_id(puf_tax_units$id[puf_rows_in_cell],
+                                   f_cell$n_trees, 'wealth_tree')
 
     for (j in seq_along(puf_rows_in_cell)) {
       i  = puf_rows_in_cell[j]
@@ -713,10 +713,11 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # Kept ONLY as a diagnostic so harnesses can compare raw-DRF leaf draw
   # vs tilted output. Not fed into the solver.
   pre_tilt_donors = integer(n_pred)
+  pre_u = draw_by_id(puf_tax_units$id, 'wealth_leaf_pre')
   for (i in seq_len(n_pred)) {
     lr = leaf_donors_list[[i]]
     if (length(lr) > 0L) {
-      pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
+      pre_tilt_donors[i] = lr[pmin(length(lr), 1L + floor(pre_u[i] * length(lr)))]
     }
   }
 
@@ -851,15 +852,15 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         # nonsenior buckets and vice versa, undoing the age control that
         # calibrated buckets enforce.
         target_senior = (ca == 'senior')
-        for (i in rec_cell) {
+        post_u = draw_by_id(puf_tax_units$id[rec_cell], 'wealth_leaf_post')
+        for (k in seq_along(rec_cell)) {
+          i  = rec_cell[k]
           lr = leaf_donors_list[[i]]
           if (length(lr) == 0L) next
           lr_age_ok = lr[scf_boot_is_senior[lr] == target_senior]
-          if (length(lr_age_ok) > 0L) {
-            post_tilt_donors[i] = lr_age_ok[sample.int(length(lr_age_ok), 1L)]
-          } else {
-            post_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
-          }
+          pool = if (length(lr_age_ok) > 0L) lr_age_ok else lr
+          post_tilt_donors[i] = pool[pmin(length(pool),
+                                          1L + floor(post_u[k] * length(pool)))]
         }
         cat(sprintf('  %-12s × %-9s: n=%6d  [no viable targets → age-restricted leaf draw]\n',
                     ci, ca, n_b))

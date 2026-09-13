@@ -144,7 +144,12 @@ walk_to_leaf = function(t, x_row) {
 
 X_puf     = as.matrix(puf[, drf_features])
 n_pred    = nrow(X_puf)
-tree_pick = sample.int(n_trees, size = n_pred, replace = TRUE)
+# S23: which tree a record walks, and which leaf observation it lands on,
+# are both keyed by record id. Under the positional draws these were the
+# single largest remaining source of record-set dependence in Phase 1 --
+# they set every consumption category.
+tree_pick = column_by_id(puf$id, n_trees, 'consumption_tree')
+leaf_u    = draw_by_id(puf$id, 'consumption_leaf')
 donors    = integer(n_pred)
 
 # Uniform leaf sampling is correct under bootstrap expansion: all training
@@ -155,7 +160,7 @@ for (i in seq_len(n_pred)) {
   t  = tree_pick[i]
   nd = walk_to_leaf(t, X_puf[i, ])
   lr = leaves[[t]][[nd]] + 1L
-  donors[i] = as.integer(lr[sample.int(length(lr), 1L)])
+  donors[i] = as.integer(lr[pmin(length(lr), 1L + floor(leaf_u[i] * length(lr)))])
 }
 cat(sprintf('consumption.R: sparse donor sampling over %d rows: %.1f s\n',
             n_pred, as.numeric(Sys.time() - t0, units = 'secs')))
