@@ -9,8 +9,8 @@ config/interfaces/output_roots.yaml
 plots/
 docs/
 src/eda/
-resources/cache/
-resources/forbes/cache/
+resources/cache
+resources/forbes/cache
 slurm_*.sh
 slurm_*.out
 slurm_*.err
