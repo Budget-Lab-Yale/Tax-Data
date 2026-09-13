@@ -40,14 +40,14 @@ train_or_load_qrf = function(name, x = NULL, y = NULL, weights = NULL,
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
 
   if (estimate_models) {
-    qrf = quantregForest(
+    qrf = with_model_seed(name, quantregForest(
       x        = x,
       y        = y,
       nthreads = n_threads(),
       weights  = weights,
       mtry     = mtry,
       nodesize = nodesize
-    )
+    ))
     write_rds(qrf, cache_path)
   } else {
     qrf = read_rds(cache_path)
@@ -137,9 +137,9 @@ train_or_load_ranger = function(name, formula, data, case_weights = NULL,
                                  mtry = 3, min_node_size = 5, num_trees = 500) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
-    rf = ranger(formula, data = data, case.weights = case_weights,
+    rf = with_model_seed(name, ranger(formula, data = data, case.weights = case_weights,
                 quantreg = TRUE, num.trees = num_trees, mtry = mtry,
-                min.node.size = min_node_size, num.threads = n_threads())
+                min.node.size = min_node_size, num.threads = n_threads()))
     write_rds(rf, cache_path)
   } else {
     rf = read_rds(cache_path)
@@ -275,7 +275,7 @@ train_or_load_drf = function(name, X, Y, sample.weights = NULL,
                               response.scaling = FALSE) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
-    model = drf::drf(X = X, Y = Y,
+    model = with_model_seed(name, drf::drf(X = X, Y = Y,
                      sample.weights = sample.weights,
                      num.trees = num.trees,
                      splitting.rule = splitting.rule,
@@ -284,7 +284,7 @@ train_or_load_drf = function(name, X, Y, sample.weights = NULL,
                      min.node.size = min.node.size,
                      honesty = honesty,
                      response.scaling = response.scaling,
-                     num.threads = n_threads())
+                     num.threads = n_threads()))
     write_rds(model, cache_path)
   } else {
     model = read_rds(cache_path)
