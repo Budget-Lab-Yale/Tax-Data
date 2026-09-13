@@ -135,6 +135,23 @@ Per-year ids include them. That is a fix, but it moves the top of the
 distribution, so it should land as its own change with its own before/after
 rather than arriving silently inside design C.
 
+### 5a. It is blocked on the id space (found 2026-09-13 in execution)
+
+Making membership a rule stops dropping the Forbes rows, and the S23 guard
+then refuses them: `make_forbes_id()` is `year * 1e6 + rank`, so the 2022
+cohort occupies **2,022,000,001 – 2,022,000,717** against an `RNG_ID_SPACE`
+of 1e7. `draw_by_id()` stopped the run with exactly the message it was written
+to give — Tax-Data is emitting ids beyond the space the draws are defined
+over.
+
+So the Forbes fix is not free. It needs either a wider id space, which moves
+**every** draw for every record, or Forbes ids renumbered into the existing
+space (they are synthetic, so renumbering is legitimate, but must not collide
+with a pool's 1e6 block). Until one of those is chosen, the measurement branch
+excludes them explicitly in `in_subsample()` rather than as a side effect of
+where `sample_ids` was read from — which also makes the A vintage on the
+branch comparable to the A vintage on `state-tax`, isolating the emit rule.
+
 ## 6. Validation gate changes
 
 `nonfiler_residual/05_preflight_vintage.R` check 1 — "the id vector after
