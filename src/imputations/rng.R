@@ -272,6 +272,54 @@ predict_qrf_draw_by_id = function(model, newdata, ids, stream, offset = 0,
 }
 
 
+#' Seed a model FIT by the model's name, not by where the run happens to
+#' have left the global stream.
+#'
+#' Model training is itself a draw. `quantregForest`, `ranger` and `drf` all
+#' take their bootstrap samples and split candidates from the global RNG, so
+#' a fit taken after N records' worth of positional draws is a DIFFERENT
+#' FOREST from the same call taken after M. Keying the predictions by id
+#' (everything above) does not reach this: the ensemble the id indexes into
+#' has already changed.
+#'
+#' This was the last non-invariant column. `prim_mort_share` moved for
+#' ~28,000 of 207,692 filers between two vintages whose model inputs were
+#' verified identical record by record, because `mortgage.R` retrained its
+#' forest on every run (an `estimate_models = 1` left in the module, removed
+#' 2026-09-13) at a stream position that depended on the record count.
+#' Measured the same day: two `quantregForest` fits on identical data agree
+#' exactly under one seed and not at all under two.
+#'
+#' Unlike a draw stream, a training seed only has to be STABLE, not unique
+#' -- two models sharing a seed are fitted to different data and collide in
+#' nothing -- so this derives the seed from the name instead of keeping the
+#' append-only table that RNG_STREAMS needs.
+#'
+#' @param name  the model's cache name, e.g. 'prim_mort_share_qrf'.
+#' @return      an integer seed, stable across runs and R sessions.
+model_seed = function(name) {
+  chars = utf8ToInt(name)
+  RNG_BASE_SEED + as.integer(sum(chars * seq_along(chars)) %% 100000)
+}
+
+
+#' Fit a model under `model_seed(name)`, leaving the global stream as found.
+#'
+#' `expr` is a promise: it is forced on the line below, under the seed. The
+#' save/restore is the same contract as `draw_by_id()` -- nothing downstream
+#' sees a different stream because a model was fitted.
+#'
+#' @param name  the model's cache name.
+#' @param expr  the fitting call, e.g. `quantregForest(...)`.
+with_model_seed = function(name, expr) {
+  if (exists('.Random.seed', envir = globalenv())) {
+    saved = get('.Random.seed', envir = globalenv())
+    on.exit(assign('.Random.seed', saved, envir = globalenv()), add = TRUE)
+  }
+  set.seed(model_seed(name))
+  expr
+}
+
 #--------------------------------------------------------------------------
 # Standalone tests. Run with:  Rscript src/imputations/rng.R
 # Exits 0 on success. Not part of the pipeline.
