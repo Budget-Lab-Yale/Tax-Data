@@ -1,4 +1,8 @@
 #--------------------------------------
+
+# S23: id-keyed random draws. Sourced here so every imputation module that
+# sources helpers.R has draw_by_id()/sample_one_by_id()/column_by_id().
+source('src/imputations/rng.R')
 # helpers.R
 #
 # Shared utility functions for
@@ -152,10 +156,14 @@ train_or_load_ranger = function(name, formula, data, case_weights = NULL,
 #' @param model   A ranger object trained with quantreg = TRUE
 #' @param newdata Prediction data
 #' @return        Numeric vector of predictions (one per row of newdata)
-predict_ranger_draw = function(model, newdata) {
+predict_ranger_draw = function(model, newdata, ids, stream) {
   grid = seq(0.01, 0.99, 0.01)
   pred = predict(model, data = newdata, type = 'quantiles', quantiles = grid)$predictions
-  sapply(1:nrow(newdata), function(i) pred[i, sample(length(grid), 1)])
+  # S23: the quantile picked is keyed by record id, not by a positional
+  # `sample()`, so a record's draw does not depend on how many other records
+  # are being predicted. `ids` must align with the rows of `newdata`.
+  stopifnot(length(ids) == nrow(newdata))
+  pred[cbind(seq_along(ids), column_by_id(ids, length(grid), stream))]
 }
 
 

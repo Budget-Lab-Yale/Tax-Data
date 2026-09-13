@@ -53,6 +53,7 @@ they share a plan.
 | method — non-filers | [`state_weights/nonfiler_residual_design.md`](state_weights/nonfiler_residual_design.md) |
 | method — the fit | [`state_weights/state_weights_phase1_summary.md`](state_weights/state_weights_phase1_summary.md) |
 | procedure | [`state_weights/nonfiler_federal_validation.md`](state_weights/nonfiler_federal_validation.md) |
+| review | [`state_weights/nonfiler_federal_validation_findings.md`](state_weights/nonfiler_federal_validation_findings.md) — the battery's first run: the E2 tripwire fails, and why |
 | evidence | [`state_weights/nonfiler_residual/04_findings.md`](state_weights/nonfiler_residual/04_findings.md) + `nonfiler_residual/results/` |
 | notes | [`state_weights/notes/`](state_weights/notes/) |
 | scripts | [`state_weights/scripts/`](state_weights/scripts/) — the Phase 1 harness (`sweep_`, `validate_`) and drivers |

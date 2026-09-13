@@ -104,18 +104,16 @@ tips = tax_units %>%
       newdata = (.),
       what    = function(x) mean(x - 1)
     ),
-    tip_share = predict(
-      object  = tip_share_qrf,
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    )
+    # S23: the same ensemble member is chosen, by the record's own draw
+    # rather than by position. `index` (1 = primary, 2 = spouse) sub-keys it,
+    # so the two earners in a joint unit draw independently, as they did
+    # when each was a separate row under the positional sample().
+    tip_share = predict_qrf_draw_by_id(tip_share_qrf, (.), id,
+                                       'tips_quantile', sub = index)
   ) %>%
   mutate(
-    tips_lh = predict(
-      object  = tip_lh_qrf,
-      newdata = (.),
-      what    = function(x) sample(x - 1, 1)
-    )
+    tips_lh = predict_qrf_draw_by_id(tip_lh_qrf, (.), id, 'tips_year',
+                                     offset = -1, sub = index)
   )
 
 
@@ -148,7 +146,9 @@ covid_factor = sipp %>%
 tips %<>%
   left_join(scaling_factors, by = 'married') %>%
   mutate(
-    tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p * covid_factor)) * factor_avg,
+    tips = wages * tip_share *
+           (draw_by_id(id, 'tips_receipt', sub = index) <
+              (p * factor_p * covid_factor)) * factor_avg,
     tips_lh = na_if(tips_lh, tips == 0)
   )
 

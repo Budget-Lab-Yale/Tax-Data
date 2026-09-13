@@ -13,10 +13,12 @@
 share_blind = (260535 + 83983) / 104013115  # number of blind standard deductions taken over number of nonitemizers
 
 # Impute
+# S23: draws keyed by record id, so a record's blindness does not depend on
+# how many other records are in the file.
 tax_units %<>%
-  mutate(blind1 = runif(nrow(.)) < share_blind,
+  mutate(blind1 = draw_by_id(id, 'blind1') < share_blind,
          blind2 = if_else(filing_status == 2,
-                          runif(nrow(.)) < share_blind,
+                          draw_by_id(id, 'blind2') < share_blind,
                           NA))
 
 
@@ -88,14 +90,14 @@ tax_units %<>%
     male1 = case_when(
 
       # Married and missing: choose randomly
-      filing_status == 2 & is.na(GENDER) ~ as.integer(runif(nrow(.)) < 0.5),
+      filing_status == 2 & is.na(GENDER) ~ as.integer(draw_by_id(id, 'gender_joint') < 0.5),
 
       # Married and nonmissing: take from PUF
       filing_status == 2 & GENDER == 1 ~ 1,
       filing_status == 2 & GENDER == 2 ~ 0,
 
       # Unmarried and missing: simulate
-      filing_status != 2 & is.na(GENDER) ~ runif(nrow(.)) < p_male_impute,
+      filing_status != 2 & is.na(GENDER) ~ draw_by_id(id, 'gender_nonjoint') < p_male_impute,
 
       # Unmarried and nonmissing: take from PUF
       filing_status != 2 & GENDER == 1 ~ 1,
@@ -104,8 +106,10 @@ tax_units %<>%
 
     # Secondary earner...assume 1% of marrages are same-sex
     male2 = case_when(
-      filing_status == 2 & male1 == 1 ~ if_else(runif(nrow(.)) < 0.01, 1, 0),
-      filing_status == 2 & male1 == 0 ~ if_else(runif(nrow(.)) < 0.01, 0, 1),
+      # one stream: the two branches are mutually exclusive, so a record
+      # draws once either way
+      filing_status == 2 & male1 == 1 ~ if_else(draw_by_id(id, 'male2_same_sex') < 0.01, 1, 0),
+      filing_status == 2 & male1 == 0 ~ if_else(draw_by_id(id, 'male2_same_sex') < 0.01, 0, 1),
       TRUE                            ~ NA
     )
   ) %>%

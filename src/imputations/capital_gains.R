@@ -87,26 +87,32 @@ dw_at_boundary   = dweibull(19, shape = wb_shape, scale = wb_scale)
 wb_mass_bucket_8 = pweibull(19, wb_shape, wb_scale) - pweibull(14, wb_shape, wb_scale)
 exp_lambda_20p   = dw_at_boundary / wb_mass_bucket_8 * pi_g[8] / pi_g[9]
 
-rtrunc_weibull = function(n, lo, hi) {
+# S23: both draws below are keyed by record id. Each is the SAME
+# distribution as before, taken by inverse CDF from the record's own uniform
+# instead of from the global stream's position: rexp -> qexp, and the
+# truncated Weibull's uniform drawn directly on [F_lo, F_hi).
+rtrunc_weibull = function(ids, lo, hi) {
   if (lo >= 20) {
     # Exponential splice for 20+ bucket (uncapped)
-    rexp(n, rate = exp_lambda_20p) + 20
+    qexp(draw_by_id(ids, 'kg_holding_period'), rate = exp_lambda_20p) + 20
   } else {
     x_lo = lo - 1
     x_hi = hi - 1
     F_lo = pweibull(x_lo, shape = wb_shape, scale = wb_scale)
     F_hi = pweibull(x_hi, shape = wb_shape, scale = wb_scale)
-    u = runif(n, min = F_lo, max = F_hi)
+    u = draw_by_id(ids, 'kg_holding_period', min = F_lo, max = F_hi)
     1 + qweibull(u, shape = wb_shape, scale = wb_scale)
   }
 }
 
-draw_hp = function(idx, probs) {
-  buckets = sample(seq_len(n_h), size = length(idx), replace = TRUE, prob = probs)
-  hp = numeric(length(idx))
+draw_hp = function(ids, probs) {
+  # Categorical bucket choice by inverse CDF, replacing sample(prob = probs)
+  cdf     = cumsum(probs) / sum(probs)
+  buckets = pmin(n_h, 1L + findInterval(draw_by_id(ids, 'kg_bucket'), cdf))
+  hp = numeric(length(ids))
   for (j in seq_len(n_h)) {
     in_j = which(buckets == j)
-    if (length(in_j) > 0) hp[in_j] = rtrunc_weibull(length(in_j), bucket_lo[j], bucket_hi[j])
+    if (length(in_j) > 0) hp[in_j] = rtrunc_weibull(ids[in_j], bucket_lo[j], bucket_hi[j])
   }
   hp
 }
@@ -115,8 +121,8 @@ draw_hp = function(idx, probs) {
 tax_units$kg_lt_years_held = NA_real_
 gain_idx = which(tax_units$kg_lt > 0)
 loss_idx = which(tax_units$kg_lt < 0)
-if (length(gain_idx) > 0) tax_units$kg_lt_years_held[gain_idx] = draw_hp(gain_idx, pi_g)
-if (length(loss_idx) > 0) tax_units$kg_lt_years_held[loss_idx] = draw_hp(loss_idx, pi_l)
+if (length(gain_idx) > 0) tax_units$kg_lt_years_held[gain_idx] = draw_hp(tax_units$id[gain_idx], pi_g)
+if (length(loss_idx) > 0) tax_units$kg_lt_years_held[loss_idx] = draw_hp(tax_units$id[loss_idx], pi_l)
 
 # Basis computation
 # Gains: basis = |gain| * BSR/(1-BSR)

@@ -92,7 +92,8 @@ puf = tax_units %>%
          income, size, has_income)
 
 # Stochastic quantile predictions from ranger
-pred_direct = predict_ranger_draw(consumption_rf, puf[features])
+pred_direct = predict_ranger_draw(consumption_rf, puf[features], puf$id,
+                                  'consumption_quantile')
 
 puf = puf %>%
   mutate(

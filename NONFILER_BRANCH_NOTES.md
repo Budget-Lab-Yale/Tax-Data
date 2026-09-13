@@ -109,6 +109,13 @@ in the Tax-Simulator bundle.
   (2022 pool) → 37.45M (2023), the observed +6.8%, with no universe step.
   Caveat found while building: the block is Jan-1/Jul-1 timing + series
   vintage + geography, negative in some bands before 2022 (see the S21 entry).
+- **S21 verified end to end: vintage 2026091118** (job 25972109, 2h49m53s,
+  peak 372 GB). Against 2026091113: 2017, 2020 and 2022 identical on every
+  filer and non-filer aggregate; 2023 non-filer adults 41.23M -> 37.45M =
+  the built 2023 pool exactly; 2025 42.35M -> 38.51M; 2040 46.67M -> 42.62M.
+  The full identity closes to +0.26% (was +0.70%) because the out-of-state
+  filers are back on the filer side. Filer aggregates identical to six
+  significant figures, the Forbes-splice channel as before.
 - **HT2 reaches TY2023.** SOI published Historic Table 2 for TY2023 in
   August 2026; it is mirrored at `raw_data/IRS-Ind/state/HT2/ht2_2023.csv.gz`
   (2026-09-08). The state ceiling and the national ceiling now coincide at

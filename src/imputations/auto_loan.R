@@ -28,7 +28,8 @@ if (estimate_models) {
     rename(auto_int_exp = carinterest) %>%
     mutate(has_auto_int_exp = as.integer(auto_int_exp > 0)) %>%
 
-    # Create percentile variables
+    # Create percentile variables. Not id-keyed (S23): this is the SCF
+    # extract, fixed in size and independent of Tax-Data's record set.
     mutate(
       wages  = if_else(wages > 0,  wages  + runif(nrow(.)), 0),
       income = if_else(income > 0, income + runif(nrow(.)), 0),
@@ -101,11 +102,10 @@ auto_int_exp = tax_units %>%
       newdata = (.),
       what    = function(x) mean(x - 1)
     ),
-    auto_int_exp = pmin(max_ot, predict(
-      object  = auto_qrf,
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    ) * (runif(nrow(.)) < p))
+    auto_int_exp = pmin(max_ot,
+                        predict_qrf_draw_by_id(auto_qrf, (.), id,
+                                               'auto_quantile') *
+                        (draw_by_id(id, 'auto_receipt') < p))
   )
 
 

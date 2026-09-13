@@ -45,11 +45,9 @@ childcare = tax_units %>%
   select(id, weight, married, n_dep_young, n_dep_old, wages1, wages2, age1, age2) %>%
   pivot_to_spouses() %>%
   mutate(
-    care_exp = predict(
-      object  = childcare_qrf,
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    )
+    # sub-keyed by earner index: pivot_to_spouses gives a joint unit two rows
+    care_exp = predict_qrf_draw_by_id(childcare_qrf, (.), id,
+                                      'childcare_quantile', sub = index)
   )
 
 # Add care expenses to tax unit data
