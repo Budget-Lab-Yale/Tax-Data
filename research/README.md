@@ -3,7 +3,7 @@ title: "Research corpus index"
 role: index
 workstream: cross-cutting
 status: current
-updated: 2026-09-11
+updated: 2026-09-13
 sot: self
 supersedes: []
 superseded_by: null
