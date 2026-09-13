@@ -45,3 +45,6 @@ src/sim/run.R,cross-repo,"Tax-Simulator. The per-year run loop; binds random num
 src/tests/test_state_tax_law.R,cross-repo,"Tax-Simulator. State law parser tests (decision S6)."
 src/tests/test_state_weights.R,cross-repo,"Tax-Simulator. Unit tests for the fit and the ACS margins; to move with the fit."
 src/macro-projections.R,cross-repo,"Macro-Projections. Builds the married_/unmarried_{age} cells (SSA Trustees Jan-1 series before CBO's first projected year); cited by S21."
+src/misc/rng.R,cross-repo,"Tax-Simulator. The sibling id-keyed draw module built for S23."
+src/sim/behavior.R,cross-repo,"Tax-Simulator. Cited for its within-year id join, the evidence that no record-level state crosses years."
+src/tests/state/test_state_cross_model.R,cross-repo,"Tax-Simulator. A second reader of globals$sample_ids, so it moves with any design C change."

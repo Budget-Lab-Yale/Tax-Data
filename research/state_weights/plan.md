@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-11
+updated: 2026-09-13
 sot: self
 supersedes: []
 superseded_by: null
@@ -374,6 +374,16 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
   predicted. Written up in
   [`nonfiler_federal_validation_findings.md`](nonfiler_federal_validation_findings.md);
   id-keyed draws in both repos are now a blocker, not a follow-up.
+
+- **2026-09-13** — S23 implemented and CLOSED in both repos: 46 → 10 → 1 → **0**
+  moving imputed columns between a 374,630-record and a 1,399,234-record build.
+  The last one was a positional model FIT, not a positional draw
+  (`mortgage.R` retrained its forest on every run); model training is now
+  seeded by the model's name. With the re-randomisation hazard closed, the
+  Block E emit rule is reopened: **design C** (write only each year's live
+  records — 73% of rows in design A's files carry zero weight) is scoped in
+  [`nonfiler_design_c_scope.md`](nonfiler_design_c_scope.md). **JI's call,
+  alongside the still-unconfirmed design A.**
 
 - **2026-09-11 (later)** — S21 set and built: per-year ssArea partition with a
   named not-in-universe block, no scale on any pool, vintage 2026091201
