@@ -48,3 +48,4 @@ src/macro-projections.R,cross-repo,"Macro-Projections. Builds the married_/unmar
 src/misc/rng.R,cross-repo,"Tax-Simulator. The sibling id-keyed draw module built for S23."
 src/sim/behavior.R,cross-repo,"Tax-Simulator. Cited for its within-year id join, the evidence that no record-level state crosses years."
 src/tests/state/test_state_cross_model.R,cross-repo,"Tax-Simulator. A second reader of globals$sample_ids, so it moves with any design C change."
+src/calc/functions/credits/eitc.R,cross-repo,"Tax-Simulator. The EITC pre-certification draw that read the whole random_numbers vector instead of the record's own column."
