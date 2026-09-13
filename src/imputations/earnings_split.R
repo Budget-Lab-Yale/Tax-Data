@@ -47,7 +47,7 @@ wage_primary_share = tax_units %>%
            as.numeric() %>%
            replace_na(0)) %>%
 
-  mutate(draw = runif(nrow(.), max = 0.999)) %>%  # due to rounding, some of the PDFs do not sum to exactly 1
+  mutate(draw = draw_by_id(id, 'wage_split', max = 0.999)) %>%  # due to rounding, some of the PDFs do not sum to exactly 1
   left_join(wage_split_cdf,
             by           = 'wage_pctile',
             relationship = 'many-to-many') %>%

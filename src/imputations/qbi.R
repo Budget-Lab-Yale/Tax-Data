@@ -31,6 +31,10 @@ sstb_params = qbi_params %>%
 # The idea is that wages are a linear function of (non-loss) profits, with a
 # nonzero intercept to account for "fixed costs". The weights are arbitrary,
 # roughly calibrated to match aggregate QBI statistics.
+# The pass-through forms, in the order the pivot below produces them. Used as
+# the RNG sub-key so each (record, form) draws independently (S23).
+QBI_FORMS = c('sole_prop', 'part', 'scorp')
+
 pass_thru_micro = puf %>%
   mutate(part  = part_active - part_active_loss + part_passive - part_passive_loss - part_179,
          scorp = scorp_active - scorp_active_loss + scorp_passive - scorp_passive_loss - scorp_179) %>%
@@ -39,15 +43,20 @@ pass_thru_micro = puf %>%
                names_to  = 'form',
                values_to = 'net_income') %>%
 
-  # Impute SSTB status
+  # Impute SSTB status.
+  # S23: one row per (record, form) here, so the draw is keyed by id AND
+  # sub-keyed by form -- keying on the id alone would make a record's three
+  # pass-through forms perfectly correlated, which is a modelling change
+  # rather than an RNG fix.
   left_join(sstb_params, by = 'form') %>%
-  mutate(sstb = runif(nrow(.)) < p_sstb) %>%
+  mutate(sstb = draw_by_id(id, 'qbi_sstb', sub = match(form, QBI_FORMS)) < p_sstb) %>%
 
   # Impute employer status (i.e. nonzero wages)
   left_join(qbi_params %>%
               select(form, sstb, share_employer, total_wages = wages),
             by = c('form', 'sstb')) %>%
-  mutate(employer = runif(nrow(.)) < (share_employer + 0.2))  # scale up factor to account for the fact that employer share is defined w/r/t/ $10K, not $0K, wage definition
+  mutate(employer = draw_by_id(id, 'qbi_employer', sub = match(form, QBI_FORMS)) <
+                    (share_employer + 0.2))  # scale up factor to account for the fact that employer share is defined w/r/t/ $10K, not $0K, wage definition
 
 
 # Impute wages paid
@@ -60,7 +69,11 @@ qbi_variables = pass_thru_micro %>%
             by = c('form', 'sstb')) %>%
   mutate(share_count  = as.integer(employer * (net_income != 0))   / total_count,
          share_profit = (employer * (net_income > 0) * net_income) / total_profit,
-         random_term  = rnorm(nrow(.), mean = 1, sd = 0.15),
+         # S23: the same Gaussian, drawn by inverse CDF from the record's
+         # own uniform rather than from the global stream's position
+         random_term  = qnorm(draw_by_id(id, 'qbi_wagebill_noise',
+                                         sub = match(form, QBI_FORMS)),
+                              mean = 1, sd = 0.15),
          wagebill     = (share_count * total_wages * 0.5 +
                          share_profit * total_wages * 0.5) * random_term) %>%
 

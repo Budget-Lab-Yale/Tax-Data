@@ -60,8 +60,11 @@ for (g in unique(tax_units$group)) {
   parent_ranks[[g]] = tax_units %>%
     filter(group == g) %>%
     left_join(mobility_matrix, by = 'child_rank', relationship = 'many-to-many') %>%
-    group_by(id) %>%
-    sample_n(1, weight = pdf) %>%
+    # S23: id-keyed weighted pick. Note this also removes a second, subtler
+    # dependence -- the loop chunks by `group`, so under the old positional
+    # draw a record's parent rank depended on which chunk it fell in and how
+    # large the earlier chunks were.
+    sample_one_by_id('mobility', weight_col = 'pdf') %>%
     select(id, parent_rank)
 }
 

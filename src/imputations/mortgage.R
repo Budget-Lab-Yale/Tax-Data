@@ -29,7 +29,8 @@ if (estimate_models) {
       prim_mort_share = if_else(total_mort_bal > 0, prim_mort_bal / total_mort_bal, 1),  # Default to 100% primary if no mortgage
     ) %>%
 
-    # Create percentile variables for income stratification
+    # Create percentile variables for income stratification. Not id-keyed
+    # (S23): the SCF extract is fixed in size, independent of `tax_units`.
     mutate(
       income = if_else(income > 0, income + runif(nrow(.)), 0),
       across(
@@ -91,11 +92,8 @@ prim_mort_share_imputed = tax_units %>%
   ) %>%
   select(id, weight, age1, n_kids, married, pctile_income) %>%
   mutate(
-    prim_mort_share = predict(
-      object  = prim_mort_share_qrf,
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    )
+    prim_mort_share = predict_qrf_draw_by_id(prim_mort_share_qrf, (.), id,
+                                             'mortgage_quantile')
   ) %>%
   select(id, prim_mort_share)
 

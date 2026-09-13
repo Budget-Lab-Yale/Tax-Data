@@ -1014,8 +1014,19 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       # sparsification per record. (Q_at_optimum has the converged q for
       # all bucket records; reuse rather than re-predict.)
       Q_b = tilt_res$Q_at_optimum
-      bucket_seed = 1000L + bucket_idx
-      set.seed(bucket_seed)
+      # S23: the donor pick below is keyed by PUF record id, so a record's
+      # donor no longer depends on its position within the bucket or on how
+      # many records share the bucket.
+      #
+      # LIMIT, stated because it is not removable by this change: the donor
+      # PROBABILITIES (Q_b) come from the tilt, which is a joint fit over
+      # whichever records are in the bucket. Change the record set and the
+      # optimum moves, so imputed wealth is not invariant the way the Phase 1
+      # imputations now are. Making it so would mean a per-record rather than
+      # a per-bucket calibration, which is a modelling decision, not an RNG
+      # fix. Wealth does not enter the 1040 aggregates the federal validation
+      # battery gates on.
+      donor_u = draw_by_id(puf_tax_units$id[rec_cell], 'wealth_donor')
       eff_donors_sampled = numeric(n_b)
       k_used_vec         = integer(n_b)
       degenerate_rows    = integer(0)  # bucket-local PUF row indices that
@@ -1036,7 +1047,9 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
           degenerate_rows = c(degenerate_rows, j)
         }
         qi = qrow[keep] / sum(qrow[keep])
-        local_donor = keep[sample.int(length(keep), 1L, prob = qi)]
+        # inverse-CDF pick from the record's own uniform (was sample.int)
+        local_donor = keep[pmin(length(qi),
+                                1L + findInterval(donor_u[j], cumsum(qi)))]
         # local_donor is an index into the matching-age donor pool. Map
         # it back to the global scf_boot row index.
         global_donor = offset + donor_keep_idx_local[local_donor]
