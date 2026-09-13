@@ -21,8 +21,16 @@ runscript = file.path('./config/runscripts', paste0(runscript_id, '.yaml')) %>%
 output_roots       = read_yaml('./config/interfaces/output_roots.yaml')
 interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
 
-# Get current date/time to vintage this run
-vintage = format(Sys.time(), '%Y%m%d%H')
+# Get current date/time to vintage this run. TAXDATA_VINTAGE names it
+# instead, which is what an A/B needs: the stamp is only to the HOUR, so two
+# runs launched together land in one directory and the second silently
+# overwrites the first (hit 2026-09-13, lost a comparison run). Name the two
+# arms and they cannot collide.
+vintage = Sys.getenv('TAXDATA_VINTAGE', unset = format(Sys.time(), '%Y%m%d%H'))
+if (!grepl('^[A-Za-z0-9_]+$', vintage)) {
+  stop('configure.R: TAXDATA_VINTAGE must be alphanumeric/underscore, got "',
+       vintage, '"', call. = FALSE)
+}
 
 # Set additional boolean parameters. Default to a full from-scratch run
 # (re-solve LP, retrain all imputation models). Override via env for a
