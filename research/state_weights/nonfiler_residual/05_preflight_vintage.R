@@ -84,6 +84,15 @@ vintage_dir <- function(v) {
 DIRS <- c(old = vintage_dir(OLD), new = vintage_dir(NEW))
 year_file <- function(v, y) file.path(DIRS[[v]], sprintf('tax_units_%d.csv', y))
 
+# Which emit rule each vintage was written under (Tax-Data S24). The vintage
+# ships emit_manifest.csv saying so; a vintage predating the manifest is
+# design A, which is what every vintage before S24 was.
+emit_rule <- function(v) {
+  f <- file.path(DIRS[[v]], 'emit_manifest.csv')
+  if (!file.exists(f)) return('all')
+  unique(fread(f)$emit_rule)[1]
+}
+
 # Years both vintages actually wrote.
 YEARS <- YEARS[vapply(YEARS, function(y)
   file.exists(year_file('old', y)) && file.exists(year_file('new', y)), logical(1))]
@@ -131,7 +140,9 @@ for (v in c('old', 'new')) {
   filer_ids[[v]] <- i17[i17 < POOL_STRIDE]
 }
 for (v in c('old', 'new')) {
-  bad_filer <- integer(0); pool_blocks <- integer(0)
+  rule <- emit_rule(v)
+  message(sprintf('  [%s] emit rule: %s', v, rule))
+  bad_filer <- integer(0); pool_blocks <- integer(0); all_blocks <- list()
   for (y in YEARS) {
     iy <- fread(year_file(v, y), select = 'id')$id
     if (anyDuplicated(iy)) {
@@ -140,15 +151,25 @@ for (v in c('old', 'new')) {
     }
     # (a) filers, in order, unchanged
     if (!identical(iy[iy < POOL_STRIDE], filer_ids[[v]])) bad_filer <- c(bad_filer, y)
-    # (b) the non-filer slice is exactly one pool block
+    # (b) the non-filer slice matches the vintage's OWN emit rule. A design C
+    #     vintage carries exactly one pool block per year; a design A vintage
+    #     carries every pool in every year, which is what design A IS -- so
+    #     asserting design C's shape against it would fail a correct build.
     nf <- iy[iy >= POOL_STRIDE & iy < 9L * POOL_STRIDE]
-    blocks <- unique(nf %/% POOL_STRIDE)
-    if (length(blocks) != 1L) {
-      note(sprintf('%s: one pool per year', v), y, 'FAIL',
-           sprintf('%d id blocks present: %s', length(blocks),
-                   paste(head(blocks, 5), collapse = ', ')))
+    blocks <- sort(unique(nf %/% POOL_STRIDE))
+    if (rule == 'live_only') {
+      if (length(blocks) != 1L) {
+        note(sprintf('%s: one pool per year', v), y, 'FAIL',
+             sprintf('%d id blocks present: %s', length(blocks),
+                     paste(head(blocks, 5), collapse = ', ')))
+      } else {
+        pool_blocks <- c(pool_blocks, blocks)
+      }
     } else {
-      pool_blocks <- c(pool_blocks, blocks)
+      if (length(blocks) < 1L) {
+        note(sprintf('%s: pools present', v), y, 'FAIL', 'no pool ids at all')
+      }
+      all_blocks[[as.character(y)]] <- blocks
     }
   }
   if (length(bad_filer)) {
@@ -160,7 +181,14 @@ for (v in c('old', 'new')) {
          sprintf('%s filers, same order in every year',
                  format(length(filer_ids[[v]]), big.mark = ',')))
   }
-  if (length(pool_blocks) == length(YEARS)) {
+  if (rule != 'live_only' && length(all_blocks) == length(YEARS)) {
+    same <- all(vapply(all_blocks, function(b) identical(b, all_blocks[[1]]), logical(1)))
+    note(sprintf('%s: every pool in every year (design A)', v), max(YEARS),
+         if (same) 'ok' else 'FAIL',
+         sprintf('%d blocks, %s across all years', length(all_blocks[[1]]),
+                 if (same) 'the same set' else 'THE SET CHANGES'))
+  }
+  if (rule == 'live_only' && length(pool_blocks) == length(YEARS)) {
     d <- diff(pool_blocks)
     if (all(d %in% c(0L, 1L)) && !is.unsorted(pool_blocks)) {
       note(sprintf('%s: pool block advances then holds', v), max(YEARS), 'ok',
