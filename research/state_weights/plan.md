@@ -390,6 +390,11 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
   other modelers treat the filing margin:
   [`filer_margin_practice.md`](filer_margin_practice.md) — no U.S. model has a
   filing elasticity; a flat take-up haircut would target the wrong margin.
+  Acting on it:
+  [`refundable_credit_takeup_proposal.md`](refundable_credit_takeup_proposal.md)
+  proposes reporting refundable credits at three margins (claimed / induced /
+  un-modelled reach) — a reporting change only, no published number moves.
+  **JI to approve.**
 
 - **2026-09-14 (later)** — **S26: the DINA baseline arm of the federal
   validation battery is retired** (JI). The ASEC pool is settled as the better
