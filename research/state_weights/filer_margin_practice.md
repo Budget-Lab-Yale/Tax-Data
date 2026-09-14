@@ -122,6 +122,13 @@ numeric values are behind a login and were not verified.
   but filing is near-absorbing afterwards (IV effects 0.65–0.96 through 2014).
 - **Goldin et al. (2022), JPubE** — IRS outreach letters: filing +0.74pp on a
   21.5% control mean; among marginal filers 43.4% claimed EITC.
+- **Guyton, Langetieg, Manoli, Payne, Schafer & Sebastiani (2017), "Reminders
+  and Recidivism," *AER Papers & Proceedings* 107(5): 471–475** — note the year
+  and volume; the 2016 NBER WP 21904 has a different author list and title.
+  11–14 million non-filers aged 25–60 in every year 2005–2013, median
+  third-party gross income $9,000–$11,000. Reminder effects: current-year
+  filing **+1.0pp, with no persistence**. TY2007 shows a visible trough — the
+  2008 stimulus required a TY2007 return — and counts revert to trend at once.
 - **Linos, Prohofsky, Ramesh, Rothstein & Unrath (2022), AEJ: Policy** — six
   pre-registered RCTs, N≈1M, **no detectable effect**, ruling out 0.5pp or
   larger. Pair with any nudge result.
