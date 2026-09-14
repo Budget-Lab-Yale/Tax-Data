@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-13
+updated: 2026-09-14
 sot: self
 supersedes: []
 superseded_by: null
@@ -380,6 +380,15 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
   pool its own year and grows the 2023 pool forward, wealth on the 2022+
   universe, the S21 partition asserted for every pool year. Open: JI to
   confirm A over B/C; deflate-at-append; id-keyed Phase 1 draws.
+
+- **2026-09-14** — **S24: design C adopted** (JI). Tax-Data emits each year's
+  live records only; measured neutral to the last bit before adopting (0 of
+  210 columns on 1040, 0 of 36 payroll, 0 of 8 receipts, 0 of 210 by AGI),
+  78G → 25G, ~73% fewer records through the consumer every year. **S25: Forbes
+  synthetic ids renumbered** into a reserved block at 9e6 rather than widening
+  the shared id space — which admits those records to the simulation for the
+  first time. Next: a fresh vintage on both, then re-run the federal
+  validation battery, at which point §4a is a real exact-equality gate.
 
 - **2026-09-13** — S23 implemented and CLOSED in both repos: 46 → 10 → 1 → **0**
   moving imputed columns between a 374,630-record and a 1,399,234-record build.

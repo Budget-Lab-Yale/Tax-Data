@@ -31,9 +31,18 @@ fs               = if (exists('forbes_splice'))         forbes_splice         el
 # the 2020+ legacy loop did. We apply it consistently now.
 out_cols = variable_guide$variable[!(variable_guide$variable %in% vars_to_ignore)]
 
-# Design C emit rule. Default FALSE = design A, every record in every year.
+# Design C (S24, JI 2026-09-14): emit each year's LIVE records only. The
+# union base carries every pool year, so under design A about 73% of every
+# file was a record with zero weight in that year -- and Tax-Simulator never
+# drops them (`filter(id %in% sample_ids)` at its run.R is the only filter in
+# its run path), so it ran the whole calculator on ~1M inert rows per year.
+# Measured neutral to the last bit: 0 of 210 columns on totals/1040.csv, 0 of
+# 36 on payroll, 0 of 8 on receipts, 0 of 210 by AGI. 78G -> 25G.
+#
+# TAXDATA_EMIT_LIVE_ONLY=0 restores design A, which is how the A/B above is
+# reproduced. Kept for that, not as an open question.
 emit_live_records_only = as.logical(as.integer(
-  Sys.getenv('TAXDATA_EMIT_LIVE_ONLY', unset = '0')))
+  Sys.getenv('TAXDATA_EMIT_LIVE_ONLY', unset = '1')))
 stopifnot(!is.na(emit_live_records_only))
 
 emit_manifest = list()
