@@ -3,7 +3,7 @@ title: "Federal validation, first run: the E2 tripwire fails, and why"
 role: review
 workstream: state_weights
 status: open
-updated: 2026-09-13
+updated: 2026-09-14
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -262,8 +262,29 @@ becomes the exact-equality gate it was written to be. Note that the three
 cached fits on disk are whatever the racing runs happened to leave; a
 deliberate rebuild under the new seeds is a separate, numbers-moving step.
 
+## 9. The DINA baseline arm is retired (JI, 2026-09-14)
+
+This note was written around a three-arm battery whose first arm, `nf_main`,
+was `main`'s DINA non-filer append. **That arm is retired: the ASEC pool is
+settled as the better population and the comparison is no longer worth
+reconstructing.**
+
+It would also have cost something real. `main` predates S23, so its draws are
+still positional; comparing it to a post-S23 branch would confound the draw
+fix with the population change — precisely the confound S23 existed to
+remove. Reading it would have required merging S23 into `main` first.
+
+What the battery still certifies on current code, and what §4a now means, is
+the pair of axes that are actually clean: the **emit rule** (design A vs
+design C, S24) and the **admission of the Forbes records** (S25). Both are
+measured from vintages built by the same code against the same model caches.
+The §4a exact-equality gate applies unchanged to the first; the second is
+expected to move the top of the distribution and carries its own before/after.
+
 ## Revision history
 
+- **2026-09-14** — §9: the DINA baseline arm retired by decision; §4a now
+  applies to the S24 and S25 axes.
 - **2026-09-13** — §8 added: the last non-invariant column was a positional
   model *fit*, not a positional draw. Root-caused and fixed.
 - **2026-09-12** — written from the first execution of the battery.

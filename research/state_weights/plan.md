@@ -381,6 +381,13 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
   universe, the S21 partition asserted for every pool year. Open: JI to
   confirm A over B/C; deflate-at-append; id-keyed Phase 1 draws.
 
+- **2026-09-14 (later)** — **S26: the DINA baseline arm of the federal
+  validation battery is retired** (JI). The ASEC pool is settled as the better
+  population, so `nf_main` is not worth reconstructing — and reading it would
+  have meant merging S23 into `main` first, since `main`'s draws are still
+  positional. §4a now certifies the two clean axes: the emit rule (S24) and
+  the admission of the Forbes records (S25).
+
 - **2026-09-14** — **S24: design C adopted** (JI). Tax-Data emits each year's
   live records only; measured neutral to the last bit before adopting (0 of
   210 columns on 1040, 0 of 36 payroll, 0 of 8 receipts, 0 of 210 by AGI),
