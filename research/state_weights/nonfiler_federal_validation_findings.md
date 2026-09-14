@@ -2,7 +2,7 @@
 title: "Federal validation, first run: the E2 tripwire fails, and why"
 role: review
 workstream: state_weights
-status: open
+status: current
 updated: 2026-09-14
 sot: research/state_weights/plan.md
 supersedes: []
@@ -281,8 +281,48 @@ measured from vintages built by the same code against the same model caches.
 The §4a exact-equality gate applies unchanged to the first; the second is
 expected to move the top of the distribution and carries its own before/after.
 
+## 10. The tripwire reads clean (2026-09-14)
+
+Two vintages built end to end from the same code against the same model
+caches, differing only in the emit rule: `s25_only` (design A) and `s24s25`
+(design C), both carrying the S25 Forbes renumbering.
+
+```
+=== 1. within-vintage record-set shape
+  [old] emit rule: all        7 blocks, the same set across all years
+  [new] emit rule: live_only  blocks 1..7 over 10 years
+        filer slice identical across years, both vintages: 207,692, same order
+=== 2. filer slice, old vs new
+  identical across 187 columns (TY2017, TY2020); key columns every other year
+s25_only -> s24s25: 16 checks, 0 FAIL, 0 MOVED     PREFLIGHT PASS
+```
+
+**§4a is now a working exact-equality gate.** The test this note was written
+about — 187 of 209 filer-gated columns moving under a non-filer-only change —
+reads clean once the three positional mechanisms are closed (the draws, the
+`sample_frac` shuffle, and the model fit) and the record set is keyed by id.
+
+Record-level confirmation beyond the gate: design A emit vs design C differ in
+**0 of 188 columns** at 2017, 2020, 2022, 2023, 2025, 2026 and 2030. The
+vintage falls from 80G to 32G.
+
+S25 measured separately, since it admits records rather than preserving them:
+the Forbes rows carry **0.91%** of the income aggregate in 2022, rising to
+**1.40%** by 2025, and about **7.9% of long-term capital gains** in 2022.
+
+**Two instrument bugs, both mine, both caught by the gate rather than by
+reasoning.** The first rewrite of check 1 asserted design C's shape against
+*both* arms and failed 10 checks on a correct build; it now reads each
+vintage's `emit_manifest.csv` and asserts what that vintage claims. And an
+earlier comparison flagged `other_inc` because `fread` infers column type from
+the rows it samples — design A's file carries zero-weight rows that design C's
+does not, so the same column came back numeric from one and integer from the
+other. Values were identical. **When this gate fails, check the gate first.**
+
 ## Revision history
 
+- **2026-09-14 (later)** — §10: the tripwire reads clean. 16 checks, 0 FAIL,
+  0 MOVED; 0 of 188 columns at the record level. Status closed.
 - **2026-09-14** — §9: the DINA baseline arm retired by decision; §4a now
   applies to the S24 and S25 axes.
 - **2026-09-13** — §8 added: the last non-invariant column was a positional
