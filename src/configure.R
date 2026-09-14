@@ -60,7 +60,28 @@ output_path = file.path(
 )
 
 # Create output path 
-dir.create(output_path, recursive = T)
+# Refuse to write into a vintage that already holds output.
+#
+# The vintage is stamped to the HOUR, so two runs started in the same hour
+# resolve to the same directory and the later one silently overwrites the
+# earlier -- which is exactly what happened on 2026-09-13, when two Phase-1
+# runs launched together for an A/B comparison both wrote 2026091312 and the
+# first result was lost with no error. Tax-Simulator stamps to the minute;
+# this repo does not, and changing the format would change the shape of every
+# future vintage string, so the guard is here instead.
+#
+# TAXDATA_ALLOW_VINTAGE_OVERWRITE=1 permits it, for the deliberate case of
+# resuming or re-writing a vintage on purpose.
+if (dir.exists(output_path) &&
+    length(list.files(output_path)) > 0 &&
+    Sys.getenv('TAXDATA_ALLOW_VINTAGE_OVERWRITE', unset = '0') != '1') {
+  stop('output vintage already has content: ', output_path,
+       '\n  The vintage is stamped to the hour, so a run started in the same ',
+       'hour as another lands here and would overwrite it.',
+       '\n  Wait for the next hour, or set ',
+       'TAXDATA_ALLOW_VINTAGE_OVERWRITE=1 to write anyway.')
+}
+dir.create(output_path, recursive = T, showWarnings = FALSE)
 
 
 #-------------------------

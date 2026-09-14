@@ -3,7 +3,7 @@ title: "Federal validation, first run: the E2 tripwire fails, and why"
 role: review
 workstream: state_weights
 status: open
-updated: 2026-09-12
+updated: 2026-09-13
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -206,6 +206,64 @@ Rscript src/main.R tests/nonfiler_ab_post NULL <user> 1 nf_post 1 0 NULL 1 year
 Compare `baseline/static/totals/1040.csv` between the two output vintages. For
 the controlled version, run the same two from the `rng-control` worktree.
 
+## 8. Cause 3 — the model FIT was positional too (found 2026-09-13)
+
+Closing cause 2 by keying the draws on record id (S23) took the invariance
+test from **46 moving filer columns to 10 to 1**. The last one,
+`prim_mort_share`, moved for about **28,000 of 207,692 filers** and resisted
+the obvious explanations: an instrumented dump of the exact model frame showed
+`id`, `weight`, `age1`, `n_kids`, `married`, `pctile_income`, the ensemble
+width and **the drawn column index** all identical between the two vintages,
+row for row, in the same order — and the ensemble values different.
+
+**The draw was never the problem; the forest was.** Model training is itself a
+draw. `quantregForest`, `ranger` and `drf` take their bootstrap samples and
+split candidates from the global stream, so a fit taken after one record set's
+worth of draws is a *different forest* from the same call taken after another.
+Keying predictions by id cannot reach this: the ensemble the id indexes into
+has already changed.
+
+`src/imputations/mortgage.R` carried a committed `estimate_models = 1`
+(March 2026) one line above its own `if (estimate_models)`. So it retrained its
+forest on **every** run whatever the operator asked for — and never restored
+the flag, so `consumption.R` below it retrained `consumption_rf` and
+`share_drf` too. Three cached models were being silently rebuilt per run, at a
+stream position that depended on the record count.
+
+Confirmed rather than inferred:
+
+| check | result |
+|---|---|
+| cache mtimes vs the two job windows | `prim_mort_share_qrf` 13:43:34, `consumption_rf` 13:46:37, `share_drf` 13:47:58 — inside them, in pipeline order |
+| a read touches mtime on this filer? | no — verified on an untouched cache file, so these are writes |
+| `estimate_models` in both job logs | `0` in both; the override is in the module, not the runscript |
+| on-disk model vs each run's dump | reproduces run B's ensemble on **all 91,148 rows** and run A's on **none** |
+| two `quantregForest` fits, identical data | identical under one seed, unequal under two |
+
+The two runs also raced: the `block-e` worktree symlinks `resources/cache` to
+this one, so they overwrote each other's fits mid-flight. That is why the
+surviving file matches only one arm.
+
+**Fix** (`d23889c`): `model_seed(name)` and `with_model_seed(name, expr)` in
+`src/imputations/rng.R`; `train_or_load_{qrf,ranger,drf}` fit under it; the
+`mortgage.R` override removed and its hand-rolled fit seeded. A training seed
+only has to be *stable*, not unique — two models sharing a seed are fitted to
+different data — so it is derived from the model's name rather than from the
+append-only table `RNG_STREAMS` needs. Verified: a fit is identical taken at
+stream positions 0, 374,630 and 1,399,234, and the global stream is left as
+found.
+
+**Also fixed** (`0fdd140`): the vintage stamp is only to the hour, so the two
+arms of an A/B launched together land in one directory and the second
+overwrites the first. `TAXDATA_VINTAGE` names the arm instead.
+
+**Still to do.** Re-run this battery on id-keyed vintages, at which point §4a
+becomes the exact-equality gate it was written to be. Note that the three
+cached fits on disk are whatever the racing runs happened to leave; a
+deliberate rebuild under the new seeds is a separate, numbers-moving step.
+
 ## Revision history
 
+- **2026-09-13** — §8 added: the last non-invariant column was a positional
+  model *fit*, not a positional draw. Root-caused and fixed.
 - **2026-09-12** — written from the first execution of the battery.
