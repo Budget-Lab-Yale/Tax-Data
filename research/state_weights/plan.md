@@ -381,6 +381,16 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
   universe, the S21 partition asserted for every pool year. Open: JI to
   confirm A over B/C; deflate-at-append; id-keyed Phase 1 draws.
 
+- **2026-09-14 (later still)** — Stage 1-3 DINA vs design C comparison
+  commissioned (JI): data characteristics at 2017/2022/2025/2030, baseline
+  runs, then a 2021-style EITC generosity run — **run mechanically**, with the
+  missing filing elasticity documented rather than patched. DINA rebuilt on
+  current code as branch `dina-current` (main's DINA population + S23 + S25),
+  so the two vintages differ in the population and nothing else. Survey of how
+  other modelers treat the filing margin:
+  [`filer_margin_practice.md`](filer_margin_practice.md) — no U.S. model has a
+  filing elasticity; a flat take-up haircut would target the wrong margin.
+
 - **2026-09-14 (later)** — **S26: the DINA baseline arm of the federal
   validation battery is retired** (JI). The ASEC pool is settled as the better
   population, so `nf_main` is not worth reconstructing — and reading it would
