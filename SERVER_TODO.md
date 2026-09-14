@@ -362,6 +362,32 @@ upstream keeps the "applied exactly once" property a downstream merge step canno
 
 ---
 
+## The from-scratch model rebuild is BROKEN (found 2026-09-14)
+
+`TAXDATA_ESTIMATE_MODELS=1` — the DEFAULT, and the whole point of the flag —
+dies in Phase 1:
+
+```
+Error in parallelRandomForest(x = x, y = y, nthreads = nthreads, ...) :
+  parallel random forest fit failed: All weights must be positive
+Calls: source ... with_model_seed -> quantregForest -> parallelRandomForest
+```
+
+Not caused by the S23 seeding wrapper, which only sets a seed around the same
+call. It is latent because **every production vintage on record was built with
+`TAXDATA_ESTIMATE_MODELS=0`** — `slurm_blocke_main.sh`, `slurm_s21_main.sh`,
+`slurm_e2e_main.sh` and `run_pooled_prod.sh` all set it — so nothing has
+actually retrained from source in a long time. A training weight vector
+somewhere contains a zero or a negative.
+
+- [ ] Find which model (the failure is right after qbi.R's industry/form read)
+      and whether the zero-weight rows should be filtered or the weights fixed.
+- [ ] This blocks the deliberate cache rebuild under the S23 model seeds: the
+      three fits currently on disk are whatever the racing diagnostic runs of
+      2026-09-13 happened to leave, and they cannot presently be regenerated.
+
+---
+
 ## Block E — consume annual pools in Tax-Data
 
 Currently `impute_nonfilers.R` hardcodes `nonfiler_pool_2017.csv.gz`, and `project_puf.R` only
