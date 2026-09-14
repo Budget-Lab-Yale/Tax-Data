@@ -98,35 +98,78 @@ note <- function(check, year, status, detail) {
 }
 
 #-------------------------------------------------------------------------------
-# 1. Within-vintage id order stability, after Tax-Simulator's own filter
+# 1. Within-vintage record-set shape (design C, S24)
+#
+# This used to assert the fixed-id contract: that the id vector after
+# Tax-Simulator's own filter was identical, in ORDER, to the 2017 vector in
+# every year -- because run.R took sample_ids from the 2017 file and bound the
+# precomputed random numbers positionally. S24 retires that contract on
+# purpose: each year now emits only its own live records, so the id vector is
+# SUPPOSED to change at the pool-year boundaries, and Tax-Simulator keys
+# membership and draws on the record instead.
+#
+# What replaces it is the property design C actually promises:
+#   (a) the FILER slice is identical, in order, in every year; and
+#   (b) the non-filer slice is exactly one pool -- contiguous within its own
+#       1e6 id block, and that block advances with the year to the pool
+#       ceiling and then holds.
+# A regression that mixed pools, dropped one, or perturbed the filers would
+# fail (a) or (b); a legitimate annual rebuild passes both.
 #-------------------------------------------------------------------------------
-message('=== 1. within-vintage id order (the positional random-number contract)')
-sample_ids <- list()
+message('=== 1. within-vintage record-set shape (design C)')
+POOL_STRIDE <- 1000000L
+filer_ids <- list()
 for (v in c('old', 'new')) {
-  sample_ids[[v]] <- fread(year_file(v, 2017L), select = 'id')$id
-  if (anyDuplicated(sample_ids[[v]])) {
+  i17 <- fread(year_file(v, 2017L), select = 'id')$id
+  if (anyDuplicated(i17)) {
     note('id uniqueness at 2017', 2017L, 'FAIL',
-         sprintf('%s: %d duplicate ids', v, sum(duplicated(sample_ids[[v]]))))
+         sprintf('%s: %d duplicate ids', v, sum(duplicated(i17))))
   } else {
     note('id uniqueness at 2017', 2017L, 'ok',
-         sprintf('%s: %s ids, all unique', v, format(length(sample_ids[[v]]), big.mark = ',')))
+         sprintf('%s: %s ids, all unique', v, format(length(i17), big.mark = ',')))
   }
+  filer_ids[[v]] <- i17[i17 < POOL_STRIDE]
 }
 for (v in c('old', 'new')) {
+  bad_filer <- integer(0); pool_blocks <- integer(0)
   for (y in YEARS) {
-    iy   <- fread(year_file(v, y), select = 'id')$id
-    keep <- iy[iy %in% sample_ids[[v]]]
-    dropped <- length(iy) - length(keep)
-    if (!identical(keep, sample_ids[[v]])) {
-      note(sprintf('%s: id order vs 2017', v), y, 'FAIL',
-           sprintf('%d rows after filter vs %d at 2017',
-                   length(keep), length(sample_ids[[v]])))
-    } else if (dropped > 0L && y == max(YEARS)) {
-      note(sprintf('%s: id order vs 2017', v), y, 'ok',
-           sprintf('identical; %d rows absent from 2017 are dropped by the filter',
-                   dropped))
-    } else if (y == max(YEARS)) {
-      note(sprintf('%s: id order vs 2017', v), y, 'ok', 'identical in every year')
+    iy <- fread(year_file(v, y), select = 'id')$id
+    if (anyDuplicated(iy)) {
+      note(sprintf('%s: id uniqueness', v), y, 'FAIL',
+           sprintf('%d duplicates', sum(duplicated(iy))))
+    }
+    # (a) filers, in order, unchanged
+    if (!identical(iy[iy < POOL_STRIDE], filer_ids[[v]])) bad_filer <- c(bad_filer, y)
+    # (b) the non-filer slice is exactly one pool block
+    nf <- iy[iy >= POOL_STRIDE & iy < 9L * POOL_STRIDE]
+    blocks <- unique(nf %/% POOL_STRIDE)
+    if (length(blocks) != 1L) {
+      note(sprintf('%s: one pool per year', v), y, 'FAIL',
+           sprintf('%d id blocks present: %s', length(blocks),
+                   paste(head(blocks, 5), collapse = ', ')))
+    } else {
+      pool_blocks <- c(pool_blocks, blocks)
+    }
+  }
+  if (length(bad_filer)) {
+    note(sprintf('%s: filer slice identical across years', v), max(YEARS), 'FAIL',
+         sprintf('%d years differ: %s', length(bad_filer),
+                 paste(head(bad_filer, 5), collapse = ', ')))
+  } else {
+    note(sprintf('%s: filer slice identical across years', v), max(YEARS), 'ok',
+         sprintf('%s filers, same order in every year',
+                 format(length(filer_ids[[v]]), big.mark = ',')))
+  }
+  if (length(pool_blocks) == length(YEARS)) {
+    d <- diff(pool_blocks)
+    if (all(d %in% c(0L, 1L)) && !is.unsorted(pool_blocks)) {
+      note(sprintf('%s: pool block advances then holds', v), max(YEARS), 'ok',
+           sprintf('blocks %d..%d over %d years', min(pool_blocks), max(pool_blocks),
+                   length(YEARS)))
+    } else {
+      note(sprintf('%s: pool block advances then holds', v), max(YEARS), 'FAIL',
+           sprintf('non-monotone block sequence: %s',
+                   paste(head(pool_blocks, 8), collapse = ', ')))
     }
   }
 }
