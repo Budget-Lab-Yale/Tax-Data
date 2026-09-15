@@ -64,24 +64,63 @@
 #   tbl_buckets      : per-row bucket vector aligned to `tbl`, or NULL when
 #                       bucketed_factors is NULL. Caller is responsible for
 #                       building it once via match-by-id against record_bucket.
+#   tbl_base_years   : optional per-row integer vector aligned to `tbl`: the
+#                       year each row's values are denominated in. NULL means
+#                       every row is at the ledger's origin year and the
+#                       cumulative factor applies as is. When given, a row at
+#                       base year b receives factor(target) / factor(b), so a
+#                       row materialized at its own year is unchanged. Rows at
+#                       the origin year divide by 1. (Block E: non-filer pools
+#                       for 2018+ enter the base in their own year's dollars.)
+#   ledger_origin    : the year the cumulative factors start from (factor = 1
+#                       there and no ledger row exists for it).
 .apply_factors = function(tbl, target_year, vars_in_scope,
-                          factor_ledger, bucketed_factors, tbl_buckets) {
-  fl_year = factor_ledger[factor_ledger$year == target_year &
-                          factor_ledger$variable %in% vars_in_scope, ]
-  for (i in seq_len(nrow(fl_year))) {
-    v  = fl_year$variable[i]
-    cf = fl_year$factor[i]
-    tbl[[v]] = tbl[[v]] * cf
+                          factor_ledger, bucketed_factors, tbl_buckets,
+                          tbl_base_years = NULL, ledger_origin = 2017L) {
+  fl_scope = factor_ledger[factor_ledger$variable %in% vars_in_scope, ]
+  base_years = if (is.null(tbl_base_years)) integer(0) else
+    setdiff(unique(tbl_base_years), c(ledger_origin, NA))
+  # Variables to touch: any with a row at the target year, plus -- when rows
+  # carry other base years -- any with a row at one of those years.
+  vars = unique(fl_scope$variable[fl_scope$year == target_year |
+                                  fl_scope$year %in% base_years])
+  for (v in vars) {
+    cf = fl_scope$factor[fl_scope$variable == v & fl_scope$year == target_year]
+    cf = if (length(cf) == 1L) cf else 1
+    if (length(base_years) == 0L) {
+      tbl[[v]] = tbl[[v]] * cf
+      next
+    }
+    div = rep(1, nrow(tbl))
+    for (b in base_years) {
+      fb = fl_scope$factor[fl_scope$variable == v & fl_scope$year == b]
+      if (length(fb) == 1L) div[tbl_base_years == b] = fb
+    }
+    tbl[[v]] = tbl[[v]] * cf / div
   }
 
   if (!is.null(bucketed_factors)) {
-    bf_year = bucketed_factors[bucketed_factors$year == target_year &
-                                bucketed_factors$variable %in% vars_in_scope, ]
-    for (v in unique(bf_year$variable)) {
-      v_rows  = bf_year[bf_year$variable == v, ]
-      factors = v_rows$factor[match(tbl_buckets, v_rows$bucket)]
+    bf_scope = bucketed_factors[bucketed_factors$variable %in% vars_in_scope, ]
+    bvars = unique(bf_scope$variable[bf_scope$year == target_year |
+                                     bf_scope$year %in% base_years])
+    for (v in bvars) {
+      v_rows  = bf_scope[bf_scope$variable == v & bf_scope$year == target_year, ]
+      factors = if (nrow(v_rows)) v_rows$factor[match(tbl_buckets, v_rows$bucket)]
+                else rep(1, nrow(tbl))
       if (any(is.na(factors))) {
         .report_bucket_na(target_year, v, tbl_buckets, v_rows$bucket)
+      }
+      if (length(base_years)) {
+        for (b in base_years) {
+          b_rows = bf_scope[bf_scope$variable == v & bf_scope$year == b, ]
+          if (!nrow(b_rows)) next
+          fb = b_rows$factor[match(tbl_buckets, b_rows$bucket)]
+          sel = tbl_base_years == b
+          if (any(is.na(fb[sel]))) {
+            .report_bucket_na(b, v, tbl_buckets[sel], b_rows$bucket)
+          }
+          factors[sel] = factors[sel] / fb[sel]
+        }
       }
       tbl[[v]] = tbl[[v]] * factors
     }
@@ -97,7 +136,10 @@
 #'   1. Start with `base`. All module-imputed columns are expected to be
 #'      present in `base` as NA placeholders.
 #'   2. For each variable appearing in `factor_ledger` and present in `base`,
-#'      multiply by the cumulative factor from 2017+1..target_year.
+#'      multiply by the cumulative factor from 2017+1..target_year. If `base`
+#'      carries a `base_year` column, a row denominated in year b is
+#'      multiplied by factor(target_year) / factor(b) instead, so it is
+#'      reproduced exactly at its own year (Block E union base).
 #'   3. For each variable appearing in `bucketed_factors` (optional sibling
 #'      ledger with a per-record-bucket dimension), multiply by the
 #'      record-specific cumulative factor. Bucket is resolved via
@@ -196,11 +238,13 @@ materialize = function(target_year,
   # from 2017. Strict on bucketed NA lookups via .apply_factors.
   # ---------------------------------------------------------------------------
 
+  rec_base_years = if ('base_year' %in% names(base)) as.integer(base$base_year) else NULL
   out = .apply_factors(out, target_year,
                        vars_in_scope    = names(base),
                        factor_ledger    = factor_ledger,
                        bucketed_factors = bucketed_factors,
-                       tbl_buckets      = rec_buckets)
+                       tbl_buckets      = rec_buckets,
+                       tbl_base_years   = rec_base_years)
 
   # ---------------------------------------------------------------------------
   # (2) Apply weight_ledger if provided.
@@ -518,6 +562,27 @@ if (sys.nframe() == 0L) {
   stopifnot(all(is.na(r17_no_m$q_death1)))
   stopifnot(all(is.na(r17_no_m$q_death2)))
   cat('  [PASS] mortality_ledger=NULL preserves base NA placeholders\n')
+
+  # Test 17: per-record base_year (Block E). A row denominated in 2020 gets
+  # factor(y)/factor(2020): unchanged at 2020, 1.05^4 at 2024, 1/1.05^3 at 2017.
+  base_by = data.frame(id = 1:3, wages = c(100, 200, 300), weight = c(10, 20, 30),
+                       base_year = c(2017L, 2020L, 2020L), cash = NA_real_)
+  r_by20 = materialize(2020L, base_by, factor_ledger, NULL, list())
+  stopifnot(max(abs(r_by20$wages - c(100 * 1.05^3, 200, 300))) < 1e-10)
+  r_by24 = materialize(2024L, base_by, factor_ledger, NULL, list())
+  stopifnot(max(abs(r_by24$wages - c(100 * 1.05^7, 200 * 1.05^4, 300 * 1.05^4))) < 1e-10)
+  r_by17 = materialize(2017L, base_by, factor_ledger, NULL, list())
+  stopifnot(max(abs(r_by17$wages - c(100, 200 / 1.05^3, 300 / 1.05^3))) < 1e-10)
+  cat('  [PASS] base_year rows take factor(y)/factor(base_year)\n')
+
+  # Test 18: base_year present but all at the origin year is byte-identical
+  # to the no-base_year path.
+  base_by17 = base_by; base_by17$base_year = 2017L
+  r_a = materialize(2024L, base_by17, factor_ledger, NULL, module_deltas)
+  r_b = materialize(2024L, base_by17[, setdiff(names(base_by17), 'base_year')],
+                    factor_ledger, NULL, module_deltas)
+  stopifnot(identical(r_a$wages, r_b$wages), identical(r_a$cash, r_b$cash))
+  cat('  [PASS] base_year at the origin year reproduces the uniform path\n')
 
   cat('\nAll tests passed.\n')
 }

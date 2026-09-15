@@ -1,4 +1,8 @@
 #--------------------------------------
+
+# S23: id-keyed random draws. Sourced here so every imputation module that
+# sources helpers.R has draw_by_id()/sample_one_by_id()/column_by_id().
+source('src/imputations/rng.R')
 # helpers.R
 #
 # Shared utility functions for
@@ -36,14 +40,14 @@ train_or_load_qrf = function(name, x = NULL, y = NULL, weights = NULL,
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
 
   if (estimate_models) {
-    qrf = quantregForest(
+    qrf = with_model_seed(name, quantregForest(
       x        = x,
       y        = y,
       nthreads = n_threads(),
       weights  = weights,
       mtry     = mtry,
       nodesize = nodesize
-    )
+    ))
     write_rds(qrf, cache_path)
   } else {
     qrf = read_rds(cache_path)
@@ -133,9 +137,9 @@ train_or_load_ranger = function(name, formula, data, case_weights = NULL,
                                  mtry = 3, min_node_size = 5, num_trees = 500) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
-    rf = ranger(formula, data = data, case.weights = case_weights,
+    rf = with_model_seed(name, ranger(formula, data = data, case.weights = case_weights,
                 quantreg = TRUE, num.trees = num_trees, mtry = mtry,
-                min.node.size = min_node_size, num.threads = n_threads())
+                min.node.size = min_node_size, num.threads = n_threads()))
     write_rds(rf, cache_path)
   } else {
     rf = read_rds(cache_path)
@@ -152,10 +156,14 @@ train_or_load_ranger = function(name, formula, data, case_weights = NULL,
 #' @param model   A ranger object trained with quantreg = TRUE
 #' @param newdata Prediction data
 #' @return        Numeric vector of predictions (one per row of newdata)
-predict_ranger_draw = function(model, newdata) {
+predict_ranger_draw = function(model, newdata, ids, stream) {
   grid = seq(0.01, 0.99, 0.01)
   pred = predict(model, data = newdata, type = 'quantiles', quantiles = grid)$predictions
-  sapply(1:nrow(newdata), function(i) pred[i, sample(length(grid), 1)])
+  # S23: the quantile picked is keyed by record id, not by a positional
+  # `sample()`, so a record's draw does not depend on how many other records
+  # are being predicted. `ids` must align with the rows of `newdata`.
+  stopifnot(length(ids) == nrow(newdata))
+  pred[cbind(seq_along(ids), column_by_id(ids, length(grid), stream))]
 }
 
 
@@ -267,7 +275,7 @@ train_or_load_drf = function(name, X, Y, sample.weights = NULL,
                               response.scaling = FALSE) {
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
   if (estimate_models) {
-    model = drf::drf(X = X, Y = Y,
+    model = with_model_seed(name, drf::drf(X = X, Y = Y,
                      sample.weights = sample.weights,
                      num.trees = num.trees,
                      splitting.rule = splitting.rule,
@@ -276,7 +284,7 @@ train_or_load_drf = function(name, X, Y, sample.weights = NULL,
                      min.node.size = min.node.size,
                      honesty = honesty,
                      response.scaling = response.scaling,
-                     num.threads = n_threads())
+                     num.threads = n_threads()))
     write_rds(model, cache_path)
   } else {
     model = read_rds(cache_path)
