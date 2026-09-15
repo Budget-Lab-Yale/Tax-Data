@@ -18,8 +18,15 @@ sipp = file.path(interface_paths$SIPP, 'tip_ind_occ_full_split.csv') %>%
   fread() %>%
   tibble() %>%
 
-  # Filter to nondependent wage workers
-  filter(!is_dep, inc_wages > 0) %>%
+  # Filter to nondependent wage workers in the weighted universe. SIPP
+  # carries a zero person weight for respondents outside the survey universe
+  # in the reference period (215 of 114,272 wage-worker rows in vintage
+  # 2024090311). randomForest >= 4.7-1.2, the engine under quantregForest,
+  # refuses any non-positive training weight; under 4.7-1.1 the weights
+  # argument did not exist and was silently ignored, which is how the July
+  # 2026 cached fits trained. A zero-weight row contributes nothing to a
+  # weighted fit, so this restricts the universe rather than dropping data.
+  filter(!is_dep, inc_wages > 0, weight > 0) %>%
   mutate(
     year      = year - 1,
     tipped    = as.integer(inc_wages_tips > 0),
