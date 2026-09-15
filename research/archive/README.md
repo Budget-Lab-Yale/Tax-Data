@@ -3,7 +3,7 @@ title: "Archive — superseded documents"
 role: index
 workstream: cross-cutting
 status: current
-updated: 2026-08-24
+updated: 2026-09-15
 sot: research/README.md
 supersedes: []
 superseded_by: null
@@ -223,3 +223,32 @@ deleted from the working tree while still cited as the originating document at
 `nonfiler_residual_design.md:38`; restored and moved so the citation resolves. It
 is a **copy taken in as an input** — the Affordability-Index repo owns the
 canonical version.
+
+## Added 2026-09-15, with the branch consolidation
+
+Two notes written at the repo root during the `asec-nonfiler-pool` branch work
+(2026-08-30/31), before the corpus moved into Tax-Data. Paths inside them are as
+written then, except that server scratch paths are replaced with
+`$TAXDATA_SCRATCH/...` placeholders (no server path in a tracked file).
+
+**`NONFILER_BRANCH_NOTES_2026-08-31_superseded.md`** (2026-08-31) — the
+three-commit review guide for the branch ("draft for review, not for merge"):
+the extensive-factor mask restricted to filers, filer weights on observed IRS
+counts through 2023, and the swap from the DINA append to the ASEC pool, each
+with its review questions and known limitations.
+
+*Superseded by* `research/decisions_log.md` (S13–S26) and
+`research/state_weights/plan.md`. *Still useful for* the review questions as
+they were first posed, and the `dep_age_group` join quirk, which is flagged
+there and cited from `src/project_puf.R`.
+
+**`SERVER_TODO_2026-08-31_executed.md`** (2026-08-31) — the on-cluster
+checklist for the branch handoff: Tier 0/1 verification (A1–A5), the
+three-way attribution runs, and the annual-rebuild scoping that became Block E.
+Its last section recorded the from-scratch model rebuild as broken.
+
+*Executed.* Every item is either done and recorded in the plan's revision
+history or carried as a live decision (S21–S26). The broken rebuild it records
+was fixed on 2026-09-15 (`src/imputations/tips.R`, SIPP training universe
+restricted to positive weights). *Still useful for* the A3–A5 run records
+(vintages 2026083111/15/17) and the resource figures that sized later jobs.

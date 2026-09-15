@@ -32,7 +32,7 @@ every measurable dimension (`nonfiler_pool/results/acceptance_{year}.csv`).
 
 ## (b) The Tax-Data branch: `asec-nonfiler-pool`, three commits
 
-Review in order; `NONFILER_BRANCH_NOTES.md` on the branch carries the
+Review in order; `research/archive/NONFILER_BRANCH_NOTES_2026-08-31_superseded.md` (was `NONFILER_BRANCH_NOTES.md` at the repo root) carries the
 per-commit checklist.
 
 | commit | what | review question |

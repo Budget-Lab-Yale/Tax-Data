@@ -1,3 +1,15 @@
+---
+title: "Nonfiler and State-Weight Improvements: Review and Recommended Workplan"
+role: review
+workstream: state_weights
+status: historical
+updated: 2026-09-15
+true_as_of: 2026-08-30
+sot: research/state_weights/plan.md
+supersedes: []
+superseded_by: null
+---
+
 # Nonfiler and State-Weight Improvements: Review and Recommended Workplan
 
 **Review date:** 2026-08-30  

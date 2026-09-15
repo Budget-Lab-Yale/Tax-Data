@@ -121,7 +121,7 @@ cluster — the same reasoning as the Mok PDF. **Copy them into the store:**
 
 ```bash
 cp other/state_tax_research/nonfiler_residual/resources/ssa_flatseries/*.json \
-   /nfs/roberts/project/pi_nrs36/shared/raw_data/SSA-OASDI-SC/
+   <model_data root>/raw_data/SSA-OASDI-SC/
 module load R/4.4.1-foss-2022b && \
   Rscript other/state_tax_research/nonfiler_residual/01_fetch_residual_inputs.R
 ```

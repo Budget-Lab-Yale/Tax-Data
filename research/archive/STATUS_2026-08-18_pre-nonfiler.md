@@ -128,7 +128,7 @@ meaningful; all contracts real).
 **Ops learned the hard way** (recorded in the issues doc): weight fits
 OOM-kill on the login node (~7 GB cap) and piping masks the kill (pipeline
 exit = tail's); run under `sbatch` with inputs staged on NFS scratch
-(`/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp/`).
+(`$TAXDATA_SCRATCH/state_weights_tmp/`).
 
 ## Left to do
 

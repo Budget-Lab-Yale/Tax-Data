@@ -1180,7 +1180,7 @@ comparisons into exact-equality tests.
   ~7–8 GB and **piping masks the kill** (pipeline exit status is `tail`'s, so a killed job
   looks like a clean one). Existing pattern: `nonfiler_residual/run_acs_tabulation.sbatch`
   (`--mem=48G`, `--time=02:00:00`, `module load R/4.4.2-gfbf-2024a`), and scratch at
-  `/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp/`.
+  `$TAXDATA_SCRATCH/state_weights_tmp/`.
 - `state_weights.R` uses `fread(cmd = 'zcat ...')` at `:121` — POSIX only, will not run on
   Windows. Cluster-only for anything touching HT2.
 - On the HPC, R is not on `PATH` by default: load the module in the **same** shell command

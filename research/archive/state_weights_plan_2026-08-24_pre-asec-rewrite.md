@@ -268,7 +268,7 @@ Effort estimates follow the memo's own where it gives them.
   `tail`'s, so a killed job looks like a clean one. Existing pattern:
   `research/state_weights/nonfiler_residual/run_acs_tabulation.sbatch`
   (`--mem=48G`, `--time=02:00:00`, `module load R/4.4.2-gfbf-2024a`); scratch at
-  `/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp/`.
+  `$TAXDATA_SCRATCH/state_weights_tmp/`.
 - `src/data/state_weights.R:121` uses `fread(cmd = 'zcat ...')` — POSIX only.
   Anything touching HT2 is cluster-only, not Windows.
 - On the HPC, R is not on `PATH` by default: load the module in the **same** shell
@@ -531,7 +531,7 @@ Effort estimates follow the memo's own where it gives them.
       been absent from a store that looked freshly built. This is the
       cluster-notes rule exactly — a completed job is not a successful one, and
       the exit code is not the check. The store was backed up to
-      `/nfs/roberts/scratch/pi_nrs36/ji252/cps_asec_common_backup_20260823`
+      `$TAXDATA_SCRATCH/cps_asec_common_backup_20260823`
       (86 MB) before the overwrite, since `--overwrite` replaces eleven years of
       a shared extract.
       **Acceptance for this task is not "the job finished":** it is `Pulled 11

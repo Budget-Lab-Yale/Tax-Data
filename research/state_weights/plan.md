@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-14
+updated: 2026-09-15
 sot: self
 supersedes: []
 superseded_by: null
@@ -364,6 +364,21 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 
 ## Revision history
 
+- **2026-09-15 (branch consolidation)** — `block-e` is the single merge
+  candidate; it contains `asec-nonfiler-pool` whole and every line of the
+  `dina-current` control arm (retired by S26), both deleted. **The
+  from-scratch model rebuild is fixed**: `TAXDATA_ESTIMATE_MODELS=1` died in
+  `tips.R` because 215 SIPP wage-worker rows carry a zero person weight and
+  randomForest 4.7-1.2 refuses non-positive training weights; the SIPP
+  training universe is now `weight > 0` (commit e211315). **Found on the way:**
+  every `quantregForest` cache written before 2026-09 was trained under R
+  4.4.1, whose randomForest 4.7-1.1 had no `weights` argument, so the tips,
+  overtime, auto-loan and childcare forests on disk are UNWEIGHTED. The first
+  rebuild under R 4.4.2 trains them weighted, which is a modelling change with
+  its own before/after, not a cache refresh. The three root-level branch notes
+  moved: the review brief to
+  [`NONFILER_STATE_WEIGHTS_REVIEW_2026-08-30.md`](NONFILER_STATE_WEIGHTS_REVIEW_2026-08-30.md)
+  (role `review`), the branch notes and the server to-do to `research/archive/`.
 - **2026-09-12 (federal validation, first run)** — The battery ran on vintages
   2026083115 / 2026091118 / 2026091119. **The E2 tripwire FAILS**: 187 of 209
   filer-gated 1040 columns move under identical law. Cause is not the

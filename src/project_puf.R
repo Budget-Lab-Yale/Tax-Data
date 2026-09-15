@@ -418,7 +418,7 @@ compute_weights_for_year = function(y) {
     # pivot below feeds dep_age_group1-3 -- which hold GROUP CODES 1-4, not
     # ages -- into the same `age` column the population factors are joined
     # on, so a dependent matches the factor for age 1-4 and takes the
-    # under-18 0.99. See NONFILER_BRANCH_NOTES.md.
+    # under-18 0.99. See research/archive/NONFILER_BRANCH_NOTES_2026-08-31_superseded.md.
     w2023 = compute_weights_for_year(FILER_OBS_LAST) %>%
       select(id, w_base = weight)
 

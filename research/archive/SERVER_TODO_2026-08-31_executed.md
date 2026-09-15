@@ -132,7 +132,7 @@ without waiting on 2020–21.
   new you write).
 - Do **not** create a project-local `.Renviron` — it masks `~/.Renviron` entirely.
 - ⚠ Scratch was reclaimed and verified empty 2026-08-27
-  (`/nfs/roberts/scratch/pi_nrs36/ji252/state_weights_tmp/`). Four scripts still point at that
+  (`$TAXDATA_SCRATCH/state_weights_tmp/`). Four scripts still point at that
   dead path (`sweep_state_weights.R:37`, `validate_state_weights.R:31`, `eitc_takeup_test.R:7`,
   `research/STATUS.md:437-438`). Anything you re-run there must be staged again, and this time
   preserve accepted artifacts **in-repo**, not in scratch.

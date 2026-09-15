@@ -49,3 +49,7 @@ src/misc/rng.R,cross-repo,"Tax-Simulator. The sibling id-keyed draw module built
 src/sim/behavior.R,cross-repo,"Tax-Simulator. Cited for its within-year id join, the evidence that no record-level state crosses years."
 src/tests/state/test_state_cross_model.R,cross-repo,"Tax-Simulator. A second reader of globals$sample_ids, so it moves with any design C change."
 src/calc/functions/credits/eitc.R,cross-repo,"Tax-Simulator. The EITC pre-certification draw that read the whole random_numbers vector instead of the record's own column."
+src/data/asec_tax_units.R,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now src/nonfilers/asec_tax_units.R in this repo (moved 2026-09-11)."
+research/state_weights/nonfiler_residual/plan.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; the workstream plan is research/state_weights/plan.md here."
+research/state_weights/nonfiler_residual/decisions_log.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/decisions_log.md here."
+research/state_weights/nonfiler_residual/handoff.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/state_weights/handoff.md here."

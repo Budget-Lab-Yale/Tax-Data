@@ -131,7 +131,7 @@ age_pool <- function(target_year) {
     # population factor for age 1, 2, 3 or 4 and picks up the under-18 0.99
     # factor. That is what production does, and this script exists to measure
     # production, so it is copied rather than corrected. Flagged for the
-    # Tax-Data branch review; see NONFILER_BRANCH_NOTES.md.
+    # Tax-Data branch review; see research/archive/NONFILER_BRANCH_NOTES_2026-08-31_superseded.md.
     fy <- pf_2020[year == target_year, .(married, age, population_factor)]
     dep_cols <- grep('^dep_age', names(p), value = TRUE)
     stopifnot(length(dep_cols) == 3L)
