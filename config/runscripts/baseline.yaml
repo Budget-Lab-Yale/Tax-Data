@@ -9,6 +9,21 @@ dependency_info:
     vintage: 2023091310
     scenario: historical
     
+  # Pinned deliberately: the baseline must never float to the latest published
+  # pool. This value changes only when a rebuild is published and this line is
+  # updated to name it. 2026091201 carries all of 2017-2023 (div_pref schema,
+  # {vintage}/historical layout) with NO universe scale on any year (S21): each
+  # year ships its ssarea_partition_{year}.csv, the partition of adults on the
+  # Social Security area universe with a named not-in-universe block, which
+  # project_puf.R reads for the 2023 handoff anchor and identity check.
+  # 2017-2022 are byte-identical to vintage 2026090101; 2023 is that vintage's
+  # file without the S19 per-band scale. The 2020-21 files are built under S20
+  # (pandemic deflation of the hazard level; deflators and sensitivity ship as
+  # pandemic_filing_adjustment_{year}.csv).
+  ASEC-Nonfilers:
+    vintage: 2026091201
+    scenario: historical
+
   DINA: 
     vintage: 2023082913
     scenario: historical

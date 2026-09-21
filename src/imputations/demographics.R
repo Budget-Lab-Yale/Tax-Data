@@ -13,16 +13,29 @@
 share_blind = (260535 + 83983) / 104013115  # number of blind standard deductions taken over number of nonitemizers
 
 # Impute
+# S23: draws keyed by record id, so a record's blindness does not depend on
+# how many other records are in the file.
 tax_units %<>%
-  mutate(blind1 = runif(nrow(.)) < share_blind,
+  mutate(blind1 = draw_by_id(id, 'blind1') < share_blind,
          blind2 = if_else(filing_status == 2,
-                          runif(nrow(.)) < share_blind,
+                          draw_by_id(id, 'blind2') < share_blind,
                           NA))
 
 
 #-------------------
 # Gender for adults
 #-------------------
+
+# Read DINA microdata. This read used to live in impute_nonfilers.R, which
+# needed the file for the non-filer append; S13 replaced that append with the
+# ASEC pool and the read went with it, leaving this script's only remaining
+# DINA consumer with an undefined object. It is read here now because this is
+# the one place left that uses it -- the filer = 1 sex split (S14 replaces the
+# filer = 0 cells, not these). Retiring the DINA interface entirely means
+# replacing the target below with the W-2 study / ASEC approach in S14.
+dina_2017 = interface_paths$DINA %>%
+  file.path('usdina2017.dta') %>%
+  read_dta()
 
 # Estimate target male distribution parameters for unmarried tax units on DINA data
 male_dist = dina_2017 %>%
@@ -38,7 +51,10 @@ male_dist = dina_2017 %>%
 
 # Back out imputation probabilities by targeting DINA male shares
 male_dist_impute = tax_units %>%
-  mutate(sex = as.integer(if_else(filer == 0, NA, GENDER == 1))) %>%
+  # filer == 0 used to be forced to NA because the DINA append carried no
+  # sex at all. The ASEC pool carries it OBSERVED (S14), so those records now
+  # report like filers do and stop being imputed against a DINA target.
+  mutate(sex = as.integer(GENDER == 1)) %>%
   filter(filing_status != 2) %>%
   group_by(filer, has_kids = n_dep_ctc > 0, employed = wages > 0) %>%
   summarise(male     = sum((!is.na(sex) & sex == 1) * weight),
@@ -64,21 +80,24 @@ tax_units %<>%
             by = c('filer', 'has_kids', 'employed')) %>%
   mutate(
 
-    # Choose randomly for all nonfilers
-    GENDER = if_else(filer == 0, NA, GENDER),
+    # (was: GENDER = if_else(filer == 0, NA, GENDER) -- blanked every
+    # non-filer's sex so the case_when below drew it at random. The pool
+    # reports sex, so blanking it would discard an observation and reinstate
+    # the four filer = 0 cells S14 exists to remove. Any non-filer record that
+    # genuinely lacks GENDER still falls through to the random branch.)
 
     # Primary earner
     male1 = case_when(
 
       # Married and missing: choose randomly
-      filing_status == 2 & is.na(GENDER) ~ as.integer(runif(nrow(.)) < 0.5),
+      filing_status == 2 & is.na(GENDER) ~ as.integer(draw_by_id(id, 'gender_joint') < 0.5),
 
       # Married and nonmissing: take from PUF
       filing_status == 2 & GENDER == 1 ~ 1,
       filing_status == 2 & GENDER == 2 ~ 0,
 
       # Unmarried and missing: simulate
-      filing_status != 2 & is.na(GENDER) ~ runif(nrow(.)) < p_male_impute,
+      filing_status != 2 & is.na(GENDER) ~ draw_by_id(id, 'gender_nonjoint') < p_male_impute,
 
       # Unmarried and nonmissing: take from PUF
       filing_status != 2 & GENDER == 1 ~ 1,
@@ -87,8 +106,10 @@ tax_units %<>%
 
     # Secondary earner...assume 1% of marrages are same-sex
     male2 = case_when(
-      filing_status == 2 & male1 == 1 ~ if_else(runif(nrow(.)) < 0.01, 1, 0),
-      filing_status == 2 & male1 == 0 ~ if_else(runif(nrow(.)) < 0.01, 0, 1),
+      # one stream: the two branches are mutually exclusive, so a record
+      # draws once either way
+      filing_status == 2 & male1 == 1 ~ if_else(draw_by_id(id, 'male2_same_sex') < 0.01, 1, 0),
+      filing_status == 2 & male1 == 0 ~ if_else(draw_by_id(id, 'male2_same_sex') < 0.01, 0, 1),
       TRUE                            ~ NA
     )
   ) %>%

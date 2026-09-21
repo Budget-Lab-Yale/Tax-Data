@@ -536,10 +536,68 @@ set_forbes_deductions = function(row, model, net_worth) {
 }
 
 
-make_forbes_id = function(year, rank, max_existing_id) {
-  candidate = as.numeric(year) * 1e6 + as.numeric(rank)
-  ifelse(candidate > max_existing_id, candidate,
-         max_existing_id + as.numeric(year) * 1e3 + as.numeric(rank))
+# Forbes synthetic records occupy a RESERVED block at the TOP of the shared
+# id space (S25, JI 2026-09-14).
+#
+# WHY. The old scheme was `year * 1e6 + rank`, which put the 2022 cohort at
+# 2,022,000,001..717 -- about 2.0e9, against a shared id space of 1e7. That
+# was invisible for as long as these rows never reached Tax-Simulator: its
+# `sample_ids` came from the 2017 file, which has no Forbes rows, so all 717
+# of them were silently dropped every year (true on main too). The moment
+# membership became a rule on the record rather than a 2017 id list, they
+# were admitted and `draw_by_id()` refused them -- correctly, because a
+# record outside the id space has no defined draw.
+#
+# The alternative was to raise the id space, which moves EVERY record's draw
+# and would have paid S23's switchover cost a second time. These ids are
+# synthetic, so renumbering them costs nothing but the rows themselves.
+#
+# LAYOUT. Filers sit below 1e6. Non-filer pool year y occupies
+# [1e6*(y-2016)+1, 1e6*(y-2015)], reaching 8e6 at the current 2023 ceiling.
+# Forbes takes 9e6 upward, one 1e4 block per LIST year, which leaves a whole
+# spare pool block at 8e6..9e6 and room for list years out to 2119. Every one
+# of those bounds is asserted below rather than trusted.
+FORBES_ID_BASE   = 9000000L   # first id in the reserved block
+FORBES_ID_STRIDE = 10000L     # ids per list year (largest list seen: 935)
+FORBES_ID_EPOCH  = 2020L      # list-year origin for the block offset
+
+#' Synthetic id for one Forbes record, inside the reserved block.
+#'
+#' @param year  the Forbes LIST year (not the tax year).
+#' @param rank  the record's rank within that year's list, 1-based.
+make_forbes_id = function(year, rank) {
+  year = as.integer(year); rank = as.integer(rank)
+  if (any(rank < 1L) || any(rank > FORBES_ID_STRIDE)) {
+    stop('make_forbes_id(): rank outside 1..', FORBES_ID_STRIDE,
+         ' (got ', min(rank), '..', max(rank), '). The reserved block holds ',
+         FORBES_ID_STRIDE, ' ids per list year.', call. = FALSE)
+  }
+  if (any(year < FORBES_ID_EPOCH)) {
+    stop('make_forbes_id(): list year ', min(year), ' precedes the block ',
+         'epoch ', FORBES_ID_EPOCH, '.', call. = FALSE)
+  }
+  id = FORBES_ID_BASE + (year - FORBES_ID_EPOCH) * FORBES_ID_STRIDE + rank
+
+  # The block must not run into the non-filer pools below it, nor past the
+  # id space both repos define their draws over. Asserted per call: these are
+  # cheap, and the failure they prevent is a silent id collision.
+  if (exists('NONFILER_ID_STRIDE') && exists('NONFILER_BASE_YEAR')) {
+    top_pool = NONFILER_ID_STRIDE *
+      ((if (exists('NONFILER_LAST_POOL_YEAR')) NONFILER_LAST_POOL_YEAR
+        else NONFILER_BASE_YEAR) - NONFILER_BASE_YEAR + 1L)
+    if (FORBES_ID_BASE <= top_pool) {
+      stop('make_forbes_id(): the Forbes block at ', FORBES_ID_BASE,
+           ' collides with the non-filer pools, which now reach ', top_pool,
+           '. Move the block or widen the id space -- deliberately, since ',
+           'both change every affected record.', call. = FALSE)
+    }
+  }
+  ceiling_id = if (exists('RNG_ID_SPACE')) RNG_ID_SPACE else 10000000L
+  if (any(id > ceiling_id)) {
+    stop('make_forbes_id(): id ', max(id), ' exceeds the shared id space ',
+         ceiling_id, '. Draws are undefined above it.', call. = FALSE)
+  }
+  as.numeric(id)
 }
 
 
@@ -554,7 +612,6 @@ build_forbes_rows_for_year = function(base_df, forbes_year_df, params,
                                       billionaire_threshold = 1e9) {
   if (nrow(forbes_year_df) == 0L) return(tibble::tibble())
   targets = forbes_target_categories(forbes_year_df, params)
-  max_id = max(base_df$id, na.rm = TRUE)
   template = make_forbes_template(base_df)
   list_year = as.integer(forbes_year_df$year[1])
   out = vector('list', nrow(forbes_year_df))
@@ -593,7 +650,7 @@ build_forbes_rows_for_year = function(base_df, forbes_year_df, params,
     row = set_forbes_deductions(row, dedn_model, f$net_worth)
 
     # --- identifiers + metadata ---
-    row$id = make_forbes_id(f$year, f$rank, max_id)
+    row$id = make_forbes_id(f$year, f$rank)
     row$weight = if ('weight' %in% names(f) && !is.na(f$weight)) {
       as.numeric(f$weight)
     } else 1

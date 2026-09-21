@@ -9,8 +9,8 @@ config/interfaces/output_roots.yaml
 plots/
 docs/
 src/eda/
-resources/cache/
-resources/forbes/cache/
+resources/cache
+resources/forbes/cache
 slurm_*.sh
 slurm_*.out
 slurm_*.err
@@ -26,3 +26,11 @@ resources/dfa/dfa_raw_networth_levels.csv
 # Local validation runners
 run_pipeline_*.sh
 validation_diff.log
+# research/ (moved from Tax-Simulator 2026-09-11): renders and logs are regenerable
+research/**/*.html
+research/**/*.log
+research/**/*.tex
+research/**/*.docx
+!research/tools/reference.docx
+!research/docx_sources/*.docx
+!research/archive/*.docx

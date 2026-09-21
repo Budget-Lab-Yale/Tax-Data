@@ -31,6 +31,8 @@ Read the actual files before editing. This sequence changes — don't trust this
 | `config/interfaces/`      | Version pointers to upstream models (`Macro-Projections`, etc.).                                      | Bump per vintage.           |
 | `resources/`              | Small, static, human-curated inputs committed to git (CEX dictionaries, PCE targets, crosswalks, mortality tables). | Carefully.                  |
 | `resources/cache/`        | Cached model fits (ranger QRF, DRF). **Gitignored, rebuildable from code.**                           | Pipeline writes here.       |
+| `src/nonfilers/`          | The ASEC non-filer builder's shared modules (`asec_tax_units.R`, `filing_model.R`, `state_weights.R`), moved from Tax-Simulator 2026-09-11. Sourced by `research/state_weights/` scripts; not yet by `main.R`. | Yes.                        |
+| `research/`               | Population-construction research corpus (non-filer pool, residual anchors, split state weights): plans, method of record, decisions log, numbered build scripts with their committed gate CSVs. Moved from Tax-Simulator 2026-09-11; `research/README.md` is the index. Large intermediates under `**/results/` are gitignored. | Per `research/CONVENTIONS.md`. |
 | `plots/`                  | Diagnostic plot output. **Gitignored.**                                                               | Freely.                     |
 
 **Rule:** if it is large, changes frequently, or comes from another model, it belongs in `config/interfaces/` as a version pointer — *not* in `resources/`.
@@ -90,10 +92,20 @@ Diagnostic scripts: `src/eda/validate_top_tail.R`, `src/eda/verify_pce_bench.R`,
 
 **Known caveat — PUF-Y vs CEX-Y definitional gap.** PUF income and CEX income are defined differently. At the same within-dataset rank, CEX income runs 22–48% lower than PUF income. The imputation is correct on the numerator (C distributions reproduce CEX at rank), but **any `C / Y` analysis inherits this gap.** Do not report C/Y ratios without flagging it.
 
+## Non-filer population (as of 2026-09)
+
+The DINA append is replaced by a pool built from the CPS ASEC: tax units constructed rule-by-rule, a two-model filing decision (Mok probits below the filing threshold, a Pub 5785 hazard above it), group quarters from the ACS, calibrated so emitted adults plus claimed-dependent netting equal the administrative residual (population adults minus Pub 1304 filing adults) per age band, per year 2017–2023. The build lives in `research/state_weights/nonfiler_pool/01`–`16` with modules in `src/nonfilers/`; it publishes to the `ASEC-Nonfilers` interface, which `impute_nonfilers.R` reads through the contract in `nonfiler_contract.R`. Decisions are the S-series in `research/decisions_log.md` (S13–S26); the method of record is `research/state_weights/nonfiler_residual_design.md`; the plan is `research/state_weights/plan.md`; the review brief that framed Block E is `research/state_weights/NONFILER_STATE_WEIGHTS_REVIEW_2026-08-30.md`.
+
+**Block E is built.** Every published pool year sits in one base (S22, design A), each record tagged with `base_year` and carrying weight only in the year(s) it represents; `materialize.R` divides by the base-year factor, and `project_puf.R` asserts the S21 partition (filing adults + pool adults + netting = Social Security area adults) for every pool year. Pool ids live in disjoint blocks of 1e6 per year; Forbes synthetic ids sit in a reserved block from 9e6 (S25). `write_outputs.R` emits only each year's live records, `weight > 0` (S24, design C; `TAXDATA_EMIT_LIVE_ONLY=0` restores the union-base emit for A/B reproduction only). Consequence for the consumer: the record set changes at seven year boundaries, so Tax-Simulator's sample membership is a rule on the record (its `design-c` branch), not a 2017 id list. The two repos merge as one coordinated vintage.
+
+**Random draws are keyed by record id** (S23, `src/imputations/rng.R`): `draw_by_id()` for per-record draws and `with_model_seed()` around every forest fit, so a change in the record count moves no filer column (wealth excepted, by design: the tilt is a joint fit per bucket). Do not reintroduce `runif(nrow(.))`, `sample_n()` or an unseeded fit sized by `tax_units`. The E2 tripwire in `research/state_weights/nonfiler_federal_validation.md` is the exact-equality test of this property.
+
+**Model caches were trained unweighted.** Every `quantregForest` fit cached before 2026-09 was written under R 4.4.1, whose randomForest lacked a `weights` argument, so the tips, overtime, auto-loan and childcare forests on disk ignored their survey weights. The first rebuild under R 4.4.2 (`TAXDATA_ESTIMATE_MODELS=1`) trains them weighted and moves those imputations; treat it as a modelling change with its own before/after, not a cache refresh.
+
 ## Out of scope for this repo
 
 - Tax calculation — lives in **Tax-Simulator**.
-- Reweighting *target generation* — upstream; consumed here as SOI / CBO target inputs.
+- Reweighting *target generation* for the filer LP — upstream; consumed here as SOI / CBO target inputs. (Non-filer anchors and state-weight targets are built here, in `research/`.)
 - Public data release cleaning.
 - Policy scenarios and behavioral responses.
 

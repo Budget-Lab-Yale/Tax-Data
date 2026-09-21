@@ -60,14 +60,15 @@ age_dist = cps_ages %>%
 
 
 # Impute ages
+# S23: sample_one_by_id() replaces group_by(id) %>% sample_n(1, weight = p).
+# Same weighted choice; the uniform comes from the record's own stream, so a
+# record's age does not depend on how many other records are being imputed.
 imputed_ages = tax_units %>%
   select(id, age_group) %>%
   left_join(age_dist,
             by = 'age_group',
             relationship = 'many-to-many') %>%
-  group_by(id) %>%
-  sample_n(size = 1, weight = p) %>%
-  ungroup() %>%
+  sample_one_by_id('age1') %>%
   select(id, age1 = age)
 
 # Impute secondary ages
@@ -78,9 +79,7 @@ imputed_secondary_ages = tax_units %>%
   left_join(age_gap_dist,
             by = 'age1',
             relationship = 'many-to-many') %>%
-  group_by(id) %>%
-  sample_n(size = 1, weight = p) %>%
-  ungroup() %>%
+  sample_one_by_id('age2_gap') %>%
   select(id, age2)
 
 tax_units %<>%
@@ -98,30 +97,30 @@ dep_ages = tax_units %>%
 
     # Impute dependent ages uniformly within bands
     dep_age1 = case_when(
-      dep_age_group1 == 1 ~ floor(runif(nrow(.), 0, 5)),
-      dep_age_group1 == 2 ~ floor(runif(nrow(.), 5, 13)),
-      dep_age_group1 == 3 ~ floor(runif(nrow(.), 13, 17)),
-      dep_age_group1 == 4 ~ floor(runif(nrow(.), 17, 19)),
-      dep_age_group1 == 5 ~ floor(runif(nrow(.), 19, 24)),
-      dep_age_group1 == 6 ~ pmin(MAX_AGE, floor(runif(nrow(.), 24, 95))),
+      dep_age_group1 == 1 ~ floor(draw_by_id(id, 'dep_age1', min = 0, max = 5, sub = 1L)),
+      dep_age_group1 == 2 ~ floor(draw_by_id(id, 'dep_age1', min = 5, max = 13, sub = 2L)),
+      dep_age_group1 == 3 ~ floor(draw_by_id(id, 'dep_age1', min = 13, max = 17, sub = 3L)),
+      dep_age_group1 == 4 ~ floor(draw_by_id(id, 'dep_age1', min = 17, max = 19, sub = 4L)),
+      dep_age_group1 == 5 ~ floor(draw_by_id(id, 'dep_age1', min = 19, max = 24, sub = 5L)),
+      dep_age_group1 == 6 ~ pmin(MAX_AGE, floor(draw_by_id(id, 'dep_age1', min = 24, max = 95, sub = 6L))),
       T                   ~ NA
     ),
     dep_age2 = case_when(
-      dep_age_group2 == 1 ~ floor(runif(nrow(.), 0, 5)),
-      dep_age_group2 == 2 ~ floor(runif(nrow(.), 5, 13)),
-      dep_age_group2 == 3 ~ floor(runif(nrow(.), 13, 17)),
-      dep_age_group2 == 4 ~ floor(runif(nrow(.), 17, 19)),
-      dep_age_group2 == 5 ~ floor(runif(nrow(.), 19, 24)),
-      dep_age_group2 == 6 ~ pmin(MAX_AGE, floor(runif(nrow(.), 24, 95))),
+      dep_age_group2 == 1 ~ floor(draw_by_id(id, 'dep_age2', min = 0, max = 5, sub = 1L)),
+      dep_age_group2 == 2 ~ floor(draw_by_id(id, 'dep_age2', min = 5, max = 13, sub = 2L)),
+      dep_age_group2 == 3 ~ floor(draw_by_id(id, 'dep_age2', min = 13, max = 17, sub = 3L)),
+      dep_age_group2 == 4 ~ floor(draw_by_id(id, 'dep_age2', min = 17, max = 19, sub = 4L)),
+      dep_age_group2 == 5 ~ floor(draw_by_id(id, 'dep_age2', min = 19, max = 24, sub = 5L)),
+      dep_age_group2 == 6 ~ pmin(MAX_AGE, floor(draw_by_id(id, 'dep_age2', min = 24, max = 95, sub = 6L))),
       T                   ~ NA
     ),
     dep_age3 = case_when(
-      dep_age_group3 == 1 ~ floor(runif(nrow(.), 0, 5)),
-      dep_age_group3 == 2 ~ floor(runif(nrow(.), 5, 13)),
-      dep_age_group3 == 3 ~ floor(runif(nrow(.), 13, 17)),
-      dep_age_group3 == 4 ~ floor(runif(nrow(.), 17, 19)),
-      dep_age_group3 == 5 ~ floor(runif(nrow(.), 19, 24)),
-      dep_age_group3 == 6 ~ pmin(MAX_AGE, floor(runif(nrow(.), 24, 95))),
+      dep_age_group3 == 1 ~ floor(draw_by_id(id, 'dep_age3', min = 0, max = 5, sub = 1L)),
+      dep_age_group3 == 2 ~ floor(draw_by_id(id, 'dep_age3', min = 5, max = 13, sub = 2L)),
+      dep_age_group3 == 3 ~ floor(draw_by_id(id, 'dep_age3', min = 13, max = 17, sub = 3L)),
+      dep_age_group3 == 4 ~ floor(draw_by_id(id, 'dep_age3', min = 17, max = 19, sub = 4L)),
+      dep_age_group3 == 5 ~ floor(draw_by_id(id, 'dep_age3', min = 19, max = 24, sub = 5L)),
+      dep_age_group3 == 6 ~ pmin(MAX_AGE, floor(draw_by_id(id, 'dep_age3', min = 24, max = 95, sub = 6L))),
       T                   ~ NA
     )
 
@@ -171,11 +170,11 @@ share_17yo_ineligible = dep_ages %>%
 
 tax_units %<>%
   mutate(dep_ctc1 = if_else(!is.na(dep_age1) & dep_age1 == 17,
-                            runif(nrow(.)) > share_17yo_ineligible,
+                            draw_by_id(id, 'dep_ctc1') > share_17yo_ineligible,
                             dep_ctc1),
          dep_ctc2 = if_else(!is.na(dep_age2) & dep_age2 == 17,
-                            runif(nrow(.)) > share_17yo_ineligible,
+                            draw_by_id(id, 'dep_ctc2') > share_17yo_ineligible,
                             dep_ctc2),
          dep_ctc3 = if_else(!is.na(dep_age3) & dep_age3 == 17,
-                            runif(nrow(.)) > share_17yo_ineligible,
+                            draw_by_id(id, 'dep_ctc3') > share_17yo_ineligible,
                             dep_ctc3))

@@ -1,0 +1,55 @@
+# Paths cited in research/ that are not files in this repo, and why.
+#
+# check_conventions.R check 6 flags every citation that does not resolve. A
+# citation can fail to resolve for three reasons and only one is a bug: the file
+# MOVED (a bug, and the reason the check exists -- it is what found
+# pub5785_hazard.csv), it lives in ANOTHER REPO, or it does not exist YET. The
+# last two belong here, which turns a silent unknown into a reviewed decision.
+#
+# kind = cross-repo  the file is real, in a sibling repo
+# kind = planned     this repo will create it; the plan says who and when.
+#                    A `planned` entry whose file now exists is itself an error
+#                    -- remove it, or it masks a later move of that file.
+path,kind,reason
+src/impute_nonfilers.R,cross-repo,"Tax-Data. The PSZ non-filer append the residual method replaces (design memo 2.1)."
+src/project_puf.R,cross-repo,"Tax-Data. Projection stage discussed alongside the append."
+src/imputations/helpers.R,cross-repo,"Tax-Data. compute_broad_income(), which mis-places non-filers in the wealth stack."
+src/calibrate_nonfilers.R,planned,"Tax-Data, phase D. The national calibration the rework adds."
+config/target_info/baseline.csv,cross-repo,"Tax-Data. Output target schema."
+config/variable_guide/baseline.csv,cross-repo,"Tax-Data. Output column schema; cited for div_ord/div_pref."
+config/parameters.cps.yaml,cross-repo,"common_ipums_download. The shared CPS ASEC extract request (task A3)."
+docs/decisions_log.md,cross-repo,"Affordability-Index. Named as the format this decisions log matches."
+src/data/ht2.R,planned,"This repo, task F4: the HT2 half of the state_weights.R split."
+src/tests/test_nonfilers.R,planned,"This repo, task E: the federal non-filer validation battery."
+config/runscripts/tests/nonfiler_ab.csv,planned,"This repo, task E: the A/B runscript the validation procedure specifies."
+config/runscripts/tests/nonfiler_cbo.csv,planned,"This repo, task E: the CBO-comparison runscript."
+config/runscripts/tests/new_baseline.csv,cross-repo,"Tax-Simulator. Federal validation runscript the procedure proposes."
+config/scenarios/tax_law/baseline/rebate.yaml,cross-repo,"Tax-Simulator. Baseline rebate law cited by the validation procedure."
+docs/model_documentation.md,cross-repo,"Tax-Simulator. Shipped model documentation."
+other/cbo/process_cbo_revenue.py,cross-repo,"Tax-Simulator. CBO benchmark processing cited by the validation procedure."
+research/docx_sources/income_memo_affordability.docx,cross-repo,"Tax-Simulator (Affordability-Index income memo; Word-native, stayed with the state-law corpus)."
+research/state_tax/plan.md,cross-repo,"Tax-Simulator. The state-law workstream plan; that workstream did not move."
+research/state_tax/state_parameter_rollout.csv,cross-repo,"Tax-Simulator. Per-state status surface (decision S6)."
+research/state_weights/MOVED.md,cross-repo,"Tax-Simulator. The pointer left where this tree used to live (2026-09-11)."
+research/STATUS.md,cross-repo,"Tax-Simulator. Narrative status stayed with the state-law work; here the plan is the status."
+src/calc/do_taxes.R,cross-repo,"Tax-Simulator. Calculator entry point cited by the validation procedure."
+src/calc/functions/credits/ctc.R,cross-repo,"Tax-Simulator. become_filer_ctc, cited by the validation procedure and H2."
+src/calc/functions/credits/rebate.R,cross-repo,"Tax-Simulator. become_filer_rebate, cited by the validation procedure."
+src/data/economy.R,cross-repo,"Tax-Simulator. read_microdata(), the per-year Tax-Data reader."
+src/data/filing_model.R,cross-repo,"Tax-Simulator, frozen 2026-09-11. Live copy is src/nonfilers/filing_model.R here."
+src/data/post_processing/distribution.R,cross-repo,"Tax-Simulator. Distribution tables cited by the validation procedure."
+src/data/post_processing/summary_stats.R,cross-repo,"Tax-Simulator. Filer-gated totals (the E2 tripwire's mechanism)."
+src/data/state_weights.R,cross-repo,"Tax-Simulator, frozen 2026-09-11. Live copy is src/nonfilers/state_weights.R here; the runtime loader build_state_weights() stays there."
+src/misc/config_parser.R,cross-repo,"Tax-Simulator. sample_ids and the positional random_numbers tibble."
+src/sim/run.R,cross-repo,"Tax-Simulator. The per-year run loop; binds random numbers by row position."
+src/tests/test_state_tax_law.R,cross-repo,"Tax-Simulator. State law parser tests (decision S6)."
+src/tests/test_state_weights.R,cross-repo,"Tax-Simulator. Unit tests for the fit and the ACS margins; to move with the fit."
+src/macro-projections.R,cross-repo,"Macro-Projections. Builds the married_/unmarried_{age} cells (SSA Trustees Jan-1 series before CBO's first projected year); cited by S21."
+src/misc/rng.R,cross-repo,"Tax-Simulator. The sibling id-keyed draw module built for S23."
+src/sim/behavior.R,cross-repo,"Tax-Simulator. Cited for its within-year id join, the evidence that no record-level state crosses years."
+src/tests/state/test_state_cross_model.R,cross-repo,"Tax-Simulator. A second reader of globals$sample_ids, so it moves with any design C change."
+src/calc/functions/credits/eitc.R,cross-repo,"Tax-Simulator. The EITC pre-certification draw that read the whole random_numbers vector instead of the record's own column."
+src/data/asec_tax_units.R,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now src/nonfilers/asec_tax_units.R in this repo (moved 2026-09-11)."
+research/state_weights/nonfiler_residual/plan.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; the workstream plan is research/state_weights/plan.md here."
+research/state_weights/nonfiler_residual/decisions_log.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/decisions_log.md here."
+research/state_weights/nonfiler_residual/handoff.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/state_weights/handoff.md here."

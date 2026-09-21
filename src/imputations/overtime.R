@@ -19,6 +19,10 @@ ot_microdata = haven::read_dta('./resources/otdata2023.dta') %>%
   ) %>%
   filter(wages > 0, !is.na(ot), age >= 18) %>%
   mutate(
+    # Not id-keyed, deliberately (S23): this is the SIPP/CPS training
+    # extract, whose row count is fixed by the source file and does not move
+    # with Tax-Data's record set. Only draws sized by `tax_units` had to
+    # change. Left positional so the training data keeps its history.
     wage_pctile = cut(
       x      = wages,
       breaks = wtd.quantile(wages + runif(nrow(.)), weight, 0:100 / 100),
@@ -71,7 +75,11 @@ ot = tax_units %>%
   select(id, weight, parent, married, wages1, wages2, age1, age2) %>%
   pivot_to_spouses() %>%
   mutate(
-    wage_pctile = compute_percentile(wages + runif(nrow(.)), weight)
+    # S23: the tie-breaking jitter is keyed by record too -- it decides which
+    # percentile a record lands in, so a positional draw would move the
+    # prediction inputs and not just the prediction.
+    wage_pctile = compute_percentile(
+      wages + draw_by_id(id, 'ot_jitter_pctile', sub = index), weight)
   ) %>%
   mutate(
     p = predict(
@@ -80,11 +88,10 @@ ot = tax_units %>%
       what    = function(x) mean(x - 1)
     ),
     p  = p * actual_p / weighted.mean(p, weight),
-    ot = pmin(max_ot, predict(
-      object  = ot_share_qrf,
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    ) * wages * (runif(nrow(.)) < p))
+    ot = pmin(max_ot,
+              predict_qrf_draw_by_id(ot_share_qrf, (.), id, 'ot_quantile',
+                                     sub = index) *
+              wages * (draw_by_id(id, 'ot_receipt', sub = index) < p))
   )
 
 

@@ -493,10 +493,10 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
     puf_rows_in_cell = which(puf_cells_raw$cell_income == ci)
     if (length(puf_rows_in_cell) == 0L) next
 
-    set.seed(300 + ci_idx)
-    local_tree_pick = sample.int(f_cell$n_trees,
-                                  size = length(puf_rows_in_cell),
-                                  replace = TRUE)
+    # S23: which tree a record walks is keyed by its id, not by its position
+    # in the cell.
+    local_tree_pick = column_by_id(puf_tax_units$id[puf_rows_in_cell],
+                                   f_cell$n_trees, 'wealth_tree')
 
     for (j in seq_along(puf_rows_in_cell)) {
       i  = puf_rows_in_cell[j]
@@ -713,10 +713,11 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
   # Kept ONLY as a diagnostic so harnesses can compare raw-DRF leaf draw
   # vs tilted output. Not fed into the solver.
   pre_tilt_donors = integer(n_pred)
+  pre_u = draw_by_id(puf_tax_units$id, 'wealth_leaf_pre')
   for (i in seq_len(n_pred)) {
     lr = leaf_donors_list[[i]]
     if (length(lr) > 0L) {
-      pre_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
+      pre_tilt_donors[i] = lr[pmin(length(lr), 1L + floor(pre_u[i] * length(lr)))]
     }
   }
 
@@ -851,15 +852,15 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
         # nonsenior buckets and vice versa, undoing the age control that
         # calibrated buckets enforce.
         target_senior = (ca == 'senior')
-        for (i in rec_cell) {
+        post_u = draw_by_id(puf_tax_units$id[rec_cell], 'wealth_leaf_post')
+        for (k in seq_along(rec_cell)) {
+          i  = rec_cell[k]
           lr = leaf_donors_list[[i]]
           if (length(lr) == 0L) next
           lr_age_ok = lr[scf_boot_is_senior[lr] == target_senior]
-          if (length(lr_age_ok) > 0L) {
-            post_tilt_donors[i] = lr_age_ok[sample.int(length(lr_age_ok), 1L)]
-          } else {
-            post_tilt_donors[i] = lr[sample.int(length(lr), 1L)]
-          }
+          pool = if (length(lr_age_ok) > 0L) lr_age_ok else lr
+          post_tilt_donors[i] = pool[pmin(length(pool),
+                                          1L + floor(post_u[k] * length(pool)))]
         }
         cat(sprintf('  %-12s × %-9s: n=%6d  [no viable targets → age-restricted leaf draw]\n',
                     ci, ca, n_b))
@@ -1014,8 +1015,19 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
       # sparsification per record. (Q_at_optimum has the converged q for
       # all bucket records; reuse rather than re-predict.)
       Q_b = tilt_res$Q_at_optimum
-      bucket_seed = 1000L + bucket_idx
-      set.seed(bucket_seed)
+      # S23: the donor pick below is keyed by PUF record id, so a record's
+      # donor no longer depends on its position within the bucket or on how
+      # many records share the bucket.
+      #
+      # LIMIT, stated because it is not removable by this change: the donor
+      # PROBABILITIES (Q_b) come from the tilt, which is a joint fit over
+      # whichever records are in the bucket. Change the record set and the
+      # optimum moves, so imputed wealth is not invariant the way the Phase 1
+      # imputations now are. Making it so would mean a per-record rather than
+      # a per-bucket calibration, which is a modelling decision, not an RNG
+      # fix. Wealth does not enter the 1040 aggregates the federal validation
+      # battery gates on.
+      donor_u = draw_by_id(puf_tax_units$id[rec_cell], 'wealth_donor')
       eff_donors_sampled = numeric(n_b)
       k_used_vec         = integer(n_b)
       degenerate_rows    = integer(0)  # bucket-local PUF row indices that
@@ -1036,7 +1048,9 @@ run_wealth_imputation = function(puf_tax_units, scf_tax_units,
           degenerate_rows = c(degenerate_rows, j)
         }
         qi = qrow[keep] / sum(qrow[keep])
-        local_donor = keep[sample.int(length(keep), 1L, prob = qi)]
+        # inverse-CDF pick from the record's own uniform (was sample.int)
+        local_donor = keep[pmin(length(qi),
+                                1L + findInterval(donor_u[j], cumsum(qi)))]
         # local_donor is an index into the matching-age donor pool. Map
         # it back to the global scf_boot row index.
         global_donor = offset + donor_keep_idx_local[local_donor]

@@ -38,6 +38,11 @@ source('./src/process_puf.R')
 source('./src/reweight.R')
 source('./src/summary.R')
 source('./src/create_2017_puf.R')
+# The non-filer schema contract, factored out of impute_nonfilers.R when the
+# ASEC pool replaced the DINA append. main.R sources it; this stripped copy
+# did not, so it died with "could not find function validate_nonfiler_pool"
+# the first time it was run after that change (found 2026-09-13).
+source('./src/nonfiler_contract.R')
 source('./src/impute_nonfilers.R')
 source('./src/impute_variables.R')
 

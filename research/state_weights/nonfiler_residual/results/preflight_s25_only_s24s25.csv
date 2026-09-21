@@ -1,0 +1,37 @@
+check,year,status,detail
+id uniqueness at 2017,2017,ok,"old: 1,399,234 ids, all unique"
+id uniqueness at 2017,2017,ok,"new: 374,630 ids, all unique"
+old: filer slice identical across years,2026,ok,"207,692 filers, same order in every year"
+old: every pool in every year (design A),2026,ok,"7 blocks, the same set across all years"
+new: filer slice identical across years,2026,ok,"207,692 filers, same order in every year"
+new: pool block advances then holds,2026,ok,blocks 1..7 over 10 years
+"filer slice, ALL columns",2017,ok,identical across 187 columns
+old: non-filer mass,2017,info,31.19M units | 35.67M adults | $281.8B wages
+new: non-filer mass,2017,info,31.19M units | 35.67M adults | $281.8B wages
+"filer slice, key columns",2018,ok,identical across 11 columns
+old: non-filer mass,2018,info,31.59M units | 36.31M adults | $306.2B wages
+new: non-filer mass,2018,info,31.59M units | 36.31M adults | $306.2B wages
+"filer slice, key columns",2019,ok,identical across 11 columns
+old: non-filer mass,2019,info,29.39M units | 33.79M adults | $297.3B wages
+new: non-filer mass,2019,info,29.39M units | 33.79M adults | $297.3B wages
+"filer slice, ALL columns",2020,ok,identical across 187 columns
+old: non-filer mass,2020,info,24.31M units | 27.75M adults | $204.3B wages
+new: non-filer mass,2020,info,24.31M units | 27.75M adults | $204.3B wages
+"filer slice, key columns",2021,ok,identical across 11 columns
+old: non-filer mass,2021,info,28.96M units | 33.09M adults | $277.8B wages
+new: non-filer mass,2021,info,28.96M units | 33.09M adults | $277.8B wages
+"filer slice, key columns",2022,ok,identical across 11 columns
+old: non-filer mass,2022,info,30.76M units | 35.05M adults | $345.1B wages
+new: non-filer mass,2022,info,30.76M units | 35.05M adults | $345.1B wages
+"filer slice, key columns",2023,ok,identical across 11 columns
+old: non-filer mass,2023,info,32.85M units | 37.45M adults | $361.4B wages
+new: non-filer mass,2023,info,32.85M units | 37.45M adults | $361.4B wages
+"filer slice, key columns",2024,ok,identical across 11 columns
+old: non-filer mass,2024,info,33.34M units | 38.02M adults | $380.0B wages
+new: non-filer mass,2024,info,33.34M units | 38.02M adults | $380.0B wages
+"filer slice, key columns",2025,ok,identical across 11 columns
+old: non-filer mass,2025,info,33.76M units | 38.51M adults | $396.9B wages
+new: non-filer mass,2025,info,33.76M units | 38.51M adults | $396.9B wages
+"filer slice, key columns",2026,ok,identical across 11 columns
+old: non-filer mass,2026,info,34.03M units | 38.84M adults | $411.4B wages
+new: non-filer mass,2026,info,34.03M units | 38.84M adults | $411.4B wages

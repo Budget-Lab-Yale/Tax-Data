@@ -18,8 +18,15 @@ sipp = file.path(interface_paths$SIPP, 'tip_ind_occ_full_split.csv') %>%
   fread() %>%
   tibble() %>%
 
-  # Filter to nondependent wage workers
-  filter(!is_dep, inc_wages > 0) %>%
+  # Filter to nondependent wage workers in the weighted universe. SIPP
+  # carries a zero person weight for respondents outside the survey universe
+  # in the reference period (215 of 114,272 wage-worker rows in vintage
+  # 2024090311). randomForest >= 4.7-1.2, the engine under quantregForest,
+  # refuses any non-positive training weight; under 4.7-1.1 the weights
+  # argument did not exist and was silently ignored, which is how the July
+  # 2026 cached fits trained. A zero-weight row contributes nothing to a
+  # weighted fit, so this restricts the universe rather than dropping data.
+  filter(!is_dep, inc_wages > 0, weight > 0) %>%
   mutate(
     year      = year - 1,
     tipped    = as.integer(inc_wages_tips > 0),
@@ -104,18 +111,16 @@ tips = tax_units %>%
       newdata = (.),
       what    = function(x) mean(x - 1)
     ),
-    tip_share = predict(
-      object  = tip_share_qrf,
-      newdata = (.),
-      what    = function(x) sample(x, 1)
-    )
+    # S23: the same ensemble member is chosen, by the record's own draw
+    # rather than by position. `index` (1 = primary, 2 = spouse) sub-keys it,
+    # so the two earners in a joint unit draw independently, as they did
+    # when each was a separate row under the positional sample().
+    tip_share = predict_qrf_draw_by_id(tip_share_qrf, (.), id,
+                                       'tips_quantile', sub = index)
   ) %>%
   mutate(
-    tips_lh = predict(
-      object  = tip_lh_qrf,
-      newdata = (.),
-      what    = function(x) sample(x - 1, 1)
-    )
+    tips_lh = predict_qrf_draw_by_id(tip_lh_qrf, (.), id, 'tips_year',
+                                     offset = -1, sub = index)
   )
 
 
@@ -148,7 +153,9 @@ covid_factor = sipp %>%
 tips %<>%
   left_join(scaling_factors, by = 'married') %>%
   mutate(
-    tips = wages * tip_share * (runif(nrow(.)) < (p * factor_p * covid_factor)) * factor_avg,
+    tips = wages * tip_share *
+           (draw_by_id(id, 'tips_receipt', sub = index) <
+              (p * factor_p * covid_factor)) * factor_avg,
     tips_lh = na_if(tips_lh, tips == 0)
   )
 
