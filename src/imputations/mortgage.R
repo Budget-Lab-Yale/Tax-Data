@@ -60,7 +60,11 @@ if (estimate_models) {
 
 
   # Estimate model of primary residence mortgage share among those with mortgages
-  prim_mort_share_qrf = with_model_seed('prim_mort_share_qrf', quantregForest(
+  # parallel = TRUE for the same reason as train_or_load_qrf(): this fit forks,
+  # so it needs L'Ecuyer-CMRG to be reproducible (S31). It does not go through
+  # the helper, so the switch has to be set here too.
+  prim_mort_share_qrf = with_model_seed('prim_mort_share_qrf', parallel = TRUE,
+    expr = quantregForest(
     x        = scf_mortgage[c('pctile_income', 'n_kids', 'married', 'age1')],
     y        = scf_mortgage$prim_mort_share,
     nthreads = n_threads(),

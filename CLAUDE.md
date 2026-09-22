@@ -52,7 +52,11 @@ If you hit NAs you did not expect, surface the count and the cause to the user. 
 
 ### Trained models are cached, not retrained
 
-Imputations use `train_or_load_*` helpers in `src/imputations/helpers.R` that hash their inputs and stash fits in `resources/cache/`. Don't bypass. If a cache is stale, delete the file — don't re-engineer the helper to "force" retraining.
+Imputations use `train_or_load_*` helpers in `src/imputations/helpers.R` that stash fits in `resources/cache/`. Don't bypass. If a cache is stale, delete the file — don't re-engineer the helper to "force" retraining.
+
+`src/configure.R` creates `resources/cache/{lp,qrf}` at startup — without that a from-scratch run on a clean clone dies at the LP stage, because the cache path is gitignored so its subdirectories do not exist (fixed 2026-09-21).
+
+**The cache is keyed by NAME, not by a hash of the inputs** (verified 2026-09-21; earlier text here said otherwise). `train_or_load_qrf()` builds its path from the `name` argument alone and branches on the global `estimate_models`: train and overwrite, or read. Nothing detects that the training data changed. Two consequences — a stale cache is invisible unless you delete it, and running with `TAXDATA_ESTIMATE_MODELS=1` in a worktree that shares a cache **overwrites the fits in place**, so verification rebuilds need their own cache directory.
 
 ### Year literals are load-bearing
 
@@ -101,6 +105,8 @@ The DINA append is replaced by a pool built from the CPS ASEC: tax units constru
 **Random draws are keyed by record id** (S23, `src/imputations/rng.R`): `draw_by_id()` for per-record draws and `with_model_seed()` around every forest fit, so a change in the record count moves no filer column (wealth excepted, by design: the tilt is a joint fit per bucket). Do not reintroduce `runif(nrow(.))`, `sample_n()` or an unseeded fit sized by `tax_units`. The E2 tripwire in `research/state_weights/nonfiler_federal_validation.md` is the exact-equality test of this property.
 
 **Model caches were trained unweighted.** Every `quantregForest` fit cached before 2026-09 was written under R 4.4.1, whose randomForest lacked a `weights` argument, so the tips, overtime, auto-loan and childcare forests on disk ignored their survey weights. The first rebuild under R 4.4.2 (`TAXDATA_ESTIMATE_MODELS=1`) trains them weighted and moves those imputations; treat it as a modelling change with its own before/after, not a cache refresh.
+
+**And until 2026-09-22 those fits were not reproducible at all (S31).** `quantregForest` splits training across `nthreads` workers with `parallel::mclapply`, and the forks do not inherit the default Mersenne-Twister stream, so no seed reached them: two from-scratch rebuilds of the *same commit* disagreed on every qrf-imputed column — aggregate tips by 9.5%, `tips2` by 14.6%, `auto_int_exp` on 21.7% of records. Fits now run under **L'Ecuyer-CMRG**, the generator `mclapply` splits deterministically, via `with_model_seed(..., parallel = TRUE)`. It costs ~4% (35.5s → 37.0s at n = 50,000) and keeps the parallel speedup, which is large at production scale — 13.5× at n = 200,000. Ranger and DRF keep the default stream: they take their own seed and are already stable. **Two things follow.** Rebuild-by-comparison only became a valid check on that date — the 2026-09-15 rebuild established that the pipeline runs, not that it reproduces. And the weighting change above is **confounded** with this one in any rebuild crossing both; only a post-fix pair is a clean before/after. Guarded by `src/tests/test_qrf_reproducible.R`.
 
 ## Out of scope for this repo
 
