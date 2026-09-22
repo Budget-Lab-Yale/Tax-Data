@@ -3,7 +3,7 @@ title: "The non-filer replacement: handoff map"
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-09-11
+updated: 2026-09-21
 sot: research/state_weights/plan.md
 supersedes: []
 ---

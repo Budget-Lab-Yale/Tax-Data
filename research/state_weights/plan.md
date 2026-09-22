@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-15
+updated: 2026-09-21
 sot: self
 supersedes: []
 superseded_by: null
@@ -70,10 +70,10 @@ interest 2.624, against DINA's 24% / 0.000 / 0.000.
 | **D0** | the anchor age shape (7-band) | ✅ 2026-08-24 — **role changed**: now a validation target, not an input |
 | **F1a** | non-filer targets count **adults**, not tax units | ✅ 2026-08-24 |
 | **F1c** | dorm-student netting as a second anchor universe | ✅ 2026-08-24 |
-| **C** | **build the national non-filer population** | **in progress** — C0–C5 built and gated 2026-08-28 (`nonfiler_pool/01`–`04`: units, thresholds, Mok + Pub 5785 scoring, ACS GQ backfill, joint calibration closing the anchor identity exactly in both years); **C7 done 2026-08-28**: the pool is emitted and PUBLISHED — `model_data/ASEC-Nonfilers/v1/2026082801`, expected-weight records (no random draw, no D4 hazard), 37.16M / 35.15M non-filing adults reproducing the calibration exactly, observed sex, real dependent ages, nonzero interest and dividends where DINA had exact zeros. **C8 PASSED 2026-08-28**: 10 of 10 dimension-years favour the pool. Independent tests (nothing in the calibration touched them): wage mass 0.53 vs 0.22 of the implied total, interest 22.7% vs 0.0%, dividends 3.3% vs 0.0%, pensions 10.6% vs 1.9%, Social Security 51.9% vs 64.9% against a 47.6% benchmark — mean absolute gap 4.6pp vs 10.4pp on the Pub-5785-comparable universe. **C6 done 2026-08-28**: the MFS post-step is calibrated (split share 2.70% / 3.30% of joint filers, hitting SOI's 3.213M / 3.993M returns exactly), which moves the joint ratio to SOI from 1.085 to 1.055 (2017) and 1.104 to 1.067 (2022) and puts a structurally-absent category on the file. It leaves the pool untouched by construction. **Group C is complete through C8.** Two calibration constraints added 2026-08-28 after JI asked what the biggest remaining issues are: a floored wage-presence adjustment, and the dependent-headed units calibrated to Mok's own published rates (they had been left at raw scores, scoring 0.211 against her 0.10). A record-level dependency validation then measured three proposed unit-rule changes and killed all three — see `notes/anchor_basis_comparison.md`. **C9 — the Tax-Data integration branch — is what remains.** |
-| **E** | federal validation of the new pool | after C |
-| **F** | state margins, targets and the re-fit | F1b onward, after C |
-| **G** | production swap-in | after F |
+| **C** | **build the national non-filer population** | **✅ done 2026-09-21** — C0–C5 built and gated 2026-08-28 (`nonfiler_pool/01`–`04`: units, thresholds, Mok + Pub 5785 scoring, ACS GQ backfill, joint calibration closing the anchor identity exactly in both years); **C7 done 2026-08-28**: the pool is emitted and PUBLISHED — `model_data/ASEC-Nonfilers/v1/2026082801`, expected-weight records (no random draw, no D4 hazard), 37.16M / 35.15M non-filing adults reproducing the calibration exactly, observed sex, real dependent ages, nonzero interest and dividends where DINA had exact zeros. **C8 PASSED 2026-08-28**: 10 of 10 dimension-years favour the pool. Independent tests (nothing in the calibration touched them): wage mass 0.53 vs 0.22 of the implied total, interest 22.7% vs 0.0%, dividends 3.3% vs 0.0%, pensions 10.6% vs 1.9%, Social Security 51.9% vs 64.9% against a 47.6% benchmark — mean absolute gap 4.6pp vs 10.4pp on the Pub-5785-comparable universe. **C6 done 2026-08-28**: the MFS post-step is calibrated (split share 2.70% / 3.30% of joint filers, hitting SOI's 3.213M / 3.993M returns exactly), which moves the joint ratio to SOI from 1.085 to 1.055 (2017) and 1.104 to 1.067 (2022) and puts a structurally-absent category on the file. It leaves the pool untouched by construction. **Group C is complete through C8.** Two calibration constraints added 2026-08-28 after JI asked what the biggest remaining issues are: a floored wage-presence adjustment, and the dependent-headed units calibrated to Mok's own published rates (they had been left at raw scores, scoring 0.211 against her 0.10). A record-level dependency validation then measured three proposed unit-rule changes and killed all three — see `notes/anchor_basis_comparison.md`. **C9 — the Tax-Data integration branch — LANDED 2026-09-21**: merged to `main` as PR #31 (`54ce7f4`) carrying Block E, the S23 id-keyed draws, the S24 live-records emit and the S25 Forbes renumbering. **Group C is done.** |
+| **E** | federal validation of the new pool | **re-run pending** — the 2026-09-12 first run failed E2 for a cause since fixed (S23 id-keyed draws); the battery has not been re-run on merged `main`. Gate for F |
+| **F** | state margins, targets and the re-fit | **next** — group C is done and C9 merged (PR #31, 2026-09-21). Re-scoped 2026-09-21 by S27–S29; see §5a |
+| **G** | production swap-in | after F; §5a Phase 4 |
 | **H** | model-side gaps to decide, not defer | open, §6 |
 | **I / J** | national tenure/rent/property-tax imputation and its per-state use | second phase, after G |
 
@@ -281,12 +281,22 @@ important because the whole population is being swapped:
   from the non-filer work alone; pensions, Schedule C and capital gains are a
   *filer*-target problem.
 
-**G — swap-in.** Tune to the ≥99%-within-2% bar, write
-`state_weights_{year}.csv` for 2014–2023 (**2013 is the only HT2 gap** — the
-store carries 2012 and 2014–2023, TY2023 added 2026-09; verified 2026-08-27 through 2022; earlier drafts said
-"2013/2015" and `ht2_2015.csv.gz` is in fact present),
-carry forward to projection years, vintage-tag the files, and flip the
-dispatcher off `placeholder` at `src/sim/run.R:433`.
+**G — swap-in.** Write `state_weights_{year}.csv` for **2017–2023** (S27; the
+HT2 store carries 2012 and 2014–2023, TY2023 added 2026-09, **2013 the only
+gap** — verified 2026-08-27 through 2022; earlier drafts said "2013/2015" and
+`ht2_2015.csv.gz` is in fact present), carry forward to projection years,
+vintage-tag the files, and flip the dispatcher off `placeholder` at
+`src/sim/run.R:433`.
+
+**The ≥99%-within-2% bar is dropped (S28).** Earlier drafts of this paragraph
+set it. `state_weights_phase1_summary.md` §4.2 and §5.2 had already shown it is
+not reachable on the β axis — β being the KL-anchor strength that pulls each
+record's state split back toward the prior — and that buying targeted points
+past β=1e-4 costs held-out generalization, weight quality and effective sample
+size. The acceptance bar is **config 7's own measured profile** (95.3% of
+targets within 2%, 0.43% MARD) with the structural core reported rather than
+hidden. 99% returns as an aspiration under §7.1 demographic target expansion,
+which is a *filer*-target problem the non-filer rebuild cannot address.
 
 Two G items live only in `state_weights_phase1_summary.md` §6 and are easy to
 lose, because the *decision* reads as if it had been implemented: **config 7 is
@@ -305,6 +315,171 @@ which is what F6 warns against expecting from the non-filer rebuild.
 Demographic target expansion — QWI sex×age residence-corrected via LODES RAC,
 ACS marital×age — is scoped, its fetchers are built (`fetch_qwi()`,
 `fetch_lodes_rac()`, `fetch_lodes_od_matrix()`), and it is unstarted.
+
+---
+
+## 5a. Building the state weights on the merged model — the ordered plan
+
+Written 2026-09-21, after group C's integration branch merged to `main` (PR #31) and the repo
+collapsed to a single branch. Groups F and G are the whole of the remaining
+work. This section sequences them and records what an audit of the code on
+`main` found, because four of the five findings contradict what a reader would
+assume from the documents above.
+
+### What the code actually says today
+
+| # | Finding | Evidence |
+|---|---|---|
+| 1 | **Config 7 is not wired.** The adopted β=1e-4 / cosine / 3,000 steps exists in prose only. | `fit_gradient()` defaults `beta = 1e-3, lr = 0.1, n_steps = 500, lr_schedule = "constant"` (`src/nonfilers/state_weights.R:1513`); `build_split_weights()` forwards hyperparameters through `...` and nothing supplies them (`:1456`). |
+| 2 | **The runtime dispatcher refuses to run**, returning a uniform `weight / 53` split and `stop()`ing on any method but `placeholder`. | `src/nonfilers/state_weights.R:1693`; called at `../Tax-Simulator/src/sim/run.R:434`. |
+| 3 | **That dispatcher is byte-identical in both repos** — one computation, two definitions across a repo boundary. `MOVED.md` intends only the Tax-Simulator copy to survive. | Verified by diff, 2026-09-21: `src/nonfilers/state_weights.R:1693-1720` vs `../Tax-Simulator/src/data/state_weights.R:66-93`. |
+| 4 | **There is no state-weights output interface.** The engine is reachable only from `research/state_weights/scripts/`. | No `state_weights` key in `config/interfaces/`, nothing in `src/write_outputs.R` or `src/main.R`. |
+| 5 | **Design C breaks the fit's single-year assumption, and no document above addresses it.** | Phase 1 fit one year, TY2022, 220,897 records. Under S24 the record set changes at seven year boundaries (union base 1,399,234; live share 26.8–28.1%), ids sit in disjoint 1e6 blocks per year with Forbes synthetics from 9e6 (S25), and draws must be id-keyed (S23). |
+
+Finding 5 is the substantive new design work; group F above predates design C.
+
+### Phase 0 — close group E (gate)
+
+Re-run the federal battery (`nonfiler_federal_validation.md`) on merged `main`.
+**E2 must now pass exactly**: every filer-gated column of `totals/1040.csv`
+identical when only the non-filer population changes. Its 2026-09-12 failure
+(187 of 209 columns moved) was caused by position-and-size-derived random
+numbers, which S23 replaced with id-keyed draws in both repos. Until E2 is
+clean, no state-level movement is attributable to the weights rather than to
+reshuffled draws.
+
+### Phase 1 — make the engine runnable and reproducible
+
+- **F4** — split `src/nonfilers/state_weights.R` (87 KB, 30+ functions) into
+  ingestion / margins / fit modules, which is also what makes the filing model
+  sourceable by Affordability-Index. Collapse finding 3 to one definition in
+  the same pass.
+- **Wire config 7** as named constants rather than `...` defaults (finding 1).
+- **Reproduce TY2022.** Regenerate the counts-backbone prior and a config-7
+  fit and reproduce 95.3% within 2% / 0.43% MARD. This is a pure reproduction
+  check: it proves the repo move and F4 broke nothing, and it re-creates the
+  artifacts scratch reclaimed on 2026-08-27 (§9 of the summary), without which
+  the 239-cell structural core cannot be pruned or reported.
+
+### Phase 2 — rebuild the targets on the new pool
+
+**F1b** (residual anchors as the primary non-filer targets), **F2** (demote the
+income tiers to the prior — the non-filer fit still converges in 2 iterations
+to 4.4e-16, i.e. it reproduces the prior rather than calibrating), **F3** (SSA
+margins at honest status: OASDI 65+ firm, the HI covered-worker margin a 1%
+sample and therefore soft or prior only), **F5** (validation additions).
+
+Two inputs gate parts of this and neither is a code change: the **anchor pair
+moves to 2017/2023** (S27 — ≈15 scripts' `ANCHOR_YEARS` plus `HT2_REF_YEAR`,
+then a full rebuild and re-verification of the anchors), and the 2014–2016
+state margins stay blocked on three SSA covered-earnings workbooks
+(`eedata_sc14/15/16.xlsx`) that ssa.gov will not serve to this cluster.
+
+### Phase 3 — the re-fit (F6), as a three-way bake-off
+
+Design C forces the fit to become per-year, and **which per-year architecture is
+right is an open question, so build all three and measure** (S29) — the same
+way Phase 1 settled β rather than arguing it.
+
+| arm | what it does | the risk it tests |
+|---|---|---|
+| **A — independent** | fit each year cold on that year's live records | thin cells unstabilized; year-over-year state shares jitter |
+| **B — warm-started chain** | fit the first year cold, warm-start each next year from the previous year's logits (`fit_gradient(theta0 = )` already accepts this) | needs a defined cold-start rule for records entering or leaving at a year boundary |
+| **C — amortized** | one shared fit across years, pooling to stabilize thin cells (§7.6) | unbuilt architecture; most statistically attractive |
+
+Score all three on the Phase 1 battery — targeted within-2% and MARD, held-out
+HT2 series, weight quality (near-degenerate rows, min-state Kish effective
+sample size), pilot-state liability — **plus one metric the single-year work
+never needed: year-over-year stability of each state's share.** The split
+invariant `Σ_s W[i,s] = w_i` is asserted per year on that year's live set.
+Anything stochastic in the fit is id-keyed per S23, never sized by `nrow()`.
+
+### Phase 4 — swap-in (G)
+
+Stand up a vintage-tagged `state_weights_{year}.csv` interface in Tax-Data
+(finding 4), built the way `ASEC-Nonfilers` was, with a consumer-side contract.
+Then Tax-Simulator's `build_state_weights()` becomes a **reader** of that
+interface rather than a fitter, and the dispatcher comes off `placeholder`.
+
+**Why Tax-Data builds and Tax-Simulator reads (S30).** `MOVED.md` already said
+so; what follows is the reason it survives contact with the code, because the
+fit has a dependency neither document states.
+
+*The construction is inherently two-pass.* `build_weight_inputs()` requires
+**baseline-calculated `agi` and `eitc`** — its own docstring says so
+(`src/nonfilers/state_weights.R:1299`) — and neither is in
+`config/variable_guide/baseline.csv`; both are Tax-Simulator outputs. This is
+not a dependency on 2 of the 22 filer series: `assign_ht2_stub(agi, year)`
+puts every record in an HT2 income stub, and HT2 is published *by* stub, so
+calculated AGI defines the stratification of **all 10,229 filer targets**. The
+chain is Tax-Data → a Tax-Simulator baseline → the fit → Tax-Simulator. No
+arrangement removes that; the only question is where the seam goes.
+
+*Tax-Simulator cannot be the builder, and cost is not the reason.* Fitting
+inside `run_one_year` would make the weights **scenario-dependent**: an EITC
+reform would move the EITC targets, move the fitted weights, and move every
+record's geography, so a reform score would carry weight movement it cannot
+separate from mechanical and behavioural response. It also voids the design
+invariant `Σ_s W[i,s] = w_i`, which only means anything if the weights are the
+same object across scenarios. **Weights are a baseline product: fitted once,
+frozen, reused by every scenario.** That rules out runtime construction
+independently of the 66–132 minutes per config-year the Phase 1 sweep measured.
+
+*The cycle is broken by vintage pinning, not by argument.* Every entry in
+`config/interfaces/` today points upstream; this one points back down the
+stack. But the dependency is not on Tax-Simulator the model, it is on **a
+frozen baseline vintage of calculated AGI and EITC** — the same shape as
+`IRS-PUF: 2023091310`, which Tax-Data pins rather than rebuilds. So it becomes
+a pinned `Tax-Simulator-Baseline` entry in `interface_versions.yaml`, read
+through a contract the way `impute_nonfilers.R` reads the pool. The build graph
+is then acyclic; only the repo graph loops, and the pin is what cuts it.
+
+*Consequences for this phase.* State weights are **not** built by `main.R` — a
+single entry point cannot express a dependency on its own output. They get
+their own entry point publishing their own vintage, so both passes are visible
+in the vintage record (precedent: `main_accruals_validate.R`,
+`main_phase12_snapshot.R`, `main_placeholder.R`). Tax-Simulator keeps exactly
+the jurisdiction set and the reader, which is what makes **finding 3**
+resolvable: the copy at `src/nonfilers/state_weights.R:1693` is a consumer-side
+dispatcher and is deleted here rather than kept in sync.
+
+**The measurement that could have retired this dependency has been run, and it
+fails. RESOLVED 2026-09-21.** The question was whether Tax-Data's own variables
+reproduce the HT2 stub assignment closely enough to make the fit single-pass,
+using the positive-income proxy `puf_gross_income()` already built for
+non-filer cell assignment. Assigning the TY2022 filer partition (207,692
+records, 160.6M weighted) to stubs both ways — once by baseline-calculated AGI
+from vintage `weights_2022_agi`, once by the proxy:
+
+| | |
+|---|---|
+| weighted agreement | **81.7%** |
+| weighted disagreement | **18.3%** (25.3% unweighted) |
+| of disagreements, off by **more than one** stub | **44%** |
+
+By stub, worst at both ends: stub 1 (AGI < $1) **88.6%** misassigned, stub 10
+($1M+) 34.3%, stub 9 29.5%, and a flat 17.7–21.7% across stubs 2–6. The
+prediction written here beforehand — that it would fail at the *top* stubs —
+was wrong about the shape: it fails everywhere, and worst at the bottom.
+
+**The cause is structural, not tuning.** `puf_gross_income()` is a sum of
+`pmax(component, 0)`, so it floors every loss at zero by construction; a record
+with large business or capital losses has negative AGI and substantial positive
+gross income, which is why stub 1 is nearly unreachable for it. It also *adds*
+`exempt_int` (AGI excludes it), uses `gross_ss` where AGI takes only the taxable
+part, and subtracts no above-the-line deductions. The proxy is not defective —
+it was built for a different job, matching the ACS `INCTOT` construction for
+non-filer cells.
+
+**Do not pursue a closer proxy.** Narrowing the gap means approximating
+above-the-line deductions, the taxable-Social-Security formula and loss
+limitations inside Tax-Data — reimplementing the tax calculator in the repo
+whose CLAUDE.md puts tax calculation in Tax-Simulator, and putting one
+computation in two places. The two-pass dependency is the cheaper honest
+answer: the baseline run that satisfies it took **67 seconds**.
+
+**Consequence: Phase 4 builds the pinned `Tax-Simulator-Baseline` interface as
+specified.** S30 stands in full.
 
 ---
 
@@ -363,6 +538,17 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 ---
 
 ## Revision history
+
+- **2026-09-21** — §5a added: the ordered plan for building the state weights on
+  the merged model, with the five-finding code audit behind it. Status table
+  rows for E/F/G rewritten (group C done, C9 merged as PR #31). Group G lost
+  the ≥99%-within-2% bar (S28) and narrowed to 2017–2023 (S27). Phase 4 gained
+  the S30 rationale for where construction lives, with the AGI-proxy
+  measurement that would retire its two-pass dependency. S27–S30 set.
+- **2026-09-21 (later)** — §5a Phase 4: S30's falsification test run and recorded.
+  The `puf_gross_income()` proxy reproduces the HT2 stub assignment for only 81.7%
+  of weighted filers (44% of misses off by more than one stub), so the two-pass
+  dependency stands and Phase 4 builds the pinned baseline interface.
 
 - **2026-09-15 (branch consolidation)** — `block-e` is the single merge
   candidate; it contains `asec-nonfiler-pool` whole and every line of the
