@@ -443,15 +443,43 @@ the jurisdiction set and the reader, which is what makes **finding 3**
 resolvable: the copy at `src/nonfilers/state_weights.R:1693` is a consumer-side
 dispatcher and is deleted here rather than kept in sync.
 
-**One measurement could retire the whole dependency, and it is an hour's work.**
-If Tax-Data's own variables reproduce the HT2 stub assignment closely enough —
-`puf_gross_income()` already builds a positive-income proxy for non-filer cell
-assignment — then the fit is self-contained and single-pass, and the pinned
-baseline interface is unnecessary. Test it directly: assign TY2022 records to
-stubs both ways and count disagreements, weighted, by stub. Expect it to fail
-at the top stubs, where a small AGI error moves a high-leverage record. Run
-this **before** building the interface, because a pass makes the interface
-moot; do not reason about it further.
+**The measurement that could have retired this dependency has been run, and it
+fails. RESOLVED 2026-09-21.** The question was whether Tax-Data's own variables
+reproduce the HT2 stub assignment closely enough to make the fit single-pass,
+using the positive-income proxy `puf_gross_income()` already built for
+non-filer cell assignment. Assigning the TY2022 filer partition (207,692
+records, 160.6M weighted) to stubs both ways — once by baseline-calculated AGI
+from vintage `weights_2022_agi`, once by the proxy:
+
+| | |
+|---|---|
+| weighted agreement | **81.7%** |
+| weighted disagreement | **18.3%** (25.3% unweighted) |
+| of disagreements, off by **more than one** stub | **44%** |
+
+By stub, worst at both ends: stub 1 (AGI < $1) **88.6%** misassigned, stub 10
+($1M+) 34.3%, stub 9 29.5%, and a flat 17.7–21.7% across stubs 2–6. The
+prediction written here beforehand — that it would fail at the *top* stubs —
+was wrong about the shape: it fails everywhere, and worst at the bottom.
+
+**The cause is structural, not tuning.** `puf_gross_income()` is a sum of
+`pmax(component, 0)`, so it floors every loss at zero by construction; a record
+with large business or capital losses has negative AGI and substantial positive
+gross income, which is why stub 1 is nearly unreachable for it. It also *adds*
+`exempt_int` (AGI excludes it), uses `gross_ss` where AGI takes only the taxable
+part, and subtracts no above-the-line deductions. The proxy is not defective —
+it was built for a different job, matching the ACS `INCTOT` construction for
+non-filer cells.
+
+**Do not pursue a closer proxy.** Narrowing the gap means approximating
+above-the-line deductions, the taxable-Social-Security formula and loss
+limitations inside Tax-Data — reimplementing the tax calculator in the repo
+whose CLAUDE.md puts tax calculation in Tax-Simulator, and putting one
+computation in two places. The two-pass dependency is the cheaper honest
+answer: the baseline run that satisfies it took **67 seconds**.
+
+**Consequence: Phase 4 builds the pinned `Tax-Simulator-Baseline` interface as
+specified.** S30 stands in full.
 
 ---
 
@@ -517,6 +545,10 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
   the ≥99%-within-2% bar (S28) and narrowed to 2017–2023 (S27). Phase 4 gained
   the S30 rationale for where construction lives, with the AGI-proxy
   measurement that would retire its two-pass dependency. S27–S30 set.
+- **2026-09-21 (later)** — §5a Phase 4: S30's falsification test run and recorded.
+  The `puf_gross_income()` proxy reproduces the HT2 stub assignment for only 81.7%
+  of weighted filers (44% of misses off by more than one stub), so the two-pass
+  dependency stands and Phase 4 builds the pinned baseline interface.
 
 - **2026-09-15 (branch consolidation)** — `block-e` is the single merge
   candidate; it contains `asec-nonfiler-pool` whole and every line of the
