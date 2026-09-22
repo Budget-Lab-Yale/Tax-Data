@@ -309,14 +309,30 @@ model_seed = function(name) {
 #' save/restore is the same contract as `draw_by_id()` -- nothing downstream
 #' sees a different stream because a model was fitted.
 #'
-#' @param name  the model's cache name.
-#' @param expr  the fitting call, e.g. `quantregForest(...)`.
-with_model_seed = function(name, expr) {
-  if (exists('.Random.seed', envir = globalenv())) {
-    saved = get('.Random.seed', envir = globalenv())
-    on.exit(assign('.Random.seed', saved, envir = globalenv()), add = TRUE)
-  }
-  set.seed(model_seed(name))
+#' @param name      the model's cache name.
+#' @param expr      the fitting call, e.g. `quantregForest(...)`.
+#' @param parallel  TRUE if the fit FORKS (quantregForest with nthreads > 1).
+#'   Forked workers do not inherit the default Mersenne-Twister stream, so the
+#'   seed above does not reach them and the fit is not reproducible: two
+#'   from-scratch rebuilds of the same commit disagreed on every
+#'   quantregForest-imputed column (S31). L'Ecuyer-CMRG is the RNG `mclapply`
+#'   can split deterministically across workers, which restores reproducibility
+#'   at full parallel speed. Pass FALSE for ranger and DRF, which take their own
+#'   seed and are already stable -- switching their stream would move wealth and
+#'   consumption for no reason.
+with_model_seed = function(name, expr, parallel = FALSE) {
+  old_kind = RNGkind()
+  saved = if (exists('.Random.seed', envir = globalenv())) {
+    get('.Random.seed', envir = globalenv())
+  } else NULL
+
+  # Restore the kind first, then the stream: setting the kind resets the seed.
+  on.exit({
+    RNGkind(old_kind[1], old_kind[2], old_kind[3])
+    if (!is.null(saved)) assign('.Random.seed', saved, envir = globalenv())
+  }, add = TRUE)
+
+  set.seed(model_seed(name), kind = if (parallel) "L'Ecuyer-CMRG" else old_kind[1])
   expr
 }
 

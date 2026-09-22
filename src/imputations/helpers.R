@@ -40,7 +40,22 @@ train_or_load_qrf = function(name, x = NULL, y = NULL, weights = NULL,
   cache_path = paste0('resources/cache/qrf/', name, '.rds')
 
   if (estimate_models) {
-    qrf = with_model_seed(name, quantregForest(
+
+    # The fit FORKS, so it needs the parallel-safe RNG (S31). quantregForest
+    # splits training across `nthreads` workers via parallel::mclapply; those
+    # forks do not inherit the default Mersenne-Twister stream, so with the
+    # plain seed the fit is NOT reproducible -- two from-scratch rebuilds of
+    # the same commit disagreed on every column this helper imputes (aggregate
+    # tips by 9.5%, tips2 by 14.6%, auto_int_exp on 21.7% of records).
+    # `parallel = TRUE` selects L'Ecuyer-CMRG, which mclapply splits
+    # deterministically. Measured at n = 50,000: 35.5s non-reproducible vs
+    # 37.0s reproducible, so this costs ~4% and keeps the parallel speedup,
+    # which is real at production scale (8.8x at n = 50k, 13.5x at n = 200k).
+    #
+    # One quirk to know rather than fix: ntreeEach = ceiling(ntree/nthreads),
+    # so a 500-tree request builds 512 at nthreads = 16. Deterministic, and
+    # the same on every run.
+    qrf = with_model_seed(name, parallel = TRUE, expr = quantregForest(
       x        = x,
       y        = y,
       nthreads = n_threads(),

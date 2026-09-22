@@ -42,6 +42,17 @@ if (!grepl('^[A-Za-z0-9_]+$', vintage)) {
 do_lp           = as.integer(Sys.getenv('TAXDATA_DO_LP',           unset = '1'))
 estimate_models = as.integer(Sys.getenv('TAXDATA_ESTIMATE_MODELS', unset = '1'))
 
+# Create the cache directories. resources/cache is gitignored, so a fresh
+# checkout has the path in .gitignore and none of its subdirectories, and the
+# code below writes into them without creating them: a from-scratch rebuild on
+# a clean clone died at the LP stage with "cannot open file
+# 'resources/cache/lp/weight_deltas.rds': No such file or directory" (hit
+# 2026-09-21). Creating them here is what makes "the cache is rebuildable from
+# code" true rather than true-given-an-undocumented-mkdir.
+for (cache_dir in file.path('resources/cache', c('lp', 'qrf'))) {
+  dir.create(cache_dir, recursive = TRUE, showWarnings = FALSE)
+}
+
 # Set output root
 if (runscript$runtime_options$write_locally) {
   output_root = file.path(output_roots$local, runscript$runtime_options$user_id)
