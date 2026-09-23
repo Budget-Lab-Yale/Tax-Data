@@ -224,14 +224,28 @@ read_ssa_eedata_hi <- function(year) {
   t4 <- .ssa_area_table(wb, "Table 4", first_data_col = 5, header_rows = 2:3)
   t5 <- .ssa_area_table(wb, "Table 5", first_data_col = 5, header_rows = 2)
 
+  # SSA changed the dollar UNIT in 2023: through TY2022 the Table 4 money columns
+  # are "(thousands of dollars)", from TY2023 "(millions of dollars)". Read the
+  # unit from the header rather than assume it -- accepting the new names at the
+  # old multiplier would understate 2023 earnings a thousandfold without error.
+  # Every money column must carry the same unit; the structure is still checked
+  # exactly once the unit token is normalised.
+  unit_tok <- unique(stringr::str_match(names(t4), "\\((thousands|millions) of dollars\\)")[, 2])
+  unit_tok <- unit_tok[!is.na(unit_tok)]
+  if (length(unit_tok) != 1L) {
+    stop("read_ssa_eedata_hi(", year, "): Table 4 money columns do not share one unit (",
+         paste(unit_tok, collapse = ", "), ")", call. = FALSE)
+  }
+  dollars_per_unit <- c(thousands = 1e3, millions = 1e6)[[unit_tok]]
+  names(t4) <- sub(sprintf("(%s of dollars)", unit_tok), "(dollars)", names(t4), fixed = TRUE)
   stopifnot(identical(names(t4), c(
     "Number Total", "Number Wage and salary", "Number Self-employed",
-    "Taxable earnings (thousands of dollars) Total",
-    "Taxable earnings (thousands of dollars) Wage and salary",
-    "Taxable earnings (thousands of dollars) Self-employed",
-    "HI contributions (thousands of dollars) Total",
-    "HI contributions (thousands of dollars) Wage and salary",
-    "HI contributions (thousands of dollars) Self-employed", "state")))
+    "Taxable earnings (dollars) Total",
+    "Taxable earnings (dollars) Wage and salary",
+    "Taxable earnings (dollars) Self-employed",
+    "HI contributions (dollars) Total",
+    "HI contributions (dollars) Wage and salary",
+    "HI contributions (dollars) Self-employed", "state")))
   ssa_age_bands <- c("Under 20", "20–29", "30–39", "40–49",
                      "50–59", "60–61", "62–64", "65–69",
                      "70 or older")
@@ -242,7 +256,16 @@ read_ssa_eedata_hi <- function(year) {
                     hi_persons_wage_salary = `Number Wage and salary`,
                     hi_persons_self_emp    = `Number Self-employed`,
                     hi_wage_salary_earnings =
-                      `Taxable earnings (thousands of dollars) Wage and salary` * 1000)]
+                      `Taxable earnings (dollars) Wage and salary` * dollars_per_unit)]
+
+  # A unit error of any size shows up here: mean taxable wages per covered
+  # wage-and-salary worker ran $48.7k (TY2017) to $65.2k (TY2023), far inside
+  # these bounds, and a thousandfold slip in either direction lands far outside.
+  avg_wage <- persons[, sum(hi_wage_salary_earnings) / sum(hi_persons_wage_salary)]
+  if (avg_wage < 1e4 || avg_wage > 5e5) {
+    stop(sprintf("read_ssa_eedata_hi(%d): mean taxable wages per worker $%.0f is implausible -- check the Table 4 unit (read as %s)",
+                 year, avg_wage, unit_tok), call. = FALSE)
+  }
 
   # Table 5's all-ages column IS Table 4's `Number Total` -- the check that
   # pins down which universe the age shape is published on.
