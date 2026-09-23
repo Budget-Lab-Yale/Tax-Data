@@ -486,13 +486,21 @@ for (yr in years) {
   # file as missing and silently drop the state products. A parse failure on a
   # file that IS there propagates.
   ee <- if (file.exists(ssa_f)) read_ssa_eedata_hi(yr) else NULL
+  # The two products need different inputs, so gate them separately. The wage
+  # margin compares HT2 wages against BOTH frames; the SSA age margin is EEDATA
+  # Table 5 alone. Coupling them (as until 2026-09-23) dropped the 2023 age
+  # margin for want of 2023 QCEW, which it never reads.
   do_wage_margin <- file.exists(qcew_f) && !is.null(ee)
+  do_age_margin  <- !is.null(ee)
   if (!do_wage_margin) {
-    message(sprintf(paste('  SKIP state wage margin and SSA age margin for TY%d:',
-                          '%s. The national anchor and age shape are unaffected.'),
+    message(sprintf(paste('  SKIP state wage margin for TY%d: %s.',
+                          'The national anchor and age shape are unaffected.'),
                     yr, paste(c(if (!file.exists(qcew_f)) 'no QCEW state totals',
                                 if (is.null(ee)) 'no SSA EEDATA workbook'),
                               collapse = ' and ')))
+  }
+  if (!do_age_margin) {
+    message(sprintf('  SKIP SSA age margin for TY%d: no SSA EEDATA workbook.', yr))
   }
   wm <- NULL
   if (do_wage_margin) {
@@ -541,10 +549,12 @@ for (yr in years) {
   }
   if (do_wage_margin) {
     fwrite(wm[order(state)], file.path(res_dir, sprintf('nonfiler_wage_margin_%d.csv', yr)))
+  }
+  if (do_age_margin) {
     fwrite(ee$age, file.path(res_dir, sprintf('ssa_age_margin_%d.csv', yr)))
   }
   message(sprintf('  wrote national_anchor%s%s CSVs',
                   if (have_ht2) ' / residual_anchors' else ' (national only)',
-                  if (do_wage_margin)
-                    ' / nonfiler_wage_margin / ssa_age_margin' else ''))
+                  paste0(if (do_wage_margin) ' / nonfiler_wage_margin' else '',
+                         if (do_age_margin)  ' / ssa_age_margin' else '')))
 }
