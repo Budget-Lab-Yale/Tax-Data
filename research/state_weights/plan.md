@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-22
+updated: 2026-09-23
 sot: self
 supersedes: []
 superseded_by: null
@@ -71,7 +71,7 @@ interest 2.624, against DINA's 24% / 0.000 / 0.000.
 | **F1a** | non-filer targets count **adults**, not tax units | ✅ 2026-08-24 |
 | **F1c** | dorm-student netting as a second anchor universe | ✅ 2026-08-24 |
 | **C** | **build the national non-filer population** | **✅ done 2026-09-21** — C0–C5 built and gated 2026-08-28 (`nonfiler_pool/01`–`04`: units, thresholds, Mok + Pub 5785 scoring, ACS GQ backfill, joint calibration closing the anchor identity exactly in both years); **C7 done 2026-08-28**: the pool is emitted and PUBLISHED — `model_data/ASEC-Nonfilers/v1/2026082801`, expected-weight records (no random draw, no D4 hazard), 37.16M / 35.15M non-filing adults reproducing the calibration exactly, observed sex, real dependent ages, nonzero interest and dividends where DINA had exact zeros. **C8 PASSED 2026-08-28**: 10 of 10 dimension-years favour the pool. Independent tests (nothing in the calibration touched them): wage mass 0.53 vs 0.22 of the implied total, interest 22.7% vs 0.0%, dividends 3.3% vs 0.0%, pensions 10.6% vs 1.9%, Social Security 51.9% vs 64.9% against a 47.6% benchmark — mean absolute gap 4.6pp vs 10.4pp on the Pub-5785-comparable universe. **C6 done 2026-08-28**: the MFS post-step is calibrated (split share 2.70% / 3.30% of joint filers, hitting SOI's 3.213M / 3.993M returns exactly), which moves the joint ratio to SOI from 1.085 to 1.055 (2017) and 1.104 to 1.067 (2022) and puts a structurally-absent category on the file. It leaves the pool untouched by construction. **Group C is complete through C8.** Two calibration constraints added 2026-08-28 after JI asked what the biggest remaining issues are: a floored wage-presence adjustment, and the dependent-headed units calibrated to Mok's own published rates (they had been left at raw scores, scoring 0.211 against her 0.10). A record-level dependency validation then measured three proposed unit-rule changes and killed all three — see `notes/anchor_basis_comparison.md`. **C9 — the Tax-Data integration branch — LANDED 2026-09-21**: merged to `main` as PR #31 (`54ce7f4`) carrying Block E, the S23 id-keyed draws, the S24 live-records emit and the S25 Forbes renumbering. **Group C is done.** |
-| **E** | federal validation of the new pool | **in progress** — the E2 exact-equality core **passed 2026-09-14** (`nonfiler_federal_validation_findings.md` §10), and D4 id preservation with it. Re-scoped 2026-09-22 (S32) to the absolute checks that remain: **E4** (TY2021 EIP3/advance CTC to non-filers vs actuals), **E3** (TY2017 non-filer wage mass vs SSA and Pub 5785) and the **CBO comparison**. Input vintage `2026092210_postfix_A`, the first reproducible build. See §5a Phase 0 |
+| **E** | federal validation of the new pool | **✅ closed 2026-09-23 (S34)** — E2 and D4 passed 2026-09-14; the absolute checks ran on `2026092220_s33_scratch`: E4 EIP3 −6.3% to −8.3% (not read as a non-filer-level error), E3 non-filer wages $281.8B against Pub 5785's $295–338B, CBO returns −0.4% in 2022. CTC test open as framed; return-count drift to −3.8% by 2030 under investigation. `nonfiler_federal_validation_findings.md` §11 |
 | **F** | state margins, targets and the re-fit | **next** — group C is done and C9 merged (PR #31, 2026-09-21). Re-scoped 2026-09-21 by S27–S29; see §5a |
 | **G** | production swap-in | after F; §5a Phase 4 |
 | **H** | model-side gaps to decide, not defer | open, §6 |
@@ -367,6 +367,8 @@ side was undisturbed, which E2 already settles):
 §4f (reforms), §4g (distributional) and §4i (regression guard) are optional
 follow-on, not gates on Phase 1.
 
+**Closed 2026-09-23 (S34)** on vintage `2026092220_s33_scratch` — the first attempt on `postfix_A` found every federal total NA and produced S33. Results in `nonfiler_federal_validation_findings.md` §11.
+
 **Input:** vintage `2026092210_postfix_A`, the first reproducible Tax-Data build
 (two independent rebuilds byte-identical across all 100 files, S31), run through
 Tax-Simulator `main` at full sample over 2017–2030 in one baseline.
@@ -561,6 +563,8 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 ---
 
 ## Revision history
+
+- **2026-09-23** — group E / Phase 0 closed (S34); status and §5a updated.
 
 - **2026-09-22** — Phase 0 corrected: E2 and D4 had already passed on 2026-09-14,
   which this plan missed. Group E re-scoped (S32) to the absolute checks E4, E3 and

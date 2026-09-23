@@ -53,3 +53,4 @@ src/data/asec_tax_units.R,cross-repo,"Tax-Simulator at 2026-08-30, the review br
 research/state_weights/nonfiler_residual/plan.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; the workstream plan is research/state_weights/plan.md here."
 research/state_weights/nonfiler_residual/decisions_log.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/decisions_log.md here."
 research/state_weights/nonfiler_residual/handoff.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/state_weights/handoff.md here."
+config/runscripts/tests/phase0_baseline.csv,cross-repo,"Tax-Simulator. Phase 0 baseline: main on Tax-Data vintage 2026092220_s33_scratch, full sample, 2017:2030 (findings section 11)."
