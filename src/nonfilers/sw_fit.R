@@ -280,6 +280,17 @@ build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
 CONFIG_7 <- list(prior_series = 'n_returns', prior_n_iter = 50L,
                  beta = 1e-4, lr = 0.1, n_steps = 3000L, lr_schedule = 'cosine')
 
+#' Config 7's two stages on the filer partition: IPF on the return counts,
+#' then the joint gradient fit started from that prior.
+#' @param p the `filers` element of build_weight_inputs()
+fit_filers_config7 <- function(p, verbose = FALSE) {
+  counts <- Filter(function(t) t$series == CONFIG_7$prior_series, p$targets)
+  prior  <- fit_calibration(p$w, p$P0, counts, n_iter = CONFIG_7$prior_n_iter)$P
+  fit_gradient(p$w, prior, p$targets,
+               beta = CONFIG_7$beta, lr = CONFIG_7$lr, n_steps = CONFIG_7$n_steps,
+               lr_schedule = CONFIG_7$lr_schedule, verbose = verbose)
+}
+
 #' Fit both partitions and assemble long split weights.
 #'
 #' method = "gradient" is the production path: filers get config 7's two
@@ -308,11 +319,7 @@ build_split_weights <- function(tax_units, year,
     if (length(p$idx) == 0) next
 
     fit <- if (method == "gradient" && part == "filers") {
-      counts <- Filter(function(t) t$series == CONFIG_7$prior_series, p$targets)
-      prior  <- fit_calibration(p$w, p$P0, counts, n_iter = CONFIG_7$prior_n_iter)$P
-      fit_gradient(p$w, prior, p$targets,
-                   beta = CONFIG_7$beta, lr = CONFIG_7$lr, n_steps = CONFIG_7$n_steps,
-                   lr_schedule = CONFIG_7$lr_schedule, verbose = verbose)
+      fit_filers_config7(p, verbose = verbose)
     } else {
       fit_calibration(p$w, p$P0, p$targets, verbose = verbose)
     }
