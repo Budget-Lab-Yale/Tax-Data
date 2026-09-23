@@ -2,8 +2,8 @@
 # Tests for src/data/asec_tax_units.R (group C stages C0-C2)
 #
 # Functions only (src/ is sourced recursively). Run via:
-#   Rscript -e 'library(data.table); source("src/data/state_weights.R");
-#               source("src/data/asec_tax_units.R");
+#   Rscript -e 'library(data.table); source("src/nonfilers/state_weights.R");
+#               source("src/nonfilers/asec_tax_units.R");
 #               source("src/tests/test_asec_tax_units.R"); test_asec_tax_units()'
 #
 # Fixtures are constructed households, one per D-A2 rule, sized so a wrong

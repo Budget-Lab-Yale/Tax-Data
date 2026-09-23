@@ -330,9 +330,9 @@ assume from the documents above.
 
 | # | Finding | Evidence |
 |---|---|---|
-| 1 | **Config 7 is not wired.** The adopted β=1e-4 / cosine / 3,000 steps exists in prose only. | `fit_gradient()` defaults `beta = 1e-3, lr = 0.1, n_steps = 500, lr_schedule = "constant"` (`src/nonfilers/state_weights.R:1513`); `build_split_weights()` forwards hyperparameters through `...` and nothing supplies them (`:1456`). |
+| 1 | ✅ **RESOLVED 2026-09-23.** ~~**Config 7 is not wired.** The adopted β=1e-4 / cosine / 3,000 steps exists in prose only.~~ | `fit_gradient()` defaults `beta = 1e-3, lr = 0.1, n_steps = 500, lr_schedule = "constant"` (`src/nonfilers/state_weights.R:1513`); `build_split_weights()` forwards hyperparameters through `...` and nothing supplies them (`:1456`). |
 | 2 | **The runtime dispatcher refuses to run**, returning a uniform `weight / 53` split and `stop()`ing on any method but `placeholder`. | `src/nonfilers/state_weights.R:1693`; called at `../Tax-Simulator/src/sim/run.R:434`. |
-| 3 | **That dispatcher is byte-identical in both repos** — one computation, two definitions across a repo boundary. `MOVED.md` intends only the Tax-Simulator copy to survive. | Verified by diff, 2026-09-21: `src/nonfilers/state_weights.R:1693-1720` vs `../Tax-Simulator/src/data/state_weights.R:66-93`. |
+| 3 | ✅ **RESOLVED 2026-09-23.** ~~**That dispatcher is byte-identical in both repos** — one computation, two definitions across a repo boundary. `MOVED.md` intends only the Tax-Simulator copy to survive.~~ | Verified by diff, 2026-09-21: `src/nonfilers/state_weights.R:1693-1720` vs `../Tax-Simulator/src/data/state_weights.R:66-93`. |
 | 4 | **There is no state-weights output interface.** The engine is reachable only from `research/state_weights/scripts/`. | No `state_weights` key in `config/interfaces/`, nothing in `src/write_outputs.R` or `src/main.R`. |
 | 5 | **Design C breaks the fit's single-year assumption, and no document above addresses it.** | Phase 1 fit one year, TY2022, 220,897 records. Under S24 the record set changes at seven year boundaries (union base 1,399,234; live share 26.8–28.1%), ids sit in disjoint 1e6 blocks per year with Forbes synthetics from 9e6 (S25), and draws must be id-keyed (S23). |
 
@@ -374,6 +374,12 @@ follow-on, not gates on Phase 1.
 Tax-Simulator `main` at full sample over 2017–2030 in one baseline.
 
 ### Phase 1 — make the engine runnable and reproducible
+
+**✅ Closed 2026-09-23 (S36).** Config 7 reproduced exactly; `state_weights.R`
+split into five modules with all 54 definitions identical; `build_split_weights
+(method = "gradient")` now runs config 7's two stages for filers and exact IPF
+for non-filers, and reproduces the golden fit `identical()`-ly with no
+hyperparameters supplied (`scripts/check_config7_golden.R`, Slurm 27243481).
 
 **Reproduce first, then refactor** (JI, 2026-09-23). The order matters: a
 reproduction run on the code as it stands gives the refactor an exact target —
@@ -575,6 +581,8 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 ---
 
 ## Revision history
+
+- **2026-09-23 (evening)** — Phase 1 closed (S36); findings 1 and 3 resolved.
 
 - **2026-09-23 (later still)** — §5a Phase 1 reordered: reproduce first, then refactor.
 
