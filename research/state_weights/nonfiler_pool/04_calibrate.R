@@ -402,9 +402,17 @@ for (yr in YEARS) {
   #---------------------------------------------------------------------------
   # Solve, central netting + the two bracket edges
   #---------------------------------------------------------------------------
-  scenarios <- c(central = 1,
-                 ht2_floor = DEP_BRACKET[[cy]]['ht2_floor'] / dep_claimed_total,
-                 depstat   = DEP_BRACKET[[cy]]['depstat']   / dep_claimed_total)
+  # The bracket is measured for 2017 and 2022 only; other years run the
+  # central case alone. (Indexing a missing year used to drop the two edges
+  # silently -- NULL['x'] / n is numeric(0) inside c().)
+  scenarios <- c(central = 1)
+  if (cy %in% names(DEP_BRACKET)) {
+    scenarios <- c(scenarios,
+                   ht2_floor = DEP_BRACKET[[cy]]['ht2_floor'] / dep_claimed_total,
+                   depstat   = DEP_BRACKET[[cy]]['depstat']   / dep_claimed_total)
+  } else {
+    message(sprintf('  no DEP_BRACKET for TY%s: central netting only, no bracket edges', cy))
+  }
 
   # The wage-earner target: Pub 5785's count scaled to our universe, less the
   # earners among claimed dependents (whom the calibration does not control).
