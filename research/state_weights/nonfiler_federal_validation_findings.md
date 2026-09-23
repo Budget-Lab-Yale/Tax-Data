@@ -3,7 +3,7 @@ title: "Federal validation, first run: the E2 tripwire fails, and why"
 role: review
 workstream: state_weights
 status: current
-updated: 2026-09-14
+updated: 2026-09-23
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -319,7 +319,57 @@ the rows it samples — design A's file carries zero-weight rows that design C's
 does not, so the same column came back numeric from one and integer from the
 other. Values were identical. **When this gate fails, check the gate first.**
 
+## 11. Phase 0 on merged `main`: the absolute checks (2026-09-23)
+
+Group E closed on the three checks S32 left standing. Inputs: Tax-Data vintage
+`2026092220_s33_scratch` (from scratch, carrying the S31 RNG fix and the S33
+empty-node fix) through Tax-Simulator `main` at full sample, 2017–2030, one
+baseline (`config/runscripts/tests/phase0_baseline.csv`). **Zero NA cells in
+the whole `totals/1040.csv` table** — the precondition that failed on the first
+attempt (S33).
+
+**E4 — TY2021 payments against Treasury actuals.**
+
+| | model | actual | gap |
+|---|---|---|---|
+| EIP3 dollars | $376.9B | $402–411B | −6.3% to −8.3% |
+| EIP3 payments | 148.8M | ~165M | −9.8% |
+| of which non-filers (input status) | $55.0B, 28.0M payments | — | 96.7% of non-filer units paid |
+
+The record-level sum reconciles to `1040.csv` exactly. The dependent age limit
+is correctly unlimited for 2021 and `value_dep` is $1,400, so adult dependents
+are not the gap. **The gap is not read as a non-filer-level error**: closing
+$25–34B through non-filers alone would take a pool 45–62% larger, implausible
+for a population calibrated to the administrative residual. The payment count
+is a soft comparison — Treasury counts payments, top-ups included, not unique
+recipients.
+
+**The runbook's CTC test does not work as framed.** Model total 2021 CTC is
+$234.2B (refundable $112.0B). Halving it to compare with the ~$93B *advance*
+gives +26%, but the advance reached only units with a prior-year return or a
+portal registration, net of opt-outs. $93B is 40% of $234B, consistent with
+incomplete advance take-up. A real test needs total TY2021 CTC claimed, which
+the runbook does not supply. **Open, not failed.**
+
+**E3 — TY2017 non-filer wage mass.** $281.8B, against the Pub 5785 identified
+population's $295–338B (−4% to −17%), 59% of the SSA upper bound ($480.6B),
+and 2.4× the DINA append's $116.2B.
+
+**CBO comparison, TY2022** — a filer-side tripwire, not a non-filer check
+(§4e). Returns −0.4% (160.6M vs 161.3M), AGI −1.0%, taxable income −0.8%,
+income tax −2.7%. Two filer-side gaps that predate this work: itemizers +30.5%,
+net business income +17.8%. **One trend worth its own investigation: the
+return count drifts from −0.4% in 2022 to −3.8% by 2030**, i.e. our filer count
+grows more slowly than CBO's — which matters for state weights, built on the
+filer/non-filer split.
+
+**Decision (JI, 2026-09-23): Phase 0 is closed on these numbers** (S34).
+
 ## Revision history
+
+- **2026-09-23** — §11: Phase 0's absolute checks on merged `main` (E4, E3, CBO).
+  Group E closed; the CTC advance comparison recorded as invalid as framed; the
+  2022→2030 return-count drift against CBO flagged for investigation.
 
 - **2026-09-14 (later)** — §10: the tripwire reads clean. 16 checks, 0 FAIL,
   0 MOVED; 0 of 188 columns at the record level. Status closed.

@@ -267,8 +267,41 @@ predict_qrf_draw_by_id = function(model, newdata, ids, stream, offset = 0,
     stop('predict_qrf_draw_by_id(): ', nrow(ens), ' prediction rows for ',
          length(ids), ' ids on stream "', stream, '"', call. = FALSE)
   }
-  (ens + offset)[cbind(seq_along(ids),
-                       column_by_id(ids, ncol(ens), stream, sub = sub))]
+
+  # One uniform per record, keyed by id. It picks the ensemble column below.
+  u   = draw_by_id(ids, stream, sub = sub)
+  val = ens[cbind(seq_along(ids), pmin(ncol(ens), 1L + floor(u * ncol(ens))))]
+
+  # EMPTY TERMINAL NODES (S33). On this project's data, quantregForest leaves
+  # `valuesNodes` NA at a share of a regression forest's terminal nodes --
+  # 1.4% for auto_qrf, 16% for childcare_qrf, 28% for prim_mort_share_qrf --
+  # so a record whose chosen tree routes it into one gets NA. Classification
+  # forests have none. It reproduces single-threaded and unweighted, so it is a
+  # property of the data, not of S31's threading or of the survey weights.
+  #
+  # Downstream this was either fatal or silent. auto_loan.R has no NA handling,
+  # so its NAs reached AGI and nulled every headline federal total; childcare,
+  # overtime and tips run `replace_na(., 0)` and mortgage runs
+  # `if_else(is.na(.), 1, .)`, which exist to handle the genuinely absent
+  # second earner but also swallowed these failed draws, silently turning an
+  # in-universe record's imputation into $0 (or into 100% primary residence).
+  #
+  # Re-draw ONLY those records, among their own non-empty ensemble members,
+  # using the SAME uniform -- so the draw stays keyed by id, and every record
+  # whose first choice was valid keeps exactly the value it had before.
+  miss = which(is.na(val))
+  for (i in miss) {
+    ok = which(!is.na(ens[i, ]))
+    if (length(ok) == 0L) {
+      stop('predict_qrf_draw_by_id(): every ensemble member is empty for id ',
+           ids[i], ' on stream "', stream, '"', call. = FALSE)
+    }
+    val[i] = ens[i, ok[min(length(ok), 1L + floor(u[i] * length(ok)))]]
+  }
+
+  # Fail loudly rather than hand a caller an NA to mask.
+  stopifnot(!anyNA(val))
+  val + offset
 }
 
 
