@@ -81,27 +81,11 @@ A16_BANDS <- TARGET_AGE_BANDS
 # basis comparison reads the same national level this script anchors on.
 
 #---------------------------------------------------------------
-# Census PEP: resident population by state x single year of age
+# Census PEP: resident population by state x single year of age.
+# read_pep() lives in src/nonfilers/sw_external.R (sourced above) --
+# moved there 2026-09-23 so the Phase 2 anchor bake-off reads the same
+# population this script anchors on.
 #---------------------------------------------------------------
-
-read_pep <- function(year) {
-  f <- file.path(raw_data_root(), 'Census-PEP',
-                 # The intercensal file is the REVISED 2010-2019 series and
-                 # stops at POPESTIMATE2019; the 2024 vintage starts at 2020.
-                 # The boundary was <= 2020, which only ever failed on a TY2020
-                 # build -- 2017 and 2022 both land on the right side of it.
-                 if (year <= 2019) 'sc-est2020int-alldata6.csv' else
-                                   'sc-est2024-alldata6.csv')
-  pep <- fread(f, showProgress = FALSE)
-  pop_col <- sprintf('POPESTIMATE%d', year)
-  stopifnot(pop_col %in% names(pep), all(pep$AGE <= 85 | pep$AGE == 999))
-  # Totals: SEX 0 and ORIGIN 0 are marginal rows; RACE 1-6 partition (no total)
-  pep <- pep[SEX == 0 & ORIGIN == 0 & AGE != 999,
-             .(pop = sum(get(pop_col))), by = .(STATE, AGE)]
-  pep[, state := FIPS_TO_STATE[as.character(STATE)]]
-  stopifnot(!anyNA(pep$state), uniqueN(pep$state) == 51)
-  pep[]
-}
 
 #---------------------------------------------------------------
 # Build per year

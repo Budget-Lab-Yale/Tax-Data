@@ -173,6 +173,27 @@ SSA_SEX_LABELS <- c("Men", "Women")
   out[]
 }
 
+#' Census PEP resident population by state x single year of age (0-85, 85
+#' top-coded), both sexes, all origins. The anchors' population universe.
+read_pep <- function(year) {
+  f <- file.path(raw_data_root(), 'Census-PEP',
+                 # The intercensal file is the REVISED 2010-2019 series and
+                 # stops at POPESTIMATE2019; the 2024 vintage starts at 2020.
+                 # The boundary was <= 2020, which only ever failed on a TY2020
+                 # build -- 2017 and 2022 both land on the right side of it.
+                 if (year <= 2019) 'sc-est2020int-alldata6.csv' else
+                                   'sc-est2024-alldata6.csv')
+  pep <- fread(f, showProgress = FALSE)
+  pop_col <- sprintf('POPESTIMATE%d', year)
+  stopifnot(pop_col %in% names(pep), all(pep$AGE <= 85 | pep$AGE == 999))
+  # Totals: SEX 0 and ORIGIN 0 are marginal rows; RACE 1-6 partition (no total)
+  pep <- pep[SEX == 0 & ORIGIN == 0 & AGE != 999,
+             .(pop = sum(get(pop_col))), by = .(STATE, AGE)]
+  pep[, state := FIPS_TO_STATE[as.character(STATE)]]
+  stopifnot(!anyNA(pep$state), uniqueN(pep$state) == 51)
+  pep[]
+}
+
 read_ssa_oasdi_65p <- function(year) {
   fs <- file.path(raw_data_root(), "SSA-OASDI-SC",
                   "oasdi_sc_flatseries_table2_beneficiaries.json")
