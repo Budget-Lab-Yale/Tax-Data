@@ -271,21 +271,51 @@ build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
        nonfilers = list(idx = idx_n, w = tu_n$weight, P0 = P0_n, targets = targets_n))
 }
 
-#' Fit both partitions with the chosen engine and assemble long split weights.
+# Config 7, the Phase 1 bake-off winner (state_weights_phase1_summary.md §6):
+# 95.3% of filer targets within 2%, MARD 0.43%, reproduced exactly 2026-09-23.
+# It is a TWO-STAGE pipeline, not only a set of hyperparameters. A per-cell IPF
+# multiplier cannot satisfy the ~21 series that constrain one stub x state cell
+# (§3.2), so the return counts are fitted first by IPF, and the joint gradient
+# fit starts from that prior rather than from the raw HT2 shares in P0.
+CONFIG_7 <- list(prior_series = 'n_returns', prior_n_iter = 50L,
+                 beta = 1e-4, lr = 0.1, n_steps = 3000L, lr_schedule = 'cosine')
+
+#' Fit both partitions and assemble long split weights.
+#'
+#' method = "gradient" is the production path: filers get config 7's two
+#' stages; non-filers get exact IPF. method = "calibration" fits both
+#' partitions by IPF alone.
+#'
+#' Non-filers are on IPF under either method because their targets are
+#' single-membership count cells, which IPF fits exactly in one pass (§2), and
+#' that is what the bake-off used for them (§5.4).
+#'
+#' There is no `...`: it used to forward hyperparameters to whichever engine
+#' ran, nothing ever supplied them, and so config 7 existed in prose only while
+#' the gradient engine ran its own defaults (plan section 5a, finding 1). Tune
+#' through the sweep harness, which calls the engines directly.
 #' @return data.table(id, state, weight) with Σ_state weight = national weight
 build_split_weights <- function(tax_units, year,
                                 method = c("calibration", "gradient"),
-                                inputs = NULL, ...) {
+                                inputs = NULL, verbose = FALSE) {
   method <- match.arg(method)
   tu <- as.data.table(tax_units)
   if (is.null(inputs)) inputs <- build_weight_inputs(tu, year)
 
-  fit_fn <- if (method == "gradient") fit_gradient else fit_calibration
   out <- list()
   for (part in c("filers", "nonfilers")) {
     p <- inputs[[part]]
     if (length(p$idx) == 0) next
-    fit <- fit_fn(p$w, p$P0, p$targets, ...)
+
+    fit <- if (method == "gradient" && part == "filers") {
+      counts <- Filter(function(t) t$series == CONFIG_7$prior_series, p$targets)
+      prior  <- fit_calibration(p$w, p$P0, counts, n_iter = CONFIG_7$prior_n_iter)$P
+      fit_gradient(p$w, prior, p$targets,
+                   beta = CONFIG_7$beta, lr = CONFIG_7$lr, n_steps = CONFIG_7$n_steps,
+                   lr_schedule = CONFIG_7$lr_schedule, verbose = verbose)
+    } else {
+      fit_calibration(p$w, p$P0, p$targets, verbose = verbose)
+    }
 
     # The split constraint must hold EXACTLY here -- a violation is a defect
     # (the 2026-07-13 leak came from negative P cells being dropped by the
