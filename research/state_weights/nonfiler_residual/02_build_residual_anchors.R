@@ -54,7 +54,7 @@
 #
 # Usage (repo root, login node OK):
 #   Rscript research/state_weights/nonfiler_residual/02_build_residual_anchors.R [year]
-# Default runs both anchor years (2017, 2022).
+# Default runs both anchor years (2017, 2023; S27).
 #------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -64,7 +64,7 @@ suppressPackageStartupMessages({
 source('src/nonfilers/state_weights.R')
 
 args <- commandArgs(trailingOnly = TRUE)
-years <- if (length(args)) as.integer(args) else c(2017L, 2022L)
+years <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 res_dir <- 'research/state_weights/nonfiler_residual/results'
 dir.create(res_dir, recursive = TRUE, showWarnings = FALSE)
 

@@ -46,7 +46,7 @@ source('src/nonfilers/asec_tax_units.R')
 source('src/nonfilers/filing_model.R')
 
 args  <- commandArgs(trailingOnly = TRUE)
-YEARS <- if (length(args)) as.integer(args) else c(2017L, 2022L)
+YEARS <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 RES   <- 'research/state_weights/nonfiler_pool/results'
 
 ACS_COLS <- c('YEAR', 'STATEFIP', 'PERWT', 'AGE', 'SEX', 'GQ', 'SCHOOL',

@@ -32,7 +32,7 @@ source('src/nonfilers/state_weights.R')
 source('src/nonfilers/asec_tax_units.R')
 
 args  <- commandArgs(trailingOnly = TRUE)
-YEARS <- if (length(args)) as.integer(args) else c(2017L, 2022L)
+YEARS <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 RES   <- 'research/state_weights/nonfiler_pool/results'
 DIAG  <- 'research/state_weights/nonfiler_residual/results'
 dir.create(RES, recursive = TRUE, showWarnings = FALSE)

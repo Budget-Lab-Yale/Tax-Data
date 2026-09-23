@@ -16,6 +16,6 @@ set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 
 module load R/4.4.2-gfbf-2024a
-Rscript research/state_weights/nonfiler_pool/03_gq_backfill.R ${1:-2017 2022}
+Rscript research/state_weights/nonfiler_pool/03_gq_backfill.R ${1:-2017 2023}
 
 echo "GQ_BACKFILL_SUCCESS"

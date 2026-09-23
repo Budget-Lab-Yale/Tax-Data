@@ -40,7 +40,7 @@ source('src/nonfilers/asec_tax_units.R')   # read_asec/strip_labels/niu_code liv
 # the hazard on the years Pub 5785 actually covers, 2018/2021 to test aging
 # across a threshold change and a filing surge). Pass years as arguments.
 .args <- commandArgs(trailingOnly = TRUE)
-ANCHOR_YEARS <- if (length(.args)) as.integer(.args) else c(2017L, 2022L)
+ANCHOR_YEARS <- if (length(.args)) as.integer(.args) else c(2017L, 2023L)
 RESULTS <- 'research/state_weights/nonfiler_residual/results'
 dir.create(RESULTS, recursive = TRUE, showWarnings = FALSE)
 
