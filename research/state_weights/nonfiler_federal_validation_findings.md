@@ -365,7 +365,49 @@ filer/non-filer split.
 
 **Decision (JI, 2026-09-23): Phase 0 is closed on these numbers** (S34).
 
+## 12. The CBO return-count gap, decomposed (2026-09-23)
+
+§11 flagged our return count drifting from −0.4% against CBO in 2022 to −3.8%
+by 2030. It is three separate things, which multiply to reproduce the 2030 gap
+exactly (0.9955 × 0.9751 × 0.9906 = 0.9616):
+
+| piece | size | cause | whose |
+|---|---|---|---|
+| base-year reweight stops at its tolerance edge | −0.50% | the 2017 LP constrains returns in 16 AGI bins at ±0.5% and minimises changes to observed weights, so it lands at the lower bound: 152.140M against targets summing to 152.903M, ratio **0.99501**. `project_puf.R:213` ages by IRS *ratios*, so the miss is inherited every year (−0.50% 2017 → −0.45% 2023) | ours, working as specified |
+| CBO's 2023 above the IRS actual | −2.49% | CBO 164.7M against SOI's complete-report 160.60M (`23in16ag.xls`); the two agree to the decimal in 2022 | CBO's forecast |
+| slower growth, 2023→2030 | −0.94% | S18 holds each age × status cell's filing rate fixed as the population ages into lower-filing cells (+0.68%/yr); CBO projects returns directly (+0.82%/yr) | modelling choice |
+
+Tax-Simulator plays no part: its `n_returns` equals Tax-Data's weighted filer
+count in every year except 2020–21, where stimulus payments convert non-filers.
+
+**The CBO vintage is the February 2026 release, and in it TY2023 is a
+projection.** The committed `cbo_iit_detail_feb2026.csv` runs 2022–2036 — the
+*2026 to 2036* outlook — while the January 2025 workbook on the shared drive
+(`raw_data/CBO-Budget-Proj/v3/20250117/`) stops at 2035, and the two differ in
+projected years. The January 2025 sheet labels its own columns: *Actual* for
+2022, *Projected* from 2023. CBO's 2023 return count moved only from 164.6M
+(2025, explicitly projected) to 164.7M (2026); absorbing the TY2023 actual
+would have taken it to ~160.6M. **So the −2.49% is CBO's forecast running
+high, and our path is the more current one.** A corollary: the CBO comparison
+is a true benchmark only for 2022; from 2023 it compares against a forecast.
+
+**Not verified directly:** the February 2026 workbook is not on the shared
+drive (the resource's own header says the `.xlsx` was never kept), and
+`cbo.gov` returns 403 from the cluster. The conclusion rests on the unchanged
+2023 figure and the identical table structure. Downloading
+`51138-2026-02-Revenue` into `CBO-Budget-Proj` would confirm it and make the
+resource reproducible.
+
+**None of this blocks Phase 1.** State weights are fitted on 2017–2023 (S27),
+where we track the IRS count within 0.5%, and the fit is share-normalised
+(`state_weights_phase1_summary.md` §2): a uniform national miss cancels.
+
+**Decision (JI, 2026-09-23): keep the ±0.5% returns tolerance for now** (S35).
+
 ## Revision history
+
+- **2026-09-23 (later)** — §12: the CBO return-count gap decomposed into our
+  tolerance edge (−0.50%), CBO's projected 2023 (−2.49%) and slower growth (−0.94%).
 
 - **2026-09-23** — §11: Phase 0's absolute checks on merged `main` (E4, E3, CBO).
   Group E closed; the CTC advance comparison recorded as invalid as framed; the
