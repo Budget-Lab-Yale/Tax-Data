@@ -3,7 +3,7 @@ title: "State Split Weights — Phase 1 Bake-off Summary"
 role: method
 workstream: state_weights
 status: current
-updated: 2026-09-11
+updated: 2026-09-23
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -384,6 +384,20 @@ scratch root the scripts read from `~/.Renviron` since 2026-09-11.
 > minutes of sbatch, not a read of a saved CSV. Nothing else in the checklist
 > depends on a scratch artifact.
 
+> **Reproduced exactly, 2026-09-23.** Config 7 was re-run from scratch on
+> Tax-Data vintage `2026030513` with baseline `weights_2022_agi` and matched
+> every figure above to the reported precision: 95.3% within 2%, MARD 0.43%,
+> laggards 91.6%, min-state Kish ESS 1,205, near-degenerate rows 0.03%, and
+> the −0.61 `n_returns` take-up correlation of §5.3. The rebuilt inputs gave
+> exactly §2's 10,229 filer targets. Inputs are rebuilt by
+> `scripts/prep_fit_inputs.R` (the cached `hardened_fit_2022.rds` had been
+> lost with scratch, and nothing recorded how to regenerate it). The prior,
+> the config-7 fit and its metrics are kept read-only as a golden set under
+> `{TAXDATA_SCRATCH}/state_weights_tmp/golden_ty2022_cfg7/`, and
+> `scripts/check_config7_golden.R` asserts any engine change still reproduces
+> them `identical()`-ly. Only config 7 was re-run; the other twelve configs,
+> and the persistent-miss list they feed, still are not.
+
 ```bash
 # from the repo root, each under sbatch (login node OOM-kills at ~7-8 GB)
 Rscript research/state_weights/scripts/sweep_state_weights.R --prior     # once
@@ -400,6 +414,9 @@ tax_year 2022, `place_of_residence = 'All Places'`); IRS EITC Central
 participation table (TY2022).
 
 ## Revision history
+
+- **2026-09-23** — §9: config 7 reproduced exactly from scratch; golden set and
+  regression check recorded. §6's wiring item done (plan §5a Phase 1).
 
 - **2026-08-27** — Amended in place (S9). §5.1 and §9: the scratch sweep
   artifacts have been reclaimed, so `persistent_misses.csv` and the saved fits
