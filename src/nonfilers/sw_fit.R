@@ -122,7 +122,7 @@ build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
   tu <- as.data.table(tax_units)
   if (is.null(ht2)) ht2 <- read_ht2(ht2_path(year), year)
   if (is.null(acs_margins)) {
-    acs_margins <- build_acs_margins(read_acs_extract(min(year, 2022)), year)
+    acs_margins <- build_acs_margins(read_acs_extract(year), year)
   }
 
   # Jurisdiction order defines P0/engine state indices: HT2 areas as published

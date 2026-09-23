@@ -65,7 +65,7 @@ if (mode == 'acs') {
   year <- if (length(args) >= 2) as.integer(args[2]) else 2022L
   message('ACS tabulation for TY', year)
 
-  acs <- read_acs_extract(min(year, 2022),
+  acs <- read_acs_extract(year,
                           cols = c('YEAR','STATEFIP','PERWT','PERNUM','SERIAL','SAMPLE',
                                    'AGE','MARST','SPLOC','MOMLOC','POPLOC','INCTOT',
                                    'GQ','SCHOOL','EMPSTAT','SEX','INCWAGE'))
