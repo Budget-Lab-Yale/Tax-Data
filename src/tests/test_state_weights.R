@@ -1,5 +1,5 @@
 #---------------------------------------------------------------
-# Tests for the state-weights data layer (src/data/state_weights.R)
+# Tests for the state-weights data layer (src/nonfilers/state_weights.R)
 #
 # Defines functions only (this file is sourced by main.R's recursive
 # walk; side effects at source time would break model startup).
@@ -8,15 +8,11 @@
 # OOMs the login node. The extract-backed checks live in
 # research/state_weights/nonfiler_residual/03_diagnose_current_nonfilers.R.
 #
-# Run manually:
+# Run manually (defining the file runs nothing; call the function):
 #   module load R/4.4.2-gfbf-2024a
-#   Rscript -e "
-#     suppressPackageStartupMessages(invisible(capture.output(
-#       lapply(readLines('./requirements.txt'), library, character.only = T))));
-#     return_vars = list();
-#     list.files('./src', recursive = T, pattern = '\\.[Rr]$') %>%
-#       walk(~ if (. != 'main.R' && !startsWith(., 'slurm/')) source(file.path('./src/', .)));
-#     test_state_weights()"
+#   Rscript -e 'library(data.table); source("src/nonfilers/state_weights.R");
+#               source("src/nonfilers/asec_tax_units.R");
+#               source("src/tests/test_state_weights.R"); test_state_weights()'
 #---------------------------------------------------------------
 
 
