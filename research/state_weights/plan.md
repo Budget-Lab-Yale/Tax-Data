@@ -375,16 +375,28 @@ Tax-Simulator `main` at full sample over 2017–2030 in one baseline.
 
 ### Phase 1 — make the engine runnable and reproducible
 
-- **F4** — split `src/nonfilers/state_weights.R` (87 KB, 30+ functions) into
-  ingestion / margins / fit modules, which is also what makes the filing model
-  sourceable by Affordability-Index. Collapse finding 3 to one definition in
-  the same pass.
-- **Wire config 7** as named constants rather than `...` defaults (finding 1).
-- **Reproduce TY2022.** Regenerate the counts-backbone prior and a config-7
-  fit and reproduce 95.3% within 2% / 0.43% MARD. This is a pure reproduction
-  check: it proves the repo move and F4 broke nothing, and it re-creates the
-  artifacts scratch reclaimed on 2026-08-27 (§9 of the summary), without which
-  the 239-cell structural core cannot be pruned or reported.
+**Reproduce first, then refactor** (JI, 2026-09-23). The order matters: a
+reproduction run on the code as it stands gives the refactor an exact target —
+the refactored engine must reproduce that fit byte for byte — whereas
+refactoring first would leave nothing to check it against.
+
+1. **Reproduce TY2022** with the current code. Regenerate the counts-backbone
+   prior and a config-7 fit, passing the hyperparameters through the sweep
+   harness rather than editing code, and check for 95.3% within 2% / 0.43%
+   MARD. This also re-creates the artifacts scratch reclaimed on 2026-08-27
+   (§9 of the summary), without which the 239-cell structural core cannot be
+   pruned or reported. Inputs are rebuilt by `scripts/prep_fit_inputs.R` from
+   Tax-Data vintage `2026030513` and the baseline `weights_2022_agi`; the
+   rebuilt inputs give **exactly the bake-off's 10,229 filer targets**, the
+   best evidence that `2026030513` is the vintage the original fit used.
+   Intermediates go under `TAXDATA_SCRATCH`, pointed at project space rather
+   than `/scratch` so they are not lost a second time.
+2. **Then F4** — split `src/nonfilers/state_weights.R` (87 KB, 30+ functions)
+   into ingestion / margins / fit modules, which also makes the filing model
+   sourceable by Affordability-Index, and collapse finding 3 to one
+   definition — **and wire config 7** as named constants rather than `...`
+   defaults (finding 1). Accepted only if the refactored engine reproduces
+   step 1's fit exactly.
 
 ### Phase 2 — rebuild the targets on the new pool
 
@@ -563,6 +575,8 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 ---
 
 ## Revision history
+
+- **2026-09-23 (later still)** — §5a Phase 1 reordered: reproduce first, then refactor.
 
 - **2026-09-23 (later)** — CBO return-count drift resolved (S35); group E row updated.
 
