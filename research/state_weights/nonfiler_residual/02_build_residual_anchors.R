@@ -147,10 +147,9 @@ for (yr in years) {
   # RESIDUAL. The stability across years is what makes carrying a fraction
   # defensible. Every state product is skipped for such a year.
   #
-  # NOTE (2026-09): TY2023 now takes the MEASURED branch instead of the
-  # carried one. The anchor years are still 2017/2022, so nothing rebuilds
-  # here on its own -- but a TY2023 run is now a different computation than
-  # it was, and HT2_REF_YEAR below is no longer the latest measured year.
+  # NOTE (2026-09): TY2023 now takes the MEASURED branch (HT2 TY2023 arrived
+  # 2026-09-08), and the anchor pair has moved to 2017/2023 (S27), so the
+  # carried branch below references 2023.
   have_ht2 <- file.exists(ht2_path(yr))
   if (have_ht2) {
     ht2 <- read_ht2(ht2_path(yr), yr)
@@ -226,12 +225,11 @@ for (yr in years) {
     # that year's published filing adults from its own T1.6 (same three lines
     # as `fa` above) and take 1 - corrected/published from its committed
     # anchor. The bounds bracket the measured values (0.549% in 2017, 0.591%
-    # in 2022) with margin -- outside them means the reference file changed.
-    # This is the latest year with a COMMITTED anchor file, not simply the
-    # latest HT2 year: HT2 reaches 2023 as of 2026-09 but the anchors are
-    # still built for 2017/2022, so 2022 remains the reference until the
-    # anchor pair moves (see decisions_log S18).
-    HT2_REF_YEAR <- 2022L
+    # in 2022, 0.585% in 2023) with margin -- outside them means the
+    # reference file changed. This is the latest year with a COMMITTED
+    # anchor file, not simply the latest HT2 year (decisions_log S18); with
+    # the anchor pair at 2017/2023 (S27) that is 2023.
+    HT2_REF_YEAR <- 2023L
     ref_anchor <- fread(file.path(res_dir,
                                   sprintf('national_anchor_%d.csv', HT2_REF_YEAR)))
     t16_ref <- read_pub1304_t16(HT2_REF_YEAR)
