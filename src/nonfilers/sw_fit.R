@@ -360,12 +360,20 @@ CONFIG_7 <- list(prior_series = 'n_returns', prior_n_iter = 50L,
 #' Config 7's two stages on the filer partition: IPF on the return counts,
 #' then the joint gradient fit started from that prior.
 #' @param p the `filers` element of build_weight_inputs()
-fit_filers_config7 <- function(p, verbose = FALSE) {
-  counts <- Filter(function(t) t$series == CONFIG_7$prior_series, p$targets)
-  prior  <- fit_calibration(p$w, p$P0, counts, n_iter = CONFIG_7$prior_n_iter)$P
+#' @param theta0 optional warm-start logits (Phase 3 arm B); the KL anchor is
+#'        the counts prior regardless
+fit_filers_config7 <- function(p, verbose = FALSE, theta0 = NULL) {
+  prior <- config7_prior(p)
   fit_gradient(p$w, prior, p$targets,
                beta = CONFIG_7$beta, lr = CONFIG_7$lr, n_steps = CONFIG_7$n_steps,
-               lr_schedule = CONFIG_7$lr_schedule, verbose = verbose)
+               lr_schedule = CONFIG_7$lr_schedule, verbose = verbose, theta0 = theta0)
+}
+
+#' Config 7's first stage: IPF on the return counts from the HT2-share prior.
+#' Both the gradient fit's starting point and its KL anchor.
+config7_prior <- function(p) {
+  counts <- Filter(function(t) t$series == CONFIG_7$prior_series, p$targets)
+  fit_calibration(p$w, p$P0, counts, n_iter = CONFIG_7$prior_n_iter)$P
 }
 
 #' Fit both partitions and assemble long split weights.
@@ -455,7 +463,111 @@ fit_gradient <- function(w, P0, targets, beta = 1e-3,
   lr_schedule <- match.arg(lr_schedule)
   N <- length(w); S <- ncol(P0)
 
-  # ---- group targets by shared rows (stub / cell metadata; else singleton)
+  groups <- gradient_groups(w, targets, S)
+
+  theta <- if (is.null(theta0)) log(pmax(P0, 1e-12)) else theta0  # warm start at the prior
+  m <- matrix(0, N, S); v <- matrix(0, N, S)             # Adam moments
+  b1 <- 0.9; b2 <- 0.999; eps <- 1e-8
+  softmax_rows <- function(z) { z <- z - apply(z, 1, max); e <- exp(z); e / rowSums(e) }
+
+  loss_hist <- numeric(n_steps)
+  for (step in seq_len(n_steps)) {
+    P <- softmax_rows(theta)
+    ft <- gradient_fit_term(groups, P, N, S)             # dLoss_fit / dP
+    G <- ft$G; loss_fit <- ft$loss_fit
+    # KL(P||P0) gradient wrt P, plus softmax backprop:  gtheta = P*(g - rowSums(P*g))
+    Greg <- beta * (log(pmax(P, 1e-12)) - log(pmax(P0, 1e-12)) + 1)
+    g <- G + Greg
+    gtheta <- P * (g - rowSums(P * g))
+    # Adam
+    m <- b1 * m + (1 - b1) * gtheta
+    v <- b2 * v + (1 - b2) * gtheta^2
+    mhat <- m / (1 - b1^step); vhat <- v / (1 - b2^step)
+    lr_t <- if (lr_schedule == "cosine") lr * 0.5 * (1 + cos(pi * step / n_steps)) else lr
+    theta <- theta - lr_t * mhat / (sqrt(vhat) + eps)
+    loss_kl <- beta * sum(P * (log(pmax(P,1e-12)) - log(pmax(P0,1e-12))))
+    loss_hist[step] <- loss_fit + loss_kl
+    if (verbose && step %% max(1, n_steps %/% 10) == 0)
+      message(sprintf("  step %d  loss_fit=%.4e  loss_kl=%.4e", step, loss_fit, loss_kl))
+  }
+  list(P = softmax_rows(theta), loss_hist = loss_hist, theta = theta)
+}
+
+# --- Phase 3 arm C: the multi-year ("amortized") gradient fit ---------------
+# One joint objective over consecutive years y = 1..Y, each with its own
+# records, weights, targets and KL anchor, plus a temporal penalty on every
+# record present in consecutive years:
+#
+#   Σ_y [ fit_y(P_y) + beta · KL(P_y || P0_y) ]
+#     + gamma · Σ_{y>1} Σ_{i in y-1 and y} KL(P_y[i,] || P_{y-1}[i,])
+#
+# Records are matched across years by `ids`. gamma = 0 is Y independent
+# fit_gradient() runs, step for step (asserted by the tests); gamma -> Inf
+# holds every persistent record's state split fixed over the panel. Every term
+# is convex in P, so the joint problem keeps a unique optimum.
+#' @param years list of list(w, P0, targets, ids[, theta0]) in year order
+fit_gradient_panel <- function(years, gamma, beta = 1e-3, lr = 0.1, n_steps = 500,
+                               lr_schedule = c("constant", "cosine"), verbose = FALSE) {
+  lr_schedule <- match.arg(lr_schedule)
+  Y <- length(years)
+  S <- ncol(years[[1]]$P0)
+  stopifnot(all(vapply(years, function(y) ncol(y$P0) == S, logical(1))),
+            all(vapply(years, function(y) !anyDuplicated(y$ids), logical(1))))
+  N <- vapply(years, function(y) length(y$w), integer(1))
+  groups <- lapply(years, function(y) gradient_groups(y$w, y$targets, S))
+  # link[[y]]: rows of year y-1 (prev) and year y (cur) holding the same record
+  link <- lapply(seq_len(Y), function(y) {
+    if (y == 1) return(NULL)
+    cur <- which(years[[y]]$ids %in% years[[y - 1]]$ids)
+    list(cur = cur, prev = match(years[[y]]$ids[cur], years[[y - 1]]$ids))
+  })
+
+  theta <- lapply(years, function(y) if (is.null(y$theta0)) log(pmax(y$P0, 1e-12)) else y$theta0)
+  m <- lapply(N, function(n) matrix(0, n, S)); v <- m
+  b1 <- 0.9; b2 <- 0.999; eps <- 1e-8
+  softmax_rows <- function(z) { z <- z - apply(z, 1, max); e <- exp(z); e / rowSums(e) }
+
+  loss_hist <- matrix(0, n_steps, 3, dimnames = list(NULL, c("fit", "kl", "temporal")))
+  for (step in seq_len(n_steps)) {
+    P <- lapply(theta, softmax_rows)
+    g <- vector("list", Y)
+    loss <- c(fit = 0, kl = 0, temporal = 0)
+    for (y in seq_len(Y)) {
+      ft <- gradient_fit_term(groups[[y]], P[[y]], N[[y]], S)
+      Greg <- beta * (log(pmax(P[[y]], 1e-12)) - log(pmax(years[[y]]$P0, 1e-12)) + 1)
+      g[[y]] <- ft$G + Greg
+      loss[["fit"]] <- loss[["fit"]] + ft$loss_fit
+      loss[["kl"]] <- loss[["kl"]] +
+        beta * sum(P[[y]] * (log(pmax(P[[y]], 1e-12)) - log(pmax(years[[y]]$P0, 1e-12))))
+    }
+    if (gamma > 0) for (y in seq_len(Y)[-1]) {
+      cur <- link[[y]]$cur; prev <- link[[y]]$prev
+      Pc <- P[[y]][cur, , drop = FALSE]; Pp <- pmax(P[[y - 1]][prev, , drop = FALSE], 1e-12)
+      lr_ <- log(pmax(Pc, 1e-12)) - log(Pp)
+      g[[y]][cur, ] <- g[[y]][cur, ] + gamma * (lr_ + 1)
+      g[[y - 1]][prev, ] <- g[[y - 1]][prev, ] - gamma * Pc / Pp
+      loss[["temporal"]] <- loss[["temporal"]] + gamma * sum(Pc * lr_)
+    }
+    lr_t <- if (lr_schedule == "cosine") lr * 0.5 * (1 + cos(pi * step / n_steps)) else lr
+    for (y in seq_len(Y)) {
+      gtheta <- P[[y]] * (g[[y]] - rowSums(P[[y]] * g[[y]]))
+      m[[y]] <- b1 * m[[y]] + (1 - b1) * gtheta
+      v[[y]] <- b2 * v[[y]] + (1 - b2) * gtheta^2
+      mhat <- m[[y]] / (1 - b1^step); vhat <- v[[y]] / (1 - b2^step)
+      theta[[y]] <- theta[[y]] - lr_t * mhat / (sqrt(vhat) + eps)
+    }
+    loss_hist[step, ] <- loss
+    if (verbose && step %% max(1, n_steps %/% 10) == 0)
+      message(sprintf("  step %d  fit=%.4e  kl=%.4e  temporal=%.4e",
+                      step, loss[["fit"]], loss[["kl"]], loss[["temporal"]]))
+  }
+  list(P = lapply(theta, softmax_rows), theta = theta, loss_hist = loss_hist)
+}
+
+# The gradient engines' shared pieces. Targets sharing a rows set (every series
+# within a stub, by assembly construction) are stacked into one group so each
+# step is a few GEMMs, not one scatter per target.
+gradient_groups <- function(w, targets, S) {
   key <- vapply(seq_along(targets), function(i) {
     t <- targets[[i]]
     if (!is.null(t$stub)) paste0("stub_", t$stub)
@@ -484,40 +596,22 @@ fit_gradient <- function(w, P0, targets, beta = 1e-3,
     }
     list(rows = rows, X = X, Tm = Tm, Lm = Lm, has = !is.na(Tm))
   })
+  groups
+}
 
-  theta <- if (is.null(theta0)) log(pmax(P0, 1e-12)) else theta0  # warm start at the prior
-  m <- matrix(0, N, S); v <- matrix(0, N, S)             # Adam moments
-  b1 <- 0.9; b2 <- 0.999; eps <- 1e-8
-  softmax_rows <- function(z) { z <- z - apply(z, 1, max); e <- exp(z); e / rowSums(e) }
-
-  loss_hist <- numeric(n_steps)
-  for (step in seq_len(n_steps)) {
-    P <- softmax_rows(theta)
-    G <- matrix(0, N, S)                                 # dLoss_fit / dP
-    loss_fit <- 0
-    for (g in groups) {
-      That  <- crossprod(g$X, P[g$rows, , drop = FALSE]) # K × S predicted totals
-      resid <- (That - g$Tm) / g$Tm                      # NA where untargeted
-      loss_fit <- loss_fit + sum(g$Lm * resid^2, na.rm = TRUE)
-      C <- ifelse(g$has, 2 * g$Lm * resid / g$Tm, 0)     # K × S coefficient
-      G[g$rows, ] <- G[g$rows, ] + g$X %*% C
-    }
-    # KL(P||P0) gradient wrt P, plus softmax backprop:  gtheta = P*(g - rowSums(P*g))
-    Greg <- beta * (log(pmax(P, 1e-12)) - log(pmax(P0, 1e-12)) + 1)
-    g <- G + Greg
-    gtheta <- P * (g - rowSums(P * g))
-    # Adam
-    m <- b1 * m + (1 - b1) * gtheta
-    v <- b2 * v + (1 - b2) * gtheta^2
-    mhat <- m / (1 - b1^step); vhat <- v / (1 - b2^step)
-    lr_t <- if (lr_schedule == "cosine") lr * 0.5 * (1 + cos(pi * step / n_steps)) else lr
-    theta <- theta - lr_t * mhat / (sqrt(vhat) + eps)
-    loss_kl <- beta * sum(P * (log(pmax(P,1e-12)) - log(pmax(P0,1e-12))))
-    loss_hist[step] <- loss_fit + loss_kl
-    if (verbose && step %% max(1, n_steps %/% 10) == 0)
-      message(sprintf("  step %d  loss_fit=%.4e  loss_kl=%.4e", step, loss_fit, loss_kl))
+#' The fit loss and its gradient in P. na.rm is the universe, not a fallback:
+#' resid is NA exactly in the (series, state) slots a group does not target.
+gradient_fit_term <- function(groups, P, N, S) {
+  G <- matrix(0, N, S)
+  loss_fit <- 0
+  for (g in groups) {
+    That  <- crossprod(g$X, P[g$rows, , drop = FALSE]) # K × S predicted totals
+    resid <- (That - g$Tm) / g$Tm                      # NA where untargeted
+    loss_fit <- loss_fit + sum(g$Lm * resid^2, na.rm = TRUE)
+    C <- ifelse(g$has, 2 * g$Lm * resid / g$Tm, 0)     # K × S coefficient
+    G[g$rows, ] <- G[g$rows, ] + g$X %*% C
   }
-  list(P = softmax_rows(theta), loss_hist = loss_hist, theta = theta)
+  list(G = G, loss_fit = loss_fit)
 }
 
 # --- Approach A: classical raking / IPF ---------------------------------------

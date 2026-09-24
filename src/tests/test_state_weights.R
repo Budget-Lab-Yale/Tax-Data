@@ -29,6 +29,7 @@ test_state_weights = function() {
   test_gq_guards()
   test_adult_x_vector()
   test_nonfiler_targets_count_adults()
+  test_fit_gradient_panel()
   message('test_state_weights: ALL TESTS PASSED')
   invisible(TRUE)
 }
@@ -270,4 +271,69 @@ test_nonfiler_targets_count_adults = function() {
   stopifnot(isTRUE(all.equal(inp$nonfilers$P0[, ca], c(0.6, 0.6))))
 
   message('  test_nonfiler_targets_count_adults: PASSED')
+}
+
+
+test_fit_gradient_panel = function() {
+
+  #----------------------------------------------------------------------------
+  # fit_gradient_panel() (Phase 3 arm C) on a two-year synthetic panel:
+  #   1. gamma = 0 is the two independent fit_gradient() runs, bit for bit
+  #   2. at convergence the finite-difference gradient of the full objective,
+  #      written out independently here, is ~0 -- a wrong analytic gradient
+  #      would converge somewhere else
+  #   3. a large gamma pins the persistent records' splits across years
+  #----------------------------------------------------------------------------
+
+  S = 3
+  mk_year = function(w, ids, tg) {
+    N = length(w)
+    list(w = w, ids = ids, P0 = matrix(1 / S, N, S),
+         targets = lapply(seq_along(tg), function(s) list(
+           rows = seq_len(N), state = s, x = rep(1, N), target = tg[s], lambda = 1)))
+  }
+  # records 2-4 persist; 1 leaves after year 1, 5 enters in year 2
+  years = list(mk_year(c(10, 20, 5, 8), c(1, 2, 3, 4), c(20, 15, 8)),
+               mk_year(c(22, 6, 9, 12), c(2, 3, 4, 5), c(10, 25, 14)))
+
+  # 1. gamma = 0 == independent fits
+  p0 = fit_gradient_panel(years, gamma = 0, beta = 1e-2, lr = 0.1, n_steps = 300)
+  for (y in 1:2) {
+    ind = fit_gradient(years[[y]]$w, years[[y]]$P0, years[[y]]$targets,
+                       beta = 1e-2, lr = 0.1, n_steps = 300)
+    stopifnot(identical(p0$theta[[y]], ind$theta))
+  }
+
+  # 2. stationarity of the full objective at convergence
+  gamma = 0.05; beta = 1e-2
+  fit = fit_gradient_panel(years, gamma = gamma, beta = beta, lr = 0.05,
+                           n_steps = 20000, lr_schedule = 'cosine')
+  objective = function(th) {
+    P = lapply(th, function(z) { e = exp(z - apply(z, 1, max)); e / rowSums(e) })
+    f = 0
+    for (y in 1:2) {
+      yr = years[[y]]
+      for (t in yr$targets) f = f + ((sum(yr$w * P[[y]][, t$state]) - t$target) / t$target)^2
+      f = f + beta * sum(P[[y]] * log(P[[y]] / yr$P0))
+    }
+    cur = match(c(2, 3, 4), years[[2]]$ids); prev = match(c(2, 3, 4), years[[1]]$ids)
+    f + gamma * sum(P[[2]][cur, ] * log(P[[2]][cur, ] / P[[1]][prev, ]))
+  }
+  h = 1e-6; gmax = 0
+  for (y in 1:2) for (i in seq_len(nrow(fit$theta[[y]]))) for (s in 1:S) {
+    up = fit$theta; dn = fit$theta
+    up[[y]][i, s] = up[[y]][i, s] + h; dn[[y]][i, s] = dn[[y]][i, s] - h
+    gmax = max(gmax, abs((objective(up) - objective(dn)) / (2 * h)))
+  }
+  stopifnot(gmax < 1e-4)
+
+  # 3. large gamma: persistent records hold their split
+  big = fit_gradient_panel(years, gamma = 50, beta = beta, lr = 0.05,
+                           n_steps = 5000, lr_schedule = 'cosine')
+  d0 = max(abs(p0$P[[2]][1:3, ] - p0$P[[1]][2:4, ]))
+  d1 = max(abs(big$P[[2]][1:3, ] - big$P[[1]][2:4, ]))
+  stopifnot(d1 < 0.1 * d0)
+
+  message(sprintf('  test_fit_gradient_panel: PASSED (stationarity %.1e; split drift %.3f -> %.4f)',
+                  gmax, d0, d1))
 }
