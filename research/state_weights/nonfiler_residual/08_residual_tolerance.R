@@ -21,12 +21,15 @@
 # difference, the other a population-vintage difference.
 #
 # Login-node safe. Writes results/residual_tolerance_{year}.csv.
-#   Rscript research/state_weights/nonfiler_residual/08_residual_tolerance.R
+#   Rscript research/state_weights/nonfiler_residual/08_residual_tolerance.R [year ...]
 #------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({ library(data.table) })
 
-ANCHOR_YEARS <- c(2017, 2022)
+# The anchor pair (S27) by default. The two error constants below were measured
+# on 2017/2022; 2023 uses them unchanged as bounds, not re-measured values.
+args <- commandArgs(trailingOnly = TRUE)
+ANCHOR_YEARS <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 RESULTS <- 'research/state_weights/nonfiler_residual/results'
 
 #-----------------------------------------------------------------------------

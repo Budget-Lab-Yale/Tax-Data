@@ -2,8 +2,12 @@
 #------------------------------------------------------------------------------
 # research/state_weights/scripts/nonfiler_anchor_bakeoff.R
 #
-# Phase 2 (plan.md §5a), F1b + F2 as a bake-off: what should the NON-FILER
-# half of the state-weight fit target?
+# Phase 2 (plan.md §5a) harness for the NON-FILER half of the state-weight
+# fit: the F1b + F2 bake-off that chose its targets (S37), and the F5
+# validation additions scored on the same footing. F3's firm OASDI 65+
+# non-filer target was built and REJECTED (S38): the filer fit misplaces 65+
+# beneficiaries by more than the non-filers hold, so the target goes negative
+# in four states. OASDI 65+ stays here as a held-out metric.
 #
 #   ref   production today: ACS state x age-band x income-tier cells are both
 #         the prior and the targets, so the fit reproduces its prior
@@ -17,7 +21,8 @@
 #         the pool does not contain them (they are dependents on filers'
 #         returns), so A assumes they are spread in proportion to the residual.
 #
-# B's netting is placed where the ASEC places people, i.e. dorm students at
+# A and B call the production target builder (sw_fit.R), so the harness
+# scores what production fits. B's netting is placed where the ASEC places people, i.e. dorm students at
 # their parents' address, while PEP (and so the anchor) counts them at school.
 # The anchor's own dorm netting already removes them at school, so B adds back
 # the ASEC's dorm-student share at the parents' state: the national ACS dorm
@@ -31,10 +36,18 @@
 #             (filers + non-filers) against SSA OASDI 65+ beneficiaries
 #   age       within-state adult age-band shares (filer adults + non-filer
 #             adults + filers' claimed adult dependents) against Census PEP
+# F5 adds, per arm:
+#   pop identity  filer adults + non-filer adults + the netting (dorm students
+#             at school, as PEP counts them) against PEP adults, by state,
+#             scored against residual_tolerance_{year}.csv
+#   hi2064    state shares of wage earners 20-64 against SSA's HI covered
+#             workers 20-64 (EEDATA Table 5, a 1% sample), beside the sampling
+#             noise floor -- the evidence for F3's call on that margin (S38)
 # plus the distance each arm moves from the ACS cells, weight quality (KL
-# from prior, Kish effective sample size), and two checks on B's input: the
-# ASEC's claimed dependents (all ages) by state against HT2's dependent
-# counts, and its adult netting against the filer fit's own adult dependents.
+# from prior, Kish effective sample size), and checks on B's input (the ASEC's
+# claimed dependents against HT2's dependent counts, its adult netting against
+# the filer fit's own adult dependents) and the EITC take-up correlation of
+# the filer fit's residuals (F5; TY2022, the year the IRS rates are for).
 #
 # Usage (from the repo root; heavy -- ACS read plus a config-7 filer fit):
 #   Rscript research/state_weights/scripts/nonfiler_anchor_bakeoff.R \
@@ -56,8 +69,7 @@ year       <- as.integer(args[1])
 td_vintage <- args[2]
 detail_dir <- args[3]
 
-POOL <- 'research/state_weights/nonfiler_pool/results'
-ANCH <- 'research/state_weights/nonfiler_residual/results'
+TOL  <- 'research/state_weights/nonfiler_residual/results/residual_tolerance_%d.csv'
 OUT  <- 'research/state_weights/scripts/results'
 CACHE <- file.path(scratch_root(), 'phase2_bakeoff')
 dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
@@ -65,7 +77,8 @@ dir.create(CACHE, showWarnings = FALSE, recursive = TRUE)
 
 IPF_N_ITER <- 500L     # state-total rakes converge in tens of passes
 IPF_TOL    <- 1e-8
-DORM_AGES  <- 18:24    # the ASEC full-time students taken as the dorm pool
+HI_WORKING_BANDS <- c('20–29', '30–39', '40–49', '50–59', '60–61', '62–64')
+HI_SAMPLING_RATE <- 0.01   # EEDATA is the 1% Continuous Work History Sample
 BOOT_REPS  <- 200L     # household-cluster bootstrap replicates of B's netting
 BOOT_SEED  <- 20260923L
 
@@ -75,7 +88,7 @@ INPUT_COLS <- c('id','weight','filer','filing_status','n_dep','age1',
                 'kg_st','kg_lt','salt_inc_sales','salt_prop',
                 'first_mort_int','second_mort_int','txbl_pens_dist',
                 'txbl_ira_dist','gross_ss','sole_prop')
-METRIC_COLS <- c('age2', 'dep_age1', 'dep_age2', 'dep_age3')
+METRIC_COLS <- c('age2', 'dep_age1', 'dep_age2', 'dep_age3', 'wages1', 'wages2')
 
 mard <- function(got, want) mean(abs(got / want - 1))
 shares <- function(x) x / sum(x)
@@ -124,56 +137,31 @@ stopifnot(all(P_f >= 0), max(abs(rowSums(P_f) - 1)) < 1e-8)
 # 3. The ASEC netting: claimed adult dependents who do not file, by state
 #------------------------------------------------------------------------------
 
-st <- readRDS(file.path(POOL, sprintf('units_%d.rds', year)))
-cu <- readRDS(file.path(POOL, sprintf('calibrated_units_%d.rds', year)))
-# The same join 04_calibrate.R makes: each 18+ dependent to their own scoring
-# unit, whose calibrated filing probability decides whether they net out.
-deps <- st$persons[is_dependent == TRUE & AGE >= 18,
-                   .(SERIAL, PERNUM, AGE, ASECWT, STATEFIP, is_full_time_student,
-                     unit_id = as.numeric(SERIAL) * 100 + PERNUM + 1e9)]
-deps <- merge(deps, cu[unit_type == 'dependent', .(unit_id, p_file_cal)],
-              by = 'unit_id', all.x = TRUE)
-stopifnot(!anyNA(deps$p_file_cal), !anyNA(deps$is_full_time_student))
-deps[, state := FIPS_TO_STATE[as.character(STATEFIP)]]
-stopifnot(!anyNA(deps$state))
-deps[, w_net := ASECWT * (1 - p_file_cal)]
-
-# Tie-out: the national netting must be the one the pool calibrated against
-sens <- fread(file.path(POOL, sprintf('netting_sensitivity_%d.csv', year)))
-net_pool <- sens[scenario == 'central', sum(dep_nonfiling)]
-stopifnot(abs(deps[, sum(w_net)] / net_pool - 1) < 1e-9)
-
-anch <- fread(file.path(ANCH, sprintf('residual_anchors_%d.csv', year)))
+deps <- asec_adult_dependents(year)        # ties to the pool's national netting
+anch <- fread(sprintf(RESIDUAL_ANCHORS_PATH, year))
 stopifnot(nrow(anch) == 51, !anyNA(anch$residual_nonfiling_adults_net_dorm))
-dorm_total <- anch[, sum(dorm_dependents)]
-
-netting_by_state <- function(d) {
-  n <- d[, .(asec_netting = sum(w_net), asec_netting_n = .N,
-             asec_ft_student = sum(w_net * (is_full_time_student & AGE %in% DORM_AGES))),
-         by = state]
-  n[, dorm_at_parents := dorm_total * asec_ft_student / sum(asec_ft_student)]
-  n[]
-}
 net_st <- netting_by_state(deps)
+anchor_B <- nonfiler_state_anchor(anch, net_st)
 
 # All-age claimed dependents, for the geography check against HT2
-all_deps <- st$persons[is_dependent == TRUE, .(asec_dependents = sum(ASECWT)),
-                       by = .(state = FIPS_TO_STATE[as.character(STATEFIP)])]
+persons <- readRDS(file.path(NONFILER_POOL_RESULTS, sprintf('units_%d.rds', year)))$persons
+all_deps <- persons[is_dependent == TRUE, .(asec_dependents = sum(ASECWT)),
+                    by = .(state = FIPS_TO_STATE[as.character(STATEFIP)])]
 
 sts <- Reduce(function(a, b) merge(a, b, by = 'state', all = TRUE),
-              list(anch[, .(state, anchor_net_dorm = residual_nonfiling_adults_net_dorm,
+              list(anch[, .(state, pep_adults_18p, dorm_dependents,
+                            anchor_net_dorm = residual_nonfiling_adults_net_dorm,
                             ht2_dependents = dependents, oasdi_65p = beneficiaries_65p)],
-                   net_st, all_deps))
+                   net_st, anchor_B[, .(state, dorm_at_parents, anchor_b = anchor)],
+                   all_deps))
 stopifnot(nrow(sts) == 51, !anyNA(sts))
-sts[, anchor_b := anchor_net_dorm - asec_netting + dorm_at_parents]
-stopifnot(all(sts$anchor_b > 0))
 message(sprintf(paste('ASEC netting %.2fM (ties to the pool), of which %.2fM',
                       'full-time students 18-24; ACS dorm students %.2fM'),
                 sum(sts$asec_netting) / 1e6, sum(sts$asec_ft_student) / 1e6,
-                dorm_total / 1e6))
+                sum(sts$dorm_dependents) / 1e6))
 
 #------------------------------------------------------------------------------
-# 4. The three non-filer arms
+# 4. The non-filer arms
 #------------------------------------------------------------------------------
 
 p   <- inputs$nonfilers
@@ -186,15 +174,13 @@ extra_j <- setdiff(J, sts$state)
 stopifnot(all(extra_j %in% c('OA', 'PR')), all(p$P0[, J %in% extra_j] == 0))
 
 state_targets <- function(level) {
-  sh <- shares(level)
-  lapply(seq_len(nrow(sts)), function(k) list(
-    rows = seq_along(p$w), state = match(sts$state[k], J), x = x_adults,
-    target = nf_total * sh[k], lambda = 1, series = 'n_adults_state',
-    state_code = sts$state[k]))
+  nonfiler_state_targets(p$w, x_adults, data.table(state = sts$state, anchor = level), J)
 }
-arms <- list(ref = p$targets,
-             A   = state_targets(sts$anchor_net_dorm),
-             B   = state_targets(sts$anchor_b))
+# `ref` is production before S37, as cached with the inputs
+stopifnot(all(vapply(p$targets, `[[`, character(1), 'series') == 'n_adults'))
+arms <- list(ref     = p$targets,
+             A       = state_targets(sts$anchor_net_dorm),
+             B       = state_targets(sts$anchor_b))
 
 fits <- lapply(names(arms), function(a) {
   f <- fit_calibration(p$w, p$P0, arms[[a]], n_iter = IPF_N_ITER, tol = IPF_TOL)
@@ -226,6 +212,38 @@ by_state <- function(P, idx, x) setNames(colSums(tu$weight[idx] * x * P), J)[sts
 filer_oasdi <- by_state(P_f, inputs$filers$idx, tu$n65_ss[inputs$filers$idx])
 filer_adult_dep <- by_state(P_f, inputs$filers$idx, tu$n_adult_dep[inputs$filers$idx])
 sts[, puf_adult_dependents := filer_adult_dep]
+filer_adults_st <- by_state(P_f, inputs$filers$idx,
+                            puf_series_x(tu[inputs$filers$idx], 'n_adults'))
+
+# F5 population identity: PEP adults = filing adults + non-filing pool adults
+# + the netted dependents, whom PEP counts at school when they are dorm
+# students (the ASEC netting counts them at their parents').
+tol_f <- sprintf(TOL, year)
+tol <- if (file.exists(tol_f)) fread(tol_f)[state != 'US', .(state, tolerance_adults_net)] else NULL
+if (is.null(tol)) message('  no residual_tolerance_', year, '.csv: identity scored without tolerance')
+netted_at_pep <- sts$asec_netting - sts$dorm_at_parents + sts$dorm_dependents
+pop_identity <- function(nf_adults) {
+  gap <- filer_adults_st + nf_adults + netted_at_pep - sts$pep_adults_18p
+  c(pop_identity_mard = mean(abs(gap) / sts$pep_adults_18p),
+    pop_identity_within_tol = if (is.null(tol)) NA_real_ else
+      mean(abs(gap) <= tol$tolerance_adults_net[match(sts$state, tol$state)]))
+}
+
+# F3 evidence on the HI covered-worker margin: wage earners 20-64 by state,
+# counted per person from wages1/wages2 (the head carries Schedule C, which
+# Table 5's total covered universe includes), against the SSA shares.
+hi <- fread(sprintf('research/state_weights/nonfiler_residual/results/ssa_age_margin_%d.csv', year))
+stopifnot(all(HI_WORKING_BANDS %in% hi$ssa_age_band))
+hi <- hi[ssa_age_band %in% HI_WORKING_BANDS, .(hi_2064 = sum(hi_persons_total)), by = state]
+stopifnot(nrow(hi) == 51)
+sts <- merge(sts, hi, by = 'state')
+in_2064 <- function(a) !is.na(a) & a >= 20 & a <= 64
+tu[, n_earn_2064 := in_2064(age1) * (wages1 > 0 | sole_prop != 0) +
+                    in_2064(age2) * (fcoalesce(wages2 > 0, FALSE))]
+filer_earn <- by_state(P_f, inputs$filers$idx, tu$n_earn_2064[inputs$filers$idx])
+# Expected share MARD from the 1% sample alone: |error| ~ 0.8 x CV per state
+hi_noise_mard <- mean(0.8 * sqrt((1 - HI_SAMPLING_RATE) / (HI_SAMPLING_RATE * sts$hi_2064)))
+hi_share <- function(nf_earn) mard(shares(filer_earn + nf_earn), shares(sts$hi_2064))
 
 # Within-state adult age shares against PEP (6 anchor bands, 18+). Every
 # person slot on a record counts -- head, spouse, up to three dependents -- on
@@ -270,6 +288,7 @@ metrics <- rbindlist(lapply(names(fits), function(a) {
   nf_adults <- by_state(P, p$idx, x_adults)
   sts[, (paste0('nf_adults_', a)) := nf_adults]
   ho <- held_out(P)
+  pid <- pop_identity(nf_adults)
   ref_cells <- vapply(p$targets, function(t) predict_t(P, t) / t$target - 1, numeric(1))
   ess <- kish(P)
   data.table(arm = a, n_targets = length(arms[[a]]), ipf_passes = fits[[a]]$iters,
@@ -279,21 +298,44 @@ metrics <- rbindlist(lapply(names(fits), function(a) {
              state_share_mard_vs_anchor = mard(shares(nf_adults), shares(sts$anchor_net_dorm)),
              oasdi65_share_mard = ho[['oasdi65_share_mard']],
              age_within_state_mard = ho[['age_within_state_mard']],
+             pop_identity_mard = pid[['pop_identity_mard']],
+             pop_identity_within_tol = pid[['pop_identity_within_tol']],
+             hi2064_share_mard = hi_share(by_state(P, p$idx, tu$n_earn_2064[p$idx])),
              kl_from_prior = kl(P),
              kish_min = min(ess), kish_min_state = sts$state[which.min(ess)],
              kish_median = median(ess))
 }))
+
+# F5: the filer fit's signed residuals on n_returns and eitc_amt against the
+# IRS EITC participation rates (TY2022 rates, so TY2022 only). Filers are fit
+# on their own partition, so no non-filer arm can move this.
+takeup_cor <- function(series) {
+  if (year != 2022L) return(NA_real_)
+  tk <- read_eitc_participation()
+  e <- rbindlist(lapply(Filter(function(t) t$series == series, inputs$filers$targets), function(t)
+    data.table(state = J[t$state], target = t$target,
+               sgn = sum(inputs$filers$w[t$rows] * P_f[t$rows, t$state] * t$x) / t$target - 1)))
+  e <- e[state %in% names(tk), .(sgn = weighted.mean(sgn, abs(target)), tw = sum(abs(target))), by = state]
+  cov.wt(cbind(e$sgn, tk[e$state]), wt = e$tw, cor = TRUE)$cor[1, 2]
+}
 
 checks <- data.table(
   check = c('A vs B target shares (the signal B adds)',
             'ASEC all-age dependents vs HT2 dependents (shares)',
             'ASEC adult netting vs filer-fit adult dependents (shares)',
             'ASEC netted adult dependents, unweighted sample (min)',
-            'ASEC netted adult dependents, unweighted sample (median)'),
+            'ASEC netted adult dependents, unweighted sample (median)',
+            'HI 20-64 share MARD expected from the 1% sample alone',
+            'non-filer share of model wage earners 20-64',
+            'EITC take-up cor: filer n_returns residuals (TY2022)',
+            'EITC take-up cor: filer eitc_amt residuals (TY2022)'),
   value = c(mard(shares(sts$anchor_b), shares(sts$anchor_net_dorm)),
             mard(shares(sts$asec_dependents), shares(sts$ht2_dependents)),
             mard(shares(sts$asec_netting), shares(sts$puf_adult_dependents)),
-            min(sts$asec_netting_n), median(sts$asec_netting_n)))
+            min(sts$asec_netting_n), median(sts$asec_netting_n),
+            hi_noise_mard,
+            sum(tu[p$idx, weight * n_earn_2064]) / sum(tu[, weight * n_earn_2064]),
+            takeup_cor('n_returns'), takeup_cor('eitc_amt')))
 
 fwrite(metrics, file.path(OUT, sprintf('nonfiler_anchor_bakeoff_metrics_%d.csv', year)))
 fwrite(checks,  file.path(OUT, sprintf('nonfiler_anchor_bakeoff_checks_%d.csv', year)))
@@ -310,18 +352,14 @@ print(metrics); print(checks)
 set.seed(BOOT_SEED)
 # All ASEC households, not only those holding a netted dependent: how many
 # such households a state's sample contains is itself part of the noise.
-hh <- unique(st$persons[, .(state = FIPS_TO_STATE[as.character(STATEFIP)], SERIAL)])
+hh <- unique(persons[, .(state = FIPS_TO_STATE[as.character(STATEFIP)], SERIAL)])
 ho_A <- held_out(fits$A$P)
 boot <- rbindlist(lapply(seq_len(BOOT_REPS), function(r) {
   pick <- hh[, .(SERIAL = SERIAL[sample.int(.N, .N, replace = TRUE)]), by = state]
   d <- deps[pick, on = .(state, SERIAL), nomatch = NULL, allow.cartesian = TRUE]
-  n <- netting_by_state(d)
-  b <- merge(sts[, .(state, anchor_net_dorm)], n, by = 'state')
-  stopifnot(nrow(b) == 51)
-  b[, anchor_b := anchor_net_dorm - asec_netting + dorm_at_parents]
-  stopifnot(all(b$anchor_b > 0))
-  setkey(b, NULL); b <- b[match(sts$state, state)]
-  f <- fit_calibration(p$w, p$P0, state_targets(b$anchor_b),
+  b <- nonfiler_state_anchor(anch, netting_by_state(d))
+  b <- b[match(sts$state, state)]
+  f <- fit_calibration(p$w, p$P0, state_targets(b$anchor),
                        n_iter = IPF_N_ITER, tol = IPF_TOL)
   stopifnot(length(f$unfittable) == 0)
   as.data.table(as.list(c(rep = r, held_out(f$P))))
