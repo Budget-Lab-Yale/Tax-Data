@@ -21,7 +21,8 @@ suppressPackageStartupMessages({
 # inputs both engines consume, per partition:
 #   filers     -> HT2 state x AGI-stub cells, one target per (state, stub,
 #                 series) with shared row/x vectors per (stub, series)
-#   non-filers -> ACS state x age-band x income-tier cells
+#   non-filers -> one adult count per state from the netted residual anchor
+#                 (S37), from an ACS state x age-band x income-tier prior
 #
 # NORMALIZATION (key design point): split weights control only the GEOGRAPHIC
 # distribution -- national totals are fixed by construction. Raw HT2/ACS
@@ -109,15 +110,100 @@ puf_gross_income <- function(tu) {
     pmax(tu$gross_ss, 0) + pmax(tu$sole_prop, 0)
 }
 
+# =============================================================================
+# NON-FILER STATE ANCHOR (S37, the Phase 2 bake-off's arm B)
+#
+# The non-filer partition targets one adult count per state: the residual
+# anchor (Census PEP adults - IRS filing adults, less ACS dorm students; built
+# by nonfiler_residual/02) NET of the claimed adult dependents who do not file.
+# The residual counts those dependents; the pool does not contain them -- they
+# ride on filers' returns -- so a share of the gross residual would assume
+# they are spread across states like non-filers are. They are not: the
+# bake-off's held-out metrics prefer the netted anchor in both TY2022 and
+# TY2023, in 200/200 household-bootstrap replicates of the ASEC netting.
+#
+# The netting is the pool's own (04_calibrate.R's join, calibrated filing
+# probabilities), summed by the dependent's ASEC state. ASEC puts dorm students
+# at their parents' address and PEP puts them at school; the anchor's dorm
+# netting already removes them at school, so the ASEC's dorm share is added
+# back at the parents' state -- the national ACS dorm count, allocated by the
+# ASEC's non-filing full-time students of DORM_AGES claimed as dependents.
+# =============================================================================
+
+RESIDUAL_ANCHORS_PATH <- "research/state_weights/nonfiler_residual/results/residual_anchors_%d.csv"
+NONFILER_POOL_RESULTS <- "research/state_weights/nonfiler_pool/results"
+DORM_AGES <- 18:24
+
+#' Claimed adult dependents in the non-filer pool's ASEC, one row per person,
+#' with the weight that nets out of the residual (ASECWT x (1 - p_file)).
+#' Reads the pool's gitignored intermediates, so it is a PRODUCER helper --
+#' nonfiler_pool/17_netting_by_state.R and the bake-off call it; production
+#' reads the committed CSV instead. Ties out to the pool's national netting.
+asec_adult_dependents <- function(year) {
+  st <- readRDS(file.path(NONFILER_POOL_RESULTS, sprintf("units_%d.rds", year)))
+  cu <- readRDS(file.path(NONFILER_POOL_RESULTS, sprintf("calibrated_units_%d.rds", year)))
+  deps <- st$persons[is_dependent == TRUE & AGE >= 18,
+                     .(SERIAL, PERNUM, AGE, ASECWT, STATEFIP, is_full_time_student,
+                       unit_id = as.numeric(SERIAL) * 100 + PERNUM + 1e9)]
+  deps <- merge(deps, cu[unit_type == "dependent", .(unit_id, p_file_cal)],
+                by = "unit_id", all.x = TRUE)
+  stopifnot(!anyNA(deps$p_file_cal), !anyNA(deps$is_full_time_student))
+  deps[, state := FIPS_TO_STATE[as.character(STATEFIP)]]
+  stopifnot(!anyNA(deps$state))
+  deps[, w_net := ASECWT * (1 - p_file_cal)]
+  sens <- fread(file.path(NONFILER_POOL_RESULTS, sprintf("netting_sensitivity_%d.csv", year)))
+  stopifnot(abs(deps[, sum(w_net)] / sens[scenario == "central", sum(dep_nonfiling)] - 1) < 1e-9)
+  deps[]
+}
+
+#' Sum the netting by state (for the committed CSV, and the bake-off bootstrap)
+netting_by_state <- function(deps) {
+  deps[, .(asec_netting = sum(w_net), asec_netting_n = .N,
+           asec_ft_student = sum(w_net * (is_full_time_student & AGE %in% DORM_AGES))),
+       keyby = state]
+}
+
+#' Combine the residual anchors with the netting: data.table(state, anchor)
+nonfiler_state_anchor <- function(anch, net) {
+  a <- merge(anch[, .(state, anchor_net_dorm = residual_nonfiling_adults_net_dorm,
+                      dorm_dependents)],
+             net, by = "state")
+  stopifnot(nrow(a) == 51, !anyNA(a))
+  a[, dorm_at_parents := sum(dorm_dependents) * asec_ft_student / sum(asec_ft_student)]
+  a[, anchor := anchor_net_dorm - asec_netting + dorm_at_parents]
+  stopifnot(all(a$anchor > 0))
+  a[, .(state, anchor, anchor_net_dorm, asec_netting, dorm_at_parents, dorm_dependents)]
+}
+
+read_nonfiler_state_anchor <- function(year) {
+  nonfiler_state_anchor(
+    fread(sprintf(RESIDUAL_ANCHORS_PATH, year)),
+    fread(file.path(NONFILER_POOL_RESULTS, sprintf("netting_by_state_%d.csv", year))))
+}
+
+#' One adult-count target per anchor state: the partition's national adult
+#' total x the state's anchor share. `anchor` is data.table(state, anchor).
+nonfiler_state_targets <- function(w, x_adults, anchor, jurisdictions) {
+  stopifnot(all(anchor$state %in% jurisdictions), all(anchor$anchor > 0))
+  total <- sum(w * x_adults)
+  rows <- seq_along(w)
+  lapply(seq_len(nrow(anchor)), function(k) list(
+    rows = rows, state = match(anchor$state[k], jurisdictions), x = x_adults,
+    target = total * anchor$anchor[k] / sum(anchor$anchor), lambda = 1,
+    series = "n_adults_state", state_code = anchor$state[k]))
+}
+
 #' Assemble engine inputs for one year: partitions, priors, and targets.
 #' @param tax_units PUF records incl. baseline-calculated `agi` and `eitc`
 #'        (join from baseline detail when running standalone)
 #' @param ht2 long target table from read_ht2(); read from the store if NULL
 #' @param acs_margins list from build_acs_margins(); built if NULL (slow)
+#' @param nonfiler_anchor data.table(state, anchor); read_nonfiler_state_anchor()
+#'        if NULL
 #' @return list(jurisdictions, filers = list(idx, w, P0, targets),
 #'              nonfilers = list(idx, w, P0, targets))
 build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
-                                verbose = TRUE) {
+                                nonfiler_anchor = NULL, verbose = TRUE) {
 
   tu <- as.data.table(tax_units)
   if (is.null(ht2)) ht2 <- read_ht2(ht2_path(year), year)
@@ -218,20 +304,18 @@ build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
   # record live" is answered by where non-filer UNITS live; the constraint the
   # fit must satisfy is a count of ADULTS, because that is what the residual
   # anchors measure (PEP adults - HT2 filing adults). Mixing the two was the
-  # latent problem D5 names -- before this, a unit-denominated target was being
-  # compared against an adult-denominated anchor, and the resulting ratio sat
-  # near 1.0 by coincidence (non-filers are mostly single) rather than by
-  # construction. 17.2% of non-filer units are joint, so adults/units = 1.17
-  # nationally and varies by state with the married mix.
+  # latent problem D5 names. 17.2% of non-filer units are joint, so
+  # adults/units = 1.17 nationally and varies by state with the married mix.
   overall <- nm[, .(n = sum(n_units)), by = state]
   overall_shares <- setNames(rep(0, S), jurisdictions)
   overall_shares[overall$state] <- overall$n / sum(overall$n)
 
   x_adults <- puf_series_x(tu_n, "n_adults")   # 1 + (filing_status == 2), D5
 
+  # The ACS cells are the PRIOR only (F2): state x age band x income tier
+  # shape where each record starts. Until S37 they were also the targets, so
+  # the fit reproduced its prior exactly (2 IPF passes to 4.4e-16).
   P0_n <- matrix(0, nrow(tu_n), S)
-  targets_n <- list()
-  n_dropped_nonpos_n <- 0
   for (cl in sort(unique(cell_n))) {
     rows <- which(cell_n == cl)
     m_cl <- nm[cell == cl]
@@ -242,28 +326,21 @@ build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
     shares <- setNames(rep(0, S), jurisdictions)
     shares[m_cl$state] <- m_cl$n_units / sum(m_cl$n_units)
     P0_n[rows, ] <- matrix(shares, length(rows), S, byrow = TRUE)
-
-    x <- x_adults[rows]
-    puf_total <- sum(tu_n$weight[rows] * x)      # PUF ADULTS in this cell
-    denom <- sum(m_cl$n_adults)                  # ACS ADULTS in this cell
-    if (denom <= 0 || puf_total == 0) next
-    for (k in seq_len(nrow(m_cl))) {
-      tgt <- puf_total * m_cl$n_adults[k] / denom
-      if (!is.finite(tgt)) next
-      if (tgt <= 0) { n_dropped_nonpos_n <- n_dropped_nonpos_n + 1; next }
-      targets_n[[length(targets_n) + 1]] <- list(
-        rows = rows, state = st_idx[[m_cl$state[k]]], x = x,
-        target = tgt, lambda = 1,
-        series = "n_adults", cell = cl, state_code = m_cl$state[k])
-    }
   }
+
+  # The TARGETS (F1b, S37): one adult count per state, the partition's
+  # national adult total split by the netted residual anchor. The ACS prior
+  # puts no mass in PR or Other Areas, which is what lets 51 state targets
+  # close the partition.
+  if (is.null(nonfiler_anchor)) nonfiler_anchor <- read_nonfiler_state_anchor(year)
+  stopifnot(all(P0_n[, !(jurisdictions %in% nonfiler_anchor$state)] == 0))
+  targets_n <- nonfiler_state_targets(tu_n$weight, x_adults, nonfiler_anchor, jurisdictions)
+  nf_adults <- sum(tu_n$weight * x_adults)
   if (verbose) {
-    message(sprintf(paste("  non-filer targets: %d (%d records, %d cells;",
-                          "series n_adults, %.3fM adults from %.3fM units%s)"),
+    message(sprintf(paste("  non-filer targets: %d states (%d records, prior",
+                          "from %d ACS cells; %.3fM adults from %.3fM units)"),
                     length(targets_n), nrow(tu_n), length(unique(cell_n)),
-                    sum(tu_n$weight * x_adults) / 1e6, sum(tu_n$weight) / 1e6,
-                    if (n_dropped_nonpos_n) sprintf("; %d non-positive dropped",
-                                                    n_dropped_nonpos_n) else ""))
+                    nf_adults / 1e6, sum(tu_n$weight) / 1e6))
   }
 
   list(jurisdictions = jurisdictions,

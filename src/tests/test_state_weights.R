@@ -215,12 +215,13 @@ test_adult_x_vector = function() {
 test_nonfiler_targets_count_adults = function() {
 
   #----------------------------------------------------------------------------
-  # build_weight_inputs() must target ADULTS on the non-filer partition, and
-  # the identity that matters is that each cell's targets sum to the PUF's
-  # ADULT total for that cell -- not its unit total. Before D5 landed these
-  # were the same number, which is exactly why the mismatch was invisible.
+  # build_weight_inputs() must target ADULTS on the non-filer partition: one
+  # target per state (S37), whose values sum to the PUF's ADULT total and split
+  # it by the anchor's shares -- not by the ACS prior's unit shares, which now
+  # only seed P0.
   #
-  # Runs on synthetic PUF records and synthetic margins, so no HT2 or ACS read.
+  # Runs on synthetic PUF records, margins and anchor, so no HT2, ACS or
+  # anchor-file read.
   #----------------------------------------------------------------------------
 
   # Two non-filer records in one cell: one single, one joint => 3 adults, 2 units
@@ -232,33 +233,41 @@ test_nonfiler_targets_count_adults = function() {
     kg_st = 0, kg_lt = 0, txbl_pens_dist = 0, txbl_ira_dist = 0, gross_ss = 0,
     sole_prop = 0, eitc = 0)
 
-  # Margins put the cell 60/40 across two states, in ADULT terms
+  # The ACS prior puts the cell 60/40 across two states in UNITS
   margins = list(nonfiler_margins = data.table::data.table(
     state       = c('CA', 'NY'),
     age_band    = factor('26_34', levels = AGE_BANDS),
     income_tier = factor('neg_zero',
                     levels = c('neg_zero','1_10k','10_25k','25_50k','50k_plus')),
     n_units     = c(60, 40),
-    n_adults    = c(120, 40)))     # CA all-joint, NY all-single: NOT 60/40
+    n_adults    = c(120, 40)))
 
   ht2 = data.table::data.table(
     state = rep(c('CA','NY'), each = 10), agi_stub = rep(1:10, 2),
     variable = 'n_returns', value = 1000, year = 2022L)
 
-  inp = build_weight_inputs(tu, 2022, ht2 = ht2, acs_margins = margins,
-                            verbose = FALSE)
-  tn = inp$nonfilers$targets
-  stopifnot(length(tn) == 2, all(vapply(tn, `[[`, character(1), 'series') == 'n_adults'))
+  # ... and the anchor 3:1 in ADULTS
+  anchor = data.table::data.table(state = c('CA', 'NY'), anchor = c(300, 100))
 
-  # the x-vector reached the target, per record
+  inp = build_weight_inputs(tu, 2022, ht2 = ht2, acs_margins = margins,
+                            nonfiler_anchor = anchor, verbose = FALSE)
+  tn = inp$nonfilers$targets
+  stopifnot(length(tn) == 2,
+            all(vapply(tn, `[[`, character(1), 'series') == 'n_adults_state'))
+
+  # the adult x-vector reached the target, per record
   stopifnot(identical(as.numeric(tn[[1]]$x), c(1, 2)))
 
-  # PUF adults in the cell = 100*1 + 100*2 = 300, split by the ADULT shares
-  # 120/160 and 40/160 -> 225 / 75.  A unit-denominated target would have
-  # split 300 by 60/100 and 40/100 -> 180 / 120, so this distinguishes them.
-  got = sort(vapply(tn, `[[`, numeric(1), 'target'))
-  stopifnot(isTRUE(all.equal(got, c(75, 225))),
-            isTRUE(all.equal(sum(got), 300)))
+  # PUF adults = 100*1 + 100*2 = 300, split 3:1 by the anchor -> 225 / 75.
+  # A unit-denominated target would split 200 units; the prior's 60/40 would
+  # give 180 / 120. Both are distinguishable from this.
+  got = vapply(tn, `[[`, numeric(1), 'target')
+  names(got) = vapply(tn, `[[`, character(1), 'state_code')
+  stopifnot(isTRUE(all.equal(got[c('CA', 'NY')], c(CA = 225, NY = 75))))
+
+  # the prior is still the ACS unit shares
+  ca = match('CA', inp$jurisdictions)
+  stopifnot(isTRUE(all.equal(inp$nonfilers$P0[, ca], c(0.6, 0.6))))
 
   message('  test_nonfiler_targets_count_adults: PASSED')
 }
