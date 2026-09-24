@@ -217,8 +217,11 @@ important because the whole population is being swapped:
 
 **F — state margins and the re-fit.** F1a and F1c are done.
 
-- **F1b** — residual anchors as the primary non-filer targets. Was blocked on
-  D1; now waits on C's pool.
+- **F1b — DONE 2026-09-23 (S37).** One adult target per state from the
+  residual anchor **net of the non-filing claimed adult dependents** (arm B of
+  a three-arm bake-off, `scripts/nonfiler_anchor_bakeoff.R`), chosen on
+  held-out OASDI 65+ and within-state age, and robust to a 200-replicate
+  bootstrap of the ASEC netting.
 - **F1d — DONE 2026-08-27. The anchor basis is fixed.** The
   national anchor takes filing adults from Pub 1304 T1.6 and the *state* anchors
   take them from the HT2 identities, so the 51 states do not sum to the national
@@ -267,16 +270,23 @@ important because the whole population is being swapped:
   that component. The sweep localized it: a third construction from Pub 1304
   Table 2.3 agrees with T1.6 to **−0.057%** against HT2's −0.370%, so the
   remainder is an HT2-versus-Pub-1304 family difference, not Table 1.6.
-- **F2** — demote the income tiers to the prior. The non-filer fit still
-  converges in **2 iterations to 4.4e-16**, i.e. it is still pure prior
-  reproduction; F2 is what makes it a calibration.
-- **F3** — SSA margins at the right status: OASDI 65+ can bear a firmer target
-  (100% data, single `65p` band only); the HI covered-worker margin is a **1%
-  sample**, so soft target or prior only. QCEW stays a diagnostic.
+- **F2 — DONE 2026-09-23 (S37).** The ACS state × age × income cells are the
+  non-filer prior only; the fit now moves off it (KL 0.0086, 6–7 IPF passes)
+  instead of reproducing it in 2 passes to 4.4e-16.
+- **F3 — RESOLVED, proposed (S38): neither SSA margin is a non-filer target.**
+  OASDI 65+ as a firm non-filer target is infeasible in four states each
+  year: the filer fit misplaces 65+ beneficiaries by 10.3% MARD and the
+  non-filers hold only ~18% of them. HI 20–64 shows a real 2.7% misfit (4× its
+  sampling noise) that non-filers, 7.8% of earners, cannot move. Both are
+  **filer-side** information — candidates for Phase 3's filer targets.
+  OASDI 65+ stays a held-out metric; QCEW stays a diagnostic.
 - **F4** — split `state_weights.R` into `ht2.R` and `filing_model.R`, which is
   what makes the filing model sourceable by Affordability-Index.
-- **F5** — validation additions: the population identity vs PEP, the EITC
-  take-up correlation re-run, state adults by age band as a held-out metric.
+- **F5 — DONE 2026-09-23 (S37).** In the bake-off harness: the population
+  identity by state against `residual_tolerance` (80% / 90% of states inside
+  under S37, 16% / 25% before), within-state age vs PEP, and the EITC take-up
+  correlation (−0.60 on filer return counts, unchanged — it is a property of
+  the filer fit, which no non-filer change can reach).
 - **F6** — re-fit at config-7 (β=1e-4). **Do not promise held-out MARD gains**
   from the non-filer work alone; pensions, Schedule C and capital gains are a
   *filer*-target problem.
@@ -406,15 +416,15 @@ refactoring first would leave nothing to check it against.
 
 ### Phase 2 — rebuild the targets on the new pool
 
-**F1b** (residual anchors as the primary non-filer targets), **F2** (demote the
-income tiers to the prior — the non-filer fit still converges in 2 iterations
-to 4.4e-16, i.e. it reproduces the prior rather than calibrating), **F3** (SSA
-margins at honest status: OASDI 65+ firm, the HI covered-worker margin a 1%
-sample and therefore soft or prior only), **F5** (validation additions).
+**Done 2026-09-23 except S38's sign-off.** F1b and F2 are S37 (the netted
+residual anchor by state, the ACS cells as prior), F5 is in the S37 harness,
+and F3 is S38 (proposed): the SSA margins turned out to be filer-side
+information, so they move to Phase 3 as candidate filer targets rather than
+entering the non-filer fit.
 
 Two inputs gate parts of this and neither is a code change: the **anchor pair
-moves to 2017/2023** (S27 — ≈15 scripts' `ANCHOR_YEARS` plus `HT2_REF_YEAR`,
-then a full rebuild and re-verification of the anchors), and the 2014–2016
+moves to 2017/2023** (S27 — done 2026-09-23 for every script that needed only a default changed;
+`nonfiler_residual/01`, `03 --tables`, `06` and `12` still hard-code 2022), and the 2014–2016
 state margins stay blocked on three SSA covered-earnings workbooks
 (`eedata_sc14/15/16.xlsx`) that ssa.gov will not serve to this cluster.
 
