@@ -9,6 +9,10 @@
 # A00900 Schedule C net income; A01700 taxable pensions/annuities; A02500
 # taxable social security; A06500 income tax after credits. kg_amt (A01000),
 # excluded from calibration for mixed sign, is scored on its positive part.
+# TY2018 alone combines IRA distributions and pensions into 01750 (SOI's 2018
+# documentation guide), so that year scores the combined series under its
+# own name -- a year-over-year comparison then skips it rather than set a
+# pension share against a pension-plus-IRA one.
 #------------------------------------------------------------------------------
 
 #' The held-out cells for one year: one row per (series, stub, state) with the
@@ -23,6 +27,8 @@ heldout_cells <- function(year, p, tu_f, jur) {
     bus_amt     = list(code = 'A00900', x = tu_f$sole_prop),
     n_pens      = list(code = 'N01700', x = as.numeric(tu_f$txbl_pens_dist != 0)),
     pens_amt    = list(code = 'A01700', x = tu_f$txbl_pens_dist),
+    n_pens_ira  = list(code = 'N01750', x = as.numeric(tu_f$txbl_pens_dist + tu_f$txbl_ira_dist != 0)),
+    pens_ira_amt = list(code = 'A01750', x = tu_f$txbl_pens_dist + tu_f$txbl_ira_dist),
     n_ss        = list(code = 'N02500', x = as.numeric(tu_f$txbl_ss > 0)),
     ss_amt      = list(code = 'A02500', x = tu_f$txbl_ss),
     n_fedtax    = list(code = 'N06500', x = as.numeric(tu_f$liab_iit > 0)),
@@ -34,6 +40,12 @@ heldout_cells <- function(year, p, tu_f, jur) {
   d <- fread(cmd = paste('zcat', shQuote(ht2_path(year))), colClasses = 'character')
   setnames(d, toupper(names(d)))
   parse_num <- function(x) as.numeric(str_replace_all(x, ',', ''))
+  present <- vapply(HELD_OUT, function(h) h$code %in% names(d), logical(1))
+  # Exactly one pension family per year; every other series must exist
+  pens <- c('n_pens', 'pens_amt', 'n_pens_ira', 'pens_ira_amt')
+  stopifnot(all(present[setdiff(names(HELD_OUT), pens)]),
+            xor(all(present[pens[1:2]]), all(present[pens[3:4]])))
+  HELD_OUT <- HELD_OUT[present]
   codes <- unique(vapply(HELD_OUT, `[[`, '', 'code'))
   ht2 <- d[, c('STATE', 'AGI_STUB', codes), with = FALSE]
   ht2 <- ht2[STATE %in% jur & AGI_STUB != '0']

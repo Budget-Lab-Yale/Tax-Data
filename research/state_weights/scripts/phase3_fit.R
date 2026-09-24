@@ -109,7 +109,7 @@ if (arm == 'C') {
                                        targets = p$targets, ids = p$ids))
   rm(ps); invisible(gc())
   gamma <- mult * CONFIG_7$beta
-  message(sprintf('arm C: gamma = %g (%g x beta), %d years', gamma, mult, length(YEARS)))
+  message(sprintf('arm C: gamma = %g (%g x beta), %d years', gamma, mult, length(C_YEARS)))
   f <- fit_gradient_panel(years, gamma = gamma, beta = CONFIG_7$beta, lr = CONFIG_7$lr,
                           n_steps = CONFIG_7$n_steps, lr_schedule = CONFIG_7$lr_schedule,
                           verbose = TRUE)
