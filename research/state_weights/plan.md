@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-23
+updated: 2026-09-24
 sot: self
 supersedes: []
 superseded_by: null
@@ -273,7 +273,7 @@ important because the whole population is being swapped:
 - **F2 — DONE 2026-09-23 (S37).** The ACS state × age × income cells are the
   non-filer prior only; the fit now moves off it (KL 0.0086, 6–7 IPF passes)
   instead of reproducing it in 2 passes to 4.4e-16.
-- **F3 — RESOLVED, proposed (S38): neither SSA margin is a non-filer target.**
+- **F3 — RESOLVED 2026-09-24 (S38): neither SSA margin is a non-filer target.**
   OASDI 65+ as a firm non-filer target is infeasible in four states each
   year: the filer fit misplaces 65+ beneficiaries by 10.3% MARD and the
   non-filers hold only ~18% of them. HI 20–64 shows a real 2.7% misfit (4× its
@@ -416,9 +416,9 @@ refactoring first would leave nothing to check it against.
 
 ### Phase 2 — rebuild the targets on the new pool
 
-**Done 2026-09-23 except S38's sign-off.** F1b and F2 are S37 (the netted
+**Closed 2026-09-24.** F1b and F2 are S37 (the netted
 residual anchor by state, the ACS cells as prior), F5 is in the S37 harness,
-and F3 is S38 (proposed): the SSA margins turned out to be filer-side
+and F3 is S38: the SSA margins turned out to be filer-side
 information, so they move to Phase 3 as candidate filer targets rather than
 entering the non-filer fit.
 
