@@ -50,12 +50,13 @@ load_tu <- function() {
                   'kg_st','kg_lt','salt_inc_sales','salt_prop',
                   'first_mort_int','second_mort_int','txbl_pens_dist',
                   'txbl_ira_dist','gross_ss','sole_prop')
-  td_vintage <- read_yaml('./config/interfaces/interface_versions.yaml')$`Tax-Data`$default_vintage
-  td_path <- file.path(read_yaml('./config/interfaces/output_roots.yaml')$production,
-                       'model_data/Tax-Data/v1', td_vintage, 'baseline',
-                       sprintf('tax_units_%d.csv', YEAR))
-  detail_dir <- file.path(read_yaml('./config/interfaces/output_roots.yaml')$local,
-                          'model_data/Tax-Simulator/v1/weights_2022/baseline/static/detail')
+  # The vintage and baseline the inputs were built from, as prep_fit_inputs.R
+  # recorded them -- not a config lookup, which named Tax-Simulator's keys
+  # when this script moved here and could drift from the inputs regardless.
+  h <- readRDS(file.path(SCRATCH, sprintf('hardened_fit_%d.rds', YEAR)))
+  td_path <- file.path(model_data_root(), 'Tax-Data/v1', h$tax_data_vintage,
+                       'baseline', sprintf('tax_units_%d.csv', YEAR))
+  detail_dir <- h$detail_dir
   tu <- fread(td_path, select = input_cols)
   detail <- fread(file.path(detail_dir, sprintf('%d.csv', YEAR)),
                   select = c('id','agi','eitc','txbl_ss','liab_iit','liab_iit_net'))

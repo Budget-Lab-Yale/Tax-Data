@@ -92,7 +92,7 @@ source('src/nonfilers/asec_tax_units.R')
 source('src/nonfilers/filing_model.R')
 
 args  <- commandArgs(trailingOnly = TRUE)
-YEARS <- if (length(args)) as.integer(args) else c(2017L, 2022L)
+YEARS <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 RES   <- 'research/state_weights/nonfiler_pool/results'
 ANCH  <- 'research/state_weights/nonfiler_residual/results'
 SHAPE <- 'research/state_weights/nonfiler_residual/resources'
@@ -199,10 +199,9 @@ for (yr in YEARS) {
   st <- readRDS(file.path(RES, sprintf('units_%d.rds', yr)))
   gq <- fread(file.path(RES, sprintf('gq_backfill_summary_%d.csv', yr)))
   shape <- fread(file.path(SHAPE, sprintf('nonfiler_age_shape_%d.csv', yr)))
-  # State anchors need HT2 and a committed residual_anchors file. HT2 reaches
-  # TY2023 as of 2026-09, but anchors are committed only for the 2017/2022
-  # pair (S18 premise note), so a year without the file skips the dorm
-  # tripwire below (its only consumer here) with a message.
+  # State anchors need HT2 and a committed residual_anchors file, which exist
+  # for 2017, 2022 and 2023 (S27), so any other year skips the dorm tripwire
+  # below (its only consumer here) with a message.
   ranch_path <- file.path(ANCH, sprintf('residual_anchors_%d.csv', yr))
   ranch <- if (file.exists(ranch_path)) fread(ranch_path) else NULL
 
@@ -402,9 +401,17 @@ for (yr in YEARS) {
   #---------------------------------------------------------------------------
   # Solve, central netting + the two bracket edges
   #---------------------------------------------------------------------------
-  scenarios <- c(central = 1,
-                 ht2_floor = DEP_BRACKET[[cy]]['ht2_floor'] / dep_claimed_total,
-                 depstat   = DEP_BRACKET[[cy]]['depstat']   / dep_claimed_total)
+  # The bracket is measured for 2017 and 2022 only; other years run the
+  # central case alone. (Indexing a missing year used to drop the two edges
+  # silently -- NULL['x'] / n is numeric(0) inside c().)
+  scenarios <- c(central = 1)
+  if (cy %in% names(DEP_BRACKET)) {
+    scenarios <- c(scenarios,
+                   ht2_floor = DEP_BRACKET[[cy]]['ht2_floor'] / dep_claimed_total,
+                   depstat   = DEP_BRACKET[[cy]]['depstat']   / dep_claimed_total)
+  } else {
+    message(sprintf('  no DEP_BRACKET for TY%s: central netting only, no bracket edges', cy))
+  }
 
   # The wage-earner target: Pub 5785's count scaled to our universe, less the
   # earners among claimed dependents (whom the calibration does not control).

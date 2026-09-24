@@ -67,9 +67,10 @@
 # year additionally ships its S19 alignment and audit tables. Without
 # --publish the store is untouched.
 #
-# The year list defaults to 2017 and 2022 -- the two anchor years the build was
-# developed against. S18(c) rebuilds every year through the observed ceiling,
-# so a publish intended for Tax-Data must name them explicitly.
+# The year list defaults to the anchor pair, 2017 and 2023 (S27). S18(c)
+# rebuilds every year through the observed ceiling, so --publish refuses to run
+# on the default: the manifest is written from the year list, and a publish
+# without explicit years would ship a two-year pool.
 #
 # Login-node safe.
 #   Rscript research/state_weights/nonfiler_pool/05_emit_pool.R \
@@ -87,7 +88,11 @@ args    <- commandArgs(trailingOnly = TRUE)
 PUBLISH <- '--publish' %in% args
 flags   <- grepl('^--', args)
 YEARS   <- suppressWarnings(as.integer(args[!flags]))
-if (!length(YEARS)) YEARS <- c(2017L, 2022L)
+if (PUBLISH && !length(YEARS)) {
+  stop('--publish needs explicit years (e.g. 2017 2018 ... 2023): the manifest ',
+       'lists exactly the years given')
+}
+if (!length(YEARS)) YEARS <- c(2017L, 2023L)
 RES     <- 'research/state_weights/nonfiler_pool/results'
 
 # The vintage is DELIBERATE, not a timestamp. Tax-Data pins this exact string

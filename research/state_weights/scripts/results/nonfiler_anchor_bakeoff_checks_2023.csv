@@ -1,0 +1,10 @@
+check,value
+A vs B target shares (the signal B adds),0.0545593701090062
+ASEC all-age dependents vs HT2 dependents (shares),0.0365472246225896
+ASEC adult netting vs filer-fit adult dependents (shares),0.201511962079202
+"ASEC netted adult dependents, unweighted sample (min)",30
+"ASEC netted adult dependents, unweighted sample (median)",93
+HI 20-64 share MARD expected from the 1% sample alone,0.00656781543516189
+non-filer share of model wage earners 20-64,0.0828362176286638
+EITC take-up cor: filer n_returns residuals (TY2022),
+EITC take-up cor: filer eitc_amt residuals (TY2022),

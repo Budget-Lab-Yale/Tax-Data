@@ -54,7 +54,7 @@
 #
 # Usage (repo root, login node OK):
 #   Rscript research/state_weights/nonfiler_residual/02_build_residual_anchors.R [year]
-# Default runs both anchor years (2017, 2022).
+# Default runs both anchor years (2017, 2023; S27).
 #------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -64,7 +64,7 @@ suppressPackageStartupMessages({
 source('src/nonfilers/state_weights.R')
 
 args <- commandArgs(trailingOnly = TRUE)
-years <- if (length(args)) as.integer(args) else c(2017L, 2022L)
+years <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 res_dir <- 'research/state_weights/nonfiler_residual/results'
 dir.create(res_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -81,27 +81,11 @@ A16_BANDS <- TARGET_AGE_BANDS
 # basis comparison reads the same national level this script anchors on.
 
 #---------------------------------------------------------------
-# Census PEP: resident population by state x single year of age
+# Census PEP: resident population by state x single year of age.
+# read_pep() lives in src/nonfilers/sw_external.R (sourced above) --
+# moved there 2026-09-23 so the Phase 2 anchor bake-off reads the same
+# population this script anchors on.
 #---------------------------------------------------------------
-
-read_pep <- function(year) {
-  f <- file.path(raw_data_root(), 'Census-PEP',
-                 # The intercensal file is the REVISED 2010-2019 series and
-                 # stops at POPESTIMATE2019; the 2024 vintage starts at 2020.
-                 # The boundary was <= 2020, which only ever failed on a TY2020
-                 # build -- 2017 and 2022 both land on the right side of it.
-                 if (year <= 2019) 'sc-est2020int-alldata6.csv' else
-                                   'sc-est2024-alldata6.csv')
-  pep <- fread(f, showProgress = FALSE)
-  pop_col <- sprintf('POPESTIMATE%d', year)
-  stopifnot(pop_col %in% names(pep), all(pep$AGE <= 85 | pep$AGE == 999))
-  # Totals: SEX 0 and ORIGIN 0 are marginal rows; RACE 1-6 partition (no total)
-  pep <- pep[SEX == 0 & ORIGIN == 0 & AGE != 999,
-             .(pop = sum(get(pop_col))), by = .(STATE, AGE)]
-  pep[, state := FIPS_TO_STATE[as.character(STATE)]]
-  stopifnot(!anyNA(pep$state), uniqueN(pep$state) == 51)
-  pep[]
-}
 
 #---------------------------------------------------------------
 # Build per year
@@ -147,10 +131,9 @@ for (yr in years) {
   # RESIDUAL. The stability across years is what makes carrying a fraction
   # defensible. Every state product is skipped for such a year.
   #
-  # NOTE (2026-09): TY2023 now takes the MEASURED branch instead of the
-  # carried one. The anchor years are still 2017/2022, so nothing rebuilds
-  # here on its own -- but a TY2023 run is now a different computation than
-  # it was, and HT2_REF_YEAR below is no longer the latest measured year.
+  # NOTE (2026-09): TY2023 now takes the MEASURED branch (HT2 TY2023 arrived
+  # 2026-09-08), and the anchor pair has moved to 2017/2023 (S27), so the
+  # carried branch below references 2023.
   have_ht2 <- file.exists(ht2_path(yr))
   if (have_ht2) {
     ht2 <- read_ht2(ht2_path(yr), yr)
@@ -226,12 +209,11 @@ for (yr in years) {
     # that year's published filing adults from its own T1.6 (same three lines
     # as `fa` above) and take 1 - corrected/published from its committed
     # anchor. The bounds bracket the measured values (0.549% in 2017, 0.591%
-    # in 2022) with margin -- outside them means the reference file changed.
-    # This is the latest year with a COMMITTED anchor file, not simply the
-    # latest HT2 year: HT2 reaches 2023 as of 2026-09 but the anchors are
-    # still built for 2017/2022, so 2022 remains the reference until the
-    # anchor pair moves (see decisions_log S18).
-    HT2_REF_YEAR <- 2022L
+    # in 2022, 0.585% in 2023) with margin -- outside them means the
+    # reference file changed. This is the latest year with a COMMITTED
+    # anchor file, not simply the latest HT2 year (decisions_log S18); with
+    # the anchor pair at 2017/2023 (S27) that is 2023.
+    HT2_REF_YEAR <- 2023L
     ref_anchor <- fread(file.path(res_dir,
                                   sprintf('national_anchor_%d.csv', HT2_REF_YEAR)))
     t16_ref <- read_pub1304_t16(HT2_REF_YEAR)
@@ -486,13 +468,21 @@ for (yr in years) {
   # file as missing and silently drop the state products. A parse failure on a
   # file that IS there propagates.
   ee <- if (file.exists(ssa_f)) read_ssa_eedata_hi(yr) else NULL
+  # The two products need different inputs, so gate them separately. The wage
+  # margin compares HT2 wages against BOTH frames; the SSA age margin is EEDATA
+  # Table 5 alone. Coupling them (as until 2026-09-23) dropped the 2023 age
+  # margin for want of 2023 QCEW, which it never reads.
   do_wage_margin <- file.exists(qcew_f) && !is.null(ee)
+  do_age_margin  <- !is.null(ee)
   if (!do_wage_margin) {
-    message(sprintf(paste('  SKIP state wage margin and SSA age margin for TY%d:',
-                          '%s. The national anchor and age shape are unaffected.'),
+    message(sprintf(paste('  SKIP state wage margin for TY%d: %s.',
+                          'The national anchor and age shape are unaffected.'),
                     yr, paste(c(if (!file.exists(qcew_f)) 'no QCEW state totals',
                                 if (is.null(ee)) 'no SSA EEDATA workbook'),
                               collapse = ' and ')))
+  }
+  if (!do_age_margin) {
+    message(sprintf('  SKIP SSA age margin for TY%d: no SSA EEDATA workbook.', yr))
   }
   wm <- NULL
   if (do_wage_margin) {
@@ -541,10 +531,12 @@ for (yr in years) {
   }
   if (do_wage_margin) {
     fwrite(wm[order(state)], file.path(res_dir, sprintf('nonfiler_wage_margin_%d.csv', yr)))
+  }
+  if (do_age_margin) {
     fwrite(ee$age, file.path(res_dir, sprintf('ssa_age_margin_%d.csv', yr)))
   }
   message(sprintf('  wrote national_anchor%s%s CSVs',
                   if (have_ht2) ' / residual_anchors' else ' (national only)',
-                  if (do_wage_margin)
-                    ' / nonfiler_wage_margin / ssa_age_margin' else ''))
+                  paste0(if (do_wage_margin) ' / nonfiler_wage_margin' else '',
+                         if (do_age_margin)  ' / ssa_age_margin' else '')))
 }

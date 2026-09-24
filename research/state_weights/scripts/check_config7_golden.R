@@ -9,7 +9,11 @@
 # the run that reproduced the Phase 1 bake-off exactly (95.3% / 0.43%).
 #
 # Three assertions, each exact rather than approximate:
-#   1. inputs      build_weight_inputs() output == golden hardened_fit_2022.rds
+#   1. inputs      build_weight_inputs() output == golden hardened_fit_2022.rds:
+#                  the filer partition and jurisdictions whole, the non-filer
+#                  partition's records, weights and prior. Its TARGETS changed
+#                  by decision (S37: 51 anchor states, not ACS cells), so they
+#                  are checked for their new form instead
 #   2. prior       the counts-backbone IPF prior == golden prior_counts_2022.rds
 #   3. production  build_split_weights()'s filer split == golden fit_7.rds,
 #                  which is what shows the entry point now IS config 7
@@ -46,7 +50,15 @@ report <- function(label, ok) { cat(sprintf('  %-11s %s\n', label, if (ok) 'IDEN
 
 cat('1. inputs\n')
 inputs <- build_weight_inputs(tu, YEAR)
-ok1 <- report('inputs', identical(inputs, readRDS(file.path(GOLD, 'hardened_fit_2022.rds'))$inputs))
+gold_in <- readRDS(file.path(GOLD, 'hardened_fit_2022.rds'))$inputs
+n <- inputs$nonfilers; gn <- gold_in$nonfilers
+ok1 <- report('inputs', identical(inputs$jurisdictions, gold_in$jurisdictions) &&
+                identical(inputs$filers, gold_in$filers) &&
+                identical(n$idx, gn$idx) && identical(n$w, gn$w) && identical(n$P0, gn$P0) &&
+                length(n$targets) == 51 &&
+                all(vapply(n$targets, `[[`, character(1), 'series') == 'n_adults_state') &&
+                isTRUE(all.equal(sum(vapply(n$targets, `[[`, numeric(1), 'target')),
+                                 sum(n$w * n$targets[[1]]$x))))
 
 cat('2. counts-backbone prior\n')
 p <- inputs$filers

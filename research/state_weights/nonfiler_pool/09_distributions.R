@@ -27,7 +27,7 @@ source('src/nonfilers/state_weights.R')
 source('src/nonfilers/asec_tax_units.R')
 
 args  <- commandArgs(trailingOnly = TRUE)
-YEARS <- if (length(args)) as.integer(args) else c(2017L, 2022L)
+YEARS <- if (length(args)) as.integer(args) else c(2017L, 2023L)
 RES   <- 'research/state_weights/nonfiler_pool/results'
 
 INC_BREAKS <- c(-Inf, 0, 5e3, 10e3, 15e3, 25e3, 50e3, Inf)
