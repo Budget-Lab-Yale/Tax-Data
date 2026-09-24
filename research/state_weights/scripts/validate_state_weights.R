@@ -27,6 +27,7 @@ suppressPackageStartupMessages({
   library(stringr); library(yaml)
 })
 source('src/nonfilers/state_weights.R')
+source('research/state_weights/scripts/heldout_ht2.R')
 
 SCRATCH   <- file.path(scratch_root(), 'state_weights_tmp')
 SWEEP_DIR <- file.path(SCRATCH, 'sweep')
@@ -129,66 +130,16 @@ if (identical(mode, '--untargeted')) {
   tu  <- load_tu()
   tu_f <- tu[p$idx]
   stopifnot(nrow(tu_f) == length(p$w), all(abs(tu_f$weight - p$w) < 1e-9))
-  stub <- assign_ht2_stub(tu_f$agi, YEAR)
-
-  # Held-out HT2 codes -> PUF x-vectors. A00900 Schedule C net income;
-  # A01700 taxable pensions/annuities; A02500 taxable social security;
-  # A06500 income tax after credits. kg_amt (A01000) -- excluded from
-  # calibration for mixed sign -- evaluated on the positive part only.
-  HELD_OUT <- list(
-    n_bus       = list(code = 'N00900', x = as.numeric(tu_f$sole_prop != 0)),
-    bus_amt     = list(code = 'A00900', x = tu_f$sole_prop),
-    n_pens      = list(code = 'N01700', x = as.numeric(tu_f$txbl_pens_dist != 0)),
-    pens_amt    = list(code = 'A01700', x = tu_f$txbl_pens_dist),
-    n_ss        = list(code = 'N02500', x = as.numeric(tu_f$txbl_ss > 0)),
-    ss_amt      = list(code = 'A02500', x = tu_f$txbl_ss),
-    n_fedtax    = list(code = 'N06500', x = as.numeric(tu_f$liab_iit > 0)),
-    fedtax_amt  = list(code = 'A06500', x = pmax(tu_f$liab_iit, 0)),
-    kg_amt_pos  = list(code = 'A01000', x = pmax(tu_f$kg_st + tu_f$kg_lt, 0))
-  )
-
-  # Raw HT2 held-out cells (state x stub), same reader conventions as read_ht2.
-  # Path comes from state_weights.R's ht2_path() rather than being rebuilt here:
-  # the local copy still said IRS-GEO, the pre-2026-08 store name, and shadowed
-  # the sourced helper (decisions_log S4).
-  ht2_file <- ht2_path(YEAR)
-  d <- fread(cmd = paste('zcat', shQuote(ht2_file)), colClasses = 'character')
-  setnames(d, toupper(names(d)))
-  parse_num <- function(x) as.numeric(str_replace_all(x, ',', ''))
-  codes <- unique(vapply(HELD_OUT, `[[`, '', 'code'))
-  ht2 <- d[, c('STATE', 'AGI_STUB', codes), with = FALSE]
-  ht2 <- ht2[STATE %in% jur & AGI_STUB != '0']
-  for (cc in codes) ht2[, (cc) := parse_num(get(cc)) * ifelse(grepl('^A', cc), 1000, 1)]
-  ht2[, stub := as.integer(AGI_STUB)]
+  cells <- heldout_cells(YEAR, p, tu_f, jur)
 
   # Candidate P matrices: prior alone (Approach A reference) + configs
   prior <- readRDS(file.path(SWEEP_DIR, 'prior_counts_2022.rds'))
   Ps <- c(list(prior = prior),
           setNames(lapply(CANDIDATES, load_P), paste0('cfg', CANDIDATES)))
-
-  res <- rbindlist(lapply(names(HELD_OUT), function(ser) {
-    ho   <- HELD_OUT[[ser]]
-    x    <- ho$x
-    natl <- sum(p$w * x)
-    rbindlist(lapply(sort(unique(ht2$stub)), function(sb) {
-      rows  <- which(stub == sb)
-      if (sum(x[rows] != 0) == 0) return(NULL)
-      cells <- ht2[stub == sb & get(ho$code) > 0]
-      shares <- cells[[ho$code]] / sum(cells[[ho$code]])
-      tgt_natl <- sum(p$w[rows] * x[rows])              # PUF national for the stub
-      if (tgt_natl <= 0) return(NULL)
-      rbindlist(lapply(names(Ps), function(nm) {
-        P <- Ps[[nm]]
-        that <- vapply(seq_len(nrow(cells)), function(k) {
-          s <- match(cells$STATE[k], jur)
-          sum(p$w[rows] * P[rows, s] * x[rows])
-        }, numeric(1))
-        data.table(series = ser, config = nm, stub = sb, state = cells$STATE,
-                   target = tgt_natl * shares, that = that)
-      }))
-    }))
-  }))
-  res[, err := abs(that / target - 1)]
+  res <- rbindlist(lapply(names(Ps), function(nm)
+    score_heldout(cells, p$w, Ps[[nm]])[, config := nm]))
+  setcolorder(res, c('series', 'config', 'stub', 'state', 'target', 'that', 'err'))
+  setorder(res, series, stub, config)
 
   cat('=== UNTARGETED (held-out HT2 series), share-normalized like calibration ===\n')
   smry <- dcast(res[, .(within2 = round(100 * mean(err <= 0.02), 1),
