@@ -173,6 +173,15 @@ SSA_SEX_LABELS <- c("Men", "Women")
   out[]
 }
 
+#' IRS EITC participation rates by state, TY2022, percent (IRS EITC Central,
+#' ACS-Census linkage; irs.gov/tax-professionals/eitc-central/
+#' eitc-participation-rate-by-state). Named numeric vector, one per state.
+read_eitc_participation <- function() {
+  x <- fread("research/state_weights/nonfiler_residual/resources/eitc_participation_ty2022.csv")
+  stopifnot(nrow(x) == 51, setequal(x$state, STATE_JURISDICTIONS), !anyNA(x$eitc_participation_pct))
+  setNames(x$eitc_participation_pct, x$state)
+}
+
 #' Census PEP resident population by state x single year of age (0-85, 85
 #' top-coded), both sexes, all origins. The anchors' population universe.
 read_pep <- function(year) {

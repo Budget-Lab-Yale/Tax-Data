@@ -249,16 +249,8 @@ message(sprintf('T4: non-filer units %.1fM (2017) -> %.1fM (2035); share of all 
 # T5: state margins -- v0 ACS vs residual anchors (needs --acs outputs)
 #---------------------------------------
 
-# IRS EITC participation rates by state, TY2022 (copied constant from
-# research/state_weights/scripts/sweep_state_weights.R:67 -- irs.gov EITC Central, ACS-Census linkage)
-EITC_TAKEUP <- c(
-  AL=79.2, AK=75.1, AZ=78.6, AR=80.5, CA=77.4, CO=77.3, CT=82.0, DE=82.4,
-  DC=73.6, FL=82.0, GA=82.1, HI=83.3, ID=80.7, IL=81.0, IN=83.3, IA=80.7,
-  KS=78.3, KY=82.5, LA=81.6, ME=85.2, MD=82.2, MA=81.7, MI=82.8, MN=81.9,
-  MS=80.2, MO=79.3, MT=75.1, NE=83.2, NV=82.2, NH=80.0, NJ=81.1, NM=83.6,
-  NY=83.7, NC=79.7, ND=79.6, OH=82.6, OK=79.1, OR=78.4, PA=82.8, RI=82.4,
-  SC=80.7, SD=82.3, TN=82.0, TX=80.6, UT=75.4, VT=80.0, VA=82.2, WA=77.4,
-  WV=85.1, WI=78.9, WY=78.6)
+# IRS EITC participation rates by state, TY2022 (one committed copy)
+EITC_TAKEUP <- read_eitc_participation()
 
 y <- 2022L
 m_v0 <- maybe_read(file.path(res_dir, sprintf('acs_margins_v0_%d.csv', y)))
