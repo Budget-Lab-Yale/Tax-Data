@@ -20,6 +20,9 @@
 #              would be arm A exactly). 2018 on, because HT2 splits Puerto
 #              Rico out of Other Areas that year: a 2017 record legitimately
 #              moves OA -> PR, which the penalty would fight. C's 2017 is A's.
+#   C <mult> B  the same, warm-started from arm B's fit of each year: tests
+#              whether cold C's weaker targeted fit is the objective or the
+#              3,000-step budget (B showed a cold start leaves it unconverged)
 #
 # Every arm uses config 7's counts prior as both start and KL anchor, and its
 # beta, lr, schedule and 3,000 steps. Inputs are prep_fit_inputs.R's
@@ -30,6 +33,7 @@
 #   Rscript research/state_weights/scripts/phase3_fit.R A 2019
 #   Rscript research/state_weights/scripts/phase3_fit.R B
 #   Rscript research/state_weights/scripts/phase3_fit.R C 10
+#   Rscript research/state_weights/scripts/phase3_fit.R C 10 B
 #------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({ library(data.table); library(readxl) })
@@ -101,23 +105,34 @@ if (arm == 'B') {
 
 if (arm == 'C') {
   mult <- as.numeric(args[2]); stopifnot(is.finite(mult), mult > 0)
+  warm <- length(args) >= 3
+  if (warm) stopifnot(args[3] == 'B')
   C_YEARS <- YEARS[YEARS >= 2018]
   ps <- lapply(C_YEARS, load_filers)
   J  <- ps[[1]]$jurisdictions
   stopifnot(all(vapply(ps, function(p) identical(p$jurisdictions, J), logical(1))))
-  years <- lapply(ps, function(p) list(w = p$w, P0 = config7_prior(p),
-                                       targets = p$targets, ids = p$ids))
+  years <- lapply(seq_along(ps), function(k) {
+    p <- ps[[k]]
+    y <- list(w = p$w, P0 = config7_prior(p), targets = p$targets, ids = p$ids)
+    if (warm) {
+      b <- readRDS(file.path(OUT, 'B', sprintf('fit_%d.rds', C_YEARS[k])))
+      stopifnot(identical(b$ids, p$ids), identical(b$jurisdictions, J))
+      y$theta0 <- b$theta
+    }
+    y
+  })
   rm(ps); invisible(gc())
   gamma <- mult * CONFIG_7$beta
+  c_dir <- sprintf('C_%g%s', mult, if (warm) '_warmB' else '')
   message(sprintf('arm C: gamma = %g (%g x beta), %d years', gamma, mult, length(C_YEARS)))
   f <- fit_gradient_panel(years, gamma = gamma, beta = CONFIG_7$beta, lr = CONFIG_7$lr,
                           n_steps = CONFIG_7$n_steps, lr_schedule = CONFIG_7$lr_schedule,
                           verbose = TRUE)
   for (k in seq_along(C_YEARS)) {
-    save_fit(file.path(OUT, sprintf('C_%g', mult)), C_YEARS[k], f$P[[k]], f$theta[[k]],
+    save_fit(file.path(OUT, c_dir), C_YEARS[k], f$P[[k]], f$theta[[k]],
              years[[k]]$ids, J)
   }
-  saveRDS(f$loss_hist, file.path(OUT, sprintf('C_%g', mult), 'loss_hist.rds'))
+  saveRDS(f$loss_hist, file.path(OUT, c_dir, 'loss_hist.rds'))
 }
 
 message('PHASE3_FIT_DONE ', paste(args, collapse = ' '))
