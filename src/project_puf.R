@@ -358,8 +358,12 @@ ad_hoc_factors = list(
 # Helpers: compute weights + extensive factors per year
 #-------------------------------------
 
+# Calibrated filer weights by year, filled by the S40 refit loop below; empty
+# until then, so the first ledger is the status x age prior.
+refit_filer_weights = list()
+
 # Per-year weight vector; pure function over the Phase-1 tax_units + source
-# tables. Returns a tibble (id, weight, year).
+# tables (and refit_filer_weights). Returns a tibble (id, weight, year).
 compute_weights_for_year = function(y) {
   if (y == 2017L) {
     return(tax_units %>% select(id, weight) %>% mutate(year = 2017L))
@@ -391,7 +395,10 @@ compute_weights_for_year = function(y) {
   # group. This is the old 2018-19 branch with the observation window
   # extended -- the demographic handoff moves from 2019 to 2023, past the
   # 2020-2022 filing spike rather than inside or before it.
-  if (y <= FILER_OBS_LAST) {
+  if (y <= FILER_OBS_LAST && as.character(y) %in% names(refit_filer_weights)) {
+    # S40: the year's calibrated filer weights (refit loop below)
+    filers = refit_filer_weights[[as.character(y)]]
+  } else if (y <= FILER_OBS_LAST) {
     filers = tax_units %>%
       filter(filer == 1) %>%
       mutate(year = y,
@@ -455,59 +462,6 @@ weight_ledger = map_dfr(2017L:2097L, compute_weights_for_year) %>%
   arrange(year, id)
 cat(sprintf('project_puf.R: weight_ledger built (%d rows, %.1fs)\n',
             nrow(weight_ledger), as.numeric(Sys.time() - t0, units = 'secs')))
-
-#-------------------------------------
-# S21 partition, every pool year
-#-------------------------------------
-
-# filing adults + pool adults + claimed-dependent netting + not-in-universe
-# = ssArea adults, per age band and year (research/state_weights/
-# nonfiler_pool/15_ssarea_alignment.R). Two checks:
-#
-#   HARD  the non-filer side equals the published pool's adults in every pool
-#         year, by construction of the weight path. A miss means the append,
-#         the manifest or the ledger changed independently.
-#   SOFT  the full partition, printed. The filer side is Tax-Data's own
-#         T1.6-scaled weights and differs from the table's filing_adults by
-#         the QSS double-count correction (~0.03%, removed there and not
-#         here), the 2017 reweight's fit to T1.6 cells, and the under-18
-#         convention (ages.R draws every band-1 age at 18+). Expect well under
-#         1% overall and several percent in 18_25.
-partition_check = tax_units %>%
-  select(id, filer, age1, filing_status) %>%
-  inner_join(weight_ledger %>%
-               filter(year %in% NONFILER_POOL_YEARS) %>%
-               select(year, id, weight),
-             by = 'id') %>%
-  mutate(band   = nonfiler_band(age1),
-         adults = weight * (1 + (filing_status == 2))) %>%
-  group_by(year, band) %>%
-  summarise(filer_adults    = sum(adults * filer),
-            nonfiler_adults = sum(adults * (1 - filer)),
-            .groups = 'drop') %>%
-  inner_join(ssarea_partition %>%
-               select(year, band, ss_adults, filing_adults_t16 = filing_adults,
-                      netting, not_in_universe, pool_adults = emitted),
-             by = c('year', 'band')) %>%
-  mutate(nonfiler_gap  = nonfiler_adults / pool_adults - 1,
-         partition_sum = filer_adults + nonfiler_adults + netting + not_in_universe,
-         partition_gap = partition_sum / ss_adults - 1)
-stopifnot(nrow(partition_check) == 6 * length(NONFILER_POOL_YEARS),
-          all(abs(partition_check$nonfiler_gap) < 1e-6))
-
-partition_by_year = partition_check %>%
-  group_by(year) %>%
-  summarise(across(c(filer_adults, nonfiler_adults, netting, not_in_universe,
-                     partition_sum, ss_adults), sum),
-            .groups = 'drop') %>%
-  mutate(partition_gap = partition_sum / ss_adults - 1)
-cat('project_puf.R: S21 partition by year (M adults; non-filer side equals the pool, hard):\n')
-print(partition_by_year %>%
-        mutate(across(-c(year, partition_gap), ~ round(. / 1e6, 2)),
-               partition_gap = round(partition_gap, 4)),
-      width = 200)
-write_csv(partition_check,
-          file.path(output_path, 'ssarea_partition_check.csv'))
 
 #-------------------------------------
 # Build factor_ledger
@@ -682,6 +636,127 @@ factor_ledger = bind_rows(
   arrange(year, variable)
 
 cat(sprintf('project_puf.R: factor_ledger final (%d rows)\n', nrow(factor_ledger)))
+
+#-------------------------------------
+# S40: per-year national filer refit, TY2018-2023
+#-------------------------------------
+
+# Each year's filers are calibrated to Pub 1304 (src/refit_filers.R) from the
+# prior the ledger above holds -- the refit TY2017 weights times the status x
+# age factors. Classing records by AGI needs the year's aged incomes, and from
+# 2020 those depend on the weights through the extensive factors, so the refit
+# and the factors are iterated: refit on the current factors, rebuild the
+# refit years' weights and 2020+ factors, repeat until the refit weights'
+# AGI-class totals move by less than REFIT_CLASS_TOL. The prior stays fixed
+# across iterations. Filers past 2023 grow from the refit 2023 weights.
+source('./src/materialize.R')
+REFIT_YEARS     = 2018L:FILER_OBS_LAST
+REFIT_MAX_ITER  = 4
+REFIT_CLASS_TOL = 0.001
+
+refit_prior_ledger = weight_ledger %>% filter(year %in% REFIT_YEARS)
+refit_filer_base   = tax_units %>% filter(filer == 1)
+refit_class_prev   = NULL
+t0 = Sys.time()
+for (it in seq_len(REFIT_MAX_ITER)) {
+  refit_class = list()
+  for (y in REFIT_YEARS) {
+    d = materialize(y, refit_filer_base, factor_ledger %>% filter(year == y),
+                    refit_prior_ledger)
+    w = refit_filer_year(d, y)
+    refit_filer_weights[[as.character(y)]] = w
+    refit_class[[length(refit_class) + 1]] = agi_proxy(d, y) %>%
+      select(id, agi_proxy) %>%
+      inner_join(w, by = 'id') %>%
+      mutate(agi_lo = cut(agi_proxy, c(-Inf, sort(unique(refit_targets$agi_lo[refit_targets$agi_lo > -Inf])), Inf),
+                          right = FALSE)) %>%
+      group_by(agi_lo) %>%
+      summarise(returns = sum(weight), .groups = 'drop') %>%
+      mutate(year = y)
+  }
+  refit_class = bind_rows(refit_class)
+
+  # rebuild the refit years' weights, then the factors that read them
+  weight_ledger = bind_rows(weight_ledger %>% filter(!(year %in% REFIT_YEARS)),
+                            map_dfr(REFIT_YEARS, compute_weights_for_year)) %>%
+    arrange(year, id)
+  factor_ledger = bind_rows(factor_ledger %>% filter(!(year %in% 2020L:FILER_OBS_LAST &
+                                                       source == 'income_factors × ad_hoc')),
+                            map_dfr(2020L:FILER_OBS_LAST, build_factor_rows_2020plus)) %>%
+    arrange(year, variable)
+
+  moved = if (is.null(refit_class_prev)) Inf else {
+    m = inner_join(refit_class, refit_class_prev, by = c('year', 'agi_lo'), suffix = c('', '_prev'))
+    max(abs(m$returns / m$returns_prev - 1))
+  }
+  cat(sprintf('project_puf.R: S40 refit iteration %d, largest AGI-class move %.4f%% (%.0fs)\n',
+              it, 100 * moved, as.numeric(Sys.time() - t0, units = 'secs')))
+  refit_class_prev = refit_class
+  if (moved < REFIT_CLASS_TOL) break
+}
+if (moved >= REFIT_CLASS_TOL) stop('S40 refit did not settle in ', REFIT_MAX_ITER, ' iterations')
+write_csv(refit_class, file.path(output_path, 'filer_refit_classes.csv'))
+
+# Every year past 2023, and every 2024+ factor, from the refit weights
+weight_ledger = map_dfr(2017L:2097L, compute_weights_for_year) %>%
+  arrange(year, id)
+fl_2020_2097 = map_dfr(2020L:2097L, build_factor_rows_2020plus)
+factor_ledger = bind_rows(fl_2018_2019, fl_2020_2097, fl_kg_lt_basis) %>%
+  arrange(year, variable)
+rm(refit_prior_ledger, refit_filer_base, refit_class_prev, d, w)
+
+#-------------------------------------
+# S21 partition, every pool year
+#-------------------------------------
+
+# filing adults + pool adults + claimed-dependent netting + not-in-universe
+# = ssArea adults, per age band and year (research/state_weights/
+# nonfiler_pool/15_ssarea_alignment.R). Two checks:
+#
+#   HARD  the non-filer side equals the published pool's adults in every pool
+#         year, by construction of the weight path. A miss means the append,
+#         the manifest or the ledger changed independently.
+#   SOFT  the full partition, printed. The filer side is Tax-Data's own
+#         T1.6-scaled weights and differs from the table's filing_adults by
+#         the QSS double-count correction (~0.03%, removed there and not
+#         here), the 2017 reweight's fit to T1.6 cells, and the under-18
+#         convention (ages.R draws every band-1 age at 18+). Expect well under
+#         1% overall and several percent in 18_25.
+partition_check = tax_units %>%
+  select(id, filer, age1, filing_status) %>%
+  inner_join(weight_ledger %>%
+               filter(year %in% NONFILER_POOL_YEARS) %>%
+               select(year, id, weight),
+             by = 'id') %>%
+  mutate(band   = nonfiler_band(age1),
+         adults = weight * (1 + (filing_status == 2))) %>%
+  group_by(year, band) %>%
+  summarise(filer_adults    = sum(adults * filer),
+            nonfiler_adults = sum(adults * (1 - filer)),
+            .groups = 'drop') %>%
+  inner_join(ssarea_partition %>%
+               select(year, band, ss_adults, filing_adults_t16 = filing_adults,
+                      netting, not_in_universe, pool_adults = emitted),
+             by = c('year', 'band')) %>%
+  mutate(nonfiler_gap  = nonfiler_adults / pool_adults - 1,
+         partition_sum = filer_adults + nonfiler_adults + netting + not_in_universe,
+         partition_gap = partition_sum / ss_adults - 1)
+stopifnot(nrow(partition_check) == 6 * length(NONFILER_POOL_YEARS),
+          all(abs(partition_check$nonfiler_gap) < 1e-6))
+
+partition_by_year = partition_check %>%
+  group_by(year) %>%
+  summarise(across(c(filer_adults, nonfiler_adults, netting, not_in_universe,
+                     partition_sum, ss_adults), sum),
+            .groups = 'drop') %>%
+  mutate(partition_gap = partition_sum / ss_adults - 1)
+cat('project_puf.R: S21 partition by year (M adults; non-filer side equals the pool, hard):\n')
+print(partition_by_year %>%
+        mutate(across(-c(year, partition_gap), ~ round(. / 1e6, 2)),
+               partition_gap = round(partition_gap, 4)),
+      width = 200)
+write_csv(partition_check,
+          file.path(output_path, 'ssarea_partition_check.csv'))
 
 #-------------------------------------
 # Cache (diagnostic; main artifact is in-memory for Phase 4)

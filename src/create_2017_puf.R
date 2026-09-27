@@ -50,6 +50,13 @@ targets = target_info %>%
       bind_rows()
   )
 
+# Keep each record's weight before the LP: the S40 filer refit (src/refit_filers.R)
+# calibrates TY2017 from it. The LP still runs because the value rescaling
+# below is computed on its weights; its weights are replaced after the
+# imputations. (Its objective, the sum of the multipliers, leaves every record
+# at a bound: research/state_weights/notes/filer_refit_design.md.)
+filer_prior_2017 = puf_2017 %>% select(id, weight)
+
 # Solve reweighting problem and reweight data
 weight_deltas = reweight_lp(puf_2017, targets, do_lp, e = 0.66)
 

@@ -41,6 +41,9 @@ source('./src/create_2017_puf.R')
 source('./src/nonfiler_contract.R')
 source('./src/impute_nonfilers.R')
 source('./src/impute_variables.R')
+# S40: calibrate TY2017 filer weights to Pub 1304 (defines the refit used for
+# 2018-2023 in project_puf.R)
+source('./src/refit_filers_2017.R')
 
 
 #-----------------------
