@@ -65,19 +65,80 @@ ACS itself is not the cause: ACS units with wages at that gross income moved 13.
 and a larger reference-period adjustment at the bottom moves the class by under 3% (a 5% extra
 scaling of ACS 2023 incomes moves it 2.3%).
 
-## Where it probably comes from
+## Where it comes from (first check done 2026-09-26)
 
-The TY2023 file is the 2017 base year aged forward (`src/project_puf.R`), with non-filers from
-the Mok (2017) below-threshold probits (estimated on 2007 linked data) and the Pub 5785
-above-threshold hazard (`src/nonfilers/filing_model.R`). Neither step knows that low-income
-filing fell between 2019 and 2023, mostly among young single filers and dependents who were not
-required to file. Whether the Phase 3 per-year filer fit (2017–2023, branch `phase3-refit`)
-already targets low-income filer counts by year is the first thing to check.
+**Neither C9 nor Phase 3 fixes it.**
+- *C9.* `2026091119` does not predate the ASEC pool, as first written here: its
+  `dependencies.csv` reads the same `ASEC-Nonfilers` vintage (`2026091201`) as the post-merge
+  rebuild `2026092215_postfix_s33`, and the two agree to two decimals on every count in the
+  tables above and below. A newer vintage will not move the Affordability-Index pin.
+- *Phase 3.* The per-year filer fit (`scripts/phase3_fit.R`) splits each record's national
+  weight across states; `save_fit()` asserts every record's shares sum to 1. It cannot change a
+  national count by income class.
 
-**Vintage timing.** The vintage read here, `2026091119`, predates C9 (the ASEC non-filer pool,
-merged 2026-09-21 as PR #31; `research/state_weights/plan.md` §2). The first check is whether a
-post-C9 vintage, and the Phase 3 re-fit, already move low-income filers and non-filers toward
-HT2; if they do, the Affordability-Index pin should move and this note can close.
+**The mechanism is within-cell income composition, not the filing decision.** For 2018–2023
+`compute_weights_for_year()` (`src/project_puf.R`) scales every 2017 filer by one factor per
+filing status × age group, the Table 1.6 return-count ratio to 2017
+(`resources/return_counts_2023.csv`). The factor has no income dimension; weights are fit to
+returns by AGI class only in the 2017 reweight (`config/target_info/baseline.csv`). Those cell
+counts barely moved: single returns under 26 went 23.01M (TY2019) to 22.26M (TY2023), −3%. So
+young single filers did not stop filing: most of the −34% at AGI $1–10,000 is returns moving
+*up* out of the class, which the file cannot reproduce because a record's income grows only by
+average per-variable factors and nothing re-targets the distribution within a cell. The filing
+model and the non-filer pool are not the problem.
+
+**Dependent filers are almost the whole gap.** Wage filers at total income $1–10,000 (the proxy
+above, weight > 0, file `dep_status`), against the IRS figures quoted in the first section:
+
+| Wage filers, total income $1–10,000 | TY2019 file | TY2019 IRS | TY2023 file | TY2023 IRS |
+|---|---|---|---|---|
+| Dependent filers | 7.11M | 6.08M | 6.61M | 3.75M |
+| All other filers | 6.80M | 8.16M | 5.74M | 5.58M |
+
+In TY2023 dependents carry about 2.9M of the roughly 3.0M excess; other filers sit within 3%.
+Dependent filers were already 17% high in TY2019, because no reweight targets dependent status,
+and the file then holds them nearly flat (−7%) while the IRS count fell 38%. (The proxy
+differs slightly from the one behind the table above, hence 13.91M rather than 13.59M
+TY2019 filers.) Caveats: records are classed by total income, since the file carries no AGI, and
+the IRS figures were not re-pulled for this check.
+
+**What a fix takes.** Refit filer weights for each observed year 2018–2023 to returns by AGI
+class × filing status × age group, plus dependent returns by AGI class, with the 2017 machinery
+(`reweight_lp()` in `src/reweight.R`). It changes filer results in every year from 2018 on,
+Tax-Simulator's included. The pinned `Compiled-SOI-Tables` vintage (`2023100323`) cannot supply
+the targets: Table 1.4 ends at TY2019 and Table 1.6 by AGI covers only 2015 and 2017.
+
+**The targets exist on disk (checked 2026-09-26).** The IRS-Ind mirror (under
+`raw_data_root()`, `IRS-Ind/national/by_size/`, with source URLs and md5s in its
+`manifest.csv`) holds the published Pub 1304 tables for every year TY2018–TY2023. TY2023 is
+stamped March 2026.
+
+| Table | File | Crosses | Gives the refit |
+|---|---|---|---|
+| 1.6 | `returns_marital_age_{year}.xls` | age × filing status × 19 AGI classes | the three-way return counts the 2017 LP (linear-programming reweight) targets |
+| 1.4 | `income_sources_{year}.xls` | same 19 AGI classes | returns with wages by AGI |
+| 1.7 | `dependent_returns_{year}.xls` | AGI only, 12 classes that nest into 1.6's | dependent returns by AGI |
+
+- *Table 1.6.* The layout is the same every year: an all-returns block with seven age bands
+  (Under 18 split out), then MFJ+QSS (married filing jointly plus qualifying surviving
+  spouse), MFS (married filing separately), HoH (head of household) and single blocks with six
+  bands, Under 26 first. Its status × age totals are exactly `resources/return_counts_2023.csv`
+  (single, under 26, TY2023: 22,258,754 in both). Disclosure-combined cells (`**`) read as 0
+  through `readxl`, and the count moves into a neighbouring age row. The subagent that read the
+  files reports 14–38 such cells a year, worst in TY2018. A three-way fit has to merge these
+  cells, not target zeros.
+- *Table 1.4.* TY2022–2023 relabel the wage-count column "Total wages". That concept is
+  broader than the earlier "Salaries and wages"; the Form W-2 sub-column is the closer
+  continuation.
+- *Table 1.7.* Dependent returns number 9.46M, 9.55M, 6.86M, 7.23M, 7.54M and 7.53M for
+  2018–2023. The 2020 drop of about 2.7M persists.
+- *HT2.* It has no dependent-filer field, and it is a different estimand from Pub 1304
+  (processed returns rather than a sample), so the refit should target Pub 1304 alone.
+
+`src/nonfilers/sw_soi.R` already opens Tables 1.6 and 1.7 (`read_pub1304_t16()`,
+`read_pub1304_t17_total()`), but it reads only the all-AGI total column. The AGI columns need
+a new reader. The alternative is to extend `Compiled-SOI-Tables`, whose v3 vintage
+(`20250319`) adds only TY2022 and has no builder code.
 
 ## Checks that would settle it
 
@@ -96,7 +157,7 @@ d |> dplyr::filter(wages > 0, total_income >= 1, total_income < 1e4) |>
   dplyr::summarise(filers = sum(weight[filer == 1]), nonfilers = sum(weight[filer == 0]))
 ```
 
-The fix belongs here: the file's low-income filer and non-filer counts by year, age and filing
-status should follow HT2 and Tables 1.6–1.7. Until it lands, Affordability-Index will overstate
+The fix belongs here: the file's low-income filer counts by year, age, filing status and
+dependent status should follow HT2 and Tables 1.6–1.7. Until it lands, Affordability-Index will overstate
 TY2023 low-income filing, and any Tax-Simulator run on the TY2023 file will carry too many
 low-income returns.
