@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-24
+updated: 2026-09-26
 sot: self
 supersedes: []
 superseded_by: null
@@ -586,6 +586,7 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 | `notes/nonfiler_proposal_rewrite_plan.md` | **open** | Rewriting the narrative proposal as a co-author-facing methodology document. Communication, not modelling; best cut once the record stops moving. |
 | `notes/state_weights_alternatives.md` | **deferred** | Alternative weight constructions; superseded in practice by the Phase 1 bake-off, kept for the reasoning. |
 | `handoff.md` | **open** | The collaborator-facing map of the non-filer replacement, four parts: this plan's group C evidence, the Tax-Data branch's three commits, the ceilings and splits a reader must carry, and the mortality write-up. Rendered per S8 for review. |
+| `notes/low_income_filer_aging.md` | **open** | Raised 2026-09-26 by Affordability-Index: in vintage `2026091119` the TY2023 file keeps low-income wage filers near their TY2019 level (−11% at total income $1–10,000) while HT2's returns with wages at AGI $1–10,000 fell 34%, mostly young single filers and dependents; the file has almost no low-income non-filers to take their place. First check: whether C9's pool and the Phase 3 re-fit already fix it. |
 | `notes/state_work_proposal.md` | **open** | Part (d) of the handoff: the state work that follows — the group F re-fit on the new pool, the 2014–16 state margins (blocked on three SSA workbooks), what the HT2 ceiling caps now that SOI has published TY2023, rollout resumption. |
 
 ---
