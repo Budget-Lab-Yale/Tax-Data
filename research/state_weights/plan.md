@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-26
+updated: 2026-09-27
 sot: self
 supersedes: []
 superseded_by: null
@@ -72,7 +72,7 @@ interest 2.624, against DINA's 24% / 0.000 / 0.000.
 | **F1c** | dorm-student netting as a second anchor universe | ✅ 2026-08-24 |
 | **C** | **build the national non-filer population** | **✅ done 2026-09-21** — C0–C5 built and gated 2026-08-28 (`nonfiler_pool/01`–`04`: units, thresholds, Mok + Pub 5785 scoring, ACS GQ backfill, joint calibration closing the anchor identity exactly in both years); **C7 done 2026-08-28**: the pool is emitted and PUBLISHED — `model_data/ASEC-Nonfilers/v1/2026082801`, expected-weight records (no random draw, no D4 hazard), 37.16M / 35.15M non-filing adults reproducing the calibration exactly, observed sex, real dependent ages, nonzero interest and dividends where DINA had exact zeros. **C8 PASSED 2026-08-28**: 10 of 10 dimension-years favour the pool. Independent tests (nothing in the calibration touched them): wage mass 0.53 vs 0.22 of the implied total, interest 22.7% vs 0.0%, dividends 3.3% vs 0.0%, pensions 10.6% vs 1.9%, Social Security 51.9% vs 64.9% against a 47.6% benchmark — mean absolute gap 4.6pp vs 10.4pp on the Pub-5785-comparable universe. **C6 done 2026-08-28**: the MFS post-step is calibrated (split share 2.70% / 3.30% of joint filers, hitting SOI's 3.213M / 3.993M returns exactly), which moves the joint ratio to SOI from 1.085 to 1.055 (2017) and 1.104 to 1.067 (2022) and puts a structurally-absent category on the file. It leaves the pool untouched by construction. **Group C is complete through C8.** Two calibration constraints added 2026-08-28 after JI asked what the biggest remaining issues are: a floored wage-presence adjustment, and the dependent-headed units calibrated to Mok's own published rates (they had been left at raw scores, scoring 0.211 against her 0.10). A record-level dependency validation then measured three proposed unit-rule changes and killed all three — see `notes/anchor_basis_comparison.md`. **C9 — the Tax-Data integration branch — LANDED 2026-09-21**: merged to `main` as PR #31 (`54ce7f4`) carrying Block E, the S23 id-keyed draws, the S24 live-records emit and the S25 Forbes renumbering. **Group C is done.** |
 | **E** | federal validation of the new pool | **✅ closed 2026-09-23 (S34)** — E2 and D4 passed 2026-09-14; the absolute checks ran on `2026092220_s33_scratch`: E4 EIP3 −6.3% to −8.3% (not read as a non-filer-level error), E3 non-filer wages $281.8B against Pub 5785's $295–338B, CBO returns −0.4% in 2022. CTC test open as framed; return-count drift to −3.8% by 2030 explained (S35: mostly CBO's projected 2023). `nonfiler_federal_validation_findings.md` §11 |
-| **F** | state margins, targets and the re-fit | **next** — group C is done and C9 merged (PR #31, 2026-09-21). Re-scoped 2026-09-21 by S27–S29; see §5a |
+| **F** | state margins, targets and the re-fit | **in progress** — Phases 0–2 closed; Phase 3 run, arm C_10_warmB picked tentatively (S39, 2026-09-27); **next: Phase 3b, the per-year national filer refit (S40), then the Phase 3 re-run**. Re-scoped 2026-09-21 by S27–S29; see §5a |
 | **G** | production swap-in | after F; §5a Phase 4 |
 | **H** | model-side gaps to decide, not defer | open, §6 |
 | **I / J** | national tenure/rent/property-tax imputation and its per-state use | second phase, after G |
@@ -447,6 +447,41 @@ never needed: year-over-year stability of each state's share.** The split
 invariant `Σ_s W[i,s] = w_i` is asserted per year on that year's live set.
 Anything stochastic in the fit is id-keyed per S23, never sized by `nrow()`.
 
+**Results (2026-09-26/27; S39, tentative).** Arms A, B, and C at γ = 1, 10
+and 100 × β, plus C_10 warm-started from B (`scripts/phase3_fit.R`,
+`phase3_score.R`; results in `scripts/results/phase3_*.csv`). 2018–2023 means:
+
+| arm | targeted within 2% | targeted MARD | held-out MARD | churn (yoy) | held-out share-change error | min Kish ESS |
+|---|---|---|---|---|---|---|
+| A | 95.6% | 0.41% | 19.02% | 5.6% | 9.99% | 1,141 |
+| B | 96.0% | 0.36% | 18.69% | 5.3% | 9.50% | 1,221 |
+| C_1 | 95.5% | 0.42% | 18.84% | 3.9% | 9.16% | 1,128 |
+| C_10 | 94.8% | 0.48% | 18.86% | 2.3% | 8.54% | 1,075 |
+| **C_10_warmB** | 95.3% | 0.44% | **18.63%** | **2.2%** | **8.43%** | 1,221 |
+| C_100 | 92.8% | 0.67% | 19.32% | 1.1% | 9.01% | 928 |
+
+B beats A everywhere (same objective, closer to its optimum). C_10_warmB is
+best on every untargeted metric at 0.7 points of targeted within-2% against
+B; C_100 over-smooths. **Tentative pick C_10_warmB (S39)**, to be re-run —
+B, C_10_warmB and further warm-started γ variants — **after the per-year
+national filer refit (S40)**, which changes the national weights this split
+sits on. Pilot-state liability is unscored (its cache predates Block E).
+
+### Phase 3b — per-year national filer refit (S40), before Phase 4
+
+1. **IRS-Ind:** a merged Table 1.6 target view — age × filing status × AGI
+   class with combined (`**`) cells folded into blocks of connected cells,
+   each targeted as its sum (IRS-Ind `notes/alignment_plan.md`).
+2. **Tax-Data reader** for IRS-Ind's harmonized panels (`aligned/panel_*.csv`
+   in the shared IRS-Ind store) and the merged 1.6 view, replacing the
+   raw-sheet reads in `src/nonfilers/sw_soi.R` where they overlap.
+3. **The refit:** TY2018–2023 filer weights fit to Tables 1.6, 1.4 (returns
+   with wages by AGI) and 1.7 (dependent returns by AGI) with the 2017
+   machinery (`reweight_lp()`), replacing the status × age scaling in
+   `compute_weights_for_year()`. Before/after diagnostics per
+   `notes/low_income_filer_aging.md`, for JI's review.
+4. **Phase 3 re-run** on the refit national weights (S39).
+
 ### Phase 4 — swap-in (G)
 
 Stand up a vintage-tagged `state_weights_{year}.csv` interface in Tax-Data
@@ -586,7 +621,7 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 | `notes/nonfiler_proposal_rewrite_plan.md` | **open** | Rewriting the narrative proposal as a co-author-facing methodology document. Communication, not modelling; best cut once the record stops moving. |
 | `notes/state_weights_alternatives.md` | **deferred** | Alternative weight constructions; superseded in practice by the Phase 1 bake-off, kept for the reasoning. |
 | `handoff.md` | **open** | The collaborator-facing map of the non-filer replacement, four parts: this plan's group C evidence, the Tax-Data branch's three commits, the ceilings and splits a reader must carry, and the mortality write-up. Rendered per S8 for review. |
-| `notes/low_income_filer_aging.md` | **open** | Raised 2026-09-26 by Affordability-Index: in vintage `2026091119` the TY2023 file keeps low-income wage filers near their TY2019 level (−11% at total income $1–10,000) while HT2's returns with wages at AGI $1–10,000 fell 34%, mostly young single filers and dependents; the file has almost no low-income non-filers to take their place. First check done the same day: neither C9's pool nor the Phase 3 re-fit moves it (the post-merge vintage is identical; Phase 3 only splits national weight across states). Cause: 2018–2023 filer weights scale by filing status × age group alone, so the within-cell income mix stays at 2017's; dependent filers carry ~2.9M of the ~3.0M TY2023 excess. Fix: a per-year filer refit to SOI returns by AGI class, which needs SOI targets beyond the pinned `Compiled-SOI-Tables` vintage. |
+| `notes/low_income_filer_aging.md` | **open** | Raised 2026-09-26 by Affordability-Index: in vintage `2026091119` the TY2023 file keeps low-income wage filers near their TY2019 level (−11% at total income $1–10,000) while HT2's returns with wages at AGI $1–10,000 fell 34%, mostly young single filers and dependents; the file has almost no low-income non-filers to take their place. Fix scheduled as Phase 3b (S40, §5a). First check done the same day: neither C9's pool nor the Phase 3 re-fit moves it (the post-merge vintage is identical; Phase 3 only splits national weight across states). Cause: 2018–2023 filer weights scale by filing status × age group alone, so the within-cell income mix stays at 2017's; dependent filers carry ~2.9M of the ~3.0M TY2023 excess. Fix: a per-year filer refit to SOI returns by AGI class, which needs SOI targets beyond the pinned `Compiled-SOI-Tables` vintage. |
 | `notes/state_work_proposal.md` | **open** | Part (d) of the handoff: the state work that follows — the group F re-fit on the new pool, the 2014–16 state margins (blocked on three SSA workbooks), what the HT2 ceiling caps now that SOI has published TY2023, rollout resumption. |
 
 ---
