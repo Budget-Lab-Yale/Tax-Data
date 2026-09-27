@@ -84,6 +84,7 @@ for (y in YEARS) {
     for (s in unique(tm$target$source)) {
       k <- tm$target$source == s
       put(y, a, sprintf('within_band:%s', s), mean(miss[k] <= bnd[k]))
+      k <- k & tm$target$t > 0                       # a zero target has no relative miss
       put(y, a, sprintf('mard:%s', s), mean(miss[k] / tm$target$t[k]))
     }
     put(y, a, 'within_band:all', mean(miss <= bnd))

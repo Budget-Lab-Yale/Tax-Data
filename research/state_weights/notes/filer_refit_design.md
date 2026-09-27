@@ -134,6 +134,47 @@ Consequences:
   refitting TY2017 by the same method (from the pre-LP weights) would fix
   the base, and change every year of the file. JI's call.
 
+### The bake-off (TY2017 and TY2023; 2026-09-27)
+
+Scripts `filer_refit/03_refit_fit.R` (arms), `04_refit_score.R` (scores;
+`results/refit_bakeoff_metrics.csv`, `refit_bakeoff_heldout.csv`); Slurm fits
+27657706/08/09 and scoring 27657712 on vintage `2026092220_s33_scratch`. TY2017
+starts from the weights before the 2017 LP (recovered exactly: the cached
+multipliers divide out to the PUF weight times one of 76 cell factors); TY2023
+from each arm's own TY2017 fit times the status × age factors. Arms: `lp`
+(minimum prior-weighted |ratio − 1|, elastic bands), `cal1` / `cal100`
+(entropy calibration, soft penalty λ = 1 / 100); ratios bounded to 0.2–5×.
+
+| | TY2017 current | TY2017 lp | TY2017 cal1 | TY2023 current | TY2023 lp | TY2023 cal1 |
+|---|---|---|---|---|---|---|
+| targets within band | 19.3% | 96.7% | 96.7% | 14.2% | 97.5% | 97.5% |
+| held-out MARD (Table 1.4, 7 untargeted items × class) | 16.3% | 6.8% | **6.7%** | 23.5% | 14.8% | **14.6%** |
+| Kish ESS | 75,600 | 97,600 | **110,000** | 73,800 | 69,500 | **105,000** |
+| lumpiness (weight/record step, $1k bins) | 0.069 | 0.025 | **0.019** | 0.065 | 0.045 | **0.019** |
+| records at a ratio bound | — | 6.5% | 0.02% | — | 10.9% | 0.01% |
+| wage filers, AGI $1–10k (IRS 15.22M / 9.56M) | 15.2M | 15.3M | 15.2M | 13.3M | 9.61M | **9.56M** |
+| dependent wage filers, AGI $1–10k (IRS 6.75M / 3.75M) | 7.06M | 6.75M | 6.75M | 6.69M | 3.73M | 3.75M |
+
+(`current` is the vintage's weights; the "within band" for current and the
+prior is low because neither was fit to these targets.)
+
+- **Every arm hits the targets the records can reach.** The misses are the
+  under-18 targets — **no filer record is under 18**; the file's youngest
+  primary is 18 (3.01M returns at 18 in TY2017), though SOI counts 1.8–2.2M
+  under-18 returns a year — and 11 cells of 3–92 returns.
+- **Calibration wins on everything untargeted**: held-out fit (marginally),
+  and weight quality clearly — higher effective sample size, a third of the
+  LP's lumpiness in TY2023, and almost no records at a bound, where the LP
+  again parks 6.5–10.9% of them (a corner solution, now sparse).
+- **cal1 ≈ cal100** on every metric; cal1 moves weights slightly less
+  (TY2023 median ratio 0.972 against 0.948). **Recommendation: cal1.**
+- **The low-income gap closes**: TY2023 wage filers at AGI $1–10k 13.3M →
+  9.56M (IRS 9.56M), dependents 6.69M → 3.75M (IRS 3.75M).
+- Caveats: L-BFGS stopped at its iteration limit (5,000) with targets met;
+  TY2023 incomes are the vintage's, so the weight–income loop (F-C) is not
+  yet applied; held-out MARD in TY2023 (14.6%) is still well above TY2017's,
+  which the loop and the income aging may explain.
+
 ## Order of work
 
 1. AGI proxy + its TY2017 validation against `E00100` (needs the Phase 1

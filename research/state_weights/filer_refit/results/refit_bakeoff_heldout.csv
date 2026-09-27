@@ -1,0 +1,1331 @@
+series,agi_lo,file,soi,year,arm
+business or profession > net income,-Inf,304652.197320536,234776,2017,current
+business or profession > net income,1,1049700.0710407,1293093,2017,current
+business or profession > net income,5000,1645249.37859988,1720044,2017,current
+business or profession > net income,10000,3591343.69390099,2396027,2017,current
+business or profession > net income,15000,1668858.40628288,1546892,2017,current
+business or profession > net income,20000,929302.092067356,1083271,2017,current
+business or profession > net income,25000,632493.93139562,814141,2017,current
+business or profession > net income,30000,1238967.12490136,1290843,2017,current
+business or profession > net income,40000,963486.26726107,1201249,2017,current
+business or profession > net income,50000,1826295.83651384,2113733,2017,current
+business or profession > net income,75000,1609205.12953067,1648970,2017,current
+business or profession > net income,1e+05,2874308.83870317,2707033,2017,current
+business or profession > net income,2e+05,1071355.04327882,1094067,2017,current
+business or profession > net income,5e+05,211201.998480713,197908,2017,current
+business or profession > net income,1e+06,45253.3698633993,43650,2017,current
+business or profession > net income,1500000,15809.1309545326,17318,2017,current
+business or profession > net income,2e+06,24809.4760480636,23652,2017,current
+business or profession > net income,5e+06,5198.53599934342,5746,2017,current
+business or profession > net income,1e+07,3690.69492797867,3626,2017,current
+ordinary dividends,-Inf,618096.161161673,445436,2017,current
+ordinary dividends,1,1029140.33815326,918786,2017,current
+ordinary dividends,5000,931562.942665588,815099,2017,current
+ordinary dividends,10000,875055.260168232,875416,2017,current
+ordinary dividends,15000,684583.01959852,794490,2017,current
+ordinary dividends,20000,848721.662573754,775451,2017,current
+ordinary dividends,25000,847137.237676738,744390,2017,current
+ordinary dividends,30000,1529935.58872219,1499953,2017,current
+ordinary dividends,40000,1490820.58985608,1448472,2017,current
+ordinary dividends,50000,3709932.81248645,3812081,2017,current
+ordinary dividends,75000,4014017.49814771,3510707,2017,current
+ordinary dividends,1e+05,7436810.9233806,7416984,2017,current
+ordinary dividends,2e+05,3958974.67682946,3869169,2017,current
+ordinary dividends,5e+05,862795.522245046,810519,2017,current
+ordinary dividends,1e+06,193379.636197314,188882,2017,current
+ordinary dividends,1500000,72533.7921602697,79972,2017,current
+ordinary dividends,2e+06,119471.452514991,116753,2017,current
+ordinary dividends,5e+06,30204.2581625183,29452,2017,current
+ordinary dividends,1e+07,20690.1188930169,19317,2017,current
+pensions and annuities > total,-Inf,441472.237569624,279767,2017,current
+pensions and annuities > total,1,1085066.26993211,724306,2017,current
+pensions and annuities > total,5000,1573091.85420604,1208473,2017,current
+pensions and annuities > total,10000,1286034.79052297,1573498,2017,current
+pensions and annuities > total,15000,1042513.85956447,1545385,2017,current
+pensions and annuities > total,20000,1614501.18015604,1507057,2017,current
+pensions and annuities > total,25000,1767645.95290747,1360383,2017,current
+pensions and annuities > total,30000,2369295.1445852,2496150,2017,current
+pensions and annuities > total,40000,2101909.14010497,2203783,2017,current
+pensions and annuities > total,50000,4556155.47041047,5129174,2017,current
+pensions and annuities > total,75000,4960342.87840573,4060177,2017,current
+pensions and annuities > total,1e+05,6659381.28906224,6326557,2017,current
+pensions and annuities > total,2e+05,1967170.4745685,1838752,2017,current
+pensions and annuities > total,5e+05,276431.760680739,240808,2017,current
+pensions and annuities > total,1e+06,56193.5632754102,52066,2017,current
+pensions and annuities > total,1500000,20412.3292884873,21292,2017,current
+pensions and annuities > total,2e+06,33044.7394400724,30807,2017,current
+pensions and annuities > total,5e+06,7059.70855190236,7500,2017,current
+pensions and annuities > total,1e+07,5510.78888566472,4844,2017,current
+social security benefits > total,-Inf,1204955.28348394,893034,2017,current
+social security benefits > total,1,2666999.82004453,1871793,2017,current
+social security benefits > total,5000,2682672.48254217,2000972,2017,current
+social security benefits > total,10000,1736839.10833254,2201549,2017,current
+social security benefits > total,15000,1198264.44560791,1836800,2017,current
+social security benefits > total,20000,1949452.68658411,1637535,2017,current
+social security benefits > total,25000,1631394.97223782,1297421,2017,current
+social security benefits > total,30000,1758944.18063627,2202026,2017,current
+social security benefits > total,40000,1317272.21288809,1838614,2017,current
+social security benefits > total,50000,3309035.68822614,4323996,2017,current
+social security benefits > total,75000,3908288.05054843,3214006,2017,current
+social security benefits > total,1e+05,4609616.52563135,4234271,2017,current
+social security benefits > total,2e+05,1248120.1228979,1146717,2017,current
+social security benefits > total,5e+05,176695.398950569,177394,2017,current
+social security benefits > total,1e+06,43363.2069877505,39871,2017,current
+social security benefits > total,1500000,15098.3587917989,16567,2017,current
+social security benefits > total,2e+06,24014.2754791298,24884,2017,current
+social security benefits > total,5e+06,5735.84583595165,6197,2017,current
+social security benefits > total,1e+07,3963.16431025069,3957,2017,current
+taxable individual retirement arrangement (ira) distributions,-Inf,242761.402376014,154861,2017,current
+taxable individual retirement arrangement (ira) distributions,1,473891.916652513,360510,2017,current
+taxable individual retirement arrangement (ira) distributions,5000,837018.163702164,580646,2017,current
+taxable individual retirement arrangement (ira) distributions,10000,533734.74764849,700006,2017,current
+taxable individual retirement arrangement (ira) distributions,15000,481520.478268725,642567,2017,current
+taxable individual retirement arrangement (ira) distributions,20000,745777.648588283,647726,2017,current
+taxable individual retirement arrangement (ira) distributions,25000,705464.717617748,569831,2017,current
+taxable individual retirement arrangement (ira) distributions,30000,954755.184593364,1081390,2017,current
+taxable individual retirement arrangement (ira) distributions,40000,892591.406032111,979806,2017,current
+taxable individual retirement arrangement (ira) distributions,50000,2005293.26492382,2440339,2017,current
+taxable individual retirement arrangement (ira) distributions,75000,2451151.42598559,2100603,2017,current
+taxable individual retirement arrangement (ira) distributions,1e+05,3531901.61326477,3420416,2017,current
+taxable individual retirement arrangement (ira) distributions,2e+05,1152240.02217699,1182800,2017,current
+taxable individual retirement arrangement (ira) distributions,5e+05,161842.117999091,175741,2017,current
+taxable individual retirement arrangement (ira) distributions,1e+06,35110.9127440208,37035,2017,current
+taxable individual retirement arrangement (ira) distributions,1500000,12520.4259713029,14616,2017,current
+taxable individual retirement arrangement (ira) distributions,2e+06,19356.8331811189,20720,2017,current
+taxable individual retirement arrangement (ira) distributions,5e+06,4094.04324183469,4784,2017,current
+taxable individual retirement arrangement (ira) distributions,1e+07,3016.26448870086,2795,2017,current
+taxable interest,-Inf,865508.711208852,637569,2017,current
+taxable interest,1,1911413.80022527,1478589,2017,current
+taxable interest,5000,1502294.3028308,1334991,2017,current
+taxable interest,10000,1436119.20760517,1452616,2017,current
+taxable interest,15000,1014183.65641991,1366790,2017,current
+taxable interest,20000,1408682.9792974,1433085,2017,current
+taxable interest,25000,1634163.06940351,1326946,2017,current
+taxable interest,30000,2565832.22467946,2719924,2017,current
+taxable interest,40000,2654995.84103111,2704026,2017,current
+taxable interest,50000,6019233.80955726,6608661,2017,current
+taxable interest,75000,6133819.15298776,5854757,2017,current
+taxable interest,1e+05,10729016.3339131,11121958,2017,current
+taxable interest,2e+05,4719257.67129189,4755311,2017,current
+taxable interest,5e+05,963381.134584402,918148,2017,current
+taxable interest,1e+06,215850.159005966,213278,2017,current
+taxable interest,1500000,79328.5888713547,87836,2017,current
+taxable interest,2e+06,128644.934606593,127158,2017,current
+taxable interest,5e+06,31899.6282589702,31277,2017,current
+taxable interest,1e+07,21405.7356691762,20088,2017,current
+unemployment compensation,-Inf,24994.0595441156,13694,2017,current
+unemployment compensation,1,83520.4589002591,49300,2017,current
+unemployment compensation,5000,181688.172300368,219781,2017,current
+unemployment compensation,10000,608358.187151971,359967,2017,current
+unemployment compensation,15000,288642.704067758,428635,2017,current
+unemployment compensation,20000,380998.875194333,406253,2017,current
+unemployment compensation,25000,430394.861936689,365489,2017,current
+unemployment compensation,30000,533925.10185991,661567,2017,current
+unemployment compensation,40000,547774.450499341,454393,2017,current
+unemployment compensation,50000,924449.300963022,801843,2017,current
+unemployment compensation,75000,611591.929222006,584622,2017,current
+unemployment compensation,1e+05,606968.342274222,705260,2017,current
+unemployment compensation,2e+05,123472.911282445,138664,2017,current
+unemployment compensation,5e+05,10797.4113379261,12277,2017,current
+unemployment compensation,1e+06,1913.47193925508,1402,2017,current
+unemployment compensation,1500000,440.624137304753,480,2017,current
+unemployment compensation,2e+06,413.798454723569,536,2017,current
+unemployment compensation,5e+06,28.6277638222845,72,2017,current
+unemployment compensation,1e+07,8.33117096246924,19,2017,current
+business or profession > net income,-Inf,334320.330444737,234776,2017,prior
+business or profession > net income,1,1288965.78274608,1293093,2017,prior
+business or profession > net income,5000,1877731.67845718,1720044,2017,prior
+business or profession > net income,10000,2304596.43986162,2396027,2017,prior
+business or profession > net income,15000,1397637.49604711,1546892,2017,prior
+business or profession > net income,20000,901430.484386521,1083271,2017,prior
+business or profession > net income,25000,677111.160397336,814141,2017,prior
+business or profession > net income,30000,1323894.44716409,1290843,2017,prior
+business or profession > net income,40000,930475.646734257,1201249,2017,prior
+business or profession > net income,50000,1669499.81532997,2113733,2017,prior
+business or profession > net income,75000,1625096.91056011,1648970,2017,prior
+business or profession > net income,1e+05,2832958.99014296,2707033,2017,prior
+business or profession > net income,2e+05,1179876.40836762,1094067,2017,prior
+business or profession > net income,5e+05,244469.135333654,197908,2017,prior
+business or profession > net income,1e+06,60393.6899165896,43650,2017,prior
+business or profession > net income,1500000,17458.554152991,17318,2017,prior
+business or profession > net income,2e+06,24661.4629466015,23652,2017,prior
+business or profession > net income,5e+06,5288.00084411937,5746,2017,prior
+business or profession > net income,1e+07,3678.77671448769,3626,2017,prior
+ordinary dividends,-Inf,608592.255860705,445436,2017,prior
+ordinary dividends,1,953458.814204993,918786,2017,prior
+ordinary dividends,5000,886345.414183886,815099,2017,prior
+ordinary dividends,10000,841604.181527404,875416,2017,prior
+ordinary dividends,15000,824592.009457018,794490,2017,prior
+ordinary dividends,20000,805879.675612387,775451,2017,prior
+ordinary dividends,25000,754988.795797239,744390,2017,prior
+ordinary dividends,30000,1652296.17143799,1499953,2017,prior
+ordinary dividends,40000,1607619.78459706,1448472,2017,prior
+ordinary dividends,50000,3694026.83734501,3812081,2017,prior
+ordinary dividends,75000,3775837.2192444,3510707,2017,prior
+ordinary dividends,1e+05,7522865.02019582,7416984,2017,prior
+ordinary dividends,2e+05,3996855.62709154,3869169,2017,prior
+ordinary dividends,5e+05,915206.885770565,810519,2017,prior
+ordinary dividends,1e+06,219482.143815456,188882,2017,prior
+ordinary dividends,1500000,80497.0865394259,79972,2017,prior
+ordinary dividends,2e+06,118998.675210161,116753,2017,prior
+ordinary dividends,5e+06,29227.06395728,29452,2017,prior
+ordinary dividends,1e+07,20465.2084112751,19317,2017,prior
+pensions and annuities > total,-Inf,369378.376011588,279767,2017,prior
+pensions and annuities > total,1,774865.962759634,724306,2017,prior
+pensions and annuities > total,5000,1142339.07827301,1208473,2017,prior
+pensions and annuities > total,10000,1647126.50765508,1573498,2017,prior
+pensions and annuities > total,15000,1548820.68559729,1545385,2017,prior
+pensions and annuities > total,20000,1516471.9317717,1507057,2017,prior
+pensions and annuities > total,25000,1449539.69585378,1360383,2017,prior
+pensions and annuities > total,30000,2650575.39485606,2496150,2017,prior
+pensions and annuities > total,40000,2434208.80940553,2203783,2017,prior
+pensions and annuities > total,50000,4886129.2549179,5129174,2017,prior
+pensions and annuities > total,75000,4845807.17024205,4060177,2017,prior
+pensions and annuities > total,1e+05,6713775.91517232,6326557,2017,prior
+pensions and annuities > total,2e+05,1905473.07696953,1838752,2017,prior
+pensions and annuities > total,5e+05,293639.190046074,240808,2017,prior
+pensions and annuities > total,1e+06,67003.8384135402,52066,2017,prior
+pensions and annuities > total,1500000,23165.1258253932,21292,2017,prior
+pensions and annuities > total,2e+06,33030.6175566111,30807,2017,prior
+pensions and annuities > total,5e+06,7439.67820634173,7500,2017,prior
+pensions and annuities > total,1e+07,5540.32899690148,4844,2017,prior
+social security benefits > total,-Inf,992724.289532822,893034,2017,prior
+social security benefits > total,1,1885674.26501317,1871793,2017,prior
+social security benefits > total,5000,1959716.77022111,2000972,2017,prior
+social security benefits > total,10000,2186714.06834445,2201549,2017,prior
+social security benefits > total,15000,1818182.81308544,1836800,2017,prior
+social security benefits > total,20000,1591460.20280828,1637535,2017,prior
+social security benefits > total,25000,1361847.63439162,1297421,2017,prior
+social security benefits > total,30000,2215177.01719952,2202026,2017,prior
+social security benefits > total,40000,1811980.4893138,1838614,2017,prior
+social security benefits > total,50000,3745340.28702442,4323996,2017,prior
+social security benefits > total,75000,3812734.74915663,3214006,2017,prior
+social security benefits > total,1e+05,4423679.26404686,4234271,2017,prior
+social security benefits > total,2e+05,1077421.16261058,1146717,2017,prior
+social security benefits > total,5e+05,192931.874629051,177394,2017,prior
+social security benefits > total,1e+06,57274.8660264174,39871,2017,prior
+social security benefits > total,1500000,17443.434550336,16567,2017,prior
+social security benefits > total,2e+06,24842.504044703,24884,2017,prior
+social security benefits > total,5e+06,5812.34945911051,6197,2017,prior
+social security benefits > total,1e+07,4130.28670812985,3957,2017,prior
+taxable individual retirement arrangement (ira) distributions,-Inf,210398.943773003,154861,2017,prior
+taxable individual retirement arrangement (ira) distributions,1,326382.186570751,360510,2017,prior
+taxable individual retirement arrangement (ira) distributions,5000,594862.638866545,580646,2017,prior
+taxable individual retirement arrangement (ira) distributions,10000,694964.833075158,700006,2017,prior
+taxable individual retirement arrangement (ira) distributions,15000,621559.480822512,642567,2017,prior
+taxable individual retirement arrangement (ira) distributions,20000,644185.227100565,647726,2017,prior
+taxable individual retirement arrangement (ira) distributions,25000,587407.438500773,569831,2017,prior
+taxable individual retirement arrangement (ira) distributions,30000,1070676.50794324,1081390,2017,prior
+taxable individual retirement arrangement (ira) distributions,40000,1040862.19787175,979806,2017,prior
+taxable individual retirement arrangement (ira) distributions,50000,2123057.02260492,2440339,2017,prior
+taxable individual retirement arrangement (ira) distributions,75000,2371355.8521199,2100603,2017,prior
+taxable individual retirement arrangement (ira) distributions,1e+05,3435746.96645803,3420416,2017,prior
+taxable individual retirement arrangement (ira) distributions,2e+05,1059156.80402079,1182800,2017,prior
+taxable individual retirement arrangement (ira) distributions,5e+05,175052.235273091,175741,2017,prior
+taxable individual retirement arrangement (ira) distributions,1e+06,42339.2930858078,37035,2017,prior
+taxable individual retirement arrangement (ira) distributions,1500000,14147.775471673,14616,2017,prior
+taxable individual retirement arrangement (ira) distributions,2e+06,19282.143872146,20720,2017,prior
+taxable individual retirement arrangement (ira) distributions,5e+06,4100.83563936896,4784,2017,prior
+taxable individual retirement arrangement (ira) distributions,1e+07,2977.23427603032,2795,2017,prior
+taxable interest,-Inf,895039.87537879,637569,2017,prior
+taxable interest,1,1494872.2066006,1478589,2017,prior
+taxable interest,5000,1330685.90431194,1334991,2017,prior
+taxable interest,10000,1526644.05300805,1452616,2017,prior
+taxable interest,15000,1364931.95110325,1366790,2017,prior
+taxable interest,20000,1372270.13909746,1433085,2017,prior
+taxable interest,25000,1383386.39058763,1326946,2017,prior
+taxable interest,30000,2836506.96200538,2719924,2017,prior
+taxable interest,40000,2914234.59929828,2704026,2017,prior
+taxable interest,50000,6223716.71385528,6608661,2017,prior
+taxable interest,75000,6003921.22590972,5854757,2017,prior
+taxable interest,1e+05,10956578.4889538,11121958,2017,prior
+taxable interest,2e+05,4915540.66639631,4755311,2017,prior
+taxable interest,5e+05,1044879.36742145,918148,2017,prior
+taxable interest,1e+06,250590.410969086,213278,2017,prior
+taxable interest,1500000,89947.0300412527,87836,2017,prior
+taxable interest,2e+06,131339.142894428,127158,2017,prior
+taxable interest,5e+06,31266.8326103463,31277,2017,prior
+taxable interest,1e+07,21339.7866828887,20088,2017,prior
+unemployment compensation,-Inf,27222.378394913,13694,2017,prior
+unemployment compensation,1,78936.606519539,49300,2017,prior
+unemployment compensation,5000,288152.370917036,219781,2017,prior
+unemployment compensation,10000,446057.264084287,359967,2017,prior
+unemployment compensation,15000,523495.714990109,428635,2017,prior
+unemployment compensation,20000,543735.408838697,406253,2017,prior
+unemployment compensation,25000,430597.916716958,365489,2017,prior
+unemployment compensation,30000,765274.070322194,661567,2017,prior
+unemployment compensation,40000,592526.475379913,454393,2017,prior
+unemployment compensation,50000,938324.930033102,801843,2017,prior
+unemployment compensation,75000,577578.250636205,584622,2017,prior
+unemployment compensation,1e+05,783994.622462577,705260,2017,prior
+unemployment compensation,2e+05,160229.359982146,138664,2017,prior
+unemployment compensation,5e+05,12369.8025029772,12277,2017,prior
+unemployment compensation,1e+06,1836.98060524362,1402,2017,prior
+unemployment compensation,1500000,509.15822041391,480,2017,prior
+unemployment compensation,2e+06,443.955354309385,536,2017,prior
+unemployment compensation,5e+06,34.3776654273299,72,2017,prior
+unemployment compensation,1e+07,16.06194217237,19,2017,prior
+business or profession > net income,-Inf,283573.48002228,234776,2017,cal1
+business or profession > net income,1,1246479.37683026,1293093,2017,cal1
+business or profession > net income,5000,1771711.33084892,1720044,2017,cal1
+business or profession > net income,10000,2296711.48068221,2396027,2017,cal1
+business or profession > net income,15000,1422791.8575429,1546892,2017,cal1
+business or profession > net income,20000,930425.53771186,1083271,2017,cal1
+business or profession > net income,25000,692682.300063907,814141,2017,cal1
+business or profession > net income,30000,1324772.46142895,1290843,2017,cal1
+business or profession > net income,40000,892415.503460707,1201249,2017,cal1
+business or profession > net income,50000,1762449.76212736,2113733,2017,cal1
+business or profession > net income,75000,1665255.2673271,1648970,2017,cal1
+business or profession > net income,1e+05,2874937.67573728,2707033,2017,cal1
+business or profession > net income,2e+05,1117711.06872343,1094067,2017,cal1
+business or profession > net income,5e+05,214105.070098149,197908,2017,cal1
+business or profession > net income,1e+06,50361.9650378245,43650,2017,cal1
+business or profession > net income,1500000,17199.0553519084,17318,2017,cal1
+business or profession > net income,2e+06,24260.396242704,23652,2017,cal1
+business or profession > net income,5e+06,5275.01540896878,5746,2017,cal1
+business or profession > net income,1e+07,3438.03890547759,3626,2017,cal1
+ordinary dividends,-Inf,542152.82547341,445436,2017,cal1
+ordinary dividends,1,949884.206466948,918786,2017,cal1
+ordinary dividends,5000,921201.925793363,815099,2017,cal1
+ordinary dividends,10000,872102.315560901,875416,2017,cal1
+ordinary dividends,15000,847843.800382955,794490,2017,cal1
+ordinary dividends,20000,826224.079518833,775451,2017,cal1
+ordinary dividends,25000,772224.482678575,744390,2017,cal1
+ordinary dividends,30000,1668902.93624018,1499953,2017,cal1
+ordinary dividends,40000,1580897.70673117,1448472,2017,cal1
+ordinary dividends,50000,4096943.64623949,3812081,2017,cal1
+ordinary dividends,75000,3594720.85685847,3510707,2017,cal1
+ordinary dividends,1e+05,7542880.51563957,7416984,2017,cal1
+ordinary dividends,2e+05,3781628.69775274,3869169,2017,cal1
+ordinary dividends,5e+05,793128.729380366,810519,2017,cal1
+ordinary dividends,1e+06,185289.69273043,188882,2017,cal1
+ordinary dividends,1500000,78642.2883960822,79972,2017,cal1
+ordinary dividends,2e+06,114467.029683267,116753,2017,cal1
+ordinary dividends,5e+06,29040.6018414053,29452,2017,cal1
+ordinary dividends,1e+07,19251.1226127577,19317,2017,cal1
+pensions and annuities > total,-Inf,323385.105378499,279767,2017,cal1
+pensions and annuities > total,1,769653.11852979,724306,2017,cal1
+pensions and annuities > total,5000,1150495.76614104,1208473,2017,cal1
+pensions and annuities > total,10000,1677208.55748257,1573498,2017,cal1
+pensions and annuities > total,15000,1581031.94734613,1545385,2017,cal1
+pensions and annuities > total,20000,1549411.51295197,1507057,2017,cal1
+pensions and annuities > total,25000,1468346.32365163,1360383,2017,cal1
+pensions and annuities > total,30000,2665872.96000684,2496150,2017,cal1
+pensions and annuities > total,40000,2403670.77169993,2203783,2017,cal1
+pensions and annuities > total,50000,5471100.86455076,5129174,2017,cal1
+pensions and annuities > total,75000,4498860.07502109,4060177,2017,cal1
+pensions and annuities > total,1e+05,6683699.81835739,6326557,2017,cal1
+pensions and annuities > total,2e+05,1848277.94846079,1838752,2017,cal1
+pensions and annuities > total,5e+05,254424.339416295,240808,2017,cal1
+pensions and annuities > total,1e+06,56119.5933334479,52066,2017,cal1
+pensions and annuities > total,1500000,22448.8632218281,21292,2017,cal1
+pensions and annuities > total,2e+06,32219.7039087268,30807,2017,cal1
+pensions and annuities > total,5e+06,7420.97955399733,7500,2017,cal1
+pensions and annuities > total,1e+07,5175.18343817483,4844,2017,cal1
+social security benefits > total,-Inf,895901.526850781,893034,2017,cal1
+social security benefits > total,1,1850164.1013072,1871793,2017,cal1
+social security benefits > total,5000,1982914.27837407,2000972,2017,cal1
+social security benefits > total,10000,2206953.34497683,2201549,2017,cal1
+social security benefits > total,15000,1843360.04565342,1836800,2017,cal1
+social security benefits > total,20000,1629246.0668788,1637535,2017,cal1
+social security benefits > total,25000,1369030.19451279,1297421,2017,cal1
+social security benefits > total,30000,2262877.62880016,2202026,2017,cal1
+social security benefits > total,40000,1834919.15821248,1838614,2017,cal1
+social security benefits > total,50000,4319222.3795346,4323996,2017,cal1
+social security benefits > total,75000,3337555.0374822,3214006,2017,cal1
+social security benefits > total,1e+05,4328363.96358919,4234271,2017,cal1
+social security benefits > total,2e+05,1112131.0185962,1146717,2017,cal1
+social security benefits > total,5e+05,167366.703674512,177394,2017,cal1
+social security benefits > total,1e+06,44604.6151105128,39871,2017,cal1
+social security benefits > total,1500000,16840.2101486781,16567,2017,cal1
+social security benefits > total,2e+06,24091.8876551059,24884,2017,cal1
+social security benefits > total,5e+06,5737.65773075666,6197,2017,cal1
+social security benefits > total,1e+07,3834.3422267638,3957,2017,cal1
+taxable individual retirement arrangement (ira) distributions,-Inf,194410.780639405,154861,2017,cal1
+taxable individual retirement arrangement (ira) distributions,1,329906.973805056,360510,2017,cal1
+taxable individual retirement arrangement (ira) distributions,5000,595889.136376816,580646,2017,cal1
+taxable individual retirement arrangement (ira) distributions,10000,711089.910189744,700006,2017,cal1
+taxable individual retirement arrangement (ira) distributions,15000,638546.706027939,642567,2017,cal1
+taxable individual retirement arrangement (ira) distributions,20000,657868.602876638,647726,2017,cal1
+taxable individual retirement arrangement (ira) distributions,25000,590050.907949463,569831,2017,cal1
+taxable individual retirement arrangement (ira) distributions,30000,1085656.6921097,1081390,2017,cal1
+taxable individual retirement arrangement (ira) distributions,40000,1044086.23649734,979806,2017,cal1
+taxable individual retirement arrangement (ira) distributions,50000,2452556.04822942,2440339,2017,cal1
+taxable individual retirement arrangement (ira) distributions,75000,2088470.68243481,2100603,2017,cal1
+taxable individual retirement arrangement (ira) distributions,1e+05,3391695.11513042,3420416,2017,cal1
+taxable individual retirement arrangement (ira) distributions,2e+05,1050312.42364393,1182800,2017,cal1
+taxable individual retirement arrangement (ira) distributions,5e+05,152382.645068173,175741,2017,cal1
+taxable individual retirement arrangement (ira) distributions,1e+06,34256.0751031897,37035,2017,cal1
+taxable individual retirement arrangement (ira) distributions,1500000,13945.1643334468,14616,2017,cal1
+taxable individual retirement arrangement (ira) distributions,2e+06,19067.1096075793,20720,2017,cal1
+taxable individual retirement arrangement (ira) distributions,5e+06,4057.28157559733,4784,2017,cal1
+taxable individual retirement arrangement (ira) distributions,1e+07,2798.07958267807,2795,2017,cal1
+taxable interest,-Inf,783045.438186104,637569,2017,cal1
+taxable interest,1,1475379.16341506,1478589,2017,cal1
+taxable interest,5000,1360527.26995553,1334991,2017,cal1
+taxable interest,10000,1563026.20066118,1452616,2017,cal1
+taxable interest,15000,1389409.31190965,1366790,2017,cal1
+taxable interest,20000,1403923.7889944,1433085,2017,cal1
+taxable interest,25000,1408678.30159634,1326946,2017,cal1
+taxable interest,30000,2846945.76439445,2719924,2017,cal1
+taxable interest,40000,2827277.89709985,2704026,2017,cal1
+taxable interest,50000,6795292.87395395,6608661,2017,cal1
+taxable interest,75000,5843025.35948066,5854757,2017,cal1
+taxable interest,1e+05,11019874.5931643,11121958,2017,cal1
+taxable interest,2e+05,4638363.78853335,4755311,2017,cal1
+taxable interest,5e+05,904816.726094704,918148,2017,cal1
+taxable interest,1e+06,211256.111074198,213278,2017,cal1
+taxable interest,1500000,87482.2902562976,87836,2017,cal1
+taxable interest,2e+06,126893.534995208,127158,2017,cal1
+taxable interest,5e+06,31138.4378240581,31277,2017,cal1
+taxable interest,1e+07,20083.9424492924,20088,2017,cal1
+unemployment compensation,-Inf,22111.4907268056,13694,2017,cal1
+unemployment compensation,1,75661.372762662,49300,2017,cal1
+unemployment compensation,5000,274224.964125144,219781,2017,cal1
+unemployment compensation,10000,431853.917768385,359967,2017,cal1
+unemployment compensation,15000,518641.080449817,428635,2017,cal1
+unemployment compensation,20000,537571.484335573,406253,2017,cal1
+unemployment compensation,25000,432063.399607256,365489,2017,cal1
+unemployment compensation,30000,751184.248222477,661567,2017,cal1
+unemployment compensation,40000,542844.760442169,454393,2017,cal1
+unemployment compensation,50000,962117.915833674,801843,2017,cal1
+unemployment compensation,75000,613887.705518186,584622,2017,cal1
+unemployment compensation,1e+05,798009.154340488,705260,2017,cal1
+unemployment compensation,2e+05,148327.583222628,138664,2017,cal1
+unemployment compensation,5e+05,10562.3832241372,12277,2017,cal1
+unemployment compensation,1e+06,1453.28271494722,1402,2017,cal1
+unemployment compensation,1500000,493.263554325768,480,2017,cal1
+unemployment compensation,2e+06,424.896670388043,536,2017,cal1
+unemployment compensation,5e+06,35.3705627804886,72,2017,cal1
+unemployment compensation,1e+07,16.0647550265272,19,2017,cal1
+business or profession > net income,-Inf,283651.377101154,234776,2017,cal100
+business or profession > net income,1,1247290.97271183,1293093,2017,cal100
+business or profession > net income,5000,1771125.21271027,1720044,2017,cal100
+business or profession > net income,10000,2296418.06845894,2396027,2017,cal100
+business or profession > net income,15000,1422995.82238414,1546892,2017,cal100
+business or profession > net income,20000,930510.317315863,1083271,2017,cal100
+business or profession > net income,25000,695146.001763749,814141,2017,cal100
+business or profession > net income,30000,1325121.83441249,1290843,2017,cal100
+business or profession > net income,40000,893986.09838163,1201249,2017,cal100
+business or profession > net income,50000,1763117.17580491,2113733,2017,cal100
+business or profession > net income,75000,1668107.37294326,1648970,2017,cal100
+business or profession > net income,1e+05,2884147.41210303,2707033,2017,cal100
+business or profession > net income,2e+05,1115139.4079159,1094067,2017,cal100
+business or profession > net income,5e+05,213806.279772991,197908,2017,cal100
+business or profession > net income,1e+06,50124.5861338356,43650,2017,cal100
+business or profession > net income,1500000,17119.3243208908,17318,2017,cal100
+business or profession > net income,2e+06,23897.7401002151,23652,2017,cal100
+business or profession > net income,5e+06,5281.56185264722,5746,2017,cal100
+business or profession > net income,1e+07,3435.72047758378,3626,2017,cal100
+ordinary dividends,-Inf,542248.669580851,445436,2017,cal100
+ordinary dividends,1,949132.491436127,918786,2017,cal100
+ordinary dividends,5000,921208.488925892,815099,2017,cal100
+ordinary dividends,10000,872200.404570909,875416,2017,cal100
+ordinary dividends,15000,846990.94153198,794490,2017,cal100
+ordinary dividends,20000,825428.025637956,775451,2017,cal100
+ordinary dividends,25000,771606.899699134,744390,2017,cal100
+ordinary dividends,30000,1668660.71331668,1499953,2017,cal100
+ordinary dividends,40000,1580531.49228146,1448472,2017,cal100
+ordinary dividends,50000,4097259.55527314,3812081,2017,cal100
+ordinary dividends,75000,3595893.97521727,3510707,2017,cal100
+ordinary dividends,1e+05,7547582.80237934,7416984,2017,cal100
+ordinary dividends,2e+05,3777496.26504911,3869169,2017,cal100
+ordinary dividends,5e+05,793176.859054466,810519,2017,cal100
+ordinary dividends,1e+06,185310.662284196,188882,2017,cal100
+ordinary dividends,1500000,78455.5085795563,79972,2017,cal100
+ordinary dividends,2e+06,114885.721429958,116753,2017,cal100
+ordinary dividends,5e+06,29074.9179115191,29452,2017,cal100
+ordinary dividends,1e+07,19246.9491141739,19317,2017,cal100
+pensions and annuities > total,-Inf,323277.476213863,279767,2017,cal100
+pensions and annuities > total,1,769278.899782463,724306,2017,cal100
+pensions and annuities > total,5000,1150568.06740414,1208473,2017,cal100
+pensions and annuities > total,10000,1676714.90964553,1573498,2017,cal100
+pensions and annuities > total,15000,1581116.73088798,1545385,2017,cal100
+pensions and annuities > total,20000,1549468.78460773,1507057,2017,cal100
+pensions and annuities > total,25000,1466797.69563638,1360383,2017,cal100
+pensions and annuities > total,30000,2665447.85089503,2496150,2017,cal100
+pensions and annuities > total,40000,2403553.52050039,2203783,2017,cal100
+pensions and annuities > total,50000,5470915.95317189,5129174,2017,cal100
+pensions and annuities > total,75000,4499813.53339834,4060177,2017,cal100
+pensions and annuities > total,1e+05,6691732.05960107,6326557,2017,cal100
+pensions and annuities > total,2e+05,1843257.82575382,1838752,2017,cal100
+pensions and annuities > total,5e+05,254344.210289187,240808,2017,cal100
+pensions and annuities > total,1e+06,56074.5244524046,52066,2017,cal100
+pensions and annuities > total,1500000,22454.0168071435,21292,2017,cal100
+pensions and annuities > total,2e+06,31852.1557224127,30807,2017,cal100
+pensions and annuities > total,5e+06,7432.32015328796,7500,2017,cal100
+pensions and annuities > total,1e+07,5174.8150342376,4844,2017,cal100
+social security benefits > total,-Inf,895836.781087972,893034,2017,cal100
+social security benefits > total,1,1849358.37621872,1871793,2017,cal100
+social security benefits > total,5000,1982945.87428385,2000972,2017,cal100
+social security benefits > total,10000,2206530.57916608,2201549,2017,cal100
+social security benefits > total,15000,1843348.55139856,1836800,2017,cal100
+social security benefits > total,20000,1629115.38516768,1637535,2017,cal100
+social security benefits > total,25000,1369153.32790483,1297421,2017,cal100
+social security benefits > total,30000,2262418.46162746,2202026,2017,cal100
+social security benefits > total,40000,1834741.4777081,1838614,2017,cal100
+social security benefits > total,50000,4318579.96539738,4323996,2017,cal100
+social security benefits > total,75000,3338734.62802865,3214006,2017,cal100
+social security benefits > total,1e+05,4333855.79618611,4234271,2017,cal100
+social security benefits > total,2e+05,1102289.73335353,1146717,2017,cal100
+social security benefits > total,5e+05,167070.863196186,177394,2017,cal100
+social security benefits > total,1e+06,44478.469000775,39871,2017,cal100
+social security benefits > total,1500000,16849.1611203455,16567,2017,cal100
+social security benefits > total,2e+06,23680.0392806534,24884,2017,cal100
+social security benefits > total,5e+06,5739.15061688778,6197,2017,cal100
+social security benefits > total,1e+07,3833.15413086252,3957,2017,cal100
+taxable individual retirement arrangement (ira) distributions,-Inf,194413.362667325,154861,2017,cal100
+taxable individual retirement arrangement (ira) distributions,1,329915.420299393,360510,2017,cal100
+taxable individual retirement arrangement (ira) distributions,5000,595916.581676408,580646,2017,cal100
+taxable individual retirement arrangement (ira) distributions,10000,710907.701802897,700006,2017,cal100
+taxable individual retirement arrangement (ira) distributions,15000,638534.820625672,642567,2017,cal100
+taxable individual retirement arrangement (ira) distributions,20000,657911.74388646,647726,2017,cal100
+taxable individual retirement arrangement (ira) distributions,25000,589627.120065015,569831,2017,cal100
+taxable individual retirement arrangement (ira) distributions,30000,1085594.56405494,1081390,2017,cal100
+taxable individual retirement arrangement (ira) distributions,40000,1043684.00279341,979806,2017,cal100
+taxable individual retirement arrangement (ira) distributions,50000,2452480.05769261,2440339,2017,cal100
+taxable individual retirement arrangement (ira) distributions,75000,2088459.74837079,2100603,2017,cal100
+taxable individual retirement arrangement (ira) distributions,1e+05,3394114.95224059,3420416,2017,cal100
+taxable individual retirement arrangement (ira) distributions,2e+05,1044915.70004542,1182800,2017,cal100
+taxable individual retirement arrangement (ira) distributions,5e+05,152347.61683994,175741,2017,cal100
+taxable individual retirement arrangement (ira) distributions,1e+06,34236.7352735885,37035,2017,cal100
+taxable individual retirement arrangement (ira) distributions,1500000,13947.5925510098,14616,2017,cal100
+taxable individual retirement arrangement (ira) distributions,2e+06,18640.6833536678,20720,2017,cal100
+taxable individual retirement arrangement (ira) distributions,5e+06,4062.11207517175,4784,2017,cal100
+taxable individual retirement arrangement (ira) distributions,1e+07,2800.39313573269,2795,2017,cal100
+taxable interest,-Inf,783438.850553625,637569,2017,cal100
+taxable interest,1,1474438.28589075,1478589,2017,cal100
+taxable interest,5000,1360226.22491089,1334991,2017,cal100
+taxable interest,10000,1563009.74202424,1452616,2017,cal100
+taxable interest,15000,1389103.44406984,1366790,2017,cal100
+taxable interest,20000,1403689.57705042,1433085,2017,cal100
+taxable interest,25000,1407928.68550891,1326946,2017,cal100
+taxable interest,30000,2846776.85477477,2719924,2017,cal100
+taxable interest,40000,2827243.34000403,2704026,2017,cal100
+taxable interest,50000,6795794.42174142,6608661,2017,cal100
+taxable interest,75000,5844585.0971562,5854757,2017,cal100
+taxable interest,1e+05,11026470.9824015,11121958,2017,cal100
+taxable interest,2e+05,4634799.3753152,4755311,2017,cal100
+taxable interest,5e+05,904816.645651122,918148,2017,cal100
+taxable interest,1e+06,211251.128823014,213278,2017,cal100
+taxable interest,1500000,87349.6030615998,87836,2017,cal100
+taxable interest,2e+06,126525.621497043,127158,2017,cal100
+taxable interest,5e+06,31139.3997908789,31277,2017,cal100
+taxable interest,1e+07,20081.6265539039,20088,2017,cal100
+unemployment compensation,-Inf,22023.3551441597,13694,2017,cal100
+unemployment compensation,1,75590.003615292,49300,2017,cal100
+unemployment compensation,5000,274070.557821591,219781,2017,cal100
+unemployment compensation,10000,431912.362248722,359967,2017,cal100
+unemployment compensation,15000,518711.085582933,428635,2017,cal100
+unemployment compensation,20000,537678.610817172,406253,2017,cal100
+unemployment compensation,25000,432168.237461667,365489,2017,cal100
+unemployment compensation,30000,751107.751605378,661567,2017,cal100
+unemployment compensation,40000,542891.36378652,454393,2017,cal100
+unemployment compensation,50000,962184.548662236,801843,2017,cal100
+unemployment compensation,75000,613772.985111205,584622,2017,cal100
+unemployment compensation,1e+05,797175.032789937,705260,2017,cal100
+unemployment compensation,2e+05,148454.168979796,138664,2017,cal100
+unemployment compensation,5e+05,10568.1419724151,12277,2017,cal100
+unemployment compensation,1e+06,1458.59858753732,1402,2017,cal100
+unemployment compensation,1500000,491.577526856101,480,2017,cal100
+unemployment compensation,2e+06,424.718839423091,536,2017,cal100
+unemployment compensation,5e+06,35.4304356525364,72,2017,cal100
+unemployment compensation,1e+07,15.8690460252351,19,2017,cal100
+business or profession > net income,-Inf,290821.247698032,234776,2017,lp
+business or profession > net income,1,1297681.04415008,1293093,2017,lp
+business or profession > net income,5000,1818398.31484226,1720044,2017,lp
+business or profession > net income,10000,2283536.01099831,2396027,2017,lp
+business or profession > net income,15000,1405894.79584377,1546892,2017,lp
+business or profession > net income,20000,904003.813224261,1083271,2017,lp
+business or profession > net income,25000,676668.940602967,814141,2017,lp
+business or profession > net income,30000,1315676.28811026,1290843,2017,lp
+business or profession > net income,40000,915234.819909974,1201249,2017,lp
+business or profession > net income,50000,1748338.37383646,2113733,2017,lp
+business or profession > net income,75000,1631798.94249967,1648970,2017,lp
+business or profession > net income,1e+05,2859562.70374288,2707033,2017,lp
+business or profession > net income,2e+05,1140174.50580471,1094067,2017,lp
+business or profession > net income,5e+05,222326.662717409,197908,2017,lp
+business or profession > net income,1e+06,52148.4889996472,43650,2017,lp
+business or profession > net income,1500000,17648.0233276316,17318,2017,lp
+business or profession > net income,2e+06,24165.8416237168,23652,2017,lp
+business or profession > net income,5e+06,5395.51869558697,5746,2017,lp
+business or profession > net income,1e+07,3645.63561116501,3626,2017,lp
+ordinary dividends,-Inf,545859.779303092,445436,2017,lp
+ordinary dividends,1,946160.173383934,918786,2017,lp
+ordinary dividends,5000,929214.819278907,815099,2017,lp
+ordinary dividends,10000,842009.42491388,875416,2017,lp
+ordinary dividends,15000,829873.081581625,794490,2017,lp
+ordinary dividends,20000,810701.36678518,775451,2017,lp
+ordinary dividends,25000,760134.579631903,744390,2017,lp
+ordinary dividends,30000,1642342.76027821,1499953,2017,lp
+ordinary dividends,40000,1602644.49824809,1448472,2017,lp
+ordinary dividends,50000,3898482.49682353,3812081,2017,lp
+ordinary dividends,75000,3585080.38280401,3510707,2017,lp
+ordinary dividends,1e+05,7536924.56576667,7416984,2017,lp
+ordinary dividends,2e+05,3856021.58588542,3869169,2017,lp
+ordinary dividends,5e+05,802798.117462374,810519,2017,lp
+ordinary dividends,1e+06,190122.325684397,188882,2017,lp
+ordinary dividends,1500000,79466.3175068136,79972,2017,lp
+ordinary dividends,2e+06,116175.536076253,116753,2017,lp
+ordinary dividends,5e+06,29092.1932464665,29452,2017,lp
+ordinary dividends,1e+07,20342.6958329346,19317,2017,lp
+pensions and annuities > total,-Inf,332964.925063609,279767,2017,lp
+pensions and annuities > total,1,782838.960340673,724306,2017,lp
+pensions and annuities > total,5000,1132721.3480965,1208473,2017,lp
+pensions and annuities > total,10000,1682339.13843041,1573498,2017,lp
+pensions and annuities > total,15000,1553090.53574872,1545385,2017,lp
+pensions and annuities > total,20000,1541539.98895194,1507057,2017,lp
+pensions and annuities > total,25000,1462497.26989607,1360383,2017,lp
+pensions and annuities > total,30000,2636941.13343457,2496150,2017,lp
+pensions and annuities > total,40000,2416744.22383443,2203783,2017,lp
+pensions and annuities > total,50000,5408336.16710283,5129174,2017,lp
+pensions and annuities > total,75000,4449685.35906681,4060177,2017,lp
+pensions and annuities > total,1e+05,6659687.94980985,6326557,2017,lp
+pensions and annuities > total,2e+05,1839975.6272924,1838752,2017,lp
+pensions and annuities > total,5e+05,253014.719810712,240808,2017,lp
+pensions and annuities > total,1e+06,56633.8087958789,52066,2017,lp
+pensions and annuities > total,1500000,22651.7146701439,21292,2017,lp
+pensions and annuities > total,2e+06,32354.0654511058,30807,2017,lp
+pensions and annuities > total,5e+06,7414.57639122994,7500,2017,lp
+pensions and annuities > total,1e+07,5397.60575477142,4844,2017,lp
+social security benefits > total,-Inf,892055.550985331,893034,2017,lp
+social security benefits > total,1,1867425.50108241,1871793,2017,lp
+social security benefits > total,5000,1950561.99862474,2000972,2017,lp
+social security benefits > total,10000,2230173.22106132,2201549,2017,lp
+social security benefits > total,15000,1824857.51703282,1836800,2017,lp
+social security benefits > total,20000,1626615.20392973,1637535,2017,lp
+social security benefits > total,25000,1376024.4424563,1297421,2017,lp
+social security benefits > total,30000,2269049.93126121,2202026,2017,lp
+social security benefits > total,40000,1825033.96997942,1838614,2017,lp
+social security benefits > total,50000,4291134.41339908,4323996,2017,lp
+social security benefits > total,75000,3341574.63876157,3214006,2017,lp
+social security benefits > total,1e+05,4349332.86820151,4234271,2017,lp
+social security benefits > total,2e+05,1103974.90550445,1146717,2017,lp
+social security benefits > total,5e+05,169812.576148592,177394,2017,lp
+social security benefits > total,1e+06,46411.4856131433,39871,2017,lp
+social security benefits > total,1500000,16957.2226815641,16567,2017,lp
+social security benefits > total,2e+06,24061.4475841141,24884,2017,lp
+social security benefits > total,5e+06,5821.65639973002,6197,2017,lp
+social security benefits > total,1e+07,4159.31317367641,3957,2017,lp
+taxable individual retirement arrangement (ira) distributions,-Inf,194025.810308417,154861,2017,lp
+taxable individual retirement arrangement (ira) distributions,1,336195.773563129,360510,2017,lp
+taxable individual retirement arrangement (ira) distributions,5000,591020.20693466,580646,2017,lp
+taxable individual retirement arrangement (ira) distributions,10000,701129.287930488,700006,2017,lp
+taxable individual retirement arrangement (ira) distributions,15000,627186.221844962,642567,2017,lp
+taxable individual retirement arrangement (ira) distributions,20000,642701.92353285,647726,2017,lp
+taxable individual retirement arrangement (ira) distributions,25000,582578.25683476,569831,2017,lp
+taxable individual retirement arrangement (ira) distributions,30000,1062576.29579987,1081390,2017,lp
+taxable individual retirement arrangement (ira) distributions,40000,1037060.28035656,979806,2017,lp
+taxable individual retirement arrangement (ira) distributions,50000,2381533.74225692,2440339,2017,lp
+taxable individual retirement arrangement (ira) distributions,75000,2118361.5809818,2100603,2017,lp
+taxable individual retirement arrangement (ira) distributions,1e+05,3418661.37687195,3420416,2017,lp
+taxable individual retirement arrangement (ira) distributions,2e+05,1053412.68776208,1182800,2017,lp
+taxable individual retirement arrangement (ira) distributions,5e+05,154647.81885328,175741,2017,lp
+taxable individual retirement arrangement (ira) distributions,1e+06,35615.3923226947,37035,2017,lp
+taxable individual retirement arrangement (ira) distributions,1500000,13824.6572168869,14616,2017,lp
+taxable individual retirement arrangement (ira) distributions,2e+06,18878.0250562801,20720,2017,lp
+taxable individual retirement arrangement (ira) distributions,5e+06,4078.82432062554,4784,2017,lp
+taxable individual retirement arrangement (ira) distributions,1e+07,2950.87390382214,2795,2017,lp
+taxable interest,-Inf,767399.025199873,637569,2017,lp
+taxable interest,1,1475409.79849423,1478589,2017,lp
+taxable interest,5000,1366266.00891806,1334991,2017,lp
+taxable interest,10000,1532416.04718739,1452616,2017,lp
+taxable interest,15000,1372643.12269663,1366790,2017,lp
+taxable interest,20000,1394569.99908344,1433085,2017,lp
+taxable interest,25000,1388260.54845736,1326946,2017,lp
+taxable interest,30000,2823310.86072982,2719924,2017,lp
+taxable interest,40000,2876737.55823783,2704026,2017,lp
+taxable interest,50000,6656853.03116181,6608661,2017,lp
+taxable interest,75000,5712985.74430818,5854757,2017,lp
+taxable interest,1e+05,10967169.902727,11121958,2017,lp
+taxable interest,2e+05,4681855.13876271,4755311,2017,lp
+taxable interest,5e+05,912447.010949082,918148,2017,lp
+taxable interest,1e+06,216122.987733514,213278,2017,lp
+taxable interest,1500000,88459.8898909028,87836,2017,lp
+taxable interest,2e+06,128255.643392309,127158,2017,lp
+taxable interest,5e+06,31094.228883372,31277,2017,lp
+taxable interest,1e+07,21195.8248523747,20088,2017,lp
+unemployment compensation,-Inf,22531.6131056758,13694,2017,lp
+unemployment compensation,1,82072.1426143348,49300,2017,lp
+unemployment compensation,5000,276364.250172172,219781,2017,lp
+unemployment compensation,10000,433949.831730894,359967,2017,lp
+unemployment compensation,15000,531364.627417543,428635,2017,lp
+unemployment compensation,20000,565757.95072878,406253,2017,lp
+unemployment compensation,25000,438192.37469362,365489,2017,lp
+unemployment compensation,30000,755677.746219839,661567,2017,lp
+unemployment compensation,40000,561362.57035216,454393,2017,lp
+unemployment compensation,50000,962939.78829644,801843,2017,lp
+unemployment compensation,75000,596129.971588273,584622,2017,lp
+unemployment compensation,1e+05,774309.77800259,705260,2017,lp
+unemployment compensation,2e+05,148881.832216407,138664,2017,lp
+unemployment compensation,5e+05,9831.80290581022,12277,2017,lp
+unemployment compensation,1e+06,1500.13907990407,1402,2017,lp
+unemployment compensation,1500000,462.464710911679,480,2017,lp
+unemployment compensation,2e+06,427.854577578597,536,2017,lp
+unemployment compensation,5e+06,34.3776654273299,72,2017,lp
+unemployment compensation,1e+07,16.06194217237,19,2017,lp
+business or profession > net income,-Inf,265705.954168666,174291,2023,current
+business or profession > net income,1,725679.992660434,1642686,2023,current
+business or profession > net income,5000,770328.108454395,1437423,2023,current
+business or profession > net income,10000,1281404.07960725,2088019,2023,current
+business or profession > net income,15000,2170780.022463,1944058,2023,current
+business or profession > net income,20000,2271440.89602338,1230554,2023,current
+business or profession > net income,25000,1011889.94996529,902312,2023,current
+business or profession > net income,30000,1352371.29283033,1443628,2023,current
+business or profession > net income,40000,1051611.5466089,1124887,2023,current
+business or profession > net income,50000,2012307.74399384,2294849,2023,current
+business or profession > net income,75000,1335065.41735449,1622213,2023,current
+business or profession > net income,1e+05,3675878.3129748,3365227,2023,current
+business or profession > net income,2e+05,1912229.27566826,1674638,2023,current
+business or profession > net income,5e+05,308157.955056001,320590,2023,current
+business or profession > net income,1e+06,74565.1554371601,68315,2023,current
+business or profession > net income,1500000,30458.0310377787,27288,2023,current
+business or profession > net income,2e+06,37001.8638764997,36564,2023,current
+business or profession > net income,5e+06,11290.1309918359,8741,2023,current
+business or profession > net income,1e+07,5349.72848155124,5429,2023,current
+ordinary dividends,-Inf,648528.063897846,415458,2023,current
+ordinary dividends,1,837005.843555063,833802,2023,current
+ordinary dividends,5000,834628.314176679,730314,2023,current
+ordinary dividends,10000,737409.65686757,770322,2023,current
+ordinary dividends,15000,604615.487112154,722360,2023,current
+ordinary dividends,20000,536935.454749362,661137,2023,current
+ordinary dividends,25000,564613.630967714,673959,2023,current
+ordinary dividends,30000,1456603.11238769,1401776,2023,current
+ordinary dividends,40000,1401473.92599096,1435283,2023,current
+ordinary dividends,50000,3252061.14085756,3812803,2023,current
+ordinary dividends,75000,3254007.95267253,3787852,2023,current
+ordinary dividends,1e+05,9827295.25640653,9761898,2023,current
+ordinary dividends,2e+05,5801451.5899881,6568282,2023,current
+ordinary dividends,5e+05,1185010.89051223,1435192,2023,current
+ordinary dividends,1e+06,266010.310879873,319016,2023,current
+ordinary dividends,1500000,121857.439233723,130688,2023,current
+ordinary dividends,2e+06,172327.536222612,183460,2023,current
+ordinary dividends,5e+06,57597.3045813083,45819,2023,current
+ordinary dividends,1e+07,28175.526403449,29039,2023,current
+pensions and annuities > total,-Inf,523798.271234145,229471,2023,current
+pensions and annuities > total,1,916817.241987152,678424,2023,current
+pensions and annuities > total,5000,1356148.70225076,983905,2023,current
+pensions and annuities > total,10000,1312062.69390712,1148933,2023,current
+pensions and annuities > total,15000,885223.154704866,1231111,2023,current
+pensions and annuities > total,20000,774802.694749874,1181133,2023,current
+pensions and annuities > total,25000,900580.572355494,1068811,2023,current
+pensions and annuities > total,30000,2933529.72449667,2145864,2023,current
+pensions and annuities > total,40000,2403706.83259622,2132492,2023,current
+pensions and annuities > total,50000,4447572.01895705,5017151,2023,current
+pensions and annuities > total,75000,4118086.44942021,4272140,2023,current
+pensions and annuities > total,1e+05,10643605.4346788,8590678,2023,current
+pensions and annuities > total,2e+05,3507617.53296485,3230815,2023,current
+pensions and annuities > total,5e+05,387039.646159072,435187,2023,current
+pensions and annuities > total,1e+06,78667.4229734948,90838,2023,current
+pensions and annuities > total,1500000,35178.9204731422,36277,2023,current
+pensions and annuities > total,2e+06,46105.2585530128,46943,2023,current
+pensions and annuities > total,5e+06,14576.7265272311,11516,2023,current
+pensions and annuities > total,1e+07,7869.51845026,7099,2023,current
+social security benefits > total,-Inf,1381902.43089089,919426,2023,current
+social security benefits > total,1,2413719.83339323,2007910,2023,current
+social security benefits > total,5000,2339628.7619816,1755902,2023,current
+social security benefits > total,10000,2057313.17784482,1750674,2023,current
+social security benefits > total,15000,1109847.21590276,1621039,2023,current
+social security benefits > total,20000,945253.21536432,1358323,2023,current
+social security benefits > total,25000,966835.223868671,1162942,2023,current
+social security benefits > total,30000,3008317.87273244,2138407,2023,current
+social security benefits > total,40000,2110996.07913465,1972282,2023,current
+social security benefits > total,50000,3237491.99884602,4469468,2023,current
+social security benefits > total,75000,3335326.8197246,3699007,2023,current
+social security benefits > total,1e+05,8487346.35422175,6670913,2023,current
+social security benefits > total,2e+05,2326059.13155922,2120773,2023,current
+social security benefits > total,5e+05,249158.290806303,303428,2023,current
+social security benefits > total,1e+06,57579.5773211208,68154,2023,current
+social security benefits > total,1500000,27654.7666084697,28742,2023,current
+social security benefits > total,2e+06,33577.8847488461,40193,2023,current
+social security benefits > total,5e+06,10639.6779313525,10162,2023,current
+social security benefits > total,1e+07,5117.82702770545,6333,2023,current
+taxable individual retirement arrangement (ira) distributions,-Inf,299143.09700218,110842,2023,current
+taxable individual retirement arrangement (ira) distributions,1,394507.069251001,320502,2023,current
+taxable individual retirement arrangement (ira) distributions,5000,667738.81786054,488370,2023,current
+taxable individual retirement arrangement (ira) distributions,10000,666380.571948469,529386,2023,current
+taxable individual retirement arrangement (ira) distributions,15000,375547.330802826,546285,2023,current
+taxable individual retirement arrangement (ira) distributions,20000,340538.127955249,504430,2023,current
+taxable individual retirement arrangement (ira) distributions,25000,364767.975836394,486495,2023,current
+taxable individual retirement arrangement (ira) distributions,30000,1273192.26333399,913718,2023,current
+taxable individual retirement arrangement (ira) distributions,40000,1030630.44985636,901785,2023,current
+taxable individual retirement arrangement (ira) distributions,50000,1913670.47214935,2279304,2023,current
+taxable individual retirement arrangement (ira) distributions,75000,1955641.67978846,2162582,2023,current
+taxable individual retirement arrangement (ira) distributions,1e+05,5733304.03027948,4839387,2023,current
+taxable individual retirement arrangement (ira) distributions,2e+05,1963937.4625151,2127838,2023,current
+taxable individual retirement arrangement (ira) distributions,5e+05,225850.86013835,337631,2023,current
+taxable individual retirement arrangement (ira) distributions,1e+06,46317.2809930538,70785,2023,current
+taxable individual retirement arrangement (ira) distributions,1500000,21888.0223768954,26400,2023,current
+taxable individual retirement arrangement (ira) distributions,2e+06,27399.5141207055,35598,2023,current
+taxable individual retirement arrangement (ira) distributions,5e+06,8444.04199860931,8214,2023,current
+taxable individual retirement arrangement (ira) distributions,1e+07,3629.68657018739,4600,2023,current
+taxable interest,-Inf,932522.043134074,668133,2023,current
+taxable interest,1,1671943.13735585,1752796,2023,current
+taxable interest,5000,1334865.58720956,1401118,2023,current
+taxable interest,10000,1287832.82251078,1453473,2023,current
+taxable interest,15000,999649.073138719,1423116,2023,current
+taxable interest,20000,780142.161742352,1335716,2023,current
+taxable interest,25000,819411.27630775,1381322,2023,current
+taxable interest,30000,2654493.88717688,2813410,2023,current
+taxable interest,40000,2441685.96251574,2944326,2023,current
+taxable interest,50000,5401782.69852354,7295004,2023,current
+taxable interest,75000,5114731.25358854,6586833,2023,current
+taxable interest,1e+05,14367084.470844,15421470,2023,current
+taxable interest,2e+05,7434340.97513146,8389204,2023,current
+taxable interest,5e+05,1330685.82588251,1620892,2023,current
+taxable interest,1e+06,304652.773811102,352719,2023,current
+taxable interest,1500000,136577.951939937,143109,2023,current
+taxable interest,2e+06,188647.799852286,198931,2023,current
+taxable interest,5e+06,62004.4277659132,48595,2023,current
+taxable interest,1e+07,29431.3496669636,30071,2023,current
+unemployment compensation,-Inf,26844.3648555539,19595,2023,current
+unemployment compensation,1,59863.6375163428,40825,2023,current
+unemployment compensation,5000,108490.119139601,110329,2023,current
+unemployment compensation,10000,312112.829050103,205714,2023,current
+unemployment compensation,15000,446774.971318019,246584,2023,current
+unemployment compensation,20000,247544.271950878,278792,2023,current
+unemployment compensation,25000,253395.386917199,282884,2023,current
+unemployment compensation,30000,643858.061714769,508555,2023,current
+unemployment compensation,40000,450805.791674213,452439,2023,current
+unemployment compensation,50000,974587.195088015,754372,2023,current
+unemployment compensation,75000,655713.722127502,524078,2023,current
+unemployment compensation,1e+05,1018849.36261561,922821,2023,current
+unemployment compensation,2e+05,238615.352095593,308267,2023,current
+unemployment compensation,5e+05,20736.0936725514,34545,2023,current
+unemployment compensation,1e+06,2352.59663037807,4841,2023,current
+unemployment compensation,1500000,882.054214612669,1273,2023,current
+unemployment compensation,2e+06,699.453290055897,1397,2023,current
+unemployment compensation,5e+06,93.9264657678221,136,2023,current
+unemployment compensation,1e+07,11.2734373797795,54,2023,current
+business or profession > net income,-Inf,289378.385749098,174291,2023,prior
+business or profession > net income,1,905194.129684766,1642686,2023,prior
+business or profession > net income,5000,978669.7698129,1437423,2023,prior
+business or profession > net income,10000,1316845.42377581,2088019,2023,prior
+business or profession > net income,15000,1490651.83417838,1944058,2023,prior
+business or profession > net income,20000,1554329.18250048,1230554,2023,prior
+business or profession > net income,25000,881465.589153306,902312,2023,prior
+business or profession > net income,30000,1301341.20742771,1443628,2023,prior
+business or profession > net income,40000,1079738.82191344,1124887,2023,prior
+business or profession > net income,50000,1947860.68823809,2294849,2023,prior
+business or profession > net income,75000,1209377.53101614,1622213,2023,prior
+business or profession > net income,1e+05,3621200.30567642,3365227,2023,prior
+business or profession > net income,2e+05,2031239.46763072,1674638,2023,prior
+business or profession > net income,5e+05,413702.147611476,320590,2023,prior
+business or profession > net income,1e+06,105129.205460458,68315,2023,prior
+business or profession > net income,1500000,41881.6143757299,27288,2023,prior
+business or profession > net income,2e+06,43249.0922056305,36564,2023,prior
+business or profession > net income,5e+06,9844.09602855385,8741,2023,prior
+business or profession > net income,1e+07,5983.08617610634,5429,2023,prior
+ordinary dividends,-Inf,645632.79659362,415458,2023,prior
+ordinary dividends,1,769453.3876502,833802,2023,prior
+ordinary dividends,5000,756910.556811203,730314,2023,prior
+ordinary dividends,10000,682092.977127862,770322,2023,prior
+ordinary dividends,15000,596812.497074497,722360,2023,prior
+ordinary dividends,20000,651600.418578491,661137,2023,prior
+ordinary dividends,25000,642516.415180039,673959,2023,prior
+ordinary dividends,30000,1285513.24030479,1401776,2023,prior
+ordinary dividends,40000,1370729.93033821,1435283,2023,prior
+ordinary dividends,50000,3513987.67997259,3812803,2023,prior
+ordinary dividends,75000,3227065.96294377,3787852,2023,prior
+ordinary dividends,1e+05,9308623.68528977,9761898,2023,prior
+ordinary dividends,2e+05,5868277.61880414,6568282,2023,prior
+ordinary dividends,5e+05,1378664.63715733,1435192,2023,prior
+ordinary dividends,1e+06,369618.533266478,319016,2023,prior
+ordinary dividends,1500000,141458.984992344,130688,2023,prior
+ordinary dividends,2e+06,190227.686937513,183460,2023,prior
+ordinary dividends,5e+06,47464.2423362455,45819,2023,prior
+ordinary dividends,1e+07,30894.2362294447,29039,2023,prior
+pensions and annuities > total,-Inf,441513.258758658,229471,2023,prior
+pensions and annuities > total,1,643003.016837925,678424,2023,prior
+pensions and annuities > total,5000,953926.326622503,983905,2023,prior
+pensions and annuities > total,10000,1148100.06488756,1148933,2023,prior
+pensions and annuities > total,15000,1197926.45624588,1231111,2023,prior
+pensions and annuities > total,20000,1248904.02554651,1181133,2023,prior
+pensions and annuities > total,25000,1217589.61853252,1068811,2023,prior
+pensions and annuities > total,30000,2405333.752053,2145864,2023,prior
+pensions and annuities > total,40000,2358032.30433966,2132492,2023,prior
+pensions and annuities > total,50000,5288669.276905,5017151,2023,prior
+pensions and annuities > total,75000,4447320.42056074,4272140,2023,prior
+pensions and annuities > total,1e+05,10242199.7644289,8590678,2023,prior
+pensions and annuities > total,2e+05,3538510.70965867,3230815,2023,prior
+pensions and annuities > total,5e+05,465736.703115484,435187,2023,prior
+pensions and annuities > total,1e+06,115340.176850547,90838,2023,prior
+pensions and annuities > total,1500000,40461.144364829,36277,2023,prior
+pensions and annuities > total,2e+06,51908.2739158556,46943,2023,prior
+pensions and annuities > total,5e+06,12259.9173518795,11516,2023,prior
+pensions and annuities > total,1e+07,8899.5939006695,7099,2023,prior
+social security benefits > total,-Inf,1126474.62233789,919426,2023,prior
+social security benefits > total,1,1702673.92348169,2007910,2023,prior
+social security benefits > total,5000,1629966.78425262,1755902,2023,prior
+social security benefits > total,10000,1746825.20861824,1750674,2023,prior
+social security benefits > total,15000,1500475.16920209,1621039,2023,prior
+social security benefits > total,20000,1479279.08703094,1358323,2023,prior
+social security benefits > total,25000,1289551.78330904,1162942,2023,prior
+social security benefits > total,30000,2357955.21939608,2138407,2023,prior
+social security benefits > total,40000,2081606.90637615,1972282,2023,prior
+social security benefits > total,50000,4407339.18128585,4469468,2023,prior
+social security benefits > total,75000,3743914.79572618,3699007,2023,prior
+social security benefits > total,1e+05,8023047.70076749,6670913,2023,prior
+social security benefits > total,2e+05,2155073.33325198,2120773,2023,prior
+social security benefits > total,5e+05,297944.389332231,303428,2023,prior
+social security benefits > total,1e+06,83839.898920417,68154,2023,prior
+social security benefits > total,1500000,33590.7769780707,28742,2023,prior
+social security benefits > total,2e+06,39260.2899637306,40193,2023,prior
+social security benefits > total,5e+06,9203.162720919,10162,2023,prior
+social security benefits > total,1e+07,6204.73740844839,6333,2023,prior
+taxable individual retirement arrangement (ira) distributions,-Inf,260367.377495861,110842,2023,prior
+taxable individual retirement arrangement (ira) distributions,1,267308.363761623,320502,2023,prior
+taxable individual retirement arrangement (ira) distributions,5000,451738.928016637,488370,2023,prior
+taxable individual retirement arrangement (ira) distributions,10000,569641.969299,529386,2023,prior
+taxable individual retirement arrangement (ira) distributions,15000,489047.638835658,546285,2023,prior
+taxable individual retirement arrangement (ira) distributions,20000,502498.107677843,504430,2023,prior
+taxable individual retirement arrangement (ira) distributions,25000,460582.032250974,486495,2023,prior
+taxable individual retirement arrangement (ira) distributions,30000,1010195.27153779,913718,2023,prior
+taxable individual retirement arrangement (ira) distributions,40000,998559.891626338,901785,2023,prior
+taxable individual retirement arrangement (ira) distributions,50000,2276428.29221769,2279304,2023,prior
+taxable individual retirement arrangement (ira) distributions,75000,2046953.36849361,2162582,2023,prior
+taxable individual retirement arrangement (ira) distributions,1e+05,5425282.12527089,4839387,2023,prior
+taxable individual retirement arrangement (ira) distributions,2e+05,1876353.1528661,2127838,2023,prior
+taxable individual retirement arrangement (ira) distributions,5e+05,271689.237823327,337631,2023,prior
+taxable individual retirement arrangement (ira) distributions,1e+06,68959.3694633361,70785,2023,prior
+taxable individual retirement arrangement (ira) distributions,1500000,24850.8976695371,26400,2023,prior
+taxable individual retirement arrangement (ira) distributions,2e+06,30915.626128388,35598,2023,prior
+taxable individual retirement arrangement (ira) distributions,5e+06,6938.89214318813,8214,2023,prior
+taxable individual retirement arrangement (ira) distributions,1e+07,4290.85972149316,4600,2023,prior
+taxable interest,-Inf,964552.330903695,668133,2023,prior
+taxable interest,1,1297246.61880867,1752796,2023,prior
+taxable interest,5000,1107454.43988002,1401118,2023,prior
+taxable interest,10000,1170304.86944523,1453473,2023,prior
+taxable interest,15000,1084154.52345371,1423116,2023,prior
+taxable interest,20000,1101083.20763926,1335716,2023,prior
+taxable interest,25000,1007233.09892128,1381322,2023,prior
+taxable interest,30000,2293912.57117022,2813410,2023,prior
+taxable interest,40000,2412795.26210504,2944326,2023,prior
+taxable interest,50000,6038601.71909735,7295004,2023,prior
+taxable interest,75000,5294919.67486334,6586833,2023,prior
+taxable interest,1e+05,13942304.5721865,15421470,2023,prior
+taxable interest,2e+05,7717371.26962798,8389204,2023,prior
+taxable interest,5e+05,1606798.93957066,1620892,2023,prior
+taxable interest,1e+06,426677.899101443,352719,2023,prior
+taxable interest,1500000,162787.238927719,143109,2023,prior
+taxable interest,2e+06,213816.208325545,198931,2023,prior
+taxable interest,5e+06,51783.0939143762,48595,2023,prior
+taxable interest,1e+07,32520.6841599049,30071,2023,prior
+unemployment compensation,-Inf,31308.9584654249,19595,2023,prior
+unemployment compensation,1,61718.7409884274,40825,2023,prior
+unemployment compensation,5000,161277.421389415,110329,2023,prior
+unemployment compensation,10000,309466.9497849,205714,2023,prior
+unemployment compensation,15000,349734.691422138,246584,2023,prior
+unemployment compensation,20000,453495.252827563,278792,2023,prior
+unemployment compensation,25000,409251.706169685,282884,2023,prior
+unemployment compensation,30000,711582.475451487,508555,2023,prior
+unemployment compensation,40000,625892.772915431,452439,2023,prior
+unemployment compensation,50000,1065531.31769296,754372,2023,prior
+unemployment compensation,75000,670792.870450548,524078,2023,prior
+unemployment compensation,1e+05,1127217.69652605,922821,2023,prior
+unemployment compensation,2e+05,307993.781013297,308267,2023,prior
+unemployment compensation,5e+05,27920.056863188,34545,2023,prior
+unemployment compensation,1e+06,3474.5242365317,4841,2023,prior
+unemployment compensation,1500000,1001.3518215822,1273,2023,prior
+unemployment compensation,2e+06,879.083867388871,1397,2023,prior
+unemployment compensation,5e+06,91.4986827194584,136,2023,prior
+unemployment compensation,1e+07,25.6421453713976,54,2023,prior
+business or profession > net income,-Inf,232827.486212729,174291,2023,cal1
+business or profession > net income,1,1276601.97642549,1642686,2023,cal1
+business or profession > net income,5000,1182661.6530458,1437423,2023,cal1
+business or profession > net income,10000,1719360.97161936,2088019,2023,cal1
+business or profession > net income,15000,1597323.81692916,1944058,2023,cal1
+business or profession > net income,20000,1266250.76932934,1230554,2023,cal1
+business or profession > net income,25000,843478.774198068,902312,2023,cal1
+business or profession > net income,30000,1276601.88802594,1443628,2023,cal1
+business or profession > net income,40000,1104676.71583659,1124887,2023,cal1
+business or profession > net income,50000,1898503.11596985,2294849,2023,cal1
+business or profession > net income,75000,1282569.04500716,1622213,2023,cal1
+business or profession > net income,1e+05,3693995.18697691,3365227,2023,cal1
+business or profession > net income,2e+05,1963924.21013761,1674638,2023,cal1
+business or profession > net income,5e+05,395199.421430585,320590,2023,cal1
+business or profession > net income,1e+06,86382.674616389,68315,2023,cal1
+business or profession > net income,1500000,35551.9792206566,27288,2023,cal1
+business or profession > net income,2e+06,39878.0818512044,36564,2023,cal1
+business or profession > net income,5e+06,9277.60671381112,8741,2023,cal1
+business or profession > net income,1e+07,5583.90893386687,5429,2023,cal1
+ordinary dividends,-Inf,543188.909224482,415458,2023,cal1
+ordinary dividends,1,836449.386482665,833802,2023,cal1
+ordinary dividends,5000,793703.6911727,730314,2023,cal1
+ordinary dividends,10000,745421.099698824,770322,2023,cal1
+ordinary dividends,15000,660425.258015451,722360,2023,cal1
+ordinary dividends,20000,617569.927276917,661137,2023,cal1
+ordinary dividends,25000,622403.180534585,673959,2023,cal1
+ordinary dividends,30000,1312035.75312309,1401776,2023,cal1
+ordinary dividends,40000,1429026.15027044,1435283,2023,cal1
+ordinary dividends,50000,3654258.07320643,3812803,2023,cal1
+ordinary dividends,75000,3471433.25885497,3787852,2023,cal1
+ordinary dividends,1e+05,8893906.87542489,9761898,2023,cal1
+ordinary dividends,2e+05,5628473.65590233,6568282,2023,cal1
+ordinary dividends,5e+05,1286465.68809475,1435192,2023,cal1
+ordinary dividends,1e+06,300361.707781703,319016,2023,cal1
+ordinary dividends,1500000,120512.263920441,130688,2023,cal1
+ordinary dividends,2e+06,175482.950427285,183460,2023,cal1
+ordinary dividends,5e+06,44406.3028128724,45819,2023,cal1
+ordinary dividends,1e+07,28560.0426643977,29039,2023,cal1
+pensions and annuities > total,-Inf,358553.55184805,229471,2023,cal1
+pensions and annuities > total,1,836737.62557498,678424,2023,cal1
+pensions and annuities > total,5000,1081589.44059034,983905,2023,cal1
+pensions and annuities > total,10000,1278495.00270123,1148933,2023,cal1
+pensions and annuities > total,15000,1350451.53548318,1231111,2023,cal1
+pensions and annuities > total,20000,1160094.81061823,1181133,2023,cal1
+pensions and annuities > total,25000,1157376.5384266,1068811,2023,cal1
+pensions and annuities > total,30000,2408586.78552717,2145864,2023,cal1
+pensions and annuities > total,40000,2412923.8483873,2132492,2023,cal1
+pensions and annuities > total,50000,5520330.15500392,5017151,2023,cal1
+pensions and annuities > total,75000,4719548.15858307,4272140,2023,cal1
+pensions and annuities > total,1e+05,9526662.18374454,8590678,2023,cal1
+pensions and annuities > total,2e+05,3456637.98104988,3230815,2023,cal1
+pensions and annuities > total,5e+05,430896.824417895,435187,2023,cal1
+pensions and annuities > total,1e+06,93271.3609912991,90838,2023,cal1
+pensions and annuities > total,1500000,34591.3402543787,36277,2023,cal1
+pensions and annuities > total,2e+06,48424.7445827221,46943,2023,cal1
+pensions and annuities > total,5e+06,11462.0389401707,11516,2023,cal1
+pensions and annuities > total,1e+07,8161.06882450394,7099,2023,cal1
+social security benefits > total,-Inf,958298.084820189,919426,2023,cal1
+social security benefits > total,1,2122955.66639471,2007910,2023,cal1
+social security benefits > total,5000,1805588.13519917,1755902,2023,cal1
+social security benefits > total,10000,1893796.70798338,1750674,2023,cal1
+social security benefits > total,15000,1663432.3280008,1621039,2023,cal1
+social security benefits > total,20000,1407067.11723471,1358323,2023,cal1
+social security benefits > total,25000,1246190.79356458,1162942,2023,cal1
+social security benefits > total,30000,2344161.16810028,2138407,2023,cal1
+social security benefits > total,40000,2149681.58872274,1972282,2023,cal1
+social security benefits > total,50000,4705719.23920378,4469468,2023,cal1
+social security benefits > total,75000,3992996.84633695,3699007,2023,cal1
+social security benefits > total,1e+05,7151735.7826379,6670913,2023,cal1
+social security benefits > total,2e+05,2220590.56167148,2120773,2023,cal1
+social security benefits > total,5e+05,270926.421260924,303428,2023,cal1
+social security benefits > total,1e+06,66300.9420796249,68154,2023,cal1
+social security benefits > total,1500000,26923.1148620323,28742,2023,cal1
+social security benefits > total,2e+06,36164.3062871003,40193,2023,cal1
+social security benefits > total,5e+06,8541.52284052817,10162,2023,cal1
+social security benefits > total,1e+07,5690.72543759818,6333,2023,cal1
+taxable individual retirement arrangement (ira) distributions,-Inf,216347.581551671,110842,2023,cal1
+taxable individual retirement arrangement (ira) distributions,1,355588.416971685,320502,2023,cal1
+taxable individual retirement arrangement (ira) distributions,5000,523042.727584975,488370,2023,cal1
+taxable individual retirement arrangement (ira) distributions,10000,623481.382010234,529386,2023,cal1
+taxable individual retirement arrangement (ira) distributions,15000,570765.805299781,546285,2023,cal1
+taxable individual retirement arrangement (ira) distributions,20000,468954.815045303,504430,2023,cal1
+taxable individual retirement arrangement (ira) distributions,25000,444016.317028889,486495,2023,cal1
+taxable individual retirement arrangement (ira) distributions,30000,992569.499668945,913718,2023,cal1
+taxable individual retirement arrangement (ira) distributions,40000,1013330.29894375,901785,2023,cal1
+taxable individual retirement arrangement (ira) distributions,50000,2398882.30121666,2279304,2023,cal1
+taxable individual retirement arrangement (ira) distributions,75000,2207332.35119644,2162582,2023,cal1
+taxable individual retirement arrangement (ira) distributions,1e+05,4911644.406335,4839387,2023,cal1
+taxable individual retirement arrangement (ira) distributions,2e+05,1883613.98770716,2127838,2023,cal1
+taxable individual retirement arrangement (ira) distributions,5e+05,252149.88842411,337631,2023,cal1
+taxable individual retirement arrangement (ira) distributions,1e+06,55586.3002071163,70785,2023,cal1
+taxable individual retirement arrangement (ira) distributions,1500000,20782.9849370776,26400,2023,cal1
+taxable individual retirement arrangement (ira) distributions,2e+06,28966.1853202297,35598,2023,cal1
+taxable individual retirement arrangement (ira) distributions,5e+06,6514.25716867448,8214,2023,cal1
+taxable individual retirement arrangement (ira) distributions,1e+07,3899.55177188514,4600,2023,cal1
+taxable interest,-Inf,778664.928502196,668133,2023,cal1
+taxable interest,1,1556091.13859171,1752796,2023,cal1
+taxable interest,5000,1189268.04587291,1401118,2023,cal1
+taxable interest,10000,1283618.18969058,1453473,2023,cal1
+taxable interest,15000,1192543.7495475,1423116,2023,cal1
+taxable interest,20000,1035384.23707544,1335716,2023,cal1
+taxable interest,25000,971177.562833118,1381322,2023,cal1
+taxable interest,30000,2338363.13524419,2813410,2023,cal1
+taxable interest,40000,2496097.81638968,2944326,2023,cal1
+taxable interest,50000,6216211.24984954,7295004,2023,cal1
+taxable interest,75000,5618737.27002252,6586833,2023,cal1
+taxable interest,1e+05,13496035.5608146,15421470,2023,cal1
+taxable interest,2e+05,7384770.01101196,8389204,2023,cal1
+taxable interest,5e+05,1501576.15046412,1620892,2023,cal1
+taxable interest,1e+06,345804.31112768,352719,2023,cal1
+taxable interest,1500000,138793.526621224,143109,2023,cal1
+taxable interest,2e+06,196939.197017391,198931,2023,cal1
+taxable interest,5e+06,48477.7945491468,48595,2023,cal1
+taxable interest,1e+07,30059.5469083318,30071,2023,cal1
+unemployment compensation,-Inf,24327.4833177824,19595,2023,cal1
+unemployment compensation,1,70071.3531747692,40825,2023,cal1
+unemployment compensation,5000,161128.666510656,110329,2023,cal1
+unemployment compensation,10000,318756.656302877,205714,2023,cal1
+unemployment compensation,15000,329596.683301297,246584,2023,cal1
+unemployment compensation,20000,401253.652126842,278792,2023,cal1
+unemployment compensation,25000,381987.713695821,282884,2023,cal1
+unemployment compensation,30000,742184.708549969,508555,2023,cal1
+unemployment compensation,40000,651084.219281074,452439,2023,cal1
+unemployment compensation,50000,1036072.3515463,754372,2023,cal1
+unemployment compensation,75000,694647.277970299,524078,2023,cal1
+unemployment compensation,1e+05,1162489.87833924,922821,2023,cal1
+unemployment compensation,2e+05,290022.491087029,308267,2023,cal1
+unemployment compensation,5e+05,25971.0185455082,34545,2023,cal1
+unemployment compensation,1e+06,2671.47362988658,4841,2023,cal1
+unemployment compensation,1500000,864.435006352204,1273,2023,cal1
+unemployment compensation,2e+06,827.883386334954,1397,2023,cal1
+unemployment compensation,5e+06,78.0143815869129,136,2023,cal1
+unemployment compensation,1e+07,27.7293403252403,54,2023,cal1
+business or profession > net income,-Inf,232811.822661246,174291,2023,cal100
+business or profession > net income,1,1275432.53001263,1642686,2023,cal100
+business or profession > net income,5000,1178870.27989964,1437423,2023,cal100
+business or profession > net income,10000,1716078.52047417,2088019,2023,cal100
+business or profession > net income,15000,1594860.22267622,1944058,2023,cal100
+business or profession > net income,20000,1266969.88937771,1230554,2023,cal100
+business or profession > net income,25000,843366.281165139,902312,2023,cal100
+business or profession > net income,30000,1277220.54463221,1443628,2023,cal100
+business or profession > net income,40000,1105091.57462332,1124887,2023,cal100
+business or profession > net income,50000,1900064.41765975,2294849,2023,cal100
+business or profession > net income,75000,1284417.6897875,1622213,2023,cal100
+business or profession > net income,1e+05,3694395.3297636,3365227,2023,cal100
+business or profession > net income,2e+05,1965005.48681187,1674638,2023,cal100
+business or profession > net income,5e+05,395414.553484144,320590,2023,cal100
+business or profession > net income,1e+06,85955.357632753,68315,2023,cal100
+business or profession > net income,1500000,35018.5782220839,27288,2023,cal100
+business or profession > net income,2e+06,40111.7200824376,36564,2023,cal100
+business or profession > net income,5e+06,9289.42500948117,8741,2023,cal100
+business or profession > net income,1e+07,5558.02351455723,5429,2023,cal100
+ordinary dividends,-Inf,543221.829240939,415458,2023,cal100
+ordinary dividends,1,836831.385818032,833802,2023,cal100
+ordinary dividends,5000,794192.265903018,730314,2023,cal100
+ordinary dividends,10000,744845.20012552,770322,2023,cal100
+ordinary dividends,15000,661095.496253886,722360,2023,cal100
+ordinary dividends,20000,618486.331266564,661137,2023,cal100
+ordinary dividends,25000,620913.804230283,673959,2023,cal100
+ordinary dividends,30000,1312169.36564991,1401776,2023,cal100
+ordinary dividends,40000,1428869.35404803,1435283,2023,cal100
+ordinary dividends,50000,3659636.69010726,3812803,2023,cal100
+ordinary dividends,75000,3474767.49548655,3787852,2023,cal100
+ordinary dividends,1e+05,8897984.88700859,9761898,2023,cal100
+ordinary dividends,2e+05,5606389.98262188,6568282,2023,cal100
+ordinary dividends,5e+05,1287018.20941124,1435192,2023,cal100
+ordinary dividends,1e+06,300036.721212299,319016,2023,cal100
+ordinary dividends,1500000,120358.633500492,130688,2023,cal100
+ordinary dividends,2e+06,174279.293536473,183460,2023,cal100
+ordinary dividends,5e+06,44403.2566418389,45819,2023,cal100
+ordinary dividends,1e+07,28547.9609194026,29039,2023,cal100
+pensions and annuities > total,-Inf,358904.79325183,229471,2023,cal100
+pensions and annuities > total,1,837139.709491684,678424,2023,cal100
+pensions and annuities > total,5000,1082386.23946296,983905,2023,cal100
+pensions and annuities > total,10000,1281334.91279853,1148933,2023,cal100
+pensions and annuities > total,15000,1351255.85480541,1231111,2023,cal100
+pensions and annuities > total,20000,1159932.79981171,1181133,2023,cal100
+pensions and annuities > total,25000,1157331.58192161,1068811,2023,cal100
+pensions and annuities > total,30000,2408139.35727401,2145864,2023,cal100
+pensions and annuities > total,40000,2411902.0708723,2132492,2023,cal100
+pensions and annuities > total,50000,5515963.00164153,5017151,2023,cal100
+pensions and annuities > total,75000,4718912.39927216,4272140,2023,cal100
+pensions and annuities > total,1e+05,9530611.82423846,8590678,2023,cal100
+pensions and annuities > total,2e+05,3441874.19618879,3230815,2023,cal100
+pensions and annuities > total,5e+05,430140.96791729,435187,2023,cal100
+pensions and annuities > total,1e+06,93125.7973839298,90838,2023,cal100
+pensions and annuities > total,1500000,34525.5185512011,36277,2023,cal100
+pensions and annuities > total,2e+06,47799.9268489353,46943,2023,cal100
+pensions and annuities > total,5e+06,11492.1034878314,11516,2023,cal100
+pensions and annuities > total,1e+07,8149.62275589718,7099,2023,cal100
+social security benefits > total,-Inf,958151.87889688,919426,2023,cal100
+social security benefits > total,1,2123230.99614179,2007910,2023,cal100
+social security benefits > total,5000,1805795.74961458,1755902,2023,cal100
+social security benefits > total,10000,1894421.55668956,1750674,2023,cal100
+social security benefits > total,15000,1663520.2593258,1621039,2023,cal100
+social security benefits > total,20000,1407367.25121512,1358323,2023,cal100
+social security benefits > total,25000,1245906.59082149,1162942,2023,cal100
+social security benefits > total,30000,2344961.29014972,2138407,2023,cal100
+social security benefits > total,40000,2150339.39317165,1972282,2023,cal100
+social security benefits > total,50000,4706760.50321016,4469468,2023,cal100
+social security benefits > total,75000,3992518.37147694,3699007,2023,cal100
+social security benefits > total,1e+05,7161850.95162429,6670913,2023,cal100
+social security benefits > total,2e+05,2204926.99992071,2120773,2023,cal100
+social security benefits > total,5e+05,269866.815885526,303428,2023,cal100
+social security benefits > total,1e+06,65814.9260899085,68154,2023,cal100
+social security benefits > total,1500000,26904.2674227131,28742,2023,cal100
+social security benefits > total,2e+06,35822.1305008047,40193,2023,cal100
+social security benefits > total,5e+06,8549.43929043801,10162,2023,cal100
+social security benefits > total,1e+07,5720.68433792017,6333,2023,cal100
+taxable individual retirement arrangement (ira) distributions,-Inf,216457.099717719,110842,2023,cal100
+taxable individual retirement arrangement (ira) distributions,1,356089.745570528,320502,2023,cal100
+taxable individual retirement arrangement (ira) distributions,5000,524228.063622376,488370,2023,cal100
+taxable individual retirement arrangement (ira) distributions,10000,623903.042663563,529386,2023,cal100
+taxable individual retirement arrangement (ira) distributions,15000,571347.450308126,546285,2023,cal100
+taxable individual retirement arrangement (ira) distributions,20000,468796.501806145,504430,2023,cal100
+taxable individual retirement arrangement (ira) distributions,25000,444040.01289584,486495,2023,cal100
+taxable individual retirement arrangement (ira) distributions,30000,992751.808765955,913718,2023,cal100
+taxable individual retirement arrangement (ira) distributions,40000,1013736.98488565,901785,2023,cal100
+taxable individual retirement arrangement (ira) distributions,50000,2397773.8887535,2279304,2023,cal100
+taxable individual retirement arrangement (ira) distributions,75000,2206837.90222525,2162582,2023,cal100
+taxable individual retirement arrangement (ira) distributions,1e+05,4916105.44442212,4839387,2023,cal100
+taxable individual retirement arrangement (ira) distributions,2e+05,1873110.72763521,2127838,2023,cal100
+taxable individual retirement arrangement (ira) distributions,5e+05,251850.848245055,337631,2023,cal100
+taxable individual retirement arrangement (ira) distributions,1e+06,55319.4967165004,70785,2023,cal100
+taxable individual retirement arrangement (ira) distributions,1500000,20787.5070701449,26400,2023,cal100
+taxable individual retirement arrangement (ira) distributions,2e+06,28346.004790495,35598,2023,cal100
+taxable individual retirement arrangement (ira) distributions,5e+06,6516.87193968279,8214,2023,cal100
+taxable individual retirement arrangement (ira) distributions,1e+07,3910.17557261213,4600,2023,cal100
+taxable interest,-Inf,779498.839862754,668133,2023,cal100
+taxable interest,1,1556266.45155501,1752796,2023,cal100
+taxable interest,5000,1189532.97931696,1401118,2023,cal100
+taxable interest,10000,1284024.43443319,1453473,2023,cal100
+taxable interest,15000,1193198.82449542,1423116,2023,cal100
+taxable interest,20000,1035691.58306911,1335716,2023,cal100
+taxable interest,25000,971134.415095711,1381322,2023,cal100
+taxable interest,30000,2338395.806283,2813410,2023,cal100
+taxable interest,40000,2496109.49928629,2944326,2023,cal100
+taxable interest,50000,6213029.10598284,7295004,2023,cal100
+taxable interest,75000,5621898.15144023,6586833,2023,cal100
+taxable interest,1e+05,13497932.5884843,15421470,2023,cal100
+taxable interest,2e+05,7366184.76186389,8389204,2023,cal100
+taxable interest,5e+05,1502236.73017283,1620892,2023,cal100
+taxable interest,1e+06,345859.197704393,352719,2023,cal100
+taxable interest,1500000,138567.515142155,143109,2023,cal100
+taxable interest,2e+06,195508.123465071,198931,2023,cal100
+taxable interest,5e+06,48493.3682759612,48595,2023,cal100
+taxable interest,1e+07,30060.7980026628,30071,2023,cal100
+unemployment compensation,-Inf,24294.498779959,19595,2023,cal100
+unemployment compensation,1,69897.9556115246,40825,2023,cal100
+unemployment compensation,5000,160667.48628515,110329,2023,cal100
+unemployment compensation,10000,318458.621743089,205714,2023,cal100
+unemployment compensation,15000,329596.233675683,246584,2023,cal100
+unemployment compensation,20000,401217.166834451,278792,2023,cal100
+unemployment compensation,25000,382270.68979405,282884,2023,cal100
+unemployment compensation,30000,742194.947203092,508555,2023,cal100
+unemployment compensation,40000,651281.42362926,452439,2023,cal100
+unemployment compensation,50000,1036557.34517737,754372,2023,cal100
+unemployment compensation,75000,694309.668900323,524078,2023,cal100
+unemployment compensation,1e+05,1162118.16748289,922821,2023,cal100
+unemployment compensation,2e+05,290850.187496653,308267,2023,cal100
+unemployment compensation,5e+05,25756.0563763139,34545,2023,cal100
+unemployment compensation,1e+06,2640.7843382101,4841,2023,cal100
+unemployment compensation,1500000,857.100405791009,1273,2023,cal100
+unemployment compensation,2e+06,804.915588375656,1397,2023,cal100
+unemployment compensation,5e+06,78.1640424785508,136,2023,cal100
+unemployment compensation,1e+07,26.8462634050859,54,2023,cal100
+business or profession > net income,-Inf,241190.198864941,174291,2023,lp
+business or profession > net income,1,1266223.68123361,1642686,2023,lp
+business or profession > net income,5000,1169925.06765621,1437423,2023,lp
+business or profession > net income,10000,1762807.89888963,2088019,2023,lp
+business or profession > net income,15000,1587123.07815439,1944058,2023,lp
+business or profession > net income,20000,1307575.21301535,1230554,2023,lp
+business or profession > net income,25000,872340.160737734,902312,2023,lp
+business or profession > net income,30000,1243428.82362004,1443628,2023,lp
+business or profession > net income,40000,1065279.64364589,1124887,2023,lp
+business or profession > net income,50000,1942086.0180788,2294849,2023,lp
+business or profession > net income,75000,1431583.5906785,1622213,2023,lp
+business or profession > net income,1e+05,3685307.2810487,3365227,2023,lp
+business or profession > net income,2e+05,1981052.58053319,1674638,2023,lp
+business or profession > net income,5e+05,400554.394434609,320590,2023,lp
+business or profession > net income,1e+06,89116.0062863693,68315,2023,lp
+business or profession > net income,1500000,36714.9540120019,27288,2023,lp
+business or profession > net income,2e+06,40662.7559313953,36564,2023,lp
+business or profession > net income,5e+06,9743.91058394133,8741,2023,lp
+business or profession > net income,1e+07,5810.50545755068,5429,2023,lp
+ordinary dividends,-Inf,540834.263909425,415458,2023,lp
+ordinary dividends,1,779354.368105487,833802,2023,lp
+ordinary dividends,5000,793641.865480662,730314,2023,lp
+ordinary dividends,10000,730928.662075615,770322,2023,lp
+ordinary dividends,15000,602095.154695887,722360,2023,lp
+ordinary dividends,20000,630137.12150457,661137,2023,lp
+ordinary dividends,25000,618144.342556251,673959,2023,lp
+ordinary dividends,30000,1276164.85277506,1401776,2023,lp
+ordinary dividends,40000,1391369.58239117,1435283,2023,lp
+ordinary dividends,50000,3644220.06826835,3812803,2023,lp
+ordinary dividends,75000,3314725.02037652,3787852,2023,lp
+ordinary dividends,1e+05,8943189.03288103,9761898,2023,lp
+ordinary dividends,2e+05,5690657.21823373,6568282,2023,lp
+ordinary dividends,5e+05,1288403.71553931,1435192,2023,lp
+ordinary dividends,1e+06,305666.963065752,319016,2023,lp
+ordinary dividends,1500000,123652.740145829,130688,2023,lp
+ordinary dividends,2e+06,178302.693178641,183460,2023,lp
+ordinary dividends,5e+06,45478.2885686386,45819,2023,lp
+ordinary dividends,1e+07,30111.5316781086,29039,2023,lp
+pensions and annuities > total,-Inf,369272.991560853,229471,2023,lp
+pensions and annuities > total,1,783366.733747519,678424,2023,lp
+pensions and annuities > total,5000,1045404.89201772,983905,2023,lp
+pensions and annuities > total,10000,1287749.44696381,1148933,2023,lp
+pensions and annuities > total,15000,1350626.39545253,1231111,2023,lp
+pensions and annuities > total,20000,1199338.61574936,1181133,2023,lp
+pensions and annuities > total,25000,1123115.00490187,1068811,2023,lp
+pensions and annuities > total,30000,2409239.45052384,2145864,2023,lp
+pensions and annuities > total,40000,2393841.09133425,2132492,2023,lp
+pensions and annuities > total,50000,5512756.6195305,5017151,2023,lp
+pensions and annuities > total,75000,4729068.38030483,4272140,2023,lp
+pensions and annuities > total,1e+05,9449709.31376493,8590678,2023,lp
+pensions and annuities > total,2e+05,3423838.39196016,3230815,2023,lp
+pensions and annuities > total,5e+05,430482.284584373,435187,2023,lp
+pensions and annuities > total,1e+06,93297.6270237166,90838,2023,lp
+pensions and annuities > total,1500000,34679.7461274215,36277,2023,lp
+pensions and annuities > total,2e+06,48524.3181264682,46943,2023,lp
+pensions and annuities > total,5e+06,11904.4961467972,11516,2023,lp
+pensions and annuities > total,1e+07,8476.11270776911,7099,2023,lp
+social security benefits > total,-Inf,978469.240608269,919426,2023,lp
+social security benefits > total,1,2150283.41194812,2007910,2023,lp
+social security benefits > total,5000,1782001.29044186,1755902,2023,lp
+social security benefits > total,10000,1911386.6825594,1750674,2023,lp
+social security benefits > total,15000,1663725.87831692,1621039,2023,lp
+social security benefits > total,20000,1426470.42196778,1358323,2023,lp
+social security benefits > total,25000,1217116.51241624,1162942,2023,lp
+social security benefits > total,30000,2349494.4454981,2138407,2023,lp
+social security benefits > total,40000,2171395.82833455,1972282,2023,lp
+social security benefits > total,50000,4726311.63501336,4469468,2023,lp
+social security benefits > total,75000,4013927.6624025,3699007,2023,lp
+social security benefits > total,1e+05,7188887.85502282,6670913,2023,lp
+social security benefits > total,2e+05,2209497.46638589,2120773,2023,lp
+social security benefits > total,5e+05,275184.671158858,303428,2023,lp
+social security benefits > total,1e+06,69744.0492076463,68154,2023,lp
+social security benefits > total,1500000,28084.8032451523,28742,2023,lp
+social security benefits > total,2e+06,36575.909808495,40193,2023,lp
+social security benefits > total,5e+06,8876.39914624365,10162,2023,lp
+social security benefits > total,1e+07,6376.06978645327,6333,2023,lp
+taxable individual retirement arrangement (ira) distributions,-Inf,220208.664953082,110842,2023,lp
+taxable individual retirement arrangement (ira) distributions,1,340455.665800554,320502,2023,lp
+taxable individual retirement arrangement (ira) distributions,5000,508988.01317087,488370,2023,lp
+taxable individual retirement arrangement (ira) distributions,10000,580317.46465554,529386,2023,lp
+taxable individual retirement arrangement (ira) distributions,15000,542190.555259772,546285,2023,lp
+taxable individual retirement arrangement (ira) distributions,20000,486220.150540046,504430,2023,lp
+taxable individual retirement arrangement (ira) distributions,25000,418217.729791325,486495,2023,lp
+taxable individual retirement arrangement (ira) distributions,30000,1004573.19853307,913718,2023,lp
+taxable individual retirement arrangement (ira) distributions,40000,1000907.53349873,901785,2023,lp
+taxable individual retirement arrangement (ira) distributions,50000,2364690.13114973,2279304,2023,lp
+taxable individual retirement arrangement (ira) distributions,75000,2243051.42576956,2162582,2023,lp
+taxable individual retirement arrangement (ira) distributions,1e+05,4967173.14924345,4839387,2023,lp
+taxable individual retirement arrangement (ira) distributions,2e+05,1888033.51933136,2127838,2023,lp
+taxable individual retirement arrangement (ira) distributions,5e+05,256496.681369363,337631,2023,lp
+taxable individual retirement arrangement (ira) distributions,1e+06,57112.1399557604,70785,2023,lp
+taxable individual retirement arrangement (ira) distributions,1500000,21304.1299618826,26400,2023,lp
+taxable individual retirement arrangement (ira) distributions,2e+06,29274.6619432597,35598,2023,lp
+taxable individual retirement arrangement (ira) distributions,5e+06,6758.33185637626,8214,2023,lp
+taxable individual retirement arrangement (ira) distributions,1e+07,4146.9221962175,4600,2023,lp
+taxable interest,-Inf,755285.30381028,668133,2023,lp
+taxable interest,1,1558822.1347325,1752796,2023,lp
+taxable interest,5000,1177351.45224368,1401118,2023,lp
+taxable interest,10000,1268310.97643096,1453473,2023,lp
+taxable interest,15000,1147521.01190324,1423116,2023,lp
+taxable interest,20000,1061275.84041748,1335716,2023,lp
+taxable interest,25000,969407.824653166,1381322,2023,lp
+taxable interest,30000,2318975.60136998,2813410,2023,lp
+taxable interest,40000,2454202.12470138,2944326,2023,lp
+taxable interest,50000,6205086.08005037,7295004,2023,lp
+taxable interest,75000,5594247.03392412,6586833,2023,lp
+taxable interest,1e+05,13410712.0187046,15421470,2023,lp
+taxable interest,2e+05,7393270.45613994,8389204,2023,lp
+taxable interest,5e+05,1496885.74213426,1620892,2023,lp
+taxable interest,1e+06,352219.297130726,352719,2023,lp
+taxable interest,1500000,142234.801820162,143109,2023,lp
+taxable interest,2e+06,199386.839957667,198931,2023,lp
+taxable interest,5e+06,49830.6584274344,48595,2023,lp
+taxable interest,1e+07,31585.4530650185,30071,2023,lp
+unemployment compensation,-Inf,23298.8981107068,19595,2023,lp
+unemployment compensation,1,68954.4756616996,40825,2023,lp
+unemployment compensation,5000,174438.529697477,110329,2023,lp
+unemployment compensation,10000,316497.979968765,205714,2023,lp
+unemployment compensation,15000,337841.752213984,246584,2023,lp
+unemployment compensation,20000,426802.463833319,278792,2023,lp
+unemployment compensation,25000,408397.317610005,282884,2023,lp
+unemployment compensation,30000,741237.317158803,508555,2023,lp
+unemployment compensation,40000,656803.511674715,452439,2023,lp
+unemployment compensation,50000,1041533.80625036,754372,2023,lp
+unemployment compensation,75000,665318.798307009,524078,2023,lp
+unemployment compensation,1e+05,1128197.39202123,922821,2023,lp
+unemployment compensation,2e+05,286400.535348547,308267,2023,lp
+unemployment compensation,5e+05,24866.2656955447,34545,2023,lp
+unemployment compensation,1e+06,2158.05338890571,4841,2023,lp
+unemployment compensation,1500000,861.141887136227,1273,2023,lp
+unemployment compensation,2e+06,815.871225245473,1397,2023,lp
+unemployment compensation,5e+06,82.8354541796492,136,2023,lp
+unemployment compensation,1e+07,24.8373092670998,54,2023,lp
