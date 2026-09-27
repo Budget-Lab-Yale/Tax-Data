@@ -79,7 +79,8 @@ for (y in YEARS) {
     if (grepl('_prior$', a)) next
     w <- arms[[a]]
     fitted <- as.numeric(crossprod(tm$X, w))
-    miss <- abs(fitted - tm$target$t)
+    # an LP solution sits exactly on its band edge: allow float error there
+    miss <- abs(fitted - tm$target$t) / (1 + 1e-6)
     for (s in unique(tm$target$source)) {
       k <- tm$target$source == s
       put(y, a, sprintf('within_band:%s', s), mean(miss[k] <= bnd[k]))
@@ -104,6 +105,7 @@ for (y in YEARS) {
     put(y, a, 'kish_ess', sum(wf)^2 / sum(wf^2))
     for (q in c(0.01, 0.5, 0.99)) put(y, a, sprintf('ratio_to_prior_q%02d', 100 * q), quantile(r, q))
     put(y, a, 'share_at_ratio_bound', mean(r <= RATIO_MIN + 1e-6 | r >= RATIO_MAX - 1e-6))
+    put(y, a, 'share_unchanged', mean(abs(r - 1) < 1e-9))
     bin <- floor(d$agi_proxy[free] / 1000)
     wpr <- data.table(bin, wf)[bin %in% LUMP_BINS, .(wpr = mean(wf)), by = bin][order(bin)]
     put(y, a, 'lumpiness', mean(abs(diff(log(wpr$wpr)))))

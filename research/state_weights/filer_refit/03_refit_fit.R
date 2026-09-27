@@ -112,7 +112,7 @@ dir.create(fit_dir(), showWarnings = FALSE, recursive = TRUE)
 saveRDS(list(id = d$id, w = w, prior = prior, target_id = tm$target_id, fitted = fitted,
              target = t_all, band = band(t_all), info = info),
         file.path(fit_dir(), sprintf('%s_%d.rds', arm, ty)))
-within <- abs(fitted - t_all) <= band(t_all)
+within <- abs(fitted - t_all) <= band(t_all) * (1 + 1e-6)   # LP solutions sit on the band edge
 cat(sprintf('TY%d %s: %.1f%% of targets within band; ratio to prior %s; %.1f min\n', ty, arm,
             100 * mean(within), paste(round(quantile(w_free / w0, c(0, .05, .5, .95, 1)), 3), collapse = '/'),
             as.numeric(Sys.time() - t0, units = 'mins')))
