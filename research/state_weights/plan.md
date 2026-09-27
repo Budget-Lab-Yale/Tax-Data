@@ -472,9 +472,17 @@ sits on. Pilot-state liability is unscored (its cache predates Block E).
 1. **IRS-Ind:** a merged Table 1.6 target view — age × filing status × AGI
    class with combined (`**`) cells folded into blocks of connected cells,
    each targeted as its sum (IRS-Ind `notes/alignment_plan.md`).
-2. **Tax-Data reader** for IRS-Ind's harmonized panels (`aligned/panel_*.csv`
-   in the shared IRS-Ind store) and the merged 1.6 view, replacing the
-   raw-sheet reads in `src/nonfilers/sw_soi.R` where they overlap.
+2. **Tax-Data reader — done 2026-09-27.** `read_bysize_series()` and
+   `read_t16_targets()` in `src/nonfilers/sw_soi.R` read the IRS-Ind
+   panels; `filer_refit/01_refit_targets.R` turns them into the committed
+   `resources/filer_refit_targets.csv` (the store is unversioned, so the
+   pipeline never reads it directly): TY2017–2023, 3,453 targets — Table
+   1.6 by status × age × AGI class (combined cells as blocks), 1.6's
+   under-18 returns by AGI, 1.4 returns with wages by AGI, 1.7 dependent
+   returns (all, and with wages) by AGI. 181 gates pass, including every
+   status total and 132 status × age cells against
+   `resources/return_counts_2023.csv`. The raw-sheet readers stay: the
+   non-filer pool scripts are built and gated on them.
 3. **The refit:** TY2018–2023 filer weights fit to Tables 1.6, 1.4 (returns
    with wages by AGI) and 1.7 (dependent returns by AGI) with the 2017
    machinery (`reweight_lp()`), replacing the status × age scaling in

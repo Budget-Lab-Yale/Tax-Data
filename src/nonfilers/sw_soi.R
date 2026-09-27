@@ -2,7 +2,8 @@
 # sw_soi.R  --  split out of state_weights.R (F4, 2026-09-23)
 #
 # IRS SOI readers: Historic Table 2 (state x AGI stub), Pub 1304 Tables 1.6 and
-# # 1.7, the IRA age split, and the filing threshold.
+# 1.7, the IRA age split, the filing threshold, and (2026-09-27) the IRS-Ind
+# aligned panels of the Pub 1304 by-size tables.
 #
 # Code moved verbatim; see state_weights.R for the module map.
 # =============================================================================
@@ -334,4 +335,74 @@ read_pub1304_t17_total <- function(year) {
   x <- suppressMessages(read_excel(f, sheet = 1, col_names = FALSE))
   i <- which(str_squish(as.character(x[[1]])) == 'All returns')[1]
   as.numeric(gsub('[^0-9.-]', '', as.character(x[[2]][i])))
+}
+
+#---------------------------------------------------------------
+# IRS-Ind aligned panels (added 2026-09-27, Phase 3b / S40)
+#---------------------------------------------------------------
+
+# The IRS-Ind store publishes the Pub 1304 by-size tables already parsed and
+# checked (its align_bysize.R, harmonize_bysize.R and build_t16_targets.R;
+# see IRS-Ind notes/national_bysize.md). Two layers are read here:
+#   panel_{family}.csv  each table harmonized across years: `series` is the
+#       consistent concept (Table 1.4's "wages" continues "Salaries and wages"
+#       into TY2022's "Total wages"), agi_lo/agi_hi the class in dollars,
+#       [lo, hi); the consistent classes are agi_change != 'expand_component'
+#   targets_returns_marital_age.csv  Table 1.6 as targets, combined (**) cells
+#       folded into blocks whose published sum is the target
+# The files are regenerated in place, with no vintage, so pipeline code never
+# reads them directly: a research script turns them into a committed file in
+# resources/ (research/state_weights/filer_refit/01_refit_targets.R).
+irs_ind_aligned_path <- function(file) {
+  p <- file.path(raw_data_root(), 'IRS-Ind/aligned', file)
+  if (!file.exists(p)) stop('IRS-Ind aligned file not found: ', p,
+                            ' -- build it with the IRS-Ind scripts (README, "Usage")')
+  p
+}
+
+# One harmonized series by AGI class: the consistent classes of `panel`, one
+# row per (tax_year, agi_lo, agi_hi), plus the panel total as agi_lo = NA.
+read_bysize_series <- function(family, series_name, measure_name,
+                               panel_name = 'all returns', years) {
+  p <- fread(irs_ind_aligned_path(sprintf('panel_%s.csv', family)), na.strings = '')
+  d <- p[series == series_name & measure == measure_name & panel == panel_name &
+           tax_year %in% years & !(agi_change %in% 'expand_component') &
+           (is.na(row) | row == 'total')]
+  if (!setequal(unique(d$tax_year), years)) {
+    stop(family, ' / ', series_name, ': years missing: ',
+         paste(setdiff(years, d$tax_year), collapse = ' '))
+  }
+  if (any(duplicated(d[, .(tax_year, agi_lo, agi_hi)]))) {
+    stop(family, ' / ', series_name, ': more than one value per class')
+  }
+  d[, .(tax_year, agi_lo, agi_hi, value, flag, derived)]
+}
+
+# Table 1.6 target cells, one row per (tax_year, panel, age, AGI class), with
+# block_id / block_value for combined cells. Tax-Data codes attached:
+# filing_status (1 single, 2 joint incl. surviving spouses, 3 MFS, 4 HoH; NA
+# for the all-returns panel) and age_group (1 = under 26, ..., 6 = 65+; the
+# all-returns panel's 'under 18' and '18 under 26' both map to 1, as in
+# project_puf's age1 < 26).
+read_t16_targets <- function(years) {
+  t <- fread(irs_ind_aligned_path('targets_returns_marital_age.csv'), na.strings = '')
+  t <- t[tax_year %in% years]
+  panel_status <- c('all returns' = NA_integer_,
+                    'returns of single persons' = 1L,
+                    'returns of married persons filing jointly and returns of surviving spouses' = 2L,
+                    'returns of married persons filing jointly' = 2L,
+                    'returns of surviving spouses' = 2L,
+                    'returns of married persons filing separately' = 3L,
+                    'returns of heads of households' = 4L)
+  age_group <- c('under 18' = 1L, '18 under 26' = 1L, 'under 26' = 1L,
+                 '26 under 35' = 2L, '35 under 45' = 3L, '45 under 55' = 4L,
+                 '55 under 65' = 5L, '65 and over' = 6L)
+  if (!all(t$panel %in% names(panel_status))) {
+    stop('unmapped Table 1.6 panel: ', paste(setdiff(t$panel, names(panel_status)), collapse = '; '))
+  }
+  if (!all(t$age %in% names(age_group))) {
+    stop('unmapped Table 1.6 age band: ', paste(setdiff(t$age, names(age_group)), collapse = '; '))
+  }
+  t[, `:=`(filing_status = unname(panel_status[panel]), age_group = unname(age_group[age]))]
+  t[]
 }

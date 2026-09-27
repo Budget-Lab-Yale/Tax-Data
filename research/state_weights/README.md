@@ -3,7 +3,7 @@ title: "State weights + non-filer workstream"
 role: index
 workstream: state_weights
 status: current
-updated: 2026-09-11
+updated: 2026-09-27
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -25,6 +25,7 @@ rather than fit-then-refit.
 | evidence | [`nonfiler_residual/04_findings.md`](nonfiler_residual/04_findings.md) — Stage D findings F1–F7, frozen; result CSVs in `nonfiler_residual/results/` |
 | notes | [`notes/`](notes/) — engine root-cause record, deferred alternatives, the proposal-rewrite plan |
 | scripts | [`scripts/`](scripts/) — `sweep_state_weights.R` and `validate_state_weights.R` are parts 1 and 2 of the Phase 1 comparison harness |
+| scripts | [`filer_refit/`](filer_refit/) — Phase 3b (S40), the per-year national filer refit: `01_refit_targets.R` builds `resources/filer_refit_targets.csv` from the IRS-Ind Pub 1304 panels, gated in `results/refit_target_checks.csv` |
 
 The narrative case for the methodology, for co-authors and outside readers, is a
 Word-native document with tracked changes:
