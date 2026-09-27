@@ -175,6 +175,43 @@ prior is low because neither was fit to these targets.)
   yet applied; held-out MARD in TY2023 (14.6%) is still well above TY2017's,
   which the loop and the income aging may explain.
 
+### The pipeline vintage (2026-09-27)
+
+`2026092712_filer_refit` (Slurm 27674983 at `ca50397`, 3h33m, exit 0 with its
+done marker): the `s33` vintage's code and model caches (loaded,
+`TAXDATA_ESTIMATE_MODELS=0`) plus the refit. The pipeline's
+`refit_filer_year()` reproduces the bake-off's TY2017 cal1 weights exactly
+(max relative difference 0; Slurm 27668866). The weight–income loop settled in
+2 rounds (class totals moved 0.093% of returns; the largest single class,
+a thin one, 2.4%) after a first build with a 4-round cap on the
+single-class move could not meet it (27668865, cancelled). Diagnostics:
+`filer_refit/05_vintage_diagnostics.R` (Slurm 27681017),
+`results/vintage_diag_*.csv`, against `2026092220_s33_scratch`:
+
+- **AGI classes match Table 1.4.** Mean error over classes, all returns:
+  13.2% → 0.07% (TY2017), 12.1% → 0.02% (2019), 12.8% → 0.41% (2023);
+  returns with wages 15–17% → ~0. The ±30–55% alternation inside each $10k
+  band is gone.
+- **Total filers now equal the IRS count**: 152.90M / 157.79M / 160.60M
+  against SOI's 152.9M / 157.8M / 160.6M; before, 0.5% short. So the S21
+  partition's soft gap rises from 0.3% to 0.7–0.9% because filers rose to the
+  IRS count, not past it. Non-filers are unchanged through 2023.
+- **The low-income headline closes**: TY2023 wage filers at AGI $1–10k
+  13.29M → 9.56M, dependents 6.69M → 3.75M, filers 18–25 8.66M → 5.70M.
+- **Tripwire clean**: in TY2017 and 2019 only the weight, the consumption
+  columns (benchmarked to PCE on the weights) and `q_death1/2` (ranked by
+  weighted income percentile) change; TY2023's 141 changed columns are the
+  2020+ extensive income factors and wealth, both weight-dependent by design.
+- **Open: TY2017 income amounts.** `create_2017_puf.R` rescales amounts to
+  SOI by AGI group on the LP's weights, so with the refit weights the totals
+  drift from Table 1.4: wages +0.2%, Social Security −0.9%, pensions +0.9%,
+  dividends −0.4%, interest +7.1%, **business net income +22.9%**. Error over
+  AGI classes improves for wages (7.7% → 2.3%), Social Security (19.3% →
+  7.4%) and pensions (16.6% → 11.7%) and worsens for interest (7.8% → 13.1%),
+  dividends (6.5% → 10.2%) and business income (16.6% → 30.3%). The fix is
+  to run the value rescaling on the refit weights (refit, then rescale, and
+  reclass), which moves the refit into create_2017_puf.R.
+
 ## Order of work
 
 1. AGI proxy + its TY2017 validation against `E00100` (needs the Phase 1

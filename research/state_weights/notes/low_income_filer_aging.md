@@ -3,7 +3,7 @@ title: "Low-income filer counts in the aged file miss the TY2019-to-TY2023 decli
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-09-26
+updated: 2026-09-27
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -54,6 +54,14 @@ At total income $10–25,000: filers 21.62M to 18.56M (−14%) against the IRS's
 So in TY2019 the file's low-income wage filers sit close to HT2 (13.6M against 14.2M); in TY2023
 they are about 30% above it (12.1M against 9.3M), and the file has almost no low-income
 non-filers to offer in their place, fewest of all among young adults.
+
+## Result (2026-09-27)
+
+The S40 refit (`research/state_weights/notes/filer_refit_design.md`) closes it
+in vintage `2026092712_filer_refit`: TY2023 wage filers at AGI $1–10k 13.29M →
+9.56M against Table 1.4's 9.56M, dependent wage filers 6.69M → 3.75M against
+Table 1.7's 3.75M (AGI by `src/agi_proxy.R`). Not yet the production vintage:
+the TY2017 amount rescaling and the Phase 3 re-run come first.
 
 ## Why it matters downstream
 
