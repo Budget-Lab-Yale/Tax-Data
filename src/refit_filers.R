@@ -62,8 +62,10 @@ refit_target_matrix = function(d, tg) {
 
 # Calibrate prior weights w0 to targets t over indicator matrix X. Targets no
 # record reaches are dropped (the under-18 returns: the file has no filer under
-# 18). Returns list(w, report).
-calibrate_weights = function(w0, X, t) {
+# 18). `w_start`, if given, warm-starts the solve (the weight-income loop in
+# project_puf.R passes the previous round's fit); the prior w0 is unchanged.
+# Returns list(w, report).
+calibrate_weights = function(w0, X, t, w_start = NULL) {
   reach = Matrix::colSums(X) > 0
   Xr = X[, reach, drop = FALSE]
   tr = t[reach]
@@ -78,7 +80,9 @@ calibrate_weights = function(w0, X, t) {
   cache = new.env()
   f  = function(u) { cache$v = fn_gr(u); cache$u = u; cache$v$f }
   gr = function(u) { if (!identical(u, cache$u)) f(u); cache$v$g }
-  opt = optim(rep(0, length(w0)), f, gr, method = 'L-BFGS-B',
+  u0 = if (is.null(w_start)) rep(0, length(w0)) else
+         pmin(pmax(log(w_start / w0), log(REFIT_RATIO_MIN)), log(REFIT_RATIO_MAX))
+  opt = optim(u0, f, gr, method = 'L-BFGS-B',
               lower = log(REFIT_RATIO_MIN), upper = log(REFIT_RATIO_MAX),
               control = list(maxit = REFIT_MAXIT, factr = 1e5))
   w = w0 * exp(opt$par)
@@ -91,15 +95,18 @@ calibrate_weights = function(w0, X, t) {
 }
 
 # Refit one year: `d` is that year's filers (materialized, one row per record,
-# with a `weight` column holding the prior). Returns tibble(id, weight) and
-# prints a one-line report.
-refit_filer_year = function(d, year) {
+# with a `weight` column holding the prior; `w_start`, a tibble(id, weight),
+# optionally warm-starts it). Returns tibble(id, weight) and prints a one-line
+# report.
+refit_filer_year = function(d, year, w_start = NULL) {
   stopifnot(!any(duplicated(d$id)), all(d$weight > 0))
   d = agi_proxy(d, year)
   tg = refit_targets[refit_targets$year == year, ]
   if (nrow(tg) == 0) stop('refit_filer_year(): no targets for ', year)
   tm = refit_target_matrix(d, tg)
-  fit = calibrate_weights(d$weight, tm$X, tm$t)
+  ws = if (is.null(w_start)) NULL else w_start$weight[match(d$id, w_start$id)]
+  if (!is.null(ws)) stopifnot(!anyNA(ws))
+  fit = calibrate_weights(d$weight, tm$X, tm$t, ws)
   with(fit$report, cat(sprintf(
     'refit_filers: TY%d %d filers, %d targets (%d unreached), %.1f%% of the rest within band, ratio q01-q99 %.2f-%.2f, L-BFGS %d (%d)\n',
     year, nrow(d), n_targets, n_unreached, 100 * within_band, ratio_q01, ratio_q99,

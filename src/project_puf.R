@@ -646,12 +646,16 @@ cat(sprintf('project_puf.R: factor_ledger final (%d rows)\n', nrow(factor_ledger
 # age factors. Classing records by AGI needs the year's aged incomes, and from
 # 2020 those depend on the weights through the extensive factors, so the refit
 # and the factors are iterated: refit on the current factors, rebuild the
-# refit years' weights and 2020+ factors, repeat until the refit weights'
-# AGI-class totals move by less than REFIT_CLASS_TOL. The prior stays fixed
-# across iterations. Filers past 2023 grow from the refit 2023 weights.
+# refit years' weights and 2020+ factors, repeat until any year's AGI-class
+# totals move by less than REFIT_CLASS_TOL between rounds, measured as the sum
+# of absolute class-total changes over the year's returns. The prior
+# stays fixed; each round warm-starts from the last. Only 2020+ incomes read
+# the weights, so 2018-2019 are fit once. Filers past 2023 grow from the refit
+# 2023 weights. (A 4-round cap on the largest single-class move failed on
+# 2026-09-27: that move halved each round, 2.4% -> 1.3%, driven by thin classes.)
 source('./src/materialize.R')
 REFIT_YEARS     = 2018L:FILER_OBS_LAST
-REFIT_MAX_ITER  = 4
+REFIT_MAX_ITER  = 10
 REFIT_CLASS_TOL = 0.001
 
 refit_prior_ledger = weight_ledger %>% filter(year %in% REFIT_YEARS)
@@ -659,11 +663,12 @@ refit_filer_base   = tax_units %>% filter(filer == 1)
 refit_class_prev   = NULL
 t0 = Sys.time()
 for (it in seq_len(REFIT_MAX_ITER)) {
-  refit_class = list()
-  for (y in REFIT_YEARS) {
+  refit_class = if (is.null(refit_class_prev)) list() else
+    list(refit_class_prev %>% filter(year < 2020L))
+  for (y in if (it == 1) REFIT_YEARS else REFIT_YEARS[REFIT_YEARS >= 2020L]) {
     d = materialize(y, refit_filer_base, factor_ledger %>% filter(year == y),
                     refit_prior_ledger)
-    w = refit_filer_year(d, y)
+    w = refit_filer_year(d, y, refit_filer_weights[[as.character(y)]])
     refit_filer_weights[[as.character(y)]] = w
     refit_class[[length(refit_class) + 1]] = agi_proxy(d, y) %>%
       select(id, agi_proxy) %>%
@@ -685,12 +690,16 @@ for (it in seq_len(REFIT_MAX_ITER)) {
                             map_dfr(2020L:FILER_OBS_LAST, build_factor_rows_2020plus)) %>%
     arrange(year, variable)
 
-  moved = if (is.null(refit_class_prev)) Inf else {
-    m = inner_join(refit_class, refit_class_prev, by = c('year', 'agi_lo'), suffix = c('', '_prev'))
-    max(abs(m$returns / m$returns_prev - 1))
+  moved = Inf; largest = Inf
+  if (!is.null(refit_class_prev)) {
+    m = full_join(refit_class, refit_class_prev, by = c('year', 'agi_lo'), suffix = c('', '_prev')) %>%
+      mutate(across(c(returns, returns_prev), ~ coalesce(., 0)))   # a class empty in one round moved wholly
+    moved   = max(m %>% group_by(year) %>%
+                    summarise(s = sum(abs(returns - returns_prev)) / sum(returns_prev)) %>% pull(s))
+    largest = max(abs(m$returns / m$returns_prev - 1)[m$returns_prev > 0])
   }
-  cat(sprintf('project_puf.R: S40 refit iteration %d, largest AGI-class move %.4f%% (%.0fs)\n',
-              it, 100 * moved, as.numeric(Sys.time() - t0, units = 'secs')))
+  cat(sprintf('project_puf.R: S40 refit iteration %d, AGI-class totals moved %.4f%% of returns (largest single class %.3f%%) (%.0fs)\n',
+              it, 100 * moved, 100 * largest, as.numeric(Sys.time() - t0, units = 'secs')))
   refit_class_prev = refit_class
   if (moved < REFIT_CLASS_TOL) break
 }
