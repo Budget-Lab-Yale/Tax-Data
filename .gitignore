@@ -34,3 +34,5 @@ research/**/*.docx
 !research/tools/reference.docx
 !research/docx_sources/*.docx
 !research/archive/*.docx
+# dated releases are committed snapshots (research/tools/render_release.R)
+!research/releases/*.docx
