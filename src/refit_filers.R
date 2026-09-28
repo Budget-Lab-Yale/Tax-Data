@@ -57,9 +57,7 @@ refit_target_matrix = function(d, tg) {
   X = Matrix::sparseMatrix(i = unlist(cols), j = rep(seq_along(cols), lengths(cols)),
                            x = 1, dims = c(nrow(d), length(cols)))
   first = tg[!duplicated(tg$target_id), ]
-  list(X = X, target_id = as.integer(names(cols)),
-       t = first$target_value[match(as.integer(names(cols)), first$target_id)],
-       source = first$source[match(as.integer(names(cols)), first$target_id)])
+  list(X = X, t = first$target_value[match(as.integer(names(cols)), first$target_id)])
 }
 
 # Calibrate prior weights w0 to targets t over indicator matrix X. Targets no

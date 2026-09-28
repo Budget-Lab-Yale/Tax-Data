@@ -3,7 +3,7 @@ title: "The top tail of Tax-Data: the issue, the short-term position, and the re
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-09-29
+updated: 2026-09-28
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -395,12 +395,13 @@ must not break for filer columns other than weights.
 ## 5. Provenance
 
 - Scripts (committed with this note): `research/state_weights/filer_refit/08_table43.R`
-  (+ `run_table43.sbatch`; Slurm 27755431; the IRS sheets and results under
+  (Slurm 27755431; the IRS sheets and results under
   `results/table43/`), `research/state_weights/filer_refit/06_puf_soi_gaps.R`
-  (+ `run_puf_soi_gaps.sbatch`; Slurm 27742729) and
+  (Slurm 27742729) and
   `research/state_weights/filer_refit/07_top_tail_2022.R` (+
-  `run_top_tail_2022.sbatch`; Slurm 27745711); results under
+  Slurm 27745711); results under
   `research/state_weights/filer_refit/results/{puf_soi_gaps,top_tail_2022}/`.
+  All run through `research/state_weights/filer_refit/run_rscript.sbatch`.
   Both ran at commit `67983d1`.
 - The 2015 PUF booklet (`2015 Public Use Booklet.pdf`, IRS-PUF interface):
   disclosure procedures pp. 3–4; aggregate-record tabulation pp. 31–32.
@@ -411,9 +412,9 @@ must not break for filer columns other than weights.
 
 ## Revision history
 
-- **2026-09-29 (later)** — §3: dimensions 1 and 2 point at the base proposal
+- **2026-09-28 (evening, later)** — §3: dimensions 1 and 2 point at the base proposal
   and the bucket-aging prototype.
-- **2026-09-29** — §1.2: the Table 4.3 comparison extended to TY2017–2023
+- **2026-09-28 (evening)** — §1.2: the Table 4.3 comparison extended to TY2017–2023
   (`08_table43.R`, replacing the 2022-only script): the top 0.001% is 24–43%
   short of IRS AGI in every year, the floor above the IRS's in every year, the
   splice closes 27–40% where it exists, passthrough income a third to

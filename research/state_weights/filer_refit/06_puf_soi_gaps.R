@@ -21,7 +21,9 @@
 # dependencies.csv under the shared output root).
 #
 # Writes results/puf_soi_gaps/gaps_{2015,2017}_{totals,by_agi}.csv.
-#   sbatch ... research/state_weights/filer_refit/run_puf_soi_gaps.sbatch
+#   sbatch --job-name=puf_soi_gaps --mem=32G --time=02:00:00 \
+#     --output=$HOME/slurm-logs/%x-%j.out \
+#     research/state_weights/filer_refit/run_rscript.sbatch research/state_weights/filer_refit/06_puf_soi_gaps.R
 #------------------------------------------------------------------------------
 
 lapply(readLines('requirements.txt'), library, character.only = T)

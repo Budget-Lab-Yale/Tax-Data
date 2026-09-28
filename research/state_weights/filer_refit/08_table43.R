@@ -27,12 +27,13 @@
 #
 # Writes results/table43/table43_2017_2023.csv (long: year, slice, quantity,
 # irs, with, without) and table43_agi_shares.csv.
-#   sbatch ... research/state_weights/filer_refit/run_table43.sbatch
+#   sbatch --job-name=table43 --mem=32G --time=01:30:00 \
+#     --output=$HOME/slurm-logs/%x-%j.out \
+#     research/state_weights/filer_refit/run_rscript.sbatch research/state_weights/filer_refit/08_table43.R
 #------------------------------------------------------------------------------
 
-suppressPackageStartupMessages({ library(data.table); library(dplyr); library(readxl) })
-source('src/nonfilers/sw_common.R')   # model_data_root()
-source('src/agi_proxy.R')
+suppressPackageStartupMessages(library(readxl))
+source('research/state_weights/filer_refit/tail_common.R')   # read_filers(), top_slice(), vintage_dir()
 
 VINTAGE = '2026092720_filer_refit_v2'
 YEARS   = 2017L:2023L
@@ -42,8 +43,6 @@ IRS_FILE = c(`2017` = '17in03etr.xls', `2018` = '18in03etr.xls', `2019` = '19in4
              `2023` = '23in43ts.xls')
 PCTILES = c('0.001 percent' = 1e-5, '0.01 percent' = 1e-4, '0.1 percent' = 1e-3, '1 percent' = 1e-2)
 SPLICE_YEARS = 2022L:2025L   # build_forbes_splice(years = ...) in main.R
-
-vdir = file.path(model_data_root(), 'Tax-Data/v1', VINTAGE, 'baseline')
 
 
 #------------------------------------------------------------------------------
@@ -86,22 +85,13 @@ irs = rbindlist(lapply(YEARS, read_irs))
 
 # The Table 4.3 items from the file's columns. Net gain less loss is the 1040
 # line after the loss limit (txbl_kg_proxy); Schedule C and partnership + S
-# corporation split by the sign of the return's net, as the table does.
+# corporation (part_scorp_net, from agi_proxy()) split by the sign of the
+# return's net, as the table does.
 items = function(d) {
-  d[, part_scorp_net := part_active + part_passive - part_active_loss - part_passive_loss - part_179 +
-                        scorp_active + scorp_passive - scorp_active_loss - scorp_passive_loss - scorp_179]
   d[, .(id, weight, forbes_flag, agi = agi_proxy, wages, txbl_int, div = div_ord + div_pref, div_pref,
         kg_net = txbl_kg_proxy,
         sole_prop_inc = pmax(sole_prop, 0), sole_prop_loss = -pmin(sole_prop, 0),
         part_scorp_inc = pmax(part_scorp_net, 0), part_scorp_loss = -pmin(part_scorp_net, 0))]
-}
-
-# The weighted top p% of returns by AGI, the marginal record taken in part
-top_slice = function(d, p) {
-  o = d[order(-agi)][, cum_w := cumsum(weight)]
-  n_top = p * sum(d$weight)
-  o[, w_in := pmin(weight, pmax(n_top - (cum_w - weight), 0))]
-  o[w_in > 0]
 }
 
 amount_cols = c('agi', 'wages', 'txbl_int', 'div', 'div_pref', 'kg_net',
@@ -113,7 +103,7 @@ file_slices = function(d, label) {
                          forbes_returns = sum(weight[forbes_flag == 1])),
                     lapply(.SD, function(x) sum(x * weight) / 1e3)), .SDcols = amount_cols]
   tops = rbindlist(lapply(names(PCTILES), function(l) {
-    s = top_slice(it, PCTILES[[l]])
+    s = top_slice(it, PCTILES[[l]] * sum(it$weight))
     s[, c(list(slice = l, returns = sum(w_in), agi_floor = min(agi), forbes_returns = sum(w_in[forbes_flag == 1])),
           lapply(.SD, function(x) sum(x * w_in) / 1e3)), .SDcols = amount_cols]
   }))
@@ -121,15 +111,12 @@ file_slices = function(d, label) {
 }
 
 file_year = function(year) {
-  emitted = fread(file.path(vdir, sprintf('tax_units_%d.csv', year)))
-  stopifnot(!any(is.na(emitted$forbes_flag)), !any(is.na(emitted$dep_status)))
   # Table 4.3 excludes dependent returns
-  with_splice = as.data.table(agi_proxy(as_tibble(emitted[filer == 1 & weight > 0 & dep_status == 0]), year))
-  rm(emitted)
+  with_splice = as.data.table(agi_proxy(as_tibble(read_filers(VINTAGE, year, dependents = FALSE)), year))
   out = file_slices(with_splice, 'with')
   if (year %in% SPLICE_YEARS) {
     yr = year   # a distinct name: inside [] `year` is the table's column
-    adj = as.data.table(readRDS(file.path(vdir, 'forbes_weight_adjustments.rds')))[year == yr]
+    adj = as.data.table(readRDS(file.path(vintage_dir(VINTAGE), 'forbes_weight_adjustments.rds')))[year == yr]
     stopifnot(nrow(adj) > 0, !anyDuplicated(adj$id), all(adj$weight_factor > 0))
     without_splice = copy(with_splice[forbes_flag == 0])
     without_splice[adj, on = 'id', weight := weight / i.weight_factor]

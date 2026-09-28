@@ -3,7 +3,7 @@ title: "Research corpus index"
 role: index
 workstream: cross-cutting
 status: current
-updated: 2026-09-15
+updated: 2026-09-28
 sot: self
 supersedes: []
 superseded_by: null
@@ -54,6 +54,7 @@ they share a plan.
 | method — the fit | [`state_weights/state_weights_phase1_summary.md`](state_weights/state_weights_phase1_summary.md) |
 | procedure | [`state_weights/nonfiler_federal_validation.md`](state_weights/nonfiler_federal_validation.md) |
 | review | [`state_weights/nonfiler_federal_validation_findings.md`](state_weights/nonfiler_federal_validation_findings.md) — the battery's first run: the E2 tripwire fails, and why |
+| review | [`state_weights/FILER_REFIT_CODE_REVIEW_2026-09-28.md`](state_weights/FILER_REFIT_CODE_REVIEW_2026-09-28.md) — the four-angle cleanup review of the S40 branch before its fast-forward: what was applied, the result-preserving loop restructuring proposed, and five items needing John Ricco's call (cell-level solve, L-BFGS tolerance, the dead 2017 LP, the AGI proxy vs S30, the second TY2017 fit) |
 | review | [`state_weights/NONFILER_STATE_WEIGHTS_REVIEW_2026-08-30.md`](state_weights/NONFILER_STATE_WEIGHTS_REVIEW_2026-08-30.md) — the 2026-08-30 review brief of both repos that framed Block E and the three-commit branch; historical |
 | evidence | [`state_weights/nonfiler_residual/04_findings.md`](state_weights/nonfiler_residual/04_findings.md) + `nonfiler_residual/results/` |
 | notes | [`state_weights/notes/`](state_weights/notes/) |

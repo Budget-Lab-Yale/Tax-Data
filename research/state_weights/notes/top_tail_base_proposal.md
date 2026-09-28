@@ -3,7 +3,7 @@ title: "Proposal: rebuild the top of the 2017 base from the PUF's aggregate reco
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-09-29
+updated: 2026-09-28
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -287,5 +287,5 @@ battery, one day of wall-clock plus review. The tests exist
 
 ## Revision history
 
-- **2026-09-29** — Written (JI's session), from the Table 4.3 seven-year
+- **2026-09-28** — Written (JI's session), from the Table 4.3 seven-year
   comparison and the aging walkthrough.

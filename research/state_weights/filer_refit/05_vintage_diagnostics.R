@@ -17,7 +17,9 @@
 #   totals    weighted filers and non-filers by year, 2017-2035
 #
 # Writes results/vintage_diag_{classes,amounts,headline,tripwire,totals}.csv.
-#   sbatch ... research/state_weights/filer_refit/run_vintage_diagnostics.sbatch
+#   sbatch --job-name=refit_vintage_diag --mem=48G --time=02:00:00 \
+#     --output=$HOME/slurm-logs/%x-%j.out \
+#     research/state_weights/filer_refit/run_rscript.sbatch research/state_weights/filer_refit/05_vintage_diagnostics.R
 #------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({ library(data.table); library(dplyr); library(yaml) })

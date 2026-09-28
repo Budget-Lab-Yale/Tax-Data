@@ -30,12 +30,12 @@
 # which sizes the base problem year by year.
 #
 # Writes results/bucket_aging/{comparison,factors,decomposition}.csv.
-#   sbatch ... research/state_weights/filer_refit/run_bucket_aging.sbatch
+#   BUCKET_MODE=frozen sbatch --job-name=bucket_aging --mem=32G --time=01:30:00 \
+#     --output=$HOME/slurm-logs/%x-%j.out \
+#     research/state_weights/filer_refit/run_rscript.sbatch research/state_weights/filer_refit/09_bucket_aging_prototype.R
 #------------------------------------------------------------------------------
 
-suppressPackageStartupMessages({ library(data.table); library(dplyr); library(readxl) })
-source('src/nonfilers/sw_common.R')   # model_data_root()
-source('src/agi_proxy.R')
+source('research/state_weights/filer_refit/tail_common.R')   # read_filers(), top_slice()
 
 VINTAGE  = '2026092720_filer_refit_v2'
 BASE     = 2017L
@@ -43,10 +43,7 @@ YEARS    = 2018L:2023L
 MODE     = Sys.getenv('BUCKET_MODE', unset = 'rerank')
 stopifnot(MODE %in% c('rerank', 'frozen'))
 RES      = file.path('research/state_weights/filer_refit/results/bucket_aging', MODE)
-T43      = 'research/state_weights/filer_refit/results/table43'
-IRS_FILE = c(`2017` = '17in03etr.xls', `2018` = '18in03etr.xls', `2019` = '19in43ts.xls',
-             `2020` = '20in43ts.xls',  `2021` = '21in43ts.xls',  `2022` = '22in43ts.xls',
-             `2023` = '23in43ts.xls')
+T43      = 'research/state_weights/filer_refit/results/table43/table43_2017_2023.csv'   # 08's output
 SLICES   = c('0.001 percent' = 1e-5, '0.01 percent' = 1e-4, '0.1 percent' = 1e-3, '1 percent' = 1e-2)
 BANDS    = c('top 0.001%', '0.001-0.01%', '0.01-0.1%', '0.1-1%')   # SLICES as non-cumulative bands
 LINES    = c('wages', 'txbl_int', 'div', 'kg_net', 'sole_prop_inc', 'sole_prop_loss',
@@ -54,28 +51,15 @@ LINES    = c('wages', 'txbl_int', 'div', 'kg_net', 'sole_prop_inc', 'sole_prop_l
 MAX_ITER = 12
 TOL      = 1e-4     # max |factor change| between iterations
 dir.create(RES, recursive = TRUE, showWarnings = FALSE)
-vdir = file.path(model_data_root(), 'Tax-Data/v1', VINTAGE, 'baseline')
 
 
 #------------------------------------------------------------------------------
-# IRS Table 4.3 by band (non-cumulative), $ thousands
+# IRS Table 4.3 by band (non-cumulative), $ thousands -- the IRS side of 08's
+# committed comparison, so the two scripts read one copy of the sheets
 #------------------------------------------------------------------------------
 
-IRS_COLS = c(returns = 2, agi_floor = 3, agi = 4, wages = 6, txbl_int = 8, div = 10, div_pref = 12,
-             kg_net = 14, sole_prop_inc = 18, sole_prop_loss = 20, part_scorp_inc = 22, part_scorp_loss = 24)
-read_irs = function(year) {
-  sheet = as.data.frame(read_excel(file.path(T43, IRS_FILE[[as.character(year)]]),
-                                   col_names = FALSE, .name_repair = 'minimal'))
-  labels = gsub('^\\.', '0.', gsub('\\s+', ' ', sheet[[1]]))
-  rows = rbindlist(lapply(c('All returns, total', names(SLICES)), function(l) {
-    i = which(labels == l); stopifnot(length(i) == 1)
-    v = suppressWarnings(as.numeric(sheet[i, IRS_COLS])); names(v) = names(IRS_COLS)
-    as.data.table(as.list(v))[, slice := l]
-  }))
-  rows[, c('sole_prop_loss', 'part_scorp_loss') := lapply(.SD, abs), .SDcols = c('sole_prop_loss', 'part_scorp_loss')]
-  rows[, year := year]
-}
-irs_slices = rbindlist(lapply(c(BASE, YEARS), read_irs))
+irs_slices = dcast(fread(T43)[, .(year, slice, quantity, irs)], year + slice ~ quantity, value.var = 'irs')
+stopifnot(all(c(BASE, YEARS) %in% irs_slices$year), all(c('agi', LINES) %in% names(irs_slices)))
 
 # cumulative slices -> bands
 to_bands = function(sl, value_cols) {
@@ -116,9 +100,7 @@ line_mask = function(d, line) {
 }
 
 with_items = function(d, year) {
-  d = as.data.table(agi_proxy(as_tibble(d), year))
-  d[, part_scorp_net := part_active + part_passive - part_active_loss - part_passive_loss - part_179 +
-                        scorp_active + scorp_passive - scorp_active_loss - scorp_passive_loss - scorp_179]
+  d = as.data.table(agi_proxy(as_tibble(d), year))   # brings part_scorp_net
   d[, `:=`(agi = agi_proxy, div = div_ord + div_pref, kg_net = txbl_kg_proxy,
            sole_prop_inc = pmax(sole_prop, 0), sole_prop_loss = -pmin(sole_prop, 0),
            part_scorp_inc = pmax(part_scorp_net, 0), part_scorp_loss = -pmin(part_scorp_net, 0))]
@@ -147,22 +129,15 @@ band_sums = function(d) {
 
 # cumulative slices from the file (as 08 reports them), $ thousands
 slice_sums = function(d) {
-  o = d[order(-agi)][, cum_w := cumsum(weight)]
   N = sum(d$weight)
   rbindlist(lapply(names(SLICES), function(l) {
-    n_top = SLICES[[l]] * N
-    o[, w_in := pmin(weight, pmax(n_top - (cum_w - weight), 0))]
-    s = o[w_in > 0]
+    s = top_slice(d, SLICES[[l]] * N)
     data.table(slice = l, returns = sum(s$w_in), agi_floor = min(s$agi),
                as.data.table(as.list(sapply(c('agi', LINES), function(v) sum(s[[v]] * s$w_in) / 1e3))))
   }))
 }
 
-read_year = function(year) {
-  e = fread(file.path(vdir, sprintf('tax_units_%d.csv', year)))
-  stopifnot(!anyNA(e$dep_status))
-  e[filer == 1 & weight > 0 & dep_status == 0]
-}
+read_year = function(year) read_filers(VINTAGE, year, dependents = FALSE)   # Table 4.3's universe
 
 #------------------------------------------------------------------------------
 # 2017 base bands
@@ -170,7 +145,6 @@ read_year = function(year) {
 
 base_file  = with_items(read_year(BASE), BASE)
 base_bands = band_sums(base_file)[, year := BASE]
-base_slices = slice_sums(base_file)[, year := BASE]
 rm(base_file)
 cat(sprintf('mode: %s\n', MODE))
 cat(sprintf('TY%d base: top band AGI $%.1fB (IRS $%.1fB)\n', BASE,
@@ -182,8 +156,9 @@ cat(sprintf('TY%d base: top band AGI $%.1fB (IRS $%.1fB)\n', BASE,
 #------------------------------------------------------------------------------
 
 run_year = function(year) {
-  orig = read_year(year)
-  cur  = with_items(orig, year)
+  orig  = read_year(year)
+  cur   = with_items(orig, year)
+  items0 = cur   # sign masks come from the ORIGINAL values; `cur` is rebound below, this is not
   before_slices = slice_sums(cur)[, `:=`(year = year, file = 'v2')]
   before_bands  = band_sums(cur)[, year := year]
 
@@ -211,7 +186,6 @@ run_year = function(year) {
     fac = new_fac
     # rebuild from the original values with the cumulative factors on current membership
     d = copy(orig)
-    items0 = with_items(orig, year)   # sign masks from the ORIGINAL values
     for (k in seq_along(BANDS)) for (v in LINES) {
       m = !is.na(b) & b == BANDS[k] & line_mask(items0, v)
       f = fac[band == BANDS[k] & line == v, factor]

@@ -11,7 +11,7 @@ Produces historical and projected tax microdata for the Budget Lab microsimulati
 1. `src/configure.R` — read the runscript (`config/runscripts/baseline.yaml`), set the output path, load the variable guide and target info.
 2. `src/process_targets.R` — ingest SOI / CBO / IRS targets.
 3. `src/process_puf.R` — read the raw PUF, standardize names, derive variables.
-4. `src/reweight.R` → `src/summary.R` → `src/create_2017_puf.R` — produce the 2017 base-year file.
+4. `src/summary.R` → `src/create_2017_puf.R` — produce the 2017 base-year file: weights calibrated to Pub 1304 (`src/refit_filers.R`), then amounts rescaled to Table 1.4. (`src/reweight.R`, the 2017 LP, is still sourced but no longer called — see "Filer weights".)
 5. `src/impute_nonfilers.R` — attach non-filing units.
 6. `src/impute_variables.R` — dispatch individual imputations in `src/imputations/*.R` (one file per imputed variable).
 7. `src/project_puf.R` — age the 2017 file forward year by year using `variable_guide.grow_with` and macro projection series.
@@ -54,7 +54,7 @@ If you hit NAs you did not expect, surface the count and the cause to the user. 
 
 Imputations use `train_or_load_*` helpers in `src/imputations/helpers.R` that stash fits in `resources/cache/`. Don't bypass. If a cache is stale, delete the file — don't re-engineer the helper to "force" retraining.
 
-`src/configure.R` creates `resources/cache/{lp,qrf}` at startup — without that a from-scratch run on a clean clone dies at the LP stage, because the cache path is gitignored so its subdirectories do not exist (fixed 2026-09-21).
+`src/configure.R` creates `resources/cache/{lp,qrf}` at startup — without that a from-scratch run on a clean clone died at the first cache write, because the cache path is gitignored so its subdirectories do not exist (fixed 2026-09-21; the `lp` directory is now only read by the bake-off scripts).
 
 **The cache is keyed by NAME, not by a hash of the inputs** (verified 2026-09-21; earlier text here said otherwise). `train_or_load_qrf()` builds its path from the `name` argument alone and branches on the global `estimate_models`: train and overwrite, or read. Nothing detects that the training data changed. Two consequences — a stale cache is invisible unless you delete it, and running with `TAXDATA_ESTIMATE_MODELS=1` in a worktree that shares a cache **overwrites the fits in place**, so verification rebuilds need their own cache directory.
 
@@ -107,6 +107,10 @@ The DINA append is replaced by a pool built from the CPS ASEC: tax units constru
 **Model caches were trained unweighted.** Every `quantregForest` fit cached before 2026-09 was written under R 4.4.1, whose randomForest lacked a `weights` argument, so the tips, overtime, auto-loan and childcare forests on disk ignored their survey weights. The first rebuild under R 4.4.2 (`TAXDATA_ESTIMATE_MODELS=1`) trains them weighted and moves those imputations; treat it as a modelling change with its own before/after, not a cache refresh.
 
 **And until 2026-09-22 those fits were not reproducible at all (S31).** `quantregForest` splits training across `nthreads` workers with `parallel::mclapply`, and the forks do not inherit the default Mersenne-Twister stream, so no seed reached them: two from-scratch rebuilds of the *same commit* disagreed on every qrf-imputed column — aggregate tips by 9.5%, `tips2` by 14.6%, `auto_int_exp` on 21.7% of records. Fits now run under **L'Ecuyer-CMRG**, the generator `mclapply` splits deterministically, via `with_model_seed(..., parallel = TRUE)`. It costs ~4% (35.5s → 37.0s at n = 50,000) and keeps the parallel speedup, which is large at production scale — 13.5× at n = 200,000. Ranger and DRF keep the default stream: they take their own seed and are already stable. **Two things follow.** Rebuild-by-comparison only became a valid check on that date — the 2026-09-15 rebuild established that the pipeline runs, not that it reproduces. And the weighting change above is **confounded** with this one in any rebuild crossing both; only a post-fix pair is a clean before/after. Guarded by `src/tests/test_qrf_reproducible.R`.
+
+## Filer weights (as of 2026-09)
+
+**Filer weights TY2017–2023 are calibrated to Pub 1304 (S40), not scaled.** `src/refit_filers.R` fits each year's filer weights by entropy calibration (KL to a prior plus a squared penalty on misses, L-BFGS-B on log-ratios in [0.2, 5]) to ~490 targets a year from `resources/filer_refit_targets.csv`: Table 1.6 returns by filing status × age × AGI class (combined cells as blocks), Table 1.4 returns with wages by class, Table 1.7 dependent returns by class. Records are classed by `src/agi_proxy.R`, a Tax-Data reimplementation of AGI (taxable Social Security, the capital-loss limit, the SE deduction) scored at 99% same-class agreement against Tax-Simulator. It sits uneasily with S30's "do not pursue a closer proxy" (written for the state fit, which reads a pinned Tax-Simulator AGI); the defence is that the incomes being classed exist only inside the run that ages them, but no decision records it yet — see the open items in `research/state_weights/FILER_REFIT_CODE_REVIEW_2026-09-28.md`. TY2017 is fit twice: in `create_2017_puf.R` by `E00100` before the Table 1.4 value rescaling (so amounts are rescaled on calibrated weights), then in `refit_filers_2017.R` by the proxy after the imputations. 2018–2023 iterate with the extensive factors in `project_puf.R` until AGI-class totals settle; 2024+ grow from the 2023 weights. The 2017 LP (`reweight_lp()`, `config/target_info/`, `TAXDATA_DO_LP`) is dead code kept for the bake-off's record; deleting it is a pending decision. Design and results: `research/state_weights/notes/filer_refit_design.md`.
 
 ## Top tail (as of 2026-09)
 

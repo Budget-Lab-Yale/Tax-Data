@@ -17,13 +17,13 @@
 #
 # Filers only (Table 1.4's universe); AGI is src/agi_proxy.R for 2022.
 # Writes results/top_tail_2022/{soi_classes,tail_bins,top400}.csv.
-#   sbatch ... research/state_weights/filer_refit/run_top_tail_2022.sbatch
+#   sbatch --job-name=top_tail_2022 --mem=24G --time=01:00:00 \
+#     --output=$HOME/slurm-logs/%x-%j.out \
+#     research/state_weights/filer_refit/run_rscript.sbatch research/state_weights/filer_refit/07_top_tail_2022.R
 #------------------------------------------------------------------------------
 
-suppressPackageStartupMessages({ library(data.table); library(dplyr) })
-source('src/nonfilers/sw_common.R')   # model_data_root(), raw_data_root()
-source('src/nonfilers/sw_soi.R')      # irs_ind_aligned_path()
-source('src/agi_proxy.R')
+source('research/state_weights/filer_refit/tail_common.R')   # read_filers(), top_slice(), vintage_dir()
+source('src/nonfilers/sw_soi.R')                             # irs_ind_aligned_path()
 
 VINTAGE = '2026092720_filer_refit_v2'
 YEAR    = 2022L
@@ -33,22 +33,17 @@ TAIL_BREAKS = c(1e7, 2e7, 5e7, 1e8, 5e8, Inf)   # bins inside Table 1.4's $10M+ 
 TOP_N = 400                                      # the IRS "400 highest AGI" cut
 AGGREGATE_RECID_MIN = 999996
 
-vdir = file.path(model_data_root(), 'Tax-Data/v1', VINTAGE, 'baseline')
-
 
 #------------------------------------------------------------------------------
 # TY2022 file, with and without the splice
 #------------------------------------------------------------------------------
 
-emitted = fread(file.path(vdir, sprintf('tax_units_%d.csv', YEAR)))
-stopifnot(!any(is.na(emitted$forbes_flag)), all(emitted[forbes_flag == 1, filer] == 1))
-with_splice = as.data.table(agi_proxy(as_tibble(emitted[filer == 1 & weight > 0]), YEAR))
+with_splice = as.data.table(agi_proxy(as_tibble(read_filers(VINTAGE, YEAR)), YEAR))
 
-adj = as.data.table(readRDS(file.path(vdir, 'forbes_weight_adjustments.rds')))[year == YEAR]
+adj = as.data.table(readRDS(file.path(vintage_dir(VINTAGE), 'forbes_weight_adjustments.rds')))[year == YEAR]
 stopifnot(!anyDuplicated(adj$id), all(adj$id %in% with_splice$id), all(adj$weight_factor > 0))
 without_splice = copy(with_splice[forbes_flag == 0])
 without_splice[adj, on = 'id', weight := weight / i.weight_factor]
-rm(emitted)
 
 cat(sprintf('TY%d: %d Forbes rows; %d records reweighted by the splice\n',
             YEAR, sum(with_splice$forbes_flag), nrow(adj)))
@@ -106,15 +101,13 @@ tail_bins = function(agi, kg, w, label) {
     order(bin)][, `:=`(agi_share = agi_bn / sum(agi_bn), kg_share = kg_bn / sum(kg_bn), file = label)]
 }
 
-# Weighted top N by AGI: returns ranked, the marginal record taken in part
+# Weighted top N by AGI (tail_common.R's top_slice on agi = the proxy)
 top_n = function(d, label) {
-  o = d[order(-agi_proxy)][, cum_w := cumsum(weight)]
-  o[, w_in := pmin(weight, pmax(TOP_N - (cum_w - weight), 0))]
-  in_top = o[w_in > 0]
+  in_top = top_slice(d[, .(agi = agi_proxy, weight, forbes_flag)], TOP_N)
   data.table(file = label,
-             threshold_m     = min(in_top$agi_proxy) / 1e6,
-             agi_bn          = sum(in_top$agi_proxy * in_top$w_in) / 1e9,
-             share_all_agi   = sum(in_top$agi_proxy * in_top$w_in) / sum(d$agi_proxy * d$weight),
+             threshold_m     = min(in_top$agi) / 1e6,
+             agi_bn          = sum(in_top$agi * in_top$w_in) / 1e9,
+             share_all_agi   = sum(in_top$agi * in_top$w_in) / sum(d$agi_proxy * d$weight),
              forbes_returns  = in_top[forbes_flag == 1, sum(w_in)],
              records         = nrow(in_top))
 }
