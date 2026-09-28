@@ -1,0 +1,15 @@
+# Release manifest: the 24-27 September 2026 collaborator update on state weights,
+# the filer refit (S40) and the IRS-Ind by-size reader, as a single Word document.
+#
+#   Rscript research/tools/render_release.R filer_refit_update
+#
+# The HTML version of the same text sits beside the render in research/releases/
+# (gitignored, like every research HTML).
+
+title: "Tax-Data: state weights, filer weights and IRS data"
+subtitle: "Update on the work of 24–27 September 2026, for collaborators"
+reference_doc: research/tools/reference.docx
+
+sections:
+  - heading: "Update, 24–27 September 2026"
+    source: research/state_weights/notes/filer_refit_collaborator_update.md
