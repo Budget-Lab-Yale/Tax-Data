@@ -25,8 +25,9 @@ source('src/nonfilers/state_weights.R')
 source('src/agi_proxy.R')
 
 BEFORE <- '2026092220_s33_scratch'
-AFTER  <- '2026092712_filer_refit'
-RES    <- 'research/state_weights/filer_refit/results'
+AFTER  <- Sys.getenv('REFIT_DIAG_AFTER', unset = '2026092712_filer_refit')   # the vintage under review
+RES    <- file.path('research/state_weights/filer_refit/results',
+                  if (AFTER == '2026092712_filer_refit') '' else AFTER)
 YEARS_CLASSES <- c(2017L, 2019L, 2023L)
 YEARS_TOTALS  <- 2017:2035
 # Table 1.4 amount series and the file columns that carry them (TY2017)
