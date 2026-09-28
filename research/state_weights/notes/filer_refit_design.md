@@ -3,7 +3,7 @@ title: "Per-year national filer refit (S40) — design and open forks"
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-09-27
+updated: 2026-09-28
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -202,15 +202,46 @@ single-class move could not meet it (27668865, cancelled). Diagnostics:
   columns (benchmarked to PCE on the weights) and `q_death1/2` (ranked by
   weighted income percentile) change; TY2023's 141 changed columns are the
   2020+ extensive income factors and wealth, both weight-dependent by design.
-- **Open: TY2017 income amounts.** `create_2017_puf.R` rescales amounts to
-  SOI by AGI group on the LP's weights, so with the refit weights the totals
-  drift from Table 1.4: wages +0.2%, Social Security −0.9%, pensions +0.9%,
-  dividends −0.4%, interest +7.1%, **business net income +22.9%**. Error over
-  AGI classes improves for wages (7.7% → 2.3%), Social Security (19.3% →
-  7.4%) and pensions (16.6% → 11.7%) and worsens for interest (7.8% → 13.1%),
-  dividends (6.5% → 10.2%) and business income (16.6% → 30.3%). The fix is
-  to run the value rescaling on the refit weights (refit, then rescale, and
-  reclass), which moves the refit into create_2017_puf.R.
+- **TY2017 income amounts drifted (resolved in v2, below).**
+  `create_2017_puf.R` rescaled amounts to SOI by AGI group on the LP's
+  weights, so with the refit weights the totals drifted from Table 1.4:
+  wages +0.2%, Social Security −0.9%, pensions +0.9%, dividends −0.4%,
+  interest +7.1%, **business net income +22.9%**. Error over AGI classes
+  improved for wages (7.7% → 2.3%), Social Security (19.3% → 7.4%) and
+  pensions (16.6% → 11.7%) and worsened for interest (7.8% → 13.1%),
+  dividends (6.5% → 10.2%) and business income (16.6% → 30.3%).
+
+### The v2 vintage: TY2017 calibrated before the rescaling (2026-09-28)
+
+`2026092720_filer_refit_v2` (Slurm 27709129 at `699515e`, exit 0 with its
+done marker) carries the fix at `e7646f6`: `create_2017_puf.R` calibrates the
+pre-LP weights to the Pub 1304 targets, classing records by `E00100` (the
+rescaling's AGI basis), and rescales amounts on those weights; the LP is gone.
+`refit_filers_2017.R` then refits by the AGI proxy starting from the stage-1
+weights, so the weights move as little as possible from those the amounts
+were rescaled on. Diagnostics (Slurm 27709130),
+`results/2026092720_filer_refit_v2/vintage_diag_*.csv`, against the same
+`s33` vintage:
+
+- **TY2017 totals sit on Table 1.4**: business net income +0.3% (first
+  vintage +22.9%), interest +0.4% (+7.1%), wages +0.5%, dividends −0.6%,
+  Social Security +0.1%, pensions +2.8% (the largest gap left). Error over
+  AGI classes now improves on `s33` for every series: wages 7.7% → 0.7%,
+  Social Security 19.3% → 1.6%, pensions 16.6% → 3.3%, interest 7.8% →
+  4.2%, dividends 6.5% → 5.3%, business income 16.6% → 10.6%.
+- **The first vintage's count results hold**: AGI class error 0.06% /
+  0.02% / 0.49% (TY2017 / 2019 / 2023), wage returns ~0 (0.31% in 2023);
+  filers 152.90M / 157.79M / 160.60M; TY2023 wage filers at AGI $1–10k
+  9.56M, dependents 3.75M, filers 18–25 5.68M.
+- **Tripwire, as designed**: TY2017 and 2019 now change 99 columns (11 in
+  the first vintage), because the rescaling runs on the new weights and 2019
+  ages from 2017. It is not a small-share change: 17 columns move on over
+  half of all records (`wages`, `wages1`, `txbl_int`, `inc_ex_ss`,
+  `agi_proxy`, `salt_prop`, `other_item_exp`, and the weight-dependent
+  consumption and `q_death1`), 46 more on 5–50%. TY2023 changes 147 columns
+  (141 before).
+
+Accepted for now (JI, 2026-09-28).
 
 ## Order of work
 
