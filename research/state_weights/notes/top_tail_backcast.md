@@ -230,8 +230,8 @@ question it needs from John:
 
 | # | Dimension | What it would do | Question for John |
 |---|---|---|---|
-| 1 | **Base construction** | Retire the aggregate drop for good, by splitting the four records into synthetic returns (§2) or by moving to a later PUF base if one becomes available, which would also remove two years of aging | Is a post-2015 PUF in reach, or do we design for 2015 as the permanent base? |
-| 2 | **Aging discipline** | Replace "grow weights, keep 2015 dollars, rescale by class" with per-line intensive growth factors targeted to Table 1.4 by class *and* Table 4.3's top percentiles, so the inside of the top class is constrained | Do the projection-ledger factors (`project_puf.R`, `build_factor_rows_2020plus()`) stay the vehicle, or does the 2017 base get rebuilt on this discipline too? |
+| 1 | **Base construction** | Retire the aggregate drop for good, by splitting the four records into synthetic returns (§2; proposal: `notes/top_tail_base_proposal.md`) or by moving to a later PUF base if one becomes available, which would also remove two years of aging | Is a post-2015 PUF in reach, or do we design for 2015 as the permanent base? |
+| 2 | **Aging discipline** | Replace "grow weights, keep 2015 dollars, rescale by class" with per-line intensive growth factors targeted to Table 1.4 by class *and* Table 4.3's top percentiles, so the inside of the top class is constrained. Prototyped off-pipeline (`filer_refit/09_bucket_aging_prototype.R`, `top_tail_base_proposal.md` §7): it carries real shape drift (2021 top-band wages ×2.1) but cannot fix the level — that is dimension 1 | Do the projection-ledger factors (`project_puf.R`, `build_factor_rows_2020plus()`) stay the vehicle, or does the 2017 base get rebuilt on this discipline too? |
 | 3 | **The top tail** | The Forbes extension to TY2017 (Stage A, income-only) and TY2015 as a test (§4) | Income-only splice before wealth exists, or wait for dimension 4? |
 | 4 | **Wealth** | A second wealth module at a 2019 SCF base so `value.*` exists in 2017–2021, which the Forbes design assumes (§4.5) | Backcast 2022 (cheap, frozen cross-section), a 2019-base module (recommended), or native bases per SCF wave? |
 | 5 | **Imputation hygiene** | The unweighted-cache and cache-by-name problems (`CLAUDE.md`), resolved in the same push rather than confounded with it | One from-scratch rebuild under the fixed RNG as the revamp's baseline, before any of 1–4 lands? |
@@ -411,6 +411,8 @@ must not break for filer columns other than weights.
 
 ## Revision history
 
+- **2026-09-29 (later)** — §3: dimensions 1 and 2 point at the base proposal
+  and the bucket-aging prototype.
 - **2026-09-29** — §1.2: the Table 4.3 comparison extended to TY2017–2023
   (`08_table43.R`, replacing the 2022-only script): the top 0.001% is 24–43%
   short of IRS AGI in every year, the floor above the IRS's in every year, the

@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-28
+updated: 2026-09-29
 sot: self
 supersedes: []
 superseded_by: null
@@ -634,12 +634,16 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 | `notes/filer_refit_design.md` | **open** | Phase 3b step 3 (S40): the per-year filer refit's design — prior, targets, the three complications (no AGI on aged records, incomes that depend on weights, scale) and four forks for JI (fit method, AGI proxy, the weight–income loop, tolerances), each with a recommendation. |
 | `notes/low_income_filer_aging.md` | **open** | Raised 2026-09-26 by Affordability-Index: in vintage `2026091119` the TY2023 file keeps low-income wage filers near their TY2019 level (−11% at total income $1–10,000) while HT2's returns with wages at AGI $1–10,000 fell 34%, mostly young single filers and dependents; the file has almost no low-income non-filers to take their place. Fix scheduled as Phase 3b (S40, §5a). First check done the same day: neither C9's pool nor the Phase 3 re-fit moves it (the post-merge vintage is identical; Phase 3 only splits national weight across states). Cause: 2018–2023 filer weights scale by filing status × age group alone, so the within-cell income mix stays at 2017's; dependent filers carry ~2.9M of the ~3.0M TY2023 excess. Fix: a per-year filer refit to SOI returns by AGI class, which needs SOI targets beyond the pinned `Compiled-SOI-Tables` vintage. |
 | `notes/top_tail_backcast.md` | **open** | The very top of the file, for John Ricco, in three parts. **The issue:** the PUF matches Pub 1304 by definition (TY2015, once the four dropped aggregate records are counted), but dropping them flattens the tail inside $10M+ (share of $10M+ AGI above $100M 6% vs 29%); the Forbes splice restores part of it from 2022 only (24% in TY2022); more broadly, every calibration targets class totals with nothing inside the top class. **The short-term position (S41):** the records stay dropped — averaged composites are not tax returns — and the compressed tail is a `CLAUDE.md` caveat with a do-not-report rule. **The revamp scope:** six dimensions with one question each for John; the Forbes/wealth extension (Wayback lists 2015–2020, BSYZ 2014–17 parameters, Stage A income-only then Stage B wealth, Table 4.3 as the benchmark) deferred to it with its inputs cached. |
+| `notes/top_tail_base_proposal.md` | **open** | Proposal for John Ricco (dimension 1 of the revamp): synthetic extreme returns built from the PUF's four aggregate records (per-band means), the booklet's sign-split tabulation and Table 4.3 TY2017, entering `process_puf.R` where the aggregates are dropped. Why: the TY2017 top 0.001% is at 0.57 of IRS AGI with the floor above the IRS's — a support problem no reweighting or factor reaches — and the off-pipeline prototype of percentile-specific aging (`filer_refit/09_bucket_aging_prototype.R`) shows the base gap carried forward is *larger* than the observed gap ($80–161B a year): the level at the top is entirely a 2017 base problem. Five questions for John. |
 | `notes/state_work_proposal.md` | **open** | Part (d) of the handoff: the state work that follows — the group F re-fit on the new pool, the 2014–16 state margins (blocked on three SSA workbooks), what the HT2 ceiling caps now that SOI has published TY2023, rollout resumption. |
 
 ---
 
 ## Revision history
 
+- **2026-09-29** — §8: `notes/top_tail_base_proposal.md` added (open): the
+  proposal for rebuilding the top of the 2017 base, with the bucket-aging
+  prototype's decomposition showing the top-tail level is a base problem.
 - **2026-09-28** — §8: `notes/top_tail_backcast.md` added (open), the top-tail
   findings and the plan to extend the Forbes splice and wealth back to TY2017.
 
