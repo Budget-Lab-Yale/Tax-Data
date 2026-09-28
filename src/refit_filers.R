@@ -15,10 +15,12 @@
 # log(w / prior) within [0.2, 5], by L-BFGS-B. It replaced the 2017 LP, whose
 # objective (the sum of the multipliers) left every record at a bound.
 #
-# Functions only. src/refit_filers_2017.R (sourced by main.R after the
-# imputations) refits TY2017 from the weights create_2017_puf.R held before
-# its LP; project_puf.R calls refit_filer_year() for 2018-2023; the research
-# scripts in research/state_weights/filer_refit/ reuse the target matrix.
+# Functions only. TY2017 is fit twice: create_2017_puf.R calibrates the
+# pre-LP weights with records classed by the PUF's E00100 (the basis its value
+# rescaling uses), so amounts are rescaled on calibrated weights; then
+# src/refit_filers_2017.R, after the imputations, refits by the AGI proxy on
+# the final values from those weights. project_puf.R calls refit_filer_year()
+# for 2018-2023.
 #------------------------------------------------------------------------------
 
 source('./src/agi_proxy.R')
@@ -94,22 +96,27 @@ calibrate_weights = function(w0, X, t, w_start = NULL) {
                        convergence = opt$convergence, iterations = opt$counts[[1]]))
 }
 
-# Refit one year: `d` is that year's filers (materialized, one row per record,
-# with a `weight` column holding the prior; `w_start`, a tibble(id, weight),
-# optionally warm-starts it). Returns tibble(id, weight) and prints a one-line
-# report.
-refit_filer_year = function(d, year, w_start = NULL) {
-  stopifnot(!any(duplicated(d$id)), all(d$weight > 0))
-  d = agi_proxy(d, year)
+# Calibrate one year's records whose AGI basis is already in `agi_proxy`
+# (create_2017_puf.R passes E00100; refit_filer_year() the proxy). `d` holds
+# one row per record with id, weight (the prior), agi_proxy, filing_status,
+# age1, dep_status and wages; `w_start`, a tibble(id, weight), optionally
+# warm-starts the solve. Returns tibble(id, weight) and prints a report.
+refit_classed = function(d, year, w_start = NULL, label = 'refit_filers') {
+  stopifnot(!any(duplicated(d$id)), all(d$weight > 0), !anyNA(d$agi_proxy))
   tg = refit_targets[refit_targets$year == year, ]
-  if (nrow(tg) == 0) stop('refit_filer_year(): no targets for ', year)
+  if (nrow(tg) == 0) stop('refit_classed(): no targets for ', year)
   tm = refit_target_matrix(d, tg)
   ws = if (is.null(w_start)) NULL else w_start$weight[match(d$id, w_start$id)]
   if (!is.null(ws)) stopifnot(!anyNA(ws))
   fit = calibrate_weights(d$weight, tm$X, tm$t, ws)
   with(fit$report, cat(sprintf(
-    'refit_filers: TY%d %d filers, %d targets (%d unreached), %.1f%% of the rest within band, ratio q01-q99 %.2f-%.2f, L-BFGS %d (%d)\n',
-    year, nrow(d), n_targets, n_unreached, 100 * within_band, ratio_q01, ratio_q99,
+    '%s: TY%d %d filers, %d targets (%d unreached), %.1f%% of the rest within band, ratio q01-q99 %.2f-%.2f, L-BFGS %d (%d)\n',
+    label, year, nrow(d), n_targets, n_unreached, 100 * within_band, ratio_q01, ratio_q99,
     iterations, convergence)))
   tibble(id = d$id, weight = fit$w)
+}
+
+# Refit one year of materialized filers, classed by src/agi_proxy.R
+refit_filer_year = function(d, year, w_start = NULL) {
+  refit_classed(agi_proxy(d, year), year, w_start)
 }

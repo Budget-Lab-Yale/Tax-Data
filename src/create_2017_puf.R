@@ -39,29 +39,28 @@ puf_2017 = puf %>%
 
 
 #------------------------------------------------
-# Target specified count variables via LP method
+# Target return counts: S40 calibration (stage 1)
 #------------------------------------------------
 
-# Get target values for all specified constraints
-targets = target_info %>% 
-  bind_cols(
-    map(.x = 1:nrow(target_info), 
-        .f = ~ get_target_value(target_info[.x, ])) %>% 
-      bind_rows()
-  )
-
-# Keep each record's weight before the LP: the S40 filer refit (src/refit_filers.R)
-# calibrates TY2017 from it. The LP still runs because the value rescaling
-# below is computed on its weights; its weights are replaced after the
-# imputations. (Its objective, the sum of the multipliers, leaves every record
-# at a bound: research/state_weights/notes/filer_refit_design.md.)
-filer_prior_2017 = puf_2017 %>% select(id, weight)
-
-# Solve reweighting problem and reweight data
-weight_deltas = reweight_lp(puf_2017, targets, do_lp, e = 0.66)
-
-puf_2017 %<>% 
-  mutate(weight = weight * weight_deltas)
+# The filers are calibrated to Pub 1304 counts (src/refit_filers.R), from the
+# weights above, with records classed by E00100 -- the AGI basis the value
+# rescaling below uses -- so the amounts are rescaled on calibrated weights.
+# Ages enter as the age-group band (1 = under 26, ..., 6 = 65+). Stage 2
+# (src/refit_filers_2017.R) refits by the AGI proxy after the imputations.
+# This replaces the LP (reweight_lp(), src/reweight.R), whose objective -- the
+# sum of the multipliers -- left every record at a bound
+# (research/state_weights/notes/filer_refit_design.md).
+source('./src/refit_filers.R')
+AGE_GROUP_AGE = c(20, 30, 40, 50, 60, 70)   # an age inside each age_group band
+stopifnot(all(puf_2017$age_group %in% 1:6), all(puf_2017$filing_status %in% 1:4))
+stage1 = refit_classed(
+  puf_2017 %>% transmute(id, weight, agi_proxy = E00100, filing_status,
+                         age1 = AGE_GROUP_AGE[age_group],
+                         dep_status = as.integer(dep_status), wages),
+  2017L, label = 'refit_filers stage 1 (E00100)')
+stopifnot(identical(stage1$id, puf_2017$id))
+puf_2017$weight = stage1$weight
+rm(stage1)
 
 
 #------------------------------------------------
