@@ -137,10 +137,45 @@ nobody has the lumpy realization year that makes a $500M return; and the
 aggregate records cover more than billionaires (140 returns averaging −$96M
 of AGI; extremes with AGI under $10M).
 
-The direct benchmark, not yet run: **IRS SOI Table 4.3**, the top 0.001% /
-0.01% / 0.1% / 1% of returns excluding dependents with income items,
-2014–2023. TY2022: the top 0.001% is 1,538 returns above an AGI floor of
-$85.5M, holding $348B of AGI (2.36% of the total) and $192B of capital gains.
+**The direct benchmark: IRS SOI Table 4.3**, the top 0.001% / 0.01% / 0.1% /
+1% of returns excluding dependents with income items, 2014–2023. Run for
+TY2022 (`research/state_weights/filer_refit/08_table43_2022.R`, Slurm
+27753166; our universe of non-dependent filers is 153.65M against the IRS's
+153.80M):
+
+| Top 0.001% (1,538 returns) | IRS | File with splice | File without splice |
+|---|---|---|---|
+| AGI floor | $85.5M | $95.4M | $91.0M |
+| AGI | $348B (2.36% of all AGI) | $252B (1.74%) | $217B (1.50%) |
+| Net capital gain | $192B | $165B (0.86) | $147B (0.76) |
+| Partnership + S-corp net income | **$85.5B** | **$23.6B (0.28)** | $26.3B (0.31) |
+| Ordinary dividends | $31.0B | $26.2B (0.85) | $14.7B (0.48) |
+| Wages | $23.1B | $19.8B (0.86) | $17.9B (0.78) |
+| Taxable interest | $12.0B | $11.2B (0.93) | $6.9B (0.57) |
+| Forbes rows in the slice | — | 382 | 0 |
+
+Three things follow. **The tail is compressed at the very top, not at the
+entry:** our floor is *above* the IRS's while our total is 28% short, so the
+top 1,536 returns average $164M against the IRS's $226M — more mass near the
+floor, less at the extreme. **The splice closes about a third of the AGI gap**
+($35B of $131B) and fixes the lines it targets: dividends and interest go from
+half to 85–93% of the IRS figure, gains from 0.76 to 0.86. **The largest
+remaining gap is passthrough income, which the splice cannot supply:** the IRS
+top 0.001% reports $85.5B of partnership and S-corporation net income, the
+file $24B, a $62B hole that is two-thirds of what remains; BSYZ assigns
+billionaires *negative* business income (−11% of fiscal income), so adding
+billionaires adds losses there, not income. The extreme returns the aggregate
+records held are, on this evidence, largely passthrough-income and gains
+returns — business sales and large distributions — not billionaires. Below the
+top slice the file is close: the top 0.01% is at 0.975 of IRS AGI with the
+splice (0.937 without), the top 0.1% and 1% at 0.98–0.99 either way, though
+passthrough income is still 0.64 at the 0.01% and 0.86 at the 0.1%.
+
+Side finding, file-wide rather than top-tail: Schedule C net losses are 0.62
+of the IRS total in every slice and nationally ($106B vs $171B), and
+partnership and S-corporation losses 0.94 nationally but 0.55–0.65 in every
+top slice. Aging of the loss lines is a separate item for the revamp's
+dimension 2.
 
 ## 2. The short-term position (S41)
 
@@ -282,7 +317,7 @@ interpolation.
 
 | Source | What | Years |
 |---|---|---|
-| IRS SOI **Table 4.3** (`{yy}in43ts.xls`; https://www.irs.gov/statistics/soi-tax-stats-individual-statistical-tables-by-tax-rate-and-income-percentile) | Top 0.001% / 0.01% / 0.1% / 1% excluding dependents: count, AGI floor, AGI, wages, interest, dividends, net capital gain, Schedule C, partnership and S-corporation | 2014–2023 (the 2022 file reads with `readxl`; older years use other filenames) |
+| IRS SOI **Table 4.3** — run for TY2022 (§1.2) (`{yy}in43ts.xls`; https://www.irs.gov/statistics/soi-tax-stats-individual-statistical-tables-by-tax-rate-and-income-percentile) | Top 0.001% / 0.01% / 0.1% / 1% excluding dependents: count, AGI floor, AGI, wages, interest, dividends, net capital gain, Schedule C, partnership and S-corporation | 2014–2023 (the 2022 file reads with `readxl`; older years use other filenames) |
 | IRS SOI **Table 4.1** | Top-percentile counts, AGI shares, floors | 2001–2023 |
 | Pub 1304 **Table 1.4** | Class totals; top class $10M+ | every year (IRS-Ind panel) |
 | **BSYZ companion Table 2** | The Forbes 400's own fiscal income by period | 2010–13, 2014–17, 2018–20 |
@@ -359,6 +394,9 @@ must not break for filer columns other than weights.
 
 ## Revision history
 
+- **2026-09-28 (night)** — §1.2: the Table 4.3 TY2022 comparison run
+  (`08_table43_2022.R`); the top 0.001% is 28% short of IRS AGI, the splice
+  closes a third, and two-thirds of the remainder is passthrough income.
 - **2026-09-28 (later)** — Restructured into the three goals: the issue, the
   short-term position (S41: aggregate records stay dropped, caveat in
   `CLAUDE.md`), the revamp scope; the Forbes extension moved to §4 as
