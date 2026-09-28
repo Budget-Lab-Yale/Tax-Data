@@ -1,0 +1,913 @@
+series,agi_lo,agi_hi,measure,soi,variable,puf,puf_with_agg
+alimony received,-Inf,1,amount,44043,alimony,15186.64,15186.64
+alimony received,-Inf,1,returns,1319,alimony,1355.95,1355.95
+business or profession > net income,-Inf,1,amount,4057263,sole_prop.income,4082756.78936,4082756.78936
+business or profession > net income,-Inf,1,returns,237120,sole_prop.income,223392.44,223392.44
+business or profession > net loss,-Inf,1,amount,12157756,sole_prop.loss,10934533.32226,11264145.9193248
+business or profession > net loss,-Inf,1,returns,426034,sole_prop.loss,407784.77,407925.08
+capital gain distributions reported on form 1040,-Inf,1,amount,46969,kg_dist,47856.63868,47856.63868
+capital gain distributions reported on form 1040,-Inf,1,returns,29097,kg_dist,35985.4,35985.4
+farm > net income,-Inf,1,amount,393681,farm.income,670353.6585,670353.6585
+farm > net income,-Inf,1,returns,20073,farm.income,21426.92,21426.92
+farm > net loss,-Inf,1,amount,6181649,farm.loss,8451418.38,8597496.78802311
+farm > net loss,-Inf,1,returns,117467,farm.loss,116670.2,116810.51
+ordinary dividends,-Inf,1,amount,5031112,div,4945192.92532,5459426.15504797
+ordinary dividends,-Inf,1,returns,468764,div,467645.37,467785.68
+partnership and s corporation > net income,-Inf,1,amount,6548669,part_scorp.income,7034255.95062,7034255.95062
+partnership and s corporation > net income,-Inf,1,returns,103383,part_scorp.income,105994.14,105994.14
+partnership and s corporation > net loss,-Inf,1,amount,50096035,part_scorp.loss,48170870.16962,52488578.0855633
+partnership and s corporation > net loss,-Inf,1,returns,303549,part_scorp.loss,299063.16,299203.47
+pensions and annuities > taxable,-Inf,1,amount,2945570,txbl_pens_dist,2886837.28712,2900505.46411983
+pensions and annuities > taxable,-Inf,1,returns,231166,txbl_pens_dist,237107.87,237248.18
+pensions and annuities > total,-Inf,1,amount,7687787,gross_pens_dist,8582112.86272,8598413.24872666
+pensions and annuities > total,-Inf,1,returns,295876,gross_pens_dist,295853.24,295993.55
+qualified dividends,-Inf,1,amount,3452820,div_pref,3281489.52154,3673752.82697176
+qualified dividends,-Inf,1,returns,431502,div_pref,435690.57,435830.88
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",-Inf,1,amount,17092947,txbl_kg.income,18169189.97342,20757234.5191805
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",-Inf,1,returns,167966,txbl_kg.income,192944.93,193085.24
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",-Inf,1,amount,1159884,txbl_kg.loss,1104492.54738,1104492.54738
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",-Inf,1,returns,448994,txbl_kg.loss,416626.99,416626.99
+sales of property other than capital assets > net gain,-Inf,1,amount,2250455,other_gains.income,2758903.09492,2758903.09492
+sales of property other than capital assets > net gain,-Inf,1,returns,60163,other_gains.income,65742.97,65742.97
+sales of property other than capital assets > net loss,-Inf,1,amount,8801402,other_gains.loss,9478782.88912,9795954.81276199
+sales of property other than capital assets > net loss,-Inf,1,returns,103291,other_gains.loss,117389.84,117530.15
+social security benefits > taxable,-Inf,1,amount,11443,txbl_ss,11105.7018,11136.5048000056
+social security benefits > taxable,-Inf,1,returns,1092,txbl_ss,780.51,920.82
+social security benefits > total,-Inf,1,amount,17452268,gross_ss,16884130.9694,16885281.9653999
+social security benefits > total,-Inf,1,returns,892768,gross_ss,865825.46,865965.77
+state income tax refunds,-Inf,1,amount,327295,state_ref,334827.06586,341941.651860163
+state income tax refunds,-Inf,1,returns,71250,state_ref,55699.54,55839.85
+tax exempt interest,-Inf,1,amount,2127267,exempt_int,1813829.65434,2090465.68139613
+tax exempt interest,-Inf,1,returns,99447,exempt_int,97895.69,98036
+taxable individual retirement arrangement (ira) distributions,-Inf,1,amount,2064540,txbl_ira_dist,2138721.53362,2229297.38762582
+taxable individual retirement arrangement (ira) distributions,-Inf,1,returns,137120,txbl_ira_dist,154021.86,154162.17
+taxable interest,-Inf,1,amount,4706956,txbl_int,4753857.70328,5271677.5699202
+taxable interest,-Inf,1,returns,653423,txbl_int,679414.94,679555.25
+unemployment compensation,-Inf,1,amount,95744,ui,107988.0344,107988.0344
+unemployment compensation,-Inf,1,returns,16718,ui,20420.74,20420.74
+wages,-Inf,1,amount,20111022,wages,19466407.45642,19569648.217483
+wages,-Inf,1,returns,565122,wages,525896.25,526036.56
+alimony received,1,5000,amount,24328,alimony,34952.4349,34952.4349
+alimony received,1,5000,returns,7971,alimony,11455.12,11455.12
+business or profession > net income,1,5000,amount,3620847,sole_prop.income,3700314.374,3700314.374
+business or profession > net income,1,5000,returns,1275335,sole_prop.income,1268048.57,1268048.57
+business or profession > net loss,1,5000,amount,865618,sole_prop.loss,714993.3857,714993.3857
+business or profession > net loss,1,5000,returns,138269,sole_prop.loss,121957.72,121957.72
+capital gain distributions reported on form 1040,1,5000,amount,195181,kg_dist,180109.746,180109.746
+capital gain distributions reported on form 1040,1,5000,returns,222771,kg_dist,216869.17,216869.17
+farm > net income,1,5000,amount,70103,farm.income,67270.521,67270.521
+farm > net income,1,5000,returns,25303,farm.income,23765.99,23765.99
+farm > net loss,1,5000,amount,472540,farm.loss,506948.5285,506948.5285
+farm > net loss,1,5000,returns,37629,farm.loss,37080.34,37080.34
+ordinary dividends,1,5000,amount,891234,div,945432.87254,945432.87254
+ordinary dividends,1,5000,returns,933634,div,937733.11,937733.11
+partnership and s corporation > net income,1,5000,amount,354028,part_scorp.income,301994.25186,301994.25186
+partnership and s corporation > net income,1,5000,returns,59110,part_scorp.income,57504.59,57504.59
+partnership and s corporation > net loss,1,5000,amount,870335,part_scorp.loss,800419.97658,800419.97658
+partnership and s corporation > net loss,1,5000,returns,43820,part_scorp.loss,52310.92,52310.92
+pensions and annuities > taxable,1,5000,amount,2178118,txbl_pens_dist,2203631.60988,2203631.60988
+pensions and annuities > taxable,1,5000,returns,729226,txbl_pens_dist,745868.59,745868.59
+pensions and annuities > total,1,5000,amount,5148239,gross_pens_dist,5373526.50798,5373526.50798
+pensions and annuities > total,1,5000,returns,780085,gross_pens_dist,800783.5,800783.5
+qualified dividends,1,5000,amount,539192,div_pref,573733.98332,573733.98332
+qualified dividends,1,5000,returns,846481,div_pref,852279.42,852279.42
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1,5000,amount,512882,txbl_kg.income,441367.18406,441367.18406
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1,5000,returns,260178,txbl_kg.income,250700.63,250700.63
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1,5000,amount,599286,txbl_kg.loss,624563.08354,624563.08354
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1,5000,returns,309683,txbl_kg.loss,328258.45,328258.45
+sales of property other than capital assets > net gain,1,5000,amount,89284,other_gains.income,130254.121,130254.121
+sales of property other than capital assets > net gain,1,5000,returns,13055,other_gains.income,18247.23,18247.23
+sales of property other than capital assets > net loss,1,5000,amount,326034,other_gains.loss,344930.13516,344930.13516
+sales of property other than capital assets > net loss,1,5000,returns,22121,other_gains.loss,28017.19,28017.19
+social security benefits > taxable,1,5000,amount,51974,txbl_ss,35220.0418,35220.0418
+social security benefits > taxable,1,5000,returns,15592,txbl_ss,10381.33,10381.33
+social security benefits > total,1,5000,amount,32721934,gross_ss,32983332.5736,32983332.5736
+social security benefits > total,1,5000,returns,1927027,gross_ss,1927072.01,1927072.01
+state income tax refunds,1,5000,amount,83718,state_ref,75897.7375,75897.7375
+state income tax refunds,1,5000,returns,82352,state_ref,83993.84,83993.84
+tax exempt interest,1,5000,amount,222610,exempt_int,231769.31802,231769.31802
+tax exempt interest,1,5000,returns,90663,exempt_int,102986.31,102986.31
+taxable individual retirement arrangement (ira) distributions,1,5000,amount,1141198,txbl_ira_dist,982599.39948,982599.39948
+taxable individual retirement arrangement (ira) distributions,1,5000,returns,341198,txbl_ira_dist,337641.48,337641.48
+taxable interest,1,5000,amount,606099,txbl_int,569260.44892,569260.44892
+taxable interest,1,5000,returns,1484669,txbl_int,1481079.42,1481079.42
+unemployment compensation,1,5000,amount,176649,ui,161726.2959,161726.2959
+unemployment compensation,1,5000,returns,88807,ui,87694.37,87694.37
+wages,1,5000,amount,26379758,wages,25995209.3245,25995209.3245
+wages,1,5000,returns,7267723,wages,7255276.81,7255276.81
+alimony received,5000,10000,amount,74393,alimony,68360.8202,68360.8202
+alimony received,5000,10000,returns,12906,alimony,12964.44,12964.44
+business or profession > net income,5000,10000,amount,12895688,sole_prop.income,12656172.476,12656172.476
+business or profession > net income,5000,10000,returns,1847196,sole_prop.income,1844038.68,1844038.68
+business or profession > net loss,5000,10000,amount,1460706,sole_prop.loss,1501249.7329,1501249.7329
+business or profession > net loss,5000,10000,returns,185654,sole_prop.loss,198301.56,198301.56
+capital gain distributions reported on form 1040,5000,10000,amount,224309,kg_dist,209414.69316,209414.69316
+capital gain distributions reported on form 1040,5000,10000,returns,179305,kg_dist,172198.29,172198.29
+farm > net income,5000,10000,amount,123727,farm.income,139404.1263,139404.1263
+farm > net income,5000,10000,returns,22017,farm.income,21313.25,21313.25
+farm > net loss,5000,10000,amount,426107,farm.loss,365726.4906,365726.4906
+farm > net loss,5000,10000,returns,34610,farm.loss,30287.39,30287.39
+ordinary dividends,5000,10000,amount,1434663,div,1413732.15158,1413732.15158
+ordinary dividends,5000,10000,returns,857987,div,864319.32,864319.32
+partnership and s corporation > net income,5000,10000,amount,720111,part_scorp.income,704123.1617,704123.1617
+partnership and s corporation > net income,5000,10000,returns,95076,part_scorp.income,83956.84,83956.84
+partnership and s corporation > net loss,5000,10000,amount,533252,part_scorp.loss,527339.80866,527339.80866
+partnership and s corporation > net loss,5000,10000,returns,51701,part_scorp.loss,56399.17,56399.17
+pensions and annuities > taxable,5000,10000,amount,6291022,txbl_pens_dist,6379945.8609,6379945.8609
+pensions and annuities > taxable,5000,10000,returns,1139203,txbl_pens_dist,1134865.44,1134865.44
+pensions and annuities > total,5000,10000,amount,10187637,gross_pens_dist,9947724.7424,9947724.7424
+pensions and annuities > total,5000,10000,returns,1184278,gross_pens_dist,1176758.8,1176758.8
+qualified dividends,5000,10000,amount,847872,div_pref,830888.57112,830888.57112
+qualified dividends,5000,10000,returns,792431,div_pref,800504.49,800504.49
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",5000,10000,amount,927640,txbl_kg.income,849505.27476,849505.27476
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",5000,10000,returns,302754,txbl_kg.income,305274.86,305274.86
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",5000,10000,amount,664177,txbl_kg.loss,719018.04876,719018.04876
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",5000,10000,returns,297621,txbl_kg.loss,330368.95,330368.95
+sales of property other than capital assets > net gain,5000,10000,amount,36716,other_gains.income,39748.73538,39748.73538
+sales of property other than capital assets > net gain,5000,10000,returns,14084,other_gains.income,15561.59,15561.59
+sales of property other than capital assets > net loss,5000,10000,amount,271523,other_gains.loss,324008.50406,324008.50406
+sales of property other than capital assets > net loss,5000,10000,returns,22167,other_gains.loss,19540.65,19540.65
+social security benefits > taxable,5000,10000,amount,191427,txbl_ss,201633.8177,201633.8177
+social security benefits > taxable,5000,10000,returns,39948,txbl_ss,42013.43,42013.43
+social security benefits > total,5000,10000,amount,36055882,gross_ss,35930031.1168,35930031.1168
+social security benefits > total,5000,10000,returns,2002601,gross_ss,1991610.55,1991610.55
+state income tax refunds,5000,10000,amount,61497,state_ref,60123.12058,60123.12058
+state income tax refunds,5000,10000,returns,95582,state_ref,95582.37,95582.37
+tax exempt interest,5000,10000,amount,285516,exempt_int,249153.14742,249153.14742
+tax exempt interest,5000,10000,returns,107702,exempt_int,107941.06,107941.06
+taxable individual retirement arrangement (ira) distributions,5000,10000,amount,2781145,txbl_ira_dist,2764215.30318,2764215.30318
+taxable individual retirement arrangement (ira) distributions,5000,10000,returns,590259,txbl_ira_dist,590097.54,590097.54
+taxable interest,5000,10000,amount,666442,txbl_int,674809.0079,674809.0079
+taxable interest,5000,10000,returns,1339223,txbl_int,1323434.64,1323434.64
+unemployment compensation,5000,10000,amount,758938,ui,799966.9059,799966.9059
+unemployment compensation,5000,10000,returns,281347,ui,300196.53,300196.53
+wages,5000,10000,amount,65527117,wages,65653418.84366,65653418.84366
+wages,5000,10000,returns,8804222,wages,8836315.26,8836315.26
+alimony received,10000,15000,amount,223883,alimony,235096.3637,235096.3637
+alimony received,10000,15000,returns,25593,alimony,27351.11,27351.11
+business or profession > net income,10000,15000,amount,24401379,sole_prop.income,24133646.7552,24133646.7552
+business or profession > net income,10000,15000,returns,2430904,sole_prop.income,2399238.82,2399238.82
+business or profession > net loss,10000,15000,amount,2411493,sole_prop.loss,2434695.1258,2434695.1258
+business or profession > net loss,10000,15000,returns,270797,sole_prop.loss,262834.43,262834.43
+capital gain distributions reported on form 1040,10000,15000,amount,234373,kg_dist,215484.5238,215484.5238
+capital gain distributions reported on form 1040,10000,15000,returns,159924,kg_dist,162626.08,162626.08
+farm > net income,10000,15000,amount,181981,farm.income,237393.3728,237393.3728
+farm > net income,10000,15000,returns,25206,farm.income,27015.15,27015.15
+farm > net loss,10000,15000,amount,710763,farm.loss,553015.2025,553015.2025
+farm > net loss,10000,15000,returns,39968,farm.loss,30104.49,30104.49
+ordinary dividends,10000,15000,amount,1924846,div,2007822.40382,2007822.40382
+ordinary dividends,10000,15000,returns,875080,div,859548.84,859548.84
+partnership and s corporation > net income,10000,15000,amount,1058534,part_scorp.income,1268392.7003,1268392.7003
+partnership and s corporation > net income,10000,15000,returns,99991,part_scorp.income,109249.09,109249.09
+partnership and s corporation > net loss,10000,15000,amount,688625,part_scorp.loss,721542.84714,721542.84714
+partnership and s corporation > net loss,10000,15000,returns,65337,part_scorp.loss,66807.34,66807.34
+pensions and annuities > taxable,10000,15000,amount,15061276,txbl_pens_dist,14668268.4879,14668268.4879
+pensions and annuities > taxable,10000,15000,returns,1727011,txbl_pens_dist,1721390.77,1721390.77
+pensions and annuities > total,10000,15000,amount,20894458,gross_pens_dist,20646784.2736,20646784.2736
+pensions and annuities > total,10000,15000,returns,1774742,gross_pens_dist,1767936.99,1767936.99
+qualified dividends,10000,15000,amount,1236652,div_pref,1260674.94798,1260674.94798
+qualified dividends,10000,15000,returns,781678,div_pref,772865.01,772865.01
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",10000,15000,amount,1230847,txbl_kg.income,1161406.05198,1161406.05198
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",10000,15000,returns,290743,txbl_kg.income,270259.94,270259.94
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",10000,15000,amount,646526,txbl_kg.loss,665970.42778,665970.42778
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",10000,15000,returns,288721,txbl_kg.loss,296395.52,296395.52
+sales of property other than capital assets > net gain,10000,15000,amount,75391,other_gains.income,75210.56534,75210.56534
+sales of property other than capital assets > net gain,10000,15000,returns,13837,other_gains.income,14028.78,14028.78
+sales of property other than capital assets > net loss,10000,15000,amount,240762,other_gains.loss,208329.7202,208329.7202
+sales of property other than capital assets > net loss,10000,15000,returns,30122,other_gains.loss,30751.59,30751.59
+social security benefits > taxable,10000,15000,amount,306013,txbl_ss,374526.61,374526.61
+social security benefits > taxable,10000,15000,returns,153032,txbl_ss,166224.29,166224.29
+social security benefits > total,10000,15000,amount,43794038,gross_ss,43818494.9049,43818494.9049
+social security benefits > total,10000,15000,returns,2349570,gross_ss,2324144.79,2324144.79
+state income tax refunds,10000,15000,amount,84706,state_ref,72155.30538,72155.30538
+state income tax refunds,10000,15000,returns,137575,state_ref,134879.58,134879.58
+tax exempt interest,10000,15000,amount,438006,exempt_int,425930.61142,425930.61142
+tax exempt interest,10000,15000,returns,124166,exempt_int,119858.55,119858.55
+taxable individual retirement arrangement (ira) distributions,10000,15000,amount,4470039,txbl_ira_dist,4699925.52658,4699925.52658
+taxable individual retirement arrangement (ira) distributions,10000,15000,returns,724858,txbl_ira_dist,740196.24,740196.24
+taxable interest,10000,15000,amount,1053897,txbl_int,1128044.88544,1128044.88544
+taxable interest,10000,15000,returns,1583302,txbl_int,1571029.27,1571029.27
+unemployment compensation,10000,15000,amount,1685162,ui,1602283.6243,1602283.6243
+unemployment compensation,10000,15000,returns,495187,ui,469972.09,469972.09
+wages,10000,15000,amount,108945675,wages,107809873.714,107809873.714
+wages,10000,15000,returns,9192735,wages,9089242.18,9089242.18
+alimony received,15000,20000,amount,309956,alimony,278905.1081,278905.1081
+alimony received,15000,20000,returns,28111,alimony,27283.34,27283.34
+business or profession > net income,15000,20000,amount,18943319,sole_prop.income,18907420.8458,18907420.8458
+business or profession > net income,15000,20000,returns,1551550,sole_prop.income,1561803.47,1561803.47
+business or profession > net loss,15000,20000,amount,3467702,sole_prop.loss,3580604.0115,3580604.0115
+business or profession > net loss,15000,20000,returns,344286,sole_prop.loss,341485.1,341485.1
+capital gain distributions reported on form 1040,15000,20000,amount,251117,kg_dist,298359.32976,298359.32976
+capital gain distributions reported on form 1040,15000,20000,returns,169070,kg_dist,155638.91,155638.91
+farm > net income,15000,20000,amount,183443,farm.income,204020.2605,204020.2605
+farm > net income,15000,20000,returns,17918,farm.income,22477.19,22477.19
+farm > net loss,15000,20000,amount,878360,farm.loss,1034535.2921,1034535.2921
+farm > net loss,15000,20000,returns,51923,farm.loss,54473.56,54473.56
+ordinary dividends,15000,20000,amount,1911854,div,2022609.43584,2022609.43584
+ordinary dividends,15000,20000,returns,878063,div,880123.28,880123.28
+partnership and s corporation > net income,15000,20000,amount,1448351,part_scorp.income,1234013.9941,1234013.9941
+partnership and s corporation > net income,15000,20000,returns,141254,part_scorp.income,132669.85,132669.85
+partnership and s corporation > net loss,15000,20000,amount,1035999,part_scorp.loss,1153814.5689,1153814.5689
+partnership and s corporation > net loss,15000,20000,returns,69076,part_scorp.loss,72428.46,72428.46
+pensions and annuities > taxable,15000,20000,amount,18313815,txbl_pens_dist,18830950.47288,18830950.47288
+pensions and annuities > taxable,15000,20000,returns,1604960,txbl_pens_dist,1653677.19,1653677.19
+pensions and annuities > total,15000,20000,amount,25706689,gross_pens_dist,25573473.82208,25573473.82208
+pensions and annuities > total,15000,20000,returns,1678316,gross_pens_dist,1723639.47,1723639.47
+qualified dividends,15000,20000,amount,1223553,div_pref,1354612.09822,1354612.09822
+qualified dividends,15000,20000,returns,801164,div_pref,807265.52,807265.52
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",15000,20000,amount,1550202,txbl_kg.income,1715771.48426,1715771.48426
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",15000,20000,returns,295391,txbl_kg.income,307885.28,307885.28
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",15000,20000,amount,513433,txbl_kg.loss,510738.35576,510738.35576
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",15000,20000,returns,232409,txbl_kg.loss,231446.23,231446.23
+sales of property other than capital assets > net gain,15000,20000,amount,106282,other_gains.income,113127.44514,113127.44514
+sales of property other than capital assets > net gain,15000,20000,returns,17543,other_gains.income,15150.12,15150.12
+sales of property other than capital assets > net loss,15000,20000,amount,343564,other_gains.loss,122602.4028,122602.4028
+sales of property other than capital assets > net loss,15000,20000,returns,23090,other_gains.loss,20178.59,20178.59
+social security benefits > taxable,15000,20000,amount,976124,txbl_ss,981838.29908,981838.29908
+social security benefits > taxable,15000,20000,returns,862286,txbl_ss,868006.19,868006.19
+social security benefits > total,15000,20000,amount,37323814,gross_ss,38420061.421,38420061.421
+social security benefits > total,15000,20000,returns,1959197,gross_ss,2025031.45,2025031.45
+state income tax refunds,15000,20000,amount,139095,state_ref,141869.56166,141869.56166
+state income tax refunds,15000,20000,returns,200822,state_ref,202529.09,202529.09
+tax exempt interest,15000,20000,amount,322515,exempt_int,248339.47972,248339.47972
+tax exempt interest,15000,20000,returns,119598,exempt_int,117601.52,117601.52
+taxable individual retirement arrangement (ira) distributions,15000,20000,amount,4835309,txbl_ira_dist,4877712.16438,4877712.16438
+taxable individual retirement arrangement (ira) distributions,15000,20000,returns,666843,txbl_ira_dist,681417.74,681417.74
+taxable interest,15000,20000,amount,1041566,txbl_int,1060211.21622,1060211.21622
+taxable interest,15000,20000,returns,1476103,txbl_int,1482399.24,1482399.24
+unemployment compensation,15000,20000,amount,2228391,ui,2052086.0839,2052086.0839
+unemployment compensation,15000,20000,returns,584579,ui,565789.36,565789.36
+wages,15000,20000,amount,152713467,wages,153653943.3019,153653943.3019
+wages,15000,20000,returns,9033568,wages,9090510.71,9090510.71
+alimony received,20000,25000,amount,445737,alimony,410181.0544,410181.0544
+alimony received,20000,25000,returns,38992,alimony,34597.65,34597.65
+business or profession > net income,20000,25000,amount,13222482,sole_prop.income,13255410.3319,13255410.3319
+business or profession > net income,20000,25000,returns,940440,sole_prop.income,934416.8,934416.8
+business or profession > net loss,20000,25000,amount,3067186,sole_prop.loss,2938130.2966,2938130.2966
+business or profession > net loss,20000,25000,returns,351371,sole_prop.loss,348585.52,348585.52
+capital gain distributions reported on form 1040,20000,25000,amount,259026,kg_dist,268794.65938,268794.65938
+capital gain distributions reported on form 1040,20000,25000,returns,147995,kg_dist,170265.65,170265.65
+farm > net income,20000,25000,amount,242721,farm.income,297700.6976,297700.6976
+farm > net income,20000,25000,returns,20825,farm.income,26715.09,26715.09
+farm > net loss,20000,25000,amount,509138,farm.loss,476391.6957,476391.6957
+farm > net loss,20000,25000,returns,45703,farm.loss,42849.14,42849.14
+ordinary dividends,20000,25000,amount,1967324,div,1865488.38434,1865488.38434
+ordinary dividends,20000,25000,returns,810499,div,791790,791790
+partnership and s corporation > net income,20000,25000,amount,1449194,part_scorp.income,1659286.37338,1659286.37338
+partnership and s corporation > net income,20000,25000,returns,111274,part_scorp.income,116949.38,116949.38
+partnership and s corporation > net loss,20000,25000,amount,1111283,part_scorp.loss,1194742.05102,1194742.05102
+partnership and s corporation > net loss,20000,25000,returns,68713,part_scorp.loss,60521.99,60521.99
+pensions and annuities > taxable,20000,25000,amount,18470507,txbl_pens_dist,18868429.1307,18868429.1307
+pensions and annuities > taxable,20000,25000,returns,1438998,txbl_pens_dist,1454076.76,1454076.76
+pensions and annuities > total,20000,25000,amount,24128687,gross_pens_dist,24087064.53886,24087064.53886
+pensions and annuities > total,20000,25000,returns,1502390,gross_pens_dist,1524868.96,1524868.96
+qualified dividends,20000,25000,amount,1326078,div_pref,1273194.2526,1273194.2526
+qualified dividends,20000,25000,returns,746510,div_pref,732566.4,732566.4
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",20000,25000,amount,1917490,txbl_kg.income,1814534.05806,1814534.05806
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",20000,25000,returns,301961,txbl_kg.income,282238.83,282238.83
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",20000,25000,amount,493407,txbl_kg.loss,453836.45528,453836.45528
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",20000,25000,returns,227031,txbl_kg.loss,213145.68,213145.68
+sales of property other than capital assets > net gain,20000,25000,amount,125428,other_gains.income,129257.17854,129257.17854
+sales of property other than capital assets > net gain,20000,25000,returns,24195,other_gains.income,24662.84,24662.84
+sales of property other than capital assets > net loss,20000,25000,amount,125641,other_gains.loss,102784.81728,102784.81728
+sales of property other than capital assets > net loss,20000,25000,returns,31135,other_gains.loss,34652.47,34652.47
+social security benefits > taxable,20000,25000,amount,2722534,txbl_ss,2681913.65818,2681913.65818
+social security benefits > taxable,20000,25000,returns,1293573,txbl_ss,1285148.86,1285148.86
+social security benefits > total,20000,25000,amount,32034479,gross_ss,31519930.4822,31519930.4822
+social security benefits > total,20000,25000,returns,1581873,gross_ss,1567230.55,1567230.55
+state income tax refunds,20000,25000,amount,132475,state_ref,130426.50654,130426.50654
+state income tax refunds,20000,25000,returns,223909,state_ref,218320.8,218320.8
+tax exempt interest,20000,25000,amount,689080,exempt_int,685111.7397,685111.7397
+tax exempt interest,20000,25000,returns,115165,exempt_int,110936.14,110936.14
+taxable individual retirement arrangement (ira) distributions,20000,25000,amount,5104234,txbl_ira_dist,4901008.1908,4901008.1908
+taxable individual retirement arrangement (ira) distributions,20000,25000,returns,636239,txbl_ira_dist,627548.16,627548.16
+taxable interest,20000,25000,amount,1068287,txbl_int,989415.22506,989415.22506
+taxable interest,20000,25000,returns,1371510,txbl_int,1348160.79,1348160.79
+unemployment compensation,20000,25000,amount,2221652,ui,2116193.2681,2116193.2681
+unemployment compensation,20000,25000,returns,523513,ui,530110.64,530110.64
+wages,20000,25000,amount,182841964,wages,181395581.2165,181395581.2165
+wages,20000,25000,returns,8423553,wages,8375312.62,8375312.62
+alimony received,25000,30000,amount,308633,alimony,347449.6174,347449.6174
+alimony received,25000,30000,returns,28486,alimony,34421.19,34421.19
+business or profession > net income,25000,30000,amount,11435760,sole_prop.income,10440464.655,10440464.655
+business or profession > net income,25000,30000,returns,746527,sole_prop.income,721130.33,721130.33
+business or profession > net loss,25000,30000,amount,2973206,sole_prop.loss,2562840.0053,2562840.0053
+business or profession > net loss,25000,30000,returns,316757,sole_prop.loss,305325.47,305325.47
+capital gain distributions reported on form 1040,25000,30000,amount,245274,kg_dist,262838.63468,262838.63468
+capital gain distributions reported on form 1040,25000,30000,returns,128487,kg_dist,128069.26,128069.26
+farm > net income,25000,30000,amount,267284,farm.income,298514.4771,298514.4771
+farm > net income,25000,30000,returns,20008,farm.income,20109.49,20109.49
+farm > net loss,25000,30000,amount,523468,farm.loss,578172.3452,578172.3452
+farm > net loss,25000,30000,returns,40783,farm.loss,45402.12,45402.12
+ordinary dividends,25000,30000,amount,2129499,div,2031030.37022,2031030.37022
+ordinary dividends,25000,30000,returns,778412,div,760848.58,760848.58
+partnership and s corporation > net income,25000,30000,amount,1835799,part_scorp.income,1642003.79194,1642003.79194
+partnership and s corporation > net income,25000,30000,returns,145162,part_scorp.income,143853.23,143853.23
+partnership and s corporation > net loss,25000,30000,amount,844699,part_scorp.loss,1157309.97358,1157309.97358
+partnership and s corporation > net loss,25000,30000,returns,60331,part_scorp.loss,66578.34,66578.34
+pensions and annuities > taxable,25000,30000,amount,18858034,txbl_pens_dist,18553521.15556,18553521.15556
+pensions and annuities > taxable,25000,30000,returns,1323185,txbl_pens_dist,1307244.37,1307244.37
+pensions and annuities > total,25000,30000,amount,24639911,gross_pens_dist,24276337.71248,24276337.71248
+pensions and annuities > total,25000,30000,returns,1392254,gross_pens_dist,1376792.55,1376792.55
+qualified dividends,25000,30000,amount,1265438,div_pref,1236221.93508,1236221.93508
+qualified dividends,25000,30000,returns,694987,div_pref,677431.02,677431.02
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",25000,30000,amount,1686136,txbl_kg.income,1748839.32678,1748839.32678
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",25000,30000,returns,269216,txbl_kg.income,269593.93,269593.93
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",25000,30000,amount,568206,txbl_kg.loss,536492.72406,536492.72406
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",25000,30000,returns,256667,txbl_kg.loss,247651.79,247651.79
+sales of property other than capital assets > net gain,25000,30000,amount,132219,other_gains.income,121927.40112,121927.40112
+sales of property other than capital assets > net gain,25000,30000,returns,22583,other_gains.income,26525.52,26525.52
+sales of property other than capital assets > net loss,25000,30000,amount,219865,other_gains.loss,128760.49966,128760.49966
+sales of property other than capital assets > net loss,25000,30000,returns,28146,other_gains.loss,27466.65,27466.65
+social security benefits > taxable,25000,30000,amount,4409525,txbl_ss,4307740.29828,4307740.29828
+social security benefits > taxable,25000,30000,returns,1245729,txbl_ss,1225535.56,1225535.56
+social security benefits > total,25000,30000,amount,27085903,gross_ss,26613927.3051,26613927.3051
+social security benefits > total,25000,30000,returns,1319452,gross_ss,1306842.44,1306842.44
+state income tax refunds,25000,30000,amount,201973,state_ref,186716.90086,186716.90086
+state income tax refunds,25000,30000,returns,337998,state_ref,360241.01,360241.01
+tax exempt interest,25000,30000,amount,720058,exempt_int,707411.03618,707411.03618
+tax exempt interest,25000,30000,returns,122363,exempt_int,112341.24,112341.24
+taxable individual retirement arrangement (ira) distributions,25000,30000,amount,4905412,txbl_ira_dist,5120440.7437,5120440.7437
+taxable individual retirement arrangement (ira) distributions,25000,30000,returns,552767,txbl_ira_dist,563297.2,563297.2
+taxable interest,25000,30000,amount,1061273,txbl_int,1034522.58128,1034522.58128
+taxable interest,25000,30000,returns,1380757,txbl_int,1374124.06,1374124.06
+unemployment compensation,25000,30000,amount,2065402,ui,1913212.7481,1913212.7481
+unemployment compensation,25000,30000,returns,465381,ui,433316.9,433316.9
+wages,25000,30000,amount,200342638,wages,200188370.6318,200188370.6318
+wages,25000,30000,returns,7585499,wages,7583828.88,7583828.88
+alimony received,30000,40000,amount,866062,alimony,788705.911,788705.911
+alimony received,30000,40000,returns,57596,alimony,54699.44,54699.44
+business or profession > net income,30000,40000,amount,21209538,sole_prop.income,21647928.10002,21647928.10002
+business or profession > net income,30000,40000,returns,1369005,sole_prop.income,1409249.03,1409249.03
+business or profession > net loss,30000,40000,amount,3929244,sole_prop.loss,4136044.3062,4136044.3062
+business or profession > net loss,30000,40000,returns,532987,sole_prop.loss,543034.43,543034.43
+capital gain distributions reported on form 1040,30000,40000,amount,462119,kg_dist,409153.6735,409153.6735
+capital gain distributions reported on form 1040,30000,40000,returns,287469,kg_dist,271858.14,271858.14
+farm > net income,30000,40000,amount,527577,farm.income,576072.6548,576072.6548
+farm > net income,30000,40000,returns,43409,farm.income,51599.81,51599.81
+farm > net loss,30000,40000,amount,1307472,farm.loss,1349688.3307,1349688.3307
+farm > net loss,30000,40000,returns,80527,farm.loss,73012.11,73012.11
+ordinary dividends,30000,40000,amount,4356423,div,4222088.09416,4222088.09416
+ordinary dividends,30000,40000,returns,1576139,div,1592439.54,1592439.54
+partnership and s corporation > net income,30000,40000,amount,4021340,part_scorp.income,4067639.45306,4067639.45306
+partnership and s corporation > net income,30000,40000,returns,252120,part_scorp.income,262142.37,262142.37
+partnership and s corporation > net loss,30000,40000,amount,1696781,part_scorp.loss,1764321.44554,1764321.44554
+partnership and s corporation > net loss,30000,40000,returns,132665,part_scorp.loss,131232.01,131232.01
+pensions and annuities > taxable,30000,40000,amount,40025378,txbl_pens_dist,40242549.41818,40242549.41818
+pensions and annuities > taxable,30000,40000,returns,2453670,txbl_pens_dist,2495933.98,2495933.98
+pensions and annuities > total,30000,40000,amount,56413216,gross_pens_dist,56423366.47928,56423366.47928
+pensions and annuities > total,30000,40000,returns,2593950,gross_pens_dist,2646944.41,2646944.41
+qualified dividends,30000,40000,amount,3001477,div_pref,2957017.65478,2957017.65478
+qualified dividends,30000,40000,returns,1440362,div_pref,1448534.81,1448534.81
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",30000,40000,amount,3565980,txbl_kg.income,3729575.66252,3729575.66252
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",30000,40000,returns,564977,txbl_kg.income,566585.92,566585.92
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",30000,40000,amount,941534,txbl_kg.loss,977719.2596,977719.2596
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",30000,40000,returns,456707,txbl_kg.loss,484895.36,484895.36
+sales of property other than capital assets > net gain,30000,40000,amount,492524,other_gains.income,524080.1076,524080.1076
+sales of property other than capital assets > net gain,30000,40000,returns,51944,other_gains.income,53393.03,53393.03
+sales of property other than capital assets > net loss,30000,40000,amount,336043,other_gains.loss,379184.64388,379184.64388
+sales of property other than capital assets > net loss,30000,40000,returns,41485,other_gains.loss,41391.24,41391.24
+social security benefits > taxable,30000,40000,amount,13187212,txbl_ss,13427012.7817,13427012.7817
+social security benefits > taxable,30000,40000,returns,2188504,txbl_ss,2226367.18,2226367.18
+social security benefits > total,30000,40000,amount,45862459,gross_ss,46290584.4046,46290584.4046
+social security benefits > total,30000,40000,returns,2190498,gross_ss,2227799.07,2227799.07
+state income tax refunds,30000,40000,amount,586150,state_ref,619784.74212,619784.74212
+state income tax refunds,30000,40000,returns,925460,state_ref,951141.89,951141.89
+tax exempt interest,30000,40000,amount,1483145,exempt_int,1472676.09536,1472676.09536
+tax exempt interest,30000,40000,returns,261909,exempt_int,269681.25,269681.25
+taxable individual retirement arrangement (ira) distributions,30000,40000,amount,10670749,txbl_ira_dist,10751736.48106,10751736.48106
+taxable individual retirement arrangement (ira) distributions,30000,40000,returns,1078333,txbl_ira_dist,1095697.79,1095697.79
+taxable interest,30000,40000,amount,2080661,txbl_int,2247139.8062,2247139.8062
+taxable interest,30000,40000,returns,2779716,txbl_int,2802828.86,2802828.86
+unemployment compensation,30000,40000,amount,3372825,ui,3233397.6841,3233397.6841
+unemployment compensation,30000,40000,returns,766880,ui,763578.34,763578.34
+wages,30000,40000,amount,428313928,wages,429097323.69958,429097323.69958
+wages,30000,40000,returns,12978605,wages,12994470.24,12994470.24
+alimony received,40000,50000,amount,769407,alimony,571350.1012,571350.1012
+alimony received,40000,50000,returns,46650,alimony,41705.2,41705.2
+business or profession > net income,40000,50000,amount,16756939,sole_prop.income,16692287.17244,16692287.17244
+business or profession > net income,40000,50000,returns,1028493,sole_prop.income,1035095.86,1035095.86
+business or profession > net loss,40000,50000,amount,3386681,sole_prop.loss,3291846.0118,3291846.0118
+business or profession > net loss,40000,50000,returns,469339,sole_prop.loss,464761.3,464761.3
+capital gain distributions reported on form 1040,40000,50000,amount,479156,kg_dist,544920.46244,544920.46244
+capital gain distributions reported on form 1040,40000,50000,returns,274422,kg_dist,302394.14,302394.14
+farm > net income,40000,50000,amount,569354,farm.income,581969.1815,581969.1815
+farm > net income,40000,50000,returns,37319,farm.income,37437.76,37437.76
+farm > net loss,40000,50000,amount,1181977,farm.loss,1206758.6821,1206758.6821
+farm > net loss,40000,50000,returns,91509,farm.loss,88456.69,88456.69
+ordinary dividends,40000,50000,amount,4083422,div,4120617.63146,4120617.63146
+ordinary dividends,40000,50000,returns,1514544,div,1595395.15,1595395.15
+partnership and s corporation > net income,40000,50000,amount,4772241,part_scorp.income,5086827.4674,5086827.4674
+partnership and s corporation > net income,40000,50000,returns,259365,part_scorp.income,271342.38,271342.38
+partnership and s corporation > net loss,40000,50000,amount,1518190,part_scorp.loss,1441938.47406,1441938.47406
+partnership and s corporation > net loss,40000,50000,returns,118326,part_scorp.loss,107772.38,107772.38
+pensions and annuities > taxable,40000,50000,amount,42423815,txbl_pens_dist,42071275.29838,42071275.29838
+pensions and annuities > taxable,40000,50000,returns,2197229,txbl_pens_dist,2219642.24,2219642.24
+pensions and annuities > total,40000,50000,amount,57820520,gross_pens_dist,57939992.17242,57939992.17242
+pensions and annuities > total,40000,50000,returns,2352393,gross_pens_dist,2377854.21,2377854.21
+qualified dividends,40000,50000,amount,2826332,div_pref,2808631.54644,2808631.54644
+qualified dividends,40000,50000,returns,1389336,div_pref,1464686.18,1464686.18
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",40000,50000,amount,4180676,txbl_kg.income,4739007.49904,4739007.49904
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",40000,50000,returns,583462,txbl_kg.income,613504.2,613504.2
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",40000,50000,amount,837906,txbl_kg.loss,885461.477,885461.477
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",40000,50000,returns,383768,txbl_kg.loss,408086.11,408086.11
+sales of property other than capital assets > net gain,40000,50000,amount,407907,other_gains.income,449420.9809,449420.9809
+sales of property other than capital assets > net gain,40000,50000,returns,47274,other_gains.income,48697.96,48697.96
+sales of property other than capital assets > net loss,40000,50000,amount,437661,other_gains.loss,451728.94964,451728.94964
+sales of property other than capital assets > net loss,40000,50000,returns,47446,other_gains.loss,43767.04,43767.04
+social security benefits > taxable,40000,50000,amount,18003861,txbl_ss,18040254.8732,18040254.8732
+social security benefits > taxable,40000,50000,returns,1846896,txbl_ss,1848397.06,1848397.06
+social security benefits > total,40000,50000,amount,37692182,gross_ss,37979213.2542,37979213.2542
+social security benefits > total,40000,50000,returns,1848962,gross_ss,1849918.06,1849918.06
+state income tax refunds,40000,50000,amount,801187,state_ref,782496.45292,782496.45292
+state income tax refunds,40000,50000,returns,1272758,state_ref,1260044.77,1260044.77
+tax exempt interest,40000,50000,amount,1177454,exempt_int,1184084.91644,1184084.91644
+tax exempt interest,40000,50000,returns,239360,exempt_int,258090.7,258090.7
+taxable individual retirement arrangement (ira) distributions,40000,50000,amount,10855178,txbl_ira_dist,11358120.9824,11358120.9824
+taxable individual retirement arrangement (ira) distributions,40000,50000,returns,991898,txbl_ira_dist,1016662.54,1016662.54
+taxable interest,40000,50000,amount,1991377,txbl_int,2092202.06738,2092202.06738
+taxable interest,40000,50000,returns,2748982,txbl_int,2785494.58,2785494.58
+unemployment compensation,40000,50000,amount,2512534,ui,2478734.3474,2478734.3474
+unemployment compensation,40000,50000,returns,543079,ui,543473.96,543473.96
+wages,40000,50000,amount,424369612,wages,429113650.0576,429113650.0576
+wages,40000,50000,returns,10142723,wages,10251380.06,10251380.06
+alimony received,50000,75000,amount,1579814,alimony,1355131.5724,1355131.5724
+alimony received,50000,75000,returns,80238,alimony,76852.11,76852.11
+business or profession > net income,50000,75000,amount,34762519,sole_prop.income,34814861.622,34814861.622
+business or profession > net income,50000,75000,returns,2076929,sole_prop.income,2073332.46,2073332.46
+business or profession > net loss,50000,75000,amount,5767819,sole_prop.loss,5831459.4566,5831459.4566
+business or profession > net loss,50000,75000,returns,833699,sole_prop.loss,831596.87,831596.87
+capital gain distributions reported on form 1040,50000,75000,amount,1542572,kg_dist,1537287.59826,1537287.59826
+capital gain distributions reported on form 1040,50000,75000,returns,662186,kg_dist,654355.47,654355.47
+farm > net income,50000,75000,amount,1371564,farm.income,1421772.9222,1421772.9222
+farm > net income,50000,75000,returns,72870,farm.income,76639,76639
+farm > net loss,50000,75000,amount,3061671,farm.loss,3121294.8285,3121294.8285
+farm > net loss,50000,75000,returns,207898,farm.loss,209605.37,209605.37
+ordinary dividends,50000,75000,amount,13570392,div,13642966.08536,13642966.08536
+ordinary dividends,50000,75000,returns,3896386,div,3872478.81,3872478.81
+partnership and s corporation > net income,50000,75000,amount,14201601,part_scorp.income,14525248.01858,14525248.01858
+partnership and s corporation > net income,50000,75000,returns,625054,part_scorp.income,654752.77,654752.77
+partnership and s corporation > net loss,50000,75000,amount,3826000,part_scorp.loss,3769571.28384,3769571.28384
+partnership and s corporation > net loss,50000,75000,returns,317031,part_scorp.loss,307743.94,307743.94
+pensions and annuities > taxable,50000,75000,amount,114723085,txbl_pens_dist,112178773.62244,112178773.62244
+pensions and annuities > taxable,50000,75000,returns,4794838,txbl_pens_dist,4788953.64,4788953.64
+pensions and annuities > total,50000,75000,amount,160899524,gross_pens_dist,159148705.85632,159148705.85632
+pensions and annuities > total,50000,75000,returns,5145456,gross_pens_dist,5140732.31,5140732.31
+qualified dividends,50000,75000,amount,9668810,div_pref,9903210.53708,9903210.53708
+qualified dividends,50000,75000,returns,3586978,div_pref,3570469.31,3570469.31
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",50000,75000,amount,12531337,txbl_kg.income,12676590.9129,12676590.9129
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",50000,75000,returns,1499292,txbl_kg.income,1466181.41,1466181.41
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",50000,75000,amount,2371829,txbl_kg.loss,2421887.8185,2421887.8185
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",50000,75000,returns,1058241,txbl_kg.loss,1076753.22,1076753.22
+sales of property other than capital assets > net gain,50000,75000,amount,800812,other_gains.income,722438.7168,722438.7168
+sales of property other than capital assets > net gain,50000,75000,returns,107739,other_gains.income,111577.77,111577.77
+sales of property other than capital assets > net loss,50000,75000,amount,661370,other_gains.loss,760032.8176,760032.8176
+sales of property other than capital assets > net loss,50000,75000,returns,120537,other_gains.loss,124373.8,124373.8
+social security benefits > taxable,50000,75000,amount,61729360,txbl_ss,61507020.9959,61507020.9959
+social security benefits > taxable,50000,75000,returns,4138890,txbl_ss,4134953.86,4134953.86
+social security benefits > total,50000,75000,amount,86766286,gross_ss,86599744.8644,86599744.8644
+social security benefits > total,50000,75000,returns,4139897,gross_ss,4136400.84,4136400.84
+state income tax refunds,50000,75000,amount,2675552,state_ref,2660677.87338,2660677.87338
+state income tax refunds,50000,75000,returns,3568892,state_ref,3632061.21,3632061.21
+tax exempt interest,50000,75000,amount,3326378,exempt_int,3326203.99618,3326203.99618
+tax exempt interest,50000,75000,returns,704167,exempt_int,679288.76,679288.76
+taxable individual retirement arrangement (ira) distributions,50000,75000,amount,32261073,txbl_ira_dist,31756622.05468,31756622.05468
+taxable individual retirement arrangement (ira) distributions,50000,75000,returns,2370301,txbl_ira_dist,2335660.18,2335660.18
+taxable interest,50000,75000,amount,5759010,txbl_int,5872995.63688,5872995.63688
+taxable interest,50000,75000,returns,6568582,txbl_int,6525691.01,6525691.01
+unemployment compensation,50000,75000,amount,4591758,ui,4368565.1819,4368565.1819
+unemployment compensation,50000,75000,returns,963756,ui,937513.16,937513.16
+wages,50000,75000,amount,952347137,wages,961373748.2533,961373748.2533
+wages,50000,75000,returns,17158839,wages,17297497.13,17297497.13
+alimony received,75000,1e+05,amount,1219211,alimony,1149704.9526,1149704.9526
+alimony received,75000,1e+05,returns,36744,alimony,33670.04,33670.04
+business or profession > net income,75000,1e+05,amount,30010398,sole_prop.income,29510179.69884,29510179.69884
+business or profession > net income,75000,1e+05,returns,1521248,sole_prop.income,1514971.32,1514971.32
+business or profession > net loss,75000,1e+05,amount,4253862,sole_prop.loss,4182971.4935,4182971.4935
+business or profession > net loss,75000,1e+05,returns,626398,sole_prop.loss,634893.52,634893.52
+capital gain distributions reported on form 1040,75000,1e+05,amount,1370439,kg_dist,1352148.10202,1352148.10202
+capital gain distributions reported on form 1040,75000,1e+05,returns,564896,kg_dist,587060.11,587060.11
+farm > net income,75000,1e+05,amount,1529978,farm.income,1530402.7205,1530402.7205
+farm > net income,75000,1e+05,returns,61642,farm.income,60610.63,60610.63
+farm > net loss,75000,1e+05,amount,2789150,farm.loss,2546464.4121,2546464.4121
+farm > net loss,75000,1e+05,returns,177428,farm.loss,178366.93,178366.93
+ordinary dividends,75000,1e+05,amount,13679218,div,13002145.6219,13002145.6219
+ordinary dividends,75000,1e+05,returns,3468135,div,3441271.1,3441271.1
+partnership and s corporation > net income,75000,1e+05,amount,16254478,part_scorp.income,15901358.59956,15901358.59956
+partnership and s corporation > net income,75000,1e+05,returns,620308,part_scorp.income,626695.98,626695.98
+partnership and s corporation > net loss,75000,1e+05,amount,3003805,part_scorp.loss,3090376.50442,3090376.50442
+partnership and s corporation > net loss,75000,1e+05,returns,276952,part_scorp.loss,272062.26,272062.26
+pensions and annuities > taxable,75000,1e+05,amount,109640293,txbl_pens_dist,109920681.3464,109920681.3464
+pensions and annuities > taxable,75000,1e+05,returns,3613164,txbl_pens_dist,3638829,3638829
+pensions and annuities > total,75000,1e+05,amount,163857153,gross_pens_dist,164740740.46126,164740740.46126
+pensions and annuities > total,75000,1e+05,returns,3958703,gross_pens_dist,3986688.78,3986688.78
+qualified dividends,75000,1e+05,amount,9950326,div_pref,9570923.37922,9570923.37922
+qualified dividends,75000,1e+05,returns,3253110,div_pref,3209414.75,3209414.75
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",75000,1e+05,amount,15108775,txbl_kg.income,14818535.20104,14818535.20104
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",75000,1e+05,returns,1417852,txbl_kg.income,1395595.86,1395595.86
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",75000,1e+05,amount,2047954,txbl_kg.loss,2044928.85472,2044928.85472
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",75000,1e+05,returns,933896,txbl_kg.loss,937645.24,937645.24
+sales of property other than capital assets > net gain,75000,1e+05,amount,926912,other_gains.income,869442.1841,869442.1841
+sales of property other than capital assets > net gain,75000,1e+05,returns,107373,other_gains.income,109746.99,109746.99
+sales of property other than capital assets > net loss,75000,1e+05,amount,978796,other_gains.loss,952501.40094,952501.40094
+sales of property other than capital assets > net loss,75000,1e+05,returns,116310,other_gains.loss,108689.86,108689.86
+social security benefits > taxable,75000,1e+05,amount,57871398,txbl_ss,56726581.8722,56726581.8722
+social security benefits > taxable,75000,1e+05,returns,2935392,txbl_ss,2912701.78,2912701.78
+social security benefits > total,75000,1e+05,amount,69506791,gross_ss,68038185.5229,68038185.5229
+social security benefits > total,75000,1e+05,returns,2935395,gross_ss,2912701.78,2912701.78
+state income tax refunds,75000,1e+05,amount,3369360,state_ref,3418701.47066,3418701.47066
+state income tax refunds,75000,1e+05,returns,3663125,state_ref,3745603.37,3745603.37
+tax exempt interest,75000,1e+05,amount,3510870,exempt_int,3560994.9486,3560994.9486
+tax exempt interest,75000,1e+05,returns,668070,exempt_int,664011.68,664011.68
+taxable individual retirement arrangement (ira) distributions,75000,1e+05,amount,36089085,txbl_ira_dist,35242408.11898,35242408.11898
+taxable individual retirement arrangement (ira) distributions,75000,1e+05,returns,1933400,txbl_ira_dist,1918062.94,1918062.94
+taxable interest,75000,1e+05,amount,5351418,txbl_int,5385801.0392,5385801.0392
+taxable interest,75000,1e+05,returns,5553172,txbl_int,5576074.64,5576074.64
+unemployment compensation,75000,1e+05,amount,2965498,ui,3147050.1869,3147050.1869
+unemployment compensation,75000,1e+05,returns,602671,ui,612457.78,612457.78
+wages,75000,1e+05,amount,835434509,wages,845214265.0178,845214265.0178
+wages,75000,1e+05,returns,11083392,wages,11181720.21,11181720.21
+alimony received,1e+05,2e+05,amount,2078680,alimony,2193399.7674,2193399.7674
+alimony received,1e+05,2e+05,returns,37189,alimony,38347.03,38347.03
+business or profession > net income,1e+05,2e+05,amount,75753230,sole_prop.income,75808307.85628,75808307.85628
+business or profession > net income,1e+05,2e+05,returns,2546650,sole_prop.income,2555548.81,2555548.81
+business or profession > net loss,1e+05,2e+05,amount,7646665,sole_prop.loss,7595677.32528,7595677.32528
+business or profession > net loss,1e+05,2e+05,returns,1047891,sole_prop.loss,1065179.84,1065179.84
+capital gain distributions reported on form 1040,1e+05,2e+05,amount,3639073,kg_dist,3742217.95436,3742217.95436
+capital gain distributions reported on form 1040,1e+05,2e+05,returns,1078572,kg_dist,1089419.93,1089419.93
+farm > net income,1e+05,2e+05,amount,3708742,farm.income,3867572.1191,3867572.1191
+farm > net income,1e+05,2e+05,returns,103969,farm.income,107976.77,107976.77
+farm > net loss,1e+05,2e+05,amount,4367028,farm.loss,4370372.6352,4370372.6352
+farm > net loss,1e+05,2e+05,returns,252089,farm.loss,243437.42,243437.42
+ordinary dividends,1e+05,2e+05,amount,43684842,div,43656236.53414,43656236.53414
+ordinary dividends,1e+05,2e+05,returns,7062743,div,7130732.42,7130732.42
+partnership and s corporation > net income,1e+05,2e+05,amount,67887613,part_scorp.income,67983166.40326,67983166.40326
+partnership and s corporation > net income,1e+05,2e+05,returns,1614680,part_scorp.income,1650887.14,1650887.14
+partnership and s corporation > net loss,1e+05,2e+05,amount,8663474,part_scorp.loss,8529608.42744,8529608.42744
+partnership and s corporation > net loss,1e+05,2e+05,returns,655397,part_scorp.loss,661409.25,661409.25
+pensions and annuities > taxable,1e+05,2e+05,amount,216352535,txbl_pens_dist,220243606.76822,220243606.76822
+pensions and annuities > taxable,1e+05,2e+05,returns,5391242,txbl_pens_dist,5415581.59,5415581.59
+pensions and annuities > total,1e+05,2e+05,amount,378312328,gross_pens_dist,388267404.9728,388267404.9728
+pensions and annuities > total,1e+05,2e+05,returns,6106990,gross_pens_dist,6129094.74,6129094.74
+qualified dividends,1e+05,2e+05,amount,33501662,div_pref,33566075.0532,33566075.0532
+qualified dividends,1e+05,2e+05,returns,6651049,div_pref,6721422.51,6721422.51
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1e+05,2e+05,amount,55975478,txbl_kg.income,55380555.81364,55380555.81364
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1e+05,2e+05,returns,3160989,txbl_kg.income,3198255.53,3198255.53
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1e+05,2e+05,amount,4308359,txbl_kg.loss,4423464.9252,4423464.9252
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1e+05,2e+05,returns,1959116,txbl_kg.loss,2009303.8,2009303.8
+sales of property other than capital assets > net gain,1e+05,2e+05,amount,2841276,other_gains.income,2874687.15518,2874687.15518
+sales of property other than capital assets > net gain,1e+05,2e+05,returns,247355,other_gains.income,245434.65,245434.65
+sales of property other than capital assets > net loss,1e+05,2e+05,amount,2019552,other_gains.loss,2004886.7665,2004886.7665
+sales of property other than capital assets > net loss,1e+05,2e+05,returns,242362,other_gains.loss,254866.33,254866.33
+social security benefits > taxable,1e+05,2e+05,amount,86214692,txbl_ss,86806982.0259,86806982.0259
+social security benefits > taxable,1e+05,2e+05,returns,3751578,txbl_ss,3761961.82,3761961.82
+social security benefits > total,1e+05,2e+05,amount,101513861,gross_ss,102206930.1863,102206930.1863
+social security benefits > total,1e+05,2e+05,returns,3751605,gross_ss,3761970.13,3761970.13
+state income tax refunds,1e+05,2e+05,amount,8385349,state_ref,8465822.87022,8465822.87022
+state income tax refunds,1e+05,2e+05,returns,7245134,state_ref,7288917.17,7288917.17
+tax exempt interest,1e+05,2e+05,amount,11019779,exempt_int,10566964.88356,10566964.88356
+tax exempt interest,1e+05,2e+05,returns,1581470,exempt_int,1584417.75,1584417.75
+taxable individual retirement arrangement (ira) distributions,1e+05,2e+05,amount,79751792,txbl_ira_dist,78839369.16476,78839369.16476
+taxable individual retirement arrangement (ira) distributions,1e+05,2e+05,returns,2997506,txbl_ira_dist,3011000.51,3011000.51
+taxable interest,1e+05,2e+05,amount,13932224,txbl_int,14425001.5629,14425001.5629
+taxable interest,1e+05,2e+05,returns,10353254,txbl_int,10396313.87,10396313.87
+unemployment compensation,1e+05,2e+05,amount,3794597,ui,3941177.69,3941177.69
+unemployment compensation,1e+05,2e+05,returns,739643,ui,768376.53,768376.53
+wages,1e+05,2e+05,amount,1876094165,wages,1884125064.25426,1884125064.25426
+wages,1e+05,2e+05,returns,16409095,wages,16515544.42,16515544.42
+alimony received,2e+05,5e+05,amount,1608050,alimony,1219931.9012,1219931.9012
+alimony received,2e+05,5e+05,returns,10797,alimony,7634.89,7634.89
+business or profession > net income,2e+05,5e+05,amount,70271445,sole_prop.income,70881569.3931,70881569.3931
+business or profession > net income,2e+05,5e+05,returns,960730,sole_prop.income,963397.19,963397.19
+business or profession > net loss,2e+05,5e+05,amount,3726278,sole_prop.loss,3757586.86758,3757586.86758
+business or profession > net loss,2e+05,5e+05,returns,312389,sole_prop.loss,314251.79,314251.79
+capital gain distributions reported on form 1040,2e+05,5e+05,amount,1989633,kg_dist,2071999.48926,2071999.48926
+capital gain distributions reported on form 1040,2e+05,5e+05,returns,369651,kg_dist,373948.35,373948.35
+farm > net income,2e+05,5e+05,amount,2653883,farm.income,2701850.9884,2701850.9884
+farm > net income,2e+05,5e+05,returns,40147,farm.income,38809.01,38809.01
+farm > net loss,2e+05,5e+05,amount,2440744,farm.loss,2571899.8607,2571899.8607
+farm > net loss,2e+05,5e+05,returns,74153,farm.loss,73875.86,73875.86
+ordinary dividends,2e+05,5e+05,amount,45283033,div,45592253.36386,45592253.36386
+ordinary dividends,2e+05,5e+05,returns,3391442,div,3412099.36,3412099.36
+partnership and s corporation > net income,2e+05,5e+05,amount,142299712,part_scorp.income,143254837.53868,143254837.53868
+partnership and s corporation > net income,2e+05,5e+05,returns,1259135,part_scorp.income,1273447.3,1273447.3
+partnership and s corporation > net loss,2e+05,5e+05,amount,10221016,part_scorp.loss,10489493.02756,10489493.02756
+partnership and s corporation > net loss,2e+05,5e+05,returns,361082,part_scorp.loss,364063.48,364063.48
+pensions and annuities > taxable,2e+05,5e+05,amount,71287369,txbl_pens_dist,72510692.76124,72510692.76124
+pensions and annuities > taxable,2e+05,5e+05,returns,1320681,txbl_pens_dist,1326917.31,1326917.31
+pensions and annuities > total,2e+05,5e+05,amount,176275803,gross_pens_dist,176605073.96232,176605073.96232
+pensions and annuities > total,2e+05,5e+05,returns,1658908,gross_pens_dist,1665353.31,1665353.31
+qualified dividends,2e+05,5e+05,amount,36267006,div_pref,36561478.79266,36561478.79266
+qualified dividends,2e+05,5e+05,returns,3272768,div_pref,3297007.62,3297007.62
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",2e+05,5e+05,amount,84003935,txbl_kg.income,84853672.19452,84853672.19452
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",2e+05,5e+05,returns,1841053,txbl_kg.income,1850639.49,1850639.49
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",2e+05,5e+05,amount,2548526,txbl_kg.loss,2560887.17684,2560887.17684
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",2e+05,5e+05,returns,1070458,txbl_kg.loss,1076802.99,1076802.99
+sales of property other than capital assets > net gain,2e+05,5e+05,amount,3105357,other_gains.income,3166649.69238,3166649.69238
+sales of property other than capital assets > net gain,2e+05,5e+05,returns,179578,other_gains.income,180654.13,180654.13
+sales of property other than capital assets > net loss,2e+05,5e+05,amount,2069469,other_gains.loss,2117285.09436,2117285.09436
+sales of property other than capital assets > net loss,2e+05,5e+05,returns,187109,other_gains.loss,188677.23,188677.23
+social security benefits > taxable,2e+05,5e+05,amount,25321729,txbl_ss,25418792.7474,25418792.7474
+social security benefits > taxable,2e+05,5e+05,returns,961000,txbl_ss,967709.79,967709.79
+social security benefits > total,2e+05,5e+05,amount,29790900,gross_ss,29906474.7547,29906474.7547
+social security benefits > total,2e+05,5e+05,returns,961029,gross_ss,967730.48,967730.48
+state income tax refunds,2e+05,5e+05,amount,4227684,state_ref,4248544.03806,4248544.03806
+state income tax refunds,2e+05,5e+05,returns,1917063,state_ref,1933986.31,1933986.31
+tax exempt interest,2e+05,5e+05,amount,12958810,exempt_int,12982459.9636,12982459.9636
+tax exempt interest,2e+05,5e+05,returns,1030721,exempt_int,1032691.9,1032691.9
+taxable individual retirement arrangement (ira) distributions,2e+05,5e+05,amount,44053588,txbl_ira_dist,44444240.09854,44444240.09854
+taxable individual retirement arrangement (ira) distributions,2e+05,5e+05,returns,938904,txbl_ira_dist,945115.3,945115.3
+taxable interest,2e+05,5e+05,amount,12956349,txbl_int,12953521.88996,12953521.88996
+taxable interest,2e+05,5e+05,returns,4116012,txbl_int,4146555.86,4146555.86
+unemployment compensation,2e+05,5e+05,amount,688738,ui,675731.4719,675731.4719
+unemployment compensation,2e+05,5e+05,returns,125117,ui,123520.19,123520.19
+wages,2e+05,5e+05,amount,1055689937,wages,1058784669.03502,1058784669.03502
+wages,2e+05,5e+05,returns,4812720,wages,4834542.65,4834542.65
+alimony received,5e+05,1e+06,amount,266658,alimony,0,0
+alimony received,5e+05,1e+06,returns,1231,alimony,0,0
+business or profession > net income,5e+05,1e+06,amount,25065426,sole_prop.income,25299256.46908,25299256.46908
+business or profession > net income,5e+05,1e+06,returns,177361,sole_prop.income,178899.63,178899.63
+business or profession > net loss,5e+05,1e+06,amount,1320995,sole_prop.loss,1237027.32024,1237027.32024
+business or profession > net loss,5e+05,1e+06,returns,50356,sole_prop.loss,51217.38,51217.38
+capital gain distributions reported on form 1040,5e+05,1e+06,amount,397268,kg_dist,402620.30452,402620.30452
+capital gain distributions reported on form 1040,5e+05,1e+06,returns,39917,kg_dist,40084.05,40084.05
+farm > net income,5e+05,1e+06,amount,760835,farm.income,748034.47896,748034.47896
+farm > net income,5e+05,1e+06,returns,6442,farm.income,6512.05,6512.05
+farm > net loss,5e+05,1e+06,amount,995166,farm.loss,947995.74266,947995.74266
+farm > net loss,5e+05,1e+06,returns,16617,farm.loss,16718.5,16718.5
+ordinary dividends,5e+05,1e+06,amount,24854824,div,25064163.46396,25064163.46396
+ordinary dividends,5e+05,1e+06,returns,708986,div,713107.31,713107.31
+partnership and s corporation > net income,5e+05,1e+06,amount,119801813,part_scorp.income,120674583.65268,120674583.65268
+partnership and s corporation > net income,5e+05,1e+06,returns,403560,part_scorp.income,406203.38,406203.38
+partnership and s corporation > net loss,5e+05,1e+06,amount,5967617,part_scorp.loss,6023392.31468,6023392.31468
+partnership and s corporation > net loss,5e+05,1e+06,returns,101888,part_scorp.loss,101767.87,101767.87
+pensions and annuities > taxable,5e+05,1e+06,amount,8552399,txbl_pens_dist,8597898.76746,8597898.76746
+pensions and annuities > taxable,5e+05,1e+06,returns,158716,txbl_pens_dist,160564.12,160564.12
+pensions and annuities > total,5e+05,1e+06,amount,33682369,gross_pens_dist,33643137.0434,33643137.0434
+pensions and annuities > total,5e+05,1e+06,returns,221493,gross_pens_dist,223738.24,223738.24
+qualified dividends,5e+05,1e+06,amount,20014498,div_pref,20187213.48862,20187213.48862
+qualified dividends,5e+05,1e+06,returns,690017,div_pref,694394.43,694394.43
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",5e+05,1e+06,amount,61321058,txbl_kg.income,61402805.047,61402805.047
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",5e+05,1e+06,returns,442833,txbl_kg.income,444546.75,444546.75
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",5e+05,1e+06,amount,620944,txbl_kg.loss,622620.15592,622620.15592
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",5e+05,1e+06,returns,240175,txbl_kg.loss,241078.1,241078.1
+sales of property other than capital assets > net gain,5e+05,1e+06,amount,2143524,other_gains.income,2044797.87102,2044797.87102
+sales of property other than capital assets > net gain,5e+05,1e+06,returns,75647,other_gains.income,75327.75,75327.75
+sales of property other than capital assets > net loss,5e+05,1e+06,amount,1297435,other_gains.loss,1358374.03158,1358374.03158
+sales of property other than capital assets > net loss,5e+05,1e+06,returns,75815,other_gains.loss,76986.86,76986.86
+social security benefits > taxable,5e+05,1e+06,amount,4111568,txbl_ss,4119522.7757,4119522.7757
+social security benefits > taxable,5e+05,1e+06,returns,148824,txbl_ss,149062.46,149062.46
+social security benefits > total,5e+05,1e+06,amount,4837200,gross_ss,4846618.6882,4846618.6882
+social security benefits > total,5e+05,1e+06,returns,148836,gross_ss,149070.77,149070.77
+state income tax refunds,5e+05,1e+06,amount,2091565,state_ref,2102570.06918,2102570.06918
+state income tax refunds,5e+05,1e+06,returns,298146,state_ref,300820.69,300820.69
+tax exempt interest,5e+05,1e+06,amount,6889926,exempt_int,6908862.24462,6908862.24462
+tax exempt interest,5e+05,1e+06,returns,323378,exempt_int,325242.9,325242.9
+taxable individual retirement arrangement (ira) distributions,5e+05,1e+06,amount,9379854,txbl_ira_dist,9063183.31546,9063183.31546
+taxable individual retirement arrangement (ira) distributions,5e+05,1e+06,returns,135662,txbl_ira_dist,135977.82,135977.82
+taxable interest,5e+05,1e+06,amount,7248337,txbl_int,7283360.90314,7283360.90314
+taxable interest,5e+05,1e+06,returns,802733,txbl_int,806537.97,806537.97
+unemployment compensation,5e+05,1e+06,amount,48402,ui,49726.3385,49726.3385
+unemployment compensation,5e+05,1e+06,returns,7602,ui,7747.08,7747.08
+wages,5e+05,1e+06,amount,337666673,wages,339958695.5757,339958695.5757
+wages,5e+05,1e+06,returns,767954,wages,771257.05,771257.05
+alimony received,1e+06,1500000,amount,106517,alimony,0,0
+alimony received,1e+06,1500000,returns,312,alimony,0,0
+business or profession > net income,1e+06,1500000,amount,8889443,sole_prop.income,8798103.11944,8798103.11944
+business or profession > net income,1e+06,1500000,returns,38755,sole_prop.income,38983.83,38983.83
+business or profession > net loss,1e+06,1500000,amount,593080,sole_prop.loss,641793.4111,641793.4111
+business or profession > net loss,1e+06,1500000,returns,11619,sole_prop.loss,11855.95,11855.95
+capital gain distributions reported on form 1040,1e+06,1500000,amount,82981,kg_dist,83886.4407,83886.4407
+capital gain distributions reported on form 1040,1e+06,1500000,returns,5619,kg_dist,5685.3,5685.3
+farm > net income,1e+06,1500000,amount,274411,farm.income,313186.80622,313186.80622
+farm > net income,1e+06,1500000,returns,1518,farm.income,1552.72,1552.72
+farm > net loss,1e+06,1500000,amount,426420,farm.loss,466497.8358,466497.8358
+farm > net loss,1e+06,1500000,returns,4453,farm.loss,4486.08,4486.08
+ordinary dividends,1e+06,1500000,amount,11605051,div,11752219.71114,11752219.71114
+ordinary dividends,1e+06,1500000,returns,167209,div,168808.97,168808.97
+partnership and s corporation > net income,1e+06,1500000,amount,62221699,part_scorp.income,62666858.881,62666858.881
+partnership and s corporation > net income,1e+06,1500000,returns,109248,part_scorp.income,110323.88,110323.88
+partnership and s corporation > net loss,1e+06,1500000,amount,3082586,part_scorp.loss,3195093.3843,3195093.3843
+partnership and s corporation > net loss,1e+06,1500000,returns,26711,part_scorp.loss,27385.42,27385.42
+pensions and annuities > taxable,1e+06,1500000,amount,1899631,txbl_pens_dist,1916975.8281,1916975.8281
+pensions and annuities > taxable,1e+06,1500000,returns,34329,txbl_pens_dist,34690.78,34690.78
+pensions and annuities > total,1e+06,1500000,amount,9298366,gross_pens_dist,9186616.16982,9186616.16982
+pensions and annuities > total,1e+06,1500000,returns,49598,gross_pens_dist,49941.56,49941.56
+qualified dividends,1e+06,1500000,amount,9328800,div_pref,9454240.67576,9454240.67576
+qualified dividends,1e+06,1500000,returns,163261,div_pref,164806.96,164806.96
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1e+06,1500000,amount,34034315,txbl_kg.income,34570269.31828,34570269.31828
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1e+06,1500000,returns,114426,txbl_kg.income,115509.65,115509.65
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1e+06,1500000,amount,149959,txbl_kg.loss,151298.98596,151298.98596
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1e+06,1500000,returns,54398,txbl_kg.loss,54824.45,54824.45
+sales of property other than capital assets > net gain,1e+06,1500000,amount,1073367,other_gains.income,1129262.2676,1129262.2676
+sales of property other than capital assets > net gain,1e+06,1500000,returns,26692,other_gains.income,27009.42,27009.42
+sales of property other than capital assets > net loss,1e+06,1500000,amount,553270,other_gains.loss,555435.4676,555435.4676
+sales of property other than capital assets > net loss,1e+06,1500000,returns,23984,other_gains.loss,24238.54,24238.54
+social security benefits > taxable,1e+06,1500000,amount,991360,txbl_ss,1000876.77702,1000876.77702
+social security benefits > taxable,1e+06,1500000,returns,35055,txbl_ss,35432.54,35432.54
+social security benefits > total,1e+06,1500000,amount,1169114,gross_ss,1177492.4489,1177492.4489
+social security benefits > total,1e+06,1500000,returns,35055,gross_ss,35432.54,35432.54
+state income tax refunds,1e+06,1500000,amount,1213988,state_ref,1214211.15654,1214211.15654
+state income tax refunds,1e+06,1500000,returns,91028,state_ref,91770.03,91770.03
+tax exempt interest,1e+06,1500000,amount,3113401,exempt_int,3304715.95444,3304715.95444
+tax exempt interest,1e+06,1500000,returns,93059,exempt_int,93522.85,93522.85
+taxable individual retirement arrangement (ira) distributions,1e+06,1500000,amount,1851835,txbl_ira_dist,1861837.35426,1861837.35426
+taxable individual retirement arrangement (ira) distributions,1e+06,1500000,returns,29577,txbl_ira_dist,29897.56,29897.56
+taxable interest,1e+06,1500000,amount,3733575,txbl_int,3762694.1779,3762694.1779
+taxable interest,1e+06,1500000,returns,187220,txbl_int,188878.98,188878.98
+unemployment compensation,1e+06,1500000,amount,11553,ui,10475.2669,10475.2669
+unemployment compensation,1e+06,1500000,returns,1552,ui,1537.73,1537.73
+wages,1e+06,1500000,amount,109129351,wages,110108731.4669,110108731.4669
+wages,1e+06,1500000,returns,164367,wages,166027.21,166027.21
+alimony received,1500000,2e+06,amount,33826,alimony,0,0
+alimony received,1500000,2e+06,returns,107,alimony,0,0
+business or profession > net income,1500000,2e+06,amount,4087303,sole_prop.income,4080421.4168,4080421.4168
+business or profession > net income,1500000,2e+06,returns,14068,sole_prop.income,14189.77,14189.77
+business or profession > net loss,1500000,2e+06,amount,392245,sole_prop.loss,319265.86154,319265.86154
+business or profession > net loss,1500000,2e+06,returns,5327,sole_prop.loss,5296.01,5296.01
+capital gain distributions reported on form 1040,1500000,2e+06,amount,35912,kg_dist,36243.77634,36243.77634
+capital gain distributions reported on form 1040,1500000,2e+06,returns,1759,kg_dist,1770.52,1770.52
+farm > net income,1500000,2e+06,amount,151262,farm.income,107357.93638,107357.93638
+farm > net income,1500000,2e+06,returns,624,farm.income,585.59,585.59
+farm > net loss,1500000,2e+06,amount,184552,farm.loss,170355.046,170355.046
+farm > net loss,1500000,2e+06,returns,1628,farm.loss,1609.12,1609.12
+ordinary dividends,1500000,2e+06,amount,6994679,div,7055671.06012,7055671.06012
+ordinary dividends,1500000,2e+06,returns,70134,div,70732.56,70732.56
+partnership and s corporation > net income,1500000,2e+06,amount,40614845,part_scorp.income,41030490.97172,41030490.97172
+partnership and s corporation > net income,1500000,2e+06,returns,46786,part_scorp.income,47148.95,47148.95
+partnership and s corporation > net loss,1500000,2e+06,amount,2190098,part_scorp.loss,1714176.2832,1714176.2832
+partnership and s corporation > net loss,1500000,2e+06,returns,12565,part_scorp.loss,12575.86,12575.86
+pensions and annuities > taxable,1500000,2e+06,amount,845671,txbl_pens_dist,877459.31868,877459.31868
+pensions and annuities > taxable,1500000,2e+06,returns,13703,txbl_pens_dist,13905.92,13905.92
+pensions and annuities > total,1500000,2e+06,amount,4182940,gross_pens_dist,4241335.53848,4241335.53848
+pensions and annuities > total,1500000,2e+06,returns,19809,gross_pens_dist,20040.04,20040.04
+qualified dividends,1500000,2e+06,amount,5485472,div_pref,5520485.54638,5520485.54638
+qualified dividends,1500000,2e+06,returns,68480,div_pref,69027.03,69027.03
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1500000,2e+06,amount,24162327,txbl_kg.income,23808807.98794,23808807.98794
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1500000,2e+06,returns,49072,txbl_kg.income,49223.3,49223.3
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1500000,2e+06,amount,61278,txbl_kg.loss,62280.21304,62280.21304
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1500000,2e+06,returns,22018,txbl_kg.loss,22377.92,22377.92
+sales of property other than capital assets > net gain,1500000,2e+06,amount,716951,other_gains.income,688481.72896,688481.72896
+sales of property other than capital assets > net gain,1500000,2e+06,returns,14009,other_gains.income,14090.01,14090.01
+sales of property other than capital assets > net loss,1500000,2e+06,amount,289011,other_gains.loss,265183.30942,265183.30942
+sales of property other than capital assets > net loss,1500000,2e+06,returns,11100,other_gains.loss,11155.84,11155.84
+social security benefits > taxable,1500000,2e+06,amount,417740,txbl_ss,419456.1178,419456.1178
+social security benefits > taxable,1500000,2e+06,returns,14133,txbl_ss,14230.65,14230.65
+social security benefits > total,1500000,2e+06,amount,494040,gross_ss,494147.6604,494147.6604
+social security benefits > total,1500000,2e+06,returns,14165,gross_ss,14255.58,14255.58
+state income tax refunds,1500000,2e+06,amount,749450,state_ref,756208.5197,756208.5197
+state income tax refunds,1500000,2e+06,returns,38072,state_ref,38462.24,38462.24
+tax exempt interest,1500000,2e+06,amount,1942691,exempt_int,1892469.69424,1892469.69424
+tax exempt interest,1500000,2e+06,returns,42319,exempt_int,42583.1,42583.1
+taxable individual retirement arrangement (ira) distributions,1500000,2e+06,amount,763721,txbl_ira_dist,763591.81866,763591.81866
+taxable individual retirement arrangement (ira) distributions,1500000,2e+06,returns,11523,txbl_ira_dist,11565.86,11565.86
+taxable interest,1500000,2e+06,amount,2486638,txbl_int,2397961.9607,2397961.9607
+taxable interest,1500000,2e+06,returns,77308,txbl_int,77905.18,77905.18
+unemployment compensation,1500000,2e+06,amount,3229,ui,3270.3382,3270.3382
+unemployment compensation,1500000,2e+06,returns,456,ui,461.74,461.74
+wages,1500000,2e+06,amount,56400553,wages,57090255.0282,57090255.0282
+wages,1500000,2e+06,returns,66384,wages,66913.04,66913.04
+alimony received,2e+06,5e+06,amount,58833,alimony,0,0
+alimony received,2e+06,5e+06,returns,126,alimony,0,0
+business or profession > net income,2e+06,5e+06,amount,8304335,sole_prop.income,8797728.65778,8797728.65778
+business or profession > net income,2e+06,5e+06,returns,20890,sole_prop.income,21381.7,21381.7
+business or profession > net loss,2e+06,5e+06,amount,959470,sole_prop.loss,829922.15748,930750.666584753
+business or profession > net loss,2e+06,5e+06,returns,8405,sole_prop.loss,8361.23,8594.7
+capital gain distributions reported on form 1040,2e+06,5e+06,amount,90952,kg_dist,89740.0018,89740.0018
+capital gain distributions reported on form 1040,2e+06,5e+06,returns,1846,kg_dist,1729.61,1729.61
+farm > net income,2e+06,5e+06,amount,313834,farm.income,272421.03932,289143.206920082
+farm > net income,2e+06,5e+06,returns,1053,farm.income,1116.11,1349.58
+farm > net loss,2e+06,5e+06,amount,489542,farm.loss,466675.674,466675.674
+farm > net loss,2e+06,5e+06,returns,3083,farm.loss,3075.21,3075.21
+ordinary dividends,2e+06,5e+06,amount,19650375,div,19835723.13052,19962160.4198696
+ordinary dividends,2e+06,5e+06,returns,104973,div,105847.66,106081.13
+partnership and s corporation > net income,2e+06,5e+06,amount,103229764,part_scorp.income,104506565.54686,104506565.54686
+partnership and s corporation > net income,2e+06,5e+06,returns,70487,part_scorp.income,71122.38,71122.38
+partnership and s corporation > net loss,2e+06,5e+06,amount,7179642,part_scorp.loss,6794878.49188,7514084.98764485
+partnership and s corporation > net loss,2e+06,5e+06,returns,22584,part_scorp.loss,22662.76,22896.23
+pensions and annuities > taxable,2e+06,5e+06,amount,1261502,txbl_pens_dist,1180257.9701,1325160.04521758
+pensions and annuities > taxable,2e+06,5e+06,returns,19744,txbl_pens_dist,20200.64,20434.11
+pensions and annuities > total,2e+06,5e+06,amount,6469958,gross_pens_dist,6458543.4097,6664904.53194092
+pensions and annuities > total,2e+06,5e+06,returns,28130,gross_pens_dist,28712.58,28946.05
+qualified dividends,2e+06,5e+06,amount,15679937,div_pref,15872220.25396,15976148.4188113
+qualified dividends,2e+06,5e+06,returns,102750,div_pref,103681.08,103914.55
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",2e+06,5e+06,amount,78275758,txbl_kg.income,78418329.55972,79425406.2446011
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",2e+06,5e+06,returns,77340,txbl_kg.income,77898.58,78132.05
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",2e+06,5e+06,amount,85195,txbl_kg.loss,86423.55036,86423.55036
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",2e+06,5e+06,returns,30162,txbl_kg.loss,30600.74,30600.74
+sales of property other than capital assets > net gain,2e+06,5e+06,amount,2146336,other_gains.income,2267672.41278,2267672.41278
+sales of property other than capital assets > net gain,2e+06,5e+06,returns,25389,other_gains.income,25707.68,25707.68
+sales of property other than capital assets > net loss,2e+06,5e+06,amount,918074,other_gains.loss,822539.12566,901544.123288068
+sales of property other than capital assets > net loss,2e+06,5e+06,returns,18263,other_gains.loss,18161.18,18394.65
+social security benefits > taxable,2e+06,5e+06,amount,619869,txbl_ss,628026.0397,631284.474919536
+social security benefits > taxable,2e+06,5e+06,returns,20918,txbl_ss,20917.64,21151.11
+social security benefits > total,2e+06,5e+06,amount,729459,gross_ss,739497.6729,743331.128440334
+social security benefits > total,2e+06,5e+06,returns,20924,gross_ss,20938.06,21171.53
+state income tax refunds,2e+06,5e+06,amount,2001591,state_ref,2038435.80472,2056439.63611945
+state income tax refunds,2e+06,5e+06,returns,60313,state_ref,60546.98,60780.45
+tax exempt interest,2e+06,5e+06,amount,4872127,exempt_int,5072296.26754,5210171.39607717
+tax exempt interest,2e+06,5e+06,returns,69777,exempt_int,69976.47,70209.94
+taxable individual retirement arrangement (ira) distributions,2e+06,5e+06,amount,1295739,txbl_ira_dist,1280208.8006,1335819.93963172
+taxable individual retirement arrangement (ira) distributions,2e+06,5e+06,returns,16389,txbl_ira_dist,16628.71,16862.18
+taxable interest,2e+06,5e+06,amount,7437965,txbl_int,7524484.19784,7628362.80188984
+taxable interest,2e+06,5e+06,returns,114470,txbl_int,115501.32,115734.79
+unemployment compensation,2e+06,5e+06,amount,3682,ui,3550.1001,3550.1001
+unemployment compensation,2e+06,5e+06,returns,455,ui,426,426
+wages,2e+06,5e+06,amount,124291852,wages,124901987.11792,125042771.203628
+wages,2e+06,5e+06,returns,96609,wages,97247.88,97481.35
+alimony received,5e+06,1e+07,amount,20199,alimony,0,0
+alimony received,5e+06,1e+07,returns,41,alimony,0,0
+business or profession > net income,5e+06,1e+07,amount,3422426,sole_prop.income,2802010.4546,2802010.4546
+business or profession > net income,5e+06,1e+07,returns,4887,sole_prop.income,4961.3,4961.3
+business or profession > net loss,5e+06,1e+07,amount,481125,sole_prop.loss,409408.1508,409408.1508
+business or profession > net loss,5e+06,1e+07,returns,2306,sole_prop.loss,2327.92,2327.92
+capital gain distributions reported on form 1040,5e+06,1e+07,amount,10409,kg_dist,9331.35456,9331.35456
+capital gain distributions reported on form 1040,5e+06,1e+07,returns,206,kg_dist,144.34,144.34
+farm > net income,5e+06,1e+07,amount,91914,farm.income,29037.1241,29037.1241
+farm > net income,5e+06,1e+07,returns,265,farm.income,251,251
+farm > net loss,5e+06,1e+07,amount,228352,farm.loss,164035.29112,164035.29112
+farm > net loss,5e+06,1e+07,returns,821,farm.loss,693.05,693.05
+ordinary dividends,5e+06,1e+07,amount,11752780,div,10766756.82734,10766756.82734
+ordinary dividends,5e+06,1e+07,returns,26596,div,27228.37,27228.37
+partnership and s corporation > net income,5e+06,1e+07,amount,52736560,part_scorp.income,53172954.38032,53172954.38032
+partnership and s corporation > net income,5e+06,1e+07,returns,17412,part_scorp.income,17623.44,17623.44
+partnership and s corporation > net loss,5e+06,1e+07,amount,4248736,part_scorp.loss,4173804.09832,4173804.09832
+partnership and s corporation > net loss,5e+06,1e+07,returns,6831,part_scorp.loss,6782.09,6782.09
+pensions and annuities > taxable,5e+06,1e+07,amount,463280,txbl_pens_dist,307106.0299,307106.0299
+pensions and annuities > taxable,5e+06,1e+07,returns,4815,txbl_pens_dist,4760.03,4760.03
+pensions and annuities > total,5e+06,1e+07,amount,1930420,gross_pens_dist,1991984.6455,1991984.6455
+pensions and annuities > total,5e+06,1e+07,returns,6893,gross_pens_dist,6989.46,6989.46
+qualified dividends,5e+06,1e+07,amount,9423445,div_pref,8408176.31282,8408176.31282
+qualified dividends,5e+06,1e+07,returns,26053,div_pref,26768.32,26768.32
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",5e+06,1e+07,amount,60482444,txbl_kg.income,62110048.06446,62110048.06446
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",5e+06,1e+07,returns,20900,txbl_kg.income,21387.61,21387.61
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",5e+06,1e+07,amount,18456,txbl_kg.loss,19238.66572,19238.66572
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",5e+06,1e+07,returns,6441,txbl_kg.loss,6665.15,6665.15
+sales of property other than capital assets > net gain,5e+06,1e+07,amount,1468175,other_gains.income,1189912.6997,1189912.6997
+sales of property other than capital assets > net gain,5e+06,1e+07,returns,8308,other_gains.income,8382.06,8382.06
+sales of property other than capital assets > net loss,5e+06,1e+07,amount,370867,other_gains.loss,461564.90406,461564.90406
+sales of property other than capital assets > net loss,5e+06,1e+07,returns,5035,other_gains.loss,5206.27,5206.27
+social security benefits > taxable,5e+06,1e+07,amount,165281,txbl_ss,156877.4596,156877.4596
+social security benefits > taxable,5e+06,1e+07,returns,5307,txbl_ss,5025.46,5025.46
+social security benefits > total,5e+06,1e+07,amount,194448,gross_ss,184555.7042,184555.7042
+social security benefits > total,5e+06,1e+07,returns,5307,gross_ss,5025.46,5025.46
+state income tax refunds,5e+06,1e+07,amount,1110831,state_ref,1174507.63746,1174507.63746
+state income tax refunds,5e+06,1e+07,returns,16232,state_ref,16493.41,16493.41
+tax exempt interest,5e+06,1e+07,amount,2457559,exempt_int,2292250.77174,2292250.77174
+tax exempt interest,5e+06,1e+07,returns,19636,exempt_int,19976.18,19976.18
+taxable individual retirement arrangement (ira) distributions,5e+06,1e+07,amount,465381,txbl_ira_dist,369114.12088,369114.12088
+taxable individual retirement arrangement (ira) distributions,5e+06,1e+07,returns,3940,txbl_ira_dist,3829.99,3829.99
+taxable interest,5e+06,1e+07,amount,4565985,txbl_int,4501325.09692,4501325.09692
+taxable interest,5e+06,1e+07,returns,28312,txbl_int,28827.3,28827.3
+unemployment compensation,5e+06,1e+07,amount,413,ui,293.713,293.713
+unemployment compensation,5e+06,1e+07,returns,63,ui,40.97,40.97
+wages,5e+06,1e+07,amount,59258643,wages,63067032.6738,63067032.6738
+wages,5e+06,1e+07,returns,23626,wages,24686.33,24686.33
+alimony received,1e+07,Inf,amount,38856,alimony,0,0
+alimony received,1e+07,Inf,returns,11,alimony,0,0
+business or profession > net income,1e+07,Inf,amount,4865995,sole_prop.income,3126275.48584,4488257.306706
+business or profession > net income,1e+07,Inf,returns,3114,sole_prop.income,3026.38,3885.38
+business or profession > net loss,1e+07,Inf,amount,1300305,sole_prop.loss,1018099.63108,1018099.63108
+business or profession > net loss,1e+07,Inf,returns,1843,sole_prop.loss,1833.79,1833.79
+capital gain distributions reported on form 1040,1e+07,Inf,amount,6438,kg_dist,5085.09728,5085.09728
+capital gain distributions reported on form 1040,1e+07,Inf,returns,58,kg_dist,59.71,59.71
+farm > net income,1e+07,Inf,amount,117574,farm.income,50629.9564,50629.9564
+farm > net income,1e+07,Inf,returns,194,farm.income,198.66,198.66
+farm > net loss,1e+07,Inf,amount,323552,farm.loss,188657.69982,274616.85583392
+farm > net loss,1e+07,Inf,returns,535,farm.loss,569.24,1428.24
+ordinary dividends,1e+07,Inf,amount,45447147,div,26568474.73546,46352398.036262
+ordinary dividends,1e+07,Inf,returns,17317,div,16768,17627
+partnership and s corporation > net income,1e+07,Inf,amount,114166407,part_scorp.income,89080480.19958,105326052.711516
+partnership and s corporation > net income,1e+07,Inf,returns,11004,part_scorp.income,10716.89,11575.89
+partnership and s corporation > net loss,1e+07,Inf,amount,19840013,part_scorp.loss,9190178.74834,9190178.74834
+partnership and s corporation > net loss,1e+07,Inf,returns,5257,part_scorp.loss,4995.33,4995.33
+pensions and annuities > taxable,1e+07,Inf,amount,398698,txbl_pens_dist,251433.59742,397266.1404272
+pensions and annuities > taxable,1e+07,Inf,returns,3279,txbl_pens_dist,3357.96,4216.96
+pensions and annuities > total,1e+07,Inf,amount,1531145,gross_pens_dist,1280391.67426,1506057.8302351
+pensions and annuities > total,1e+07,Inf,returns,4588,gross_pens_dist,4503.28,5362.28
+qualified dividends,1e+07,Inf,amount,38148418,div_pref,21809544.00862,38906515.167084
+qualified dividends,1e+07,Inf,returns,17059,div_pref,16477.85,17336.85
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1e+07,Inf,amount,255037864,txbl_kg.income,171156514.80368,254255712.98944
+"sales of capital assets reported on form 1040, schedule d > taxable net gain",1e+07,Inf,returns,14366,txbl_kg.income,13757.04,14616.04
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1e+07,Inf,amount,9459,txbl_kg.loss,9346.5885,9346.5885
+"sales of capital assets reported on form 1040, schedule d > taxable net loss",1e+07,Inf,returns,3276,txbl_kg.loss,3240.77,3240.77
+sales of property other than capital assets > net gain,1e+07,Inf,amount,14097647,other_gains.income,3546314.26688,14124806.619274
+sales of property other than capital assets > net gain,1e+07,Inf,returns,6807,other_gains.income,6443.94,7302.94
+sales of property other than capital assets > net loss,1e+07,Inf,amount,833171,other_gains.loss,711666.65226,711666.65226
+sales of property other than capital assets > net loss,1e+07,Inf,returns,3598,other_gains.loss,3442.36,3442.36
+social security benefits > taxable,1e+07,Inf,amount,107963,txbl_ss,105727.625,112305.550000147
+social security benefits > taxable,1e+07,Inf,returns,3355,txbl_ss,3288.75,4147.75
+social security benefits > total,1e+07,Inf,amount,127035,gross_ss,124391.8162,132130.53720208
+social security benefits > total,1e+07,Inf,returns,3356,gross_ss,3289.76,4148.76
+state income tax refunds,1e+07,Inf,amount,2867266,state_ref,2038499.65262,2868446.2917366
+state income tax refunds,1e+07,Inf,returns,10800,state_ref,10514.03,11373.03
+tax exempt interest,1e+07,Inf,amount,4314263,exempt_int,3297308.9211,4287802.0993458
+tax exempt interest,1e+07,Inf,returns,14069,exempt_int,13470.44,14329.44
+taxable individual retirement arrangement (ira) distributions,1e+07,Inf,amount,473170,txbl_ira_dist,221965.4592,455797.8022072
+taxable individual retirement arrangement (ira) distributions,1e+07,Inf,returns,2303,txbl_ira_dist,2381.29,3240.29
+taxable interest,1e+07,Inf,amount,18133165,txbl_int,10308831.40142,18570505.583044
+taxable interest,1e+07,Inf,returns,17947,txbl_int,17399.63,18258.63
+unemployment compensation,1e+07,Inf,amount,216,ui,116.3738,116.3738
+unemployment compensation,1e+07,Inf,returns,34,ui,14.18,14.18
+wages,1e+07,Inf,amount,96364957,wages,87965445.78866,99048308.882568
+wages,1e+07,Inf,returns,14691,wages,14356.68,15215.68
