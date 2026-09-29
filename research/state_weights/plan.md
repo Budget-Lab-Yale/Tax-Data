@@ -499,6 +499,17 @@ sits on. Pilot-state liability is unscored (its cache predates Block E).
 
 ### Phase 4 — swap-in (G)
 
+**Design written 2026-09-28: `notes/phase4_state_weights_interface.md`** — two
+interfaces (`Tax-Simulator-Baseline` consumed by Tax-Data for calculated AGI
+and EITC; `State-Weights` produced by a new `src/main_state_weights.R` and
+read by Tax-Simulator's dispatcher), the contracts and invariants each end
+checks, the fit chain moved from `phase3_fit.R` into `src/`, a six-step build
+order of which P1–P5 are value-independent and P6 is the Phase 3 re-run, and
+seven decisions for JI. It also corrects three statements below: the
+`sample_ids` hazard is gone (Design C made membership a per-id rule), the
+dispatcher exists only in Tax-Simulator now, and the split is 53
+jurisdictions (52 in TY2017).
+
 Stand up a vintage-tagged `state_weights_{year}.csv` interface in Tax-Data
 (finding 4), built the way `ASEC-Nonfilers` was, with a consumer-side contract.
 Then Tax-Simulator's `build_state_weights()` becomes a **reader** of that
@@ -642,12 +653,15 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 | `notes/top_tail_backcast.md` | **open** | The very top of the file, for John Ricco, in three parts. **The issue:** the PUF matches Pub 1304 by definition (TY2015, once the four dropped aggregate records are counted), but dropping them flattens the tail inside $10M+ (share of $10M+ AGI above $100M 6% vs 29%); the Forbes splice restores part of it from 2022 only (24% in TY2022); more broadly, every calibration targets class totals with nothing inside the top class. **The short-term position (S41):** the records stay dropped — averaged composites are not tax returns — and the compressed tail is a `CLAUDE.md` caveat with a do-not-report rule. **The revamp scope:** six dimensions with one question each for John; the Forbes/wealth extension (Wayback lists 2015–2020, BSYZ 2014–17 parameters, Stage A income-only then Stage B wealth, Table 4.3 as the benchmark) deferred to it with its inputs cached. |
 | `notes/top_tail_base_proposal.md` | **open** | Proposal for John Ricco (dimension 1 of the revamp): synthetic extreme returns built from the PUF's four aggregate records (per-band means), the booklet's sign-split tabulation and Table 4.3 TY2017, entering `process_puf.R` where the aggregates are dropped. Why: the TY2017 top 0.001% is at 0.57 of IRS AGI with the floor above the IRS's — a support problem no reweighting or factor reaches — and the off-pipeline prototype of percentile-specific aging (`filer_refit/09_bucket_aging_prototype.R`) shows the base gap carried forward is *larger* than the observed gap ($80–161B a year): the level at the top is entirely a 2017 base problem. Five questions for John. |
 | `notes/social_security_aging.md` | **open** | Raised 2026-09-28 by Affordability-Index's D77 audit: in vintage `2026091119` (pre-S40) gross Social Security is right in total but off in count and AGI profile against Table 1.4 (returns with benefits +3.4% TY2019, +6.2% TY2023), and non-filers' benefits run ~30% short of SSA. First check: how much of this the S40 refit already moves — rerun on `2026092720_filer_refit_v2`. |
+| `notes/phase4_state_weights_interface.md` | **open** | The Phase 4 plumbing design (2026-09-28): `Tax-Simulator-Baseline` and `State-Weights` interfaces with their contracts, the producer entry point and the moved fit chain, the reader and its coherence checks, provenance for the unpinned HT2/ACS inputs, a build order (P1–P5 now, P6 = the Phase 3 re-run after the top-tail decision), seven decisions for JI, and housekeeping found on the way (four scripts reading a dead `default_vintage` key). |
 | `notes/state_work_proposal.md` | **open** | Part (d) of the handoff: the state work that follows — the group F re-fit on the new pool, the 2014–16 state margins (blocked on three SSA workbooks), what the HT2 ceiling caps now that SOI has published TY2023, rollout resumption. |
 
 ---
 
 ## Revision history
 
+- **2026-09-28 (late)** — §5a Phase 4: design note written and cited; three
+  stale statements in the Phase 4 text flagged there.
 - **2026-09-28 (night)** — §5a Phase 3b step 3 and status row F brought up to the code:
   the refit is entropy calibration including TY2017, built as v2 and accepted;
   the Phase 3 re-run waits on the top-tail decision. Dates written as 09-29
