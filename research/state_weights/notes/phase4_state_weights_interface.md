@@ -82,10 +82,11 @@ build graph stays acyclic because each is a pinned vintage, not a live call.
 
 A pinned Tax-Simulator vintage whose `baseline/static/detail/{year}.csv`
 supplies `id, agi, eitc` (81 columns; `agi` is column 34, `eitc` 65). Declared
-in Tax-Data's `interface_versions.yaml` as `type: model_data, version: 1`
-under the name Tax-Simulator publishes to (`model_data/Tax-Simulator/v1`), so
-the path resolver needs no special case; the runscript pins `vintage` and
-`scenario: baseline`.
+in Tax-Data's `interface_versions.yaml` **under the key `Tax-Simulator`** —
+the name Tax-Simulator publishes to (`model_data/Tax-Simulator/v1`) — so the
+path resolver needs no special case; "Tax-Simulator-Baseline" in this note is
+the prose name for that pin. `config/runscripts/state_weights.yaml` pins its
+`vintage` and `scenario: baseline` (P2, done 2026-09-28).
 
 **Producer runscript** (Tax-Simulator, precedent `config/runscripts/tests/
 weights_2022.csv` and `phase0_baseline.csv`): baseline only, no behaviour,
@@ -236,7 +237,7 @@ and belongs to the revamp.
 | Step | What | Depends on values? | Acceptance |
 |---|---|---|---|
 | **P1 — done 2026-09-28** | Tax-Simulator baseline runscript for the split (`config/runscripts/tests/state_weights_baseline.csv` there, commit `1a067ed9d`), run on `2026092720_filer_refit_v2`, years 2017–2023, full sample, detail kept; vintage **`sw_base_2026092720_filer_refit_v2`**, published to the shared root (1.0 GB; Slurm 27789830, 5 min) | no | ✅ seven detail files; `dependencies.csv` pins v2; per year the detail's id set and weights are identical to the live Tax-Data file's, no NA `agi`/`eitc`. Caveat: built on Tax-Simulator `a7dc6c604`, four commits behind `origin/main` (the childless-EITC fix); P6's baseline is rebuilt anyway |
-| **P2** | Tax-Data: `Tax-Simulator-Baseline` interface entry, `state_weights_contract.R`, `resolve_interface_paths()` extracted from `configure.R` | no | `main.R`'s `dependencies.csv` byte-identical before/after; contract test passes on P1's vintage and fails on `phase0_s33` (wrong pin) |
+| **P2 — done 2026-09-28** | Tax-Data: the `Tax-Simulator` interface key, `config/runscripts/state_weights.yaml`, `src/state_weights_contract.R` (+ `src/tests/test_state_weights_contract.R`), `resolve_interfaces()` in `src/resolve_interfaces.R` extracted from `configure.R`. One deliberate semantic change: "declared but unpinned" is now judged against all runscripts in `config/runscripts/`, not the one being run | no | ✅ old and new `configure.R` evaluated with writes stubbed: `output_path`, `interface_paths` (8) and the `dependencies.csv` table (8 rows) identical; the contract test's 10 checks pass, including P1's baseline accepted and `phase0_s33` refused for its s33 pin; the new runscript resolves both pins |
 | **P3** | The fit chain moved into `sw_fit.R`; `phase3_fit.R` re-pointed | no | S39 `C_10_warmB` matrices reproduced `identical()`-ly from the s33 hardened inputs |
 | **P4** | `main_state_weights.R`, its yaml, the writer (files, manifest, dependencies, README), the invariants; a **dry run** publishing a provisional vintage from arm B on 2022–2023 only (~2 h) | no for the plumbing; the *published weights* are provisional | invariants hold; manifest sums match files; publish guard refuses a second write |
 | **P5** | Tax-Simulator reader, config, coherence and frozen-vintage checks, test; dispatcher off `placeholder` | no | a state run on P4's vintage completes; state totals for the two years equal Σ `W × x` computed independently in R |
@@ -273,6 +274,6 @@ one Slurm submission once the weights are settled.
 ## Revision history
 
 - **2026-09-28 (later)** — D1–D7 accepted as recommended (S42); P1 run, verified
-  and published.
+  and published; P2 built and certified.
 - **2026-09-28** — Written (JI's session), from a two-repo read at Tax-Data
   `c965523` / Tax-Simulator `a7dc6c604`.

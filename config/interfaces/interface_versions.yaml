@@ -51,6 +51,17 @@ SCF:
   type: raw_data
   version: 1
 
+# The Tax-Simulator baseline the state-weights split reads calculated AGI and
+# EITC from -- the two-pass dependency S30 settled (research/state_weights/
+# notes/phase4_state_weights_interface.md, 2.1). Pinned only by
+# config/runscripts/state_weights.yaml; main.R never reads it. The key is the
+# name Tax-Simulator publishes under, so the path resolves without a special
+# case; the pinned vintage's own dependencies.csv must name the Tax-Data
+# vintage being split (src/state_weights_contract.R).
+Tax-Simulator:
+  type: model_data
+  version: 1
+
 SIPP:
   type: raw_data
   version: 1

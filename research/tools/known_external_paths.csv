@@ -55,7 +55,6 @@ research/state_weights/nonfiler_residual/decisions_log.md,cross-repo,"Tax-Simula
 research/state_weights/nonfiler_residual/handoff.md,cross-repo,"Tax-Simulator at 2026-08-30, the review brief's true_as_of; now research/state_weights/handoff.md here."
 config/runscripts/tests/phase0_baseline.csv,cross-repo,"Tax-Simulator. Phase 0 baseline: main on Tax-Data vintage 2026092220_s33_scratch, full sample, 2017:2030 (findings section 11)."
 docs/25_social_security_source.md,cross-repo,"Affordability-Index. The D77 audit of household Social Security that raised notes/social_security_aging.md."
-src/state_weights_contract.R,planned,"Tax-Data, Phase 4 step P2 (notes/phase4_state_weights_interface.md): the Tax-Simulator-Baseline consumer contract."
 src/main_state_weights.R,planned,"Tax-Data, Phase 4 step P4: the State-Weights producer entry point."
-config/runscripts/state_weights.yaml,planned,"Tax-Data, Phase 4 step P4: the producer's runscript (Tax-Data and Tax-Simulator-Baseline pins, arm, fit years)."
 src/tests/state/test_state_calc.R,cross-repo,"Tax-Simulator. The state-calculator test the Phase 4 reader test sits beside."
+config/runscripts/tests/state_weights_baseline.csv,cross-repo,"Tax-Simulator. The pinned baseline runscript for the state-weights split (Phase 4 P1)."

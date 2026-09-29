@@ -1,0 +1,24 @@
+---
+# The state-weights producer's runscript (src/main_state_weights.R, Phase 4;
+# research/state_weights/notes/phase4_state_weights_interface.md). It pins the
+# two inputs of the two-pass construction: the Tax-Data vintage whose records
+# are split, and the Tax-Simulator baseline run ON THAT VINTAGE that supplies
+# the calculated AGI and EITC the filer targets are stratified by. The
+# contract (src/state_weights_contract.R) refuses a baseline whose own
+# dependencies.csv pins a different Tax-Data vintage.
+runtime_options:
+  user_id: ji252
+  write_locally: False
+  arm: C_10_warmB          # S39; the dry run (D4) uses B on 2022-2023
+  fit_years: [2017, 2023]  # HT2 through TY2023; later years carry P_2023 (D2)
+
+dependency_info:
+  Tax-Data:
+    vintage: 2026092720_filer_refit_v2
+    scenario: baseline
+
+  # Built by Tax-Simulator config/runscripts/tests/state_weights_baseline.csv
+  # on the Tax-Data vintage above (P1, 2026-09-28).
+  Tax-Simulator:
+    vintage: sw_base_2026092720_filer_refit_v2
+    scenario: baseline
