@@ -409,18 +409,116 @@ build_split_weights <- function(tax_units, year,
       fit_calibration(p$w, p$P0, p$targets, verbose = verbose)
     }
 
-    # The split constraint must hold EXACTLY here -- a violation is a defect
-    # (the 2026-07-13 leak came from negative P cells being dropped by the
-    # weight filter below; negative targets are now blocked at assembly)
-    stopifnot(all(fit$P >= 0), max(abs(rowSums(fit$P) - 1)) < 1e-8)
-
-    W <- p$w * fit$P
-    dt <- data.table(id = rep(tu$id[p$idx], ncol(W)),
-                     state = rep(inputs$jurisdictions, each = nrow(W)),
-                     weight = as.vector(W))
-    out[[part]] <- dt[weight > 0]
+    out[[part]] <- emit_split(fit$P, p$w, tu$id[p$idx], inputs$jurisdictions)
   }
   rbindlist(out)
+}
+
+#' The split invariant on a share matrix: every cell non-negative, every row a
+#' distribution. A violation is a defect (the 2026-07-13 leak came from
+#' negative P cells being dropped by the weight filter; negative targets are
+#' now blocked at assembly).
+assert_split_shares <- function(P) {
+  stopifnot(all(P >= 0), max(abs(rowSums(P) - 1)) < 1e-8)
+  invisible(P)
+}
+
+#' Long split weights from a share matrix: data.table(id, state, weight) with
+#' the zero cells dropped. The invariant is checked on the EMITTED weights --
+#' Σ_state weight equals the record's national weight to 1e-8 relative -- not
+#' only on P, so what a consumer reads is what was asserted (Phase 4).
+emit_split <- function(P, w, ids, jurisdictions) {
+  assert_split_shares(P)
+  stopifnot(length(w) == nrow(P), length(ids) == nrow(P), !anyDuplicated(ids),
+            length(jurisdictions) == ncol(P))
+  W <- w * P
+  stopifnot(max(abs(rowSums(W) - w) / pmax(abs(w), 1e-12)) < 1e-8)
+  dt <- data.table(id = rep(ids, ncol(W)),
+                   state = rep(jurisdictions, each = nrow(W)),
+                   weight = as.vector(W))
+  dt[weight > 0]
+}
+
+# =============================================================================
+# THE PER-YEAR FILER CHAIN (Phase 3, S39; moved from
+# research/state_weights/scripts/phase3_fit.R on 2026-09-29, Phase 4 P3)
+#
+# Filers persist across years under the same ids (plus Forbes records, new
+# each year from 2022), so the per-year fits are chained. Each `p` below is
+# the `filers` element of build_weight_inputs() with two fields attached by
+# the caller: `ids` (the record id of each row, in partition order) and
+# `jurisdictions` (the year's state columns, from HT2). A fit is
+# list(P, theta, ids, jurisdictions).
+# =============================================================================
+
+#' Arm B's warm start: each carried record starts at last year's split, by
+#' jurisdiction name. Jurisdictions can grow (PR enters HT2 in 2018): a column
+#' new to the year gets the record's prior mass there, and the carried split
+#' is scaled to make room. A record new to the year starts at its prior.
+#' @return list(theta0, n_warm, n_cold)
+warm_start_theta <- function(p, prev) {
+  prior <- config7_prior(p)
+  theta0 <- log(pmax(prior, 1e-12))
+  rows <- match(p$ids, prev$ids)
+  keep <- which(!is.na(rows))
+  cols <- match(prev$jurisdictions, p$jurisdictions)
+  stopifnot(!anyNA(cols))
+  new_cols <- setdiff(seq_along(p$jurisdictions), cols)
+  q <- if (length(new_cols)) rowSums(prior[keep, new_cols, drop = FALSE]) else 0
+  theta0[keep, cols] <- log(pmax(prev$P[rows[keep], ] * (1 - q), 1e-12))
+  list(theta0 = theta0, n_warm = length(keep), n_cold = length(p$ids) - length(keep))
+}
+
+#' Arm B: config 7 cold on the first year, then each year warm-started from
+#' the previous year's fit (warm_start_theta()). The objective is unchanged, so
+#' B differs from A only by how unconverged 3,000 steps leave either.
+#' @param ps filer partitions in year order
+#' @return list of fits, one per year
+fit_filers_chain_B <- function(ps, verbose = FALSE) {
+  fits <- vector('list', length(ps))
+  f <- fit_filers_config7(ps[[1]], verbose = verbose)
+  fits[[1]] <- list(P = f$P, theta = f$theta, ids = ps[[1]]$ids, jurisdictions = ps[[1]]$jurisdictions)
+  for (k in seq_along(ps)[-1]) {
+    p <- ps[[k]]
+    ws <- warm_start_theta(p, fits[[k - 1]])
+    if (verbose) message(sprintf('  %d records warm-started, %d cold (new ids)', ws$n_warm, ws$n_cold))
+    f <- fit_filers_config7(p, verbose = verbose, theta0 = ws$theta0)
+    fits[[k]] <- list(P = f$P, theta = f$theta, ids = p$ids, jurisdictions = p$jurisdictions)
+  }
+  for (x in fits) assert_split_shares(x$P)
+  fits
+}
+
+#' Arm C: one joint fit over consecutive years with gamma * KL(P_y || P_{y-1})
+#' on every persistent record (fit_gradient_panel()), gamma = gamma_mult x
+#' config 7's beta. Every year must carry the same jurisdictions, which is why
+#' the chain starts in 2018 (PR splits out of OA that year). `warm`, if given,
+#' is arm B's fits for the same years: each year starts from B's logits
+#' (C_{mult}_warmB, S39's pick).
+#' @return list(fits = one per year, loss_hist)
+fit_filers_chain_C <- function(ps, gamma_mult, warm = NULL, verbose = FALSE) {
+  stopifnot(is.finite(gamma_mult), gamma_mult > 0)
+  J <- ps[[1]]$jurisdictions
+  stopifnot(all(vapply(ps, function(p) identical(p$jurisdictions, J), logical(1))))
+  years <- lapply(seq_along(ps), function(k) {
+    p <- ps[[k]]
+    y <- list(w = p$w, P0 = config7_prior(p), targets = p$targets, ids = p$ids)
+    if (!is.null(warm)) {
+      b <- warm[[k]]
+      stopifnot(identical(b$ids, p$ids), identical(b$jurisdictions, J))
+      y$theta0 <- b$theta
+    }
+    y
+  })
+  gamma <- gamma_mult * CONFIG_7$beta
+  if (verbose) message(sprintf('arm C: gamma = %g (%g x beta), %d years', gamma, gamma_mult, length(ps)))
+  f <- fit_gradient_panel(years, gamma = gamma, beta = CONFIG_7$beta, lr = CONFIG_7$lr,
+                          n_steps = CONFIG_7$n_steps, lr_schedule = CONFIG_7$lr_schedule,
+                          verbose = verbose)
+  fits <- lapply(seq_along(ps), function(k)
+    list(P = f$P[[k]], theta = f$theta[[k]], ids = ps[[k]]$ids, jurisdictions = J))
+  for (x in fits) assert_split_shares(x$P)
+  list(fits = fits, loss_hist = f$loss_hist)
 }
 
 # =============================================================================

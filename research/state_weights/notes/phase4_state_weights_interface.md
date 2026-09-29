@@ -3,7 +3,7 @@ title: "Phase 4 plumbing: the State-Weights interface, its producer entry point,
 role: notes
 workstream: state_weights
 status: open
-updated: 2026-09-28
+updated: 2026-09-29
 sot: research/state_weights/plan.md
 supersedes: []
 superseded_by: null
@@ -238,7 +238,7 @@ and belongs to the revamp.
 |---|---|---|---|
 | **P1 — done 2026-09-28** | Tax-Simulator baseline runscript for the split (`config/runscripts/tests/state_weights_baseline.csv` there, commit `1a067ed9d`), run on `2026092720_filer_refit_v2`, years 2017–2023, full sample, detail kept; vintage **`sw_base_2026092720_filer_refit_v2`**, published to the shared root (1.0 GB; Slurm 27789830, 5 min) | no | ✅ seven detail files; `dependencies.csv` pins v2; per year the detail's id set and weights are identical to the live Tax-Data file's, no NA `agi`/`eitc`. Caveat: built on Tax-Simulator `a7dc6c604`, four commits behind `origin/main` (the childless-EITC fix); P6's baseline is rebuilt anyway |
 | **P2 — done 2026-09-28** | Tax-Data: the `Tax-Simulator` interface key, `config/runscripts/state_weights.yaml`, `src/state_weights_contract.R` (+ `src/tests/test_state_weights_contract.R`), `resolve_interfaces()` in `src/resolve_interfaces.R` extracted from `configure.R`. One deliberate semantic change: "declared but unpinned" is now judged against all runscripts in `config/runscripts/`, not the one being run | no | ✅ old and new `configure.R` evaluated with writes stubbed: `output_path`, `interface_paths` (8) and the `dependencies.csv` table (8 rows) identical; the contract test's 10 checks pass, including P1's baseline accepted and `phase0_s33` refused for its s33 pin; the new runscript resolves both pins |
-| **P3** | The fit chain moved into `sw_fit.R`; `phase3_fit.R` re-pointed | no | S39 `C_10_warmB` matrices reproduced `identical()`-ly from the s33 hardened inputs |
+| **P3 — built 2026-09-29, certification running** | `warm_start_theta()`, `fit_filers_chain_B()`, `fit_filers_chain_C()`, `assert_split_shares()` and `emit_split()` (the W-level invariant; `build_split_weights()` now emits through it) in `src/nonfilers/sw_fit.R`; `phase3_fit.R` is a driver over them (arm B now fits 2017 itself instead of copying A's file). `scripts/phase3_compare_fits.R` compares two fit directories `identical()`-ly; `run_phase3_certify.sbatch` runs the driver into `phase3_cert/` and compares | no | Slurm 27854870 (B, ~6 h) then 27854871 (C_10_warmB, ~11 h): every year's P, theta, ids and jurisdictions must be `identical()` to the S39 fits |
 | **P4** | `main_state_weights.R`, its yaml, the writer (files, manifest, dependencies, README), the invariants; a **dry run** publishing a provisional vintage from arm B on 2022–2023 only (~2 h) | no for the plumbing; the *published weights* are provisional | invariants hold; manifest sums match files; publish guard refuses a second write |
 | **P5** | Tax-Simulator reader, config, coherence and frozen-vintage checks, test; dispatcher off `placeholder` | no | a state run on P4's vintage completes; state totals for the two years equal Σ `W × x` computed independently in R |
 | **P6** | The production publish: the full chain on the final national weights — **this is the Phase 3 re-run** — then the Phase 1 battery per state (targeted within 2%, held-out HT2 MARD, Kish ESS) as acceptance | **yes** | waits on the top-tail decision; the plan's S39 metrics are the bar |
@@ -273,6 +273,7 @@ one Slurm submission once the weights are settled.
 
 ## Revision history
 
+- **2026-09-29** — P3 built; certification against the S39 fits submitted.
 - **2026-09-28 (later)** — D1–D7 accepted as recommended (S42); P1 run, verified
   and published; P2 built and certified.
 - **2026-09-28** — Written (JI's session), from a two-repo read at Tax-Data

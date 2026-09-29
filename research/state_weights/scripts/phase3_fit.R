@@ -27,7 +27,16 @@
 # Every arm uses config 7's counts prior as both start and KL anchor, and its
 # beta, lr, schedule and 3,000 steps. Inputs are prep_fit_inputs.R's
 # hardened_fit_{year}.rds under {TAXDATA_SCRATCH}/state_weights_tmp/.
-# Writes {TAXDATA_SCRATCH}/phase3/{arm}/fit_{year}.rds = list(P, theta, ids).
+# Writes {TAXDATA_SCRATCH}/{PHASE3_OUT:-phase3}/{arm}/fit_{year}.rds =
+# list(P, theta, ids, jurisdictions).
+#
+# Since 2026-09-29 (Phase 4 P3) the chains live in src/nonfilers/sw_fit.R --
+# warm_start_theta(), fit_filers_chain_B(), fit_filers_chain_C() -- and this
+# script only loads inputs and saves fits. One consequence: arm B now fits
+# 2017 itself rather than copying arm A's saved fit; the two are identical
+# (the fit is deterministic), which phase3_compare_fits.R certified against
+# the S39 fits. Set PHASE3_OUT to write somewhere other than phase3/ (the
+# certification runs did).
 #
 # Usage (repo root, under sbatch):
 #   Rscript research/state_weights/scripts/phase3_fit.R A 2019
@@ -41,7 +50,7 @@ source('src/nonfilers/state_weights.R')
 
 YEARS <- 2017:2023
 IN  <- file.path(scratch_root(), 'state_weights_tmp')
-OUT <- file.path(scratch_root(), 'phase3')
+OUT <- file.path(scratch_root(), Sys.getenv('PHASE3_OUT', unset = 'phase3'))
 
 args <- commandArgs(trailingOnly = TRUE)
 arm  <- args[1]
@@ -63,44 +72,22 @@ load_filers <- function(year) {
   p
 }
 
-save_fit <- function(dir, year, P, theta, ids, jurisdictions) {
-  stopifnot(all(P >= 0), max(abs(rowSums(P) - 1)) < 1e-8)   # the split invariant
+save_fit <- function(dir, year, fit) {
+  assert_split_shares(fit$P)
   dir.create(dir, showWarnings = FALSE, recursive = TRUE)
-  saveRDS(list(P = P, theta = theta, ids = ids, jurisdictions = jurisdictions),
-          file.path(dir, sprintf('fit_%d.rds', year)))
+  saveRDS(fit[c('P', 'theta', 'ids', 'jurisdictions')], file.path(dir, sprintf('fit_%d.rds', year)))
 }
 
 if (arm == 'A') {
   year <- as.integer(args[2]); stopifnot(year %in% YEARS)
   p <- load_filers(year)
   f <- fit_filers_config7(p, verbose = TRUE)
-  save_fit(file.path(OUT, 'A'), year, f$P, f$theta, p$ids, p$jurisdictions)
+  save_fit(file.path(OUT, 'A'), year, list(P = f$P, theta = f$theta, ids = p$ids, jurisdictions = p$jurisdictions))
 }
 
 if (arm == 'B') {
-  prev <- readRDS(file.path(OUT, 'A', sprintf('fit_%d.rds', YEARS[1])))
-  save_fit(file.path(OUT, 'B'), YEARS[1], prev$P, prev$theta, prev$ids, prev$jurisdictions)
-  for (year in YEARS[-1]) {
-    p <- load_filers(year)
-    # Start each carried record at last year's split, by jurisdiction name.
-    # Jurisdictions can grow (PR enters HT2 in 2018): a column new to the
-    # year gets the record's prior mass there, and the carried split is
-    # scaled to make room. A new record starts at its prior.
-    prior <- config7_prior(p)
-    theta0 <- log(pmax(prior, 1e-12))
-    rows <- match(p$ids, prev$ids)
-    keep <- which(!is.na(rows))
-    cols <- match(prev$jurisdictions, p$jurisdictions)
-    stopifnot(!anyNA(cols))
-    new_cols <- setdiff(seq_along(p$jurisdictions), cols)
-    q <- if (length(new_cols)) rowSums(prior[keep, new_cols, drop = FALSE]) else 0
-    theta0[keep, cols] <- log(pmax(prev$P[rows[keep], ] * (1 - q), 1e-12))
-    message(sprintf('TY%d: %d records warm-started, %d cold (new ids)',
-                    year, length(keep), length(p$ids) - length(keep)))
-    f <- fit_filers_config7(p, verbose = TRUE, theta0 = theta0)
-    save_fit(file.path(OUT, 'B'), year, f$P, f$theta, p$ids, p$jurisdictions)
-    prev <- list(P = f$P, ids = p$ids, jurisdictions = p$jurisdictions)
-  }
+  fits <- fit_filers_chain_B(lapply(YEARS, load_filers), verbose = TRUE)
+  for (k in seq_along(YEARS)) save_fit(file.path(OUT, 'B'), YEARS[k], fits[[k]])
 }
 
 if (arm == 'C') {
@@ -109,30 +96,11 @@ if (arm == 'C') {
   if (warm) stopifnot(args[3] == 'B')
   C_YEARS <- YEARS[YEARS >= 2018]
   ps <- lapply(C_YEARS, load_filers)
-  J  <- ps[[1]]$jurisdictions
-  stopifnot(all(vapply(ps, function(p) identical(p$jurisdictions, J), logical(1))))
-  years <- lapply(seq_along(ps), function(k) {
-    p <- ps[[k]]
-    y <- list(w = p$w, P0 = config7_prior(p), targets = p$targets, ids = p$ids)
-    if (warm) {
-      b <- readRDS(file.path(OUT, 'B', sprintf('fit_%d.rds', C_YEARS[k])))
-      stopifnot(identical(b$ids, p$ids), identical(b$jurisdictions, J))
-      y$theta0 <- b$theta
-    }
-    y
-  })
-  rm(ps); invisible(gc())
-  gamma <- mult * CONFIG_7$beta
+  warm_fits <- if (warm) lapply(C_YEARS, function(y) readRDS(file.path(OUT, 'B', sprintf('fit_%d.rds', y)))) else NULL
   c_dir <- sprintf('C_%g%s', mult, if (warm) '_warmB' else '')
-  message(sprintf('arm C: gamma = %g (%g x beta), %d years', gamma, mult, length(C_YEARS)))
-  f <- fit_gradient_panel(years, gamma = gamma, beta = CONFIG_7$beta, lr = CONFIG_7$lr,
-                          n_steps = CONFIG_7$n_steps, lr_schedule = CONFIG_7$lr_schedule,
-                          verbose = TRUE)
-  for (k in seq_along(C_YEARS)) {
-    save_fit(file.path(OUT, c_dir), C_YEARS[k], f$P[[k]], f$theta[[k]],
-             years[[k]]$ids, J)
-  }
-  saveRDS(f$loss_hist, file.path(OUT, c_dir, 'loss_hist.rds'))
+  res <- fit_filers_chain_C(ps, gamma_mult = mult, warm = warm_fits, verbose = TRUE)
+  for (k in seq_along(C_YEARS)) save_fit(file.path(OUT, c_dir), C_YEARS[k], res$fits[[k]])
+  saveRDS(res$loss_hist, file.path(OUT, c_dir, 'loss_hist.rds'))
 }
 
 message('PHASE3_FIT_DONE ', paste(args, collapse = ' '))
