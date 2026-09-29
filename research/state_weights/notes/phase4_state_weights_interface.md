@@ -245,7 +245,7 @@ and belongs to the revamp.
 P1–P5 are this week's work and leave Phase 4 as a run, not a build. P6 is
 one Slurm submission once the weights are settled.
 
-## 7. Decisions for JI
+## 7. Decisions for JI — all seven accepted as recommended (JI, 2026-09-28; S42)
 
 | # | Decision | Options | Recommendation |
 |---|---|---|---|
@@ -272,5 +272,6 @@ one Slurm submission once the weights are settled.
 
 ## Revision history
 
+- **2026-09-28 (later)** — D1–D7 accepted as recommended (S42); P1 started.
 - **2026-09-28** — Written (JI's session), from a two-repo read at Tax-Data
   `c965523` / Tax-Simulator `a7dc6c604`.
