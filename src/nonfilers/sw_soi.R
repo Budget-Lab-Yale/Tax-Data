@@ -95,6 +95,69 @@ read_ht2 <- function(path, year) {
   long[, year := year][]
 }
 
+# -----------------------------------------------------------------------------
+# SOI "Adjusted Gross Income Percentiles by State": one row per state with, for
+# the state's OWN top 1 / 5 / 10 / 25 / 50 / 75 percent of returns, the AGI
+# cutoff to enter the group, the return count, aggregate AGI, eight income
+# items (count and amount) and tax after credits. Universe: returns filed the
+# next calendar year EXCLUDING dependents' returns and negative-AGI returns --
+# so totals are smaller than HT2's and not additive with them. Groups are
+# cumulative (top 5 includes top 1). Documented, with its year-to-year quirks,
+# in IRS-Ind notes/percentile.md; the quirks handled here:
+#   * amounts are $ thousands in 2013, 2015, 2018-2023 but WHOLE DOLLARS in
+#     2014, 2016, 2017 (with ~6-digit scientific-notation truncation on large
+#     cells); cutoffs are dollars in every year
+#   * 2018 alone merges the IRA and pension blocks into `ira_pension`
+#   * an OA (statefips 57) row appears in 2014, 2016, 2017 only
+#   * statefips is zero-padded from 2018; read as character
+# Returns long: state, top_pct (1, 5, 10, 25, 50, 75; 100 = the state total,
+# cutoff NA), cutoff_agi (dollars), series, measure (count / amount), value
+# (dollars for amounts), year.
+# -----------------------------------------------------------------------------
+PERCENTILE_GROUPS <- c("01" = 1, "05" = 5, "10" = 10, "25" = 25, "50" = 50, "75" = 75)
+PERCENTILE_DOLLAR_YEARS <- c(2014L, 2016L, 2017L)   # amounts already in dollars
+
+read_state_percentile <- function(path, year) {
+  d <- if (grepl("\\.gz$", path)) {
+    fread(cmd = paste("zcat", shQuote(path)), colClasses = "character")
+  } else {
+    fread(path, colClasses = "character")
+  }
+  d[, state := toupper(trimws(state))]
+  d <- d[!(state %in% c("US", "OA", ""))]
+  stopifnot(nrow(d) == 51)
+  num <- function(x) as.numeric(x)              # handles "1.11477E+13"
+  amt_scale <- if (year %in% PERCENTILE_DOLLAR_YEARS) 1 else 1000
+
+  items <- unique(sub("^total_(.*)_num$", "\\1", grep("^total_.*_num$", names(d), value = TRUE)))
+  out <- list()
+  for (g in names(PERCENTILE_GROUPS)) {
+    pct <- PERCENTILE_GROUPS[[g]]
+    cut <- num(d[[paste0("agi_", g)]])
+    rows <- list(
+      data.table(state = d$state, series = "returns", measure = "count",  value = num(d[[paste0("top_", g)]])),
+      data.table(state = d$state, series = "agi",     measure = "amount", value = num(d[[paste0("sum_agi_", g)]]) * amt_scale),
+      data.table(state = d$state, series = "tax",     measure = "amount", value = num(d[[paste0("sum_tax_", g)]]) * amt_scale))
+    for (it in items) rows <- c(rows, list(
+      data.table(state = d$state, series = it, measure = "count",  value = num(d[[paste0("num_", it, "_", g)]])),
+      data.table(state = d$state, series = it, measure = "amount", value = num(d[[paste0("sum_", it, "_", g)]]) * amt_scale)))
+    out[[g]] <- rbindlist(rows)[, `:=`(top_pct = pct, cutoff_agi = rep(cut, length(rows)))]
+  }
+  tot <- list(
+    data.table(state = d$state, series = "returns", measure = "count",  value = num(d$total)),
+    data.table(state = d$state, series = "agi",     measure = "amount", value = num(d$total_agi) * amt_scale),
+    data.table(state = d$state, series = "tax",     measure = "amount", value = num(d$total_tax) * amt_scale))
+  for (it in items) tot <- c(tot, list(
+    data.table(state = d$state, series = it, measure = "count",  value = num(d[[paste0("total_", it, "_num")]])),
+    data.table(state = d$state, series = it, measure = "amount", value = num(d[[paste0("total_", it, "_amt")]]) * amt_scale)))
+  out[["100"]] <- rbindlist(tot)[, `:=`(top_pct = 100, cutoff_agi = NA_real_)]
+  long <- rbindlist(out)
+  stopifnot(!anyNA(long$value))
+  long[, year := year]
+  setcolorder(long, c("state", "top_pct", "cutoff_agi", "series", "measure", "value", "year"))
+  long[]
+}
+
 # Standard-deduction filing thresholds by year × filing status (nominal $).
 filing_threshold <- function(year) {
   # single, joint, hoh — standard deduction (the dominant filing-requirement floor)

@@ -86,6 +86,11 @@ model_data_path <- function(model, version, vintage, ...) {
 ht2_path <- function(year) {
   file.path(raw_data_root(), "IRS-Ind/state/HT2", sprintf("ht2_%d.csv.gz", year))
 }
+# SOI "AGI Percentiles by State" ({yy}instateshares.csv), TY2013+, as mirrored
+# by IRS-Ind's downloader (its `geo` family; notes/percentile.md there)
+state_percentile_path <- function(year) {
+  file.path(raw_data_root(), "IRS-Ind/state/percentile", sprintf("state_shares_%d.csv.gz", year))
+}
 acs_extract_dir <- function(acs_year) {
   file.path(raw_data_root(), "ACS/acs_common_v2", sprintf("us%da", acs_year))
 }
