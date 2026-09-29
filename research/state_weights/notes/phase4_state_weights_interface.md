@@ -235,7 +235,7 @@ and belongs to the revamp.
 
 | Step | What | Depends on values? | Acceptance |
 |---|---|---|---|
-| **P1** | Tax-Simulator baseline runscript for the split (`state_weights_baseline.csv`), run on `2026092720_filer_refit_v2`, years 2017–2023, named vintage | no | detail files exist for every year; `dependencies.csv` pins v2 |
+| **P1 — done 2026-09-28** | Tax-Simulator baseline runscript for the split (`config/runscripts/tests/state_weights_baseline.csv` there, commit `1a067ed9d`), run on `2026092720_filer_refit_v2`, years 2017–2023, full sample, detail kept; vintage **`sw_base_2026092720_filer_refit_v2`**, published to the shared root (1.0 GB; Slurm 27789830, 5 min) | no | ✅ seven detail files; `dependencies.csv` pins v2; per year the detail's id set and weights are identical to the live Tax-Data file's, no NA `agi`/`eitc`. Caveat: built on Tax-Simulator `a7dc6c604`, four commits behind `origin/main` (the childless-EITC fix); P6's baseline is rebuilt anyway |
 | **P2** | Tax-Data: `Tax-Simulator-Baseline` interface entry, `state_weights_contract.R`, `resolve_interface_paths()` extracted from `configure.R` | no | `main.R`'s `dependencies.csv` byte-identical before/after; contract test passes on P1's vintage and fails on `phase0_s33` (wrong pin) |
 | **P3** | The fit chain moved into `sw_fit.R`; `phase3_fit.R` re-pointed | no | S39 `C_10_warmB` matrices reproduced `identical()`-ly from the s33 hardened inputs |
 | **P4** | `main_state_weights.R`, its yaml, the writer (files, manifest, dependencies, README), the invariants; a **dry run** publishing a provisional vintage from arm B on 2022–2023 only (~2 h) | no for the plumbing; the *published weights* are provisional | invariants hold; manifest sums match files; publish guard refuses a second write |
@@ -272,6 +272,7 @@ one Slurm submission once the weights are settled.
 
 ## Revision history
 
-- **2026-09-28 (later)** — D1–D7 accepted as recommended (S42); P1 started.
+- **2026-09-28 (later)** — D1–D7 accepted as recommended (S42); P1 run, verified
+  and published.
 - **2026-09-28** — Written (JI's session), from a two-repo read at Tax-Data
   `c965523` / Tax-Simulator `a7dc6c604`.
