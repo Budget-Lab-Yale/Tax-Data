@@ -479,6 +479,17 @@ gap, the re-run adds an arm with top-1%/top-5% count and AGI targets per
 state, on the non-dependent positive-AGI universe the source tabulates.
 Item-level percentile targets wait for the top-tail base rebuild.
 
+**Run 2026-09-29 (`scripts/results/phase3_percentile_heldout*.csv`).** The
+metric does not separate the arms (top-1% AGI MARD over states 5.6–6.0%
+for all six), but it exposes a systematic misallocation the HT2 stub
+targets leave free: fitted ÷ IRS top-1% AGI, 2018–2023 mean, **FL 0.81,
+TX 0.82 … NY 1.10, CA 1.15** — the richest records within the $1M+ stub
+land in the high-tax states. Nationally the top 1% sums to 0.98 of IRS
+(the compressed national tail); 2021 alone is 0.89, a national aging miss
+(salaries and dividends 0.77, interest 1.37 at the top). **So (ii) is
+recommended: the re-run gains a top-1%/5% count-and-AGI target arm**; item
+targets stay out until the national top is fixed. JI to confirm.
+
 ### Phase 3b — per-year national filer refit (S40), before Phase 4
 
 1. **IRS-Ind:** a merged Table 1.6 target view — age × filing status × AGI
@@ -674,6 +685,8 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 
 ## Revision history
 
+- **2026-09-29 (evening)** — §5a Phase 3: the percentile held-out metric run;
+  FL/TX under and NY/CA over at the top 1%; the target arm recommended.
 - **2026-09-29** — §5a Phase 3: the SOI state AGI-percentile shares added as a
   held-out metric before the re-run and a candidate target arm; Phase 3b
   step 4 and Phase 4 P5b point at it.

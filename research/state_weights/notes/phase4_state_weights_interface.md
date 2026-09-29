@@ -167,8 +167,40 @@ that share a row set are stacked; these cannot be), so the per-step cost
 rises with their number — ~200 targets for top-1% and top-5% counts and
 AGI, ~5,500 for the full item set.
 
+**Result of the held-out run (P5b, 2026-09-29, Slurm 27855943; all six S39
+arms, 2017–2023; `scripts/results/phase3_percentile_heldout{,_by_state}.csv`).**
+Three findings, each with a consequence.
+
+1. **The metric does not distinguish the arms.** Top-1% AGI error over
+   states, 2018–2023 mean: A 5.7%, B 5.7%, C_1 5.7%, C_10 5.7%, C_100 6.0%,
+   C_10_warmB 5.6%; the within-year spread across arms never exceeds
+   0.7 points. State-level concentration is not something the Phase 3
+   architectures move — none of them was asked to.
+2. **The top of each state is systematically misallocated, in a pattern
+   that matters for state tax.** C_10_warmB, top-1% AGI, fitted ÷ IRS,
+   2018–2023 mean: **FL 0.81, TX 0.82**, WA 0.92 … **NY 1.10, CA 1.15**.
+   The fit hits HT2's $1M+ stub totals per state but is free to place the
+   richest records within the stub, and it places them in the high-tax
+   states. Nationally the top 1% sums to 0.98 of IRS and the implied top-1%
+   cutoffs sit 5% below the IRS's — the compressed national tail — so the
+   cross-state error is the split's own, and it is what top-group targets
+   would fix.
+3. **2021 is a national problem, not a split problem.** Top-1% AGI 0.887
+   of IRS in 2021 against 0.96–1.03 in other years; by item, salaries 0.77,
+   dividends 0.77, partnership + S-corp 0.78, interest 1.37 — the aging
+   misses 2021's top-end composition (the same thing Table 4.3 showed
+   nationally; dimension 2 of the revamp). Items at the top 1% are noisy in
+   every year: Schedule C 1.26–1.38 of IRS, IRA distributions 0.49–0.68.
+   Percentile targets cannot cure these; the national file must.
+
+**Consequence for the re-run:** a top-1% / top-5% **count and AGI** target
+arm per state is worth including (finding 2: ±15–19% in FL, TX, NY, CA is
+first-order for a progressive state tax); item-level percentile targets are
+not, until the national top is fixed (finding 3). Recommended, JI to
+confirm.
+
 **In what order it should enter:**
-1. **Held-out validation first** (step P5b below): under the fitted split,
+1. **Held-out validation first** (step P5b below) — done, above: under the fitted split,
    each state's mass above the IRS cutoff, Σ_i W[i,s]·x_i·1[agi_i ≥ cutoff_s],
    against the file — no ranking needed, no refit; run on the S39 fits. This
    is the number that says whether the fit already gets state-level
@@ -292,7 +324,7 @@ and belongs to the revamp.
 | **P3 — built 2026-09-29, certification running** | `warm_start_theta()`, `fit_filers_chain_B()`, `fit_filers_chain_C()`, `assert_split_shares()` and `emit_split()` (the W-level invariant; `build_split_weights()` now emits through it) in `src/nonfilers/sw_fit.R`; `phase3_fit.R` is a driver over them (arm B now fits 2017 itself instead of copying A's file). `scripts/phase3_compare_fits.R` compares two fit directories `identical()`-ly; `run_phase3_certify.sbatch` runs the driver into `phase3_cert/` and compares | no | Slurm 27854870 (B, ~6 h) then 27854871 (C_10_warmB, ~11 h): every year's P, theta, ids and jurisdictions must be `identical()` to the S39 fits |
 | **P4** | `main_state_weights.R`, its yaml, the writer (files, manifest, dependencies, README), the invariants; a **dry run** publishing a provisional vintage from arm B on 2022–2023 only (~2 h) | no for the plumbing; the *published weights* are provisional | invariants hold; manifest sums match files; publish guard refuses a second write |
 | **P5** | Tax-Simulator reader, config, coherence and frozen-vintage checks, test; dispatcher off `placeholder` | no | a state run on P4's vintage completes; state totals for the two years equal Σ `W × x` computed independently in R |
-| **P5b** | `phase3_score.R` gains the held-out state-percentile metric (§2.3): per state, count and AGI above the IRS top-1% and top-5% cutoffs, and the eight items, on the non-dependent positive-AGI universe; run on the S39 fits from scratch. A reader for `state_shares_{year}.csv.gz` beside `read_ht2()` in `sw_soi.R`, handling the documented unit and layout changes | no (reads existing fits) | the metric runs on all six S39 arms for 2018–2023; its result recorded here and in `plan.md` Phase 3, and it decides whether a percentile-target arm joins the Phase 3 re-run |
+| **P5b — done 2026-09-29** | `read_state_percentile()` beside `read_ht2()`; `scripts/phase3_percentile_heldout.R`: per state and IRS top group, fitted mass above the published cutoff against the IRS, returns, AGI and eight items, on the source's universe; the implied cutoff too. Run on all six S39 arms, 2017–2023 (Slurm 27855943, 7 min) | no | ✅ results in §2.3: arms indistinguishable (top-1% AGI MARD 5.6–6.0%); FL/TX at 0.81–0.82 and NY/CA at 1.10–1.15 of IRS top-1% AGI; 2021 a national miss. Recommendation: a top-1%/5% count-and-AGI target arm in the re-run |
 | **P6** | The production publish: the full chain on the final national weights — **this is the Phase 3 re-run** — then the Phase 1 battery per state (targeted within 2%, held-out HT2 MARD, Kish ESS) as acceptance | **yes** | waits on the top-tail decision; the plan's S39 metrics are the bar |
 
 P1–P5b are this week's work and leave Phase 4 as a run, not a build. P6 is
@@ -326,6 +358,7 @@ the Phase 3 re-run gains a percentile-target arm first.
 
 ## Revision history
 
+- **2026-09-29 (evening)** — P5b run: results and the recommended target arm in §2.3.
 - **2026-09-29 (later)** — §2.3 and P5b: the SOI state AGI-percentile shares as
   a held-out metric first, a target arm second; availability via IRS-Ind
   confirmed.
