@@ -21,7 +21,9 @@
 # runscript_id       its name, for the dependencies table's ID column
 # interface_versions config/interfaces/interface_versions.yaml, parsed
 # output_roots       config/interfaces/output_roots.yaml, parsed
-# own_interface      this entry point's output interface (no dependency row)
+# own_interface      this entry point's output interface (no dependency row);
+#                    entries flagged `produced: true` in interface_versions are
+#                    other entry points' outputs and are likewise not dependencies
 # pinned_anywhere    interface names pinned by any runscript in
 #                    config/runscripts/ (for the dead-declaration guard)
 #
@@ -30,7 +32,10 @@
 resolve_interfaces = function(runscript, runscript_id, interface_versions, output_roots,
                               own_interface = 'Tax-Data', pinned_anywhere) {
 
-  declared = setdiff(names(interface_versions), own_interface)
+  # An entry marked `produced: true` is an output some entry point publishes
+  # (State-Weights), not a dependency anyone pins; so is this entry point's own
+  produced = names(interface_versions)[vapply(interface_versions, function(x) isTRUE(x$produced), logical(1))]
+  declared = setdiff(names(interface_versions), c(own_interface, produced))
   pinned   = names(runscript$dependency_info)
 
   # A pin with no declaration has no type or version to build a path from

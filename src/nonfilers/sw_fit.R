@@ -193,6 +193,15 @@ nonfiler_state_targets <- function(w, x_adults, anchor, jurisdictions) {
     series = "n_adults_state", state_code = anchor$state[k]))
 }
 
+# The Tax-Data columns build_weight_inputs() reads (plus `agi` and `eitc`
+# joined from the Tax-Simulator baseline). One list, used by the producer
+# (src/main_state_weights.R) and the research prep script alike.
+WEIGHT_INPUT_COLS <- c('id', 'weight', 'filer', 'filing_status', 'n_dep', 'age1',
+                       'wages', 'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
+                       'kg_st', 'kg_lt', 'salt_inc_sales', 'salt_prop',
+                       'first_mort_int', 'second_mort_int', 'txbl_pens_dist',
+                       'txbl_ira_dist', 'gross_ss', 'sole_prop')
+
 #' Assemble engine inputs for one year: partitions, priors, and targets.
 #' @param tax_units PUF records incl. baseline-calculated `agi` and `eitc`
 #'        (join from baseline detail when running standalone)

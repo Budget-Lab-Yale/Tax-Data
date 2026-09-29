@@ -30,11 +30,7 @@ year       <- as.integer(args[1])
 td_vintage <- args[2]
 detail_dir <- args[3]
 
-INPUT_COLS <- c('id','weight','filer','filing_status','n_dep','age1',
-                'wages','txbl_int','exempt_int','div_ord','div_pref',
-                'kg_st','kg_lt','salt_inc_sales','salt_prop',
-                'first_mort_int','second_mort_int','txbl_pens_dist',
-                'txbl_ira_dist','gross_ss','sole_prop')
+INPUT_COLS <- WEIGHT_INPUT_COLS   # src/nonfilers/sw_fit.R; the producer reads the same columns
 
 td_file <- file.path(model_data_root(), 'Tax-Data/v1', td_vintage, 'baseline',
                      sprintf('tax_units_%d.csv', year))

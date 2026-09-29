@@ -8,6 +8,16 @@ Tax-Data:
   type: model_data
   version: 1
 
+# The per-year state split of each record's national weight, published by
+# src/main_state_weights.R (its own entry point: the fit reads a Tax-Simulator
+# baseline run on the Tax-Data vintage, so it cannot live in main.R -- S30,
+# S42). `produced: true` tells resolve_interfaces() this is an output, not a
+# dependency for any runscript to pin.
+State-Weights:
+  type: model_data
+  version: 1
+  produced: true
+
 #-----------------
 # Dependency info
 #-----------------
