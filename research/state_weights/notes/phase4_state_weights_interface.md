@@ -131,6 +131,56 @@ non-empty target directory refuses to publish unless overridden (the
 `configure.R:86-95` guard; `05_emit_pool.R` publishes with `overwrite = TRUE`
 and no guard, which is the precedent *not* to follow).
 
+### 2.3 A second target source for the top of each state: the SOI AGI-percentile shares
+
+HT2 gives each state 22 series in ten **fixed national AGI stubs**; the top
+stub, $1M+, is one cell, thin in small states, and how income is distributed
+inside it is invented by the softmax fit from the prior and the KL penalty.
+SOI's "Adjusted Gross Income Percentiles by State" (`{yy}instateshares.csv`,
+TY2013–2023) gives each state, for its **own** top 1 / 5 / 10 / 25 / 50 / 75
+percent: the AGI cutoff to enter the group, the return count, aggregate AGI
+and eight income items (wages, interest, dividends, Schedule C, net gains,
+IRA, pensions, partnership + S-corp). The cutoffs are state-specific — the
+top 1% starts at $492k in Alabama, $675k nationally — so it describes
+concentration within a state, which HT2 cannot. That matters twice: the
+state tax program is progressive, and the fit's held-out HT2 error (18.6%)
+is dominated by exactly those thin top cells.
+
+**Availability (checked 2026-09-29):** a declared family of IRS-Ind's
+downloader (`download_irs_ind.R`, the `geo` family), mirrored at
+`raw_data/IRS-Ind/state/percentile/state_shares_{year}.csv.gz` with the
+docguides, 22 manifest rows with md5 and retrieval date, documented in
+IRS-Ind `notes/percentile.md` (units, the 2018 IRA/pension merge, the
+2014/2016/2017 scientific-notation truncation, the stray OA row).
+
+**Not a drop-in.** Its universe excludes dependents' returns and negative-AGI
+returns (2022: 149.5M returns against HT2's 159.7M), so its totals are not
+additive with HT2's and a target built from it must apply the same
+restriction on the file (`dep_status`, the baseline's calculated AGI — both
+available). Groups are cumulative, not brackets. Eight items against HT2's
+22; its tax line (after credits, plus NIIT) is not HT2's liability.
+
+**Mechanically it fits the engine.** A target is `(rows, state, x, total)`;
+"records with AGI ≥ cutoff_s, state s, x = AGI" is one. The state-specific
+cutoffs make these singleton groups in the engine's vectorisation (targets
+that share a row set are stacked; these cannot be), so the per-step cost
+rises with their number — ~200 targets for top-1% and top-5% counts and
+AGI, ~5,500 for the full item set.
+
+**In what order it should enter:**
+1. **Held-out validation first** (step P5b below): under the fitted split,
+   each state's mass above the IRS cutoff, Σ_i W[i,s]·x_i·1[agi_i ≥ cutoff_s],
+   against the file — no ranking needed, no refit; run on the S39 fits. This
+   is the number that says whether the fit already gets state-level
+   concentration right or only the stub totals.
+2. **A bake-off arm** with top-1% / top-5% count and AGI targets per state,
+   scored on held-out HT2 as Phase 3 was — if step 1 shows a gap worth the
+   compute.
+3. **The item detail after the top-tail base is fixed**
+   (`notes/top_tail_base_proposal.md`): the national top is compressed
+   (S41), so state top-1% targets on today's base would make the split fake
+   concentration the file does not carry.
+
 ## 3. The producer entry point in Tax-Data
 
 `src/main_state_weights.R`, a sibling of `main.R` — S30: a single entry point
@@ -227,7 +277,8 @@ ACS extracts (`raw_data/ACS/acs_common_v2/us{year}a`). The non-filer anchors
 and netting are committed research CSVs (`nonfiler_residual/results/`,
 `nonfiler_pool/results/`) that must stay consistent with the pinned
 ASEC-Nonfilers vintage, and nothing checks that. For now the producer writes
-each HT2 file's md5 and the ACS extract's directory listing hash into
+each HT2 file's md5 (and, once §2.3's targets are used, each percentile
+file's) and the ACS extract's directory listing hash into
 `dependencies.csv`, and the repo commit of the anchor CSVs into the manifest;
 the durable fix — a versioned IRS-Ind interface — is out of Phase 4's scope
 and belongs to the revamp.
@@ -241,10 +292,12 @@ and belongs to the revamp.
 | **P3 — built 2026-09-29, certification running** | `warm_start_theta()`, `fit_filers_chain_B()`, `fit_filers_chain_C()`, `assert_split_shares()` and `emit_split()` (the W-level invariant; `build_split_weights()` now emits through it) in `src/nonfilers/sw_fit.R`; `phase3_fit.R` is a driver over them (arm B now fits 2017 itself instead of copying A's file). `scripts/phase3_compare_fits.R` compares two fit directories `identical()`-ly; `run_phase3_certify.sbatch` runs the driver into `phase3_cert/` and compares | no | Slurm 27854870 (B, ~6 h) then 27854871 (C_10_warmB, ~11 h): every year's P, theta, ids and jurisdictions must be `identical()` to the S39 fits |
 | **P4** | `main_state_weights.R`, its yaml, the writer (files, manifest, dependencies, README), the invariants; a **dry run** publishing a provisional vintage from arm B on 2022–2023 only (~2 h) | no for the plumbing; the *published weights* are provisional | invariants hold; manifest sums match files; publish guard refuses a second write |
 | **P5** | Tax-Simulator reader, config, coherence and frozen-vintage checks, test; dispatcher off `placeholder` | no | a state run on P4's vintage completes; state totals for the two years equal Σ `W × x` computed independently in R |
+| **P5b** | `phase3_score.R` gains the held-out state-percentile metric (§2.3): per state, count and AGI above the IRS top-1% and top-5% cutoffs, and the eight items, on the non-dependent positive-AGI universe; run on the S39 fits from scratch. A reader for `state_shares_{year}.csv.gz` beside `read_ht2()` in `sw_soi.R`, handling the documented unit and layout changes | no (reads existing fits) | the metric runs on all six S39 arms for 2018–2023; its result recorded here and in `plan.md` Phase 3, and it decides whether a percentile-target arm joins the Phase 3 re-run |
 | **P6** | The production publish: the full chain on the final national weights — **this is the Phase 3 re-run** — then the Phase 1 battery per state (targeted within 2%, held-out HT2 MARD, Kish ESS) as acceptance | **yes** | waits on the top-tail decision; the plan's S39 metrics are the bar |
 
-P1–P5 are this week's work and leave Phase 4 as a run, not a build. P6 is
-one Slurm submission once the weights are settled.
+P1–P5b are this week's work and leave Phase 4 as a run, not a build. P6 is
+one Slurm submission once the weights are settled — and, if P5b says so,
+the Phase 3 re-run gains a percentile-target arm first.
 
 ## 7. Decisions for JI — all seven accepted as recommended (JI, 2026-09-28; S42)
 
@@ -273,6 +326,9 @@ one Slurm submission once the weights are settled.
 
 ## Revision history
 
+- **2026-09-29 (later)** — §2.3 and P5b: the SOI state AGI-percentile shares as
+  a held-out metric first, a target arm second; availability via IRS-Ind
+  confirmed.
 - **2026-09-29** — P3 built; certification against the S39 fits submitted.
 - **2026-09-28 (later)** — D1–D7 accepted as recommended (S42); P1 run, verified
   and published; P2 built and certified.

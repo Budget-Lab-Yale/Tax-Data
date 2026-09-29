@@ -3,7 +3,7 @@ title: "State weights and the non-filer rebuild — the plan"
 role: plan
 workstream: state_weights
 status: current
-updated: 2026-09-28
+updated: 2026-09-29
 sot: self
 supersedes: []
 superseded_by: null
@@ -467,6 +467,18 @@ B, C_10_warmB and further warm-started γ variants — **after the per-year
 national filer refit (S40)**, which changes the national weights this split
 sits on. Pilot-state liability is unscored (its cache predates Block E).
 
+**Added 2026-09-29 — a second source for the top of each state.** SOI's AGI
+percentile shares by state (`state/percentile/` in the IRS-Ind store,
+TY2013–2023: each state's own top 1/5/10/25/50/75% cutoff, count, AGI and
+eight items) describe within-state concentration that HT2's fixed national
+stubs cannot, and the held-out HT2 error above is dominated by the thin $1M+
+cells. Before the re-run: (i) the scoring battery gains a held-out
+state-percentile metric, run on the S39 fits (Phase 4 step P5b,
+`notes/phase4_state_weights_interface.md` §2.3); (ii) if it shows a material
+gap, the re-run adds an arm with top-1%/top-5% count and AGI targets per
+state, on the non-dependent positive-AGI universe the source tabulates.
+Item-level percentile targets wait for the top-tail base rebuild.
+
 ### Phase 3b — per-year national filer refit (S40), before Phase 4
 
 1. **IRS-Ind:** a merged Table 1.6 target view — age × filing status × AGI
@@ -495,7 +507,9 @@ sits on. Pilot-state liability is unscored (its cache predates Block E).
    `2026092720_filer_refit_v2`, accepted for now: AGI classes within 0.06–0.5%
    of Pub 1304, TY2023 wage filers at AGI $1–10k 13.3M → 9.56M (IRS 9.56M),
    TY2017 amounts on Table 1.4 (pensions +2.8% the largest residual).
-4. **Phase 3 re-run** on the refit national weights (S39).
+4. **Phase 3 re-run** on the refit national weights (S39), with the
+   state-percentile held-out metric in its battery and, if that metric says
+   so, a percentile-target arm (Phase 3 addendum above; Phase 4 P5b/P6).
 
 ### Phase 4 — swap-in (G)
 
@@ -660,6 +674,9 @@ reading uses `fread(cmd = 'zcat …')` and is POSIX-only. Load the R module in t
 
 ## Revision history
 
+- **2026-09-29** — §5a Phase 3: the SOI state AGI-percentile shares added as a
+  held-out metric before the re-run and a candidate target arm; Phase 3b
+  step 4 and Phase 4 P5b point at it.
 - **2026-09-28 (late)** — §5a Phase 4: design note written and cited; three
   stale statements in the Phase 4 text flagged there.
 - **2026-09-28 (night)** — §5a Phase 3b step 3 and status row F brought up to the code:
