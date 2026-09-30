@@ -57,3 +57,5 @@ config/runscripts/tests/phase0_baseline.csv,cross-repo,"Tax-Simulator. Phase 0 b
 docs/25_social_security_source.md,cross-repo,"Affordability-Index. The D77 audit of household Social Security that raised notes/social_security_aging.md."
 src/tests/state/test_state_calc.R,cross-repo,"Tax-Simulator. The state-calculator test the Phase 4 reader test sits beside."
 config/runscripts/tests/state_weights_baseline.csv,cross-repo,"Tax-Simulator. The pinned baseline runscript for the state-weights split (Phase 4 P1)."
+src/tests/state/test_state_weights_reader.R,cross-repo,"Tax-Simulator. The State-Weights reader test (Phase 4 P5)."
+config/runscripts/tests/state_weights_reader.csv,cross-repo,"Tax-Simulator. The P5 acceptance runscript: state mode on the dry-run State-Weights vintage."
