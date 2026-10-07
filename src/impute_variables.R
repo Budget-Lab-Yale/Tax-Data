@@ -29,6 +29,7 @@ source('src/imputations/childcare.R')
 source('src/imputations/mortgage.R')
 source('src/imputations/consumption.R')
 source('src/imputations/capital_gains.R')
+source('src/imputations/state_local_tax.R')
 source('src/imputations/placeholders.R')
 
 # Wealth imputation has moved to Phase 3 (donor-year block, runs at 2022

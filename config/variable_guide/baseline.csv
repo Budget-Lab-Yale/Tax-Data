@@ -188,3 +188,4 @@ forbes_rank_group,BSYZ rank group used for fiscal-income parameters,imputed,NA,N
 forbes_donor_id,PUF donor id used for synthetic record composition,imputed,NA,NA,2022,forbes_splice.R,NA
 forbes_net_worth,Forbes net worth assigned to synthetic record,imputed,NA,NA,2022,forbes_splice.R,NA
 forbes_fiscal_income,BSYZ-implied fiscal income assigned to synthetic record,imputed,NA,NA,2022,forbes_splice.R,NA
+dina_other_taxes_rate,combined state income + sales/excise + residential property tax rate as share of broad income (DINA 2019),imputed,NA,NA,2017,imputations/state_local_tax.R,NA
