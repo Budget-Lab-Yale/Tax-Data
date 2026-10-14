@@ -1,0 +1,44 @@
+{
+  "n_rows": 64,
+  "n_wealth_fields": 24,
+  "n_params": 6077291,
+  "device": "cuda",
+  "history": [
+    {
+      "step": 0,
+      "loss": 5.120986461639404,
+      "field_accuracy": 0.0013020833721384406,
+      "full_record_accuracy": 0.0
+    },
+    {
+      "step": 50,
+      "loss": 1.1842519044876099,
+      "field_accuracy": 0.6901041865348816,
+      "full_record_accuracy": 0.0
+    },
+    {
+      "step": 100,
+      "loss": 0.13627319037914276,
+      "field_accuracy": 0.9596354365348816,
+      "full_record_accuracy": 0.46875
+    },
+    {
+      "step": 150,
+      "loss": 0.018185146152973175,
+      "field_accuracy": 0.9934896230697632,
+      "full_record_accuracy": 0.890625
+    },
+    {
+      "step": 200,
+      "loss": 0.0036846722941845655,
+      "field_accuracy": 0.9986979365348816,
+      "full_record_accuracy": 0.984375
+    },
+    {
+      "step": 250,
+      "loss": 0.0008943176362663507,
+      "field_accuracy": 1.0,
+      "full_record_accuracy": 1.0
+    }
+  ]
+}

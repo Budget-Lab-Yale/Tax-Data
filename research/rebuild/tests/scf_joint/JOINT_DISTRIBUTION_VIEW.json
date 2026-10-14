@@ -1,0 +1,147 @@
+{
+  "groups": [
+    "Bottom 50%",
+    "50-90%",
+    "90-99%",
+    "Top 1%"
+  ],
+  "metrics": {
+    "wealth_share": {
+      "Observed SCF": [
+        8.9,
+        27.1,
+        33.4,
+        30.6
+      ],
+      "Raw DRF": [
+        7.1,
+        22.7,
+        32.0,
+        38.2
+      ],
+      "Transformer": [
+        10.9,
+        28.9,
+        35.1,
+        25.1
+      ]
+    },
+    "mean_wealth": {
+      "Observed SCF": [
+        132.0,
+        407.0,
+        2173.0,
+        17691.0
+      ],
+      "Raw DRF": [
+        118.0,
+        385.0,
+        2351.0,
+        24989.0
+      ],
+      "Transformer": [
+        181.0,
+        489.0,
+        2569.0,
+        16380.0
+      ]
+    },
+    "median_wealth": {
+      "Observed SCF": [
+        19.0,
+        149.0,
+        915.0,
+        9598.0
+      ],
+      "Raw DRF": [
+        15.0,
+        145.0,
+        1073.0,
+        10769.0
+      ],
+      "Transformer": [
+        20.0,
+        148.0,
+        1023.0,
+        8741.0
+      ]
+    },
+    "stocks": {
+      "Observed SCF": [
+        8.5,
+        23.1,
+        50.9,
+        79.1
+      ],
+      "Raw DRF": [
+        8.8,
+        21.3,
+        51.6,
+        78.9
+      ],
+      "Transformer": [
+        10.4,
+        24.1,
+        54.4,
+        84.6
+      ]
+    },
+    "home": {
+      "Observed SCF": [
+        48.4,
+        78.4,
+        93.0,
+        99.3
+      ],
+      "Raw DRF": [
+        47.1,
+        75.5,
+        92.6,
+        97.3
+      ],
+      "Transformer": [
+        47.9,
+        75.2,
+        93.0,
+        97.6
+      ]
+    },
+    "business": {
+      "Observed SCF": [
+        5.1,
+        12.9,
+        31.9,
+        63.5
+      ],
+      "Raw DRF": [
+        5.5,
+        12.4,
+        28.4,
+        66.6
+      ],
+      "Transformer": [
+        4.9,
+        11.8,
+        29.9,
+        67.4
+      ]
+    }
+  },
+  "conditional": {
+    "Mortgage among homeowners": {
+      "Raw DRF": 67.3,
+      "Observed SCF": 70.9,
+      "Transformer": 69.0
+    },
+    "Business assets among units with business income": {
+      "Raw DRF": 38.0,
+      "Observed SCF": 58.2,
+      "Transformer": 46.9
+    },
+    "Stocks among units with interest or dividends": {
+      "Raw DRF": 48.7,
+      "Observed SCF": 52.1,
+      "Transformer": 58.7
+    }
+  }
+}

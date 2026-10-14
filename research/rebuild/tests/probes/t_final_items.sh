@@ -1,0 +1,34 @@
+# Probe T: the files compared in T_REPORT.md (sourced by the final collect call).
+Q=/nfs/roberts/scratch/pi_nrs36/jar335/probes/t
+T=":tilt=0.9:3,0.99:10,0.999:30"
+ITEMS_FINAL=(
+ base_demolast4x=$Q/base/h_demolast4x_base_seed01.parquet
+ base_s1_agifirst4x=$Q/base/h_agifirst4x_base_seed01.parquet
+ base_s2_agifirst4x=$Q/base/h_agifirst4x_base_s2_seed02.parquet
+ base_s3_agifirst4x=$Q/base/h_agifirst4x_base_s3_seed03.parquet
+ sched_pufbest_agifirst4x=$Q/sched/h_agifirst4x_sched_pufbest_seed01.parquet
+ "tilt_kept_agifirst4x=$Q/tilt/h_agifirst4x_tilt_kept_seed01.parquet$T"
+ big_kept_agifirst4x=$Q/big/h_agifirst4x_big_kept_seed01.parquet
+ big_pufbest_agifirst4x=$Q/big/h_agifirst4x_big_pufbest_now_seed01.parquet
+ pufstop_pufbest_agifirst4x=$Q/pufstop/h_agifirst4x_pufstop_pufbest_now_seed01.parquet
+ mixord_demolast4x=$Q/mixord/h_demolast4x_mixord_kept_seed01.parquet
+ mixord_agifirst4x=$Q/mixord/h_agifirst4x_mixord_kept_seed01.parquet
+ mixord60_s1_demolast=$Q/mixord60/h_gen_mixord60_seed01_seed01.parquet
+ mixord60_s2_demolast=$Q/mixord60/h_gen_mixord60_seed02_seed02.parquet
+ mixord60_s1_agifirst4x=$Q/mixord60/h_agifirst4x_mixord60_s1_seed01.parquet
+ mixord60_s2_agifirst4x=$Q/mixord60/h_agifirst4x_mixord60_s2_seed02.parquet
+ mixagi60_s1_agifirst4x=$Q/mixagi60/h_agifirst4x_mixagi60_s1_seed01.parquet
+ mixagi60_s2_agifirst4x=$Q/mixagi60/h_agifirst4x_mixagi60_s2_seed02.parquet
+ base_s1_givenagi=$Q/base/h_givenagi_base_seed01.parquet
+ base_s2_givenagi=$Q/base/h_givenagi_base_s2_seed02.parquet
+ base_s3_givenagi=$Q/base/h_givenagi_base_s3_seed03.parquet
+ sched_pufbest_givenagi=$Q/sched/h_givenagi_sched_pufbest_seed01.parquet
+ big_kept_givenagi=$Q/big/h_givenagi_big_kept_seed01.parquet
+ mixord_givenagi=$Q/mixord/h_givenagi_mixord_kept_seed01.parquet
+ mixord60_s1_givenagi=$Q/mixord60/h_givenagi_mixord60_s1_seed01.parquet
+ mixord60_s2_givenagi=$Q/mixord60/h_givenagi_mixord60_s2_seed02.parquet
+ mixagi60_s1_givenagi=$Q/mixagi60/h_givenagi_mixagi60_s1_seed01.parquet
+ mixagi60_s2_givenagi=$Q/mixagi60/h_givenagi_mixagi60_s2_seed02.parquet
+ mixagi60_s3_agifirst4x=$Q/mixagi60/h_agifirst4x_mixagi60_s3_seed03.parquet
+ mixagi60_s3_givenagi=$Q/mixagi60/h_givenagi_mixagi60_s3_seed03.parquet
+)
