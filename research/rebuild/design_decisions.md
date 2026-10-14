@@ -3,7 +3,7 @@ title: "Tax-Data rebuild — design decisions"
 role: method
 workstream: rebuild
 status: open
-updated: 2026-10-11
+updated: 2026-10-14
 sot: self
 supersedes: []
 superseded_by: null
@@ -797,6 +797,102 @@ corporation, rent and royalty, estate and trust); ordinary dividends
 (`E00600`) beside qualified (`E00650`); total pensions (`E01500`) beside
 taxable (`E01700`). Each should become the pieces plus a remainder.
 
+### D26. How survey weights enter training — proposed (2026-10-14), not yet tested
+
+**The problem.** Surveys interview some kinds of people far more than
+their share of the population: the IRS samples nearly every high-income
+return, and the SCF goes out of its way to find wealthy households. Each
+record's weight says how many real households it stands for, so rich
+records carry small weights and ordinary ones large weights. Until now the
+model learned with each record counting in proportion to its weight. Then
+the oversampled rich, though they are many records (about 20,000 of the
+PUF's 166,156 are in the top 0.1% of AGI; 4% of SCF records are in the
+SCF's top 0.1% by income), counted for almost nothing, and the model
+learned the top badly on both the tax side and the wealth side (probes T,
+UW, WT, `tests/probes/`).
+
+Probes UW and WT fixed this by training unweighted with the weight as a
+model variable. That does not generalize: a weight's size means different
+things in different surveys, because it reflects each survey's design.
+
+**The idea.** A survey chooses whom to interview mostly by characteristics
+we observe, chiefly income. Among households with the same income, the
+survey's sample is close to fair, so how other variables go together
+within an income group can be learned without leaning on the weights.
+The weights are mainly needed to say how many households are in each
+income group. (The standard result for regressions; Solon, Haider and
+Wooldridge, "What Are We Weighting For?", 2015.) Where a survey also picks
+on something we do not observe, as the SCF does with its wealth estimate,
+the weights still matter within the group, and they are kept there.
+
+**The rule, the same for every survey.**
+
+1. **Groups.** Define income groups by a variable that means the same in
+   every survey after translation (D24), for example AGI class: bottom 50,
+   50–90, 90–99, 99–99.9, top 0.1 percent.
+2. **Inside a group, keep the survey's weights.** Each record's training
+   weight is its survey weight, rescaled so that the training weights of a
+   survey's records in one group add up to the number of those records.
+3. **Across groups, attention follows the number of records**, not the
+   number of households they stand for, so the oversampled top is learned
+   as well as its sample allows.
+4. **The survey weight itself is never a model variable.** It is used only
+   to compute the training weights before training.
+
+Toy example (made-up numbers):
+
+| Source | Income group | Survey weight | Training weight |
+|---|---|---|---|
+| PUF | Ordinary | 1,500 | 1.0 |
+| PUF | Ordinary | 1,500 | 1.0 |
+| PUF | Top 1% | 3 | 1.5 |
+| PUF | Top 1% | 1 | 0.5 |
+| SCF | Ordinary | 30,000 | 1.0 |
+| SCF | Top 1% | 100 | 1.6 |
+| SCF | Top 1% | 25 | 0.4 |
+
+The PUF top-1% records (survey weights 3 and 1) become 1.5 and 0.5: still
+three to one within the group, but the group now counts by its two
+records, not by the four households they stand for.
+
+**Making records.**
+
+1. Set how many records fall in each income group from the authority: IRS
+   counts of returns by AGI class for the year.
+2. For each record, draw its tax variables given its group, with the
+   source label set to PUF (the PUF is the authority for tax variables).
+   Totals are computed from parts (D25).
+3. Draw its wealth given its tax variables, with the source label set to
+   SCF (the SCF is the authority for wealth; the model has only seen
+   wealth on SCF rows). Translation (D24) makes an SCF household's incomes
+   mean the same as a PUF record's, so this is a fair question.
+
+Completing a real PUF record skips steps 1 and 2: its income, and so its
+group, is known.
+
+**Why this is consistent.** Steps 2 and 3 of the rule change how much
+attention each group gets, not what is learned about how variables go
+together within a group. Generation always fixes the group first, so it
+only ever uses within-group relationships, and the group sizes come from
+the authority. What the model learns without fixing the group (for
+example, how common top incomes are) is wrong under this rule and must not
+be used; this is why generation starts from the group counts.
+
+**To settle when testing.**
+
+- How fine the groups are: finer groups correct more of a survey's design
+  but leave fewer records per group.
+- The balance between surveys: with attention following record counts,
+  the PUF's 166,156 records outweigh the SCF's roughly 47,000; whether to
+  rescale each survey's total.
+- Whether groups need more than income for the SCF (its sampling also
+  depends on a wealth estimate built from tax records).
+- The check: probe EV's scorer (`tests/probes/ev_score.py`) for both the
+  transformer and the trees, against probes UW and WT's weight-as-variable
+  versions and population-weighted training, with the top 0.1 percent's
+  income mix and wealth, the middle groups' wealth, and tax by AGI group
+  as the main measures.
+
 ## Open questions
 
 1. **The bounded variant.** Should logit calibration, which adds hard
@@ -904,3 +1000,7 @@ distribution) are next. John has thoughts on them.
 - 2026-10-11: added D25 (decided, a requirement): derived variables are
   never predicted; the model draws the parts plus a remainder and totals are
   computed. From probe AS (`tests/probes/AS_REPORT.md`).
+- 2026-10-14: added D26 (proposed, not tested): survey weights used only
+  within income groups; attention across groups follows record counts;
+  group sizes from the authority at generation; the weight never a model
+  variable.
