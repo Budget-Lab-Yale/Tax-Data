@@ -207,7 +207,7 @@ for non-itemizers).
 
 ## Evidence so far
 
-The full history of the experiments of 8–11 October, with what each
+The full history of the experiments of 8–14 October, with what each
 changed and where the work should resume, is `joint_model_history.md`.
 
 - **Test 1** (8 October; PUF only): the model's predictions are close to

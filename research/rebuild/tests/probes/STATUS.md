@@ -697,3 +697,184 @@ weight as a model variable overshoots, as in probe UW.
   weighting did not combine (top 1% 33.9%, without UW's generation limit).
   Completed PUF wealth in the top 0.1% too low ($38m against $55m), cause
   unknown.
+
+14 October, 10:20 (main session): round 4 started (TR, EV, DD, WT; SPEC.md
+contract change 10:20). Session ends about 12:40; reports due 12:05.
+
+14 October, 10:25 (probe EV): started. Building one scorer for completed
+wealth (held-out SCF records, PUF records against the SCF interpolated to
+2015) and for generated whole records (probe V's scorecard), run on probe
+C's zero-coded models now and on probe TR's files when TR posts them here.
+
+14 October, 10:20 (probe WT): started. Question: why completed PUF wealth in
+the top 0.1% is too low in probe C's combined model ($38m against $55m).
+Plan: locate the shortfall from probe C's existing completions (SCF records'
+own wealth, the model's completions of SCF test records, PUF top records'
+shared variables against the SCF top's), and train the combined data with
+SCF rows unweighted and the SCF weight as a model variable, resampling
+completions by the drawn weight.
+
+14 October, 10:20 (probe DD): started. Question: with each itemized
+deduction split into the amount claimed on the return and the amount paid,
+does one model serve both whole-record generation and wealth completion?
+Design: the six claimed deductions observed on every PUF record (zero for
+non-itemizers) and unknown on SCF rows; two new paid variables (mortgage
+interest, real estate tax) observed on SCF rows and, in the main arm, on PUF
+itemizers (equal to the claimed amount there), unknown for PUF
+non-itemizers. A second arm leaves paid unknown on every PUF row, because
+hiding paid only for non-itemizers may itself signal "non-itemizer" in
+generation, as in probe C. Data job 29534589; training 29534590–92 (main
+arm, seeds 1–3) and 29534593–94 (second arm, seeds 1–2).
+
+14 October, 10:25 (probe WT): training submitted. Data `full_v3cwt` = probe
+C's `full_v3c` plus SCFWT, the SCF weight as a model variable (200
+equal-count bands; job 29534366). The data job shows the size of the
+problem: the SCF's top 0.1% by income is 1,948 training rows (4.1% of SCF
+rows) but 0.1% of the SCF weight, so population-weighted training gave it
+one forty-first of its share of the rows. Training with SCF rows counted
+equally, PUF rows as in C, seeds 1 and 2 (29534367-68); completions of PUF
+and SCF test records with the weight drawn first (29534728-29); collector
+29534731 writes /nfs/roberts/scratch/pi_nrs36/jar335/probes/wt/WT_TABLES.md.
+
+14 October, 10:22 (probe TR): started. Sequential trees on full_v3cz
+(`tr_synth.py`): tax variables by probe BL's method (unweighted, weight
+first, minimum leaf 20); 24 wealth variables by SCF-fitted trees
+(survey-weighted, minimum leaf 50 rows, predictors the shared variables'
+rank tokens plus earlier wealth), decoded to dollars as the transformer's
+draws are. Jobs: 29534778 (two generated files of 664,624 joint records),
+29534779 (completions: PUF training records, SCF test records with and
+without the bridge variables), collector afterwards. Outputs under
+`/nfs/roberts/scratch/pi_nrs36/jar335/probes/tr/{gen,comp,tables}`; exact
+paths posted here when the files exist.
+
+14 October, 10:28 (probe DD): data built (job 29534792; 29534589 was
+cancelled because the CPU partitions were full); paid equals claimed on every
+PUF itemizer by construction, checked in dollars and tokens. Five trainings
+running (29534590–94). A test of every chain step on first-epoch checkpoints
+passed (29535141). Chains 29534739–43 follow each training; collector
+29535134 writes `$Q/DD_TABLES.md` after all five.
+
+14 October, 10:31 (probe TR): files ready for probe EV (all in probe C's
+formats; `row` indexes `full_v3cz`'s records file of the split, as in C's
+completions). Directory `/nfs/roberts/scratch/pi_nrs36/jar335/probes/tr/`.
+- Generated whole joint records (40 PUF variables, totals computed by
+  `c3_totals.py`, plus the 24 wealth variables; 664,624 records each;
+  weight column varies, as in BL's unweighted files), job 29535124:
+  `gen/tr_joint_leaf50_s1.parquet`, `gen/tr_joint_leaf50_s2.parquet`.
+  Total AGI $8.19tn and $8.17tn, itemizers 30.0%.
+- Completed wealth, PUF training records, five draws, job 29535125:
+  `comp/tr_puf_wealth_split_leaf50.parquet` (main: non-itemizers' wealth
+  from trees without the bridge variables) and
+  `comp/tr_puf_wealth_zero_leaf50.parquet` (bridge zeros read as zeros,
+  the transformer-on-`full_v3cz` analogue).
+- Completed wealth, SCF test records, five draws, job 29535125:
+  `comp/tr_scf_test_split_leaf50.parquet` (bridge variables observed) and
+  `comp/tr_scf_test_nobr_split_leaf50.parquet` (bridge variables hidden and
+  drawn after wealth, C's nobr order).
+- Variant with the SCF trained unweighted and its weight as a variable,
+  job 29535114: `comp/tr_puf_wealth_split_leaf50_wv.parquet`,
+  `comp/tr_scf_test_split_leaf50_wv.parquet`.
+No completion log-likelihoods (trees give none). Collector job 29535126
+writes `tables/TR_TABLES.md`.
+
+14 October, 10:31 (probe EV): scorer written (`ev_score.py`, `ev_collect.py`)
+and run on the transformer (probe C's `model_cz`, three seeds). A waiting
+job (29535749, `ev_tr_wait.sh`) scores probe TR's files as they appear and
+rewrites `EV_TABLES.md` in this folder after each. It looks for TR's names
+as `tr_synth.py` writes them: `tr/comp/tr_scf_test_*.parquet`,
+`tr_scf_test_nobr_*`, `tr_puf_wealth_*` (each with its `_info.json`), and
+`tr/gen/tr_*_s<seed>.parquet` with `_info.json` (scored with `v_score.py`
+after totals are computed if the file lacks `E00100`). It stops when TR has
+no job in the queue and nothing new has appeared (not before 13:00), or at
+08:00 on 15 October. First transformer numbers, SCF test records (true
+wealth known): top 0.1% of income mean net worth $32m drawn against $45m
+true (sampling error $9m), so the low top seen on PUF records shows on SCF
+records too.
+
+14 October, 10:45 (probe EV): done; `EV_REPORT.md` written, full tables in
+`EV_TABLES.md`. All of probe TR's files (ready 10:31) are scored; nothing in
+the report is pending. Generated whole records: the trees are better on
+every distributional check (largest gap in average tax rate by AGI group
+0.19 points against the transformer's 2.69; classifier 0.56 against 0.81),
+with a small overshoot above the 99th percentile (top 0.1% tax $214bn
+against $204bn). Wealth on held-out SCF records: close; 12 of 16 checks
+within two sampling errors; the transformer is better on the per-household
+score (0.542 against 0.550, sampling error of the difference 0.0014) and in
+the top 0.1% of income (mean net worth $32m against $20m; true $45m,
+sampling error $9m); the trees are better on mean net worth by filing
+status and by income × age. PUF records against the SCF in 2015: top 0.1%
+mean $38.6m (transformer) and $25.5m (trees) against $54.7m; TR's trees with
+the SCF weight as a variable reach $52.2m but overstate the middle. The
+waiting job 29535749 keeps scoring any new TR file until TR's jobs end
+(not before 13:00) or 08:00 on 15 October; log
+`/nfs/roberts/scratch/pi_nrs36/jar335/probes/ev/wait.log`.
+
+14 October, 10:48 (probe DD): training finished for all five models. The
+paid-on-SCF-rows-only arm (`full_v4ddp`, two seeds) has finished its chain:
+generated returns itemize 29.2% and 29.6% (PUF 29.8%), total AGI $7.89tn and
+$8.14tn (PUF $8.09tn). The main arm's chains (`full_v4dd`) are generating.
+
+14 October, 10:50 (probe DD): first results, paid-on-SCF-rows-only arm
+(`full_v4ddp`, two seeds; interim collector 29537275): generation 29.4%
+itemizers (PUF 29.8%), AGI $8.02tn, top 1% share 20.0% (PUF 19.4%); PUF
+wealth completed with the claimed deductions and form of deduction hidden:
+55% own a home (C's unknown-coded model 57%, SCF 67%); with them shown, 41%.
+SCF test score 33.41 and 33.44 (C 33.41–33.46). Main arm, model seed 1:
+22.6% itemizers, AGI $7.28tn. Remaining chains running.
+
+14 October, 10:51 (probe TR): done; `TR_REPORT.md` written, nothing
+pending. Added arms: SCF trees fitted on the sample as drawn, donors drawn
+in proportion to weight (`_uf`, the trees' best), and with the SCF weight
+as a predictor (`_wv`; the files from job 29535114 were overwritten by job
+29535801, which fixed a uniform draw). New files in
+`/nfs/roberts/scratch/pi_nrs36/jar335/probes/tr/`:
+`comp/tr_puf_wealth_split_leaf50_uf.parquet`,
+`comp/tr_scf_test_split_leaf50_uf.parquet`,
+`comp/tr_scf_test_nobr_split_leaf50_uf.parquet`,
+`gen/tr_joint_leaf50_uf_s{1,2}.parquet` (same names with `_wv`; leaf-20
+sensitivity `*_leaf20*`). Results: tax side as BL (AGI $8.19tn, top 1%
+20.3%, classifier 0.56 against C's 0.81, tax-rate gaps 0.2 points against
+2.7). Completed PUF wealth, top 0.1% by seven-income total: SCF $55m; trees
+survey-weighted $27m, sample as drawn $37m, weight as predictor $40m; C's
+transformer $35–39m; X $51–57m. Zero-coded bridge variables break home
+ownership for trees too (28%; split arm 61%, SCF 67%). Copying: under
+0.002% of records carry 5+ tax amounts of one PUF record, under 0.03% 5+
+wealth amounts of one SCF household. Tables `tables/TR_TABLES.md`.
+
+14 October, 11:12 (probe WT): results. (1) Where the shortfall enters:
+probe C's model already falls short on held-out SCF records with their own
+incomes known (top 0.1% mean net worth $31m completed against $48m true,
+seven-income groups), so it has not learned the SCF's top; the PUF top's
+translated incomes look like the SCF top's, and rank-band decoding loses
+under 1%. (2) Training the SCF rows on the sample as drawn, with the SCF
+weight as a variable and draws resampled by the drawn weight (3 seeds):
+completed PUF top 0.1% mean $70m, median $32m (SCF $55m, $33m), but
+means too high lower down (bottom half $253k against $113k) from rare
+large draws on high-weight records, as UW found for the PUF. Limiting
+wealth draws to values seen among SCF rows of similar weight brings the
+group means close (top 0.1% $54m; bottom half $129k; 50-90th $368k
+against $370k) but leaves top medians low (top 0.1% $22m). A square-root
+weighting arm is running (jobs in wt/jobs.txt).
+
+14 October, 11:50 (probe DD): finished; `DD_REPORT.md` is complete, nothing
+pending (final collector 29535134, 11:38). One model now does both jobs:
+the version where the amount paid is observed on SCF rows only (never on
+PUF rows) generates PUF records like C's zero-coded model (29.4%
+itemizers, AGI $8.02tn) and completes PUF wealth like C's unknown-coded
+model (55% own a home against C's 57%; SCF 67%), as long as the form of
+deduction and the claimed amounts are hidden when PUF records are
+completed. With paid observed for PUF itemizers, generated returns itemize
+only 22.6%. Showing the claimed amounts during completion drops home
+ownership to 39–41%. The top 0.1%'s net worth is still low ($37–39m
+against $55m).
+
+14 October, 11:55 (probe WT): finished; WT_REPORT.md written, nothing
+pending. The square-root arm (SCF rows weighted by the square root of their
+weight, two seeds; jobs 29538986-89, collector 29539012) gives completed PUF
+top 0.1% mean $59m and median $29m (SCF $55m and $33m), but the bottom
+half is still too high ($202k against $113k); with the weight-group limit
+the top falls too low ($41m). Conclusion: the low top comes from
+population-weighted training on the SCF, whose top income group is 4% of
+its rows and 0.1% of its weight. Training on the sample as drawn fixes the
+top; no version tried yet gets the top and the lower groups right together.
+Tables: /nfs/roberts/scratch/pi_nrs36/jar335/probes/wt/WT_TABLES.md.

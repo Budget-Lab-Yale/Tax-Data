@@ -1,5 +1,5 @@
 ---
-title: "Tax-Data rebuild — history of the joint model experiments, 8–11 October 2026"
+title: "Tax-Data rebuild — history of the joint model experiments, 8–14 October 2026"
 role: notes
 workstream: rebuild
 status: current
@@ -9,7 +9,7 @@ supersedes: []
 superseded_by: null
 ---
 
-# History of the joint model experiments, 8–11 October 2026
+# History of the joint model experiments, 8–14 October 2026
 
 What we tried, what we found, what changed as a result, and where I (Claude,
 the main session) think the work should resume. The plan itself is
@@ -154,6 +154,44 @@ variable, restores the population.
 | ST | Can the model be stretched to a year it has not seen, by targets? | Yes, for a mild change. Trained without SCF 2016 and tilted to 2016 tables, it matched the model that saw 2016 on untargeted statistics within sampling error (e.g. mean net worth by income × age off 8% against 6%; sampling error 7%). It needed a larger tilt (0.76 against 0.49 nats). Reweighting the 2013 records instead needed 1.3 nats, kept 12% of their effective sample, and doubled top 0.1% wealth. A change inside the top band, which no target sees, was missed by both models. |
 | C | All fixes in one dataset: D25 everywhere, translation, bridge variables, non-itemizers' deductions unknown | SCF wealth completion the best of any model (34.11–34.20 against 35.50–35.56 for version 2). But the itemized deductions cannot be coded one way for both jobs: unknown breaks generation (88% or 6% itemizers against 30%), zero breaks completed wealth (28% of returns with a home against 67%). Completed PUF wealth in the top 0.1% is too low ($38m against $55m), cause unknown. The weight as a variable, without UW's generation rule, overshot (top 1% share 33.9%). |
 
+### 14 October — round 4: trees against the transformer, deductions, top wealth
+
+| Probe | Question | Result |
+|---|---|---|
+| TR | Sequential trees on the multi-survey job, on probe C's combined data (zero-coded deductions) | Tax side as in BL: total AGI $8.19tn against $8.09tn, top 1% share 20.3% against 19.4%. Wealth drawn from trees fitted on SCF rows. PUF top 0.1% mean net worth $27m with SCF-weighted trees, $37m fitted on the SCF sample as drawn, $40m with the weight added as a predictor (SCF $55m). Zero-coded mortgage interest and real estate tax break home ownership for the trees too (28% against 67%). Copying negligible. |
+| EV | One scorer for both methods, from their draws alone | **Generating tax records: trees clearly better** (largest gap in any AGI group's average tax rate 0.19 points against 2.69; held-out real records 0.15; classifier 0.56 against 0.81). **Wealth on held-out SCF records: close** (12 of 16 checks within two sampling errors; the transformer better per household and in the top 0.1% of income, $32m against $20m, truth $45m ± $9m; the trees better on some group tables). PUF top 0.1% wealth too low for both ($38.6m transformer, $25.5m trees, SCF $54.7m). Caveat: the transformer here was trained with population weights, without probe UW's change; the trees were trained on the sample as drawn. |
+| DD | Each itemized deduction as two variables, the deduction claimed and the amount paid | One model now does both jobs, in the version where the amount paid is known only on SCF rows: generated returns itemize 29.4% (PUF 29.8%), total AGI $8.02tn; completed home ownership 55% (SCF 67%; zero coding gave 28%). Completion must hide the form of deduction and the claimed amounts (showing them: 39–41%). The version with the amount paid also known for PUF itemizers fails at generation (22.6% itemize). Not done: drawing the amount paid for non-itemizers (D20). |
+| WT | Why completed top wealth is too low | The same cause as the PUF top: the SCF oversamples the wealthy (its top 0.1% by income is 4% of its records and 0.1% of its weight), so population-weighted training barely counts them; even on held-out SCF records with incomes known, the model gives $31m against $48m true. Training the SCF rows on the sample as drawn with the SCF weight as a variable, draws resampled by the drawn weight: PUF top 0.1% median $32m (SCF $33m), but bottom-half mean $253k against $113k. Limiting draws to values seen at similar weights brings every group's mean close (top 0.1% $54m, bottom half $129k) but the top median falls to $22m. |
+
+**Thinking about weights (discussion with John, 14 October).** John
+pointed out that a weight's size means different things in different
+surveys, because it reflects each survey's design, so using the weight as
+a model variable (probes UW, WT) cannot be the general answer. The
+principled view, standard for regressions (Solon, Haider and Wooldridge,
+"What Are We Weighting For?", 2015): if a survey chooses whom to interview
+by X, then among people with the same X its sample is fair, so "Y given X"
+can be learned without weights; weights are needed only for how many people
+are in each X group. Our case differs in three ways: we want whole records,
+so the group sizes are needed too (from the authority, e.g. IRS counts by
+income class); the SCF chooses its wealthy households with a wealth
+estimate not in our data, so within an income group it still over-picks
+the wealthy and needs its weights there; and the transformer learns every
+direction, so generation must start from the groups. The resulting rule,
+the same for every survey:
+
+1. Within each survey and income group, each row counts in proportion to
+   its survey weight, rescaled so the group's rows add up to the number of
+   rows in the group.
+2. Across groups, attention follows the number of interviews, so the
+   oversampled top is learned.
+3. The survey weight itself is never a model variable.
+4. Generation first sets how many records fall in each income group from
+   the authority's counts, then draws each record's tax variables and then
+   its wealth.
+
+Groups are defined by variables that mean the same thing in every survey
+after translation, such as income class. Not yet tested.
+
 ## What we learned
 
 Most of what we learned is about the data and what the model is trained to
@@ -163,7 +201,7 @@ do, not about the transformer:
 |---|---|
 | Translate each survey's shared variables into tax concepts before training; reweight only for coverage | No |
 | Compute totals from their parts; never predict them (D25) | No |
-| Train on the sample as drawn, with the weight as a variable, so the oversampled top counts | No: it fixed the tree baseline too |
+| Population-weighted training starves the oversampled top, on the PUF and the SCF alike; let the top count by its number of records. The weight-as-variable version is survey-specific; the general rule is weights within income groups, group sizes from the authority (untested) | No: it fixed the tree baseline too |
 | Bridge variables (mortgage interest, real estate tax) add links between tax records and wealth | No |
 | A variable that is zero for some filers because of a filing choice needs two variables: the amount claimed and the amount paid | No |
 | Post-train by shifting the model's probabilities, not by reweighting draws; reweighting cannot reach records the model never draws | No: anything that gives probabilities can be tilted |
@@ -192,12 +230,15 @@ The last row was mostly chasing symptoms before the structural fixes
 
 ## Open issues
 
-1. Split each itemized deduction into the deduction claimed and the amount
-   paid (D20 already proposed this for imputation), and retrain the
-   combined data.
-2. Combine training on the sample (with UW's generation rule) with the
-   combined data.
-3. Find why completed PUF wealth in the top 0.1% is too low.
+1. Itemized deductions: the claimed/paid split works when the amount paid
+   is known only on SCF rows; drawing the amount paid for non-itemizers
+   (D20) is not done.
+2. Test the general weighting rule (weights within income groups, group
+   sizes from IRS counts) on both the PUF and the SCF side, in place of the
+   weight as a model variable.
+3. Completed PUF wealth in the top 0.1%: the cause is found (the starved
+   SCF top); the fixes so far get either the top or the lower groups
+   right, not both.
 4. The six open questions from the authority table
    (`tests/probes/AU_AUTHORITY_TABLE.md`): dependents (tax-return
    dependents against household children); cohabiting couples; whose age
@@ -234,6 +275,15 @@ transformer wins on the multi-survey and stretching parts, that is the
 reason for its extra machinery. I would not spend more time on draw orders
 or training schedules until this is settled.
 
+**Update, 14 October.** Round 4 ran the first version of this test. The
+trees were clearly better at generating tax records and about even on
+wealth; neither got top wealth right. The comparison was not quite even
+(the transformer was trained with population weights, the trees on the
+sample as drawn). Next, in order: apply the general weighting rule to both
+methods on the same data; rerun the scorer (`tests/probes/ev_score.py`);
+add the stretching test for both. If the trees still match or beat the
+transformer, I would build on the trees.
+
 ## Where everything is
 
 - Plan and decisions: `research/rebuild/joint_model_plan.md`,
@@ -247,7 +297,7 @@ or training schedules until this is settled.
   `F_REPORT.md`, `G_DATA_REPORT.md`, `H_MODEL_REPORT.md`).
 - Test 4 probes: `research/rebuild/tests/probes/` (`SPEC.md`, `STATUS.md`,
   and one `<NAME>_REPORT.md` each for Y, X, BR, Q, T, O, S, AS, UW, V, BL,
-  ST, C; `AU_AUTHORITY_TABLE.md`).
+  ST, C, TR, EV, DD, WT; `AU_AUTHORITY_TABLE.md`).
 - Large outputs (scratch, not in git):
   `/nfs/roberts/scratch/pi_nrs36/jar335/posttrain/`,
   `/nfs/roberts/scratch/pi_nrs36/jar335/scf_joint/`,

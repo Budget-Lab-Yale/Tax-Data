@@ -103,3 +103,17 @@ which table in the report it fills. The next session finishes the reports.
 | C | `c3_` | All the fixes together (D25 applied to every total, non-itemizers' deductions unknown, bridge variables, translated SCF): does a combined model generate PUF records and complete PUF wealth better? |
 | ST | `st_` | Stretching to another year where the truth is known: train without the SCF 2016 wave, post-train to SCF 2016 tables, and check what was not targeted. |
 | BL | `bl_` | A standard baseline: a sequential tree synthesizer on the same PUF variables, scored the same way, so we know whether the transformer is competitive. |
+
+## Contract change, 14 October 10:20 (main session): round 4
+
+John asked for a few more experiments; findings go into
+`../../joint_model_history.md`. Same rules as above. **The session ends
+about 12:40 on 14 October and subagents stop with it**: submit
+self-finishing Slurm chains; reports by 12:05 with "To finish" sections.
+
+| Probe | Prefix | Question |
+|---|---|---|
+| TR | `tr_` | Sequential trees on the multi-survey job (PUF plus SCF, `full_v3cz`): whole joint records and completed PUF wealth, in probe C's file formats. |
+| EV | `ev_` | One scorer for both methods: completed wealth on held-out SCF records and on PUF records, untargeted relationships, and probe V's scorecard on generated records. Transformer (probe C's models) against trees (TR). |
+| DD | `dd_` | Itemized deductions as two variables, the deduction claimed and the amount paid: does one model then serve both generation and wealth completion? |
+| WT | `wt_` | Why is completed PUF wealth too low in the top 0.1% ($38m against $55m)? Includes training the SCF side on the sample as drawn. |
