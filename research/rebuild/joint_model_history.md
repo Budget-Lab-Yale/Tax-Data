@@ -11,6 +11,12 @@ superseded_by: null
 
 # History of the joint model experiments, 8–14 October 2026
 
+**To pick the work back up:** read "The goal", then "What we learned",
+"Open issues" and "Where I think the work should resume" at the end; the
+timeline in between is the detail. The newest proposal is D26 (how survey
+weights enter training) in `design_decisions.md`. The plan's own "Next
+steps" list dates from 9 October; where they differ, this file is newer.
+
 What we tried, what we found, what changed as a result, and where I (Claude,
 the main session) think the work should resume. The plan itself is
 `joint_model_plan.md`; the decisions are in `design_decisions.md` (D22–D25).
@@ -190,7 +196,23 @@ the same for every survey:
    its wealth.
 
 Groups are defined by variables that mean the same thing in every survey
-after translation, such as income class. Not yet tested.
+after translation, such as income class. Not yet tested; written up as D26
+(proposed) in `design_decisions.md`.
+
+**The source label (discussion with John, 14 October).** Every training
+row carries a label saying which survey it came from. When making a
+record, the label is set, not predicted: tax variables are drawn with the
+label PUF, so they follow the PUF's relationships; wealth is drawn with the
+label SCF, because the model has only ever seen wealth on SCF rows, and
+asking for wealth on a PUF-labelled record is a question it was never
+trained on. Translation is what makes this fair: an SCF household's
+incomes mean the same as a PUF record's. How much the label still changes
+the answer after translation measures how good the translation is (not
+yet measured). A check of every script on 14 October found the runs
+already followed this rule: every completion of PUF wealth presented the
+record as SCF (`--as-source SCF`), test 3's whole-record generation drew
+tax variables as PUF and wealth as SCF, and the later from-scratch
+experiments drew tax variables only.
 
 ## What we learned
 
@@ -279,8 +301,8 @@ or training schedules until this is settled.
 trees were clearly better at generating tax records and about even on
 wealth; neither got top wealth right. The comparison was not quite even
 (the transformer was trained with population weights, the trees on the
-sample as drawn). Next, in order: apply the general weighting rule to both
-methods on the same data; rerun the scorer (`tests/probes/ev_score.py`);
+sample as drawn). Next, in order: apply the general weighting rule (D26)
+to both methods on the same data; rerun the scorer (`tests/probes/ev_score.py`);
 add the stretching test for both. If the trees still match or beat the
 transformer, I would build on the trees.
 

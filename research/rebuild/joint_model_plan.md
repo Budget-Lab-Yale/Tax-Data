@@ -231,6 +231,11 @@ changed and where the work should resume, is `joint_model_history.md`.
 
 ## Next steps
 
+This list dates from 9 October. The current view of what to do next,
+after the experiments of 9–14 October, is the end of
+`joint_model_history.md` ("Open issues" and "Where I think the work should
+resume").
+
 0. Write the authority table above in full: for each shared variable, the
    owner of the concept and its exact definition.
 1. Build D24's translation for the SCF (filing status, age, dependents and
