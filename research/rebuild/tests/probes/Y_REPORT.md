@@ -4,7 +4,7 @@ role: report
 workstream: rebuild
 status: current
 updated: 2026-10-10
-sot: research/rebuild/joint_model_plan.md
+sot: research/rebuild/design/plan.md
 ---
 
 # Probe Y: translation tested on test 2's distorted halves

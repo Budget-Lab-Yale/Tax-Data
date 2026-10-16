@@ -2,11 +2,11 @@
 title: "Tax-Data rebuild — calibration and language-model post-training"
 role: notes
 workstream: rebuild
-status: current
+status: superseded
 updated: 2026-10-08
 sot: research/rebuild/design_decisions.md
 supersedes: []
-superseded_by: null
+superseded_by: research/rebuild/design/plan.md
 ---
 
 # Calibration and language-model post-training

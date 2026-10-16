@@ -4,12 +4,18 @@ role: notes
 workstream: rebuild
 status: current
 updated: 2026-10-14
-sot: research/rebuild/joint_model_plan.md
+sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
 
 # History of the joint model experiments, 8–14 October 2026
+
+**Superseded as a guide on 14 October 2026.** The design was gone through
+from the top that day and rewritten as `research/rebuild/design/plan.md` and
+`research/rebuild/design/idea_space.md`; read those first. This file stays as
+the record of what each experiment ran and found. The plan and decisions it
+cites now live in `research/archive/` (see `research/rebuild/design/README.md`).
 
 **To pick the work back up:** read "The goal", then "What we learned",
 "Open issues" and "Where I think the work should resume" at the end; the
@@ -308,8 +314,8 @@ transformer, I would build on the trees.
 
 ## Where everything is
 
-- Plan and decisions: `research/rebuild/joint_model_plan.md`,
-  `research/rebuild/design_decisions.md` (D22–D25).
+- Plan and decisions: `research/archive/joint_model_plan_2026-10-14_superseded.md`,
+  `research/archive/design_decisions_2026-10-14_superseded.md` (D22–D25).
 - Test 1: `research/rebuild/tests/puf_generator/` (`STATUS.md`,
   `EXPERIMENTS.md`).
 - Test 2: `research/rebuild/tests/scf_joint/` (`MODEL_REPORT.md`,

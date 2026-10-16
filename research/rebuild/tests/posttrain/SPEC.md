@@ -4,7 +4,7 @@ role: method
 workstream: rebuild
 status: current
 updated: 2026-10-09
-sot: research/rebuild/design_decisions.md
+sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
@@ -18,8 +18,8 @@ method 2 probability tilt (C), method 3 network tuning (D), and evaluation
 must change, write the change into "Contract changes" at the end, with your
 letter and the time, before relying on it.
 
-Read first: `research/rebuild/rlhf_analogy.md` (the closed form),
-D22 in `research/rebuild/design_decisions.md`, and test 2 in
+Read first: `research/archive/rlhf_analogy_2026-10-14_superseded.md` (the closed form),
+D22 in `research/archive/design_decisions_2026-10-14_superseded.md`, and test 2 in
 `research/rebuild/tests/scf_joint/` (`PLAN.md`, `SPEC.md`, the top of
 `STATUS.md` and of `EVAL_REPORT.md`). Test 2's code is the base:
 `b_model.py` (model, `complete_batch`, `completion_nll`, `fill_order`),

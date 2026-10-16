@@ -59,6 +59,15 @@ they share a plan.
 | notes | [`state_weights/notes/`](state_weights/notes/) |
 | scripts | [`state_weights/scripts/`](state_weights/scripts/) — the Phase 1 harness (`sweep_`, `validate_`) and drivers |
 
+### `rebuild/` — the one-model rebuild of Tax-Data (October 2026)
+
+One generative model of tax units trained on the PUF and surveys, then
+post-trained to each year's targets. Self-contained; nothing in it feeds
+the production pipeline yet. Start at
+[`rebuild/README.md`](rebuild/README.md): what it is, how it got here,
+what comes next. The plan is [`rebuild/design/plan.md`](rebuild/design/plan.md);
+the latest run is [`rebuild/minimal/LATEST.md`](rebuild/minimal/LATEST.md).
+
 ## Folder rules
 
 | Folder | Rule |

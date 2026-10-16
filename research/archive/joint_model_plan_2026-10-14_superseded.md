@@ -2,11 +2,11 @@
 title: "Tax-Data rebuild — the joint model plan"
 role: plan
 workstream: rebuild
-status: current
+status: superseded
 updated: 2026-10-09
 sot: self
 supersedes: []
-superseded_by: null
+superseded_by: research/rebuild/design/plan.md
 ---
 
 # The joint model plan

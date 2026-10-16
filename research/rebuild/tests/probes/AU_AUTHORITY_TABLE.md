@@ -4,14 +4,14 @@ role: plan
 workstream: rebuild
 status: draft
 updated: 2026-10-10
-sot: research/rebuild/joint_model_plan.md
+sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
 
 # The authority table: draft
 
-This is step 0 of `research/rebuild/joint_model_plan.md`: for every variable
+This is step 0 of `research/archive/joint_model_plan_2026-10-14_superseded.md`: for every variable
 in the joint model, the source that owns its concept, the exact concept, how
 other sources' variables of the same name differ, and what D24's translation
 does to it. It is a draft for John to review; the plan itself is unchanged.

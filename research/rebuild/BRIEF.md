@@ -3,13 +3,18 @@ title: "Tax-Data rebuild — shared brief for the background research"
 role: notes
 workstream: rebuild
 status: current
-updated: 2026-10-06
+updated: 2026-10-14
 sot: self
 supersedes: []
 superseded_by: null
 ---
 
 # Shared brief for the background research
+
+*Note added 2026-10-14.* The design built on this brief is in
+`research/rebuild/design/` (`plan.md`, then `idea_space.md`). The brief
+stays as the problem statement; "the framing under consideration" below
+is the 6 October version.
 
 Every background research agent reads this first. It states the problem as
 John Ricco (Deputy Director of Policy Analysis, Yale Budget Lab; the lead on

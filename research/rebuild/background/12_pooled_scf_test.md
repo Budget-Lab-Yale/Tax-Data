@@ -12,7 +12,7 @@ superseded_by: null
 # Pooled SCF donors with several draws per record: a test on the real SCF
 
 Background paper 12 for the Tax-Data rebuild (see `research/rebuild/BRIEF.md`).
-Design decision D21 (`research/rebuild/design_decisions.md`) says that wealth
+Design decision D21 (`research/archive/design_decisions_2026-10-14_superseded.md`) says that wealth
 and other imputed variables are drawn from a donor pool that combines every
 survey wave, with several copies of each record, and that each year's
 calibration then moves weight among the copies to hit that year's targets. D21's

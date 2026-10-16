@@ -3,7 +3,7 @@ title: "Archive — superseded documents"
 role: index
 workstream: cross-cutting
 status: current
-updated: 2026-09-15
+updated: 2026-10-15
 sot: research/README.md
 supersedes: []
 superseded_by: null
@@ -252,3 +252,90 @@ history or carried as a live decision (S21–S26). The broken rebuild it records
 was fixed on 2026-09-15 (`src/imputations/tips.R`, SIPP training universe
 restricted to positive weights). *Still useful for* the A3–A5 run records
 (vintages 2026083111/15/17) and the resource figures that sized later jobs.
+
+---
+
+## Rebuild design documents, 6–14 October 2026
+
+Moved 2026-10-14 when the rebuild's design was gone through from the top
+and rewritten as `research/rebuild/design/` (`plan.md`, `idea_space.md`).
+The test reports under `research/rebuild/tests/` still cite these by their
+old paths under `research/rebuild/`; `research/rebuild/design/README.md`
+maps old to new.
+
+**`joint_model_plan_2026-10-14_superseded.md`** (2026-10-09) — the plan
+built on D22–D24: one transformer trained on all surveys, translation
+before training, three post-training methods, year as a model input, with
+a next-steps list from 9 October.
+
+*Superseded by* `research/rebuild/design/plan.md`. *Still useful for* the
+authority table in outline and the "effect on earlier decisions" list.
+
+**`design_decisions_2026-10-14_superseded.md`** (2026-10-14) — the decisions
+log D1–D26 with each decision's reasoning and the toy and real-SCF tests
+attached to D18 and D21.
+
+*Superseded by* `research/rebuild/design/plan.md`, whose last table says
+what became of each decision. *Still useful for* the full text of D18's
+path-dependence test, D19, D20, D21's pooled-SCF results, D23–D24's
+assumptions, and D26's toy example.
+
+**`synthesis_2026-10-14_superseded.md`** (2026-10-07) — the synthesis of the
+twelve background reports and seven reviews: what the current pipeline
+does, the data available, the calibration method, what other scorers do,
+the imputation defects, the evaluation design, and a two-week plan.
+
+*Superseded by* `research/rebuild/design/idea_space.md` for the design and
+by the background reports themselves for the evidence. *Still useful for*
+the source-by-year inventory, the list of bugs on `main`, the corrections
+the reviews made, and the week-one plan that is the last rung of the
+fallback ladder.
+
+**`synthesis_2026-10-07_stale-render.html`** (2026-10-07) — an undated HTML
+render of the synthesis. *Stale render.*
+
+**`rlhf_analogy_2026-10-14_superseded.md`** (2026-10-08) — calibration as
+language-model post-training: the shared closed form, the correspondence
+table, and where the analogy breaks.
+
+*Superseded by* `research/rebuild/design/idea_space.md`, section 5.2, which
+restates the four post-training methods concretely. *Still useful for* the
+PolicyEngine reward-hacking example and the note on distillation against
+KL-regularized training.
+
+**`d21_pooling_questions_2026-10-14_superseded.md`** (2026-10-08) — the
+sixteen open details of pooled survey donors (which waves, common dollars,
+copies, targets between waves), none answered.
+
+*Superseded by* the rolling prior in `research/rebuild/design/idea_space.md`,
+section 3.9, which replaces pooled donors. *Still useful for* Q3 (common
+dollars), Q14 (which SCF tables matter as targets) and Q15 (DFA between
+waves), which carry over to the rank-dollar maps and the target list.
+
+## Rebuild minimal example, 15 October 2026
+
+Moved 2026-10-15 in the documentation reset at the rebuild's stopping
+point (`research/rebuild/README.md`). Names carry a `minimal_` prefix
+because the minimal example's files are numbered and several numbers
+collide with other workstreams.
+
+**`minimal_07_BASELINE_2026-10-14_superseded.md`** (2026-10-14) — baseline
+v3: the minimal example's oversampled stack tilted to the 136 IRS targets
+and six SCF wealth targets for 2019, trained on the table with each
+survey ranked on its own scale.
+
+*Superseded by* `research/rebuild/minimal/15_BASELINE_V4.md`. The v3 table
+is the one that doubled wealth on PUF-style records
+(`research/rebuild/minimal/09_RESULTS.md`). *Still useful for* the v3
+numbers that later reports compare against.
+
+**`minimal_11_SHARED_X_THEORY_claude_2026-10-15_superseded.md`** and
+**`minimal_11_SHARED_X_THEORY_codex_2026-10-15_superseded.md`**
+(2026-10-15) — two write-ups made independently (Claude; Codex gpt-6-sol)
+of why the PUF and a survey can disagree on a shared variable and what to
+do about each reason.
+
+*Superseded by* `research/rebuild/minimal/11_SHARED_X_THEORY.md`, which
+compares them and merges the rule, and by
+`research/rebuild/minimal/14_TRANSLATION_RULE.md`. *Still useful for* the
+full mechanism tables and the signature table.

@@ -2,11 +2,11 @@
 title: "Tax-Data rebuild — design decisions"
 role: method
 workstream: rebuild
-status: open
+status: superseded
 updated: 2026-10-14
 sot: self
 supersedes: []
-superseded_by: null
+superseded_by: research/rebuild/design/plan.md
 ---
 
 # Design decisions

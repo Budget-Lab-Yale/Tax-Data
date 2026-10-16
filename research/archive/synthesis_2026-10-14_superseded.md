@@ -2,11 +2,11 @@
 title: "Tax-Data rebuild — synthesis of the background research"
 role: notes
 workstream: rebuild
-status: current
+status: superseded
 updated: 2026-10-07
 sot: research/rebuild/BRIEF.md
 supersedes: []
-superseded_by: null
+superseded_by: research/rebuild/design/plan.md
 ---
 
 # Synthesis of the background research

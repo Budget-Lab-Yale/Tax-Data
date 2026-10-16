@@ -4,14 +4,14 @@ role: plan
 workstream: rebuild
 status: current
 updated: 2026-10-09
-sot: research/rebuild/design_decisions.md
+sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
 
 # Test 2: one model across the PUF and the SCF
 
-Context: D22 in `research/rebuild/design_decisions.md` (one transformer
+Context: D22 in `research/archive/design_decisions_2026-10-14_superseded.md` (one transformer
 model trained on all sources as the reference distribution), and test 1 in
 `research/rebuild/tests/puf_generator/` (`EXPERIMENTS.md` has the summary).
 Test 1 found that the model's predictions are close to calibrated when it

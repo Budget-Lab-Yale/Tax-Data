@@ -43,14 +43,14 @@ ROLES       <- c('plan', 'method', 'procedure', 'evidence',
                  'notes', 'review', 'status', 'index')
 STATUSES    <- c('current', 'open', 'deferred', 'historical',
                  'frozen', 'executed', 'superseded')
-WORKSTREAMS <- c('state_tax', 'state_weights', 'cross-cutting')
+WORKSTREAMS <- c('state_tax', 'state_weights', 'cross-cutting', 'rebuild')
 
 # Archive `{reason}` is closed too, but `pre-{change}` is open-ended.
 ARCHIVE_REASON_RE <- '(pre-[a-z0-9-]+|stale-render|executed|superseded|imported)'
 
 # Workstreams that own a plan. `cross-cutting` documents sit at the root and
 # have no plan to be cited from.
-PLAN_WORKSTREAMS <- c('state_weights')   # state_tax stayed in Tax-Simulator (2026-09-11)
+PLAN_WORKSTREAMS <- c('state_weights')   # state_tax stayed in Tax-Simulator (2026-09-11); rebuild not yet: three test specs under rebuild/tests still declare role: plan (2026-10-14)
 
 # Directories holding ARTIFACTS rather than documents. Front matter is a
 # document convention: source packets defer their status to the rollout CSV

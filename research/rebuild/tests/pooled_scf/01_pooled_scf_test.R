@@ -1,6 +1,6 @@
 # 01_pooled_scf_test.R
 #
-# Real-SCF version of the D21 toy test (research/rebuild/design_decisions.md):
+# Real-SCF version of the D21 toy test (research/archive/design_decisions_2026-10-14_superseded.md):
 # can soft entropy calibration to one wave's published-style tables recover
 # that wave's joint distribution of balance sheets when the imputation draws
 # from (a) a single other wave, (b) a pool of other waves, (c) a pool that

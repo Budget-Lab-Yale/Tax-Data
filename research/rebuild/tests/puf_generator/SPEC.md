@@ -4,15 +4,15 @@ role: method
 workstream: rebuild
 status: current
 updated: 2026-10-08
-sot: research/rebuild/design_decisions.md
+sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
 
 # Test 1: can a transformer learn the 2015 PUF?
 
-Proof of concept for D22 in `research/rebuild/design_decisions.md`. Read
-D22 and `research/rebuild/rlhf_analogy.md` for context. This file is the
+Proof of concept for D22 in `research/archive/design_decisions_2026-10-14_superseded.md`. Read
+D22 and `research/archive/rlhf_analogy_2026-10-14_superseded.md` for context. This file is the
 contract between three pieces of work done in parallel: data preparation
 (A), the model (B) and the evaluation (C). Each piece reads and writes only
 the files named here.

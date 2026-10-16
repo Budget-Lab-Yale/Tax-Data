@@ -47,7 +47,7 @@ Outputs final in `$S/data/` (marker `DONE`). Report: `DATA_REPORT.md`.
 
 An independent review of the results, then a summary for John. The spec is
 `SPEC.md`; the decision context is D22 in
-`research/rebuild/design_decisions.md`.
+`research/archive/design_decisions_2026-10-14_superseded.md`.
 
 ## Part C — evaluation: status written by part C at 21:01
 

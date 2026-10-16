@@ -2,11 +2,11 @@
 title: "Tax-Data rebuild — open questions under D21 (pooled donors)"
 role: method
 workstream: rebuild
-status: open
+status: superseded
 updated: 2026-10-08
 sot: research/rebuild/design_decisions.md
 supersedes: []
-superseded_by: null
+superseded_by: research/rebuild/design/plan.md
 ---
 
 # Open questions under D21 (pooled donors)

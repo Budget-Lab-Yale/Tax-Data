@@ -4,7 +4,7 @@ role: plan
 workstream: rebuild
 status: current
 updated: 2026-10-09
-sot: research/rebuild/joint_model_plan.md
+sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
@@ -12,7 +12,7 @@ superseded_by: null
 # Test 4: probes for the joint model plan
 
 Started 9 October 2026, 23:40, by the main session at John's request: a
-night of early experiments for `research/rebuild/joint_model_plan.md`
+night of early experiments for `research/archive/joint_model_plan_2026-10-14_superseded.md`
 (read it first). Each probe answers one question that bears on a decision
 in the plan. Six probes run in parallel, each by one subagent.
 
