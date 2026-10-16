@@ -105,7 +105,8 @@ is to learn whether this is possible, not to finish it.
 14. **Source label:** set, never predicted. Label-responsive for the
     variables a survey owns; label-indifferent for the variables surveys
     share, which translation is responsible for.
-15. **The translation rule** (confirmed by John 2026-10-15). Get each
+15. **The translation rule** (confirmed by John 2026-10-15; the working
+    rule until decision 18's tests pass, then replaced by it). Get each
     survey's dollars onto the PUF's terms first, then place every record on
     the PUF's dollar scale for that year, with the source label kept. In
     order: population (filing rule), definition (fix in the table builder,
@@ -153,18 +154,42 @@ is to learn whether this is possible, not to finish it.
     the SCF wave for that year). Replaces the rank iteration of
     `minimal/06_wealth_tables.py`, which did not settle in any v4 run.
 
+18. **Translation is learned in pretraining, through an actual layer**
+    (John, 2026-10-16; direction agreed, not yet built). Every shared
+    variable has three layers: the actual amounts (split into components
+    where concepts differ), each source's concept (a known formula over the
+    components), and each source's reported amount (a reporting layer of
+    stated shape with a few learned settings: the chance of reporting
+    rising smoothly with the amount, a dollar factor, known rounding and
+    top-coding). Everything else in the model reads the actual layer. The
+    anchor is fixed from outside: first PUF = actual; later the PUF's own
+    reporting layer from the IRS's audit-based misreporting studies. In
+    training, the true slot is predicted without the source label, the
+    reporting settings are network parameters, survey zeros get true
+    amounts drawn each pass, and downstream variables train on the drawn
+    amounts. Populations must match first (the nonfiler work). The
+    assumptions (anchor, shapes) decide how many hidden holders there are;
+    the transformer decides which households they are. One assumption no
+    data can check, that hidden holders are like reporters with the same
+    amount, gets a sensitivity setting in every run. Full statement,
+    worked example and tests: `design/translation_by_latent_amounts.md`.
+
+    **Rule for learning the reporting settings** (John, 2026-10-16, from
+    test 1): a source's reporting settings are fit only against the
+    model's belief given the variables that source reports truly, with
+    every filled-in or misreported slot hidden, and that belief about true
+    amounts is learned from the anchor source (the PUF) alone. If any
+    input to that belief is itself a fill-in, a wrong setting feeds itself:
+    in test 1 the settings drifted to wrong pairs four times until this was
+    enforced. The fill-ins themselves still use everything on the record.
+    Test 1 (fake survey, PUF = actual) passed on 16 October:
+    `minimal/22_FAKE_SURVEY.md`.
+
 ## Open
 
-- **A model-side answer to the translation problem.** Decision 15 is
-  good enough to reach the stopping point, but it is a rule applied to the
-  data before training. John (2026-10-15) still wants something more
-  foundational: a mechanism inside the transformer that represents how
-  each source reports a shared variable (for example, a true amount plus
-  a source-specific chance of reporting it). That mechanism is what would
-  handle mismatches the data cannot fix, such as a survey zero that hides
-  a real amount. The three in-model attempts so far (E7 to E9 in
-  `minimal/09_RESULTS.md`) failed, for reasons not yet understood; the
-  investigation is `minimal/16_MODEL_SIDE_FIXES.md`.
+- **A model-side answer to the translation problem:** answered in
+  direction by decision 18 (2026-10-16); open until its tests pass. The
+  earlier attempts and why they failed: `minimal/16_MODEL_SIDE_FIXES.md`.
 
 - **Training weights.** D26 (survey weights within income groups, record
   counts across groups, group sizes from IRS counts at generation) is the
@@ -197,6 +222,13 @@ Each should be scorable with the existing scorer
 (`research/rebuild/tests/probes/ev_score.py`) so that one run answers one
 question.
 
+0. **Decision 18's tests first** (John, 2026-10-16), in the order of
+   `design/translation_by_latent_amounts.md`, section 8: a fake survey made
+   from the PUF with planted reporting settings (PUF = actual; done
+   2026-10-16, passed, `minimal/22_FAKE_SURVEY.md`); the same
+   with a definition layer; the PUF's own reporting layer for one item;
+   then the nonfiler work; then the real SCF and CPS. The tests below come
+   after, or alongside where they do not touch translation.
 1. **The weighting rule (D26)** on both the transformer and the trees, on the
    same combined data. Measures: the top 0.1%'s income mix and wealth, the
    middle groups' wealth, tax by AGI group.
@@ -296,6 +328,13 @@ to this list rather than letting them live only in reports.
 
 ## Revision history
 
+- 2026-10-16: decision 18 gets the rule for learning the reporting
+  settings (fit only on what the source reports truly; the true-amount
+  belief from the PUF alone), from test 1 (`minimal/22_FAKE_SURVEY.md`),
+  which passed. Confirmed by John.
+- 2026-10-16: decision 18 (translation learned in pretraining through an
+  actual layer) added; decision 15 marked as the working rule until then;
+  decision 18's tests put first in the next tests.
 - 2026-10-16: decision 3 rewritten as the two inputs to post-training
   (target year; a year mix per variable); decision 10 says the map is the
   target year's, for every record.

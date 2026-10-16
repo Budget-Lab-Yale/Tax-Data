@@ -3,7 +3,7 @@ title: "The translation rule: how a survey's shared variables are put on the PUF
 role: plan
 workstream: rebuild
 status: current
-updated: 2026-10-15
+updated: 2026-10-16
 sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
@@ -53,7 +53,8 @@ totals against the IRS) shows which case applies.
 |---|---|---|---|
 | Survey leaves out small holders | Totals match; survey has fewer units at low amounts, as many or more at high amounts; amounts within a bracket match | Nothing. The model handles the survey's bigger zero slice through the source label. | SCF interest, dividends, capital gains |
 | Survey rounds amounts | Same as above, with spikes at round numbers | Nothing. Rounding is omission below half the rounding unit. | SCF amounts in round thousands |
-| Survey's dollars are systematically low or high | Survey is short (or long) of units at every amount, not only the bottom; totals off by about the same factor | Scale the dollars first. The factor comes from comparing the two files in the range where both report fully, not from the ratio of totals. | CPS dividends at 0.41 of the IRS total |
+| Survey's dollars are systematically low or high | The share of units with any amount matches the PUF's, and every percentile among holders is off by about the same factor (the whole distribution shifts, it does not shrink in count) | Scale the dollars first, or rank among holders. The factor comes from percentiles among holders, not from the ratio of totals. | None checked. CPS dividends at 0.41 of the IRS total could be this, or fewer holders with right amounts (the next row but one), or a missing top; not yet diagnosed |
+| Survey misses holders of every size | Fewer units with any amount, short by about the same factor at every dollar line; amounts among reporters match | Nothing to the dollars: do not scale. The survey's zeros then hide real holders of every size, which only decision 18's model handles | None checked |
 | Survey's variable means something different | Totals off; the by-bracket pattern is not a uniform shift | Fix the definition in the table builder if the components exist. If they do not, the variable is not shared: make it survey-owned, like net worth. | CPS interest includes IRA interest, 2.3 times the IRS |
 | Survey top-codes | Pile-up at the cap, nothing above; totals short at the top | Everything above the cap is absent on the survey side (like net worth on the PUF). The PUF owns the top. | CPS wages, interest, dividends |
 | Survey did not ask the question | Known from documentation | Absent, never zero. | CPS capital gains before 2018 |
@@ -71,6 +72,15 @@ tax-unit construction or the filing rule is not right yet. Now: 143
 million SCF units against 158 million returns for 2019, most likely
 dependents who file their own returns but sit inside their parents' unit
 in the SCF (not checked).
+
+**Correction (2026-10-16).** Until today the "scale" row read "short of
+units at every amount, not only the bottom". That pattern is a survey
+that misses holders of every size with the right dollars, where scaling
+would be wrong (a $1,000 reporter would be placed with $2,400 returns).
+John caught it. The rows now separate the two. The general framing, two
+unknowns per variable (who reports anything; how reported dollars relate
+to true dollars), and the plan to learn both in pretraining, are in
+`design/translation_by_latent_amounts.md` (plan decision 18).
 
 ## What the rule assumes, and what it cannot do
 
@@ -104,4 +114,6 @@ variable, is to be kept in `01_REPORT.md` as surveys are added.
 
 ## Revision history
 
+- 2026-10-16: the scale row corrected and a row for holders missed at
+  every size added; pointer to plan decision 18.
 - 2026-10-15: written after the option B run; confirmed and added to the plan.

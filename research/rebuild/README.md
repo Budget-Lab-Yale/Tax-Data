@@ -170,7 +170,8 @@ numbers; nothing launched and no plan rule changed without his explicit go;
 he decides commits; heavy compute through Slurm.
 
 1. **Nonfilers, starting with a discussion with John.** He wants to talk
-   it through before anything is built. Not open: nonfilers are rows in
+   it through before anything is built. Order agreed 2026-10-16: after the
+   fake-survey tests of item 4, before the real SCF and CPS. Not open: nonfilers are rows in
    pretraining with a filing flag, and the 2015 nonfiler pool enters that
    way (plan decision 7, confirmed by John 2026-10-16). The questions to
    bring: whether the filing model of the CPS nonfiler
@@ -207,9 +208,20 @@ he decides commits; heavy compute through Slurm.
    is the best of them; weighting waves by distance in years starts too
    rich, because wealth grew little from 2016 to 2019 and a lot from 2019
    to 2022.
-4. **To discuss with John:** the true-amount model, with a worked
-   example in `minimal/17_DISCUSSION_2026-10-15.md`, section 9: whether to
-   build it after the nonfiler work, and what could check its assumption.
+4. **Decided on 16 October: translation learned in pretraining**
+   (plan decision 18, `design/translation_by_latent_amounts.md`). Each
+   shared variable gets an actual layer, each source's concept as a known
+   formula, and each source's reported amount through a reporting layer of
+   stated shape. PUF = actual first. Tests in order: a fake survey made
+   from the PUF with planted reporting settings, a definition layer, the
+   PUF's own reporting layer, then nonfilers, then the real SCF and CPS.
+   **Test 1 passed on 16 October** (`minimal/22_FAKE_SURVEY.md`): on a
+   fake survey with small holders hiding their interest and dividends,
+   today's rule put other income of PUF returns with no interest about 18
+   points above what an undistorted survey gives; the latent method, with
+   the reporting settings planted or learned, landed within seed noise of
+   it. Learning the settings needed one rule, now in decision 18: fit
+   them only on what the survey reports truly.
 5. **Not started:** confidence intervals by bootstrap replicates of the
    training data; choosing the year mix by leaving out a wave; training
    noise replicates; E15, the model with a true amount inside it.
@@ -236,6 +248,8 @@ he decides commits; heavy compute through Slurm.
 | Post-training as a network | `minimal/18_DISTILL.md`, `minimal/19_DIRECT.md` |
 | Does the joint model beat separate models for each source? | `minimal/20_SEPARATE_MODELS.md` |
 | Several SCF waves in one model, and priors for 2019 built from them | `minimal/21_PRIORS.md` |
+| Translation learned in pretraining: the actual layer, a worked example, tests | `design/translation_by_latent_amounts.md` |
+| Test 1 of that design: a fake survey made from the PUF | `minimal/22_FAKE_SURVEY.md` |
 | Data, models, generated files, scores | `/nfs/roberts/scratch/pi_nrs36/jar335/minimal/` (not in git) |
 | Superseded documents, including v3 baseline and the two theory drafts | `research/archive/` |
 
