@@ -150,6 +150,10 @@ def generate(model, n, source, with_net_worth, fixed_order, seed, chunk=50_000,
                (other_agi, when the owner is the SCF): None leaves them
                visible, 'mask' hides them behind the mask token, 'absent'
                leaves them out, so the model sees exactly the owner's slots.
+      year     (optional; added 2026-10-16, step 21 second round, plan
+               decision 3) the year token for this draw only, a year of the
+               owner's data. The record keeps its own year token for its own
+               variables; the table gets a column net_worth_year.
     The record itself keeps all its values; only that draw's view changes."""
     preset = preset or {}
     device = next(model.parameters()).device
@@ -201,13 +205,15 @@ def generate(model, n, source, with_net_worth, fixed_order, seed, chunk=50_000,
             filled[rows, slot] = True
         parts.append((values.cpu(), p_drawn.cpu(), q_drawn.cpu()))
     table = to_table(torch.cat([v for v, _, _ in parts]))
+    if borrowed is not None and borrowed.get('year') is not None:
+        table['net_worth_year'] = int(borrowed['year'])
     if boost is not None:
         table['p_band'] = torch.cat([p for _, p, _ in parts]).numpy()
         table['q_band'] = torch.cat([q for _, _, q in parts]).numpy()
     return table
 
 
-def borrowed_draw(model, values, hidden, slot, probs, source, label, foreign):
+def borrowed_draw(model, values, hidden, slot, probs, source, label, foreign, year=None):
     """Replace the probabilities of records whose slot this step is a
     borrowed variable by the model's probabilities under the view set by
     label and foreign (see generate)."""
@@ -219,6 +225,8 @@ def borrowed_draw(model, values, hidden, slot, probs, source, label, foreign):
         view, view_hidden = values.clone(), hidden.clone()
         if label == 'owner':
             view[:, 0] = m.SOURCES.index(owner)
+        if year is not None:
+            view[:, 1] = m.YEARS.index(year)
         for other, other_owner in m.OWNED_BY.items():
             if other_owner == owner:
                 continue                            # a slot the owner has

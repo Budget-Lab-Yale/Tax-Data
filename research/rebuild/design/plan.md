@@ -36,9 +36,28 @@ is to learn whether this is possible, not to finish it.
    levels come from the rank-dollar map. (Until 15 October this read
    "ranks within source and year"; that rule doubled wealth on PUF-style
    records, see `minimal/09_RESULTS.md`.)
-3. **The reference for a year is a rolling prior:** the year token drawn
-   from a kernel around t at generation, bandwidth chosen by held-out
-   waves, one-sided at the forward edge.
+3. **Post-training asks for two inputs** (John, 2026-10-16):
+   - **The target year.** It picks the rank-to-dollar function (decision
+     10) for every variable. For 2019: incomes from the PUF's 2015 values
+     in each slice grown to 2019 by the IRS growth in each item; net worth
+     from the 2019 survey's values in each slice. Every variable is turned
+     into the target year's dollars, whatever year its rank was drawn
+     under.
+   - **A year mix for each variable**, by the years its owning source has.
+     The PUF's variables: 100% 2015, the PUF's only year. A borrowed
+     variable (net worth): a mix over the owner's waves, drawn under the
+     owner's label; the mix is chosen by held-out waves (next test 6), not
+     by distance in calendar years alone.
+   The model works in ranks; the mix decides what kind of record is drawn
+   (who is where), and the target year decides the dollars. The model is
+   never asked about a source in a year that source does not have: giving
+   a whole PUF-style record a 2018 or 2021 year asked for a combination no
+   training record had (`minimal/21_PRIORS.md`, first round). Turning net
+   worth ranks into dollars with the drawn wave's own values, not the
+   target year's, put that wave's wealth level into the file (second
+   round). Open: the net worth function for a target year with no SCF
+   survey. Code: `03_generate.py` (`borrowed={..., 'year': t}`),
+   `04_dollars.py` (`MINIMAL_NW_TARGET_MAP_YEAR`).
 4. **Records enter pretraining; tables enter post-training as targets with
    a precision; tax law enters as a function** between a record and any
    target on a reported amount.
@@ -49,7 +68,7 @@ is to learn whether this is possible, not to finish it.
    years.
 7. **The base includes the 2015 non-filer pool.** Non-filers are rows in
    pretraining with a filing flag; the residual partition is a target per
-   year.
+   year. Not open (confirmed by John 2026-10-16).
 8. **Post-training is by tilting.** Tilt-then-distill, direct gradient and
    policy gradient are written down as fallbacks in that order. The word is
    "tilting," not "raking."
@@ -64,7 +83,8 @@ is to learn whether this is possible, not to finish it.
    the PUF's 11.6%; with the PUF variables first they come out at 11.4%
    (`minimal/20_SEPARATE_MODELS.md`, arm C).
 10. **The rank-dollar map** is a per-variable, per-year sorted list of
-    dollar values. Within-band draws happen before the tilt. All nominal
+    dollar values, for the target year (decision 3), applied to every
+    record whatever year its rank was drawn under. Within-band draws happen before the tilt. All nominal
     growth and within-variable inequality change live in the maps. Identities
     (AGI from parts, wages from the split) are enforced on the drawn amounts.
 11. **Chain across years:** post-train year t+1 starting from year t's
@@ -218,7 +238,7 @@ threshold. Then the order below.
 
 ## Order of work after the minimal example (decided 2026-10-14, late)
 
-The minimal example (`research/rebuild/minimal/`, baseline then `07_BASELINE.md`, now `15_BASELINE_V4.md`)
+The minimal example (`research/rebuild/minimal/`; the first baseline, `07_BASELINE.md`, is now `research/archive/minimal_07_BASELINE_2026-10-14_superseded.md`; the current one is `15_BASELINE_V4.md`)
 showed the chain works on seven variables and one year. John's order for
 what follows, each a delta off that baseline:
 
@@ -276,6 +296,13 @@ to this list rather than letting them live only in reports.
 
 ## Revision history
 
+- 2026-10-16: decision 3 rewritten as the two inputs to post-training
+  (target year; a year mix per variable); decision 10 says the map is the
+  target year's, for every record.
+- 2026-10-16: decision 3 changed: the year prior is per variable, by the
+  years of the variable's owning source.
+- 2026-10-16: decision 7 confirmed as not open; archived path of the
+  first baseline corrected.
 - 2026-10-16: decision 17 uses the SCF's own counts; decision 15 gets the
   population check (weighted unit counts should match the IRS return count).
 - 2026-10-16: decision 9 changed (own-source variables first, borrowed last);

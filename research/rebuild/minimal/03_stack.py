@@ -62,6 +62,16 @@ Settings (environment; added 2026-10-15 for the v4 baseline, 15_BASELINE_V4.md):
                        PUF variables in a random order, then net worth from
                        the boosted conditional. The plain file's default
                        name gets the suffix _ownfirst.
+  MINIMAL_STACK_YEAR   (added 2026-10-16 for step 21, 21_PRIORS.md) the year
+                       token every record of the stack and of its plain files
+                       carries. Default 2015, as before. Any other year adds
+                       _y<year> to the plain file's default name.
+  MINIMAL_STACK_NW_YEAR  (added 2026-10-16, step 21 second round; plan
+                       decision 3) the year token for the net worth draw
+                       only. The PUF variables keep MINIMAL_STACK_YEAR (2015,
+                       the PUF's only year); net worth is drawn under the SCF
+                       label with this year. Adds _nw<year> to the plain
+                       file's default name and a column net_worth_year.
   MINIMAL_STACK_PLAIN  the plain (not oversampled) file the checks compare
                        with. Default: the generation folder's file named
                        above. If the file does not exist it is generated
@@ -109,8 +119,16 @@ elif FOREIGN is not None:
     BORROWED = {'label': 'own', 'foreign': FOREIGN}
 else:
     BORROWED = None
+YEAR = int(os.environ.get('MINIMAL_STACK_YEAR', '2015'))
+assert YEAR in m.YEARS, (YEAR, m.YEARS)
+NW_YEAR = os.environ.get('MINIMAL_STACK_NW_YEAR')
+if NW_YEAR:
+    NW_YEAR = int(NW_YEAR)
+    assert NW_YEAR in m.YEARS and BORROWED is not None, (NW_YEAR, BORROWED)
+    BORROWED = dict(BORROWED, year=NW_YEAR)
 PLAIN = ('gen_puf_with_net_worth' + ('_ownerlabel' if LABEL == 'scf' else '')
-         + (f'_{FOREIGN}' if FOREIGN else '') + ('_ownfirst' if g.ORDER == 'own_first' else ''))
+         + (f'_{FOREIGN}' if FOREIGN else '') + ('_ownfirst' if g.ORDER == 'own_first' else '')
+         + (f'_y{YEAR}' if YEAR != 2015 else '') + (f'_nw{NW_YEAR}' if NW_YEAR else ''))
 PLAIN_PATH = os.environ.get('MINIMAL_STACK_PLAIN', os.path.join(g.GEN_DIR, PLAIN + '.parquet'))
 STACK_DIR = os.environ.get('MINIMAL_STACK_DIR', g.GEN_DIR)
 FOREIGN_TEXT = {None: 'other_agi visible', 'mask': 'other_agi hidden behind the mask token',
@@ -141,7 +159,8 @@ def net_worth_file(model, seed):
     conditional."""
     top = m.positive_bands('net_worth', 0.99, 1.0)
     part = g.generate(model, PER_FILE, 'puf', with_net_worth=True, fixed_order=False,
-                      seed=seed, boost=('net_worth', top, os_.BOOST), borrowed=BORROWED)
+                      seed=seed, boost=('net_worth', top, os_.BOOST), borrowed=BORROWED,
+                      year=YEAR)
     assert part['p_band'].notna().all() and part['q_band'].notna().all()
     part['weight'] = part['p_band'] / part['q_band']
     return part
@@ -159,7 +178,7 @@ def build_stack(model, reuse=None):
             part = net_worth_file(model, seed)
         else:
             part = os_.oversampled_file(model, var, seed, n=PER_FILE, with_net_worth=True,
-                                        borrowed=BORROWED)
+                                        borrowed=BORROWED, year=YEAR)
         part['weight'] *= PER_FILE / part['weight'].sum()
         part['stratifier'] = var
         parts.append(part)
@@ -217,7 +236,7 @@ def main():
                       for v, s in STRATIFIERS.items()},
             'columns': 'as gen_puf_with_net_worth.parquet; weight = p_band / q_band scaled '
                        'so each stratifier part sums to 100,000; stratifier names the part',
-            'draw_order': g.ORDER, 'order': ORDER_TEXT[g.ORDER]}
+            'draw_order': g.ORDER, 'order': ORDER_TEXT[g.ORDER], 'year': YEAR, 'net_worth_year': NW_YEAR or None}
     with open(os.path.join(STACK_DIR, f'gen_meta_{VERSION}.json'), 'w') as f:
         json.dump(meta, f, indent=2)
 
@@ -226,11 +245,11 @@ def main():
         # the plain file under this stack's rule, as gen_puf_with_net_worth (seed 3)
         os.makedirs(os.path.dirname(PLAIN_PATH), exist_ok=True)
         g.generate(model, 200_000, 'puf', with_net_worth=True, fixed_order=False, seed=3,
-                   borrowed=BORROWED).to_parquet(PLAIN_PATH, index=False)
+                   borrowed=BORROWED, year=YEAR).to_parquet(PLAIN_PATH, index=False)
         print('plain file written:', PLAIN_PATH, flush=True)
     plain = pd.read_parquet(PLAIN_PATH)
     plain2 = g.generate(model, len(plain), 'puf', with_net_worth=True, fixed_order=False, seed=35,
-                        borrowed=BORROWED)
+                        borrowed=BORROWED, year=YEAR)
     # kept for the dollar-level checks of the stack (noise yardstick)
     plain2.to_parquet(os.path.join(STACK_DIR, f'gen_plain_seed35_{VERSION}.parquet'), index=False)
     md = ['### Weighted band summary: plain gen_puf_with_net_worth (200,000 records) vs '

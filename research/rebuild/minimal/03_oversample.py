@@ -54,13 +54,14 @@ RUNS = {'kg': ('capital_gains', [11, 12]), 'wages': ('wages', [21, 22])}
 
 
 @torch.no_grad()
-def everything_hidden(model, var, source='puf', with_net_worth=False):
+def everything_hidden(model, var, source='puf', with_net_worth=False, year=2015):
     """The model's distribution of var for a record of this source with
     every predicted slot hidden. with_net_worth adds a net worth slot to a
-    PUF record, as in gen_puf_with_net_worth."""
+    PUF record, as in gen_puf_with_net_worth. year: the year token (added
+    2026-10-16 for step 21; default 2015 as before)."""
     device = next(model.parameters()).device
     values = torch.full((1, len(m.SLOTS)), -1, dtype=torch.long, device=device)
-    values[0, 0], values[0, 1] = m.SOURCES.index(source), m.YEARS.index(2015)
+    values[0, 0], values[0, 1] = m.SOURCES.index(source), m.YEARS.index(year)
     for j, v in enumerate(m.PREDICTED):
         if m.OWNED_BY.get(v, source) == source or (v == 'net_worth' and with_net_worth):
             values[0, g.NC + j] = 0
@@ -74,17 +75,18 @@ def sampling_distribution(p, var):
     return q / q.sum()
 
 
-def oversampled_file(model, var, seed, n=N, with_net_worth=False, borrowed=None):
+def oversampled_file(model, var, seed, n=N, with_net_worth=False, borrowed=None, year=2015):
     # p must be the distribution generate() draws the stratifier from when it
     # goes first. Under 03_generate's own_first order (v4c on) the net worth
     # slot of a PUF record is absent until net worth's turn, so p is taken
     # without it; under the block order (default) with it, masked.
-    p = everything_hidden(model, var, with_net_worth=with_net_worth and g.ORDER == 'block')
+    p = everything_hidden(model, var, with_net_worth=with_net_worth and g.ORDER == 'block',
+                          year=year)
     q = sampling_distribution(p, var)
     bands = torch.multinomial(torch.tensor(q), n, replacement=True,
                               generator=torch.Generator().manual_seed(seed))
     table = g.generate(model, n, 'puf', with_net_worth=with_net_worth, fixed_order=False,
-                       seed=seed, preset={var: bands}, borrowed=borrowed)
+                       seed=seed, preset={var: bands}, borrowed=borrowed, year=year)
     b = bands.numpy()
     table['weight'], table['p_band'], table['q_band'] = p[b] / q[b], p[b], q[b]
     return table

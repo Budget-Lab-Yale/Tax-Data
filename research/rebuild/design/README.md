@@ -3,7 +3,7 @@ title: "Tax-Data rebuild — the one-model design (index)"
 role: index
 workstream: rebuild
 status: current
-updated: 2026-10-14
+updated: 2026-10-16
 sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
@@ -11,7 +11,9 @@ superseded_by: null
 
 # The one-model design
 
-Start here for the rebuild as of 14 October 2026.
+The rebuild as a whole starts at `research/rebuild/README.md` (where things
+stand) and `research/rebuild/minimal/LATEST.md` (the current run). This
+file indexes the design documents only.
 
 | File | What it is |
 |---|---|
@@ -26,6 +28,8 @@ Still current elsewhere in `research/rebuild/`:
   `tests/`.
 - `background/`: the twelve background reports and seven reviews of
   6–7 October.
+- `minimal/`: the minimal example of 14 to 16 October, one numbered
+  report per step; the current run is named in `minimal/LATEST.md`.
 - `tests/`: the experiment code and reports (test 1 `puf_generator/`,
   test 2 `scf_joint/`, test 3 `posttrain/`, test 4 `probes/`, the pooled
   SCF test `pooled_scf/`).
@@ -40,4 +44,5 @@ day. `research/archive/README.md` says what each is still useful for.
 
 ## Revision history
 
+- 2026-10-16: points to the top-level README as the start; lists `minimal/`.
 - 2026-10-14: created.

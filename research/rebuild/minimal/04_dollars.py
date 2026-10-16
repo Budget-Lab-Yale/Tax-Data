@@ -157,13 +157,32 @@ def draw_dollars(df, maps, seed=SEED):
     and the amount's position, and each record's draw is set by its row.
     Returns the new table and, per amount, the count of draws that used a
     fill rule rather than real records, by rule.
+
+    A map given as {year: map rows} (net worth by SCF wave, step 21) is
+    applied by the record's year token: every year's map is drawn over all
+    rows with the same random stream, and each row keeps the draw of its own
+    year, so a record's draw still depends only on its row and its year.
     """
     out, hits = df.copy(), {}
     for i, v in enumerate(AMOUNTS):
         if v not in maps or f'{v}_band' not in df:
             continue
-        rng = np.random.default_rng([seed, i])
-        out[v], rule = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng)
+        bands = df[f'{v}_band'].to_numpy()
+        if isinstance(maps[v], dict):
+            # the variable's own year column if the table has one
+            # (net_worth_year: step 21, second round), else the record's year
+            year = df[f'{v}_year' if f'{v}_year' in df else 'year'].to_numpy()
+            assert set(np.unique(year)) <= set(maps[v]), (v, np.unique(year), list(maps[v]))
+            vals, rule = np.full(len(df), np.nan), np.full(len(df), '', dtype=object)
+            for y, vmap in maps[v].items():
+                here = year == y
+                if here.any():
+                    vy, ry = draw_one(bands, vmap, np.random.default_rng([seed, i]))
+                    vals[here], rule[here] = vy[here], ry[here]
+            out[v] = vals
+        else:
+            rng = np.random.default_rng([seed, i])
+            out[v], rule = draw_one(bands, maps[v], rng)
         filled = rule[(rule != '') & (rule != 'real records')]
         hits[v] = pd.Series(filled, dtype=object).value_counts().to_dict()
     return out, hits
@@ -309,6 +328,23 @@ def puf_maps(year):
     maps = split_by_variable(pd.read_parquet(f'{where}/map_puf_{year}.parquet'))
     maps['net_worth'] = split_by_variable(
         pd.read_parquet(f'{where}/map_scf_2015.parquet'))['net_worth']
+    # MINIMAL_NW_MAP_YEARS (added 2026-10-16 for step 21, 21_PRIORS.md), e.g.
+    # "2015,2018,2021": net worth gets dollars from the SCF wave of the
+    # record's year token, map_scf_nw_<year>.parquet in the same folder
+    # (21_maps.py, all in 2015 dollars). Unset: the one 2015 map, as before.
+    years = [int(y) for y in os.environ.get('MINIMAL_NW_MAP_YEARS', '').split(',') if y.strip()]
+    # MINIMAL_NW_TARGET_MAP_YEAR (added 2026-10-16, step 21 third round; plan
+    # decision 10): every record's net worth rank is turned into dollars with
+    # this one wave's map, whatever year token the rank was drawn under. The
+    # target year's map: 2018 (the 2019 survey) for a 2019 file. Takes
+    # precedence over MINIMAL_NW_MAP_YEARS.
+    target = os.environ.get('MINIMAL_NW_TARGET_MAP_YEAR', '').strip()
+    if target:
+        maps['net_worth'] = split_by_variable(pd.read_parquet(
+            f'{where}/map_scf_nw_{int(target)}.parquet'))['net_worth']
+    elif years:
+        maps['net_worth'] = {y: split_by_variable(pd.read_parquet(
+            f'{where}/map_scf_nw_{y}.parquet'))['net_worth'] for y in years}
     return maps
 
 

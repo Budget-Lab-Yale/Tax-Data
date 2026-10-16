@@ -139,8 +139,9 @@ PUF holds tax units selected on having enough income to file, and the
 SCF holds everyone, so part of these gaps is two populations being
 compared as one. The latest run since then is v4c (16 October,
 `minimal/LATEST.md`): every PUF variable drawn before net worth, which
-fixes the single-parent shortfall, and one base for the wealth counts;
-move 0.018 nats.
+fixes the single-parent shortfall, and one base for the wealth counts
+(the SCF's own units, John's choice); move 0.014 nats (0.018 with every
+count on the IRS return count instead).
 
 ## Decided on 15 October, evening
 
@@ -169,14 +170,14 @@ numbers; nothing launched and no plan rule changed without his explicit go;
 he decides commits; heavy compute through Slurm.
 
 1. **Nonfilers, starting with a discussion with John.** He wants to talk
-   it through before anything is built. The questions to bring: whether the
-   SCF units that would not file are dropped from training, flagged with a
-   filing variable, or kept; whether the filing model of the CPS nonfiler
+   it through before anything is built. Not open: nonfilers are rows in
+   pretraining with a filing flag, and the 2015 nonfiler pool enters that
+   way (plan decision 7, confirmed by John 2026-10-16). The questions to
+   bring: whether the filing model of the CPS nonfiler
    pool in this repository (`src/nonfilers/filing_model.R`,
    `research/state_weights/`) can be applied to SCF units, which lack
    Social Security, pension, business and rental income in the current
-   table builder; whether the 2015 nonfiler pool enters pretraining as rows
-   (plan decision 7); and what the wealth targets cover. Evidence so far:
+   table builder; and what the wealth targets cover. Evidence so far:
    `minimal/15_BASELINE_V4.md`, section 3 (the threshold rule leaves 91
    million SCF units against 158 million returns), and
    `minimal/13_RESULTS_B.md` (30% of SCF units have no wages against 17%
@@ -195,13 +196,21 @@ he decides commits; heavy compute through Slurm.
    (16 October, `minimal/LATEST.md`): John changed the draw order
    (decision 9) and put every wealth count target on one base (decision
    17), which removes the two targets that contradicted each other
-   (`19_DIRECT.md`). One choice remains for John: whether that base is the
-   IRS return count (the default) or the SCF's own units; v4c is tilted
-   both ways.
-3. **To discuss with John:** the true-amount model, with a worked
+   (`19_DIRECT.md`). John chose the SCF's own weighted unit count as that
+   base (16 October), as a stopgap until the SCF's tax units match the
+   IRS's; the same stack tilted on the IRS return count is kept for
+   comparison.
+3. **Done on 16 October: several SCF waves and priors for 2019**
+   (`minimal/21_PRIORS.md`). The v4c setup trained on the 2016, 2019 and
+   2022 waves, and again with the 2019 wave left out; ten mixes of year
+   tokens tilted to the 2019 targets. None beat v4c. The 2015 token alone
+   is the best of them; weighting waves by distance in years starts too
+   rich, because wealth grew little from 2016 to 2019 and a lot from 2019
+   to 2022.
+4. **To discuss with John:** the true-amount model, with a worked
    example in `minimal/17_DISCUSSION_2026-10-15.md`, section 9: whether to
    build it after the nonfiler work, and what could check its assumption.
-4. **Not started:** confidence intervals by bootstrap replicates of the
+5. **Not started:** confidence intervals by bootstrap replicates of the
    training data; choosing the year mix by leaving out a wave; training
    noise replicates; E15, the model with a true amount inside it.
 
@@ -226,7 +235,8 @@ he decides commits; heavy compute through Slurm.
 | The evening discussion: the prior, borrowed variables, the tilt, intervals, targets | `minimal/17_DISCUSSION_2026-10-15.md` |
 | Post-training as a network | `minimal/18_DISTILL.md`, `minimal/19_DIRECT.md` |
 | Does the joint model beat separate models for each source? | `minimal/20_SEPARATE_MODELS.md` |
+| Several SCF waves in one model, and priors for 2019 built from them | `minimal/21_PRIORS.md` |
 | Data, models, generated files, scores | `/nfs/roberts/scratch/pi_nrs36/jar335/minimal/` (not in git) |
 | Superseded documents, including v3 baseline and the two theory drafts | `research/archive/` |
 
-Nothing from 14 or 15 October is committed yet.
+Everything through v4c is committed (`5534b2d`, 16 October).
