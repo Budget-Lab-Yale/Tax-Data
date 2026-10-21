@@ -4,8 +4,9 @@ A record is a list of slots: two context slots (source, year), always shown
 and never predicted, then the predicted slots in a fixed order (PREDICTED).
 Each amount is a band index (band 0 = exactly zero, then the negative bands
 from most negative, then the positive bands in dollar order); married, number
-of dependents and the filing flag are categories. A slot one source never has
-(net worth on the PUF, the PUF-only items on the SCF) is absent: band -1. The
+of dependents, the filing flag and the yes/no business items are categories.
+A slot one source never has (the balance sheet on the PUF, the PUF-only items
+on the SCF) is absent: band -1. The
 network never sees an absent slot and is never asked to predict it.
 
 Training hides a random subset of each record's slots and scores the
@@ -31,15 +32,24 @@ FILER = ['filer']
 KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
 # The table's other items, in table order, each owned by the PUF or on both sources.
 ITEMS = _EDGES['meta']['items']
-CATEGORICAL = ['married', 'n_dep'] + FILER
+CATEGORIES = _EDGES['meta']['categories']          # yes/no items: k1_owner (shared), owns_business (SCF)
+CATEGORICAL = ['married', 'n_dep'] + FILER + list(CATEGORIES)
+# The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
+# unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
+SCF_SLOTS = list(_EDGES['meta']['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
+NET_WORTH_PARTS = dict(_EDGES['meta']['net_worth_parts'])
+RATIOS = {k: tuple(v) for k, v in _EDGES['meta']['ratios'].items()}   # slot: (dollar item, its base)
 PREDICTED = (['married', 'n_dep', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
-             + list(ITEMS) + ['other_agi', 'net_worth'] + FILER)
+             + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
+             + SCF_SLOTS + FILER)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
-OWNED_BY = {'net_worth': 'scf', 'other_agi': 'puf', **{v: 'puf' for v in KG_PIECES + FILER},
+OWNED_BY = {**{v: 'scf' for v in SCF_SLOTS}, 'other_agi': 'puf', **{v: 'puf' for v in KG_PIECES + FILER},
             **{v: 'puf' for v, o in ITEMS.items() if o == 'puf'}}
-# The computed totals: never drawn, computed from their parts after the parts are drawn.
+# The computed totals: never drawn, computed from their parts after the parts are drawn. The same for
+# the computed flags on the PUF side (k1_owner: any of its parts nonzero).
 COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES}, **_EDGES['meta']['computed_totals']}
+COMPUTED_FLAGS = _EDGES['meta']['computed_flags']
 
 
 def column(v):
@@ -66,7 +76,8 @@ def band_layout():
 
 
 BAND_LAYOUT = band_layout()
-N_CHOICES = {'married': 2, 'n_dep': 4, 'filer': 2, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+N_CHOICES = {'married': 2, 'n_dep': 4, 'filer': 2, **{c: 2 for c in CATEGORIES},
+             **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 ZERO_BAND = 0
 
@@ -86,7 +97,7 @@ MASK = 0
 MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4,
-               'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2}
+               'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **{c: 2 for c in CATEGORIES}}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -123,6 +134,8 @@ def read_table():
     for a in AMOUNTS:
         assert table[a + '_band'].between(-1 if a in OWNED_BY else 0, N_CHOICES[a] - 1).all(), a
     assert table.loc[table.source == 'puf', 'filer'].isin([0, 1]).all()
+    for c in CATEGORIES:
+        assert table[c].between(-1 if c in OWNED_BY else 0, 1).all(), c
     for a, owner in OWNED_BY.items():
         assert (table.loc[table.source != owner, column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')

@@ -11,6 +11,7 @@ feeds `src/main.R` yet.
 | `FEATURES.md` | what the pipeline does now |
 | `ROADMAP.md` | what is left between the two |
 | `HISTORY.md` | how we got here, and the paths we tried and dropped |
+| `PERFORMANCE.md` | to do: what training time depends on, and how to keep it manageable as surveys are added |
 
 The full record up to 20 October 2026 (every experiment, report and
 decision) is in `research/archive/rebuild_2026-10/`.
@@ -27,7 +28,7 @@ Every stage runs through Slurm, from the repository root:
 | scf | `build_scf.R` | SCF waves split into tax units (the production builder) | minutes |
 | table | `build_table.py` | the training table, its bands, and the dollar maps | minutes |
 | targets | `targets.py` | the published SOI numbers | seconds |
-| train | `train.py` | the model, with the cell method | about 2 hours on one GPU |
+| train | `train.py` | the model, with the cell method | about 40 minutes on an H100 (28 seconds a pass) |
 | generate | `generate.py` | 400,000 generated records | about 10 minutes |
 | tilt | `tilt.py` | the 2019 weights and file | about 10 minutes |
 

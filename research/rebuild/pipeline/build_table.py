@@ -12,10 +12,19 @@ Variables. married, n_dep (capped at 3), filer, and the amounts:
   wages E00200, taxable interest E00300, ordinary dividends E00600;
   capital gains as line 13 (E01000 + E01100) and its four pieces: short term
     P22250, long term P23250, distributions E01100, other E01000 - P22250 - P23250;
-  business income E00900 + E02000 + E02100 and its eighteen parts (PARTS);
+  business income E00900 + E02000 + E02100 and its eighteen parts (PARTS), and
+    two subtotals of it shared with the SCF: Schedules C and F (sch_cf_income;
+    SCF X5704) and Schedule E (sch_e_income; SCF X5714, which is where the SCF
+    puts partnership and S corporation income);
   the other AGI items (ITEMS), and other_agi = AGI minus everything above;
   gross Social Security plus pensions, and tax-exempt interest (not in AGI);
-  net worth (SCF only).
+  mortgage interest paid E19200 and real estate tax E18500 (itemizers only;
+    PUF only, not in AGI);
+  k1_owner: any partnership or S corporation part nonzero (on the SCF: a
+    partnership, S corporation or LLC interest, from build_scf.R);
+  SCF only: the 20 balance-sheet components (net worth is computed from them),
+    with the home mortgage carried as its share of the home's value
+    (w_primary_ltv); the 4 unrealized gains; owns_business.
 On the PUF the parts add to the totals and the items to AGI, in whole dollars
 (checked).
 
@@ -27,16 +36,16 @@ non-filers are placed on the filers' cut points. On the SCF:
     ones grown to the wave's year by SOI's growth in the item's total;
   - SCF capital losses below -$3,000 are read as -$3,000 first (the limit on
     the return);
-  - business income is cut on the wave's own weighted ranks;
-  - net worth is cut within each wave.
+  - the two business subtotals are cut on the wave's own weighted ranks;
+  - the balance-sheet items are cut within each wave.
 SCF ids of tax years 2018 and 2021 are offset by 1e8 x (year - 2015), the 2013
 wave's by 2.013e12, non-filers' by 9e8, so every id is unique (the held-back
 slice is drawn by household id).
 
 The dollar maps: for each PUF-side amount and band, every record's value and
-weight (and SCF net worth from the 2016 wave); a band with no record gets a
-fill value. The 2019 map grows each value by SOI's 2019-over-2015 growth in
-dollars per return with the item (growth_factors.csv).
+weight (and the SCF balance-sheet items from the 2016 wave); a band with no
+record gets a fill value. The 2019 map grows each value by SOI's 2019-over-2015
+growth in dollars per return with the item (growth_factors.csv).
 
 Writes common.TABLE, common.EDGES, common.MAPS/{map_puf_2015, map_puf_2019,
 map_scf_2015}.parquet and growth_factors.csv, and data/scf_units_2019.parquet
@@ -72,10 +81,13 @@ KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
 ADJ_FIELDS = ['E03150', 'E03210', 'E03220', 'E03230', 'E03240', 'E03260', 'E03270', 'E03290',
               'E03300', 'E03400', 'E03500']
 ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the model's slot order.
-    'business_income': (1, True, 'rank'), 'other_gains': (1, False, None), 'ira_taxable': (1, False, None),
+    'business_income': (1, False, None), 'sch_cf_income': (0, True, 'rank'), 'sch_e_income': (0, True, 'rank'),
+    'other_gains': (1, False, None), 'ira_taxable': (1, False, None),
     'pensions_taxable': (1, False, None), 'ss_taxable': (1, False, None), 'unemployment': (1, False, None),
     'alimony': (1, False, None), 'state_refunds': (1, False, None), 'adjustments': (-1, False, None),
-    'retirement_gross': (0, True, 'unchanged'), 'tax_exempt_interest': (0, True, 'unchanged')}
+    'retirement_gross': (0, True, 'unchanged'), 'tax_exempt_interest': (0, True, 'unchanged'),
+    'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None)}
+NO_GROWTH = ['mortgage_interest', 'real_estate_tax']   # no SOI 1.4 row: kept in 2015 dollars in the 2019 map
 PARTS = {  # part: (PUF field, sign in business income); loss fields are stored positive
     'sch_c': ('E00900', 1), 'part_pass_inc': ('E25940', 1), 'part_nonpass_inc': ('E25980', 1),
     'part_pass_loss': ('E25920', -1), 'part_nonpass_loss': ('E25960', -1), 'part_179': ('E26110', -1),
@@ -84,8 +96,21 @@ PARTS = {  # part: (PUF field, sign in business income); loss fields are stored 
     'rent_loss': ('E25860', -1), 'estate_inc': ('E26390', 1), 'estate_loss': ('E26400', -1),
     'farm_rent': ('E27200', 1), 'sche_other': (None, 1), 'farm': ('E02100', 1)}
 SCHE_PARTS = [p for p, (f, _) in PARTS.items() if f and p not in ('sch_c', 'farm')]
-AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + \
-          ['other_agi', 'net_worth']
+CF_PARTS = ['sch_c', 'farm']                                  # Schedules C and F: the SCF's X5704
+E_PARTS = [p for p in PARTS if p not in CF_PARTS]             # Schedule E: the SCF's X5714
+K1_PARTS = [p for p in PARTS if p.startswith(('part_', 'scorp_'))]
+# The balance sheet (production's wealth_schema.R): net worth is computed from the 20 components. The home
+# mortgage is carried as its share of the home's value (w_primary_ltv), so it is drawn after the home.
+ASSETS = ['cash', 'equities', 'bonds', 'dc', 'db', 'life_ins', 'annuities', 'trusts', 'other_fin', 'pass_throughs',
+          'primary_home', 'other_home', 're_fund', 'other_nonfin']
+DEBTS = ['primary_mortgage', 'other_mortgage', 'credit_lines', 'credit_cards', 'installment_debt', 'other_debt']
+KG_WEALTH = ['kg_primary_home', 'kg_other_re', 'kg_pass_throughs', 'kg_other']
+NET_WORTH_PARTS = {**{'w_' + c: 1 for c in ASSETS}, **{'w_' + c: -1 for c in DEBTS}}
+SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c in DEBTS if c != 'primary_mortgage'] \
+    + ['w_' + c for c in KG_WEALTH]
+PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + ['other_agi']
+AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS
+CATEGORIES = {'k1_owner': 'shared', 'owns_business': 'scf'}   # yes/no items beyond married, n_dep, filer
 SCF_FIXED = ['wages', 'interest', 'dividends', 'capital_gains', 'retirement_gross', 'tax_exempt_interest']
 
 
@@ -163,6 +188,9 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'dividends': [('ordinary dividends', 1)],
     'sch_d_net_gain': [('sales of capital assets reported on form 1040, schedule d > taxable net gain', 1)],
     'kg_dist': [('capital gain distributions reported on form 1040', 1)],
+    'sch_cf_income': NET('business or profession') + NET('farm'),
+    'sch_e_income': NET('partnership and s corporation') + NET('rent') + NET('royalty') + NET('estate and trust')
+    + NET('farm rental'),
     'business_income': NET('business or profession') + NET('partnership and s corporation') + NET('farm')
     + NET('rent') + NET('royalty') + NET('estate and trust') + NET('farm rental'),
     'other_gains': [('sales of property other than capital assets > net gain', 1),
@@ -230,8 +258,8 @@ def per_return_growth(val, item, rows=None, absolute=False):
 def puf_rows():
     fields = ['RECID', 'S006', 'MARS', 'XOCAH', 'XOCAWH', 'XOPAR', 'XOODEP', 'E00100', 'E00200', 'E00300', 'E00400',
               'E00600', 'E00700', 'E00800', 'E00900', 'E01000', 'E01100', 'E01200', 'E01400', 'E01500', 'E01700',
-              'E02000', 'E02100', 'E02300', 'E02400', 'E02500', 'P22250', 'P23250'] + ADJ_FIELDS + \
-             [f for f, _ in PARTS.values() if f and f not in ('E00900', 'E02100')]
+              'E02000', 'E02100', 'E02300', 'E02400', 'E02500', 'E18500', 'E19200', 'P22250', 'P23250'] + \
+        ADJ_FIELDS + [f for f, _ in PARTS.values() if f and f not in ('E00900', 'E02100')]
     raw = pd.read_csv(RAW['puf'], usecols=fields)
     raw = raw[raw.RECID < 999996].reset_index(drop=True)          # the four aggregate records
     assert not raw.isna().any().any() and not raw.RECID.duplicated().any()
@@ -250,18 +278,25 @@ def puf_rows():
              'ira_taxable': I['E01400'], 'pensions_taxable': I['E01700'], 'ss_taxable': I['E02500'],
              'unemployment': I['E02300'], 'alimony': I['E00800'], 'state_refunds': I['E00700'],
              'adjustments': sum(I[c] for c in ADJ_FIELDS), 'retirement_gross': I['E02400'] + I['E01500'],
-             'tax_exempt_interest': I['E00400']}
-    out.update(items)
+             'tax_exempt_interest': I['E00400'], 'mortgage_interest': I['E19200'], 'real_estate_tax': I['E18500']}
     parts = {p: I[f] for p, (f, _) in PARTS.items() if f}
     parts['sche_other'] = I['E02000'] - sum(PARTS[p][1] * parts[p] for p in SCHE_PARTS)
     out.update(parts)
     assert np.array_equal(sum(PARTS[p][1] * parts[p] for p in PARTS), items['business_income'])
+    items['sch_cf_income'] = sum(PARTS[p][1] * parts[p] for p in CF_PARTS)
+    items['sch_e_income'] = sum(PARTS[p][1] * parts[p] for p in E_PARTS)
+    assert np.array_equal(items['sch_cf_income'], I['E00900'] + I['E02100'])
+    assert np.array_equal(items['sch_e_income'], I['E02000'])
+    out.update(items)
+    out['k1_owner'] = np.column_stack([parts[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)
+    out['owns_business'] = -1                                     # SCF only
     out['other_agi'] = I['E00100'] - out['wages'] - out['interest'] - out['dividends'] - out['capital_gains'] - \
         sum(ITEMS[v][0] * items[v] for v in ITEMS)
     df = pd.DataFrame(out)
-    for v in AMOUNTS[:-1]:
+    for v in PUF_AMOUNTS:
         df[v] = df[v].astype(float)
-    df['net_worth'] = np.nan
+    for v in SCF_AMOUNTS:
+        df[v] = np.nan
     return df
 
 
@@ -274,10 +309,11 @@ def nonfiler_rows():
                        'weight': p['weight'].astype(float), 'married': (p['filing_status'] == 2).astype(np.int64),
                        'n_dep': p['n_dep'].clip(upper=3).astype(np.int64), 'filer': 0,
                        'wages': p['wages'] * d, 'interest': p['txbl_int'].clip(lower=0) * d,
-                       'dividends': p['div_pref'] * d, 'capital_gains': 0.0})
+                       'dividends': p['div_pref'] * d, 'capital_gains': 0.0, 'k1_owner': 0, 'owns_business': -1})
     for v in KG_PIECES:
         df[v] = 0.0
     items = {'business_income': (p['sole_prop'] + p['rent'] + p['rent_loss']) * d,
+             'sch_cf_income': p['sole_prop'] * d, 'sch_e_income': (p['rent'] + p['rent_loss']) * d,
              'pensions_taxable': p['txbl_pens_dist'] * d, 'unemployment': p['ui'] * d,
              'retirement_gross': (p['gross_ss'] + p['gross_pens_dist']) * d}
     for v in ITEMS:
@@ -291,8 +327,21 @@ def nonfiler_rows():
     whole = (p['sole_prop'] + p['txbl_pens_dist'] + p['rent'] + p['rent_loss'] + p['ui'] + p['other_inc']) * d
     df['other_agi'] = whole - sum(ITEMS[v][0] * df[v] for v in ITEMS)
     assert np.abs(df['other_agi'] - p['other_inc'] * d).max() < 0.01
-    df['net_worth'] = np.nan
+    for v in SCF_AMOUNTS:
+        df[v] = np.nan
     return df
+
+
+def loan_to_value(s):
+    """The home mortgage as a share of the home's value; zero with no home. A mortgage on a unit with
+    no home value (none expected) is moved to other debt, so net worth is unchanged; the count is printed."""
+    home, mort = s['w_primary_home'].to_numpy(float), s['w_primary_mortgage'].to_numpy(float)
+    stray = (home <= 0) & (mort != 0)
+    common.say(f'  home mortgage with no home value: {int(stray.sum())} rows, moved to other debt')
+    s.loc[stray, 'w_other_debt'] = s.loc[stray, 'w_other_debt'] + s.loc[stray, 'w_primary_mortgage']
+    s.loc[stray, 'w_primary_mortgage'] = 0.0
+    s['w_primary_ltv'] = np.where(home > 0, s['w_primary_mortgage'] / np.where(home > 0, home, 1.0), 0.0)
+    return s
 
 
 def scf_rows():
@@ -303,13 +352,18 @@ def scf_rows():
         off = WAVE_2013_ID_OFFSET if wave == 2013 else 1e8 * (y - 2015)
         s['record_id'] += off
         s['household_id'] += off
+        s['sch_cf_income'], s['sch_e_income'] = s['business_income'], s['rent_royalty_estate']
         s['business_income'] = s['business_income'] + s['rent_royalty_estate']   # Schedules C, E and F together
         s['capital_gains'] = np.maximum(s['capital_gains'], np.where(s['capital_gains'] < 0, LOSS_CAP, -np.inf))
-        s = s.assign(source='scf', filer=-1)
-        waves.append(s)
+        common.say(f'wave {wave}:')
+        s = loan_to_value(s.assign(source='scf', filer=-1))
         if wave == 2019:
-            s.assign(net_worth_2015_dollars=s['net_worth'] * s['asset_factor'] / NW_2016_WAVE_TO_2015) \
+            f = s['asset_factor'] / NW_2016_WAVE_TO_2015
+            dollars = list(NET_WORTH_PARTS) + ['w_' + c for c in KG_WEALTH]
+            s.assign(net_worth_2015_dollars=s['net_worth'] * f, **{c + '_2015_dollars': s[c] * f for c in dollars}) \
                 .to_parquet(f'{common.DATA}/scf_units_2019.parquet', index=False)
+        s['business_income'] = np.nan     # PUF only: on the SCF it is its two subtotals
+        waves.append(s)
     s = pd.concat(waves, ignore_index=True)
     for v in AMOUNTS:
         if v not in s:
@@ -337,7 +391,7 @@ def band_table(t):
     edges = {}
     for v in AMOUNTS:
         t[f'{v}_band'] = np.int16(-1)
-    for v in AMOUNTS[:-1]:                       # cut on the PUF filers, applied to the whole PUF side
+    for v in PUF_AMOUNTS:                        # cut on the PUF filers, applied to the whole PUF side
         b, rec = band_variable(t.loc[filers, v].to_numpy(float), w[filers])
         edges[f'puf/2015/{v}'] = rec
         t.loc[pside, f'{v}_band'] = band_variable(t.loc[pside, v].to_numpy(float), w[pside], grown_edge(rec, 1.0))[0]
@@ -347,11 +401,10 @@ def band_table(t):
             b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel], grown_edge(edges[f'puf/2015/{v}'], factor[(v, y)]))
             rec['cut_rule'] = f'PUF 2015 positive cuts x SOI factor {factor[(v, y)]:.4f}'
             t.loc[sel, f'{v}_band'], edges[f'scf/{y}/{v}'] = b, rec
-        for v, rule in [('business_income', "rank: the wave's own weighted ranks at the PUF's band shares"),
-                        ('net_worth', None)]:
+        for v, rule in [(v, "rank: the wave's own weighted ranks at the PUF's band shares")
+                        for v in ('sch_cf_income', 'sch_e_income')] + [(v, 'within the wave') for v in SCF_AMOUNTS]:
             b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
-            if rule:
-                rec['cut_rule'] = rule
+            rec['cut_rule'] = rule
             t.loc[sel, f'{v}_band'], edges[f'scf/{y}/{v}'] = b, rec
     for v in AMOUNTS:
         b, x = t[f'{v}_band'], t[v]
@@ -359,7 +412,14 @@ def band_table(t):
         t[f'{v}_band'] = b.astype('int16')
     item_order = list(ITEMS) + list(PARTS)
     edges['meta'] = {'items': {v: ('shared' if v in ITEMS and ITEMS[v][1] else 'puf') for v in item_order},
-                     'computed_totals': {'business_income': {p: s for p, (_, s) in PARTS.items()}},
+                     'computed_totals': {'business_income': {p: s for p, (_, s) in PARTS.items()},
+                                         'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
+                                         'sch_e_income': {p: PARTS[p][1] for p in E_PARTS}},
+                     'categories': CATEGORIES,
+                     'computed_flags': {'k1_owner': K1_PARTS},
+                     'scf_amounts': SCF_AMOUNTS,
+                     'net_worth_parts': NET_WORTH_PARTS,
+                     'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home']},
                      'scf_growth_factors': {f'{v} {y}': f for (v, y), f in factor.items()}}
     return t, edges
 
@@ -369,9 +429,13 @@ def fill_value(edge, band):
     """The map value for a band with no record: a lump band's cut, else the band's own edge."""
     pos0 = edge['n_bands'] - (len(edge['positive']['cuts']) + 1)
     n_neg = pos0 - 1
-    if 1 <= band <= n_neg and edge['negative']['bands_used'] == 0:
+    k = edge['negative']['bands_used']
+    if 1 <= band <= n_neg and k == 0:
         return 0.0, 'no negatives in data: zero'
-    assert edge['negative']['bands_used'] in (0, n_neg), 'unexpected negative band count'
+    if 1 <= band <= n_neg and band > k:        # an item with few losses uses fewer than n_neg loss bands
+        c = edge['negative']['cuts']
+        return (float(c[-1]) if c else -1.0), "loss band beyond this item's loss bands: its least negative cut"
+    n_neg = k if 1 <= band <= n_neg else n_neg
     if band >= pos0:
         cuts, i = edge['positive']['cuts'], band - pos0
         lo, hi = (cuts[i - 1] if i >= 1 else 0.0), (cuts[i] if i < len(cuts) else None)
@@ -402,10 +466,9 @@ def build_map(df, edges, source, variables, year=2015):
 def build_maps(t, edges):
     os.makedirs(common.MAPS, exist_ok=True)
     pside = t[t.source == 'puf'].reset_index(drop=True)
-    puf_vars = AMOUNTS[:-1]
-    m15 = build_map(pside, edges, 'puf', puf_vars)
+    m15 = build_map(pside, edges, 'puf', PUF_AMOUNTS)
     m15.to_parquet(f'{common.MAPS}/map_puf_2015.parquet', index=False)
-    build_map(t[(t.source == 'scf') & (t.year == 2015)].reset_index(drop=True), edges, 'scf', ['net_worth']) \
+    build_map(t[(t.source == 'scf') & (t.year == 2015)].reset_index(drop=True), edges, 'scf', SCF_AMOUNTS) \
         .to_parquet(f'{common.MAPS}/map_scf_2015.parquet', index=False)
     # growth to 2019, per return with the item: (factor for positive values, for negative values)
     val = soi_table([2015, 2019])
@@ -415,9 +478,10 @@ def build_maps(t, edges):
     g = {v: (f, f) for v, f in g.items()}
     g.update({'capital_gains': (sch_d, 1.0), 'kg_st': (sch_d, 1.0), 'kg_lt': (sch_d, 1.0), 'kg_other': (sch_d, 1.0),
               'kg_dist': (per_return_growth(val, 'kg_dist'), 1.0)})   # losses: the $3,000 cap is nominal
-    for v in list(ITEMS) + ['other_agi']:
+    for v in [v for v in ITEMS if v not in NO_GROWTH] + ['other_agi']:
         f = per_return_growth(val, v)
         g[v] = (f, f)
+    g.update({v: (1.0, 1.0) for v in NO_GROWTH})
     for p, (pos_rows, neg_rows) in PART_GROWTH.items():
         fp = per_return_growth(val, 'business_income') if pos_rows == 'business_income' else \
             per_return_growth(val, None, rows=pos_rows, absolute=True)
@@ -441,9 +505,10 @@ def main():
     assert not t.duplicated(['source', 'record_id']).any()
     t, edges = band_table(t)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer'] + \
-        AMOUNTS + [f'{v}_band' for v in AMOUNTS]
+        list(CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS]
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
-    for c in ['year', 'married', 'n_dep', 'filer']:
+    for c in ['year', 'married', 'n_dep', 'filer'] + list(CATEGORIES):
+        assert not t[c].isna().any(), c
         t[c] = t[c].astype(np.int64)
     t[keep].to_parquet(common.TABLE, index=False)
     json.dump(edges, open(common.EDGES, 'w'), indent=1)

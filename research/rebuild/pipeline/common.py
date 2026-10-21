@@ -8,6 +8,9 @@ Every choice of the current run is in settings.json. Outputs go under OUT
   gen/      the generated records                                  (generate.py)
   tilt/     the 2019 weights and the final file                    (tilt.py)
 REBUILD_OUT overrides OUT; REBUILD_SEED the training seed; REBUILD_PASSES the passes (for a quick test).
+For side-by-side variants: REBUILD_NETWORK, REBUILD_TRAINING and REBUILD_GENERATION (JSON) override
+those blocks of settings.json, REBUILD_RUN names the model/gen/tilt subfolder (default seed<n>), and
+REBUILD_MODEL_RUN generates from another run's model.
 """
 import json
 import os
@@ -24,9 +27,12 @@ TABLE = f'{DATA}/table.parquet'
 EDGES = f'{DATA}/band_edges.json'
 MAPS = f'{DATA}/maps'
 TARGETS = f'{OUT}/targets'
-MODEL = f'{OUT}/model/seed{SEED}'
-GEN = f'{OUT}/gen/seed{SEED}'
-TILT = f'{OUT}/tilt/seed{SEED}'
+for _block in ['network', 'training', 'generation']:
+    SETTINGS[_block].update(json.loads(os.environ.get(f'REBUILD_{_block.upper()}', '{}')))
+RUN = os.environ.get('REBUILD_RUN', f'seed{SEED}')
+MODEL = f'{OUT}/model/{os.environ.get("REBUILD_MODEL_RUN", RUN)}'
+GEN = f'{OUT}/gen/{RUN}'
+TILT = f'{OUT}/tilt/{RUN}'
 
 
 def say(*parts):

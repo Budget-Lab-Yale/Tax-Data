@@ -73,6 +73,32 @@ pipeline rewritten to reproduce the latest run (`FEATURES.md`). Checks:
   themselves differ because a different GPU rounds differently;
 - the training script ran a 4-pass test; it was not rerun to 80 passes.
 
+**20–21 October: the balance sheet.** Overnight explorations (reports in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-20/` and
+`2026-10-21/`), then John's decisions of 21 October (`2026-10-21/DECISIONS.md`):
+- **Real PUF records with model-drawn net worth** cost the same to tilt as
+  the synthetic file and keep the business patterns no target covers; net
+  worth comes out the same. Not adopted yet; no decision taken.
+- **The 20-item balance sheet in place of net worth alone:** the large items
+  came out within about 10% of the SCF with no item targets. Adopted, with
+  net worth computed from the items.
+- **Mortgages above the home's value** were 6.2% against the SCF's 1.5%,
+  4.15 points of it from the model's choice of bands. Adopted: the mortgage
+  as a share of the home's value.
+- **The SCF's business items:** X5704 is Schedules C and F, X5714 is
+  Schedule E. Business income with no business equity in the SCF is
+  explained by its answers (mostly self-employed people with nothing to
+  sell). Adopted: the two subtotals shared, a shared partnership/S
+  corporation/LLC flag, an SCF "owns a business" item.
+- **Consistency rules at generation** for rent, partnership and S
+  corporation items, mortgage interest and real estate tax. Not for
+  dividends (John's call).
+- **Learning rate:** peaks of 0.001 to 0.01, two or three seeds each, on the
+  balance-sheet table. Higher rates raised the top income group's net worth
+  before the tilt toward the SCF's and lowered the bottom group's, at a
+  slightly worse held-back fit; 0.003 adopted. A network six times larger,
+  50 passes and a fixed drawing order were within seed noise.
+
 ## Paths tried and not taken
 
 | What | Why not |

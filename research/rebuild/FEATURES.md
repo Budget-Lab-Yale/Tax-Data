@@ -1,8 +1,9 @@
 # What the pipeline does now
 
 The current run ("latest") produces a 2019 file of tax units: every PUF
-variable, plus net worth from the SCF, weighted to 2019 targets. The code is
-in `pipeline/`; every setting is in `pipeline/settings.json`.
+variable, plus the household balance sheet from the SCF (20 items, with net
+worth computed from them), weighted to 2019 targets. The code is in
+`pipeline/`; every setting is in `pipeline/settings.json`.
 
 ## Data
 
@@ -23,14 +24,42 @@ in `pipeline/`; every setting is in `pipeline/settings.json`.
   adjustments, and the rest of AGI ("other income");
 - two items outside AGI: gross Social Security plus pensions, and
   tax-exempt interest;
+- two itemized deductions (PUF only, itemizers only): mortgage interest
+  paid and real estate tax. They are kept in 2015 dollars in the 2019 file
+  (SOI Table 1.4 has no row to grow them by);
 - business income in its 18 PUF parts: Schedule C; partnership and
   S corporation income, losses and section 179, passive and nonpassive;
-  rents, royalties, estates and trusts; farm rental; farm;
-- net worth (SCF only).
+  rents, royalties, estates and trusts; farm rental; farm. Business income
+  is computed from the parts, and so are two subtotals of it: Schedules C
+  and F, and Schedule E;
+- whether the unit holds a partnership, S corporation or LLC interest
+  (on the PUF: any partnership or S corporation part nonzero);
+- the balance sheet (SCF only), the 20 items of production's wealth
+  schema: 14 assets (deposits; stocks and stock funds; bonds and bond
+  funds; IRAs and DC accounts; DB account balances; cash-value life
+  insurance; annuities; trusts; other financial; business equity; the
+  home; other residential real estate; nonresidential real estate;
+  vehicles and other nonfinancial) and 6 debts (home mortgage; debt on
+  other residential property; other lines of credit; credit cards;
+  installment loans; other debt). Net worth is computed from them. The
+  home mortgage is carried as its share of the home's value;
+- the 4 unrealized gains (home, other real estate, business, stocks and
+  funds) and whether the unit owns any private business (SCF only).
 
 The sources share married, dependents, wages, interest, dividends, capital
-gains, business income, gross retirement income and tax-exempt interest.
-The rest belong to one source; on the other source the slot is absent.
+gains, the two business subtotals, the partnership/S corporation/LLC flag,
+gross retirement income and tax-exempt interest. The rest belong to one
+source; on the other source the slot is absent.
+
+**Business items on the SCF.** The SCF's two business income questions
+follow the tax return: X5704 is Schedules C and F, X5714 is Schedule E
+(where partnership and S corporation income goes). The ownership items come
+from the SCF's business section: owns any private business (X3103 or
+X3401); a partnership, S corporation or LLC interest (the legal form of
+actively managed businesses 1 and 2, X3119 and X3219, or a non-actively
+managed one, X3407, X3411, X3451, X3415). Both are household answers; each
+goes to the unit that holds the household's business equity, or to the
+respondent's unit when that equity is zero.
 
 **Amounts as bands.** Each amount is coded as one of 84 bands:
 - band 0 is exactly zero;
@@ -48,7 +77,9 @@ band.
   the PUF's cut points, grown by SOI to each wave's year. The SCF's own
   pattern of zeros stays visible, through a source label the model always
   sees.
-- **Business income** is placed by its rank within each SCF wave.
+- **The two business subtotals** are placed by their rank within each SCF
+  wave.
+- **The balance sheet** is banded within each SCF wave.
 - **Capital losses** below −$3,000 in the SCF are read as −$3,000, the
   deductible limit on the return.
 - **The cell method, during training.** Many SCF households that report
@@ -67,7 +98,11 @@ band.
   of the form "this variable, given those".
 - **Weights.** Survey weights are used as they are, rescaled within each
   source.
-- **Training.** 80 passes, all records but a 2% held-back slice.
+- **Training.** 80 passes, all records but a 2% held-back slice. Peak
+  learning rate 0.003: in a sweep of 0.001 to 0.01 (two or three seeds
+  each, 21 October), it brought the top income group's net worth before
+  the tilt close to the SCF's, at a slightly worse fit on the average
+  held-back record.
 - **Why no dropout.** Dropout made rare items come out 10–20% too low
   (`HISTORY.md`).
 
@@ -75,13 +110,33 @@ band.
 
 **One record is drawn slot by slot:**
 1. the PUF variables, in a random order;
-2. line-13 capital gains and business income, computed from their parts;
-3. net worth last, as the SCF would see the household (SCF label,
-   PUF-only variables left out).
+2. line-13 capital gains, business income and its two subtotals, computed
+   from their parts; then the partnership/S corporation/LLC flag;
+3. the SCF-only items last, in a random order (the mortgage share after the
+   home), as the SCF would see the household (SCF label, PUF-only variables
+   left out). Net worth is computed from the balance sheet in dollars.
+
+**Consistency rules.** When a PUF item implies a holding, that holding
+cannot be drawn as zero:
+
+| On the return | Must hold at least one of |
+|---|---|
+| rental income or loss | other residential real estate, nonresidential real estate |
+| any partnership or S corporation item | a private business (it may be valued at zero), other residential or nonresidential real estate |
+| mortgage interest paid | a home, and a mortgage on it |
+| real estate tax paid | a home, other residential real estate |
+
+Where several holdings would do, the one that must be nonzero is picked
+when the first of them comes up, in proportion to the model's own chance
+that each is nonzero. Ruling out zero sets the model's chance of zero to
+nothing and rescales the rest; the model still decides the size. With no
+home, the mortgage share is zero. Generation prints, for each holding, how
+many draws were forced and how many of those the model alone would have
+drawn as zero.
 
 **The stack.** 400,000 records in four parts. Each part oversamples the
 top 1% of one variable (wages, long-term gains, S corporation nonpassive
-income, net worth). Weights undo the oversampling exactly.
+income, business equity). Weights undo the oversampling exactly.
 
 ## Post-training: the 2019 file
 
@@ -105,15 +160,44 @@ that meets:
 
 ## How the latest run comes out
 
-Before the tilt:
-- partnership nonpassive holders 1.24% against the PUF's 1.33%;
-- business income 90% of the PUF's;
-- net worth $99 trillion against the SCF's $96 trillion.
+The balance-sheet run of 21 October, three seeds (20261016–18), outputs
+under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`; full tables in
+`explore/2026-10-21/compare_latest.md`. The previous latest (one net worth
+item) is kept in `previous_2026-10-20/`. Nominal 2019 dollars; ranges are
+over the three seeds.
 
-After the tilt:
-- every target met;
-- 90% of the effective sample kept;
-- median net worth $90,800 (SCF $91,100);
-- top 1% share 38.4% (SCF 38.4%).
+**The tilt:** every IRS target and all 140 business targets met exactly in
+every seed; 89.8–90.8% of the effective sample kept.
+
+**Net worth before the tilt:** $96.5–107.5 trillion (SCF $96.1 trillion).
+
+**After the tilt:**
+
+| | File | SCF 2019 |
+|---|---:|---:|
+| median net worth | $90,900–91,000 | $91,050 |
+| mean net worth, income under $25k | $125,000–131,000 | $78,900 |
+| mean net worth, income $1 million and over | $16.0–18.3 million | $26.2 million |
+| homeowners | 62.5–63.1% | 63.4% |
+| home mortgage holders | 45.1–46.8% | 41.6% |
+| home mortgage dollars | $12.3–12.8 trillion | $9.8 trillion |
+| mortgage above the home's value (% of mortgagors) | 2.9–3.3% | 1.5% |
+| other residential real estate holders | 15.7–17.7% | 12.7% |
+| business equity holders | 12.1–12.6% | 11.4% |
+| stocks outside retirement, holders | 16.2–17.3% | 19.2% |
+| dividends over $1,000 with no stocks (no rule) | 18.8–21.0% | 18.7% |
+
+Every consistency rule holds on every record (0% breaks).
+
+**What the rules add.** Of the draws each rule forced, the share the model
+alone would have drawn as zero, as a share of all holders in the stack
+(unweighted draws): home about 6%; home mortgage about 10%; other
+residential real estate about 25%; nonresidential real estate about 24%;
+owning a business about 0.1%. Nothing takes these holders back elsewhere, so
+mortgages and other real estate come out above the SCF.
+
+The previous latest (one net worth item, 20 October), after the tilt:
+median $90,850, income $1 million and over $17.2 million, income under $25k
+$121,400; 90% of the effective sample kept.
 
 Known gaps are listed at the end of `ROADMAP.md`.

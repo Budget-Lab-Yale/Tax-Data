@@ -22,10 +22,14 @@ divergence, that meets the targets (Newton's method on the dual). Targets:
     above the SCF's 99th, 90th and 50th percentile lines, total net worth,
     units above $1 million. Counts are the SCF's share above each line times
     the file's units (returns plus non-filers); dollars are the SCF's own.
+    Net worth is computed from the drawn balance sheet.
+If the exact tilt fails even with the business fallback, every target is set
+to 2% so the run still writes its tables; summary.md says so.
 
-Writes, in common.TILT: weights.parquet, file_2019.parquet (every record,
-2019 dollars, net worth in 2015 and 2019 dollars, weights before and after),
-fit.csv (every target, before and after), summary.md.
+Writes, in common.TILT: file_2019.parquet (every record, 2019 dollars, net
+worth in 2015 and 2019 dollars, each balance-sheet item and unrealized gain in
+2019 dollars, weights before and after), fit.csv (every target, before and
+after), summary.md.
 """
 import os
 
@@ -270,7 +274,12 @@ def main():
         tol[len(irs) + 1:len(irs) + 1 + len(bus)] = S['business_fallback_tolerance']
         w1, ok = tilt(w0, F, T, tol)
         form = f"{100 * S['business_fallback_tolerance']:.0f}% tolerance"
-    assert ok, 'the tilt did not converge'
+    if not ok:   # keep going so the run still writes its tables, and say so in the summary
+        tol[:] = np.maximum(tol, 0.02)
+        w1, ok = tilt(w0, F, T, tol)
+        form = 'every target at 2% tolerance (exact did not converge)' if ok else \
+            'DID NOT CONVERGE: weights are the last iterate'
+        common.say('tilt fallback:', form)
 
     # outputs
     fit = cells.assign(before=F.T @ w0, after=F.T @ w1)
@@ -278,6 +287,9 @@ def main():
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
     out = g19.assign(net_worth_2015_dollars=x, net_worth_2019_dollars=x * NW_TO_2019,
                      weight_start=w0, weight=w1).drop(columns=['net_worth'])
+    for c in list(D.NET_WORTH_PARTS) + [v for v in D._META['scf_amounts'] if v.startswith('w_kg_')]:
+        out[c + '_2019_dollars'] = g15[c].to_numpy(float) * NW_TO_2019   # drawn in the 2016 wave's dollars
+        out = out.drop(columns=[c])
     out.to_parquet(f'{common.TILT}/file_2019.parquet', index=False)
     u = pd.read_parquet(f'{common.DATA}/scf_units_2019.parquet')
     nw = net_worth_table({

@@ -17,7 +17,12 @@
 # all eight could split couples' interest slightly differently.)
 # Split-off units (taxunit_code >= 3; their wealth is not asked) are dropped.
 # Net worth: the builder's wealth (2022 dollars) over the wave's asset price
-# factor (SAVBND / X3902), which puts it in the interview year's dollars.
+# factor (SAVBND / X3902), which puts it in the interview year's dollars. The
+# same for the builder's 20 balance-sheet components and 4 unrealized gains
+# (src/imputations/wealth_schema.R), carried as w_<name>.
+# Business ownership from the raw business section (BUSINESS_ITEMS below):
+# owns_business (owns any private business) and k1_owner (a partnership,
+# S corporation or LLC interest).
 #
 # Writes {out}/data/scf_units_{wave}.csv.gz, one row per tax unit and
 # implicate. Run from the repository root through Slurm (run.sbatch, stage scf).
@@ -40,6 +45,12 @@ stopifnot(length(defs) == 2)
 for (e in defs) eval(e, envir = globalenv())
 
 minus_one_to_zero = function(x) if_else(x == -1, 0, x)
+# Business section: owns a private business (X3103), owns a business not actively managed (X3401); legal
+# form of actively managed businesses 1 and 2 (X3119, X3219: 1 partnership, 3 S corporation, 11 and 12
+# limited partnership, LLP or LLC); not actively managed limited partnerships (X3407), other partnerships
+# (X3411), LLCs (X3451) and S corporations (X3415).
+BUSINESS_ITEMS = c('x3103', 'x3401', 'x3119', 'x3219', 'x3407', 'x3411', 'x3451', 'x3415')
+K1_FORMS = c(1, 3, 11, 12)
 
 run_builder = function(scfp, carriers, raw_path, wave, tag) {
   mod = as_tibble(scfp) %>% select(-all_of(setdiff(names(carriers), 'Y1'))) %>%
@@ -56,7 +67,7 @@ for (wave in settings$paths$raw$scf_waves) {
   raw_path = file.path(dir, sprintf('p%02di6.dta', wave %% 100))
   scfp = fread(file.path(dir, sprintf('SCFP%d.csv', wave)))
   hh = read_dta(raw_path, col_select = all_of(c('y1', 'yy1', 'x42001', 'x3902', 'x5702', 'x5704', 'x5706',
-                                                 'x5708', 'x5710', 'x5712', 'x5714', 'x5722'))) %>%
+                                                 'x5708', 'x5710', 'x5712', 'x5714', 'x5722', BUSINESS_ITEMS))) %>%
     mutate(across(everything(), as.numeric))
   names(hh) = toupper(names(hh))
   stopifnot(!anyDuplicated(hh$Y1), !anyNA(hh), nrow(hh) == nrow(scfp))
@@ -78,6 +89,33 @@ for (wave in settings$paths$raw$scf_waves) {
               married = as.integer(married == 1 & filestat == 2), n_dep = as.integer(pmin(n_dep, 3)),
               wages = wages_scf, interest = int_div_scf, dividends = rent_scf,
               capital_gains = capital_gains_scf, net_worth, asset_factor = asset_factor)
+  # the 20 balance-sheet components and the 4 unrealized gains, in the interview year's dollars
+  comps = as_tibble(as.matrix(tu[keep, c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)]) / asset_factor)
+  names(comps) = paste0('w_', names(comps))
+  stopifnot(nrow(comps) == nrow(units), !anyNA(comps))
+  units = bind_cols(units, comps)
+  stopifnot(max(abs(rowSums(as.matrix(units[, paste0('w_', wealth_asset_vars)])) -
+                    rowSums(as.matrix(units[, paste0('w_', wealth_debt_vars)])) - units$net_worth)) < 1e-3)
+
+  # Business ownership, asked of the household (per implicate): owns any private business, and holds a
+  # partnership, S corporation or LLC interest. Each goes to the units holding the household's business
+  # equity, or to the respondent's unit (code 1) when that equity is zero, or to the household's first
+  # unit when no unit has code 1.
+  biz = hh %>% transmute(Y1, owns = X3103 == 1 | X3401 == 1,
+                         k1 = X3119 %in% K1_FORMS | X3219 %in% K1_FORMS | X3407 == 1 | X3411 == 1 |
+                           X3451 == 1 | X3415 == 1)
+  stopifnot(all(biz$owns | !biz$k1))
+  ub = tibble(Y1 = tu$scf_hh_id[keep] * 10 + tu$implicate[keep], code = tu$taxunit_code[keep],
+              bus = tu$pass_throughs[keep]) %>%
+    left_join(biz, by = 'Y1') %>% group_by(Y1) %>%
+    mutate(rule = if (any(bus > 0)) 'equity' else if (any(code == 1)) 'respondent' else 'first unit',
+           holder = if (any(bus > 0)) bus > 0 else if (any(code == 1)) code == 1 else row_number() == 1) %>%
+    ungroup()
+  stopifnot(!anyNA(ub$owns), nrow(ub) == nrow(units))
+  print(ub %>% filter(owns) %>% distinct(Y1, rule) %>% count(rule, name = 'household-implicates owning a business'))
+  stopifnot(nrow(biz %>% filter(owns) %>% anti_join(ub %>% filter(holder), by = 'Y1')) == 0)
+  units = units %>% mutate(owns_business = as.integer(ub$owns & ub$holder),
+                           k1_owner = as.integer(ub$k1 & ub$holder))
 
   all8 = basic %>% left_join(hh %>% transmute(Y1, BUSSEFARMINC = X5704, TRANSFOTHINC = X5714,
                                              SSRETINC = X5722, INCOME = X5706), by = 'Y1')

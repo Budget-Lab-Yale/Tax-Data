@@ -26,7 +26,7 @@
   "seed": 20261016,
   "passes": 80,
   "batch": 4096,
-  "peak_learning_rate": 0.001,
+  "peak_learning_rate": 0.003,
   "warmup_passes": 3,
   "final_learning_rate_share": 0.05,
   "weight_decay": 0.01,
@@ -176,7 +176,7 @@
   "fill_from_pass": 3
  },
  "generation": {
-  "_what": "A stack of four files of 100,000 PUF records each. Each oversamples the top 1% of one variable (the bands covering the top 1% of its positive weight drawn ten times as often) and carries importance weights that undo it. PUF variables are drawn in a random order per record; the computed totals are then computed from their parts; net worth is drawn last, under the SCF label, with the PUF-only variables left out.",
+  "_what": "A stack of four files of 100,000 PUF records each. Each oversamples the top 1% of one variable (the bands covering the top 1% of its positive weight drawn ten times as often) and carries importance weights that undo it. PUF variables are drawn in a random order per record; the computed totals are then computed from their parts; the balance sheet is drawn last, under the SCF label, with the PUF-only variables left out. The fourth file oversamples business equity, the most concentrated item of the balance sheet (net worth itself is computed, not drawn).",
   "records_per_file": 100000,
   "boost": 10.0,
   "top_share": 0.01,
@@ -184,7 +184,7 @@
    "wages": 31,
    "kg_lt": 32,
    "scorp_nonpass_inc": 33,
-   "net_worth": 34
+   "w_pass_throughs": 34
   },
   "year": 2015
  },

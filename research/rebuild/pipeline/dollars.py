@@ -2,7 +2,7 @@
 
 The model works in bands. A record's dollars in a band are drawn from that
 band's real records ("the map", built by build_table.py): the PUF's dollar
-values for PUF variables, the SCF's for net worth, each record's chance of
+values for PUF variables, the SCF's for the balance sheet, each record's chance of
 being picked proportional to its weight. The 2019 map is the 2015 map grown
 by the IRS growth per return holding each item (build_table.py); negative
 capital gains are not grown (the $3,000 cap is nominal).
@@ -14,6 +14,8 @@ After the draws, the pieces are put on the definitions the IRS targets use:
   other_agi       AGI minus wages, interest, dividends and capital gains:
                   the drawn remainder plus kg_dist plus the AGI items folded
                   back in (FOLD); the remainder alone is other_agi_remainder
+  net_worth       the 14 assets less the 6 debts; the home mortgage is its
+                  drawn share of the home's value times the home's dollars
 """
 import json
 
@@ -30,20 +32,26 @@ ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_wo
          'sch_c', 'part_pass_inc', 'part_nonpass_inc', 'part_pass_loss', 'part_nonpass_loss', 'part_179',
          'scorp_pass_inc', 'scorp_nonpass_inc', 'scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179',
          'rent_inc', 'rent_loss', 'estate_inc', 'estate_loss', 'farm_rent', 'sche_other', 'farm']
+# Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
+# itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
+_META = json.load(open(common.EDGES))['meta']
+ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + list(_META['scf_amounts'])
+NET_WORTH_PARTS = _META['net_worth_parts']
+RATIOS = _META['ratios']                          # slot: [dollar item, its base]
 KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
 FOLD = {'business_income': 1, 'other_gains': 1, 'ira_taxable': 1, 'pensions_taxable': 1, 'ss_taxable': 1,
         'unemployment': 1, 'alimony': 1, 'state_refunds': 1, 'adjustments': -1}
 
 
 def business_parts():
-    return json.load(open(common.EDGES))['meta']['computed_totals']['business_income']
+    return _META['computed_totals']['business_income']
 
 
 def load_maps(year):
-    """{variable: map rows} for a year: the PUF map, plus the SCF's net worth map."""
+    """{variable: map rows} for a year: the PUF map, plus the SCF's balance-sheet maps (2016 wave)."""
     split = lambda m: {v: g for v, g in m.groupby('variable')}
     maps = split(pd.read_parquet(f'{common.MAPS}/map_puf_{year}.parquet'))
-    maps['net_worth'] = split(pd.read_parquet(f'{common.MAPS}/map_scf_2015.parquet'))['net_worth']
+    maps.update(split(pd.read_parquet(f'{common.MAPS}/map_scf_2015.parquet')))
     return maps
 
 
@@ -74,9 +82,17 @@ def draw_dollars(df, maps):
     parts = business_parts()
     out['business_income_drawn'] = out['business_income']
     out['business_income'] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
+    for sub in ['sch_cf_income', 'sch_e_income']:
+        sp = _META['computed_totals'][sub]
+        out[sub] = out[list(sp)].to_numpy(float) @ np.array(list(sp.values()), float)
     out['other_agi_remainder'] = remainder
     out['other_agi'] = out['other_agi'] + out[list(FOLD)].to_numpy(float) @ np.array(list(FOLD.values()), float)
     assert not out[list(FOLD) + KG_PIECES].isna().any().any(), 'a part is missing on a record'
+    if all(f'{c}_band' in df for c in _META['scf_amounts']):
+        for slot, (item, base) in RATIOS.items():
+            out[item] = out[slot] * out[base]
+        assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
+        out['net_worth'] = out[list(NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(NET_WORTH_PARTS.values()), float)
     return out
 
 
