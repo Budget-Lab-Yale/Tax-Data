@@ -151,6 +151,24 @@ ORDER_TEXT = {
                  'record\'s conditional values'}
 PER_FILE = 100_000
 STRATIFIERS = {'wages': 31, 'capital_gains': 32, 'other_agi': 33, 'net_worth': 34}  # seeds
+# MINIMAL_STACK_CG_STRATIFIER=<slot> (2026-10-17, step 27; unset = as before):
+# the second file is stratified on this slot instead of capital_gains, with
+# the same seed. Needed when the line-13 total is computed from its pieces
+# (03_generate's MINIMAL_COMPUTED_TOTAL) and so cannot be drawn first; step
+# 27 uses kg_lt, the long-term piece, where the top of capital gains sits.
+if os.environ.get('MINIMAL_STACK_CG_STRATIFIER'):
+    _cg = os.environ['MINIMAL_STACK_CG_STRATIFIER']
+    assert _cg in m.PREDICTED, _cg
+    STRATIFIERS = {(_cg if k == 'capital_gains' else k): s for k, s in STRATIFIERS.items()}
+# MINIMAL_STACK_OTHER_STRATIFIER=<slot> (2026-10-18, step 33; unset = as
+# before): the third file is stratified on this slot instead of other_agi,
+# with the same seed. Step 33 uses business_income: there other_agi is only
+# the remainder after eleven more items, and the top of the old other income
+# is mostly business income.
+if os.environ.get('MINIMAL_STACK_OTHER_STRATIFIER'):
+    _oa = os.environ['MINIMAL_STACK_OTHER_STRATIFIER']
+    assert _oa in m.PREDICTED, _oa
+    STRATIFIERS = {(_oa if k == 'other_agi' else k): s for k, s in STRATIFIERS.items()}
 
 
 def net_worth_file(model, seed):

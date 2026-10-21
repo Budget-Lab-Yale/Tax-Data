@@ -65,6 +65,8 @@ def summary_row(frame, var):
         return {'married': s[1]}
     if var == 'n_dep':
         return {f'{k} deps': s[k] for k in range(4)}
+    if var == 'filer':
+        return {'filer': s[1]}
     first_positive = m.BAND_LAYOUT[var]['first_positive']
     return {'zero': s[0], 'negative': s[1:first_positive].sum(),
             **{k: s[m.positive_bands(var, lo, hi)].sum() for k, (lo, hi) in TOP_RANGES.items()}}

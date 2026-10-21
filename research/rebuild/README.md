@@ -3,13 +3,15 @@ title: "Tax-Data rebuild: where we are and how we got here"
 role: index
 workstream: rebuild
 status: current
-updated: 2026-10-15
+updated: 2026-10-18
 sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
 
 # The Tax-Data rebuild: where we are and how we got here
+
+**Picking up after 18 October: read `minimal/HANDOFF_2026-10-18.md` first.**
 
 Start here. This is the one document that says what the rebuild is, what
 has been done, which direction we took and why, and where the details are.
@@ -143,6 +145,17 @@ fixes the single-parent shortfall, and one base for the wealth counts
 (the SCF's own units, John's choice); move 0.014 nats (0.018 with every
 count on the IRS return count instead).
 
+**Latest since 18 October: step 31, the cell method**
+(`minimal/LATEST.md`, `minimal/31_RESULTS.md`). The SCF's zero-reporters
+of interest, dividends and capital gains are filled in during training:
+the PUF sets how many hidden holders there are in each cell (wage group ×
+married) and size range, the model decides who
+(`design/cell_method.md`). On the fake survey it removes 80% to 90% of the
+error that taking zeros at face value causes; on the real SCF the units
+with none of the three items hold a third less wealth than under that
+rule, and the tilt moves less than half as far (0.019 nats against 0.045,
+counts on the SCF's units). John's reading on 18 October: good news.
+
 ## Decided on 15 October, evening
 
 All in `design/plan.md`; the reasoning is in
@@ -222,7 +235,47 @@ he decides commits; heavy compute through Slurm.
    the reporting settings planted or learned, landed within seed noise of
    it. Learning the settings needed one rule, now in decision 18: fit
    them only on what the survey reports truly.
-5. **Not started:** confidence intervals by bootstrap replicates of the
+   **Step 23 (16 October):** v4c with **crude non-filers** (the 2017 CPS
+   pool mapped by hand, a stopgap to be replaced by a systematic non-filer
+   method; `minimal/23_NONFILERS.md`), then the same with decision 18 on
+   the real SCF. With non-filers in, units with no wages match the SCF's
+   wealth (v4c's gap there was filers compared with all SCF units). The
+   latent method starts closer to the SCF's wealth (the tilt moves 0.022
+   nats against 0.032) and finds 8.8% of the SCF's interest zeros to be
+   hidden holders. Both non-filer runs end with a median far below the
+   SCF's: the wealth count targets are on the SCF's 143 million units
+   while the file has 187 million.
+   **Overnight, 17 October (`minimal/24_OVERNIGHT.md`):** the smaller move
+   holds in three seeds (an earlier claim that N2 also starts closer on
+   total wealth was seed noise and is retracted); the low median is the
+   count base (counts on the file's units restore it); the latent method
+   beats today's rule unless hidden holders differ very strongly from
+   reporters (break-even at reporting odds 20 times apart); a modest
+   population mismatch did not break it on the fake survey; today's rule
+   has a bias more survey data does not remove.
+5. **Done on 17 and 18 October: from decision 18 to the cell method**
+   (each step's note in `minimal/`). Step 26 (`26_LABEL_ON.md`): keeping
+   the source label on in the fake-survey test costs nothing and stops the
+   survey blending into the PUF's own relationships. Step 27
+   (`27_RESULTS.md`): table E27 (capital gains in four pieces, four SCF
+   waves); a learned reporting curve works on the real SCF, rank matching
+   was dropped, and the learned dollar factors were not pinned by the data.
+   Step 28 (`28_WAGES_CG.md`): the SCF's wages run above the PUF's at the
+   top; wages kept as assumed correct. Step 29 (`29_RESULTS.md`): one
+   curve, a curve per cell, and counts per cell compared; counts per cell
+   got the number of hidden holders right on a fake survey but put too
+   many dollars on them. Step 30 (`30_PROCESS.md`): the counts method run
+   once outside training on the 2016 wave; three problems found and fixed
+   in the note (dollars above the PUF, noise at the top of thin cells,
+   capital losses double counted). Then `design/cell_method.md`, written
+   with John, and **step 31**, its first full run (above;
+   `31_RESULTS.md`, the discussion in `31_DISCUSSION_2026-10-18.md`).
+   Open from step 31: about 3 points too many units holding none of the
+   three items, because households that report one item tend to report
+   the others (the method assumes not; accepted by John); when filling in
+   starts (noted, not to run); a 2019 file mixing waves (post-training,
+   later).
+6. **Not started:** confidence intervals by bootstrap replicates of the
    training data; choosing the year mix by leaving out a wave; training
    noise replicates; E15, the model with a true amount inside it.
 
@@ -249,7 +302,17 @@ he decides commits; heavy compute through Slurm.
 | Does the joint model beat separate models for each source? | `minimal/20_SEPARATE_MODELS.md` |
 | Several SCF waves in one model, and priors for 2019 built from them | `minimal/21_PRIORS.md` |
 | Translation learned in pretraining: the actual layer, a worked example, tests | `design/translation_by_latent_amounts.md` |
+| Reporting rules in general: what links reported to true amounts, what the data can tell, how to choose | `design/reporting_rules.md` |
 | Test 1 of that design: a fake survey made from the PUF | `minimal/22_FAKE_SURVEY.md` |
+| v4c with crude non-filers, then decision 18 on the real SCF | `minimal/23_NONFILERS.md` |
+| Overnight checks: seeds, count base, the unverifiable assumption, population mismatch, survey size | `minimal/24_OVERNIGHT.md` |
+| Fake survey with the source label on | `minimal/26_LABEL_ON.md` |
+| Table E27, a learned reporting curve on the real SCF | `minimal/27_RESULTS.md` |
+| Wages and capital gains, SCF against PUF | `minimal/28_WAGES_CG.md` |
+| Three rules for how many SCF zeros are hidden holders | `minimal/29_RESULTS.md` |
+| The counts method run once on the 2016 wave | `minimal/30_PROCESS.md` |
+| **The cell method: full statement** | **`design/cell_method.md`** |
+| The cell method's first full run, and the discussion around it | `minimal/31_RESULTS.md`, `minimal/31_DISCUSSION_2026-10-18.md` |
 | Data, models, generated files, scores | `/nfs/roberts/scratch/pi_nrs36/jar335/minimal/` (not in git) |
 | Superseded documents, including v3 baseline and the two theory drafts | `research/archive/` |
 

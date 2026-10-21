@@ -3,7 +3,7 @@ title: "Tax-Data rebuild — plan for the one-model design"
 role: plan
 workstream: rebuild
 status: current
-updated: 2026-10-16
+updated: 2026-10-18
 sot: self
 supersedes: [research/archive/joint_model_plan_2026-10-14_superseded.md, research/archive/design_decisions_2026-10-14_superseded.md]
 superseded_by: null
@@ -68,7 +68,11 @@ is to learn whether this is possible, not to finish it.
    years.
 7. **The base includes the 2015 non-filer pool.** Non-filers are rows in
    pretraining with a filing flag; the residual partition is a target per
-   year. Not open (confirmed by John 2026-10-16).
+   year. Not open (confirmed by John 2026-10-16). **Stopgap in use (step 23,
+   2026-10-16):** crude non-filers from the published 2017 CPS pool, mapped
+   by hand (`minimal/23_NONFILERS.md`), so that decision 18 can be tried on
+   the real SCF. They are to be replaced by a systematic non-filer method,
+   and results that use them rerun.
 8. **Post-training is by tilting.** Tilt-then-distill, direct gradient and
    policy gradient are written down as fallbacks in that order. The word is
    "tilting," not "raking."
@@ -92,8 +96,14 @@ is to learn whether this is possible, not to finish it.
 12. **Output weights:** generated records start equal; the tilt factor is
     the weight. Income-group counts come from IRS tables as tilt targets on
     AGI computed from the drawn parts, never as a group label inside the
-    model (clarified 2026-10-14 after the minimal example; a derived
-    variable is never a model input, see D25). Tilt-then-redraw gives an
+    model (clarified 2026-10-14 after the minimal example). **A total is
+    never drawn beside its parts; it is computed from them** (D25; the
+    first-round experiments showed totals and parts drawn separately
+    disagree badly). A total computed exactly from drawn parts may be
+    handed to the model as an input, for example capital gains summed from
+    its PUF pieces when net worth is drawn under the SCF label (narrowed by
+    John 2026-10-18; until then this read "a derived variable is never a
+    model input", wider than the evidence behind it). Tilt-then-redraw gives an
     equal-weight file. The top is oversampled by fixing a real variable's
     band at generation and weighting by the model's band probability over
     the sampling rate, which is the IRS's own design applied to the
@@ -102,9 +112,26 @@ is to learn whether this is possible, not to finish it.
     relationships on held-out records, and post-training hits a year's
     targets with a small move (under about 1.3 nats). The reform run and the
     backtest are later checks, not the acceptance test.
-14. **Source label:** set, never predicted. Label-responsive for the
-    variables a survey owns; label-indifferent for the variables surveys
-    share, which translation is responsible for.
+14. **Source label: always on, set, never predicted** (changed by John
+    2026-10-17; was "label-indifferent for the variables surveys share").
+    Every record in training carries its source and year, on every
+    variable, shared or owned, and every draw in generation is made under a
+    stated label. The model learns a separate set of relationships for
+    each source-year pair. A file is drawn by setting "PUF, 2015",
+    completing every PUF variable, then switching to the owner's label
+    (for net worth, the SCF, with a year mix from post-training, decision
+    3) and drawing the borrowed variable given the subset of the record
+    that source has (decisions 9 and 16). Reasons:
+    - Without the label, the PUF's own relationships (wages by marriage
+      and children, for example) are learned from PUF and survey rows
+      blended together, so a generated PUF record is not the PUF's, and
+      every survey or wave added shifts it.
+    - With the label, each source's weights stay coherent within that
+      source, and adding survey waves teaches the model about the survey
+      and leaves the PUF's relationships essentially alone.
+    The condition that makes the switch of label meaningful: the shared
+    variables must be in the same units in every source, which is
+    translation's job (decisions 15 and 18).
 15. **The translation rule** (confirmed by John 2026-10-15; the working
     rule until decision 18's tests pass, then replaced by it). Get each
     survey's dollars onto the PUF's terms first, then place every record on
@@ -148,14 +175,38 @@ is to learn whether this is possible, not to finish it.
     returns, which made the two contradict each other,
     `minimal/19_DIRECT.md`; John then chose the SCF's own weighted counts
     for every count target, which treats the 15 million extra returns as
-    sitting below every line, `minimal/15_BASELINE_V4.md`, section v4c) and where
+    sitting below every line, `minimal/15_BASELINE_V4.md`, section v4c;
+    **on 2026-10-19 John changed this to the file's units**: each count is
+    the SCF's weighted share above the line times the file's units, IRS
+    returns plus non-filers, 07_baseline's `WEALTH_COUNT_BASE=file_units`;
+    dollar amounts stay the SCF's own) and where
     the dollar line comes from when the published source gives only shares
     (for example, a Distributional Financial Accounts share converted with
     the SCF wave for that year). Replaces the rank iteration of
     `minimal/06_wealth_tables.py`, which did not settle in any v4 run.
 
 18. **Translation is learned in pretraining, through an actual layer**
-    (John, 2026-10-16; direction agreed, not yet built). Every shared
+    (John, 2026-10-16; direction agreed, not yet built).
+
+    **The current method is the cell method** (John, 2026-10-18;
+    `design/cell_method.md`, which governs where the text below differs).
+    For each survey variable that is mapped, how many of the survey's
+    zero-reporters are hidden holders, and at what sizes, is fixed before
+    training by comparing the survey with the PUF within cells of
+    households alike on the variables taken as correctly reported (wage
+    group by married) and in broad size ranges, below a top line; reporters
+    keep their amounts (the dollar rule, set per variable; unchanged for
+    interest, dividends and capital gains). Which zero-reporters are filled
+    in is decided during pretraining, every pass, by the model under the
+    survey's label, with its chances scaled within each cell to the cell
+    table. Every setting (variables taken as correct, the concept of each
+    mapped variable, the dollar rule, cells, ranges, top lines, fitting
+    wave) is user-supplied on a settings sheet per survey. This replaces
+    the learned reporting curve described below (steps 27 and 29: the
+    curve undercounted hidden holders; rank-matching was dropped). The
+    text below is kept as the record of the earlier form.
+
+    Every shared
     variable has three layers: the actual amounts (split into components
     where concepts differ), each source's concept (a known formula over the
     components), and each source's reported amount (a reporting layer of
@@ -164,10 +215,16 @@ is to learn whether this is possible, not to finish it.
     top-coding). Everything else in the model reads the actual layer. The
     anchor is fixed from outside: first PUF = actual; later the PUF's own
     reporting layer from the IRS's audit-based misreporting studies. In
-    training, the true slot is predicted without the source label, the
-    reporting settings are network parameters, survey zeros get true
-    amounts drawn each pass, and downstream variables train on the drawn
-    amounts. Populations must match first (the nonfiler work). The
+    training, the source label stays on (decision 14), the reporting
+    settings are network parameters fit as the rule below says, survey
+    zeros get true amounts drawn each pass under the survey's own label,
+    and downstream variables train on the drawn amounts. (Until 2026-10-17
+    this read "the true slot is predicted without the source label". That
+    was there to stop the model explaining the survey's extra zeros as
+    "survey households hold less"; with the label kept, the reporting
+    settings, fit against the PUF's belief, do that job instead. Test 1 and
+    step 23's N2 were run without the label and are to be rerun with it.)
+    Populations must match first (the nonfiler work). The
     assumptions (anchor, shapes) decide how many hidden holders there are;
     the transformer decides which households they are. One assumption no
     data can check, that hidden holders are like reporters with the same
@@ -184,6 +241,13 @@ is to learn whether this is possible, not to finish it.
     enforced. The fill-ins themselves still use everything on the record.
     Test 1 (fake survey, PUF = actual) passed on 16 October:
     `minimal/22_FAKE_SURVEY.md`.
+
+    **The general framing** (2026-10-17): interest's "small holders say
+    zero" is one kind of reporting rule among several (scale, noise,
+    rank-preserving, rounding, top-coding, definition). What the data can
+    and cannot tell apart, and a proposed way to choose among rules (fit,
+    outside checks, fake-survey tests, sensitivity of the answer):
+    `design/reporting_rules.md`. Proposed, not decided.
 
 ## Open
 
@@ -298,6 +362,18 @@ to this list rather than letting them live only in reports.
   gets wrong, the tilt has to undo, and a better prior means a smaller
   move. (Noted 2026-10-15.)
 
+- **Capitalized wealth as a second version** (John, 2026-10-17). Beside
+  net worth drawn from the SCF-labelled model, give each record (or half
+  the file) a net worth built by capitalizing its tax-return income, as
+  Saez and Zucman (2016) and Smith, Zidar and Zwick (2023) do: interest
+  over a fixed-income yield, dividends over an equity yield, and so on,
+  with yields that may vary by wealth (Smith, Zidar and Zwick). It is a
+  link between return income and wealth that does not go through survey
+  answers, strongest at the top where the SCF is thin. Uses: a check of
+  the top, outside targets, possibly a prior. Limits: it misses assets
+  with no taxable income (housing, retirement accounts, unrealized
+  gains), and the yields are themselves assumptions.
+
 ## Fallback ladder
 
 1. Model-as-population with tilting (this plan).
@@ -328,6 +404,18 @@ to this list rather than letting them live only in reports.
 
 ## Revision history
 
+- 2026-10-19: decision 17 changed by John: wealth count targets on the file's
+  units (IRS returns plus non-filers), not the SCF's own counts.
+- 2026-10-18: decision 18 points to the cell method (`design/cell_method.md`)
+  as the current translation method, replacing the learned reporting curve;
+  decision 12 narrowed to "a total is never drawn beside its parts" (a
+  total computed from drawn parts may be a model input). Both by John.
+
+- 2026-10-17: decision 14 changed by John: the source label is always on,
+  for shared and owned variables alike; decision 18's "true slot predicted
+  without the source label" replaced accordingly (the reporting settings,
+  fit against the PUF's belief, are what stop the survey's extra zeros
+  being read as "survey households hold less").
 - 2026-10-16: decision 18 gets the rule for learning the reporting
   settings (fit only on what the source reports truly; the true-amount
   belief from the PUF alone), from test 1 (`minimal/22_FAKE_SURVEY.md`),

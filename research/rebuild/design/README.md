@@ -18,7 +18,9 @@ file indexes the design documents only.
 | File | What it is |
 |---|---|
 | `plan.md` | What is decided, what is open, the next tests in order, the fallback ladder, and what happened to each earlier decision D1–D26. Read first. |
+| `cell_method.md` | **The current translation method** (plan decision 18, 2026-10-18): how many survey zeros are hidden holders from a cell-by-cell comparison with the PUF, who they are chosen by the model during pretraining; every setting, step, assumption and the first full run. |
 | `translation_by_latent_amounts.md` | Plan decision 18: translation learned in pretraining through an actual layer, each source's concept and reported amount; the worked example; the tests. |
+| `reporting_rules.md` | The general problem behind decision 18: kinds of reporting rule, what the data can and cannot tell apart, evidence so far, and a proposed way to choose among rules. |
 | `idea_space.md` | The full record of the 14 October discussion that produced the plan: the four questions (what object, what flows in, how it is combined, how we know), every alternative considered, the evidence cited, and a glossary. Read when a decision in the plan needs its reasoning. |
 
 Still current elsewhere in `research/rebuild/`:

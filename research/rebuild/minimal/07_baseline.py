@@ -124,14 +124,18 @@ WAGE_2018_TO_2015 = 1.1802474966 / 1.2493
 
 # The base of the wealth count targets (see the docstring).
 COUNT_BASE = os.environ.get('WEALTH_COUNT_BASE', 'scf_units')
-assert COUNT_BASE in ('irs_returns', 'scf_units', 'mixed_v4b'), COUNT_BASE
+assert COUNT_BASE in ('irs_returns', 'scf_units', 'mixed_v4b', 'file_units'), COUNT_BASE
 COUNT_BASE_TEXT = {
     'irs_returns': 'IRS return count for every count target (SCF share above the line times '
                    '{returns:.1f} million returns)',
     'scf_units': 'SCF units for every count target (the SCF weighted count above the line, '
                  'on its {units:.1f} million units)',
     'mixed_v4b': 'old mixed base (v4, v4b): units above $1 million as the SCF count, '
-                 'percentile counts as SCF share times the return count'}
+                 'percentile counts as SCF share times the return count',
+    # step 23 (MINIMAL_NONFILERS=1 only): the SCF's share above each line times
+    # the file's own units, IRS returns plus the non-filer count
+    'file_units': 'file units for every count target (SCF share above the line times IRS returns '
+                  'plus non-filers, {returns:.1f} million)'}
 
 
 def threshold_form(x, returns, targets, threshold, units):
@@ -141,6 +145,9 @@ def threshold_form(x, returns, targets, threshold, units):
     COUNT_BASE; every amount is the SCF's own. Order as threshold_names."""
     _, x19, w19, _ = wt.scf2019(units)
     scale = {'irs_returns': returns / w19.sum(), 'scf_units': 1.0}
+    if COUNT_BASE == 'file_units':
+        assert NONFILERS, 'file_units needs MINIMAL_NONFILERS=1'
+        scale['file_units'] = (returns + nonfiler_count_2019()) / w19.sum()
 
     def count(line, percentile):
         if COUNT_BASE == 'mixed_v4b':
@@ -248,6 +255,44 @@ def filing_rule():
     print(out.to_string(), flush=True)
 
 
+# MINIMAL_NONFILERS=1 (2026-10-16, step 23, 23_NONFILERS.md): the stack has
+# a filer column (0 = non-filer). The 136 IRS targets count filers only; one
+# more exact target sets the non-filers' weighted count to the published
+# 2019 CPS non-filer pool's; the wealth targets cover everyone (filers and
+# non-filers, as the SCF's units do). The untargeted relationships and the
+# holder shares are over filers, as the PUF is. Unset: as before.
+NONFILERS = os.environ.get('MINIMAL_NONFILERS') == '1'
+NONFILER_POOL_2019 = ('/nfs/roberts/project/pi_nrs36/shared/model_data/ASEC-Nonfilers/v1/'
+                      '2026091201/historical/nonfiler_pool_2019.csv.gz')
+
+
+# MINIMAL_BUSINESS_TARGETS=totals|coarse (2026-10-19, step 36, 36_RESULTS.md;
+# unset = as before): the SOI 2019 business income targets (Table 1.4: six
+# families, net income and net loss, returns and amount; filers) are added
+# to the tilt with the wealth targets, exact (soft at the wealth targets'
+# tolerance if the exact tilt does not converge): 'totals' all AGI together
+# (24), 'coarse' six AGI groups (36_tilt.COARSE, about 140). Cells and record
+# contributions from 36_tilt.py; needs 36_business_targets.py run first.
+BUSINESS = os.environ.get('MINIMAL_BUSINESS_TARGETS', '').strip()
+assert BUSINESS in ('', 'totals', 'coarse'), BUSINESS
+# MINIMAL_PRESCALE (2026-10-19, John): before the tilt, the filers' starting
+# weights are scaled within joint and non-joint returns to SOI's 2019 counts
+# of each (Table 1.2; 05_tilt.prescale), so known population change is in the
+# start and the tilt's move is measured from there. The default since
+# 2026-10-19 (John: small for 2019, but the factors grow with the distance to
+# the target year, e.g. 2040; age by filing status when records carry age).
+# 'none' gives the unscaled start of every tilt before that date. The summary
+# keeps the move from the unscaled start as well.
+PRESCALE = os.environ.get('MINIMAL_PRESCALE', 'filing_status').strip()
+assert PRESCALE in ('none', 'filing_status'), PRESCALE
+
+
+def nonfiler_count_2019():
+    p = pd.read_csv(NONFILER_POOL_2019, usecols=['tax_year', 'weight', 'filer'])
+    assert (p['tax_year'] == 2019).all() and (p['filer'] == 0).all()
+    return float(p['weight'].sum())
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     assert os.path.exists(STACK) and os.path.exists(META), f'{V} stack not finished'
@@ -271,6 +316,25 @@ def main():
     returns = tiltmod.target_set('totals')[1].query("cell == 'returns'")['value'].iloc[0]
     w0 = imp * returns / imp.sum()
     F = tiltmod.contributions(g19, brackets)
+    is_filer = np.ones(len(g19))
+    extra_F, extra_T = np.zeros((len(g19), 0)), np.zeros(0)
+    if NONFILERS:
+        is_filer = g19['filer'].to_numpy().astype(float)
+        assert set(np.unique(is_filer)) <= {0.0, 1.0}
+        n_nonfilers = nonfiler_count_2019()
+        f_ = is_filer == 1
+        w0 = np.where(f_, imp * returns / imp[f_].sum(), imp * n_nonfilers / imp[~f_].sum())
+        F = F * is_filer[:, None]
+        extra_F, extra_T = (1 - is_filer)[:, None], np.array([n_nonfilers])
+        print(f'non-filers: {int((~f_).sum())} records, {100 * imp[~f_].sum() / imp.sum():.1f}% of the '
+              f'importance weight; target {n_nonfilers / 1e6:.2f} million (2019 pool)', flush=True)
+    w_plain = w0.copy()
+    if PRESCALE == 'filing_status':
+        f_ = is_filer == 1
+        w0 = w0.copy()
+        w0[f_] = tiltmod.prescale(g19[f_].reset_index(drop=True), w0[f_])
+        print(f'pre-scaled by filing status: move of the pre-scaling itself '
+              f'{tiltmod.move(w_plain, w0)["kl_nats"]:.5f} nats', flush=True)
     T = cells['value'].to_numpy(float)
     tiltmod.check_reachable(F, cells)
     x = g15['net_worth'].to_numpy(float)
@@ -280,7 +344,11 @@ def main():
     filing_rule()
 
     # ---- tilt to the 136 alone, then with the wealth targets
-    w1, ok1, it1 = tiltmod.tilt(w0, F, T)
+    w1, ok1, it1 = tiltmod.tilt(w0, np.column_stack([F, extra_F]), np.r_[T, extra_T])
+    if not ok1:
+        g1 = np.abs(np.column_stack([F, extra_F]).T @ w1 / np.r_[T, extra_T] - 1)
+        print(f'136-target tilt: not converged after {it1} steps; largest gap {100 * g1.max():.2e}% '
+              f'(target {int(g1.argmax())})', flush=True)
     assert ok1, '136-target tilt did not converge'
     Fq, Tq = threshold_form(x, returns, targets, threshold, units)
     names = threshold_names(threshold, units)
@@ -289,8 +357,26 @@ def main():
     print(cons.to_string(), flush=True)
     if COUNT_BASE != 'mixed_v4b':
         assert cons['holds'].all(), 'the eight wealth targets contradict each other'
-    w2, ok2, _ = tiltmod.tilt(w0, np.column_stack([F, Fq]), np.r_[T, Tq],
-                              rel_tol=np.r_[np.zeros(len(T)), np.full(len(Tq), wt.SIGMA)])
+    Fb, Tb, bcells, business_form = np.zeros((len(g19), 0)), np.zeros(0), None, 'none'
+    if BUSINESS:
+        t36 = load('t36', '36_tilt.py')
+        groups = {'totals': [(-np.inf, np.inf, 'all')], 'coarse': t36.COARSE}[BUSINESS]
+        bcells = t36.business_targets(groups)
+        Fb = t36.business_contributions(g19, groups) * is_filer[:, None]
+        Tb = bcells['value'].to_numpy(float)
+        use = (Tb != 0) & np.array([np.any(c > 0) for c in Fb.T])
+        print(f'business targets ({BUSINESS}): {int(use.sum())} of {len(Tb)} cells used '
+              f'({int((Tb == 0).sum())} published as zero, {int(((Tb != 0) & ~use).sum())} unreachable)', flush=True)
+        bcells, Fb, Tb = bcells[use].reset_index(drop=True), Fb[:, use], Tb[use]
+        business_form = 'exact'
+    tol = np.r_[np.zeros(len(T)), np.full(len(Tq), wt.SIGMA), np.zeros(len(extra_T))]
+    w2, ok2, _ = tiltmod.tilt(w0, np.column_stack([F, Fq, extra_F, Fb]), np.r_[T, Tq, extra_T, Tb],
+                              rel_tol=np.r_[tol, np.zeros(len(Tb))])
+    if BUSINESS and not ok2:
+        print('exact business targets did not converge; soft at the wealth tolerance', flush=True)
+        w2, ok2, _ = tiltmod.tilt(w0, np.column_stack([F, Fq, extra_F, Fb]), np.r_[T, Tq, extra_T, Tb],
+                                  rel_tol=np.r_[tol, np.full(len(Tb), wt.SIGMA)])
+        business_form = f'soft ({100 * wt.SIGMA:.0f}%)'
     method = 'threshold form (dollar lines; decision 17)'
     gap2 = 100 * (F.T @ w2 / T - 1)
     summary = pd.DataFrame([
@@ -300,7 +386,12 @@ def main():
          'wealth_count_base': COUNT_BASE,
          'wealth_count_base_meaning': COUNT_BASE_TEXT[COUNT_BASE].format(
              returns=returns / 1e6, units=wt.scf2019(units)[2].sum() / 1e6),
-         'max_abs_gap_136_targets_pct': np.abs(gap2).max(), **tiltmod.move(w0, w2)}])
+         'max_abs_gap_136_targets_pct': np.abs(gap2).max(),
+         'business_targets': BUSINESS or 'none', 'business_targets_used': len(Tb),
+         'business_target_form': business_form, 'prescale': PRESCALE,
+         'prescale_kl_nats': tiltmod.move(w_plain, w0)['kl_nats'],
+         'kl_from_unscaled_start': tiltmod.move(w_plain, w2)['kl_nats'],
+         'ess_ratio_from_unscaled_start': tiltmod.move(w_plain, w2)['ess_ratio'], **tiltmod.move(w0, w2)}])
     summary.to_csv(f'{OUT}/summary_{V}.csv', index=False)
     print(summary.to_string(), flush=True)
     pd.DataFrame({'record_id': g19['record_id'], 'stratifier': g19['stratifier'],
@@ -309,6 +400,16 @@ def main():
     cells.assign(before=F.T @ w0, after=F.T @ w2,
                  gap_before_pct=100 * (F.T @ w0 / T - 1), gap_after_pct=gap2).to_csv(
         f'{OUT}/fit_{V}.csv', index=False)
+
+    bfit_md = []
+    if BUSINESS:
+        bfit = bcells.assign(pretrain=Fb.T @ w0, **{'posttrain 136 only': Fb.T @ w1}, posttrain=Fb.T @ w2)
+        for c in ['pretrain', 'posttrain 136 only', 'posttrain']:
+            bfit[f'{c}, ratio'] = bfit[c] / bfit['value']
+        bfit.to_csv(f'{OUT}/business_fit_{V}.csv', index=False)
+        bfit_md = [f'## Business income targets ({BUSINESS}; {business_form}): ratio to SOI 2019', '',
+                   bfit.drop(columns=['pretrain', 'posttrain 136 only', 'posttrain']).to_markdown(
+                       index=False, floatfmt=',.3f'), '']
 
     # ---- redraw: same draw as 05_tilt.redraw, which writes redraw_{V}.csv
     tiltmod.OUT = OUT
@@ -345,8 +446,8 @@ def main():
     real = tiltmod.puf_2019_from_real()
     rel = tiltmod.relationships(real, real['weight'].to_numpy(float), brackets).rename(
         columns={'share': 'actual 2015 PUF'})
-    rel['pretrain'] = tiltmod.relationships(g19, w0, brackets)['share'].to_numpy()
-    rel['posttrain'] = tiltmod.relationships(g19, w2, brackets)['share'].to_numpy()
+    rel['pretrain'] = tiltmod.relationships(g19, w0 * is_filer, brackets)['share'].to_numpy()
+    rel['posttrain'] = tiltmod.relationships(g19, w2 * is_filer, brackets)['share'].to_numpy()
     p2 = tiltmod.relationships(g19, w0, brackets)
     assert (p2['group'].to_numpy() == rel['group'].to_numpy()).all()
     rel = rel[rel['relationship'] != 'any dividends, by AGI bracket']   # targeted
@@ -366,15 +467,18 @@ def main():
                          dividends=u['dividends'] * WAGE_2018_TO_2015)
             files[name] = (u, ww)
     files.update({'pretrain': (g15, w0), 'posttrain': (g15, w2)})
+    if NONFILERS:
+        files['posttrain, filers'] = (g15, w2 * is_filer)
     cols = list(files)
     t1, t2 = {}, {}
     for c, (df, w) in files.items():
         xx = df['net_worth'].to_numpy(float)
         t1[c], t2[c] = wt.unconditional(xx, w), wt.conditional(df, xx, w)
 
-    hold = holders(g19, {'pretrain': w0, 'posttrain 136 only': w1, 'posttrain': w2})
+    hold = holders(g19, {'pretrain': w0 * is_filer, 'posttrain 136 only': w1 * is_filer,
+                         'posttrain': w2 * is_filer})
     hold.to_csv(f'{OUT}/holders_{V}.csv', index=False)
-    out = ['## Fit and move', '', summary.to_markdown(index=False), '',
+    out = ['## Fit and move', '', summary.to_markdown(index=False), ''] + bfit_md + [
            '## Holder shares (% of returns)', '', hold.to_markdown(index=False), '',
            '## Filing rule', '', pd.read_csv(f'{OUT}/filing_rule_{V}.csv').to_markdown(index=False), '',
            '## The eight wealth targets (dollar lines, as tilted)', '', lines.to_markdown(index=False), '',

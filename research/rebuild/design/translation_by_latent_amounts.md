@@ -3,13 +3,18 @@ title: "Translation learned in pretraining: actual amounts, source concepts, rep
 role: design
 workstream: rebuild
 status: current
-updated: 2026-10-16
+updated: 2026-10-17
 sot: research/rebuild/design/plan.md
 supersedes: []
 superseded_by: null
 ---
 
 # Translation learned in pretraining
+
+**Read with `reporting_rules.md`** (2026-10-17), which frames the general
+problem. This note works out one kind of reporting rule, omission that
+depends on the amount, with interest as the example; other variables may
+follow other rules.
 
 The design direction for translating surveys into tax concepts, agreed
 with John on 16 October 2026 (plan decision 18). It replaces the
@@ -163,12 +168,18 @@ the same amount, and how far the answer moves.
 
 ## 5. How it runs inside pretraining
 
-1. **The true slot for each shared variable is predicted without the
-   source label.** This is the anchor inside the model: the survey's extra
-   zeros cannot be explained as "survey households hold less", only as
-   "survey households do not report". It requires the populations to
-   match, so the nonfiler work comes first. Owned variables (net worth,
-   other income) keep the label.
+1. **The source label stays on** (John, 2026-10-17, plan decision 14;
+   until then this item read "the true slot for each shared variable is
+   predicted without the source label"). The label was removed to stop
+   the survey's extra zeros being explained as "survey households hold
+   less" instead of "survey households do not report". With the label
+   kept, item 5 does that job: the reporting settings are fit against the
+   PUF-labelled model's belief given what the survey reports truly, then
+   held fixed while the survey's zeros are filled in under the survey's
+   own label. Removing the label had a cost this design note did not
+   weigh: the PUF's own relationships were learned from PUF and survey
+   rows blended together, and each survey wave added would shift them.
+   The populations still have to match, so the nonfiler work comes first.
 2. **The reporting settings are parameters of the network,** learned by
    the same gradient steps. On a survey record the loss is the
    probability of what the survey reported, summed over the possible true
@@ -293,3 +304,5 @@ for many variables hidden at once.
 - 2026-10-16: written from the discussion with John.
 - 2026-10-16: section 5, item 5 (fit the settings only on what the source
   reports truly) and test 1's result added.
+- 2026-10-17: section 5, item 1: the source label stays on (plan decision 14,
+  changed by John).

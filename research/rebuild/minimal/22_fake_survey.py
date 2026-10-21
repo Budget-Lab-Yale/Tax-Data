@@ -59,11 +59,27 @@ What it does
                   model's belief about the true amount summed against the
                   curve), the dollar factor once per pass by a grid search
                   on the likelihood of the reporters' reported slices.
+    latent_fixed_label, latent_learn_label  (step 26, 2026-10-17; plan
+                  decision 14 as changed that day: the source label stays
+                  on) the two latent arms with the source label kept on
+                  every row. PUF rows train under the PUF label, survey
+                  rows under the survey's label on their filled-in amounts.
+                  The reporting settings are fit against the belief under
+                  the PUF label given only what the survey reports truly
+                  (married, dependents, wages, capital gains; both broken
+                  items and other income left out), which only PUF rows
+                  teach; each survey zero is filled in from the belief
+                  under the survey's own label given everything on the
+                  record. No "drop" rule (see train_latent).
+    latent_learn_label_drop  latent_learn_label with step 22's drop rule
+                  kept (survey rows do not train the interest and dividend
+                  slots when other income is hidden), to show whether the
+                  rule still matters once the label is on.
 
   The score: for every half-A return, the model's distribution of other
   income given the return's true married, dependents and four incomes (the
   survey's variable drawn under the survey's label, decision 16; no label
-  for nofill and the latent arms). Reported: the log score of the true
+  for nofill and the label-free latent arms). Reported: the log score of the true
   slice (lower is better), and the expected other income by group, in 2015
   dollars (the target year of this test), against the truth.
 
@@ -92,15 +108,28 @@ HERE = 'research/rebuild/minimal'
 R = '/nfs/roberts/scratch/pi_nrs36/jar335/minimal'
 DATA = f'{R}/data'
 OUT = os.environ.get('MINIMAL_F22_OUT', f'{R}/fake22')
-SPLIT_SEED, SURVEY_N = 20261016, 30_000
+SPLIT_SEED = 20261016
+# Overnight variants (2026-10-17; each with its own MINIMAL_F22_OUT and tag):
+#   MINIMAL_F22_TAG       suffix of the table names (F22<tag>_<D>_<rule>)
+#   MINIMAL_F22_SURVEY_N  survey size (default 30,000)
+#   MINIMAL_F22_SHIFT     D3's shift on the log-odds of reporting (default 0.75)
+#   MINIMAL_F22_BUILD     distortions to build, comma-separated (default all)
+#   MINIMAL_F22_EXTRA     'survey': crude non-filer rows (23_nonfilers.py) added to
+#                         the survey only; 'both': to the survey and the PUF pile
+TAG = os.environ.get('MINIMAL_F22_TAG', '')
+SURVEY_N = int(os.environ.get('MINIMAL_F22_SURVEY_N', '30000'))
+EXTRA = os.environ.get('MINIMAL_F22_EXTRA', '')
+assert EXTRA in ('', 'survey', 'both'), EXTRA
 MID, SLOPE = 150.0, 1.05          # planted S-curve
-SCALE_D2, SHIFT_D3 = 0.8, 0.75
+SCALE_D2, SHIFT_D3 = 0.8, float(os.environ.get('MINIMAL_F22_SHIFT', '0.75'))
 LATENT = ['interest', 'dividends']
 SHARED = ['wages', 'interest', 'dividends', 'capital_gains']
 AMOUNTS = SHARED + ['other_agi', 'net_worth']
 DISTORTIONS = ['D0', 'D1', 'D2', 'D3', 'D4']
-ARMS = ['oracle', 'rule', 'rank', 'prefill', 'nofill', 'latent_fixed', 'latent_learn']
+ARMS = ['oracle', 'rule', 'rank', 'prefill', 'nofill', 'latent_fixed', 'latent_learn',
+        'latent_fixed_label', 'latent_learn_label', 'latent_learn_label_drop']
 LABEL_FREE = ['nofill', 'latent_fixed', 'latent_learn']
+LATENT_LABELLED = ['latent_fixed_label', 'latent_learn_label', 'latent_learn_label_drop']   # step 26
 FILL_FROM_EPOCH = int(os.environ.get('MINIMAL_F22_FILL_FROM', '3'))   # fill-ins start after the warm-up
 DISTORTION_TEXT = {
     'D0': 'none',
@@ -202,12 +231,17 @@ def build():
     A = puf[in_a].copy()
     rest = puf[~in_a]
     Bdf = rest.iloc[np.sort(rng.choice(len(rest), SURVEY_N, replace=False))].copy()
+    if EXTRA:
+        Bdf = pd.concat([Bdf, extra_rows(len(Bdf), Bdf['weight'].sum(), 0)], ignore_index=True)
+        if EXTRA == 'both':
+            A = pd.concat([A, extra_rows(len(A), A['weight'].sum(), 1)], ignore_index=True)
     A['other_agi'], A['net_worth'] = np.nan, np.nan
     Bdf['source'] = 'scf'
     Bdf['other_agi'], Bdf['net_worth'] = np.nan, Bdf['other_true']
     other_median = float(wquantile(Bdf['other_true'].to_numpy(), Bdf['weight'].to_numpy(), [0.5])[0])
     A_shift_group = np.where(A['other_true'].to_numpy() >= other_median, SHIFT_D3, -SHIFT_D3)
-    for D in DISTORTIONS:
+    build_list = [d for d in os.environ.get('MINIMAL_F22_BUILD', ','.join(DISTORTIONS)).split(',') if d]
+    for D in build_list:
         Bd = Bdf.copy()
         rep = distort(Bd, D, other_median)
         for v in LATENT:
@@ -219,7 +253,7 @@ def build():
             t = df.copy()
             edges = band_table(t, rule == 'dollar')
             check(t, D, rule)
-            tag = f'F22_{D}_{rule}'
+            tag = f'F22{TAG}_{D}_{rule}'
             t.to_parquet(f'{DATA}/stacked_{tag}.parquet', index=False)
             meta = {'set': 'F22', 'distortion': D, 'text': DISTORTION_TEXT[D], 'rule': rule}
             json.dump({'meta': meta, **edges}, open(f'{DATA}/band_edges_{tag}.json', 'w'), indent=1)
@@ -230,9 +264,36 @@ def build():
     print('build done', flush=True)
 
 
+def extra_rows(n_pile, pile_weight, k):
+    """Crude non-filer rows for one pile (23_nonfilers.py's pool, 2015
+    dollars): drawn with chance proportional to their weight, as many as
+    17% of the pile's records, each with an equal weight so that their total
+    is the non-filers' share of the population (31.2 of 182.0 million units)
+    applied to the pile's own weight. k separates the two piles' ids."""
+    spec = importlib.util.spec_from_file_location('nf23', f'{HERE}/23_nonfilers.py')
+    nf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(nf)
+    pool, _ = nf.pool_rows()
+    rng = np.random.default_rng(SPLIT_SEED + 100 + k)
+    m = int(round(0.17 * n_pile))
+    pw = pool['weight'].to_numpy()
+    pick = rng.choice(len(pool), size=m, replace=True, p=pw / pw.sum())
+    out = pool.iloc[pick].reset_index(drop=True)
+    total = pile_weight * pw.sum() / 150.83e6
+    ids = 1_000_000_000 * (k + 1) + np.arange(m)
+    return pd.DataFrame({'source': 'puf', 'year': 2015, 'record_id': ids, 'household_id': ids,
+                         'implicate': 0, 'split': 'train', 'weight': total / m,
+                         'married': out['married'].to_numpy(), 'n_dep': out['n_dep'].to_numpy(),
+                         'wages': out['wages'].to_numpy(), 'interest': out['interest'].to_numpy(),
+                         'dividends': out['dividends'].to_numpy(), 'capital_gains': 0.0,
+                         'other_true': out['other_agi'].to_numpy(),
+                         'interest_true': out['interest'].to_numpy(),
+                         'dividends_true': out['dividends'].to_numpy()})
+
+
 def check(t, D, rule):
     puf, srv = t.source == 'puf', t.source == 'scf'
-    assert puf.sum() > 100_000 and srv.sum() == SURVEY_N
+    assert puf.sum() > 100_000 and srv.sum() >= SURVEY_N
     assert (t.loc[puf, 'net_worth_band'] == -1).all() and (t.loc[srv, 'net_worth_band'] >= 0).all()
     assert (t['other_agi_band'] == -1).all()
     for v in SHARED:
@@ -354,7 +415,9 @@ def lr_factor_fn(max_epochs, steps_per_epoch, warmup_epochs=3):
 
 
 def train_latent(M, table, aux, arm, seed, max_epochs, device):
-    """The label-free model, with (latent_*) or without (nofill) the fill-ins."""
+    """The label-free model, with (latent_fixed, latent_learn) or without
+    (nofill) the fill-ins; or (step 26, LATENT_LABELLED) the same fill-ins
+    with the source label kept on every row."""
     import torch
     torch.manual_seed(seed)
     gen = torch.Generator(device=device).manual_seed(seed)
@@ -362,9 +425,21 @@ def train_latent(M, table, aux, arm, seed, max_epochs, device):
     j_nw = M.PREDICTED.index('net_worth')
     jl = {v: M.PREDICTED.index(v) for v in LATENT}
     LATENT_COL = torch.tensor([v in LATENT for v in M.PREDICTED], device=device)
+    labelled = arm in LATENT_LABELLED
+    PUF_LABEL = M.SOURCES.index('puf')
 
     def enc(part):
         d = M.encode(part, device)
+        if labelled:
+            # The label kept (step 26): each row as today's model sees it,
+            # other income absent on PUF rows, nothing always hidden.
+            puf = torch.tensor((part.source == 'puf').to_numpy(), device=device)
+            vals = d['values'].clone()
+            unknown = torch.zeros(len(part), len(M.PREDICTED), dtype=torch.bool, device=device)
+            rep_band = {v: vals[:, C + jl[v]].clone() for v in LATENT}
+            dollars = {v: torch.tensor(part[v].to_numpy(dtype=np.float64), device=device) for v in LATENT}
+            return dict(values=vals, weight=d['weight'], unknown=unknown, srv=~puf, rep_band=rep_band,
+                        dollars=dollars)
         vals = d['values'].clone()
         vals[:, 0] = -1                                  # no source label
         puf = torch.tensor((part.source == 'puf').to_numpy(), device=device)
@@ -379,7 +454,12 @@ def train_latent(M, table, aux, arm, seed, max_epochs, device):
     tr = enc(table[table.split == 'train'])
     te = enc(table[table.split == 'test'])
     fill = arm != 'nofill'
-    learn = arm == 'latent_learn'
+    learn = arm in ('latent_learn', 'latent_learn_label', 'latent_learn_label_drop')
+    # The drop rule (below) kept the shared belief anchored to the PUF when
+    # there was no label. With the label on, the belief the settings are fit
+    # against is the one under the PUF label, which only PUF rows train, so
+    # the rule is not needed; latent_learn_label_drop keeps it as a check.
+    drop_rule = learn and arm != 'latent_learn_label'
     cuts = {v: torch.tensor(aux['cuts'][v], dtype=torch.float64, device=device) for v in LATENT}
     # mean log dollars per slice; the loss slices (unused for these items) are
     # undefined and set to 0, since a NaN there poisons the gradient even where masked
@@ -430,6 +510,24 @@ def train_latent(M, table, aux, arm, seed, max_epochs, device):
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_factor_fn(max_epochs, spe))
     val_hidden = [M.draw_hidden(te['values'], gen, te['unknown']) for _ in range(4)]
 
+    def anchored(rows, v):
+        """Inputs and hidden mask for the belief the settings are fit
+        against: only what the survey reports truly. Label off: the survey's
+        own slot and both items hidden. Label on: the same question put under
+        the PUF label, with other income absent as on PUF rows, so it is
+        answered from what PUF rows taught."""
+        hid = torch.zeros(len(rows), len(M.PREDICTED), dtype=torch.bool, device=device)
+        hid[:, jl[v]] = True
+        hid[:, j_nw] = True
+        hid |= LATENT_COL[None, :]
+        if not labelled:
+            return rows, hid
+        rows = rows.clone()
+        rows[:, 0] = PUF_LABEL
+        rows[:, C + j_nw] = -1
+        hid[:, j_nw] = False
+        return rows, hid
+
     @torch.no_grad()
     def draw_fills(vals, srv_rows, rep_band):
         """New true amounts for the survey zeros among vals[srv_rows], each
@@ -451,13 +549,11 @@ def train_latent(M, table, aux, arm, seed, max_epochs, device):
             if learn:
                 # for the settings: the belief with the survey's own slot hidden
                 # too, which the PUF pins (the anchor); the fill-in below uses
-                # the full belief
-                hid_a = hid.clone()
-                hid_a[:, j_nw] = True
-                hid_a |= LATENT_COL[None, :]  # and both items: the settings must rest
-                # only on what the survey reports truly, or a wrong setting for one
-                # item inflates the other item's belief (step 22, test 5)
-                beliefs[v] = model(sub, hid_a)[:, jl[v], :M.N_CHOICES[v]]
+                # the full belief. Both items hidden: the settings must rest
+                # only on what the survey reports truly, or a wrong setting for
+                # one item inflates the other item's belief (step 22, test 5).
+                # With the label on, asked under the PUF label (anchored()).
+                beliefs[v] = model(*anchored(sub, v))[:, jl[v], :M.N_CHOICES[v]]
             if not zero.any():
                 continue
             _, l1mg = log_g(k)
@@ -514,11 +610,8 @@ def train_latent(M, table, aux, arm, seed, max_epochs, device):
             qs = []
             for i in range(0, len(rep), 20_000):
                 idx = rep[i:i + 20_000]
-                hid = torch.zeros(len(idx), len(M.PREDICTED), dtype=torch.bool, device=device)
-                hid[:, jl[v]] = True
-                hid[:, j_nw] = True          # the anchored belief, as in the curve's loss
-                hid |= LATENT_COL[None, :]
-                lp = model(tr['values'][idx], hid)[:, jl[v], :M.N_CHOICES[v]] + lg
+                # the anchored belief, as in the curve's loss
+                lp = model(*anchored(tr['values'][idx], v))[:, jl[v], :M.N_CHOICES[v]] + lg
                 lp = torch.where(pos, lp, torch.full_like(lp, -math.inf))
                 qs.append(lp.softmax(1))
             q = torch.cat(qs)
@@ -547,7 +640,7 @@ def train_latent(M, table, aux, arm, seed, max_epochs, device):
                 tr['values'][idx] = vals
             values, weight, unknown = tr['values'][idx], tr['weight'][idx], tr['unknown'][idx]
             hidden = M.draw_hidden(values, gen, unknown)
-            if learn:
+            if drop_rule:
                 # The anchor (PUF = actual): the belief about a true amount given
                 # the shared variables alone is learned from PUF rows only. A
                 # survey row trains its interest and dividend slots only when its
@@ -712,7 +805,7 @@ def run(arm, D, seed):
     assert (arm == 'oracle') == (D == 'D0'), 'oracle runs on D0, every other arm on D1-D4'
     seed = int(seed)
     rule = 'rank' if arm == 'rank' else 'dollar'
-    tag = f'F22_{D}_{rule}'
+    tag = f'F22{TAG}_{D}_{rule}'
     folder = f'{OUT}/{arm}_{D}_s{seed}'
     if os.path.exists(f'{folder}/score.json'):
         print(f'{folder}: done already', flush=True)
@@ -725,7 +818,7 @@ def run(arm, D, seed):
     table = M.read_table()
     t0 = time.time()
     settings = diag = None
-    if arm in LABEL_FREE:
+    if arm in LABEL_FREE + LATENT_LABELLED:
         model, log, settings, diag = train_latent(M, table, aux, arm, seed, max_epochs, device)
     else:
         if arm == 'prefill':
@@ -754,7 +847,7 @@ def rescore():
     for f in sorted(glob.glob(f'{OUT}/*/score.json')):
         old = json.load(open(f))
         arm, D = old['arm'], old['D']
-        tag = f"F22_{D}_{'rank' if arm == 'rank' else 'dollar'}"
+        tag = f"F22{TAG}_{D}_{'rank' if arm == 'rank' else 'dollar'}"
         folder = os.path.dirname(f)
         M = load_model_module(tag, folder)
         aux = json.load(open(f'{OUT}/aux_{D}.json'))

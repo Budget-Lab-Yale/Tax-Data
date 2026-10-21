@@ -1,0 +1,28 @@
+{
+  "_what": "Step 31 settings sheet for the SCF (design/cell_method.md, section 2). Read by 31_train.py and copied into every run's train_meta.json. Dollar amounts are 2015 dollars on the PUF's scale; for the other waves the same slices are used, which sit on each wave's grown ruler, so the ranges stretch with the IRS growth in each item.",
+  "survey": "scf",
+  "assumed_correct": ["married", "n_dep", "wages"],
+  "mapped": ["interest", "dividends", "capital_gains"],
+  "concept": {
+    "interest": "PUF taxable interest (E00300); SCF X5708",
+    "dividends": "PUF ordinary dividends (E00600); SCF X5710",
+    "capital_gains": "PUF line 13 (kg_st + kg_lt + kg_dist + kg_other); SCF X5712 with every loss below -$3,000 set to -$3,000 first"
+  },
+  "loss_cap": {"capital_gains": -3000},
+  "dollar_rule": {"interest": "unchanged", "dividends": "unchanged", "capital_gains": "unchanged"},
+  "cells": {
+    "wage_groups": [["none", 0, 0], ["under $25k", 0, 25000], ["$25k-75k", 25000, 75000],
+                    ["$75k-200k", 75000, 200000], ["over $200k", 200000, null]],
+    "by_married": true,
+    "min_households": 300
+  },
+  "comparison_ranges": {
+    "interest": [[0, 100], [100, 500], [500, 2000], [2000, 10000], [10000, 50000], [50000, null]],
+    "dividends": [[0, 100], [100, 500], [500, 2000], [2000, 10000], [10000, 50000], [50000, null]],
+    "capital_gains": [[null, -3000], [-3000, 0], [0, 1000], [1000, 10000], [10000, 50000], [50000, 250000], [250000, null]]
+  },
+  "top_line": {"interest": 2000, "dividends": 2000, "capital_gains": 10000},
+  "fill_losses_down_to": {"capital_gains": -3000},
+  "fitting_tax_year": 2015,
+  "fill_from_pass": 3
+}

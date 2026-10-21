@@ -1,0 +1,225 @@
+{
+ "_what": "Step 33 settings sheet for the SCF (design/cell_method.md, section 2; 33_STATUS.md). The cell-method part (assumed_correct ... fill_from_pass) is step 31's sheet unchanged and is read by 31_train.py. The block 'step33_items' is new: it is read by 33_tables.py when it builds table E33 and says, for every item added in step 33, the concept on the PUF's terms, the SCF items and PUF fields, any fixed conversion, the dollar rule, and whether the item is taken as reported or filled in. Dollar amounts are 2015 dollars on the PUF's scale.",
+ "survey": "scf",
+ "assumed_correct": [
+  "married",
+  "n_dep",
+  "wages"
+ ],
+ "mapped": [
+  "interest",
+  "dividends",
+  "capital_gains"
+ ],
+ "concept": {
+  "interest": "PUF taxable interest (E00300); SCF X5708",
+  "dividends": "PUF ordinary dividends (E00600); SCF X5710",
+  "capital_gains": "PUF line 13 (kg_st + kg_lt + kg_dist + kg_other); SCF X5712 with every loss below -$3,000 set to -$3,000 first"
+ },
+ "loss_cap": {
+  "capital_gains": -3000
+ },
+ "dollar_rule": {
+  "interest": "unchanged",
+  "dividends": "unchanged",
+  "capital_gains": "unchanged"
+ },
+ "cells": {
+  "wage_groups": [
+   [
+    "none",
+    0,
+    0
+   ],
+   [
+    "under $25k",
+    0,
+    25000
+   ],
+   [
+    "$25k-75k",
+    25000,
+    75000
+   ],
+   [
+    "$75k-200k",
+    75000,
+    200000
+   ],
+   [
+    "over $200k",
+    200000,
+    null
+   ]
+  ],
+  "by_married": true,
+  "min_households": 300
+ },
+ "comparison_ranges": {
+  "interest": [
+   [
+    0,
+    100
+   ],
+   [
+    100,
+    500
+   ],
+   [
+    500,
+    2000
+   ],
+   [
+    2000,
+    10000
+   ],
+   [
+    10000,
+    50000
+   ],
+   [
+    50000,
+    null
+   ]
+  ],
+  "dividends": [
+   [
+    0,
+    100
+   ],
+   [
+    100,
+    500
+   ],
+   [
+    500,
+    2000
+   ],
+   [
+    2000,
+    10000
+   ],
+   [
+    10000,
+    50000
+   ],
+   [
+    50000,
+    null
+   ]
+  ],
+  "capital_gains": [
+   [
+    null,
+    -3000
+   ],
+   [
+    -3000,
+    0
+   ],
+   [
+    0,
+    1000
+   ],
+   [
+    1000,
+    10000
+   ],
+   [
+    10000,
+    50000
+   ],
+   [
+    50000,
+    250000
+   ],
+   [
+    250000,
+    null
+   ]
+  ]
+ },
+ "top_line": {
+  "interest": 2000,
+  "dividends": 2000,
+  "capital_gains": 10000
+ },
+ "fill_losses_down_to": {
+  "capital_gains": -3000
+ },
+ "fitting_tax_year": 2015,
+ "fill_from_pass": 3,
+ "step33_items": {
+  "business_income": {
+   "puf_fields": "E00900 + E02000 + E02100: Schedule C net profit or loss, Schedule E total (rents, royalties, partnerships, S corporations, estates and trusts), Schedule F farm net profit or loss",
+   "scf_items": "X5704 (income from self-employment, a professional practice, business, limited partnership or farm) plus X5714 (net rent, trusts, royalties), tax year before the interview. X5704 is split to tax units by the production builder's business share (share_business: each spouse's business income as reported in the labor section), X5714 by the earned-income share (share_earn).",
+   "fixed_conversion": "a reported value of exactly -1 is read as 'nothing' and set to 0, as for X5712 (counted in checks_scf<wave>_33.csv: 131 rows of -1 in 2016 for X5704, 230 for X5714; not confirmed in the codebook); losses kept",
+   "dollar_rule": "rank",
+   "dollar_rule_meaning": "Each wave's SCF units with positive business income are placed in slices by their own weighted rank among positives, so that the k-th slice holds the same share of SCF positive weight as of the PUF's positive weight; losses the same among negatives. The share of units with income, with a loss, or with none is taken as reported. Chosen because survey and tax-return business income differ in level for known reasons (income not reported to the IRS, survey answers net of different expenses and depreciation, rounding), so placing SCF dollars on the PUF's ruler unchanged would mix those level differences into who has how much. Alternatives John can choose: 'unchanged' (the PUF's 2015 cut points grown by the IRS growth in the item, as interest and dividends), or a number, a factor applied to the SCF dollars before the PUF's cut points are used.",
+   "treatment": "taken as reported",
+   "treatment_reason": "The cell method is for items the survey under-reports among holders; it is not set up for an item with losses on both sides and a level gap this large. Holders as reported against the PUF side are in step33/tables_checks.md.",
+   "absent_on_scf": false,
+   "why_one_item": "The two SCF questions do not separate along the PUF's schedule lines. In the 2016 wave X5714 (net rent, trusts, royalties) totals about $1.15 trillion, against about $80 billion for Schedule E parts I and III (rents, royalties, estates, trusts) on 2015 returns, and X5704 about $0.58 trillion against about $0.95 trillion for Schedule C, E part II (partnerships, S corporations) and F; together $1.73 trillion against $1.03 trillion. Respondents evidently report much pass-through income under rent, trusts and royalties. So the shared concept is all of Schedules C, E and F, one item on both sides."
+  },
+  "retirement_gross": {
+   "puf_fields": "E02400 + E01500: gross Social Security benefits plus total (gross) pensions and annuities. Not part of AGI; the taxable parts are separate PUF-owned items.",
+   "scf_items": "X5722: Social Security or other pensions, annuities, or other disability or retirement programs; split by share_earn, as the builder splits SSRETINC",
+   "fixed_conversion": "a reported value of exactly -1 set to 0",
+   "dollar_rule": "unchanged",
+   "dollar_rule_meaning": "PUF 2015 cut points grown by the IRS growth in total Social Security plus total pensions and annuities.",
+   "treatment": "taken as reported",
+   "caveat": "The SCF question may include disability and retirement programs that are not on Form 1040 lines 16a or 20a (e.g. veterans' disability, SSI is asked separately with welfare), and IRA withdrawals sit on line 15 (not in E01500); the PUF misses everyone who does not file, the non-filer rows carry gross Social Security and gross pensions from the CPS.",
+   "absent_on_scf": false
+  },
+  "tax_exempt_interest": {
+   "puf_fields": "E00400 (Form 1040 line 8b). Not part of AGI.",
+   "scf_items": "X5706: tax-exempt interest (the SCF's 'non-taxable investments such as municipal bonds'); split by share_earn",
+   "fixed_conversion": "a reported value of exactly -1 set to 0",
+   "dollar_rule": "unchanged",
+   "dollar_rule_meaning": "PUF 2015 cut points grown by the IRS growth in tax-exempt interest.",
+   "treatment": "taken as reported",
+   "treatment_reason": "Concentrated among a few wealthy households; the cell method's hidden-holder logic could apply as for taxable interest, but is not run here (question for John).",
+   "absent_on_scf": false
+  },
+  "other_gains": {
+   "puf_fields": "E01200 (Form 4797 other gains or losses)",
+   "scf_items": "none: the SCF asks no separate question (sales of business property fall in X5712 or X5704)",
+   "absent_on_scf": true
+  },
+  "ira_taxable": {
+   "puf_fields": "E01400 (taxable IRA distributions)",
+   "scf_items": "none used: the SCF's withdrawal questions are not on the tax-return concept",
+   "absent_on_scf": true
+  },
+  "pensions_taxable": {
+   "puf_fields": "E01700 (taxable pensions and annuities)",
+   "scf_items": "none: X5722 is gross and includes Social Security (used for retirement_gross)",
+   "absent_on_scf": true
+  },
+  "ss_taxable": {
+   "puf_fields": "E02500 (taxable Social Security benefits)",
+   "scf_items": "none: the taxable part is a tax-law calculation",
+   "absent_on_scf": true
+  },
+  "unemployment": {
+   "puf_fields": "E02300 (unemployment compensation)",
+   "scf_items": "none used: X5716 adds workers' compensation, which is not on the return and in 2015 was larger than unemployment compensation",
+   "absent_on_scf": true
+  },
+  "alimony": {
+   "puf_fields": "E00800 (alimony received)",
+   "scf_items": "none used: X5718 adds child support, which is not on the return and is larger",
+   "absent_on_scf": true
+  },
+  "state_refunds": {
+   "puf_fields": "E00700 (taxable refunds of state and local income taxes)",
+   "scf_items": "none",
+   "absent_on_scf": true
+  },
+  "adjustments": {
+   "puf_fields": "E03150 + E03210 + E03220 + E03230 + E03240 + E03260 + E03270 + E03290 + E03300 + E03400 + E03500 (IRA deduction, student loan interest, educator expenses, tuition and fees, domestic production, half of self-employment tax, self-employed health insurance, health savings account, SEP/Keogh, early-withdrawal penalty, alimony paid), as a positive amount subtracted in AGI",
+   "scf_items": "none",
+   "absent_on_scf": true
+  }
+ }
+}

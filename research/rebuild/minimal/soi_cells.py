@@ -33,6 +33,22 @@ ITEMS = {  # item: (SOI amount rows with their signs, SOI count rows)
     'capital_gains': ({'sch_d_net_gain': 1, 'sch_d_net_loss': -1},
                       ['sch_d_net_gain', 'sch_d_net_loss']),
 }
+# MINIMAL_KG_DIST_TARGETS=1 (2026-10-17, step 27; unset = as before): the
+# capital gains targets restated for the pieces. A fifth item, kg_dist (the
+# capital gain distributions reported without a Schedule D, E01100), with its
+# own count and amount per bracket (SOI row capital_gain_distributions_no_sch_d).
+# capital_gains stays the Schedule D net figure (kg_st + kg_lt + kg_other on a
+# step-27 file); kg_dist stays inside other_agi for AGI, so AGI is unchanged.
+# Needs a file with a kg_dist column (04_dollars MINIMAL_KG_PIECES=1).
+import os as _os
+if _os.environ.get('MINIMAL_KG_DIST_TARGETS') == '1':
+    ITEMS['kg_dist'] = ({'capital_gain_distributions_no_sch_d': 1}, ['capital_gain_distributions_no_sch_d'])
+# MINIMAL_TEI_TARGETS=1 (2026-10-18, step 33; unset = as before): tax-exempt
+# interest (Form 1040 line 8b, SOI row tax_exempt_interest) as one more item,
+# count and amount per bracket. Not part of AGI. Needs a file with a
+# tax_exempt_interest column (table E33).
+if _os.environ.get('MINIMAL_TEI_TARGETS') == '1':
+    ITEMS['tax_exempt_interest'] = ({'tax_exempt_interest': 1}, ['tax_exempt_interest'])
 
 
 def agi(df):

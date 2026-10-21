@@ -55,6 +55,43 @@ ROOT = '/nfs/roberts/scratch/pi_nrs36/jar335/minimal'
 OUT = f'{ROOT}/map'
 AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_worth']
 SEED = 20261104
+# MINIMAL_KG_PIECES=1 (2026-10-17, step 27, 27_MAPPING_SPEC.md; unset = as
+# before): the capital gains pieces kg_st, kg_lt, kg_dist, kg_other get
+# dollars too (appended after the six, so the six keep their random streams),
+# and once every piece has dollars the record's capital_gains and other_agi
+# are put on the definitions the 136 IRS targets use: capital_gains = kg_st +
+# kg_lt + kg_other (the Schedule D figure, E01000) and other_agi = other_agi
+# + kg_dist (the distributions reported without a Schedule D sit in other
+# income, as on the earlier tables). AGI, the sum of the five parts, is then
+# the sum of all the pieces and other income. Applies only to a table that
+# has all four piece bands.
+KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
+KG_MODE = os.environ.get('MINIMAL_KG_PIECES') == '1'
+if KG_MODE:
+    AMOUNTS = AMOUNTS + KG_PIECES
+# MINIMAL_EXTRA_AMOUNTS=a,b,... (2026-10-18, step 33, 33_STATUS.md; unset = as
+# before): more amounts get dollars, appended after all the others so earlier
+# amounts keep their random streams.
+# MINIMAL_AGI_FOLD=a:1,b:-1,... (same date; unset = as before): once every
+# listed amount has dollars, the drawn remainder is kept as
+# other_agi_remainder and other_agi becomes remainder + the sum of sign x
+# amount (+ kg_dist under MINIMAL_KG_PIECES, as before), so other_agi again
+# means AGI minus wages, interest, dividends and capital gains, the definition
+# soi_cells.agi and the 136 IRS targets use. Applies only to a table that has
+# every listed band.
+EXTRA_AMOUNTS = [v.strip() for v in os.environ.get('MINIMAL_EXTRA_AMOUNTS', '').split(',') if v.strip()]
+AMOUNTS = AMOUNTS + [v for v in EXTRA_AMOUNTS if v not in AMOUNTS]
+AGI_FOLD = {k.strip(): float(x) for k, x in (p.split(':') for p in os.environ.get('MINIMAL_AGI_FOLD', '').split(',')
+                                              if p.strip())}
+# MINIMAL_SUM_TOTAL=<total> and MINIMAL_SUM_PARTS=a:1,b:-1,... (2026-10-18,
+# step 34, 34_STATUS.md; unset = as before): once every listed part has
+# dollars, the total's drawn dollars are kept as <total>_drawn and the total
+# becomes the exact sum of sign x part (business_income from its eighteen
+# parts on table E34). Done before MINIMAL_AGI_FOLD, so the fold uses the sum.
+# Applies only to a table that has every listed band.
+SUM_TOTAL = os.environ.get('MINIMAL_SUM_TOTAL', '').strip()
+SUM_PARTS = {k.strip(): float(x) for k, x in (p.split(':') for p in os.environ.get('MINIMAL_SUM_PARTS', '').split(',')
+                                              if p.strip())}
 
 
 # ---------------------------------------------------------------- the map
@@ -185,6 +222,25 @@ def draw_dollars(df, maps, seed=SEED):
             out[v], rule = draw_one(bands, maps[v], rng)
         filled = rule[(rule != '') & (rule != 'real records')]
         hits[v] = pd.Series(filled, dtype=object).value_counts().to_dict()
+    fold = bool(AGI_FOLD) and 'other_agi' in out and all(f'{v}_band' in df and v in maps for v in AGI_FOLD)
+    if fold:
+        remainder = out['other_agi'].to_numpy(float).copy()
+    if KG_MODE and all(f'{p}_band' in df for p in KG_PIECES) and all(p in maps for p in KG_PIECES):
+        parts = out[KG_PIECES].to_numpy(float)
+        assert not np.isnan(parts).any(), 'a capital gains piece is missing on a PUF record'
+        out['capital_gains_line13'] = parts.sum(axis=1)
+        out['capital_gains'] = out['kg_st'] + out['kg_lt'] + out['kg_other']
+        out['other_agi'] = out['other_agi'] + out['kg_dist']
+    if SUM_TOTAL and SUM_TOTAL in out and all(f'{p}_band' in df and p in maps for p in SUM_PARTS):
+        parts = out[list(SUM_PARTS)].to_numpy(float)
+        assert not np.isnan(parts).any(), f'a part of {SUM_TOTAL} is missing on a record'
+        out[f'{SUM_TOTAL}_drawn'] = out[SUM_TOTAL]
+        out[SUM_TOTAL] = parts @ np.array(list(SUM_PARTS.values()))
+    if fold:
+        parts = out[list(AGI_FOLD)].to_numpy(float)
+        assert not np.isnan(parts).any(), 'an AGI part is missing on a record'
+        out['other_agi_remainder'] = remainder
+        out['other_agi'] = out['other_agi'] + parts @ np.array(list(AGI_FOLD.values()))
     return out, hits
 
 

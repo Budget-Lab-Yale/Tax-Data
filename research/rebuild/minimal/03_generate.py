@@ -91,9 +91,135 @@ INCOMES = {s: [a for a in m.AMOUNTS if a != 'net_worth' and m.OWNED_BY.get(a, s)
 # The draw order (see the docstring): 'block' (default) or 'own_first'.
 ORDER = os.environ.get('MINIMAL_ORDER', 'block')
 assert ORDER in ('block', 'own_first'), ORDER
+# MINIMAL_BORROWED_MASKED=1 (2026-10-16, step 23): under own_first, a
+# borrowed slot is present and hidden (the mask token) while the record's own
+# variables are drawn, not absent. For models trained by 23_train_latent.py,
+# whose PUF rows carry the SCF's slot hidden, never absent.
+BORROWED_MASKED = os.environ.get('MINIMAL_BORROWED_MASKED') == '1'
 # Under own_first: every variable a source has, and the ones it borrows.
 OWN = {s: [v for v in m.PREDICTED if m.OWNED_BY.get(v, s) == s] for s in m.SOURCES}
 BORROWED_VARS = {s: [v for v in m.PREDICTED if m.OWNED_BY.get(v, s) != s] for s in m.SOURCES}
+# MINIMAL_COMPUTED_TOTAL=1 (2026-10-17, step 27, 27_MAPPING_SPEC.md, John's
+# sign-off; unset = as before): on a table with the capital gains pieces
+# (kg_st, kg_lt, kg_dist, kg_other), the capital_gains slot of a PUF-labelled
+# record (the Form 1040 line-13 total) is never drawn. It stays in the record,
+# present and masked, while the PUF variables are drawn (own_first order
+# only); then its band is computed: each piece gets dollars drawn within its
+# band (one of 32 equally spaced quantile points of the PUF-side records in
+# that band, weighted), the four are added, and the sum is banded on the
+# PUF's 2015 capital gains cut points. Only then is net worth drawn.
+COMPUTED_TOTAL = os.environ.get('MINIMAL_COMPUTED_TOTAL') == '1'
+KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
+if COMPUTED_TOTAL:
+    assert ORDER == 'own_first' and all(v in m.PREDICTED for v in KG_PIECES), 'computed total: own_first, E27'
+    OWN['puf'] = [v for v in OWN['puf'] if v != 'capital_gains']
+_KG_POINTS = {}
+# MINIMAL_COMPUTED_EXTRA=1 (2026-10-18, step 34, 34_STATUS.md; unset = as
+# before): more totals computed from their parts, as the line-13 total is
+# under MINIMAL_COMPUTED_TOTAL. The band-edge file's meta.computed_totals
+# gives {total: {part: sign}} (table E34: business_income from its eighteen
+# parts). On a PUF-labelled record each such total is never drawn: it stays
+# present and masked while the PUF variables are drawn (own_first only), then
+# each part gets dollars drawn within its band (one of 32 equally spaced
+# weighted quantile points of the PUF-side records in that band), the parts
+# are added with their signs, and the sum is banded on the PUF's 2015 cut
+# points of the total. Only then is net worth drawn. Computed after the
+# line-13 total when both are on.
+COMPUTED_EXTRA = {}
+if os.environ.get('MINIMAL_COMPUTED_EXTRA') == '1':
+    COMPUTED_EXTRA = json.load(open(m.BAND_EDGES))['meta']['computed_totals']
+    assert ORDER == 'own_first', 'computed totals: own_first order only'
+    assert all(t in m.PREDICTED and all(p in m.PREDICTED for p in ps) for t, ps in COMPUTED_EXTRA.items())
+    OWN['puf'] = [v for v in OWN['puf'] if v not in COMPUTED_EXTRA]
+_EXTRA_POINTS = {}
+
+
+def extra_points(total, device):
+    """As kg_points, for the parts of one computed total (COMPUTED_EXTRA)."""
+    if total in _EXTRA_POINTS:
+        return _EXTRA_POINTS[total]
+    import numpy as np
+    parts = list(COMPUTED_EXTRA[total])
+    t = pd.read_parquet(m.DATA, columns=['source', 'weight'] + parts + [v + '_band' for v in parts])
+    t = t[t.source == 'puf']
+    w = t['weight'].to_numpy(float)
+    P = {}
+    for v in parts:
+        x, b = t[v].to_numpy(float), t[v + '_band'].to_numpy()
+        pts = np.zeros((m.N_CHOICES[v], 32))
+        for k in range(m.N_CHOICES[v]):
+            sel = b == k
+            if sel.any():
+                o = np.argsort(x[sel], kind='stable')
+                xs, F = x[sel][o], np.cumsum(w[sel][o]) / w[sel].sum()
+                pts[k] = xs[np.minimum(np.searchsorted(F, (np.arange(32) + 0.5) / 32), len(xs) - 1)]
+        P[v] = torch.tensor(pts, dtype=torch.float64, device=device)
+    e = json.load(open(m.BAND_EDGES))[f'puf/2015/{total}']
+    P['neg'] = torch.tensor(e['negative']['cuts'], dtype=torch.float64, device=device)
+    P['pos'] = torch.tensor(e['positive']['cuts'], dtype=torch.float64, device=device)
+    _EXTRA_POINTS[total] = P
+    return P
+
+
+def computed_extra_band(values, gen, total):
+    """The band of a computed total from its parts' bands (COMPUTED_EXTRA)."""
+    P = extra_points(total, values.device)
+    s = torch.zeros(len(values), dtype=torch.float64, device=values.device)
+    for v, sign in COMPUTED_EXTRA[total].items():
+        b = values[:, NC + m.PREDICTED.index(v)]
+        assert (b >= 0).all(), f'{v} not drawn before {total}'
+        k = torch.randint(0, 32, (len(values),), generator=gen, device=values.device)
+        s += float(sign) * P[v][b, k]
+    first_pos = m.BAND_LAYOUT[total]['first_positive']
+    band = torch.zeros(len(values), dtype=torch.long, device=values.device)
+    neg, pos = s < 0, s > 0
+    band[neg] = 1 + torch.searchsorted(P['neg'], s[neg].contiguous(), right=False)
+    band[pos] = first_pos + torch.searchsorted(P['pos'], s[pos].contiguous(), right=False)
+    return band
+
+
+def kg_points(device):
+    """[bands, 32] dollar points per band of each piece, from the PUF-side
+    rows of the table (weighted quantiles), and the capital gains cut points."""
+    if 'cuts' in _KG_POINTS:
+        return _KG_POINTS
+    import numpy as np
+    t = pd.read_parquet(m.DATA, columns=['source', 'weight'] + KG_PIECES + [v + '_band' for v in KG_PIECES])
+    t = t[t.source == 'puf']
+    w = t['weight'].to_numpy(float)
+    for v in KG_PIECES:
+        x, b = t[v].to_numpy(float), t[v + '_band'].to_numpy()
+        pts = np.zeros((m.N_CHOICES[v], 32))
+        for k in range(m.N_CHOICES[v]):
+            sel = b == k
+            if sel.any():
+                o = np.argsort(x[sel], kind='stable')
+                xs, F = x[sel][o], np.cumsum(w[sel][o]) / w[sel].sum()
+                pts[k] = xs[np.minimum(np.searchsorted(F, (np.arange(32) + 0.5) / 32), len(xs) - 1)]
+        _KG_POINTS[v] = torch.tensor(pts, dtype=torch.float64, device=device)
+    edges = json.load(open(m.BAND_EDGES))['puf/2015/capital_gains']
+    _KG_POINTS['neg'] = torch.tensor(edges['negative']['cuts'], dtype=torch.float64, device=device)
+    _KG_POINTS['pos'] = torch.tensor(edges['positive']['cuts'], dtype=torch.float64, device=device)
+    _KG_POINTS['cuts'] = True
+    return _KG_POINTS
+
+
+def computed_total_band(values, gen):
+    """The line-13 band of each record from its four piece bands (see
+    COMPUTED_TOTAL)."""
+    P = kg_points(values.device)
+    total = torch.zeros(len(values), dtype=torch.float64, device=values.device)
+    for v in KG_PIECES:
+        b = values[:, NC + m.PREDICTED.index(v)]
+        assert (b >= 0).all(), f'{v} not drawn before the total'
+        k = torch.randint(0, 32, (len(values),), generator=gen, device=values.device)
+        total += P[v][b, k]
+    first_pos = m.BAND_LAYOUT['capital_gains']['first_positive']
+    band = torch.zeros(len(values), dtype=torch.long, device=values.device)
+    neg, pos = total < 0, total > 0
+    band[neg] = 1 + torch.searchsorted(P['neg'], total[neg].contiguous(), right=False)
+    band[pos] = first_pos + torch.searchsorted(P['pos'], total[pos].contiguous(), right=False)
+    return band
 
 
 def generation_order(n, source, with_net_worth, fixed_order, gen, already_set=()):
@@ -169,12 +295,22 @@ def generate(model, n, source, with_net_worth, fixed_order, seed, chunk=50_000,
         values[:, 1] = m.YEARS.index(year)
         rows = torch.arange(size, device=device)
         values[rows[:, None], NC + order] = 0    # present, not yet drawn (masked below)
-        if ORDER == 'own_first':
+        if ORDER == 'own_first' and not BORROWED_MASKED:
             # A borrowed slot is absent until its turn (a PUF training record
             # has no net worth slot); it is put back, masked, at its step.
             for v in BORROWED_VARS[source]:
                 values[:, NC + m.PREDICTED.index(v)] = -1
         filled = torch.zeros(size, len(m.PREDICTED), dtype=torch.bool, device=device)
+        j_total = m.PREDICTED.index('capital_gains')
+        total_pending = COMPUTED_TOTAL and source == 'puf'
+        if total_pending:
+            assert 'capital_gains' not in preset, 'the line-13 total is computed, never preset'
+            values[:, NC + j_total] = 0             # present and masked until computed
+        extra_pending = bool(COMPUTED_EXTRA) and source == 'puf'
+        if extra_pending:
+            for tot in COMPUTED_EXTRA:
+                assert tot not in preset, f'{tot} is computed, never preset'
+                values[:, NC + m.PREDICTED.index(tot)] = 0     # present and masked until computed
         for var, bands in preset.items():
             j = m.PREDICTED.index(var)
             values[:, NC + j] = bands[start:start + size].to(device)
@@ -183,6 +319,16 @@ def generate(model, n, source, with_net_worth, fixed_order, seed, chunk=50_000,
         q_drawn = p_drawn.clone()
         for step in range(order.shape[1]):
             slot = order[:, step]
+            if total_pending and bool((slot == m.PREDICTED.index('net_worth')).all()):
+                values[:, NC + j_total] = computed_total_band(values, gpu_gen)
+                filled[:, j_total] = True
+                total_pending = False
+            if extra_pending and bool((slot == m.PREDICTED.index('net_worth')).all()):
+                for tot in COMPUTED_EXTRA:
+                    j_tot = m.PREDICTED.index(tot)
+                    values[:, NC + j_tot] = computed_extra_band(values, gpu_gen, tot)
+                    filled[:, j_tot] = True
+                extra_pending = False
             if ORDER == 'own_first':
                 values[rows, NC + slot] = 0       # the slot drawn now: present, masked
             hidden = (values[:, NC:] >= 0) & ~filled
@@ -203,6 +349,14 @@ def generate(model, n, source, with_net_worth, fixed_order, seed, chunk=50_000,
                 q_drawn[boosted] = draw_from[rows, draw][boosted].double()
             values[rows, NC + slot] = draw
             filled[rows, slot] = True
+        if total_pending:                            # no net worth draw: compute at the end
+            values[:, NC + j_total] = computed_total_band(values, gpu_gen)
+            filled[:, j_total] = True
+        if extra_pending:                            # no net worth draw: compute at the end
+            for tot in COMPUTED_EXTRA:
+                j_tot = m.PREDICTED.index(tot)
+                values[:, NC + j_tot] = computed_extra_band(values, gpu_gen, tot)
+                filled[:, j_tot] = True
         parts.append((values.cpu(), p_drawn.cpu(), q_drawn.cpu()))
     table = to_table(torch.cat([v for v, _, _ in parts]))
     if borrowed is not None and borrowed.get('year') is not None:

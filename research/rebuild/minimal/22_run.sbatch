@@ -1,6 +1,7 @@
-#!/bin/bash
+#!/bin/bash -l
 #SBATCH --job-name=min22
-#SBATCH --partition=gpu_b200,gpu,gpu_h100,gpu_h200,scavenge_gpu
+#SBATCH --partition=gpu_b200,gpu,gpu_h100,gpu_h200
+#SBATCH --exclude=a1125u14n01,a1125u05n01
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=4

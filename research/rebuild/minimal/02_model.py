@@ -102,7 +102,7 @@ BAND_EDGES = f'{ROOT}/data/band_edges{_SUFFIX}.json'
 _FOLDER = RUN or (f'exp{EXPERIMENT}' if EXPERIMENT else '')
 MODEL_DIR = os.environ.get('MINIMAL_MODEL_DIR', f'{ROOT}/model/{_FOLDER}'.rstrip('/'))
 GEN_DIR = os.environ.get('MINIMAL_GEN_DIR', f'{ROOT}/gen/{_FOLDER}'.rstrip('/'))
-SEED = 20261016
+SEED = int(os.environ.get('MINIMAL_SEED', '20261016'))   # MINIMAL_SEED: seed replicates (step 23)
 ALL_RECORDS = os.environ.get('MINIMAL_ALL_RECORDS') == '1'
 HOLDBACK_SEED, HOLDBACK_SHARE = 20261015, 0.02
 
@@ -124,12 +124,40 @@ CONTEXT = ['source', 'year']
 _COLUMNS = set(pq.read_schema(DATA).names)
 SMALL_PARTS = [v for v in ['interest_small', 'dividends_small', 'capital_gains_small']
                if v + '_band' in _COLUMNS]
+# The filing flag (2026-10-16, step 23, plan decision 7): a PUF-owned slot,
+# 1 on PUF returns, 0 on the non-filer rows added to the PUF side; included
+# when and only when the table has the column (table E4N).
+FILER = ['filer'] if 'filer' in _COLUMNS else []
+# The capital gains pieces (2026-10-17, step 27, 27_MAPPING_SPEC.md, John's
+# sign-off): kg_st (P22250), kg_lt (P23250), kg_dist (E01100) and kg_other
+# (E01000 - P22250 - P23250), PUF-owned slots, absent on SCF rows. Included
+# when and only when the table has the columns (table E27 and its kind); no
+# earlier table has them, so earlier models are unchanged.
+KG_PIECES = [v for v in ['kg_st', 'kg_lt', 'kg_dist', 'kg_other'] if v + '_band' in _COLUMNS]
+# More PUF items (2026-10-18, step 33, 33_STATUS.md): the table's band-edge
+# file lists them under meta.step33_items as {item: 'puf' or 'shared'}
+# ('puf': PUF-owned, absent on SCF rows; 'shared': on both sources). They sit
+# after the capital gains pieces. No earlier table has the key, so earlier
+# models are unchanged.
+EXTRA_ITEMS = {}
+if os.path.exists(BAND_EDGES):
+    with open(BAND_EDGES) as _f:
+        EXTRA_ITEMS = {k: o for k, o in json.load(_f).get('meta', {}).get('step33_items', {}).items()
+                       if k + '_band' in _COLUMNS}
+assert set(EXTRA_ITEMS.values()) <= {'puf', 'shared'}, EXTRA_ITEMS
+CATEGORICAL = ['married', 'n_dep'] + FILER
 PREDICTED = ['married', 'n_dep', 'wages', 'interest', 'dividends',
-             'capital_gains'] + SMALL_PARTS + ['other_agi', 'net_worth']
-AMOUNTS = PREDICTED[2:]
+             'capital_gains'] + SMALL_PARTS + KG_PIECES + list(EXTRA_ITEMS) + ['other_agi', 'net_worth'] + FILER
+AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED  # the order of slots inside the network
 OWNED_BY = {'net_worth': 'scf', 'other_agi': 'puf',          # slots one source has
-            **{v: 'puf' for v in SMALL_PARTS}}
+            **{v: 'puf' for v in SMALL_PARTS + KG_PIECES + FILER},
+            **{v: 'puf' for v, o in EXTRA_ITEMS.items() if o == 'puf'}}
+
+
+def column(v):
+    """The table column of a predicted slot: a band column for amounts."""
+    return v if v in CATEGORICAL else v + '_band'
 # Coarsened zeros (research/rebuild/minimal/08_STATE_2026-10-14.md, "The fix
 # chosen"): an SCF zero for these variables means "zero or small". Step 1
 # writes, per row, <var>_coarse_hi: -1 when the band is exact, otherwise the
@@ -147,6 +175,10 @@ SCF_ZERO_UNKNOWN = os.environ.get('MINIMAL_SCF_ZERO_UNKNOWN') == '1'
 REPORT_CURVE = os.environ.get('MINIMAL_REPORT_CURVE') == '1'
 assert not (REPORT_CURVE and (COARSEN or SCF_ZERO_UNKNOWN)), 'one treatment of SCF zeros at a time'
 INVESTMENT = ['interest', 'dividends', 'capital_gains']   # the items E9 and E10 treat
+# MINIMAL_NO_SOURCE=1 (2026-10-16, step 23, plan decision 18): the network
+# never sees the source token (the slot is absent in every forward pass).
+# For models trained by 23_train_latent.py.
+NO_SOURCE = os.environ.get('MINIMAL_NO_SOURCE') == '1'
 
 
 def read_band_layout(path=BAND_EDGES):
@@ -194,7 +226,8 @@ def read_band_layout(path=BAND_EDGES):
 
 
 BAND_LAYOUT = read_band_layout()
-N_CHOICES = {'married': 2, 'n_dep': 4, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+N_CHOICES = {'married': 2, 'n_dep': 4, **{v: 2 for v in FILER},
+             **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
 
@@ -218,7 +251,8 @@ MASK = 0
 MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2,
-               'n_dep': 4, 'band': 1 + MAX_NEGATIVE + MAX_POSITIVE}
+               'n_dep': 4, 'band': 1 + MAX_NEGATIVE + MAX_POSITIVE,
+               **{v: 2 for v in FILER}}     # after 'band', so earlier tokens keep their numbers
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -259,7 +293,7 @@ def read_table(path=DATA):
         print('SMOKE TEST: no other_agi_band column; treating it as absent everywhere')
         table['other_agi_band'] = -1
     used = ['source', 'year', 'split', 'weight', 'married', 'n_dep'] + \
-           [a + '_band' for a in AMOUNTS]
+           [a + '_band' for a in AMOUNTS] + FILER
     n_missing = table[used].isna().sum()
     if n_missing.any():
         raise ValueError(f'missing values in the stacked table:\n{n_missing[n_missing > 0]}')
@@ -270,8 +304,10 @@ def read_table(path=DATA):
     for a in AMOUNTS:
         lowest = -1 if a in OWNED_BY else 0
         assert table[a + '_band'].between(lowest, N_CHOICES[a] - 1).all(), a
+    for v in FILER:
+        assert table.loc[table.source == 'puf', v].isin([0, 1]).all(), v
     for a, owner in OWNED_BY.items():
-        assert (table.loc[table.source != owner, a + '_band'] == -1).all(), a
+        assert (table.loc[table.source != owner, column(a)] == -1).all(), a
     for a in COARSENED:
         hi, band = table[a + '_coarse_hi'], table[a + '_band']
         assert not hi.isna().any(), f'{a}_coarse_hi has missing values'
@@ -317,8 +353,8 @@ def training_weights(table):
 def encode(table, device='cpu'):
     """Turn rows into tensors. values[:, j] is the within-variable index of
     slot j (source 0/1, year index, married, n_dep, band), -1 where absent."""
-    cols = [table['source'].map(SOURCES.index), table['year'].map(YEARS.index),
-            table['married'], table['n_dep']] + [table[a + '_band'] for a in AMOUNTS]
+    cols = [table['source'].map(SOURCES.index), table['year'].map(YEARS.index)] + \
+           [table[column(v)] for v in PREDICTED]
     values = np.column_stack([np.asarray(c, dtype=np.int64) for c in cols])
     # coarse[:, j, 0]: lowest negative band in the set (-1: none);
     # coarse[:, j, 1]: highest positive band in the set (-1: the band is exact).
@@ -357,7 +393,16 @@ class SlotTransformer(nn.Module):
     """Slot vector = token embedding + slot embedding; four encoder layers;
     one output head per predicted variable."""
 
-    def __init__(self, width=128, layers=4, heads=4, ffn=256, dropout=0.1):
+    # MINIMAL_WIDTH, MINIMAL_LAYERS, MINIMAL_HEADS, MINIMAL_FFN (2026-10-18, step 33):
+    # a bigger network for new training runs; unset = the sizes as before. A
+    # saved model is rebuilt from its own saved settings (load_model).
+    # MINIMAL_DROPOUT (2026-10-19, 34_dropcheck.py): the dropout share for new
+    # training runs; unset = 0.1 as before.
+    def __init__(self, width=int(os.environ.get('MINIMAL_WIDTH', '128')),
+                 layers=int(os.environ.get('MINIMAL_LAYERS', '4')),
+                 heads=int(os.environ.get('MINIMAL_HEADS', '4')),
+                 ffn=int(os.environ.get('MINIMAL_FFN', '256')),
+                 dropout=float(os.environ.get('MINIMAL_DROPOUT', '0.1'))):
         super().__init__()
         self.settings = dict(width=width, layers=layers, heads=heads, ffn=ffn,
                              dropout=dropout)
@@ -372,6 +417,9 @@ class SlotTransformer(nn.Module):
     def forward(self, values, hidden):
         """Returns log-probabilities, shape [records, 8 predicted slots, MAX_CHOICES].
         Choices a variable does not have (married beyond 2, ...) get -inf."""
+        if NO_SOURCE:                     # the source slot absent (see NO_SOURCE)
+            values = values.clone()
+            values[:, 0] = -1
         x = self.token_embedding(token_ids(values, hidden)) + self.slot_embedding
         h = self.final_norm(self.encoder(x, src_key_padding_mask=values < 0))
         out = h.new_full((len(values), len(PREDICTED), MAX_CHOICES), -math.inf)
@@ -411,6 +459,14 @@ def load_model(device, model_dir=MODEL_DIR):
     assert saved['band_layout'] == BAND_LAYOUT, 'band_edges.json changed since training'
     model = SlotTransformer(**saved['settings']).to(device)
     model.load_state_dict(saved['state'])
+    # MINIMAL_GEN_DROPOUT=1 (2026-10-19, 34_dropcheck.py): dropout stays on when
+    # the model is used, as in training. Training matches the data's shares on
+    # average over the dropout noise; with dropout off, rare outcomes come out
+    # too low (the mean of a convex function of the noise is above its value
+    # at no noise). Each draw then uses its own noise; the stack's importance
+    # weights stay exact, as p and q come from the same pass.
+    if os.environ.get('MINIMAL_GEN_DROPOUT') == '1':
+        return model.train()
     return model.eval()
 
 
