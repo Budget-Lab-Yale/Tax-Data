@@ -1,0 +1,236 @@
+{
+ "_what": "Every choice of the current run. FEATURES.md says what each means.",
+ "paths": {
+  "out": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild",
+  "raw": {
+   "puf": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-PUF/v1/2023091310/historical/puf_2015.csv",
+   "scf": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SCF/v1/{wave}/historical",
+   "scf_waves": [
+    2013,
+    2016,
+    2019,
+    2022
+   ],
+   "nonfiler_pool": "/nfs/roberts/project/pi_nrs36/shared/model_data/ASEC-Nonfilers/v1/2026091201/historical/nonfiler_pool_{year}.csv.gz",
+   "soi_mirror": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned"
+  }
+ },
+ "network": {
+  "width": 128,
+  "layers": 4,
+  "heads": 4,
+  "ffn": 256,
+  "dropout": 0.0
+ },
+ "training": {
+  "seed": 20261016,
+  "passes": 80,
+  "batch": 4096,
+  "peak_learning_rate": 0.001,
+  "warmup_passes": 3,
+  "final_learning_rate_share": 0.05,
+  "weight_decay": 0.01,
+  "holdback_share": 0.02,
+  "holdback_seed": 20261015,
+  "refit_every_batches": 10,
+  "log_every_passes": 10
+ },
+ "translation": {
+  "_what": "The cell method. Items taken as correctly reported; items whose SCF zero-reporters are partly filled in as hidden holders. In cells of wage group by married, the PUF's shares by size range set how many hidden holders there are; the model decides which households.",
+  "assumed_correct": [
+   "married",
+   "n_dep",
+   "wages"
+  ],
+  "mapped": [
+   "interest",
+   "dividends",
+   "capital_gains"
+  ],
+  "loss_cap": {
+   "capital_gains": -3000
+  },
+  "cells": {
+   "wage_groups": [
+    [
+     "none",
+     0,
+     0
+    ],
+    [
+     "under $25k",
+     0,
+     25000
+    ],
+    [
+     "$25k-75k",
+     25000,
+     75000
+    ],
+    [
+     "$75k-200k",
+     75000,
+     200000
+    ],
+    [
+     "over $200k",
+     200000,
+     null
+    ]
+   ],
+   "min_households": 300
+  },
+  "size_ranges": {
+   "interest": [
+    [
+     0,
+     100
+    ],
+    [
+     100,
+     500
+    ],
+    [
+     500,
+     2000
+    ],
+    [
+     2000,
+     10000
+    ],
+    [
+     10000,
+     50000
+    ],
+    [
+     50000,
+     null
+    ]
+   ],
+   "dividends": [
+    [
+     0,
+     100
+    ],
+    [
+     100,
+     500
+    ],
+    [
+     500,
+     2000
+    ],
+    [
+     2000,
+     10000
+    ],
+    [
+     10000,
+     50000
+    ],
+    [
+     50000,
+     null
+    ]
+   ],
+   "capital_gains": [
+    [
+     null,
+     -3000
+    ],
+    [
+     -3000,
+     0
+    ],
+    [
+     0,
+     1000
+    ],
+    [
+     1000,
+     10000
+    ],
+    [
+     10000,
+     50000
+    ],
+    [
+     50000,
+     250000
+    ],
+    [
+     250000,
+     null
+    ]
+   ]
+  },
+  "top_line": {
+   "interest": 2000,
+   "dividends": 2000,
+   "capital_gains": 10000
+  },
+  "fill_losses_down_to": {
+   "capital_gains": -3000
+  },
+  "fitting_tax_year": 2015,
+  "fill_from_pass": 3
+ },
+ "generation": {
+  "_what": "A stack of four files of 100,000 PUF records each. Each oversamples the top 1% of one variable (the bands covering the top 1% of its positive weight drawn ten times as often) and carries importance weights that undo it. PUF variables are drawn in a random order per record; the computed totals are then computed from their parts; net worth is drawn last, under the SCF label, with the PUF-only variables left out.",
+  "records_per_file": 100000,
+  "boost": 10.0,
+  "top_share": 0.01,
+  "files": {
+   "wages": 31,
+   "kg_lt": 32,
+   "scorp_nonpass_inc": 33,
+   "net_worth": 34
+  },
+  "year": 2015
+ },
+ "dollars": {
+  "seed": 20261104,
+  "target_year": 2019
+ },
+ "tilt": {
+  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the 140 SOI business targets exact (2% if the exact tilt does not converge); the eight SCF 2019 wealth targets with a 2% tolerance, counts on the file's units. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts.",
+  "wealth_tolerance": 0.02,
+  "business_fallback_tolerance": 0.02,
+  "business_agi_groups": [
+   [
+    null,
+    1,
+    "no AGI"
+   ],
+   [
+    1,
+    50000,
+    "under $50k"
+   ],
+   [
+    50000,
+    100000,
+    "$50k-100k"
+   ],
+   [
+    100000,
+    200000,
+    "$100k-200k"
+   ],
+   [
+    200000,
+    1000000,
+    "$200k-1m"
+   ],
+   [
+    1000000,
+    null,
+    "$1m and over"
+   ]
+  ],
+  "min_top_bracket_records": 500,
+  "bracket_file_size": 200000,
+  "wealth_count_base": "file_units",
+  "prescale": "filing_status"
+ }
+}
