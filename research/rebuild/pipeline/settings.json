@@ -188,6 +188,37 @@
   },
   "year": 2015
  },
+ "consistency": {
+  "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
+  "rules": [
+   {
+    "name": "rental income or loss",
+    "when_any_nonzero": ["rent_inc", "rent_loss"],
+    "then_at_least_one_nonzero": ["w_other_home", "w_re_fund"]
+   },
+   {
+    "name": "a partnership or S corporation item",
+    "when_any_nonzero": ["k1_owner"],
+    "then_at_least_one_nonzero": ["owns_business", "w_other_home", "w_re_fund"]
+   },
+   {
+    "name": "mortgage interest paid: a home",
+    "when_any_nonzero": ["mortgage_interest"],
+    "then_at_least_one_nonzero": ["w_primary_home"]
+   },
+   {
+    "name": "mortgage interest paid: a mortgage",
+    "when_any_nonzero": ["mortgage_interest"],
+    "then_at_least_one_nonzero": ["w_primary_ltv"]
+   },
+   {
+    "name": "real estate tax paid",
+    "when_any_nonzero": ["real_estate_tax"],
+    "then_at_least_one_nonzero": ["w_primary_home", "w_other_home"]
+   }
+  ],
+  "offset_generations": 3
+ },
  "dollars": {
   "seed": 20261104,
   "target_year": 2019

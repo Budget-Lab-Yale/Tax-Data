@@ -18,13 +18,29 @@ One record is drawn slot by slot:
      Each is drawn under the SCF label with the PUF-only slots left out, as
      the SCF would see the household.
 
-Consistency rules (RULES). When a PUF item on the record implies a holding,
-the holding cannot be drawn as zero. For a rule met by any one of several
-holdings ("at least one of"), the one that must be nonzero is chosen when the
-first of them comes up, in proportion to the model's own chance that each is
-nonzero; the others are drawn freely. Ruling out zero means setting the
-model's chance of zero to nothing and rescaling the other bands; the model
-still decides the size. Also: with no home, the mortgage share is zero.
+Consistency rules (settings.json, "consistency"). Each rule: when any of
+its items is nonzero on the record, at least one of its holdings must be
+nonzero. The one that must be nonzero is chosen when the first of them comes
+up, in proportion to the model's own chance that each is nonzero (before the
+offset's factors, below, so the choice does not move with them); the others are drawn
+freely. Ruling out zero sets the chance of zero to nothing and rescales the
+other bands; the model still decides the size. Also: with no home, the
+mortgage share is zero.
+
+The offset. The rules add holders and take none away, so each ruled holding
+ends with more holders than the model alone would draw. Generation therefore
+runs more than once ("offset_generations"). After each run, for each ruled
+holding, one factor on the odds of holding it is found such that
+
+  forced holders + expected holders among the rest = the model's own expected holders
+
+(all weighted; a record's own expected count is the model's chance that the
+holding is nonzero at its turn, before rules and factors). The next run
+multiplies every record's odds of holding by that factor before the rules
+apply; on a forced record the rule overrides it, so in effect only the
+untouched records are scaled. The last run is the one kept. Items drawn
+later condition on earlier ones, so a run's own figures are reported and
+written to consistency.csv: what is left of the excess after the last run.
 
 The file is a stack of four parts of 100,000 records. Each part oversamples
 the top 1% of one variable: that variable is drawn first, from the model
@@ -33,8 +49,10 @@ weight drawn ten times as often (for an SCF-only slot: drawn in its usual
 place, from the boosted conditional); each record's weight p / q undoes the
 boost exactly. Each part's weights are scaled to sum to 100,000.
 
-Writes common.GEN/stack.parquet: one row per record, the band of every slot,
-weight, stratifier (which part), p_band and q_band.
+Writes common.GEN/stack.parquet (one row per record: the band of every slot,
+weight, stratifier, p_band, q_band) and common.GEN/consistency.csv (per run
+and ruled holding: the model's own expected holders, the holders with the
+rules, the factor used and the next one).
 """
 import json
 import os
@@ -47,24 +65,20 @@ import common
 import model as M
 
 G = common.SETTINGS['generation']
+C = common.SETTINGS['consistency']
 NC = len(M.CONTEXT)
 P = M.PREDICTED
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if M.OWNED_BY.get(v, 'puf') == 'puf' and v not in COMPUTED and v not in FLAGS]
 SCF_SLOTS = M.SCF_SLOTS
-K1_PARTS = FLAGS['k1_owner']
-# rule: (what triggers it, a test on the record's PUF bands, the holdings of which at least one must be nonzero)
-RULES = [
-    ('rental income or loss', lambda b: (b('rent_inc') != 0) | (b('rent_loss') != 0), ['w_other_home', 'w_re_fund']),
-    ('a partnership or S corporation item', lambda b: torch.stack([b(v) != 0 for v in K1_PARTS], 1).any(1),
-     ['owns_business', 'w_other_home', 'w_re_fund']),
-    ('mortgage interest paid: a home', lambda b: b('mortgage_interest') != 0, ['w_primary_home']),
-    ('mortgage interest paid: a mortgage', lambda b: b('mortgage_interest') != 0, ['w_primary_ltv']),
-    ('real estate tax paid', lambda b: b('real_estate_tax') != 0, ['w_primary_home', 'w_other_home'])]
-RULE_COUNTS = {name: 0 for name, _, _ in RULES}           # records each rule applies to
-FORCED = {}                                               # per holding: draws with zero ruled out
+RULES = C['rules']
+for _r in RULES:
+    assert all(M.OWNED_BY.get(v, 'puf') != 'scf' for v in _r['when_any_nonzero']), _r['name']
+    assert all(v in SCF_SLOTS for v in _r['then_at_least_one_nonzero']), _r['name']
+RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P.index)   # the offset's holdings
 POINTS = 32
+STATS = {}                                # per run: records each rule applies to, forced draws per holding
 
 
 # ---- computed totals ---------------------------------------------------------
@@ -139,12 +153,32 @@ def scf_order(size, gen):
     return perm
 
 
-def apply_rules(values, filled, slot, all_probs, triggered, resolved, must, gen):
-    """The current slot's distribution under the consistency rules (see the top)."""
-    rows = torch.arange(len(values), device=values.device)
-    nonzero = 1 - all_probs[:, :, 0]
-    for r, (name, _, group) in enumerate(RULES):
-        g = torch.tensor([P.index(v) for v in group], device=values.device)
+def structural(values, slot, probs):
+    """A ratio slot whose base is zero is zero (no home: no mortgage share)."""
+    for slot_name, (_, base) in M.RATIOS.items():
+        no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
+        probs[no_base] = 0.0
+        probs[no_base, 0] = 1.0
+    return probs
+
+
+def scale_odds(all_probs, factors):
+    """Each ruled holding's odds of being nonzero multiplied by its factor."""
+    for v, f in factors.items():
+        if f != 1.0:
+            j = P.index(v)
+            all_probs[:, j, 1:] *= f
+            all_probs[:, j] /= all_probs[:, j].sum(-1, keepdim=True)
+    return all_probs
+
+
+def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
+    """The current slot's distribution under the consistency rules (see the top), and which rows were forced.
+    nonzero: every slot's chance of being nonzero, the model's own (before the offset's factors), so which
+    holding a rule forces does not depend on the factors."""
+    rows = torch.arange(len(slot), device=slot.device)
+    for r, rule in enumerate(RULES):
+        g = torch.tensor([P.index(v) for v in rule['then_at_least_one_nonzero']], device=slot.device)
         first = triggered[:, r] & ~resolved[:, r] & torch.isin(slot, g)
         if not first.any():
             continue
@@ -152,34 +186,26 @@ def apply_rules(values, filled, slot, all_probs, triggered, resolved, must, gen)
         weight = (nonzero[:, g] * ~filled[:, g]).double().clamp_min(0) + 1e-12 * (~filled[:, g])
         pick = torch.multinomial(weight[first], 1, generator=gen).squeeze(1)
         must[rows[first], g[pick]] = True
-    probs = all_probs[rows, slot].clone()
-    for slot_name, (_, base) in M.RATIOS.items():           # no home: no mortgage share
-        no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
-        probs[no_base] = 0.0
-        probs[no_base, 0] = 1.0
-    force = must[rows, slot]
     q = probs.clone()
     q[:, 0] = 0
-    ok = force & (q.sum(1) > 1e-12)
-    for j in slot[ok].unique().tolist():                     # per holding: draws forced, and how many the
-        m = ok & (slot == j)                                 # model alone would have drawn as zero
-        c = FORCED.setdefault(P[j], {'draws with zero ruled out': 0, 'of which zero without the rule': 0.0})
-        c['draws with zero ruled out'] += int(m.sum())
-        c['of which zero without the rule'] += float(probs[m, 0].sum())
-    return torch.where(ok[:, None], q / q.sum(1, keepdim=True).clamp_min(1e-30), probs)
+    ok = must[rows, slot] & (q.sum(1) > 1e-12)
+    return torch.where(ok[:, None], q / q.sum(1, keepdim=True).clamp_min(1e-30), probs), ok
 
 
 @torch.no_grad()
-def generate(model, n, seed, preset=None, boost=None, chunk=50_000):
+def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000):
     """n PUF-style records. preset: {variable: n bands} set before anything is drawn.
     boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at its
-    turn; that draw's p and q are returned as p_band, q_band."""
-    preset = preset or {}
+    turn; that draw's p and q are returned as p_band, q_band. factors: {ruled holding: factor
+    on its odds of being nonzero}. For each ruled holding the table also carries the model's
+    own chance it is nonzero (_own_<v>) and whether a rule forced it (_forced_<v>)."""
+    preset, factors = preset or {}, factors or {}
     device = next(model.parameters()).device
     cpu_gen = torch.Generator().manual_seed(seed)                  # the orders
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
     own = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset])
     scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
+    ruled = torch.tensor([P.index(v) for v in RULED], device=device)
     n_own = len(own)
     parts = []
     for start in range(0, n, chunk):
@@ -200,6 +226,8 @@ def generate(model, n, seed, preset=None, boost=None, chunk=50_000):
             filled[:, P.index(var)] = True
         triggered = torch.zeros(size, len(RULES), dtype=torch.bool, device=device)
         resolved, must = triggered.clone(), torch.zeros(size, len(P), dtype=torch.bool, device=device)
+        own_chance = torch.zeros(size, len(RULED), dtype=torch.float64, device=device)
+        forced = torch.zeros(size, len(RULED), dtype=torch.bool, device=device)
         p_drawn = torch.full((size,), float('nan'), dtype=torch.float64, device=device)
         q_drawn = p_drawn.clone()
         for step in range(order.shape[1]):
@@ -212,15 +240,24 @@ def generate(model, n, seed, preset=None, boost=None, chunk=50_000):
                     values[:, NC + P.index(flag)] = torch.stack(
                         [values[:, NC + P.index(v)] != 0 for v in flag_parts], 1).any(1).long()
                     filled[:, P.index(flag)] = True
-                band = lambda v: values[:, NC + P.index(v)]
-                for r, (name, test, _) in enumerate(RULES):
-                    triggered[:, r] = test(band)
-                    RULE_COUNTS[name] += int(triggered[:, r].sum())
+                for r, rule in enumerate(RULES):
+                    triggered[:, r] = torch.stack([values[:, NC + P.index(v)] != 0
+                                                   for v in rule['when_any_nonzero']], 1).any(1)
+                    STATS['rule'][rule['name']] += int(triggered[:, r].sum())
                 values[:, NC + scf.to(device)] = 0
             hidden = (values[:, NC:] >= 0) & ~filled
             if step >= n_own:
-                probs = apply_rules(values, filled, slot, scf_probs(model, values, hidden),
-                                    triggered, resolved, must, gpu_gen)
+                all_probs = scf_probs(model, values, hidden)
+                own_probs = structural(values, slot, all_probs[rows, slot].clone())   # the model's own, before rules
+                own_nonzero = 1 - all_probs[:, :, 0]
+                all_probs = scale_odds(all_probs, factors)
+                probs, ok = apply_rules(slot, filled, own_nonzero, structural(values, slot, all_probs[rows, slot].clone()),
+                                        triggered, resolved, must, gpu_gen)
+                k = (slot[:, None] == ruled[None, :])                       # rows whose slot is a ruled holding
+                hit = k.any(1)
+                col = k.int().argmax(1)
+                own_chance[rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
+                forced[rows[hit], col[hit]] = ok[hit]
             else:
                 probs = model(values, hidden)[rows, slot].exp()
             draw_from, boosted = probs, None
@@ -236,11 +273,14 @@ def generate(model, n, seed, preset=None, boost=None, chunk=50_000):
                 q_drawn[boosted] = draw_from[rows, draw][boosted].double()
             values[rows, NC + slot] = draw
             filled[rows, slot] = True
-        parts.append((values.cpu(), p_drawn.cpu(), q_drawn.cpu()))
-    table = to_table(torch.cat([v for v, _, _ in parts]))
+        parts.append((values.cpu(), p_drawn.cpu(), q_drawn.cpu(), own_chance.cpu(), forced.cpu()))
+    table = to_table(torch.cat([p[0] for p in parts]))
     if boost is not None:
-        table['p_band'] = torch.cat([p for _, p, _ in parts]).numpy()
-        table['q_band'] = torch.cat([q for _, _, q in parts]).numpy()
+        table['p_band'] = torch.cat([p[1] for p in parts]).numpy()
+        table['q_band'] = torch.cat([p[2] for p in parts]).numpy()
+    oc, fc = torch.cat([p[3] for p in parts]).numpy(), torch.cat([p[4] for p in parts]).numpy()
+    for i, v in enumerate(RULED):
+        table[f'_own_{v}'], table[f'_forced_{v}'] = oc[:, i], fc[:, i]
     return table
 
 
@@ -266,13 +306,15 @@ def nothing_known(model, var):
     return model(values, values[:, NC:] >= 0)[0, P.index(var)].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
 
 
-def build_stack(model):
+def build_stack(model, factors):
+    STATS.clear()
+    STATS['rule'] = {r['name']: 0 for r in RULES}
     n = G['records_per_file']
     parts = []
     for var, seed in G['files'].items():
         top = M.positive_bands(var, 1 - G['top_share'], 1.0)
         if M.OWNED_BY.get(var) == 'scf':
-            part = generate(model, n, seed, boost=(var, top, G['boost']))
+            part = generate(model, n, seed, boost=(var, top, G['boost']), factors=factors)
             part['weight'] = part['p_band'] / part['q_band']
         else:
             p = nothing_known(model, var)
@@ -281,7 +323,7 @@ def build_stack(model):
             q /= q.sum()
             bands = torch.multinomial(torch.tensor(q), n, replacement=True,
                                       generator=torch.Generator().manual_seed(seed))
-            part = generate(model, n, seed, preset={var: bands})
+            part = generate(model, n, seed, preset={var: bands}, factors=factors)
             b = bands.numpy()
             part['weight'], part['p_band'], part['q_band'] = p[b] / q[b], p[b], q[b]
         part['weight'] *= n / part['weight'].sum()
@@ -291,10 +333,41 @@ def build_stack(model):
     stack = pd.concat(parts, ignore_index=True)
     stack['record_id'] = np.arange(len(stack))
     common.say('consistency rules: records each applies to, over the whole stack:')
-    common.say(pd.Series(RULE_COUNTS).to_string())
-    common.say('draws with zero ruled out, by holding:')
-    common.say(pd.DataFrame(FORCED).T.to_string())
+    common.say(pd.Series(STATS['rule']).to_string())
     return stack
+
+
+# ---- the offset -----------------------------------------------------------------
+def held(m, f):
+    """The chance of holding, the model's chance m with its odds multiplied by f."""
+    return f * m / (f * m + (1 - m))
+
+
+def offset(stack, factors, run):
+    """Per ruled holding: the model's own expected holders, the holders with the rules, and the factor
+    on the untouched records' odds that brings the second back to the first."""
+    w = stack['weight'].to_numpy(float)
+    rows, new = [], {}
+    for v in RULED:
+        m, forced = stack[f'_own_{v}'].to_numpy(float), stack[f'_forced_{v}'].to_numpy(bool)
+        f0 = factors.get(v, 1.0)
+        target = (w * m).sum()
+        expected = (w * np.where(forced, 1.0, held(m, f0))).sum()
+        fixed, rest = w[forced].sum(), ~forced
+        lo, hi = -30.0, 30.0                                # bisection on the log of the factor
+        for _ in range(100):
+            mid = (lo + hi) / 2
+            if fixed + (w[rest] * held(m[rest], np.exp(mid))).sum() > target:
+                hi = mid
+            else:
+                lo = mid
+        new[v] = float(np.exp((lo + hi) / 2))
+        rows.append({'run': run, 'holding': v, "model's own expected holders": target,
+                     'expected holders with the rules': expected, 'excess (%)': 100 * (expected / target - 1),
+                     'forced draws (weighted)': fixed,
+                     'forced draws the model would have made zero (weighted)': (w[forced] * (1 - m[forced])).sum(),
+                     'factor used': f0, 'next factor': new[v]})
+    return pd.DataFrame(rows), new
 
 
 def main():
@@ -302,7 +375,18 @@ def main():
     torch.manual_seed(common.SEED)
     model = M.load_model(device, os.path.join(common.MODEL, 'model.pt'))
     os.makedirs(common.GEN, exist_ok=True)
-    build_stack(model).to_parquet(os.path.join(common.GEN, 'stack.parquet'), index=False)
+    factors, report = {}, []
+    runs = int(C['offset_generations'])
+    for run in range(1, runs + 1):
+        stack = build_stack(model, factors)
+        table, nxt = offset(stack, factors, run)
+        report.append(table)
+        common.say(f'run {run} of {runs}:\n' + table.drop(columns='run').to_string(index=False))
+        if run < runs:
+            factors = nxt
+    pd.concat(report).to_csv(os.path.join(common.GEN, 'consistency.csv'), index=False)
+    stack.drop(columns=[c for c in stack if c.startswith(('_own_', '_forced_'))]) \
+        .to_parquet(os.path.join(common.GEN, 'stack.parquet'), index=False)
 
 
 if __name__ == '__main__':

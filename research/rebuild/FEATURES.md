@@ -116,8 +116,10 @@ band.
    home), as the SCF would see the household (SCF label, PUF-only variables
    left out). Net worth is computed from the balance sheet in dollars.
 
-**Consistency rules.** When a PUF item implies a holding, that holding
-cannot be drawn as zero:
+**Consistency rules** (`settings.json`, "consistency"; each rule is a list
+of items that trigger it and a list of holdings of which at least one must
+be nonzero, so a new rule is a settings change). When a PUF item implies a
+holding, that holding cannot be drawn as zero:
 
 | On the return | Must hold at least one of |
 |---|---|
@@ -130,9 +132,18 @@ Where several holdings would do, the one that must be nonzero is picked
 when the first of them comes up, in proportion to the model's own chance
 that each is nonzero. Ruling out zero sets the model's chance of zero to
 nothing and rescales the rest; the model still decides the size. With no
-home, the mortgage share is zero. Generation prints, for each holding, how
-many draws were forced and how many of those the model alone would have
-drawn as zero.
+home, the mortgage share is zero.
+
+**The offset.** The rules add holders and take none away, so without more
+each ruled holding ends with more holders than the model alone would draw.
+Generation therefore runs three times (`offset_generations`). After each
+run but the last, for each ruled holding, one factor on every record's odds
+of holding it is found so that forced holders plus the expected holders
+among the rest equal the model's own expected holders (weighted). On a
+forced record the rule overrides the factor, so in effect only the records
+no rule touches are scaled down. The last run is kept; `gen/<run>/
+consistency.csv` reports, per run and holding, the model's own expected
+holders, the holders with the rules, and the factors.
 
 **The stack.** 400,000 records in four parts. Each part oversamples the
 top 1% of one variable (wages, long-term gains, S corporation nonpassive
@@ -165,6 +176,29 @@ under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`; full tables in
 `explore/2026-10-21/compare_latest.md`. The previous latest (one net worth
 item) is kept in `previous_2026-10-20/`. Nominal 2019 dollars; ranges are
 over the three seeds.
+
+**With the offset** (the current latest; the run without it is kept as
+`gen/` and `tilt/seed<n>_no_offset/`). After the last of the three
+generations every ruled holding is within 0.02% of the model's own expected
+holders. After the tilt:
+
+| | With offset | Without | SCF 2019 |
+|---|---:|---:|---:|
+| home mortgage holders | 38.6–40.1% | 45.1–46.8% | 41.6% |
+| homeowners with a mortgage | 65.1–67.0% | 72.1–74.2% | 65.6% |
+| home mortgage dollars | $11.1–11.6 trillion | $12.3–12.8 trillion | $9.8 trillion |
+| other residential real estate holders | 11.4–12.9% | 15.7–17.7% | 12.7% |
+| nonresidential real estate holders | 5.4–5.7% | 6.7–7.1% | 6.5% |
+| homeowners | 59.4–60.0% | 62.5–63.1% | 63.4% |
+
+Shares of units are not fully comparable: the file has 187 million units
+(returns plus non-filers), the SCF 143 million, and the extra units are
+mostly dependent filers and non-filers who rarely hold these assets. The
+offset fixes counts, not sizes: mortgage dollars stay above the SCF's.
+Every IRS and business target is met exactly; 89.5–90.1% of the effective
+sample kept.
+
+**Without the offset** (the figures below):
 
 **The tilt:** every IRS target and all 140 business targets met exactly in
 every seed; 89.8–90.8% of the effective sample kept.

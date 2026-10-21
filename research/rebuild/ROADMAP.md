@@ -73,12 +73,9 @@ them:
   SCF reporters' chance of owning a business. A translation question:
   fill in hidden small Schedule C holders and losses on the SCF side
   (`explore/2026-10-21/business/`).
-- The consistency rules add holders without taking any away elsewhere:
-  home mortgages 45–47% of units against the SCF's 42% ($12.5 trillion
-  against $9.8 trillion), other residential real estate 16–18% against 13%.
-  A possible fix: lower the chance of holding on the records no rule
-  touches, within cells, so expected holders match the model's (two
-  generation passes), or targets in the tilt. Open, for John.
+- Home mortgage dollars are $11.1–11.6 trillion against the SCF's $9.8
+  trillion. The offset (`FEATURES.md`) brought mortgage holders back to
+  the model's count but does not change sizes.
 - Too many units hold both partnership and S corporation income.
 - Too few nonpassive losses.
 
