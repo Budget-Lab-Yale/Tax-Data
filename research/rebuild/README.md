@@ -11,6 +11,7 @@ feeds `src/main.R` yet.
 | `FEATURES.md` | what the pipeline does now |
 | `ROADMAP.md` | what is left between the two |
 | `HISTORY.md` | how we got here, and the paths we tried and dropped |
+| `AGES.md` | plan: ages for every person in a unit, including the high-income records with none |
 | `PERFORMANCE.md` | to do: what training time depends on, and how to keep it manageable as surveys are added |
 
 The full record up to 20 October 2026 (every experiment, report and

@@ -28,7 +28,7 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    pretraining.
 5. **Half-measured PUF variables.** Age, sex and similar items that the
    PUF has only coarsely or for some records. These are filled in, not
-   added as new columns.
+   added as new columns. Ages: plan in `AGES.md`.
 6. **Pretraining settings.** How the network and training choices affect
    the file.
    - Known so far: dropout biases rare items down, so it is off.
