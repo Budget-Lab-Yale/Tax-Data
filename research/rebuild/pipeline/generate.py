@@ -72,6 +72,7 @@ COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if M.OWNED_BY.get(v, 'puf') == 'puf' and v not in COMPUTED and v not in FLAGS]
 SCF_SLOTS = M.SCF_SLOTS
+REP_SLOTS = torch.tensor([P.index(v) for v in M.REPORTED])
 RULES = C['rules']
 for _r in RULES:
     assert all(M.OWNED_BY.get(v, 'puf') != 'scf' for v in _r['when_any_nonzero']), _r['name']
@@ -245,6 +246,7 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
                                                    for v in rule['when_any_nonzero']], 1).any(1)
                     STATS['rule'][rule['name']] += int(triggered[:, r].sum())
                 values[:, NC + scf.to(device)] = 0
+                values[:, NC + REP_SLOTS.to(device)] = 0                  # reported slots: present, never drawn (hidden)
             hidden = (values[:, NC:] >= 0) & ~filled
             if step >= n_own:
                 all_probs = scf_probs(model, values, hidden)

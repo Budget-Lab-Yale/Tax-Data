@@ -29,7 +29,7 @@ Every stage runs through Slurm, from the repository root:
 | scf | `build_scf.R` | SCF waves split into tax units (the production builder) | minutes |
 | table | `build_table.py` | the training table, its bands, and the dollar maps | minutes |
 | targets | `targets.py` | the published SOI numbers | seconds |
-| train | `train.py` | the model, with the cell method | about 40 minutes on an H100 (28 seconds a pass) |
+| train | `train.py` | the model, with the two-slot fill-in | about 25 minutes on an H100 (17 seconds a pass) |
 | generate | `generate.py` | 400,000 generated records | about 10 minutes |
 | tilt | `tilt.py` | the 2019 weights and file | about 10 minutes |
 

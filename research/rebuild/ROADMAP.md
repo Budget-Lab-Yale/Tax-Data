@@ -15,7 +15,7 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
      `archive/minimal/36_RESULTS.md`.
 2. **Translation, finalized.** An algorithm for lining up the variables
    the sources share, by population, definition and measurement, driven by
-   data and theory. It replaces the cell method, which works but needs
+   data and theory. The two-slot fill-in (21 October) replaced the cell method, which needed
    hand-set assumptions for each variable
    (`archive/background/13_translation_as_a_known_problem.md`,
    `archive/design/cell_method.md`).
@@ -58,6 +58,15 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
 
 **Known gaps in the current file,** for whichever items above address
 them:
+- The two-slot fill-in leaves interest about 1.7 points short of the PUF
+  (share with none 71.5% against 69.8%): about 4% of zero-reporters come
+  out above 100% and are capped. Most report the other items, so reporting
+  is linked across items; careful-and-careless respondents is the
+  candidate fix.
+- If hidden holders differ from reporters in ways the record does not
+  show, the fill-in overcorrects (about 8% on the fake survey). A stronger
+  fake-survey test, with a survey-only variable closely tied to holding
+  interest, is still to do.
 - Earners over $200,000 hold too little net worth: $3.5 million against
   the SCF's $4.49 million (on the current definitions; earlier notes said
   $4.4 million). The same with real PUF records in place of synthetic ones

@@ -32,11 +32,10 @@
   "weight_decay": 0.01,
   "holdback_share": 0.02,
   "holdback_seed": 20261015,
-  "refit_every_batches": 10,
   "log_every_passes": 10
  },
  "translation": {
-  "_what": "The cell method. Items taken as correctly reported; items whose SCF zero-reporters are partly filled in as hidden holders. In cells of wage group by married, the PUF's shares by size range set how many hidden holders there are; the model decides which households.",
+  "_what": "Two slots per translated item. Items taken as correctly reported (the type is married, dependents and the wage band); items whose SCF zero-reporters are partly filled in as hidden holders, in a PUF-concept slot beside the reported one. A zero-reporter's chance of a hidden holding in each size range comes from the reporting-rate formula (train.py); the size ranges are only where reporting rates are read. Fill-ins from pass fill_from_pass.",
   "assumed_correct": [
    "married",
    "n_dep",
@@ -49,36 +48,6 @@
   ],
   "loss_cap": {
    "capital_gains": -3000
-  },
-  "cells": {
-   "wage_groups": [
-    [
-     "none",
-     0,
-     0
-    ],
-    [
-     "under $25k",
-     0,
-     25000
-    ],
-    [
-     "$25k-75k",
-     25000,
-     75000
-    ],
-    [
-     "$75k-200k",
-     75000,
-     200000
-    ],
-    [
-     "over $200k",
-     200000,
-     null
-    ]
-   ],
-   "min_households": 300
   },
   "size_ranges": {
    "interest": [
@@ -163,14 +132,6 @@
      null
     ]
    ]
-  },
-  "top_line": {
-   "interest": 2000,
-   "dividends": 2000,
-   "capital_gains": 10000
-  },
-  "fill_losses_down_to": {
-   "capital_gains": -3000
   },
   "fitting_tax_year": 2015,
   "fill_from_pass": 3

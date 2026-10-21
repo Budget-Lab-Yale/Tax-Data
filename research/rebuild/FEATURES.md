@@ -82,12 +82,25 @@ band.
 - **The balance sheet** is banded within each SCF wave.
 - **Capital losses** below −$3,000 in the SCF are read as −$3,000, the
   deductible limit on the return.
-- **The cell method, during training.** Many SCF households that report
-  zero interest, dividends or capital gains do hold some.
-  - In cells of wage group by marital status, the PUF's shares by size set
-    how many hidden holders to fill in, and at what sizes. Only below a top
-    line: $2,000 for interest and dividends, $10,000 for gains.
-  - The model decides which households, redrawing them as it trains.
+- **Two slots, filled during training.** Many SCF households that report
+  zero interest, dividends or capital gains do hold some. Each of these
+  items has two slots on SCF rows: what the household reported (never
+  changed) and the PUF-concept amount (reporters copy their answer;
+  zero-reporters are filled in). The PUF has only the PUF-concept slot.
+  - From pass 3, at the start of each pass, each zero-reporter gets its
+    chance of a hidden holding in each size range from the reporting-rate
+    formula: its own chance of reporting that range (from the rest of its
+    record, every filled-in slot hidden), times (PUF share ÷ SCF share − 1)
+    for its type (married, dependents, wage band), divided by its chance
+    of reporting zero; capped at 100%. Each batch redraws the fill-ins from
+    those chances.
+  - The formula reads only the reported slots and the PUF, never a fill-in.
+  - No cells, top lines or loss floors: a range where the SCF has as many
+    holders as the PUF, or more, gets none.
+  - It assumes a holder's chance of reporting depends only on its type and
+    true amount, not on net worth or anything else on the record.
+  - Net worth is drawn given the PUF-concept amounts; the reported slots
+    stay hidden at generation.
 
 ## The model
 
@@ -170,6 +183,16 @@ that meets:
 | SCF 2019 wealth: units and net worth above the 99th, 90th and 50th percentiles, total net worth, units above $1 million; counts on the file's own units | 8 | within 2% |
 
 ## How the latest run comes out
+
+**Since 21 October (late afternoon), "latest" is the two-slot run**, three
+seeds (20261016–18), in `model/`, `gen/` and `tilt/`; the cell-method runs
+described below moved to `previous_2026-10-21_cell/`. Two-slot against cell
+method, after the tilt, all three seeds: median $90.9k for both; mean net
+worth at wages $200k+ $3.47–3.57M (cell $3.38–3.68M); wages $1–25k
+$183–185k (cell $180–192k); tilt move 0.05–0.06 and about 90% of the
+effective sample kept for both. Full tables:
+`explore/2026-10-21/two_slot/compare.md`. The text below describes the
+cell-method runs.
 
 The balance-sheet run of 21 October, three seeds (20261016–18), outputs
 under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`; full tables in

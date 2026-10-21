@@ -39,12 +39,15 @@ CATEGORICAL = ['married', 'n_dep'] + FILER + list(CATEGORIES)
 SCF_SLOTS = list(_EDGES['meta']['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
 NET_WORTH_PARTS = dict(_EDGES['meta']['net_worth_parts'])
 RATIOS = {k: tuple(v) for k, v in _EDGES['meta']['ratios'].items()}   # slot: (dollar item, its base)
+# Two slots per translated item: a second, SCF-only slot holds what the
+# household reported; the original slot is the PUF concept, filled in on the SCF side during training (train.py).
+REPORTED = {f'{v}_reported': v for v in common.SETTINGS['translation']['mapped']}
 PREDICTED = (['married', 'n_dep', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
-             + SCF_SLOTS + FILER)
+             + SCF_SLOTS + FILER + list(REPORTED))
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
-OWNED_BY = {**{v: 'scf' for v in SCF_SLOTS}, 'other_agi': 'puf', **{v: 'puf' for v in KG_PIECES + FILER},
+OWNED_BY = {**{v: 'scf' for v in SCF_SLOTS}, **{v: 'scf' for v in REPORTED}, 'other_agi': 'puf', **{v: 'puf' for v in KG_PIECES + FILER},
             **{v: 'puf' for v, o in ITEMS.items() if o == 'puf'}}
 # The computed totals: never drawn, computed from their parts after the parts are drawn. The same for
 # the computed flags on the PUF side (k1_owner: any of its parts nonzero).
@@ -63,6 +66,8 @@ def band_layout():
     positive band."""
     layout = {}
     for a in AMOUNTS:
+        if a in REPORTED:
+            continue
         recs = [_EDGES[f'{s}/{y}/{a}'] for s in SOURCES for y in YEARS if 'positive' in _EDGES.get(f'{s}/{y}/{a}', {})]
         n = {r['n_bands'] for r in recs}
         assert len(n) == 1, f'{a}: band counts differ by source'
@@ -72,6 +77,8 @@ def band_layout():
         top = list(next(_EDGES[f'{owner}/{y}/{a}'] for y in reversed(YEARS)
                         if 'positive' in _EDGES.get(f'{owner}/{y}/{a}', {}))['positive']['probs']) + [1.0]
         layout[a] = {'n_bands': n, 'first_positive': n - len(top), 'positive_top': top}
+    for r, v in REPORTED.items():
+        layout[r] = layout[v]
     return layout
 
 
@@ -125,6 +132,8 @@ TOKEN_OF = _token_table()
 def read_table():
     """The training table, checked; split relabelled: the held-back 2% 'test', the rest 'train'."""
     table = pd.read_parquet(common.TABLE)
+    for r, v in REPORTED.items():
+        table[r + '_band'] = np.where(table['source'] == 'scf', table[v + '_band'], -1)
     used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id'] + [column(v) for v in PREDICTED]
     n_missing = table[used].isna().sum()
     if n_missing.any():

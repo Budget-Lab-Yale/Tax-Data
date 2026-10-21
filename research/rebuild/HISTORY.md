@@ -99,6 +99,31 @@ pipeline rewritten to reproduce the latest run (`FEATURES.md`). Checks:
   slightly worse held-back fit; 0.003 adopted. A network six times larger,
   50 passes and a fixed drawing order were within seed noise.
 
+**21 October: two slots replace the cell method.** Worked out with John
+(`explore/2026-10-21/reporting_formula/`, `two_slot/`, `fake/`; status in
+`explore/2026-10-21/STATUS_reporting_formula.md`):
+- **The reporting-rate formula.** A zero-reporter's chance of a hidden
+  holding = its chance of reporting × (PUF share ÷ SCF share − 1) for its
+  type ÷ its chance of reporting zero. Averaging the household answers to
+  get the type's SCF share (not asking the model separately) made two
+  seeds agree within 0.7 points instead of 3.9.
+- **Two slots** (reported and PUF concept) let it run in one pretraining
+  without the model learning from its own fill-ins.
+- **Real SCF, three seeds each:** the 2019 file after the tilt matched the
+  cell method (median, net worth by wage group, tilt move 0.05–0.06,
+  about 90% of the sample kept); training took half as long (17 against
+  36 seconds a pass). Net worth before the tilt swings by about $10–14T
+  across seeds under both methods.
+- **Fake survey** (half the PUF filers; taxable pensions in place of net
+  worth): the fill-ins recover the number of hidden holders almost exactly
+  (interest 70.7–73.0% with none against 71.6% true). Where reporting
+  also depends on the survey-only variable (the formula's assumption
+  broken), it overcorrected by about 8% against the cell method's 0%.
+  The test was weak: taking zeros at face value was off by 3% at most.
+- **Careful and careless respondents** (three items jointly) fitted the
+  SCF's combinations better than independent coin flips, but was fragile
+  household by household and slow; not adopted.
+
 ## Paths tried and not taken
 
 | What | Why not |
