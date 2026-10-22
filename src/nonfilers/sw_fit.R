@@ -13,6 +13,7 @@ suppressPackageStartupMessages({
   library(readr)
   library(stringr)
 })
+source('src/agi_proxy.R', local = TRUE)   # txbl_kg(), the capital-loss limit
 
 # =============================================================================
 # PUF-SIDE TARGET ASSEMBLY (plan §2.1)
@@ -33,7 +34,8 @@ suppressPackageStartupMessages({
 # Diagnostics against raw HT2 levels remain a separate validation step.
 #
 # v1 documented approximations:
-#   - capital gains in AGI proxied by kg_st + kg_lt with the $3,000 loss cap
+#   - capital gains in AGI proxied by kg_st + kg_lt with the loss limit
+#     ($3,000, $1,500 MFS: txbl_kg() in src/agi_proxy.R)
 #   - SALT income+sales targeted combined (PUF salt_inc_sales is the greater-
 #     of election; HT2 splits A18425/A18450 -- elections are mutually
 #     exclusive per return, so counts/amounts add)
@@ -45,10 +47,7 @@ suppressPackageStartupMessages({
 # PUF x-vector for one HT2 target series (NULL if inputs absent)
 puf_series_x <- function(tu, series) {
   has <- function(...) all(c(...) %in% names(tu))
-  kg_agi <- function() {
-    kg <- tu$kg_st + tu$kg_lt
-    fifelse(kg < 0, pmax(kg, -3000), kg)
-  }
+  kg_agi <- function() txbl_kg(tu$kg_st, tu$kg_lt, tu$filing_status)
   switch(series,
     n_returns  = rep(1, nrow(tu)),
     n_single   = as.numeric(tu$filing_status == 1),

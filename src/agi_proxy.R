@@ -47,6 +47,12 @@ DPAD_LAST_YEAR       = 2017                                                     
 ALIMONY_REPEAL_YEAR  = 2019                                                        # divorces from 2019 on
 CHAR_ABOVE_LIMIT     = list(`2020` = c(300, 300, 300, 300), `2021` = c(300, 600, 300, 300))   # by filing status
 
+# Net capital gain in AGI: losses limited to $3,000 ($1,500 MFS). Shared with
+# the state fit's capital-gain series (src/nonfilers/sw_fit.R, puf_series_x())
+txbl_kg = function(kg_st, kg_lt, filing_status) {
+  pmax(kg_st + kg_lt, -if_else(filing_status == 3, KG_LOSS_LIMIT_MFS, KG_LOSS_LIMIT))
+}
+
 # One earner's deductible half of SE tax
 seca_half = function(se_income, wages, wage_base) {
   net = pmax(0, se_income) * SE_EARNINGS_SHARE
@@ -84,8 +90,7 @@ agi_proxy = function(d, year) {
       part_scorp_net = part_active + part_passive - part_active_loss - part_passive_loss - part_179 +
                        scorp_active + scorp_passive - scorp_active_loss - scorp_passive_loss - scorp_179,
       sch_e_proxy    = part_scorp_net + (rent - rent_loss) + (estate - estate_loss),
-      txbl_kg_proxy  = pmax(kg_st + kg_lt,
-                            -if_else(filing_status == 3, KG_LOSS_LIMIT_MFS, KG_LOSS_LIMIT)),
+      txbl_kg_proxy  = txbl_kg(kg_st, kg_lt, filing_status),
       alimony_qualifies = !is.na(divorce_year) & divorce_year < ALIMONY_REPEAL_YEAR,
       inc_ex_ss = wages + txbl_int + div_ord + div_pref + state_ref + txbl_ira_dist +
                   txbl_pens_dist + txbl_kg_proxy + other_gains + alimony * alimony_qualifies +
