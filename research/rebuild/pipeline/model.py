@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 
 import common
+import translate as TR
 
 SOURCES = ['puf', 'scf', 'cex']
 CONTEXT = ['source', 'year']
@@ -46,7 +47,7 @@ NET_WORTH_PARTS = dict(META['net_worth_parts'])
 RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item, its base)
 # Two slots per translated item: a second, SCF-only slot holds what the
 # household reported; the original slot is the PUF concept, filled in on the SCF side during training (train.py).
-REPORTED = {f'{v}_reported': v for v in common.SETTINGS['translation']['mapped']}
+REPORTED = {f'{r["variable"]}_reported': r['variable'] for r in TR.filled()}
 CEX_SLOTS = list(META['cex_amounts'])     # the consumption categories, CEX only
 PREDICTED = (['married', 'n_dep', 'age_range', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
@@ -54,7 +55,7 @@ PREDICTED = (['married', 'n_dep', 'age_range', 'wages', 'interest', 'dividends',
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
 # The sources that have each slot; a slot on one source only is owned by it.
-PRESENT_ON = {**{v: set(s) for v, s in META['present_on'].items()}, **{v: {'scf'} for v in REPORTED}}
+PRESENT_ON = {**{v: set(s) for v, s in META['present_on'].items()}, **{f'{r["variable"]}_reported': {r['survey']} for r in TR.filled()}}
 assert set(PREDICTED) <= set(PRESENT_ON), set(PREDICTED) - set(PRESENT_ON)
 OWNED_BY = {v: next(iter(PRESENT_ON[v])) for v in PREDICTED if len(PRESENT_ON[v]) == 1}
 # The computed totals: never drawn, computed from their parts after the parts are drawn. The same for

@@ -44,109 +44,298 @@
   "_precision": "fp32 standard 32-bit; tf32 or bf16 cheaper formats for the training steps only (train.py). Tested 22 October (explore/2026-10-22/perf/precision/PRECISION.md): bf16 37% faster a pass, results within the difference between two seeds."
  },
  "translation": {
-  "_what": "Two slots per translated item. Items taken as correctly reported (the type is married, dependents and the wage band); items whose SCF zero-reporters are partly filled in as hidden holders, in a PUF-concept slot beside the reported one. A zero-reporter's chance of a hidden holding in each size range comes from the reporting-rate formula (train.py); the size ranges are only where reporting rates are read. Fill-ins from pass fill_from_pass. assumed_correct: the type the formula conditions on (with the survey year); wages is used as its band. The PUF side is the PUF year.",
-  "assumed_correct": [
-   "married",
-   "n_dep",
-   "wages"
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, that year's non-filer tax units appended. items: the survey's columns, summed. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges.",
+  "table": [
+   {
+    "survey": "scf",
+    "variable": "married",
+    "items": [
+     "married"
+    ],
+    "type_for_fill_in": true,
+    "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
+   },
+   {
+    "survey": "scf",
+    "variable": "n_dep",
+    "items": [
+     "n_dep"
+    ],
+    "type_for_fill_in": true,
+    "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
+   },
+   {
+    "survey": "scf",
+    "variable": "age_range",
+    "items": [
+     "age_range"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the primary filer's range, couples by the rule in ages.py"
+   },
+   {
+    "survey": "scf",
+    "variable": "k1_owner",
+    "items": [
+     "k1_owner"
+    ],
+    "type_for_fill_in": false,
+    "reason": "a partnership, S corporation or LLC interest (build_scf.R)"
+   },
+   {
+    "survey": "scf",
+    "variable": "wages",
+    "items": [
+     "wages"
+    ],
+    "dollar_line": 100000,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": true,
+    "reason": "the SCF has more units than the tax data above every line from about $100,000 (22 October); above the line, by count from the top"
+   },
+   {
+    "survey": "scf",
+    "variable": "interest",
+    "items": [
+     "interest"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "zero-reporters hide holders: the SCF's share with none is far above the tax data's"
+   },
+   {
+    "survey": "scf",
+    "variable": "dividends",
+    "items": [
+     "dividends"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "zero-reporters hide holders: the SCF's share with none is far above the tax data's"
+   },
+   {
+    "survey": "scf",
+    "variable": "capital_gains",
+    "items": [
+     "capital_gains"
+    ],
+    "dollar_line": null,
+    "loss_cap": -3000,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "losses past $3,000 are not on the return (definition); zero-reporters hide holders"
+   },
+   {
+    "survey": "scf",
+    "variable": "retirement_gross",
+    "items": [
+     "retirement_gross"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "default"
+   },
+   {
+    "survey": "scf",
+    "variable": "tax_exempt_interest",
+    "items": [
+     "tax_exempt_interest"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "default"
+   },
+   {
+    "survey": "scf",
+    "variable": "sch_cf_income",
+    "items": [
+     "business_income"
+    ],
+    "dollar_line": 0,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the SCF's business income (X5704) is not measured as on Schedules C and F; by count from the top"
+   },
+   {
+    "survey": "scf",
+    "variable": "sch_e_income",
+    "items": [
+     "rent_royalty_estate"
+    ],
+    "dollar_line": 0,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the SCF's Schedule E income (X5714) is not measured as on the return; by count from the top"
+   },
+   {
+    "survey": "cex",
+    "variable": "married",
+    "items": [
+     "married"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
+   },
+   {
+    "survey": "cex",
+    "variable": "n_dep",
+    "items": [
+     "n_dep"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
+   },
+   {
+    "survey": "cex",
+    "variable": "age_range",
+    "items": [
+     "age_range"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the primary filer's range, couples by the rule in ages.py"
+   },
+   {
+    "survey": "cex",
+    "variable": "wages",
+    "items": [
+     "wages"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "default"
+   },
+   {
+    "survey": "cex",
+    "variable": "ss_gross",
+    "items": [
+     "social_security"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "default"
+   },
+   {
+    "survey": "cex",
+    "variable": "sch_cf_income",
+    "items": [
+     "se_income"
+    ],
+    "dollar_line": 0,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the CEX's self-employment income is not measured as on Schedules C and F; by count from the top"
+   }
   ],
-  "mapped": [
-   "interest",
-   "dividends",
-   "capital_gains"
-  ],
-  "loss_cap": {
-   "capital_gains": -3000
-  },
-  "size_ranges": {
-   "interest": [
-    [
-     0,
-     100
-    ],
-    [
-     100,
-     500
-    ],
-    [
-     500,
-     2000
-    ],
-    [
-     2000,
-     10000
-    ],
-    [
-     10000,
-     50000
-    ],
-    [
-     50000,
-     null
-    ]
-   ],
-   "dividends": [
-    [
-     0,
-     100
-    ],
-    [
-     100,
-     500
-    ],
-    [
-     500,
-     2000
-    ],
-    [
-     2000,
-     10000
-    ],
-    [
-     10000,
-     50000
-    ],
-    [
-     50000,
-     null
-    ]
-   ],
-   "capital_gains": [
-    [
-     null,
-     -3000
-    ],
-    [
-     -3000,
-     0
-    ],
-    [
-     0,
-     1000
-    ],
-    [
-     1000,
-     10000
-    ],
-    [
-     10000,
-     50000
-    ],
-    [
-     50000,
-     250000
-    ],
-    [
-     250000,
-     null
-    ]
-   ]
-  },
   "fill_from_pass": 3,
-  "wage_top_scaling": {
-   "_what": "SCF wages above this line (PUF-year dollars, grown to each wave by SOI) placed on the PUF filers' distribution by count from the top (build_table.py, scale_top_wages); the SCF reports more high earners than tax data at every line.",
-   "line_puf_year_dollars": 100000
-  }
+  "report_lines": [
+   -10000,
+   0,
+   1000,
+   10000,
+   100000,
+   1000000
+  ]
  },
  "cex": {
   "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview; every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them, and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. The tilt's consumption targets come from the target year's CEX, all tax units.",

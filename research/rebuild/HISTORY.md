@@ -227,6 +227,28 @@ moves only by the 1.3% correction: effective sample kept 90.2% against
 90.2%, median net worth $70,408 against $70,376 (seed 20261016).
 (`explore/2026-10-22/review_fix/`).
 
+### 23 October: the standardized translation
+
+ROADMAP item 2 built (`FEATURES.md`, translation): the tax data for each
+survey year, one table of translation rows, function 1 with a dollar line,
+function 2 driven by the table, and a report on every row. Today's choices
+carried over: SCF wages with a line at $100,000, the business subtotals at a
+line of zero, everything else in dollars. Changes against the run before:
+growth per return in place of growth in totals; the tax data reweighted by
+Table 1.6 and with non-filers in every comparison; the business subtotals
+by count from the top in place of by share of holders; the top-wage map
+without its continuity constant; the training non-filers scaled to 2015 by
+SOI returns and growth per return in place of the CPI. Found while building:
+SOI's net other gains are negative in 2012; partnership and S corporation
+income is split in two from 2021; pensions are combined with IRAs in 2018,
+so the SCF 2018 growth for retirement income had been Social Security's
+alone. Results, two seeds against the previous latest's: every target met;
+effective sample kept 89.1% and 89.5% (90.2%, 89.6%); mean net worth at
+$200k+ of wages $4.26M and $4.07M ($4.09M, $3.96M; the SCF's $4.36M);
+consumption at $200k+ $137.9k and $136.2k ($130.5k, $129.8k; the CEX's
+$113.3k). SCF interest, 2018: 87% report none, 72% after the fill-in, 73%
+in the tax data. Promoted to latest (`explore/2026-10-23/translation/`).
+
 ## Paths tried and not taken
 
 | What | Why not |

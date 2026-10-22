@@ -33,7 +33,7 @@ for s in $STAGES; do
     train)    python $P/train.py ;;
     generate) python $P/generate.py ;;
     tilt)     python $P/tilt.py ;;
-    report)   python $P/report_cex.py ;;
+    report)   python $P/report_cex.py; python $P/report_translation.py ;;
     *) echo "unknown stage $s"; exit 1 ;;
   esac
 done

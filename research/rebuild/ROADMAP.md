@@ -1,7 +1,7 @@
 # Roadmap: from the current pipeline to the end goal
 
 What the pipeline does now is in `FEATURES.md`; the end state is in
-`GOAL.md`. Items 4 and 6 are partly done; nothing else on this list is started. The order is rough. Paths
+`GOAL.md`. Items 2, 4 and 6 are partly done; nothing else on this list is started. The order is rough. Paths
 starting `archive/` are under `research/archive/rebuild_2026-10/`.
 
 1. **Target construction, made formal.**
@@ -60,6 +60,12 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
        function 1 (table stage) and after function 2 (training); in each,
        the share with none, counts by size range, counts above fixed lines,
        the mean and top shares.
+   - Built 23 October (`FEATURES.md`, translation). Left:
+     - function 2's PUF side still reads the model's 2015 PUF, not the
+       tax data for each survey year;
+     - function 2 runs on the SCF only;
+     - the after-function-2 report gives only the share with none and the
+       shares by size range.
 3. **Year priors.** A rule for which source-years a target year draws on,
    for every year through 2060. The year token is in the model; the rule
    is not.

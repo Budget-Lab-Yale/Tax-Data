@@ -4,8 +4,8 @@ each amount cut into bands, plus the dollar maps.
 Rows, in this order:
   PUF filers      the PUF (the PUF year, settings "years") without its four aggregate
                   records; weight S006/100
-  non-filers      the 2017 CPS non-filer pool on the PUF side (filer = 0),
-                  dollars put in PUF-year terms with the CPI-U
+  non-filers      the PUF year's non-filer tax units (filer = 0; nonfiler_rows: the CPS
+                  pool's nearest year, scaled to the PUF year as the tax data is)
   SCF waves       2016, 2019, 2022, then 2013 (tax years 2015, 2018, 2021, 2012),
                   tax units from build_scf.R, all five implicates
   CEX years       the interview survey's tax units from build_cex.R (settings "cex"),
@@ -46,17 +46,12 @@ On the PUF the parts add to the totals and the items to AGI, in whole dollars
 
 Bands. Each amount is cut into 84 bands: 0 = exactly zero, 1-10 losses, 11-83
 positives (BAND_SHARES), cut on the PUF filers' weighted distribution; the
-non-filers are placed on the filers' cut points. On the SCF:
-  - wages, interest, dividends, capital gains, retirement income and
-    tax-exempt interest are placed on the PUF's 2015 cut points, the positive
-    ones grown to the wave's year by SOI's growth in the item's total;
-  - SCF capital losses below -$3,000 are read as -$3,000 first (the limit on
-    the return);
-  - the two business subtotals are cut on the wave's own weighted ranks;
-  - the balance-sheet items are cut within each wave.
-On the CEX, wages and ss_gross as on the SCF (PUF cut points grown by
-SOI; years past the last SOI year by its last year's growth), self-employment
-income on the year's own weighted ranks, the categories within each year.
+non-filers are placed on the filers' cut points. The amounts a survey shares
+with the PUF come from the translation table (settings "translation",
+translate.py): for each survey year, the tax data for that year (tax_data),
+the row's definition fixes and function 1, then the PUF's cut points grown to
+that year per return. The report is data/translation_report.csv. The SCF's
+balance sheet is cut within each wave, the CEX's categories within each year.
 SCF ids of tax years 2018 and 2021 are offset by 1e8 x (year - 2015), the 2013
 wave's by 2.013e12, non-filers' by 9e8, so every id is unique (the held-back
 slice is drawn by household id).
@@ -75,7 +70,7 @@ band with no record gets a fill value.
 
 Writes common.TABLE, common.EDGES, common.MAPS/map_{puf,scf}_{PUF year, target
 year}.parquet, map_cex_{generation year, target year}.parquet and
-growth_factors.csv; data/scf_units_<target year>.parquet (the tilt's wealth
+growth_factors.csv; data/translation_report.csv; data/scf_units_<target year>.parquet (the tilt's wealth
 targets) and data/cex_units_<target year>_all.parquet (the consumption
 targets).
 """
@@ -89,15 +84,15 @@ import pandas as pd
 import ages
 import common
 import targets as TG
+import translate as TR
 from common import PUF_YEAR, TARGET_YEAR
 
 RAW = common.RAW
 # ---- constants -------------------------------------------------------------------
-CPI_2015, CPI_2017 = 237.017, 245.120          # CPI-U, to put the 2017 pool in the PUF year's dollars
-assert PUF_YEAR == 2015, 'the non-filer pool and ages.py carry 2015 constants'
+assert PUF_YEAR == 2015, 'ages.py carries 2015 constants'
+POOL_YEARS = range(2017, 2024)                 # the years the non-filer pool covers
 NONFILER_ID_OFFSET = 900_000_000
 WAVE_2013_ID_OFFSET = 2.013e12
-LOSS_CAP = common.SETTINGS['translation']['loss_cap']['capital_gains']
 # band layout: 0 zero; 1-10 losses (shares of loss weight from the least negative); 11-83 positives
 N_NEG, NEG0, POS0 = 10, 1, 11
 NEG_SHARES = np.array([0.225, 0.45, 0.675, 0.90, 0.93, 0.96, 0.99, 0.995, 0.999])
@@ -143,12 +138,10 @@ PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + 
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
             'c_gasoline', 'c_housing_utilities', 'c_other_services_health']
 CEX_AMOUNTS = list(CEX_CATS)
-CEX_FIXED = ['wages', 'ss_gross']          # on the PUF's cut points, grown by SOI
 AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS + CEX_AMOUNTS
 CX = common.SETTINGS['cex']
 CEX_YEAR_ID_OFFSET = 1e10                      # added to build_cex.R's ids (year x 1e10 + interview x 100 + unit)
 CATEGORIES = {'k1_owner': 'shared', 'owns_business': 'scf'}   # yes/no items beyond married, n_dep, filer
-SCF_FIXED = ['wages', 'interest', 'dividends', 'capital_gains', 'retirement_gross', 'tax_exempt_interest']
 
 
 # ---- banding -----------------------------------------------------------------------
@@ -202,11 +195,12 @@ def band_variable(x, w, fixed=None):
     return band, rec
 
 
-def grown_edge(edge, factor):
-    """An edge record's cut points, the positive ones multiplied by factor."""
+def grown_edge(edge, positive, negative):
+    """An edge record's cut points, the positive ones times one factor, the negative ones times another."""
     rec = copy.deepcopy({k: edge[k] for k in ['negative', 'positive'] if k in edge})
-    if 'positive' in rec and factor != 1.0:
-        rec['positive']['cuts'] = (np.array(rec['positive']['cuts']) * factor).tolist()
+    for k, f in [('positive', positive), ('negative', negative)]:
+        if k in rec and f != 1.0:
+            rec[k]['cuts'] = (np.array(rec[k]['cuts']) * f).tolist()
     rec['n_bands'] = N_BANDS
     return rec
 
@@ -234,7 +228,8 @@ def puf_rows(puf):
         assert np.array_equal(I[c], raw[c].to_numpy()), f'{c}: not whole dollars'
     n_dep = I['XOCAH'] + I['XOCAWH'] + I['XOPAR'] + I['XOODEP']
     out = {'source': 'puf', 'year': PUF_YEAR, 'record_id': raw.RECID.astype(float), 'household_id': raw.RECID.astype(float),
-           'weight': raw.S006 / 100, 'married': (I['MARS'] == 2).astype(np.int64),
+           'weight': raw.S006 / 100, 'married': (I['MARS'] == 2).astype(np.int64), 'mars': I['MARS'],
+           'dep_filer': (puf['DSI'] == 1).astype(np.int64).to_numpy(),
            'n_dep': np.minimum(n_dep, 3).astype(np.int64), 'filer': 1,
            'wages': I['E00200'], 'interest': I['E00300'], 'dividends': I['E00600']}
     kg = {'kg_st': I['P22250'], 'kg_lt': I['P23250'], 'kg_dist': I['E01100'],
@@ -272,40 +267,146 @@ def puf_rows(puf):
     return df
 
 
-def nonfiler_rows():
-    p = pd.read_csv(RAW['nonfiler_pool'].format(year=2017))
-    assert (p['tax_year'] == 2017).all() and (p['filer'] == 0).all()
-    d = CPI_2015 / CPI_2017
+def nonfiler_rows(year):
+    """The non-filer tax units of year (filer = 0) from the CPS pool, in that year's dollars. A year the pool does not
+    cover takes the nearest pool year, its weights scaled by Table 1.4's returns (year over pool year) and its dollars
+    grown per return as the PUF's are: a placeholder until the pool is extended (ROADMAP item 8)."""
+    py = min(max(year, POOL_YEARS[0]), POOL_YEARS[-1])
+    p = pd.read_csv(RAW['nonfiler_pool'].format(year=py))
+    assert (p['tax_year'] == py).all() and (p['filer'] == 0).all() and (p['dep_status'] == 0).all()
     rid = (NONFILER_ID_OFFSET + p['id'].astype(np.int64)).astype(float)
     neg = int((p['txbl_int'] < 0).sum())
-    common.say(f'non-filers: {neg} records with negative taxable interest read as zero (no loss on the return)')
-    df = pd.DataFrame({'source': 'puf', 'year': PUF_YEAR, 'record_id': rid, 'household_id': rid,
-                       'weight': p['weight'].astype(float), 'married': (p['filing_status'] == 2).astype(np.int64),
-                       'n_dep': p['n_dep'].clip(upper=3).astype(np.int64), 'filer': 0,
-                       'wages': p['wages'] * d, 'interest': p['txbl_int'].clip(lower=0) * d,
-                       'dividends': p['div_pref'] * d, 'capital_gains': 0.0, 'k1_owner': 0, 'owns_business': -1,
+    scale = TG.all_returns(year) / TG.all_returns(py)
+    common.say(f'non-filers {year}: pool {py}, weights x {scale:.4f}; {neg} records with negative taxable interest '
+               'read as zero (no loss on the return)')
+    df = pd.DataFrame({'source': 'puf', 'year': year, 'record_id': rid, 'household_id': rid,
+                       'weight': p['weight'].astype(float) * scale, 'married': (p['filing_status'] == 2).astype(np.int64),
+                       'n_dep': p['n_dep'].clip(upper=3).astype(np.int64), 'filer': 0, 'mars': p['filing_status'],
+                       'dep_filer': 0, 'wages': p['wages'], 'interest': p['txbl_int'].clip(lower=0),
+                       'dividends': p['div_pref'], 'k1_owner': 0, 'owns_business': -1,
                        'age1': p['age1'], 'age2': p['age2'], 'male1': p['male1'], 'male2': p['male2'],
                        'age_key': rid})
     for v in KG_PIECES:
-        df[v] = 0.0
-    items = {'business_income': (p['sole_prop'] + p['rent'] + p['rent_loss']) * d,
-             'sch_cf_income': p['sole_prop'] * d, 'sch_e_income': (p['rent'] + p['rent_loss']) * d,
-             'pensions_taxable': p['txbl_pens_dist'] * d, 'unemployment': p['ui'] * d,
-             'retirement_gross': (p['gross_ss'] + p['gross_pens_dist']) * d, 'ss_gross': p['gross_ss'] * d}
+        df[v] = p['kg_lt'].astype(float) if v == 'kg_lt' else 0.0    # the pool's capital gains are long-term
+    common.say(f'  {int((p["kg_lt"] != 0).sum())} records with capital gains, '
+               f'${(p["kg_lt"] * p["weight"]).sum() / 1e9:.1f}bn (weighted, pool-year dollars)')
+    items = {'pensions_taxable': p['txbl_pens_dist'], 'unemployment': p['ui'],
+             'retirement_gross': p['gross_ss'] + p['gross_pens_dist'], 'ss_gross': p['gross_ss']}
     for v in ITEMS:
         df[v] = items.get(v, 0.0)
     assert (p['rent'] >= 0).all() and (p['rent_loss'] <= 0).all()
-    parts = {'sch_c': p['sole_prop'] * d, 'rent_inc': p['rent'] * d, 'rent_loss': -p['rent_loss'] * d}
+    parts = {'sch_c': p['sole_prop'], 'rent_inc': p['rent'], 'rent_loss': -p['rent_loss']}
     for q in PARTS:
         df[q] = parts.get(q, 0.0)
-    # the rest of AGI: the pool's whole AGI list in PUF-year dollars, less the items (computed as a
-    # difference, as the table of record was)
-    whole = (p['sole_prop'] + p['txbl_pens_dist'] + p['rent'] + p['rent_loss'] + p['ui'] + p['other_inc']) * d
+    df = computed_totals(df)
+    # the rest of AGI: the pool's whole AGI list less the items (computed as a difference, as the table of record was)
+    whole = p['sole_prop'] + p['txbl_pens_dist'] + p['rent'] + p['rent_loss'] + p['ui'] + p['other_inc']
     df['other_agi'] = whole - sum(ITEMS[v][0] * df[v] for v in ITEMS)
-    assert np.abs(df['other_agi'] - p['other_inc'] * d).max() < 0.01
+    assert np.abs(df['other_agi'] - p['other_inc']).max() < 0.01
+    df = grown(df, year, py)
     for v in SCF_AMOUNTS:
         df[v] = np.nan
     return df
+
+
+COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES},
+            'business_income': {p: s for p, (_, s) in PARTS.items()},
+            'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
+            'sch_e_income': {p: PARTS[p][1] for p in E_PARTS}}
+
+
+def computed_totals(df):
+    """The computed totals from their parts."""
+    for v, parts in COMPUTED.items():
+        df[v] = sum(s * df[p] for p, s in parts.items())
+    return df
+
+
+_GROWTH = {}
+
+
+def growth(v, y):
+    """(factor for positive values, for negative values) of PUF amount v: SOI's growth in dollars per return with the
+    item, PUF year to y (targets.py; past the last SOI year, carried forward). Losses on capital assets do not grow
+    (the $3,000 cap is nominal); mortgage interest and real estate tax have no Table 1.4 row and do not grow."""
+    if (v, y) not in _GROWTH:
+        G = lambda item, **k: TG.per_return_growth(item, year=y, **k)
+        if v in ('capital_gains', 'kg_st', 'kg_lt', 'kg_other'):
+            f = (G('sch_d_net_gain'), 1.0)
+        elif v == 'kg_dist':
+            f = (G('kg_dist'), 1.0)
+        elif v in NO_GROWTH:
+            f = (1.0, 1.0)
+        elif v in TG.PART_GROWTH:
+            pos_rows, neg_rows = TG.PART_GROWTH[v]
+            fp = G('business_income') if pos_rows == 'business_income' else G(None, rows=pos_rows, absolute=True)
+            f = (fp, G(None, rows=neg_rows, absolute=True) if neg_rows else fp)
+        else:
+            assert v in ['wages', 'interest', 'dividends', 'other_agi'] + list(ITEMS), v
+            f = (G(v), G(v))
+        _GROWTH[(v, y)] = f
+    return _GROWTH[(v, y)]
+
+
+def growth_factors(y):
+    """growth() of every PUF amount."""
+    return {v: growth(v, y) for v in PUF_AMOUNTS}
+
+
+def grown(df, y, base=PUF_YEAR, columns=None):
+    """The PUF amounts of df (default all; columns: only these), in year-base dollars, grown to year y per return;
+    the computed totals whose parts are all grown, from the grown parts. A factor must be positive wherever it is
+    used (an SOI net amount can be negative in some year)."""
+    df = df.copy()
+    if y == base:
+        return df
+    columns = [v for v in (PUF_AMOUNTS if columns is None else columns) if v not in COMPUTED]
+    for v in columns:
+        x = df[v].to_numpy(float)
+        out = x.copy()
+        for k, m in enumerate([x > 0, x < 0]):
+            if m.any():
+                f = growth(v, y)[k] / growth(v, base)[k]
+                assert np.isfinite(f) and f > 0, f'{v}: no growth factor {base} to {y} ({f}; an SOI line not found?)'
+                out[m] = x[m] * f
+        df[v] = out
+    for v, parts in COMPUTED.items():
+        if set(parts) <= set(columns):
+            df[v] = sum(s * df[p] for p, s in parts.items())
+    return df
+
+
+def tax_data(t, y, pi):
+    """The tax data for year y: the PUF filers other than dependent filers, each weight times the year-y over PUF-year
+    returns of SOI Table 1.6 in its filing status and age range (a record with no range: averaged over step 0's
+    probabilities), dollars grown per return; and year y's non-filer tax units. Columns: weight, the categories,
+    age_p0-5 (the age range as probabilities), the PUF amounts."""
+    puf = t[(t.source == 'puf') & (t.filer == 1) & (t.dep_filer == 0)]
+    P = np.column_stack([(puf.age_range == k).to_numpy(float) + puf[f'age_p{k}'].to_numpy(float)
+                         for k in range(common.ADULT_RANGES)])
+    assert np.allclose(P.sum(1), 1), 'a PUF filer other than a dependent filer with a dependent-filer age range'
+    status = ['single', 'joint', 'separate', 'head_of_household']
+    t_y, t_0 = TG.table_1_6(y), TG.table_1_6(PUF_YEAR)
+    F = np.array([[t_y[(s, k)] / t_0[(s, k)] for k in range(common.ADULT_RANGES)] for s in status])
+    f = (P * F[puf.mars.to_numpy().astype(np.int64) - 1]).sum(1)
+    shared = sorted({r['variable'] for r in TR.rows(amounts_only=True)})
+    needed = sorted({p for v in shared for p in COMPUTED.get(v, {v: 1})})
+    filers = grown(puf, y, columns=needed).assign(weight=puf.weight.to_numpy() * f)
+    for k in range(common.ADULT_RANGES):
+        filers[f'age_p{k}'] = P[:, k]
+    nf = nonfiler_rows(y)
+    couple = (nf.married == 1).to_numpy()
+    age, _ = ages.primary_age(nf.age1.to_numpy(float), nf.age2.fillna(0).to_numpy(float), nf.male1.to_numpy(float),
+                              nf.male2.fillna(1).to_numpy(float), couple, nf.age_key.to_numpy(float), pi)
+    rng = ages.adult_range(age)
+    for k in range(common.ADULT_RANGES):
+        nf[f'age_p{k}'] = (rng == k).astype(float)
+    cols = ['weight', 'filer', 'married', 'n_dep', 'k1_owner'] + [f'age_p{k}' for k in range(common.ADULT_RANGES)] \
+        + shared
+    out = pd.concat([filers[cols], nf[cols]], ignore_index=True)
+    common.say(f'tax data {y}: {filers.weight.sum() / 1e6:.2f}M filers (PUF {PUF_YEAR}: {puf.weight.sum() / 1e6:.2f}M), '
+               f'{nf.weight.sum() / 1e6:.2f}M non-filers')
+    return out
 
 
 def cex_rows():
@@ -317,7 +418,7 @@ def cex_rows():
         common.say(f'CEX {y}: {len(s):,} rows, {s.weight.sum() / 1e6:.1f} million units')
         rows.append(s)
     s = pd.concat(rows, ignore_index=True)
-    need = ['social_security', 'wages', 'se_income'] + CEX_CATS
+    need = sorted({c for r in TR.rows('cex', amounts_only=True) for c in r['items']}) + CEX_CATS
     n_missing = s[need].isna().sum()
     assert not n_missing.any(), f'missing values in the CEX units:\n{n_missing[n_missing > 0]}'
     assert (s['dep_filer'] == 0).all(), 'build_cex.R folds dependent filers into the unit that claims them'
@@ -328,8 +429,7 @@ def cex_rows():
                        'household_id': s['household_id'].astype(float), 'weight': s['weight'].astype(float),
                        'married': s['married'].astype(np.int64), 'n_dep': s['n_dep'].clip(upper=3).astype(np.int64),
                        'filer': -1, 'k1_owner': -1, 'owns_business': -1,
-                       'wages': s['wages'].astype(float), 'ss_gross': s['social_security'].astype(float),
-                       'sch_cf_income': s['se_income'].astype(float),
+                       **survey_items(s, 'cex'),
                        'age1': s['age1'], 'age2': s['age2'], 'male1': s['male1'], 'male2': s['male2'],
                        'age_key': s['household_id'].astype(float)})
     for c in CEX_CATS:
@@ -338,6 +438,13 @@ def cex_rows():
         if v not in df:
             df[v] = np.nan
     return df
+
+
+def survey_items(s, survey):
+    """The survey's columns that the translation table's amount rows read, as raw_<column> (translate.py turns them
+    into the shared slots)."""
+    return {f'raw_{c}': s[c].astype(float) for c in sorted({c for r in TR.rows(survey, amounts_only=True)
+                                                            for c in r['items']})}
 
 
 def loan_to_value(s):
@@ -361,14 +468,12 @@ def scf_rows():
         s['record_id'] += off
         s['household_id'] += off
         s['age_key'] = s['household_id']
-        s['sch_cf_income'], s['sch_e_income'] = s['business_income'], s['rent_royalty_estate']
-        s['business_income'] = s['business_income'] + s['rent_royalty_estate']   # Schedules C, E and F together
-        s['capital_gains'] = np.maximum(s['capital_gains'], np.where(s['capital_gains'] < 0, LOSS_CAP, -np.inf))
         common.say(f'wave {wave}:')
         s = loan_to_value(s.assign(source='scf', filer=-1))
-        if wave == TARGET_YEAR:                          # the tilt's wealth targets, in this wave's dollars
+        if wave == TARGET_YEAR:     # the tilt's wealth targets and wealth by wage group, in this wave's dollars
             s.to_parquet(f'{common.DATA}/scf_units_{TARGET_YEAR}.parquet', index=False)
-        s['business_income'] = np.nan     # PUF only: on the SCF it is its two subtotals
+        raw = survey_items(s, 'scf')
+        s = s.drop(columns=[c for c in s if c in PUF_AMOUNTS]).assign(**raw)
         waves.append(s)
     s = pd.concat(waves, ignore_index=True)
     for v in AMOUNTS:
@@ -378,99 +483,75 @@ def scf_rows():
 
 
 # ---- bands --------------------------------------------------------------------------------
-def scale_top_wages(x, w, puf_x, puf_w, line):
-    """SCF wages above line moved onto the PUF's distribution by count from the top: an SCF unit with N
-    units (weighted) earning more than it gets the PUF wage with N returns earning more, times one constant
-    that makes the map continuous at line (the map is y(x) * line / y(line)). Below line, unchanged."""
-    o = np.argsort(-puf_x)
-    p_val, p_above = puf_x[o], np.cumsum(puf_w[o]) - puf_w[o] / 2       # PUF returns above each value
-    so = np.argsort(-x)
-    s_above = np.empty(len(x))
-    s_above[so] = np.cumsum(w[so]) - w[so] / 2
-    y = np.interp(s_above, p_above, p_val)
-    y_line = np.interp((w * (x > line)).sum(), p_above, p_val)
-    out = x.copy()
-    top = x > line
-    out[top] = y[top] * line / y_line
-    return out
+def translate_surveys(t, edges, pi):
+    """The shared amounts of every survey year from the translation table (translate.py): the definition fixes,
+    function 1 against the tax data for the year, the PUF's cut points grown to the year. The report: the survey as
+    reported, after function 1, the tax data."""
+    w = t['weight'].to_numpy(float)
+    report, notes, tax = [], {}, {}
+    for src in ('scf', 'cex'):
+        for y in sorted(t.loc[t.source == src, 'year'].unique()):
+            if y not in tax:
+                tax[y] = tax_data(t, y, pi)
+            T = tax[y]
+            tw = T['weight'].to_numpy(float)
+            sel = ((t.source == src) & (t.year == y)).to_numpy()
+            d = t[sel]
+            for row in TR.rows(src):
+                v = row['variable']
+                if v in TR.CATEGORY_VARIABLES:
+                    tax_side = TR.describe_category(None, tw, T[[f'age_p{k}' for k in range(common.ADULT_RANGES)]].to_numpy()) \
+                        if v == 'age_range' else TR.describe_category(T[v].to_numpy(), tw)
+                    assert (d[v] >= 0).all(), f'{src} {y} {v}: missing'
+                    report += TR.report_rows(row, y, {'survey': TR.describe_category(d[v].to_numpy(), w[sel]),
+                                                      'tax data': tax_side})
+                    continue
+                reported = sum(d[f'raw_{c}'].to_numpy(float) for c in row['items'])
+                assert not np.isnan(reported).any(), f'{src} {y} {v}: missing values'
+                x = TR.definition_fixes(reported, row)
+                fp, fn = growth(v, y)
+                line = None if row['dollar_line'] is None else row['dollar_line'] * fp
+                new, beyond = TR.amounts(x, w[sel], T[v].to_numpy(float), tw, line)
+                b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
+                rec['cut_rule'] = (f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} positive, '
+                                   f'{fn:.4f} losses); dollar line {line}')
+                t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
+                notes[f'{src} {y} {v}'] = {'dollar line (survey-year dollars)': line,
+                                           'units past the tax data\'s last holder (millions)': beyond / 1e6}
+                report += TR.report_rows(row, y, {'as reported': TR.describe(reported, w[sel]),
+                                                  'after function 1': TR.describe(new, w[sel]),
+                                                  'tax data': TR.describe(T[v].to_numpy(float), tw)})
+    rep = pd.DataFrame(report)
+    rep.to_csv(f'{common.DATA}/translation_report.csv', index=False)
+    TR.say_report(rep)
+    common.say('function 1: ' + json.dumps(notes, indent=1, default=float))
+    shared = sorted({r['variable'] for r in TR.rows(amounts_only=True)})
+    return t, {str(y): {v: list(growth(v, y)) for v in shared} for y in tax}
 
 
-def band_table(t):
+def band_table(t, pi):
     filers = ((t.source == 'puf') & (t.filer == 1)).to_numpy()
     pside = (t.source == 'puf').to_numpy()
     w = t['weight'].to_numpy(float)
-    years = sorted(t.loc[t.source == 'scf', 'year'].unique())
-    cex_years = sorted(t.loc[t.source == 'cex', 'year'].unique())
-    last = TG.total_years()[-1]
-    total = lambda item, y: TG.soi_item(y, item)[0]
-    factor = {}
-    for y in sorted(set(years) | set(cex_years)):
-        if y > last:
-            continue
-        for v in ['wages', 'interest', 'dividends']:
-            factor[(v, y)] = total(v, y) / total(v, PUF_YEAR)
-        line13 = lambda yy: total('sch_d_net_gain', yy) + total('kg_dist', yy) - \
-            TG.soi_get(yy, 'sales of capital assets reported on form 1040, schedule d > taxable net loss', 'amount')
-        factor[('capital_gains', y)] = line13(y) / line13(PUF_YEAR)
-        for v in ['retirement_gross', 'tax_exempt_interest', 'ss_gross']:
-            factor[(v, y)] = TG.soi_item(y, v, base=PUF_YEAR)[0] / TG.soi_item(PUF_YEAR, v, base=y)[0]
-    for y in cex_years:                          # past the last SOI year: that year's growth carried forward
-        if y > last:
-            for v in CEX_FIXED:
-                g = TG.soi_item(last, v, base=last - 1)[0] / TG.soi_item(last - 1, v, base=last)[0]
-                factor[(v, y)] = factor[(v, last)] * g ** (y - last)
-                common.say(f'{v} {y}: no SOI year; factor {factor[(v, y)]:.4f} = {last} x {last - 1}-{last} growth')
-    bad = {k: f for k, f in factor.items() if not (np.isfinite(f) and f > 0)}
-    assert not bad, f'SOI growth factors missing (an SOI line not found?): {bad}'
-    common.say(f'SOI growth factors from {PUF_YEAR}: ' + ', '.join(f'{v} {y} {f:.3f}' for (v, y), f in sorted(factor.items())))
     edges = {}
-    for v in AMOUNTS:
-        t[f'{v}_band'] = np.int16(-1)
+    t = pd.concat([t, pd.DataFrame({f'{v}_band': np.int16(-1) for v in AMOUNTS}, index=t.index)], axis=1)
     for v in PUF_AMOUNTS:                        # cut on the PUF filers, applied to the whole PUF side
         b, rec = band_variable(t.loc[filers, v].to_numpy(float), w[filers])
         edges[f'puf/{PUF_YEAR}/{v}'] = rec
-        t.loc[pside, f'{v}_band'] = band_variable(t.loc[pside, v].to_numpy(float), w[pside], grown_edge(rec, 1.0))[0]
-    t['wages_as_reported'] = t['wages']
-    W = common.SETTINGS['translation'].get('wage_top_scaling')
-    for y in years:
-        sel = ((t.source == 'scf') & (t.year == y)).to_numpy()
-        if W:
-            line = W['line_puf_year_dollars'] * factor[('wages', y)]
-            x = t.loc[sel, 'wages'].to_numpy(float)
-            new = scale_top_wages(x, w[sel], t.loc[filers, 'wages'].to_numpy(float) * factor[('wages', y)],
-                                  w[filers], line)
-            t.loc[sel, 'wages'] = new
-            counts = {f'${c / 1e3:,.0f}k+': (round(w[sel][x >= c * factor[('wages', y)]].sum() / 1e6, 3),
-                                              round(w[sel][new >= c * factor[('wages', y)]].sum() / 1e6, 3),
-                                              round(w[filers][t.loc[filers, 'wages'].to_numpy(float) >= c].sum() / 1e6, 3))
-                      for c in [200e3, 500e3, 1e6]}
-            common.say(f'SCF {y} wages above ${line:,.0f} moved onto the PUF scale; units at each PUF-year line grown '
-                       f'(millions: as reported, after, PUF {PUF_YEAR}): {counts}')
-        for v in SCF_FIXED:
-            b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], factor[(v, y)]))
-            rec['cut_rule'] = f'PUF {PUF_YEAR} positive cuts x SOI factor {factor[(v, y)]:.4f}'
-            t.loc[sel, f'{v}_band'], edges[f'scf/{y}/{v}'] = b, rec
-        for v, rule in [(v, "rank: the wave's own weighted ranks at the PUF's band shares")
-                        for v in ('sch_cf_income', 'sch_e_income')] + [(v, 'within the wave') for v in SCF_AMOUNTS]:
-            b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
-            rec['cut_rule'] = rule
-            t.loc[sel, f'{v}_band'], edges[f'scf/{y}/{v}'] = b, rec
-    for y in cex_years:
-        sel = ((t.source == 'cex') & (t.year == y)).to_numpy()
-        for v in CEX_FIXED:
-            b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], factor[(v, y)]))
-            rec['cut_rule'] = f'PUF {PUF_YEAR} positive cuts x SOI factor {factor[(v, y)]:.4f}'
-            t.loc[sel, f'{v}_band'], edges[f'cex/{y}/{v}'] = b, rec
-        for v, rule in [('sch_cf_income', "rank: the year's own weighted ranks at the PUF's band shares")] + \
-                [(v, 'within the year') for v in CEX_AMOUNTS]:
-            b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
-            rec['cut_rule'] = rule
-            t.loc[sel, f'{v}_band'], edges[f'cex/{y}/{v}'] = b, rec
+        t.loc[pside, f'{v}_band'] = band_variable(t.loc[pside, v].to_numpy(float), w[pside], grown_edge(rec, 1.0, 1.0))[0]
+    t, factors = translate_surveys(t, edges, pi)
+    for src, own, rule in [('scf', SCF_AMOUNTS, 'within the wave'), ('cex', CEX_AMOUNTS, 'within the year')]:
+        for y in sorted(t.loc[t.source == src, 'year'].unique()):
+            sel = ((t.source == src) & (t.year == y)).to_numpy()
+            for v in own:
+                b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
+                rec['cut_rule'] = rule
+                t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = b, rec
     for v in AMOUNTS:
         b, x = t[f'{v}_band'], t[v]
         assert ((b == -1) == x.isna()).all() and ((b == 0) == (x == 0)).all(), v
         t[f'{v}_band'] = b.astype('int16')
-    edges['meta'] = table_meta(t, factor)
+    edges['meta'] = table_meta(t, factors)
     return t, edges
 
 
@@ -491,7 +572,7 @@ def table_meta(t, factor):
             'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home']},
             'kg_pieces': KG_PIECES,
             'agi_signs': {v: ITEMS[v][0] for v in ITEMS if ITEMS[v][0] != 0},
-            'scf_growth_factors': {f'{v} {y}': f for (v, y), f in factor.items()}}
+            'growth_factors': factor}
 
 
 # ---- dollar maps ----------------------------------------------------------------------------
@@ -538,22 +619,9 @@ def build_maps(t, edges):
     pside = t[t.source == 'puf'].reset_index(drop=True)
     m_puf = build_map(pside, edges, 'puf', PUF_AMOUNTS)
     m_puf.to_parquet(f'{common.MAPS}/map_puf_{PUF_YEAR}.parquet', index=False)
-    # growth to the target year, per return with the item: (factor for positive values, for negative values)
-    sch_d = TG.per_return_growth('sch_d_net_gain')
-    g = {'wages': TG.per_return_growth('wages'), 'interest': TG.per_return_growth('interest'),
-         'dividends': TG.per_return_growth('dividends')}
-    g = {v: (f, f) for v, f in g.items()}
-    g.update({'capital_gains': (sch_d, 1.0), 'kg_st': (sch_d, 1.0), 'kg_lt': (sch_d, 1.0), 'kg_other': (sch_d, 1.0),
-              'kg_dist': (TG.per_return_growth('kg_dist'), 1.0)})   # losses: the $3,000 cap is nominal
-    for v in [v for v in ITEMS if v not in NO_GROWTH] + ['other_agi']:
-        f = TG.per_return_growth(v)
-        g[v] = (f, f)
-    g.update({v: (1.0, 1.0) for v in NO_GROWTH})
-    for p, (pos_rows, neg_rows) in TG.PART_GROWTH.items():
-        fp = TG.per_return_growth('business_income') if pos_rows == 'business_income' else \
-            TG.per_return_growth(None, rows=pos_rows, absolute=True)
-        fn = TG.per_return_growth(None, rows=neg_rows, absolute=True) if neg_rows else fp
-        g[p] = (fp, fn)
+    g = dict(growth_factors(TARGET_YEAR))   # to the target year, per return with the item
+    bad = {k: f for k, f in g.items() if not all(np.isfinite(x) and x > 0 for x in f)}
+    assert not bad, f'SOI growth factors missing (an SOI line not found?): {bad}'
     m_target = m_puf.copy()
     for v, (fp, fn) in g.items():
         r = (m_target['variable'] == v).to_numpy()
@@ -657,7 +725,7 @@ def primary_age_range(t, puf):
         common.say(f'  {lab}: woman first in {100 * w[c & woman_first].sum() / w[c].sum():.1f}% of couples '
                    f'(weighted); same-sex couples {100 * w[c & ~mixed].sum() / w[c].sum():.2f}%')
     assert t.age_range.notna().all()
-    return t.drop(columns=['age1', 'age2', 'male1', 'male2', 'age_key', 'taxunit_code'], errors='ignore')
+    return t.drop(columns=['age1', 'age2', 'male1', 'male2', 'age_key', 'taxunit_code'], errors='ignore'), pi
 
 
 def age_range_table(t):
@@ -679,12 +747,12 @@ def age_range_table(t):
 def main():
     os.makedirs(common.DATA, exist_ok=True)
     puf = read_puf()
-    t = pd.concat([puf_rows(puf), nonfiler_rows(), scf_rows(), cex_rows()], ignore_index=True)
+    t = pd.concat([puf_rows(puf), nonfiler_rows(PUF_YEAR), scf_rows(), cex_rows()], ignore_index=True)
     assert not t.duplicated(['source', 'record_id']).any()
-    t = primary_age_range(t, puf)
-    t, edges = band_table(t)
+    t, pi = primary_age_range(t, puf)
+    t, edges = band_table(t, pi)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer'] + \
-        list(CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage', 'wages_as_reported'] + [f'{v}_band' for v in AMOUNTS] + \
+        list(CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
         ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)]
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
     for k in range(ages.N_RANGES):

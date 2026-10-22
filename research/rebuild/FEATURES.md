@@ -13,7 +13,7 @@ weighted to 2019 targets. The code is in `pipeline/`; every setting is in
 | Source | Rows | What it covers |
 |---|---:|---|
 | 2015 PUF | 207,692 | filers |
-| 2017 CPS non-filer pool | 166,938 | crude non-filers on the PUF side, dollars put in 2015 terms |
+| 2017 CPS non-filer pool | 166,938 | non-filers on the PUF side, scaled to 2015 as the tax data is |
 | SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, split into tax units by the production builder, five implicates each |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 
@@ -127,46 +127,73 @@ dependent filers (under 18, 18–25, 26+), kept apart.
 
 ## Translation: putting the surveys on the PUF's terms
 
-**The CEX.**
-- Wages and gross Social Security are banded on the PUF's cut points,
-  grown by SOI to each survey year (past the last SOI year, by that
-  year's growth); self-employment income is placed by its rank within the
-  year, as the SCF's business subtotals are; the categories are banded
-  within each year.
-- Pensions are not shared. The PUF's total pensions (line 5a) include
-  rollovers and lump sums, the CEX's do not ($0.3–0.4 trillion against
-  $1.5 trillion on returns); with a combined Social Security and pensions
-  slot, PUF retirees sat in higher bands than CEX retirees with the same
-  spending, and the file's 65+ spent 17% too much
-  (`explore/2026-10-21/cex/age_check/`).
-- Not translated yet (`explore/2026-10-21/cex/translation/TRANSLATION.md`):
-  the CEX asks wages before deductions and replaces wages above about
-  $210,000 a person with one shared value; it misses many small
-  self-employment holders and most losses; interest and dividends are one
-  item, top-coded, and not used.
+Two standard functions and one table (`settings.json`, "translation";
+`translate.py`). No variable or survey has its own code path.
 
-**The SCF.**
-
-- **SCF dollars on the PUF's dollar scale.** Wages, interest, dividends,
-  capital gains, retirement income and tax-exempt interest are banded on
-  the PUF's cut points, grown by SOI to each wave's year. The SCF's own
-  pattern of zeros stays visible, through a source label the model always
-  sees.
-- **The two business subtotals** are placed by their rank within each SCF
-  wave.
-- **Top wages.** The SCF reports more high earners than tax data at every
-  line (2015: 0.47 million units with $1M+ of wages against the PUF's
-  0.15 million), as the literature also finds (Gale, Joshi, Pulliam and
-  Sabelhaus 2022: 2.2 times as many units with $1M+ of AGI). SCF wages
-  above $100,000 (2015 dollars, grown to each wave) are placed on the PUF
-  filers' distribution by count from the top: an SCF unit with N units
-  earning more gets the PUF wage with N returns earning more, times one
-  constant that keeps the map continuous at $100,000. Below $100,000 they
-  are unchanged. Settings: "translation", "wage_top_scaling".
-- **The balance sheet** is banded within each SCF wave.
-- **Capital losses** below −$3,000 in the SCF are read as −$3,000, the
-  deductible limit on the return.
-- **Two slots, filled during training.** Many SCF households that report
+- **The tax data for a year** (`build_table.py`, `tax_data`), the base of
+  every comparison and translation:
+  - the PUF's filers, with dependent filers left out;
+  - weights scaled in each filing status and primary filer's age range by
+    SOI Table 1.6's returns in that year over 2015's. A record with no age
+    range is averaged over step 0's probabilities;
+  - every dollar item grown by SOI's growth in dollars per return with the
+    item. Totals such as capital gains and the business subtotals are
+    computed from their grown parts, as in the file;
+  - that year's non-filer tax units from the CPS pool appended.
+  - Placeholders. The pool covers 2017–2023: any other year takes the
+    nearest pool year, its weights scaled by SOI's total returns and its
+    dollars grown per return. Past 2023, the last SOI year, the last year's
+    growth is carried forward.
+  - The PUF side of the training table is the tax data for 2015 plus the
+    dependent filers. Its non-filers are the 2017 pool, scaled this way.
+    Until 23 October they were put in 2015 dollars with the CPI.
+- **The table.** One row per survey and shared variable: the survey's
+  items (summed), definition fixes, the dollar line, whether function 2
+  applies, whether the variable is part of the type function 2 conditions
+  on, and the reason. A variable not in the table is not shared.
+  - Defaults: dollars, no fill-in.
+  - Departures today:
+    - SCF wages: a dollar line at $100,000;
+    - the SCF's two business subtotals and the CEX's self-employment
+      income: a line of zero;
+    - SCF capital losses read as no more than $3,000;
+    - function 2 on SCF interest, dividends and capital gains.
+- **Function 1, amounts.** An amount within the dollar line (2015 dollars,
+  grown per return to the survey's year) keeps its dollars. Above the line,
+  a unit gets the tax data's amount with the same number of units above it.
+  Below minus the line, it gets the tax data's loss with the same number
+  below it. No line means dollars throughout; a line of zero means rank
+  throughout. The result is cut on the PUF's cut points grown to that year.
+  The old wage swap also multiplied by a constant that kept the map
+  continuous at $100,000; function 1 has no such constant.
+- **The report** (`data/translation_report.csv`, and the table stage's log)
+  covers each row and survey year: the survey as reported, after function
+  1, and the tax data. Each column gives units, the share with none, the
+  share with a loss, units by size range, units above $1k, $10k, $100k and
+  $1M, the mean per unit, and the top 1% and 10% of units' shares of
+  positive dollars. Categories: the share in each value. The report stage
+  (`report_translation.py`) adds the stage after function 2 from the trained
+  model, with filled-in amounts at their band's median, and writes all four
+  stages side by side: `model/<run>/translation_report.md`.
+- **The CEX, known gaps** (`explore/2026-10-21/cex/translation/TRANSLATION.md`):
+  - Pensions are not shared. The PUF's total pensions (line 5a) include
+    rollovers and lump sums, the CEX's do not ($0.3–0.4 trillion against
+    $1.5 trillion on returns). With a combined Social Security and
+    pensions slot, the file's 65+ spent 17% too much
+    (`explore/2026-10-21/cex/age_check/`).
+  - The CEX asks wages before deductions and replaces wages above about
+    $210,000 a person with one shared value.
+  - It misses many small self-employment holders and most losses.
+  - Interest and dividends are one item, top-coded, and not used.
+- **The SCF, why the departures.** The SCF reports more high earners than
+  tax data at every line (2015: 0.47 million units with $1M+ of wages
+  against the PUF's 0.15 million), as the literature also finds (Gale,
+  Joshi, Pulliam and Sabelhaus 2022: 2.2 times as many units with $1M+ of
+  AGI). The SCF's own pattern of zeros stays visible, through a source
+  label the model always sees. The balance sheet is not shared: it is
+  banded within each wave.
+- **Function 2: two slots, filled during training** (`fillin.py`).
+ Many SCF households that report
   zero interest, dividends or capital gains do hold some. Each of these
   items has two slots on SCF rows: what the household reported (never
   changed) and the PUF-concept amount (reporters copy their answer;
@@ -326,7 +353,31 @@ sample.
 
 ## How the latest run comes out
 
-**Since 22 October (late), "latest" is the reviewed and cleaned-up code**
+**Since 23 October, "latest" uses the standardized translation**
+(translation section above; `HISTORY.md`, 23 October). Two seeds, made in
+`explore/2026-10-23/translation/` and copied into the main output folders.
+The previous latest is in `previous_2026-10-22_cleanup/`. Every target is
+met (317; the 116 business targets exactly). Nominal 2019 dollars; the two
+seeds, then the previous latest's two:
+
+| | Latest | Previous latest | SCF or CEX 2019 |
+|---|---:|---:|---:|
+| effective sample kept | 89.1%, 89.5% | 90.2%, 89.6% | |
+| net worth before the tilt | $96.3T, $107.6T | $104.9T, $102.3T | $96.1T |
+| median net worth, all units | $70,100, $70,500 | $70,400, $71,100 | $91,050 |
+| mean net worth, wages $200k+ | $4.26M, $4.07M | $4.09M, $3.96M | $4.36M |
+| consumption, wages $1-25k | $22.7k, $23.3k | $23.0k, $23.5k | $27.6k |
+| consumption, wages $100-200k | $76.6k, $76.0k | $77.5k, $76.4k | $70.0k |
+| consumption, wages $200k+ | $137.9k, $136.2k | $130.5k, $129.8k | $113.3k |
+
+The median is below the SCF's because the file has 187 million units
+against the SCF's 143 million. The extra units (young single people, adult
+children, non-filers) hold little wealth. The wealth targets set totals and
+the share of units above each line, not the median. Translation report:
+`model/<run>/translation_report.md`.
+
+
+**Before that, from 22 October (late), "latest" was the reviewed and cleaned-up code**
 (`HISTORY.md`, 22 October evening and 23 October): consistency rules not
 applied to dependent filers, the fill-in's PUF side without them, wealth
 counts as shares, estates and trusts out of the business targets, the

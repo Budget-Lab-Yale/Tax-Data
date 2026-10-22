@@ -1,7 +1,7 @@
 """Function 2, holding: the two-slot fill-in, run during training (train.py).
 
 Some SCF households that report zero interest, dividends or capital gains hold
-some. Each of these items (settings "translation", mapped) has two slots on
+some. Each item with fill_in in the translation table (translate.py) has two slots on
 SCF rows: the reported amount (model.REPORTED, never changed) and the
 PUF-concept amount (the shared slot), which reporters copy and zero-reporters
 get filled in. From the pass fill_from_pass on, at the start of each pass,
@@ -11,8 +11,8 @@ size range, from the reporting-rate formula:
                            reported slot, everything else shown except every
                            PUF-concept slot (so no fill-in ever feeds the formula);
   report_probs_by_type (B_k)  C_k averaged over SCF units of the same type: the
-                           survey year and the assumed-correct items
-                           (married, dependents and the wage band);
+                           survey year and the table's type_for_fill_in
+                           variables (married, dependents and the wage band);
   puf_probs_by_range (A_k) the PUF concept given the type only (PUF label, the
                            PUF year), over the PUF's units other than dependent
                            filers: the item given the type and each adult age
@@ -27,7 +27,8 @@ on anything else on the record.
 
 Writes common.MODEL/fill_log.csv: per pass and item, the share with none as
 reported, after the fill-in and on the PUF at the SCF's types (the PUF-year
-wave), and the share of zero-reporters capped.
+wave), and the share of zero-reporters capped. report_translation.py calls
+refit() on a trained model for the report's stage after function 2.
 """
 import math
 import os
@@ -38,14 +39,16 @@ import torch
 
 import common
 import model as M
+import translate as TR
 
-S = common.SETTINGS['translation']
-MAPPED = list(S['mapped'])
-TYPE = list(S['assumed_correct'])                 # the type the formula conditions on, with the survey year
+ROWS = {r['variable']: r for r in TR.filled()}
+assert all(r['survey'] == 'scf' for r in ROWS.values()), 'function 2 runs on the SCF only so far (this file reads SCF rows)'
+MAPPED = list(ROWS)
+TYPE = TR.fill_type()                             # the type the formula conditions on, with the survey year
 C = len(M.CONTEXT)
 P = M.PREDICTED
-RANGES = {v: [(-math.inf if lo is None else lo, math.inf if hi is None else hi) for lo, hi in S['size_ranges'][v]]
-          for v in MAPPED}
+RANGES = {v: [(-math.inf if lo is None else lo, math.inf if hi is None else hi) for lo, hi in r['fill_in']['size_ranges']]
+          for v, r in ROWS.items()}
 
 
 def in_range(x, lo, hi):
@@ -139,7 +142,7 @@ class FillIn:
                            device=self.device).index_add_(1, self.band_range[v], probs)
 
     @torch.no_grad()
-    def refit(self, epoch):
+    def refit(self, epoch, write_log=True):
         """Each SCF record's fill-in distribution over the PUF-concept bands of each mapped item (see the top)."""
         self.model.eval()
         a_bands, c_ranges = {v: [] for v in MAPPED}, {v: [] for v in MAPPED}
@@ -176,7 +179,8 @@ class FillIn:
                    'zero-reporters over 100% (%)': 100 * wm((hidden_total > 1).double(), m & zero)}
             self.log.append(row)
             common.say('  fill ' + '  '.join(f'{k} {x:.2f}' if isinstance(x, float) else f'{k} {x}' for k, x in row.items()))
-        pd.DataFrame(self.log).to_csv(os.path.join(common.MODEL, 'fill_log.csv'), index=False)
+        if write_log:
+            pd.DataFrame(self.log).to_csv(os.path.join(common.MODEL, 'fill_log.csv'), index=False)
         self.model.train()
 
     @torch.no_grad()

@@ -13,7 +13,9 @@ publishes thousands).
 2. Totals: Table 1.4's all-returns totals for every year, read directly by
    totals(); soi_item() and per_return_growth() look items up in them by
    pattern, so a line SOI renamed (wages in tax year 2022) is still found.
-3. FAMILIES: the business families, each with its SOI line, its PUF parts and
+3. Table 1.6: returns by filing status and the primary filer's age, all AGI,
+   every year (table_1_6), for the tax data (translate.py).
+4. FAMILIES: the business families, each with its SOI line, its PUF parts and
    whether the tilt targets it. PART_GROWTH: which SOI line grows each part's
    dollars.
 """
@@ -192,11 +194,28 @@ def total_years():
     return sorted({y for y, _ in totals()})
 
 
+# Lines SOI later published in pieces: from tax year 2021, partnership and S corporation income separately. A year
+# without the combined line adds the pieces up; its return count then counts a return with both twice.
+SPLIT = {'partnership and s corporation': ['partnership', 's corporation']}
+_GAPS = set()
+
+
 def soi_get(y, pattern, stat):
     val = totals()
     hit = [n for (yy, n) in val if yy == y and re.fullmatch(pattern + ' > ' + stat, n)]
     if len(hit) != 1:
         assert not hit, (y, pattern, hit)
+        for whole, pieces in SPLIT.items():
+            if pattern.startswith(whole + ' > '):
+                return sum(soi_get(y, p + pattern[len(whole):], stat) for p in pieces)
+        # a line missing in one year only (pensions in 2018, published with IRAs): the geometric mean of the years
+        # either side, a placeholder
+        near = [[n for (yy, n) in val if yy == b and re.fullmatch(pattern + ' > ' + stat, n)] for b in (y - 1, y + 1)]
+        if all(len(h) == 1 for h in near):
+            if (y, pattern, stat) not in _GAPS:
+                _GAPS.add((y, pattern, stat))
+                common.say(f'SOI {y}: no line {pattern} > {stat}; the geometric mean of {y - 1} and {y + 1}')
+            return float(np.sqrt(val[(y - 1, near[0][0])] * val[(y + 1, near[1][0])])) * (1000.0 if stat == 'amount' else 1.0)
         raise KeyError(f'{y}: no SOI item {pattern} > {stat}')
     return val[(y, hit[0])] * (1000.0 if stat == 'amount' else 1.0)
 
@@ -216,16 +235,50 @@ def soi_item(y, item, base=None, rows=None, absolute=False):
     return amt, cnt
 
 
-def per_return_growth(item, rows=None, absolute=False):
-    """Target-year-over-PUF-year growth in dollars per return with the item."""
-    a, b = common.PUF_YEAR, common.TARGET_YEAR
-    (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
-    return (a1 / c1) / (a0 / c0)
+def carried(f, y):
+    """f(y) for a year in Table 1.4; past its last year, the last year's value times its last growth for each year
+    beyond (a placeholder until the targeting framework supplies a rule for borrowing from other years)."""
+    last = total_years()[-1]
+    if y <= last:
+        return f(y)
+    return f(last) * (f(last) / f(last - 1)) ** (y - last)
+
+
+def per_return_growth(item, rows=None, absolute=False, year=None):
+    """Growth in dollars per return with the item from the PUF year to year (default the target year)."""
+    a = common.PUF_YEAR
+
+    def g(b):
+        (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
+        return (a1 / c1) / (a0 / c0)
+    return carried(g, common.TARGET_YEAR if year is None else year)
 
 
 def all_returns(y):
-    """Table 1.4's number of returns in year y."""
-    return totals()[(y, 'number of returns')]
+    """Table 1.4's number of returns in year y (past its last year, carried forward)."""
+    return carried(lambda b: totals()[(b, 'number of returns')], y)
+
+
+# ---- 3. Table 1.6: returns by filing status and the primary filer's age -----------------------
+T16_PANELS = {'joint': ['Returns of married persons filing jointly and returns of surviving spouses',
+                        'Returns of married persons filing jointly', 'Returns of surviving spouses'],   # before 2015: two panels
+              'separate': ['Returns of married persons filing separately'],
+              'head_of_household': ['Returns of heads of households'], 'single': ['Returns of single persons']}
+T16_ROWS = ['Under 26', '26 under 35', '35 under 45', '45 under 55', '55 under 65', '65 and over']   # the adult ranges
+_T16 = None
+
+
+def table_1_6(y):
+    """{(filing status, adult age range 0-5): returns}, all AGI, year y (past the last year, carried forward)."""
+    global _T16
+    if _T16 is None:
+        t = pd.read_csv(common.SETTINGS['ages']['table_1_6'], dtype=str, keep_default_na=False)
+        status = {p: s for s, ps in T16_PANELS.items() for p in ps}
+        t = t[(t.col_seq == '1') & t.panel.isin(status) & t.row_label.isin(T16_ROWS)]
+        assert (t.value != '').all(), 'Table 1.6: a blank all-AGI cell'
+        t = t.assign(status=t.panel.map(status), year=t.tax_year.astype(int), value=t.value.astype(float))
+        _T16 = t.groupby(['year', 'status', 'row_label'])['value'].sum().to_dict()
+    return {(s, k): carried(lambda b: _T16[(b, s, row)], y) for s in T16_PANELS for k, row in enumerate(T16_ROWS)}
 
 
 if __name__ == '__main__':
