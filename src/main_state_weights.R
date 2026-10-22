@@ -32,7 +32,8 @@
 # Environment (all optional):
 #   TAXDATA_VINTAGE                 the vintage name (default: the hour stamp)
 #   TAXDATA_ALLOW_VINTAGE_OVERWRITE=1  write into a non-empty vintage
-#   SW_ARM, SW_FIT_YEARS, SW_EMIT_YEARS  override the runscript for a dry run,
+#   SW_ARM, SW_FIT_YEARS, SW_EMIT_YEARS  override the runscript for a dry run;
+#       every fit year is written, so emit years must include them all,
 #       e.g. SW_ARM=B SW_FIT_YEARS=2022:2023 SW_EMIT_YEARS=2022:2025 (D4)
 #   TAXDATA_SCRATCH                 where the fitted share matrices go
 #---------------------------------------------------------------------------
@@ -40,6 +41,7 @@
 lapply(readLines('requirements.txt'), library, character.only = T)
 source('./src/resolve_interfaces.R')
 source('./src/state_weights_contract.R')
+source('./src/record_ids.R')                # FORBES_ID_BASE
 source('./src/nonfilers/state_weights.R')   # the engine: build_weight_inputs(), the chains, emit_split()
 
 #-----------------
@@ -51,6 +53,7 @@ runscript          = read_yaml(file.path('./config/runscripts', paste0(runscript
 output_roots       = read_yaml('./config/interfaces/output_roots.yaml')
 interface_versions = read_yaml('./config/interfaces/interface_versions.yaml')
 OWN = 'State-Weights'
+NONFILER_IPF_TOL = 1e-4   # max relative miss on a state's non-filer adult target
 
 parse_years = function(x) { r = as.integer(strsplit(x, ':')[[1]]); if (length(r) == 2) r[1]:r[2] else r }
 arm        = Sys.getenv('SW_ARM',        unset = runscript$runtime_options$arm)
@@ -58,7 +61,7 @@ fit_years  = if (nzchar(Sys.getenv('SW_FIT_YEARS'))) parse_years(Sys.getenv('SW_
                do.call(seq, as.list(runscript$runtime_options$fit_years))
 emit_years = if (nzchar(Sys.getenv('SW_EMIT_YEARS'))) parse_years(Sys.getenv('SW_EMIT_YEARS')) else 2017L:2097L
 stopifnot(arm %in% c('A', 'B', 'C_10_warmB'), length(fit_years) >= 1,
-          all(diff(fit_years) == 1), min(emit_years) >= min(fit_years), all(diff(emit_years) == 1))
+          all(diff(fit_years) == 1), all(fit_years %in% emit_years), all(diff(emit_years) == 1))
 carried_years = setdiff(emit_years, fit_years)
 stopifnot(all(carried_years > max(fit_years)))   # carry forward only, never back
 
@@ -146,11 +149,19 @@ filer_fits = switch(arm,
 names(filer_fits) = names(inputs)
 cat(sprintf('  filer fits done (%.0fs)\n', as.numeric(Sys.time() - t0, units = 'secs')))
 
-nonfiler_fits = lapply(inputs, function(inp) {
-  p = inp$nonfilers
-  f = fit_calibration(p$w, p$P0, p$targets)
-  as_fit(f, p)
+# IPF on one adult count per state converges in a few passes (6 to 1e-10 in
+# the S37 bake-off); a fit that ends above tol or with a starved state is not
+# the exact split the interface promises, so the run stops
+nonfiler_fits = lapply(names(inputs), function(y) {
+  p = inputs[[y]]$nonfilers
+  f = fit_calibration(p$w, p$P0, p$targets, tol = NONFILER_IPF_TOL)
+  if (f$maxrel >= NONFILER_IPF_TOL || length(f$unfittable) > 0)
+    stop(sprintf('TY%s non-filer IPF: max |rel err| %.2e after %d passes, %d unfittable state targets',
+                 y, f$maxrel, f$iters, length(f$unfittable)))
+  cat(sprintf('  TY%s non-filer IPF: %d passes, max |rel err| %.1e\n', y, f$iters, f$maxrel))
+  c(as_fit(f, p), list(maxrel = f$maxrel))
 })
+names(nonfiler_fits) = names(inputs)
 for (y in names(inputs)) {
   saveRDS(filer_fits[[y]],    file.path(fits_dir, sprintf('fit_filers_%s.rds', y)))
   saveRDS(nonfiler_fits[[y]], file.path(fits_dir, sprintf('fit_nonfilers_%s.rds', y)))
@@ -161,7 +172,7 @@ for (y in names(inputs)) {
 #-----------------------------------------
 
 manifest = list()
-write_year = function(year, split, fitted, source_year, n_carried_new = 0L) {
+write_year = function(year, split, fitted, source_year, n_carried_new = 0L, nonfiler_ipf_maxrel = NA_real_) {
   setorder(split, id, state)
   f = sprintf('state_weights_%d.csv.gz', year)
   fwrite(split, file.path(output_path, f), compress = 'gzip')
@@ -169,7 +180,7 @@ write_year = function(year, split, fitted, source_year, n_carried_new = 0L) {
     interface = OWN, version = interface_versions[[OWN]]$version, vintage = vintage, scenario = 'baseline',
     tax_year = year, file = f, n_records = uniqueN(split$id), n_states = uniqueN(split$state),
     sum_weight = sum(split$weight), fitted = fitted, arm = arm, source_year = source_year,
-    n_carried_new = n_carried_new)
+    n_carried_new = n_carried_new, nonfiler_ipf_maxrel = nonfiler_ipf_maxrel)
   cat(sprintf('  wrote %s: %d records, %d states, %.1fM total weight%s\n', f, uniqueN(split$id),
               uniqueN(split$state), sum(split$weight) / 1e6,
               if (fitted) '' else sprintf(' (carried from TY%d, %d new records)', source_year, n_carried_new)))
@@ -187,7 +198,7 @@ for (y in fit_years) {
     emit_split(filer_fits[[ys]]$P,    inp$filers$w,    inp$filers$ids,    inp$jurisdictions),
     emit_split(nonfiler_fits[[ys]]$P, inp$nonfilers$w, inp$nonfilers$ids, inp$jurisdictions))
   assert_covers(split, tu)
-  write_year(y, split, fitted = TRUE, source_year = y)
+  write_year(y, split, fitted = TRUE, source_year = y, nonfiler_ipf_maxrel = nonfiler_fits[[ys]]$maxrel)
 }
 
 if (length(carried_years)) {
@@ -198,7 +209,7 @@ if (length(carried_years)) {
   stopifnot(!anyDuplicated(ids_last), identical(nonfiler_fits[[last]]$jurisdictions, J))
   # records new to a later year (Forbes list years 2024+): the last fit year's
   # Forbes rows' weighted-mean split
-  forbes_last = ids_last >= 9e6
+  forbes_last = ids_last >= FORBES_ID_BASE
   fallback = if (any(forbes_last)) {
     w = records[[last]]$weight[match(ids_last[forbes_last], records[[last]]$id)]
     colSums(P_last[forbes_last, , drop = FALSE] * w) / sum(w)
@@ -208,7 +219,7 @@ if (length(carried_years)) {
     stopifnot(all(tu$weight > 0))
     rows = match(tu$id, ids_last)
     new  = is.na(rows)
-    stopifnot(all(tu$id[new] >= 9e6),                   # only Forbes synthetics are new
+    stopifnot(all(tu$id[new] >= FORBES_ID_BASE),                 # only Forbes synthetics are new
               mean(new) < 0.005)
     P = matrix(NA_real_, nrow(tu), length(J))
     P[!new, ] = P_last[rows[!new], ]

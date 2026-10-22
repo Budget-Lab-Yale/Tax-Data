@@ -11,6 +11,7 @@
 #---------------------------------------------
 
 source('src/imputations/wealth_schema.R')
+source('src/record_ids.R')
 
 
 forbes_metadata_vars = c(
@@ -556,10 +557,9 @@ set_forbes_deductions = function(row, model, net_worth) {
 # [1e6*(y-2016)+1, 1e6*(y-2015)], reaching 8e6 at the current 2023 ceiling.
 # Forbes takes 9e6 upward, one 1e4 block per LIST year, which leaves a whole
 # spare pool block at 8e6..9e6 and room for list years out to 2119. Every one
-# of those bounds is asserted below rather than trusted.
-FORBES_ID_BASE   = 9000000L   # first id in the reserved block
-FORBES_ID_STRIDE = 10000L     # ids per list year (largest list seen: 935)
-FORBES_ID_EPOCH  = 2020L      # list-year origin for the block offset
+# of those bounds is asserted below rather than trusted. The constants
+# (FORBES_ID_BASE, _STRIDE, _EPOCH) live in src/record_ids.R, which
+# main_state_weights.R shares.
 
 #' Synthetic id for one Forbes record, inside the reserved block.
 #'

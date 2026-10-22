@@ -112,7 +112,7 @@ post-`do_taxes` and can flip; the split uses Tax-Data's `filer`.
 | File | Contents |
 |---|---|
 | `state_weights_{year}.csv.gz`, one per emitted year | long `id, state, weight`, `weight > 0`, sorted by `id, state`; `state` is the 2-letter code incl. `DC`, `PR`, `OA` |
-| `manifest.csv` | one row per year: `interface, version, vintage, scenario, tax_year, file, n_records, n_states, sum_weight, fitted` (TRUE for fit years, FALSE for carried years), `arm`, `source_year` (the fit year a carried year's shares come from) |
+| `manifest.csv` | one row per year: `interface, version, vintage, scenario, tax_year, file, n_records, n_states, sum_weight, fitted` (TRUE for fit years, FALSE for carried years), `arm`, `source_year` (the fit year a carried year's shares come from), `n_carried_new`, `nonfiler_ipf_maxrel` (the non-filer IPF's max relative miss, fit years; the run stops above 1e-4) |
 | `dependencies.csv` | `interface, version, vintage, scenario` for Tax-Data and Tax-Simulator-Baseline, plus the HT2 and ACS inputs as rows (§5) |
 | `README.md` | method of record pointer, the arm, the jurisdiction set per year, the carry-forward rule, known asymmetries |
 
