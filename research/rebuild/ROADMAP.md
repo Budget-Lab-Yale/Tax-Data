@@ -28,7 +28,8 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    pretraining.
 5. **Half-measured PUF variables.** Age, sex and similar items that the
    PUF has only coarsely or for some records. These are filled in, not
-   added as new columns. Ages: plan in `AGES.md`.
+   added as new columns. Ages: plan in `AGES.md`; the primary filer's
+   range is built (21 October), exact ages, sex and dependents are not.
 6. **Pretraining settings.** How the network and training choices affect
    the file.
    - Known so far: dropout biases rare items down, so it is off.
@@ -85,6 +86,22 @@ them:
 - Home mortgage dollars are $11.1–11.6 trillion against the SCF's $9.8
   trillion. The offset (`FEATURES.md`) brought mortgage holders back to
   the model's count but does not change sizes.
+- High earners over 45 hold too little net worth, most of all at 65+
+  with $200k+ of wages: median $2.8M against the SCF's $6.4M (about $12
+  trillion of the SCF's wealth held by $200k+ earners sits with other
+  units in the file). The SCF's top wages are now rescaled to the PUF's
+  counts (`FEATURES.md`), which moved 65+ only from $2.7M to $2.9M. What
+  is left is who is in the cell: at the same age and wages the SCF's
+  households hold far more capital income (65+, $200k+ of wages, under
+  $400k of income: dividends over $10k on 37% against the PUF's 14%).
+  Either the SCF's older high earners are a richer group or its top
+  weights carry too many; no data here tells which. The model itself, on
+  the SCF's own units, gets 75–85% of the SCF's net worth at 65+. If the
+  estate tax needs it: wealth targets for older households in the tilt.
+- SCF household members outside the main unit (adult children,
+  roommates) are dropped by `build_scf.R`, so the SCF has about 9 million
+  fewer units under 26 than the PUF side. The SCF asks pooled questions
+  about their assets (`explore/2026-10-21/npeu_research.md`).
 - Too many units hold both partnership and S corporation income.
 - Too few nonpassive losses.
 

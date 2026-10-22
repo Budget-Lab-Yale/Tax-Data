@@ -1,6 +1,9 @@
 # Ages: plan
 
-Written 21 October 2026. A plan, not built. It covers ROADMAP item 5 for
+Written 21 October 2026. The first step is built (21 October, evening):
+the primary filer's age range on every source, with step 0 for the PUF
+records with no range and the primary-filer rule for survey couples
+(`FEATURES.md`). Sex, exact ages, spouses and dependents are still plan. It covers ROADMAP item 5 for
 ages and sex: the primary filer, the spouse and the dependents.
 
 The evidence behind it is the design note of 20 October,

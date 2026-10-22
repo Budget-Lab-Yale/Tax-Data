@@ -23,6 +23,9 @@
 # Business ownership from the raw business section (BUSINESS_ITEMS below):
 # owns_business (owns any private business) and k1_owner (a partnership,
 # S corporation or LLC interest).
+# Ages and sexes of the unit's adults (age1, male1; on couple units age2,
+# male2) and the builder's unit code, for the primary filer's age range
+# (ages.py).
 #
 # Writes {out}/data/scf_units_{wave}.csv.gz, one row per tax unit and
 # implicate. Run from the repository root through Slurm (run.sbatch, stage scf).
@@ -87,6 +90,7 @@ for (wave in settings$paths$raw$scf_waves) {
     transmute(record_id = as.numeric(taxunitid), household_id = as.numeric(scf_hh_id),
               implicate = as.integer(implicate), year = wave - 1L, weight = weight,
               married = as.integer(married == 1 & filestat == 2), n_dep = as.integer(pmin(n_dep, 3)),
+              age1, age2, male1, male2, taxunit_code,
               wages = wages_scf, interest = int_div_scf, dividends = rent_scf,
               capital_gains = capital_gains_scf, net_worth, asset_factor = asset_factor)
   # the 20 balance-sheet components and the 4 unrealized gains, in the interview year's dollars
@@ -124,6 +128,12 @@ for (wave in settings$paths$raw$scf_waves) {
     transmute(record_id = as.numeric(taxunitid), business_income = business_scf,
               rent_royalty_estate = ui_other_scf, retirement_gross = ss_pens_scf, tax_exempt_interest = income)
   units = units %>% inner_join(more, by = 'record_id')
+  # The spouse's age and sex exist only on joint units; elsewhere -1 (not in universe).
+  stopifnot(!anyNA(units$age1), !anyNA(units$male1),
+            all(!is.na(units$age2[units$married == 1])), all(!is.na(units$male2[units$married == 1])))
+  cat(sprintf('wave %d: %d units with a spouse age but not filing jointly (set to -1)\n', wave,
+              sum(!is.na(units$age2) & units$married == 0)))
+  units = units %>% mutate(age2 = if_else(married == 1, age2, -1L), male2 = if_else(married == 1, male2, -1L))
   stopifnot(nrow(units) == sum(keep), !anyDuplicated(units$record_id), !anyNA(units))
   fwrite(units, file.path(OUT, sprintf('scf_units_%d.csv.gz', wave)))
   cat(sprintf('wave %d: %d unit rows, asset factor %.6f\n', wave, nrow(units), asset_factor))

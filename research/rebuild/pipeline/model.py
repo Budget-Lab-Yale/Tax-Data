@@ -4,7 +4,8 @@ A record is a list of slots: two context slots (source, year), always shown
 and never predicted, then the predicted slots in a fixed order (PREDICTED).
 Each amount is a band index (band 0 = exactly zero, then the negative bands
 from most negative, then the positive bands in dollar order); married, number
-of dependents, the filing flag and the yes/no business items are categories.
+of dependents, the primary filer's age range (ages.py), the filing flag and
+the yes/no business items are categories.
 A slot one source never has (the balance sheet on the PUF, the PUF-only items
 on the SCF) is absent: band -1. The
 network never sees an absent slot and is never asked to predict it.
@@ -29,11 +30,13 @@ CONTEXT = ['source', 'year']
 YEARS = sorted({int(y) for y in pq.read_table(common.TABLE, columns=['year']).column('year').to_pylist()})
 _EDGES = json.load(open(common.EDGES))
 FILER = ['filer']
+AGE_PROBS = [f'age_p{k}' for k in range(9)]           # step 0's probabilities on PUF rows with no range
 KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
 # The table's other items, in table order, each owned by the PUF or on both sources.
 ITEMS = _EDGES['meta']['items']
 CATEGORIES = _EDGES['meta']['categories']          # yes/no items: k1_owner (shared), owns_business (SCF)
-CATEGORICAL = ['married', 'n_dep'] + FILER + list(CATEGORIES)
+AGE_RANGES = 9                                     # six ranges, three for dependent filers (ages.py)
+CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(CATEGORIES)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
 SCF_SLOTS = list(_EDGES['meta']['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
@@ -42,7 +45,7 @@ RATIOS = {k: tuple(v) for k, v in _EDGES['meta']['ratios'].items()}   # slot: (d
 # Two slots per translated item: a second, SCF-only slot holds what the
 # household reported; the original slot is the PUF concept, filled in on the SCF side during training (train.py).
 REPORTED = {f'{v}_reported': v for v in common.SETTINGS['translation']['mapped']}
-PREDICTED = (['married', 'n_dep', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
+PREDICTED = (['married', 'n_dep', 'age_range', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
              + SCF_SLOTS + FILER + list(REPORTED))
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
@@ -83,7 +86,7 @@ def band_layout():
 
 
 BAND_LAYOUT = band_layout()
-N_CHOICES = {'married': 2, 'n_dep': 4, 'filer': 2, **{c: 2 for c in CATEGORIES},
+N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **{c: 2 for c in CATEGORIES},
              **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 ZERO_BAND = 0
@@ -103,7 +106,7 @@ def positive_bands(var, low, high):
 MASK = 0
 MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
-BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4,
+BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
                'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **{c: 2 for c in CATEGORIES}}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
@@ -134,12 +137,16 @@ def read_table():
     table = pd.read_parquet(common.TABLE)
     for r, v in REPORTED.items():
         table[r + '_band'] = np.where(table['source'] == 'scf', table[v + '_band'], -1)
-    used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id'] + [column(v) for v in PREDICTED]
+    used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id'] + [column(v) for v in PREDICTED] + AGE_PROBS
     n_missing = table[used].isna().sum()
     if n_missing.any():
         raise ValueError(f'missing values in the training table:\n{n_missing[n_missing > 0]}')
     assert table['source'].isin(SOURCES).all() and (table['weight'] > 0).all()
     assert table['married'].isin([0, 1]).all() and table['n_dep'].isin(range(4)).all()
+    # age_range: -1 only on PUF records with no range, which carry step 0's probabilities instead
+    no_range = table['age_range'] == -1
+    assert table['age_range'].between(-1, AGE_RANGES - 1).all() and (table.loc[no_range, 'source'] == 'puf').all()
+    assert np.allclose(table.loc[no_range, AGE_PROBS].sum(1), 1) and (table.loc[~no_range, AGE_PROBS] == 0).all().all()
     for a in AMOUNTS:
         assert table[a + '_band'].between(-1 if a in OWNED_BY else 0, N_CHOICES[a] - 1).all(), a
     assert table.loc[table.source == 'puf', 'filer'].isin([0, 1]).all()
@@ -149,6 +156,13 @@ def read_table():
         assert (table.loc[table.source != owner, column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')
     return table
+
+
+def age_draws(table, device):
+    """The rows with no age range and their step 0 probabilities, to draw a range from (train.py)."""
+    rows = np.flatnonzero(table['age_range'].to_numpy() == -1)
+    return (torch.tensor(rows, device=device),
+            torch.tensor(table[AGE_PROBS].to_numpy()[rows], dtype=torch.float32, device=device))
 
 
 def held_back(table):

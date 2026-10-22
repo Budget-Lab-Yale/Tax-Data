@@ -22,6 +22,10 @@ Each batch redraws the PUF-concept slot of its zero-reporters from those
 chances. It assumes a holder's chance of reporting depends only on its type
 and true amount, not on anything else on the record.
 
+Age range (ages.py). PUF records with no range carry step 0's probabilities;
+a range is drawn from them for every training record at the start of each
+pass, and once for the held-back ones.
+
 Writes, in common.MODEL: model.pt, train_log.csv (loss per pass),
 var_log.csv (held-back PUF holder shares and loss per variable, every few
 passes), fill_log.csv (share with none after the fill-in against the PUF, per
@@ -93,11 +97,20 @@ def main():
 
     def enc(part):
         d = M.encode(part, device)
+        age_rows, age_probs = M.age_draws(part, device)
         return dict(values=d['values'], weight=d['weight'], years=part['year'].to_numpy(),
+                    age_rows=age_rows, age_probs=age_probs,
                     srv=torch.tensor((part['source'] == 'scf').to_numpy(), device=device),
                     rep_band={v: d['values'][:, C + jl[v]].clone() for v in MAPPED})
     tr = enc(table[table.split == 'train'])
     te = enc(table[table.split == 'test'])
+    j_age = C + P.index('age_range')
+
+    def draw_ages(d):
+        """A range for every record with none, from step 0's probabilities."""
+        if len(d['age_rows']):
+            d['values'][d['age_rows'], j_age] = torch.multinomial(d['age_probs'], 1, generator=gen).squeeze(1)
+    draw_ages(te)
     puf_rows = (table.source == 'puf').to_numpy()
 
     # ---- the fill-in: the reporting-rate formula reads the reported slots, fills the PUF-concept slots
@@ -232,6 +245,7 @@ def main():
         t0 = time.time()
         order = torch.randperm(n, generator=gen, device=device)
         tot = 0.0
+        draw_ages(tr)
         fill = epoch >= S['fill_from_pass']
         if fill:
             refit(epoch)

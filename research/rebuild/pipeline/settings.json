@@ -134,7 +134,18 @@
    ]
   },
   "fitting_tax_year": 2015,
-  "fill_from_pass": 3
+  "fill_from_pass": 3,
+  "wage_top_scaling": {
+   "_what": "SCF wages above this line (2015 dollars, grown to each wave by SOI) placed on the PUF filers' distribution by count from the top (build_table.py, scale_top_wages); the SCF reports more high earners than tax data at every line.",
+   "line_2015_dollars": 100000
+  }
+ },
+ "ages": {
+  "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",
+  "puf_demographics": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-PUF/v1/2023091310/historical/demographics_2015.csv",
+  "table_1_6": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned/bysize_returns_marital_age.csv",
+  "min_missing_share": 0.1,
+  "primary_rule_salt": 20261021
  },
  "generation": {
   "_what": "A stack of four files of 100,000 PUF records each. Each oversamples the top 1% of one variable (the bands covering the top 1% of its positive weight drawn ten times as often) and carries importance weights that undo it. PUF variables are drawn in a random order per record; the computed totals are then computed from their parts; the balance sheet is drawn last, under the SCF label, with the PUF-only variables left out. The fourth file oversamples business equity, the most concentrated item of the balance sheet (net worth itself is computed, not drawn).",

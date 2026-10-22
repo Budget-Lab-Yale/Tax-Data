@@ -16,6 +16,11 @@ Variables. married, n_dep (capped at 3), filer, and the amounts:
     two subtotals of it shared with the SCF: Schedules C and F (sch_cf_income;
     SCF X5704) and Schedule E (sch_e_income; SCF X5714, which is where the SCF
     puts partnership and S corporation income);
+  age_range: the primary filer's age range (ages.py). On the PUF the
+    demographic file's range, or, where it has none, -1 and step 0's
+    probabilities (age_p0-age_p8), from which training draws; on the SCF and
+    the non-filers, the range of the primary filer's age, couples by the
+    primary-filer rule;
   the other AGI items (ITEMS), and other_agi = AGI minus everything above;
   gross Social Security plus pensions, and tax-exempt interest (not in AGI);
   mortgage interest paid E19200 and real estate tax E18500 (itemizers only;
@@ -59,6 +64,7 @@ import re
 import numpy as np
 import pandas as pd
 
+import ages
 import common
 
 RAW = common.RAW
@@ -297,6 +303,11 @@ def puf_rows():
         df[v] = df[v].astype(float)
     for v in SCF_AMOUNTS:
         df[v] = np.nan
+    rng, probs = ages.puf_age_ranges()
+    assert np.array_equal(rng.RECID.to_numpy(), raw.RECID.to_numpy())
+    df['age_range'] = rng.age_range.to_numpy()
+    for k in range(ages.N_RANGES):
+        df[f'age_p{k}'] = probs[:, k]
     return df
 
 
@@ -309,7 +320,9 @@ def nonfiler_rows():
                        'weight': p['weight'].astype(float), 'married': (p['filing_status'] == 2).astype(np.int64),
                        'n_dep': p['n_dep'].clip(upper=3).astype(np.int64), 'filer': 0,
                        'wages': p['wages'] * d, 'interest': p['txbl_int'].clip(lower=0) * d,
-                       'dividends': p['div_pref'] * d, 'capital_gains': 0.0, 'k1_owner': 0, 'owns_business': -1})
+                       'dividends': p['div_pref'] * d, 'capital_gains': 0.0, 'k1_owner': 0, 'owns_business': -1,
+                       'age1': p['age1'], 'age2': p['age2'], 'male1': p['male1'], 'male2': p['male2'],
+                       'age_key': rid})
     for v in KG_PIECES:
         df[v] = 0.0
     items = {'business_income': (p['sole_prop'] + p['rent'] + p['rent_loss']) * d,
@@ -352,6 +365,7 @@ def scf_rows():
         off = WAVE_2013_ID_OFFSET if wave == 2013 else 1e8 * (y - 2015)
         s['record_id'] += off
         s['household_id'] += off
+        s['age_key'] = s['household_id']
         s['sch_cf_income'], s['sch_e_income'] = s['business_income'], s['rent_royalty_estate']
         s['business_income'] = s['business_income'] + s['rent_royalty_estate']   # Schedules C, E and F together
         s['capital_gains'] = np.maximum(s['capital_gains'], np.where(s['capital_gains'] < 0, LOSS_CAP, -np.inf))
@@ -372,6 +386,23 @@ def scf_rows():
 
 
 # ---- bands --------------------------------------------------------------------------------
+def scale_top_wages(x, w, puf_x, puf_w, line):
+    """SCF wages above line moved onto the PUF's distribution by count from the top: an SCF unit with N
+    units (weighted) earning more than it gets the PUF wage with N returns earning more, times one constant
+    that makes the map continuous at line (the map is y(x) * line / y(line)). Below line, unchanged."""
+    o = np.argsort(-puf_x)
+    p_val, p_above = puf_x[o], np.cumsum(puf_w[o]) - puf_w[o] / 2       # PUF returns above each value
+    so = np.argsort(-x)
+    s_above = np.empty(len(x))
+    s_above[so] = np.cumsum(w[so]) - w[so] / 2
+    y = np.interp(s_above, p_above, p_val)
+    y_line = np.interp((w * (x > line)).sum(), p_above, p_val)
+    out = x.copy()
+    top = x > line
+    out[top] = y[top] * line / y_line
+    return out
+
+
 def band_table(t):
     filers = ((t.source == 'puf') & (t.filer == 1)).to_numpy()
     pside = (t.source == 'puf').to_numpy()
@@ -395,8 +426,22 @@ def band_table(t):
         b, rec = band_variable(t.loc[filers, v].to_numpy(float), w[filers])
         edges[f'puf/2015/{v}'] = rec
         t.loc[pside, f'{v}_band'] = band_variable(t.loc[pside, v].to_numpy(float), w[pside], grown_edge(rec, 1.0))[0]
+    t['wages_as_reported'] = t['wages']
+    W = common.SETTINGS['translation'].get('wage_top_scaling')
     for y in years:
         sel = ((t.source == 'scf') & (t.year == y)).to_numpy()
+        if W:
+            line = W['line_2015_dollars'] * factor[('wages', y)]
+            x = t.loc[sel, 'wages'].to_numpy(float)
+            new = scale_top_wages(x, w[sel], t.loc[filers, 'wages'].to_numpy(float) * factor[('wages', y)],
+                                  w[filers], line)
+            t.loc[sel, 'wages'] = new
+            counts = {f'${c / 1e3:,.0f}k+': (round(w[sel][x >= c * factor[('wages', y)]].sum() / 1e6, 3),
+                                              round(w[sel][new >= c * factor[('wages', y)]].sum() / 1e6, 3),
+                                              round(w[filers][t.loc[filers, 'wages'].to_numpy(float) >= c].sum() / 1e6, 3))
+                      for c in [200e3, 500e3, 1e6]}
+            common.say(f'SCF {y} wages above ${line:,.0f} moved onto the PUF scale; units at each 2015 line grown '
+                       f'(millions: as reported, after, PUF 2015): {counts}')
         for v in SCF_FIXED:
             b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel], grown_edge(edges[f'puf/2015/{v}'], factor[(v, y)]))
             rec['cut_rule'] = f'PUF 2015 positive cuts x SOI factor {factor[(v, y)]:.4f}'
@@ -499,17 +544,72 @@ def build_maps(t, edges):
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
 
 
+def primary_age_range(t):
+    """age_range on the SCF and non-filer rows: the range of the primary filer's age, couples by the rule in
+    ages.py, with the woman-first chances set on the SCF's mixed-sex couples (all waves, weighted)."""
+    sv = (t.source == 'scf').to_numpy()
+    nf = ((t.source == 'puf') & (t.filer == 0)).to_numpy()
+    rows = sv | nf
+    couple = (t.married == 1).to_numpy() & rows
+    assert not t.loc[rows, ['age1', 'male1']].isna().any().any()
+    assert not t.loc[couple, ['age2', 'male2']].isna().any().any() and (t.loc[couple, 'age2'] >= 0).all()
+    mixed = couple & (t.male1 != t.male2).to_numpy()
+    m = t[mixed & sv]
+    man = np.where(m.male1 == 1, m.age1, m.age2)
+    woman = np.where(m.male1 == 1, m.age2, m.age1)
+    target = ages.puf_female_primary_share()
+    pi, share = ages.woman_first_chance(man, woman, m.weight, target)
+    a1 = t.age1.fillna(0).to_numpy(float)
+    a2 = t.age2.fillna(0).to_numpy(float)
+    m1 = t.male1.fillna(1).to_numpy(float)
+    m2 = t.male2.fillna(1).to_numpy(float)
+    age, woman_first = ages.primary_age(a1, a2, m1, m2, couple, t.age_key.fillna(0).to_numpy(), pi)
+    t.loc[rows, 'age_range'] = ages.adult_range(age[rows])
+    w = t.weight.to_numpy(float)
+    report = pd.DataFrame({'range': ['under 26', '26-34', '35-44', '45-54', '55-64', '65+'],
+                           'woman-first chance by the man\'s range (%)': 100 * pi,
+                           'PUF female primaries (%)': 100 * target,
+                           'SCF female primaries after the rule (%)': 100 * share})
+    common.say('primary filer of survey couples:\n' + report.round(1).to_string(index=False))
+    for lab, sel in [('SCF', sv), ('non-filers', nf)]:
+        c = couple & sel
+        common.say(f'  {lab}: woman first in {100 * w[c & woman_first].sum() / w[c].sum():.1f}% of couples '
+                   f'(weighted); same-sex couples {100 * w[c & ~mixed].sum() / w[c].sum():.2f}%')
+    assert t.age_range.notna().all()
+    return t.drop(columns=['age1', 'age2', 'male1', 'male2', 'age_key', 'taxunit_code'], errors='ignore')
+
+
+def age_range_table(t):
+    """Weighted shares by age range: PUF filers (step 0's probabilities where no range), non-filers, SCF waves."""
+    labels = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+', 'dep <18', 'dep 18-25', 'dep 26+']
+    groups = [('PUF filers', (t.source == 'puf') & (t.filer == 1)), ('non-filers', (t.source == 'puf') & (t.filer == 0))] + \
+        [(f'SCF {y}', (t.source == 'scf') & (t.year == y)) for y in sorted(t.loc[t.source == 'scf', 'year'].unique())]
+    cols = {}
+    for lab, sel in groups:
+        d = t[sel]
+        P = np.column_stack([(d.age_range == k).to_numpy(float) + d[f'age_p{k}'].to_numpy() for k in range(ages.N_RANGES)])
+        cols[lab] = 100 * (d.weight.to_numpy()[:, None] * P).sum(0) / d.weight.sum()
+    out = pd.DataFrame(cols, index=labels)
+    out.to_csv(f'{common.DATA}/age_range_shares.csv')
+    common.say('age range, % of weight:\n' + out.round(1).to_string())
+
+
 def main():
     os.makedirs(common.DATA, exist_ok=True)
     t = pd.concat([puf_rows(), nonfiler_rows(), scf_rows()], ignore_index=True)
     assert not t.duplicated(['source', 'record_id']).any()
+    t = primary_age_range(t)
     t, edges = band_table(t)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer'] + \
-        list(CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS]
+        list(CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage', 'wages_as_reported'] + [f'{v}_band' for v in AMOUNTS] + \
+        ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)]
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
-    for c in ['year', 'married', 'n_dep', 'filer'] + list(CATEGORIES):
+    for k in range(ages.N_RANGES):
+        t[f'age_p{k}'] = t[f'age_p{k}'].fillna(0.0)
+    for c in ['year', 'married', 'n_dep', 'filer', 'age_range'] + list(CATEGORIES):
         assert not t[c].isna().any(), c
         t[c] = t[c].astype(np.int64)
+    age_range_table(t)
     t[keep].to_parquet(common.TABLE, index=False)
     json.dump(edges, open(common.EDGES, 'w'), indent=1)
     build_maps(t, edges)

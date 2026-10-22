@@ -17,6 +17,7 @@ worth computed from them), weighted to 2019 targets. The code is in
 
 **Variables:**
 - marital status (joint or not), dependents (0–3), and the filing flag;
+- the primary filer's age range (below);
 - wages, taxable interest, ordinary dividends, and capital gains in four
   pieces (short term, long term, distributions, other);
 - more AGI items: other gains, taxable IRA distributions, taxable
@@ -70,6 +71,38 @@ respondent's unit when that equity is zero.
 A band becomes dollars again by drawing a real record's value from that
 band.
 
+**The primary filer's age range** (`pipeline/ages.py`, settings "ages"),
+shared by every source. Nine categories: the PUF demographic file's six
+ranges (under 26, 26–34, 35–44, 45–54, 55–64, 65+) and its three for
+dependent filers (under 18, 18–25, 26+), kept apart.
+- **PUF:** the demographic file's range. The 88,269 records with none
+  (3.68 million returns, mostly AGI above $400,000) carry probabilities
+  instead ("step 0"), and training draws a range from them at the start
+  of every pass:
+  1. a logit of the range on what the return shows about age (filing
+     status, AGI, wages, Social Security, pensions, IRA distributions, the
+     early-withdrawal penalty, the standard deduction's 65+/blind
+     additions, children at home, other dependents; no capital or business
+     income), fitted on the known ranges;
+  2. in each SOI Table 1.6 cell (filing status by AGI bracket) where at
+     least 10% of the weight has no range, one factor per range scales
+     every missing record's probabilities until their weight in each range
+     is the table's count less the known-range weight (where the table
+     merges under 26 into 26–34, the pair has one target). Below that
+     share the residual is mostly sampling noise, and the logit stands.
+     30 cells are calibrated, holding 2.68 million of the 3.68 million.
+  Tested by hiding the known ranges at AGI $250,000–400,000: among Social
+  Security recipients 82% come out 65+ against 86% true (cell shares
+  alone: 18%); with long-term gains over $50,000, 46% against 48%
+  (`explore/2026-10-21/step0/`).
+- **SCF and non-filers:** the range of the primary filer's age. In a
+  mixed-sex couple the man is the primary, except the woman with a chance
+  that depends on the man's range (22% under 26 down to 4% at 65+), set so
+  the SCF's female primaries by range equal the PUF's joint returns
+  (27.5% under 26 down to 3.4% at 65+); keyed by household. Same-sex
+  couples: the older partner. Ages as the surveys report them, with no
+  adjustment for the interview date.
+
 ## Translation: putting the SCF on the PUF's terms
 
 - **SCF dollars on the PUF's dollar scale.** Wages, interest, dividends,
@@ -79,6 +112,15 @@ band.
   sees.
 - **The two business subtotals** are placed by their rank within each SCF
   wave.
+- **Top wages.** The SCF reports more high earners than tax data at every
+  line (2015: 0.47 million units with $1M+ of wages against the PUF's
+  0.15 million), as the literature also finds (Gale, Joshi, Pulliam and
+  Sabelhaus 2022: 2.2 times as many units with $1M+ of AGI). SCF wages
+  above $100,000 (2015 dollars, grown to each wave) are placed on the PUF
+  filers' distribution by count from the top: an SCF unit with N units
+  earning more gets the PUF wage with N returns earning more, times one
+  constant that keeps the map continuous at $100,000. Below $100,000 they
+  are unchanged. Settings: "translation", "wage_top_scaling".
 - **The balance sheet** is banded within each SCF wave.
 - **Capital losses** below −$3,000 in the SCF are read as −$3,000, the
   deductible limit on the return.
@@ -184,7 +226,26 @@ that meets:
 
 ## How the latest run comes out
 
-**Since 21 October (late afternoon), "latest" is the two-slot run**, three
+**Since 21 October (night), "latest" also rescales the SCF's top wages**
+(above); three seeds; the age-range runs moved to
+`previous_2026-10-21_ages/`. Against them, after the tilt: mean net worth
+at wages $200k+ $3.67–3.73M ($3.40–3.56M), median $1.53–1.56M
+($1.37–1.44M); effective sample kept 88.5–89.0% (88.4–89.6%). Median net
+worth at 65+ with $200k+ of wages barely moves: $2.9M against the SCF's
+$6.5M (`ROADMAP.md`, known gaps). Full tables:
+`explore/2026-10-21/wage_scale/compare.md`.
+
+**Before that, "latest" added the primary filer's age range** to the
+two-slot run, three seeds (20261016–18); the two-slot runs
+moved to `previous_2026-10-21_two_slot/`. Against them, after the tilt:
+median $90.9k for both; tilt move 0.05–0.06 for both, effective sample
+kept 88.4–89.6% (89.1–89.8%); mean net worth at wages $200k+
+$3.40–3.56M ($3.47–3.57M). Generated filers' ranges match the PUF's
+(before the tilt, 11.2% under 26 and 16.4% 65+, against 11.1% and 16.2%).
+Full tables: `explore/2026-10-21/ages_v1/compare.md`. Net worth by age
+within wage band against the SCF is in the known gaps (`ROADMAP.md`).
+
+**Until then, "latest" was the two-slot run**, three
 seeds (20261016–18), in `model/`, `gen/` and `tilt/`; the cell-method runs
 described below moved to `previous_2026-10-21_cell/`. Two-slot against cell
 method, after the tilt, all three seeds: median $90.9k for both; mean net

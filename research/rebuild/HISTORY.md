@@ -124,6 +124,42 @@ pipeline rewritten to reproduce the latest run (`FEATURES.md`). Checks:
   SCF's combinations better than independent coin flips, but was fragile
   household by household and slow; not adopted.
 
+**21 October (evening): the primary filer's age range.** The first step of
+`AGES.md`, with John:
+- **Step 0** for the PUF records with no age: a logit from the return,
+  calibrated to SOI Table 1.6 less the known ages, only in cells where at
+  least 10% of the weight is missing. Backing out each cell's residual
+  alone fixes the totals but not which records; the logit sorts them
+  (Social Security recipients 82% 65+ against 86% true, on a hold-out).
+- **The primary filer in survey couples:** the man, except the woman with
+  a chance by the man's age that reproduces the PUF's share by range.
+- Sex, exact ages and dependents' ages left for later.
+- **Result:** no change in the tilt's cost or the medians. Net worth rises
+  with age as in the SCF for most of the file, but high earners over 45
+  hold too little, most of all at 65+. The model run on the SCF's own
+  units gets 75–85% of the SCF's net worth there; the rest is who is in
+  the cell: the SCF has 5.7 million units with $200k+ of wages against
+  the PUF's 4.1 million (2015), with more capital income at every age
+  (`explore/2026-10-21/ages_v1/`, `wages/`).
+- **What others do with SCF household members outside the main unit**
+  (`explore/2026-10-21/npeu_research.md`): the SCF asks pooled questions
+  about their assets and debts; most work drops them or gives them no
+  wealth; about 24 million such units in 2019.
+
+**21 October (night): SCF top wages rescaled.** The SCF has 2 to 4 times
+the tax data's units with $1M+ of wages in every wave (110–140 households
+behind each count); the literature finds the same by AGI. Pre-tax
+deductions (the SCF asks wages before any deductions) explain much of the
+gap at $200,000 and none above $500,000. A single factor cannot fix it
+(the factor needed falls from 0.97 at $100,000 to 0.50 at $1M), so SCF
+wages above $100,000 are placed on the PUF's distribution by count from
+the top. A modest gain for $200k+ earners at 35–64; none at 65+, where the
+SCF's households hold far more capital income than the PUF's at the same
+wages and age (`explore/2026-10-21/wages/RESULTS.md`, `wage_scale/`).
+Considered and not done: down-weighting the SCF's high earners (shrinks
+the SCF wealth totals the tilt targets), wealth targets by age and wage
+band (built on the SCF's own wages), wages as a two-slot item.
+
 ## Paths tried and not taken
 
 | What | Why not |

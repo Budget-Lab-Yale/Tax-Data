@@ -34,7 +34,8 @@ Every stage runs through Slurm, from the repository root:
 | tilt | `tilt.py` | the 2019 weights and file | about 10 minutes |
 
 Shared code: `common.py` (paths), `model.py` (the network), `dollars.py`
-(bands to dollars). Every setting is in `settings.json`. The training seed
+(bands to dollars), `ages.py` (the primary filer's age range, used by the
+table). Every setting is in `settings.json`. The training seed
 can be changed with `REBUILD_SEED`, and the output folder with
 `REBUILD_OUT`.
 
