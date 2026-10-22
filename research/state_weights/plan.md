@@ -512,7 +512,8 @@ targets stay out until the national top is fixed. JI to confirm.
    rejected as bang-bang) to Tables 1.6, 1.4 (returns with wages by AGI) and
    1.7 (dependent returns by AGI), classed by `src/agi_proxy.R`. TY2017 is
    fit twice — before the value rescaling by `E00100` in
-   `create_2017_puf.R`, and after the imputations by the proxy — so amounts
+   `create_2017_puf.R`, and by the proxy before the benchmarked imputations
+   (moved 2026-10-01 from after them) — so amounts
    are rescaled on calibrated weights; 2018–2023 iterate with the
    weight-dependent income factors in `project_puf.R`. Vintage
    `2026092720_filer_refit_v2`, accepted for now: AGI classes within 0.06–0.5%

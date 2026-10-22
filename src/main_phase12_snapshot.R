@@ -44,8 +44,7 @@ source('./src/create_2017_puf.R')
 # the first time it was run after that change (found 2026-09-13).
 source('./src/nonfiler_contract.R')
 source('./src/impute_nonfilers.R')
-source('./src/impute_variables.R')
-source('./src/refit_filers_2017.R')   # S40, as in main.R
+source('./src/impute_variables.R')   # runs the S40 stage-2 refit, as in main.R
 
 
 #-----------------------

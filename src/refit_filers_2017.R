@@ -6,6 +6,13 @@
 # create_2017_puf.R calibrated by E00100 -- the weights the amounts were
 # rescaled on, so the refit moves them as little as it can. Non-filers keep
 # the pool's weights.
+#
+# Sourced from impute_variables.R, not main.R: after the modules that make the
+# proxy's inputs (ages.R, earnings_split.R, placeholders.R's divorce_year) and
+# before those that benchmark weighted totals to external figures (tips.R,
+# qbi.R, overtime.R, consumption.R), so the benchmarks hold on these weights.
+# No module after it writes a weight or a proxy input, so the fit is the one
+# it was when it ran last.
 #------------------------------------------------------------------------------
 
 source('./src/refit_filers.R')

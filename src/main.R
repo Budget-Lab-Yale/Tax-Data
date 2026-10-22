@@ -40,10 +40,10 @@ source('./src/summary.R')
 source('./src/create_2017_puf.R')
 source('./src/nonfiler_contract.R')
 source('./src/impute_nonfilers.R')
+# impute_variables.R also runs the S40 stage-2 TY2017 refit
+# (src/refit_filers_2017.R), which defines the refit used for 2018-2023 in
+# project_puf.R
 source('./src/impute_variables.R')
-# S40: calibrate TY2017 filer weights to Pub 1304 (defines the refit used for
-# 2018-2023 in project_puf.R)
-source('./src/refit_filers_2017.R')
 
 
 #-----------------------

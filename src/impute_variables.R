@@ -20,6 +20,14 @@ source('src/imputations/demographics.R')
 source('src/imputations/ages.R')
 source('src/imputations/ssn.R')
 source('src/imputations/earnings_split.R')
+# placeholders.R sets divorce_year, which the AGI proxy reads
+source('src/imputations/placeholders.R')
+# S40 stage 2: calibrate TY2017 filer weights to Pub 1304 once the proxy's
+# inputs exist (exact ages, the spouse earnings split, divorce_year) and before
+# the modules that benchmark weighted totals to IRS/SOI/NIPA figures (tips,
+# QBI wage bill, overtime, consumption PCE), so those totals hold on the
+# emitted weights. No later module writes a weight or a proxy input.
+source('./src/refit_filers_2017.R')
 source('src/imputations/qbi.R')
 source('src/imputations/mobility.R')
 source('src/imputations/tips.R')
@@ -29,7 +37,6 @@ source('src/imputations/childcare.R')
 source('src/imputations/mortgage.R')
 source('src/imputations/consumption.R')
 source('src/imputations/capital_gains.R')
-source('src/imputations/placeholders.R')
 
 # Wealth imputation has moved to Phase 3 (donor-year block, runs at 2022
 # base). Add NA placeholders here so the 2017 base PUF has a slot for every

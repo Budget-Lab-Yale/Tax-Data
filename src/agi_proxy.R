@@ -45,7 +45,13 @@ TUITION_LIMIT        = 4000                                                     
 TUITION_LAST_YEAR    = 2020                                                        # repealed from TY2021
 DPAD_LAST_YEAR       = 2017                                                        # repealed by TCJA
 ALIMONY_REPEAL_YEAR  = 2019                                                        # divorces from 2019 on
-CHAR_ABOVE_LIMIT     = list(`2020` = c(300, 300, 300, 300), `2021` = c(300, 600, 300, 300))   # by filing status
+# The CARES Act's $300 cash-giving deduction is above the line in TY2020 only
+# ($300 per return, joint included); the CAA 2021's $300/$600 for TY2021 is
+# taken below AGI (Form 1040 line 12b), so it does not enter here. Statute
+# limits it to non-itemizers; the file does not know who itemizes, so every
+# record with cash giving takes it (at most $300 of AGI). Tax-Simulator's
+# char.yaml differs: $600 joint in 2020 and an above-the-line 2021.
+CHAR_ABOVE_LIMIT     = list(`2020` = c(300, 300, 300, 300))   # by filing status
 
 # Net capital gain in AGI: losses limited to $3,000 ($1,500 MFS). Shared with
 # the state fit's capital-gain series (src/nonfilers/sw_fit.R, puf_series_x())

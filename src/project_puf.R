@@ -726,11 +726,13 @@ rm(refit_prior_ledger, refit_filer_base, refit_class_prev, d, w)
 #         year, by construction of the weight path. A miss means the append,
 #         the manifest or the ledger changed independently.
 #   SOFT  the full partition, printed. The filer side is Tax-Data's own
-#         T1.6-scaled weights and differs from the table's filing_adults by
-#         the QSS double-count correction (~0.03%, removed there and not
-#         here), the 2017 reweight's fit to T1.6 cells, and the under-18
-#         convention (ages.R draws every band-1 age at 18+). Expect well under
-#         1% overall and several percent in 18_25.
+#         weights, calibrated to Pub 1304 by the S40 refit above, and differs
+#         from the table's filing_adults by the QSS double-count correction
+#         (~0.03%, removed there and not here), the refit's misses inside its
+#         bands, and the under-18 convention (ages.R draws every band-1 age at
+#         18+). Since S40 put total filers on the IRS count the gap is 0.7-0.9%
+#         a year, up from 0.3% (research/state_weights/notes/
+#         filer_refit_design.md); expect several percent in 18_25.
 partition_check = tax_units %>%
   select(id, filer, age1, filing_status) %>%
   inner_join(weight_ledger %>%

@@ -46,7 +46,8 @@ puf_2017 = puf %>%
 # weights above, with records classed by E00100 -- the AGI basis the value
 # rescaling below uses -- so the amounts are rescaled on calibrated weights.
 # Ages enter as the age-group band (1 = under 26, ..., 6 = 65+). Stage 2
-# (src/refit_filers_2017.R) refits by the AGI proxy after the imputations.
+# (src/refit_filers_2017.R) refits by the AGI proxy once impute_variables.R
+# has the proxy's inputs, before the benchmarked imputations.
 # This replaces the LP (reweight_lp(), src/reweight.R), whose objective -- the
 # sum of the multipliers -- left every record at a bound
 # (research/state_weights/notes/filer_refit_design.md).

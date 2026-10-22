@@ -18,9 +18,10 @@
 # Functions only. TY2017 is fit twice: create_2017_puf.R calibrates the
 # pre-LP weights with records classed by the PUF's E00100 (the basis its value
 # rescaling uses), so amounts are rescaled on calibrated weights; then
-# src/refit_filers_2017.R, after the imputations, refits by the AGI proxy on
-# the final values from those weights. project_puf.R calls refit_filer_year()
-# for 2018-2023.
+# src/refit_filers_2017.R refits by the AGI proxy from those weights -- sourced
+# from impute_variables.R once the proxy's inputs exist and before the
+# imputations that benchmark weighted totals. project_puf.R calls
+# refit_filer_year() for 2018-2023.
 #------------------------------------------------------------------------------
 
 source('./src/agi_proxy.R')
@@ -32,6 +33,10 @@ REFIT_LAMBDA     = 1       # penalty on a miss, per band, squared
 REFIT_RATIO_MIN  = 0.2     # a record's weight relative to its prior
 REFIT_RATIO_MAX  = 5
 REFIT_MAXIT      = 5000
+# The penalty is soft, so a few targets end just outside their band: production
+# fits land 98.9-100% of reached targets in band (Slurm 27668865). Below this
+# share the fit is not the S40 calibration and the run stops; any miss warns.
+REFIT_MIN_WITHIN_BAND = 0.98
 
 refit_targets = read_csv(REFIT_TARGETS, show_col_types = FALSE)
 
@@ -90,6 +95,7 @@ calibrate_weights = function(w0, X, t, w_start = NULL) {
   list(w = w,
        report = tibble(n_targets = length(t), n_unreached = sum(!reach),
                        within_band = mean(abs(fitted[reach] - tr) <= b * (1 + 1e-6)),
+                       worst_miss_bands = max(abs(fitted[reach] - tr) / b),
                        ratio_q01 = quantile(w / w0, 0.01), ratio_q99 = quantile(w / w0, 0.99),
                        convergence = opt$convergence, iterations = opt$counts[[1]]))
 }
@@ -111,6 +117,14 @@ refit_classed = function(d, year, w_start = NULL, label = 'refit_filers') {
     '%s: TY%d %d filers, %d targets (%d unreached), %.1f%% of the rest within band, ratio q01-q99 %.2f-%.2f, L-BFGS %d (%d)\n',
     label, year, nrow(d), n_targets, n_unreached, 100 * within_band, ratio_q01, ratio_q99,
     iterations, convergence)))
+  with(fit$report, {
+    if (within_band < REFIT_MIN_WITHIN_BAND)
+      stop(sprintf('%s: TY%d only %.1f%% of targets within band (floor %.0f%%), worst miss %.1f bands',
+                   label, year, 100 * within_band, 100 * REFIT_MIN_WITHIN_BAND, worst_miss_bands))
+    if (within_band < 1)
+      warning(sprintf('%s: TY%d %.1f%% of targets outside band, worst miss %.1f bands',
+                      label, year, 100 * (1 - within_band), worst_miss_bands), call. = FALSE)
+  })
   tibble(id = d$id, weight = fit$w)
 }
 
