@@ -1,7 +1,7 @@
 # Roadmap: from the current pipeline to the end goal
 
 What the pipeline does now is in `FEATURES.md`; the end state is in
-`GOAL.md`. Nothing on this list is started. The order is rough. Paths
+`GOAL.md`. Items 4 and 6 are partly done; nothing else on this list is started. The order is rough. Paths
 starting `archive/` are under `research/archive/rebuild_2026-10/`.
 
 1. **Target construction, made formal.**
@@ -24,8 +24,16 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    is not.
 4. **The other surveys and imputed variables.** Everything `src/main.R`
    imputes today: tips, overtime, consumption, state and local taxes, auto
-   loan interest, child care and the rest. Add the CPS and CEX to
-   pretraining.
+   loan interest, child care and the rest. Add the CPS to pretraining.
+   - Done (22 October): consumption in 8 categories from the CEX
+     (`FEATURES.md`).
+   - Tips and overtime are earned by a person; they wait for each
+     person's wages (the split of a couple's wages, which the PUF lacks).
+   - CEX tax units: divide a shared household's spending by a model, not
+     head count (`explore/2026-10-21/cex/splitting/SPLITTING.md`: learn
+     from one-unit households what a unit spends, divide in proportion,
+     keep the household total; test by combining real one-unit households
+     into fake shared ones).
 5. **Half-measured PUF variables.** Age, sex and similar items that the
    PUF has only coarsely or for some records. These are filled in, not
    added as new columns. Ages: plan in `AGES.md`; the primary filer's
@@ -36,7 +44,9 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    - The model's answers do not fit one joint distribution exactly, which
      costs a few percent of rare holders.
    - Training speed, before the table grows with more surveys:
-     `PERFORMANCE.md` (to do; first step a benchmark).
+     `PERFORMANCE.md`. Measured and partly done 22 October (packing, batched
+     output layers, faster generation); left: bfloat16 (tested, not
+     switched on), the B200 question, fewer passes over a larger table.
 7. **Real PUF records or synthetic ones** for the PUF's own variables.
    - On 19 October the real 2015 PUF cost no more to reweight to 2019
      than a synthetic file, and it kept the business-income patterns no
@@ -104,6 +114,35 @@ them:
   about their assets (`explore/2026-10-21/npeu_research.md`).
 - Too many units hold both partnership and S corporation income.
 - Too few nonpassive losses.
+- **Consumption, not targeted** (22 October, nominal 2019 dollars, file
+  against CEX 2019): wages $200k+ $130k against $113k; married with
+  dependents $75k against $67k; the bottom income decile $29k against $23k
+  and the top $92k against $99k (each source's own income, AGI against the
+  CEX's, so partly a difference in what income means). The CEX replaces
+  wages above about $210,000 a person with one shared value, so its top is
+  compressed.
+- **CEX translation left to do** (`explore/2026-10-21/cex/translation/`):
+  wages before deductions and top-coded; many small self-employment
+  holders and most losses missing; interest and dividends one top-coded
+  item, unused.
+- **CEX data:** BLS stopped marking dependent filers in 2024 (1.6 million
+  against 8–9 million), so 2024's teenage workers count as their own
+  units; education spending is nearly empty in 2021 and 2022; food at home
+  jumps 29% in 2024 under a new item name. In every year about 15% of
+  married units are elderly couples that BLS codes as dependents of their
+  own unit and never as joint filers in its tax file; we treat them as
+  couples, as production does. They may be BLS's marker for couples who
+  do not file.
+- **CEX income folded with dependent filers:** their own wages ($101bn in
+  2019) leave the CEX table; the household's interest, rent and pensions
+  are divided among the remaining units.
+- **CEX against NIPA:** CEX spending is about 46% of NIPA PCE (2019:
+  $6.7 trillion against $14.4 trillion). Production scales each category
+  up to PCE afterwards (capped at 2 times); the rebuild does not.
+- **Survey cut points are grown by SOI's growth in each item's total**, not
+  per return with the item. Where holders grow, survey amounts land in
+  lower PUF bands (Social Security, 2015–2022: 1.44 against 1.27). Applies
+  to the SCF too; intended or not is undecided.
 
 Paths starting `explore/` are under
 `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`.

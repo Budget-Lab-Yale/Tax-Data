@@ -1,10 +1,51 @@
 # Performance considerations
 
-Not started. To do before the training table grows: John plans to add many
-more surveys, so the table will have at least ten times the rows and many
-more columns. This note says what training time depends on today and what
-could keep it manageable. Nothing here is measured beyond the timings in
-the first table; the first step is a benchmark (the last section).
+John plans to add many more surveys, so the table will have at least ten
+times the rows and many more columns. This note says what training and
+generation cost depend on and what keeps them manageable.
+
+## Measured on 22 October, and what the pipeline now does
+
+Four experiments, all on H200 GPUs, on the PUF + SCF + CEX table (545,000
+to 675,000 rows, 86 slots); reports under
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/perf/`.
+
+| Change | Seconds a training pass | Peak GPU memory | Same results? | In the pipeline |
+|---|---:|---:|---|---|
+| before (every record carries every slot) | 18.5 | 10.7 GB | | |
+| packing: a batch holds one source and only its slots (`packing/`) | 8.5 | 5.7 GB | same answers to rounding; trained results within seed noise | yes |
+| and the output layers in one batched multiplication (`precision/`) | 7.8 | 5.8 GB | same answers | yes |
+| and TF32 for the training steps (`precision/`) | 6.5 | 5.8 GB | within seed noise | setting, off |
+| and bfloat16 instead (`precision/`) | 5.4 | 5.6 GB | within seed noise, on every measure checked | setting, off |
+| table stored as 8-bit integers (`benchmark/`) | no change | table 364 MB → 45 MB | | no: matters only at tens of millions of rows |
+| batch of 16,384 records (`benchmark/`) | −5% | 36 GB | | no |
+
+**Generation** (`generation/`), seconds and peak memory per 50,000 records:
+before, 20.4 s and 24.5 GB (it ran out of memory on a 32 GB card); running
+the network only on each phase's slots and computing only the needed output
+layers, 9.4 s and 10.8 GB, the same draws (in the pipeline:
+`generate_fast.py`); with bfloat16 as well, 5.0 s and 5.5 GB, differences
+well inside seed noise (not switched on).
+
+**Two limits found:**
+- Empty slots cost more than in proportion: 3.4 times the slots took 5.2
+  times as long, although no record used the extra ones. Packing removes
+  them.
+- PyTorch's masked attention fails ("illegal memory access") once records x
+  attention heads x slots x slots passes about 2.1 billion in one step. It
+  hit the fill-in refit at about 160 slots and generation with the larger
+  network at 38,000 records a chunk. The refit's chunk size is now set to
+  stay under half that (`model.safe_chunk`).
+
+**Open:** a stack generated on a B200 GPU had about 11% fewer rare business
+holders than on an H200, in one run made with since-fixed code; untested
+since. `run.sbatch` asks for H100 or H200 until it is.
+
+**Still to do** (below): fewer passes over a larger table, with the
+learning-rate schedule stated in updates and batches drawn with fixed
+shares by source.
+
+The rest of this note is the analysis written before the measurements.
 
 ## What training costs today
 

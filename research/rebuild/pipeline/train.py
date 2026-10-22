@@ -30,6 +30,14 @@ Writes, in common.MODEL: model.pt, train_log.csv (loss per pass),
 var_log.csv (held-back PUF holder shares and loss per variable, every few
 passes), fill_log.csv (share with none after the fill-in against the PUF, per
 pass), train_meta.json (settings).
+
+Packing (settings "training": packing; REBUILD_PACK=0 or 1 overrides): each batch holds records of one source and carries only that source's
+slots (model.SOURCE_SLOTS). Each pass splits every source's training rows into batches of the usual size
+and shuffles the batches of all sources together, so each source gets updates in proportion to its rows.
+Each packed batch's weighted cross-entropy is divided by (records in the batch) x (the average over all
+training records of weight x expected hidden slots), the denominator a mixed batch has on average, so a
+source's records count as much in the objective as in mixed batches. The held-back loss, the fill-in and
+the per-variable log use the same packed forward pass; the held-back loss is the same quantity in both modes.
 """
 import json
 import math
@@ -45,6 +53,23 @@ import model as M
 
 S = common.SETTINGS['translation']
 T = dict(common.SETTINGS['training'], passes=common.PASSES)
+PACK = os.environ.get('REBUILD_PACK', '1' if T.get('packing') else '0') == '1'   # settings "training", packing
+PUF_SLOTS, SCF_SLOTS_ = M.SOURCE_SLOTS['puf'], M.SOURCE_SLOTS['scf']
+# Precision of the training steps (settings "training": precision): fp32, standard 32-bit; tf32, large matrix
+# multiplications at TF32's reduced internal precision, storage 32-bit; bf16, the forward pass under autocast
+# in bfloat16, the log-probabilities, loss, gradients and weight updates in 32-bit. Only the training steps change:
+# the fill-in refit, the held-back loss and the per-variable log always run in standard 32-bit.
+PRECISION = T.get('precision', 'fp32')
+assert PRECISION in ('fp32', 'tf32', 'bf16'), PRECISION
+
+
+def training_precision(on):
+    """Switch the training steps' precision on (on=True) or back to standard 32-bit."""
+    torch.set_float32_matmul_precision('high' if on and PRECISION == 'tf32' else 'highest')
+
+
+def autocast():
+    return torch.autocast('cuda', dtype=torch.bfloat16, enabled=PRECISION == 'bf16')
 MAPPED = list(S['mapped'])
 FIT_YEAR = int(S['fitting_tax_year'])
 INF = math.inf
@@ -101,6 +126,9 @@ def main():
         return dict(values=d['values'], weight=d['weight'], years=part['year'].to_numpy(),
                     age_rows=age_rows, age_probs=age_probs,
                     srv=torch.tensor((part['source'] == 'scf').to_numpy(), device=device),
+                    scf=torch.tensor((part['source'] == 'scf').to_numpy(), device=device),
+                    puf=torch.tensor((part['source'] == 'puf').to_numpy(), device=device),
+                    cex=torch.tensor((part['source'] == 'cex').to_numpy(), device=device),
                     rep_band={v: d['values'][:, C + jl[v]].clone() for v in MAPPED})
     tr = enc(table[table.split == 'train'])
     te = enc(table[table.split == 'test'])
@@ -130,7 +158,47 @@ def main():
     model = M.new_model(device)
     opt = torch.optim.AdamW(model.parameters(), lr=T['peak_learning_rate'], weight_decay=T['weight_decay'])
     n, bs = len(tr['values']), T['batch']
-    spe = math.ceil(n / bs)
+    src_rows = {src: tr[src].nonzero().squeeze(1) for src in M.SOURCES}
+    spe = sum(math.ceil(len(r) / bs) for r in src_rows.values()) if PACK else math.ceil(n / bs)
+    # packing: the average over training records of weight x expected hidden slots (ceil(u n) for u
+    # uniform on (0, 1] has mean (n + 1) / 2), the denominator per record of a mixed batch on average
+    n_present = (tr['values'][:, C:] >= 0).sum(1).double()
+    per_record = float((tr['weight'].double() * (n_present + 1) / 2).mean())
+    REFIT_CHUNK = M.safe_chunk(len(M.SLOTS))   # the full width: safe for the packed widths too
+    gpu = torch.cuda.get_device_name() if device == "cuda" else "cpu"
+    common.say(f'device {gpu}; precision {PRECISION}; refit chunk {REFIT_CHUNK} records')
+    common.say(f'packing {PACK}; batches per pass {spe}; weight x expected hidden slots per record {per_record:.3f}')
+
+    def batches(order_gen):
+        """(slots, row indices) per batch for one pass."""
+        if not PACK:
+            order = torch.randperm(n, generator=order_gen, device=device)
+            return [(None, order[a:a + bs]) for a in range(0, n, bs)]
+        out = []
+        for src, rows in src_rows.items():
+            rows = rows[torch.randperm(len(rows), generator=order_gen, device=device)]
+            out += [(M.SOURCE_SLOTS[src], rows[a:a + bs]) for a in range(0, len(rows), bs)]
+        return [out[k] for k in torch.randperm(len(out), generator=order_gen, device=device).tolist()]
+
+    def held_back_loss(hidden_draws):
+        """Overall held-back loss (mean of the draws) and by source; the same quantity packed or not."""
+        overall, by_src = [], {s: [] for s in M.SOURCES}
+        for h in hidden_draws:
+            num, den = {}, {}
+            for src in M.SOURCES:
+                r = te[src].nonzero().squeeze(1)
+                vals, hid = te['values'][r], h[r]
+                sl = M.SOURCE_SLOTS[src] if PACK else None
+                if PACK:
+                    vals, hid = M.pack(vals, hid, sl)
+                ch = M.safe_chunk(vals.shape[1])
+                sums = [M.masked_sums(model, vals[i:i + ch], te['weight'][r][i:i + ch], hid[i:i + ch], sl)
+                        for i in range(0, len(vals), ch)]
+                num[src], den[src] = sum(float(a) for a, _ in sums), sum(float(b) for _, b in sums)
+            overall.append(sum(num.values()) / sum(den.values()))
+            for src in M.SOURCES:
+                by_src[src].append(num[src] / den[src])
+        return float(np.mean(overall)), {s: float(np.mean(x)) for s, x in by_src.items()}
     total, warm, floor = T['passes'] * spe, T['warmup_passes'] * spe, T['final_learning_rate_share']
     sched = torch.optim.lr_scheduler.LambdaLR(
         opt, lambda s: (s + 1) / warm if s < warm else
@@ -144,8 +212,7 @@ def main():
             v[:, 1] = M.YEARS.index(FIT_YEAR)
         hid = torch.zeros(len(v), len(P), dtype=torch.bool, device=device)
         for j, sl in enumerate(P):
-            owner = M.OWNED_BY.get(sl)
-            if owner is not None and owner != label:
+            if label not in M.PRESENT_ON[sl]:
                 v[:, C + j] = -1
             else:
                 v[:, C + j] = v[:, C + j].clamp(min=0)
@@ -163,15 +230,23 @@ def main():
         for v in MAPPED:
             K = NR[v]
             Ab, Cr = [], []
-            for a in range(0, len(srv_idx), 20_000):
-                vals = tr['values'][srv_idx[a:a + 20_000]]
+            for a in range(0, len(srv_idx), REFIT_CHUNK):
+                vals = tr['values'][srv_idx[a:a + REFIT_CHUNK]]
                 va, ha = type_only(vals, 'puf')
-                Ab.append(model(va, ha)[:, jl[v], :NB[v]].exp().double())
+                if PACK:
+                    va, ha = M.pack(va, ha, PUF_SLOTS)
+                    Ab.append(model(va, ha, PUF_SLOTS)[:, M.predicted_of(PUF_SLOTS).index(jl[v]), :NB[v]].exp().double())
+                else:
+                    Ab.append(model(va, ha)[:, jl[v], :NB[v]].exp().double())
                 hc = torch.zeros(len(vals), len(P), dtype=torch.bool, device=device)
                 hc[:, jr[v]] = True
                 for u in MAPPED:
                     hc[:, jl[u]] = True
-                pc = model(vals, hc)[:, jr[v], :NB[v]].exp().double()
+                if PACK:
+                    vs, hs = M.pack(vals, hc, SCF_SLOTS_)
+                    pc = model(vs, hs, SCF_SLOTS_)[:, M.predicted_of(SCF_SLOTS_).index(jr[v]), :NB[v]].exp().double()
+                else:
+                    pc = model(vals, hc)[:, jr[v], :NB[v]].exp().double()
                 Cr.append(torch.zeros(len(pc), K, dtype=torch.float64, device=device).index_add_(1, RO[v], pc))
             Ab, Cr = torch.cat(Ab), torch.cat(Cr)
             Ar = torch.zeros(len(Ab), K, dtype=torch.float64, device=device).index_add_(1, RO[v], Ab)
@@ -215,61 +290,93 @@ def main():
     # ---- the per-variable log: held-back PUF records
     zero_band = {v: edges[f'puf/2015/{v}']['zero_band'] for v in M.AMOUNTS if f'puf/2015/{v}' in edges}
     logged = [v for v in zero_band if v != 'net_worth']
-    hb = (~te['srv']).nonzero().squeeze(1)
-    hb_vals, hb_w = te['values'][hb], te['weight'][hb].double()
     var_log = []
 
     @torch.no_grad()
     def log_variables(epoch):
+        """Held-back PUF records for the PUF items; held-back CEX records for the consumption categories."""
         model.eval()
+        for src, names in [('puf', logged), ('cex', M.CEX_SLOTS)]:
+            hb = te[src].nonzero().squeeze(1)
+            log_source(epoch, names, te['values'][hb], te['weight'][hb].double(), M.SOURCE_SLOTS[src] if PACK else None)
+        pd.DataFrame(var_log).to_csv(os.path.join(common.MODEL, 'var_log.csv'), index=False)
+        model.train()
+
+    def log_source(epoch, names, hb_vals, hb_w, slots=None):
+        if slots is not None:
+            hb_vals = hb_vals[:, M.slot_tensor(slots, device)]
         present = hb_vals[:, C:] >= 0
-        for v in logged:
-            j = P.index(v)
+        for v in names:
+            zb = zero_band.get(v, 0)
+            j = P.index(v) if slots is None else M.predicted_of(slots).index(P.index(v))
             ok = present[:, j]
             only = torch.zeros_like(present)
             only[:, j] = True
             row = {'pass': epoch, 'variable': v}
-            actual = (hb_w * (ok & (hb_vals[:, C + j] != zero_band[v]))).sum() / (hb_w * ok).sum()
+            actual = (hb_w * (ok & (hb_vals[:, C + j] != zb))).sum() / (hb_w * ok).sum()
             row['holders, actual (%)'] = 100 * float(actual)
             for lab, hid in [('only this hidden', only & present), ('all hidden', present)]:
-                p0 = torch.cat([model(hb_vals[i:i + 8192], hid[i:i + 8192])[:, j, :NB.get(v, M.N_CHOICES[v])]
-                                .log_softmax(1)[:, zero_band[v]].exp() for i in range(0, len(hb_vals), 8192)])
+                p0 = torch.cat([model(hb_vals[i:i + 8192], hid[i:i + 8192], slots)[:, j, :NB.get(v, M.N_CHOICES[v])]
+                                .log_softmax(1)[:, zb].exp() for i in range(0, len(hb_vals), 8192)])
                 row[f'holders, {lab} (%)'] = 100 * float((hb_w * ok * (1 - p0.double())).sum() / (hb_w * ok).sum())
             var_log.append(row)
-        pd.DataFrame(var_log).to_csv(os.path.join(common.MODEL, 'var_log.csv'), index=False)
-        model.train()
 
     log, began = [], time.time()
+    cuda = device == 'cuda'
+    sync = (lambda: torch.cuda.synchronize()) if cuda else (lambda: None)
     for epoch in range(1, T['passes'] + 1):
         model.train()
+        if cuda:
+            torch.cuda.reset_peak_memory_stats()
+        sync()
         t0 = time.time()
-        order = torch.randperm(n, generator=gen, device=device)
+        plan = batches(gen)
         tot = 0.0
         draw_ages(tr)
         fill = epoch >= S['fill_from_pass']
         if fill:
             refit(epoch)
-        for start in range(0, n, bs):
-            idx = order[start:start + bs]
+        sync()
+        t_refit = time.time() - t0
+        training_precision(True)
+        for slots, idx in plan:
             if fill:
                 draw_fills(idx)
             values, weight = tr['values'][idx], tr['weight'][idx]
-            loss = M.masked_loss(model, values, weight, M.draw_hidden(values, gen))
+            with autocast():
+                if slots is None:
+                    loss = M.masked_loss(model, values, weight, M.draw_hidden(values, gen))
+                else:
+                    values = values[:, M.slot_tensor(slots, device)]
+                    loss = M.masked_loss(model, values, weight, M.draw_hidden(values, gen), slots,
+                                         denominator=len(idx) * per_record)
             opt.zero_grad()
             loss.backward()
             opt.step()
             sched.step()
             tot += loss.item() * len(idx)
+        training_precision(False)
+        sync()
+        t_batches = time.time() - t0 - t_refit
         model.eval()
         with torch.no_grad():
-            val = float(np.mean([M.masked_loss(model, te['values'], te['weight'], h).item() for h in val_hidden]))
-        log.append(dict(epoch=epoch, train_loss=tot / n, held_back_loss=val, seconds=time.time() - t0))
-        common.say(f'pass {epoch:3d}  train {tot / n:.4f}  held back {val:.4f}  {time.time() - t0:.0f}s')
+            val, val_src = held_back_loss(val_hidden)
+        sync()
+        row = dict(epoch=epoch, train_loss=tot / n, held_back_loss=val, seconds=time.time() - t0,
+                   seconds_refit=t_refit, seconds_batches=t_batches,
+                   peak_gpu_gb=torch.cuda.max_memory_allocated() / 1e9 if cuda else float('nan'),
+                   **{f'held_back_{s}': x for s, x in val_src.items()})
+        log.append(row)
+        pd.DataFrame(log).to_csv(os.path.join(common.MODEL, 'train_log.csv'), index=False)
+        common.say(f'pass {epoch:3d}  train {tot / n:.4f}  held back {val:.4f} '
+                   + ' '.join(f'{s} {x:.4f}' for s, x in val_src.items())
+                   + f'  {row["seconds"]:.1f}s (fill-in {t_refit:.1f}s, batches {t_batches:.1f}s)  peak {row["peak_gpu_gb"]:.2f} GB')
         if epoch == 1 or epoch % T['log_every_passes'] == 0 or epoch == T['passes']:
             log_variables(epoch)
     pd.DataFrame(log).to_csv(os.path.join(common.MODEL, 'train_log.csv'), index=False)
     M.save_model(model, os.path.join(common.MODEL, 'model.pt'))
-    meta = dict(seed=common.SEED, settings=common.SETTINGS,
+    meta = dict(seed=common.SEED, settings=common.SETTINGS, packing=PACK, precision=PRECISION, gpu=gpu,
+                node=os.environ.get('SLURMD_NODENAME'), job=os.environ.get('SLURM_JOB_ID'),
                 minutes=(time.time() - began) / 60, last_held_back_loss=log[-1]['held_back_loss'],
                 rows=table.groupby(['source', 'year', 'split']).size().to_dict().__repr__())
     json.dump(meta, open(os.path.join(common.MODEL, 'train_meta.json'), 'w'), indent=1, default=float)

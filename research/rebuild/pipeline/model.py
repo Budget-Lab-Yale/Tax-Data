@@ -7,8 +7,10 @@ from most negative, then the positive bands in dollar order); married, number
 of dependents, the primary filer's age range (ages.py), the filing flag and
 the yes/no business items are categories.
 A slot one source never has (the balance sheet on the PUF, the PUF-only items
-on the SCF) is absent: band -1. The
-network never sees an absent slot and is never asked to predict it.
+on the SCF, everything but the shared items and the consumption categories on
+the CEX) is absent: band -1. Which sources have each slot is in the band
+edges' meta ("present_on"). The network never sees an absent slot and is never
+asked to predict it.
 
 Training hides a random subset of each record's slots and scores the
 network's prediction of the hidden ones ("masked any-subset"), so one network
@@ -25,7 +27,7 @@ import torch.nn as nn
 
 import common
 
-SOURCES = ['puf', 'scf']
+SOURCES = ['puf', 'scf', 'cex']
 CONTEXT = ['source', 'year']
 YEARS = sorted({int(y) for y in pq.read_table(common.TABLE, columns=['year']).column('year').to_pylist()})
 _EDGES = json.load(open(common.EDGES))
@@ -45,13 +47,16 @@ RATIOS = {k: tuple(v) for k, v in _EDGES['meta']['ratios'].items()}   # slot: (d
 # Two slots per translated item: a second, SCF-only slot holds what the
 # household reported; the original slot is the PUF concept, filled in on the SCF side during training (train.py).
 REPORTED = {f'{v}_reported': v for v in common.SETTINGS['translation']['mapped']}
+CEX_SLOTS = list(_EDGES['meta']['cex_amounts'])     # the consumption categories, CEX only
 PREDICTED = (['married', 'n_dep', 'age_range', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
-             + SCF_SLOTS + FILER + list(REPORTED))
+             + SCF_SLOTS + FILER + list(REPORTED) + CEX_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
-OWNED_BY = {**{v: 'scf' for v in SCF_SLOTS}, **{v: 'scf' for v in REPORTED}, 'other_agi': 'puf', **{v: 'puf' for v in KG_PIECES + FILER},
-            **{v: 'puf' for v, o in ITEMS.items() if o == 'puf'}}
+# The sources that have each slot; a slot on one source only is owned by it.
+PRESENT_ON = {**{v: set(s) for v, s in _EDGES['meta']['present_on'].items()}, **{v: {'scf'} for v in REPORTED}}
+assert set(PREDICTED) <= set(PRESENT_ON), set(PREDICTED) - set(PRESENT_ON)
+OWNED_BY = {v: next(iter(PRESENT_ON[v])) for v in PREDICTED if len(PRESENT_ON[v]) == 1}
 # The computed totals: never drawn, computed from their parts after the parts are drawn. The same for
 # the computed flags on the PUF side (k1_owner: any of its parts nonzero).
 COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES}, **_EDGES['meta']['computed_totals']}
@@ -147,13 +152,14 @@ def read_table():
     no_range = table['age_range'] == -1
     assert table['age_range'].between(-1, AGE_RANGES - 1).all() and (table.loc[no_range, 'source'] == 'puf').all()
     assert np.allclose(table.loc[no_range, AGE_PROBS].sum(1), 1) and (table.loc[~no_range, AGE_PROBS] == 0).all().all()
+    everywhere = lambda v: PRESENT_ON[v] == set(SOURCES)
     for a in AMOUNTS:
-        assert table[a + '_band'].between(-1 if a in OWNED_BY else 0, N_CHOICES[a] - 1).all(), a
+        assert table[a + '_band'].between(0 if everywhere(a) else -1, N_CHOICES[a] - 1).all(), a
     assert table.loc[table.source == 'puf', 'filer'].isin([0, 1]).all()
     for c in CATEGORIES:
-        assert table[c].between(-1 if c in OWNED_BY else 0, 1).all(), c
-    for a, owner in OWNED_BY.items():
-        assert (table.loc[table.source != owner, column(a)] == -1).all(), a
+        assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
+    for a in PREDICTED:
+        assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')
     return table
 
@@ -196,15 +202,64 @@ def encode(table, device='cpu'):
             'weight': torch.tensor(training_weights(table), dtype=torch.float32, device=device)}
 
 
-def token_ids(values, hidden):
-    """Token per slot; hidden and absent slots get the mask token (absent ones are also masked out of attention)."""
-    slot = torch.arange(len(SLOTS), device=values.device)
+def seen_as(values, hidden, label, year=None):
+    """The record as source label would see it: that label (and year, if given), the slots it lacks absent."""
+    view, view_hidden = values.clone(), hidden.clone()
+    view[:, 0] = SOURCES.index(label)
+    if year is not None:
+        view[:, 1] = YEARS.index(year)
+    for j, v in enumerate(PREDICTED):
+        if label not in PRESENT_ON[v]:
+            view[:, len(CONTEXT) + j], view_hidden[:, j] = -1, False
+    return view, view_hidden
+
+
+# ---- packing: a batch of one source carries only that source's slots ----------
+# SOURCE_SLOTS[src]: the positions in SLOTS a record of src carries (the two context slots, then its
+# predicted slots in PREDICTED order). A packed record is values[:, SOURCE_SLOTS[src]].
+SOURCE_SLOTS = {src: tuple([0, 1] + [len(CONTEXT) + j for j, v in enumerate(PREDICTED) if src in PRESENT_ON[v]])
+                for src in SOURCES}
+_SLOT_TENSORS = {}
+
+
+def slot_tensor(slots, device):
+    key = (slots, str(device))
+    if key not in _SLOT_TENSORS:
+        _SLOT_TENSORS[key] = torch.tensor(slots, dtype=torch.long, device=device)
+    return _SLOT_TENSORS[key]
+
+
+def predicted_of(slots):
+    """The PREDICTED indices of a slot subset (its slots after the two context slots)."""
+    return [s - len(CONTEXT) for s in slots[len(CONTEXT):]]
+
+
+def pack(values, hidden, slots):
+    """Full-width values [N, SLOTS] and hidden [N, PREDICTED] cut down to a slot subset."""
+    st = slot_tensor(slots, values.device)
+    return values[:, st], hidden[:, st[len(CONTEXT):] - len(CONTEXT)]
+
+
+def token_ids(values, hidden, slots=None):
+    """Token per slot; hidden and absent slots get the mask token (absent ones are also masked out of attention).
+    slots: the SLOTS positions the columns of values stand for (default all)."""
+    slot = torch.arange(len(SLOTS), device=values.device) if slots is None else slot_tensor(slots, values.device)
     ids = TOKEN_OF.to(values.device)[slot, values.clamp(min=0)]
     full_hidden = torch.cat([torch.zeros_like(hidden[:, :len(CONTEXT)]), hidden], 1)
     return torch.where(full_hidden | (values < 0), MASK, ids)
 
 
 # ---- network ------------------------------------------------------------------
+LOOP_HEADS = False   # True: the output layers one variable at a time (the original code), for checking only
+
+
+def safe_chunk(n_slots, heads=None, limit=20_000):
+    """Records per forward pass without gradients, so that one chunk's attention scores (records x heads x
+    slots x slots) stay under 1 billion entries, half the size at which the refit crashed (BENCHMARK.md)."""
+    heads = heads or common.SETTINGS['network']['heads']
+    return max(1, min(limit, int(1e9 // (heads * n_slots * n_slots))))
+
+
 class SlotTransformer(nn.Module):
     """Slot vector = token embedding + slot embedding; encoder layers; one output head per predicted variable."""
 
@@ -218,14 +273,36 @@ class SlotTransformer(nn.Module):
         self.final_norm = nn.LayerNorm(width)
         self.heads = nn.ModuleList(nn.Linear(width, N_CHOICES[v]) for v in PREDICTED)
 
-    def forward(self, values, hidden):
-        """Log-probabilities, [records, predicted slots, MAX_CHOICES]; choices a variable lacks get -inf."""
-        x = self.token_embedding(token_ids(values, hidden)) + self.slot_embedding
+    def forward(self, values, hidden, slots=None):
+        """Log-probabilities, [records, predicted slots, MAX_CHOICES]; choices a variable lacks get -inf.
+        slots (packing): a tuple of SLOTS positions, starting with the two context slots; values then has one
+        column per position and hidden one per predicted position, and the output covers those positions only."""
+        if slots is None:
+            x = self.token_embedding(token_ids(values, hidden)) + self.slot_embedding
+            heads = list(enumerate(self.heads))
+        else:
+            x = self.token_embedding(token_ids(values, hidden, slots)) + self.slot_embedding[slot_tensor(slots, values.device)]
+            heads = [(k, self.heads[j]) for k, j in enumerate(predicted_of(slots))]
         h = self.final_norm(self.encoder(x, src_key_padding_mask=values < 0))
-        out = h.new_full((len(values), len(PREDICTED), MAX_CHOICES), -math.inf)
-        for j, head in enumerate(self.heads):
-            out[:, j, :head.out_features] = head(h[:, len(CONTEXT) + j])
-        return out.log_softmax(-1)
+        if LOOP_HEADS:   # the original per-variable loop; kept only to check the batched version (check_heads.py)
+            out = h.new_full((len(values), len(heads), MAX_CHOICES), -math.inf)
+            for k, head in heads:
+                out[:, k, :head.out_features] = head(h[:, len(CONTEXT) + k])
+            return out.log_softmax(-1)
+        # All output layers in one batched multiplication: each layer padded to MAX_CHOICES choices, the
+        # padded choices given a bias of -inf, so their probability is exactly zero, as in the loop.
+        # Only the batch's own output layers are stacked, so the others get no gradient at all (not a zero
+        # gradient), as in the loop: AdamW then leaves them untouched, with no momentum step or weight decay.
+        W, b = self.stacked_heads([hd for _, hd in heads])
+        logits = torch.einsum('bjw,jcw->bjc', h[:, len(CONTEXT):], W) + b
+        return logits.float().log_softmax(-1)
+
+    @staticmethod
+    def stacked_heads(heads):
+        pad = lambda hd: MAX_CHOICES - hd.out_features
+        W = torch.stack([nn.functional.pad(hd.weight, (0, 0, 0, pad(hd))) for hd in heads])
+        b = torch.stack([nn.functional.pad(hd.bias, (0, pad(hd)), value=-math.inf) for hd in heads])
+        return W, b
 
 
 def new_model(device):
@@ -263,8 +340,16 @@ def slot_nll(log_probs, values):
     return -log_probs.gather(2, target[..., None]).squeeze(2)
 
 
-def masked_loss(model, values, weight, hidden):
-    """Weighted mean cross-entropy (nats) over the hidden slots."""
-    nll = slot_nll(model(values, hidden), values)
+def masked_loss(model, values, weight, hidden, slots=None, denominator=None):
+    """Weighted mean cross-entropy (nats) over the hidden slots. denominator (packing): divide the weighted
+    sum by this instead of the batch's own total hidden weight."""
+    nll = slot_nll(model(values, hidden, slots), values)
     w = weight[:, None] * hidden
-    return (nll * w).sum() / w.sum()
+    return (nll * w).sum() / (w.sum() if denominator is None else denominator)
+
+
+def masked_sums(model, values, weight, hidden, slots=None):
+    """The two sums behind masked_loss: weighted cross-entropy and weight, over the hidden slots."""
+    nll = slot_nll(model(values, hidden, slots), values)
+    w = weight[:, None] * hidden
+    return (nll * w).sum(), w.sum()

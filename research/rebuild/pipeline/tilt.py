@@ -161,6 +161,34 @@ def wealth_targets(x, file_units):
     return pd.DataFrame(cells), np.column_stack(cols)
 
 
+AGES = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+']
+
+
+def consumption_targets(df, w_start, units):
+    """CEX target-year spending per unit (build_table.cex_target_units): each category's average over all tax units,
+    and by the primary filer's adult age range, so the targets do not depend on how many units each source counts.
+    Dependent filers are left out on both sides: the CEX folds them into the unit that claims them (build_cex.R),
+    and the file gives them no consumption (generate.structural).
+
+    An average m over group g is the linear condition sum over g of w (c / m - 1) = 0. The tilt scales each target by
+    its own size, so it is written as units + sum over g of w (c / m - 1) = units, where units, the file's total
+    (returns plus non-filers), is fixed exactly by the IRS and non-filer targets. The tolerance, a share of units, is
+    consumption_tolerance times the group's share of the starting weight: within that share of the group's average.
+    Returns the target rows (with the average), the contributions, and the tolerances."""
+    y = common.SETTINGS['cex']['target_year']
+    u = pd.read_parquet(f'{common.DATA}/cex_units_{y}_all.parquet')
+    rows, cols, tol = [], [], []
+    for lab, k in [('all', None)] + [(f'age {a}', k) for k, a in enumerate(AGES)]:
+        mu = np.ones(len(u), bool) if k is None else (u['age_range'] == k).to_numpy()
+        mf = (df['age_range'] < 6).to_numpy() if k is None else (df['age_range'] == k).to_numpy()
+        for v in D._META['cex_amounts']:
+            m = float(np.average(u.loc[mu, v], weights=u.loc[mu, 'weight']))
+            rows.append({'group': f'CEX {y}, {lab}', 'target': f'{v}, average', 'value': units, 'average': m})
+            cols.append(1.0 + mf * (df[v].to_numpy(float) / m - 1.0))
+            tol.append(S['consumption_tolerance'] * w_start[mf].sum() / w_start.sum())
+    return pd.DataFrame(rows), np.column_stack(cols), np.array(tol)
+
+
 def nonfiler_count():
     p = pd.read_csv(common.RAW['nonfiler_pool'].format(year=2019), usecols=['tax_year', 'weight', 'filer'])
     assert (p['tax_year'] == 2019).all() and (p['filer'] == 0).all()
@@ -260,14 +288,19 @@ def main():
     # the targets
     irs, F_irs = irs_targets(soi, g19)
     bus, F_bus = business_targets(soi, g19)
-    wl, F_w = wealth_targets(x, returns + n_nonfilers)
+    # wealth counts on the file's units other than dependent filers, which hold none (generate.structural)
+    nondep = g19['age_range'].to_numpy() < 6
+    wl, F_w = wealth_targets(x, w0[nondep].sum())
+    cl, F_c, tol_c = consumption_targets(g19, w0, returns + n_nonfilers)
     F_irs, F_bus = F_irs * filer[:, None], F_bus * filer[:, None]
     cells = pd.concat([irs.assign(kind='IRS'), pd.DataFrame([{'group': 'all', 'target': 'non-filers',
                                                                'value': n_nonfilers, 'kind': 'non-filers'}]),
-                       bus.assign(kind='business'), wl.assign(kind='wealth')], ignore_index=True)
-    F = np.column_stack([F_irs, (~filer).astype(float), F_bus, F_w])
+                       bus.assign(kind='business'), wl.assign(kind='wealth'), cl.assign(kind='consumption')],
+                      ignore_index=True)
+    F = np.column_stack([F_irs, (~filer).astype(float), F_bus, F_w, F_c])
     T = cells['value'].to_numpy(float)
-    tol = np.r_[np.zeros(len(irs) + 1 + len(bus)), np.full(len(wl), S['wealth_tolerance'])]
+    tol = np.r_[np.zeros(len(irs) + 1 + len(bus)), np.full(len(wl), S['wealth_tolerance']),
+                tol_c]
     w1, ok = tilt(w0, F, T, tol)
     form = 'exact'
     if not ok:

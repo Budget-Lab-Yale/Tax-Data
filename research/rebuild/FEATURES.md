@@ -2,8 +2,9 @@
 
 The current run ("latest") produces a 2019 file of tax units: every PUF
 variable, plus the household balance sheet from the SCF (20 items, with net
-worth computed from them), weighted to 2019 targets. The code is in
-`pipeline/`; every setting is in `pipeline/settings.json`.
+worth computed from them) and spending in 8 categories from the CEX,
+weighted to 2019 targets. The code is in `pipeline/`; every setting is in
+`pipeline/settings.json`.
 
 ## Data
 
@@ -14,6 +15,7 @@ worth computed from them), weighted to 2019 targets. The code is in
 | 2015 PUF | 207,692 | filers |
 | 2017 CPS non-filer pool | 166,938 | crude non-filers on the PUF side, dollars put in 2015 terms |
 | SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, split into tax units by the production builder, five implicates each |
+| CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 
 **Variables:**
 - marital status (joint or not), dependents (0–3), and the filing flag;
@@ -23,8 +25,9 @@ worth computed from them), weighted to 2019 targets. The code is in
 - more AGI items: other gains, taxable IRA distributions, taxable
   pensions, taxable Social Security, unemployment, alimony, state refunds,
   adjustments, and the rest of AGI ("other income");
-- two items outside AGI: gross Social Security plus pensions, and
-  tax-exempt interest;
+- three items outside AGI: gross Social Security plus pensions,
+  tax-exempt interest, and gross Social Security alone (shared with the
+  CEX);
 - two itemized deductions (PUF only, itemizers only): mortgage interest
   paid and real estate tax. They are kept in 2015 dollars in the 2019 file
   (SOI Table 1.4 has no row to grow them by);
@@ -45,12 +48,31 @@ worth computed from them), weighted to 2019 targets. The code is in
   installment loans; other debt). Net worth is computed from them. The
   home mortgage is carried as its share of the home's value;
 - the 4 unrealized gains (home, other real estate, business, stocks and
-  funds) and whether the unit owns any private business (SCF only).
+  funds) and whether the unit owns any private business (SCF only);
+- spending in production's 8 categories (CEX only): clothing; motor
+  vehicles; other durables; other nondurables; food at home (with
+  alcohol); gasoline; housing and utilities; other services and health.
+  Total consumption is computed from them.
 
-The sources share married, dependents, wages, interest, dividends, capital
-gains, the two business subtotals, the partnership/S corporation/LLC flag,
-gross retirement income and tax-exempt interest. The rest belong to one
-source; on the other source the slot is absent.
+All three sources share married, dependents, the primary filer's age range,
+wages and Schedules C and F income. The PUF and the SCF also share
+interest, dividends, capital gains, Schedule E income, the partnership/S
+corporation/LLC flag, gross Social Security plus pensions and tax-exempt
+interest; the PUF and the CEX also share gross Social Security. The rest
+belong to one source. A slot a source lacks is absent on its records
+(`model.py`, "present_on").
+
+**The CEX** (`pipeline/build_cex.R`, settings "cex"). BLS's interview
+survey, five quarterly files per survey year (the year's first quarter
+from the previous release from 2020 on), weights summing to the year's
+consumer units (they match BLS's published counts). Households are split
+into tax units by BLS's own codes in the member file, as production's
+`src/cex.R` does, with its repairs. Spending is each interview's three
+months times 4. A household's spending is divided among its tax units by
+head count (production's rule). A dependent filer is folded into the unit
+that claims it: its head count goes to that unit's share and its own row
+is dropped; its own income goes nowhere (it belongs on its own return).
+Checked against BLS's tax-unit file (NTAXI): the same units in every year.
 
 **Business items on the SCF.** The SCF's two business income questions
 follow the tax return: X5704 is Schedules C and F, X5714 is Schedule E
@@ -95,7 +117,7 @@ dependent filers (under 18, 18–25, 26+), kept apart.
   Security recipients 82% come out 65+ against 86% true (cell shares
   alone: 18%); with long-term gains over $50,000, 46% against 48%
   (`explore/2026-10-21/step0/`).
-- **SCF and non-filers:** the range of the primary filer's age. In a
+- **SCF, CEX and non-filers:** the range of the primary filer's age. In a
   mixed-sex couple the man is the primary, except the woman with a chance
   that depends on the man's range (22% under 26 down to 4% at 65+), set so
   the SCF's female primaries by range equal the PUF's joint returns
@@ -103,7 +125,27 @@ dependent filers (under 18, 18–25, 26+), kept apart.
   couples: the older partner. Ages as the surveys report them, with no
   adjustment for the interview date.
 
-## Translation: putting the SCF on the PUF's terms
+## Translation: putting the surveys on the PUF's terms
+
+**The CEX.**
+- Wages and gross Social Security are banded on the PUF's cut points,
+  grown by SOI to each survey year (past the last SOI year, by that
+  year's growth); self-employment income is placed by its rank within the
+  year, as the SCF's business subtotals are; the categories are banded
+  within each year.
+- Pensions are not shared. The PUF's total pensions (line 5a) include
+  rollovers and lump sums, the CEX's do not ($0.3–0.4 trillion against
+  $1.5 trillion on returns); with a combined Social Security and pensions
+  slot, PUF retirees sat in higher bands than CEX retirees with the same
+  spending, and the file's 65+ spent 17% too much
+  (`explore/2026-10-21/cex/age_check/`).
+- Not translated yet (`explore/2026-10-21/cex/translation/TRANSLATION.md`):
+  the CEX asks wages before deductions and replaces wages above about
+  $210,000 a person with one shared value; it misses many small
+  self-employment holders and most losses; interest and dividends are one
+  item, top-coded, and not used.
+
+**The SCF.**
 
 - **SCF dollars on the PUF's dollar scale.** Wages, interest, dividends,
   capital gains, retirement income and tax-exempt interest are banded on
@@ -146,8 +188,22 @@ dependent filers (under 18, 18–25, 26+), kept apart.
 
 ## The model
 
-- **Network.** A transformer: 4 layers, width 128, about 1 million
-  parameters, no dropout.
+- **Network.** A transformer: 4 layers, width 128, about 1.4 million
+  parameters (0.85 million of them in the output layers, one per
+  variable), no dropout. A network with 4.9 million (6 layers, width 256)
+  was about 3 times slower a pass and no closer to the CEX (22 October).
+- **Packing** (settings "training", "packing"). Each batch holds one
+  source's records and carries only that source's slots (a PUF record
+  uses 50 of the 86, an SCF record 42, a CEX record 16, counting the source and year). The answers
+  are the same to rounding; a pass takes half the time and GPU memory.
+  Each batch's error is scaled so every record counts as much as in a
+  mixed batch (`explore/2026-10-22/perf/packing/PACKING.md`).
+- **Output layers** are computed in one batched multiplication, only the
+  batch's own source's (the same answers, 10% faster a pass).
+- **Precision** (settings "training", "precision"): standard 32-bit.
+  bfloat16 for the training steps was 37% faster a pass with results
+  within the difference between two seeds; not switched on
+  (`explore/2026-10-22/perf/precision/PRECISION.md`).
 - **What it learns.** It is trained to fill in any hidden subset of a
   record's variables from the rest. So one network answers every question
   of the form "this variable, given those".
@@ -167,9 +223,23 @@ dependent filers (under 18, 18–25, 26+), kept apart.
 1. the PUF variables, in a random order;
 2. line-13 capital gains, business income and its two subtotals, computed
    from their parts; then the partnership/S corporation/LLC flag;
-3. the SCF-only items last, in a random order (the mortgage share after the
+3. the SCF-only items, in a random order (the mortgage share after the
    home), as the SCF would see the household (SCF label, PUF-only variables
-   left out). Net worth is computed from the balance sheet in dollars.
+   left out). Net worth is computed from the balance sheet in dollars;
+4. the 8 consumption categories last, in a random order, as the CEX would
+   see the unit (CEX label and generation year 2019, everything the CEX
+   lacks left out).
+
+**Dependent filers** (the PUF's three dependent-filer age ranges) hold no
+SCF or CEX item: every balance-sheet item, unrealized gain, business
+ownership and consumption category is zero on their records. The surveys
+count their wealth and spending in the household that claims them. Their
+tax items stay as drawn.
+
+**Speed.** Each step runs the network only on the slots present in its
+phase and computes only the output layers it needs (`generate_fast.py`):
+the same draws, half the time and memory
+(`explore/2026-10-22/perf/generation/GENERATION.md`).
 
 **Consistency rules** (`settings.json`, "consistency"; each rule is a list
 of items that trigger it and a list of holdings of which at least one must
@@ -207,7 +277,8 @@ income, business equity). Weights undo the oversampling exactly.
 ## Post-training: the 2019 file
 
 **Dollars.** Each band's real 2015 values, grown to 2019 by SOI's growth
-in dollars per return holding each item.
+in dollars per return holding each item. Consumption: each band's real
+CEX 2019 values, with no growth.
 
 **Start.**
 - Weights are scaled to SOI's 2019 return count and the non-filer count.
@@ -222,11 +293,67 @@ that meets:
 | IRS (SOI 2019 Table 1.4): returns, and the number with and amount of wages, interest, dividends and capital gains, in 15 AGI brackets; plus joint returns | 136 | exactly |
 | Non-filers | 1 | exactly |
 | IRS business: six families, net income and net loss, returns and dollars, in 6 AGI groups | about 140 | exactly, or within 2% if that fails |
-| SCF 2019 wealth: units and net worth above the 99th, 90th and 50th percentiles, total net worth, units above $1 million; counts on the file's own units | 8 | within 2% |
+| SCF 2019 wealth: units and net worth above the 99th, 90th and 50th percentiles, total net worth, units above $1 million; counts on the file's own units other than dependent filers | 8 | within 2% |
+| CEX 2019 consumption: each category's average per tax unit, over all units and in each of the 6 adult age ranges of the primary filer (dependent filers left out on both sides) | 56 | within 2% of the average |
+
+Consumption targets are averages, not totals, so they do not depend on how
+many units each source counts (the file 187 million, the CEX 153 million).
+An average is a linear condition on the weights; it is written so the
+tilt's scaling by target size works (`tilt.py`, consumption_targets).
+A first run targeted totals: the file then had 17% more units over which
+to spread the same dollars, and the tilt kept only 72% of the effective
+sample.
 
 ## How the latest run comes out
 
-**Since 21 October (night), "latest" also rescales the SCF's top wages**
+**Since 22 October, "latest" adds consumption from the CEX** (with gross
+Social Security shared, dependent filers at zero wealth and consumption,
+the consumption targets, packing and the faster generator). Two seeds
+(20261016–17), outputs in `explore/2026-10-22/cex6/` (runs
+`dep0_seed<n>`); the results in the main output folders below are the
+previous latest. After the tilt: every IRS, business, wealth and
+consumption target met; effective sample kept 89.3–89.8% (the previous
+latest 88.5–89.0%). Median net worth over all units $74k, because the
+9.9 million dependent returns now hold none; the SCF's $91k counts them in
+their parents' households, and the wealth count targets now leave them out.
+
+Consumption, not targeted, nominal 2019 dollars ($ thousands per unit;
+the two seeds, then the CEX 2019 over all tax units):
+
+| Group | File | CEX 2019 |
+|---|---:|---:|
+| no wages | 36.5–36.8 | 34.1 |
+| wages $1–25k | 24.3–24.4 | 27.6 |
+| wages $25–50k | 34.4–34.6 | 33.3 |
+| wages $50–100k | 50.1–50.3 | 47.8 |
+| wages $100–200k | 76.2–77.0 | 70.0 |
+| wages $200k+ | 129.9–131.9 | 113.3 |
+| bottom income decile (each source's own income) | 28.2–28.6 | 22.9 |
+| 5th decile | 34.4–34.6 | 35.2 |
+| top decile | 91.9–93.2 | 99.1 |
+| married, no dependents | 59.4–60.1 | 56.0 |
+| married, with dependents | 74.7–74.9 | 67.3 |
+| not married, no dependents | 26.5–26.7 | 27.5 |
+| not married, with dependents | 39.6–40.2 | 38.5 |
+| 65+, gross Social Security $15–30k | 37.3–38.2 | 38.3 |
+| 65+, gross Social Security $30–50k | 58.0–59.4 | 52.0 |
+
+The two seeds agree within about $1–2k, so these gaps are not chance.
+Category shares within each wage band are within about 1 point of the
+CEX's. The income deciles compare AGI with the CEX's own income measure,
+which runs well below AGI at the same rank; and the CEX compresses its top
+wages. Report: `tilt/<run>/cex_report.md`.
+
+A check run of this committed code from scratch (seed 20261016, H100,
+`explore/2026-10-22/pipeline_candidate/`) rebuilt the CEX and SCF units
+byte for byte and gave the same consumption by wages within about $1–3k.
+Its exact business tilt failed on one tiny cell (estate and trust net
+losses at AGI $50–100k: 6,232 returns and $107 million targeted; the stack
+drew 12,698 returns and $40 million), so the business targets fell back
+to 2%, and that cell still missed by 8–9%; everything else was met, with
+90.0% of the effective sample kept.
+
+**Before that, from 21 October (night), "latest" rescaled the SCF's top wages**
 (above); three seeds; the age-range runs moved to
 `previous_2026-10-21_ages/`. Against them, after the tilt: mean net worth
 at wages $200k+ $3.67–3.73M ($3.40–3.56M), median $1.53–1.56M

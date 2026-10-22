@@ -160,6 +160,38 @@ Considered and not done: down-weighting the SCF's high earners (shrinks
 the SCF wealth totals the tilt targets), wealth targets by age and wage
 band (built on the SCF's own wages), wages as a two-slot item.
 
+**21–22 October: the CEX, and making room for more surveys.** Tips were the
+first idea and were set aside: they are earned by a person, and the
+pipeline has no wages per person yet. Consumption from the CEX was added
+instead (`explore/2026-10-21/cex/`, `explore/2026-10-22/`):
+- **Tax units from BLS's codes,** as production builds them. The first
+  night used 2022–2024 and only households that are one tax unit; then
+  all six years John chose (2015 to 2023 every other year, and 2024, as
+  2025 is not out), every tax unit, a shared household's spending divided
+  by head count.
+- **Pensions out of the shared slot.** With Social Security plus pensions
+  shared, the file's 65+ spent 17% too much: PUF total pensions include
+  rollovers. Gross Social Security alone is now shared; 65+ spending went
+  from $44.6k to $40.3k, against $38.0k for the CEX at the file's mix of
+  units.
+- **Dependent filers** hold no wealth or consumption of their own (John):
+  zero on the file, folded into the claiming unit in the CEX.
+- **Consumption targets as averages per unit, not totals** (John): with
+  totals, the file's extra units (187 million against 153 million) forced
+  per-unit spending down and the tilt kept 72% of the effective sample;
+  with averages, 89.8%, as without consumption targets.
+- **Memos:** splitting a shared household's spending
+  (`explore/2026-10-21/cex/splitting/SPLITTING.md`, by Codex); the shared
+  variables' definitions (`explore/2026-10-21/cex/translation/TRANSLATION.md`).
+- **Speed and memory** (`explore/2026-10-22/perf/`, `PERFORMANCE.md`):
+  packing, batched output layers and a faster generator adopted;
+  bfloat16 tested and left as a setting.
+- **A bigger network** (4.9 million parameters) was no closer to the CEX
+  and 3 times slower a pass.
+- **Bug fixed:** SOI renamed its wage line in tax year 2022, and the
+  table builder read growth factors of zero for 2022 on; it now stops if
+  any growth factor is missing.
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -178,3 +210,7 @@ band (built on the SCF's own wages), wages as a two-slot item.
 | Training longer, weighting the loss by how much of a record is hidden, oversampling rare holders in training | No measurable gain on rare items |
 | Dropout left on in generation | Works about as well as training without dropout; dropped for simplicity |
 | Resampling each variable given the rest after generation (Gibbs) | The file drifted with every pass instead of settling |
+| Tips first (22 October) | Earned by a person; the pipeline has only the unit's wages |
+| CEX training on one-tax-unit households only | They spend more per unit than the average tax unit (under 26: $30k against $24k); the file drew too much |
+| Consumption targets as totals | The two sources count different numbers of units; the tilt kept 72% of the effective sample |
+| Social Security plus pensions shared with the CEX | PUF total pensions include rollovers; 65+ spent 17% too much |

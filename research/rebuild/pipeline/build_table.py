@@ -7,6 +7,9 @@ Rows, in this order:
                   dollars put in 2015 terms with the CPI-U
   SCF waves       2016, 2019, 2022, then 2013 (tax years 2015, 2018, 2021, 2012),
                   tax units from build_scf.R, all five implicates
+  CEX years       the interview survey's tax units from build_cex.R (settings "cex"),
+                  one row per tax unit and quarterly interview, spending annualized;
+                  with one_tax_unit_only, only consumer units that are one tax unit
 
 Variables. married, n_dep (capped at 3), filer, and the amounts:
   wages E00200, taxable interest E00300, ordinary dividends E00600;
@@ -30,6 +33,13 @@ Variables. married, n_dep (capped at 3), filer, and the amounts:
   SCF only: the 20 balance-sheet components (net worth is computed from them),
     with the home mortgage carried as its share of the home's value
     (w_primary_ltv); the 4 unrealized gains; owns_business.
+  CEX only: the 8 consumption categories (CEX_CATS). The CEX shares married,
+    n_dep, the age range, wages, ss_gross (gross Social Security and
+    railroad retirement; on the PUF E02400) and sch_cf_income
+    (self-employment income); every other slot is absent on it. Pensions are
+    left out: the PUF's total pensions (E01500) include rollovers and lump
+    sums, the CEX's do not, so a combined slot put PUF retirees in higher
+    bands than their CEX counterparts.
 On the PUF the parts add to the totals and the items to AGI, in whole dollars
 (checked).
 
@@ -43,6 +53,9 @@ non-filers are placed on the filers' cut points. On the SCF:
     the return);
   - the two business subtotals are cut on the wave's own weighted ranks;
   - the balance-sheet items are cut within each wave.
+On the CEX, wages and ss_gross as on the SCF (PUF cut points grown by
+SOI; years past the last SOI year by its last year's growth), self-employment
+income on the year's own weighted ranks, the categories within each year.
 SCF ids of tax years 2018 and 2021 are offset by 1e8 x (year - 2015), the 2013
 wave's by 2.013e12, non-filers' by 9e8, so every id is unique (the held-back
 slice is drawn by household id).
@@ -92,7 +105,8 @@ ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the mode
     'pensions_taxable': (1, False, None), 'ss_taxable': (1, False, None), 'unemployment': (1, False, None),
     'alimony': (1, False, None), 'state_refunds': (1, False, None), 'adjustments': (-1, False, None),
     'retirement_gross': (0, True, 'unchanged'), 'tax_exempt_interest': (0, True, 'unchanged'),
-    'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None)}
+    'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None),
+    'ss_gross': (0, False, None)}   # gross Social Security, not in AGI; shared with the CEX (not the SCF)
 NO_GROWTH = ['mortgage_interest', 'real_estate_tax']   # no SOI 1.4 row: kept in 2015 dollars in the 2019 map
 PARTS = {  # part: (PUF field, sign in business income); loss fields are stored positive
     'sch_c': ('E00900', 1), 'part_pass_inc': ('E25940', 1), 'part_nonpass_inc': ('E25980', 1),
@@ -115,7 +129,13 @@ NET_WORTH_PARTS = {**{'w_' + c: 1 for c in ASSETS}, **{'w_' + c: -1 for c in DEB
 SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c in DEBTS if c != 'primary_mortgage'] \
     + ['w_' + c for c in KG_WEALTH]
 PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + ['other_agi']
-AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS
+CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
+            'c_gasoline', 'c_housing_utilities', 'c_other_services_health']
+CEX_AMOUNTS = list(CEX_CATS)
+CEX_FIXED = ['wages', 'ss_gross']          # on the PUF's cut points, grown by SOI
+AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS + CEX_AMOUNTS
+CX = common.SETTINGS['cex']
+CEX_YEAR_ID_OFFSET = 1e10                      # CEX ids (interview number x 10 + tax unit) are below 1e10
 CATEGORIES = {'k1_owner': 'shared', 'owns_business': 'scf'}   # yes/no items beyond married, n_dep, filer
 SCF_FIXED = ['wages', 'interest', 'dividends', 'capital_gains', 'retirement_gross', 'tax_exempt_interest']
 
@@ -190,7 +210,8 @@ def grown_edge(edge, factor):
 # ---- SOI totals (Table 1.4, all returns) ----------------------------------------------
 NET = lambda name: [(name + ' > net income', 1), (name + r' > net loss.*', -1)]
 SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
-    'wages': [('salaries and wages', 1)], 'interest': [('taxable interest', 1)],
+    'wages': [('(salaries and wages|total wages > total)', 1)],   # SOI's name from tax year 2022
+    'interest': [('taxable interest', 1)],
     'dividends': [('ordinary dividends', 1)],
     'sch_d_net_gain': [('sales of capital assets reported on form 1040, schedule d > taxable net gain', 1)],
     'kg_dist': [('capital gain distributions reported on form 1040', 1)],
@@ -208,6 +229,7 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'alimony': [('alimony received', 1)], 'state_refunds': [('state income tax refunds', 1)],
     'adjustments': [('statutory adjustments > total', 1)],
     'retirement_gross': [('social security benefits > total', 1), ('pensions and annuities > total', 1)],
+    'ss_gross': [('social security benefits > total', 1)],
     'tax_exempt_interest': [('tax exempt interest', 1)], 'other_agi': NET('other income')}
 NI, NL = ' > net income', r' > net loss.*'
 PART_GROWTH = {  # part: (SOI rows for positive values, for negative values); see build_maps
@@ -284,6 +306,7 @@ def puf_rows():
              'ira_taxable': I['E01400'], 'pensions_taxable': I['E01700'], 'ss_taxable': I['E02500'],
              'unemployment': I['E02300'], 'alimony': I['E00800'], 'state_refunds': I['E00700'],
              'adjustments': sum(I[c] for c in ADJ_FIELDS), 'retirement_gross': I['E02400'] + I['E01500'],
+             'ss_gross': I['E02400'],
              'tax_exempt_interest': I['E00400'], 'mortgage_interest': I['E19200'], 'real_estate_tax': I['E18500']}
     parts = {p: I[f] for p, (f, _) in PARTS.items() if f}
     parts['sche_other'] = I['E02000'] - sum(PARTS[p][1] * parts[p] for p in SCHE_PARTS)
@@ -328,7 +351,7 @@ def nonfiler_rows():
     items = {'business_income': (p['sole_prop'] + p['rent'] + p['rent_loss']) * d,
              'sch_cf_income': p['sole_prop'] * d, 'sch_e_income': (p['rent'] + p['rent_loss']) * d,
              'pensions_taxable': p['txbl_pens_dist'] * d, 'unemployment': p['ui'] * d,
-             'retirement_gross': (p['gross_ss'] + p['gross_pens_dist']) * d}
+             'retirement_gross': (p['gross_ss'] + p['gross_pens_dist']) * d, 'ss_gross': p['gross_ss'] * d}
     for v in ITEMS:
         df[v] = items.get(v, 0.0)
     assert (p['rent'] >= 0).all() and (p['rent_loss'] <= 0).all()
@@ -342,6 +365,41 @@ def nonfiler_rows():
     assert np.abs(df['other_agi'] - p['other_inc'] * d).max() < 0.01
     for v in SCF_AMOUNTS:
         df[v] = np.nan
+    return df
+
+
+def cex_rows():
+    """The CEX tax units (build_cex.R); with one_tax_unit_only, those whose consumer unit is one tax unit."""
+    rows = []
+    for y in CX['years']:
+        s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
+        assert (s['year'] == y).all() and (s['weight'] > 0).all() and not s['record_id'].duplicated().any()
+        n0, w0 = len(s), s['weight'].sum()
+        if CX['one_tax_unit_only']:
+            s = s[s['one_tu'] == 1]
+        common.say(f'CEX {y}: {len(s):,} of {n0:,} rows kept, {100 * s.weight.sum() / w0:.1f}% of the weight '
+                   f'({s.weight.sum() / 1e6:.1f} million units)')
+        rows.append(s)
+    s = pd.concat(rows, ignore_index=True)
+    need = ['social_security', 'pensions', 'wages', 'se_income'] + CEX_CATS
+    n_missing = s[need].isna().sum()
+    assert not n_missing.any(), f'missing values in the CEX units:\n{n_missing[n_missing > 0]}'
+    # record ids unique across years; the household id is not offset, so a consumer unit interviewed in two
+    # survey years falls on one side of the held-back split
+    off = (s['year'] - 2000) * CEX_YEAR_ID_OFFSET
+    df = pd.DataFrame({'source': 'cex', 'year': s['year'], 'record_id': s['record_id'] + off,
+                       'household_id': s['household_id'].astype(float), 'weight': s['weight'].astype(float),
+                       'married': s['married'].astype(np.int64), 'n_dep': s['n_dep'].clip(upper=3).astype(np.int64),
+                       'filer': -1, 'k1_owner': -1, 'owns_business': -1,
+                       'wages': s['wages'].astype(float), 'ss_gross': s['social_security'].astype(float),
+                       'sch_cf_income': s['se_income'].astype(float),
+                       'age1': s['age1'], 'age2': s['age2'], 'male1': s['male1'], 'male2': s['male2'],
+                       'age_key': s['household_id'].astype(float), 'dep_filer': s['dep_filer']})
+    for c in CEX_CATS:
+        df[c] = s[c].astype(float)
+    for v in AMOUNTS:
+        if v not in df:
+            df[v] = np.nan
     return df
 
 
@@ -408,17 +466,31 @@ def band_table(t):
     pside = (t.source == 'puf').to_numpy()
     w = t['weight'].to_numpy(float)
     years = sorted(t.loc[t.source == 'scf', 'year'].unique())
-    val = soi_table(sorted(set(years) | {2015, 2019}))
+    cex_years = sorted(t.loc[t.source == 'cex', 'year'].unique())
+    soi_years = sorted({int(y) for (y, _) in soi_table(range(2010, 2040))})
+    last = soi_years[-1]
+    val = soi_table(sorted((set(years) | set(cex_years) | {2015, 2019, last - 1, last}) & set(soi_years)))
     total = lambda item, y: soi_item(val, y, item)[0]
     factor = {}
-    for y in years:
+    for y in sorted(set(years) | set(cex_years)):
+        if y > last:
+            continue
         for v in ['wages', 'interest', 'dividends']:
             factor[(v, y)] = total(v, y) / total(v, 2015)
         line13 = lambda yy: total('sch_d_net_gain', yy) + total('kg_dist', yy) - \
             soi_get(val, yy, 'sales of capital assets reported on form 1040, schedule d > taxable net loss', 'amount')
         factor[('capital_gains', y)] = line13(y) / line13(2015)
-        for v in ['retirement_gross', 'tax_exempt_interest']:
+        for v in ['retirement_gross', 'tax_exempt_interest', 'ss_gross']:
             factor[(v, y)] = soi_item(val, y, v, base=2015)[0] / soi_item(val, 2015, v, base=y)[0]
+    for y in cex_years:                          # past the last SOI year: that year's growth carried forward
+        if y > last:
+            for v in CEX_FIXED:
+                g = soi_item(val, last, v, base=last - 1)[0] / soi_item(val, last - 1, v, base=last)[0]
+                factor[(v, y)] = factor[(v, last)] * g ** (y - last)
+                common.say(f'{v} {y}: no SOI year; factor {factor[(v, y)]:.4f} = {last} x {last - 1}-{last} growth')
+    bad = {k: f for k, f in factor.items() if not (np.isfinite(f) and f > 0)}
+    assert not bad, f'SOI growth factors missing (an SOI line not found?): {bad}'
+    common.say('SOI growth factors from 2015: ' + ', '.join(f'{v} {y} {f:.3f}' for (v, y), f in sorted(factor.items())))
     edges = {}
     for v in AMOUNTS:
         t[f'{v}_band'] = np.int16(-1)
@@ -451,6 +523,17 @@ def band_table(t):
             b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
             rec['cut_rule'] = rule
             t.loc[sel, f'{v}_band'], edges[f'scf/{y}/{v}'] = b, rec
+    for y in cex_years:
+        sel = ((t.source == 'cex') & (t.year == y)).to_numpy()
+        for v in CEX_FIXED:
+            b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel], grown_edge(edges[f'puf/2015/{v}'], factor[(v, y)]))
+            rec['cut_rule'] = f'PUF 2015 positive cuts x SOI factor {factor[(v, y)]:.4f}'
+            t.loc[sel, f'{v}_band'], edges[f'cex/{y}/{v}'] = b, rec
+        for v, rule in [('sch_cf_income', "rank: the year's own weighted ranks at the PUF's band shares")] + \
+                [(v, 'within the year') for v in CEX_AMOUNTS]:
+            b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
+            rec['cut_rule'] = rule
+            t.loc[sel, f'{v}_band'], edges[f'cex/{y}/{v}'] = b, rec
     for v in AMOUNTS:
         b, x = t[f'{v}_band'], t[v]
         assert ((b == -1) == x.isna()).all() and ((b == 0) == (x == 0)).all(), v
@@ -463,6 +546,8 @@ def band_table(t):
                      'categories': CATEGORIES,
                      'computed_flags': {'k1_owner': K1_PARTS},
                      'scf_amounts': SCF_AMOUNTS,
+                     'cex_amounts': CEX_AMOUNTS,
+                     'present_on': present_on(t),
                      'net_worth_parts': NET_WORTH_PARTS,
                      'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home']},
                      'scf_growth_factors': {f'{v} {y}': f for (v, y), f in factor.items()}}
@@ -540,16 +625,65 @@ def build_maps(t, edges):
         x[x < 0] *= fn
         m19.loc[r, 'value'] = x
     m19.to_parquet(f'{common.MAPS}/map_puf_2019.parquet', index=False)
+    # the CEX categories: the generation year's real records, and the same grown to 2019 by NIPA PCE per return
+    # (the category's PCE over SOI's return count, 2019 over the CEX year)
+    yc = CX['generation_year']
+    mc = build_map(t[(t.source == 'cex') & (t.year == yc)].reset_index(drop=True), edges, 'cex', CEX_AMOUNTS, year=yc)
+    mc.to_parquet(f'{common.MAPS}/map_cex_{yc}.parquet', index=False)
+    pce = pd.read_csv(RAW['pce']).set_index('year')
+    val_c = soi_table([2019, yc])
+    returns = {y: val_c[(y, 'number of returns')] for y in (2019, yc)}
+    m19c = mc.copy()
+    for v in CEX_AMOUNTS:
+        f = (pce.loc[2019, v] / returns[2019]) / (pce.loc[yc, v] / returns[yc])
+        g[v] = (f, f)
+        r = (m19c['variable'] == v).to_numpy()
+        m19c.loc[r, 'value'] = m19c.loc[r, 'value'] * f
+    m19c.to_parquet(f'{common.MAPS}/map_cex_2019.parquet', index=False)
     pd.DataFrame([{'variable': v, 'factor, positive values': fp, 'factor, negative values': fn}
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
+
+
+def present_on(t):
+    """Per slot, the sources that have it: an amount where its band is set, a category where it is not -1."""
+    out = {}
+    for v in AMOUNTS:
+        out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, f'{v}_band'] >= 0).any())
+    for v in ['married', 'n_dep', 'age_range', 'filer'] + list(CATEGORIES):
+        out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, v] >= 0).any())
+    return out
+
+
+def dependent_range(age):
+    """The PUF's three ranges for dependent filers: 6 under 18, 7 18-25, 8 26 and over."""
+    age = np.asarray(age, float)
+    return 6 + (age >= 18) + (age >= 26)
+
+
+def cex_target_units(pi):
+    """The target year's CEX tax units, all of them (a consumer unit's spending divided among its tax units by head
+    count, build_cex.R), with the primary filer's age range by the rule the training rows use; dependent filers get
+    -2. For the tilt's consumption targets and the report: data/cex_units_<target year>_all.parquet."""
+    y = CX['target_year']
+    s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
+    couple = (s['married'] == 1).to_numpy()
+    assert not s.loc[couple, ['age2', 'male2']].isna().any().any() and not s[['age1', 'male1']].isna().any().any()
+    age, _ = ages.primary_age(s.age1.to_numpy(float), s.age2.fillna(0).to_numpy(float), s.male1.to_numpy(float),
+                              s.male2.fillna(1).to_numpy(float), couple, s['household_id'].astype(float).to_numpy(), pi)
+    s['age_range'] = np.where(s['dep_filer'] == 1, dependent_range(age), ages.adult_range(age))
+    s.to_parquet(f'{common.DATA}/cex_units_{y}_all.parquet', index=False)
+    w = s['weight']
+    common.say(f'CEX {y}, all tax units: {w.sum() / 1e6:.1f} million (dependent filers {w[s.dep_filer == 1].sum() / 1e6:.1f}); '
+               'spending ($bn): ' + ', '.join(f'{c} {(s[c] * w).sum() / 1e9:,.0f}' for c in CEX_CATS))
 
 
 def primary_age_range(t):
     """age_range on the SCF and non-filer rows: the range of the primary filer's age, couples by the rule in
     ages.py, with the woman-first chances set on the SCF's mixed-sex couples (all waves, weighted)."""
     sv = (t.source == 'scf').to_numpy()
+    cx = (t.source == 'cex').to_numpy()
     nf = ((t.source == 'puf') & (t.filer == 0)).to_numpy()
-    rows = sv | nf
+    rows = sv | nf | cx
     couple = (t.married == 1).to_numpy() & rows
     assert not t.loc[rows, ['age1', 'male1']].isna().any().any()
     assert not t.loc[couple, ['age2', 'male2']].isna().any().any() and (t.loc[couple, 'age2'] >= 0).all()
@@ -564,14 +698,17 @@ def primary_age_range(t):
     m1 = t.male1.fillna(1).to_numpy(float)
     m2 = t.male2.fillna(1).to_numpy(float)
     age, woman_first = ages.primary_age(a1, a2, m1, m2, couple, t.age_key.fillna(0).to_numpy(), pi)
+    cex_target_units(pi)
     t.loc[rows, 'age_range'] = ages.adult_range(age[rows])
+    dep = (t.source == 'cex').to_numpy() & (t['dep_filer'].fillna(0).to_numpy() == 1)   # CEX dependent filers
+    t.loc[dep, 'age_range'] = dependent_range(age[dep])
     w = t.weight.to_numpy(float)
     report = pd.DataFrame({'range': ['under 26', '26-34', '35-44', '45-54', '55-64', '65+'],
                            'woman-first chance by the man\'s range (%)': 100 * pi,
                            'PUF female primaries (%)': 100 * target,
                            'SCF female primaries after the rule (%)': 100 * share})
     common.say('primary filer of survey couples:\n' + report.round(1).to_string(index=False))
-    for lab, sel in [('SCF', sv), ('non-filers', nf)]:
+    for lab, sel in [('SCF', sv), ('non-filers', nf), ('CEX', cx)]:
         c = couple & sel
         common.say(f'  {lab}: woman first in {100 * w[c & woman_first].sum() / w[c].sum():.1f}% of couples '
                    f'(weighted); same-sex couples {100 * w[c & ~mixed].sum() / w[c].sum():.2f}%')
@@ -583,7 +720,8 @@ def age_range_table(t):
     """Weighted shares by age range: PUF filers (step 0's probabilities where no range), non-filers, SCF waves."""
     labels = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+', 'dep <18', 'dep 18-25', 'dep 26+']
     groups = [('PUF filers', (t.source == 'puf') & (t.filer == 1)), ('non-filers', (t.source == 'puf') & (t.filer == 0))] + \
-        [(f'SCF {y}', (t.source == 'scf') & (t.year == y)) for y in sorted(t.loc[t.source == 'scf', 'year'].unique())]
+        [(f'SCF {y}', (t.source == 'scf') & (t.year == y)) for y in sorted(t.loc[t.source == 'scf', 'year'].unique())] + \
+        [(f'CEX {y}', (t.source == 'cex') & (t.year == y)) for y in sorted(t.loc[t.source == 'cex', 'year'].unique())]
     cols = {}
     for lab, sel in groups:
         d = t[sel]
@@ -596,7 +734,7 @@ def age_range_table(t):
 
 def main():
     os.makedirs(common.DATA, exist_ok=True)
-    t = pd.concat([puf_rows(), nonfiler_rows(), scf_rows()], ignore_index=True)
+    t = pd.concat([puf_rows(), nonfiler_rows(), scf_rows(), cex_rows()], ignore_index=True)
     assert not t.duplicated(['source', 'record_id']).any()
     t = primary_age_range(t)
     t, edges = band_table(t)

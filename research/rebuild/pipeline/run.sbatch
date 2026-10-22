@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --job-name=rebuild
-#SBATCH --partition=gpu_h100,gpu_h200,gpu_b200,gpu
+#SBATCH --partition=gpu_h100,gpu_h200
 #SBATCH --gres=gpu:1
 #SBATCH --time=08:00:00
 #SBATCH --cpus-per-task=4
@@ -9,25 +9,30 @@
 # The whole pipeline, or some stages, from the repository root:
 #   sbatch research/rebuild/pipeline/run.sbatch                  every stage
 #   sbatch research/rebuild/pipeline/run.sbatch train generate   only those
-# Stages, in order: scf (R: SCF tax units), table, targets, train, generate, tilt.
-# The R stage and the table need no GPU; run them alone on a CPU partition if you like:
-#   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf table targets
+# Stages, in order: scf, cex (R: the surveys' tax units), table, targets, train, generate, tilt, report.
+# The R stages and the table need no GPU; run them alone on a CPU partition if you like:
+#   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf cex table targets
+# H100 and H200 only: one stack from a B200 drew fewer rare business items (PRECISION.md); until that is
+# tested, runs to be compared stay on one kind of GPU. REBUILD_PIPELINE runs a copy of the code elsewhere.
 set -euo pipefail
 cd /nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data
-P=research/rebuild/pipeline
-STAGES=${*:-scf table targets train generate tilt}
+P=${REBUILD_PIPELINE:-research/rebuild/pipeline}
+export REBUILD_SETTINGS=$P/settings.json
+STAGES=${*:-scf cex table targets train generate tilt report}
 PY_MODULES='PyTorch/2.9.1-foss-2024a-CUDA-12.8.0 scikit-learn/1.6.1-gfbf-2024a Arrow/17.0.0-gfbf-2024a matplotlib/3.9.2-gfbf-2024a'
 export PYTHONDONTWRITEBYTECODE=1
 for s in $STAGES; do
   echo "=== $s $(date)"
-  [ $s = scf ] || module load $PY_MODULES
+  case $s in scf|cex) ;; *) module load $PY_MODULES ;; esac
   case $s in
     scf)      module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_scf.R; module purge ;;
+    cex)      module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_cex.R; module purge ;;
     table)    python $P/build_table.py ;;
     targets)  python $P/targets.py ;;
     train)    python $P/train.py ;;
     generate) python $P/generate.py ;;
     tilt)     python $P/tilt.py ;;
+    report)   python $P/report_cex.py ;;
     *) echo "unknown stage $s"; exit 1 ;;
   esac
 done

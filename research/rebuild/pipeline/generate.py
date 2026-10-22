@@ -12,11 +12,17 @@ One record is drawn slot by slot:
      that band), the signed sum is placed in the total's band on the PUF's
      cut points. Then the computed flag k1_owner: any partnership or
      S corporation part nonzero;
+  (On a dependent filer, every SCF-only and CEX-only slot is zero: see structural.)
   3. the SCF-only slots (the balance sheet, the unrealized gains and
      owns_business) in a random order per record, except that the home
      mortgage, carried as a share of the home's value, comes after the home.
      Each is drawn under the SCF label with the PUF-only slots left out, as
-     the SCF would see the household.
+     the SCF would see the household;
+  4. the CEX-only slots (the 8 consumption categories) in a random order per
+     record, each under the CEX label and year (settings "cex",
+     generation_year) with every slot the CEX lacks left out: given married,
+     dependents, the age range, wages, retirement income, self-employment
+     income and the categories drawn so far.
 
 Consistency rules (settings.json, "consistency"). Each rule: when any of
 its items is nonzero on the record, at least one of its holdings must be
@@ -70,8 +76,10 @@ NC = len(M.CONTEXT)
 P = M.PREDICTED
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
-PUF_SLOTS = [v for v in P if M.OWNED_BY.get(v, 'puf') == 'puf' and v not in COMPUTED and v not in FLAGS]
+PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
 SCF_SLOTS = M.SCF_SLOTS
+CEX_SLOTS = M.CEX_SLOTS
+CEX_YEAR = common.SETTINGS['cex']['generation_year']
 REP_SLOTS = torch.tensor([P.index(v) for v in M.REPORTED])
 RULES = C['rules']
 for _r in RULES:
@@ -130,15 +138,9 @@ def computed_band(values, gen, total):
 
 
 # ---- one draw ------------------------------------------------------------------
-def scf_probs(model, values, hidden):
-    """Every slot's distribution as the SCF would see the record: SCF label, PUF-only slots absent."""
-    view, view_hidden = values.clone(), hidden.clone()
-    view[:, 0] = M.SOURCES.index('scf')
-    for other, owner in M.OWNED_BY.items():
-        if owner != 'scf':
-            j = P.index(other)
-            view[:, NC + j], view_hidden[:, j] = -1, False
-    return model(view, view_hidden).exp()
+def survey_probs(model, values, hidden, label, year=None):
+    """Every slot's distribution as a survey would see the record: its label (and year), the slots it lacks absent."""
+    return model(*M.seen_as(values, hidden, label, year)).exp()
 
 
 def scf_order(size, gen):
@@ -154,12 +156,22 @@ def scf_order(size, gen):
     return perm
 
 
+DEPENDENT_RANGES = torch.tensor([6, 7, 8])                  # the PUF's dependent-filer age ranges (ages.py)
+SURVEY_ONLY = torch.tensor([P.index(v) for v in SCF_SLOTS + CEX_SLOTS])
+
+
 def structural(values, slot, probs):
-    """A ratio slot whose base is zero is zero (no home: no mortgage share)."""
+    """A ratio slot whose base is zero is zero (no home: no mortgage share). A dependent filer holds no survey-only
+    item (balance sheet, unrealized gains, business ownership, consumption): the surveys count its wealth and
+    spending in the household that claims it, so on its own return every one is zero."""
     for slot_name, (_, base) in M.RATIOS.items():
         no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
         probs[no_base] = 0.0
         probs[no_base, 0] = 1.0
+    dep = torch.isin(values[:, NC + P.index('age_range')], DEPENDENT_RANGES.to(values.device)) & \
+        torch.isin(slot, SURVEY_ONLY.to(values.device))
+    probs[dep] = 0.0
+    probs[dep, 0] = 1.0
     return probs
 
 
@@ -206,19 +218,22 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
     own = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset])
     scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
+    cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
     ruled = torch.tensor([P.index(v) for v in RULED], device=device)
-    n_own = len(own)
+    n_own, n_scf = len(own), len(scf)
     parts = []
     for start in range(0, n, chunk):
         size = min(chunk, n - start)
         order = torch.cat([own[torch.rand(size, len(own), generator=cpu_gen).argsort(1)],
-                           scf_order(size, cpu_gen)], 1).to(device)
+                           scf_order(size, cpu_gen),
+                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)]], 1).to(device)
         values = torch.full((size, len(M.SLOTS)), -1, dtype=torch.long, device=device)
         values[:, 0] = M.SOURCES.index('puf')
         values[:, 1] = M.YEARS.index(G['year'])
         rows = torch.arange(size, device=device)
         values[rows[:, None], NC + order] = 0                  # present, not yet drawn
         values[:, NC + scf.to(device)] = -1                     # absent until their turn
+        values[:, NC + cex.to(device)] = -1
         for tot in list(COMPUTED) + list(FLAGS):
             values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
         filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
@@ -246,10 +261,12 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
                                                    for v in rule['when_any_nonzero']], 1).any(1)
                     STATS['rule'][rule['name']] += int(triggered[:, r].sum())
                 values[:, NC + scf.to(device)] = 0
+                values[:, NC + cex.to(device)] = 0                         # each survey's view leaves out the other's
                 values[:, NC + REP_SLOTS.to(device)] = 0                  # reported slots: present, never drawn (hidden)
             hidden = (values[:, NC:] >= 0) & ~filled
             if step >= n_own:
-                all_probs = scf_probs(model, values, hidden)
+                all_probs = survey_probs(model, values, hidden, 'scf') if step < n_own + n_scf else \
+                    survey_probs(model, values, hidden, 'cex', CEX_YEAR)
                 own_probs = structural(values, slot, all_probs[rows, slot].clone())   # the model's own, before rules
                 own_nonzero = 1 - all_probs[:, :, 0]
                 all_probs = scale_odds(all_probs, factors)
@@ -303,9 +320,20 @@ def nothing_known(model, var):
     values = torch.full((1, len(M.SLOTS)), -1, dtype=torch.long, device=device)
     values[0, 0], values[0, 1] = M.SOURCES.index('puf'), M.YEARS.index(G['year'])
     for j, v in enumerate(P):
-        if M.OWNED_BY.get(v, 'puf') == 'puf':
+        if 'puf' in M.PRESENT_ON[v]:
             values[0, NC + j] = 0
     return model(values, values[:, NC:] >= 0)[0, P.index(var)].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
+
+
+FAST = {'heads': 'needed', 'pack': True}   # generate_fast.py (22 October): the same draws, half the time and memory
+
+
+def generate_any(*args, **kwargs):
+    """generate() through generate_fast.py: the network run only on the slots present in each phase, and only
+    the output heads needed. Its STATS is this module's (it imports generate as a separate module)."""
+    import generate_fast
+    generate_fast.STATS = STATS
+    return generate_fast.generate(*args, **kwargs, opts=FAST)
 
 
 def build_stack(model, factors):
@@ -316,7 +344,7 @@ def build_stack(model, factors):
     for var, seed in G['files'].items():
         top = M.positive_bands(var, 1 - G['top_share'], 1.0)
         if M.OWNED_BY.get(var) == 'scf':
-            part = generate(model, n, seed, boost=(var, top, G['boost']), factors=factors)
+            part = generate_any(model, n, seed, boost=(var, top, G['boost']), factors=factors)
             part['weight'] = part['p_band'] / part['q_band']
         else:
             p = nothing_known(model, var)
@@ -325,7 +353,7 @@ def build_stack(model, factors):
             q /= q.sum()
             bands = torch.multinomial(torch.tensor(q), n, replacement=True,
                                       generator=torch.Generator().manual_seed(seed))
-            part = generate(model, n, seed, preset={var: bands}, factors=factors)
+            part = generate_any(model, n, seed, preset={var: bands}, factors=factors)
             b = bands.numpy()
             part['weight'], part['p_band'], part['q_band'] = p[b] / q[b], p[b], q[b]
         part['weight'] *= n / part['weight'].sum()

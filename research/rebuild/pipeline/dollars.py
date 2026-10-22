@@ -18,6 +18,7 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   drawn share of the home's value times the home's dollars
 """
 import json
+import os
 
 import numpy as np
 import pandas as pd
@@ -35,7 +36,7 @@ ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_wo
 # Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
 # itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
 _META = json.load(open(common.EDGES))['meta']
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + list(_META['scf_amounts'])
+ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + list(_META['scf_amounts']) + list(_META['cex_amounts']) + ['ss_gross']
 NET_WORTH_PARTS = _META['net_worth_parts']
 RATIOS = _META['ratios']                          # slot: [dollar item, its base]
 KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
@@ -52,6 +53,9 @@ def load_maps(year):
     split = lambda m: {v: g for v, g in m.groupby('variable')}
     maps = split(pd.read_parquet(f'{common.MAPS}/map_puf_{year}.parquet'))
     maps.update(split(pd.read_parquet(f'{common.MAPS}/map_scf_2015.parquet')))
+    cex = f'{common.MAPS}/map_cex_{year}.parquet'
+    if os.path.exists(cex):                       # the consumption categories (2019: grown by PCE per return)
+        maps.update(split(pd.read_parquet(cex)))
     return maps
 
 
@@ -88,6 +92,9 @@ def draw_dollars(df, maps):
     out['other_agi_remainder'] = remainder
     out['other_agi'] = out['other_agi'] + out[list(FOLD)].to_numpy(float) @ np.array(list(FOLD.values()), float)
     assert not out[list(FOLD) + KG_PIECES].isna().any().any(), 'a part is missing on a record'
+    cats = list(_META['cex_amounts'])
+    if all(c in out for c in cats):
+        out['total_consumption'] = out[cats].to_numpy(float).sum(1)
     if all(f'{c}_band' in df for c in _META['scf_amounts']):
         for slot, (item, base) in RATIOS.items():
             out[item] = out[slot] * out[base]
