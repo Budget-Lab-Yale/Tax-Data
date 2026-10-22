@@ -75,8 +75,8 @@
 # Writes {out}/data/cex_units_{year}.csv.gz, one row per tax unit per
 # interview; cex_summary.csv (weighted totals beside NIPA PCE);
 # cex_items_by_year.csv (weighted total of every FMLI item used, by year);
-# cex_age_check_2019.csv (weighted units and spending by the primary filer's
-# age). Prints diagnostics: repairs, NA counts, the NTAXI comparison.
+# cex_age_check_<target year>.csv (weighted units and spending by the primary
+# filer's age). Prints diagnostics: repairs, NA counts, the NTAXI comparison.
 # Run from the repository root through Slurm.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
@@ -226,16 +226,15 @@ build_tax_units = function(year) {
   dangling = m %>% filter(!is.na(claimer_tu)) %>% anti_join(units_ok, by = c('NEWID', 'claimer_tu' = 'home_tu'))
   cat(sprintf('  dependents whose claiming unit has no primary filer or does not exist: %d\n', nrow(dangling)))
   stopifnot(all(heads$n_head == 1), all(heads$n_spouse <= 1), nrow(dangling) == 0)
-  person = m
 
-  head_tbl = person %>% filter(TU_CODE == 1) %>%
+  head_tbl = m %>% filter(TU_CODE == 1) %>%
     transmute(NEWID, home_tu, age1 = AGE, male1 = as.integer(SEX == 1), cu_code1 = CU_CODE,
               dep_filer = as.integer(claimed_elsewhere), claim_tu = if_else(claimed_elsewhere, claim, NA_integer_))
-  spouse_tbl = person %>% filter(TU_CODE == 2) %>%
+  spouse_tbl = m %>% filter(TU_CODE == 2) %>%
     transmute(NEWID, home_tu, age2 = AGE, male2 = as.integer(SEX == 1), spouse_claimed = claimed_elsewhere)
   cat(sprintf('  spouses claimed as dependents by another unit: %d\n', sum(spouse_tbl$spouse_claimed)))
   deps = m %>% filter(!is.na(claimer_tu)) %>% count(NEWID, claimer_tu, name = 'n_dep')
-  inc = person %>% group_by(NEWID, home_tu) %>%
+  inc = m %>% group_by(NEWID, home_tu) %>%
     summarise(tu_size = n(), across(all_of(unname(MEMBER_INC)), sum), .groups = 'drop')
   names(inc)[match(MEMBER_INC, names(inc))] = names(MEMBER_INC)
 
@@ -298,9 +297,8 @@ read_fmli = function(year) {
 #-------------------------------------------------------------------------------
 # Build each year
 #-------------------------------------------------------------------------------
-pce = read_csv('resources/pce_historical.csv', show_col_types = FALSE)
+pce = read_csv(settings$paths$raw$pce, show_col_types = FALSE)
 summary_rows = list()
-ntaxi_check = NULL
 item_rows = list()
 
 for (year in YEARS) {
@@ -397,11 +395,11 @@ for (year in YEARS) {
   cat('  check passed: in every interview the units\' spending shares sum to 1 and their spending adds to the CU totals\n')
 
   fwrite(out, file.path(OUT, sprintf('cex_units_%d.csv.gz', year)))
-  if (year == 2019) {
+  if (year == settings$years$target) {
     age = out %>% group_by(age1) %>%
       summarise(rows = n(), weighted_units = sum(weight),
                 across(all_of(c(PCE_CATS, 'total_consumption')), ~ sum(weight * .x))) %>% arrange(age1)
-    fwrite(age, file.path(OUT, 'cex_age_check_2019.csv'))
+    fwrite(age, file.path(OUT, sprintf('cex_age_check_%d.csv', year)))
     cat(sprintf('  wrote age check: %d ages, %.2f m units\n', nrow(age), sum(age$weighted_units) / 1e6))
   }
 
@@ -484,7 +482,6 @@ for (year in YEARS) {
     print(both %>% filter(n_dep != DEPCNT) %>% count(n_dep, DEPCNT, sort = TRUE) %>% head(10))
     cat('  married disagreements (ours, FILESTAT):\n')
     print(both %>% filter(married != (FILESTAT == 2)) %>% count(married, FILESTAT, sort = TRUE))
-    ntaxi_check = both
   }
 }
 

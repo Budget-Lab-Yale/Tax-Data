@@ -206,6 +206,27 @@ instead (`explore/2026-10-21/cex/`, `explore/2026-10-22/`):
   targets until the targeting overhaul; the held-back slice no longer
   scores unknown fill-in amounts; the two generators merged into one.
 
+**23 October: the code cleaned up** (a review by a subagent, then John's go):
+- one settings file for every stage; the PUF year and the target year set
+  once ("years") instead of typed in about 20 places;
+- `targets.py` holds every SOI lookup and the one table of business
+  families; `fillin.py` holds the fill-in with its quantities named;
+  `model.py` every call of the network; training runs packed batches only;
+- the generator draws in three named steps; the balance sheet's dollars
+  are carried to the target year in the dollar maps, so the file has one
+  currency;
+- bugs fixed: settings overrides read after the seed and passes; the
+  last-resort fallback loosening consumption averages to about 12%; the
+  balance sheet's 2016 dollars compared with wealth targets in 2015 dollars
+  (1.3%; `FEATURES.md`, post-training).
+Checked against the run before it (`explore/2026-10-22/review_fix/STATUS.md`):
+the survey units, table, maps, SOI targets and a 4-pass training identical
+bit for bit; generation the same draws with weights equal to machine
+precision; IRS, business and consumption fits the same to rounding. Wealth
+moves only by the 1.3% correction: effective sample kept 90.2% against
+90.2%, median net worth $70,408 against $70,376 (seed 20261016).
+(`explore/2026-10-22/review_fix/`).
+
 ## Paths tried and not taken
 
 | What | Why not |

@@ -40,7 +40,8 @@ from sklearn.preprocessing import StandardScaler
 import common
 
 S = common.SETTINGS['ages']
-N_RANGES = 9
+N_RANGES = common.N_RANGES
+assert common.PUF_YEAR == 2015, 'the standard deduction amounts below are 2015 law'
 ADULT_EDGES = [26, 35, 45, 55, 65]
 BASIC = {1: 6300, 2: 12600, 3: 6300, 4: 9250}          # 2015 standard deduction
 EXTRA = {1: 1550, 2: 1250, 3: 1250, 4: 1550}           # each 65+/blind addition
@@ -69,9 +70,8 @@ def uniform_by_id(ids, salt):
 
 
 # ---- PUF: observed ranges and step 0 ------------------------------------------------------------
-def _puf_frame():
-    p = pd.read_csv(common.RAW['puf'], usecols=PUF_FIELDS)
-    p = p[p.RECID < 999996].reset_index(drop=True)
+def _puf_frame(puf):
+    p = puf[PUF_FIELDS].copy()
     g = pd.read_csv(S['puf_demographics'])
     p = p.merge(g[['RECID', 'AGERANGE']], on='RECID', how='left')
     p['w'] = p.S006 / 100
@@ -137,12 +137,12 @@ def _calibrate(prior, w, groups, targets, iters=1000):
     return q, gap
 
 
-def puf_age_ranges():
-    """Per PUF record (RECID order as the PUF file, aggregate records dropped): the observed range (-1 where
+def puf_age_ranges(puf):
+    """Per PUF record (puf: build_table.read_puf, RECID order as the PUF file, aggregate records dropped): the observed range (-1 where
     missing) and an (n, 9) array of probabilities (zero rows where observed). Logs a cell table."""
-    p = _puf_frame()
+    p = _puf_frame(puf)
     t = pd.read_csv(S['table_1_6'])
-    t = t[(t.tax_year == 2015) & t.panel.isin(PANEL.values()) & t.row_label.isin(ROWS) & t.col_seq.between(2, 20)]
+    t = t[(t.tax_year == common.PUF_YEAR) & t.panel.isin(PANEL.values()) & t.row_label.isin(ROWS) & t.col_seq.between(2, 20)]
     probs = np.zeros((len(p), N_RANGES))
     missing = (p.age_range < 0).to_numpy()
     dep = (p.DSI == 1).to_numpy()
@@ -196,9 +196,9 @@ def puf_age_ranges():
 
 
 # ---- surveys and non-filers: whose age ----------------------------------------------------------
-def puf_female_primary_share():
+def puf_female_primary_share(puf):
     """Share of joint returns (with demographics, not dependents) whose primary is a woman, by range."""
-    p = pd.read_csv(common.RAW['puf'], usecols=['RECID', 'S006', 'DSI', 'MARS'])
+    p = puf[['RECID', 'S006', 'DSI', 'MARS']]
     p = p.merge(pd.read_csv(S['puf_demographics'])[['RECID', 'AGERANGE', 'GENDER']], on='RECID')
     p = p[(p.MARS == 2) & (p.DSI == 0) & p.AGERANGE.between(1, 6) & p.GENDER.isin([1, 2])]
     w = p.S006 / 100

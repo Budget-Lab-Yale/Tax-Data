@@ -1,17 +1,24 @@
-"""The published IRS numbers: SOI Publication 1304, Tables 1.4 and 1.2, tax
-years 2015 and 2019, all returns, by size of AGI.
+"""Every published SOI number the pipeline uses, from the shared mirror of SOI
+cells (settings.json, paths.raw.soi_mirror). Amounts are in dollars (SOI
+publishes thousands).
 
-Read from the shared mirror of every published SOI cell
-(settings.json, paths.raw.soi_mirror). Amounts are in dollars (SOI
-publishes thousands). A cell SOI blanked and merged into its neighbour for
-disclosure stays blank with flag 'combined'; published_cells() puts it back
-together. Table 1.2's separate, head-of-household and single returns are
-added up as 'nonjoint'.
-
-Writes common.TARGETS/soi.csv: year, table, filing_status, lo, hi, label,
-variable, statistic, value, flag. The label of a published total is 'all'.
+1. Targets: Publication 1304, Tables 1.4 and 1.2, the PUF year and the target
+   year, all returns, by size of AGI. A cell SOI blanked and merged into its
+   neighbour for disclosure stays blank with flag 'combined'; published_cells()
+   puts it back together. Table 1.2's separate, head-of-household and single
+   returns are added up as 'nonjoint'. Written to common.TARGETS/soi.csv: year,
+   table, filing_status, lo, hi, label, variable, statistic, value, flag (the
+   label of a published total is 'all'); read back with load(), and a return
+   count with returns().
+2. Totals: Table 1.4's all-returns totals for every year, read directly by
+   totals(); soi_item() and per_return_growth() look items up in them by
+   pattern, so a line SOI renamed (wages in tax year 2022) is still found.
+3. FAMILIES: the business families, each with its SOI line, its PUF parts and
+   whether the tilt targets it. PART_GROWTH: which SOI line grows each part's
+   dollars.
 """
 import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -19,6 +26,17 @@ import pandas as pd
 import common
 
 MIRROR = common.RAW['soi_mirror']
+FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (stored positive), targeted by the tilt
+    'sch_c': {'soi': 'business or profession', 'income': ['sch_c'], 'loss': [], 'target': True},
+    'pship_scorp': {'soi': 'partnership and s corporation',
+                    'income': ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc'],
+                    'loss': ['part_pass_loss', 'part_nonpass_loss', 'part_179', 'scorp_pass_loss', 'scorp_nonpass_loss',
+                             'scorp_179'], 'target': True},
+    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent_inc'], 'loss': ['rent_loss'], 'target': True},
+    # left out until the targeting overhaul: its tiny cells could not always be met (22 October)
+    'estate_trust': {'soi': 'estate and trust', 'income': ['estate_inc'], 'loss': ['estate_loss'], 'target': False},
+    'farm': {'soi': 'farm', 'income': ['farm'], 'loss': [], 'target': True},
+    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True}}
 T14 = {  # SOI item -> (variable, statistic)
     'number of returns': ('returns', 'count'),
     'adjusted gross income less deficit': ('agi', 'amount'),
@@ -37,13 +55,10 @@ T14 = {  # SOI item -> (variable, statistic)
     'sales of capital assets reported on form 1040, schedule d > taxable net loss > amount':
         ('sch_d_net_loss', 'amount'),
 }
-BUSINESS = {'sch_c': 'business or profession', 'pship_scorp': 'partnership and s corporation',
-            'rent_royalty': 'total rental and royalty', 'estate_trust': 'estate and trust',
-            'farm': 'farm', 'farm_rental': 'farm rental'}
-for _fam, _name in BUSINESS.items():
+for _fam, _f in FAMILIES.items():
     for _side in ('net income', 'net loss'):
-        T14[f'{_name} > {_side} > number of returns'] = (f'{_fam}_{_side.replace(" ", "_")}', 'count')
-        T14[f'{_name} > {_side} > amount'] = (f'{_fam}_{_side.replace(" ", "_")}', 'amount')
+        T14[f'{_f["soi"]} > {_side} > number of returns'] = (f'{_fam}_{_side.replace(" ", "_")}', 'count')
+        T14[f'{_f["soi"]} > {_side} > amount'] = (f'{_fam}_{_side.replace(" ", "_")}', 'amount')
 T12_STATUS = {'all returns': 'all',
               'returns of married persons filing jointly and returns of surviving spouses': 'joint',
               'returns of married persons filing separately': 'separate',
@@ -52,6 +67,7 @@ T12_STATUS = {'all returns': 'all',
 FILES = {'1.4': 'bysize_income_sources.csv', '1.2': 'bysize_marital_status.csv'}
 
 
+# ---- 1. the targets -----------------------------------------------------------------------
 def read(table, years):
     t = pd.read_csv(os.path.join(MIRROR, FILES[table]), dtype=str, keep_default_na=False)
     t = t[t['tax_year'].isin([str(y) for y in years]) & (t['table'] == table) & (t['panel'] == 'All returns')]
@@ -81,7 +97,8 @@ def read(table, years):
 
 
 def build():
-    t = pd.concat([read('1.4', [2015, 2019]), read('1.2', [2015, 2019])], ignore_index=True)
+    years = [common.PUF_YEAR, common.TARGET_YEAR]
+    t = pd.concat([read('1.4', years), read('1.2', years)], ignore_index=True)
     blank = t['value'].isna()
     assert (t.loc[blank, 'flag'] == 'combined').all(), t[blank & (t['flag'] != 'combined')]
     nj = t[t['filing_status'].isin(['separate', 'head_of_household', 'single'])]
@@ -94,6 +111,13 @@ def build():
 
 def load():
     return pd.read_csv(f'{common.TARGETS}/soi.csv', keep_default_na=False, na_values=[''])
+
+
+def returns(soi, year, table='1.4', status='all'):
+    """The number of returns, all AGI, in one table and filing status."""
+    s = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == status)
+            & (soi.label == 'all') & (soi.variable == 'returns')]
+    return s['value'].item()
 
 
 def published_cells(soi, year, variable, stat):
@@ -110,6 +134,98 @@ def published_cells(soi, year, variable, stat):
         else:
             out.append((r.lo, r.hi, float(r.value), r.flag == 'combined'))
     return [(lo, hi, v) for lo, hi, v, _ in out]
+
+
+# ---- 2. totals for growth ------------------------------------------------------------------
+NET = lambda name: [(name + ' > net income', 1), (name + r' > net loss.*', -1)]
+SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
+    'wages': [('(salaries and wages|total wages > total)', 1)],   # SOI's name from tax year 2022
+    'interest': [('taxable interest', 1)],
+    'dividends': [('ordinary dividends', 1)],
+    'sch_d_net_gain': [('sales of capital assets reported on form 1040, schedule d > taxable net gain', 1)],
+    'kg_dist': [('capital gain distributions reported on form 1040', 1)],
+    'sch_cf_income': NET('business or profession') + NET('farm'),
+    'sch_e_income': NET('partnership and s corporation') + NET('rent') + NET('royalty') + NET('estate and trust')
+    + NET('farm rental'),
+    'business_income': NET('business or profession') + NET('partnership and s corporation') + NET('farm')
+    + NET('rent') + NET('royalty') + NET('estate and trust') + NET('farm rental'),
+    'other_gains': [('sales of property other than capital assets > net gain', 1),
+                    ('sales of property other than capital assets > net loss', -1)],
+    'ira_taxable': [(r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions'
+                     r'|individual retirement arrangement.*taxable.*)', 1)],
+    'pensions_taxable': [('pensions and annuities > taxable', 1)],
+    'ss_taxable': [('social security benefits > taxable', 1)], 'unemployment': [('unemployment compensation', 1)],
+    'alimony': [('alimony received', 1)], 'state_refunds': [('state income tax refunds', 1)],
+    'adjustments': [('statutory adjustments > total', 1)],
+    'retirement_gross': [('social security benefits > total', 1), ('pensions and annuities > total', 1)],
+    'ss_gross': [('social security benefits > total', 1)],
+    'tax_exempt_interest': [('tax exempt interest', 1)], 'other_agi': NET('other income')}
+NI, NL = ' > net income', r' > net loss.*'
+# The SOI rows that grow each business part's dollars: (rows for positive values, for negative values; None: the
+# positive rows). The section 179 deductions grow with partnership and S corporation net income, as the tables of
+# record were built; sche_other with business income as a whole.
+PART_GROWTH = {
+    'sch_c': (['business or profession' + NI], ['business or profession' + NL]),
+    'farm': (['farm' + NI], ['farm' + NL]),
+    'rent_inc': (['total rental and royalty' + NI], None), 'rent_loss': (['total rental and royalty' + NL], None),
+    'estate_inc': (['estate and trust' + NI], None), 'estate_loss': (['estate and trust' + NL], None),
+    'farm_rent': (['farm rental' + NI], ['farm rental' + NL]),
+    **{p: (['partnership and s corporation' + NI], None)
+       for p in ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc', 'part_179', 'scorp_179']},
+    **{p: (['partnership and s corporation' + NL], None)
+       for p in ['part_pass_loss', 'part_nonpass_loss', 'scorp_pass_loss', 'scorp_nonpass_loss']},
+    'sche_other': ('business_income', None)}
+_TOTALS = None
+
+
+def totals():
+    """{(tax year, SOI item): value} for Table 1.4's all-returns totals, every year in the mirror (read once)."""
+    global _TOTALS
+    if _TOTALS is None:
+        t = pd.read_csv(os.path.join(MIRROR, FILES['1.4']), dtype=str)
+        t = t[(t['table'] == '1.4') & (t['panel'] == 'All returns') & (t['row_label'] == 'All returns, total')]
+        _TOTALS = {(int(r.tax_year), r.item.lower().strip()): float(r.value) for r in t.itertuples()}
+    return _TOTALS
+
+
+def total_years():
+    return sorted({y for y, _ in totals()})
+
+
+def soi_get(y, pattern, stat):
+    val = totals()
+    hit = [n for (yy, n) in val if yy == y and re.fullmatch(pattern + ' > ' + stat, n)]
+    if len(hit) != 1:
+        assert not hit, (y, pattern, hit)
+        raise KeyError(f'{y}: no SOI item {pattern} > {stat}')
+    return val[(y, hit[0])] * (1000.0 if stat == 'amount' else 1.0)
+
+
+def soi_item(y, item, base=None, rows=None, absolute=False):
+    """Amount and returns of an item in year y, summed over its SOI rows; with
+    base, only the rows published in both years (so a ratio compares like with like)."""
+    amt = cnt = 0.0
+    for p, s in ([(r, 1) for r in rows] if rows is not None else SOI_ITEMS[item]):
+        try:
+            a, c = soi_get(y, p, 'amount'), soi_get(y, p, 'number of returns')
+            if base is not None:
+                soi_get(base, p, 'amount')
+        except KeyError:
+            continue
+        amt, cnt = amt + (abs(a) if absolute else s * a), cnt + c
+    return amt, cnt
+
+
+def per_return_growth(item, rows=None, absolute=False):
+    """Target-year-over-PUF-year growth in dollars per return with the item."""
+    a, b = common.PUF_YEAR, common.TARGET_YEAR
+    (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
+    return (a1 / c1) / (a0 / c0)
+
+
+def all_returns(y):
+    """Table 1.4's number of returns in year y."""
+    return totals()[(y, 'number of returns')]
 
 
 if __name__ == '__main__':

@@ -28,18 +28,23 @@ Every stage runs through Slurm, from the repository root:
 |---|---|---|---|
 | scf | `build_scf.R` | SCF waves split into tax units (the production builder) | minutes |
 | cex | `build_cex.R` | CEX survey years split into tax units, with their spending | about a minute |
+| targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | table | `build_table.py` | the training table, its bands, and the dollar maps | about 2 minutes |
-| targets | `targets.py` | the published SOI numbers | seconds |
-| train | `train.py` | the model, with the two-slot fill-in | about 15 minutes on an H200 (10 seconds a pass) |
+| train | `train.py` (and `fillin.py`) | the model, with the two-slot fill-in | about 15 minutes on an H200 (10 seconds a pass) |
 | generate | `generate.py` | 400,000 generated records | about 5 minutes |
-| tilt | `tilt.py` | the 2019 weights and file | about a minute |
-| report | `report_cex.py` | consumption in the file against the CEX 2019 | seconds |
+| tilt | `tilt.py` | the target year's weights and file | about a minute |
+| report | `report_cex.py` | consumption in the file against the target year's CEX | seconds |
 
-Shared code: `common.py` (paths), `model.py` (the network), `dollars.py`
-(bands to dollars), `ages.py` (the primary filer's age range, used by the
-table). Every setting is in `settings.json`. The training seed
-can be changed with `REBUILD_SEED`, and the output folder with
-`REBUILD_OUT`.
+Shared code: `common.py` (paths, settings, the PUF year and target year,
+age ranges, wage groups), `model.py` (the network, and every call of it),
+`fillin.py` (the two-slot fill-in, run by training), `dollars.py` (bands to
+dollars), `ages.py` (the primary filer's age range, used by the table).
+Every setting is in one settings file: `settings.json`, or the file named by
+`REBUILD_SETTINGS` (every stage, R and Python, reads it; a variant run is a
+copy). The PUF year (2015) and the target year (2019) are its "years". The
+training seed can be changed with `REBUILD_SEED`, the output folder with
+`REBUILD_OUT`, the run's subfolder with `REBUILD_RUN`, and the number of
+passes, for a quick test, with `REBUILD_PASSES`.
 
 Outputs, under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`:
 
@@ -49,7 +54,7 @@ Outputs, under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`:
 | `targets/` | the published SOI numbers |
 | `model/seed<n>/` | the trained model and its training log |
 | `gen/seed<n>/` | the generated stack |
-| `tilt/seed<n>/` | the final 2019 file (`file_2019.parquet`), every target before and after (`fit.csv`), a summary (`summary.md`), and the consumption report (`cex_report.md`) |
+| `tilt/seed<n>/` | the final file (`file_2019.parquet`, every dollar column in nominal 2019 dollars), every target before and after (`fit.csv`), a summary (`summary.md`), and the consumption report (`cex_report.md`) |
 
 ## Working rules
 

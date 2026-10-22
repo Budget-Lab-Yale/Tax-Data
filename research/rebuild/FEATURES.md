@@ -198,7 +198,7 @@ dependent filers (under 18, 18–25, 26+), kept apart.
   parameters (0.85 million of them in the output layers, one per
   variable), no dropout. A network with 4.9 million (6 layers, width 256)
   was about 3 times slower a pass and no closer to the CEX (22 October).
-- **Packing** (settings "training", "packing"). Each batch holds one
+- **Packing.** Each batch holds one
   source's records and carries only that source's slots (a PUF record
   uses 50 of the 86, an SCF record 42, a CEX record 16, counting the source and year). The answers
   are the same to rounding; a pass takes half the time and GPU memory.
@@ -286,8 +286,16 @@ income, business equity). Weights undo the oversampling exactly.
 ## Post-training: the 2019 file
 
 **Dollars.** Each band's real 2015 values, grown to 2019 by SOI's growth
-in dollars per return holding each item. Consumption: each band's real
-CEX 2019 values, with no growth.
+in dollars per return holding each item. The balance sheet: each band's real
+values from the 2016 SCF wave, carried to the 2019 wave's dollars by the two
+waves' asset price factors, 1.2334 and 1.1592 (2022 dollars per wave
+dollar). Before 23 October the tilt compared these 2016-dollar balance
+sheets with targets put in 2015 dollars (factor 1.2493), so net worth before
+the tilt was overstated by 1.3% and the tilt pushed it down that much more;
+the 2019-dollar output was converted back with the same factor and lined up
+with the SCF. Consumption: each
+band's real CEX 2019 values, with no growth. Every dollar column of the file
+is in nominal 2019 dollars.
 
 **Start.**
 - Weights are scaled to SOI's 2019 return count and the non-filer count.

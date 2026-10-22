@@ -1,8 +1,8 @@
-"""Consumption in the 2019 file against the CEX 2019.
+"""Consumption in the target year's file (2019 below) against that year's CEX.
 
 The CEX side is the target year's tax units (build_table.cex_target_units): all of them, a shared household's
 spending divided among its tax units by head count, as the tilt's targets and the training rows are; and, for
-reference, only those whose household is one tax unit, whose spending needs no dividing. Both are in nominal 2019 dollars, as is
+reference, only those whose household is one tax unit, whose spending needs no dividing. Both are in nominal target-year dollars, as is
 the file, so no conversion stands between them.
 
 Targeted (the tilt): each category's average per tax unit, overall and by the primary filer's adult age range.
@@ -19,23 +19,18 @@ import numpy as np
 import pandas as pd
 
 import common
+import dollars as D
 
-CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises', 'c_gasoline',
-        'c_housing_utilities', 'c_other_services_health']
+CATS = common.meta()['cex_amounts']
 NAMES = dict(zip(CATS, ['clothing', 'motor vehicles', 'durables', 'other nondurables', 'food at home', 'gasoline',
                         'housing and utilities', 'other services and health']))
-AGES = {0: 'under 26', 1: '26-34', 2: '35-44', 3: '45-54', 4: '55-64', 5: '65+',
-        6: 'dependent filer', 7: 'dependent filer', 8: 'dependent filer'}
+AGES = {k: lab if k < common.ADULT_RANGES else 'dependent filer' for k, lab in enumerate(common.AGE_LABELS)}
 CEX_INCOME = ['wages', 'se_income', 'social_security', 'ssi', 'int_div', 'net_rent', 'pensions', 'other_regular', 'roy_est']
-Y = common.SETTINGS['cex']['target_year']
-
-
-def groups_by(x, lines):
-    """Labels of dollar ranges: lines = [(lo, hi, label)], lo inclusive."""
-    out = np.full(len(x), '', dtype=object)
-    for lo, hi, lab in lines:
-        out[(x >= lo) & (x < hi)] = lab
-    return out
+Y = common.TARGET_YEAR
+groups_by = common.groups_by
+WAGES = common.WAGE_GROUPS
+SS = [(-np.inf, 1, 'none'), (1, 15e3, '$1-15k'), (15e3, 30e3, '$15k-30k'), (30e3, 50e3, '$30k-50k'),
+      (50e3, np.inf, '$50k+')]
 
 
 def deciles(x, w):
@@ -60,12 +55,12 @@ def compare(sources, key, order):
 
 
 def main():
-    f = pd.read_parquet(f'{common.TILT}/file_2019.parquet')
+    f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
     c = pd.read_parquet(f'{common.DATA}/cex_units_{Y}_all.parquet')
     f['w'], f['total'] = f['weight'], f['total_consumption']
     c['w'], c['total'] = c['weight'], c[CATS].sum(1)
     c['ss_gross'], c['income'] = c['social_security'], c[CEX_INCOME].sum(1)
-    f['agi'] = f[['wages', 'interest', 'dividends', 'capital_gains', 'other_agi']].sum(1)
+    f['agi'] = D.agi(f)
     one = c[c['one_tu'] == 1]
     src = {'file': f, f'CEX {Y}': c, f'CEX {Y}, one-unit': one}
     for d in src.values():
@@ -80,9 +75,9 @@ def main():
     c_ad = c_ad.assign(dec=deciles(c_ad['income'].to_numpy(float), c_ad.w.to_numpy(float)))
     o_ad = o_ad.assign(dec=deciles(o_ad['income'].to_numpy(float), o_ad.w.to_numpy(float)))
 
-    out = ['# Consumption in the 2019 file against the CEX 2019', '',
+    out = [f'# Consumption in the {Y} file against the CEX {Y}', '',
            f'CEX: survey year {Y}, all tax units (a shared household\'s spending divided by head count), and the one-unit '
-           'households. Nominal 2019 dollars. The model trains on every CEX tax unit. The tilt targets each category\'s '
+           f'households. Nominal {Y} dollars. The model trains on every CEX tax unit. The tilt targets each category\'s '
            'average per unit, overall and by the adult age ranges, within 2%; nothing else here is targeted.', '']
 
     tot = pd.DataFrame({'file ($bn)': [(f[v] * f.w).sum() / 1e9 for v in CATS],
@@ -122,11 +117,6 @@ def main():
     open(f'{common.TILT}/cex_report.md', 'w').write('\n'.join(out))
     common.say('\n'.join(out))
 
-
-WAGES = [(-np.inf, 1, 'none'), (1, 25e3, '$1-25k'), (25e3, 50e3, '$25k-50k'), (50e3, 100e3, '$50k-100k'),
-         (100e3, 200e3, '$100k-200k'), (200e3, np.inf, '$200k+')]
-SS = [(-np.inf, 1, 'none'), (1, 15e3, '$1-15k'), (15e3, 30e3, '$15k-30k'), (30e3, 50e3, '$30k-50k'),
-      (50e3, np.inf, '$50k+')]
 
 if __name__ == '__main__':
     main()

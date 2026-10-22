@@ -63,8 +63,6 @@ weight, stratifier, p_band, q_band) and common.GEN/consistency.csv (per run
 and ruled holding: the model's own expected holders, the holders with the
 rules, the factor used and the next one).
 """
-import json
-import math
 import os
 
 import numpy as np
@@ -89,9 +87,12 @@ RULES = C['rules']
 for _r in RULES:
     assert all(M.OWNED_BY.get(v, 'puf') != 'scf' for v in _r['when_any_nonzero']), _r['name']
     assert all(v in SCF_SLOTS for v in _r['then_at_least_one_nonzero']), _r['name']
+RULE_ITEMS = [torch.tensor([P.index(v) for v in r['when_any_nonzero']]) for r in RULES]
+RULE_HOLDINGS = [torch.tensor([P.index(v) for v in r['then_at_least_one_nonzero']]) for r in RULES]
 RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P.index)   # the offset's holdings
+DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
+SURVEY_ONLY = torch.tensor([P.index(v) for v in SCF_SLOTS + CEX_SLOTS])
 POINTS = 32
-STATS = {}                                # per run: records each rule applies to, forced draws per holding
 
 
 # ---- computed totals ---------------------------------------------------------
@@ -117,7 +118,7 @@ def part_points(total, device):
                 xs, F = x[sel][o], np.cumsum(w[sel][o]) / w[sel].sum()
                 pts[k] = xs[np.minimum(np.searchsorted(F, (np.arange(POINTS) + 0.5) / POINTS), len(xs) - 1)]
         out[v] = torch.tensor(pts, dtype=torch.float64, device=device)
-    e = json.load(open(common.EDGES))[f'puf/2015/{total}']
+    e = common.edges()[f'puf/{common.PUF_YEAR}/{total}']
     out['neg'] = torch.tensor(e['negative']['cuts'], dtype=torch.float64, device=device)
     out['pos'] = torch.tensor(e['positive']['cuts'], dtype=torch.float64, device=device)
     _points[total] = out
@@ -141,35 +142,7 @@ def computed_band(values, gen, total):
     return band
 
 
-# ---- the network, run on one phase's slots ------------------------------------------
-# Each step runs the network only on the positions present in the current phase (the PUF phase has no SCF or
-# CEX slots; the SCF view no PUF-only or CEX slots; the CEX view only its own) and computes only the output
-# layers it needs. Absent positions are invisible to the rest, so this changes nothing beyond rounding.
-def phase_columns(view):
-    """The positions present in a phase's view, and for each of SLOTS its column among them (-1 if absent)."""
-    cols = torch.nonzero((view >= 0).any(0)).squeeze(1)
-    inv = torch.full((len(M.SLOTS),), -1, dtype=torch.long, device=view.device)
-    inv[cols] = torch.arange(len(cols), device=view.device)
-    return cols, inv
-
-
-def network_output(model, values, hidden, cols):
-    """The network's last layer at the positions cols: [records, positions, width]."""
-    ids, mask = M.token_ids(values, hidden)[:, cols], (values < 0)[:, cols]
-    x = model.token_embedding(ids) + model.slot_embedding[cols]
-    return model.final_norm(model.encoder(x, src_key_padding_mask=mask))
-
-
-def slot_probs(model, h, j):
-    """Per record i, the distribution of predicted slot j[i] from its output vector h[i]: [records, MAX_CHOICES]."""
-    out = h.new_full((len(j), M.MAX_CHOICES), -math.inf)
-    for jj in torch.unique(j).tolist():
-        sel = (j == jj).nonzero().squeeze(1)
-        head = model.heads[jj]
-        out[sel, :head.out_features] = head(h[sel])
-    return out.log_softmax(-1).exp()
-
-
+# ---- rules on a draw -------------------------------------------------------------
 def scf_order(size, gen):
     """A random order of the SCF-only slots per record, each ratio slot moved after its base."""
     scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
@@ -183,8 +156,9 @@ def scf_order(size, gen):
     return perm
 
 
-DEPENDENT_RANGES = torch.tensor([6, 7, 8])                  # the PUF's dependent-filer age ranges (ages.py)
-SURVEY_ONLY = torch.tensor([P.index(v) for v in SCF_SLOTS + CEX_SLOTS])
+def dependent(values):
+    """Records whose primary filer is in a dependent-filer age range."""
+    return torch.isin(values[:, NC + P.index('age_range')], DEPENDENT_RANGES.to(values.device))
 
 
 def structural(values, slot, probs):
@@ -195,8 +169,7 @@ def structural(values, slot, probs):
         no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
         probs[no_base] = 0.0
         probs[no_base, 0] = 1.0
-    dep = torch.isin(values[:, NC + P.index('age_range')], DEPENDENT_RANGES.to(values.device)) & \
-        torch.isin(slot, SURVEY_ONLY.to(values.device))
+    dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
     probs[dep] = 0.0
     probs[dep, 0] = 1.0
     return probs
@@ -218,8 +191,8 @@ def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
     nonzero: every slot's chance of being nonzero, the model's own (before the offset's factors), so which
     holding a rule forces does not depend on the factors."""
     rows = torch.arange(len(slot), device=slot.device)
-    for r, rule in enumerate(RULES):
-        g = torch.tensor([P.index(v) for v in rule['then_at_least_one_nonzero']], device=slot.device)
+    for r in range(len(RULES)):
+        g = RULE_HOLDINGS[r].to(slot.device)
         first = triggered[:, r] & ~resolved[:, r] & torch.isin(slot, g)
         if not first.any():
             continue
@@ -233,112 +206,142 @@ def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
     return torch.where(ok[:, None], q / q.sum(1, keepdim=True).clamp_min(1e-30), probs), ok
 
 
+# ---- one chunk of records ----------------------------------------------------------
+class Chunk:
+    """size records being drawn: every slot's band (-1 absent), which slots are drawn, and the rules' and the
+    boost's bookkeeping. Each step runs the network only on the slots present in its phase (model.SOURCE_SLOTS:
+    the PUF's, then the SCF's view, then the CEX's view) and computes only the output layers it needs."""
+
+    def __init__(self, model, size, order, preset, start, factors, boost, gen):
+        device = order.device
+        self.model, self.order, self.factors, self.boost, self.gen = model, order, factors, boost, gen
+        self.rows = torch.arange(size, device=device)
+        self.values = torch.full((size, len(M.SLOTS)), -1, dtype=torch.long, device=device)
+        self.values[:, 0] = M.SOURCES.index('puf')
+        self.values[:, 1] = M.YEARS.index(common.PUF_YEAR)
+        self.values[self.rows[:, None], NC + order] = 0              # present, not yet drawn
+        for v in SCF_SLOTS + CEX_SLOTS:
+            self.values[:, NC + P.index(v)] = -1                      # absent until their turn
+        for tot in list(COMPUTED) + list(FLAGS):
+            self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
+        self.filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
+        for var, bands in preset.items():
+            self.values[:, NC + P.index(var)] = bands[start:start + size].to(device)
+            self.filled[:, P.index(var)] = True
+        self.triggered = torch.zeros(size, len(RULES), dtype=torch.bool, device=device)
+        self.resolved = self.triggered.clone()
+        self.must = torch.zeros(size, len(P), dtype=torch.bool, device=device)
+        self.own_chance = torch.zeros(size, len(RULED), dtype=torch.float64, device=device)
+        self.forced = torch.zeros(size, len(RULED), dtype=torch.bool, device=device)
+        self.p_drawn = torch.full((size,), float('nan'), dtype=torch.float64, device=device)
+        self.q_drawn = self.p_drawn.clone()
+        self.ruled = torch.tensor([P.index(v) for v in RULED], device=device)
+        self.column = {}                                             # per source: each of SLOTS' column, -1 if absent
+        for src, slots in M.SOURCE_SLOTS.items():
+            self.column[src] = torch.full((len(M.SLOTS),), -1, dtype=torch.long, device=device)
+            self.column[src][list(slots)] = torch.arange(len(slots), device=device)
+
+    def last_layer(self, values, hidden, src):
+        """The network on the source's slots, all of which must be present."""
+        slots = M.SOURCE_SLOTS[src]
+        assert (values[:, M.slot_tensor(slots, values.device)] >= 0).all(), f'a {src} slot is absent'
+        return self.model.last_layer(*M.pack(values, hidden, slots), slots)
+
+    def take(self, probs, slot):
+        """Draw slot from probs (boosted at the boost's variable), and record it."""
+        draw_from, boosted = probs, None
+        if self.boost is not None:
+            var, bands, factor = self.boost
+            boosted = slot == P.index(var)
+            q = probs.clone()
+            q[:, torch.as_tensor(bands, device=probs.device)] *= factor
+            draw_from = torch.where(boosted[:, None], q / q.sum(1, keepdim=True), probs)
+        draw = torch.multinomial(draw_from, 1, generator=self.gen).squeeze(1)
+        if boosted is not None and boosted.any():
+            self.p_drawn[boosted] = probs[self.rows, draw][boosted].double()
+            self.q_drawn[boosted] = draw_from[self.rows, draw][boosted].double()
+        self.values[self.rows, NC + slot] = draw
+        self.filled[self.rows, slot] = True
+
+    def puf_step(self, slot):
+        """One PUF variable per record, given the PUF slots drawn so far."""
+        hidden = (self.values[:, NC:] >= 0) & ~self.filled
+        h = self.last_layer(self.values, hidden, 'puf')
+        self.take(self.model.slot_probs(h[self.rows, self.column['puf'][NC + slot]], slot), slot)
+
+    def compute_totals(self):
+        """The computed totals and flags from their parts; which rules each record triggers (none for a
+        dependent filer, which holds no survey item); the survey slots made present. Returns the rule counts."""
+        v = self.values
+        for tot in COMPUTED:
+            v[:, NC + P.index(tot)] = computed_band(v, self.gen, tot)
+            self.filled[:, P.index(tot)] = True
+        for flag, flag_parts in FLAGS.items():
+            v[:, NC + P.index(flag)] = torch.stack([v[:, NC + P.index(p)] != 0 for p in flag_parts], 1).any(1).long()
+            self.filled[:, P.index(flag)] = True
+        dep = dependent(v)
+        for r in range(len(RULES)):
+            self.triggered[:, r] = (v[:, NC + RULE_ITEMS[r].to(v.device)] != 0).any(1) & ~dep
+        for s in SCF_SLOTS + CEX_SLOTS:
+            v[:, NC + P.index(s)] = 0                                # each survey's view leaves out the other's
+        v[:, NC + REP_SLOTS.to(v.device)] = 0                        # reported slots: present, never drawn (hidden)
+        return {r['name']: int(self.triggered[:, k].sum()) for k, r in enumerate(RULES)}
+
+    def survey_step(self, slot, label, year=None):
+        """One survey-only slot per record, as the survey label would see the record, under the rules."""
+        hidden = (self.values[:, NC:] >= 0) & ~self.filled
+        view, view_hidden = M.seen_as(self.values, hidden, label, year)
+        h, col = self.last_layer(view, view_hidden, label), self.column[label]
+        slot_p = self.model.slot_probs(h[self.rows, col[NC + slot]], slot)
+        # each ruled holding's chance of being nonzero, the model's own (no rule applies in the CEX phase)
+        own_nonzero = torch.zeros(len(slot), len(P), device=slot.device)
+        for v in (RULED if label == 'scf' else []):
+            j = P.index(v)
+            own_nonzero[:, j] = 1 - self.model.slot_probs(h[:, col[NC + j]], torch.full_like(slot, j))[:, 0]
+        del h
+        own_probs = structural(self.values, slot, slot_p.clone())   # the model's own, before rules
+        probs, ok = apply_rules(slot, self.filled, own_nonzero,
+                                structural(self.values, slot, scale_odds(slot_p.clone(), slot, self.factors)),
+                                self.triggered, self.resolved, self.must, self.gen)
+        k = (slot[:, None] == self.ruled[None, :])                  # rows whose slot is a ruled holding
+        hit = k.any(1)
+        col = k.int().argmax(1)
+        self.own_chance[self.rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
+        self.forced[self.rows[hit], col[hit]] = ok[hit]
+        self.take(probs, slot)
+
+
 @torch.no_grad()
 def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000):
-    """n PUF-style records. preset: {variable: n bands} set before anything is drawn.
-    boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at its
-    turn; that draw's p and q are returned as p_band, q_band. factors: {ruled holding: factor
-    on its odds of being nonzero}. For each ruled holding the table also carries the model's
-    own chance it is nonzero (_own_<v>) and whether a rule forced it (_forced_<v>)."""
+    """n PUF-style records, and how many records each consistency rule applies to. preset: {variable: n bands} set
+    before anything is drawn. boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at
+    its turn; that draw's p and q are returned as p_band, q_band. factors: {ruled holding: factor on its odds of
+    being nonzero}. For each ruled holding the table also carries the model's own chance it is nonzero
+    (_own_<v>) and whether a rule forced it (_forced_<v>)."""
     preset, factors = preset or {}, factors or {}
     device = next(model.parameters()).device
     cpu_gen = torch.Generator().manual_seed(seed)                  # the orders
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
     own = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset])
-    scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
-    ruled = torch.tensor([P.index(v) for v in RULED], device=device)
-    n_own, n_scf = len(own), len(scf)
+    n_own, n_scf = len(own), len(SCF_SLOTS)
+    rule_counts = {r['name']: 0 for r in RULES}
     parts = []
     for start in range(0, n, chunk):
         size = min(chunk, n - start)
         order = torch.cat([own[torch.rand(size, len(own), generator=cpu_gen).argsort(1)],
                            scf_order(size, cpu_gen),
                            cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)]], 1).to(device)
-        values = torch.full((size, len(M.SLOTS)), -1, dtype=torch.long, device=device)
-        values[:, 0] = M.SOURCES.index('puf')
-        values[:, 1] = M.YEARS.index(G['year'])
-        rows = torch.arange(size, device=device)
-        values[rows[:, None], NC + order] = 0                  # present, not yet drawn
-        values[:, NC + scf.to(device)] = -1                     # absent until their turn
-        values[:, NC + cex.to(device)] = -1
-        for tot in list(COMPUTED) + list(FLAGS):
-            values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
-        filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
-        for var, bands in preset.items():
-            values[:, NC + P.index(var)] = bands[start:start + size].to(device)
-            filled[:, P.index(var)] = True
-        triggered = torch.zeros(size, len(RULES), dtype=torch.bool, device=device)
-        resolved, must = triggered.clone(), torch.zeros(size, len(P), dtype=torch.bool, device=device)
-        own_chance = torch.zeros(size, len(RULED), dtype=torch.float64, device=device)
-        forced = torch.zeros(size, len(RULED), dtype=torch.bool, device=device)
-        p_drawn = torch.full((size,), float('nan'), dtype=torch.float64, device=device)
-        q_drawn = p_drawn.clone()
-        columns = {}                                            # per phase: present positions and their inverse
-        for step in range(order.shape[1]):
-            slot = order[:, step]
-            if step == n_own:                                  # the SCF slots' turn: compute the totals first
-                for tot in COMPUTED:
-                    values[:, NC + P.index(tot)] = computed_band(values, gpu_gen, tot)
-                    filled[:, P.index(tot)] = True
-                for flag, flag_parts in FLAGS.items():
-                    values[:, NC + P.index(flag)] = torch.stack(
-                        [values[:, NC + P.index(v)] != 0 for v in flag_parts], 1).any(1).long()
-                    filled[:, P.index(flag)] = True
-                # dependent filers hold no survey item (structural), so no rule applies to them
-                dependent = torch.isin(values[:, NC + P.index('age_range')], DEPENDENT_RANGES.to(device))
-                for r, rule in enumerate(RULES):
-                    triggered[:, r] = torch.stack([values[:, NC + P.index(v)] != 0
-                                                   for v in rule['when_any_nonzero']], 1).any(1) & ~dependent
-                    STATS['rule'][rule['name']] += int(triggered[:, r].sum())
-                values[:, NC + scf.to(device)] = 0
-                values[:, NC + cex.to(device)] = 0                         # each survey's view leaves out the other's
-                values[:, NC + REP_SLOTS.to(device)] = 0                  # reported slots: present, never drawn (hidden)
-            hidden = (values[:, NC:] >= 0) & ~filled
-            if step >= n_own:
-                label, year = ('scf', None) if step < n_own + n_scf else ('cex', CEX_YEAR)
-                view, view_hidden = M.seen_as(values, hidden, label, year)
-                if label not in columns:
-                    columns[label] = phase_columns(view)
-                cols, inv = columns[label]
-                h = network_output(model, view, view_hidden, cols)
-                slot_p = slot_probs(model, h[rows, inv[NC + slot]], slot)
-                # each ruled holding's chance of being nonzero, the model's own (no rule applies in the CEX phase)
-                own_nonzero = torch.zeros(size, len(P), device=device)
-                for v in (RULED if label == 'scf' else []):
-                    j = P.index(v)
-                    own_nonzero[:, j] = 1 - slot_probs(model, h[:, inv[NC + j]], torch.full_like(slot, j))[:, 0]
-                del h
-                own_probs = structural(values, slot, slot_p.clone())   # the model's own, before rules
-                probs, ok = apply_rules(slot, filled, own_nonzero,
-                                        structural(values, slot, scale_odds(slot_p.clone(), slot, factors)),
-                                        triggered, resolved, must, gpu_gen)
-                k = (slot[:, None] == ruled[None, :])                       # rows whose slot is a ruled holding
-                hit = k.any(1)
-                col = k.int().argmax(1)
-                own_chance[rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
-                forced[rows[hit], col[hit]] = ok[hit]
-            else:
-                if 'puf' not in columns:
-                    columns['puf'] = phase_columns(values)
-                cols, inv = columns['puf']
-                h = network_output(model, values, hidden, cols)
-                probs = slot_probs(model, h[rows, inv[NC + slot]], slot)
-                del h
-            draw_from, boosted = probs, None
-            if boost is not None:
-                var, bands, factor = boost
-                boosted = slot == P.index(var)
-                q = probs.clone()
-                q[:, torch.as_tensor(bands, device=device)] *= factor
-                draw_from = torch.where(boosted[:, None], q / q.sum(1, keepdim=True), probs)
-            draw = torch.multinomial(draw_from, 1, generator=gpu_gen).squeeze(1)
-            if boosted is not None and boosted.any():
-                p_drawn[boosted] = probs[rows, draw][boosted].double()
-                q_drawn[boosted] = draw_from[rows, draw][boosted].double()
-            values[rows, NC + slot] = draw
-            filled[rows, slot] = True
-        parts.append((values.cpu(), p_drawn.cpu(), q_drawn.cpu(), own_chance.cpu(), forced.cpu()))
+        d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen)
+        for step in range(n_own):
+            d.puf_step(order[:, step])
+        for name, count in d.compute_totals().items():
+            rule_counts[name] += count
+        for step in range(n_own, n_own + n_scf):
+            d.survey_step(order[:, step], 'scf')
+        for step in range(n_own + n_scf, order.shape[1]):
+            d.survey_step(order[:, step], 'cex', CEX_YEAR)
+        parts.append((d.values.cpu(), d.p_drawn.cpu(), d.q_drawn.cpu(), d.own_chance.cpu(), d.forced.cpu()))
     table = to_table(torch.cat([p[0] for p in parts]))
     if boost is not None:
         table['p_band'] = torch.cat([p[1] for p in parts]).numpy()
@@ -346,7 +349,7 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
     oc, fc = torch.cat([p[3] for p in parts]).numpy(), torch.cat([p[4] for p in parts]).numpy()
     for i, v in enumerate(RULED):
         table[f'_own_{v}'], table[f'_forced_{v}'] = oc[:, i], fc[:, i]
-    return table
+    return table, rule_counts
 
 
 def to_table(values):
@@ -364,22 +367,23 @@ def nothing_known(model, var):
     """var's distribution for a PUF record with every PUF slot hidden and no SCF-only slot."""
     device = next(model.parameters()).device
     values = torch.full((1, len(M.SLOTS)), -1, dtype=torch.long, device=device)
-    values[0, 0], values[0, 1] = M.SOURCES.index('puf'), M.YEARS.index(G['year'])
+    values[0, 0], values[0, 1] = M.SOURCES.index('puf'), M.YEARS.index(common.PUF_YEAR)
     for j, v in enumerate(P):
         if 'puf' in M.PRESENT_ON[v]:
             values[0, NC + j] = 0
-    return model(values, values[:, NC:] >= 0)[0, P.index(var)].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
+    lp = M.log_probs_as(model, values, values[:, NC:] >= 0, 'puf')
+    return lp(P.index(var))[0].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
 
 
 def build_stack(model, factors):
-    STATS.clear()
-    STATS['rule'] = {r['name']: 0 for r in RULES}
+    """The four strata (settings "generation"), stacked; and how many records each rule applied to."""
     n = G['records_per_file']
-    parts = []
-    for var, seed in G['files'].items():
+    parts, rule_counts = [], {r['name']: 0 for r in RULES}
+    for var, stratum in G['strata'].items():
+        seed = stratum['seed']
         top = M.positive_bands(var, 1 - G['top_share'], 1.0)
         if M.OWNED_BY.get(var) == 'scf':
-            part = generate(model, n, seed, boost=(var, top, G['boost']), factors=factors)
+            part, counts = generate(model, n, seed, boost=(var, top, G['boost']), factors=factors)
             part['weight'] = part['p_band'] / part['q_band']
         else:
             p = nothing_known(model, var)
@@ -388,17 +392,18 @@ def build_stack(model, factors):
             q /= q.sum()
             bands = torch.multinomial(torch.tensor(q), n, replacement=True,
                                       generator=torch.Generator().manual_seed(seed))
-            part = generate(model, n, seed, preset={var: bands}, factors=factors)
+            part, counts = generate(model, n, seed, preset={var: bands}, factors=factors)
             b = bands.numpy()
             part['weight'], part['p_band'], part['q_band'] = p[b] / q[b], p[b], q[b]
         part['weight'] *= n / part['weight'].sum()
         part['stratifier'] = var
         parts.append(part)
+        rule_counts = {k: rule_counts[k] + counts[k] for k in rule_counts}
         common.say(var, 'done')
     stack = pd.concat(parts, ignore_index=True)
     stack['record_id'] = np.arange(len(stack))
     common.say('consistency rules: records each applies to, over the whole stack:')
-    common.say(pd.Series(STATS['rule']).to_string())
+    common.say(pd.Series(rule_counts).to_string())
     return stack
 
 

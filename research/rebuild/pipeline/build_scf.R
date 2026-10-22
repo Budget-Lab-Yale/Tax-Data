@@ -15,6 +15,16 @@
 #   run 2 swaps in all eight items, and supplies the last four.
 # (The builder's sharing rules read the other income columns, so one run with
 # all eight could split couples' interest slightly differently.)
+# The builder's income columns carry other items through it:
+#   raw item                     builder input   comes back as      stored as
+#   X5702 wages                  WAGEINC         wages_scf          wages
+#   X5708 taxable interest       INTDIVINC       int_div_scf        interest
+#   X5710 dividends              RENT            rent_scf           dividends
+#   X5712 capital gains          KGINC           capital_gains_scf  capital_gains
+#   X5704 Schedules C and F      BUSSEFARMINC    business_scf       business_income
+#   X5714 Schedule E             TRANSFOTHINC    ui_other_scf       rent_royalty_estate
+#   X5722 Social Security, pens. SSRETINC        ss_pens_scf        retirement_gross
+#   X5706 tax-exempt interest    INCOME          income             tax_exempt_interest
 # Split-off units (taxunit_code >= 3; their wealth is not asked) are dropped.
 # Net worth: the builder's wealth (2022 dollars) over the wave's asset price
 # factor (SAVBND / X3902), which puts it in the interview year's dollars. The

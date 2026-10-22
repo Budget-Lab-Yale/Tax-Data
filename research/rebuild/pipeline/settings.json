@@ -1,5 +1,10 @@
 {
  "_what": "Every choice of the current run. FEATURES.md says what each means.",
+ "years": {
+  "_what": "puf: the PUF's tax year (its records, cut points and dollar maps); target: the year of the file the tilt makes and of its targets (SOI, SCF wave, CEX year, non-filer pool).",
+  "puf": 2015,
+  "target": 2019
+ },
  "paths": {
   "out": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild",
   "raw": {
@@ -35,12 +40,11 @@
   "holdback_share": 0.02,
   "holdback_seed": 20261015,
   "log_every_passes": 10,
-  "packing": true,
   "precision": "fp32",
   "_precision": "fp32 standard 32-bit; tf32 or bf16 cheaper formats for the training steps only (train.py). Tested 22 October (explore/2026-10-22/perf/precision/PRECISION.md): bf16 37% faster a pass, results within the difference between two seeds."
  },
  "translation": {
-  "_what": "Two slots per translated item. Items taken as correctly reported (the type is married, dependents and the wage band); items whose SCF zero-reporters are partly filled in as hidden holders, in a PUF-concept slot beside the reported one. A zero-reporter's chance of a hidden holding in each size range comes from the reporting-rate formula (train.py); the size ranges are only where reporting rates are read. Fill-ins from pass fill_from_pass.",
+  "_what": "Two slots per translated item. Items taken as correctly reported (the type is married, dependents and the wage band); items whose SCF zero-reporters are partly filled in as hidden holders, in a PUF-concept slot beside the reported one. A zero-reporter's chance of a hidden holding in each size range comes from the reporting-rate formula (train.py); the size ranges are only where reporting rates are read. Fill-ins from pass fill_from_pass. assumed_correct: the type the formula conditions on (with the survey year); wages is used as its band. The PUF side is the PUF year.",
   "assumed_correct": [
    "married",
    "n_dep",
@@ -138,15 +142,14 @@
     ]
    ]
   },
-  "fitting_tax_year": 2015,
   "fill_from_pass": 3,
   "wage_top_scaling": {
-   "_what": "SCF wages above this line (2015 dollars, grown to each wave by SOI) placed on the PUF filers' distribution by count from the top (build_table.py, scale_top_wages); the SCF reports more high earners than tax data at every line.",
-   "line_2015_dollars": 100000
+   "_what": "SCF wages above this line (PUF-year dollars, grown to each wave by SOI) placed on the PUF filers' distribution by count from the top (build_table.py, scale_top_wages); the SCF reports more high earners than tax data at every line.",
+   "line_puf_year_dollars": 100000
   }
  },
  "cex": {
-  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview. one_tax_unit_only false: every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them (build_cex.R), and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. target_year: the tilt's consumption targets come from that year's CEX, all tax units (shared households' spending divided by head count).",
+  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview; every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them, and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. The tilt's consumption targets come from the target year's CEX, all tax units.",
   "years": [
    2015,
    2017,
@@ -155,9 +158,7 @@
    2023,
    2024
   ],
-  "one_tax_unit_only": false,
-  "generation_year": 2019,
-  "target_year": 2019
+  "generation_year": 2019
  },
  "ages": {
   "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",
@@ -167,17 +168,24 @@
   "primary_rule_salt": 20261021
  },
  "generation": {
-  "_what": "A stack of four files of 100,000 PUF records each. Each oversamples the top 1% of one variable (the bands covering the top 1% of its positive weight drawn ten times as often) and carries importance weights that undo it. PUF variables are drawn in a random order per record; the computed totals are then computed from their parts; the balance sheet is drawn last, under the SCF label, with the PUF-only variables left out. The fourth file oversamples business equity, the most concentrated item of the balance sheet (net worth itself is computed, not drawn).",
+  "_what": "A stack of four strata of 100,000 PUF records each. Each oversamples the top 1% of one variable (the bands covering the top 1% of its positive weight drawn ten times as often) and carries importance weights that undo it. PUF variables are drawn in a random order per record; the computed totals are then computed from their parts; the balance sheet is drawn last, under the SCF label, with the PUF-only variables left out. The fourth stratum oversamples business equity, the most concentrated item of the balance sheet (net worth itself is computed, not drawn). Each stratum's seed fixes its draws.",
   "records_per_file": 100000,
   "boost": 10.0,
   "top_share": 0.01,
-  "files": {
-   "wages": 31,
-   "kg_lt": 32,
-   "scorp_nonpass_inc": 33,
-   "w_pass_throughs": 34
-  },
-  "year": 2015
+  "strata": {
+   "wages": {
+    "seed": 31
+   },
+   "kg_lt": {
+    "seed": 32
+   },
+   "scorp_nonpass_inc": {
+    "seed": 33
+   },
+   "w_pass_throughs": {
+    "seed": 34
+   }
+  }
  },
  "consistency": {
   "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
@@ -236,8 +244,7 @@
   "offset_generations": 3
  },
  "dollars": {
-  "seed": 20261104,
-  "target_year": 2019
+  "seed": 20261104
  },
  "tilt": {
   "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and by the primary filer's adult age range (56 targets), within consumption_tolerance of each average.",
@@ -277,7 +284,6 @@
   ],
   "min_top_bracket_records": 500,
   "bracket_file_size": 200000,
-  "wealth_count_base": "file_units",
   "prescale": "filing_status",
   "consumption_tolerance": 0.02
  }
