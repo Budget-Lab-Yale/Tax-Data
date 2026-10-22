@@ -1,4 +1,4 @@
-"""The training table: the PUF, crude non-filers and four SCF waves, stacked,
+"""The training table: the PUF, crude non-filers, four SCF waves and six CEX years, stacked,
 each amount cut into bands, plus the dollar maps.
 
 Rows, in this order:
@@ -9,7 +9,8 @@ Rows, in this order:
                   tax units from build_scf.R, all five implicates
   CEX years       the interview survey's tax units from build_cex.R (settings "cex"),
                   one row per tax unit and quarterly interview, spending annualized;
-                  with one_tax_unit_only, only consumer units that are one tax unit
+                  with one_tax_unit_only, only consumer units that are one tax unit;
+                  dependent filers are folded into the unit that claims them
 
 Variables. married, n_dep (capped at 3), filer, and the amounts:
   wages E00200, taxable interest E00300, ordinary dividends E00600;
@@ -66,8 +67,10 @@ record gets a fill value. The 2019 map grows each value by SOI's 2019-over-2015
 growth in dollars per return with the item (growth_factors.csv).
 
 Writes common.TABLE, common.EDGES, common.MAPS/{map_puf_2015, map_puf_2019,
-map_scf_2015}.parquet and growth_factors.csv, and data/scf_units_2019.parquet
-(for the tilt's wealth targets).
+map_scf_2015, map_cex_<generation year>, map_cex_2019}.parquet and
+growth_factors.csv, data/scf_units_2019.parquet (for the tilt's wealth
+targets, with net worth also in 2016 dollars, the balance-sheet maps') and
+data/cex_units_<target year>_all.parquet (for the consumption targets).
 """
 import copy
 import json
@@ -85,7 +88,7 @@ RAW = common.RAW
 CPI_2015, CPI_2017 = 237.017, 245.120          # CPI-U, to put the 2017 pool in 2015 dollars
 NONFILER_ID_OFFSET = 900_000_000
 WAVE_2013_ID_OFFSET = 2.013e12
-NW_2016_WAVE_TO_2015 = 1.2493                  # the 2016 wave's 2022-dollar factor, the wealth targets' "2015 dollars"
+NW_2016_WAVE = 1.2493                          # the 2016 wave's asset price factor (2016 dollars to 2022 dollars)
 LOSS_CAP = common.SETTINGS['translation']['loss_cap']['capital_gains']
 # band layout: 0 zero; 1-10 losses (shares of loss weight from the least negative); 11-83 positives
 N_NEG, NEG0, POS0 = 10, 1, 11
@@ -384,6 +387,7 @@ def cex_rows():
     need = ['social_security', 'pensions', 'wages', 'se_income'] + CEX_CATS
     n_missing = s[need].isna().sum()
     assert not n_missing.any(), f'missing values in the CEX units:\n{n_missing[n_missing > 0]}'
+    assert (s['dep_filer'] == 0).all(), 'build_cex.R folds dependent filers into the unit that claims them'
     # record ids unique across years; the household id is not offset, so a consumer unit interviewed in two
     # survey years falls on one side of the held-back split
     off = (s['year'] - 2000) * CEX_YEAR_ID_OFFSET
@@ -394,7 +398,7 @@ def cex_rows():
                        'wages': s['wages'].astype(float), 'ss_gross': s['social_security'].astype(float),
                        'sch_cf_income': s['se_income'].astype(float),
                        'age1': s['age1'], 'age2': s['age2'], 'male1': s['male1'], 'male2': s['male2'],
-                       'age_key': s['household_id'].astype(float), 'dep_filer': s['dep_filer']})
+                       'age_key': s['household_id'].astype(float)})
     for c in CEX_CATS:
         df[c] = s[c].astype(float)
     for v in AMOUNTS:
@@ -430,9 +434,9 @@ def scf_rows():
         common.say(f'wave {wave}:')
         s = loan_to_value(s.assign(source='scf', filer=-1))
         if wave == 2019:
-            f = s['asset_factor'] / NW_2016_WAVE_TO_2015
+            f = s['asset_factor'] / NW_2016_WAVE         # 2019 dollars to 2016 dollars, the balance-sheet maps' dollars
             dollars = list(NET_WORTH_PARTS) + ['w_' + c for c in KG_WEALTH]
-            s.assign(net_worth_2015_dollars=s['net_worth'] * f, **{c + '_2015_dollars': s[c] * f for c in dollars}) \
+            s.assign(net_worth_2016_dollars=s['net_worth'] * f, **{c + '_2016_dollars': s[c] * f for c in dollars}) \
                 .to_parquet(f'{common.DATA}/scf_units_2019.parquet', index=False)
         s['business_income'] = np.nan     # PUF only: on the SCF it is its two subtotals
         waves.append(s)
@@ -654,26 +658,22 @@ def present_on(t):
     return out
 
 
-def dependent_range(age):
-    """The PUF's three ranges for dependent filers: 6 under 18, 7 18-25, 8 26 and over."""
-    age = np.asarray(age, float)
-    return 6 + (age >= 18) + (age >= 26)
-
-
 def cex_target_units(pi):
     """The target year's CEX tax units, all of them (a consumer unit's spending divided among its tax units by head
-    count, build_cex.R), with the primary filer's age range by the rule the training rows use; dependent filers get
-    -2. For the tilt's consumption targets and the report: data/cex_units_<target year>_all.parquet."""
+    count, build_cex.R, which folds dependent filers into the unit that claims them), with the primary filer's age
+    range by the rule the training rows use. For the tilt's consumption targets and the report:
+    data/cex_units_<target year>_all.parquet."""
     y = CX['target_year']
     s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
     couple = (s['married'] == 1).to_numpy()
     assert not s.loc[couple, ['age2', 'male2']].isna().any().any() and not s[['age1', 'male1']].isna().any().any()
     age, _ = ages.primary_age(s.age1.to_numpy(float), s.age2.fillna(0).to_numpy(float), s.male1.to_numpy(float),
                               s.male2.fillna(1).to_numpy(float), couple, s['household_id'].astype(float).to_numpy(), pi)
-    s['age_range'] = np.where(s['dep_filer'] == 1, dependent_range(age), ages.adult_range(age))
+    assert (s['dep_filer'] == 0).all()
+    s['age_range'] = ages.adult_range(age)
     s.to_parquet(f'{common.DATA}/cex_units_{y}_all.parquet', index=False)
     w = s['weight']
-    common.say(f'CEX {y}, all tax units: {w.sum() / 1e6:.1f} million (dependent filers {w[s.dep_filer == 1].sum() / 1e6:.1f}); '
+    common.say(f'CEX {y}, all tax units: {w.sum() / 1e6:.1f} million; '
                'spending ($bn): ' + ', '.join(f'{c} {(s[c] * w).sum() / 1e9:,.0f}' for c in CEX_CATS))
 
 
@@ -700,8 +700,6 @@ def primary_age_range(t):
     age, woman_first = ages.primary_age(a1, a2, m1, m2, couple, t.age_key.fillna(0).to_numpy(), pi)
     cex_target_units(pi)
     t.loc[rows, 'age_range'] = ages.adult_range(age[rows])
-    dep = (t.source == 'cex').to_numpy() & (t['dep_filer'].fillna(0).to_numpy() == 1)   # CEX dependent filers
-    t.loc[dep, 'age_range'] = dependent_range(age[dep])
     w = t.weight.to_numpy(float)
     report = pd.DataFrame({'range': ['under 26', '26-34', '35-44', '45-54', '55-64', '65+'],
                            'woman-first chance by the man\'s range (%)': 100 * pi,

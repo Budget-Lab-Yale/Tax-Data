@@ -192,6 +192,20 @@ instead (`explore/2026-10-21/cex/`, `explore/2026-10-22/`):
   table builder read growth factors of zero for 2022 on; it now stops if
   any growth factor is missing.
 
+**22 October (evening): a review with John.** Decisions:
+- **Dependent filers are outside the normal process.** They keep their PUF
+  items, get no survey item (zero for now), and are left out of every
+  comparison of tax units with a survey. Consistency rules no longer apply
+  to them, and the fill-in formula's PUF side leaves them out.
+- **The universe is always tax units, never filers.** Every comparison of
+  a survey with the PUF uses "the tax data" for the survey's year (ROADMAP
+  item 2): the PUF scaled to SOI's counts, grown per return, with that
+  year's non-filers. Translation becomes two standard functions and one
+  table of settings, replacing the per-variable rules (not built yet).
+- Wealth counts targeted as shares; estates and trusts out of the business
+  targets until the targeting overhaul; the held-back slice no longer
+  scores unknown fill-in amounts; the two generators merged into one.
+
 ## Paths tried and not taken
 
 | What | Why not |

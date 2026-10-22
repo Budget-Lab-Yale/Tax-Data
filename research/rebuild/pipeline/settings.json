@@ -146,7 +146,7 @@
   }
  },
  "cex": {
-  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview. one_tax_unit_only false: every tax unit trains, a shared household's spending divided by head count (build_cex.R); CEX dependent filers in the PUF's dependent-filer age ranges. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. target_year: the tilt's consumption targets come from that year's CEX, all tax units (shared households' spending divided by head count).",
+  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview. one_tax_unit_only false: every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them (build_cex.R), and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. target_year: the tilt's consumption targets come from that year's CEX, all tax units (shared households' spending divided by head count).",
   "years": [
    2015,
    2017,
@@ -240,7 +240,7 @@
   "target_year": 2019
  },
  "tilt": {
-  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the 140 SOI business targets exact (2% if the exact tilt does not converge); the eight SCF 2019 wealth targets with a 2% tolerance, counts on the file's units. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and by the primary filer's adult age range (56 targets), within consumption_tolerance of each average.",
+  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and by the primary filer's adult age range (56 targets), within consumption_tolerance of each average.",
   "wealth_tolerance": 0.02,
   "business_fallback_tolerance": 0.02,
   "business_agi_groups": [

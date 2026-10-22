@@ -31,7 +31,7 @@ Every stage runs through Slurm, from the repository root:
 | table | `build_table.py` | the training table, its bands, and the dollar maps | about 2 minutes |
 | targets | `targets.py` | the published SOI numbers | seconds |
 | train | `train.py` | the model, with the two-slot fill-in | about 15 minutes on an H200 (10 seconds a pass) |
-| generate | `generate.py` (and `generate_fast.py`) | 400,000 generated records | about 5 minutes |
+| generate | `generate.py` | 400,000 generated records | about 5 minutes |
 | tilt | `tilt.py` | the 2019 weights and file | about a minute |
 | report | `report_cex.py` | consumption in the file against the CEX 2019 | seconds |
 

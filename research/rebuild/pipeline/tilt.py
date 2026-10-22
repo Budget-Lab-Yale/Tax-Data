@@ -14,22 +14,30 @@ divergence, that meets the targets (Newton's method on the dual). Targets:
     amount of wages, taxable interest, ordinary dividends and Schedule D net
     capital gain; plus the number of joint returns.
   - the non-filer count (exact).
-  - 140 business targets (SOI 2019 Table 1.4, filers, exact; 2% if exact
-    fails): six families, the number of returns and dollars with a net income
-    and with a net loss, in six AGI groups (merged where SOI combined cells).
-    A return's family net is the signed sum of the family's PUF parts.
-  - 8 wealth targets (SCF 2019, everyone, 2% tolerance): units and net worth
-    above the SCF's 99th, 90th and 50th percentile lines, total net worth,
-    units above $1 million. Counts are the SCF's share above each line times
-    the file's units (returns plus non-filers); dollars are the SCF's own.
+  - business targets (SOI 2019 Table 1.4, filers, exact; 2% if exact
+    fails): five families, the number of returns and dollars with a net
+    income and with a net loss, in six AGI groups (merged where SOI combined
+    cells). A return's family net is the signed sum of the family's PUF parts.
+    Estates and trusts are left out until the targeting overhaul: their tiny
+    cells could not always be met.
+  - 8 wealth targets (SCF 2019, 2% tolerance): the share of units above the
+    SCF's 99th, 90th and 50th percentile lines and above $1 million, among the
+    file's units other than dependent filers (which hold no wealth); net
+    worth above each percentile line and in total, in the SCF's own dollars.
     Net worth is computed from the drawn balance sheet.
+  - 56 consumption targets (CEX 2019, 2% tolerance): each category's average
+    per unit, over all units and in each of the six adult age ranges of the
+    primary filer, dependent filers left out on both sides.
+A share or an average is written as a linear condition on the weights
+(average_condition), so it holds whatever the tilt does to the number of
+units in its group.
 If the exact tilt fails even with the business fallback, every target is set
 to 2% so the run still writes its tables; summary.md says so.
 
 Writes, in common.TILT: file_2019.parquet (every record, 2019 dollars, net
-worth in 2015 and 2019 dollars, each balance-sheet item and unrealized gain in
+worth in 2016 and 2019 dollars, each balance-sheet item and unrealized gain in
 2019 dollars, weights before and after), fit.csv (every target, before and
-after), summary.md.
+after; for shares and averages, the share or average itself), summary.md.
 """
 import os
 
@@ -41,15 +49,14 @@ import dollars as D
 import targets as TG
 
 S = common.SETTINGS['tilt']
-NW_2016_WAVE_TO_2015 = 1.2493               # the 2016 wave's 2022-dollar factor, used as "2015 dollars"
-NW_TO_2019 = 1.2493059 / 1.1592053           # net worth in those dollars to 2019 dollars
+NW_2016_WAVE = 1.2493                       # the 2016 wave's asset price factor (2016 dollars to 2022 dollars)
+NW_TO_2019 = 1.2493059 / 1.1592053           # 2016 dollars (the balance-sheet maps') to 2019 dollars
 FAMILIES = {  # family: (income parts, loss parts stored positive)
     'sch_c': (['sch_c'], []),
     'pship_scorp': (['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc'],
                     ['part_pass_loss', 'part_nonpass_loss', 'part_179', 'scorp_pass_loss', 'scorp_nonpass_loss',
                      'scorp_179']),
     'rent_royalty': (['rent_inc'], ['rent_loss']),
-    'estate_trust': (['estate_inc'], ['estate_loss']),
     'farm': (['farm'], []),
     'farm_rental': (['farm_rent'], [])}
 IRS_ITEMS = {'wages': ({'wages': 1}, ['wages']),
@@ -143,22 +150,50 @@ def business_targets(soi, df):
     return cells[use].reset_index(drop=True), F[:, use]
 
 
-def wealth_targets(x, file_units):
-    """The eight SCF 2019 wealth targets (counts on the file's units) and each record's contribution."""
+def average_condition(member, x, m):
+    """'The average of x over the group (member) is m' as a linear condition on the weights. It is
+    sum over the group of w (x / m - 1) = 0; the tilt scales each target by its own size, so it is written as
+    units + sum over the group of w (x / m - 1) = units, where units, the file's total (returns plus non-filers), is
+    fixed exactly by the IRS and non-filer targets. A share is the average of a 0/1 indicator."""
+    return 1.0 + member * (x / m - 1.0)
+
+
+def average_tolerance(tolerance, member, w_start):
+    """The tolerance of an average condition, as a share of units: tolerance times the group's share of the starting
+    weight, so the group's average is within that share of m."""
+    return tolerance * w_start[member].sum() / w_start.sum()
+
+
+def wealth_targets(x, member, w_start, units):
+    """The eight SCF 2019 wealth targets: rows, each record's contribution, tolerances, and for the four shares the
+    (group, indicator) whose average they set (None for the dollar targets). Shares are among the file's units other
+    than dependent filers (member), which hold no wealth (generate.structural); dollars are the SCF's own. x and the
+    SCF's net worth are in 2016 dollars, the balance-sheet maps' dollars."""
     u = pd.read_parquet(f'{common.DATA}/scf_units_2019.parquet')
-    x19, w19 = u['net_worth_2015_dollars'].to_numpy(float), u['weight'].to_numpy(float)
-    threshold = 1e6 * u['asset_factor'].iloc[0] / NW_2016_WAVE_TO_2015      # $1 million in 2019 dollars
-    scale = file_units / w19.sum()
-    cells, cols = [], []
+    x19, w19 = u['net_worth_2016_dollars'].to_numpy(float), u['weight'].to_numpy(float)
+    threshold = 1e6 * u['asset_factor'].iloc[0] / NW_2016_WAVE      # $1 million in 2019 dollars, in 2016 dollars
+    tol_dollars, tol_share = S['wealth_tolerance'], average_tolerance(S['wealth_tolerance'], member, w_start)
+    rows, cols, tol, means = [], [], [], []
+
+    def share(group, line):
+        s = w19[x19 > line].sum() / w19.sum()
+        above = (x > line).astype(float)
+        rows.append({'group': group, 'target': 'share of units', 'value': units, 'average': s})
+        cols.append(average_condition(member, above, s))
+        tol.append(tol_share)
+        means.append((member, above))
+
+    def dollars(group, contribution, value):
+        rows.append({'group': group, 'target': 'net worth', 'value': value})
+        cols.append(contribution)
+        tol.append(tol_dollars)
+        means.append(None)
     for q, lab in zip(wquantile(x19, w19, [0.99, 0.90, 0.50]), ['99th', '90th', '50th']):
-        above = (x > q).astype(float)
-        cells += [{'group': f'above the SCF {lab} percentile', 'target': 'units', 'value': w19[x19 > q].sum() * scale},
-                  {'group': f'above the SCF {lab} percentile', 'target': 'net worth', 'value': (x19 * w19)[x19 > q].sum()}]
-        cols += [above, x * above]
-    cells += [{'group': 'all', 'target': 'net worth', 'value': (x19 * w19).sum()},
-              {'group': 'above $1 million (2019 dollars)', 'target': 'units', 'value': w19[x19 > threshold].sum() * scale}]
-    cols += [x, (x > threshold).astype(float)]
-    return pd.DataFrame(cells), np.column_stack(cols)
+        share(f'above the SCF {lab} percentile', q)
+        dollars(f'above the SCF {lab} percentile', x * (x > q), (x19 * w19)[x19 > q].sum())
+    dollars('all', x, (x19 * w19).sum())
+    share('above $1 million (2019 dollars)', threshold)
+    return pd.DataFrame(rows), np.column_stack(cols), np.array(tol), means
 
 
 AGES = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+']
@@ -168,25 +203,22 @@ def consumption_targets(df, w_start, units):
     """CEX target-year spending per unit (build_table.cex_target_units): each category's average over all tax units,
     and by the primary filer's adult age range, so the targets do not depend on how many units each source counts.
     Dependent filers are left out on both sides: the CEX folds them into the unit that claims them (build_cex.R),
-    and the file gives them no consumption (generate.structural).
-
-    An average m over group g is the linear condition sum over g of w (c / m - 1) = 0. The tilt scales each target by
-    its own size, so it is written as units + sum over g of w (c / m - 1) = units, where units, the file's total
-    (returns plus non-filers), is fixed exactly by the IRS and non-filer targets. The tolerance, a share of units, is
-    consumption_tolerance times the group's share of the starting weight: within that share of the group's average.
-    Returns the target rows (with the average), the contributions, and the tolerances."""
+    and the file gives them no consumption (generate.structural). Returns the target rows (with the average), the
+    contributions, the tolerances, and per row the (group, spending) whose average it sets."""
     y = common.SETTINGS['cex']['target_year']
     u = pd.read_parquet(f'{common.DATA}/cex_units_{y}_all.parquet')
-    rows, cols, tol = [], [], []
+    rows, cols, tol, means = [], [], [], []
     for lab, k in [('all', None)] + [(f'age {a}', k) for k, a in enumerate(AGES)]:
         mu = np.ones(len(u), bool) if k is None else (u['age_range'] == k).to_numpy()
         mf = (df['age_range'] < 6).to_numpy() if k is None else (df['age_range'] == k).to_numpy()
         for v in D._META['cex_amounts']:
             m = float(np.average(u.loc[mu, v], weights=u.loc[mu, 'weight']))
+            c = df[v].to_numpy(float)
             rows.append({'group': f'CEX {y}, {lab}', 'target': f'{v}, average', 'value': units, 'average': m})
-            cols.append(1.0 + mf * (df[v].to_numpy(float) / m - 1.0))
-            tol.append(S['consumption_tolerance'] * w_start[mf].sum() / w_start.sum())
-    return pd.DataFrame(rows), np.column_stack(cols), np.array(tol)
+            cols.append(average_condition(mf, c, m))
+            tol.append(average_tolerance(S['consumption_tolerance'], mf, w_start))
+            means.append((mf, c))
+    return pd.DataFrame(rows), np.column_stack(cols), np.array(tol), means
 
 
 def nonfiler_count():
@@ -267,7 +299,7 @@ def main():
     soi = TG.load()
     raw = pd.read_parquet(f'{common.GEN}/stack.parquet')
     g19 = D.draw_dollars(raw, D.load_maps(2019))
-    g15 = D.draw_dollars(raw, D.load_maps(2015))
+    g15 = D.draw_dollars(raw, D.load_maps(2015))   # PUF items in 2015 dollars, the balance sheet in 2016 dollars
     x = g15['net_worth'].to_numpy(float)
     filer = g19['filer'].to_numpy() == 1
     imp = g19['weight'].to_numpy(float)
@@ -288,10 +320,10 @@ def main():
     # the targets
     irs, F_irs = irs_targets(soi, g19)
     bus, F_bus = business_targets(soi, g19)
-    # wealth counts on the file's units other than dependent filers, which hold none (generate.structural)
-    nondep = g19['age_range'].to_numpy() < 6
-    wl, F_w = wealth_targets(x, w0[nondep].sum())
-    cl, F_c, tol_c = consumption_targets(g19, w0, returns + n_nonfilers)
+    units = returns + n_nonfilers
+    nondep = g19['age_range'].to_numpy() < 6        # wealth shares: units other than dependent filers
+    wl, F_w, tol_w, means_w = wealth_targets(x, nondep, w0, units)
+    cl, F_c, tol_c, means_c = consumption_targets(g19, w0, units)
     F_irs, F_bus = F_irs * filer[:, None], F_bus * filer[:, None]
     cells = pd.concat([irs.assign(kind='IRS'), pd.DataFrame([{'group': 'all', 'target': 'non-filers',
                                                                'value': n_nonfilers, 'kind': 'non-filers'}]),
@@ -299,8 +331,8 @@ def main():
                       ignore_index=True)
     F = np.column_stack([F_irs, (~filer).astype(float), F_bus, F_w, F_c])
     T = cells['value'].to_numpy(float)
-    tol = np.r_[np.zeros(len(irs) + 1 + len(bus)), np.full(len(wl), S['wealth_tolerance']),
-                tol_c]
+    tol = np.r_[np.zeros(len(irs) + 1 + len(bus)), tol_w, tol_c]
+    means = [None] * (len(irs) + 1 + len(bus)) + means_w + means_c
     w1, ok = tilt(w0, F, T, tol)
     form = 'exact'
     if not ok:
@@ -316,9 +348,14 @@ def main():
 
     # outputs
     fit = cells.assign(before=F.T @ w0, after=F.T @ w1)
+    for i, mx in enumerate(means):                  # shares and averages: the share or average itself
+        if mx is not None:
+            member, v = mx
+            mean = lambda w: (w * member * v).sum() / (w * member).sum()
+            fit.loc[i, ['value', 'before', 'after']] = [fit.loc[i, 'average'], mean(w0), mean(w1)]
     fit['after / target'] = fit['after'] / fit['value']
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
-    out = g19.assign(net_worth_2015_dollars=x, net_worth_2019_dollars=x * NW_TO_2019,
+    out = g19.assign(net_worth_2016_dollars=x, net_worth_2019_dollars=x * NW_TO_2019,
                      weight_start=w0, weight=w1).drop(columns=['net_worth'])
     for c in list(D.NET_WORTH_PARTS) + [v for v in D._META['scf_amounts'] if v.startswith('w_kg_')]:
         out[c + '_2019_dollars'] = g15[c].to_numpy(float) * NW_TO_2019   # drawn in the 2016 wave's dollars
@@ -326,7 +363,7 @@ def main():
     out.to_parquet(f'{common.TILT}/file_2019.parquet', index=False)
     u = pd.read_parquet(f'{common.DATA}/scf_units_2019.parquet')
     nw = net_worth_table({
-        'SCF 2019': (u.assign(wages=u['wages']), u['net_worth_2015_dollars'].to_numpy(float) * NW_TO_2019,
+        'SCF 2019': (u, u['net_worth_2016_dollars'].to_numpy(float) * NW_TO_2019,
                      u['weight'].to_numpy(float)),
         'before the tilt': (g19, x * NW_TO_2019, w0), 'after the tilt': (g19, x * NW_TO_2019, w1)})
     summary = pd.Series({'targets': len(T), 'business targets': f'{len(bus)}, {form}',

@@ -284,7 +284,7 @@ class SlotTransformer(nn.Module):
             x = self.token_embedding(token_ids(values, hidden, slots)) + self.slot_embedding[slot_tensor(slots, values.device)]
             heads = [(k, self.heads[j]) for k, j in enumerate(predicted_of(slots))]
         h = self.final_norm(self.encoder(x, src_key_padding_mask=values < 0))
-        if LOOP_HEADS:   # the original per-variable loop; kept only to check the batched version (check_heads.py)
+        if LOOP_HEADS:   # the original per-variable loop; kept only to check the batched version
             out = h.new_full((len(values), len(heads), MAX_CHOICES), -math.inf)
             for k, head in heads:
                 out[:, k, :head.out_features] = head(h[:, len(CONTEXT) + k])

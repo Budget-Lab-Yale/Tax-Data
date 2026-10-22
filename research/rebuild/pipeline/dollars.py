@@ -54,7 +54,7 @@ def load_maps(year):
     maps = split(pd.read_parquet(f'{common.MAPS}/map_puf_{year}.parquet'))
     maps.update(split(pd.read_parquet(f'{common.MAPS}/map_scf_2015.parquet')))
     cex = f'{common.MAPS}/map_cex_{year}.parquet'
-    if os.path.exists(cex):                       # the consumption categories (2019: grown by PCE per return)
+    if os.path.exists(cex):                       # the consumption categories (build_table.build_maps)
         maps.update(split(pd.read_parquet(cex)))
     return maps
 

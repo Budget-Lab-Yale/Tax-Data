@@ -1,8 +1,8 @@
 """Consumption in the 2019 file against the CEX 2019.
 
 The CEX side is the target year's tax units (build_table.cex_target_units): all of them, a shared household's
-spending divided among its tax units by head count, as the tilt's targets are; and, for reference, only those
-whose household is one tax unit, which are what the model trains on. Both are in nominal 2019 dollars, as is
+spending divided among its tax units by head count, as the tilt's targets and the training rows are; and, for
+reference, only those whose household is one tax unit, whose spending needs no dividing. Both are in nominal 2019 dollars, as is
 the file, so no conversion stands between them.
 
 Targeted (the tilt): each category's average per tax unit, overall and by the primary filer's adult age range.
@@ -24,7 +24,7 @@ CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', '
         'c_housing_utilities', 'c_other_services_health']
 NAMES = dict(zip(CATS, ['clothing', 'motor vehicles', 'durables', 'other nondurables', 'food at home', 'gasoline',
                         'housing and utilities', 'other services and health']))
-AGES = {-2: 'dependent filer', 0: 'under 26', 1: '26-34', 2: '35-44', 3: '45-54', 4: '55-64', 5: '65+',
+AGES = {0: 'under 26', 1: '26-34', 2: '35-44', 3: '45-54', 4: '55-64', 5: '65+',
         6: 'dependent filer', 7: 'dependent filer', 8: 'dependent filer'}
 CEX_INCOME = ['wages', 'se_income', 'social_security', 'ssi', 'int_div', 'net_rent', 'pensions', 'other_regular', 'roy_est']
 Y = common.SETTINGS['cex']['target_year']

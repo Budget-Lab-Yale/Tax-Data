@@ -27,6 +27,8 @@
 # male2) and the builder's unit code, for the primary filer's age range
 # (ages.py).
 #
+# Paths and waves from settings.json; the settings file is REBUILD_SETTINGS if
+# set (run.sbatch sets it), else the pipeline's own.
 # Writes {out}/data/scf_units_{wave}.csv.gz, one row per tax unit and
 # implicate. Run from the repository root through Slurm (run.sbatch, stage scf).
 #-------------------------------------------------------------------------------
@@ -34,7 +36,7 @@ suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr); library(readr); library(data.table); library(haven)
   library(jsonlite)
 })
-settings = fromJSON('research/rebuild/pipeline/settings.json')
+settings = fromJSON(Sys.getenv('REBUILD_SETTINGS', 'research/rebuild/pipeline/settings.json'))
 OUT = file.path(Sys.getenv('REBUILD_OUT', settings$paths$out), 'data')
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
 

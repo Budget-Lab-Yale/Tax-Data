@@ -11,6 +11,10 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    - Targets where nothing is published: projection years, splits SOI
      does not show. Build them from macro and demographic projections.
    - Choose the level of detail with held-out targets.
+   - Estates and trusts were dropped from the business targets on 22
+     October: their tiny cells (about 6,000 returns at AGI $50–100k) could
+     not always be met. Bring them back here, with tolerances from SOI's
+     sampling errors.
    - Starting points: `archive/design/tilt_next_steps.md` and
      `archive/minimal/36_RESULTS.md`.
 2. **Translation, finalized.** An algorithm for lining up the variables
@@ -19,6 +23,43 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    hand-set assumptions for each variable
    (`archive/background/13_translation_as_a_known_problem.md`,
    `archive/design/cell_method.md`).
+   - Rule (John, 22 October; non-negotiable minimum): every comparison
+     between a survey in year y and the PUF uses the tax data as of year
+     y: PUF filers with weights scaled to SOI's year-y return counts in as
+     much detail as SOI publishes (filing status x age, Table 1.6), every
+     dollar item grown by SOI's growth per return with the item, the
+     year's non-filer tax units appended (item 8), dependent filers left
+     out. Every shared variable, the assumed-correct ones included, gets a
+     standing distribution comparison against it, and every translation
+     rule (cut points, ranks, the top-wage swap, the fill-in formula's PUF
+     side) uses it. Past SOI's last year: the last year's growth carried
+     forward, as a placeholder until the targeting framework (item 1)
+     supplies a rule for borrowing from other years.
+   - Design (John, 22 October): translation is two standard functions and
+     one configuration table, with no bespoke code paths per variable or
+     survey.
+     - **Function 1, amounts.** Puts any shared amount from any survey on
+       the PUF's bands against the tax data as of the survey's year. One
+       setting, a dollar line: dollars matched below it, rank (count from
+       the top) above it. No line is pure dollars; a line at zero is pure
+       rank. The SCF top-wage swap becomes function 1 with a line at
+       $100,000. It replaces the dollar rule, the rank rule and the swap.
+     - **Function 2, holding.** The two-slot fill-in, for any survey and
+       item whose zeros hide holders. Always runs after function 1, on its
+       bands.
+     - **The table** (`settings.json`): one row per survey and shared
+       variable, giving the survey items, definition fixes (such as the
+       $3,000 capital loss cap), the dollar line, whether function 2
+       applies, whether the variable is a type that function 2 conditions
+       on (those cannot have function 2 themselves), and a one-line reason.
+       Defaults: dollars, no fill-in; any departure needs its reason,
+       backed by the standing comparison. A variable not in the table is
+       not shared.
+     - **The report** each run writes, one section per row, against the
+       tax data as of the survey's year: the survey as reported, after
+       function 1 (table stage) and after function 2 (training); in each,
+       the share with none, counts by size range, counts above fixed lines,
+       the mean and top shares.
 3. **Year priors.** A rule for which source-years a target year draws on,
    for every year through 2060. The year token is in the model; the rule
    is not.
@@ -56,6 +97,12 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    - Decide early: it changes what pretraining must get right.
 8. **Real non-filers.** The CPS-based non-filer pool in this repository,
    in place of the crude stopgap.
+   - TODO (John, 22 October): the universe is always tax units, not
+     filers. Extend the pool to every year a survey or target needs (it
+     covers 2017–2023 now). The first step of preprocessing is to build
+     each year's non-filer tax units and append them to the PUF: "the tax
+     data" for that year. Every translation comparison (item 2) is made
+     against it.
 9. **A tax calculator in post-training.** Targets on computed tax values:
    itemizers after TCJA, taxable income, liability by AGI. Possibly
    calibration to revenue estimates. Each record's contribution is

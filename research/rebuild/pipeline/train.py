@@ -1,4 +1,4 @@
-"""Pretraining: the transformer on the PUF and SCF table, with two slots per translated item.
+"""Pretraining: the transformer on the PUF, SCF and CEX table, with two slots per translated item.
 
 Masked any-subset training (model.py) on every record but a 2% held-back
 slice, for a fixed number of passes, keeping the last.
@@ -15,12 +15,16 @@ a hidden holding in each size range:
        ever feeds the formula);
   B_k  C_k averaged over SCF units of the same year, married, dependents and
        wage band (the type);
-  A_k  the PUF concept given the type only (PUF label, the fitting year);
+  A_k  the PUF concept given the type only (PUF label, the fitting year), over
+       the PUF's units other than dependent filers: the item given the type
+       and each adult age range, mixed by the model's chance of that range;
   chance of a hidden holding in k = C_k * max(A_k / B_k - 1, 0) / C_0,
   capped at 100% in total; within a range, bands follow A.
 Each batch redraws the PUF-concept slot of its zero-reporters from those
-chances. It assumes a holder's chance of reporting depends only on its type
-and true amount, not on anything else on the record.
+chances. In the held-back slice no fill-in is drawn, so a zero-reporter's
+PUF-concept slot is absent there (unknown: not shown, not scored). The
+formula assumes a holder's chance of reporting depends only on its type and
+true amount, not on anything else on the record.
 
 Age range (ages.py). PUF records with no range carry step 0's probabilities;
 a range is drawn from them for every training record at the start of each
@@ -132,6 +136,10 @@ def main():
                     rep_band={v: d['values'][:, C + jl[v]].clone() for v in MAPPED})
     tr = enc(table[table.split == 'train'])
     te = enc(table[table.split == 'test'])
+    # A held-back SCF zero-reporter's PUF-concept amount is unknown (training fills it in; the held-back slice is
+    # never filled), so it is absent there: not shown, not scored.
+    for v in MAPPED:
+        te['values'][te['scf'] & (te['rep_band'][v] == 0), C + jl[v]] = -1
     j_age = C + P.index('age_range')
 
     def draw_ages(d):
@@ -219,25 +227,48 @@ def main():
                 hid[:, j] = sl not in TYPE
         return v, hid
 
+    def puf_log_probs(va, ha):
+        """The network on a PUF-label view; returns a function from a PREDICTED index to its log-probabilities."""
+        if PACK:
+            vp, hp = M.pack(va, ha, PUF_SLOTS)
+            out, idx = model(vp, hp, PUF_SLOTS), M.predicted_of(PUF_SLOTS)
+            return lambda j: out[:, idx.index(j)]
+        out = model(va, ha)
+        return lambda j: out[:, j]
+
+    j_age_p = P.index('age_range')
+
+    def puf_at_type(vals):
+        """A for every mapped item: the PUF concept given the type only (PUF label, the fitting year), over the
+        PUF's units other than dependent filers, which are outside any comparison of tax units with a survey.
+        The model's chance of each of the six adult age ranges given the type, rescaled to sum to one, times
+        the item's distribution given the type and that range."""
+        va, ha = type_only(vals, 'puf')
+        age = puf_log_probs(va, ha)(j_age_p)[:, :6].exp().double()
+        age = age / age.sum(1, keepdim=True)
+        A = {v: 0.0 for v in MAPPED}
+        for k in range(6):
+            vk, hk = va.clone(), ha.clone()
+            vk[:, C + j_age_p], hk[:, j_age_p] = k, False
+            lp = puf_log_probs(vk, hk)
+            for v in MAPPED:
+                A[v] = A[v] + age[:, k:k + 1] * lp(jl[v])[:, :NB[v]].exp().double()
+        return A
+
     @torch.no_grad()
     def refit(epoch):
         """Each SCF record's fill-in distribution over the PUF-concept bands of each mapped item, from the
         formula: a zero-reporter's chance of a hidden holding in range k is C_k * e_k / C_0, with C its
         chance of reporting each range (SCF label, reported slot, every filled slot hidden), e_k = A_k / B_k - 1
-        where positive, A the PUF concept given type only, B the average of C over its type (year, married,
-        dependents, wage band); capped at 100%. Within a range, bands follow A."""
+        where positive, A the PUF concept given type only (no dependent filers: puf_at_type), B the average of
+        C over its type (year, married, dependents, wage band); capped at 100%. Within a range, bands follow A."""
         model.eval()
-        for v in MAPPED:
-            K = NR[v]
-            Ab, Cr = [], []
-            for a in range(0, len(srv_idx), REFIT_CHUNK):
-                vals = tr['values'][srv_idx[a:a + REFIT_CHUNK]]
-                va, ha = type_only(vals, 'puf')
-                if PACK:
-                    va, ha = M.pack(va, ha, PUF_SLOTS)
-                    Ab.append(model(va, ha, PUF_SLOTS)[:, M.predicted_of(PUF_SLOTS).index(jl[v]), :NB[v]].exp().double())
-                else:
-                    Ab.append(model(va, ha)[:, jl[v], :NB[v]].exp().double())
+        A_all, C_all = {v: [] for v in MAPPED}, {v: [] for v in MAPPED}
+        for a in range(0, len(srv_idx), REFIT_CHUNK):
+            vals = tr['values'][srv_idx[a:a + REFIT_CHUNK]]
+            A = puf_at_type(vals)
+            for v in MAPPED:
+                A_all[v].append(A[v])
                 hc = torch.zeros(len(vals), len(P), dtype=torch.bool, device=device)
                 hc[:, jr[v]] = True
                 for u in MAPPED:
@@ -247,8 +278,10 @@ def main():
                     pc = model(vs, hs, SCF_SLOTS_)[:, M.predicted_of(SCF_SLOTS_).index(jr[v]), :NB[v]].exp().double()
                 else:
                     pc = model(vals, hc)[:, jr[v], :NB[v]].exp().double()
-                Cr.append(torch.zeros(len(pc), K, dtype=torch.float64, device=device).index_add_(1, RO[v], pc))
-            Ab, Cr = torch.cat(Ab), torch.cat(Cr)
+                C_all[v].append(torch.zeros(len(pc), NR[v], dtype=torch.float64, device=device).index_add_(1, RO[v], pc))
+        for v in MAPPED:
+            K = NR[v]
+            Ab, Cr = torch.cat(A_all[v]), torch.cat(C_all[v])
             Ar = torch.zeros(len(Ab), K, dtype=torch.float64, device=device).index_add_(1, RO[v], Ab)
             num = torch.zeros(NT, K, dtype=torch.float64, device=device).index_add_(0, tkey, w_s[:, None] * Cr)
             den = torch.zeros(NT, dtype=torch.float64, device=device).index_add_(0, tkey, w_s)

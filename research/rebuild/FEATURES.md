@@ -183,6 +183,12 @@ dependent filers (under 18, 18–25, 26+), kept apart.
     holders as the PUF, or more, gets none.
   - It assumes a holder's chance of reporting depends only on its type and
     true amount, not on net worth or anything else on the record.
+  - The PUF side of the formula (the PUF share for each type) leaves out
+    dependent filers, which are not tax units in any comparison with a
+    survey: it mixes the model's answers over the six adult age ranges, by
+    the model's chance of each range given the type.
+  - In the 2% held-back slice no fill-in is drawn, so there a zero-reporter's
+    PUF-concept amount is unknown: not shown and not scored.
   - Net worth is drawn given the PUF-concept amounts; the reported slots
     stay hidden at generation.
 
@@ -237,9 +243,9 @@ count their wealth and spending in the household that claims them. Their
 tax items stay as drawn.
 
 **Speed.** Each step runs the network only on the slots present in its
-phase and computes only the output layers it needs (`generate_fast.py`):
-the same draws, half the time and memory
-(`explore/2026-10-22/perf/generation/GENERATION.md`).
+phase and computes only the output layers it needs: the same draws, half the
+time and memory (`explore/2026-10-22/perf/generation/GENERATION.md`). Since
+22 October this is the only drawing loop in `generate.py`.
 
 **Consistency rules** (`settings.json`, "consistency"; each rule is a list
 of items that trigger it and a list of holdings of which at least one must
@@ -257,7 +263,10 @@ Where several holdings would do, the one that must be nonzero is picked
 when the first of them comes up, in proportion to the model's own chance
 that each is nonzero. Ruling out zero sets the model's chance of zero to
 nothing and rescales the rest; the model still decides the size. With no
-home, the mortgage share is zero.
+home, the mortgage share is zero. No rule applies to a dependent filer: it
+keeps its PUF items as drawn and holds no survey item at all (22 October;
+before, about 0.1 million dependent returns had a partnership or rental
+item and, by the zero-wealth rule, no matching holding).
 
 **The offset.** The rules add holders and take none away, so without more
 each ruled holding ends with more holders than the model alone would draw.
@@ -292,12 +301,15 @@ that meets:
 |---|---:|---|
 | IRS (SOI 2019 Table 1.4): returns, and the number with and amount of wages, interest, dividends and capital gains, in 15 AGI brackets; plus joint returns | 136 | exactly |
 | Non-filers | 1 | exactly |
-| IRS business: six families, net income and net loss, returns and dollars, in 6 AGI groups | about 140 | exactly, or within 2% if that fails |
-| SCF 2019 wealth: units and net worth above the 99th, 90th and 50th percentiles, total net worth, units above $1 million; counts on the file's own units other than dependent filers | 8 | within 2% |
+| IRS business: five families (estates and trusts left out until the targeting overhaul, 22 October), net income and net loss, returns and dollars, in 6 AGI groups | 116 | exactly, or within 2% if that fails |
+| SCF 2019 wealth: the share of units above the 99th, 90th and 50th percentiles and above $1 million, among the file's units other than dependent filers; net worth above each percentile and in total | 8 | within 2% |
 | CEX 2019 consumption: each category's average per tax unit, over all units and in each of the 6 adult age ranges of the primary filer (dependent filers left out on both sides) | 56 | within 2% of the average |
 
 Consumption targets are averages, not totals, so they do not depend on how
-many units each source counts (the file 187 million, the CEX 153 million).
+many units each source counts (the file 177 million units other than
+dependent filers, the CEX 153 million). The wealth count targets are written
+the same way, as shares, since 22 October; `fit.csv` reports each share and
+average itself.
 An average is a linear condition on the weights; it is written so the
 tilt's scaling by target size works (`tilt.py`, consumption_targets).
 A first run targeted totals: the file then had 17% more units over which
@@ -305,6 +317,12 @@ to spread the same dollars, and the tilt kept only 72% of the effective
 sample.
 
 ## How the latest run comes out
+
+**The committed code has moved past "latest"** (22 October, evening review):
+consistency rules no longer apply to dependent filers; the fill-in's PUF side
+leaves them out; the wealth counts are shares; estates and trusts are out of
+the business targets; the held-back slice no longer scores unknown amounts.
+The runs below were made before these changes; a rerun is needed.
 
 **Since 22 October, "latest" adds consumption from the CEX** (with gross
 Social Security shared, dependent filers at zero wealth and consumption,

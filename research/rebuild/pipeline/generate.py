@@ -21,8 +21,10 @@ One record is drawn slot by slot:
   4. the CEX-only slots (the 8 consumption categories) in a random order per
      record, each under the CEX label and year (settings "cex",
      generation_year) with every slot the CEX lacks left out: given married,
-     dependents, the age range, wages, retirement income, self-employment
+     dependents, the age range, wages, gross Social Security, self-employment
      income and the categories drawn so far.
+Each step runs the network only on the slots present in its phase and
+computes only the output layers it needs.
 
 Consistency rules (settings.json, "consistency"). Each rule: when any of
 its items is nonzero on the record, at least one of its holdings must be
@@ -31,7 +33,8 @@ up, in proportion to the model's own chance that each is nonzero (before the
 offset's factors, below, so the choice does not move with them); the others are drawn
 freely. Ruling out zero sets the chance of zero to nothing and rescales the
 other bands; the model still decides the size. Also: with no home, the
-mortgage share is zero.
+mortgage share is zero. No rule applies to a dependent filer: it holds no
+survey item at all.
 
 The offset. The rules add holders and take none away, so each ruled holding
 ends with more holders than the model alone would draw. Generation therefore
@@ -61,6 +64,7 @@ and ruled holding: the model's own expected holders, the holders with the
 rules, the factor used and the next one).
 """
 import json
+import math
 import os
 
 import numpy as np
@@ -137,10 +141,33 @@ def computed_band(values, gen, total):
     return band
 
 
-# ---- one draw ------------------------------------------------------------------
-def survey_probs(model, values, hidden, label, year=None):
-    """Every slot's distribution as a survey would see the record: its label (and year), the slots it lacks absent."""
-    return model(*M.seen_as(values, hidden, label, year)).exp()
+# ---- the network, run on one phase's slots ------------------------------------------
+# Each step runs the network only on the positions present in the current phase (the PUF phase has no SCF or
+# CEX slots; the SCF view no PUF-only or CEX slots; the CEX view only its own) and computes only the output
+# layers it needs. Absent positions are invisible to the rest, so this changes nothing beyond rounding.
+def phase_columns(view):
+    """The positions present in a phase's view, and for each of SLOTS its column among them (-1 if absent)."""
+    cols = torch.nonzero((view >= 0).any(0)).squeeze(1)
+    inv = torch.full((len(M.SLOTS),), -1, dtype=torch.long, device=view.device)
+    inv[cols] = torch.arange(len(cols), device=view.device)
+    return cols, inv
+
+
+def network_output(model, values, hidden, cols):
+    """The network's last layer at the positions cols: [records, positions, width]."""
+    ids, mask = M.token_ids(values, hidden)[:, cols], (values < 0)[:, cols]
+    x = model.token_embedding(ids) + model.slot_embedding[cols]
+    return model.final_norm(model.encoder(x, src_key_padding_mask=mask))
+
+
+def slot_probs(model, h, j):
+    """Per record i, the distribution of predicted slot j[i] from its output vector h[i]: [records, MAX_CHOICES]."""
+    out = h.new_full((len(j), M.MAX_CHOICES), -math.inf)
+    for jj in torch.unique(j).tolist():
+        sel = (j == jj).nonzero().squeeze(1)
+        head = model.heads[jj]
+        out[sel, :head.out_features] = head(h[sel])
+    return out.log_softmax(-1).exp()
 
 
 def scf_order(size, gen):
@@ -175,14 +202,15 @@ def structural(values, slot, probs):
     return probs
 
 
-def scale_odds(all_probs, factors):
-    """Each ruled holding's odds of being nonzero multiplied by its factor."""
+def scale_odds(probs, slot, factors):
+    """On the records drawing a ruled holding, its odds of being nonzero multiplied by its factor."""
     for v, f in factors.items():
         if f != 1.0:
-            j = P.index(v)
-            all_probs[:, j, 1:] *= f
-            all_probs[:, j] /= all_probs[:, j].sum(-1, keepdim=True)
-    return all_probs
+            s = probs.clone()
+            s[:, 1:] *= f
+            s /= s.sum(-1, keepdim=True)
+            probs = torch.where((slot == P.index(v))[:, None], s, probs)
+    return probs
 
 
 def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
@@ -246,6 +274,7 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
         forced = torch.zeros(size, len(RULED), dtype=torch.bool, device=device)
         p_drawn = torch.full((size,), float('nan'), dtype=torch.float64, device=device)
         q_drawn = p_drawn.clone()
+        columns = {}                                            # per phase: present positions and their inverse
         for step in range(order.shape[1]):
             slot = order[:, step]
             if step == n_own:                                  # the SCF slots' turn: compute the totals first
@@ -256,21 +285,33 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
                     values[:, NC + P.index(flag)] = torch.stack(
                         [values[:, NC + P.index(v)] != 0 for v in flag_parts], 1).any(1).long()
                     filled[:, P.index(flag)] = True
+                # dependent filers hold no survey item (structural), so no rule applies to them
+                dependent = torch.isin(values[:, NC + P.index('age_range')], DEPENDENT_RANGES.to(device))
                 for r, rule in enumerate(RULES):
                     triggered[:, r] = torch.stack([values[:, NC + P.index(v)] != 0
-                                                   for v in rule['when_any_nonzero']], 1).any(1)
+                                                   for v in rule['when_any_nonzero']], 1).any(1) & ~dependent
                     STATS['rule'][rule['name']] += int(triggered[:, r].sum())
                 values[:, NC + scf.to(device)] = 0
                 values[:, NC + cex.to(device)] = 0                         # each survey's view leaves out the other's
                 values[:, NC + REP_SLOTS.to(device)] = 0                  # reported slots: present, never drawn (hidden)
             hidden = (values[:, NC:] >= 0) & ~filled
             if step >= n_own:
-                all_probs = survey_probs(model, values, hidden, 'scf') if step < n_own + n_scf else \
-                    survey_probs(model, values, hidden, 'cex', CEX_YEAR)
-                own_probs = structural(values, slot, all_probs[rows, slot].clone())   # the model's own, before rules
-                own_nonzero = 1 - all_probs[:, :, 0]
-                all_probs = scale_odds(all_probs, factors)
-                probs, ok = apply_rules(slot, filled, own_nonzero, structural(values, slot, all_probs[rows, slot].clone()),
+                label, year = ('scf', None) if step < n_own + n_scf else ('cex', CEX_YEAR)
+                view, view_hidden = M.seen_as(values, hidden, label, year)
+                if label not in columns:
+                    columns[label] = phase_columns(view)
+                cols, inv = columns[label]
+                h = network_output(model, view, view_hidden, cols)
+                slot_p = slot_probs(model, h[rows, inv[NC + slot]], slot)
+                # each ruled holding's chance of being nonzero, the model's own (no rule applies in the CEX phase)
+                own_nonzero = torch.zeros(size, len(P), device=device)
+                for v in (RULED if label == 'scf' else []):
+                    j = P.index(v)
+                    own_nonzero[:, j] = 1 - slot_probs(model, h[:, inv[NC + j]], torch.full_like(slot, j))[:, 0]
+                del h
+                own_probs = structural(values, slot, slot_p.clone())   # the model's own, before rules
+                probs, ok = apply_rules(slot, filled, own_nonzero,
+                                        structural(values, slot, scale_odds(slot_p.clone(), slot, factors)),
                                         triggered, resolved, must, gpu_gen)
                 k = (slot[:, None] == ruled[None, :])                       # rows whose slot is a ruled holding
                 hit = k.any(1)
@@ -278,7 +319,12 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
                 own_chance[rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
                 forced[rows[hit], col[hit]] = ok[hit]
             else:
-                probs = model(values, hidden)[rows, slot].exp()
+                if 'puf' not in columns:
+                    columns['puf'] = phase_columns(values)
+                cols, inv = columns['puf']
+                h = network_output(model, values, hidden, cols)
+                probs = slot_probs(model, h[rows, inv[NC + slot]], slot)
+                del h
             draw_from, boosted = probs, None
             if boost is not None:
                 var, bands, factor = boost
@@ -325,17 +371,6 @@ def nothing_known(model, var):
     return model(values, values[:, NC:] >= 0)[0, P.index(var)].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
 
 
-FAST = {'heads': 'needed', 'pack': True}   # generate_fast.py (22 October): the same draws, half the time and memory
-
-
-def generate_any(*args, **kwargs):
-    """generate() through generate_fast.py: the network run only on the slots present in each phase, and only
-    the output heads needed. Its STATS is this module's (it imports generate as a separate module)."""
-    import generate_fast
-    generate_fast.STATS = STATS
-    return generate_fast.generate(*args, **kwargs, opts=FAST)
-
-
 def build_stack(model, factors):
     STATS.clear()
     STATS['rule'] = {r['name']: 0 for r in RULES}
@@ -344,7 +379,7 @@ def build_stack(model, factors):
     for var, seed in G['files'].items():
         top = M.positive_bands(var, 1 - G['top_share'], 1.0)
         if M.OWNED_BY.get(var) == 'scf':
-            part = generate_any(model, n, seed, boost=(var, top, G['boost']), factors=factors)
+            part = generate(model, n, seed, boost=(var, top, G['boost']), factors=factors)
             part['weight'] = part['p_band'] / part['q_band']
         else:
             p = nothing_known(model, var)
@@ -353,7 +388,7 @@ def build_stack(model, factors):
             q /= q.sum()
             bands = torch.multinomial(torch.tensor(q), n, replacement=True,
                                       generator=torch.Generator().manual_seed(seed))
-            part = generate_any(model, n, seed, preset={var: bands}, factors=factors)
+            part = generate(model, n, seed, preset={var: bands}, factors=factors)
             b = bands.numpy()
             part['weight'], part['p_band'], part['q_band'] = p[b] / q[b], p[b], q[b]
         part['weight'] *= n / part['weight'].sum()

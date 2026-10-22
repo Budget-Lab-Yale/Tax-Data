@@ -23,9 +23,11 @@ to 675,000 rows, 86 slots); reports under
 **Generation** (`generation/`), seconds and peak memory per 50,000 records:
 before, 20.4 s and 24.5 GB (it ran out of memory on a 32 GB card); running
 the network only on each phase's slots and computing only the needed output
-layers, 9.4 s and 10.8 GB, the same draws (in the pipeline:
-`generate_fast.py`); with bfloat16 as well, 5.0 s and 5.5 GB, differences
-well inside seed noise (not switched on).
+layers, 9.4 s and 10.8 GB, the same draws (in the pipeline: `generate.py`,
+the only drawing loop since 22 October); with bfloat16 as well, 5.0 s and
+5.5 GB, differences well inside seed noise (not switched on; the option was
+removed when the two generators were merged, and adding it back is a few
+lines).
 
 **Two limits found:**
 - Empty slots cost more than in proportion: 3.4 times the slots took 5.2
