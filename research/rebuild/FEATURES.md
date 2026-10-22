@@ -326,13 +326,33 @@ sample.
 
 ## How the latest run comes out
 
-**The committed code has moved past "latest"** (22 October, evening review):
-consistency rules no longer apply to dependent filers; the fill-in's PUF side
-leaves them out; the wealth counts are shares; estates and trusts are out of
-the business targets; the held-back slice no longer scores unknown amounts.
-The runs below were made before these changes; a rerun is needed.
+**Since 22 October (late), "latest" is the reviewed and cleaned-up code**
+(`HISTORY.md`, 22 October evening and 23 October): consistency rules not
+applied to dependent filers, the fill-in's PUF side without them, wealth
+counts as shares, estates and trusts out of the business targets, the
+held-back slice not scoring unknown amounts, and one currency (the 1.3%
+correction). Two seeds: models from `explore/2026-10-22/review_fix/out2/`
+(trained by the commit before the cleanup, which trains identically),
+generation and tilt from `out3/` with the cleaned-up code, copied into the
+main output folders. The previous latest is in `previous_2026-10-22_cex/`.
+Every target met (317; the 116 business targets exactly); nominal 2019
+dollars; the two seeds, then the previous latest's two:
 
-**Since 22 October, "latest" adds consumption from the CEX** (with gross
+| | Latest | Previous latest | SCF or CEX 2019 |
+|---|---:|---:|---:|
+| effective sample kept | 90.2%, 89.6% | 89.8%, 89.3% | |
+| net worth before the tilt | $104.9T, $102.3T | $103.8T, $113.7T | $96.1T |
+| median net worth, all units | $70,400, $71,100 | $74,500, $73,900 | $91,050 |
+| mean net worth, wages $200k+ | $4.09M, $3.96M | $4.10M, $4.01M | $4.36M |
+| consumption, wages $1-25k | $23.0k, $23.5k | $24.4k, $24.3k | $27.6k |
+| consumption, wages $100-200k | $77.5k, $76.4k | $76.2k, $77.0k | $70.0k |
+| consumption, wages $200k+ | $130.5k, $129.8k | $129.9k, $131.9k | $113.3k |
+
+The SCF's mean at $200k+ of wages reads $4.36M here and $4.49M before:
+$200,000 of wages now falls in the $200k+ group in every report, as in
+the consumption report.
+
+**Before that, from 22 October, "latest" added consumption from the CEX** (with gross
 Social Security shared, dependent filers at zero wealth and consumption,
 the consumption targets, packing and the faster generator). Two seeds
 (20261016–17), made in `explore/2026-10-22/cex6/` (runs `dep0_seed<n>`)
