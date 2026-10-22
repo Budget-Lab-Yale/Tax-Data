@@ -309,9 +309,12 @@ sample.
 **Since 22 October, "latest" adds consumption from the CEX** (with gross
 Social Security shared, dependent filers at zero wealth and consumption,
 the consumption targets, packing and the faster generator). Two seeds
-(20261016–17), outputs in `explore/2026-10-22/cex6/` (runs
-`dep0_seed<n>`); the results in the main output folders below are the
-previous latest. After the tilt: every IRS, business, wealth and
+(20261016–17), made in `explore/2026-10-22/cex6/` (runs `dep0_seed<n>`)
+and copied into the main output folders (`data/`, `targets/`,
+`model/`, `gen/`, `tilt/seed<n>/`) without rerunning; the code that made
+them differs from the committed code only in computing the output layers
+one by one (the same answers to rounding) and in where paths are set. The
+previous latest is in `previous_2026-10-21_wage_scale/`. After the tilt: every IRS, business, wealth and
 consumption target met; effective sample kept 89.3–89.8% (the previous
 latest 88.5–89.0%). Median net worth over all units $74k, because the
 9.9 million dependent returns now hold none; the SCF's $91k counts them in
