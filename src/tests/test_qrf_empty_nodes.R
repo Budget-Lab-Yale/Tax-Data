@@ -58,6 +58,15 @@ cat('\nTest: filled values come from the record\'s own non-empty ensemble member
 filled_ok = vapply(which(!ok), function(i) after[i] %in% ens[i, !is.na(ens[i, ])], logical(1))
 assert('each filled value is one of that record\'s non-empty members', all(filled_ok))
 
+cat('\nTest: the vectorized re-draw equals the per-record loop it replaced (2026-10-01)\n')
+u = draw_by_id(ids, STREAM)
+loop_ref = raw
+for (i in which(!ok)) {
+  okc = which(!is.na(ens[i, ]))
+  loop_ref[i] = ens[i, okc[min(length(okc), 1L + floor(u[i] * length(okc)))]]
+}
+assert('identical to the loop, record by record', identical(after, loop_ref))
+
 cat('\nTest: a record with EVERY member empty fails loudly rather than returning NA\n')
 m2 = m; m2$valuesNodes[] = NA
 err = tryCatch({ predict_qrf_draw_by_id(m2, newdata[1:3, ], ids[1:3], STREAM); 'no error' },

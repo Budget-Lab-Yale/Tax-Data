@@ -235,8 +235,11 @@ sample_one_by_id = function(df, stream, id_col = 'id', weight_col = 'p') {
 #' @return        integer vector in 1..n_col, one per id.
 column_by_id = function(ids, n_col, stream, sub = 0L) {
   stopifnot(length(n_col) == 1L, n_col >= 1L)
-  pmin(n_col, 1L + floor(draw_by_id(ids, stream, sub = sub) * n_col))
+  pick_by_u(draw_by_id(ids, stream, sub = sub), n_col)
 }
+
+# The pick itself: uniform u in [0, 1) to an index in 1..n (n may vary by row)
+pick_by_u = function(u, n) pmin(n, 1L + floor(u * n))
 
 
 #' One ensemble member per record from a quantregForest, chosen by id.
@@ -270,7 +273,7 @@ predict_qrf_draw_by_id = function(model, newdata, ids, stream, offset = 0,
 
   # One uniform per record, keyed by id. It picks the ensemble column below.
   u   = draw_by_id(ids, stream, sub = sub)
-  val = ens[cbind(seq_along(ids), pmin(ncol(ens), 1L + floor(u * ncol(ens))))]
+  val = ens[cbind(seq_along(ids), pick_by_u(u, ncol(ens)))]
 
   # EMPTY TERMINAL NODES (S33). On this project's data, quantregForest leaves
   # `valuesNodes` NA at a share of a regression forest's terminal nodes --
@@ -289,14 +292,21 @@ predict_qrf_draw_by_id = function(model, newdata, ids, stream, offset = 0,
   # Re-draw ONLY those records, among their own non-empty ensemble members,
   # using the SAME uniform -- so the draw stays keyed by id, and every record
   # whose first choice was valid keeps exactly the value it had before.
+  # Vectorized over the misses: the k-th non-empty member of each row is the
+  # column where the row's running count of non-empty members first reaches k.
   miss = which(is.na(val))
-  for (i in miss) {
-    ok = which(!is.na(ens[i, ]))
-    if (length(ok) == 0L) {
+  if (length(miss)) {
+    ok   = !is.na(ens[miss, , drop = FALSE])
+    n_ok = rowSums(ok)
+    if (any(n_ok == 0)) {
       stop('predict_qrf_draw_by_id(): every ensemble member is empty for id ',
-           ids[i], ' on stream "', stream, '"', call. = FALSE)
+           ids[miss][n_ok == 0][1], ' on stream "', stream, '"', call. = FALSE)
     }
-    val[i] = ens[i, ok[min(length(ok), 1L + floor(u[i] * length(ok)))]]
+    k  = pick_by_u(u[miss], n_ok)
+    cs = ok * 1L
+    for (j in seq_len(ncol(cs))[-1]) cs[, j] = cs[, j - 1] + ok[, j]
+    val[miss] = ens[miss, , drop = FALSE][cbind(seq_along(miss),
+                                                 max.col(ok & cs == k, ties.method = 'first'))]
   }
 
   # Fail loudly rather than hand a caller an NA to mask.
