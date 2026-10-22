@@ -72,6 +72,6 @@ cat(sprintf('output_path = %s\n', output_path))
 
 # Persist the output_path so the chained diagnostic script can find it
 # without needing to be told.
-writeLines(output_path, '/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/.last_phase12_output_path')
+writeLines(output_path, '.last_phase12_output_path')   # repo root, gitignored
 
 cat('\nDone — Phase 1+2 + snapshot saved.\n')

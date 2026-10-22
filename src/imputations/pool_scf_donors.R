@@ -27,7 +27,7 @@
 
 # 2019 SCF raw inputs. Pinned directly for the prototype (the production
 # interface_paths$SCF currently points only at the 2022 vintage).
-SCF_2019_DIR  = '/nfs/roberts/project/pi_nrs36/shared/raw_data/SCF/v1/2019/historical'
+SCF_2019_DIR  = file.path(output_roots$production, 'raw_data', 'SCF', 'v1', '2019', 'historical')
 SCF_2019_RAW  = file.path(SCF_2019_DIR, 'p19i6.dta')
 SCF_2019_SCFP = file.path(SCF_2019_DIR, 'SCFP2019.csv')
 

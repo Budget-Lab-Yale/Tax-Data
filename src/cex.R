@@ -27,7 +27,7 @@ read_cex = function(base_path, prefix, year, ...) {
 
 build_cex_training = function() {
 
-  cex_base = '/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX'
+  cex_base = file.path(read_yaml('./config/interfaces/output_roots.yaml')$production, 'raw_data', 'CEX')
   years = c(2022, 2023, 2024)
 
   # CPI-U (IRS year avg) deflators to 2017 dollars: cpiu_irs[year] / cpiu_irs[2017]
@@ -356,7 +356,7 @@ build_cex_training = function() {
 #' @param years Target year(s)
 #' @return List with match rates and crosstabs of disagreements
 validate_tax_units_against_ntaxi = function(
-    cex_base = '/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX',
+    cex_base = file.path(read_yaml('./config/interfaces/output_roots.yaml')$production, 'raw_data', 'CEX'),
     years    = c(2023)) {
 
   # -------------------------------------------------------------------------

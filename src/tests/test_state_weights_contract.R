@@ -52,7 +52,8 @@ expect_stop(validate_baseline_detail(detail[0, ], units, 2022L), 'zero rows', 'a
 # Part 2: the published baselines, where mounted
 #------------------------------------------------------------------------------
 
-root = '/nfs/roberts/project/pi_nrs36/shared/model_data/Tax-Simulator/v1'
+root = file.path(yaml::read_yaml('./config/interfaces/output_roots.yaml')$production,
+                 'model_data', 'Tax-Simulator', 'v1')
 p1   = file.path(root, 'sw_base_2026092720_filer_refit_v2', 'baseline')
 s33  = file.path(root, 'phase0_s33', 'baseline')
 if (dir.exists(p1) && dir.exists(s33)) {
