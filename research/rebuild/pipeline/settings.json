@@ -488,7 +488,15 @@
   "filer_seed": 20261023,
   "dollar_amounts": [
    "childcare"
-  ]
+  ],
+  "tax_units": "production",
+  "_tax_units": "Which tax units build_cps.R uses. production: production's builder (src/nonfilers/asec_tax_units.R) with the non-filer pool's calibration (nonfiler_pool/results). cbo: CBO's rules (tax_units.py, roster files in cbo_units_dir) with the calibration redone on those units (calibration_<year>.csv in cbo_pool_dir, made by the work folder's calibrate_cbo.R); a year without that file stops.",
+  "cbo_units_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/tax_units_build/units",
+  "cbo_variant": "cbo",
+  "mfs_split": false,
+  "_mfs_split": "Married filing separately as a post-filing step (tax_units.mfs_split): off by default. When on, a share of joint filer couples chosen by a draw keyed by unit id (salt filer_seed) become two separate returns, to SOI's Table 1.6 count; dependents by mfs_dep_rule.",
+  "mfs_dep_rule": "primary",
+  "cbo_pool_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/tax_units_build/pool_cbo"
  },
  "ages": {
   "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",

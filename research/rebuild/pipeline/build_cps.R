@@ -9,7 +9,9 @@
 # subfamily whose head has no earnings, and low-income relatives who are not
 # self-supporting, become dependents of the householder. The frame is the
 # household population, as in the pool: people in group quarters (GQ 2) are
-# left out, and their weighted count is printed.
+# left out, and their weighted count is printed. With settings cps.tax_units = "cbo" the units are instead CBO's
+# rules (tax_units.py, read through tax_units_cbo.R) and the calibration is the one redone on those units
+# (cps.cbo_pool_dir); the default, "production", is the builder above.
 #
 # Dependent filers. The builder also makes a scoring unit for every dependent
 # aged 15 and over (to score their own filing). Those rows are dropped here:
@@ -137,6 +139,16 @@ source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')
 source('src/nonfilers/filing_model.R')
 POOL_RES = 'research/state_weights/nonfiler_pool/results'
+# Which tax units (settings cps.tax_units): 'production' (the default; production's builder and the pool's own
+# calibration) or 'cbo' (CBO's rules from tax_units.py, read from the roster files in cps.cbo_units_dir, with the
+# calibration redone on those units in cps.cbo_pool_dir; see tax_units_cbo.R)
+TAX_UNITS = if (is.null(settings$cps$tax_units)) 'production' else settings$cps$tax_units
+stopifnot(TAX_UNITS %in% c('production', 'cbo'))
+if (TAX_UNITS == 'cbo') {
+  source('research/rebuild/pipeline/tax_units_cbo.R')
+  POOL_RES = settings$cps$cbo_pool_dir
+  cat(sprintf('tax units: CBO rules (variant %s), calibration from %s\n', settings$cps$cbo_variant, POOL_RES))
+}
 POOL_FILE = settings$paths$raw$nonfiler_pool
 mok = read_mok_coefs()
 POOL_DIR = 'research/state_weights/nonfiler_pool'
@@ -196,6 +208,8 @@ for (yr in YEARS) {
   cat(sprintf('\n=== tax year %d (ASEC %d)\n', yr, yr + 1))
   # The pool's calibration for this year; when there is none, the pool's own steps make it now
   cal_path = file.path(POOL_RES, sprintf('calibration_%d.csv', yr))
+  if (!file.exists(cal_path) && TAX_UNITS == 'cbo')
+    stop(sprintf('no calibration of the CBO-rule units for %d (%s): run calibrate_cbo.R first', yr, cal_path))
   if (!file.exists(cal_path)) {
     cat(sprintf('  no pool calibration file for %d: running the pool\'s steps 01-04\n', yr))
     run_pool_calibration(yr)
@@ -227,7 +241,10 @@ for (yr in YEARS) {
   #-----------------------------------------------------------------------------
   # Units and the filing model (production code)
   #-----------------------------------------------------------------------------
-  built = build_asec_tax_units(x, yr)
+  built = if (TAX_UNITS == 'cbo') {
+    cbo_tax_units(x, yr, file.path(settings$cps$cbo_units_dir,
+                                   sprintf('roster_%d_%s_nogq.csv.gz', yr, settings$cps$cbo_variant)))
+  } else build_asec_tax_units(x, yr)
   p = built$persons
   u = add_filing_requirement(built$units, yr)
   u = add_mok_covariates(u, p)
