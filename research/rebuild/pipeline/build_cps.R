@@ -22,8 +22,31 @@
 # hazard above it (score_filing_model), then the pool's calibration (script
 # 04: one intercept shift per age band of the primary filer and the wage
 # coefficient adjustment, read from nonfiler_pool/results/calibration_<year>.csv)
-# for units below the threshold. The pool has no calibration for 2015; that
-# year uses the model before calibration, and says so. p_file is the
+# for units below the threshold.
+#
+# The calibration is a standard step here, not a file someone must have made
+# first. When a year has no calibration_<year>.csv, this script runs the pool's
+# own steps for that year, unchanged (nonfiler_pool/01_build_units.R,
+# 02_filing_model.R, 03_gq_backfill.R, 04_calibrate.R, each with the year as
+# its argument), which write their results where the pool keeps them, and then
+# reads the file as for any other year. There is one implementation of the
+# calibration: the pool's. A year whose inputs are missing stops with the list
+# of what is missing; nothing is built from the uncalibrated model. What a
+# year needs, beyond its ASEC and the thresholds in filing_requirement_params():
+#   - the national residual by age band: Census population adults by band less
+#     SOI filing adults by band (Pub 1304 Table 1.6), as
+#     nonfiler_residual/resources/nonfiler_age_shape_<year>.csv and
+#     nonfiler_residual/results/national_anchor_<year>.csv
+#     (nonfiler_residual/02_build_residual_anchors.R);
+#   - the Pub 1304 Table 1.6 workbook itself (returns_marital_age_<year>.xls,
+#     step 01's check of filing status counts);
+#   - the ASEC income totals of nonfiler_residual/09 (asec_A4_income_<year>.csv,
+#     step 01's check that wages are read the same way);
+#   - Pub 5785's count of non-filers above the filing threshold: published for
+#     2014-2016, otherwise a row of nonfiler_pool/results/
+#     pub5785_projected_targets.csv (nonfiler_pool/10_project_targets.R);
+#   - the ACS 1-year extract for that year (group quarters, step 03).
+# The ACS read in step 03 needs about 48 GB of memory. p_file is the
 # probability; filer = 1 when a uniform draw is below it (one draw per unit,
 # seeded by settings cps.filer_seed + the year, in record_id order). must_file
 # is the statutory filing requirement (add_filing_requirement).
@@ -92,9 +115,10 @@
 # REBUILD_OUT/data. Optional arguments name tax years to build (default: all
 # of settings cps.years). Writes {out}/data/cps_units_{year}.csv.gz and
 # cps_summary.csv (the printed totals per year). Run from the repository root
-# through Slurm. The R modules lack ipumsr; R/4.4.1-foss-2022b with
-# R_LIBS=/nfs/roberts/project/pi_nrs36/ag3377/R/library (ipumsr 0.10.0 and
-# hipread, built under R 4.4.1) works:
+# through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
+# hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
+# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335). The pool's steps, when this script
+# runs them, inherit the same R and library:
 #   sbatch build_cps.sbatch [years]   (in /nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps/logs/)
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
@@ -115,6 +139,44 @@ source('src/nonfilers/filing_model.R')
 POOL_RES = 'research/state_weights/nonfiler_pool/results'
 POOL_FILE = settings$paths$raw$nonfiler_pool
 mok = read_mok_coefs()
+POOL_DIR = 'research/state_weights/nonfiler_pool'
+RESID_DIR = 'research/state_weights/nonfiler_residual'
+
+# The inputs the pool's steps 01-04 read for one tax year, beyond the ASEC.
+# Returns a description of each one that is missing (none: the year can be
+# calibrated).
+pool_inputs_missing = function(yr) {
+  files = c(
+    'non-filer age shape (population adults less SOI filing adults, by age band)' =
+      file.path(RESID_DIR, 'resources', sprintf('nonfiler_age_shape_%d.csv', yr)),
+    'national residual anchor' = file.path(RESID_DIR, 'results', sprintf('national_anchor_%d.csv', yr)),
+    'SOI Pub 1304 Table 1.6 workbook' =
+      file.path(raw_data_root(), 'IRS-Ind/national/by_size', sprintf('returns_marital_age_%d.xls', yr)),
+    'ASEC income totals of nonfiler_residual/09' =
+      file.path(RESID_DIR, 'results', sprintf('asec_A4_income_%d.csv', yr)),
+    'ACS 1-year extract' = file.path(acs_extract_dir(yr), sprintf('usa_%da.dat.gz', yr)))
+  miss = sprintf('%s (%s)', names(files), files)[!file.exists(files)]
+  projected = if (file.exists(PUB5785_PROJECTED_PATH)) fread(PUB5785_PROJECTED_PATH)$tax_year else integer(0)
+  if (!(yr %in% PUB5785_YEARS) && !(yr %in% projected))
+    miss = c(miss, sprintf('Pub 5785 target: not a published year (%s) and no row in %s',
+                           paste(range(PUB5785_YEARS), collapse = '-'), PUB5785_PROJECTED_PATH))
+  if (is.null(tryCatch(filing_requirement_params(yr), error = function(e) NULL)))
+    miss = c(miss, 'filing thresholds: no entry in filing_requirement_params()')
+  miss
+}
+
+# Run the pool's own steps 01-04 for one year (they write to POOL_DIR/results)
+run_pool_calibration = function(yr) {
+  miss = pool_inputs_missing(yr)
+  if (length(miss))
+    stop(sprintf('tax year %d has no pool calibration and cannot be calibrated; missing inputs:\n  %s',
+                 yr, paste(miss, collapse = '\n  ')))
+  for (s in c('01_build_units', '02_filing_model', '03_gq_backfill', '04_calibrate')) {
+    cat(sprintf('  running the pool\'s %s.R for %d\n', s, yr))
+    status = system2('Rscript', c(file.path(POOL_DIR, paste0(s, '.R')), yr))
+    if (status != 0) stop(sprintf('the pool\'s %s.R failed for %d (exit status %d)', s, yr, status))
+  }
+}
 
 report_na = function(df, label) {
   na = colSums(is.na(df))
@@ -132,6 +194,12 @@ summary_rows = list()
 
 for (yr in YEARS) {
   cat(sprintf('\n=== tax year %d (ASEC %d)\n', yr, yr + 1))
+  # The pool's calibration for this year; when there is none, the pool's own steps make it now
+  cal_path = file.path(POOL_RES, sprintf('calibration_%d.csv', yr))
+  if (!file.exists(cal_path)) {
+    cat(sprintf('  no pool calibration file for %d: running the pool\'s steps 01-04\n', yr))
+    run_pool_calibration(yr)
+  }
   x = read_asec(yr)
   ddi = attr(x, 'ddi')
   ret_cols = if (yr <= 2017) 'INCRETIR' else ASEC_RETIREMENT_COMPONENTS
@@ -182,27 +250,26 @@ for (yr in YEARS) {
                 max(abs(cmp$p_file - cmp$pool_p_file))))
   }
 
-  # The pool's calibration (04_calibrate.R, central scenario) for units below the threshold
-  cal_path = file.path(POOL_RES, sprintf('calibration_%d.csv', yr))
+  # The pool's calibration (04_calibrate.R, central scenario) for units below the threshold. The file
+  # exists for every year by now: made at the top of this loop when it was missing.
+  stopifnot(file.exists(cal_path))
   u[, band := as.character(age_band(age_head))]
   u[, p_file_cal := p_file]
-  calibrated = file.exists(cal_path)
-  if (calibrated) {
-    cal = fread(cal_path)[scenario == 'central']
-    stopifnot(nrow(cal) == 7, uniqueN(cal$gamma) == 1)
-    band_map = setNames(cal$delta, cal$band)
-    gam = cal$gamma[1]
-    u[unit_type == 'nondependent' & age_head >= 18 & must_file == FALSE,
-      p_file_cal := pnorm(qnorm(p_file_mok) + gam * src_wages + band_map[band])]
-    stopifnot(!anyNA(u$p_file_cal))
-    chk = u[unit_type == 'nondependent' & age_head >= 18,
-            .(pool = sum(weight * fifelse(filing_status == 'joint', 2, 1) * (1 - p_file_cal))), by = band]
-    chk = merge(chk, cal[, .(band, achieved, gq_nonfiling)], by = 'band')
-    cat(sprintf('  calibration applied (gamma %.3f); non-filing adults in household units by band against the pool\'s calibration file:\n', gam))
-    print(chk[, .(band, ours_M = round(pool / 1e6, 4), pool_M = round((achieved - gq_nonfiling) / 1e6, 4))])
-  } else {
-    cat(sprintf('  NOTE: no pool calibration for %d; filer is drawn from the filing model before calibration\n', yr))
-  }
+  cal = fread(cal_path)[scenario == 'central']
+  stopifnot(nrow(cal) == 7, uniqueN(cal$gamma) == 1, !anyNA(cal$delta))
+  band_map = setNames(cal$delta, cal$band)
+  gam = cal$gamma[1]
+  u[unit_type == 'nondependent' & age_head >= 18 & must_file == FALSE,
+    p_file_cal := pnorm(qnorm(p_file_mok) + gam * src_wages + band_map[band])]
+  stopifnot(!anyNA(u$p_file_cal))
+  chk = u[unit_type == 'nondependent' & age_head >= 18,
+          .(pool = sum(weight * fifelse(filing_status == 'joint', 2, 1) * (1 - p_file_cal))), by = band]
+  chk = merge(chk, cal[, .(band, achieved, gq_nonfiling)], by = 'band')
+  cat(sprintf('  calibration applied (gamma %.3f); non-filing adults in household units by band against the pool\'s calibration file:\n', gam))
+  print(chk[, .(band, ours_M = round(pool / 1e6, 4), pool_M = round((achieved - gq_nonfiling) / 1e6, 4))])
+  # the units here are the pool's units, so the calibration must land on the pool's numbers (within one person)
+  stopifnot(nrow(chk) == 7, max(abs(chk$pool - (chk$achieved - chk$gq_nonfiling))) < 1)
+  calibrated = TRUE
 
   #-----------------------------------------------------------------------------
   # Persons 1 and 2 of each unit

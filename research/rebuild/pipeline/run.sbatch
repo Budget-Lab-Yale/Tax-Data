@@ -28,8 +28,8 @@ for s in $STAGES; do
   case $s in
     scf)      module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_scf.R; module purge ;;
     cex)      module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_cex.R; module purge ;;
-    cps)      module purge; module load R/4.4.1-foss-2022b   # ipumsr is not in the module; a group library has it
-              R_LIBS=/nfs/roberts/project/pi_nrs36/ag3377/R/library Rscript $P/build_cps.R; module purge ;;
+    cps)      module purge; module load R/4.4.1-foss-2022b   # ipumsr is not in the module; John's own library has it
+              R_LIBS=$HOME/R/4.4.1-foss-2022b Rscript $P/build_cps.R; module purge ;;
     table)    python $P/build_table.py ;;
     targets)  python $P/targets.py ;;
     train)    python $P/train.py ;;

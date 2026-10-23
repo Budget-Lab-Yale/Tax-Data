@@ -244,7 +244,13 @@ for (yr in YEARS) {
   # the committed anchor column, same classify_gq() on the same ACS. They
   # differ ~2.4% because the threshold tests differ deliberately (03 uses the
   # pool's own concept: INCTOT - INCSS, 65+ variant, $400 SE rule); 5% is
-  # enough to catch a drifted classify_gq() or a wrong ACS year.
+  # enough to catch a drifted classify_gq() or a wrong ACS year. An anchor
+  # file whose dorm column is empty in every state (TY2014-2016: the ACS step
+  # of nonfiler_residual/03 was never run for them) is treated as no file.
+  if (!is.null(ranch) && ranch[, all(is.na(dorm_dependents))]) {
+    message(sprintf('  anchor file for TY%d has no dorm counts (all NA)', yr))
+    ranch <- NULL
+  }
   if (!is.null(ranch)) {
     dorm_03 <- gq[band != 'u18', sum(dorm_dependents)]
     dorm_anch <- ranch[, sum(dorm_dependents)]

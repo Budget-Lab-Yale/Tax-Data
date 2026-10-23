@@ -83,9 +83,15 @@ split into tax units by production's builder (`src/nonfilers/
 asec_tax_units.R`, the non-filer pool's rules), every unit, filers and
 non-filers. Dependent filers are folded into the unit that claims them. The
 filing flag is drawn from the pool's filing model (Mok's probits below the
-filing threshold, the Pub 5785 hazard above it, the pool's calibration;
-2015 has no calibration, so its filers are 78% of units against 82% in the
-tax data). Childcare is the SPM unit's child care expenses, given to the
+filing threshold, the Pub 5785 hazard above it, the pool's calibration).
+The calibration is part of the CPS step: for a year without the pool's
+calibration file, build_cps.R runs the pool's own steps 01-04 for that year
+and stops, naming the missing inputs, when it cannot. 2015 is blocked (23
+October): the pool's 04_calibrate.R stops on a consistency check whose input,
+the dorm count in residual_anchors_2015.csv, is empty for 2014-2016; until
+that is settled the 2015 file keeps the model before calibration, filers 78%
+of units against 82% in the tax data (calibrated, a preview gives 84%).
+Childcare is the SPM unit's child care expenses, given to the
 units that claim its children.
 - **Primary filer first.** Person items are the primary filer's and the
   spouse's, the primary chosen by the rule the age range uses (ages.py,
