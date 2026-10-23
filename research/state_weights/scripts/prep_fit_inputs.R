@@ -48,8 +48,18 @@ inputs <- build_weight_inputs(tu, year)
 message(sprintf('filer targets: %d   non-filer targets: %d',
                 length(inputs$filers$targets), length(inputs$nonfilers$targets)))
 
+# The percentile arm's extra targets (state_percentile_targets()), kept apart
+# from inputs$filers$targets so every other arm, and the scoring's "targeted"
+# set, stays on HT2 alone. Rows index the filer partition, as the HT2 targets'.
+tu_f <- tu[inputs$filers$idx]
+stopifnot(identical(tu_f$weight, inputs$filers$w))
+pct_targets <- state_percentile_targets(tu_f, year, inputs$jurisdictions)
+message(sprintf('state-percentile targets: %d; level factors (file / IRS):', length(pct_targets)))
+print(attr(pct_targets, 'scale'))
+
 out_dir <- file.path(scratch_root(), 'state_weights_tmp')
 dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 out <- file.path(out_dir, sprintf('hardened_fit_%d.rds', year))
-saveRDS(list(inputs = inputs, tax_data_vintage = td_vintage, detail_dir = detail_dir), out)
+saveRDS(list(inputs = inputs, pct_targets = pct_targets, tax_data_vintage = td_vintage,
+             detail_dir = detail_dir), out)
 message('wrote ', out)

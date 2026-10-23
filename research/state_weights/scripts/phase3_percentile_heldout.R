@@ -36,14 +36,19 @@ source('src/nonfilers/state_weights.R')
 YEARS <- 2017:2023
 args  <- commandArgs(trailingOnly = TRUE)
 ARMS  <- if (length(args)) args else c('A', 'B', 'C_1', 'C_10', 'C_100', 'C_10_warmB')
-DETAIL_ARMS <- c('B', 'C_10_warmB')
+DETAIL_ARMS <- c('B', 'C_10_warmB', 'B_pct', 'C_10_warmB_pct')
 IN    <- file.path(scratch_root(), 'state_weights_tmp')
 FITS  <- file.path(scratch_root(), 'phase3')
 OUT   <- 'research/state_weights/scripts/results'
+TAG   <- Sys.getenv('PHASE3_TAG')   # e.g. '_p6': results beside, not over, the S39 run's
 KG_LOSS_LIMIT <- 3000
 
+# Arm C fits 2018 on; its 2017 is the fit it was warm-started from (B and A
+# are identical in 2017, the fit being deterministic; Phase 4 P3), else A's
 fit_path <- function(arm, year) {
-  a <- if (startsWith(arm, 'C_') && year < 2018) 'A' else arm
+  a <- if (startsWith(arm, 'C_') && year < 2018) {
+    if (grepl('_warmB', arm)) sub('^C_[0-9.]+_warm', '', arm) else 'A'
+  } else arm
   file.path(FITS, a, sprintf('fit_%d.rds', year))
 }
 
@@ -145,8 +150,8 @@ for (year in YEARS) {
 }
 
 summary <- rbindlist(summary_rows); detail <- rbindlist(detail_rows)
-fwrite(summary, file.path(OUT, 'phase3_percentile_heldout.csv'))
-fwrite(detail,  file.path(OUT, 'phase3_percentile_heldout_by_state.csv'))
+fwrite(summary, file.path(OUT, paste0('phase3', TAG, '_percentile_heldout.csv')))
+fwrite(detail,  file.path(OUT, paste0('phase3', TAG, '_percentile_heldout_by_state.csv')))
 
 options(width = 200)
 cat('\n=== top 1% and 5%: returns and AGI, MARD over states, 2018-2023 means by arm ===\n')

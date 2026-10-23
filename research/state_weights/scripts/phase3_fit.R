@@ -23,6 +23,12 @@
 #   C <mult> B  the same, warm-started from arm B's fit of each year: tests
 #              whether cold C's weaker targeted fit is the objective or the
 #              3,000-step budget (B showed a cold start leaves it unconverged)
+#   B pct, C <mult> B pct
+#              the percentile arm (P6 re-run): the same chains with each
+#              state's top-1%/5% return count and AGI added to the targets
+#              (state_percentile_targets(), stored by prep_fit_inputs.R as
+#              pct_targets). Written to B_pct/ and C_{mult}_warmB_pct/; the
+#              warm start reads B_pct/
 #
 # Every arm uses config 7's counts prior as both start and KL anchor, and its
 # beta, lr, schedule and 3,000 steps. Inputs are prep_fit_inputs.R's
@@ -43,6 +49,8 @@
 #   Rscript research/state_weights/scripts/phase3_fit.R B
 #   Rscript research/state_weights/scripts/phase3_fit.R C 10
 #   Rscript research/state_weights/scripts/phase3_fit.R C 10 B
+#   Rscript research/state_weights/scripts/phase3_fit.R B pct
+#   Rscript research/state_weights/scripts/phase3_fit.R C 10 B pct
 #------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({ library(data.table); library(readxl) })
@@ -53,8 +61,11 @@ IN  <- file.path(scratch_root(), 'state_weights_tmp')
 OUT <- file.path(scratch_root(), Sys.getenv('PHASE3_OUT', unset = 'phase3'))
 
 args <- commandArgs(trailingOnly = TRUE)
+pct  <- tail(args, 1) == 'pct'          # the percentile arm
+if (pct) args <- head(args, -1)
 arm  <- args[1]
-stopifnot(arm %in% c('A', 'B', 'C'))
+stopifnot(arm %in% c('A', 'B', 'C'), !(pct && arm == 'A'))
+SUFFIX <- if (pct) '_pct' else ''
 
 #' The filer partition for one year, with its record ids in partition order.
 #' prep_fit_inputs.R built the inputs from Tax-Data merged with the baseline
@@ -69,6 +80,10 @@ load_filers <- function(year) {
   stopifnot(identical(tu$weight[p$idx], p$w), all(tu$filer[p$idx] == 1))
   p$ids <- tu$id[p$idx]
   p$jurisdictions <- h$inputs$jurisdictions
+  if (pct) {
+    stopifnot(length(h$pct_targets) > 0)
+    p$targets <- c(p$targets, h$pct_targets)
+  }
   p
 }
 
@@ -87,7 +102,7 @@ if (arm == 'A') {
 
 if (arm == 'B') {
   fits <- fit_filers_chain_B(lapply(YEARS, load_filers), verbose = TRUE)
-  for (k in seq_along(YEARS)) save_fit(file.path(OUT, 'B'), YEARS[k], fits[[k]])
+  for (k in seq_along(YEARS)) save_fit(file.path(OUT, paste0('B', SUFFIX)), YEARS[k], fits[[k]])
 }
 
 if (arm == 'C') {
@@ -96,8 +111,8 @@ if (arm == 'C') {
   if (warm) stopifnot(args[3] == 'B')
   C_YEARS <- YEARS[YEARS >= 2018]
   ps <- lapply(C_YEARS, load_filers)
-  warm_fits <- if (warm) lapply(C_YEARS, function(y) readRDS(file.path(OUT, 'B', sprintf('fit_%d.rds', y)))) else NULL
-  c_dir <- sprintf('C_%g%s', mult, if (warm) '_warmB' else '')
+  warm_fits <- if (warm) lapply(C_YEARS, function(y) readRDS(file.path(OUT, paste0('B', SUFFIX), sprintf('fit_%d.rds', y)))) else NULL
+  c_dir <- sprintf('C_%g%s%s', mult, if (warm) '_warmB' else '', SUFFIX)
   res <- fit_filers_chain_C(ps, gamma_mult = mult, warm = warm_fits, verbose = TRUE)
   for (k in seq_along(C_YEARS)) save_fit(file.path(OUT, c_dir), C_YEARS[k], res$fits[[k]])
   saveRDS(res$loss_hist, file.path(OUT, c_dir, 'loss_hist.rds'))

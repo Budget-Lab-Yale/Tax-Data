@@ -117,15 +117,17 @@ read_ht2 <- function(path, year) {
 PERCENTILE_GROUPS <- c("01" = 1, "05" = 5, "10" = 10, "25" = 25, "50" = 50, "75" = 75)
 PERCENTILE_DOLLAR_YEARS <- c(2014L, 2016L, 2017L)   # amounts already in dollars
 
-read_state_percentile <- function(path, year) {
+# keep_us = TRUE keeps the national row (state "US"), whose cutoffs are the
+# national top groups' -- the level the state-percentile targets are scaled to.
+read_state_percentile <- function(path, year, keep_us = FALSE) {
   d <- if (grepl("\\.gz$", path)) {
     fread(cmd = paste("zcat", shQuote(path)), colClasses = "character")
   } else {
     fread(path, colClasses = "character")
   }
   d[, state := toupper(trimws(state))]
-  d <- d[!(state %in% c("US", "OA", ""))]
-  stopifnot(nrow(d) == 51)
+  d <- d[!(state %in% c(if (!keep_us) "US", "OA", ""))]
+  stopifnot(nrow(d) == 51 + keep_us)
   num <- function(x) as.numeric(x)              # handles "1.11477E+13"
   amt_scale <- if (year %in% PERCENTILE_DOLLAR_YEARS) 1 else 1000
 

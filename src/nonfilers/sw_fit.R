@@ -199,7 +199,7 @@ WEIGHT_INPUT_COLS <- c('id', 'weight', 'filer', 'filing_status', 'n_dep', 'age1'
                        'wages', 'txbl_int', 'exempt_int', 'div_ord', 'div_pref',
                        'kg_st', 'kg_lt', 'salt_inc_sales', 'salt_prop',
                        'first_mort_int', 'second_mort_int', 'txbl_pens_dist',
-                       'txbl_ira_dist', 'gross_ss', 'sole_prop')
+                       'txbl_ira_dist', 'gross_ss', 'sole_prop', 'dep_status')
 
 #' Assemble engine inputs for one year: partitions, priors, and targets.
 #' @param tax_units PUF records incl. baseline-calculated `agi` and `eitc`
@@ -354,6 +354,84 @@ build_weight_inputs <- function(tax_units, year, ht2 = NULL, acs_margins = NULL,
   list(jurisdictions = jurisdictions,
        filers    = list(idx = idx_f, w = tu_f$weight, P0 = P0_f, targets = targets_f),
        nonfilers = list(idx = idx_n, w = tu_n$weight, P0 = P0_n, targets = targets_n))
+}
+
+# =============================================================================
+# STATE-PERCENTILE TARGETS (the Phase 3 re-run's percentile arm; plan.md §5a,
+# Phase 3 addendum of 2026-09-29)
+#
+# HT2's stubs are national AGI classes, so they leave free WHICH state gets the
+# richest records inside a stub: the S39 fits put FL and TX top-1% AGI at 0.81
+# and 0.82 of the IRS figure and NY and CA at 1.10 and 1.15
+# (research/state_weights/scripts/results/phase3_percentile_heldout*.csv).
+# SOI's AGI percentiles by state publish each state's own top-1% and top-5%
+# cutoff, return count and AGI. A record counts toward (state s, group g) when
+# it is in the source's universe -- a filer, not a dependent, AGI > 0 -- and
+# its AGI is at or above s's cutoff, which is linear in the split, so each
+# (s, g, series) is an ordinary engine target.
+#
+# Level. Tax-Data's national top tail runs below the IRS's (top-1% AGI 0.98 of
+# IRS, 0.89 in TY2021) and no split moves a national total, so the IRS state
+# figures set the ALLOCATION at the file's own national level -- as the HT2
+# targets distribute PUF totals by HT2 shares. Counts scale by the file's
+# universe count over the IRS's; AGI, per group, by the file's AGI above the
+# NATIONAL cutoff over the IRS's national group AGI.
+# =============================================================================
+PCT_TARGET_GROUPS <- c(1, 5)   # top 1% and top 5%; items wait for the top-tail base rebuild
+
+#' Engine targets for each state's top 1% and 5%: return count and AGI.
+#' @param tu_f the filer partition in partition order, with weight, agi
+#'        (baseline-calculated) and dep_status
+#' @param irs read_state_percentile(keep_us = TRUE); read from the store if NULL
+#' @return list of targets (one engine group, cell "state_percentile"; `measure`
+#'         pct_returns / pct_agi), with attribute `scale` holding the level factors
+state_percentile_targets <- function(tu_f, year, jurisdictions, irs = NULL) {
+  if (is.null(irs)) irs <- read_state_percentile(state_percentile_path(year), year, keep_us = TRUE)
+  stopifnot(all(c('weight', 'agi', 'dep_status') %in% names(tu_f)),
+            !anyNA(tu_f$agi), !anyNA(tu_f$dep_status))
+  w   <- tu_f$weight
+  agi <- tu_f$agi
+  in_universe <- tu_f$dep_status == 0 & agi > 0
+  us  <- irs[state == 'US']
+  st  <- irs[state != 'US' & top_pct %in% PCT_TARGET_GROUPS & series %in% c('returns', 'agi')]
+  stopifnot(nrow(us) > 0, all(unique(st$state) %in% jurisdictions))
+
+  agi_scale <- vapply(PCT_TARGET_GROUPS, function(g) {
+    cut_us <- us[top_pct == g & series == 'agi', cutoff_agi]
+    sum((w * agi)[in_universe & agi >= cut_us]) / us[top_pct == g & series == 'agi', value]
+  }, numeric(1))
+  scale <- data.table(top_pct = PCT_TARGET_GROUPS,
+                      returns = sum(w[in_universe]) / us[top_pct == 100 & series == 'returns', value],
+                      agi = agi_scale)
+
+  # ONE engine group for all of them (gradient_groups() keys on `cell`): rows
+  # are every universe record at or above the lowest cutoff, and each target's
+  # x is zero below its own state's cutoff. A group per state x top group
+  # would multiply the rows by ~100 and price every one against all 53 state
+  # columns; this way a step costs two products of an n x 204 matrix
+  rows <- which(in_universe & agi >= min(st$cutoff_agi))
+  stopifnot(length(rows) > 0)
+  targets <- list()
+  for (g in PCT_TARGET_GROUPS) {
+    for (s in sort(unique(st$state))) {
+      cell <- st[state == s & top_pct == g]
+      above <- as.numeric(agi[rows] >= cell$cutoff_agi[1])
+      stopifnot(sum(above) > 0)
+      for (ser in c('returns', 'agi')) {
+        tgt <- cell[series == ser, value] * scale[top_pct == g][[ser]]
+        stopifnot(length(tgt) == 1, is.finite(tgt), tgt > 0)
+        targets[[length(targets) + 1]] <- list(
+          rows = rows, state = match(s, jurisdictions),
+          x = if (ser == 'returns') above else above * agi[rows],
+          target = tgt, lambda = 1,
+          # metadata: the engine gives each distinct `series` its own column
+          series = sprintf('pct_%s_%s_%g', ser, s, g), cell = 'state_percentile',
+          measure = paste0('pct_', ser), state_code = s, top_pct = g)
+      }
+    }
+  }
+  attr(targets, 'scale') <- scale
+  targets
 }
 
 # Config 7, the Phase 1 bake-off winner (state_weights_phase1_summary.md §6):

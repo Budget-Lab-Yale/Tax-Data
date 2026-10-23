@@ -30,6 +30,7 @@ test_state_weights = function() {
   test_adult_x_vector()
   test_nonfiler_targets_count_adults()
   test_fit_gradient_panel()
+  test_state_percentile_targets()
   message('test_state_weights: ALL TESTS PASSED')
   invisible(TRUE)
 }
@@ -336,4 +337,66 @@ test_fit_gradient_panel = function() {
 
   message(sprintf('  test_fit_gradient_panel: PASSED (stationarity %.1e; split drift %.3f -> %.4f)',
                   gmax, d0, d1))
+}
+
+
+
+test_state_percentile_targets = function() {
+
+  #----------------------------------------------------------------------------
+  # state_percentile_targets() (the Phase 3 re-run's percentile arm) on six
+  # records and two states, IRS figures written out by hand:
+  #   1. the universe drops dependents and AGI <= 0, and each state's targets
+  #      count only records at or above that state's own cutoff
+  #   2. levels: counts scale by file universe / IRS total; AGI by the file's
+  #      AGI above the NATIONAL cutoff over the IRS national group AGI
+  #   3. the engine's one group reproduces each target's direct sum under an
+  #      arbitrary split
+  #----------------------------------------------------------------------------
+
+  jur = c('AA', 'BB', 'OA')
+  tu_f = data.table::data.table(
+    weight     = c(10, 10, 10, 10, 10, 10),
+    agi        = c(900, 500, 300, 100, 800, -50),
+    dep_status = c(0, 0, 0, 0, 1, 0))           # record 5 a dependent, 6 negative AGI
+  irs_row = function(state, top_pct, cutoff, series, value)
+    data.table::data.table(state = state, top_pct = top_pct, cutoff_agi = cutoff,
+                           series = series, measure = ifelse(series == 'returns', 'count', 'amount'),
+                           value = value)
+  irs = data.table::rbindlist(list(
+    irs_row('US', 100, NA, 'returns', 80),        # file universe: 4 records x 10 = 40
+    irs_row('US', 1,  800, 'agi', 4500),          # file AGI >= 800 in universe: 9000
+    irs_row('US', 5,  400, 'agi', 7000),          # file AGI >= 400: 14000
+    irs_row('AA', 1,  800, 'returns', 2), irs_row('AA', 1, 800, 'agi', 1800),
+    irs_row('AA', 5,  400, 'returns', 6), irs_row('AA', 5, 400, 'agi', 3000),
+    irs_row('BB', 1,  450, 'returns', 4), irs_row('BB', 1, 450, 'agi', 2000),
+    irs_row('BB', 5,  250, 'returns', 8), irs_row('BB', 5, 250, 'agi', 3500)))
+
+  tg = state_percentile_targets(tu_f, 2023L, jur, irs = irs)
+  stopifnot(length(tg) == 8)
+  sc = attr(tg, 'scale')
+  stopifnot(isTRUE(all.equal(sc$returns, c(0.5, 0.5))), isTRUE(all.equal(sc$agi, c(2, 2))))
+
+  get = function(s, g, m) Filter(function(t) t$state_code == s && t$top_pct == g &&
+                                   t$measure == m, tg)[[1]]
+  # 1. rows: universe at or above the lowest cutoff (250) -> records 1, 2, 3
+  stopifnot(identical(get('AA', 1, 'pct_returns')$rows, 1:3))
+  stopifnot(identical(get('AA', 1, 'pct_returns')$x, c(1, 0, 0)),     # only 900 >= 800
+            identical(get('BB', 1, 'pct_returns')$x, c(1, 1, 0)),     # 900, 500 >= 450
+            identical(get('BB', 5, 'pct_agi')$x, c(900, 500, 300)))
+  # 2. levels
+  stopifnot(get('AA', 1, 'pct_returns')$target == 1, get('BB', 5, 'pct_agi')$target == 7000)
+
+  # 3. the engine's grouping against direct sums
+  P = matrix(c(0.2, 0.5, 0.3,  0.6, 0.3, 0.1,  0.1, 0.1, 0.8,
+               1/3, 1/3, 1/3,  0.5, 0.5, 0,    0, 1, 0), ncol = 3, byrow = TRUE)
+  grp = gradient_groups(tu_f$weight, tg, length(jur))
+  stopifnot(length(grp) == 1)
+  That = crossprod(grp[[1]]$X, P[grp[[1]]$rows, , drop = FALSE])
+  ser = unique(vapply(tg, function(t) t$series, character(1)))
+  for (t in tg) {
+    direct = sum(tu_f$weight[t$rows] * t$x * P[t$rows, t$state])
+    stopifnot(isTRUE(all.equal(That[match(t$series, ser), t$state], direct)))
+  }
+  message('ok   state_percentile_targets: universe, cutoffs, levels, engine grouping')
 }

@@ -38,10 +38,15 @@ ARMS  <- if (length(args)) args else c('A', 'B', 'C_1', 'C_10', 'C_100')
 IN    <- file.path(scratch_root(), 'state_weights_tmp')
 FITS  <- file.path(scratch_root(), 'phase3')
 OUT   <- 'research/state_weights/scripts/results'
+TAG   <- Sys.getenv('PHASE3_TAG')   # e.g. '_p6': results beside, not over, the S39 run's
 DEGENERATE <- 0.99      # a row this concentrated on one state is near-degenerate
 
+# Arm C fits 2018 on; its 2017 is the fit it was warm-started from (B and A
+# are identical in 2017, the fit being deterministic; Phase 4 P3), else A's
 fit_path <- function(arm, year) {
-  a <- if (startsWith(arm, 'C_') && year < 2018) 'A' else arm
+  a <- if (startsWith(arm, 'C_') && year < 2018) {
+    if (grepl('_warmB', arm)) sub('^C_[0-9.]+_warm', '', arm) else 'A'
+  } else arm
   file.path(FITS, a, sprintf('fit_%d.rds', year))
 }
 
@@ -135,9 +140,9 @@ for (year in YEARS) {
 metrics   <- rbindlist(metrics)
 by_series <- rbindlist(by_series)
 yoy       <- rbindlist(yoy)
-fwrite(metrics,   file.path(OUT, 'phase3_metrics.csv'))
-fwrite(by_series, file.path(OUT, 'phase3_heldout_by_series.csv'))
-fwrite(yoy,       file.path(OUT, 'phase3_yoy.csv'))
+fwrite(metrics,   file.path(OUT, paste0('phase3', TAG, '_metrics.csv')))
+fwrite(by_series, file.path(OUT, paste0('phase3', TAG, '_heldout_by_series.csv')))
+fwrite(yoy,       file.path(OUT, paste0('phase3', TAG, '_yoy.csv')))
 
 cat('\n=== per arm, 2018-2023 means (years every arm fits itself) ===\n')
 print(metrics[year >= 2018, lapply(.SD, mean),
