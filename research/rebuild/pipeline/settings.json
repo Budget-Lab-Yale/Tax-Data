@@ -325,6 +325,78 @@
     "fill_in": null,
     "type_for_fill_in": false,
     "reason": "the CEX's self-employment income is not measured as on Schedules C and F; by count from the top"
+   },
+   {
+    "survey": "cps",
+    "variable": "married",
+    "items": [
+     "married"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (build_cps.R). Every couple is one joint unit, so 36-38% are married against 32-34% of the tax data's units"
+   },
+   {
+    "survey": "cps",
+    "variable": "n_dep",
+    "items": [
+     "n_dep"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (build_cps.R). 72-75% claim no dependent against 66-69% in the tax data"
+   },
+   {
+    "survey": "cps",
+    "variable": "age_range",
+    "items": [
+     "age_range"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the primary filer's range, couples by the rule in ages.py; within 3 points of the tax data in every range and year"
+   },
+   {
+    "survey": "cps",
+    "variable": "filer",
+    "items": [
+     "filer"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the filing flag drawn by the non-filer pool's filing model (build_cps.R): filers 83-85% of units against 82-84% in the tax data in 2017-2023; 2015, with no pool calibration, 78% against 82%"
+   },
+   {
+    "survey": "cps",
+    "variable": "wages",
+    "items": [
+     "wages"
+    ],
+    "dollar_line": 0,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top"
+   },
+   {
+    "survey": "cps",
+    "variable": "dividends",
+    "items": [
+     "dividends"
+    ],
+    "dollar_line": 0,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top"
+   },
+   {
+    "survey": "cps",
+    "variable": "ss_gross",
+    "items": [
+     "ss_gross"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "default: the share with none within 1 point and the mean within 2-9% of the tax data in every year"
    }
   ],
   "fill_from_pass": 3,
@@ -348,6 +420,21 @@
    2024
   ],
   "generation_year": 2019
+ },
+ "cps": {
+  "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population built by production's ASEC tax-unit builder (src/nonfilers/asec_tax_units.R), filers and non-filers; dependent filers folded into the unit that claims them. filer is drawn from the non-filer pool's filing model (Mok probits below the filing threshold, the Pub 5785 hazard above it, the pool's calibration where it exists), one uniform per unit seeded by filer_seed plus the year. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
+  "years": [
+   2015,
+   2017,
+   2019,
+   2021,
+   2023
+  ],
+  "generation_year": 2019,
+  "filer_seed": 20261023,
+  "dollar_amounts": [
+   "childcare"
+  ]
  },
  "ages": {
   "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",

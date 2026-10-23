@@ -1,7 +1,7 @@
 # The Tax-Data rebuild
 
 A general method for building a synthetic tax file for any year: one
-generative model of tax units, pretrained on the PUF and household surveys (the SCF and the CEX),
+generative model of tax units, pretrained on the PUF and household surveys (the SCF, the CEX and the CPS),
 then post-trained (reweighted) to each year's published totals. Nothing here
 feeds `src/main.R` yet.
 
@@ -28,12 +28,13 @@ Every stage runs through Slurm, from the repository root:
 |---|---|---|---|
 | scf | `build_scf.R` | SCF waves split into tax units (the production builder) | minutes |
 | cex | `build_cex.R` | CEX survey years split into tax units, with their spending | about a minute |
+| cps | `build_cps.R` | CPS ASEC tax years split into tax units, with each person's items and childcare | minutes |
 | targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | table | `build_table.py` | the training table, its bands, and the dollar maps | about 2 minutes |
 | train | `train.py` (and `fillin.py`) | the model, with the two-slot fill-in | about 15 minutes on an H200 (10 seconds a pass) |
 | generate | `generate.py` | 400,000 generated records | about 5 minutes |
 | tilt | `tilt.py` | the target year's weights and file | about a minute |
-| report | `report_cex.py` | consumption in the file against the target year's CEX | seconds |
+| report | `report_cex.py`, `report_cps.py`, `report_translation.py` | consumption and the CPS's person items in the file against the target year's CEX and CPS; the translation report | seconds |
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),

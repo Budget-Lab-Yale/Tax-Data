@@ -38,7 +38,7 @@ import common
 
 S = common.SETTINGS['translation']
 TABLE = S['table']
-CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner']
+CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer']
 _seen = set()
 for _r in TABLE:
     _key = (_r['survey'], _r['variable'])

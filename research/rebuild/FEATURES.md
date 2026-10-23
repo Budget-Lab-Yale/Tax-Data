@@ -2,8 +2,12 @@
 
 The current run ("latest") produces a 2019 file of tax units: every PUF
 variable, plus the household balance sheet from the SCF (20 items, with net
-worth computed from them) and spending in 8 categories from the CEX,
-weighted to 2019 targets. The code is in `pipeline/`; every setting is in
+worth computed from them), spending in 8 categories from the CEX, and
+from the CPS ASEC each person's age and sex, dependents' ages, the split of
+a couple's wages and self-employment income between the spouses, weeks and
+hours worked, and childcare, weighted to 2019 targets. (The CPS was added on
+the night of 22 October; its first run is a candidate, not yet latest:
+below, "The CPS".) The code is in `pipeline/`; every setting is in
 `pipeline/settings.json`.
 
 ## Data
@@ -16,6 +20,7 @@ weighted to 2019 targets. The code is in `pipeline/`; every setting is in
 | 2017 CPS non-filer pool | 166,938 | non-filers on the PUF side, scaled to 2015 as the tax data is |
 | SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, split into tax units by the production builder, five implicates each |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
+| CPS ASEC, tax years 2015, 2017, 2019, 2021, 2023 | 90,351 / 88,954 / 79,054 / 77,618 / 74,502 | every tax unit, filers and non-filers (`build_cps.R`, below) |
 
 **Variables:**
 - marital status (joint or not), dependents (0–3), and the filing flag;
@@ -53,14 +58,68 @@ weighted to 2019 targets. The code is in `pipeline/`; every setting is in
   vehicles; other durables; other nondurables; food at home (with
   alcohol); gasoline; housing and utilities; other services and health.
   Total consumption is computed from them.
+- person items (CPS only): the exact age of the primary filer, the spouse
+  and up to three dependents (youngest first); the sex of the primary
+  filer and the spouse; the spouse's share of the couple's wages and of its
+  Schedules C and F income; each adult's weeks worked and usual weekly
+  hours; childcare expenses. The file's wages1 and wages2 (and se1, se2)
+  are the total split by the drawn share, so they add up to the total.
 
-All three sources share married, dependents, the primary filer's age range,
-wages and Schedules C and F income. The PUF and the SCF also share
-interest, dividends, capital gains, Schedule E income, the partnership/S
-corporation/LLC flag, gross Social Security plus pensions and tax-exempt
-interest; the PUF and the CEX also share gross Social Security. The rest
-belong to one source. A slot a source lacks is absent on its records
+All four sources share married, dependents, the primary filer's age range
+and wages. The PUF, the SCF and the CEX also share Schedules C and F
+income. The PUF and the SCF also share interest, dividends, capital gains,
+Schedule E income, the partnership/S corporation/LLC flag, gross Social
+Security plus pensions and tax-exempt interest; the PUF and the CEX also
+share gross Social Security; the PUF and the CPS also share the filing flag,
+dividends and gross Social Security. The rest belong to one source. A slot a source lacks is absent on its records
 (`model.py`, "present_on").
+
+**The CPS** (`pipeline/build_cps.R`, settings "cps"). The ASEC asking
+about tax years 2015, 2017, 2019, 2021 and 2023, the household population
+split into tax units by production's builder (`src/nonfilers/
+asec_tax_units.R`, the non-filer pool's rules), every unit, filers and
+non-filers. Dependent filers are folded into the unit that claims them. The
+filing flag is drawn from the pool's filing model (Mok's probits below the
+filing threshold, the Pub 5785 hazard above it, the pool's calibration;
+2015 has no calibration, so its filers are 78% of units against 82% in the
+tax data). Childcare is the SPM unit's child care expenses, given to the
+units that claim its children.
+- **Primary filer first.** Person items are the primary filer's and the
+  spouse's, the primary chosen by the rule the age range uses (ages.py,
+  keyed by household); the builder's person 1 is the man, so where the
+  rule picks the woman every pair of person columns is swapped
+  (`build_table.py`, cps_person_slots).
+- **Encodings** (`build_table.py`, CPS_AMOUNTS and CPS_CATEGORIES):
+  - exact ages are categories: 0 for none (no spouse, no k-th dependent),
+    else the age plus 1, so an infant (age 0) is not "none"; 87 values
+    (the CPS's top code is 85). Sex: 0 none, 1 a man, 2 a woman;
+  - the spouse's share of the couple's wages, and of its Schedules C and F
+    income, is an amount from 0 to 1, cut into bands within each year like
+    the CEX's categories. It is recorded only on married couples with some
+    of the item (absent elsewhere, so the model is never asked it there).
+    The file's spouse amount is the share times the record's own total, and
+    the primary filer's is the total less the spouse's: the parts add up to
+    the PUF's total exactly, whatever the total's translation. Couples whose
+    two self-employment incomes have opposite signs (0.4%) have their share
+    cut to 0-1;
+  - weeks worked, usual weekly hours and childcare are amounts, cut within
+    each year; childcare's dollars are grown from the generation year to
+    the target year by SOI's wages per return (a placeholder).
+- **Rules at generation** (`generate.py`, cps_structure): the spouse's
+  items are none or zero unless married, and a married spouse has an age
+  and a sex; the k-th dependent has an age exactly when there are at least
+  k dependents; the primary filer's age lies in its drawn age range; a
+  spouse's share is zero when the couple has none of the item. A dependent
+  filer holds no CPS item (ages none, shares zero, so its wages are all its
+  own). Where a share is absent on the training rows (no couple, or none of
+  the item, or a dependent filer), generation leaves it absent too until
+  the CPS phase is over, then sets it to zero: the network reads a present
+  slot, even a hidden one, as "a couple with some of this". (The first
+  candidate run made it present: unmarried primary filers came out 91% men
+  against the CPS's 53%.)
+- **Checks** on the candidate file: wages1 + wages2 equals wages, and se1 +
+  se2 equals Schedules C and F income, to within $0.000000001 on every
+  record (floating point); every rule above holds on every record.
 
 **The CEX** (`pipeline/build_cex.R`, settings "cex"). BLS's interview
 survey, five quarterly files per survey year (the year's first quarter
@@ -156,6 +215,7 @@ Two standard functions and one table (`settings.json`, "translation";
     - SCF wages: a dollar line at $100,000;
     - the SCF's two business subtotals and the CEX's self-employment
       income: a line of zero;
+    - CPS wages and dividends: a line of zero;
     - SCF capital losses read as no more than $3,000;
     - function 2 on SCF interest, dividends and capital gains.
 - **Function 1, amounts.** An amount within the dollar line (2015 dollars,
@@ -185,6 +245,23 @@ Two standard functions and one table (`settings.json`, "translation";
     $210,000 a person with one shared value.
   - It misses many small self-employment holders and most losses.
   - Interest and dividends are one item, top-coded, and not used.
+- **The CPS, why the departures and exclusions**
+  (`rebuild_cps/explore/cps_translation/TRANSLATION_CPS.md` in scratch):
+  - wages: the CPS has more units than the tax data above every line from
+    $25,000 (2019: 29.0 against 21.9 million above $100,000; 0.30 against
+    0.19 million above $1 million) and fewer below $10,000; the share with
+    none is within 3 points. Its wages are before pre-tax deductions, and
+    its top-coding does not leave it short at the top;
+  - dividends: the share with none is within 3 points, but fewer units
+    above every line (2019: 0.27 against 0.42 million above $100,000);
+  - not shared: interest (the CPS has twice the tax data's holders and 2-6
+    times its dollars, more after its 2019 redesign; no setting removes
+    holders); Schedules C and F, unemployment and taxable pensions (the
+    CPS's zeros hide holders: 7% of units with self-employment income
+    against 18%, almost no losses; half the unemployment recipients outside
+    2021; 30-40% fewer pension holders), which wait for function 2 on the
+    CPS; Schedule E (it includes partnership and S corporation income, the
+    CPS's rent item does not).
 - **The SCF, why the departures.** The SCF reports more high earners than
   tax data at every line (2015: 0.47 million units with $1M+ of wages
   against the PUF's 0.15 million), as the literature also finds (Gale,
@@ -259,13 +336,17 @@ Two standard functions and one table (`settings.json`, "translation";
 3. the SCF-only items, in a random order (the mortgage share after the
    home), as the SCF would see the household (SCF label, PUF-only variables
    left out). Net worth is computed from the balance sheet in dollars;
-4. the 8 consumption categories last, in a random order, as the CEX would
+4. the 8 consumption categories, in a random order, as the CEX would
    see the unit (CEX label and generation year 2019, everything the CEX
-   lacks left out).
+   lacks left out);
+5. the CPS's person items and childcare last, in a random order, as the
+   CPS would see the unit (CPS label and generation year 2019), under the
+   rules above (The CPS).
 
 **Dependent filers** (the PUF's three dependent-filer age ranges) hold no
-SCF or CEX item: every balance-sheet item, unrealized gain, business
-ownership and consumption category is zero on their records. The surveys
+SCF, CEX or CPS item: every balance-sheet item, unrealized gain, business
+ownership, consumption category and CPS person item is zero or none on
+their records. The surveys
 count their wealth and spending in the household that claims them. Their
 tax items stay as drawn.
 
@@ -321,8 +402,11 @@ sheets with targets put in 2015 dollars (factor 1.2493), so net worth before
 the tilt was overstated by 1.3% and the tilt pushed it down that much more;
 the 2019-dollar output was converted back with the same factor and lined up
 with the SCF. Consumption: each
-band's real CEX 2019 values, with no growth. Every dollar column of the file
-is in nominal 2019 dollars.
+band's real CEX 2019 values, with no growth. The CPS's items: each band's
+real CPS 2019 values (childcare grown by SOI's wages per return, which is
+no growth when the generation year is the target year). Every dollar column
+of the file is in nominal 2019 dollars. Nothing from the CPS is targeted
+(`tilt/<run>/cps_report.md` compares the file with the CPS 2019).
 
 **Start.**
 - Weights are scaled to SOI's 2019 return count and the non-filer count.

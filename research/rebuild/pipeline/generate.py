@@ -22,7 +22,14 @@ One record is drawn slot by slot:
      record, each under the CEX label and year (settings "cex",
      generation_year) with every slot the CEX lacks left out: given married,
      dependents, the age range, wages, gross Social Security, self-employment
-     income and the categories drawn so far.
+     income and the categories drawn so far;
+  5. the CPS-only slots (exact ages, sex, the spouse's shares of the couple's
+     wages and self-employment income, weeks and hours worked, childcare) in a
+     random order per record, each under the CPS label and year (settings
+     "cps", generation_year) with every slot the CPS lacks left out. They
+     follow the record's PUF items (cps_structure): the spouse's items only
+     when married, the k-th dependent's age only with k or more dependents,
+     the primary filer's age inside its age range.
 Each step runs the network only on the slots present in its phase and
 computes only the output layers it needs.
 
@@ -82,6 +89,22 @@ PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and 
 SCF_SLOTS = M.SCF_SLOTS
 CEX_SLOTS = M.CEX_SLOTS
 CEX_YEAR = common.SETTINGS['cex']['generation_year']
+CPS_SLOTS = M.CPS_SLOTS
+CPS_YEAR = common.SETTINGS['cps']['generation_year']
+CPS_STRUCTURE = M.META['cps_structure']
+SPOUSE = torch.tensor([P.index(v) for v in CPS_STRUCTURE['spouse']])
+DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
+PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
+CPS_CATEGORICAL = torch.tensor([P.index(v) for v in M.CPS_CATEGORIES])
+# The CPS's shares (the spouse's share of the couple's wages, of its self-employment income) are recorded only on
+# married couples with some of the item; elsewhere the slot is absent on the training rows. Absence is itself seen by
+# the network (a present slot, even hidden, says "a couple with some of this"), so generation leaves the slot absent
+# on the same records, and gives them a share of zero once the CPS phase is over.
+CPS_SHARES = {slot: base for slot, (_, base) in M.RATIOS.items() if slot in CPS_SLOTS}
+# the primary filer's age range of each age value (value 0 is none, value a + 1 is age a)
+RANGE_OF_AGE_VALUE = torch.tensor([-1] + [int(r) for r in np.searchsorted([26, 35, 45, 55, 65],
+                                                                          np.arange(M.CPS_CATEGORIES[CPS_STRUCTURE['primary_age']] - 1),
+                                                                          side='right')])
 REP_SLOTS = torch.tensor([P.index(v) for v in M.REPORTED])
 RULES = C['rules']
 for _r in RULES:
@@ -91,7 +114,7 @@ RULE_ITEMS = [torch.tensor([P.index(v) for v in r['when_any_nonzero']]) for r in
 RULE_HOLDINGS = [torch.tensor([P.index(v) for v in r['then_at_least_one_nonzero']]) for r in RULES]
 RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P.index)   # the offset's holdings
 DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
-SURVEY_ONLY = torch.tensor([P.index(v) for v in SCF_SLOTS + CEX_SLOTS])
+SURVEY_ONLY = torch.tensor([P.index(v) for v in SCF_SLOTS + CEX_SLOTS + CPS_SLOTS])
 POINTS = 32
 
 
@@ -149,6 +172,8 @@ def scf_order(size, gen):
     perm = scf[torch.rand(size, len(scf), generator=gen).argsort(1)]
     rows = torch.arange(size)
     for slot, (_, base) in M.RATIOS.items():
+        if slot not in SCF_SLOTS:
+            continue                                # the CPS's ratios: their base is a PUF slot, drawn earlier
         i, ib = P.index(slot), P.index(base)
         pos, pos_b = (perm == i).int().argmax(1), (perm == ib).int().argmax(1)
         swap = pos < pos_b
@@ -161,14 +186,57 @@ def dependent(values):
     return torch.isin(values[:, NC + P.index('age_range')], DEPENDENT_RANGES.to(values.device))
 
 
+def only(probs, rows, allowed=None):
+    """On rows, the distribution cut to the allowed values ([rows, choices] booleans) and rescaled; allowed None:
+    value 0 for certain. If the model gives every allowed value no chance at all, they are taken as equally likely."""
+    if allowed is None:
+        probs[rows] = 0.0
+        probs[rows, 0] = 1.0
+        return probs
+    q = probs[rows] * allowed
+    total = q.sum(1, keepdim=True)
+    q = torch.where(total > 0, q / total.clamp_min(1e-30), allowed / allowed.sum(1, keepdim=True).clamp_min(1))
+    probs[rows] = q
+    return probs
+
+
+def cps_structure(values, slot, probs):
+    """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married,
+    and a married couple's spouse has an age and a sex; the k-th dependent has an age exactly when there are at
+    least k dependents; the primary filer's exact age lies in its age range."""
+    married = values[:, NC + P.index('married')] == 1
+    n_dep = values[:, NC + P.index('n_dep')]
+    on_spouse = torch.isin(slot, SPOUSE.to(slot.device))
+    categorical = torch.isin(slot, CPS_CATEGORICAL.to(slot.device))
+    not_none = torch.ones(probs.shape[1], dtype=torch.bool, device=probs.device)
+    not_none[0] = False
+    probs = only(probs, on_spouse & ~married)
+    sel = on_spouse & married & categorical
+    probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    for k, j in enumerate(DEP_AGES, start=1):
+        probs = only(probs, (slot == j) & (n_dep < k))
+        sel = (slot == j) & (n_dep >= k)
+        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    sel = slot == PRIMARY_AGE
+    if sel.any():
+        rng = RANGE_OF_AGE_VALUE.to(probs.device)
+        allowed = torch.zeros(int(sel.sum()), probs.shape[1], device=probs.device)
+        allowed[:, :len(rng)] = (rng[None, :] == values[sel, NC + P.index('age_range')][:, None]).float()
+        probs = only(probs, sel, allowed)
+    return probs
+
+
 def structural(values, slot, probs):
-    """A ratio slot whose base is zero is zero (no home: no mortgage share). A dependent filer holds no survey-only
-    item (balance sheet, unrealized gains, business ownership, consumption): the surveys count its wealth and
-    spending in the household that claims it, so on its own return every one is zero."""
+    """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them).
+    The CPS's person items follow the PUF items (cps_structure). A dependent filer holds no survey-only item
+    (balance sheet, unrealized gains, business ownership, consumption, the CPS's person items and childcare): the
+    surveys count it in the household that claims it, so on its own return every one is zero or none, and its
+    wages and self-employment income are all its own."""
     for slot_name, (_, base) in M.RATIOS.items():
         no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
         probs[no_base] = 0.0
         probs[no_base, 0] = 1.0
+    probs = cps_structure(values, slot, probs)
     dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
     probs[dep] = 0.0
     probs[dep, 0] = 1.0
@@ -210,7 +278,7 @@ def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
 class Chunk:
     """size records being drawn: every slot's band (-1 absent), which slots are drawn, and the rules' and the
     boost's bookkeeping. Each step runs the network only on the slots present in its phase (model.SOURCE_SLOTS:
-    the PUF's, then the SCF's view, then the CEX's view) and computes only the output layers it needs."""
+    the PUF's, then the SCF's view, then the CEX's, then the CPS's view) and computes only the output layers it needs."""
 
     def __init__(self, model, size, order, preset, start, factors, boost, gen):
         device = order.device
@@ -220,7 +288,7 @@ class Chunk:
         self.values[:, 0] = M.SOURCES.index('puf')
         self.values[:, 1] = M.YEARS.index(common.PUF_YEAR)
         self.values[self.rows[:, None], NC + order] = 0              # present, not yet drawn
-        for v in SCF_SLOTS + CEX_SLOTS:
+        for v in SCF_SLOTS + CEX_SLOTS + CPS_SLOTS:
             self.values[:, NC + P.index(v)] = -1                      # absent until their turn
         for tot in list(COMPUTED) + list(FLAGS):
             self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
@@ -244,7 +312,10 @@ class Chunk:
     def last_layer(self, values, hidden, src):
         """The network on the source's slots, all of which must be present."""
         slots = M.SOURCE_SLOTS[src]
-        assert (values[:, M.slot_tensor(slots, values.device)] >= 0).all(), f'a {src} slot is absent'
+        may_be_absent = [M.SOURCE_SLOTS[src].index(NC + P.index(v)) for v in CPS_SHARES if src == 'cps']
+        present = values[:, M.slot_tensor(slots, values.device)] >= 0
+        present[:, may_be_absent] = True
+        assert present.all(), f'a {src} slot is absent'
         return self.model.last_layer(*M.pack(values, hidden, slots), slots)
 
     def take(self, probs, slot):
@@ -282,9 +353,14 @@ class Chunk:
         dep = dependent(v)
         for r in range(len(RULES)):
             self.triggered[:, r] = (v[:, NC + RULE_ITEMS[r].to(v.device)] != 0).any(1) & ~dep
-        for s in SCF_SLOTS + CEX_SLOTS:
-            v[:, NC + P.index(s)] = 0                                # each survey's view leaves out the other's
+        for s in SCF_SLOTS + CEX_SLOTS + CPS_SLOTS:
+            v[:, NC + P.index(s)] = 0                                # each survey's view leaves out the others'
         v[:, NC + REP_SLOTS.to(v.device)] = 0                        # reported slots: present, never drawn (hidden)
+        married = v[:, NC + P.index('married')] == 1
+        self.not_asked = {P.index(sh): ~married | (v[:, NC + P.index(base)] == 0) | dep
+                          for sh, base in CPS_SHARES.items()}           # the CPS shares' records with no question
+        for j, m in self.not_asked.items():
+            v[m, NC + j] = -1
         return {r['name']: int(self.triggered[:, k].sum()) for k, r in enumerate(RULES)}
 
     def survey_step(self, slot, label, year=None):
@@ -293,7 +369,7 @@ class Chunk:
         view, view_hidden = M.seen_as(self.values, hidden, label, year)
         h, col = self.last_layer(view, view_hidden, label), self.column[label]
         slot_p = self.model.slot_probs(h[self.rows, col[NC + slot]], slot)
-        # each ruled holding's chance of being nonzero, the model's own (no rule applies in the CEX phase)
+        # each ruled holding's chance of being nonzero, the model's own (no rule applies in the CEX and CPS phases)
         own_nonzero = torch.zeros(len(slot), len(P), device=slot.device)
         for v in (RULED if label == 'scf' else []):
             j = P.index(v)
@@ -308,7 +384,18 @@ class Chunk:
         col = k.int().argmax(1)
         self.own_chance[self.rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
         self.forced[self.rows[hit], col[hit]] = ok[hit]
+        for j, m in self.not_asked.items():                         # no draw where the share is not asked
+            na = m & (slot == j)
+            probs[na] = 0.0
+            probs[na, 0] = 1.0
         self.take(probs, slot)
+        for j, m in self.not_asked.items():
+            self.values[m, NC + j] = -1
+
+    def finish(self):
+        """The CPS shares not asked of a record: zero (no spouse, or none of the item, or a dependent filer)."""
+        for j, m in self.not_asked.items():
+            self.values[m, NC + j] = 0
 
 
 @torch.no_grad()
@@ -324,14 +411,16 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
     own = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
-    n_own, n_scf = len(own), len(SCF_SLOTS)
+    cps = torch.tensor([P.index(v) for v in CPS_SLOTS])
+    n_own, n_scf, n_cex = len(own), len(SCF_SLOTS), len(CEX_SLOTS)
     rule_counts = {r['name']: 0 for r in RULES}
     parts = []
     for start in range(0, n, chunk):
         size = min(chunk, n - start)
         order = torch.cat([own[torch.rand(size, len(own), generator=cpu_gen).argsort(1)],
                            scf_order(size, cpu_gen),
-                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)]], 1).to(device)
+                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
+                           cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)]], 1).to(device)
         d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen)
         for step in range(n_own):
             d.puf_step(order[:, step])
@@ -339,8 +428,11 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
             rule_counts[name] += count
         for step in range(n_own, n_own + n_scf):
             d.survey_step(order[:, step], 'scf')
-        for step in range(n_own + n_scf, order.shape[1]):
+        for step in range(n_own + n_scf, n_own + n_scf + n_cex):
             d.survey_step(order[:, step], 'cex', CEX_YEAR)
+        for step in range(n_own + n_scf + n_cex, order.shape[1]):
+            d.survey_step(order[:, step], 'cps', CPS_YEAR)
+        d.finish()
         parts.append((d.values.cpu(), d.p_drawn.cpu(), d.q_drawn.cpu(), d.own_chance.cpu(), d.forced.cpu()))
     table = to_table(torch.cat([p[0] for p in parts]))
     if boost is not None:

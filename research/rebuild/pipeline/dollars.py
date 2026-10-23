@@ -17,6 +17,11 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   back in (FOLD); the remainder alone is other_agi_remainder
   net_worth       the 14 assets less the 6 debts; the home mortgage is its
                   drawn share of the home's value times the home's dollars
+  wages2, se2     the spouse's wages and self-employment income: the drawn
+                  share times the couple's total (wages; Schedules C and F as
+                  computed above); wages1 and se1, the primary filer's, are the
+                  total less the spouse's, so the two add up to the total
+  CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
 """
 import numpy as np
 import pandas as pd
@@ -34,9 +39,12 @@ ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_wo
 # Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
 # itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
 META = common.meta()
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + list(META['scf_amounts']) + list(META['cex_amounts']) + ['ss_gross']
+ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + list(META['scf_amounts']) + list(META['cex_amounts']) + ['ss_gross'] \
+    + list(META['cps_amounts'])
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
+REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
+AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
 KG_PIECES = META['kg_pieces']
 FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
 AGI_PARTS = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi']
@@ -51,7 +59,7 @@ def load_maps(year):
     """{variable: map rows} for a year: the PUF's, the SCF's balance sheet and the CEX's consumption."""
     split = lambda m: {v: g for v, g in m.groupby('variable')}
     maps = {}
-    for source in ['puf', 'scf', 'cex']:
+    for source in ['puf', 'scf', 'cex', 'cps']:
         maps.update(split(pd.read_parquet(f'{common.MAPS}/map_{source}_{year}.parquet')))
     return maps
 
@@ -93,9 +101,17 @@ def draw_dollars(df, maps):
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
         out['total_consumption'] = out[cats].to_numpy(float).sum(1)
-    if all(f'{c}_band' in df for c in META['scf_amounts']):
-        for slot, (item, base) in RATIOS.items():
+    for slot, (item, base) in RATIOS.items():      # after the totals above, so a share multiplies the final total
+        if f'{slot}_band' in df:
             out[item] = out[slot] * out[base]
+    for item, (total, other) in REMAINDERS.items():
+        if other in out:
+            out[item] = out[total] - out[other]
+            assert np.allclose(out[item] + out[other], out[total], rtol=1e-12, atol=1e-6), item
+    for a in AGE_SLOTS:                            # in years, -1 none
+        if a in out:
+            out[a] = out[a] - 1
+    if all(f'{c}_band' in df for c in META['scf_amounts']):
         assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
         out['net_worth'] = out[list(NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(NET_WORTH_PARTS.values()), float)
     return out
