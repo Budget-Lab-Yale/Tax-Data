@@ -12,6 +12,7 @@ feeds `src/main.R` yet.
 | `ROADMAP.md` | what is left between the two |
 | `HISTORY.md` | how we got here, and the paths we tried and dropped |
 | `AGES.md` | plan: ages for every person in a unit, including the high-income records with none |
+| `TAX_UNITS.md` | plan: how each survey is turned into tax units, and the tests they must pass |
 | `PERFORMANCE.md` | what training and generation time and memory depend on, what was measured, and what is left to do as surveys are added |
 
 The full record up to 20 October 2026 (every experiment, report and

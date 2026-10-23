@@ -6,8 +6,10 @@ worth computed from them), spending in 8 categories from the CEX, and
 from the CPS ASEC each person's age and sex, dependents' ages, the split of
 a couple's wages and self-employment income between the spouses, weeks and
 hours worked, and childcare, weighted to 2019 targets. (The CPS was added on
-the night of 22 October; its first run is a candidate, not yet latest:
-below, "The CPS".) The code is in `pipeline/`; every setting is in
+the night of 22 October and is in latest since 23 October, with exact ages
+shared by the SCF, CEX and CPS. Its tax units and the items that depend on
+them, dependents' ages above all, are provisional: `TAX_UNITS.md`,
+`AGES.md` section 0.) The code is in `pipeline/`; every setting is in
 `pipeline/settings.json`.
 
 ## Data
@@ -86,11 +88,12 @@ filing flag is drawn from the pool's filing model (Mok's probits below the
 filing threshold, the Pub 5785 hazard above it, the pool's calibration).
 The calibration is part of the CPS step: for a year without the pool's
 calibration file, build_cps.R runs the pool's own steps 01-04 for that year
-and stops, naming the missing inputs, when it cannot. 2015 is blocked (23
-October): the pool's 04_calibrate.R stops on a consistency check whose input,
-the dorm count in residual_anchors_2015.csv, is empty for 2014-2016; until
-that is settled the 2015 file keeps the model before calibration, filers 78%
-of units against 82% in the tax data (calibrated, a preview gives 84%).
+and stops, naming the missing inputs, when it cannot. 2015 was calibrated
+this way on 23 October (filers 84.2% of units, against 78.0% before; 82.2%
+in the tax data). For it, the pool's 04_calibrate.R now treats an anchor
+file whose dorm column is empty in every state (2014-2016) as no file and
+skips that informational check. The latest run was trained before this, on
+the uncalibrated 2015 CPS.
 Childcare is the SPM unit's child care expenses, given to the
 units that claim its children.
 - **Primary filer first.** Person items are the primary filer's and the
@@ -470,7 +473,38 @@ sample.
 
 ## How the latest run comes out
 
-**Since 23 October, "latest" uses the standardized translation**
+**Since 23 October (afternoon), "latest" has the CPS and shared exact ages**
+(`HISTORY.md`, 22–23 October). Two seeds, made in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps_ages/` (runs ages_s1,
+ages_s2) and copied into the main output folders; the previous latest is in
+`previous_2026-10-23_translation/`. Every target is met (317; the 116
+business targets exactly). Nominal 2019 dollars; the two seeds, then the
+previous latest's two:
+
+| | Latest | Previous latest | SCF or CEX 2019 |
+|---|---:|---:|---:|
+| effective sample kept | 89.0%, 88.6% | 89.1%, 89.5% | |
+| net worth before the tilt | $100.9T, $104.5T | $96.3T, $107.6T | $96.1T |
+| median net worth, all units | $70,200, $71,600 | $70,100, $70,500 | $91,050 |
+| mean net worth, wages $200k+ | $3.90M, $4.08M | $4.26M, $4.07M | $4.36M |
+| consumption, wages $1-25k | $23.3k, $23.5k | $22.7k, $23.3k | $27.6k |
+| consumption, wages $100-200k | $76.7k, $76.4k | $76.6k, $76.0k | $70.0k |
+| consumption, wages $200k+ | $130.9k, $135.6k | $137.9k, $136.2k | $113.3k |
+
+What the exact ages changed, 65 and over (mean IRAs and DC accounts): $151k
+and $154k at 65–69, $82k and $98k at 80 and over, against the SCF's $171k
+and $100k; without exact ages the fall from 65–69 to 80+ was about half the
+SCF's. DB balances at 80+ got worse ($8k and $10k against the SCF's $24k;
+$17k and $18k before). Units aged 80+ are too many (9.7 million against the
+SCF's 6.7 million), as before. Known problems in the CPS-only items: the
+dependents' ages are too young (in 2015, on the real PUF returns, 79.5%
+under 17 against the IRS's 76.2%, and the IRS's range picked 47% of the
+time for the youngest dependent; `AGES.md`, Step 3), and the file has about
+86 million children under 18 against Census's 73 million. Comparisons with
+production and outside tables:
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps/explore/comparisons/COMPARISONS.md`.
+
+**Before that, from 23 October (morning), "latest" used the standardized translation**
 (translation section above; `HISTORY.md`, 23 October). Two seeds, made in
 `explore/2026-10-23/translation/` and copied into the main output folders.
 The previous latest is in `previous_2026-10-22_cleanup/`. Every target is

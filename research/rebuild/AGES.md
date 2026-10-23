@@ -6,6 +6,57 @@ records with no range and the primary-filer rule for survey couples
 (`FEATURES.md`). Sex, exact ages, spouses and dependents are still plan. It covers ROADMAP item 5 for
 ages and sex: the primary filer, the spouse and the dependents.
 
+Update, 23 October. With the CPS added as a source, exact ages are built:
+the primary filer's and the spouse's (to 79, then 80 and over) are shared
+by the SCF, CEX and CPS and drawn right after the PUF items; the
+dependents' exact ages and both sexes are CPS-only. The dependents' ages
+ignore the PUF's own dependent age ranges (AGEDP1–3), contrary to the
+Step 1 table below; the plan for them is Step 3.
+
+## 0. The rule, in short (John, 23 October)
+
+**What the CPS is for.** The PUF describes the return; it shows the people
+on it only coarsely (the primary's age range, the dependents' age ranges,
+the couple's earnings split in three ranges, the primary's sex). The CPS is
+the person layer: it fills in the exact facts inside those coarse ones
+(exact ages, the exact earnings share), and adds person items the PUF lacks
+(hours, weeks, child care). The SCF and CEX then draw wealth and spending
+given the people. The same CPS tax units that do not file are the
+non-filers.
+
+**The rule for every coarse PUF fact:**
+1. Build the identical range on the CPS, computed from its exact values
+   under the PUF's definition.
+2. Share the range between the PUF and the CPS, so the model learns exact
+   values given the range.
+3. Where the PUF's range is missing, fill it first, as step 0 does: a model
+   from the return, reconciled to IRS totals.
+4. At generation, draw the exact value under the CPS label, given the range
+   and everything else on the return, forced to lie inside the range.
+
+**Where each fact stands:**
+
+| PUF fact | Range shared with the CPS | Exact value drawn inside it |
+|---|---|---|
+| Primary filer's age range (AGERANGE) | yes | yes (built 23 October) |
+| Dependents' age ranges (AGEDP1–3) | no | no; Step 3 |
+| Earnings split (EARNSPLIT) | no | no; Step 3 |
+| Primary filer's sex (GENDER) | no | no: today drawn from the CPS without the PUF's value; Step 3 |
+
+The spouse's age and sex have no PUF fact: drawn only on joint returns,
+given the primary.
+
+**The CPS's definitions must match the PUF's.** Same age ranges, same
+definition of a dependent, same earnings concept. Today the dependent
+definition does not match: the CPS tax units come from production's
+non-filer builder (`src/nonfilers/asec_tax_units.R`), made to find people who
+do not file, not to reproduce the dependents claimed on returns. On 2015
+filers it finds 73.4 million dependents against the PUF's 91.7 million
+(both capped as the PUF caps them), short in children as well as adults:
+about 58.7 against 67 million under 17 (the PUF's child credit count is
+67.4 million) and 14.7 against about 25 million aged 17 and over. Step 3
+rebuilds the CPS dependents to the IRS definition.
+
 The evidence behind it is the design note of 20 October,
 `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-20/age/REPORT.md`
 (cheap data checks, no model trained). Figures below are from it. A
@@ -345,6 +396,196 @@ in 41% of couples.
   setting the rule.
 
 This matters at range edges, most of all at 64 and 65.
+
+### Step 3: the dependents' age ranges, the earnings split and the primary's sex (agreed with John, 23 October)
+
+**What is built now, and the problem.** The 2019 file's dependents get
+exact ages from the CPS alone: given the unit's number of dependents, the
+filers' ages, wages and so on, the CPS's pattern of dependents' ages. The
+PUF's own dependent age ranges are not used. Against population counts the
+file has too many children and too few young adults (2019, millions;
+`rebuild_cps/explore/comparisons/COMPARISONS.md`):
+
+| | File | Census, July 2019 | SSA area |
+|---|---:|---:|---:|
+| Under 18 | 86.0 | 73.3 | 75.7 |
+| 18–25 | 28.6 | 35.7 | 35.3 |
+
+**The direct test, 2015** (`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/dep_ages/`).
+The real 2015 PUF filers, every tax item fixed at its true value, only the
+ages drawn by the model as generation draws them, compared with the IRS's
+ranges on the same returns (first three dependents, millions):
+
+| Age | IRS, where shown | Model, same returns |
+|---|---:|---:|
+| Under 5 | 14.3 | 17.9 |
+| 5–12 | 30.6 | 30.0 |
+| 13–16 | 14.1 | 13.6 |
+| 17–18 | 6.2 | 6.0 |
+| 19–23 | 6.8 | 5.2 |
+| 24 and over | 5.4 | 4.7 |
+| Share under 17 | 76.2% | 79.5% |
+
+- Too young where the IRS shows the age: about 2.6 million extra children.
+- Too young where the IRS withheld it (14.3 million dependents): the model
+  gives 78% under 17; the booklet's full-sample counts suggest roughly 55%
+  (approximate, for the reason in rule 1 below): about 3 million more.
+- Poor return by return: for the youngest dependent the model picks the
+  IRS's range 47% of the time.
+
+So in 2015 the number of dependents is right (it is the PUF's) and their
+ages are too young. In 2019 the file also has more dependents than the tax
+data (94–96 million on filed returns against 90.5 million), from generation
+and the tilt, which has no target on dependents.
+
+**What the PUF gives** (the demographic file's booklet, 2015):
+- AGEDP1, AGEDP2, AGEDP3 are the youngest, second-youngest and
+  third-youngest dependent, in six ranges: under 5, 5–12, 13–16, 17–18,
+  19–23, 24 and over (0 is "not present"). They are not tied to a type of
+  dependent.
+- The number shown is capped by filing status: three on joint and
+  head-of-household returns, two on single returns, one on married-separate
+  returns; where a return has more, the IRS keeps children at home first,
+  then children away, other dependents, parents. The PUF's own dependent
+  counts (XOCAH, XOCAWH, XOODEP, XOPAR) carry the same cap (checked: no
+  return exceeds it). The translation is therefore: identify each
+  dependent's type, keep dependents up to the filing status's cap in that
+  type order, then sort the kept ones youngest first. Which people the IRS
+  kept cannot be checked on the public file: with three children and a
+  younger "other dependent", keeping by type and keeping the youngest pick
+  different people.
+- Two return items are related to dependents' ages: N24, the children who
+  qualify for the child tax credit (67.4 million in 2015), and EIC, the
+  EITC qualifying children (34.9 million). Neither is an exact age count:
+  the child credit needs more than being under 17, an EITC qualifying child
+  need not be a claimed dependent, a zero EIC says little outside EITC
+  eligibility, and either can concern a person beyond the cap. They are
+  predictors, not constraints. Neither is in the pipeline's PUF inputs yet
+  (`pipeline/build_table.py`), nor is full filing status (the model has only
+  joint against not joint).
+
+**Why ranges are missing.** Code 0 means both "no dependent" and
+"withheld". Three causes:
+1. No demographics at all on the top sampling strata (the 88,017 records of
+   step 0).
+2. Dependents' ages withheld on returns with farm income or a first-time
+   homebuyer credit.
+3. Dependents' ages withheld where fewer than 100 returns in the population
+   share the return's wages, marital status, age, sex, number of
+   dependents, earnings split and presence of unemployment benefits.
+
+Cause 3 removes older dependents most, so the public file's ranges are
+tilted young. The booklet's last table gives each code's weighted count in
+SOI's full sample and in the public file:
+
+| | Full sample | Public file | Short |
+|---|---:|---:|---:|
+| Dependent 1, under 5 | 13.16m | 12.28m | 7% |
+| Dependent 2, 19–23 | 3.30m | 2.22m | 33% |
+| Dependent 3, 24 and over | 1.24m | 0.52m | 58% |
+
+**The rule, as for the primary filer's range (step 0):**
+1. **Ranges where missing, one dependent position at a time.** A return can
+   show some dependents' ranges and withhold others (1.88 million weighted
+   returns have both). For dependent k, code 0 means "no dependent" only
+   when the return's capped count is below k; otherwise it means "withheld".
+   Observed ranges are kept; only the withheld positions are filled. Code 0
+   is never treated as an age category.
+   - Fit a model of the ranges on the positions that have them, from what
+     the return shows: the dependent counts by type, N24, EIC, full filing
+     status, the primary's range (as drawn that pass), wages and income, and
+     which withholding cause applies (no demographics, farm income or the
+     homebuyer credit, or a small cell).
+   - Draw a return's withheld positions together, given its observed ranges,
+     keeping them youngest first; independent draws can make impossible
+     families.
+   - The booklet's full-sample counts are a benchmark, not an exact target:
+     they come from a different sample, and the residual (full sample less
+     the public file's known counts) does not match the withheld slots that
+     exist (dependent 1: 4.80 million of residual against 6.55 million
+     slots without a range; dependent 2: 3.95 against 5.27; dependent 3:
+     2.25 against 2.51). Use the full sample's age shares, reconcile them to
+     the weight actually available, and report the adjustment, as step 0
+     does when Table 1.6's residuals do not fit (`pipeline/ages.py`).
+   - Draw the ranges afresh each pass of training, as for the primary's
+     range. The 2015 booklet's counts are for 2015 only; later years have no
+     such check.
+2. **The same ranges on the CPS.** Compute them from the CPS's ages under
+   the IRS's definition: the cap by filing status (3, 2 or 1), the type
+   order, youngest first, the same six ranges. Today's `build_cps.R` does not:
+   it keeps the three youngest dependents for every filing status, with no
+   type order. It has to be rebuilt from the person table, keeping each
+   dependent's relationship to the claimant, its type, full filing status
+   and the uncapped count before the cap.
+   - What the CPS cannot reproduce: it counts college students at their
+     parents' home, so children away cannot be told apart (0.4 million on
+     the PUF); and production's builder attaches dependents through
+     co-resident parent links, approximates support from household income
+     and leaves out unrelated dependents (`src/nonfilers/asec_tax_units.R`),
+     so it misses claims across households. Compare counts by type,
+     claimant age, income and filing status before treating the two
+     sources as the same.
+3. **Shared between the PUF and the CPS only.** The SCF and the CEX keep the
+   number of dependents as their shared item; their dependents' ranges are
+   not needed (John, 23 October).
+4. **At generation,** the CPS draws exact dependent ages inside each range,
+   youngest first, as it does for the primary filer's exact age inside its
+   range. Today's generator draws dependents' ages in random order with no
+   range (`pipeline/generate.py`), so both need building. (Production
+   already draws each dependent's age uniformly inside its PUF range and
+   sorts them, `src/imputations/ages.R`; the gain here is ages that depend
+   on the rest of the record and the same choice of dependents on both
+   sources.)
+
+**Checks specific to this step.** Hiding observed ranges at random tests
+prediction where the IRS disclosed ages; it does not test the selectively
+withheld ones. So also report, separately for each withholding cause, how
+much the filled ranges depend on extrapolation and how sensitive they are
+to the model's inputs. National totals cannot say whether older dependents
+sit on high-income, farm or retirement-income returns.
+
+**The primary's sex (GENDER).** Given on every record with demographics
+(1 male, 2 female); missing on the same records as AGERANGE. Step 0 as
+built fills only the range; filling sex with it (Step 0, item 4) is still
+to build. Today the rebuild uses it only to
+set the survey couples' primary-filer rule, and draws sex_primary from the
+CPS without the PUF's value. It becomes a shared category: on the PUF the
+observed (or step 0) value, on the surveys the primary's sex after the
+primary-filer rule; nothing to draw at generation where it is known.
+
+**The earnings split.** EARNSPLIT gives the primary's share of
+the couple's earnings in three ranges (75% or more, 25–75%, under 25%).
+Earnings are wages plus Schedule SE self-employment earnings (the primary's
+E30400 less E30500, the spouse's E30500). It is given only on joint returns
+and is missing only on the records with no demographics; the farm and
+small-cell rules for dependents do not apply to it. Production reads the
+three ranges as exactly 100%, 50% and 0% (`src/imputations/earnings_split.R`),
+which is why 97% of its couples split at one of those points. It can be
+treated like the dependents' ranges: shared with the CPS (computed on the
+same earnings definition), missing values filled the same way, the exact
+share drawn inside the range.
+
+**The number of dependents: the CPS builder's definition.** 2015 filers:
+91.7 million dependents on the PUF (80.1 million children at home, 8.3
+million other dependents, 2.9 million parents, 0.4 million children away)
+against 73.4 million in the CPS builder's units, short in children and
+adults alike (section 0). The file's count comes from the PUF, so the gap
+does not set the file's number of dependents; it does make the CPS records
+the model learns dependents' ages from unlike the PUF's. Likely causes, not
+yet measured: the filing model puts some CPS units with children among the
+non-filers (they hold 6.5 million dependents under 17); and the builder
+attaches dependents only through a co-resident parent, approximates the
+support test and leaves out unrelated people, so it misses children living
+elsewhere, other relatives raising children, adult students and parents.
+First check: the CPS's dependents, filers and non-filers together, against
+tax returns plus non-filers, by age range; then fix the builder's dependent
+rules to the IRS definition (rule 2 above) and compare by type, age,
+income and filing status. The count part of the 2019 excess needs a tilt
+target on dependents (SOI's exemption count or the child credit count).
+
+The Codex review of this step (23 October) is in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/ages_review/review.md`;
+its corrections are folded in above.
 
 ### Considered and dropped: filling in exact ages on PUF rows each pass
 

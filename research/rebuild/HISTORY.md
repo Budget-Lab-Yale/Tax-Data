@@ -249,6 +249,51 @@ consumption at $200k+ $137.9k and $136.2k ($130.5k, $129.8k; the CEX's
 $113.3k). SCF interest, 2018: 87% report none, 72% after the fill-in, 73%
 in the tax data. Promoted to latest (`explore/2026-10-23/translation/`).
 
+### 22–23 October: the CPS, and exact ages
+
+**The CPS ASEC as a fourth source** (overnight 22–23 October; `FEATURES.md`,
+"The CPS"). Tax years 2015, 2017, 2019, 2021 and 2023, every tax unit, built
+with production's ASEC builder, the filing flag from the non-filer pool's
+model and calibration. Each shared variable was decided from the
+translation report against the tax data: wages and dividends by count from
+the top, gross Social Security in dollars; interest, Schedules C and F,
+unemployment, pensions and Schedule E not shared (the CPS's interest
+holders are twice the returns'; its self-employment holders under half).
+CPS-only: exact ages, sex, each spouse's share of wages and self-employment
+income, weeks, hours, child care. The rest of the model was no worse (held-
+back fit by source unchanged; the tilt about 7% larger). The couples' wage
+split came out within 2 points of SOI's W-2 table 1.D by the woman's share
+(production's split puts 97% of couples at exactly 0, 50% or 100%).
+
+**Exact ages shared, then latest** (23 October). The primary filer's and
+spouse's exact ages (to 79, then 80 and over: the finest top code all three
+surveys allow, John's call) became shared by the SCF, CEX and CPS and are
+drawn right after the PUF items, so wealth and spending see them. IRAs and
+DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
+80+ fell further below it. The 2015 CPS filing flag was then calibrated
+(84.2% file, against 78.0%), after the latest runs were trained.
+
+**What the comparisons found** (`rebuild_cps/explore/comparisons/`,
+`explore/2026-10-23/dep_ages/`, `explore/2026-10-23/tax_units_review/`,
+`explore/2026-10-23/cbo_units/`):
+- The file has about 86 million children against Census's 73 million. In
+  2015, on the real PUF returns, the model makes dependents too young
+  (79.5% under 17 against the IRS's 76.2%) and matches the IRS's range for
+  the youngest dependent 47% of the time: the PUF's own dependent age
+  ranges (AGEDP1–3), its earnings split (EARNSPLIT) and its primary's sex
+  (GENDER) were not used. In 2019 the file also has more dependents than
+  the tax data, from generation and the tilt. Plan: `AGES.md`, section 0
+  and Step 3.
+- The CPS tax units come from production's non-filer builder, made to find
+  people who do not file. Against the 2015 PUF it finds 18 million fewer
+  dependents and half the heads of household. CBO's public algorithm (run
+  here on the March 2024 CPS, reproducing CBO's published tables exactly)
+  gets head of household close to SOI (20.1 million against 21.6) and finds
+  more adult dependents; neither finds the children claimed from outside the
+  household. Plan: `TAX_UNITS.md` (one Python tax unit module from CBO's
+  algorithm, the filing step kept separate, standing tests for every
+  survey).
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -271,3 +316,4 @@ in the tax data. Promoted to latest (`explore/2026-10-23/translation/`).
 | CEX training on one-tax-unit households only | They spend more per unit than the average tax unit (under 26: $30k against $24k); the file drew too much |
 | Consumption targets as totals | The two sources count different numbers of units; the tilt kept 72% of the effective sample |
 | Social Security plus pensions shared with the CEX | PUF total pensions include rollovers; 65+ spent 17% too much |
+| Post-training by changing the network instead of reweighting (22 October): fine-tuning to the targets by reward, by distribution matching (Khalifa and coauthors 2021), and distilling the tilted stack | Not viable or practical (John). For 2019 none met the targets without a final tilt, each moved as far from the pretrained model as the tilt or further, at 5–10 times the GPU time; untargeted tables the same as the tilt's. Distilling loses accuracy by itself (a copy of the untilted stack misses it by 5–7%, thin at the top of net worth), so it compounds over chained years. Post-training is reweighting. The distilled network is kept only as a query tool. Reports: `explore/2026-10-22/finetune_direct/`, `explore/2026-10-22/distill_machine/` |
