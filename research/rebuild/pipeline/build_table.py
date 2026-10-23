@@ -43,10 +43,14 @@ Variables. married, n_dep (capped at 3), filer, and the amounts:
     left out: the PUF's total pensions (E01500) include rollovers and lump
     sums, the CEX's do not, so a combined slot put PUF retirees in higher
     bands than their CEX counterparts.
+  exact ages of the primary filer and the spouse (EXACT_AGES), on the SCF,
+    the CEX and the CPS, absent on the PUF: 0 none, else the age plus 1, ages
+    80 and over as 80 (exact_age_value); the primary filer by the rule the age
+    range uses, so the exact age always lies in the age range;
   CPS only (CPS_AMOUNTS, CPS_CATEGORIES): the spouse's share of the couple's
     wages and of its self-employment income, each person's weeks worked and
-    usual weekly hours, childcare; exact ages of the primary filer, the spouse
-    and up to three dependents, and the two adults' sex (cps_person_slots).
+    usual weekly hours, childcare; exact ages of up to three dependents, and
+    the two adults' sex (cps_person_slots).
     What the CPS shares with the PUF is in the translation table.
 On the PUF the parts add to the totals and the items to AGI, in whole dollars
 (checked).
@@ -153,9 +157,17 @@ CEX_AMOUNTS = list(CEX_CATS)
 # spouse's, the primary chosen by the rule the age range uses (ages.py).
 CPS_AMOUNTS = ['spouse_wage_share', 'spouse_se_share', 'weeks_primary', 'weeks_spouse', 'hours_primary',
                'hours_spouse', 'childcare']
-MAX_AGE = 85                                   # the CPS's top code
+MAX_AGE = 85                                   # the CPS's top code (80 is 80-84, 85 is 85 and over)
 AGE_SLOTS = ['age_primary', 'age_spouse', 'age_dep1', 'age_dep2', 'age_dep3']   # value: 0 none, else the age + 1
-CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS}, 'sex_primary': 3, 'sex_spouse': 3}   # sex: 0 none, 1 man, 2 woman
+# The primary filer's and the spouse's exact ages are shared by the SCF, the CEX and the CPS (translation table), absent
+# on the PUF. One coding on every source: exact ages to 79, and 80 for 80 and over (EXACT_AGE_TOP). It is the finest
+# all three allow: the CPS codes 80-84 as 80 and 85 and over as 85; the CEX codes everyone from 83 (84 in 2019 and
+# 2024) as one value, 87 or 88; the SCF reports ages to 95.
+EXACT_AGES = TR.EXACT_AGES
+EXACT_AGE_TOP = 80
+CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS if a not in EXACT_AGES},
+                  'sex_primary': 3, 'sex_spouse': 3}   # CPS only; sex: 0 none, 1 man, 2 woman
+PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGORIES}   # every person category
 SPOUSE_SLOTS = ['age_spouse', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse']
 DEPENDENT_AGE_SLOTS = ['age_dep1', 'age_dep2', 'age_dep3']   # the k-th: present exactly when n_dep >= k
 SHARES = ['spouse_wage_share', 'spouse_se_share']   # only for married couples with some of the item; else absent
@@ -534,7 +546,7 @@ def cps_person_slots(t, primary_is_2):
     age = {k: pick('age', k) for k in (1, 2)}
     w = d['weight'].to_numpy(float)
     married_ = (d['married'] == 1).to_numpy()
-    out = {'age_primary': age[1] + 1, 'age_spouse': np.where(age[2] >= 0, age[2] + 1, 0),
+    out = {'age_primary': exact_age_value(age[1]), 'age_spouse': exact_age_value(age[2]),
            'sex_primary': pick('sex', 1), 'sex_spouse': pick('sex', 2),
            'weeks_primary': pick('weeks_worked', 1), 'weeks_spouse': pick('weeks_worked', 2),
            'hours_primary': pick('usual_hours', 1), 'hours_spouse': pick('usual_hours', 2),
@@ -560,6 +572,7 @@ def cps_person_slots(t, primary_is_2):
     assert ((d.age_spouse > 0).to_numpy() == married).all() and ((d.sex_spouse > 0).to_numpy() == married).all()
     assert (d.sex_primary > 0).all() and (d.age_primary > 0).all()
     assert (ages.adult_range(d.age_primary - 1) == d.age_range).all(), 'the primary filer\'s age is not in its range'
+    assert d.age_primary.between(1, EXACT_AGE_TOP + 1).all() and d.age_spouse.between(0, EXACT_AGE_TOP + 1).all()
     for k in (1, 2, 3):
         assert ((d[f'age_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'age_dep{k} and n_dep disagree'
     for v in SPOUSE_SLOTS:
@@ -567,10 +580,17 @@ def cps_person_slots(t, primary_is_2):
     for v in SHARES:
         common.say(f'CPS {v}: recorded on {int(d[v].notna().sum()):,} rows (married couples with some of the item)')
     keep = ['year', 'record_id', 'household_id', 'weight', 'married', 'n_dep', 'filer', 'age_range'] + \
-        list(CPS_CATEGORIES) + CPS_AMOUNTS + ['wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
+        list(PERSON_CATEGORIES) + CPS_AMOUNTS + ['wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
                                               'se_spouse_reported'] + [c for c in d if c.startswith('raw_')]
     d[d.year == TARGET_YEAR][keep].to_parquet(f'{common.DATA}/cps_units_{TARGET_YEAR}_all.parquet', index=False)
     return t.drop(columns=[c for c in t if c.endswith(('_primary_reported', '_spouse_reported'))])
+
+
+def exact_age_value(age):
+    """An exact-age slot's value from ages in years (negative or missing: none): 0 none, else the age plus 1, with
+    ages 80 and over as 80 (EXACT_AGE_TOP), the one coding the SCF, the CEX and the CPS all allow."""
+    a = np.asarray(age, float)
+    return np.where(np.isnan(a) | (a < 0), 0, np.minimum(np.nan_to_num(a, nan=-1), EXACT_AGE_TOP) + 1).astype(np.int64)
 
 
 def survey_items(s, survey):
@@ -632,6 +652,16 @@ def translate_surveys(t, edges, pi):
             d = t[sel]
             for row in TR.rows(src):
                 v = row['variable']
+                if v in TR.EXACT_AGES:      # no exact age in the tax data: against the CPS of the nearest year
+                    stages = {'survey': TR.describe_age(d[v].to_numpy(), w[sel])}
+                    if src != 'cps':
+                        cy = min(CP['years'], key=lambda c: (abs(c - y), c))
+                        c = ((t.source == 'cps') & (t.year == cy)).to_numpy()
+                        stages['CPS (nearest year)'] = TR.describe_age(t.loc[c, v].to_numpy(), w[c])
+                        notes[f'{src} {y} {v}'] = {'CPS year compared': cy}
+                    assert (d[v] >= 0).all(), f'{src} {y} {v}: missing'
+                    report += TR.report_rows(row, y, stages)
+                    continue
                 if v in TR.CATEGORY_VARIABLES:
                     tax_side = TR.describe_category(None, tw, T[[f'age_p{k}' for k in range(common.ADULT_RANGES)]].to_numpy()) \
                         if v == 'age_range' else TR.describe_category(T[v].to_numpy(), tw)
@@ -703,6 +733,8 @@ def table_meta(t, factor):
             'cex_amounts': CEX_AMOUNTS,
             'cps_amounts': CPS_AMOUNTS,
             'cps_categories': CPS_CATEGORIES,
+            'person_categories': PERSON_CATEGORIES,
+            'exact_ages': EXACT_AGES,
             'cps_structure': {'spouse': SPOUSE_SLOTS, 'dependent_ages': DEPENDENT_AGE_SLOTS,
                               'primary_age': 'age_primary', 'ages': AGE_SLOTS},
             'present_on': present_on(t),
@@ -820,7 +852,7 @@ def present_on(t):
     out = {}
     for v in AMOUNTS:
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, f'{v}_band'] >= 0).any())
-    for v in ['married', 'n_dep', 'age_range', 'filer'] + list(CATEGORIES) + list(CPS_CATEGORIES):
+    for v in ['married', 'n_dep', 'age_range', 'filer'] + list(CATEGORIES) + list(PERSON_CATEGORIES):
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, v] >= 0).any())
     return out
 
@@ -872,6 +904,18 @@ def primary_age_range(t, puf):
     # same-sex couple the older (as ages.primary_age)
     primary_is_2 = (mixed & (woman_first == (m1 == 1))) | (couple & ~mixed & (a2 > a1))
     t = cps_person_slots(t, primary_is_2)
+    # the exact ages on the SCF and CEX rows (the CPS's are set above), where the translation table shares them: the
+    # primary filer's age by the same rule as its range, the spouse's on couples only
+    spouse = np.where(couple, np.where(primary_is_2, a1, a2), -1.0)
+    assert np.array_equal(np.where(primary_is_2, a2, a1)[rows], age[rows])
+    for src, sel in [('scf', sv), ('cex', cx)]:
+        for v, x in [('age_primary', age), ('age_spouse', spouse)]:
+            if shares(src, v):
+                t.loc[sel, v] = exact_age_value(x[sel])
+        d = t[sel]
+        if shares(src, 'age_primary'):
+            assert (ages.adult_range(d.age_primary - 1) == d.age_range).all(), f'{src}: an exact age outside its range'
+            assert ((d.age_spouse > 0) == (d.married == 1)).all(), f'{src}: a spouse age off a couple'
     w = t.weight.to_numpy(float)
     report = pd.DataFrame({'range': ['under 26', '26-34', '35-44', '45-54', '55-64', '65+'],
                            'woman-first chance by the man\'s range (%)': 100 * pi,
@@ -920,15 +964,17 @@ def main():
     assert u['wages_translated'].notna().all()
     u.to_parquet(f, index=False)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer'] + \
-        list(CATEGORIES) + list(CPS_CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
+        list(CATEGORIES) + list(PERSON_CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
         ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)]
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
     for k in range(ages.N_RANGES):
         t[f'age_p{k}'] = t[f'age_p{k}'].fillna(0.0)
-    for c in CPS_CATEGORIES:   # absent (-1) on every other source
-        assert not t.loc[t.source == 'cps', c].isna().any(), c
+    for c in PERSON_CATEGORIES:   # absent (-1) on every source that does not report it
+        has = [src for src in ('scf', 'cex') if c in EXACT_AGES and shares(src, c)] + ['cps']
+        assert not t.loc[t.source.isin(has), c].isna().any(), c
+        assert t.loc[~t.source.isin(has), c].isna().all(), c
         t[c] = t[c].fillna(-1)
-    for c in ['year', 'married', 'n_dep', 'filer', 'age_range'] + list(CATEGORIES) + list(CPS_CATEGORIES):
+    for c in ['year', 'married', 'n_dep', 'filer', 'age_range'] + list(CATEGORIES) + list(PERSON_CATEGORIES):
         assert not t[c].isna().any(), c
         t[c] = t[c].astype(np.int64)
     age_range_table(t)

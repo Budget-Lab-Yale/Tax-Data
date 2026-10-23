@@ -58,15 +58,18 @@ below, "The CPS".) The code is in `pipeline/`; every setting is in
   vehicles; other durables; other nondurables; food at home (with
   alcohol); gasoline; housing and utilities; other services and health.
   Total consumption is computed from them.
-- person items (CPS only): the exact age of the primary filer, the spouse
-  and up to three dependents (youngest first); the sex of the primary
+- the exact age of the primary filer and of the spouse (SCF, CEX and CPS;
+  not on the PUF, which has only the age range): below, "Exact ages";
+- person items (CPS only): the exact ages of up to three dependents
+  (youngest first); the sex of the primary
   filer and the spouse; the spouse's share of the couple's wages and of its
   Schedules C and F income; each adult's weeks worked and usual weekly
   hours; childcare expenses. The file's wages1 and wages2 (and se1, se2)
   are the total split by the drawn share, so they add up to the total.
 
 All four sources share married, dependents, the primary filer's age range
-and wages. The PUF, the SCF and the CEX also share Schedules C and F
+and wages. The SCF, the CEX and the CPS share the exact ages of the
+primary filer and the spouse. The PUF, the SCF and the CEX also share Schedules C and F
 income. The PUF and the SCF also share interest, dividends, capital gains,
 Schedule E income, the partnership/S corporation/LLC flag, gross Social
 Security plus pensions and tax-exempt interest; the PUF and the CEX also
@@ -91,8 +94,10 @@ units that claim its children.
   (`build_table.py`, cps_person_slots).
 - **Encodings** (`build_table.py`, CPS_AMOUNTS and CPS_CATEGORIES):
   - exact ages are categories: 0 for none (no spouse, no k-th dependent),
-    else the age plus 1, so an infant (age 0) is not "none"; 87 values
-    (the CPS's top code is 85). Sex: 0 none, 1 a man, 2 a woman;
+    else the age plus 1, so an infant (age 0) is not "none". Dependents'
+    ages: 87 values (the CPS's top code is 85). The primary filer's and the
+    spouse's: 82 values, 80 and over as 80 (below, "Exact ages"). Sex: 0
+    none, 1 a man, 2 a woman;
   - the spouse's share of the couple's wages, and of its Schedules C and F
     income, is an amount from 0 to 1, cut into bands within each year like
     the CEX's categories. It is recorded only on married couples with some
@@ -108,7 +113,7 @@ units that claim its children.
 - **Rules at generation** (`generate.py`, cps_structure): the spouse's
   items are none or zero unless married, and a married spouse has an age
   and a sex; the k-th dependent has an age exactly when there are at least
-  k dependents; the primary filer's age lies in its drawn age range; a
+  k dependents; a
   spouse's share is zero when the couple has none of the item. A dependent
   filer holds no CPS item (ages none, shares zero, so its wages are all its
   own). Where a share is absent on the training rows (no couple, or none of
@@ -151,6 +156,22 @@ respondent's unit when that equity is zero.
 
 A band becomes dollars again by drawing a real record's value from that
 band.
+
+**Exact ages** (candidate, 23 October; `build_table.py`, EXACT_AGES). The
+primary filer's and the spouse's exact ages are on the SCF, CEX and CPS
+records, absent on the PUF's (filers and non-filers alike), so the balance
+sheet and consumption are learned given exact age.
+- The primary filer is chosen by the rule the age range uses (ages.py), on
+  every source, so the exact age lies inside the age range.
+- One coding on every source: exact ages to 79, then 80 for 80 and over.
+  It is the finest all three allow: the CPS codes 80-84 as 80 and 85 and
+  over as 85; the CEX codes everyone from 83 (84 in 2019 and 2024) as one
+  value, 87 or 88; the SCF reports ages to 95.
+- Translation table: taken as reported, with that coding. The tax data has
+  no exact ages, so the report compares each SCF and CEX year with the CPS
+  of the nearest year, by age group.
+- Generation draws them right after the PUF's own items, before the SCF,
+  CEX and CPS phases, under the CPS label (below, Generation).
 
 **The primary filer's age range** (`pipeline/ages.py`, settings "ages"),
 shared by every source. Nine categories: the PUF demographic file's six
@@ -333,19 +354,25 @@ Two standard functions and one table (`settings.json`, "translation";
 1. the PUF variables, in a random order;
 2. line-13 capital gains, business income and its two subtotals, computed
    from their parts; then the partnership/S corporation/LLC flag;
-3. the SCF-only items, in a random order (the mortgage share after the
+3. the exact ages of the primary filer and the spouse, in a random order,
+   as the CPS would see the unit (CPS label and generation year 2019): the
+   CPS covers every tax unit, filers and non-filers, in every year, and its
+   view holds the filing flag. The primary filer's age lies inside its age
+   range; the spouse's exists exactly when married;
+4. the SCF-only items, in a random order (the mortgage share after the
    home), as the SCF would see the household (SCF label, PUF-only variables
-   left out). Net worth is computed from the balance sheet in dollars;
-4. the 8 consumption categories, in a random order, as the CEX would
+   left out, the exact ages seen). Net worth is computed from the balance
+   sheet in dollars;
+5. the 8 consumption categories, in a random order, as the CEX would
    see the unit (CEX label and generation year 2019, everything the CEX
-   lacks left out);
-5. the CPS's person items and childcare last, in a random order, as the
-   CPS would see the unit (CPS label and generation year 2019), under the
-   rules above (The CPS).
+   lacks left out, the exact ages seen);
+6. the CPS's own person items and childcare last, in a random order, as
+   the CPS would see the unit (CPS label and generation year 2019), under
+   the rules above (The CPS).
 
 **Dependent filers** (the PUF's three dependent-filer age ranges) hold no
 SCF, CEX or CPS item: every balance-sheet item, unrealized gain, business
-ownership, consumption category and CPS person item is zero or none on
+ownership, consumption category, exact age and CPS person item is zero or none on
 their records. The surveys
 count their wealth and spending in the household that claims them. Their
 tax items stay as drawn.

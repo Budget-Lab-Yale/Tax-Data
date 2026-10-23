@@ -38,7 +38,12 @@ import common
 
 S = common.SETTINGS['translation']
 TABLE = S['table']
-CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer']
+CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age_primary', 'age_spouse']
+# Exact ages (value 0 none, else the age plus 1, 80 and over as 80): the tax data has none, so the report compares each
+# survey year with the CPS of the nearest year, in the groups AGE_GROUPS (lower edge inclusive, years).
+EXACT_AGES = ['age_primary', 'age_spouse']
+AGE_GROUPS = [(0, 26, 'under 26'), (26, 35, '26-34'), (35, 45, '35-44'), (45, 55, '45-54'), (55, 65, '55-64'),
+              (65, 70, '65-69'), (70, 75, '70-74'), (75, 80, '75-79'), (80, 200, '80 and over')]
 _seen = set()
 for _r in TABLE:
     _key = (_r['survey'], _r['variable'])
@@ -155,6 +160,19 @@ def describe_category(x, w, probs=None):
     else:
         vals = range(probs.shape[1])
     return {f'value {v} (%)': 100 * (w * probs[:, i]).sum() / w.sum() for i, v in enumerate(vals)}
+
+
+def describe_age(x, w):
+    """An exact-age slot: the share with none, and among units with an age, the share in each age group and the mean
+    age (80 and over counted as 80)."""
+    x, w = np.asarray(x, float), np.asarray(w, float)
+    has = x > 0
+    age = x - 1
+    d = {'none (%)': 100 * w[~has].sum() / w.sum()}
+    for lo, hi, lab in AGE_GROUPS:
+        d[f'{lab} (% of units with an age)'] = 100 * w[has & (age >= lo) & (age < hi)].sum() / w[has].sum()
+    d['mean age'] = float((w[has] * age[has]).sum() / w[has].sum())
+    return d
 
 
 def report_rows(row, year, stages):

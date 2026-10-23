@@ -5,11 +5,12 @@ and never predicted, then the predicted slots in a fixed order (PREDICTED).
 Each amount is a band index (band 0 = exactly zero, then the negative bands
 from most negative, then the positive bands in dollar order); married, number
 of dependents, the primary filer's age range (ages.py), the filing flag, the
-yes/no business items and the CPS's exact ages and sex are categories.
-A slot one source never has (the balance sheet on the PUF, the PUF-only items
-on the SCF, everything but the shared items and the consumption categories on
-the CEX, everything but the shared items and the person items on the CPS) is
-absent: band -1. Which sources have each slot is in the band
+yes/no business items, the exact ages (primary filer and spouse: SCF, CEX and
+CPS; dependents: CPS) and the CPS's sex are categories.
+A slot one source never has (the balance sheet and the exact ages on the PUF,
+the PUF-only items on the SCF, everything but the shared items and the
+consumption categories on the CEX, everything but the shared items and the
+person items on the CPS) is absent: band -1. Which sources have each slot is in the band
 edges' meta ("present_on"). The network never sees an absent slot and is never
 asked to predict it.
 
@@ -40,8 +41,12 @@ KG_PIECES = META['kg_pieces']
 # The table's other items, in table order, each owned by the PUF or on both sources.
 ITEMS = META['items']
 CATEGORIES = META['categories']                    # yes/no items: k1_owner (shared), owns_business (SCF)
-CPS_CATEGORIES = META['cps_categories']            # CPS-only categories (exact ages, sex): {slot: number of values}
-CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(CATEGORIES) + list(CPS_CATEGORIES)
+CPS_CATEGORIES = META['cps_categories']            # CPS-only categories (dependents' ages, sex): {slot: number of values}
+# The primary filer's and the spouse's exact ages: on the SCF, the CEX and the CPS (absent on the PUF), drawn at
+# generation right after the PUF items (generate.py). PERSON_CATEGORIES: these and the CPS-only categories.
+EXACT_AGES = list(META['exact_ages'])
+PERSON_CATEGORIES = META['person_categories']
+CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(CATEGORIES) + list(PERSON_CATEGORIES)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
 SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
@@ -54,7 +59,7 @@ CEX_SLOTS = list(META['cex_amounts'])     # the consumption categories, CEX only
 CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's person items and childcare, CPS only
 PREDICTED = (['married', 'n_dep', 'age_range', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
-             + SCF_SLOTS + FILER + list(REPORTED) + CEX_SLOTS + CPS_SLOTS)
+             + SCF_SLOTS + FILER + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
 # The sources that have each slot; a slot on one source only is owned by it.
@@ -96,7 +101,7 @@ def band_layout():
 
 BAND_LAYOUT = band_layout()
 N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **{c: 2 for c in CATEGORIES},
-             **CPS_CATEGORIES, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+             **PERSON_CATEGORIES, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
 
@@ -115,7 +120,7 @@ MASK = 0
 MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
-               'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **{c: 2 for c in CATEGORIES}, **CPS_CATEGORIES}
+               'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **{c: 2 for c in CATEGORIES}, **PERSON_CATEGORIES}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -161,7 +166,7 @@ def read_table():
     assert table.loc[table.source == 'puf', 'filer'].isin([0, 1]).all()
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
-    for c, n in CPS_CATEGORIES.items():
+    for c, n in PERSON_CATEGORIES.items():
         assert table[c].between(-1, n - 1).all(), c
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a

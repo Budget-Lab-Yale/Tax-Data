@@ -75,6 +75,24 @@
    },
    {
     "survey": "scf",
+    "variable": "age_primary",
+    "items": [
+     "age_primary"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the primary filer's age by the rule in ages.py (so it lies in its age range); 80 and over as 80, the coarsest of the three surveys' top codes (the CEX's, which groups everyone from 83 or 84)"
+   },
+   {
+    "survey": "scf",
+    "variable": "age_spouse",
+    "items": [
+     "age_spouse"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
+   },
+   {
+    "survey": "scf",
     "variable": "k1_owner",
     "items": [
      "k1_owner"
@@ -292,6 +310,24 @@
    },
    {
     "survey": "cex",
+    "variable": "age_primary",
+    "items": [
+     "age_primary"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the primary filer's age by the rule in ages.py (so it lies in its age range); 80 and over as 80, since the CEX codes everyone from 83 (84 in 2019 and 2024) as one value"
+   },
+   {
+    "survey": "cex",
+    "variable": "age_spouse",
+    "items": [
+     "age_spouse"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
+   },
+   {
+    "survey": "cex",
     "variable": "wages",
     "items": [
      "wages"
@@ -352,6 +388,24 @@
     ],
     "type_for_fill_in": false,
     "reason": "the primary filer's range, couples by the rule in ages.py; within 3 points of the tax data in every range and year"
+   },
+   {
+    "survey": "cps",
+    "variable": "age_primary",
+    "items": [
+     "age_primary"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the primary filer by the rule in ages.py; 80 and over as 80 (the CPS codes 80-84 as 80 and 85 and over as 85, the CEX cannot separate them)"
+   },
+   {
+    "survey": "cps",
+    "variable": "age_spouse",
+    "items": [
+     "age_spouse"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
    },
    {
     "survey": "cps",
