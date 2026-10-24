@@ -29,7 +29,8 @@ Every stage runs through Slurm, from the repository root:
 |---|---|---|---|
 | scf | `roster_scf.py`, `build_scf.R` | SCF waves split into tax units by the shared rules (`tax_units.py`), with their income and balance sheet | minutes |
 | cex | `roster_cex.py`, `build_cex.R` | CEX survey years split into tax units by the shared rules, with their spending | a few minutes |
-| cps | `build_cps.R` | CPS ASEC tax years split into tax units, with each person's items and childcare | minutes |
+| filing | `filing.py`, `filing_requirement.R` | the CPS's tax units by the shared rules, each unit's statutory filing requirement, and its filing chance by the filing rule (v4), calibrated each year; separate returns; checks | about 7 minutes |
+| cps | `build_cps.R` | CPS ASEC tax years as tax units (the filing stage's returns), with each person's items and childcare | minutes |
 | targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | table | `build_table.py` | the training table, its bands, and the dollar maps | about 2 minutes |
 | train | `train.py` (and `fillin.py`) | the model, with the two-slot fill-in | about 15 minutes on an H200 (10 seconds a pass) |
@@ -52,7 +53,7 @@ Outputs, under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`:
 
 | Folder | Holds |
 |---|---|
-| `data/` | the table, band edges, dollar maps, SCF and CEX units |
+| `data/` | the table, band edges, dollar maps, SCF, CEX and CPS units; `data/filing/`, the filing stage's units, returns and checks |
 | `targets/` | the published SOI numbers |
 | `model/seed<n>/` | the trained model and its training log |
 | `gen/seed<n>/` | the generated stack |

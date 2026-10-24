@@ -4,13 +4,15 @@
 # survey of March Y+1 (read_asec(Y) maps this).
 #
 # Tax units. CBO's rules (tax_units.py, the shared tax-unit module, read
-# through tax_units_cbo.R), as step 1 built and calibrated them: the roster from
-# <step1_dir>/units/roster_<year>_<cps.cbo_variant>_nogq.csv.gz and step 1's
+# through tax_units_cbo.R), as the filing stage (filing.py, run before this
+# script) built and calibrated them, inside the run's data folder: the roster
+# from <step1_dir>/units/roster_<year>_<cps.cbo_variant>_nogq.csv.gz and the
 # returns from <step1_dir>/<step1_out>/units_<year>.csv.gz (step1_returns
-# below; settings cps.step1_dir and cps.step1_out, both required). Step 1's
-# returns give the separate returns split from joint couples and each return's
-# filing status, statutory filing requirement and calibrated filing chance. A
-# year with no such file stops. The frame is the household population: people
+# below; settings cps.step1_dir and cps.step1_out, both required; "step 1" is
+# PLAN_v2.md's name for the filing stage). The returns give the separate
+# returns split from joint couples and each return's filing status, statutory
+# filing requirement and calibrated filing chance. A year with no such file
+# stops. The frame is the household population: people
 # in group quarters (GQ 2) are left out, and their weighted count is printed.
 #
 # Dependent filers. The unit table (production's build_asec_unit_table) also
@@ -90,7 +92,7 @@
 #     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_eitc counts them
 #     only when the unit is eligible for the EITC under the year's law (step 1's eitc_eligible), as the PUF's EIC
 #     counts children only on returns that get the credit
-#   eitc_eligible: 1 or 0, step 1's (calibrate.py)
+#   eitc_eligible: 1 or 0, step 1's (filing.py)
 #
 # Paths and years from settings.json ("cps"); the settings file is
 # REBUILD_SETTINGS if set, else the pipeline's own; output to
@@ -116,15 +118,17 @@ stopifnot(all(YEARS %in% settings$cps$years))
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table()
 source('research/rebuild/pipeline/tax_units_cbo.R')
-# step 1's folder (cps.step1_dir) and the folder of its returns inside it (cps.step1_out, e.g. out_rule_v4)
-STEP1 = settings$cps$step1_dir
+# the filing stage's folder inside the run's data folder (cps.step1_dir) and the folder of its returns inside it
+# (cps.step1_out)
+if (is.null(settings$cps$step1_dir) || is.null(settings$cps$step1_out))
+  stop('settings cps.step1_dir and cps.step1_out are required')
+STEP1 = file.path(OUT, settings$cps$step1_dir)
 STEP1_OUT = settings$cps$step1_out
-if (is.null(STEP1) || is.null(STEP1_OUT)) stop('settings cps.step1_dir and cps.step1_out are required')
 cat(sprintf('tax units: step 1\'s CBO-rule units and calibrated chances (%s, %s)\n', STEP1, STEP1_OUT))
 step1_units_path = function(yr) file.path(STEP1, STEP1_OUT, sprintf('units_%d.csv.gz', yr))
 
 # Step 1's returns for one year, from the CBO-rule units cbo_tax_units() made from the roster. Step 1's units file
-# (calibrate.py: one row per return, separate returns included) gives each return's head (hh, head_pn), filing status,
+# (filing.py: one row per return, separate returns included) gives each return's head (hh, head_pn), filing status,
 # calibrated chance (p_file_cal) and statutory requirement (must_file). A joint couple step 1 split into two separate
 # returns (couple_uid, person 1 and 2) becomes two units here: the head of return 2 leaves with nobody, return 1 keeps
 # the dependents (step 1's rule, dep_rule 'primary'). Unit ids stay SERIAL x 100 + the head's PERNUM. Every household
@@ -298,7 +302,7 @@ for (yr in YEARS) {
   #-----------------------------------------------------------------------------
   # Assemble
   #-----------------------------------------------------------------------------
-  # EITC eligibility under the tax year's law: step 1's (calibrate.py, eitc_eligible: earned income and AGI below
+  # EITC eligibility under the tax year's law: step 1's (filing.py, eitc_eligible: earned income and AGI below
   # the phase-out end for the number of children and filing status, investment income under the limit, the age
   # range for no children, none on separate returns)
   stopifnot(!anyNA(units$eitc_eligible))

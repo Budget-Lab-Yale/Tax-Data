@@ -25,7 +25,7 @@
  "tax_units": {
   "_what": "The shared tax-unit rules (tax_units.py), run on every survey's member list (roster_cps.py, roster_scf.py, roster_cex.py). TAX_UNITS.md, section 4.",
   "reassign": true,
-  "_reassign": "CBO's reassignment pass (4c): true is CBO's default; false applies the first assignment only. The SCF and CEX (roster_scf.py, roster_cex.py) read it; the CPS's tax_units.py takes --strict.",
+  "_reassign": "CBO's reassignment pass (4c): true is CBO's default; false applies the first assignment only. The SCF and CEX (roster_scf.py, roster_cex.py) read it; the CPS's units (filing.py) follow cps.cbo_variant, 'cbo' (with the pass) or 'strict' (without), and tax_units.py run as a script takes --strict.",
   "npeu_split": "equal",
   "_npeu_split": "The SCF's adults outside the primary economic unit: how the group's income is divided among them. equal: equally; moore: wages among those under 70 and Social Security and pensions among those 62 and over (Moore's rule). The group's balance sheet is divided equally either way."
  },
@@ -896,7 +896,7 @@
   "generation_year": 2019
  },
  "cps": {
-  "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population by CBO's rules (tax_units.py, the shared tax-unit module) as step 1 built them, filers and non-filers; dependent filers folded into the unit that claims them. p_file (the table's filer_p) is the return's calibrated filing chance from step 1 (its separate returns, filing status and statutory requirement come from step 1 too); training draws the filing flag from it in every pass. filer is one draw from it, one uniform per unit seeded by filer_seed plus the year, kept for the table's checks and reports. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
+  "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population by CBO's rules (tax_units.py, the shared tax-unit module) as the filing stage built them (filing.py), filers and non-filers; dependent filers folded into the unit that claims them. p_file (the table's filer_p) is the return's calibrated filing chance from the filing stage (its separate returns, filing status and statutory requirement come from there too); training draws the filing flag from it in every pass. filer is one draw from it, one uniform per unit seeded by filer_seed plus the year, kept for the table's checks and reports. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
   "years": [
    2015,
    2017,
@@ -913,10 +913,27 @@
   "mfs_split": false,
   "_mfs_split": "Married filing separately as a post-filing step (tax_units.mfs_split): off by default. When on, a share of joint filer couples chosen by a draw keyed by unit id (salt filer_seed) become two separate returns, to SOI's Table 1.6 count; dependents by mfs_dep_rule.",
   "mfs_dep_rule": "primary",
-  "step1_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/step1_units",
-  "_step1_dir": "Step 1's folder (PLAN_v2.md step 1), required: the roster from <step1_dir>/units/roster_<year>_<cbo_variant>_nogq.csv.gz and step 1's returns from <step1_dir>/<step1_out>/units_<year>.csv.gz.",
-  "step1_out": "out_rule_v4",
-  "_step1_out": "The folder inside step1_dir that holds step 1's returns (units_<year>.csv.gz), required: out_rule_v4, step 1's filing rule v4."
+  "step1_dir": "filing",
+  "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
+  "step1_out": "returns",
+  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads."
+ },
+ "filing": {
+  "_what": "The CPS's filing stage (filing.py, filing_requirement.R; run.sbatch stage filing): every CPS tax unit's chance of filing, by the filing rule v4 (John, 24 October 2026): logit(chance) = a(age band of the head) + k x (a child under 17) + required x (r + s x log gross income, centred on the year's weighted median among required units + b x (business or farm income not zero)), required being the statutory filing requirement. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11 targets hold exactly: non-filing heads and spouses in 7 age bands = CPS adults - adults on returns (SOI Table 1.6, age_shape's filing_adults) - dependents aged 15+ not filing their own return (group quarters left out, so zero); and the four shares below. Dependents' own returns: file if required to or with any wages. No outside filing model.",
+  "child_share": 0.030802154688937832,
+  "_child_share": "Non-filing children under 17 as a share of the CPS's children under 17, every year: the 2015 share, (Census PEP under 17, 69,494,950, less the 2015 PUF's N24 on returns other than dependent filers, 67,354,355.8) / 69,494,950 = 2,140,594.2 / 69,494,950. Child credit counts are not used after 2015 because the age limit, the Social Security number rule and refundability changed (John, 23 October 2026).",
+  "required_nonfiling_share": 0.09440432886830093,
+  "_required_nonfiling_share": "Non-filing household units among units required to file, every year: 11.19 million (Pub 5785 Table 3, required non-filing units, TY2014-16 average; research/state_weights/nonfiler_residual/resources/pub5785_table3_notfiler_units.csv) / 118.53 million required units in the 2015 CPS (by this stage's units and requirement). The 2015 run checks the ratio.",
+  "income_share": 0.04555193010617859,
+  "_income_share": "The gross income of required non-filers as a share of all required units' gross income, every year: $409.4 billion (Pub 5785 Table 3, total income of required non-filers, TY2014-16 average) / $8,987.5 billion (required units' gross income, 2015 CPS). The 2015 run checks the ratio.",
+  "business_share": 0.4459338695263629,
+  "_business_share": "Required non-filers with business or farm income (head and spouse, INCBUS + INCFARM, positive or negative) as a share of required non-filers, every year: 4.99 / 11.19 million (Pub 5785 Table 3, TY2014-16 average).",
+  "mfs_salt": 20261023,
+  "_mfs_salt": "Separate returns: joint couples are taken in the order of a uniform keyed by unit id with this salt (tax_units.mfs_split) until weight x calibrated chance reaches SOI Table 1.6's separate returns / 2.",
+  "age_shape": "research/state_weights/nonfiler_residual/resources/nonfiler_age_shape_{year}.csv",
+  "_age_shape": "Adults on returns by age band (column filing_adults: SOI Pub 1304 Table 1.6 as the non-filer pool's residual anchor builds it) and Census PEP adults (pep_adults, used only in a check), per year; tracked in the repository.",
+  "pep_children": "research/rebuild/resources/pep_children.csv",
+  "_pep_children": "Census PEP resident population under 17 and under 18 on 1 July of each tax year, the national sum of the state rows (SEX 0, ORIGIN 0, all races): 2015, 2017 and 2019 from the 2010-2020 intercensal estimates (sc-est2020int-alldata6.csv), 2021 and 2023 from Vintage 2024 (sc-est2024-alldata6.csv), both in /nfs/roberts/project/pi_nrs36/shared/raw_data/Census-PEP/ (manifest.csv gives the Census URLs). Used in the checks only (people by age, and the children's row of nonfilers_vs_targets)."
  },
  "ages": {
   "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",
@@ -1008,12 +1025,12 @@
   "seed": 20261104
  },
  "tilt": {
-  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the people in non-filer units exact (heads and spouses in 7 age bands by their own exact age, and children under 17 among the head, spouse and first three dependents), the numbers step 1's calibration hit, read from nonfiler_targets_dir (<year>_nonfilers_vs_targets.csv), nonfiler_fallback_tolerance if the exact tilt does not converge even with the business and age fallbacks; filers' returns by the primary filer's age range, 26-34 to 65+, from SOI Table 1.6, in joint and in non-joint returns (age_level \"filing_status\"; \"all\" for the five totals; \"none\" for no age targets), exact (age_fallback_tolerance if the exact tilt does not converge even with the business fallback), dependent filers 26 and over spread over those ranges by Table 1.6's shares, under 26 left to the total and joint counts; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and in 12 cells of the primary filer's adult age range by married (a joint unit; separate returns are not married, on both sides), dependent filers left out on both sides (104 targets), within consumption_band of each average (free inside the band).",
+  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the people in non-filer units exact (heads and spouses in 7 age bands by their own exact age, and children under 17 among the head, spouse and first three dependents), the numbers the CPS filing stage's calibration hit (filing.py), read from nonfiler_targets_dir (<year>_nonfilers_vs_targets.csv), nonfiler_fallback_tolerance if the exact tilt does not converge even with the business and age fallbacks; filers' returns by the primary filer's age range, 26-34 to 65+, from SOI Table 1.6, in joint and in non-joint returns (age_level \"filing_status\"; \"all\" for the five totals; \"none\" for no age targets), exact (age_fallback_tolerance if the exact tilt does not converge even with the business fallback), dependent filers 26 and over spread over those ranges by Table 1.6's shares, under 26 left to the total and joint counts; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and in 12 cells of the primary filer's adult age range by married (a joint unit; separate returns are not married, on both sides), dependent filers left out on both sides (104 targets), within consumption_band of each average (free inside the band).",
   "wealth_tolerance": 0.02,
   "business_fallback_tolerance": 0.02,
   "age_level": "filing_status",
   "age_fallback_tolerance": 0.02,
-  "nonfiler_targets_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/step1_units/checks_rule_v4",
+  "nonfiler_targets_dir": "filing/checks",
   "nonfiler_fallback_tolerance": 0.02,
   "business_agi_groups": [
    [
@@ -1050,6 +1067,7 @@
   "min_top_bracket_records": 500,
   "bracket_file_size": 200000,
   "prescale": "filing_status",
-  "consumption_band": 0.05
+  "consumption_band": 0.05,
+  "_nonfiler_targets_dir": "Inside the run's data folder: the filing stage's checks (filing.py), <year>_nonfilers_vs_targets.csv, column target_heads_spouses."
  }
 }

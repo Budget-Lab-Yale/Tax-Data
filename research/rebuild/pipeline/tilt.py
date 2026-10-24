@@ -17,9 +17,10 @@ divergence, that meets the targets (Newton's method on the dual). Targets:
     capital gain; plus the number of joint returns.
   - the non-filer count (exact).
   - 8 non-filer people targets (exact; 2% if exact fails even with the
-    business and age fallbacks): the people in non-filer units that step 1's
-    calibration hit (settings nonfiler_targets_dir, its
-    <year>_nonfilers_vs_targets.csv, read, not recomputed): heads and spouses
+    business and age fallbacks): the people in non-filer units that the CPS
+    filing stage's calibration hit (filing.py; settings nonfiler_targets_dir,
+    inside the run's data folder, its <year>_nonfilers_vs_targets.csv, read,
+    not recomputed): heads and spouses
     in 7 adult age bands (18-25, 26-34, 35-44, 45-54, 55-64, 65-74, 75+) and
     children under 17. The file's side counts each head and spouse by their
     own exact age (step 1 bands a spouse by the head's age; in the CPS units
@@ -275,12 +276,12 @@ NONFILER_BANDS = [('18_25', 18, 26), ('26_34', 26, 35), ('35_44', 35, 45), ('45_
 
 
 def nonfiler_people_targets(df):
-    """The people in non-filer units, as step 1's calibration hit them (settings nonfiler_targets_dir,
-    <year>_nonfilers_vs_targets.csv, column target_heads_spouses, in millions): heads and spouses by age band, and
-    children under 17. Each record's contribution: its head and spouse, each by their own exact age, and its children
+    """The people in non-filer units, as the filing stage's calibration hit them (filing.py; settings
+    nonfiler_targets_dir, inside the run's data folder, <year>_nonfilers_vs_targets.csv, column target_heads_spouses,
+    in millions): heads and spouses by age band, and children under 17. Each record's contribution: its head and spouse, each by their own exact age, and its children
     under 17 among the head, the spouse and the first three dependents (the youngest three; any beyond are not counted).
     Ages are in years, -1 for none (dollars.py)."""
-    t = pd.read_csv(f"{S['nonfiler_targets_dir']}/{Y}_nonfilers_vs_targets.csv").set_index('band')['target_heads_spouses']
+    t = pd.read_csv(f"{common.DATA}/{S['nonfiler_targets_dir']}/{Y}_nonfilers_vs_targets.csv").set_index('band')['target_heads_spouses']
     head, spouse = df['age_primary'].to_numpy(float), df['age_spouse'].to_numpy(float)
     nf = df['filer'].to_numpy() == 0
     assert (head[nf] >= 0).all() and ((spouse[nf] >= 0) == (df['married'].to_numpy()[nf] == 1)).all(), \

@@ -58,9 +58,10 @@ Inputs IPUMS lacks, and what roster_cps.py uses instead (listed in full in the 2
   - Pointers: IPUMS's MOMLOC/POPLOC agree with Census's PEPAR1/PEPAR2 as sets for 98% of people in 2024.
 Ages are as the ASEC reports them (at the March interview), as in CBO's code.
 
-Usage (through Slurm): python tax_units.py <tax_year> [--strict] [--keep-gq] [--out DIR]   (the CPS)
-Writes persons_<year>_<variant>.parquet (one row per person: unit, role, dependent type) and
-units_<year>_<variant>.parquet (one row per unit, dependents' own returns flagged and linked).
+Usage (through Slurm): python tax_units.py <tax_year> [--strict] [--drop-gq] [--out DIR]   (the CPS)
+Writes persons_<year>_<variant>.parquet (one row per person: unit, role, dependent type),
+units_<year>_<variant>.parquet (one row per unit, dependents' own returns flagged and linked) and
+roster_<year>_<variant>.csv.gz (save_cps; the pipeline's filing stage writes the same files through filing.py).
 """
 import argparse
 import os
@@ -682,6 +683,29 @@ def build(tax_year, reassign_pass=True, student_rule='nilf_enrolled', keep_gq=Tr
     return build_units(r, tax_year, reassign_pass=reassign_pass)
 
 
+def save_cps(persons, units, out, tag):
+    """Write one CPS year's units (tax_units.py as a script, and filing.py's units step): the persons and units
+    tables, and the roster the R steps read (one row per person; tax_units_cbo.R)."""
+    os.makedirs(out, exist_ok=True)
+    keep = ['year', 'hh', 'pn', 'hseq', 'lineno', 'age', 'sex', 'weight', 'gq', 'relate', 'perrp', 'hhdfmx', 'ftype',
+            'famrel', 'fheadidx', 'QC', 'QR', 'is_disabled', 'tu_id', 'tu_rel', 'uid', 'dep_type', 'assignments',
+            'mom_pn', 'pop_pn'] + INCOME_ITEMS
+    persons[keep].to_parquet(f'{out}/persons_{tag}.parquet')
+    units.to_parquet(f'{out}/units_{tag}.parquet')
+    fs = units[~units.dep_return].set_index('uid').filing_status
+    ro = persons[['year', 'hh', 'pn', 'tu_id', 'tu_rel', 'dep_type']].assign(unit_fs=persons.uid.map(fs).to_numpy())
+    assert not ro.isna().any().any()
+    ro.to_csv(f'{out}/roster_{tag}.csv.gz', index=False)
+    m = units[~units.dep_return]
+    w = m.weight / 1e6
+    print(f'{tag}: {len(persons)} people, {len(m)} units ({w.sum():.2f} m weighted), '
+          f'{units.dep_return.sum()} dependents\' own returns')
+    print((w.groupby(m.filing_status).sum()).round(2).to_string())
+    print(f'dependents {(w * m.n_dep).sum():.2f} m; under the PUF caps {(w * m.puf_n_dep).sum():.2f} m; '
+          f'child credit children {(w * m.n24).sum():.2f} m; reassignment codes '
+          f'{persons.assignments.value_counts().to_dict()}')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('tax_year', type=int)
@@ -691,29 +715,10 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--cache', default=None)
     a = ap.parse_args()
-    os.makedirs(a.out, exist_ok=True)
     variant = 'strict' if a.strict else 'cbo'
     persons, units = build(a.tax_year, reassign_pass=not a.strict, student_rule=a.student_rule,
                            keep_gq=not a.drop_gq, cache_dir=a.cache)
-    tag = f'{a.tax_year}_{variant}' + ('_nogq' if a.drop_gq else '')
-    keep = ['year', 'hh', 'pn', 'hseq', 'lineno', 'age', 'sex', 'weight', 'gq', 'relate', 'perrp', 'hhdfmx', 'ftype',
-            'famrel', 'fheadidx', 'QC', 'QR', 'is_disabled', 'tu_id', 'tu_rel', 'uid', 'dep_type', 'assignments',
-            'mom_pn', 'pop_pn'] + INCOME_ITEMS
-    persons[keep].to_parquet(f'{a.out}/persons_{tag}.parquet')
-    units.to_parquet(f'{a.out}/units_{tag}.parquet')
-    # the roster for the R filing step (build_cps.R, through tax_units_cbo.R): one row per person
-    fs = units[~units.dep_return].set_index('uid').filing_status
-    ro = persons[['year', 'hh', 'pn', 'tu_id', 'tu_rel', 'dep_type']].assign(unit_fs=persons.uid.map(fs).to_numpy())
-    assert not ro.isna().any().any()
-    ro.to_csv(f'{a.out}/roster_{tag}.csv.gz', index=False)
-    m = units[~units.dep_return]
-    w = m.weight / 1e6
-    print(f'tax year {a.tax_year}, {variant}: {len(persons)} people, {len(m)} units ({w.sum():.2f} m weighted), '
-          f'{units.dep_return.sum()} dependents\' own returns')
-    print((w.groupby(m.filing_status).sum()).round(2).to_string())
-    print(f'dependents {(w * m.n_dep).sum():.2f} m; under the PUF caps {(w * m.puf_n_dep).sum():.2f} m; '
-          f'child credit children {(w * m.n24).sum():.2f} m; reassignment codes '
-          f'{persons.assignments.value_counts().to_dict()}')
+    save_cps(persons, units, a.out, f'{a.tax_year}_{variant}' + ('_nogq' if a.drop_gq else ''))
 
 
 if __name__ == '__main__':

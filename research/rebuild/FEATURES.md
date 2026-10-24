@@ -86,16 +86,51 @@ dividends and gross Social Security. The rest belong to one source. A slot a sou
 about tax years 2015, 2017, 2019, 2021 and 2023, the household population
 split into tax units by CBO's rules (`pipeline/tax_units.py`, the shared
 module the SCF and CEX also use), every unit, filers and non-filers, as
-step 1 built them (settings cps.step1_dir). Dependent filers are folded into
+the filing stage built them (below). Dependent filers are folded into
 the unit that claims them. Separate returns, each return's filing status,
-its statutory filing requirement and its filing chance come from step 1's
-returns (cps.step1_out = out_rule_v4, the v4 filing rule, calibrated in
-every year). This is the only path: until 24 October a setting
+its statutory filing requirement and its filing chance come from the
+filing stage's returns (settings cps.step1_dir and cps.step1_out, inside
+the run's data folder). This is the only path: until 24 October a setting
 (cps.tax_units) could switch back to production's builder
 (`src/nonfilers/asec_tax_units.R`) and the non-filer pool's filing model
 and calibration; that path is gone (it is in git history).
 Childcare is the SPM unit's child care expenses, given to the
 units that claim its children.
+
+**The CPS's filing chances: the filing rule v4** (stage filing:
+`pipeline/filing.py` and `pipeline/filing_requirement.R`, settings
+"filing"; moved from `explore/2026-10-23/step1_units/` on 24 October, with
+the same results). Three steps, every CPS year:
+1. The units, by the shared rules, people in group quarters left out
+   (group quarters are left out by John's decision).
+2. Each unit's statutory filing requirement (Form 1040, Charts A to C;
+   production's `add_filing_requirement`).
+3. The rule: log odds of filing = a (age band of the head) + k × (a child
+   under 17) + required × (r + s × log gross income, centred on the year's
+   median among required units + b × (any business or farm income)). The
+   11 numbers are solved each year so that 11 targets hold exactly:
+   - non-filing heads and spouses in 7 age bands = CPS adults less adults
+     on returns (SOI Table 1.6) less dependents aged 15 and over not filing
+     a return of their own;
+   - non-filing children under 17: 3.08% of CPS children under 17 (the 2015
+     share: Census population less the PUF's child credit children);
+   - non-filing units among those required to file: 9.44% (Pub 5785's 11.19
+     million, a 2014–16 average, over the 2015 CPS's required units);
+   - their gross income: 4.555% of all required units' (Pub 5785's $409.4
+     billion over the 2015 CPS's);
+   - those with business or farm income: 44.6% of required non-filers
+     (Pub 5785: 4.99 of 11.19 million).
+
+   A dependent aged 15 or over files a return of its own when required to
+   or with any wages. Separate returns: joint couples taken by a draw keyed
+   by unit id until their expected returns reach SOI Table 1.6's count.
+   No outside filing model (Mok's probits and the Pub 5785 hazard are gone).
+
+Outputs in `data/filing/`: the units (`units/`), the requirement
+(`requirement/`), the returns build_cps.R reads (`returns/`), and checks
+per year (`checks/`), among them `<year>_nonfilers_vs_targets.csv`, whose
+targets the tilt reads for non-filers by age (settings
+tilt.nonfiler_targets_dir).
 - **Primary filer first.** Person items are the primary filer's and the
   spouse's, the primary chosen by the rule the age range uses (ages.py,
   keyed by household); the builder's person 1 is the man, so where the
@@ -157,7 +192,7 @@ every unit carries flags for the inputs that were assumed. Settings
 (below). `check_units.py` runs the standing tests on every survey and year.
 The old builders (production's SCF builder, BLS's CEX codes) are no longer
 used; they are in git history. The latest run was trained on the old units.
-- The CPS: step 1's units (identical unit for unit, 2015-2023).
+- The CPS: the filing stage's units (identical, unit for unit, to step 1's in explore/, 2015-2023).
 - The SCF (`build_scf.R`): the financially independent adults outside the
   PEU are units of their own, with their share of the group's income and
   balance sheet (`npeu_split`: equal, or Moore's rule for wages and Social
@@ -172,7 +207,7 @@ used; they are in git history. The latest run was trained on the old units.
 - The CEX (`build_cex.R`): CBO's tests on the member file instead of BLS's
   codes (BLS's units only a comparison column in the checks); spending
   divided by head count, dependents' own returns staying people of the
-  claiming unit; separate returns by step 1's draw to SOI's count. 2019:
+  claiming unit; separate returns by the CPS's draw to SOI's count. 2019:
   162.8 million units (152.5 with BLS's codes).
 
 **Business items on the SCF.** The SCF's two business income questions
@@ -525,9 +560,6 @@ CPS as the source of non-filers, and age and non-filer targets**
 - **Targets:** every exact target is met: the IRS, the business, the non-filer
   count and people by age, and filer returns by age. Wealth is within 0.02%.
   Every spending cell is inside its 5% band.
-- **Not in the repository:** the filing rule's calibration (`calibrate_v4.py`)
-  and its outputs, which the CPS reads through `cps.step1_dir`, are still in
-  `explore/2026-10-23/step1_units/`.
 
 Nominal 2019 dollars, counts in millions; the two seeds, then the previous
 latest's two:

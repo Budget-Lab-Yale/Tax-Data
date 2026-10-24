@@ -24,12 +24,17 @@ There are two separate steps, and they should stay separate:
 1. **Building the units.** Who is in which unit, who is the primary filer and
    the spouse, who is claimed as a dependent and by whom, the filing status,
    which dependents have returns of their own.
-2. **The filing decision.** Which units file. Today: Mok's filing probits
-   below the filing threshold, the Pub 5785 hazard above it, then the
-   non-filer pool's calibration so non-filing adults by age band equal
-   population less adults on filed returns
-   (`research/state_weights/nonfiler_pool/04_calibrate.R`). Only the CPS
-   needs this step for training; it is also what makes the non-filers.
+2. **The filing decision.** Which units file. Since 24 October: the filing
+   rule v4 (`pipeline/filing.py`, FEATURES.md), a filing chance from the
+   head's age band, children, the statutory filing requirement, income and
+   business income, its settings solved each year so that non-filing adults
+   by age band equal CPS adults less adults on filed returns less dependents
+   not filing, with Pub 5785's shares for required non-filers. Before that:
+   Mok's filing probits below the filing threshold, the Pub 5785 hazard above
+   it, then the non-filer pool's calibration
+   (`research/state_weights/nonfiler_pool/04_calibrate.R`); none of these is
+   used now. Only the CPS needs this step for training; it is also what makes
+   the non-filers.
 
 CBO's public algorithm (below) does step 1 only. It treats every unit as a
 potential return, and adds a separate dependent return for every dependent
@@ -188,9 +193,9 @@ subsets.
    primary filer by the rebuild's rule (`AGES.md`, step 2), the earnings split
    on the PUF's definition.
 6. **The filing step stays separate** and runs after construction, on the
-   new CPS units: Mok's probits and the pool's calibration, reused as they
-   are, then rechecked, since Mok's coefficients were estimated on her own
-   construction. The model's inputs include the unit's children and income,
+   new CPS units: the filing rule v4, calibrated on them each year (stage
+   filing, `pipeline/filing.py`; Mok's probits were planned here at first
+   and dropped). The rule's inputs include the unit's children and income,
    so the construction variant feeds into it directly; changing the units
    changes which units it picks as non-filers even when the calibration
    holds the counts by age.
@@ -290,10 +295,10 @@ to calibrate cannot also serve as tests.
   detail is cruder further back (cohabiting partners from the mid-1990s,
   second parents only from 2019). The CPS ASEC files on disk cover survey
   years 2015–2026; John will pull earlier ones.
-- **The filing step.** It needs, per year: population by age (Census),
-  filers by age (SOI, back to 2000), and a Pub 5785 non-filer count
-  (published for 2014–2016 only; other years use the pool's projection).
-  2000 on is workable; earlier is thin.
+- **The filing step.** It needs, per year: the CPS's adults by age, adults
+  on returns by age (SOI, back to 2000) and each unit's statutory filing
+  requirement. Pub 5785's shares (published for 2014–2016 only) are held
+  at their 2015 values in every year. 2000 on is workable; earlier is thin.
 - **Testing.** Only 2015 has a PUF; other years are tested against SOI's
   published tables.
 
@@ -304,7 +309,10 @@ to calibrate cannot also serve as tests.
    pass on every survey by default.
 2. ~~Whether the SCF and CEX keep their own constructions~~ Decided 24
    October: rebuilt from their member lists by the shared module.
-3. Whether the filing model moves to Python with the units, or stays in R.
+3. ~~Whether the filing model moves to Python with the units, or stays in
+   R~~ 24 October: the rule and its calibration are in Python
+   (`pipeline/filing.py`); the statutory filing requirement is still
+   production's R function (`pipeline/filing_requirement.R`).
 4. ~~Married filing separately~~ Decided 24 October: the CPS and CEX by step
    1's draw to SOI's count, the SCF by the couple's own answer. The SCF's
    count against SOI Table 1.6, millions of separate returns: 3.1 against 2.7

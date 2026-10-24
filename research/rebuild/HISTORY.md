@@ -320,6 +320,8 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
   income. Required non-filers in 2015, against Pub 5785:
   - wages: 7.4m units and $250bn, against 6.9m and $232bn;
   - business: 5.0m units and $109bn, against 5.0m and $100bn.
+- Moved from explore/ into the pipeline on 24 October (stage filing,
+  `pipeline/filing.py`), with the same results.
 
 **Reweighting targets by age** (`explore/2026-10-23/age_tilt/`,
 `nonfiler_tilt/`, `candidate/`).
