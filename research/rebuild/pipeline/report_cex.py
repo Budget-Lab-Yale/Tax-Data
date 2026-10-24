@@ -78,7 +78,7 @@ def main():
     out = [f'# Consumption in the {Y} file against the CEX {Y}', '',
            f'CEX: survey year {Y}, all tax units (a shared household\'s spending divided by head count), and the one-unit '
            f'households. Nominal {Y} dollars. The model trains on every CEX tax unit. The tilt targets each category\'s '
-           'average per unit, overall and by the adult age ranges, within 2%; nothing else here is targeted.', '']
+           'average per unit, overall and by the adult age ranges by married, within a 5% band; nothing else here is targeted.', '']
 
     tot = pd.DataFrame({'file ($bn)': [(f[v] * f.w).sum() / 1e9 for v in CATS],
                         f'CEX {Y} ($bn)': [(c[v] * c.w).sum() / 1e9 for v in CATS]}, index=[NAMES[v] for v in CATS])

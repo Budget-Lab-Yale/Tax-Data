@@ -5,9 +5,16 @@ row is compared with, and translated against, the tax data for the survey's
 year (build_table.py, tax_data): PUF filers other than dependent filers, their
 weights scaled by SOI Table 1.6 (filing status x age range, year y's returns
 over the PUF year's in each cell), every dollar item grown per return with the
-item, that year's non-filer tax units appended.
+item, and the CPS units of that year (or the nearest CPS year), each weighted by
+its chance of not filing.
 
-  definition fixes  loss_cap: losses read as no more than this (capital losses
+  items             the survey's columns, summed; none (an empty list) is zero:
+                    an item the survey does not ask.
+  definition fixes  in this order: first_year, the survey asks the item from
+                    this tax year (earlier years read as zero); part, the
+                    positive part ("positive") or the size of the loss
+                    ("loss", stored positive as the PUF's loss fields are);
+                    loss_cap, losses read as no more than this (capital losses
                     past $3,000 are not on the return).
   function 1        amounts (amounts()): one setting, the dollar line, in
                     PUF-year dollars grown to the survey's year as the tax data
@@ -38,7 +45,8 @@ import common
 
 S = common.SETTINGS['translation']
 TABLE = S['table']
-CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age_primary', 'age_spouse']
+CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age_primary', 'age_spouse', 'mars', 'n_ctc',
+                      'n_eitc']
 # Exact ages (value 0 none, else the age plus 1, 80 and over as 80): the tax data has none, so the report compares each
 # survey year with the CPS of the nearest year, in the groups AGE_GROUPS (lower edge inclusive, years).
 EXACT_AGES = ['age_primary', 'age_spouse']
@@ -54,6 +62,7 @@ for _r in TABLE:
     else:
         assert {'dollar_line', 'loss_cap', 'fill_in'} <= set(_r), f'{_key}: an amount row needs all three settings'
         assert not (_r['fill_in'] and _r['type_for_fill_in']), f'{_key}: a type variable cannot have the fill-in'
+        assert _r.get('part') in (None, 'positive', 'loss'), f'{_key}: part is positive, loss or absent'
     assert _r.get('reason'), f'{_key}: no reason'
 
 
@@ -73,8 +82,24 @@ def fill_type():
                               if r['type_for_fill_in'] and r['survey'] in {f['survey'] for f in filled()}))
 
 
-def definition_fixes(x, row):
-    """The row's definition fixes applied to the survey's amount (its items summed)."""
+def survey_amount(d, row, year):
+    """The row's amount on the survey's records d (one survey year): its items (d's raw_<item> columns) summed, zero
+    with no items, then the definition fixes."""
+    x = np.zeros(len(d))
+    for c in row['items']:
+        x = x + d[f'raw_{c}'].to_numpy(float)
+    assert not np.isnan(x).any(), f'{row["survey"]} {year} {row["variable"]}: missing values'
+    return definition_fixes(x, row, year)
+
+
+def definition_fixes(x, row, year):
+    """The row's definition fixes applied to the survey's amount (its items summed) in tax year year."""
+    if row.get('first_year') is not None and year < row['first_year']:
+        x = np.zeros(len(x))
+    if row.get('part') == 'positive':
+        x = np.maximum(x, 0.0)
+    elif row.get('part') == 'loss':
+        x = np.maximum(-x, 0.0)
     if row['loss_cap'] is not None:
         x = np.where(x < row['loss_cap'], row['loss_cap'], x)
     return x

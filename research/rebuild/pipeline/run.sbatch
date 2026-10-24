@@ -9,7 +9,7 @@
 # The whole pipeline, or some stages, from the repository root:
 #   sbatch research/rebuild/pipeline/run.sbatch                  every stage
 #   sbatch research/rebuild/pipeline/run.sbatch train generate   only those
-# Stages, in order: scf, cex, cps (R: the surveys' tax units), targets (SOI), table, train, generate, tilt, report.
+# Stages, in order: scf, cex, cps (the surveys' tax units: the shared rules in Python, then R), targets (SOI), table, train, generate, tilt, report.
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:
 #   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf cex targets table
 # H100 and H200 only: one stack from a B200 drew fewer rare business items (PRECISION.md); until that is
@@ -26,8 +26,10 @@ for s in $STAGES; do
   echo "=== $s $(date)"
   case $s in scf|cex|cps) ;; *) module load $PY_MODULES ;; esac
   case $s in
-    scf)      module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_scf.R; module purge ;;
-    cex)      module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_cex.R; module purge ;;
+    scf)      module purge; module load $PY_MODULES; python $P/roster_scf.py   # the units, by the shared rules
+              module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_scf.R; module purge ;;
+    cex)      module purge; module load $PY_MODULES; python $P/roster_cex.py   # the units, by the shared rules
+              module purge; module load R/4.4.1-foss-2022b; Rscript $P/build_cex.R; module purge ;;
     cps)      module purge; module load R/4.4.1-foss-2022b   # ipumsr is not in the module; John's own library has it
               R_LIBS=$HOME/R/4.4.1-foss-2022b Rscript $P/build_cps.R; module purge ;;
     table)    python $P/build_table.py ;;

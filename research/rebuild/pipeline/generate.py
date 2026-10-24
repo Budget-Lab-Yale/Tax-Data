@@ -1,10 +1,26 @@
 """Generation: PUF-style records drawn from the trained model.
 
+Two batches (step 2, 23 October): filers drawn from the PUF label at the PUF
+year (filing flag 1), and non-filers drawn from the CPS label at the target
+year (filing flag 0). The filing flag is the batch's own: set before anything
+is drawn. Every later phase (exact ages, SCF, CEX, the CPS's person items)
+runs on both batches alike.
+
 One record is drawn slot by slot:
-  1. every PUF variable (married, dependents, the filing flag and every
-     amount the PUF has) in a random order per record, each from the model
-     given the slots drawn so far; the SCF-only slots are absent meanwhile,
-     as on a real PUF record;
+  1. the batch's own items, every variable the PUF has, each from the model
+     under the batch's label given the slots drawn so far: first the type
+     (married, dependents, the age range) in a random order per record, then
+     full filing status, child credit children and EITC children in that
+     order, then every amount in a random order per record. Full filing
+     status is joint exactly when married (separate returns have married 0,
+     as in the data). Under the CPS label
+     the age range is one of the six adult ranges (the CPS has no dependent
+     filers). In the filer batch the SCF-only slots are absent meanwhile, as
+     on a real PUF record; in the non-filer batch a PUF amount the CPS does not
+     measure (interest, John's ruling of 23 October) is zero on every record,
+     nothing drawn for it, and every slot the CPS has is present and hidden
+     until its turn, except the CPS's two shares, absent
+     until married and the share's base are drawn (model.gate_shares);
   2. the computed totals: line-13 capital gains from its four pieces, and
      business income and its two subtotals (Schedules C and F, Schedule E)
      from its eighteen parts. Each part gets a dollar value inside its band
@@ -64,12 +80,18 @@ untouched records are scaled. The last run is the one kept. Items drawn
 later condition on earlier ones, so a run's own figures are reported and
 written to consistency.csv: what is left of the excess after the last run.
 
-The file is a stack of four parts of 100,000 records. Each part oversamples
+The filer batch is a stack of four parts of 100,000 records. Each part oversamples
 the top 1% of one variable: that variable is drawn first, from the model
 with nothing else known, with the bands covering the top 1% of its positive
 weight drawn ten times as often (for an SCF-only slot: drawn in its usual
 place, from the boosted conditional); each record's weight p / q undoes the
-boost exactly. Each part's weights are scaled to sum to 100,000.
+boost exactly. Each part's weights are scaled to sum to 100,000. The
+non-filer batch is one part with no oversampling (stratifier "nonfiler"),
+every weight 1. Its number of records (settings "generation",
+nonfiler_records; null: in proportion) is the filer batch's 400,000 times the
+CPS's expected non-filers in the target year (the sum of weight x (1 -
+filer_p)) over SOI's returns for that year, so the stack's weights carry the
+two batches in their real proportion (the tilt sets their levels).
 
 Writes common.GEN/stack.parquet (one row per record: the band of every slot,
 weight, stratifier, p_band, q_band) and common.GEN/consistency.csv (per run
@@ -84,6 +106,7 @@ import torch
 
 import common
 import model as M
+import targets as TG
 
 G = common.SETTINGS['generation']
 C = common.SETTINGS['consistency']
@@ -123,6 +146,17 @@ RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P
 DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
 SURVEY_ONLY = torch.tensor([P.index(v) for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS])
 POINTS = 32
+TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
+STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_ctc, n_eitc)
+MARS, MARRIED, AGE_RANGE = P.index('mars'), P.index('married'), P.index('age_range')
+
+
+def cps_expected_nonfilers(year):
+    """The CPS's expected non-filers in year: the sum over its units of weight x (1 - filer_p)."""
+    t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
+    t = t[(t.source == 'cps') & (t.year == year)]
+    assert len(t), f'no CPS units for {year}: the non-filer batch is drawn from the CPS at the target year'
+    return float((t['weight'] * (1 - t['filer_p'])).sum())
 
 
 # ---- computed totals ---------------------------------------------------------
@@ -287,16 +321,20 @@ class Chunk:
     boost's bookkeeping. Each step runs the network only on the slots present in its phase (model.SOURCE_SLOTS:
     the PUF's, then the CPS's view for the exact ages, then the SCF's, the CEX's and the CPS's views) and computes only the output layers it needs."""
 
-    def __init__(self, model, size, order, preset, start, factors, boost, gen):
+    def __init__(self, model, size, order, preset, start, factors, boost, gen, label='puf', year=None):
         device = order.device
         self.model, self.order, self.factors, self.boost, self.gen = model, order, factors, boost, gen
+        self.label = label                                           # the batch's label for its own items
         self.rows = torch.arange(size, device=device)
         self.values = torch.full((size, len(M.SLOTS)), -1, dtype=torch.long, device=device)
-        self.values[:, 0] = M.SOURCES.index('puf')
-        self.values[:, 1] = M.YEARS.index(common.PUF_YEAR)
+        self.values[:, 0] = M.SOURCES.index(label)
+        self.values[:, 1] = M.YEARS.index(common.PUF_YEAR if year is None else year)
         self.values[self.rows[:, None], NC + order] = 0              # present, not yet drawn
         for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS:
             self.values[:, NC + P.index(v)] = -1                      # absent until their turn
+        if label == 'cps':        # the CPS's own slots: present and hidden from the start, as on a CPS training row
+            for v in AGE_SLOTS + CPS_SLOTS:
+                self.values[:, NC + P.index(v)] = 0
         for tot in list(COMPUTED) + list(FLAGS):
             self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
         self.filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
@@ -315,6 +353,35 @@ class Chunk:
         for src, slots in M.SOURCE_SLOTS.items():
             self.column[src] = torch.full((len(M.SLOTS),), -1, dtype=torch.long, device=device)
             self.column[src][list(slots)] = torch.arange(len(slots), device=device)
+        self.not_asked = {}
+        if label == 'cps':
+            self.gate_shares()
+
+    def gate_shares(self):
+        """Non-filer batch, own phase: each CPS share present (hidden) once married and its base are drawn and the unit
+        is married with some of the base; absent before that, and where not asked (model.gate_shares)."""
+        for s, (m, b) in M.SHARE_GATES.items():
+            known = self.filled[:, m] & self.filled[:, b]
+            asked = known & (self.values[:, NC + m] == 1) & (self.values[:, NC + b] > 0)
+            self.values[:, NC + s] = torch.where(asked, 0, -1)
+
+    def own_rules(self, slot, probs):
+        """Full filing status joint exactly when married (separate returns are not married, as in the data); under the
+        CPS label, an adult age range."""
+        sel = slot == MARS
+        if sel.any():
+            assert self.filled[sel, MARRIED].all(), 'married is drawn before full filing status'
+            married = self.values[sel, NC + MARRIED] == 1
+            allowed = torch.zeros(int(sel.sum()), probs.shape[1], device=probs.device)
+            allowed[married, 2] = 1.0
+            allowed[~married, 1] = allowed[~married, 3] = allowed[~married, 4] = 1.0
+            probs = only(probs, sel, allowed)
+        sel = slot == AGE_RANGE
+        if self.label == 'cps' and sel.any():
+            allowed = torch.zeros(int(sel.sum()), probs.shape[1], device=probs.device)
+            allowed[:, :common.ADULT_RANGES] = 1.0
+            probs = only(probs, sel, allowed)
+        return probs
 
     def last_layer(self, values, hidden, src):
         """The network on the source's slots, all of which must be present."""
@@ -342,10 +409,14 @@ class Chunk:
         self.filled[self.rows, slot] = True
 
     def puf_step(self, slot):
-        """One PUF variable per record, given the PUF slots drawn so far."""
+        """One of the batch's own items per record (a PUF variable), under the batch's label, given the slots drawn
+        so far."""
         hidden = (self.values[:, NC:] >= 0) & ~self.filled
-        h = self.last_layer(self.values, hidden, 'puf')
-        self.take(self.model.slot_probs(h[self.rows, self.column['puf'][NC + slot]], slot), slot)
+        h = self.last_layer(self.values, hidden, self.label)
+        probs = self.model.slot_probs(h[self.rows, self.column[self.label][NC + slot]], slot)
+        self.take(self.own_rules(slot, probs), slot)
+        if self.label == 'cps':
+            self.gate_shares()
 
     def compute_totals(self):
         """The computed totals and flags from their parts; which rules each record triggers (none for a
@@ -406,17 +477,32 @@ class Chunk:
 
 
 @torch.no_grad()
-def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000):
-    """n PUF-style records, and how many records each consistency rule applies to. preset: {variable: n bands} set
-    before anything is drawn. boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at
+def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000, label='puf', year=None, filer=1):
+    """n PUF-style records, and how many records each consistency rule applies to. label, year: the batch's label and
+    year for its own items (default the PUF at the PUF year); filer: the batch's filing flag, set before anything is
+    drawn. preset: {variable: n bands} set before anything is drawn. boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at
     its turn; that draw's p and q are returned as p_band, q_band. factors: {ruled holding: factor on its odds of
     being nonzero}. For each ruled holding the table also carries the model's own chance it is nonzero
     (_own_<v>) and whether a rule forced it (_forced_<v>)."""
-    preset, factors = preset or {}, factors or {}
+    preset, factors = dict(preset or {}), factors or {}
+    preset['filer'] = torch.full((n,), filer, dtype=torch.long)
+    if label != 'puf':
+        # a PUF amount the batch's source does not measure (John, 23 October: interest on the CPS) is zero on every
+        # record of the batch, nothing drawn for it; a category must be there
+        lacking = [v for v in PUF_SLOTS if label not in M.PRESENT_ON[v] and v not in preset]
+        assert all(v in M.AMOUNTS for v in lacking), f'the {label} label lacks PUF categories: {lacking}'
+        for v in lacking:
+            preset[v] = torch.zeros(n, dtype=torch.long)
+        if lacking:
+            common.say(f'  {label} batch: zero on every record, not measured by the {label}: {lacking}')
     device = next(model.parameters()).device
     cpu_gen = torch.Generator().manual_seed(seed)                  # the orders
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
-    own = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset])
+    first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
+    then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
+    rest = torch.tensor([P.index(v) for v in PUF_SLOTS
+                         if v not in preset and v not in TYPE_SLOTS and v not in STATUS_SLOTS], dtype=torch.long)
+    own = torch.cat([first, then, rest])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
     cps = torch.tensor([P.index(v) for v in CPS_SLOTS])
     age = torch.tensor([P.index(v) for v in AGE_SLOTS])
@@ -425,12 +511,14 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
     parts = []
     for start in range(0, n, chunk):
         size = min(chunk, n - start)
-        order = torch.cat([own[torch.rand(size, len(own), generator=cpu_gen).argsort(1)],
+        order = torch.cat([first[torch.rand(size, len(first), generator=cpu_gen).argsort(1)],
+                           then.expand(size, -1),
+                           rest[torch.rand(size, len(rest), generator=cpu_gen).argsort(1)],
                            age[torch.rand(size, len(age), generator=cpu_gen).argsort(1)],
                            scf_order(size, cpu_gen),
                            cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
                            cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)]], 1).to(device)
-        d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen)
+        d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen, label, year)
         for step in range(n_own):
             d.puf_step(order[:, step])
         for name, count in d.compute_totals().items():
@@ -440,7 +528,7 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
             d.survey_step(order[:, step], 'cps', CPS_YEAR)
         k += n_age
         for step in range(k, k + n_scf):
-            d.survey_step(order[:, step], 'scf')
+            d.survey_step(order[:, step], 'scf', common.PUF_YEAR)
         k += n_scf
         for step in range(k, k + n_cex):
             d.survey_step(order[:, step], 'cex', CEX_YEAR)
@@ -478,12 +566,27 @@ def nothing_known(model, var):
     for j, v in enumerate(P):
         if 'puf' in M.PRESENT_ON[v]:
             values[0, NC + j] = 0
-    lp = M.log_probs_as(model, values, values[:, NC:] >= 0, 'puf')
+    hidden = values[:, NC:] >= 0
+    values[0, NC + P.index('filer')], hidden[0, P.index('filer')] = 1, False    # a filer
+    lp = M.log_probs_as(model, values, hidden, 'puf')
     return lp(P.index(var))[0].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
 
 
+def nonfiler_records():
+    """The non-filer batch's number of records (see the top)."""
+    if G.get('nonfiler_records') is not None:
+        return int(G['nonfiler_records'])
+    n_filers = G['records_per_file'] * len(G['strata'])
+    nf, returns = cps_expected_nonfilers(common.TARGET_YEAR), TG.returns(TG.load(), common.TARGET_YEAR)
+    n = int(round(n_filers * nf / returns))
+    common.say(f'non-filer batch: {n:,} records = {n_filers:,} x {nf / 1e6:.2f}M CPS {common.TARGET_YEAR} expected '
+               f'non-filers / {returns / 1e6:.2f}M SOI returns')
+    return n
+
+
 def build_stack(model, factors):
-    """The four strata (settings "generation"), stacked; and how many records each rule applied to."""
+    """The four filer strata (settings "generation") and the non-filer batch, stacked; and how many records each rule
+    applied to."""
     n = G['records_per_file']
     parts, rule_counts = [], {r['name']: 0 for r in RULES}
     for var, stratum in G['strata'].items():
@@ -507,6 +610,14 @@ def build_stack(model, factors):
         parts.append(part)
         rule_counts = {k: rule_counts[k] + counts[k] for k in rule_counts}
         common.say(var, 'done')
+    n_nf = nonfiler_records()
+    part, counts = generate(model, n_nf, G.get('nonfiler_seed', 35), factors=factors, label='cps',
+                            year=common.TARGET_YEAR, filer=0)
+    part = part.copy()
+    part['weight'], part['p_band'], part['q_band'], part['stratifier'] = 1.0, np.nan, np.nan, 'nonfiler'
+    parts.append(part)
+    rule_counts = {k: rule_counts[k] + counts[k] for k in rule_counts}
+    common.say('nonfiler done')
     stack = pd.concat(parts, ignore_index=True)
     stack['record_id'] = np.arange(len(stack))
     common.say('consistency rules: records each applies to, over the whole stack:')

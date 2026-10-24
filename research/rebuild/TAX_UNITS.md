@@ -1,8 +1,12 @@
 # Tax units in the surveys: plan
 
-Written 23 October 2026. Nothing here is built. It covers how every survey
-(the CPS, SCF and CEX, and later others) is turned into tax units before
-training, and how we test that it was done well.
+Written 23 October 2026. It covers how every survey (the CPS, SCF and CEX,
+and later others) is turned into tax units before training, and how we test
+that it was done well. The shared module of section 4 was built on 24 October
+(section 4, "What was built") and is now the only way the pipeline builds
+units; the latest run was trained before it, on the old units. Checking the
+training table and the tilt on the new units is the next step, after John has
+seen the tests.
 
 ## 1. Why it matters
 
@@ -95,7 +99,18 @@ either CPS method. CBO's linked study (Mok) found about 11 million more
 dependents on returns than in CPS units in 2006, from claims across
 households and changes between December and March.
 
-**The SCF and CEX** have not been tested at all. Known so far: the SCF
+**The SCF and CEX, tested on 24 October** (explore/2026-10-24/scf_units and
+spending_age). The SCF as built has 143.2 million units in 2019 against 168
+million in the tax data: `build_scf.R` drops the 23.6 million financially
+independent adults outside the primary economic unit (PEU), and the builder
+counts a child up to three times on a split couple, gives the one child of a
+split couple to both units, reads bracketed ages as exact, and adds a "child
+living elsewhere" to 10.7 million households. The CEX as built has 152.5
+million units: BLS's codes make 4.7 million earning adults dependents, and
+dependent filers are folded into the claiming unit. Both are rebuilt by the
+shared module (section 4).
+
+Earlier notes: the SCF
 builder counts children under 19 plus one possible child elsewhere, and on a
 household split into two units can count a child twice; only the primary
 economic unit's finances are measured. The CEX uses BLS's units, which
@@ -180,6 +195,74 @@ subsets.
    changes which units it picks as non-filers even when the calibration
    holds the counts by age.
 
+### What was built (24 October 2026; uncommitted, branch rebuild-step2)
+
+John's decisions of 24 October: one shared module with CBO's rules for all
+three surveys; the SCF's financially independent adults outside the PEU
+become units and training rows; Gale, Joshi, Pulliam and Sabelhaus (2022) where
+the SCF lacks inputs; no reweighting of any survey to fix its mix; separate
+returns by step 1's draw in the CPS and CEX and by the couple's own answer in
+the SCF.
+
+| File | What it does |
+|---|---|
+| `pipeline/tax_units.py` | the rules only: `flag_dependents`, `assign_units`, `claim_within_group` (new), `reassign`, `collapse_units`, `mfs_split`, and `build_units(member list)`; the fallback table `FALLBACKS` and the assumed-input flags `ASSUMED_FLAGS`. Run as a script it still builds the CPS. |
+| `pipeline/roster_cps.py` | the CPS reader, moved out of `tax_units.py` unchanged. Step 1's units for 2015-2023 come out identical, unit for unit. |
+| `pipeline/roster_scf.py` | the SCF reader and the SCF's units, with separate returns from the couple's own answer |
+| `pipeline/roster_cex.py` | the CEX reader and the CEX's units, with separate returns by step 1's draw to SOI's count |
+| `pipeline/build_scf.R` | units from the module; the PEU's income and balance sheet divided between the respondent's and the spouse's or partner's units by Moore's shares (ported from production's builder, which is no longer called); units outside the PEU take their share of the group's answers |
+| `pipeline/build_cex.R` | units from the module; spending by head count. BLS's own unit codes are only a comparison column in the checks (`roster_cex.py`). |
+| `pipeline/run.sbatch` | the scf and cex stages run the reader (Python) before the R script |
+
+There is no setting to go back to the old builders (John, 24 October); they
+are in git history. Settings that are choices inside the rules are in
+`settings.json` under `tax_units`: `reassign` (CBO's reassignment pass) and
+`npeu_split` (how the SCF's outside-PEU group's income is divided).
+| `pipeline/check_units.py` | the standing tests of section 5, every survey and year |
+
+**The member list.** One row per person, with CBO's Census codes (PERRP,
+HHDFMX and the family pointers) as the shared code list; each reader
+translates its own relationship codes into them. Added to CBO's inputs: the
+survey's own support answer (the SCF's financial dependence), whether the
+person's own income is measured, and three flags for assumed inputs (an age
+drawn within a bracket, a child or couple placed without a pointer, income not
+measured). Every unit carries `any_<flag>` columns.
+
+**Fallbacks, by survey** (`tax_units.FALLBACKS`):
+
+| Input | CPS | SCF | CEX |
+|---|---|---|---|
+| Relationship | observed | observed, merged codes | observed |
+| Parent links | observed | a child goes to the reference person's unit | the same |
+| Couples beyond the reference person's | observed | the only two married adults outside the PEU are paired, filing jointly | a married child with a married in-law; else the only two other married adults |
+| Exact age | observed | drawn within the bracket for members other than the couple | observed |
+| Student test | observed | the support answer, ages 18-24 | college enrolment |
+| Income test | observed | the support answer where own income is not measured; a non-relative adult is never claimed | member income only |
+| Group claim | none | the highest-income unit outside the PEU claims the group's relatives who pass the income test | none |
+| Children living elsewhere | none | dependents of the reference person's unit if the family paid alimony or child support | none |
+| Separate returns | step 1's draw to SOI (after filing) | the couple's own answer, with Moore's prior-marriage condition | step 1's draw to SOI |
+
+**Results, 2019** (millions of units; primary filer = the unit's head; the
+SCF is its 2019 wave, tax year 2018; details in
+`explore/2026-10-24/unified_units/checks/`):
+
+| | SCF as built | SCF, shared rules | CEX, BLS units | CEX, shared rules | CPS, shared rules | Tax data |
+|---|---:|---:|---:|---:|---:|---:|
+| All units | 143.2 | 162.8 | 152.5 | 162.8 | 166.5 | 168.5 |
+| Primary under 26 | 10.2 | 17.1 | 13.6 | 17.1 | 20.1 | 16.4 |
+| Primary 26-34 | 23.6 | 28.3 | 26.2 | 29.1 | 29.3 | 31.7 |
+| Primary 35-44 | 24.2 | 26.3 | 25.1 | 26.8 | 27.4 | 29.8 |
+| Primary 45-54 | 24.1 | 26.1 | 25.3 | 26.1 | 26.3 | 27.9 |
+| Primary 55-64 | 26.0 | 27.4 | 26.9 | 27.8 | 27.6 | 28.2 |
+| Primary 65+ | 35.2 | 37.5 | 35.3 | 36.0 | 35.9 | 34.8 |
+| Joint | 56.7 | 58.5 | 66.8 | 64.6 | 64.3 | 60.3 |
+| Separate returns | (2.0 couples split) | 2.9 (SOI, 2018: 3.3) | 0 | 3.7 | after filing | 3.7 |
+
+The SCF's median net worth per unit falls from $91,050 to $63,570 (2019
+dollars); total net worth is unchanged apart from the $0.5 trillion of the
+group outside the PEU. The CEX's spending per unit falls by about 5% in
+every age range; total spending is unchanged.
+
 ## 5. Standing tests, every survey and year, before training
 
 From the Codex review, section 4. A failed test keeps the affected variable
@@ -217,14 +300,31 @@ to calibrate cannot also serve as tests.
 ## 7. Open decisions
 
 1. How far from the law: strict rules, income-aware claiming, or strategic
-   claiming (section 4, item 3).
-2. Whether the SCF and CEX keep their own constructions with the shared
-   definitions and tests, or are rebuilt from their rosters by the shared
-   module, as far as their inputs allow.
+   claiming (section 4, item 3). The shared module runs CBO's reassignment
+   pass on every survey by default.
+2. ~~Whether the SCF and CEX keep their own constructions~~ Decided 24
+   October: rebuilt from their member lists by the shared module.
 3. Whether the filing model moves to Python with the units, or stays in R.
-4. Married filing separately: whether to assign it (2.9 million returns in
-   2015) and how.
+4. ~~Married filing separately~~ Decided 24 October: the CPS and CEX by step
+   1's draw to SOI's count, the SCF by the couple's own answer. The SCF's
+   count against SOI Table 1.6, millions of separate returns: 3.1 against 2.7
+   (2012), 3.9 against 3.0 (2015), 2.9 against 3.3 (2018), 3.3 against 3.9
+   (2021). Within a million either way, with no steady direction.
 5. Iselin's code: get it and run it through the same comparison as CBO's.
+6. Wiring the module's SCF and CEX units into the training table
+   (`build_table.py`: the SCF's units outside the PEU enter as SCF rows, their
+   balance sheet flagged as group-level) and the tilt (the SCF's wealth
+   targets recomputed on the new units). Not done; after John sees the tests.
+7. The CEX's extra married couples (about 4 million more than the tax data in
+   2019, in the data, not in BLS's coding) are not fixed by reweighting
+   (John, 24 October). The consumption targets will move from averages by age
+   range to averages by age range and married or not; that needs the CEX's
+   units by age range and married (built here) and the file's married flag on
+   the same definition (joint returns plus non-filing married couples, with
+   separate returns counted as not married or as married, to decide).
+8. Children of unmarried partners in the SCF and CEX: no parent pointer, so
+   all go to the reference person's unit (flagged). CBO's reassignment pass
+   moves children between partners only where the pointers say whose they are.
 
 ## 8. Sources
 

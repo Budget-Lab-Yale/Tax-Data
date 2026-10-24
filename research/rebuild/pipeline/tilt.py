@@ -1,7 +1,9 @@
 """Post-training: the generated stack reweighted to the target year (settings "years"; 2019 below).
 
 The start. Each record's importance weight from generation, scaled so filers
-sum to SOI's 2019 return count and non-filers to the 2019 non-filer pool;
+sum to SOI's 2019 return count and non-filers to the CPS's expected
+non-filers in 2019 (the sum over its units of weight x (1 - filer_p), the
+same count the generated non-filer batch is sized by);
 then filers are pre-scaled within joint and non-joint returns to SOI's 2019
 counts of each (Table 1.2), so known population change is in the start.
 
@@ -14,6 +16,29 @@ divergence, that meets the targets (Newton's method on the dual). Targets:
     amount of wages, taxable interest, ordinary dividends and Schedule D net
     capital gain; plus the number of joint returns.
   - the non-filer count (exact).
+  - 8 non-filer people targets (exact; 2% if exact fails even with the
+    business and age fallbacks): the people in non-filer units that step 1's
+    calibration hit (settings nonfiler_targets_dir, its
+    <year>_nonfilers_vs_targets.csv, read, not recomputed): heads and spouses
+    in 7 adult age bands (18-25, 26-34, 35-44, 45-54, 55-64, 65-74, 75+) and
+    children under 17. The file's side counts each head and spouse by their
+    own exact age (step 1 bands a spouse by the head's age; in the CPS units
+    the two ways differ by at most 0.09 million in a band), and children
+    under 17 among the head, the spouse and the first three dependents (the
+    youngest three; children beyond the third are not counted, about 0.13
+    million in 2019).
+  - age targets (SOI 2019 Table 1.6, filers, exact; 2% if exact fails even
+    with the business fallback): the number of returns by the primary
+    filer's age range, 26-34 to 65+, in joint and in non-joint returns
+    (settings age_level "filing_status"; "all" for the five totals; "none"
+    for no age targets). Under 26
+    is not a target of its own: it is what the total and the joint count
+    leave, and a sixth target would repeat them. Table 1.6 counts every
+    return, a dependent filer's under its own age; so the file's side counts
+    every filer return too, its dependent filers under 26 in under 26 (by
+    the remainder) and its dependent filers 26 and over, whose exact age the
+    file does not carry, spread over the five ranges 26 and over in
+    proportion to Table 1.6's returns of their status.
   - business targets (SOI 2019 Table 1.4, filers, exact; 2% if exact
     fails): five families, the number of returns and dollars with a net
     income and with a net loss, in six AGI groups (merged where SOI combined
@@ -25,13 +50,17 @@ divergence, that meets the targets (Newton's method on the dual). Targets:
     file's units other than dependent filers (which hold no wealth); net
     worth above each percentile line and in total, in the SCF's own dollars.
     Net worth is computed from the drawn balance sheet.
-  - 56 consumption targets (CEX 2019, 2% tolerance): each category's average
-    per unit, over all units and in each of the six adult age ranges of the
-    primary filer, dependent filers left out on both sides.
+  - 104 consumption targets (CEX 2019, within a band of consumption_band, 5%, of each average; free inside
+    it): each category's average
+    per unit, over all units and in each of 12 cells, the six adult age ranges
+    of the primary filer by married (a joint unit) or not; separate returns are
+    not married, on both sides. Dependent filers are left out on both sides.
+    The overall averages are kept because the cells do not imply them: the
+    file's units fall into the cells in other shares than the CEX's.
 A share or an average is written as a linear condition on the weights
 (average_condition), so it holds whatever the tilt does to the number of
 units in its group.
-If the exact tilt fails even with the business fallback, every target is set
+If the exact tilt fails even with the business, age and non-filer fallbacks, every target is set
 to 2% so the run still writes its tables; summary.md says so.
 
 Writes, in common.TILT: file_<target year>.parquet (every record, every dollar
@@ -93,6 +122,29 @@ def irs_targets(soi, df):
     cells.append({'group': 'all', 'target': 'joint returns', 'value': TG.returns(soi, Y, '1.2', 'joint')})
     cols.append(df['married'].to_numpy(float))
     return pd.DataFrame(cells), np.column_stack(cols)
+
+
+def age_targets(df):
+    """Returns by the primary filer's age range, 26-34 to 65+ (SOI Table 1.6), in joint and non-joint returns or over
+    all statuses (settings age_level), and each record's contribution. Under 26 is left to the total returns and the
+    joint count. Table 1.6 counts dependent filers' own returns under their own age: the file's dependent filers under
+    26 fall in under 26, and those 26 and over (no exact age) are spread over the five ranges by Table 1.6's shares
+    in their status."""
+    t16 = TG.table_1_6(Y)
+    rng, married = df['age_range'].to_numpy(), df['married'].to_numpy()
+    assert ((rng >= 0) & (rng < common.N_RANGES)).all(), 'a record with no age range'
+    nonjoint = ['single', 'separate', 'head_of_household']
+    groups = {'filing_status': [('joint', married == 1, ['joint']), ('non-joint', married == 0, nonjoint)],
+              'all': [('all', np.ones(len(df), bool), ['joint'] + nonjoint)], 'none': []}[S['age_level']]
+    over_26 = range(1, common.ADULT_RANGES)
+    cells, cols = [], []
+    for lab, member, statuses in groups:
+        n = np.array([sum(t16[(s, k)] for s in statuses) for k in over_26])
+        dep_26 = member & (rng == common.DEPENDENT_RANGES[-1])   # dependent filers 26 and over
+        for k, v in zip(over_26, n):
+            cells.append({'group': f'{lab}, primary {AGES[k]}', 'target': 'returns', 'value': v})
+            cols.append((member & (rng == k)) + dep_26 * v / n.sum())
+    return pd.DataFrame(cells, columns=['group', 'target', 'value']), np.column_stack(cols) if cols else np.zeros((len(df), 0))
 
 
 def merge_groups(groups, cells):
@@ -180,52 +232,100 @@ AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 
 def consumption_targets(df, w_start, units):
     """CEX target-year spending per unit (build_table.cex_target_units): each category's average over all tax units,
-    and by the primary filer's adult age range, so the targets do not depend on how many units each source counts.
+    and in each cell of the primary filer's adult age range by married (a joint unit; separate returns are not
+    married, on the CEX's units as on the file's), so the targets do not depend on how many units each source counts.
     Dependent filers are left out on both sides: the CEX folds them into the unit that claims them (build_cex.R),
     and the file gives them no consumption (generate.structural). Returns the target rows (with the average), the
     contributions, the tolerances, and per row the (group, spending) whose average it sets."""
     y = Y
     u = pd.read_parquet(f'{common.DATA}/cex_units_{y}_all.parquet')
+    assert u['married'].isin([0, 1]).all() and (u['age_range'] < common.ADULT_RANGES).all()
     rows, cols, tol, means = [], [], [], []
-    for lab, k in [('all', None)] + [(f'age {a}', k) for k, a in enumerate(AGES)]:
-        mu = np.ones(len(u), bool) if k is None else (u['age_range'] == k).to_numpy()
-        mf = (df['age_range'] < common.ADULT_RANGES).to_numpy() if k is None else (df['age_range'] == k).to_numpy()
+    cells = [(f'age {a}, {"married" if m else "not married"}', k, m)
+             for k, a in enumerate(AGES) for m in (1, 0)]
+    for lab, k, m in [('all', None, None)] + cells:
+        if k is None:
+            mu = np.ones(len(u), bool)
+            mf = (df['age_range'] < common.ADULT_RANGES).to_numpy()
+        else:
+            mu = ((u['age_range'] == k) & (u['married'] == m)).to_numpy()
+            mf = ((df['age_range'] == k) & (df['married'] == m)).to_numpy()
+        assert mu.any() and mf.any(), f'consumption cell {lab}: no CEX units or no records'
         for v in D.META['cex_amounts']:
-            m = float(np.average(u.loc[mu, v], weights=u.loc[mu, 'weight']))
+            avg = float(np.average(u.loc[mu, v], weights=u.loc[mu, 'weight']))
             c = df[v].to_numpy(float)
-            rows.append({'group': f'CEX {y}, {lab}', 'target': f'{v}, average', 'value': units, 'average': m})
-            cols.append(average_condition(mf, c, m))
-            tol.append(average_tolerance(S['consumption_tolerance'], mf, w_start))
+            rows.append({'group': f'CEX {y}, {lab}', 'target': f'{v}, average', 'value': units, 'average': avg})
+            cols.append(average_condition(mf, c, avg))
+            tol.append(average_tolerance(S['consumption_band'], mf, w_start))
             means.append((mf, c))
     return pd.DataFrame(rows), np.column_stack(cols), np.array(tol), means
 
 
 def nonfiler_count():
-    p = pd.read_csv(common.RAW['nonfiler_pool'].format(year=Y), usecols=['tax_year', 'weight', 'filer'])
-    assert (p['tax_year'] == Y).all() and (p['filer'] == 0).all()
-    return float(p['weight'].sum())
+    """The CPS's expected non-filers in the target year: the sum over its units of weight x (1 - filer_p)
+    (generate.cps_expected_nonfilers, repeated here so the tilt needs no network code)."""
+    t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
+    t = t[(t.source == 'cps') & (t.year == Y)]
+    assert len(t), f'no CPS units for {Y}'
+    return float((t['weight'] * (1 - t['filer_p'])).sum())
+
+
+NONFILER_BANDS = [('18_25', 18, 26), ('26_34', 26, 35), ('35_44', 35, 45), ('45_54', 45, 55), ('55_64', 55, 65),
+                  ('65_74', 65, 75), ('75p', 75, np.inf)]
+
+
+def nonfiler_people_targets(df):
+    """The people in non-filer units, as step 1's calibration hit them (settings nonfiler_targets_dir,
+    <year>_nonfilers_vs_targets.csv, column target_heads_spouses, in millions): heads and spouses by age band, and
+    children under 17. Each record's contribution: its head and spouse, each by their own exact age, and its children
+    under 17 among the head, the spouse and the first three dependents (the youngest three; any beyond are not counted).
+    Ages are in years, -1 for none (dollars.py)."""
+    t = pd.read_csv(f"{S['nonfiler_targets_dir']}/{Y}_nonfilers_vs_targets.csv").set_index('band')['target_heads_spouses']
+    head, spouse = df['age_primary'].to_numpy(float), df['age_spouse'].to_numpy(float)
+    nf = df['filer'].to_numpy() == 0
+    assert (head[nf] >= 0).all() and ((spouse[nf] >= 0) == (df['married'].to_numpy()[nf] == 1)).all(), \
+        'a non-filer with no head age, or a spouse age without a spouse or the reverse'
+    cells, cols = [], []
+    for b, lo, hi in NONFILER_BANDS:
+        cells.append({'group': f'non-filers, heads and spouses aged {b}', 'target': 'people', 'value': 1e6 * t[b]})
+        cols.append(((head >= lo) & (head < hi)).astype(float) + ((spouse >= lo) & (spouse < hi)))
+    kids = (head >= 0) & (head < 17)
+    kids = kids.astype(float) + ((spouse >= 0) & (spouse < 17))
+    for k in (1, 2, 3):
+        a = df[f'age_dep{k}'].to_numpy(float)
+        kids += (a >= 0) & (a < 17)
+    cells.append({'group': 'non-filers, children under 17', 'target': 'people', 'value': 1e6 * t['children under 17']})
+    cols.append(kids)
+    return pd.DataFrame(cells), np.column_stack(cols)
 
 
 # ---- the solver ------------------------------------------------------------------
-def tilt(w, F, T, rel_tol, max_iter=200):
+def tilt(w, F, T, rel_tol, max_iter=200, band=None):
     """Newton's method on the dual. rel_tol per target: 0 exact, else a Gaussian
-    penalty with that standard deviation as a share of the target."""
+    penalty with that standard deviation as a share of the target. band per target: 0 none, else the target need only
+    be met within that share of it, with no cost inside the band (its dual term b |lambda|, smoothed at zero)."""
     W = w.sum()
     p = w / W
     X = F * (W / np.abs(T))
     t = np.sign(T)
     s2 = np.asarray(rel_tol, float) ** 2
+    b = np.zeros(len(T)) if band is None else np.asarray(band, float)
+    eps = 1e-6
     lam = np.zeros(len(T))
 
     def dual(lam):
         e = p * np.exp(X @ lam)
-        return e.sum() - lam @ t + 0.5 * (s2 * lam ** 2).sum(), e
+        return e.sum() - lam @ t + 0.5 * (s2 * lam ** 2).sum() + (b * np.sqrt(lam ** 2 + eps ** 2)).sum(), e
+
+    def grad(lam, e):
+        return X.T @ e - t + s2 * lam + b * lam / np.sqrt(lam ** 2 + eps ** 2)
     D_, e = dual(lam)
     for it in range(max_iter):
-        g = X.T @ e - t + s2 * lam
+        g = grad(lam, e)
         if np.abs(g).max() < 1e-11:
             break
-        step = np.linalg.solve(X.T @ (X * e[:, None]) + np.diag(s2) + 1e-12 * np.eye(len(T)), -g)
+        h_band = b * eps ** 2 / (lam ** 2 + eps ** 2) ** 1.5
+        step = np.linalg.solve(X.T @ (X * e[:, None]) + np.diag(s2 + h_band) + 1e-12 * np.eye(len(T)), -g)
         a = 1.0
         while True:
             D_new, e_new = dual(lam + a * step)
@@ -235,7 +335,7 @@ def tilt(w, F, T, rel_tol, max_iter=200):
             if a < 1e-12:
                 return W * e, False
         lam, D_, e = lam + a * step, D_new, e_new
-    return W * e, bool(np.abs(X.T @ e - t + s2 * lam).max() < 1e-7)
+    return W * e, bool(np.abs(grad(lam, e)).max() < 1e-7)
 
 
 def cost(w0, w1):
@@ -293,31 +393,47 @@ def main():
 
     # the targets
     irs, F_irs = irs_targets(soi, g19)
+    nfp, F_nfp = nonfiler_people_targets(g19)
+    age, F_age = age_targets(g19)
     bus, F_bus = business_targets(soi, g19)
     units = returns + n_nonfilers
     nondep = g19['age_range'].to_numpy() < common.ADULT_RANGES   # wealth shares: units other than dependent filers
     wl, F_w, tol_w, means_w = wealth_targets(x, nondep, w0, units)
     cl, F_c, tol_c, means_c = consumption_targets(g19, w0, units)
-    F_irs, F_bus = F_irs * filer[:, None], F_bus * filer[:, None]
+    F_irs, F_age, F_bus = F_irs * filer[:, None], F_age * filer[:, None], F_bus * filer[:, None]
+    F_nfp = F_nfp * ~filer[:, None]
     cells = pd.concat([irs.assign(kind='IRS'), pd.DataFrame([{'group': 'all', 'target': 'non-filers',
                                                                'value': n_nonfilers, 'kind': 'non-filers'}]),
-                       bus.assign(kind='business'), wl.assign(kind='wealth'), cl.assign(kind='consumption')],
-                      ignore_index=True)
-    F = np.column_stack([F_irs, (~filer).astype(float), F_bus, F_w, F_c])
+                       nfp.assign(kind='non-filer people'), age.assign(kind='age'), bus.assign(kind='business'),
+                       wl.assign(kind='wealth'), cl.assign(kind='consumption')], ignore_index=True)
+    F = np.column_stack([F_irs, (~filer).astype(float), F_nfp, F_age, F_bus, F_w, F_c])
     T = cells['value'].to_numpy(float)
-    tol = np.r_[np.zeros(len(irs) + 1 + len(bus)), tol_w, tol_c]
-    means = [None] * (len(irs) + 1 + len(bus)) + means_w + means_c
+    n_exact = len(irs) + 1 + len(nfp) + len(age) + len(bus)
+    on_nfp = slice(len(irs) + 1, len(irs) + 1 + len(nfp))
+    on_age = slice(on_nfp.stop, on_nfp.stop + len(age))
+    on_bus = slice(on_age.stop, n_exact)
+    tol = np.r_[np.zeros(n_exact), tol_w, np.zeros(len(tol_c))]
+    band = np.r_[np.zeros(n_exact + len(tol_w)), tol_c]
+    means = [None] * n_exact + means_w + means_c
     # a tolerance's scale: 1 for a total; for a share or an average, its group's share of the starting weight
     scale = np.array([1.0 if m is None else w0[m[0]].sum() / w0.sum() for m in means])
-    w1, ok = tilt(w0, F, T, tol)
-    form = 'exact'
+    w1, ok = tilt(w0, F, T, tol, band=band)
+    form = age_form = nfp_form = 'exact'
     if not ok:
-        tol[len(irs) + 1:len(irs) + 1 + len(bus)] = S['business_fallback_tolerance']
-        w1, ok = tilt(w0, F, T, tol)
+        tol[on_bus] = S['business_fallback_tolerance']
+        w1, ok = tilt(w0, F, T, tol, band=band)
         form = f"{100 * S['business_fallback_tolerance']:.0f}% tolerance"
+    if not ok:
+        tol[on_age] = S['age_fallback_tolerance']
+        w1, ok = tilt(w0, F, T, tol, band=band)
+        age_form = f"{100 * S['age_fallback_tolerance']:.0f}% tolerance"
+    if not ok:
+        tol[on_nfp] = S['nonfiler_fallback_tolerance']
+        w1, ok = tilt(w0, F, T, tol, band=band)
+        nfp_form = f"{100 * S['nonfiler_fallback_tolerance']:.0f}% tolerance"
     if not ok:   # keep going so the run still writes its tables, and say so in the summary
         tol[:] = np.maximum(tol, 0.02 * scale)    # 2% of each target; of the group's average for shares and averages
-        w1, ok = tilt(w0, F, T, tol)
+        w1, ok = tilt(w0, F, T, tol, band=band)
         form = 'every target at 2% tolerance (exact did not converge)' if ok else \
             'DID NOT CONVERGE: weights are the last iterate'
         common.say('tilt fallback:', form)
@@ -336,7 +452,11 @@ def main():
     nw = net_worth_table({f'SCF {Y}': (u, u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)),
                           'before the tilt': (g19, x, w0), 'after the tilt': (g19, x, w1)})
     summary = pd.Series({'targets': len(T), 'business targets': f'{len(bus)}, {form}',
+                         'non-filer people targets': f'{len(nfp)}, {nfp_form}',
+                         'age targets': f'{len(age)} ({S["age_level"]}), {age_form}',
                          'largest miss on exact IRS targets (%)': 100 * np.abs(fit['after / target'][:len(irs) + 1] - 1).max(),
+                         'largest miss on non-filer people targets (%)': 100 * np.abs(fit['after / target'][on_nfp] - 1).max(),
+                         'largest miss on age targets (%)': 100 * np.abs(fit['after / target'][on_age] - 1).max() if len(age) else np.nan,
                          **cost(w0, w1), 'KL move from the unscaled start (nats)': cost(w_plain, w1)['KL move (nats)']})
     by_kind = fit.groupby('kind')['after / target'].agg(['min', 'max'])
     text = [f'# The {Y} tilt', '', summary.to_frame('').to_markdown(floatfmt=',.4f'), '',

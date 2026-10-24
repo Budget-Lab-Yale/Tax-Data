@@ -12,25 +12,27 @@ the statistics of this stage are approximate within a band.
 
 Writes common.MODEL/translation_report.csv (long: survey, variable, year,
 stage, statistic, value) and translation_report.md (one block per row and
-year).
+year). With --table-only (no trained model needed): the table stage's three
+stages only, to common.DATA/translation_report.md.
 """
 import os
+import sys
 
 import numpy as np
 import pandas as pd
-import torch
 
 import common
-import fillin
-import model as M
-import train
 import translate as TR
 
-STAGES = ['as reported', 'after function 1', 'after function 2', 'tax data', 'survey']
+STAGES = ['as reported', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)']
 
 
 def after_fill_in():
     """The stage after function 2, as long report rows."""
+    import torch
+    import fillin
+    import model as M
+    import train
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     table = M.read_table()
     train_rows = table[table.split == 'train']
@@ -67,18 +69,22 @@ def after_fill_in():
 
 
 def main():
-    rep = pd.concat([pd.read_csv(f'{common.DATA}/translation_report.csv'), pd.DataFrame(after_fill_in())],
-                    ignore_index=True)
-    rep.to_csv(os.path.join(common.MODEL, 'translation_report.csv'), index=False)
+    table_only = '--table-only' in sys.argv[1:]
+    rep = pd.read_csv(f'{common.DATA}/translation_report.csv')
+    out_dir = common.DATA if table_only else common.MODEL
+    if not table_only:
+        rep = pd.concat([rep, pd.DataFrame(after_fill_in())], ignore_index=True)
+        rep.to_csv(os.path.join(common.MODEL, 'translation_report.csv'), index=False)
     text = ['# Translation report', '',
             'Each row of the translation table and survey year, against the tax data for that year. After function 2: '
-            'filled-in amounts at their band\'s PUF median (approximate within a band). Units in millions.', '']
+            'filled-in amounts at their band\'s PUF median (approximate within a band). Units in millions.'
+            + (' Table stage only: no stage after function 2.' if table_only else ''), '']
     for (s, v, y), g in rep.groupby(['survey', 'variable', 'year'], sort=False):
         wide = g.pivot_table(index='statistic', columns='stage', values='value', sort=False)
         wide = wide[[c for c in STAGES if c in wide]]
         text += [f'## {s.upper()} {y}: {v}', '', '```', wide.round(2).to_string(), '```', '']
-    open(os.path.join(common.MODEL, 'translation_report.md'), 'w').write('\n'.join(text))
-    common.say(f'translation report: {len(rep)} rows, {os.path.join(common.MODEL, "translation_report.md")}')
+    open(os.path.join(out_dir, 'translation_report.md'), 'w').write('\n'.join(text))
+    common.say(f'translation report: {len(rep)} rows, {os.path.join(out_dir, "translation_report.md")}')
 
 
 if __name__ == '__main__':

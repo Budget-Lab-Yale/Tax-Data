@@ -5,11 +5,14 @@ variable, plus the household balance sheet from the SCF (20 items, with net
 worth computed from them), spending in 8 categories from the CEX, and
 from the CPS ASEC each person's age and sex, dependents' ages, the split of
 a couple's wages and self-employment income between the spouses, weeks and
-hours worked, and childcare, weighted to 2019 targets. (The CPS was added on
-the night of 22 October and is in latest since 23 October, with exact ages
-shared by the SCF, CEX and CPS. Its tax units and the items that depend on
-them, dependents' ages above all, are provisional: `TAX_UNITS.md`,
-`AGES.md` section 0.) The code is in `pipeline/`; every setting is in
+hours worked, and childcare, weighted to 2019 targets.
+- **Filers and non-filers.** Filers come from the PUF label and non-filers
+  from the CPS label. The CPS's filing chances come from a calibrated rule
+  (v4) with no outside model in it.
+- **Tax units.** The CPS, SCF and CEX all build their tax units with one
+  module of CBO's rules (`TAX_UNITS.md`).
+- **Since when.** This is latest since 24 October. The CPS was added on 22
+  October. The code is in `pipeline/`; every setting is in
 `pipeline/settings.json`.
 
 ## Data
@@ -20,7 +23,7 @@ them, dependents' ages above all, are provisional: `TAX_UNITS.md`,
 |---|---:|---|
 | 2015 PUF | 207,692 | filers |
 | 2017 CPS non-filer pool | 166,938 | non-filers on the PUF side, scaled to 2015 as the tax data is |
-| SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, split into tax units by the production builder, five implicates each |
+| SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, five implicates each; the latest run's units by the production builder (now the shared rules, below) |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 | CPS ASEC, tax years 2015, 2017, 2019, 2021, 2023 | 90,351 / 88,954 / 79,054 / 77,618 / 74,502 | every tax unit, filers and non-filers (`build_cps.R`, below) |
 
@@ -81,19 +84,16 @@ dividends and gross Social Security. The rest belong to one source. A slot a sou
 
 **The CPS** (`pipeline/build_cps.R`, settings "cps"). The ASEC asking
 about tax years 2015, 2017, 2019, 2021 and 2023, the household population
-split into tax units by production's builder (`src/nonfilers/
-asec_tax_units.R`, the non-filer pool's rules), every unit, filers and
-non-filers. Dependent filers are folded into the unit that claims them. The
-filing flag is drawn from the pool's filing model (Mok's probits below the
-filing threshold, the Pub 5785 hazard above it, the pool's calibration).
-The calibration is part of the CPS step: for a year without the pool's
-calibration file, build_cps.R runs the pool's own steps 01-04 for that year
-and stops, naming the missing inputs, when it cannot. 2015 was calibrated
-this way on 23 October (filers 84.2% of units, against 78.0% before; 82.2%
-in the tax data). For it, the pool's 04_calibrate.R now treats an anchor
-file whose dorm column is empty in every state (2014-2016) as no file and
-skips that informational check. The latest run was trained before this, on
-the uncalibrated 2015 CPS.
+split into tax units by CBO's rules (`pipeline/tax_units.py`, the shared
+module the SCF and CEX also use), every unit, filers and non-filers, as
+step 1 built them (settings cps.step1_dir). Dependent filers are folded into
+the unit that claims them. Separate returns, each return's filing status,
+its statutory filing requirement and its filing chance come from step 1's
+returns (cps.step1_out = out_rule_v4, the v4 filing rule, calibrated in
+every year). This is the only path: until 24 October a setting
+(cps.tax_units) could switch back to production's builder
+(`src/nonfilers/asec_tax_units.R`) and the non-filer pool's filing model
+and calibration; that path is gone (it is in git history).
 Childcare is the SPM unit's child care expenses, given to the
 units that claim its children.
 - **Primary filer first.** Person items are the primary filer's and the
@@ -139,13 +139,41 @@ units that claim its children.
 survey, five quarterly files per survey year (the year's first quarter
 from the previous release from 2020 on), weights summing to the year's
 consumer units (they match BLS's published counts). Households are split
-into tax units by BLS's own codes in the member file, as production's
-`src/cex.R` does, with its repairs. Spending is each interview's three
+into tax units by the shared rules (below); the latest run used BLS's own
+codes in the member file, as production's `src/cex.R` does, with its repairs. Spending is each interview's three
 months times 4. A household's spending is divided among its tax units by
-head count (production's rule). A dependent filer is folded into the unit
-that claims it: its head count goes to that unit's share and its own row
-is dropped; its own income goes nowhere (it belongs on its own return).
-Checked against BLS's tax-unit file (NTAXI): the same units in every year.
+head count (production's rule). In the latest run a dependent filer was folded into the unit that claims
+it (its own income going nowhere) and the units were checked against BLS's
+tax-unit file (NTAXI); under the shared rules a dependent with income of
+their own simply stays a person of the claiming unit.
+
+**Tax units: one set of rules for every survey (24 October).** `tax_units.py`
+holds CBO's rules, run on a member list each survey's reader builds
+(`roster_cps.py`, `roster_scf.py`, `roster_cex.py`; TAX_UNITS.md, section 4);
+the scf and cex stages run the reader before the R script. Where a survey
+lacks an input the rule uses a named fallback (`tax_units.FALLBACKS`), and
+every unit carries flags for the inputs that were assumed. Settings
+`tax_units.reassign` (CBO's reassignment pass, on) and `tax_units.npeu_split`
+(below). `check_units.py` runs the standing tests on every survey and year.
+The old builders (production's SCF builder, BLS's CEX codes) are no longer
+used; they are in git history. The latest run was trained on the old units.
+- The CPS: step 1's units (identical unit for unit, 2015-2023).
+- The SCF (`build_scf.R`): the financially independent adults outside the
+  PEU are units of their own, with their share of the group's income and
+  balance sheet (`npeu_split`: equal, or Moore's rule for wages and Social
+  Security), flagged `group_level`; married couples among them file jointly;
+  the SCF's support answer stands in for the student and income tests;
+  children living elsewhere count only where the family paid alimony or child
+  support; separate returns from the couple's own answer. The PEU's income
+  and balance sheet go to the respondent's unit, or are divided between the
+  respondent's and the spouse's or partner's units by Moore's shares (ported
+  from production's builder). 2019 wave: 162.8 million units (143.2 under the
+  old builder); median net worth $63,570 ($91,050).
+- The CEX (`build_cex.R`): CBO's tests on the member file instead of BLS's
+  codes (BLS's units only a comparison column in the checks); spending
+  divided by head count, dependents' own returns staying people of the
+  claiming unit; separate returns by step 1's draw to SOI's count. 2019:
+  162.8 million units (152.5 with BLS's codes).
 
 **Business items on the SCF.** The SCF's two business income questions
 follow the tax return: X5704 is Schedules C and F, X5714 is Schedule E
@@ -458,7 +486,21 @@ that meets:
 | Non-filers | 1 | exactly |
 | IRS business: five families (estates and trusts left out until the targeting overhaul, 22 October), net income and net loss, returns and dollars, in 6 AGI groups | 116 | exactly, or within 2% if that fails |
 | SCF 2019 wealth: the share of units above the 99th, 90th and 50th percentiles and above $1 million, among the file's units other than dependent filers; net worth above each percentile and in total | 8 | within 2% |
-| CEX 2019 consumption: each category's average per tax unit, over all units and in each of the 6 adult age ranges of the primary filer (dependent filers left out on both sides) | 56 | within 2% of the average |
+| CEX 2019 consumption: each category's average per tax unit, over all units and in each of 12 cells, the 6 adult age ranges of the primary filer by married or not (dependent filers left out on both sides) | 104 | within a 5% band of the average, free inside it (`consumption_band`) |
+
+The wealth targets are computed on the SCF's units from the shared rules
+(`data/scf_units_2019.parquet`, written by build_table.py from the 2019
+wave): 162.8 million units with a median net worth of $63,570, against 143.2
+million and $91,050 on the SCF's units as built, which the targets used
+until 24 October.
+
+Married is a joint unit, on the CEX's side as on the file's; separate returns
+are not married on either side. Both sides use the same tax units: the CEX's
+come from the shared rules (`TAX_UNITS.md`), so a CEX joint unit is what the
+file calls joint. The averages over all units are kept, because the cells do
+not imply them: the file's units fall into the cells in other shares than the
+CEX's. Until 24 October the cells were the 6 age ranges alone (56 targets),
+behind a setting that could drop them; the setting is gone.
 
 Consumption targets are averages, not totals, so they do not depend on how
 many units each source counts (the file 177 million units other than
@@ -473,7 +515,44 @@ sample.
 
 ## How the latest run comes out
 
-**Since 23 October (afternoon), "latest" has the CPS and shared exact ages**
+**Since 24 October, "latest" has one tax-unit module for every survey, the
+CPS as the source of non-filers, and age and non-filer targets**
+(`HISTORY.md`, 23–24 October).
+- **How it was made:** two seeds (20261016, 20261017), 80 passes, in
+  `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-24/unified_run/`
+  (tilt runs `seed<n>_band5`), copied into the main output folders. The
+  previous latest is in `previous_2026-10-23_cps_ages/`.
+- **Targets:** every exact target is met: the IRS, the business, the non-filer
+  count and people by age, and filer returns by age. Wealth is within 0.02%.
+  Every spending cell is inside its 5% band.
+- **Not in the repository:** the filing rule's calibration (`calibrate_v4.py`)
+  and its outputs, which the CPS reads through `cps.step1_dir`, are still in
+  `explore/2026-10-23/step1_units/`.
+
+Nominal 2019 dollars, counts in millions; the two seeds, then the previous
+latest's two:
+
+| | Latest | Previous latest | Reference |
+|---|---:|---:|---:|
+| effective sample kept | 96.1%, 95.9% | 89.0%, 88.6% | |
+| tax units other than dependent filers | 168.0 | 168.0 | |
+| filer returns, 65+ primary | 27.60, 27.60 | 28.83, 29.19 | SOI Table 1.6: 27.60 |
+| non-filer units | 21.45 | 29.39 | CPS (filing rule v4): 21.45 |
+| non-filer units, 65+ primary | 7.29, 7.26 | 11.39, 11.11 | CPS: 7.24 |
+| non-filer units, primary under 26 | 0.98, 0.98 | 2.26, 2.15 | CPS: 1.01 |
+| non-filer wages ($bn) | 294, 288 | 269, 278 | CPS: 288 |
+| children under 18 | 75.4, 73.2 | 85.5, 84.5 | Census: 73.0 |
+| units aged 80+ | 7.9, 8.3 | 9.7, 9.7 | SCF: 6.7 |
+| median net worth, units other than dependent filers | $63,555, $63,552 | $90,981, $90,970 | SCF on the new units: $63,570 |
+
+- **Net worth.** The median falls because the SCF's units now count the
+  23.6 million financially independent adults outside the primary economic
+  unit (`TAX_UNITS.md`), not because the file's wealth changed. On the old
+  units the SCF's median was $91,050.
+- **Spending.** Each age range × married cell ends between 0.95 and 1.05
+  of the CEX's average.
+
+**Before that, from 23 October (afternoon), "latest" had the CPS and shared exact ages**
 (`HISTORY.md`, 22–23 October). Two seeds, made in
 `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps_ages/` (runs ages_s1,
 ages_s2) and copied into the main output folders; the previous latest is in

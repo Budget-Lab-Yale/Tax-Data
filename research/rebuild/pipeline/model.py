@@ -4,8 +4,8 @@ A record is a list of slots: two context slots (source, year), always shown
 and never predicted, then the predicted slots in a fixed order (PREDICTED).
 Each amount is a band index (band 0 = exactly zero, then the negative bands
 from most negative, then the positive bands in dollar order); married, number
-of dependents, the primary filer's age range (ages.py), the filing flag, the
-yes/no business items, the exact ages (primary filer and spouse: SCF, CEX and
+of dependents, the primary filer's age range (ages.py), the filing flag, full
+filing status, the child credit and EITC children (TAX_STATUS), the yes/no business items, the exact ages (primary filer and spouse: SCF, CEX and
 CPS; dependents: CPS) and the CPS's sex are categories.
 A slot one source never has (the balance sheet and the exact ages on the PUF,
 the PUF-only items on the SCF, everything but the shared items and the
@@ -35,6 +35,9 @@ YEARS = sorted({int(y) for y in pq.read_table(common.TABLE, columns=['year']).co
 _EDGES = common.edges()
 META = common.meta()
 FILER = ['filer']
+# Full filing status (mars: 1 single, 2 joint, 3 separate, 4 head of household; value 0 never used), child credit
+# children and EITC children (0 to 3, 3 = 3 or more): on the PUF and the CPS, absent on the SCF and CEX.
+TAX_STATUS = dict(META['tax_categories'])
 AGE_RANGES = common.N_RANGES                       # six adult ranges, three for dependent filers (ages.py)
 AGE_PROBS = [f'age_p{k}' for k in range(AGE_RANGES)]   # step 0's probabilities on PUF rows with no range
 KG_PIECES = META['kg_pieces']
@@ -46,7 +49,7 @@ CPS_CATEGORIES = META['cps_categories']            # CPS-only categories (depend
 # generation right after the PUF items (generate.py). PERSON_CATEGORIES: these and the CPS-only categories.
 EXACT_AGES = list(META['exact_ages'])
 PERSON_CATEGORIES = META['person_categories']
-CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(CATEGORIES) + list(PERSON_CATEGORIES)
+CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
 SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
@@ -57,9 +60,12 @@ RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item
 REPORTED = {f'{r["variable"]}_reported': r['variable'] for r in TR.filled()}
 CEX_SLOTS = list(META['cex_amounts'])     # the consumption categories, CEX only
 CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's person items and childcare, CPS only
-PREDICTED = (['married', 'n_dep', 'age_range', 'wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
+# The order (step 2, 23 October): the type (married, dependents, age range), the filing flag, full filing status and
+# the credit children, then the amounts. Generation draws a batch's own items in this order (generate.py).
+TYPE_SLOTS = ['married', 'n_dep', 'age_range']
+PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
-             + SCF_SLOTS + FILER + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS)
+             + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
 # The sources that have each slot; a slot on one source only is owned by it.
@@ -100,7 +106,7 @@ def band_layout():
 
 
 BAND_LAYOUT = band_layout()
-N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **{c: 2 for c in CATEGORIES},
+N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
              **PERSON_CATEGORIES, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
@@ -120,7 +126,8 @@ MASK = 0
 MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
-               'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **{c: 2 for c in CATEGORIES}, **PERSON_CATEGORIES}
+               'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
+               **PERSON_CATEGORIES}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -150,7 +157,8 @@ def read_table():
     table = pd.read_parquet(common.TABLE)
     for r, v in REPORTED.items():
         table[r + '_band'] = np.where(table['source'] == 'scf', table[v + '_band'], -1)
-    used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id'] + [column(v) for v in PREDICTED] + AGE_PROBS
+    used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id', 'filer_p'] + [column(v) for v in PREDICTED] \
+        + AGE_PROBS
     n_missing = table[used].isna().sum()
     if n_missing.any():
         raise ValueError(f'missing values in the training table:\n{n_missing[n_missing > 0]}')
@@ -163,7 +171,16 @@ def read_table():
     everywhere = lambda v: PRESENT_ON[v] == set(SOURCES)
     for a in AMOUNTS:
         assert table[a + '_band'].between(0 if everywhere(a) else -1, N_CHOICES[a] - 1).all(), a
-    assert table.loc[table.source == 'puf', 'filer'].isin([0, 1]).all()
+    # the filing flag: 1 on every PUF row (filers only); on CPS rows drawn from filer_p each pass (train.py)
+    puf, cps = table.source == 'puf', table.source == 'cps'
+    assert (table.loc[puf, 'filer'] == 1).all() and (table.loc[puf, 'filer_p'] == 1).all()
+    assert table.loc[cps, 'filer_p'].between(0, 1).all()
+    for c, n in TAX_STATUS.items():
+        assert table[c].between(-1, n - 1).all(), c
+    assert table.loc[table.mars >= 0, 'mars'].isin([1, 2, 3, 4]).all()
+    have = table.mars >= 0
+    assert ((table.loc[have, 'mars'] == 2) == (table.loc[have, 'married'] == 1)).all(), \
+        'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
     for c, n in PERSON_CATEGORIES.items():
@@ -172,6 +189,13 @@ def read_table():
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')
     return table
+
+
+def filer_draws(table, device):
+    """The CPS rows and their filing chances, to draw the filing flag from (train.py)."""
+    rows = np.flatnonzero((table['source'] == 'cps').to_numpy())
+    return (torch.tensor(rows, device=device),
+            torch.tensor(table['filer_p'].to_numpy(float)[rows], dtype=torch.float32, device=device))
 
 
 def age_draws(table, device):
@@ -257,6 +281,46 @@ def token_ids(values, hidden, slots):
     ids = TOKEN_OF.to(values.device)[slot, values.clamp(min=0)]
     full_hidden = torch.cat([torch.zeros_like(hidden[:, :len(CONTEXT)]), hidden], 1)
     return torch.where(full_hidden | (values < 0), MASK, ids)
+
+
+# ---- the CPS's shares: shown only with what decides whether they are asked ---------
+# The spouse's share of the couple's wages (of its self-employment income) is present on a CPS row exactly when the
+# unit is married with some wages (some self-employment income). A present share therefore tells the network the
+# unit is married with some of the item. Generation draws a non-filer's married flag and amounts under the CPS label
+# before it knows either (generate.py), so in training, and in every call of the network, a share is left absent
+# (out of the record) whenever married or its base is hidden; it is present only once both are shown. Its own
+# question is then only ever asked given married and its base, as generation asks it.
+# {share's PREDICTED index: (married's, its base's)}; a base band above 0 is a nonzero amount
+SHARE_GATES = {PREDICTED.index(s): (PREDICTED.index('married'), PREDICTED.index(base))
+               for s, (_, base) in RATIOS.items() if s in CPS_SLOTS}
+
+
+def gate_shares(values, hidden, slots):
+    """Packed values [N, len(slots)] and hidden [N, predicted positions]: each CPS share made absent where married
+    or its base is hidden (see above). Returns new tensors."""
+    pred = predicted_of(slots)
+    at = {j: k for k, j in enumerate(pred)}
+    gated = [(at[s], at[m], at[b]) for s, (m, b) in SHARE_GATES.items() if s in at]
+    if not gated:
+        return values, hidden
+    values, hidden = values.clone(), hidden.clone()
+    for ks, km, kb in gated:
+        off = hidden[:, km] | hidden[:, kb] | (values[:, len(CONTEXT) + km] < 0) | (values[:, len(CONTEXT) + kb] < 0)
+        values[off, len(CONTEXT) + ks] = -1
+        hidden[off, ks] = False
+    return values, hidden
+
+
+def share_presence(values, hidden):
+    """Full-width values [N, SLOTS] and hidden [N, PREDICTED] seen as the CPS: each share present (and hidden) exactly
+    when married and its base are both shown, married is 1 and the base nonzero; absent otherwise."""
+    values, hidden = values.clone(), hidden.clone()
+    for s, (m, b) in SHARE_GATES.items():
+        vm, vb = values[:, len(CONTEXT) + m], values[:, len(CONTEXT) + b]
+        asked = ~hidden[:, m] & ~hidden[:, b] & (vm == 1) & (vb > 0)
+        values[:, len(CONTEXT) + s] = torch.where(asked, 0, -1)
+        hidden[:, s] = asked
+    return values, hidden
 
 
 # ---- network ------------------------------------------------------------------

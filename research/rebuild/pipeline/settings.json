@@ -22,6 +22,13 @@
    "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX"
   }
  },
+ "tax_units": {
+  "_what": "The shared tax-unit rules (tax_units.py), run on every survey's member list (roster_cps.py, roster_scf.py, roster_cex.py). TAX_UNITS.md, section 4.",
+  "reassign": true,
+  "_reassign": "CBO's reassignment pass (4c): true is CBO's default; false applies the first assignment only. The SCF and CEX (roster_scf.py, roster_cex.py) read it; the CPS's tax_units.py takes --strict.",
+  "npeu_split": "equal",
+  "_npeu_split": "The SCF's adults outside the primary economic unit: how the group's income is divided among them. equal: equally; moore: wages among those under 70 and Social Security and pensions among those 62 and over (Moore's rule). The group's balance sheet is divided equally either way."
+ },
  "network": {
   "width": 128,
   "layers": 4,
@@ -41,10 +48,12 @@
   "holdback_seed": 20261015,
   "log_every_passes": 10,
   "precision": "fp32",
-  "_precision": "fp32 standard 32-bit; tf32 or bf16 cheaper formats for the training steps only (train.py). Tested 22 October (explore/2026-10-22/perf/precision/PRECISION.md): bf16 37% faster a pass, results within the difference between two seeds."
+  "_precision": "fp32 standard 32-bit; tf32 or bf16 cheaper formats for the training steps only (train.py). Tested 22 October (explore/2026-10-22/perf/precision/PRECISION.md): bf16 37% faster a pass, results within the difference between two seeds.",
+  "shares_shown_with_their_base": true,
+  "_shares_shown_with_their_base": "Step 2 (train.py, model.gate_shares): on CPS rows the spouse's share of the couple's wages (of its self-employment income) is left out of a record whenever married or the share's base is hidden, so its presence never tells the network what those hidden slots hold; needed to draw non-filers' married flag and amounts under the CPS label. false: as before step 2."
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, that year's non-filer tax units appended. items: the survey's columns, summed. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges.",
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges.",
   "table": [
    {
     "survey": "scf",
@@ -414,7 +423,43 @@
      "filer"
     ],
     "type_for_fill_in": false,
-    "reason": "the filing flag drawn by the non-filer pool's filing model (build_cps.R): filers 83-85% of units against 82-84% in the tax data in 2017-2023; 2015, with no pool calibration, 78% against 82%"
+    "reason": "the filing flag drawn from the unit's calibrated filing chance (build_cps.R; the table's filer_p, which training redraws it from in every pass): Mok's probits below the filing threshold, the Pub 5785 hazard above it, the non-filer pool's calibration in every year (2015 since 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "mars",
+    "items": [
+     "mars"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the units' filing status (build_cps.R): joint for every couple, head of household for an unmarried head with a qualifying-child dependent, single otherwise; separate only on CBO units with the separate-return split. Non-filing units carry the status the rules give them"
+   },
+   {
+    "survey": "cps",
+    "variable": "n_ctc",
+    "items": [
+     "n_ctc"
+    ],
+    "type_for_fill_in": false,
+    "reason": "child credit children: dependents who are qualifying children under 17 (build_cps.R, the approximation tax_units.py makes); the PUF's N24 counts only children on returns that claim the credit"
+   },
+   {
+    "survey": "cps",
+    "variable": "n_eitc",
+    "items": [
+     "n_eitc"
+    ],
+    "type_for_fill_in": false,
+    "reason": "EITC children: dependents who are qualifying children (build_cps.R, the approximation tax_units.py makes); the PUF's EIC counts only children on returns that claim the credit"
+   },
+   {
+    "survey": "cps",
+    "variable": "k1_owner",
+    "items": [
+     "k1_owner"
+    ],
+    "type_for_fill_in": false,
+    "reason": "computed from the partnership and S corporation parts, as on the PUF; the CPS does not ask them, so it is 0 on every CPS unit"
    },
    {
     "survey": "cps",
@@ -451,6 +496,377 @@
     "fill_in": null,
     "type_for_fill_in": false,
     "reason": "default: the share with none within 1 point and the mean within 2-9% of the tax data in every year"
+   },
+   {
+    "survey": "cps",
+    "variable": "kg_st",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); the CPS's one capital gains item goes to long-term gains"
+   },
+   {
+    "survey": "cps",
+    "variable": "kg_lt",
+    "items": [
+     "capital_gains"
+    ],
+    "dollar_line": null,
+    "loss_cap": 0,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "first_year": 2018,
+    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "kg_dist",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "kg_other",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "other_gains",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "ira_taxable",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "zero: the CPS's retirement distributions (INCRETIR; from 2018 INCRET1, INCRET2, pensions and annuities) all go to taxable pensions (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "pensions_taxable",
+    "items": [
+     "retirement_income"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "all pensions and retirement distributions taken as taxable (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October): the builder's series bridged across the 2019 redesign"
+   },
+   {
+    "survey": "cps",
+    "variable": "ss_taxable",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "zero, agreed 23 October; the table stage's log counts the non-filing units the taxable-benefits formula would give a positive amount"
+   },
+   {
+    "survey": "cps",
+    "variable": "unemployment",
+    "items": [
+     "unemployment"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "taken as reported (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "alimony",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); alimony is inside INCOTHER, which goes to the rest of AGI"
+   },
+   {
+    "survey": "cps",
+    "variable": "state_refunds",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "adjustments",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "retirement_gross",
+    "items": [
+     "ss_gross",
+     "retirement_income"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "gross Social Security plus all pensions and retirement distributions, as on the PUF (E02400 + E01500)"
+   },
+   {
+    "survey": "cps",
+    "variable": "tax_exempt_interest",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "mortgage_interest",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); itemized deduction"
+   },
+   {
+    "survey": "cps",
+    "variable": "real_estate_tax",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); itemized deduction"
+   },
+   {
+    "survey": "cps",
+    "variable": "sch_c",
+    "items": [
+     "sch_cf_income"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "nonfarm and farm self-employment income (INCBUS + INCFARM) together as Schedule C, farm zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "part_pass_inc",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "part_nonpass_inc",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "part_pass_loss",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "part_nonpass_loss",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "part_179",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "scorp_pass_inc",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "scorp_nonpass_inc",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "scorp_pass_loss",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "scorp_nonpass_loss",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "scorp_179",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); partnership and S corporation income"
+   },
+   {
+    "survey": "cps",
+    "variable": "rent_inc",
+    "items": [
+     "rent_royalty_estate"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "part": "positive",
+    "reason": "the positive part of net rent, royalties, estates and trusts (INCRENT) (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "rent_loss",
+    "items": [
+     "rent_royalty_estate"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "part": "loss",
+    "reason": "the loss part of INCRENT, stored positive as the PUF's loss field (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "estate_inc",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October); estates and trusts are inside INCRENT, which goes to rents"
+   },
+   {
+    "survey": "cps",
+    "variable": "estate_loss",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "farm_rent",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "sche_other",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "farm",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "zero: the CPS's farm self-employment income goes to Schedule C with nonfarm (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "cps",
+    "variable": "other_agi",
+    "items": [
+     "survivor_disability",
+     "other_income"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the rest of the pool's gross income: survivor and disability pensions other than Social Security (INCSURV + INCDISAB) and other income (INCOTHER, which holds alimony) (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
    }
   ],
   "fill_from_pass": 3,
@@ -461,7 +877,11 @@
    10000,
    100000,
    1000000
-  ]
+  ],
+  "cps_zero_in_tax_data": [
+   "interest"
+  ],
+  "_cps_zero_in_tax_data": "PUF amounts the CPS has no row for (absent on CPS rows) that the CPS units in the tax data carry as zero. interest (John, 23 October): the CPS has no interest item lined up with the PUF's taxable interest."
  },
  "cex": {
   "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview; every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them, and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. The tilt's consumption targets come from the target year's CEX, all tax units.",
@@ -476,7 +896,7 @@
   "generation_year": 2019
  },
  "cps": {
-  "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population built by production's ASEC tax-unit builder (src/nonfilers/asec_tax_units.R), filers and non-filers; dependent filers folded into the unit that claims them. filer is drawn from the non-filer pool's filing model (Mok probits below the filing threshold, the Pub 5785 hazard above it, the pool's calibration where it exists), one uniform per unit seeded by filer_seed plus the year. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
+  "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population by CBO's rules (tax_units.py, the shared tax-unit module) as step 1 built them, filers and non-filers; dependent filers folded into the unit that claims them. p_file (the table's filer_p) is the return's calibrated filing chance from step 1 (its separate returns, filing status and statutory requirement come from step 1 too); training draws the filing flag from it in every pass. filer is one draw from it, one uniform per unit seeded by filer_seed plus the year, kept for the table's checks and reports. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
   "years": [
    2015,
    2017,
@@ -489,14 +909,14 @@
   "dollar_amounts": [
    "childcare"
   ],
-  "tax_units": "production",
-  "_tax_units": "Which tax units build_cps.R uses. production: production's builder (src/nonfilers/asec_tax_units.R) with the non-filer pool's calibration (nonfiler_pool/results). cbo: CBO's rules (tax_units.py, roster files in cbo_units_dir) with the calibration redone on those units (calibration_<year>.csv in cbo_pool_dir, made by the work folder's calibrate_cbo.R); a year without that file stops.",
-  "cbo_units_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/tax_units_build/units",
   "cbo_variant": "cbo",
   "mfs_split": false,
   "_mfs_split": "Married filing separately as a post-filing step (tax_units.mfs_split): off by default. When on, a share of joint filer couples chosen by a draw keyed by unit id (salt filer_seed) become two separate returns, to SOI's Table 1.6 count; dependents by mfs_dep_rule.",
   "mfs_dep_rule": "primary",
-  "cbo_pool_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/tax_units_build/pool_cbo"
+  "step1_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/step1_units",
+  "_step1_dir": "Step 1's folder (PLAN_v2.md step 1), required: the roster from <step1_dir>/units/roster_<year>_<cbo_variant>_nogq.csv.gz and step 1's returns from <step1_dir>/<step1_out>/units_<year>.csv.gz.",
+  "step1_out": "out_rule_v4",
+  "_step1_out": "The folder inside step1_dir that holds step 1's returns (units_<year>.csv.gz), required: out_rule_v4, step 1's filing rule v4."
  },
  "ages": {
   "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",
@@ -523,7 +943,10 @@
    "w_pass_throughs": {
     "seed": 34
    }
-  }
+  },
+  "nonfiler_records": null,
+  "nonfiler_seed": 35,
+  "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer strata's total (records_per_file x 4) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws."
  },
  "consistency": {
   "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
@@ -585,9 +1008,13 @@
   "seed": 20261104
  },
  "tilt": {
-  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and by the primary filer's adult age range (56 targets), within consumption_tolerance of each average.",
+  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the people in non-filer units exact (heads and spouses in 7 age bands by their own exact age, and children under 17 among the head, spouse and first three dependents), the numbers step 1's calibration hit, read from nonfiler_targets_dir (<year>_nonfilers_vs_targets.csv), nonfiler_fallback_tolerance if the exact tilt does not converge even with the business and age fallbacks; filers' returns by the primary filer's age range, 26-34 to 65+, from SOI Table 1.6, in joint and in non-joint returns (age_level \"filing_status\"; \"all\" for the five totals; \"none\" for no age targets), exact (age_fallback_tolerance if the exact tilt does not converge even with the business fallback), dependent filers 26 and over spread over those ranges by Table 1.6's shares, under 26 left to the total and joint counts; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and in 12 cells of the primary filer's adult age range by married (a joint unit; separate returns are not married, on both sides), dependent filers left out on both sides (104 targets), within consumption_band of each average (free inside the band).",
   "wealth_tolerance": 0.02,
   "business_fallback_tolerance": 0.02,
+  "age_level": "filing_status",
+  "age_fallback_tolerance": 0.02,
+  "nonfiler_targets_dir": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/step1_units/checks_rule_v4",
+  "nonfiler_fallback_tolerance": 0.02,
   "business_agi_groups": [
    [
     null,
@@ -623,6 +1050,6 @@
   "min_top_bracket_records": 500,
   "bracket_file_size": 200000,
   "prescale": "filing_status",
-  "consumption_tolerance": 0.02
+  "consumption_band": 0.05
  }
 }

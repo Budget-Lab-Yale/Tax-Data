@@ -3,55 +3,28 @@
 # 2021 and 2023 (settings "cps"). The ASEC asking about tax year Y is the
 # survey of March Y+1 (read_asec(Y) maps this).
 #
-# Tax units. Production's builder, unchanged (src/nonfilers/asec_tax_units.R,
-# build_asec_tax_units, the rules of the non-filer pool): spouses are one unit;
-# children attach to a parent under the qualifying-child tests; a related
-# subfamily whose head has no earnings, and low-income relatives who are not
-# self-supporting, become dependents of the householder. The frame is the
-# household population, as in the pool: people in group quarters (GQ 2) are
-# left out, and their weighted count is printed. With settings cps.tax_units = "cbo" the units are instead CBO's
-# rules (tax_units.py, read through tax_units_cbo.R) and the calibration is the one redone on those units
-# (cps.cbo_pool_dir); the default, "production", is the builder above.
+# Tax units. CBO's rules (tax_units.py, the shared tax-unit module, read
+# through tax_units_cbo.R), as step 1 built and calibrated them: the roster from
+# <step1_dir>/units/roster_<year>_<cps.cbo_variant>_nogq.csv.gz and step 1's
+# returns from <step1_dir>/<step1_out>/units_<year>.csv.gz (step1_returns
+# below; settings cps.step1_dir and cps.step1_out, both required). Step 1's
+# returns give the separate returns split from joint couples and each return's
+# filing status, statutory filing requirement and calibrated filing chance. A
+# year with no such file stops. The frame is the household population: people
+# in group quarters (GQ 2) are left out, and their weighted count is printed.
 #
-# Dependent filers. The builder also makes a scoring unit for every dependent
-# aged 15 and over (to score their own filing). Those rows are dropped here:
-# the dependent is counted once, in the n_dep of the unit that claims them, and
-# their own income goes nowhere (it belongs on their own return). A unit's
-# income is the primary filer's plus the spouse's, as in the builder.
+# Dependent filers. The unit table (production's build_asec_unit_table) also
+# makes a scoring row for every dependent aged 15 and over. Those rows are
+# dropped here: the dependent is counted once, in the n_dep of the unit that
+# claims them, and their own income goes nowhere (it belongs on their own
+# return). A unit's income is the primary filer's plus the spouse's.
 #
-# Filing. filer is drawn from the production filing model as the non-filer
-# pool applies it: Mok's probits below the filing threshold and the Pub 5785
-# hazard above it (score_filing_model), then the pool's calibration (script
-# 04: one intercept shift per age band of the primary filer and the wage
-# coefficient adjustment, read from nonfiler_pool/results/calibration_<year>.csv)
-# for units below the threshold.
-#
-# The calibration is a standard step here, not a file someone must have made
-# first. When a year has no calibration_<year>.csv, this script runs the pool's
-# own steps for that year, unchanged (nonfiler_pool/01_build_units.R,
-# 02_filing_model.R, 03_gq_backfill.R, 04_calibrate.R, each with the year as
-# its argument), which write their results where the pool keeps them, and then
-# reads the file as for any other year. There is one implementation of the
-# calibration: the pool's. A year whose inputs are missing stops with the list
-# of what is missing; nothing is built from the uncalibrated model. What a
-# year needs, beyond its ASEC and the thresholds in filing_requirement_params():
-#   - the national residual by age band: Census population adults by band less
-#     SOI filing adults by band (Pub 1304 Table 1.6), as
-#     nonfiler_residual/resources/nonfiler_age_shape_<year>.csv and
-#     nonfiler_residual/results/national_anchor_<year>.csv
-#     (nonfiler_residual/02_build_residual_anchors.R);
-#   - the Pub 1304 Table 1.6 workbook itself (returns_marital_age_<year>.xls,
-#     step 01's check of filing status counts);
-#   - the ASEC income totals of nonfiler_residual/09 (asec_A4_income_<year>.csv,
-#     step 01's check that wages are read the same way);
-#   - Pub 5785's count of non-filers above the filing threshold: published for
-#     2014-2016, otherwise a row of nonfiler_pool/results/
-#     pub5785_projected_targets.csv (nonfiler_pool/10_project_targets.R);
-#   - the ACS 1-year extract for that year (group quarters, step 03).
-# The ACS read in step 03 needs about 48 GB of memory. p_file is the
-# probability; filer = 1 when a uniform draw is below it (one draw per unit,
-# seeded by settings cps.filer_seed + the year, in record_id order). must_file
-# is the statutory filing requirement (add_filing_requirement).
+# Filing. p_file is step 1's calibrated probability (the training table's
+# filer_p, which training draws the filing flag from in every pass); filer = 1
+# when a uniform draw is below it (kept for the table's checks and reports,
+# which need a 0/1 value on every row) (one draw per unit, seeded by settings
+# cps.filer_seed + the year, in record_id order). must_file is step 1's
+# statutory filing requirement.
 #
 # Primary filer and spouse. Person 1 is the person the rebuild's rule makes the
 # primary filer before its one random step: in a mixed-sex couple the man, in a
@@ -110,7 +83,14 @@
 #     claims one of its children, to the unit of the SPM unit's reference
 #     person (the householder when in the SPM unit, else its lowest PERNUM).
 #     Each SPM unit's expenses are kept in full.
-# Not included: capital gains (INCCAPG exists only from tax year 2018).
+#     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); 0 in earlier years, which do not
+#                         ask it (the translation table's row for it says the same, settings "translation")
+#   mars: filing status as step 1's returns carry it, 1 single, 2 joint, 3 separate, 4 head of household
+#   n_ctc, n_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
+#     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_eitc counts them
+#     only when the unit is eligible for the EITC under the year's law (step 1's eitc_eligible), as the PUF's EIC
+#     counts children only on returns that get the credit
+#   eitc_eligible: 1 or 0, step 1's (calibrate.py)
 #
 # Paths and years from settings.json ("cps"); the settings file is
 # REBUILD_SETTINGS if set, else the pipeline's own; output to
@@ -119,9 +99,7 @@
 # cps_summary.csv (the printed totals per year). Run from the repository root
 # through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
 # hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
-# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335). The pool's steps, when this script
-# runs them, inherit the same R and library:
-#   sbatch build_cps.sbatch [years]   (in /nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps/logs/)
+# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.sbatch, stage cps.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)
@@ -136,59 +114,62 @@ YEARS = if (length(args)) as.integer(args) else as.integer(settings$cps$years)
 stopifnot(all(YEARS %in% settings$cps$years))
 
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
-source('src/nonfilers/asec_tax_units.R')
-source('src/nonfilers/filing_model.R')
-POOL_RES = 'research/state_weights/nonfiler_pool/results'
-# Which tax units (settings cps.tax_units): 'production' (the default; production's builder and the pool's own
-# calibration) or 'cbo' (CBO's rules from tax_units.py, read from the roster files in cps.cbo_units_dir, with the
-# calibration redone on those units in cps.cbo_pool_dir; see tax_units_cbo.R)
-TAX_UNITS = if (is.null(settings$cps$tax_units)) 'production' else settings$cps$tax_units
-stopifnot(TAX_UNITS %in% c('production', 'cbo'))
-if (TAX_UNITS == 'cbo') {
-  source('research/rebuild/pipeline/tax_units_cbo.R')
-  POOL_RES = settings$cps$cbo_pool_dir
-  cat(sprintf('tax units: CBO rules (variant %s), calibration from %s\n', settings$cps$cbo_variant, POOL_RES))
-}
-POOL_FILE = settings$paths$raw$nonfiler_pool
-mok = read_mok_coefs()
-POOL_DIR = 'research/state_weights/nonfiler_pool'
-RESID_DIR = 'research/state_weights/nonfiler_residual'
+source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table()
+source('research/rebuild/pipeline/tax_units_cbo.R')
+# step 1's folder (cps.step1_dir) and the folder of its returns inside it (cps.step1_out, e.g. out_rule_v4)
+STEP1 = settings$cps$step1_dir
+STEP1_OUT = settings$cps$step1_out
+if (is.null(STEP1) || is.null(STEP1_OUT)) stop('settings cps.step1_dir and cps.step1_out are required')
+cat(sprintf('tax units: step 1\'s CBO-rule units and calibrated chances (%s, %s)\n', STEP1, STEP1_OUT))
+step1_units_path = function(yr) file.path(STEP1, STEP1_OUT, sprintf('units_%d.csv.gz', yr))
 
-# The inputs the pool's steps 01-04 read for one tax year, beyond the ASEC.
-# Returns a description of each one that is missing (none: the year can be
-# calibrated).
-pool_inputs_missing = function(yr) {
-  files = c(
-    'non-filer age shape (population adults less SOI filing adults, by age band)' =
-      file.path(RESID_DIR, 'resources', sprintf('nonfiler_age_shape_%d.csv', yr)),
-    'national residual anchor' = file.path(RESID_DIR, 'results', sprintf('national_anchor_%d.csv', yr)),
-    'SOI Pub 1304 Table 1.6 workbook' =
-      file.path(raw_data_root(), 'IRS-Ind/national/by_size', sprintf('returns_marital_age_%d.xls', yr)),
-    'ASEC income totals of nonfiler_residual/09' =
-      file.path(RESID_DIR, 'results', sprintf('asec_A4_income_%d.csv', yr)),
-    'ACS 1-year extract' = file.path(acs_extract_dir(yr), sprintf('usa_%da.dat.gz', yr)))
-  miss = sprintf('%s (%s)', names(files), files)[!file.exists(files)]
-  projected = if (file.exists(PUB5785_PROJECTED_PATH)) fread(PUB5785_PROJECTED_PATH)$tax_year else integer(0)
-  if (!(yr %in% PUB5785_YEARS) && !(yr %in% projected))
-    miss = c(miss, sprintf('Pub 5785 target: not a published year (%s) and no row in %s',
-                           paste(range(PUB5785_YEARS), collapse = '-'), PUB5785_PROJECTED_PATH))
-  if (is.null(tryCatch(filing_requirement_params(yr), error = function(e) NULL)))
-    miss = c(miss, 'filing thresholds: no entry in filing_requirement_params()')
-  miss
-}
-
-# Run the pool's own steps 01-04 for one year (they write to POOL_DIR/results)
-run_pool_calibration = function(yr) {
-  miss = pool_inputs_missing(yr)
-  if (length(miss))
-    stop(sprintf('tax year %d has no pool calibration and cannot be calibrated; missing inputs:\n  %s',
-                 yr, paste(miss, collapse = '\n  ')))
-  for (s in c('01_build_units', '02_filing_model', '03_gq_backfill', '04_calibrate')) {
-    cat(sprintf('  running the pool\'s %s.R for %d\n', s, yr))
-    status = system2('Rscript', c(file.path(POOL_DIR, paste0(s, '.R')), yr))
-    if (status != 0) stop(sprintf('the pool\'s %s.R failed for %d (exit status %d)', s, yr, status))
+# Step 1's returns for one year, from the CBO-rule units cbo_tax_units() made from the roster. Step 1's units file
+# (calibrate.py: one row per return, separate returns included) gives each return's head (hh, head_pn), filing status,
+# calibrated chance (p_file_cal) and statutory requirement (must_file). A joint couple step 1 split into two separate
+# returns (couple_uid, person 1 and 2) becomes two units here: the head of return 2 leaves with nobody, return 1 keeps
+# the dependents (step 1's rule, dep_rule 'primary'). Unit ids stay SERIAL x 100 + the head's PERNUM. Every household
+# unit must match one return of step 1's file and the reverse, or the build stops.
+step1_returns = function(built, yr) {
+  su = fread(step1_units_path(yr))
+  need = c('hh', 'head_pn', 'couple_uid', 'person', 'filing_status', 'p_file_cal', 'must_file', 'n24', 'n_eitc',
+           'eitc_eligible', 'year')
+  stopifnot(all(need %in% names(su)), all(su$year == yr), !anyNA(su[, ..need]),
+            all(su$p_file_cal >= 0 & su$p_file_cal <= 1), all(su$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
+  su[, unit_id := as.numeric(hh) * 100 + head_pn]
+  stopifnot(!anyDuplicated(su$unit_id))
+  p = copy(built$persons)
+  sep = su[couple_uid != -1]
+  stopifnot(all(sep$filing_status == 'separate'), all(su[couple_uid == -1, filing_status] != 'separate'))
+  if (nrow(sep)) {
+    stopifnot(all(sep$couple_uid %in% p$unit_id), all(sep[, .N, by = couple_uid]$N == 2))
+    h = dcast(sep, couple_uid ~ person, value.var = 'head_pn')
+    setnames(h, c('1', '2'), c('h1', 'h2'))
+    p[h, on = c(unit_id = 'couple_uid'), `:=`(h1 = i.h1, h2 = i.h2)]
+    sp = !is.na(p$h1)
+    stopifnot(all(p[sp & role %in% c('primary', 'spouse'), PERNUM == h1 | PERNUM == h2]))
+    p[sp, `:=`(unit_id = as.numeric(SERIAL) * 100 + fifelse(PERNUM == h2, h2, h1),
+               role = fifelse(role == 'dependent', 'dependent', 'primary'))]
+    p[, c('h1', 'h2') := NULL]
+    cat(sprintf('  step 1\'s separate returns: %d couples split, %.2f m weighted couples\n',
+                uniqueN(sep$couple_uid), sep[person == 1, sum(weight)] / 1e6))
   }
+  chk = p[role == 'primary', .N, by = unit_id]
+  stopifnot(all(chk$N == 1), uniqueN(p$unit_id) == nrow(chk))
+  units = build_asec_unit_table(p, yr)
+  hh_ids = units[unit_type == 'nondependent', unit_id]
+  if (!setequal(hh_ids, su$unit_id))
+    stop(sprintf('step 1\'s returns and the units here differ: %d units with no return, %d returns with no unit',
+                 sum(!hh_ids %in% su$unit_id), sum(!su$unit_id %in% hh_ids)))
+  units[su, on = 'unit_id', `:=`(filing_status = i.filing_status, p_file_cal = i.p_file_cal,
+                                 must_file = as.logical(i.must_file), n24_step1 = i.n24, n_eitc_step1 = i.n_eitc,
+                                 eitc_eligible = as.logical(i.eitc_eligible))]
+  units[unit_type == 'dependent', `:=`(p_file_cal = NA_real_, must_file = NA)]   # scoring rows, dropped below
+  cat(sprintf('  step 1\'s calibrated chances: filers %.2f m of %.2f m household units\n',
+              units[unit_type == 'nondependent', sum(weight * p_file_cal)] / 1e6,
+              units[unit_type == 'nondependent', sum(weight)] / 1e6))
+  list(persons = p[], units = units)
 }
+POOL_FILE = settings$paths$raw$nonfiler_pool   # the old non-filer pool, for one comparison line in the summary
 
 report_na = function(df, label) {
   na = colSums(is.na(df))
@@ -206,14 +187,8 @@ summary_rows = list()
 
 for (yr in YEARS) {
   cat(sprintf('\n=== tax year %d (ASEC %d)\n', yr, yr + 1))
-  # The pool's calibration for this year; when there is none, the pool's own steps make it now
-  cal_path = file.path(POOL_RES, sprintf('calibration_%d.csv', yr))
-  if (!file.exists(cal_path) && TAX_UNITS == 'cbo')
-    stop(sprintf('no calibration of the CBO-rule units for %d (%s): run calibrate_cbo.R first', yr, cal_path))
-  if (!file.exists(cal_path)) {
-    cat(sprintf('  no pool calibration file for %d: running the pool\'s steps 01-04\n', yr))
-    run_pool_calibration(yr)
-  }
+  if (!file.exists(step1_units_path(yr)))
+    stop(sprintf('step 1 has no returns with calibrated filing chances for %d (%s)', yr, step1_units_path(yr)))
   x = read_asec(yr)
   ddi = attr(x, 'ddi')
   ret_cols = if (yr <= 2017) 'INCRETIR' else ASEC_RETIREMENT_COMPONENTS
@@ -223,6 +198,14 @@ for (yr in YEARS) {
   # Income concepts and the filing model's inputs, cleaned as the pool's driver (01_build_units.R) does
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
   x = add_asec_income_concepts(x, ddi)
+  # capital gains: asked from tax year 2018 only (the redesigned survey); earlier years do not have the item
+  if (yr >= 2018) {
+    stopifnot('INCCAPG' %in% names(x))
+    x[, capital_gains := clean_asec_income(x, ddi, 'INCCAPG')]
+  } else {
+    if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
+    x[, capital_gains := 0]   # not asked before tax year 2018: zero, as the translation table's row says
+  }
   x[, welfare_income   := clean_asec_income(x, ddi, 'INCWELFR')]
   x[, total_income     := clean_asec_income(x, ddi, 'INCTOT')]
   x[, foodstamp_amount := as.numeric(FOODSTAMP)]
@@ -239,54 +222,14 @@ for (yr in YEARS) {
               x[, sum(ASECWT)] / 1e6, gq_w / 1e6))
 
   #-----------------------------------------------------------------------------
-  # Units and the filing model (production code)
+  # Units, filing status and filing chances: step 1's
   #-----------------------------------------------------------------------------
-  built = if (TAX_UNITS == 'cbo') {
-    cbo_tax_units(x, yr, file.path(settings$cps$cbo_units_dir,
-                                   sprintf('roster_%d_%s_nogq.csv.gz', yr, settings$cps$cbo_variant)))
-  } else build_asec_tax_units(x, yr)
+  built = cbo_tax_units(x, yr, file.path(STEP1, 'units',
+                                         sprintf('roster_%d_%s_nogq.csv.gz', yr, settings$cps$cbo_variant)))
+  built = step1_returns(built, yr)
   p = built$persons
-  u = add_filing_requirement(built$units, yr)
-  u = add_mok_covariates(u, p)
-  tg = pub5785_targets_for_year(yr)
-  adj = pandemic_filing_adjustment(yr)
-  if (!is.null(adj)) cat('  pandemic hazard deflation applied (S20)\n')
-  u = score_filing_model(u, mok$coefs, tg, band_deflators = adj)
-  cat(sprintf('  Pub 5785 basis: %s\n', tg$basis))
-
-  # Reproduction check against the pool's committed scoring gates (before calibration)
-  gates_path = file.path(POOL_RES, sprintf('filing_model_gates_%d.csv', yr))
-  if (file.exists(gates_path)) {
-    g = fread(gates_path)
-    ours = u[, .(units_M = sum(weight) / 1e6, p_file = sum(weight * p_file) / sum(weight)), by = mok_group]
-    cmp = merge(g[, .(mok_group, pool_units_M = units_M, pool_p_file = p_file)], ours, by = 'mok_group')
-    cat('  filing model before calibration, by Mok group, against the pool\'s gates file:\n')
-    print(cmp[, .(mok_group, pool_units_M = round(pool_units_M, 3), units_M = round(units_M, 3),
-                  pool_p_file = round(pool_p_file, 4), p_file = round(p_file, 4))])
-    cat(sprintf('  largest gap: units %.2e m, p_file %.2e\n', max(abs(cmp$units_M - cmp$pool_units_M)),
-                max(abs(cmp$p_file - cmp$pool_p_file))))
-  }
-
-  # The pool's calibration (04_calibrate.R, central scenario) for units below the threshold. The file
-  # exists for every year by now: made at the top of this loop when it was missing.
-  stopifnot(file.exists(cal_path))
-  u[, band := as.character(age_band(age_head))]
-  u[, p_file_cal := p_file]
-  cal = fread(cal_path)[scenario == 'central']
-  stopifnot(nrow(cal) == 7, uniqueN(cal$gamma) == 1, !anyNA(cal$delta))
-  band_map = setNames(cal$delta, cal$band)
-  gam = cal$gamma[1]
-  u[unit_type == 'nondependent' & age_head >= 18 & must_file == FALSE,
-    p_file_cal := pnorm(qnorm(p_file_mok) + gam * src_wages + band_map[band])]
-  stopifnot(!anyNA(u$p_file_cal))
-  chk = u[unit_type == 'nondependent' & age_head >= 18,
-          .(pool = sum(weight * fifelse(filing_status == 'joint', 2, 1) * (1 - p_file_cal))), by = band]
-  chk = merge(chk, cal[, .(band, achieved, gq_nonfiling)], by = 'band')
-  cat(sprintf('  calibration applied (gamma %.3f); non-filing adults in household units by band against the pool\'s calibration file:\n', gam))
-  print(chk[, .(band, ours_M = round(pool / 1e6, 4), pool_M = round((achieved - gq_nonfiling) / 1e6, 4))])
-  # the units here are the pool's units, so the calibration must land on the pool's numbers (within one person)
-  stopifnot(nrow(chk) == 7, max(abs(chk$pool - (chk$achieved - chk$gq_nonfiling))) < 1)
-  calibrated = TRUE
+  u = built$units
+  calibrated = TRUE   # step 1's chances are calibrated (the summary's calibrated_filing_model)
 
   #-----------------------------------------------------------------------------
   # Persons 1 and 2 of each unit
@@ -320,7 +263,10 @@ for (yr in YEARS) {
   # Dependents
   #-----------------------------------------------------------------------------
   deps = p[role == 'dependent'][order(unit_id, AGE, PERNUM)]
+  stopifnot('is_qc' %in% names(deps), !anyNA(deps$is_qc))
+  # child credit children: qualifying children under 17; EITC children: qualifying children (tax_units.py's rule)
   dtab = deps[, .(n_dep_raw = .N, n13 = sum(AGE < 13), n6 = sum(AGE < 6),
+                  n_ctc_raw = sum(is_qc & AGE < 17), n_eitc_raw = sum(is_qc),
                   dep_age1 = as.numeric(AGE[1]), dep_age2 = if (.N >= 2) as.numeric(AGE[2]) else -1,
                   dep_age3 = if (.N >= 3) as.numeric(AGE[3]) else -1), by = unit_id]
   cat(sprintf('  dependents: %.2f m weighted (%.2f m aged 18+); units with more than 3: %d\n',
@@ -352,11 +298,17 @@ for (yr in YEARS) {
   #-----------------------------------------------------------------------------
   # Assemble
   #-----------------------------------------------------------------------------
-  out = units[, .(unit_id, SERIAL, weight, filing_status, must_file, p_file = p_file_cal,
+  # EITC eligibility under the tax year's law: step 1's (calibrate.py, eitc_eligible: earned income and AGI below
+  # the phase-out end for the number of children and filing status, investment income under the limit, the age
+  # range for no children, none on separate returns)
+  stopifnot(!anyNA(units$eitc_eligible))
+  units[, eitc_ok := as.integer(eitc_eligible)]
+  out = units[, .(unit_id, SERIAL, weight, filing_status, must_file, p_file = p_file_cal, eitc_ok,
                   wages = INCWAGE, sch_cf_income = se_income, interest = INCINT, dividends = INCDIVID,
                   ss_gross = INCSS, unemployment = INCUNEMP, retirement_income, rent_royalty_estate = INCRENT)]
   extra = p[role %in% c('primary', 'spouse'),
-            .(survivor_disability = sum(INCSURV + INCDISAB), other_income = sum(INCOTHER)), by = unit_id]
+            .(survivor_disability = sum(INCSURV + INCDISAB), other_income = sum(INCOTHER),
+              capital_gains = sum(capital_gains)), by = unit_id]
   out = merge(out, extra, by = 'unit_id', all.x = TRUE)
   out = merge(out, p1, by = 'unit_id', all.x = TRUE)
   out = merge(out, p2, by = 'unit_id', all.x = TRUE)
@@ -370,7 +322,9 @@ for (yr in YEARS) {
   out[, married := as.integer(filing_status == 'joint')]
   # not in universe: no spouse (person 2 zero, age -1, sex 0); no dependents (0, ages -1); no child care (0)
   out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0)]
-  out[is.na(n_dep_raw), `:=`(n_dep_raw = 0L, n13 = 0L, n6 = 0L, dep_age1 = -1, dep_age2 = -1, dep_age3 = -1)]
+  out[is.na(n_dep_raw), `:=`(n_dep_raw = 0L, n13 = 0L, n6 = 0L, n_ctc_raw = 0L, n_eitc_raw = 0L,
+                             dep_age1 = -1, dep_age2 = -1, dep_age3 = -1)]
+  stopifnot(all(out$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
   out[is.na(childcare), childcare := 0]
 
   # split sums: exact
@@ -383,15 +337,22 @@ for (yr in YEARS) {
   out = out[, .(year = yr, record_id = as.integer(unit_id), household_id = as.integer(SERIAL), weight,
                 married, n_dep = pmin(n_dep_raw, 3L), dep_filer = 0L,
                 head_of_household = as.integer(filing_status == 'hoh'),
+                mars = fcase(filing_status == 'single', 1L, filing_status == 'joint', 2L,
+                             filing_status == 'separate', 3L, filing_status == 'hoh', 4L),
+                # EITC children as the PUF's EIC means them: the qualifying children of a unit eligible for the
+                # credit (step 1's eligibility)
+                n_ctc = pmin(n_ctc_raw, 3L), n_eitc = pmin(n_eitc_raw, 3L) * eitc_ok,
+                eitc_eligible = eitc_ok,
                 filer = as.integer(draw < p_file), p_file, must_file = as.integer(must_file),
                 age1 = as.integer(age1), age2 = as.integer(age2), sex1 = as.integer(sex1), sex2 = as.integer(sex2),
                 male1 = as.integer(sex1 == 1), male2 = fifelse(married == 1, as.integer(sex2 == 1), -1L),
                 dep_age1 = as.integer(dep_age1), dep_age2 = as.integer(dep_age2), dep_age3 = as.integer(dep_age3),
                 n_dep_under13 = pmin(n13, 3L), n_dep_under6 = pmin(n6, 3L),
                 wages, sch_cf_income, interest, dividends, ss_gross, unemployment, retirement_income,
-                rent_royalty_estate, survivor_disability, other_income,
+                rent_royalty_estate, survivor_disability, other_income, capital_gains,
                 wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare)]
   stopifnot(!anyNA(out), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
+            all(out$n_eitc <= out$n_dep), all((out$mars == 2) == (out$married == 1)),
             all((out$dep_age1 >= 0) == (out$n_dep > 0)))
   fwrite(out, file.path(OUT, sprintf('cps_units_%d.csv.gz', yr)))
   cat(sprintf('  wrote %s\n', file.path(OUT, sprintf('cps_units_%d.csv.gz', yr))))
@@ -414,12 +375,21 @@ for (yr in YEARS) {
               sum(w * out$filer) / 1e6, sum(w * out$p_file) / 1e6, sum(w * (1 - out$filer)) / 1e6,
               sum(w * (1 - out$p_file)) / 1e6, if (is.na(pool_hh)) 'n/a' else sprintf('%.2f', pool_hh / 1e6)))
   cat(sprintf('  Census tax model (FILESTAT) simulated returns %.2f m, for comparison only\n', fs_returns / 1e6))
+  if (all(out$eitc_eligible >= 0)) {
+    ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
+                 eitc_children_expected_filers_m = sum(weight * p_file * n_eitc) / 1e6), by = .(children = n_eitc)]
+    setorder(ef, children)
+    cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
+                sum(out$weight * out$p_file * out$n_eitc) / 1e6))
+    print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
+    fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
+  }
   cat(sprintf('  units with person 1 under 18: %d rows, %.2f m weighted; dependents claimed, counted by the claiming unit\'s weight, capped at 3: %.2f m\n',
               sum(out$age1 < 18), sum(w[out$age1 < 18]) / 1e6, sum(w * out$n_dep) / 1e6))
   spm_total_spmwt = sum(spm$chx * spm$spmwt) / 1e9
   spm_total_refw = sum(spm$chx * spm$ref_w) / 1e9
   amounts = c('wages', 'sch_cf_income', 'interest', 'dividends', 'ss_gross', 'unemployment', 'retirement_income',
-              'rent_royalty_estate', 'survivor_disability', 'other_income', 'childcare')
+              'rent_royalty_estate', 'survivor_disability', 'other_income', 'capital_gains', 'childcare')
   tot = data.table(year = yr, item = amounts, billions = sapply(amounts, function(v) bn(w, out[[v]])),
                    recipients_m = sapply(amounts, function(v) sum(w * (out[[v]] != 0)) / 1e6))
   print(tot[, .(item, billions = round(billions, 1), recipients_m = round(recipients_m, 2))])

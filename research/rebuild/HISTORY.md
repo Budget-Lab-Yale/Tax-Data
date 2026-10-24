@@ -294,6 +294,63 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
   algorithm, the filing step kept separate, standing tests for every
   survey).
 
+### 23–24 October: the CPS as its own source, one tax-unit module, latest
+
+**Every source is its own label** (review of 23 October;
+`explore/2026-10-23/buildout/PLAN_v2.md`).
+- The PUF rows are filers only; the CPS rows are every CPS tax unit, each
+  with a filing chance. Training redraws the filing flag from that chance in
+  every pass.
+- Generation makes two batches: filers from the PUF label, non-filers from
+  the CPS label for the target year.
+- The fill-in mixes the two labels' answers by the counts of filers and
+  non-filers.
+
+**The filing rule** (step 1, `explore/2026-10-23/step1_units/`).
+- The CPS units come from CBO's rules: reassignment on, some couples split
+  into separate returns.
+- Mok's probits and the Pub 5785 hazard were dropped. In their place is a
+  rule whose settings are solved each year to fixed counts: non-filing
+  adults by age band (CPS adults less SOI adults on returns less dependents),
+  children, and Pub 5785's required non-filers.
+- **v2** had a flat non-filing rate among units required to file. It gave
+  non-filers $823bn of wages.
+- **v3** made the rate fall with income, matched to Pub 5785's income share.
+- **v4** added business income, matched to Pub 5785's share with business
+  income. Required non-filers in 2015, against Pub 5785:
+  - wages: 7.4m units and $250bn, against 6.9m and $232bn;
+  - business: 5.0m units and $109bn, against 5.0m and $100bn.
+
+**Reweighting targets by age** (`explore/2026-10-23/age_tilt/`,
+`nonfiler_tilt/`, `candidate/`).
+- Added: filer returns by the primary's age (SOI Table 1.6, joint and
+  non-joint) and people in non-filer units by age (step 1's numbers).
+- Both fought the CEX spending targets by age range. With everything on,
+  the tilt kept 73% of the effective sample.
+
+**Why: the surveys' tax units** (`explore/2026-10-24/spending_age/`,
+`scf_units/`).
+- The SCF had 143m units, because the builder dropped 23.6m financially
+  independent adults outside the PEU. It also had dependent faults.
+- The CEX had 152m units, because BLS makes 4.7m earning adults
+  dependents, and it has more married couples.
+- One module of CBO's rules now builds the units of all three surveys
+  (`TAX_UNITS.md`; `explore/2026-10-24/unified_units/`). The CPS's units
+  are unchanged, unit for unit.
+- The SCF and CEX each have about 163m units, against about 168m in the tax
+  data.
+- The consumption targets became averages by age range × married. John's
+  rule: no reweighting of a survey's mix; the model learns conditional
+  relationships, and weights come only at the end.
+
+**Tolerance on spending** (`explore/2026-10-24/cex_fidelity/`,
+`unified_run/`).
+- On the CEX's own units the model reproduces spending within the CEX's
+  sampling error, about 2–2.6% per cell. Exact cell targets were chasing
+  that noise: the tilt kept 42% of the effective sample.
+- A 5% band (free inside, a hard limit outside) keeps 96% with every other
+  target exact. That run became latest on 24 October.
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -315,5 +372,8 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
 | Tips first (22 October) | Earned by a person; the pipeline has only the unit's wages |
 | CEX training on one-tax-unit households only | They spend more per unit than the average tax unit (under 26: $30k against $24k); the file drew too much |
 | Consumption targets as totals | The two sources count different numbers of units; the tilt kept 72% of the effective sample |
+| Consumption targets by age range alone, with the age targets (23 October) | The CEX had more married couples and fewer, larger units than the tax data; the tilt cut 11,000 records to meet them (73% kept) |
+| A Gaussian tolerance of 5% on the spending cells (24 October) | Its penalty outweighed the tilt's own cost, so every cell still ended at 1.000 (71% kept); replaced by a hard 5% band |
+| Mok's filing probits and the Pub 5785 hazard for the CPS's non-filers | An outside model fitted to old data; replaced by a rule calibrated to counts each year (v2, then v3 and v4) |
 | Social Security plus pensions shared with the CEX | PUF total pensions include rollovers; 65+ spent 17% too much |
 | Post-training by changing the network instead of reweighting (22 October): fine-tuning to the targets by reward, by distribution matching (Khalifa and coauthors 2021), and distilling the tilted stack | Not viable or practical (John). For 2019 none met the targets without a final tilt, each moved as far from the pretrained model as the tilt or further, at 5–10 times the GPU time; untargeted tables the same as the tilt's. Distilling loses accuracy by itself (a copy of the untilted stack misses it by 5–7%, thin at the top of net worth), so it compounds over chained years. Post-training is reweighting. The distilled network is kept only as a query tool. Reports: `explore/2026-10-22/finetune_direct/`, `explore/2026-10-22/distill_machine/` |

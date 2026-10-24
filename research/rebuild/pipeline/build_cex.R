@@ -1,22 +1,33 @@
 #-------------------------------------------------------------------------------
 # build_cex.R: the CEX interview survey, survey years 2015, 2017, 2019, 2021,
-# 2023 and 2024, split into tax units, with each unit's income and its share of
-# the consumer unit's spending in the 8 PCE categories.
+# 2023 and 2024, in tax units, with each unit's income and its share of the
+# consumer unit's spending in the 8 PCE categories.
 #
-# Follows production's reader (src/cex.R, build_cex_training) with four
-# deliberate differences:
+# Tax units come from the shared rules (pipeline/tax_units.py, CBO's rules, the
+# same as the CPS and SCF), run by roster_cex.py on the CEX member files. That
+# script writes cex_persons_module_<year>.csv.gz to this script's data folder:
+# one row per person (NEWID, MEMBNO) with the return the person is on (ret_tu,
+# a number below 100 within the interview) and their role on it (1 primary
+# filer, 2 spouse, 3 dependent), the return's married and mfs flags, and
+# any_link_assumed (a child placed, or a couple paired, with no pointer in the
+# survey to say so). Run roster_cex.py first.
+#   - Every person in the consumer unit is on exactly one return.
+#   - Dependents who would file a return of their own stay people of the
+#     claiming unit: no separate rows, and their income stays with the unit.
+#     dep_filer is kept in the output, always 0.
+#   - Married couples drawn to file separately (roster_cex.py, to match SOI
+#     Table 1.6's separate returns) are two rows: person 1 with the dependents,
+#     and person 2. On those rows married is 0 and mfs is 1.
+#   - The primary filer (age1, male1) is the unit's head and age2/male2 its
+#     spouse; ages.py later picks which of a couple is primary.
+#
+# Follows production's reader (src/cex.R, build_cex_training) for income and
+# spending, with three deliberate differences:
 #   - nominal dollars of the survey year (production deflates to 2017);
 #   - each year's weights sum to that year's population (production divides
 #     by the number of years pooled);
 #   - every consumer unit is kept, with complete_income = 1 where BLS imputed
-#     none of the unit's income (FINCBTXI == 100); production keeps only those;
-#   - a dependent who has a tax unit of their own (a dependent filer) is
-#     counted in the claiming unit's n_dep, and their head count is added to
-#     the claiming unit's spending share; their own row is then dropped, and
-#     their own income goes nowhere (it belongs on their own return, which is
-#     not in this file). Production folds the person, income included, into
-#     the claiming unit. The consumer unit's interest, rent, pension and other
-#     unit-level income is split among the remaining units only.
+#     none of the unit's income (FINCBTXI == 100); production keeps only those.
 #
 # Sources. A survey year N uses five quarterly files of interviews: Q1, Q2,
 # Q3 and Q4 of N, and Q1 of N+1 (whose interviews still cover the last months
@@ -24,39 +35,21 @@
 # release holds Q2 of N to Q1 of N+1, so Q1 of N is read from the previous
 # release's folder (2021's 211 files from 2020/, and so on). Production's
 # read_cex reads only four files and so misses Q1 of N.
-# The member files (MEMI) give each person's tax unit (TAX_UNIT), role in it
-# (TU_CODE: 1 primary filer, 2 spouse, 3 dependent) and, for dependents, the
-# unit that claims them (TU_DPNDT; in some years it also names the person's
-# own unit for non-dependents, so a pointer counts as a claim only when it
-# names a different unit). Two repairs from production: a unit with no
-# primary filer gets the reference person as primary filer, and a unit holding
-# the reference person and his or her spouse but no TU_CODE 2 gets the spouse
-# as spouse. (Production applies the second repair even when the spouse sits
-# in a different unit; here it is applied only when the spouse shares the
-# reference person's unit.) BLS codes many reference persons and spouses,
-# mostly elderly couples, as dependents of their own unit; these repairs undo
-# that. One more repair, not in production: a unit still without a primary
-# filer gets its oldest member as primary filer. Mostly these are dependents
-# with a unit number of their own who are claimed by another unit (NTAXI gives
-# them FILESTAT 8 and computes their own tax): dependent filers, dep_filer = 1.
-# In 2024 they are mostly roommates and partners coded as dependents of their
-# own unit.
 #
 # Weights. FINLWT21 / 4 x MO_SCOPE / 3. MO_SCOPE is the number of the
 # interview's three reference months that fall in year N, so the five files
 # together represent the year's population once. Interviews with weight 0
 # (January interviews of N, which cover only months of N-1) are dropped.
 #
-# Ids. record_id = year x 1e10 + NEWID x 100 + tax unit number (one 2017 interview
-# has a unit 10), unique across all
+# Ids. record_id = year x 1e10 + NEWID x 100 + ret_tu, unique across all
 # files (the interviews of Q1 of N+1 sit in both year N's and year N+1's file).
 # household_id = NEWID %/% 10, the consumer unit across its interviews and years.
 #
 # Income, nominal annual dollars as reported (last 12 months).
-#   Member items, summed over the people attached to the unit (filer, spouse,
-#   dependents living in it): wages SALARYXM, se_income SEMPFRMM,
-#   social_security SOCRRXM, ssi SSIXM. A missing member item means BLS did
-#   not ask it (no such income) and is 0, as in production.
+#   Member items, summed over the people on the return (filer, spouse,
+#   dependents): wages SALARYXM, se_income SEMPFRMM, social_security SOCRRXM,
+#   ssi SSIXM. A missing member item means BLS did not ask it (no such income)
+#   and is 0, as in production.
 #   Consumer-unit items, split across the CU's tax units in proportion to each
 #   unit's positive member income, or equally when no unit has any (production's
 #   rule): int_div INTRDVXM, net_rent NETRENTM, pensions RETSURVM,
@@ -66,9 +59,9 @@
 # two parts of the three-month reference period) times 4, and the items map
 # to the 8 categories as in production. Each category is floored at 0 for the
 # consumer unit (refunds can make an item negative) and then split across tax
-# units by tu_share = tu_size / FAM_SIZE, where tu_size counts the people
-# attached to the unit. From the 2024 release (files 242 on) BLS renamed food
-# at home FDHOMECQ/PQ to GROCERCQ/PQ; GROCER is used in any file that has it.
+# units by tu_share = people on the return / FAM_SIZE. From the 2024 release
+# (files 242 on) BLS renamed food at home FDHOMECQ/PQ to GROCERCQ/PQ; GROCER is
+# used in any file that has it.
 #
 # Paths and years from settings.json ("paths": raw cex; "cex": years); the settings file is
 # REBUILD_SETTINGS if set (run.sbatch sets it), else the pipeline's own.
@@ -76,7 +69,7 @@
 # interview; cex_summary.csv (weighted totals beside NIPA PCE);
 # cex_items_by_year.csv (weighted total of every FMLI item used, by year);
 # cex_age_check_<target year>.csv (weighted units and spending by the primary
-# filer's age). Prints diagnostics: repairs, NA counts, the NTAXI comparison.
+# filer's age). Prints diagnostics: NA counts, units per consumer unit.
 # Run from the repository root through Slurm.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
@@ -101,7 +94,7 @@ year_files = function(prefix, year) {
 }
 
 # Reads a year's files. `need` columns must be in every file; `optional` ones are read where
-# present. A missing file stops the run, unless optional_files (NTAXI), where it is reported.
+# present. A missing file stops the run, unless optional_files, where it is reported.
 read_year = function(prefix, year, need, optional = character(0), optional_files = FALSE, ...) {
   paths = file.path(CEX_RAW, year_files(prefix, year))
   have = file.exists(paths)
@@ -155,103 +148,41 @@ report_na = function(df, label) {
 }
 
 #-------------------------------------------------------------------------------
-# Tax units from the member file
+# Tax units from the shared rules' person file (roster_cex.py): one row per
+# return, with its primary filer (role 1), spouse (role 2) and dependents
+# (role 3), all of whom are on it.
 #-------------------------------------------------------------------------------
 build_tax_units = function(year) {
-  memi = read_year('memi', year, c('NEWID', 'MEMBNO', 'AGE', 'SEX', 'CU_CODE', 'TAX_UNIT', 'TU_CODE', 'TU_DPNDT',
-                                    unname(MEMBER_INC)),
-                   colClasses = list(character = 'TU_DPNDT')) %>% select(-src)
-  cat(sprintf('\n=== %d: %d member rows, %d interviews\n', year, nrow(memi), n_distinct(memi$NEWID)))
-  report_na(memi, 'raw member file')
-  cat('  SEX, TU_CODE and CU_CODE values:\n')
-  print(table(memi$SEX, useNA = 'ifany')); print(table(memi$TU_CODE, useNA = 'ifany')); print(table(memi$CU_CODE, useNA = 'ifany'))
-  cat(sprintf('  oldest age %d\n', max(memi$AGE, na.rm = TRUE)))   # NA ages listed next
-  if (anyNA(memi$AGE)) { cat('  people with age missing:\n'); print(memi %>% filter(is.na(AGE))) }
-  stopifnot(!anyNA(memi[, c('NEWID', 'MEMBNO', 'SEX', 'CU_CODE', 'TAX_UNIT', 'TU_CODE')]),
-            all(memi$SEX %in% 1:2), all(memi$TU_CODE %in% 1:3), !anyDuplicated(memi[, c('NEWID', 'MEMBNO')]))
-  cat('  TU_DPNDT values:\n'); print(table(memi$TU_DPNDT, useNA = 'ifany'))
-
-  m = memi %>%
-    mutate(across(all_of(unname(MEMBER_INC)), ~ replace_na(.x, 0))) %>%
-    group_by(NEWID, TAX_UNIT) %>%
-    mutate(no_payer = !any(TU_CODE == 1), has_ref = any(CU_CODE == 1),
-           no_spouse = !any(TU_CODE == 2) & any(CU_CODE == 2)) %>%
-    ungroup() %>%
-    mutate(fix_payer  = no_payer & CU_CODE == 1,
-           fix_spouse = no_spouse & CU_CODE == 2 & has_ref & TU_CODE != 2,
-           prod_spouse_only = no_spouse & CU_CODE == 2 & !has_ref & TU_CODE != 2,
-           TU_CODE = case_when(fix_payer ~ 1L, fix_spouse ~ 2L, TRUE ~ as.integer(TU_CODE)))
-  cat(sprintf('  repairs: reference person made primary filer %d; spouse made spouse %d; production would also recode %d spouses in a unit without the reference person (not done here)\n',
-              sum(m$fix_payer), sum(m$fix_spouse), sum(m$prod_spouse_only)))
-
-  # A unit still without a primary filer (no reference person in it) gets its oldest member as
-  # primary filer. Two kinds: (a) a dependent listed in a unit of their own and claimed by another
-  # unit -- a dependent filer (NTAXI gives these units FILESTAT 8 and computes their own tax);
-  # (b) in 2024, a roommate or partner coded as a dependent of their own unit.
-  m = m %>%
-    mutate(claim = suppressWarnings(as.integer(TU_DPNDT)),
-           claimed_elsewhere = !is.na(claim) & claim != TAX_UNIT) %>%
-    group_by(NEWID, TAX_UNIT) %>%
-    mutate(fix_promote = !any(TU_CODE == 1) &
-             row_number() == order(-AGE, MEMBNO)[1]) %>%
-    ungroup() %>%
-    mutate(TU_CODE = if_else(fix_promote, 1L, TU_CODE))
-  cat('  oldest member made primary filer of a unit with none, by relationship (CU_CODE) and claimed by another unit:\n')
-  print(m %>% filter(fix_promote) %>% count(CU_CODE, claimed_elsewhere))
-
-  m = m %>%
-    mutate(# the unit the person is attached to: a dependent claimed by another unit moves to it
-           home_tu = if_else(TU_CODE == 3 & claimed_elsewhere, claim, as.integer(TAX_UNIT)),
-           # the unit that counts the person as a dependent (dependent filers included)
-           claimer_tu = case_when(TU_CODE == 3 ~ home_tu,
-                                  claimed_elsewhere ~ claim,
-                                  TRUE ~ NA_integer_))
-  repaired = m %>% filter(fix_payer | fix_spouse | fix_promote) %>% distinct(NEWID, home_tu) %>% mutate(repaired = TRUE)
-  stopifnot(all(is.na(m$TU_DPNDT) | m$TU_DPNDT %in% c('', 'B') | !is.na(m$claim)))
-  cat('  claimed by another unit, by role (1 filer, 2 spouse, 3 dependent):\n')
-  print(table(role = m$TU_CODE, claimed_elsewhere = m$claimed_elsewhere))
-
-  # Units: one per (interview, home unit). Each needs one primary filer.
-  heads = m %>% group_by(NEWID, home_tu) %>%
-    summarise(n_head = sum(TU_CODE == 1), n_spouse = sum(TU_CODE == 2), n = n(), .groups = 'drop')
-  cat('  units by number of primary filers and spouses:\n'); print(count(heads, n_head, n_spouse))
-  headless = heads %>% filter(n_head == 0)
-  if (nrow(headless) > 0) {
-    cat(sprintf('  %d units have no primary filer (%d people); their people:\n', nrow(headless), sum(headless$n)))
-    print(m %>% semi_join(headless, by = c('NEWID', 'home_tu')) %>%
-            count(CU_CODE, TU_CODE, TU_DPNDT, TAX_UNIT, home_tu))
-  }
-  # After the repairs every unit has exactly one primary filer, and every claim names a unit that exists.
-  units_ok = heads %>% filter(n_head == 1)
-  dangling = m %>% filter(!is.na(claimer_tu)) %>% anti_join(units_ok, by = c('NEWID', 'claimer_tu' = 'home_tu'))
-  cat(sprintf('  dependents whose claiming unit has no primary filer or does not exist: %d\n', nrow(dangling)))
-  stopifnot(all(heads$n_head == 1), all(heads$n_spouse <= 1), nrow(dangling) == 0)
-
-  head_tbl = m %>% filter(TU_CODE == 1) %>%
-    transmute(NEWID, home_tu, age1 = AGE, male1 = as.integer(SEX == 1), cu_code1 = CU_CODE,
-              dep_filer = as.integer(claimed_elsewhere), claim_tu = if_else(claimed_elsewhere, claim, NA_integer_))
-  spouse_tbl = m %>% filter(TU_CODE == 2) %>%
-    transmute(NEWID, home_tu, age2 = AGE, male2 = as.integer(SEX == 1), spouse_claimed = claimed_elsewhere)
-  cat(sprintf('  spouses claimed as dependents by another unit: %d\n', sum(spouse_tbl$spouse_claimed)))
-  deps = m %>% filter(!is.na(claimer_tu)) %>% count(NEWID, claimer_tu, name = 'n_dep')
-  inc = m %>% group_by(NEWID, home_tu) %>%
+  memi = read_year('memi', year, c('NEWID', 'MEMBNO', 'AGE', 'SEX', 'CU_CODE', unname(MEMBER_INC))) %>% select(-src) %>%
+    mutate(across(all_of(unname(MEMBER_INC)), ~ replace_na(.x, 0)))     # not asked: no such income
+  mod = fread(file.path(OUT, sprintf('cex_persons_module_%d.csv.gz', year))) %>% as_tibble()
+  # the person file holds the interviews with weight > 0 only; the others are dropped below in any case
+  m = memi %>% inner_join(mod, by = c('NEWID', 'MEMBNO'))
+  cat(sprintf('\n=== %d: %d member rows, %d in the shared rules\' person file, %d matched\n', year, nrow(memi),
+              nrow(mod), nrow(m)))
+  # AGE may be missing (BLS's '.'; seven children in 2015): they are dependents, and only primary filers' and
+  # spouses' ages are used
+  stopifnot(nrow(m) == nrow(mod), !anyNA(m %>% select(-AGE)), !anyNA(m$AGE[m$role != 3]))
+  heads = m %>% group_by(NEWID, ret_tu) %>% summarise(n_head = sum(role == 1), n_spouse = sum(role == 2), .groups = 'drop')
+  stopifnot(all(heads$n_head == 1), all(heads$n_spouse <= 1))
+  head_tbl = m %>% filter(role == 1) %>%
+    transmute(NEWID, home_tu = ret_tu, age1 = AGE, male1 = as.integer(SEX == 1), cu_code1 = CU_CODE,
+              married_mod = married, mfs, any_link_assumed)
+  spouse_tbl = m %>% filter(role == 2) %>% transmute(NEWID, home_tu = ret_tu, age2 = AGE, male2 = as.integer(SEX == 1))
+  deps = m %>% filter(role == 3) %>% count(NEWID, home_tu = ret_tu, name = 'n_dep')
+  inc = m %>% group_by(NEWID, home_tu = ret_tu) %>%
     summarise(tu_size = n(), across(all_of(unname(MEMBER_INC)), sum), .groups = 'drop')
   names(inc)[match(MEMBER_INC, names(inc))] = names(MEMBER_INC)
-
   tu = head_tbl %>%
-    left_join(spouse_tbl %>% select(-spouse_claimed), by = c('NEWID', 'home_tu')) %>%
-    left_join(deps, by = c('NEWID', 'home_tu' = 'claimer_tu')) %>%
+    left_join(spouse_tbl, by = c('NEWID', 'home_tu')) %>%
+    left_join(deps, by = c('NEWID', 'home_tu')) %>%
     left_join(inc, by = c('NEWID', 'home_tu')) %>%
     mutate(n_dep = replace_na(n_dep, 0L),          # no one claimed: 0 dependents
            married = as.integer(!is.na(age2))) %>%
-    left_join(repaired, by = c('NEWID', 'home_tu')) %>%
-    mutate(repaired = replace_na(repaired, FALSE)) %>%   # no member recoded
-    group_by(NEWID) %>% mutate(cu_members = sum(tu_size), n_tu_cu = n(),
-                               has_ref_unit = any(cu_code1 == 1)) %>% ungroup()
-  stopifnot(nrow(tu) == nrow(units_ok), !anyNA(tu$tu_size))
-  cat(sprintf('  interviews whose reference person does not head a unit: %d\n',
-              n_distinct(tu$NEWID[!tu$has_ref_unit])))
-  list(tu = tu, members = m)
+    group_by(NEWID) %>% mutate(cu_members = sum(tu_size), n_tu_cu = n()) %>% ungroup()
+  stopifnot(all(tu$married == tu$married_mod), !anyNA(tu$tu_size))
+  cat(sprintf('  units %d (separate returns %d)\n', nrow(tu), sum(tu$mfs)))
+  list(tu = tu %>% select(-married_mod), members = m)
 }
 
 #-------------------------------------------------------------------------------
@@ -333,21 +264,6 @@ for (year in YEARS) {
   cat(sprintf('  interviews where the people attached to units differ from FAM_SIZE: %d\n', nrow(size_gap)))
   if (nrow(size_gap) > 0) print(count(size_gap, gap = FAM_SIZE - cu_members))
 
-  # Dependent filers: their head count joins the claiming unit's spending share and their row is
-  # dropped. Their own income is not moved.
-  dfil = units %>% filter(dep_filer == 1)
-  add = dfil %>% group_by(NEWID, home_tu = claim_tu) %>% summarise(df_size = sum(tu_size), n_df = n(), .groups = 'drop')
-  stopifnot(!anyNA(dfil$claim_tu),
-            nrow(semi_join(add, dfil, by = c('NEWID', 'home_tu'))) == 0,          # no claimant is itself a dependent filer
-            nrow(anti_join(add, units, by = c('NEWID', 'home_tu'))) == 0)         # every claimant exists
-  cat(sprintf('  dependent filers folded into their claiming unit: %d rows, %.2f m weighted; their own wages dropped %.1f bn\n',
-              nrow(dfil), sum(dfil$weight) / 1e6, sum(dfil$weight * dfil$wages) / 1e9))
-  units = units %>% filter(dep_filer == 0) %>%
-    left_join(add, by = c('NEWID', 'home_tu')) %>%
-    mutate(df_size = replace_na(df_size, 0L), n_df = replace_na(n_df, 0L)) %>%   # 0: claims no dependent filer
-    group_by(NEWID) %>% mutate(n_tu_cu = n()) %>% ungroup()
-  stopifnot(all(units$n_dep >= units$n_df), sum(units$n_df) == nrow(dfil))
-
   units = units %>%
     group_by(NEWID) %>%
     mutate(
@@ -355,7 +271,8 @@ for (year in YEARS) {
            inc_share = if_else(cu_member_inc > 0, pmax(wages + se_income + social_security + ssi, 0) / cu_member_inc,
                                1 / n())) %>%
     ungroup() %>%
-    mutate(tu_share = (tu_size + df_size) / FAM_SIZE,
+    mutate(tu_share = tu_size / FAM_SIZE,
+           dep_filer = 0L,             # dependents who file stay people of the claiming unit
            one_tu = as.integer(n_tu_cu == 1),
            complete_income = as.integer(FINCBTXI == 100),
            year = year,
@@ -372,7 +289,7 @@ for (year in YEARS) {
 
   out = units %>%
     transmute(year, record_id, household_id, newid, weight,
-              married, n_dep, age1, male1, age2, male2, dep_filer,
+              married, mfs, n_dep, age1, male1, age2, male2, dep_filer, any_link_assumed,
               n_tu_cu, one_tu, tu_share, complete_income,
               wages, se_income, social_security, ssi,
               int_div, net_rent, pensions, other_regular, roy_est,
@@ -410,8 +327,8 @@ for (year in YEARS) {
   cuw = cu$weight
   cat(sprintf('\n  SUMMARY %d: interviews %d, consumer units (CUID) %d, unit rows %d\n', year,
               n_distinct(out$newid), n_distinct(out$household_id), nrow(out)))
-  cat(sprintf('  weighted consumer units %.2f m; weighted tax units %.2f m; dependent filers %.2f m; married %.2f m\n',
-              sum(cuw) / 1e6, sum(w) / 1e6, sum(w * out$dep_filer) / 1e6, sum(w * out$married) / 1e6))
+  cat(sprintf('  weighted consumer units %.2f m; weighted tax units %.2f m; separate returns %.2f m; married %.2f m\n',
+              sum(cuw) / 1e6, sum(w) / 1e6, sum(w * out$mfs) / 1e6, sum(w * out$married) / 1e6))
   one = out %>% distinct(newid, weight, one_tu)
   cat(sprintf('  share of CU weight in one-unit CUs %.3f; share of unit rows in one-unit CUs %.3f; of weighted units %.3f\n',
               sum(one$weight * one$one_tu) / sum(one$weight), mean(out$one_tu), sum(w * out$one_tu) / sum(w)))
@@ -421,7 +338,7 @@ for (year in YEARS) {
   # who heads the second and later units in multi-unit CUs
   rel = units %>% filter(n_tu_cu > 1, cu_code1 != 1) %>%
     mutate(rel = REL[as.character(cu_code1)]) %>%
-    group_by(rel) %>% summarise(rows = n(), weighted_m = sum(weight) / 1e6, dep_filer = sum(weight * dep_filer) / 1e6) %>%
+    group_by(rel) %>% summarise(rows = n(), weighted_m = sum(weight) / 1e6) %>%
     mutate(share = weighted_m / sum(weighted_m)) %>% arrange(desc(weighted_m))
   cat('  heads of units other than the reference person\'s unit, by relationship to the reference person (millions):\n')
   print(rel)
@@ -444,45 +361,6 @@ for (year in YEARS) {
     mutate(cex_over_pce = cex_billions / pce_billions)
   print(row, n = 50)
   summary_rows[[as.character(year)]] = row
-
-  #-----------------------------------------------------------------------------
-  # NTAXI comparison (2023 only: the only release with the tax-unit file)
-  #-----------------------------------------------------------------------------
-  cat('\n  NTAXI comparison\n')
-  ntaxi = read_year('ntaxi', year, c('NEWID', 'TAX_UNIT', 'DEPCNT', 'FILESTAT'), optional = c('AGE_TP', 'AGE_SP'),
-                    optional_files = TRUE)
-  if (nrow(ntaxi) > 0) {
-    for (v in c('AGE_TP', 'AGE_SP')) if (!(v %in% names(ntaxi))) ntaxi[[v]] = NA_integer_   # not in the 2015-2017 files
-    stopifnot(!anyDuplicated(ntaxi[, c('NEWID', 'TAX_UNIT')]))
-    # compare only interviews that have NTAXI records (whole quarterly files can be missing)
-    ours = tu %>% filter(NEWID %in% ntaxi$NEWID) %>%
-      transmute(NEWID, TAX_UNIT = home_tu, n_dep, married, age1, age2, dep_filer, repaired)
-    cat(sprintf('  NTAXI %d: files %s; %d units in NTAXI, %d built here for the same interviews; FILESTAT:\n', year,
-                paste(unique(ntaxi$src), collapse = ' '), nrow(ntaxi), nrow(ours)))
-    print(table(ntaxi$FILESTAT, useNA = 'ifany'))
-    both = inner_join(ours, ntaxi, by = c('NEWID', 'TAX_UNIT'))
-    cat(sprintf('  matched on interview and unit number: %d; ours only %d; NTAXI only %d\n', nrow(both),
-                nrow(anti_join(ours, ntaxi, by = c('NEWID', 'TAX_UNIT'))),
-                nrow(anti_join(ntaxi, ours, by = c('NEWID', 'TAX_UNIT')))))
-    cat(sprintf('  agreement: dependents %.3f; married (FILESTAT 2) %.3f; primary age %.3f; spouse age (joint) %.3f\n',
-                mean(both$n_dep == both$DEPCNT), mean(both$married == (both$FILESTAT == 2)),
-                mean(both$age1 == both$AGE_TP),
-                mean((both$age2 == both$AGE_SP)[both$married == 1 & both$FILESTAT == 2])))   # NaN/NA where NTAXI has no ages
-    nr = both %>% filter(!repaired)
-    cat(sprintf('  units with no recoded member: %d; dependents agree on %.3f of them; married %.3f\n', nrow(nr),
-                mean(nr$n_dep == nr$DEPCNT), mean(nr$married == (nr$FILESTAT == 2))))
-    cat('  dependent count agreement by whether a member was recoded:\n')
-    print(both %>% group_by(repaired) %>% summarise(units = n(), agree = mean(n_dep == DEPCNT)))
-    cat('  dependent filers (ours) by NTAXI FILESTAT:\n'); print(count(both, dep_filer, FILESTAT))
-    cnt = full_join(count(ours, NEWID, name = 'ours'), count(ntaxi, NEWID, name = 'ntaxi'), by = 'NEWID')
-    cat(sprintf('  units per interview agree: %.3f of %d interviews\n',
-                mean(cnt$ours == cnt$ntaxi, na.rm = FALSE), nrow(cnt)))
-    print(count(cnt, ours, ntaxi) %>% filter(is.na(ours) | is.na(ntaxi) | ours != ntaxi))
-    cat('  dependent count disagreements (ours, NTAXI):\n')
-    print(both %>% filter(n_dep != DEPCNT) %>% count(n_dep, DEPCNT, sort = TRUE) %>% head(10))
-    cat('  married disagreements (ours, FILESTAT):\n')
-    print(both %>% filter(married != (FILESTAT == 2)) %>% count(married, FILESTAT, sort = TRUE))
-  }
 }
 
 items = bind_rows(item_rows)

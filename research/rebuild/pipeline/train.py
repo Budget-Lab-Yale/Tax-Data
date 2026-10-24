@@ -21,6 +21,18 @@ Age range (ages.py). PUF records with no range carry step 0's probabilities;
 a range is drawn from them for every training record at the start of each
 pass, and once for the held-back ones.
 
+The filing flag (step 2). PUF rows are filers (filer = 1). On CPS rows the
+flag is drawn from the unit's filing chance (filer_p) for every training
+record at the start of each pass, and once for the held-back ones, the same
+pattern as the age range.
+
+The CPS's shares (model.gate_shares; settings "training",
+shares_shown_with_their_base). The spouse's share of the couple's wages (of
+its self-employment income) is left out of a record whenever married or the
+share's base is hidden, so its presence never tells the network what those
+hidden slots hold. Generation needs this to draw non-filers' married flag and
+amounts under the CPS label.
+
 Precision of the training steps (settings "training", precision): fp32,
 standard 32-bit; tf32, large matrix multiplications at TF32's reduced internal
 precision, storage 32-bit; bf16, the forward pass under autocast in bfloat16,
@@ -47,6 +59,7 @@ import model as M
 S = common.SETTINGS['translation']
 T = dict(common.SETTINGS['training'], passes=common.PASSES)
 PRECISION = T.get('precision', 'fp32')
+GATE_SHARES = bool(T.get('shares_shown_with_their_base', True))
 assert PRECISION in ('fp32', 'tf32', 'bf16'), PRECISION
 C, P = len(M.CONTEXT), M.PREDICTED
 
@@ -65,7 +78,9 @@ def encode(part, device):
     band of each mapped item (on SCF rows the PUF-concept slot starts as a copy of it)."""
     d = M.encode(part, device)
     age_rows, age_probs = M.age_draws(part, device)
+    filer_rows, filer_p = M.filer_draws(part, device)
     return dict(values=d['values'], weight=d['weight'], age_rows=age_rows, age_probs=age_probs,
+                filer_rows=filer_rows, filer_p=filer_p,
                 **{src: torch.tensor((part['source'] == src).to_numpy(), device=device) for src in M.SOURCES},
                 rep_band={v: d['values'][:, C + P.index(v)].clone() for v in fillin.MAPPED})
 
@@ -88,6 +103,17 @@ def main():
         if len(d['age_rows']):
             d['values'][d['age_rows'], j_age] = torch.multinomial(d['age_probs'], 1, generator=gen).squeeze(1)
     draw_ages(te)
+    j_filer = C + P.index('filer')
+
+    def draw_filers(d):
+        """The filing flag of every CPS record, from its filing chance."""
+        if len(d['filer_rows']):
+            d['values'][d['filer_rows'], j_filer] = torch.bernoulli(d['filer_p'], generator=gen).long()
+    draw_filers(te)
+    draw_filers(tr)
+
+    def gate(values, hidden, slots):
+        return M.gate_shares(values, hidden, slots) if GATE_SHARES else (values, hidden)
 
     model = M.new_model(device)
     fill = fillin.FillIn(model, tr, train_rows, gen)
@@ -119,7 +145,7 @@ def main():
             for src in M.SOURCES:
                 r = te[src].nonzero().squeeze(1)
                 sl = M.SOURCE_SLOTS[src]
-                vals, hid = M.pack(te['values'][r], h[r], sl)
+                vals, hid = gate(*M.pack(te['values'][r], h[r], sl), sl)
                 ch = M.safe_chunk(vals.shape[1])
                 sums = [M.masked_sums(model, vals[i:i + ch], te['weight'][r][i:i + ch], hid[i:i + ch], sl)
                         for i in range(0, len(vals), ch)]
@@ -175,6 +201,7 @@ def main():
         plan = batches(gen)
         tot = 0.0
         draw_ages(tr)
+        draw_filers(tr)
         filling = epoch >= S['fill_from_pass']
         if filling:
             fill.refit(epoch)
@@ -185,9 +212,9 @@ def main():
             if filling:
                 fill.draw(idx)
             values, weight = tr['values'][idx][:, M.slot_tensor(slots, device)], tr['weight'][idx]
+            values, hidden = gate(values, M.draw_hidden(values, gen), slots)
             with autocast():
-                loss = M.masked_loss(model, values, weight, M.draw_hidden(values, gen), slots,
-                                     denominator=len(idx) * per_record)
+                loss = M.masked_loss(model, values, weight, hidden, slots, denominator=len(idx) * per_record)
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -213,7 +240,7 @@ def main():
             log_variables(epoch)
     pd.DataFrame(log).to_csv(os.path.join(common.MODEL, 'train_log.csv'), index=False)
     M.save_model(model, os.path.join(common.MODEL, 'model.pt'))
-    meta = dict(seed=common.SEED, settings=common.SETTINGS, precision=PRECISION, gpu=gpu,
+    meta = dict(seed=common.SEED, settings=common.SETTINGS, precision=PRECISION, shares_gated=GATE_SHARES, gpu=gpu,
                 node=os.environ.get('SLURMD_NODENAME'), job=os.environ.get('SLURM_JOB_ID'),
                 minutes=(time.time() - began) / 60, last_held_back_loss=log[-1]['held_back_loss'],
                 rows=table.groupby(['source', 'year', 'split']).size().to_dict().__repr__())

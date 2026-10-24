@@ -27,8 +27,8 @@ Every stage runs through Slurm, from the repository root:
 
 | Stage | Script | What it does | Time |
 |---|---|---|---|
-| scf | `build_scf.R` | SCF waves split into tax units (the production builder) | minutes |
-| cex | `build_cex.R` | CEX survey years split into tax units, with their spending | about a minute |
+| scf | `roster_scf.py`, `build_scf.R` | SCF waves split into tax units by the shared rules (`tax_units.py`), with their income and balance sheet | minutes |
+| cex | `roster_cex.py`, `build_cex.R` | CEX survey years split into tax units by the shared rules, with their spending | a few minutes |
 | cps | `build_cps.R` | CPS ASEC tax years split into tax units, with each person's items and childcare | minutes |
 | targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | table | `build_table.py` | the training table, its bands, and the dollar maps | about 2 minutes |

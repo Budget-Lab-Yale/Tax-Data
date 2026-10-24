@@ -13,10 +13,23 @@ size range, from the reporting-rate formula:
   report_probs_by_type (B_k)  C_k averaged over SCF units of the same type: the
                            survey year and the table's type_for_fill_in
                            variables (married, dependents and the wage band);
-  puf_probs_by_range (A_k) the PUF concept given the type only (PUF label, the
-                           PUF year), over the PUF's units other than dependent
-                           filers: the item given the type and each adult age
-                           range, mixed by the model's chance of that range;
+  puf_probs_by_range (A_k) the tax data's share given the type only: the
+                           count-weighted average of the filers' share and the
+                           non-filers' share (step 2, 23 October; the law of
+                           total probability),
+                             A_k = (N_f A_k(filers) + N_n A_k(non-filers)) / (N_f + N_n),
+                           N_f and N_n the filers and non-filers of the type in
+                           the tax data for the survey year (build_table.py,
+                           tax_data; data/tax_data_<year>.parquet). Filers: PUF
+                           label, the PUF year, over the PUF's units other than
+                           dependent filers: the item given the type and each
+                           adult age range, mixed by the model's chance of that
+                           range. Non-filers: CPS label, the CPS year nearest the
+                           survey year, the filing flag 0, everything else but
+                           the type hidden; an item the CPS does not measure
+                           (interest, from 23 October) has no non-filer holder,
+                           as generation gives non-filers none. A type with no unit in the tax data
+                           takes the filers' share alone (counted in the log);
   excess (e_k)             max(A_k / B_k - 1, 0): how many more holders the PUF
                            has than the survey reports, per reporter;
   hidden (h_k)             C_k * e_k / C_0, capped at 100% in total.
@@ -26,8 +39,12 @@ a holder's chance of reporting depends only on its type and true amount, not
 on anything else on the record.
 
 Writes common.MODEL/fill_log.csv: per pass and item, the share with none as
-reported, after the fill-in and on the PUF at the SCF's types (the PUF-year
-wave), and the share of zero-reporters capped. report_translation.py calls
+reported, after the fill-in, in the tax data at the SCF's types (the mixed
+share) and among filers only (the PUF label alone, the share before step 2),
+all on the PUF-year wave; the share of zero-reporters capped; the largest gap
+from 1 of the mixed shares' sum over size ranges in any type (the law of total
+probability check); and fill_types.csv, the last refit's shares of none by
+type (filers, non-filers, mixed) with the type's two counts. report_translation.py calls
 refit() on a trained model for the report's stage after function 2.
 """
 import math
@@ -47,6 +64,7 @@ MAPPED = list(ROWS)
 TYPE = TR.fill_type()                             # the type the formula conditions on, with the survey year
 C = len(M.CONTEXT)
 P = M.PREDICTED
+CPS_YEARS = [y for y in common.SETTINGS['cps']['years'] if y in M.YEARS]
 RANGES = {v: [(-math.inf if lo is None else lo, math.inf if hi is None else hi) for lo, hi in r['fill_in']['size_ranges']]
           for v, r in ROWS.items()}
 
@@ -54,6 +72,63 @@ RANGES = {v: [(-math.inf if lo is None else lo, math.inf if hi is None else hi) 
 def in_range(x, lo, hi):
     """Small positive ranges are (0, hi); every other range is [lo, hi)."""
     return 0 < x < hi if lo == 0 else lo <= x < hi
+
+
+def nearest_cps_year(y):
+    """The CPS year nearest survey year y (the earlier of two equally near), as build_table.translate_surveys reads it."""
+    return min(CPS_YEARS, key=lambda c: (abs(c - y), c))
+
+
+def band_on_edge(x, edge, first_positive):
+    """Bands of dollars x on an edge record's cut points (build_table.band_variable with fixed cut points)."""
+    b = np.zeros(len(x), dtype=np.int64)
+    neg, pos = x < 0, x > 0
+    if neg.any():
+        b[neg] = 1 + np.searchsorted(np.array(edge['negative']['cuts']), x[neg], side='left')
+    if pos.any():
+        b[pos] = first_positive + np.searchsorted(np.array(edge['positive']['cuts']), x[pos], side='left')
+    return b
+
+
+def type_keys(df, survey, y, banded):
+    """The fill-in's type columns of df (one survey year): categories as they are; an amount as its band, read from
+    the band column if banded, else put on the survey year's cut points from its dollars."""
+    out = {}
+    for v in TYPE:
+        if v in M.CATEGORICAL:
+            out[v] = df[v].to_numpy(np.int64)
+        elif banded:
+            out[v] = df[v + '_band'].to_numpy(np.int64)
+        else:
+            out[v] = band_on_edge(df[v].to_numpy(float), common.edges()[f'{survey}/{y}/{v}'],
+                                  M.BAND_LAYOUT[v]['first_positive'])
+    return pd.DataFrame(out)
+
+
+def tax_data_counts(scf):
+    """Per SCF row (scf: the SCF training rows): the filers and the non-filers of its type in the tax data for its
+    survey year."""
+    n_f, n_n = np.zeros(len(scf)), np.zeros(len(scf))
+    for y in sorted(scf['year'].unique()):
+        sel = (scf['year'] == y).to_numpy()
+        d = scf[sel]
+        own = type_keys(d, 'scf', y, banded=True)
+        for v in TYPE:   # the bands put on the cut points from the dollars must be the table's own
+            if v not in M.CATEGORICAL:
+                again = type_keys(d, 'scf', y, banded=False)[v].to_numpy()
+                assert (again == own[v].to_numpy()).all(), f'{v}: bands from the cut points differ from the table\'s'
+        T = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
+        assert T['filer'].isin([0, 1]).all() and (T['weight'] >= 0).all()
+        tk = type_keys(T, 'scf', y, banded=False)
+        tk['filer'], tk['weight'] = T['filer'].to_numpy(), T['weight'].to_numpy(float)
+        counts = tk.groupby(TYPE + ['filer'])['weight'].sum().unstack('filer', fill_value=0.0)
+        m = own.merge(counts, left_on=TYPE, right_index=True, how='left').fillna(0.0)
+        n_f[sel] = m[1].to_numpy() if 1 in m else 0.0
+        n_n[sel] = m[0].to_numpy() if 0 in m else 0.0
+        common.say(f'  fill-in tax data {y}: {T.loc[T.filer == 1, "weight"].sum() / 1e6:.2f}M filers, '
+                   f'{T.loc[T.filer == 0, "weight"].sum() / 1e6:.2f}M non-filers; SCF units in a type with no tax-data '
+                   f'unit {100 * d.weight[(n_f[sel] + n_n[sel]) == 0].sum() / d.weight.sum():.2f}%')
+    return n_f, n_n
 
 
 def range_of_band(v):
@@ -93,6 +168,14 @@ class FillIn:
         self.n_types = int(self.type_of.max()) + 1
         self.weight = tr['weight'][self.scf_rows].double()
         self.puf_year_wave = torch.tensor(train_rows['year'].to_numpy() == common.PUF_YEAR, device=device)[self.scf_rows]
+        scf = train_rows[(train_rows['source'] == 'scf').to_numpy()]
+        n_f, n_n = tax_data_counts(scf)
+        self.n_filer = torch.tensor(n_f, dtype=torch.float64, device=device)
+        self.n_nonfiler = torch.tensor(n_n, dtype=torch.float64, device=device)
+        self.cps_year = torch.tensor([M.YEARS.index(nearest_cps_year(int(y))) for y in scf['year']], device=device)
+        t_np = self.type_of.cpu().numpy()
+        first = pd.Series(np.arange(len(t_np))).groupby(t_np).first()     # one SCF row of each type, for the log
+        self.type_labels = scf[keys].iloc[first.to_numpy()].reset_index(drop=True).assign(type=first.index.to_numpy())
         self.chunk = M.safe_chunk(len(M.SLOTS))   # the full width: safe for the source widths too
         self.dist, self.log = {}, []
 
@@ -110,10 +193,39 @@ class FillIn:
                 hid[:, j] = sl not in TYPE
         return v, hid
 
+    def cps_view(self, vals, cps_year):
+        """SCF records as the CPS would see a non-filer with only its type known: CPS label, the nearest CPS year, every
+        slot the CPS lacks absent, the filing flag 0, every other slot but the type's hidden (the shares present only
+        where married and the base are shown, as in training: model.share_presence)."""
+        v = vals.clone()
+        v[:, 0], v[:, 1] = M.SOURCES.index('cps'), cps_year
+        hid = torch.zeros(len(v), len(P), dtype=torch.bool, device=self.device)
+        for j, sl in enumerate(P):
+            if 'cps' not in M.PRESENT_ON[sl]:
+                v[:, C + j] = -1
+            else:
+                v[:, C + j] = v[:, C + j].clamp(min=0)
+                hid[:, j] = sl not in TYPE and sl != 'filer'
+        v[:, C + P.index('filer')] = 0
+        return M.share_presence(v, hid)
+
+    def nonfiler_probs_by_band(self, vals, cps_year):
+        """A by band among non-filers, for every mapped item: CPS label, filing flag 0, given the type only."""
+        lp = M.log_probs_as(self.model, *self.cps_view(vals, cps_year), 'cps')
+        out = {}
+        for v in MAPPED:
+            if 'cps' in M.PRESENT_ON[v]:
+                out[v] = lp(self.slot[v])[:, :self.n_bands[v]].exp().double()
+            else:   # an item the CPS does not measure is zero for every non-filer, as generation draws them
+                out[v] = torch.zeros(len(vals), self.n_bands[v], dtype=torch.float64, device=self.device)
+                out[v][:, 0] = 1.0
+        return out
+
     def puf_probs_by_band(self, vals):
-        """A by band, for every mapped item: the PUF concept given the type only, over the PUF's units other than
-        dependent filers (which are not tax units in any comparison with a survey): the model's chance of each adult
-        age range given the type, rescaled to sum to one, times the item's distribution given the type and range."""
+        """A by band, for every mapped item, among filers: the PUF concept given the type only, over the PUF's units
+        other than dependent filers (which are not tax units in any comparison with a survey): the model's chance of
+        each adult age range given the type, rescaled to sum to one, times the item's distribution given the type and
+        range."""
         va, ha = self.type_view(vals)
         j_age = P.index('age_range')
         age = M.log_probs_as(self.model, va, ha, 'puf')(j_age)[:, :common.ADULT_RANGES].exp().double()
@@ -146,18 +258,37 @@ class FillIn:
         """Each SCF record's fill-in distribution over the PUF-concept bands of each mapped item (see the top)."""
         self.model.eval()
         a_bands, c_ranges = {v: [] for v in MAPPED}, {v: [] for v in MAPPED}
+        filer_ranges, nonfiler_ranges = {v: [] for v in MAPPED}, {v: [] for v in MAPPED}
+        nf, nn = self.n_filer, self.n_nonfiler
+        none_in_tax_data = (nf + nn) == 0                               # such a type takes the filers' share alone
+        share_f = torch.where(none_in_tax_data, 1.0, nf / (nf + nn).clamp_min(1e-30))
         for a in range(0, len(self.scf_rows), self.chunk):
-            vals = self.tr['values'][self.scf_rows[a:a + self.chunk]]
+            rows = slice(a, a + self.chunk)
+            vals = self.tr['values'][self.scf_rows[rows]]
             puf = self.puf_probs_by_band(vals)
+            non = self.nonfiler_probs_by_band(vals, self.cps_year[rows])
             for v in MAPPED:
-                a_bands[v].append(puf[v])
+                a_bands[v].append(share_f[rows, None] * puf[v] + (1 - share_f[rows, None]) * non[v])
+                filer_ranges[v].append(self.by_range(puf[v], v))
+                nonfiler_ranges[v].append(self.by_range(non[v], v))
                 c_ranges[v].append(self.by_range(self.report_probs_by_band(vals, v), v))
         w, t = self.weight, self.type_of
+        type_rows = []
         for v in MAPPED:
             K = self.n_ranges[v]
             puf_probs_by_band = torch.cat(a_bands[v])
             report_probs = torch.cat(c_ranges[v])
             puf_probs_by_range = self.by_range(puf_probs_by_band, v)
+            filers_by_range, nonfilers_by_range = torch.cat(filer_ranges[v]), torch.cat(nonfiler_ranges[v])
+            # the law of total probability: within each type, the mixed shares over the size ranges sum to one
+            per_type = lambda x: (torch.zeros(self.n_types, x.shape[1], dtype=torch.float64, device=self.device)
+                                  .index_add_(0, t, w[:, None] * x)
+                                  / torch.zeros(self.n_types, dtype=torch.float64, device=self.device)
+                                  .index_add_(0, t, w).clamp_min(1e-30)[:, None])
+            mixed_t, filers_t, nonfilers_t = per_type(puf_probs_by_range), per_type(filers_by_range), per_type(nonfilers_by_range)
+            seen = torch.zeros(self.n_types, dtype=torch.bool, device=self.device)
+            seen[t] = True
+            sum_gap = float((mixed_t[seen].sum(1) - 1).abs().max())
             num = torch.zeros(self.n_types, K, dtype=torch.float64, device=self.device).index_add_(0, t, w[:, None] * report_probs)
             den = torch.zeros(self.n_types, dtype=torch.float64, device=self.device).index_add_(0, t, w)
             report_probs_by_type = num[t] / den[t][:, None]
@@ -175,12 +306,28 @@ class FillIn:
             row = {'pass': epoch, 'item': v,
                    'none, reported (%)': 100 * wm(zero.double(), m),
                    'none, after fill (%)': 100 * wm(torch.where(zero, 1 - hidden.sum(1), torch.zeros_like(hidden_total)), m),
-                   'none, PUF at SCF types (%)': 100 * wm(puf_probs_by_range[:, 0], m),
+                   'none, tax data at SCF types (%)': 100 * wm(puf_probs_by_range[:, 0], m),
+                   'none, PUF at SCF types (%)': 100 * wm(filers_by_range[:, 0], m),
+                   'none, CPS non-filers at SCF types (%)': 100 * wm(nonfilers_by_range[:, 0], m),
+                   'non-filers in the tax data at SCF types (%)': 100 * wm(1 - share_f, m),
+                   'SCF units in a type with no tax-data unit (%)': 100 * wm(none_in_tax_data.double(), m),
+                   'largest gap from 1, sum of mixed shares in a type': sum_gap,
                    'zero-reporters over 100% (%)': 100 * wm((hidden_total > 1).double(), m & zero)}
+            n_type = lambda x: torch.zeros(self.n_types, dtype=torch.float64, device=self.device).index_add_(0, t, x) \
+                / torch.zeros(self.n_types, dtype=torch.float64, device=self.device).index_add_(0, t, torch.ones_like(x))
+            lab = self.type_labels
+            type_rows.append(lab.assign(item=v, filers_in_tax_data=n_type(nf).cpu().numpy()[lab.type],
+                                        nonfilers_in_tax_data=n_type(nn).cpu().numpy()[lab.type],
+                                        none_filers=filers_t[lab.type.to_numpy(), 0].cpu().numpy(),
+                                        none_nonfilers=nonfilers_t[lab.type.to_numpy(), 0].cpu().numpy(),
+                                        none_mixed=mixed_t[lab.type.to_numpy(), 0].cpu().numpy(),
+                                        sum_mixed=mixed_t[lab.type.to_numpy()].sum(1).cpu().numpy()))
             self.log.append(row)
             common.say('  fill ' + '  '.join(f'{k} {x:.2f}' if isinstance(x, float) else f'{k} {x}' for k, x in row.items()))
         if write_log:
             pd.DataFrame(self.log).to_csv(os.path.join(common.MODEL, 'fill_log.csv'), index=False)
+            pd.concat(type_rows, ignore_index=True).assign(**{'pass': epoch}) \
+                .to_csv(os.path.join(common.MODEL, 'fill_types.csv'), index=False)
         self.model.train()
 
     @torch.no_grad()
