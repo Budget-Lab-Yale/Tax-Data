@@ -80,7 +80,27 @@ untouched records are scaled. The last run is the one kept. Items drawn
 later condition on earlier ones, so a run's own figures are reported and
 written to consistency.csv: what is left of the excess after the last run.
 
-The filer batch is a stack of four parts of 100,000 records. Each part oversamples
+The filer batch by strata (settings "generation", design "strata"; TARGETS.md S4). The network has learned three
+labels (build_table.strata_labels): on the PUF the AGI class (AGI zero or negative; below p90; p90-99; p99-99.9;
+p99.9-99.99; p99.99 and over, by weighted rank among the PUF year's returns) and the business flag (Schedule C, a
+partnership or S corporation part, or farm income nonzero); on the SCF the net worth class (below p90; p90-99;
+p99-99.9; p99.9 and over). The settings give the records drawn in each of the 12 AGI class x business strata
+(generation.strata.records), each model drawing an equal share of every stratum. Each record starts with its AGI
+class and business flag set; everything else is drawn as above. In the SCF phase the net worth class is drawn first
+(the balance sheet given it), each class's chance multiplied by its boost (nw_boost) and the draw corrected by p / q,
+the model's chance over the boosted one. A record's weight is the model's own chance of its stratum (its
+first-step probabilities under the PUF label at the PUF year: the AGI class with nothing known, then the business
+flag given the class) over the stratum's share of the sample, times p / q. The labels are checked, not trusted
+(label_check): the record's AGI is computed from its drawn parts and its net worth from its drawn balance sheet, in
+dollars as dollars.py draws them from the PUF year's maps, and put on the labels' own cut points; the business flag
+from its parts' bands. A record whose computed AGI class, business flag or net worth class differs from its label is
+dropped. The share dropped in each stratum is written to strata_check.csv and folded into the weights within each
+net worth class of the stratum: the kept records of a class carry the sum of p / q of all its draws. Each model's
+filer weights are then scaled to sum to its share of the batch's records. Design "unstratified" draws the labels
+like any item, first, with no boost and every weight equal (a check on the strata: same model, no design). The
+four top-1% parts, the pilot and the AGI thinning below are design "top_parts", kept for comparison.
+
+Design "top_parts", from before S4: the filer batch is a stack of four parts of 100,000 records. Each part oversamples
 the top 1% of one variable: that variable is drawn first, from the model
 with nothing else known, with the bands covering the top 1% of its positive
 weight drawn ten times as often (for an SCF-only slot: drawn in its usual
@@ -93,11 +113,48 @@ CPS's expected non-filers in the target year (the sum of weight x (1 -
 filer_p)) over SOI's returns for that year, so the stack's weights carry the
 two batches in their real proportion (the tilt sets their levels).
 
+Several trained models pooled (TARGETS.md section 8; settings "generation",
+models). Every part above is drawn in equal shares from each model: with two
+models, each draws 50,000 records of each filer part and half the non-filer
+batch, so the stack has as many records as from one model. Each model's
+records in a part carry an equal share of the part's weight, so in each batch
+(filers, non-filers) every model carries the same share of the weight. Each
+model has its own draws: its seed_shift is added to every generation seed
+(the parts' and the non-filers'), so its draws are reproducible and differ
+from the other models'. Each record says which model drew it (column model,
+the network's training seed). Record ids are unique across models: model k
+in the list (counting from 0) has the ids from k x 10,000,000. The offset
+below is found for each model on its own records, since it brings each
+model's holders back to that model's own expected holders.
+
+Oversampling by rough AGI (settings "generation", agi_oversampling; TARGETS.md,
+"The method stays reweighting"). In each filer part the batch's own items
+(steps 1 and 2) are drawn for a pilot of pilot_factor times the part's
+records, exactly as above. Each pilot record gets a rough AGI: the sum, with
+AGI's signs (dollars.py), of the average target-year dollars of the dollar
+map's records in each of its AGI parts' bands (wages, interest, dividends,
+the four capital gains pieces, the drawn remainder of other AGI, the
+eighteen business parts and the other items folded into AGI). Every pilot
+record at or above the line is kept; among the rest a simple random sample,
+without replacement, fills the part to its usual number of records. Only the
+kept records are finished (steps 3 to 6). Given the pilot, a record's chance
+of being kept is known exactly: 1 at or above the line, else the sample's
+size over the pilot records below the line. Its weight is divided by that
+chance, so the weights undo the thinning exactly, as p / q undoes the boost.
+The pilot draws are today's draws, so the distribution the stack represents
+does not change; only where its records lie does. The non-filer batch is
+not thinned.
+
 Writes common.GEN/stack.parquet (one row per record: the band of every slot,
-weight, stratifier, p_band, q_band) and common.GEN/consistency.csv (per run
-and ruled holding: the model's own expected holders, the holders with the
-rules, the factor used and the next one).
+weight, stratifier, p_band, q_band, model, p_keep (its chance of being kept
+from the pilot, 1 when not thinned), agi_proxy (its rough AGI), record_id)
+and, under the strata designs, the labels and the label check: agi_class, business, nw_class, agi_check and nw_check
+(PUF-year dollars), their classes and label_ok), common.GEN/strata_check.csv (design "strata": per model and stratum,
+the model's chance of it, records drawn and kept, the share dropped and why) and common.GEN/consistency.csv (per run, model and ruled holding: the
+model's own expected holders, the holders with the rules, the factor used
+and the next one).
 """
+import json
 import os
 
 import numpy as np
@@ -149,6 +206,31 @@ POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
 STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_ctc, n_eitc)
 MARS, MARRIED, AGE_RANGE = P.index('mars'), P.index('married'), P.index('age_range')
+# The trained models pooled (see the top): each a run under OUT/model and the shift added to its generation seeds.
+# null: the run's own model (common.MODEL) alone, with today's seeds.
+MODELS = G.get('models', [{'run': 'seed20261016', 'seed_shift': 0}, {'run': 'seed20261017', 'seed_shift': 1000}])
+# Oversampling by rough AGI (see the top): pilot_factor pilot records per kept record, and the line in target-year
+# dollars at and above which every pilot record is kept. null: no oversampling.
+THIN = G.get('agi_oversampling', {'pilot_factor': 12, 'line': 1e6})
+ID_BLOCK = 10_000_000                       # model k's record ids start at k x ID_BLOCK
+# The filer batch's design (settings "generation", design; see the top): 'strata' (TARGETS.md S4), 'top_parts' (the
+# four top-1% parts of before S4, with the AGI thinning if agi_oversampling is set; needs the models trained before
+# S4 and settings strata_labels null) or 'unstratified' (nothing preset, no boost: a check on the strata).
+# A settings file from before S4 has no design and its four parts under "strata".
+DESIGN = G.get('design', 'top_parts')
+assert DESIGN in ('strata', 'top_parts', 'unstratified'), DESIGN
+TOP_PARTS = G.get('top_parts', G.get('strata') if DESIGN == 'top_parts' else None)
+assert DESIGN == 'top_parts' or M.STRATA, 'the strata designs need the table with the strata labels (strata_labels)'
+assert DESIGN != 'strata' or THIN is None, 'the strata design replaces the AGI thinning: agi_oversampling null'
+
+
+def filer_records():
+    """The filer batch's records over all models: the strata's, the unstratified draw's, or the four parts'."""
+    if DESIGN == 'strata':
+        return int(sum(n for _, _, n in strata_cells()))
+    if DESIGN == 'unstratified':
+        return int(G['unstratified_records'])
+    return G['records_per_file'] * len(TOP_PARTS)
 
 
 def cps_expected_nonfilers(year):
@@ -206,11 +288,68 @@ def computed_band(values, gen, total):
     return band
 
 
+# ---- rough AGI ---------------------------------------------------------------------
+# AGI's parts as dollars.py adds them up: wages, interest, dividends, the Schedule D net (kg_st + kg_lt + kg_other),
+# and other AGI, which is the drawn remainder plus kg_dist plus the items folded back in (business income as the
+# signed sum of its eighteen parts). Each is a slot drawn in the batch's own phase.
+FOLD = common.meta()['agi_signs']
+AGI_PROXY = {v: 1 for v in ['wages', 'interest', 'dividends', 'kg_st', 'kg_lt', 'kg_other', 'kg_dist', 'other_agi']}
+for _item, _sign in FOLD.items():
+    for _part, _s in (COMPUTED[_item].items() if _item in COMPUTED else [(_item, 1)]):
+        AGI_PROXY[_part] = AGI_PROXY.get(_part, 0) + _sign * _s
+assert all(v in PUF_SLOTS for v in AGI_PROXY), [v for v in AGI_PROXY if v not in PUF_SLOTS]
+_band_dollars = {}
+
+
+def band_dollars(device):
+    """{AGI part: [bands] the average dollars of the target-year dollar map's records in each band} (dollars.py's map,
+    each record by its weight); NaN for a band the map lacks."""
+    if not _band_dollars:
+        m = pd.read_parquet(f'{common.MAPS}/map_puf_{common.TARGET_YEAR}.parquet',
+                            columns=['variable', 'band', 'value', 'weight'])
+        m = m[m.variable.isin(list(AGI_PROXY))]
+        for v, g in m.groupby('variable'):
+            tab = np.full(M.N_CHOICES[v], np.nan)
+            avg = (g['value'] * g['weight']).groupby(g['band']).sum() / g['weight'].groupby(g['band']).sum()
+            tab[avg.index.to_numpy(int)] = avg.to_numpy(float)
+            _band_dollars[v] = torch.tensor(tab, dtype=torch.float64, device=device)
+        assert set(_band_dollars) == set(AGI_PROXY), set(AGI_PROXY) - set(_band_dollars)
+    return _band_dollars
+
+
+def rough_agi(values):
+    """Each record's rough AGI in target-year dollars: its AGI parts at their bands' average dollars (see the top)."""
+    tabs = band_dollars(values.device)
+    s = torch.zeros(len(values), dtype=torch.float64, device=values.device)
+    for v, sign in AGI_PROXY.items():
+        b = values[:, NC + P.index(v)]
+        assert (b >= 0).all(), f'{v} not drawn before the rough AGI'
+        s += float(sign) * tabs[v][b]
+    assert not torch.isnan(s).any(), 'a record in a band the dollar map lacks'
+    return s
+
+
+def thin_pilot(proxy, n, line, seed):
+    """Which pilot records are kept, n in all: every one whose rough AGI is at or above the line, and a simple random
+    sample without replacement of the rest; and each kept record's chance of being kept given the pilot."""
+    top, rest = np.flatnonzero(proxy >= line), np.flatnonzero(proxy < line)
+    m = n - len(top)
+    assert 0 < m <= len(rest), (f'{len(top):,} pilot records at or above the line, room for {n:,}: '
+                                f'lower the pilot factor or raise the line')
+    kept = np.sort(np.r_[top, np.random.default_rng([seed, 1]).choice(rest, m, replace=False)])
+    p_keep = np.where(proxy[kept] >= line, 1.0, m / len(rest))
+    common.say(f'    pilot {len(proxy):,}: {len(top):,} at or above ${line:,.0f} of rough AGI, all kept; '
+               f'{m:,} of the other {len(rest):,} kept (chance {m / len(rest):.4f})')
+    return kept, p_keep
+
+
 # ---- rules on a draw -------------------------------------------------------------
 def scf_order(size, gen):
-    """A random order of the SCF-only slots per record, each ratio slot moved after its base."""
-    scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
-    perm = scf[torch.rand(size, len(scf), generator=gen).argsort(1)]
+    """A random order of the SCF-only slots per record, each ratio slot moved after its base; the net worth class
+    (S4) first, so the balance sheet is drawn given it."""
+    labels = torch.tensor([P.index(v) for v in M.SCF_LABELS], dtype=torch.long)
+    scf = torch.tensor([P.index(v) for v in SCF_SLOTS if v not in M.SCF_LABELS])
+    perm = torch.cat([labels.expand(size, -1), scf[torch.rand(size, len(scf), generator=gen).argsort(1)]], 1)
     rows = torch.arange(size)
     for slot, (_, base) in M.RATIOS.items():
         if slot not in SCF_SLOTS:
@@ -396,10 +535,9 @@ class Chunk:
         """Draw slot from probs (boosted at the boost's variable), and record it."""
         draw_from, boosted = probs, None
         if self.boost is not None:
-            var, bands, factor = self.boost
+            var, multipliers = self.boost
             boosted = slot == P.index(var)
-            q = probs.clone()
-            q[:, torch.as_tensor(bands, device=probs.device)] *= factor
+            q = probs * torch.as_tensor(multipliers, dtype=probs.dtype, device=probs.device)[None, :]
             draw_from = torch.where(boosted[:, None], q / q.sum(1, keepdim=True), probs)
         draw = torch.multinomial(draw_from, 1, generator=self.gen).squeeze(1)
         if boosted is not None and boosted.any():
@@ -428,6 +566,13 @@ class Chunk:
         for flag, flag_parts in FLAGS.items():
             v[:, NC + P.index(flag)] = torch.stack([v[:, NC + P.index(p)] != 0 for p in flag_parts], 1).any(1).long()
             self.filled[:, P.index(flag)] = True
+        return self.after_totals()
+
+    def after_totals(self):
+        """compute_totals' bookkeeping, which depends only on the values drawn so far (so it can be run again, on the
+        records kept from a pilot): the rules each record triggers, the survey slots made present, the CPS shares'
+        records with no question. Returns the rule counts."""
+        v = self.values
         dep = dependent(v)
         for r in range(len(RULES)):
             self.triggered[:, r] = (v[:, NC + RULE_ITEMS[r].to(v.device)] != 0).any(1) & ~dep
@@ -477,19 +622,30 @@ class Chunk:
 
 
 @torch.no_grad()
-def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000, label='puf', year=None, filer=1):
+def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000, label='puf', year=None, filer=1,
+             thin=None, cache=None, cache_key=None):
     """n PUF-style records, and how many records each consistency rule applies to. label, year: the batch's label and
     year for its own items (default the PUF at the PUF year); filer: the batch's filing flag, set before anything is
-    drawn. preset: {variable: n bands} set before anything is drawn. boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at
+    drawn. preset: {variable: bands, one per record drawn (the pilot's records when thinned)} set before anything is
+    drawn. boost: (variable, bands, factor), drawn from q (p with those bands multiplied) at
     its turn; that draw's p and q are returned as p_band, q_band. factors: {ruled holding: factor on its odds of
-    being nonzero}. For each ruled holding the table also carries the model's own chance it is nonzero
+    being nonzero}. thin: None, or (pilot, line): the batch's own items drawn for pilot records, n of them kept by
+    their rough AGI (thin_pilot) and only those finished (see the top). The table carries each record's row in the
+    pilot (pilot_row; its own row when not thinned), its chance of being kept (p_keep) and its rough AGI (agi_proxy).
+    cache, cache_key: a dict kept across the offset's runs, and this part's key in it. The pilot draws only the batch's
+    own items, which the offset's factors do not touch, so every run draws the same pilot: the first run stores the
+    kept records and the random generator's state after the pilot, and later runs start from them, with the same
+    result in a fraction of the time.
+    For each ruled holding the table also carries the model's own chance it is nonzero
     (_own_<v>) and whether a rule forced it (_forced_<v>)."""
     preset, factors = dict(preset or {}), factors or {}
-    preset['filer'] = torch.full((n,), filer, dtype=torch.long)
+    n_draw = n if thin is None else int(thin[0])
+    assert thin is None or label == 'puf', 'only the filer batch is thinned'
+    preset['filer'] = torch.full((n_draw,), filer, dtype=torch.long)
     if label != 'puf':
         # a PUF amount the batch's source does not measure (John, 23 October: interest on the CPS) is zero on every
         # record of the batch, nothing drawn for it; a category must be there
-        lacking = [v for v in PUF_SLOTS if label not in M.PRESENT_ON[v] and v not in preset]
+        lacking = [v for v in PUF_SLOTS if label not in M.PRESENT_ON[v] and v not in preset and v not in M.PUF_LABELS]
         assert all(v in M.AMOUNTS for v in lacking), f'the {label} label lacks PUF categories: {lacking}'
         for v in lacking:
             preset[v] = torch.zeros(n, dtype=torch.long)
@@ -498,31 +654,32 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
     device = next(model.parameters()).device
     cpu_gen = torch.Generator().manual_seed(seed)                  # the orders
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
+    # the strata labels (S4) first, in their fixed order (the AGI class, then the business flag), unless preset; on the
+    # PUF label only (the other sources do not have them: absent on those records)
+    labels = torch.tensor([P.index(v) for v in M.PUF_LABELS if v not in preset and label == 'puf'], dtype=torch.long)
     first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
     then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
-    rest = torch.tensor([P.index(v) for v in PUF_SLOTS
-                         if v not in preset and v not in TYPE_SLOTS and v not in STATUS_SLOTS], dtype=torch.long)
-    own = torch.cat([first, then, rest])
+    rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
+                         and v not in STATUS_SLOTS and v not in M.PUF_LABELS], dtype=torch.long)
+    own = torch.cat([labels, first, then, rest])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
     cps = torch.tensor([P.index(v) for v in CPS_SLOTS])
     age = torch.tensor([P.index(v) for v in AGE_SLOTS])
     n_own, n_age, n_scf, n_cex = len(own), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS)
     rule_counts = {r['name']: 0 for r in RULES}
-    parts = []
-    for start in range(0, n, chunk):
-        size = min(chunk, n - start)
-        order = torch.cat([first[torch.rand(size, len(first), generator=cpu_gen).argsort(1)],
-                           then.expand(size, -1),
-                           rest[torch.rand(size, len(rest), generator=cpu_gen).argsort(1)],
-                           age[torch.rand(size, len(age), generator=cpu_gen).argsort(1)],
-                           scf_order(size, cpu_gen),
-                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
-                           cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)]], 1).to(device)
-        d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen, label, year)
-        for step in range(n_own):
-            d.puf_step(order[:, step])
-        for name, count in d.compute_totals().items():
-            rule_counts[name] += count
+
+    def orders(size):
+        return torch.cat([labels.expand(size, -1),
+                          first[torch.rand(size, len(first), generator=cpu_gen).argsort(1)],
+                          then.expand(size, -1),
+                          rest[torch.rand(size, len(rest), generator=cpu_gen).argsort(1)],
+                          age[torch.rand(size, len(age), generator=cpu_gen).argsort(1)],
+                          scf_order(size, cpu_gen),
+                          cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
+                          cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)]], 1).to(device)
+
+    def finish(d, order):
+        """Steps 3 to 6 on a chunk whose own items and totals are drawn."""
         k = n_own
         for step in range(k, k + n_age):
             d.survey_step(order[:, step], 'cps', CPS_YEAR)
@@ -536,7 +693,53 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
         for step in range(k, order.shape[1]):
             d.survey_step(order[:, step], 'cps', CPS_YEAR)
         d.finish()
-        parts.append((d.values.cpu(), d.p_drawn.cpu(), d.q_drawn.cpu(), d.own_chance.cpu(), d.forced.cpu()))
+        return d.values.cpu(), d.p_drawn.cpu(), d.q_drawn.cpu(), d.own_chance.cpu(), d.forced.cpu()
+
+    parts, proxy = [], []
+    if thin is None:                  # every record drawn is kept: steps 1 to 6 chunk by chunk
+        for start in range(0, n, chunk):
+            size = min(chunk, n - start)
+            order = orders(size)
+            d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen, label, year)
+            for step in range(n_own):
+                d.puf_step(order[:, step])
+            for name, count in d.compute_totals().items():
+                rule_counts[name] += count
+            proxy.append(rough_agi(d.values).cpu())
+            parts.append(finish(d, order))
+        kept, p_keep, proxy = np.arange(n), np.ones(n), torch.cat(proxy).numpy()
+    else:                             # the pilot: steps 1 and 2; then the kept records finished
+        pilot, line = int(thin[0]), float(thin[1])
+        if cache is not None and cache_key in cache:
+            values, filled, ords, proxy, kept, p_keep, state = cache[cache_key]
+            gpu_gen.set_state(state)
+        else:
+            values, filled, ords = [], [], []
+            for start in range(0, pilot, chunk):
+                size = min(chunk, pilot - start)
+                order = orders(size)
+                d = Chunk(model, size, order, preset, start, factors, boost, gpu_gen, label, year)
+                for step in range(n_own):
+                    d.puf_step(order[:, step])
+                d.compute_totals()
+                proxy.append(rough_agi(d.values).cpu())
+                values.append(d.values.cpu()), filled.append(d.filled.cpu()), ords.append(order.cpu())
+                del d
+            proxy = torch.cat(proxy).numpy()
+            kept, p_keep = thin_pilot(proxy, n, line, seed)
+            rows = torch.as_tensor(kept)                            # only the kept records are needed from here
+            values, filled, ords = torch.cat(values)[rows], torch.cat(filled)[rows], torch.cat(ords)[rows]
+            proxy = proxy[kept]
+            if cache is not None:
+                cache[cache_key] = (values, filled, ords, proxy, kept, p_keep, gpu_gen.get_state())
+        for start in range(0, n, chunk):
+            rows = slice(start, start + chunk)
+            order = ords[rows].to(device)
+            d = Chunk(model, len(order), order, {}, 0, factors, boost, gpu_gen, label, year)
+            d.values, d.filled = values[rows].clone().to(device), filled[rows].clone().to(device)   # the pilot's draws
+            for name, count in d.after_totals().items():
+                rule_counts[name] += count
+            parts.append(finish(d, order))
     table = to_table(torch.cat([p[0] for p in parts]))
     if boost is not None:
         table['p_band'] = torch.cat([p[1] for p in parts]).numpy()
@@ -544,6 +747,7 @@ def generate(model, n, seed, preset=None, boost=None, factors=None, chunk=50_000
     oc, fc = torch.cat([p[3] for p in parts]).numpy(), torch.cat([p[4] for p in parts]).numpy()
     for i, v in enumerate(RULED):
         table[f'_own_{v}'], table[f'_forced_{v}'] = oc[:, i], fc[:, i]
+    table['pilot_row'], table['p_keep'], table['agi_proxy'] = kept, p_keep, proxy
     return table, rule_counts
 
 
@@ -558,25 +762,149 @@ def to_table(values):
 
 # ---- the stack -----------------------------------------------------------------
 @torch.no_grad()
-def nothing_known(model, var):
-    """var's distribution for a PUF record with every PUF slot hidden and no SCF-only slot."""
+def first_step(model, var, shown=None):
+    """var's distribution for PUF records at the PUF year with every PUF slot hidden but the filing flag (1, a filer)
+    and the slots in shown ({slot: one value per record}), and no SCF-only slot: [records, values of var]."""
+    shown = shown or {}
+    n = len(next(iter(shown.values()))) if shown else 1
     device = next(model.parameters()).device
-    values = torch.full((1, len(M.SLOTS)), -1, dtype=torch.long, device=device)
-    values[0, 0], values[0, 1] = M.SOURCES.index('puf'), M.YEARS.index(common.PUF_YEAR)
+    values = torch.full((n, len(M.SLOTS)), -1, dtype=torch.long, device=device)
+    values[:, 0], values[:, 1] = M.SOURCES.index('puf'), M.YEARS.index(common.PUF_YEAR)
     for j, v in enumerate(P):
         if 'puf' in M.PRESENT_ON[v]:
-            values[0, NC + j] = 0
+            values[:, NC + j] = 0
     hidden = values[:, NC:] >= 0
-    values[0, NC + P.index('filer')], hidden[0, P.index('filer')] = 1, False    # a filer
+    values[:, NC + P.index('filer')], hidden[:, P.index('filer')] = 1, False    # a filer
+    for v, x in shown.items():
+        values[:, NC + P.index(v)] = torch.as_tensor(x, dtype=torch.long, device=device)
+        hidden[:, P.index(v)] = False
     lp = M.log_probs_as(model, values, hidden, 'puf')
-    return lp(P.index(var))[0].exp().double().cpu().numpy()[:M.N_CHOICES[var]]
+    return lp(P.index(var)).exp().double().cpu().numpy()[:, :M.N_CHOICES[var]]
+
+
+def nothing_known(model, var):
+    """var's distribution for a PUF record with every PUF slot hidden and no SCF-only slot."""
+    return first_step(model, var)[0]
+
+
+# ---- the strata (TARGETS.md S4) ------------------------------------------------------
+LABELS = M.META.get('strata_labels', {})
+
+
+def strata_cells():
+    """The 12 AGI class x business strata and their records, from settings generation.strata.records:
+    [(AGI class, business flag, records)], in class order."""
+    rec = G['strata']['records']
+    return [(a, b, int(rec[an][bn])) for a, an in enumerate(LABELS['agi_class']['labels'])
+            for b, bn in enumerate(LABELS['business']['labels'])]
+
+
+def stratum_chances(model):
+    """The model's own chance of each AGI class x business stratum, from its first-step probabilities under the PUF
+    label at the PUF year, in the order the strata are drawn: the AGI class with nothing known, then the business
+    flag given the class. [classes, 2]."""
+    p_class = first_step(model, 'agi_class')[0]
+    p_business = first_step(model, 'business', {'agi_class': np.arange(M.STRATA['agi_class'])})
+    return p_class[:, None] * p_business
+
+
+def nw_multipliers():
+    """The boost on the net worth class (settings generation.strata, nw_boost: one multiplier per class), padded with
+    ones to the network's widest output."""
+    m = np.ones(M.MAX_CHOICES)
+    f = G['strata']['nw_boost']
+    assert len(f) == M.STRATA['nw_class'], 'one net worth boost per class'
+    m[:len(f)] = f
+    return m
+
+
+_check_maps = {}
+
+
+def label_check(part):
+    """Each record's AGI class, business flag and net worth class computed from its drawn parts, against its labels.
+    Dollars as dollars.py draws them, from the PUF year's maps (the PUF's and the SCF's balance sheet in the wave of
+    the PUF year), so the classes are on the labels' own cut points (build_table.strata_labels): AGI from its parts
+    (dollars.agi), net worth from the 20 balance-sheet items. The business flag is any of its parts' bands nonzero
+    (band 0 is exactly zero). Returns the part with the columns agi_check and nw_check (PUF-year dollars),
+    agi_class_check, business_check, nw_class_check, and label_ok (all three agree with the labels)."""
+    import dollars as D
+    if not _check_maps:
+        for src in ['puf', 'scf']:
+            m = pd.read_parquet(f'{common.MAPS}/map_{src}_{common.PUF_YEAR}.parquet')
+            _check_maps.update({v: g for v, g in m.groupby('variable')})
+    need = set(D.AGI_PARTS) | set(D.KG_PIECES) | set(D.FOLD) | set(D.META['computed_totals']['business_income']) \
+        | set(D.META['scf_amounts'])
+    bands = part[[f'{v}_band' for v in D.ORDER if v in need]]
+    assert (bands >= 0).all().all(), 'a part not drawn on a record'
+    d = D.draw_dollars(bands, _check_maps)
+    agi, nw = D.agi(d), d['net_worth'].to_numpy(float)
+    out = part.copy()
+    out['agi_check'], out['nw_check'] = agi, nw
+    out['agi_class_check'] = np.where(agi <= 0, 0, 1 + np.searchsorted(LABELS['agi_class']['cuts'], agi, side='right'))
+    out['business_check'] = (part[[f'{v}_band' for v in LABELS['business']['parts']]] != 0).any(axis=1).astype(int)
+    out['nw_class_check'] = np.searchsorted(LABELS['nw_class']['cuts'][str(common.PUF_YEAR)], nw, side='right')
+    out['label_ok'] = ((out['agi_class_check'] == part['agi_class']) & (out['business_check'] == part['business'])
+                       & (out['nw_class_check'] == part['nw_class']))
+    return out
+
+
+def stratified_part(model, mod, k, n_models, fac):
+    """Model k's (of n_models) filer batch under the strata design (see the top): every stratum's records (an equal
+    share of each stratum's in settings) with its labels preset, the rest drawn, the net worth class boosted at the SCF
+    step; then the label check, the records whose computed classes differ from their labels dropped, and the weights.
+    Returns the kept records, the check's table and the rule counts."""
+    cells = strata_cells()
+    n_cell = [equal_shares(n, n_models)[k] for _, _, n in cells]
+    agi_lab = torch.tensor(np.repeat([a for a, _, _ in cells], n_cell))
+    bus_lab = torch.tensor(np.repeat([b for _, b, _ in cells], n_cell))
+    n_k = int(sum(n_cell))
+    part, counts = generate(model, n_k, G['strata']['seed'] + mod['seed_shift'],
+                            preset={'agi_class': agi_lab, 'business': bus_lab},
+                            boost=('nw_class', nw_multipliers()), factors=fac)
+    part = label_check(part)
+    p_s = stratum_chances(model)                                     # the model's own chance of each stratum
+    pq = (part['p_band'] / part['q_band']).to_numpy(float)          # the net worth boost's correction
+    # settings generation.strata, drop_mismatches: false keeps every record (the check is then only reported), so the
+    # weights are the model's own chance of the stratum over its share times p / q, nothing folded in
+    ok = part['label_ok'].to_numpy(bool) if G['strata'].get('drop_mismatches', True) else np.ones(len(part), bool)
+    w = np.zeros(len(part))
+    rows = []
+    for (a, b, _), n in zip(cells, n_cell):
+        s = ((part['agi_class'] == a) & (part['business'] == b)).to_numpy()
+        row = {'model': mod['seed'], 'AGI class': LABELS['agi_class']['labels'][a],
+               'business': LABELS['business']['labels'][b], "model's chance of the stratum": p_s[a, b],
+               'PUF share of returns': LABELS['agi_class']['strata_shares'].get(f'{a}/{b}', 0.0),
+               'records drawn': int(s.sum()), 'records kept': int((s & ok).sum()),
+               'dropped (%)': 100 * (1 - (s & ok).sum() / max(1, s.sum())),
+               'dropped, AGI class differs (%)': 100 * (s & (part['agi_class_check'] != part['agi_class'])).sum() / max(1, s.sum()),
+               'dropped, business differs (%)': 100 * (s & (part['business_check'] != part['business'])).sum() / max(1, s.sum()),
+               'dropped, net worth class differs (%)': 100 * (s & (part['nw_class_check'] != part['nw_class'])).sum() / max(1, s.sum()),
+               'dropped, weighted by p/q (%)': 100 * (1 - pq[s & ok].sum() / pq[s].sum())}
+        # the drop folded into the weight within each net worth class of the stratum: the kept records of a class carry
+        # what all its draws carried (sum of p / q), so the boosted classes keep their mass
+        lost = 0.0
+        for c in range(M.STRATA['nw_class']):
+            sc = s & (part['nw_class'] == c).to_numpy()
+            if not sc.any():
+                continue
+            if not (sc & ok).any():
+                lost += pq[sc].sum()
+                continue
+            w[sc & ok] = pq[sc & ok] * pq[sc].sum() / pq[sc & ok].sum()
+        row['mass lost, a net worth class with no record kept (%)'] = 100 * lost / pq[s].sum()
+        w[s] *= p_s[a, b] * n_k / pq[s].sum()                        # the stratum's chance over its share of the sample
+        rows.append(row)
+    part['weight'] = w
+    kept = part[ok].reset_index(drop=True)
+    return kept, pd.DataFrame(rows), counts
 
 
 def nonfiler_records():
     """The non-filer batch's number of records (see the top)."""
     if G.get('nonfiler_records') is not None:
         return int(G['nonfiler_records'])
-    n_filers = G['records_per_file'] * len(G['strata'])
+    n_filers = filer_records()
     nf, returns = cps_expected_nonfilers(common.TARGET_YEAR), TG.returns(TG.load(), common.TARGET_YEAR)
     n = int(round(n_filers * nf / returns))
     common.say(f'non-filer batch: {n:,} records = {n_filers:,} x {nf / 1e6:.2f}M CPS {common.TARGET_YEAR} expected '
@@ -584,45 +912,112 @@ def nonfiler_records():
     return n
 
 
-def build_stack(model, factors):
-    """The four filer strata (settings "generation") and the non-filer batch, stacked; and how many records each rule
-    applied to."""
-    n = G['records_per_file']
-    parts, rule_counts = [], {r['name']: 0 for r in RULES}
-    for var, stratum in G['strata'].items():
-        seed = stratum['seed']
-        top = M.positive_bands(var, 1 - G['top_share'], 1.0)
-        if M.OWNED_BY.get(var) == 'scf':
-            part, counts = generate(model, n, seed, boost=(var, top, G['boost']), factors=factors)
-            part['weight'] = part['p_band'] / part['q_band']
-        else:
-            p = nothing_known(model, var)
-            q = p.copy()
-            q[top] *= G['boost']
-            q /= q.sum()
-            bands = torch.multinomial(torch.tensor(q), n, replacement=True,
-                                      generator=torch.Generator().manual_seed(seed))
-            part, counts = generate(model, n, seed, preset={var: bands}, factors=factors)
-            b = bands.numpy()
-            part['weight'], part['p_band'], part['q_band'] = p[b] / q[b], p[b], q[b]
-        part['weight'] *= n / part['weight'].sum()
-        part['stratifier'] = var
+def load_models(device):
+    """The pooled models (settings "generation", models; see the top): per model its run, network, training seed and
+    generation-seed shift."""
+    entries = MODELS if MODELS is not None else [{'run': os.path.basename(common.MODEL), 'seed_shift': 0}]
+    assert len({e['run'] for e in entries}) == len(entries) and len({e['seed_shift'] for e in entries}) == len(entries), \
+        'each pooled model is a different run with its own seed shift'
+    out = []
+    for e in entries:
+        folder = common.MODEL if MODELS is None else f"{common.OUT}/model/{e['run']}"
+        seed = int(json.load(open(os.path.join(folder, 'train_meta.json')))['seed'])
+        out.append({'run': e['run'], 'seed': seed, 'seed_shift': int(e['seed_shift']),
+                    'network': M.load_model(device, os.path.join(folder, 'model.pt'))})
+        common.say(f"model {e['run']} (training seed {seed}), generation seeds shifted by {e['seed_shift']}")
+    return out
+
+
+def equal_shares(n, k):
+    """n records split over k models as evenly as can be, the first ones taking any remainder."""
+    return [n // k + (i < n % k) for i in range(k)]
+
+
+def multipliers(var, bands, factor):
+    """A boost as one multiplier per value of var (padded to the widest output): factor on bands, else 1."""
+    m = np.ones(M.MAX_CHOICES)
+    m[np.asarray(bands, dtype=np.int64)] = factor
+    return m
+
+
+def build_stack(models, factors, cache=None):
+    """The filer batch (settings "generation", design: the strata, the four top parts, or unstratified) and the
+    non-filer batch, each drawn in equal shares from every model and stacked; how many records each rule applied to;
+    and, for the strata design, the label check per model and stratum (else None). factors: {model run: its offset
+    factors}."""
+    n_part, n_nf = G['records_per_file'], nonfiler_records()
+    rule_counts = {r['name']: 0 for r in RULES}
+    stacks, checks = [], []
+    for k, (mod, n, n_nf_k) in enumerate(zip(models, equal_shares(n_part, len(models)),
+                                             equal_shares(n_nf, len(models)))):
+        model, shift, fac, parts = mod['network'], mod['seed_shift'], factors[mod['run']], []
+        if DESIGN == 'strata':
+            part, check, counts = stratified_part(model, mod, k, len(models), fac)
+            part['weight'] *= filer_records() / len(models) / part['weight'].sum()   # each model: an equal share
+            part['stratifier'] = 'strata'
+            parts.append(part)
+            checks.append(check)
+            rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
+            common.say(f"{mod['run']}: strata done; records dropped by the label check: "
+                       f"{int(check['records drawn'].sum() - check['records kept'].sum()):,} of "
+                       f"{int(check['records drawn'].sum()):,}")
+        elif DESIGN == 'unstratified':
+            n_u = equal_shares(int(G['unstratified_records']), len(models))[k]
+            part, counts = generate(model, n_u, G.get('unstratified_seed', 51) + shift, factors=fac)
+            part = label_check(part)
+            part['weight'], part['p_band'], part['q_band'] = filer_records() / len(models) / n_u, np.nan, np.nan
+            part['stratifier'] = 'unstratified'
+            parts.append(part)
+            rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
+            common.say(f"{mod['run']}: unstratified done; label check fails on {int((~part['label_ok']).sum()):,} "
+                       f"of {len(part):,} (kept: the unstratified draw drops nothing)")
+        thin = None if THIN is None else (int(round(THIN['pilot_factor'] * n)), float(THIN['line']))
+        for var, stratum in (TOP_PARTS.items() if DESIGN == 'top_parts' else []):
+            seed = stratum['seed'] + shift
+            top = M.positive_bands(var, 1 - G['top_share'], 1.0)
+            if M.OWNED_BY.get(var) == 'scf':
+                part, counts = generate(model, n, seed, boost=(var, multipliers(var, top, G['boost'])), factors=fac,
+                                        thin=thin, cache=cache, cache_key=(mod['run'], var))
+                part['weight'] = part['p_band'] / part['q_band']
+            else:
+                p = nothing_known(model, var)
+                q = p.copy()
+                q[top] *= G['boost']
+                q /= q.sum()
+                bands = torch.multinomial(torch.tensor(q), n if thin is None else thin[0], replacement=True,
+                                          generator=torch.Generator().manual_seed(seed))
+                part, counts = generate(model, n, seed, preset={var: bands}, factors=fac, thin=thin,
+                                        cache=cache, cache_key=(mod['run'], var))
+                b = bands.numpy()[part['pilot_row'].to_numpy()]
+                part['weight'], part['p_band'], part['q_band'] = p[b] / q[b], p[b], q[b]
+            part['weight'] /= part['p_keep']                    # undoes the thinning (1 when not thinned)
+            part['weight'] *= n_part / len(models) / part['weight'].sum()   # each model: an equal share of the part
+            part['stratifier'] = var
+            parts.append(part)
+            rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
+            common.say(f"{mod['run']}: {var} done")
+        part, counts = generate(model, n_nf_k, G.get('nonfiler_seed', 35) + shift, factors=fac, label='cps',
+                                year=common.TARGET_YEAR, filer=0)
+        part = part.copy()
+        part['weight'], part['p_band'], part['q_band'], part['stratifier'] = n_nf / len(models) / n_nf_k, np.nan, \
+            np.nan, 'nonfiler'                                  # each model: an equal share of the batch
         parts.append(part)
-        rule_counts = {k: rule_counts[k] + counts[k] for k in rule_counts}
-        common.say(var, 'done')
-    n_nf = nonfiler_records()
-    part, counts = generate(model, n_nf, G.get('nonfiler_seed', 35), factors=factors, label='cps',
-                            year=common.TARGET_YEAR, filer=0)
-    part = part.copy()
-    part['weight'], part['p_band'], part['q_band'], part['stratifier'] = 1.0, np.nan, np.nan, 'nonfiler'
-    parts.append(part)
-    rule_counts = {k: rule_counts[k] + counts[k] for k in rule_counts}
-    common.say('nonfiler done')
-    stack = pd.concat(parts, ignore_index=True)
-    stack['record_id'] = np.arange(len(stack))
+        rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
+        common.say(f"{mod['run']}: nonfiler done")
+        s = pd.concat(parts, ignore_index=True).drop(columns='pilot_row')
+        s['model'] = mod['seed']
+        assert len(s) < ID_BLOCK
+        s['record_id'] = k * ID_BLOCK + np.arange(len(s))
+        stacks.append(s)
+    stack = pd.concat(stacks, ignore_index=True)
+    by = stack[['model', 'weight']].assign(batch=np.where(stack['filer'] == 1, 'filers', 'non-filers'))
+    share = by.groupby(['batch', 'model'])['weight'].sum() / by.groupby('batch')['weight'].sum()
+    common.say('records and share of each batch\'s weight, by model:\n' + pd.DataFrame(
+        {'records': by.groupby(['batch', 'model']).size(), 'weight share': share}).to_string())
+    assert np.allclose(share.to_numpy(), 1 / len(models)), 'a model does not carry its equal share of a batch'
     common.say('consistency rules: records each applies to, over the whole stack:')
     common.say(pd.Series(rule_counts).to_string())
-    return stack
+    return stack, (pd.concat(checks, ignore_index=True) if checks else None)
 
 
 # ---- the offset -----------------------------------------------------------------
@@ -661,15 +1056,23 @@ def offset(stack, factors, run):
 def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.manual_seed(common.SEED)
-    model = M.load_model(device, os.path.join(common.MODEL, 'model.pt'))
+    models = load_models(device)
     os.makedirs(common.GEN, exist_ok=True)
-    factors, report = {}, []
+    factors, report, cache = {m['run']: {} for m in models}, [], {}   # cache: the pilots, kept across runs
     runs = int(C['offset_generations'])
     for run in range(1, runs + 1):
-        stack = build_stack(model, factors)
-        table, nxt = offset(stack, factors, run)
-        report.append(table)
-        common.say(f'run {run} of {runs}:\n' + table.drop(columns='run').to_string(index=False))
+        stack, check = build_stack(models, factors, cache)
+        if check is not None:              # the last run's is kept
+            check.insert(0, 'run', run)
+            check.to_csv(os.path.join(common.GEN, 'strata_check.csv'), index=False)
+            common.say(f'run {run} of {runs}, the label check by stratum:\n'
+                       + check.drop(columns=['run']).to_string(index=False, float_format=lambda x: f'{x:.4g}'))
+        nxt = {}
+        for m in models:                    # each model's offset on its own records (see the top)
+            table, nxt[m['run']] = offset(stack[stack['model'] == m['seed']], factors[m['run']], run)
+            table.insert(1, 'model', m['seed'])
+            report.append(table)
+            common.say(f"run {run} of {runs}, model {m['run']}:\n" + table.drop(columns=['run', 'model']).to_string(index=False))
         if run < runs:
             factors = nxt
     pd.concat(report).to_csv(os.path.join(common.GEN, 'consistency.csv'), index=False)

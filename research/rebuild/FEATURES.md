@@ -486,9 +486,29 @@ no rule touches are scaled down. The last run is kept; `gen/<run>/
 consistency.csv` reports, per run and holding, the model's own expected
 holders, the holders with the rules, and the factors.
 
-**The stack.** 400,000 records in four parts. Each part oversamples the
-top 1% of one variable (wages, long-term gains, S corporation nonpassive
-income, business equity). Weights undo the oversampling exactly.
+**The stack: strata** (settings `generation.design` "strata"; TARGETS.md S4; since 25 October). The
+training table carries three labels computed from each record's own dollars (`build_table.py labels`, written to
+`data/strata/`): on PUF records an AGI class by weighted rank among 2015 returns (zero or negative; below p90,
+$133,700; p90-99, to $464,200; p99-99.9, to $2,127,000; p99.9-99.99, to $11,050,000; p99.99 and over) and a business
+flag (Schedule C, partnership or S corporation, or farm income nonzero); on SCF records a net worth class (below
+p90, p90-99, p99-99.9, p99.9 and over). The network learns them like any item (`model/strata_seed*`).
+- **Filers:** a fixed number of records in each of the 12 AGI class x business strata (`generation.strata.records`,
+  400,000 in all, from about 0.15% of returns below p90 to 30-60% at p99.99 and over). Each record starts with its
+  stratum preset; its weight is the model's own chance of the stratum over the stratum's share of the sample.
+- **Net worth:** when the SCF items are drawn, the net worth class comes first, its chances boosted 1, 2, 5 and 10
+  times by class (`nw_boost`), corrected by p / q.
+- **Labels are checked, not trusted.** AGI and net worth are computed from the drawn parts; a record whose
+  computed class differs from its label is kept and counted (`strata_check.csv`; `drop_mismatches` false). The
+  network often contradicts its own label at the top (80% of p99.99-and-over records compute lower), and dropping
+  them biased the file (returns at p99.9-99.99 38% low against an unstratified draw).
+- `design` "top_parts" restores the earlier stack (four parts oversampling the top 1% of wages, long-term gains,
+  S corporation nonpassive income and business equity, with oversampling by rough AGI); "unstratified" draws with
+  nothing preset.
+
+**Two models pooled** (settings `generation.models`; TARGETS.md section 8). Every batch is drawn half from each
+trained model (now `strata_seed20261016`, `strata_seed20261017`), each with its own generation seeds (its
+`seed_shift`), each record saying which drew it (column `model`), ids unique across models. The consistency offset
+is found per model.
 
 ## Post-training: the 2019 file
 
@@ -507,48 +527,45 @@ no growth when the generation year is the target year). Every dollar column
 of the file is in nominal 2019 dollars. Nothing from the CPS is targeted
 (`tilt/<run>/cps_report.md` compares the file with the CPS 2019).
 
-**Start.**
-- Weights are scaled to SOI's 2019 return count and the non-filer count.
-- Filers are then scaled within joint and non-joint returns to SOI's 2019
-  counts.
+**The year's configuration** (`pipeline/targets_config/`; TARGETS.md section 12 and S7): a catalog of
+definitions, defaults, historical and projection files, and one file per year. `target_list.py` expands it into
+one row per target (`tilt/<run>/targets.csv`), with each target's standard error from `errors.py` (SOI's published
+coefficients of variation for Tables 1.4, 2.1 and 3.3; borrowed ones for Tables 1.2, 1.6 and 1.7; CEX and SCF
+replicate weights; a judgment number with a reason otherwise; TARGETS.md section 9).
 
-**The tilt.** The smallest reweighting, by Kullback–Leibler divergence,
-that meets:
+**Start** (the year file's `start`): `generate` (the generated stack) or `from_year: s` (year s's tilted file, its
+dollars grown item by item to year t). Weights are scaled to SOI's return count and the non-filer count, to joint
+and non-joint returns, then (`tilt.prescale` "demographic") to Table 1.6's returns by age x joint and to the
+non-filer people by age (section 4).
 
-| Targets | Number | How they are met |
-|---|---:|---|
-| IRS (SOI 2019 Table 1.4): returns, and the number with and amount of wages, interest, dividends and capital gains, in 15 AGI brackets; plus joint returns | 136 | exactly |
-| Non-filers | 1 | exactly |
-| IRS business: five families (estates and trusts left out until the targeting overhaul, 22 October), net income and net loss, returns and dollars, in 6 AGI groups | 116 | exactly, or within 2% if that fails |
-| SCF 2019 wealth: the share of units above the 99th, 90th and 50th percentiles and above $1 million, among the file's units other than dependent filers; net worth above each percentile and in total | 8 | within 2% |
-| CEX 2019 consumption: each category's average per tax unit, over all units and in each of 12 cells, the 6 adult age ranges of the primary filer by married or not (dependent filers left out on both sides) | 104 | within a 5% band of the average, free inside it (`consumption_band`) |
+**The tilt** (`solver.py`; TARGETS.md S6): the smallest reweighting, by Kullback-Leibler divergence, that puts every
+target within its value ± `tilt.range_in_se` (1) standard errors; identities exact. If the ranges cannot all be
+met, a miss beyond a range costs (miss ÷ standard error)². A range on an average is measured on the average itself,
+with the cell's weight after the tilt. Cells resting on too few effective records, or on a record moved too far,
+are flagged as warnings or stops (section 5). The 2019 targets (474):
 
-The wealth targets are computed on the SCF's units from the shared rules
-(`data/scf_units_2019.parquet`, written by build_table.py from the 2019
-wave): 162.8 million units with a median net worth of $63,570, against 143.2
-million and $91,050 on the SCF's units as built, which the targets used
-until 24 October.
+| Targets | Number |
+|---|---:|
+| IRS (SOI Table 1.4): returns and the number with and amount of wages, interest, dividends and capital gains, in AGI brackets with the five top ones ($1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M, $10M+) separate; joint returns (Table 1.2) | 172 |
+| Age (Table 1.6): returns by primary age 26-34 to 65+, joint and non-joint | 10 |
+| Dependent filers (Table 1.7): returns by AGI | 9 |
+| Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
+| Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
+| SCF 2019 wealth: shares of units and net worth above the 99.9th, 99th, 90th and 50th percentile lines and $1 million; the four asset types (stocks, business equity, real estate, retirement accounts) above the 99.9th, 99th and 90th lines | 22 |
+| CEX 2019 consumption: 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
 
-Married is a joint unit, on the CEX's side as on the file's; separate returns
-are not married on either side. Both sides use the same tax units: the CEX's
-come from the shared rules (`TAX_UNITS.md`), so a CEX joint unit is what the
-file calls joint. The averages over all units are kept, because the cells do
-not imply them: the file's units fall into the cells in other shares than the
-CEX's. Until 24 October the cells were the 6 age ranges alone (56 targets),
-behind a setting that could drop them; the setting is gone.
+Counts by kind as in `tilt/strata_full2019/targets.csv`.
+`hold_distribution` (optional, S7) adds each item's share in AGI rank groups of the start file as targets.
+`report_tilt.py` writes the run report (section 14).
 
-Consumption targets are averages, not totals, so they do not depend on how
-many units each source counts (the file 177 million units other than
-dependent filers, the CEX 153 million). The wealth count targets are written
-the same way, as shares, since 22 October; `fit.csv` reports each share and
-average itself.
-An average is a linear condition on the weights; it is written so the
-tilt's scaling by target size works (`tilt.py`, consumption_targets).
-A first run targeted totals: the file then had 17% more units over which
-to spread the same dollars, and the tilt kept only 72% of the effective
-sample.
+The combined 2019 run of 25 October (`tilt/strata_full2019`, strata models, mismatched labels kept): all 474
+targets inside their ranges; effective sample kept 99.9% from the prescaled start; 61 warnings and 33 stops, most
+at net-loss and interest amounts at the top and at no AGI, where one record holds most of a cell's dollars.
 
 ## How the latest run comes out
+
+*The figures below predate the 25 October changes (strata, the new targets, ranges); they describe the
+run of 24 October.*
 
 **Since 24 October, "latest" has one tax-unit module for every survey, the
 CPS as the source of non-filers, and age and non-filer targets**

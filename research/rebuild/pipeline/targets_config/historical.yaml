@@ -1,0 +1,194 @@
+# Historical years: what every year with published SOI tables gets, on top of defaults.yaml.
+#
+# Each entry is a block of targets: every statistic x every variable x every cell. It states the parts of
+# TARGETS.md section 2 in full words: statistic, population, variable, cells, value (where it comes from) and error
+# (its kind, TARGETS.md section 9). "key" gives the strings that name each target, (kind, group, target), the same
+# strings as the tilt's fit.csv; in a key, {cell} is the cell's label, {<grouping>} the label of that grouping's
+# part of the cell, {variable} the variable's short name, {label} its label, {statistic} the statistic and {year}
+# the year of the value. A value's year is the target year unless the entry says otherwise.
+
+inherits: defaults
+
+targets:
+
+  # SOI Table 1.4 by AGI bracket: the number of returns, and the number with and the amount of the four income
+  # items. Filers only. The five top brackets are each their own cell (soi_agi_brackets, kept_separate), so these
+  # two entries give the returns and the income composition of each top bracket (TARGETS.md S2).
+  - id: irs_returns
+    kind: IRS
+    statistic: units
+    population: filers
+    cells: {soi_agi_brackets: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: returns}
+
+  - id: irs_income_items
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: income_items
+    cells: {soi_agi_brackets: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Joint returns (married filing jointly and surviving spouses), all AGI, from Table 1.2.
+  - id: joint_returns
+    kind: IRS
+    statistic: units
+    population: filers
+    cells: {joint_or_not: [joint]}
+    value: {published: soi 1.2}
+    error: {kind: soi_borrowed}
+    key: {group: all, target: joint returns}
+
+  # The number of non-filer units, the CPS filing stage's expected non-filers. With the returns it fixes the number
+  # of units in the file, which every share and average condition is written against (tilt.average_condition).
+  - id: non_filers
+    kind: non-filers
+    statistic: units
+    population: non_filers
+    cells: all
+    value: {pipeline: filing_stage}
+    error:
+      kind: identity
+      reason: >-
+        it defines the non-filer population: the file's non-filers are the CPS filing stage's non-filers, and with
+        SOI's returns this count is the number of units every share and average is written against
+    key: {group: all, target: non-filers}
+
+  # The people in non-filer units, counted on the CPS units of the filing stage by the file's own rule (heads and
+  # spouses by their own age, children among the head, spouse and three dependents the file carries). The
+  # calibration's numbers by the head's band (Census adults less the adults on SOI returns less claimed dependents;
+  # Census children under 17 not on returns) are kept as a check, in each target's source.
+  - id: nonfiler_people
+    kind: non-filer people
+    statistic: amount
+    population: non_filers
+    variable: nonfiler_people
+    cells: all
+    value: {pipeline: filing_stage}
+    error:
+      kind: judgment
+      relative: 0.02
+      reason: >-
+        today's fallback tolerance; the true error is likely larger in the youngest band, where the value is a
+        small difference of large numbers (2019, 18-25: 33.8 million adults less 24.7 million on returns less 8.1
+        million claimed dependents)
+    key: {group: 'non-filers, {label}', target: people}
+
+  # SOI Table 1.7: dependent filers' returns by AGI bracket. Dependent filers are real returns, counted in every SOI
+  # table (TARGETS.md section 10), but nothing else fixes how many there are, so the tilt could fill the Table 1.6
+  # age counts with them: in the first run with consumption hit exactly (24 October) they rose from 9.85 to 21.92
+  # million (SOI: 9.55 million). Section 6 had found they need a target of their own.
+  - id: dependent_filer_returns
+    kind: dependent filers
+    statistic: units
+    population: dependent_filers
+    cells: {soi_1_7_agi_brackets: all}
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  # SOI Table 1.6: returns by the primary filer's age range, 26-34 to 65+, in joint and non-joint returns. Under 26
+  # is not a target of its own: the bracket returns and the joint count leave it, and a sixth target would repeat
+  # them. Table 1.6 counts a dependent filer's return under its own age (TARGETS.md section 10).
+  - id: age_returns
+    kind: age
+    statistic: units
+    population: filers
+    cells: {joint_or_not: all, adult_age_ranges: [26-34, 35-44, 45-54, 55-64, 65+]}
+    value: {published: soi 1.6}
+    dependent_filers: >-
+      under 26 in the under-26 range; 26 and over (the file has no exact age for them) spread over the five ranges
+      26 and over in proportion to this entry's own values in their filing status
+    error: {kind: soi_borrowed}
+    key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
+
+  # Business income: each family's net income and net loss, returns and dollars, in six AGI groups (merged where
+  # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
+  # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
+  - id: business
+    kind: business
+    statistic: [count, amount]
+    population: filers
+    variable: business_other
+    cells: {business_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Schedule C and partnership and S corporation income, net income and net loss, returns and dollars: the six
+  # groups of the entry above with "$1m and over" cut into $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over
+  # (TARGETS.md S2: the composition of each top bracket).
+  - id: business_top
+    kind: business
+    statistic: [count, amount]
+    population: filers
+    variable: business_top
+    cells: {business_agi_groups_top: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # SCF wealth, in the wave's own dollars: the share of units above the SCF's 99.9th, 99th, 90th and 50th
+  # percentile lines and above $1 million, and net worth above each percentile line and in total. Among units other
+  # than dependent filers, who hold no wealth in the file.
+  - id: wealth_shares
+    kind: wealth
+    statistic: share
+    population: units_other_than_dependent_filers
+    variable: net_worth
+    cells: {scf_net_worth_lines: all}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: share of units}
+
+  - id: wealth_dollars
+    kind: wealth
+    statistic: amount
+    population: units_other_than_dependent_filers
+    variable: net_worth
+    cells: [{scf_net_worth_lines: [above the SCF 99.9th percentile, above the SCF 99th percentile,
+                                   above the SCF 90th percentile, above the SCF 50th percentile]}, all]
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable}'}
+
+  # SCF top wealth by kind of asset (TARGETS.md S2): the dollars of stocks, business equity, real estate and
+  # retirement accounts held by the units above the SCF's 99.9th, 99th and 90th percentile net worth lines (the
+  # lines on net worth, the amounts of the asset). The same columns on both sides (catalog variables).
+  - id: wealth_by_asset
+    kind: wealth
+    statistic: amount
+    population: units_other_than_dependent_filers
+    variable: scf_top_assets
+    cells: {scf_net_worth_lines: [above the SCF 99.9th percentile, above the SCF 99th percentile,
+                                  above the SCF 90th percentile]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable}'}
+
+  # CEX consumption: each category's average per unit, over all units and in the 12 cells of the primary filer's
+  # adult age range by married or not. The overall averages are kept because the cells do not imply them: the
+  # file's units fall into the cells in other shares than the CEX's.
+  - id: consumption_all
+    kind: consumption
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: consumption
+    cells: all
+    value: {survey: cex}
+    error: {kind: survey_replicate}
+    key: {group: 'CEX {year}, all', target: '{variable}, average'}
+
+  - id: consumption_by_age_and_married
+    kind: consumption
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: consumption
+    cells: {adult_age_ranges: all, married_or_not: all}
+    value: {survey: cex}
+    error: {kind: survey_replicate}
+    key: {group: 'CEX {year}, age {adult_age_ranges}, {married_or_not}', target: '{variable}, average'}

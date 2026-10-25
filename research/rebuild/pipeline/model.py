@@ -6,7 +6,8 @@ Each amount is a band index (band 0 = exactly zero, then the negative bands
 from most negative, then the positive bands in dollar order); married, number
 of dependents, the primary filer's age range (ages.py), the filing flag, full
 filing status, the child credit and EITC children (TAX_STATUS), the yes/no business items, the exact ages (primary filer and spouse: SCF, CEX and
-CPS; dependents: CPS) and the CPS's sex are categories.
+CPS; dependents: CPS), the CPS's sex and the strata labels (TARGETS.md S4: the AGI class and the business flag on the
+PUF, the net worth class on the SCF; STRATA) are categories.
 A slot one source never has (the balance sheet and the exact ages on the PUF,
 the PUF-only items on the SCF, everything but the shared items and the
 consumption categories on the CEX, everything but the shared items and the
@@ -29,6 +30,12 @@ import torch.nn as nn
 import common
 import translate as TR
 
+# The table and band edges with the strata labels (TARGETS.md S4; settings "strata_labels", as in build_table.py):
+# training and generation read them instead of the shared ones. null: the shared ones.
+_LABELLED = common.SETTINGS.get('strata_labels') or {}
+if _LABELLED.get('table'):
+    common.TABLE, common.EDGES = f"{common.DATA}/{_LABELLED['table']}", f"{common.DATA}/{_LABELLED['edges']}"
+    common._EDGES = None
 SOURCES = ['puf', 'scf', 'cex', 'cps']
 CONTEXT = ['source', 'year']
 YEARS = sorted({int(y) for y in pq.read_table(common.TABLE, columns=['year']).column('year').to_pylist()})
@@ -49,10 +56,17 @@ CPS_CATEGORIES = META['cps_categories']            # CPS-only categories (depend
 # generation right after the PUF items (generate.py). PERSON_CATEGORIES: these and the CPS-only categories.
 EXACT_AGES = list(META['exact_ages'])
 PERSON_CATEGORIES = META['person_categories']
-CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES)
+# The strata labels (TARGETS.md S4; build_table.STRATA_LABELS): the AGI class and the business flag on the PUF, the net
+# worth class on the SCF, each a category learned like any other. {label: number of values}; empty with the shared
+# table, which has none (the network is then the one trained before S4).
+STRATA = {v: int(d['values']) for v, d in META.get('strata_labels', {}).items()}
+PUF_LABELS = [v for v in STRATA if META['strata_labels'][v]['source'] == 'puf']   # agi_class, business
+SCF_LABELS = [v for v in STRATA if META['strata_labels'][v]['source'] == 'scf']   # nw_class
+CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
+    + list(STRATA)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
-SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
+SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf'] + SCF_LABELS
 NET_WORTH_PARTS = dict(META['net_worth_parts'])
 RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item, its base)
 # Two slots per translated item: a second, SCF-only slot holds what the
@@ -63,7 +77,7 @@ CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's perso
 # The order (step 2, 23 October): the type (married, dependents, age range), the filing flag, full filing status and
 # the credit children, then the amounts. Generation draws a batch's own items in this order (generate.py).
 TYPE_SLOTS = ['married', 'n_dep', 'age_range']
-PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
+PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
              + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
@@ -107,7 +121,7 @@ def band_layout():
 
 BAND_LAYOUT = band_layout()
 N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-             **PERSON_CATEGORIES, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+             **PERSON_CATEGORIES, **STRATA, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
 
@@ -127,7 +141,7 @@ MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
                'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-               **PERSON_CATEGORIES}
+               **PERSON_CATEGORIES, **STRATA}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -183,7 +197,7 @@ def read_table():
         'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
-    for c, n in PERSON_CATEGORIES.items():
+    for c, n in {**PERSON_CATEGORIES, **STRATA}.items():
         assert table[c].between(-1, n - 1).all(), c
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a

@@ -1,0 +1,28 @@
+# 2019: the 383 targets of the 24 October run (tilt/seed20261016, tilt/seed20261017), plus Table 1.7 (24 October)
+# and the S2 targets at the top (25 October: the five top AGI brackets with their composition, the SCF's 99.9th
+# percentile line and the top net worth by kind of asset).
+#
+# What the year adds, drops or overrides relative to historical.yaml, each with its reason. Every target's value is
+# 2019's: SOI 2019 Tables 1.4, 1.2 and 1.6, the 2019 SCF wave (income of 2018, wealth at interview), the 2019 CEX,
+# and the CPS filing stage's 2019 non-filers.
+
+year: 2019
+kind: historical
+inherits: historical
+
+# The prior the generated file is drawn under (TARGETS.md section 7). Recorded, not yet read by the code:
+# generation draws the PUF variables under the PUF 2015 label, the balance sheet under the SCF label at 2015 (the
+# 2016 wave), and consumption and the CPS items at 2019.
+prior:
+  puf variables: {puf 2015: 1.0}
+  balance sheet: {scf 2016: 1.0}
+  consumption: {cex 2019: 1.0}
+  cps items: {cps 2019: 1.0}
+
+targets:
+  - id: business
+    variable: [rent_royalty_net_income, rent_royalty_net_loss, farm_net_income, farm_net_loss,
+               farm_rental_net_income, farm_rental_net_loss]
+    override: >-
+      estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met (with
+      standard errors they could come back, giving way where they conflict)

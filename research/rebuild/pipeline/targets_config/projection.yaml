@@ -1,0 +1,15 @@
+# Projection years: what every year past the last published SOI year gets, on top of defaults.yaml.
+#
+# Not built yet. The rule it will carry out is TARGETS.md section 3: a target exists only where we have
+# information about the year. Outside information that comes only as a change (a forecaster's growth in wages, say)
+# is applied to our own latest level: the year's value is our latest finished file's value times the forecaster's
+# growth, never the forecaster's own dollars. Its error combines our level's error with the forecaster's error on
+# that change, judged from its past forecasts. The series and their vintages come through version pointers in
+# config/interfaces/ (section 13).
+#
+# The 22 October prototype's example entries (explore/2026-10-22/targets/config_format/config/projection.yaml)
+# used invented series; they are not carried over.
+
+inherits: defaults
+
+targets: []

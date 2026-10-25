@@ -353,6 +353,30 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
 - A 5% band (free inside, a hard limit outside) keeps 96% with every other
   target exact. That run became latest on 24 October.
 
+**24–25 October: targets rederived** (`TARGETS.md`; builds in
+`explore/2026-10-24/build/` and `explore/2026-10-25/strata_build/`).
+- The principles were worked out with John one question at a time and
+  written in `TARGETS.md`, which opens with the process on one page.
+- A configuration of targets (`targets_config/`, `target_list.py`) with a
+  standard error on every target (`errors.py`) reproduced the 383 targets
+  exactly, then grew to 474: the five top AGI brackets separately, their
+  composition, dependent filers (Table 1.7) and SCF top wealth by asset type.
+- Hitting every target exactly collapsed the tilt (0.5–2.8% of the effective
+  sample kept): the CEX's age × married cells and the non-filer people
+  targets could be met together only by piling weight on a few odd records.
+  Targets became ranges of one standard error (`solver.py`), and the same
+  targets then kept 97.6%.
+- Generation became stratified by labels the network learns (AGI class ×
+  business flag, net worth class). Dropping records whose drawn amounts
+  contradict their label biased the file, so they are kept. The network is
+  weak at the top: about 35% short of the PUF's returns at p99.9–99.99.
+- One algorithm for every year: the start is a fresh draw or an earlier
+  year's file carried forward, with optional targets that hold the
+  distribution. 2022 carried from 2019 matched SOI's untargeted bracket
+  detail within 3% for returns and wages, not for gains or interest.
+- The combined 2019 run (`tilt/strata_full2019`): all 474 targets within
+  range, 99.9% of the effective sample kept, 33 thin-cell stops at the top.
+
 ## Paths tried and not taken
 
 | What | Why not |

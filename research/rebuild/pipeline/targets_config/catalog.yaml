@@ -1,0 +1,304 @@
+# The catalog: definitions that do not change from year to year (TARGETS.md section 12).
+#
+# A year's file (years/<year>.yaml) and the files it inherits from (historical.yaml or projection.yaml, then
+# defaults.yaml) name things defined here: sources, populations, variables, groupings of units into cells, kinds of
+# standard error and the tax-unit rules a survey's units were built with. The year files say what to target; this
+# file says what the words mean. target_list.py reads all of them. Edited rarely: when a source, variable or
+# grouping is added.
+#
+# Writing rules for every file in this folder (target_list.py checks them when it reads the files):
+#   - no YAML anchors, aliases or tags;
+#   - numbers written out (1000000, 0.02), never 1e6 (YAML reads 1e6 as text);
+#   - text containing a comma is quoted inside [ ] or { } (unquoted, the comma splits it);
+#   - digits joined by an underscore are quoted ('18_25'; unquoted, YAML reads 18_25 as the number 1825);
+#   - an unknown key is an error, so a misspelt key cannot be silently ignored.
+
+# ---------------------------------------------------------------------------------------------------------------
+# Sources: where a target's value comes from (TARGETS.md section 3 and 13).
+#   published  a table in the SOI mirror (settings paths.raw.soi_mirror), as published, read through targets.py
+#              (Tables 1.4 and 1.2 from the run's targets/soi.csv; Table 1.6 from settings ages.table_1_6)
+#   survey     a survey's tax units, one row per unit with a weight; the value is the same statistic computed on the
+#              survey's own units. Each names the tax-unit rules its units were built with (tax_unit_rules below).
+#   pipeline   a number computed fresh by an earlier stage of the same run, versioned by the code commit
+#              (TARGETS.md section 13, item 1)
+# ---------------------------------------------------------------------------------------------------------------
+sources:
+  soi 1.4:
+    kind: published
+    what: SOI Publication 1304, Table 1.4, all returns by size of AGI, sources of income
+  soi 1.2:
+    kind: published
+    what: SOI Publication 1304, Table 1.2, all returns by size of AGI and filing status
+  soi 1.7:
+    kind: published
+    file: bysize_dependent_returns.csv
+    what: SOI Publication 1304, Table 1.7, returns of dependents (dependent filers) by size of AGI, read from the mirror
+  soi 1.6:
+    kind: published
+    what: SOI Publication 1304, Table 1.6, returns by filing status and age of the primary taxpayer, all AGI
+  scf:
+    kind: survey
+    file: data/scf_units_{year}.parquet
+    built_by: [roster_scf.py, build_scf.R]
+    tax_unit_rules: shared_cbo
+    what: every tax unit of the SCF wave of that year (its income is the year before), five implicates, weights as built
+  cex:
+    kind: survey
+    file: data/cex_units_{year}_all.parquet
+    built_by: [roster_cex.py, build_cex.R]
+    tax_unit_rules: shared_cbo
+    what: every tax unit of the CEX year (build_table.cex_target_units); dependent filers folded into the unit that claims them
+  filing_stage:
+    kind: pipeline
+    built_by: [filing.py, build_cps.R, build_table.py]
+    tax_unit_rules: shared_cbo
+    what: >-
+      The CPS filing stage. The non-filer count is the sum over the CPS units of the training table of weight times
+      one minus the chance of filing (the count the generated non-filer batch is sized by). The non-filer people are
+      the numbers the stage's calibration hit, read from settings tilt.nonfiler_targets_dir inside the run's data
+      folder, file <year>_nonfilers_vs_targets.csv, column target_heads_spouses (millions of people).
+
+# ---------------------------------------------------------------------------------------------------------------
+# The tax-unit rules a survey's units are built with. Moving the SCF to the shared rules changed its median net
+# worth from $91,050 to $63,570, so every survey target names the rules its value was computed on. The row of the
+# expanded list records the module, the settings that select its variant, and the code commit.
+# ---------------------------------------------------------------------------------------------------------------
+tax_unit_rules:
+  shared_cbo:
+    module: tax_units.py
+    what: CBO's public tax-unit algorithm (US-CBO/CPS-tax-filing-units) translated rule by rule, TAX_UNITS.md section 4
+    settings:
+      scf: [tax_units.reassign, tax_units.npeu_split]
+      cex: [tax_units.reassign]
+      filing_stage: [cps.cbo_variant, cps.mfs_split]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Populations: which units a target is about. A share or an average is over the population's units in the cell.
+# ---------------------------------------------------------------------------------------------------------------
+populations:
+  filers:                             {rule: filer == 1}
+  non_filers:                         {rule: filer == 0}
+  all_units:                          {rule: all}
+  units_other_than_dependent_filers:  {rule: age_range < 6, why: the surveys count dependent filers inside the unit that claims them}
+  dependent_filers:                   {rule: filer == 1 and age_range >= 6, why: "the PUF's three dependent age ranges (common.DEPENDENT_RANGES)"}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Statistics. Each is a linear condition on the file's weights.
+#   units    number of units in the cell (no variable)
+#   count    number of units in the cell with the variable nonzero
+#   amount   sum of the variable over the cell
+#   average  the variable's average over the cell's units, zeros included
+#   share    the share of the cell's units above a line (the average of a 0/1 indicator)
+#   share of total  an item's share of its total that falls in the cell (an AGI rank group); only in the targets
+#            hold_distribution builds from the start file (target_list.hold_rows, TARGETS.md S7)
+# An average or a share is written as a condition that holds whatever the reweighting does to the number of units
+# in the cell (tilt.average_condition).
+# ---------------------------------------------------------------------------------------------------------------
+statistics: [units, count, amount, average, share]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Kinds of error (TARGETS.md section 9). errors.py computes the first three; a judgment number is written in the
+# configuration with a one-line reason; an identity has no error and is hit exactly.
+#   soi_cv            SOI's published coefficient of variation for the cell (Tables 1.4, 2.1, 3.3)
+#   soi_borrowed      another SOI table: the coefficient of variation of the nearest Table 1.4 cell
+#   survey_replicate  sampling error from the survey's replicate weights
+#   judgment          a number we set: {kind: judgment, relative: <share of the value>, reason: <one line>}
+#   identity          a count that defines the population; exact
+# ---------------------------------------------------------------------------------------------------------------
+error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Variables a target can name. For each: how a record's value is computed, its short name in the target's key, and
+# its lines in each published table (the line's "number of returns" is the count, its "amount" the amount; where a
+# variable has several lines, amounts add with their signs and counts add).
+#   record:      a column of the file
+#   parts:       the sum of these columns of the file (the same columns on a survey's units)
+#   family:      a business family's net income (its net where positive) or net loss (minus its net where
+#                negative); the net is the signed sum of the family's PUF parts (targets.FAMILIES)
+#   people:      the number of people in the unit, among the given members, whose exact age is in [from, to);
+#                members: head, spouse, dep1-dep3 (columns age_primary, age_spouse, age_dep1-3; -1 for none)
+# The SOI lines are the variable names of the run's targets/soi.csv (targets.T14).
+# ---------------------------------------------------------------------------------------------------------------
+variables:
+  wages:
+    record: wages
+    short: wages
+    soi 1.4: {count: [wages], amount: [wages]}
+  taxable_interest:
+    record: interest
+    short: interest
+    soi 1.4: {count: [taxable_interest], amount: [taxable_interest]}
+  ordinary_dividends:
+    record: dividends
+    short: dividends
+    soi 1.4: {count: [ordinary_dividends], amount: [ordinary_dividends]}
+  sch_d_net_capital_gain:
+    record: capital_gains               # the Schedule D net: short term + long term + other (dollars.py)
+    short: capital_gains
+    what: returns with a Schedule D net gain or net loss, and the net gain less the net loss
+    soi 1.4: {count: [sch_d_net_gain, sch_d_net_loss], amount: [sch_d_net_gain, minus sch_d_net_loss]}
+  # AGI and business income on the file's definitions (dollars.py), for hold_distribution (TARGETS.md S7): AGI is
+  # wages + interest + dividends + Schedule D net capital gain + the rest (dollars.AGI_PARTS); business income the
+  # signed sum of its eighteen parts (Schedules C, E and F).
+  agi:
+    parts: [wages, interest, dividends, capital_gains, other_agi]
+    short: agi
+  business_income:
+    record: business_income
+    short: business_income
+  net_worth:
+    record: net_worth                   # the 14 assets less the 6 debts (dollars.py), in the wave's dollars
+    short: net worth
+  # Four kinds of asset on the balance sheet (TARGETS.md S2), the same columns on the SCF's units (build_scf.R, from
+  # the SCF summary extract) and on the generated file (dollars.py draws each from the SCF's map). Gross values:
+  # the debts against them (mortgages) are not taken off.
+  stocks:
+    parts: [w_equities]
+    short: stocks
+    what: stocks held directly plus stock and combination mutual funds (SCF STOCKS + STMUTF + COMUTF)
+  business_equity:
+    parts: [w_pass_throughs]
+    short: business equity
+    what: the value of privately held businesses, actively and not actively managed (SCF BUS)
+  real_estate:
+    parts: [w_primary_home, w_other_home, w_re_fund]
+    short: real estate
+    what: >-
+      the primary residence, other residential real estate and net equity in nonresidential real estate (SCF
+      HOUSES + ORESRE + NNRESRE), before mortgages on them
+  retirement_accounts:
+    parts: [w_dc, w_db]
+    short: retirement accounts
+    what: >-
+      IRAs and Keoghs, account-type plans at current jobs, and account-type plans from past jobs or now paying out
+      (SCF IRAKH + THRIFT + FUTPEN + CURRPEN, the SCF's quasi-liquid retirement assets, RETQLIQ); defined-benefit
+      pensions are not in the SCF's net worth and not here
+  c_clothing:              {record: c_clothing, short: c_clothing}
+  c_motor_vehicles:        {record: c_motor_vehicles, short: c_motor_vehicles}
+  c_durables:              {record: c_durables, short: c_durables}
+  c_other_nondurables:     {record: c_other_nondurables, short: c_other_nondurables}
+  c_food_off_premises:     {record: c_food_off_premises, short: c_food_off_premises}
+  c_gasoline:              {record: c_gasoline, short: c_gasoline}
+  c_housing_utilities:     {record: c_housing_utilities, short: c_housing_utilities}
+  c_other_services_health: {record: c_other_services_health, short: c_other_services_health}
+  # The people in non-filer units, counted on the CPS units of the training table by the file's own rule
+  # (target_list.cps_nonfiler_people, weighted by each unit's chance of not filing): heads and spouses by their own
+  # exact age; children under 17 among the head, the spouse and the three dependents the file carries (the youngest
+  # three). The filing stage calibration's own numbers, by the head's band and every child, are kept as a check in
+  # each target's source.
+  heads_spouses_18_25:     {people: {members: [head, spouse], from: 18, to: 26}, label: heads and spouses aged 18_25, filing_band: '18_25'}
+  heads_spouses_26_34:     {people: {members: [head, spouse], from: 26, to: 35}, label: heads and spouses aged 26_34, filing_band: '26_34'}
+  heads_spouses_35_44:     {people: {members: [head, spouse], from: 35, to: 45}, label: heads and spouses aged 35_44, filing_band: '35_44'}
+  heads_spouses_45_54:     {people: {members: [head, spouse], from: 45, to: 55}, label: heads and spouses aged 45_54, filing_band: '45_54'}
+  heads_spouses_55_64:     {people: {members: [head, spouse], from: 55, to: 65}, label: heads and spouses aged 55_64, filing_band: '55_64'}
+  heads_spouses_65_74:     {people: {members: [head, spouse], from: 65, to: 75}, label: heads and spouses aged 65_74, filing_band: '65_74'}
+  heads_spouses_75_up:     {people: {members: [head, spouse], from: 75, to: null}, label: heads and spouses aged 75p, filing_band: '75p'}
+  children_under_17:
+    people: {members: [head, spouse, dep1, dep2, dep3], from: 0, to: 17}
+    label: children under 17
+    filing_band: children under 17
+
+# Business families: each gives two variables, <family>_net_income and <family>_net_loss, short name
+# "<family> net_income" / "<family> net_loss", SOI lines <family>_net_income / <family>_net_loss in targets/soi.csv.
+# Their PUF parts and SOI line names are targets.FAMILIES; they are not repeated here.
+families: [sch_c, pship_scorp, rent_royalty, estate_trust, farm, farm_rental]
+
+# Named lists of variables, so an entry can say "the income items".
+variable_lists:
+  income_items: [wages, taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
+  business: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
+             rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
+             farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
+  # The business families targeted in the five top AGI brackets (TARGETS.md S2), and the rest, which keep one
+  # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
+  # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.
+  business_top: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
+  business_other: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
+                   farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
+  consumption: [c_clothing, c_motor_vehicles, c_durables, c_other_nondurables, c_food_off_premises,
+                c_gasoline, c_housing_utilities, c_other_services_health]
+  nonfiler_people: [heads_spouses_18_25, heads_spouses_26_34, heads_spouses_35_44, heads_spouses_45_54,
+                    heads_spouses_55_64, heads_spouses_65_74, heads_spouses_75_up, children_under_17]
+  # The SCF's balance sheet by kind of asset, for the top net worth lines (TARGETS.md S2)
+  scf_top_assets: [stocks, business_equity, real_estate, retirement_accounts]
+
+# ---------------------------------------------------------------------------------------------------------------
+# Groupings: named ways of cutting units into cells. An entry's cells are "all", one grouping (all its cells or a
+# list of their labels), or several groupings crossed. A cell's label in a target's key is the grouping's label.
+#   edges:         dollar ranges [low, high, label] of a variable, low inclusive, null for no limit
+#   as_published:  the published table's own AGI brackets in the target year, the top ones merged until each would
+#                  hold enough records (merge_top_until); brackets whose lower edge is listed in kept_separate are
+#                  never merged (each must be published that year), and the merge rule applies to those below them
+#   values:        category values [value, label] of a column of the file
+#   lines:         units above a line on a variable: [percentile, p, label] (the survey's own weighted percentile)
+#                  or [dollars, x, label]; nested, not a partition
+# Rules for published cells (not settings; applied to every published value):
+#   - a cell SOI left blank and combined into its neighbour is joined to it (targets.published_cells);
+#   - with merge_across_published: true, where one published cell crosses the edge between two of our cells, the
+#     two are merged for that variable (over all its statistics), labelled "<first> to <second>" (tilt.merge_groups);
+#   - a cell published as zero is left out (a reweighting cannot make positive contributions add to zero);
+#   - a cell no record of the starting file can reach is left out, never forced.
+# ---------------------------------------------------------------------------------------------------------------
+groupings:
+  soi_agi_brackets:
+    variable: agi
+    as_published: soi 1.4
+    merge_top_until: {records: 500, in_a_file_of: 200000}
+    # The five top brackets, $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over, each its own cell (TARGETS.md
+    # S2). The merge rule would join them into one "$1,000,000 or more" cell (in 2019 the $10M+ bracket is 20,876
+    # returns, 26 records in a 200,000-record file); the strata of the generation (S4) put thousands of records there.
+    kept_separate: [1000000, 1500000, 2000000, 5000000, 10000000]
+  soi_1_7_agi_brackets:
+    variable: agi
+    as_published: soi 1.7
+    merge_top_until: {records: 500, in_a_file_of: 200000}
+    what: >-
+      Table 1.7's AGI brackets, the top ones merged until each would hold 500 records in a 200,000-record file of
+      filers (the bracket's share of all Table 1.4 returns, times 200,000): the IRS brackets' rule
+  business_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 50000, under $50k]
+      - [50000, 100000, $50k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 1000000, $200k-1m]
+      - [1000000, null, $1m and over]
+  business_agi_groups_top:
+    variable: agi
+    merge_across_published: true
+    what: >-
+      the business groups with "$1m and over" cut into SOI's five top brackets (TARGETS.md S2), for the families in
+      business_top; groups below $1M are the same as business_agi_groups', so no cell is targeted twice
+    edges:
+      - [null, 1, no AGI]
+      - [1, 50000, under $50k]
+      - [50000, 100000, $50k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 1000000, $200k-1m]
+      - [1000000, 1500000, $1m-1.5m]
+      - [1500000, 2000000, $1.5m-2m]
+      - [2000000, 5000000, $2m-5m]
+      - [5000000, 10000000, $5m-10m]
+      - [10000000, null, $10m and over]
+  joint_or_not:
+    variable: married
+    values: [[1, joint], [0, non-joint]]
+    in soi 1.2: {joint: [joint], non-joint: [nonjoint]}                       # targets/soi.csv filing_status
+    in soi 1.6: {joint: [joint], non-joint: [single, separate, head_of_household]}   # targets.table_1_6 statuses
+  married_or_not:
+    variable: married
+    values: [[1, married], [0, not married]]
+    what: a joint unit is married; a separate return is not married, on the survey's units as on the file's
+  adult_age_ranges:
+    variable: age_range
+    values: [[0, under 26], [1, 26-34], [2, 35-44], [3, 45-54], [4, 55-64], [5, 65+]]
+  scf_net_worth_lines:
+    variable: net_worth
+    lines:
+      - [percentile, 99.9, above the SCF 99.9th percentile]
+      - [percentile, 99, above the SCF 99th percentile]
+      - [percentile, 90, above the SCF 90th percentile]
+      - [percentile, 50, above the SCF 50th percentile]
+      - [dollars, 1000000, above $1 million]
