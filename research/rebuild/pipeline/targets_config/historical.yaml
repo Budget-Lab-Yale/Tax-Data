@@ -44,7 +44,7 @@ targets:
     key: {group: all, target: joint returns}
 
   # The number of non-filer units, the CPS filing stage's expected non-filers. With the returns it fixes the number
-  # of units in the file, which every share and average condition is written against (tilt.average_condition).
+  # of units in the file, which every share and average condition is written against (target_list.average_condition).
   - id: non_filers
     kind: non-filers
     statistic: units

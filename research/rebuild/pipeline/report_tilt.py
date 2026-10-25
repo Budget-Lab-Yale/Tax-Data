@@ -17,7 +17,7 @@ Writes, in the same folder or --out (REBUILD_REPORT_OUT):
 
 A piece the run did not write (no standard errors, no model column, no solver metrics) is said on the page; it
 is never filled in with a made-up number. When the fit table lacks the solver's thin-cell metrics, they are
-computed here from the targets' linear conditions (target_list.conditions, else today's tilt.py builders).
+computed here from the targets' linear conditions (target_list.conditions on targets.csv).
 
 The standard statistics (sections 4 and 5): for every dollar item in the file, the number of units holding it
 (nonzero) and its total, over all units, filers, non-filers, seven AGI groups and the primary filer's age ranges;
@@ -250,34 +250,10 @@ def target_page(t, notes):
 
 
 # ---- 2. thin cells -------------------------------------------------------------------------------------------
-def today_conditions(df, w0):
-    """The 383 targets of 24 October rebuilt with tilt.py's own builders, in fit.csv's order: (keys, contributions
-    n x targets). For an average or a share the contribution is the group's records times the averaged variable,
-    the total its average rests on. A stand-in until the expanded target list writes its conditions."""
-    import tilt as TL
-    soi = TG.load()
-    filer = df['filer'].to_numpy() == 1
-    irs, F_irs = TL.irs_targets(soi, df)
-    nfp, F_nfp = TL.nonfiler_people_targets(df)
-    age, F_age = TL.age_targets(df)
-    bus, F_bus = TL.business_targets(soi, df)
-    units = TG.returns(soi, common.TARGET_YEAR) + TL.nonfiler_count()
-    x = df['net_worth'].to_numpy(float)
-    nondep = df['age_range'].to_numpy() < common.ADULT_RANGES
-    wl, F_w, _, means_w = TL.wealth_targets(x, nondep, w0, units)
-    cl, F_c, _, means_c = TL.consumption_targets(df, w0, units)
-    keys = pd.concat([irs.assign(kind='IRS'), pd.DataFrame([{'group': 'all', 'target': 'non-filers', 'kind': 'non-filers'}]),
-                      nfp.assign(kind='non-filer people'), age.assign(kind='age'), bus.assign(kind='business'),
-                      wl.assign(kind='wealth'), cl.assign(kind='consumption')], ignore_index=True)
-    cols = [np.abs(F_irs * filer[:, None]), (~filer).astype(float)[:, None], np.abs(F_nfp * ~filer[:, None]),
-            np.abs(F_age * filer[:, None]), np.abs(F_bus * filer[:, None])]
-    for F_, means in [(F_w, means_w), (F_c, means_c)]:
-        cols.append(np.column_stack([np.abs(F_[:, j]) if m is None else m[0] * np.abs(m[1]) for j, m in enumerate(means)]))
-    return keys[['kind', 'group', 'target']], np.column_stack(cols)
-
-
 def list_conditions(df, tl, w0):
-    """The same from the expanded target list (target_list.conditions), when it exists."""
+    """Per target, its key (kind, group, target) and each record's contribution (records x targets), from the expanded
+    target list (target_list.conditions). For an average or a share the contribution is the group's records times the
+    averaged variable, the total its average rests on."""
     import target_list
     F, T, averages = target_list.conditions(df, tl, w0)
     F = np.asarray(F.todense() if hasattr(F, 'todense') else F)
@@ -320,8 +296,7 @@ def thin_cells(t, df, tl, w0, w1, notes):
     else:
         a = None
         in_order = t.sort_values('fit_row')
-        for how, build in [('the expanded target list', lambda: list_conditions(df, tl, w0) if tl is not None else None),
-                           ("today's tilt.py builders", lambda: today_conditions(df, w0))]:
+        for how, build in [('the expanded target list', lambda: list_conditions(df, tl, w0) if tl is not None else None)]:
             try:
                 got = build()
             except Exception as e:   # said on the page; the next way is tried

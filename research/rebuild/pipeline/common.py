@@ -4,10 +4,10 @@ Every choice of a run is in one settings file: REBUILD_SETTINGS if set (run.sbat
 Python, reads it), else the pipeline's own settings.json. A variant run is a copy of that file. Outputs go under OUT
 (scratch), one folder per stage:
   data/     the training table, its band edges, the dollar maps   (build_table.py)
-  targets/  the published SOI numbers                              (targets.py)
+  targets/  the published SOI numbers and SOI's CVs                 (targets.py, errors.py)
   model/    the trained network                                    (train.py)
   gen/      the generated records                                  (generate.py)
-  tilt/     the target year's weights and the final file           (tilt.py)
+  tilt/     the year's targets, weights, final file and run report (tilt.py, report_tilt.py)
 Environment: REBUILD_OUT overrides OUT; REBUILD_SEED the training seed; REBUILD_RUN names the model/gen/tilt
 subfolder (default seed<n>); REBUILD_MODEL_RUN generates from another run's model; REBUILD_PASSES the passes
 (for a quick test).

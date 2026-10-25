@@ -93,30 +93,30 @@ first-step probabilities under the PUF label at the PUF year: the AGI class with
 flag given the class) over the stratum's share of the sample, times p / q. The labels are checked, not trusted
 (label_check): the record's AGI is computed from its drawn parts and its net worth from its drawn balance sheet, in
 dollars as dollars.py draws them from the PUF year's maps, and put on the labels' own cut points; the business flag
-from its parts' bands. A record whose computed AGI class, business flag or net worth class differs from its label is
-dropped. The share dropped in each stratum is written to strata_check.csv and folded into the weights within each
-net worth class of the stratum: the kept records of a class carry the sum of p / q of all its draws. Each model's
-filer weights are then scaled to sum to its share of the batch's records. Design "unstratified" draws the labels
-like any item, first, with no boost and every weight equal (a check on the strata: same model, no design). The
-four top-1% parts, the pilot and the AGI thinning below are design "top_parts", kept for comparison.
+from its parts' bands. Every record is kept and the check is only reported (settings generation.strata,
+drop_mismatches false, since 25 October). With drop_mismatches true, kept for comparison, a record whose computed
+AGI class, business flag or net worth class differs from its label is dropped; the share dropped in each stratum is
+written to strata_check.csv and folded into the weights within each net worth class of the stratum: the kept
+records of a class carry the sum of p / q of all its draws. Each model's filer weights are then scaled to sum to
+its share of the batch's records. Design "unstratified" draws the labels
+like any item, first, with no boost and every weight equal (a check on the strata: same model, no design).
 
-Design "top_parts", from before S4: the filer batch is a stack of four parts of 100,000 records. Each part oversamples
+The non-filer batch, under every design, is one part with no oversampling (stratifier "nonfiler"), every weight 1.
+Its number of records (settings "generation", nonfiler_records; null: in proportion) is the filer batch's records
+times the CPS's expected non-filers in the target year (the sum of weight x (1 - filer_p)) over SOI's returns for
+that year, so the stack's weights carry the two batches in their real proportion (the tilt sets their levels).
+
+Design "top_parts", from before S4, kept for comparison (with the AGI thinning below, also before S4): the filer batch is a stack of four parts of 100,000 records. Each part oversamples
 the top 1% of one variable: that variable is drawn first, from the model
 with nothing else known, with the bands covering the top 1% of its positive
 weight drawn ten times as often (for an SCF-only slot: drawn in its usual
 place, from the boosted conditional); each record's weight p / q undoes the
-boost exactly. Each part's weights are scaled to sum to 100,000. The
-non-filer batch is one part with no oversampling (stratifier "nonfiler"),
-every weight 1. Its number of records (settings "generation",
-nonfiler_records; null: in proportion) is the filer batch's 400,000 times the
-CPS's expected non-filers in the target year (the sum of weight x (1 -
-filer_p)) over SOI's returns for that year, so the stack's weights carry the
-two batches in their real proportion (the tilt sets their levels).
+boost exactly. Each part's weights are scaled to sum to 100,000.
 
 Several trained models pooled (TARGETS.md section 8; settings "generation",
-models). Every part above is drawn in equal shares from each model: with two
-models, each draws 50,000 records of each filer part and half the non-filer
-batch, so the stack has as many records as from one model. Each model's
+models). Every stratum (or part) is drawn in equal shares from each model: with two
+models, each draws half the records of each and half the non-filer batch, so the
+stack has as many records as from one model. Each model's
 records in a part carry an equal share of the part's weight, so in each batch
 (filers, non-filers) every model carries the same share of the weight. Each
 model has its own draws: its seed_shift is added to every generation seed
@@ -127,8 +127,8 @@ in the list (counting from 0) has the ids from k x 10,000,000. The offset
 below is found for each model on its own records, since it brings each
 model's holders back to that model's own expected holders.
 
-Oversampling by rough AGI (settings "generation", agi_oversampling; TARGETS.md,
-"The method stays reweighting"). In each filer part the batch's own items
+Oversampling by rough AGI (settings "generation", agi_oversampling; design "top_parts" only, off since S4;
+TARGETS.md, "The method stays reweighting"). In each filer part the batch's own items
 (steps 1 and 2) are drawn for a pilot of pilot_factor times the part's
 records, exactly as above. Each pilot record gets a rough AGI: the sum, with
 AGI's signs (dollars.py), of the average target-year dollars of the dollar

@@ -43,7 +43,7 @@ right, and only three kinds are computed; everything else is a judgment number w
 A definition gap (settings definition_gap, by kind, a share of the value; none set today) adds to the sampling error
 as the square root of the sum of squares. Identities (a row with identity true) have error 0 ('identity').
 
-Interface: standard_errors(rows, year) -> one row per target, keyed by (kind, group, target) as in tilt.py's
+Interface: standard_errors(rows, year) -> one row per target, keyed by (kind, group, target) as in the run's
 fit.csv, with se in the units of the published statistic (on the average itself for an average, on the share for a
 share, in dollars or returns for a total), error_kind and se_reason.
 
@@ -88,7 +88,7 @@ FULL_SAMPLE_SE = float(S.get('full_sample_se', 0.01))
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 INF = np.inf
 
-# Which published statistic is each target, in Table 1.4's terms (variable, statistic, sign): tilt.IRS_ITEMS.
+# Which published statistic is each IRS target, in Table 1.4's terms (variable, statistic, sign).
 # Table 1.4 lines SOI renamed, by their old names (targets.T14's): from tax year 2022 wages are "total wages > total"
 RENAMED = {'total wages > total > number of returns': 'salaries and wages > number of returns',
            'total wages > total > amount': 'salaries and wages > amount'}
@@ -308,11 +308,10 @@ def borrow_cv(cells, count=None, amount=None, returns=None):
 
 def business_groups():
     """{label: (lo, hi)} of every business grouping in the targets catalog (targets_config/catalog.yaml: the
-    groupings with edges on AGI), and of settings tilt.business_agi_groups (the old builders' groups)."""
+    groupings with edges on AGI)."""
     import yaml
     cat = yaml.safe_load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'targets_config', 'catalog.yaml')))
     edges = [e for g in cat['groupings'].values() if g.get('variable') == 'agi' and 'edges' in g for e in g['edges']]
-    edges += S_TILT.get('business_agi_groups', [])
     out = {}
     for lo, hi, lab in edges:
         r = (-INF if lo is None else lo, INF if hi is None else hi)
@@ -422,10 +421,10 @@ def wealth_variable(r):
 
 
 def wealth_errors(rows, year):
-    """The wealth targets (tilt.wealth_targets, target_list's wealth entries): shares of units above the SCF's
+    """The wealth targets (target_list's wealth entries): shares of units above the SCF's
     99.9th, 99th, 90th and 50th percentile lines and above $1 million, net worth above each line and in total, and
     the dollars of each kind of asset (stocks, business equity, real estate, retirement accounts) held above the top
-    lines. The lines are on net worth, held at their full-sample values (all five implicates, as tilt.py computes
+    lines. The lines are on net worth, held at their full-sample values (all five implicates, as target_list computes
     them)."""
     import target_list
     u = pd.read_parquet(f'{common.DATA}/scf_units_{year}.parquet')
@@ -491,7 +490,7 @@ def cex_replicates(year, units):
 
 
 def consumption_errors(rows, year):
-    """The consumption targets (tilt.consumption_targets): each category's average per tax unit over all units and in
+    """The consumption targets (target_list's consumption entries): each category's average per tax unit over all units and in
     each cell of the primary filer's adult age range by married."""
     u = pd.read_parquet(f'{common.DATA}/cex_units_{year}_all.parquet')
     w = u['weight'].to_numpy(float)
@@ -542,9 +541,8 @@ def nonfiler_errors(rows, year):
 
 # ---- the interface -----------------------------------------------------------------------------------
 def published_value(rows):
-    """The published statistic of each row: for an average or share, the average or share itself (tilt.py's target
-    rows carry it in 'average' and the file's unit count in 'value'; its fit.csv and a target list carry it in
-    'value'), else the value."""
+    """The published statistic of each row: for an average or share, the average or share itself (in 'average'
+    where a row has one, else in 'value', as fit.csv and targets.csv carry it), else the value."""
     v = rows['value'].astype(float)
     if 'average' in rows:
         v = rows['average'].astype(float).where(rows['average'].notna(), v)

@@ -70,7 +70,7 @@ tax_unit_rules:
     settings:
       scf: [tax_units.reassign, tax_units.npeu_split]
       cex: [tax_units.reassign]
-      filing_stage: [cps.cbo_variant, cps.mfs_split]
+      filing_stage: [cps.cbo_variant, filing.mfs_salt]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Populations: which units a target is about. A share or an average is over the population's units in the cell.
@@ -92,7 +92,7 @@ populations:
 #   share of total  an item's share of its total that falls in the cell (an AGI rank group); only in the targets
 #            hold_distribution builds from the start file (target_list.hold_rows, TARGETS.md S7)
 # An average or a share is written as a condition that holds whatever the reweighting does to the number of units
-# in the cell (tilt.average_condition).
+# in the cell (target_list.average_condition).
 # ---------------------------------------------------------------------------------------------------------------
 statistics: [units, count, amount, average, share]
 
@@ -235,7 +235,7 @@ variable_lists:
 # Rules for published cells (not settings; applied to every published value):
 #   - a cell SOI left blank and combined into its neighbour is joined to it (targets.published_cells);
 #   - with merge_across_published: true, where one published cell crosses the edge between two of our cells, the
-#     two are merged for that variable (over all its statistics), labelled "<first> to <second>" (tilt.merge_groups);
+#     two are merged for that variable (over all its statistics), labelled "<first> to <second>" (target_list.merge_groups);
 #   - a cell published as zero is left out (a reweighting cannot make positive contributions add to zero);
 #   - a cell no record of the starting file can reach is left out, never forced.
 # ---------------------------------------------------------------------------------------------------------------

@@ -16,7 +16,7 @@ The rule.
 How it is solved. Every target is a linear condition on the weights, F.T @ w = T, and a range is |F.T @ w - T| <= b
 with b = k x se. The reweighting closest to the start that meets a set of linear conditions and ranges has the form
 w = w0 x exp(F @ lambda), one multiplier per target, and the multipliers minimize a convex function (the dual), by
-Newton's method, as tilt.tilt has done until now. A range adds b |lambda| to the dual: a target's multiplier is zero
+Newton's method. A range adds b |lambda| to the dual: a target's multiplier is zero
 while the target sits inside its range (it does not bind); when it binds, the target sits at an edge (the low edge
 if the other targets or the start would leave it below, the high edge if above). |lambda| has a kink at zero, which
 Newton's method cannot work with, so it is smoothed as sqrt(lambda^2 + eps^2), with eps shrunk step by step
@@ -43,7 +43,7 @@ Why not a cleaner exact formulation. The misses the rule picks are unique (the c
 of where the file lands, beyond the ranges), so the answer is the closest reweighting that lands there. When the
 conflict is between targets that are linear combinations of each other (two tables putting the same group at
 different counts), that landing point is a generalized least-squares projection, which could be computed directly.
-But that needs a decision about which near-dependencies among 383 columns count as exact, and it misses the other way
+But that needs a decision about which near-dependencies among several hundred columns count as exact, and it misses the other way
 targets conflict (a cell that can only be met by pushing some weights to zero). The shrinking penalty needs no such
 decision and handles both.
 
@@ -60,8 +60,8 @@ is repeated at the last c (up to solver_average_rounds in all), each time with t
 until they stop changing. When no average misses its range, its standard error does not affect the answer and this
 is skipped.
 The solver writes average conditions this way itself, from averages[j] = (member, v, m), in place of F[:, j] and
-T[j]: the caller's form (tilt.average_condition, units + sum over the group of w (v / m - 1) = units) holds only
-when the total number of units is exact, and with standard errors on the IRS and non-filer counts it no longer is.
+T[j]: target_list's 'units' form (average_condition, units + sum over the group of w (v / m - 1) = units) holds
+only when the total number of units is exact, and with standard errors on the IRS and non-filer counts it is not.
 
 Thin cells (section 5). For each target, after the tilt: the effective number of records behind it,
 (sum_i w_i |f_i|)^2 / sum_i (w_i f_i)^2 over the records with f_i != 0, where f_i is the record's contribution (its

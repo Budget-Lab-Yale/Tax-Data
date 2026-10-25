@@ -6,6 +6,7 @@
   "target": 2019
  },
  "paths": {
+  "_what": "out: the scratch folder every stage writes under (common.py; REBUILD_OUT overrides it). raw: the input files, read only.",
   "out": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild",
   "raw": {
    "puf": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-PUF/v1/2023091310/historical/puf_2015.csv",
@@ -30,6 +31,7 @@
   "_npeu_split": "The SCF's adults outside the primary economic unit: how the group's income is divided among them. equal: equally; moore: wages among those under 70 and Social Security and pensions among those 62 and over (Moore's rule). The group's balance sheet is divided equally either way."
  },
  "network": {
+  "_what": "The network (model.py, SlotTransformer): width of each slot's vector, layers, attention heads, ffn (the width inside each layer's feed-forward block), dropout.",
   "width": 128,
   "layers": 4,
   "heads": 4,
@@ -37,6 +39,7 @@
   "dropout": 0.0
  },
  "training": {
+  "_what": "Training (train.py): seed (REBUILD_SEED overrides it), passes over the table (REBUILD_PASSES overrides it), batch (records per step), the learning rate's peak, warm-up passes and final share of the peak, weight_decay, the share of the table held back to measure the fit (holdback_share, holdback_seed), and how often the log reports (log_every_passes).",
   "seed": 20261016,
   "passes": 80,
   "batch": 4096,
@@ -423,7 +426,7 @@
      "filer"
     ],
     "type_for_fill_in": false,
-    "reason": "the filing flag drawn from the unit's calibrated filing chance (build_cps.R; the table's filer_p, which training redraws it from in every pass): Mok's probits below the filing threshold, the Pub 5785 hazard above it, the non-filer pool's calibration in every year (2015 since 23 October)"
+    "reason": "the filing flag drawn from the unit's calibrated filing chance (the filing stage, filing.py: the filing rule v4, calibrated every year; the table's filer_p, which training redraws it from in every pass)"
    },
    {
     "survey": "cps",
@@ -910,9 +913,6 @@
    "childcare"
   ],
   "cbo_variant": "cbo",
-  "mfs_split": false,
-  "_mfs_split": "Married filing separately as a post-filing step (tax_units.mfs_split): off by default. When on, a share of joint filer couples chosen by a draw keyed by unit id (salt filer_seed) become two separate returns, to SOI's Table 1.6 count; dependents by mfs_dep_rule.",
-  "mfs_dep_rule": "primary",
   "step1_dir": "filing",
   "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
   "step1_out": "returns",
@@ -1011,7 +1011,7 @@
   },
   "nonfiler_records": null,
   "nonfiler_seed": 35,
-  "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer strata's total (records_per_file x 4) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
+  "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer batch's (filer_records: the strata's total under design 'strata') times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
   "models": [
    {
     "run": "strata_seed20261016",
@@ -1083,53 +1083,15 @@
   "offset_generations": 3
  },
  "dollars": {
+  "_what": "seed: the seed of the draws that pick each record's dollars within its drawn band from the dollar map (dollars.py).",
   "seed": 20261104
  },
  "tilt": {
-  "_what": "Reweighting to 2019: the 136 IRS targets and the non-filer count exact; the people in non-filer units exact (heads and spouses in 7 age bands by their own exact age, and children under 17 among the head, spouse and first three dependents), the numbers the CPS filing stage's calibration hit (filing.py), read from nonfiler_targets_dir (<year>_nonfilers_vs_targets.csv), nonfiler_fallback_tolerance if the exact tilt does not converge even with the business and age fallbacks; filers' returns by the primary filer's age range, 26-34 to 65+, from SOI Table 1.6, in joint and in non-joint returns (age_level \"filing_status\"; \"all\" for the five totals; \"none\" for no age targets), exact (age_fallback_tolerance if the exact tilt does not converge even with the business fallback), dependent filers 26 and over spread over those ranges by Table 1.6's shares, under 26 left to the total and joint counts; the SOI business targets exact (2% if the exact tilt does not converge), estates and trusts left out until the targeting overhaul; the eight SCF 2019 wealth targets with a 2% tolerance, counts as shares of the file's units other than dependent filers. Filers' starting weights pre-scaled to the 2019 joint and non-joint return counts. Consumption: the 8 categories' CEX 2019 averages per tax unit, overall and in 12 cells of the primary filer's adult age range by married (a joint unit; separate returns are not married, on both sides), dependent filers left out on both sides (104 targets), within consumption_band of each average (free inside the band).",
-  "wealth_tolerance": 0.02,
-  "business_fallback_tolerance": 0.02,
-  "age_level": "filing_status",
-  "age_fallback_tolerance": 0.02,
+  "_what": "Post-training (tilt.py, solver.py, TARGETS.md): the start's weights scaled, then the smallest Kullback-Leibler move of the weights that puts every target in the year's list (targets_config/, expanded by target_list.py, each with its standard error from errors.py) inside its range. Which targets, their values and their errors are in targets_config/, not here.",
   "nonfiler_targets_dir": "filing/checks",
-  "nonfiler_fallback_tolerance": 0.02,
-  "business_agi_groups": [
-   [
-    null,
-    1,
-    "no AGI"
-   ],
-   [
-    1,
-    50000,
-    "under $50k"
-   ],
-   [
-    50000,
-    100000,
-    "$50k-100k"
-   ],
-   [
-    100000,
-    200000,
-    "$100k-200k"
-   ],
-   [
-    200000,
-    1000000,
-    "$200k-1m"
-   ],
-   [
-    1000000,
-    null,
-    "$1m and over"
-   ]
-  ],
-  "min_top_bracket_records": 500,
-  "bracket_file_size": 200000,
-  "prescale": "demographic",
-  "consumption_band": 0.05,
   "_nonfiler_targets_dir": "Inside the run's data folder: the filing stage's checks (filing.py), <year>_nonfilers_vs_targets.csv, column target_heads_spouses.",
+  "prescale": "demographic",
+  "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
   "range_in_se": 1.0,
   "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly."
  }

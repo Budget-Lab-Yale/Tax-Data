@@ -377,6 +377,16 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
 - The combined 2019 run (`tilt/strata_full2019`): all 474 targets within
   range, 99.9% of the effective sample kept, 33 thin-cell stops at the top.
 
+**25 October: cleanup.** The code, settings and documents were brought in line
+with the system above, with no change in what it does (the 2019 tilt
+reproduces `tilt/strata_full2019`). Removed: tilt.py's old target builders
+and solver (replaced by `targets_config/`, `target_list.py` and
+`solver.py`), the settings only they read (the wealth and fallback
+tolerances, the consumption band, the age level, the business AGI groups,
+the bracket rule) and the unused CPS separate-returns switch. FEATURES.md's
+figures for the runs of 20–24 October are in its git history (commit
+bc72cc7).
+
 ## Paths tried and not taken
 
 | What | Why not |

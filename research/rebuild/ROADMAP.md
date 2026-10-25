@@ -1,22 +1,20 @@
 # Roadmap: from the current pipeline to the end goal
 
 What the pipeline does now is in `FEATURES.md`; the end state is in
-`GOAL.md`. Items 2, 4 and 6 are partly done; nothing else on this list is started. The order is rough. Paths
-starting `archive/` are under `research/archive/rebuild_2026-10/`.
+`GOAL.md`. Items 1, 4, 5, 8 and 10 are done or mostly done; items 2 and 6 are partly done; the rest are not
+started. The order is rough. Paths starting `archive/` are under `research/archive/rebuild_2026-10/`.
 
-1. **Target construction, made formal.**
-   - Which published tables to use, and at what detail.
-   - Exact targets or a tolerance; tolerances from SOI's own sampling
-     errors.
-   - Targets where nothing is published: projection years, splits SOI
-     does not show. Build them from macro and demographic projections.
+1. **Target construction, made formal.** Built 25 October (`TARGETS.md`; `FEATURES.md`, post-training): the
+   year's targets from a configuration (`pipeline/targets_config/`), each with a standard error (SOI's published
+   coefficients of variation, borrowed ones, survey replicate weights, or a judgment with a reason), met within a
+   range of one standard error; one algorithm every year, from a generated start or from an earlier year's file.
+   Left:
+   - Targets where nothing is published: projection years (macro totals, population by age), splits SOI does
+     not show. The projection configuration exists; its targets are not built.
+   - The from_year start and hold_distribution are being tested on 2022.
+   - Estates and trusts are still left out of the business targets.
    - Choose the level of detail with held-out targets.
-   - Estates and trusts were dropped from the business targets on 22
-     October: their tiny cells (about 6,000 returns at AGI $50–100k) could
-     not always be met. Bring them back here, with tolerances from SOI's
-     sampling errors.
-   - Starting points: `archive/design/tilt_next_steps.md` and
-     `archive/minimal/36_RESULTS.md`.
+   - Calculator targets (item 9), the Forbes 400 and the Distributional Financial Accounts.
 2. **Translation, finalized.** An algorithm for lining up the variables
    the sources share, by population, definition and measurement, driven by
    data and theory. The two-slot fill-in (21 October) replaced the cell method, which needed
@@ -28,13 +26,13 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
      y: PUF filers with weights scaled to SOI's year-y return counts in as
      much detail as SOI publishes (filing status x age, Table 1.6), every
      dollar item grown by SOI's growth per return with the item, the
-     year's non-filer tax units appended (item 8), dependent filers left
+     year's CPS non-filer units appended (item 8), dependent filers left
      out. Every shared variable, the assumed-correct ones included, gets a
      standing distribution comparison against it, and every translation
      rule (cut points, ranks, the top-wage swap, the fill-in formula's PUF
      side) uses it. Past SOI's last year: the last year's growth carried
-     forward, as a placeholder until the targeting framework (item 1)
-     supplies a rule for borrowing from other years.
+     forward, a placeholder. Still to do: the rule for which survey years
+     a target year borrows from (item 3; `TARGETS.md`, section 7).
    - Design (John, 22 October): translation is two standard functions and
      one configuration table, with no bespoke code paths per variable or
      survey.
@@ -66,16 +64,19 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
      - function 2 runs on the SCF only;
      - the after-function-2 report gives only the share with none and the
        shares by size range.
-3. **Year priors.** A rule for which source-years a target year draws on,
-   for every year through 2060. The year token is in the model; the rule
-   is not.
+3. **Year priors: the survey-year borrowing rule.** A rule for which
+   source years a target year draws on, for every year through 2060. The
+   year token is in the model; the rule is not: generation draws the CEX
+   and the CPS at fixed years (settings cex and cps, generation_year).
 4. **The other surveys and imputed variables.** Everything `src/main.R`
    imputes today: tips, overtime, consumption, state and local taxes, auto
-   loan interest, child care and the rest. Add the CPS to pretraining.
-   - Done (22 October): consumption in 8 categories from the CEX
-     (`FEATURES.md`).
-   - Tips and overtime are earned by a person; they wait for each
-     person's wages (the split of a couple's wages, which the PUF lacks).
+   loan interest, child care and the rest.
+   - Done: consumption in 8 categories from the CEX (22 October); the CPS
+     in pretraining, with each person's items, the split of a couple's
+     wages and self-employment income, and childcare (22-24 October;
+     `FEATURES.md`).
+   - Tips and overtime are earned by a person; the split of a couple's
+     wages is now drawn, so they can be built on it.
    - CEX tax units: divide a shared household's spending by a model, not
      head count (`explore/2026-10-21/cex/splitting/SPLITTING.md`: learn
      from one-unit households what a unit spends, divide in proportion,
@@ -83,8 +84,10 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
      into fake shared ones).
 5. **Half-measured PUF variables.** Age, sex and similar items that the
    PUF has only coarsely or for some records. These are filled in, not
-   added as new columns. Ages: plan in `AGES.md`; the primary filer's
-   range is built (21 October), exact ages, sex and dependents are not.
+   added as new columns. Ages: plan in `AGES.md`; built: the primary
+   filer's range (21 October), and from the CPS the exact ages, sex and
+   dependents' ages (23 October). Known problem: dependents' ages come out
+   too young (`FEATURES.md`).
 6. **Pretraining settings.** How the network and training choices affect
    the file.
    - Known so far: dropout biases rare items down, so it is off.
@@ -101,27 +104,28 @@ starting `archive/` are under `research/archive/rebuild_2026-10/`.
    - The test: the real PUF with model-drawn net worth, against the
      current file.
    - Decide early: it changes what pretraining must get right.
-8. **Real non-filers.** The CPS-based non-filer pool in this repository,
-   in place of the crude stopgap.
-   - TODO (John, 22 October): the universe is always tax units, not
-     filers. Extend the pool to every year a survey or target needs (it
-     covers 2017–2023 now). The first step of preprocessing is to build
-     each year's non-filer tax units and append them to the PUF: "the tax
-     data" for that year. Every translation comparison (item 2) is made
-     against it.
+8. **Real non-filers.** Done 23-24 October: non-filers are drawn under the
+   CPS label, the CPS's units built by CBO's rules with their filing
+   chances from the calibrated filing rule (v4), in CPS years 2015, 2017,
+   2019, 2021 and 2023; the tax data for a year appends that year's CPS
+   non-filers. Left: years between and beyond the CPS years take the
+   nearest CPS year (the tilt's non-filer count, the geometric mean of the
+   two around it), a placeholder.
 9. **A tax calculator in post-training.** Targets on computed tax values:
    itemizers after TCJA, taxable income, liability by AGI. Possibly
    calibration to revenue estimates. Each record's contribution is
    computed once by the calculator, then the tilt runs as now.
-10. **Pre-scaling by age as well as filing status,** once records carry
-    age. It matters more for distant target years.
+10. **Pre-scaling by age as well as filing status.** Done 25 October: the
+    start is scaled to Table 1.6's returns by age in joint and non-joint
+    returns, and non-filers to the non-filer people by age, before the tilt
+    (`tilt.prescale` "demographic").
 11. **Validation.** A standing set of benchmarks and checks of what no
     target covers, with a sense of good enough for each variable.
 12. **Output to Tax-Simulator.** The variable contract, record IDs and
     seeds, run time, and replacing `src/main.R`.
 
 **Known gaps in the current file,** for whichever items above address
-them:
+them. Figures are from runs before 25 October unless a date says otherwise:
 - The two-slot fill-in leaves interest about 1.7 points short of the PUF
   (share with none 71.5% against 69.8%): about 4% of zero-reporters come
   out above 100% and are capped. Most report the other items, so reporting
@@ -131,11 +135,10 @@ them:
   show, the fill-in overcorrects (about 8% on the fake survey). A stronger
   fake-survey test, with a survey-only variable closely tied to holding
   interest, is still to do.
-- Earners over $200,000 hold too little net worth: $3.5 million against
-  the SCF's $4.49 million (on the current definitions; earlier notes said
-  $4.4 million). The same with real PUF records in place of synthetic ones
-  (`explore/2026-10-20/real_puf/`), so it comes from the net-worth draw.
-  Units with $1 million or more of income: the tilt lowers their mean net
+- Earners over $200,000 held too little net worth before the wealth
+  targets of 25 October: $3.5 million against the SCF's $4.49 million. With
+  them (the 25 October run) the mean is $4.28 million against the SCF's
+  $4.38 million. Units with $1 million or more of income: the tilt lowers their mean net
   worth to about $17 million against the SCF's $26 million, even when it
   starts near the SCF's.
 - Units with no interest, dividends or capital gains hold about half the

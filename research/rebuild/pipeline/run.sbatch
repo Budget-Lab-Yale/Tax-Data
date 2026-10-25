@@ -10,7 +10,8 @@
 #   sbatch research/rebuild/pipeline/run.sbatch                  every stage
 #   sbatch research/rebuild/pipeline/run.sbatch train generate   only those
 # Stages, in order: scf, cex, filing, cps (the surveys' tax units: the shared rules in Python, then R; filing is the
-# CPS's units and their calibrated filing chances, which cps reads), targets (SOI), errors (SOI's CVs), table, train, generate, tilt, report.
+# CPS's units and their calibrated filing chances, which cps reads), targets (SOI), errors (SOI's CVs), table, train,
+# generate, tilt (the year's targets, the reweighting and the run report), report (the CEX, CPS and translation reports).
 # Not in the default list: labels (TARGETS.md S4), the strata labels added to a copy of an existing table
 # (settings strata_labels; build_table.py labels), for a build that keeps data/table.parquet as it is.
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:

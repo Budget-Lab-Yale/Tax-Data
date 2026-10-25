@@ -25,18 +25,16 @@ fields of one, and every drop or override carries a written reason.
 
 Values. Published values come from the run's SOI numbers (targets.py: Tables 1.4 and 1.2 in targets/soi.csv, Table
 1.6 by targets.table_1_6); survey values from the survey's own tax units in the run's data folder; the non-filer
-values from the CPS filing stage of the same run. The 383 targets of 24 October are reproduced exactly; the builders
-they came from are tilt.py's, whose helpers are reused here (tilt.merge_groups, tilt.average_condition).
+values from the CPS filing stage of the same run.
 
 Standard errors. errors.standard_errors(rows, year) (errors.py) gives each target's standard error, in the units of
-the published statistic (on an average, on the average itself). Until errors.py exists, se is the configuration's
-own number for a judgment, 0 for an identity, and NaN otherwise.
+the published statistic (on an average, on the average itself); 0 for an identity.
 
-Averages and shares. "The average of x over the group is m" is written as tilt.average_condition writes it:
-units + sum over the group of w (x / m - 1) = units, where units is the file's total (SOI's returns plus the
+Averages and shares. "The average of x over the group is m" is written by average_condition, with
+average_form='units': units + sum over the group of w (x / m - 1) = units, where units is the file's total (SOI's returns plus the
 non-filers). The condition holds exactly only while the file's total weight equals that number, which the bracket
-return counts and the non-filer count fix; average_form='zero' gives the plain form, sum over the group of
-w (x / m - 1) = 0, for a solver that can take a zero target.
+return counts and the non-filer count fix. average_form='zero', the form tilt.py uses (settings tilt.average_form,
+default 'zero'), is the plain sum over the group of w (x / m - 1) = 0; solver.py takes a zero target.
 """
 import copy
 import importlib.util
@@ -50,7 +48,6 @@ import yaml
 import common
 import dollars as D
 import targets as TG
-import tilt as TL
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(HERE, 'targets_config')
@@ -254,8 +251,8 @@ def group_cells(spec):
 
 
 def soi_brackets(soi, year, rule, kept_separate=()):
-    """SOI's Table 1.4 AGI brackets, the top ones merged until each would hold enough records (tilt.irs_brackets
-    with the year and the rule as arguments). Brackets whose lower edge is in kept_separate are never merged; each
+    """SOI's Table 1.4 AGI brackets, the top ones merged until each would hold enough records (rule: records in a
+    file of in_a_file_of). Brackets whose lower edge is in kept_separate are never merged; each
     must be published that year, they must be the top brackets, and the rule applies to the brackets below them,
     each counted on its own records."""
     t = soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.filing_status == 'all') & (soi.label != 'all')]
@@ -279,6 +276,27 @@ def soi_brackets(soi, year, rule, kept_separate=()):
     return out + top, t
 
 
+def merge_groups(groups, cells):
+    """AGI groups merged where a published cell crosses a group edge."""
+    groups = list(groups)
+    i = 0
+    while i < len(groups) - 1:
+        edge = groups[i][1]
+        if any(lo < edge < hi for lo, hi, _ in cells):
+            groups[i:i + 2] = [(groups[i][0], groups[i + 1][1], f'{groups[i][2]} to {groups[i + 1][2]}')]
+            i = 0
+        else:
+            i += 1
+    return groups
+
+
+def average_condition(member, x, m):
+    """'The average of x over the group (member) is m' as a linear condition on the weights, in the form
+    units + sum over the group of w (x / m - 1) = units (average_form 'units'), units being the file's total. A share
+    is the average of a 0/1 indicator."""
+    return 1.0 + member * (x / m - 1.0)
+
+
 # ---- values ---------------------------------------------------------------------------------------------------
 def soi_lines(v, st):
     """[(soi.csv variable, statistic, sign)] behind statistic st of variable v in Table 1.4."""
@@ -290,8 +308,8 @@ def soi_lines(v, st):
 
 def published_14(soi, year, cells, v, stats):
     """Rows from Table 1.4 by AGI: our groups summed from the published cells. As-published brackets sum the
-    non-blank cells inside each bracket (tilt.irs_targets); edge groups are merged where a published cell crosses an
-    edge, over all the variable's statistics (tilt.business_targets)."""
+    non-blank cells inside each bracket; edge groups are merged where a published cell crosses an edge, over all the
+    variable's statistics (merge_groups)."""
     (c,) = cells
     rows = []
     if c['agi'] is None:   # cells: all, the all-returns total row
@@ -326,7 +344,7 @@ def published_14(soi, year, cells, v, stats):
     groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in g['edges']]
     pc = {st: [(sg, TG.published_cells(soi, year, var, stt)) for var, stt, sg in soi_lines(v, st)] for st in stats}
     if g.get('merge_across_published'):
-        groups = TL.merge_groups(groups, [x for st in stats for _, cl in pc[st] for x in cl])
+        groups = merge_groups(groups, [x for st in stats for _, cl in pc[st] for x in cl])
     for lo, hi, lab in groups:
         for st in stats:
             rows.append({'cell': lab, 'agi': (lo, hi), 'statistic': st,
@@ -392,8 +410,8 @@ def published_status(soi, year, source, cells, stats):
 
 
 def nonfiler_count(year):
-    """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p)
-    (tilt.nonfiler_count with the year as an argument)."""
+    """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
+    the generated non-filer batch is sized by (generate.cps_expected_nonfilers)."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
     t = t[(t.source == 'cps') & (t.year == year)]
     assert len(t), f'no CPS units for {year}'
@@ -419,8 +437,7 @@ def survey_frame(source, year):
 
 
 def survey_rows(source, year, cells, v, stats):
-    """The statistic computed on the survey's own units in each cell (tilt.wealth_targets,
-    tilt.consumption_targets)."""
+    """The statistic computed on the survey's own units in each cell."""
     u, path = survey_frame(source, year)
     if 'age_range' in u:
         assert (u['age_range'] < common.ADULT_RANGES).all(), f'{path}: a dependent filer among the survey units'
@@ -639,7 +656,7 @@ def file_units(year):
 def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     """F (records x targets), T, averages for the file df: the target in row j is met when F[:, j] @ w == T[j]. For
     an average or a share, averages[j] = (member, v, published average): the average of v over the records in
-    member; else None. average_form 'units' writes it as tilt.average_condition does (T = units, the file's total);
+    member; else None. average_form 'units' writes it by average_condition (T = units, the file's total);
     'zero' as sum over member of w (v / m - 1) = 0. With check, a target no record with a positive starting weight
     can reach is an error."""
     rows = rows.fillna({'variable': '', 'dependent_filers': ''})   # as read back from targets.csv
@@ -700,13 +717,13 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             xbar = (w_avg[member] * x[member]).sum() / w_avg[member].sum()
             assert member.any() and xbar != 0, f'{r.group} {r.target}: no holders, or the item averages zero'
             v = r.value + x * (cell.astype(float) - r.value) / xbar
-            F[:, j] = TL.average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
+            F[:, j] = average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
             T[j] = units if average_form == 'units' else 0.0
             averages[j] = (member, v, r.value)
         elif r.statistic in ('average', 'share'):
             v = line if r.statistic == 'share' else x
             assert v is not None, f'{r.group} {r.target}: a share needs a line'
-            F[:, j] = TL.average_condition(cell, v, r.value) if average_form == 'units' else cell * (v / r.value - 1.0)
+            F[:, j] = average_condition(cell, v, r.value) if average_form == 'units' else cell * (v / r.value - 1.0)
             T[j] = units if average_form == 'units' else 0.0
             averages[j] = (cell, v, r.value)
         else:
@@ -725,12 +742,12 @@ START_SCALING = {'weights': ('none', 'filing_status', 'demographic'), 'dollars':
 
 def start_spec(year):
     """How the year's start is built, from the year file (TARGETS.md S7):
-      start: generate                      the run's generated stack (the default; today's behaviour)
+      start: generate                      the run's generated stack (the default)
       start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet
     and start_scaling: {weights: none | filing_status | demographic, dollars: per_return_growth | none}. weights:
     how the start's weights are scaled to year t before the tilt (tilt.py: filers to SOI's returns and non-filers to
     the year's non-filer count, then joint and non-joint returns to Table 1.2, then the demographic cells); its
-    default is settings tilt.prescale, as before S7. dollars (from_year only): each record's amounts grown item by
+    default is settings tilt.prescale. dollars (from_year only): each record's amounts grown item by
     item from s to t by SOI's growth per return with the item (tilt.grow_dollars)."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')

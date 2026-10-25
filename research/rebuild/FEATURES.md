@@ -11,9 +11,12 @@ hours worked, and childcare, weighted to 2019 targets.
   (v4) with no outside model in it.
 - **Tax units.** The CPS, SCF and CEX all build their tax units with one
   module of CBO's rules (`TAX_UNITS.md`).
-- **Since when.** This is latest since 24 October. The CPS was added on 22
-  October. The code is in `pipeline/`; every setting is in
-`pipeline/settings.json`.
+- **Generation and targets.** Filers are drawn stratum by stratum (AGI class
+  × business), pooled from two trained models; the 2019 targets come from
+  `pipeline/targets_config/`, each with a standard error, and are met within
+  ranges (`TARGETS.md`).
+- **Since when.** This is latest since 25 October. The code is in
+  `pipeline/`; every setting is in `pipeline/settings.json`.
 
 ## Data
 
@@ -22,8 +25,7 @@ hours worked, and childcare, weighted to 2019 targets.
 | Source | Rows | What it covers |
 |---|---:|---|
 | 2015 PUF | 207,692 | filers |
-| 2017 CPS non-filer pool | 166,938 | non-filers on the PUF side, scaled to 2015 as the tax data is |
-| SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, five implicates each; the latest run's units by the production builder (now the shared rules, below) |
+| SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, five implicates each; tax units by the shared rules (below) |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 | CPS ASEC, tax years 2015, 2017, 2019, 2021, 2023 | 90,351 / 88,954 / 79,054 / 77,618 / 74,502 | every tax unit, filers and non-filers (`build_cps.R`, below) |
 
@@ -291,14 +293,15 @@ Two standard functions and one table (`settings.json`, "translation";
   - every dollar item grown by SOI's growth in dollars per return with the
     item. Totals such as capital gains and the business subtotals are
     computed from their grown parts, as in the file;
-  - that year's non-filer tax units from the CPS pool appended.
-  - Placeholders. The pool covers 2017–2023: any other year takes the
-    nearest pool year, its weights scaled by SOI's total returns and its
-    dollars grown per return. Past 2023, the last SOI year, the last year's
-    growth is carried forward.
-  - The PUF side of the training table is the tax data for 2015 plus the
-    dependent filers. Its non-filers are the 2017 pool, scaled this way.
-    Until 23 October they were put in 2015 dollars with the CPI.
+  - the non-filers: every CPS unit of that year, weighted by its chance of
+    not filing (weight × (1 − filer_p)), its amounts in PUF terms from the
+    translation table.
+  - Placeholders. The CPS covers 2015, 2017, 2019, 2021 and 2023: any other
+    year takes the nearest CPS year, its weights scaled by SOI's total
+    returns and its dollars grown per return. Past 2023, the last SOI year,
+    the last year's growth is carried forward.
+  - The PUF side of the training table is the PUF's filers, dependent filers
+    included; the non-filers are on the CPS rows.
 - **The table.** One row per survey and shared variable: the survey's
   items (summed), definition fixes, the dollar line, whether function 2
   applies, whether the variable is part of the type function 2 conditions
@@ -516,11 +519,7 @@ is found per model.
 in dollars per return holding each item. The balance sheet: each band's real
 values from the 2016 SCF wave, carried to the 2019 wave's dollars by the two
 waves' asset price factors, 1.2334 and 1.1592 (2022 dollars per wave
-dollar). Before 23 October the tilt compared these 2016-dollar balance
-sheets with targets put in 2015 dollars (factor 1.2493), so net worth before
-the tilt was overstated by 1.3% and the tilt pushed it down that much more;
-the 2019-dollar output was converted back with the same factor and lined up
-with the SCF. Consumption: each
+dollar). Consumption: each
 band's real CEX 2019 values, with no growth. The CPS's items: each band's
 real CPS 2019 values (childcare grown by SOI's wages per return, which is
 no growth when the generation year is the target year). Every dollar column
@@ -564,264 +563,35 @@ at net-loss and interest amounts at the top and at no AGI, where one record hold
 
 ## How the latest run comes out
 
-*The figures below predate the 25 October changes (strata, the new targets, ranges); they describe the
-run of 24 October.*
+The combined 2019 run of 25 October (`tilt/strata_full2019`; the stack is `gen/strata_pooled_nodrop`: the two
+strata models, 400,000 filer records and 54,379 non-filer records, mismatched labels kept). Its `summary.md` and
+`report.md` have the full tables. Counts in millions, nominal 2019 dollars.
 
-**Since 24 October, "latest" has one tax-unit module for every survey, the
-CPS as the source of non-filers, and age and non-filer targets**
-(`HISTORY.md`, 23–24 October).
-- **How it was made:** two seeds (20261016, 20261017), 80 passes, in
-  `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-24/unified_run/`
-  (tilt runs `seed<n>_band5`), copied into the main output folders. The
-  previous latest is in `previous_2026-10-23_cps_ages/`.
-- **Targets:** every exact target is met: the IRS, the business, the non-filer
-  count and people by age, and filer returns by age. Wealth is within 0.02%.
-  Every spending cell is inside its 5% band.
-
-Nominal 2019 dollars, counts in millions; the two seeds, then the previous
-latest's two:
-
-| | Latest | Previous latest | Reference |
-|---|---:|---:|---:|
-| effective sample kept | 96.1%, 95.9% | 89.0%, 88.6% | |
-| tax units other than dependent filers | 168.0 | 168.0 | |
-| filer returns, 65+ primary | 27.60, 27.60 | 28.83, 29.19 | SOI Table 1.6: 27.60 |
-| non-filer units | 21.45 | 29.39 | CPS (filing rule v4): 21.45 |
-| non-filer units, 65+ primary | 7.29, 7.26 | 11.39, 11.11 | CPS: 7.24 |
-| non-filer units, primary under 26 | 0.98, 0.98 | 2.26, 2.15 | CPS: 1.01 |
-| non-filer wages ($bn) | 294, 288 | 269, 278 | CPS: 288 |
-| children under 18 | 75.4, 73.2 | 85.5, 84.5 | Census: 73.0 |
-| units aged 80+ | 7.9, 8.3 | 9.7, 9.7 | SCF: 6.7 |
-| median net worth, units other than dependent filers | $63,555, $63,552 | $90,981, $90,970 | SCF on the new units: $63,570 |
-
-- **Net worth.** The median falls because the SCF's units now count the
-  23.6 million financially independent adults outside the primary economic
-  unit (`TAX_UNITS.md`), not because the file's wealth changed. On the old
-  units the SCF's median was $91,050.
-- **Spending.** Each age range × married cell ends between 0.95 and 1.05
-  of the CEX's average.
-
-**Before that, from 23 October (afternoon), "latest" had the CPS and shared exact ages**
-(`HISTORY.md`, 22–23 October). Two seeds, made in
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps_ages/` (runs ages_s1,
-ages_s2) and copied into the main output folders; the previous latest is in
-`previous_2026-10-23_translation/`. Every target is met (317; the 116
-business targets exactly). Nominal 2019 dollars; the two seeds, then the
-previous latest's two:
-
-| | Latest | Previous latest | SCF or CEX 2019 |
-|---|---:|---:|---:|
-| effective sample kept | 89.0%, 88.6% | 89.1%, 89.5% | |
-| net worth before the tilt | $100.9T, $104.5T | $96.3T, $107.6T | $96.1T |
-| median net worth, all units | $70,200, $71,600 | $70,100, $70,500 | $91,050 |
-| mean net worth, wages $200k+ | $3.90M, $4.08M | $4.26M, $4.07M | $4.36M |
-| consumption, wages $1-25k | $23.3k, $23.5k | $22.7k, $23.3k | $27.6k |
-| consumption, wages $100-200k | $76.7k, $76.4k | $76.6k, $76.0k | $70.0k |
-| consumption, wages $200k+ | $130.9k, $135.6k | $137.9k, $136.2k | $113.3k |
-
-What the exact ages changed, 65 and over (mean IRAs and DC accounts): $151k
-and $154k at 65–69, $82k and $98k at 80 and over, against the SCF's $171k
-and $100k; without exact ages the fall from 65–69 to 80+ was about half the
-SCF's. DB balances at 80+ got worse ($8k and $10k against the SCF's $24k;
-$17k and $18k before). Units aged 80+ are too many (9.7 million against the
-SCF's 6.7 million), as before. Known problems in the CPS-only items: the
-dependents' ages are too young (in 2015, on the real PUF returns, 79.5%
-under 17 against the IRS's 76.2%, and the IRS's range picked 47% of the
-time for the youngest dependent; `AGES.md`, Step 3), and the file has about
-86 million children under 18 against Census's 73 million. Comparisons with
-production and outside tables:
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild_cps/explore/comparisons/COMPARISONS.md`.
-
-**Before that, from 23 October (morning), "latest" used the standardized translation**
-(translation section above; `HISTORY.md`, 23 October). Two seeds, made in
-`explore/2026-10-23/translation/` and copied into the main output folders.
-The previous latest is in `previous_2026-10-22_cleanup/`. Every target is
-met (317; the 116 business targets exactly). Nominal 2019 dollars; the two
-seeds, then the previous latest's two:
-
-| | Latest | Previous latest | SCF or CEX 2019 |
-|---|---:|---:|---:|
-| effective sample kept | 89.1%, 89.5% | 90.2%, 89.6% | |
-| net worth before the tilt | $96.3T, $107.6T | $104.9T, $102.3T | $96.1T |
-| median net worth, all units | $70,100, $70,500 | $70,400, $71,100 | $91,050 |
-| mean net worth, wages $200k+ | $4.26M, $4.07M | $4.09M, $3.96M | $4.36M |
-| consumption, wages $1-25k | $22.7k, $23.3k | $23.0k, $23.5k | $27.6k |
-| consumption, wages $100-200k | $76.6k, $76.0k | $77.5k, $76.4k | $70.0k |
-| consumption, wages $200k+ | $137.9k, $136.2k | $130.5k, $129.8k | $113.3k |
-
-The median is below the SCF's because the file has 187 million units
-against the SCF's 143 million. The extra units (young single people, adult
-children, non-filers) hold little wealth. The wealth targets set totals and
-the share of units above each line, not the median. Translation report:
-`model/<run>/translation_report.md`.
-
-
-**Before that, from 22 October (late), "latest" was the reviewed and cleaned-up code**
-(`HISTORY.md`, 22 October evening and 23 October): consistency rules not
-applied to dependent filers, the fill-in's PUF side without them, wealth
-counts as shares, estates and trusts out of the business targets, the
-held-back slice not scoring unknown amounts, and one currency (the 1.3%
-correction). Two seeds: models from `explore/2026-10-22/review_fix/out2/`
-(trained by the commit before the cleanup, which trains identically),
-generation and tilt from `out3/` with the cleaned-up code, copied into the
-main output folders. The previous latest is in `previous_2026-10-22_cex/`.
-Every target met (317; the 116 business targets exactly); nominal 2019
-dollars; the two seeds, then the previous latest's two:
-
-| | Latest | Previous latest | SCF or CEX 2019 |
-|---|---:|---:|---:|
-| effective sample kept | 90.2%, 89.6% | 89.8%, 89.3% | |
-| net worth before the tilt | $104.9T, $102.3T | $103.8T, $113.7T | $96.1T |
-| median net worth, all units | $70,400, $71,100 | $74,500, $73,900 | $91,050 |
-| mean net worth, wages $200k+ | $4.09M, $3.96M | $4.10M, $4.01M | $4.36M |
-| consumption, wages $1-25k | $23.0k, $23.5k | $24.4k, $24.3k | $27.6k |
-| consumption, wages $100-200k | $77.5k, $76.4k | $76.2k, $77.0k | $70.0k |
-| consumption, wages $200k+ | $130.5k, $129.8k | $129.9k, $131.9k | $113.3k |
-
-The SCF's mean at $200k+ of wages reads $4.36M here and $4.49M before:
-$200,000 of wages now falls in the $200k+ group in every report, as in
-the consumption report.
-
-**Before that, from 22 October, "latest" added consumption from the CEX** (with gross
-Social Security shared, dependent filers at zero wealth and consumption,
-the consumption targets, packing and the faster generator). Two seeds
-(20261016–17), made in `explore/2026-10-22/cex6/` (runs `dep0_seed<n>`)
-and copied into the main output folders (`data/`, `targets/`,
-`model/`, `gen/`, `tilt/seed<n>/`) without rerunning; the code that made
-them differs from the committed code only in computing the output layers
-one by one (the same answers to rounding) and in where paths are set. The
-previous latest is in `previous_2026-10-21_wage_scale/`. After the tilt: every IRS, business, wealth and
-consumption target met; effective sample kept 89.3–89.8% (the previous
-latest 88.5–89.0%). Median net worth over all units $74k, because the
-9.9 million dependent returns now hold none; the SCF's $91k counts them in
-their parents' households, and the wealth count targets now leave them out.
-
-Consumption, not targeted, nominal 2019 dollars ($ thousands per unit;
-the two seeds, then the CEX 2019 over all tax units):
-
-| Group | File | CEX 2019 |
+| | File | Reference |
 |---|---:|---:|
-| no wages | 36.5–36.8 | 34.1 |
-| wages $1–25k | 24.3–24.4 | 27.6 |
-| wages $25–50k | 34.4–34.6 | 33.3 |
-| wages $50–100k | 50.1–50.3 | 47.8 |
-| wages $100–200k | 76.2–77.0 | 70.0 |
-| wages $200k+ | 129.9–131.9 | 113.3 |
-| bottom income decile (each source's own income) | 28.2–28.6 | 22.9 |
-| 5th decile | 34.4–34.6 | 35.2 |
-| top decile | 91.9–93.2 | 99.1 |
-| married, no dependents | 59.4–60.1 | 56.0 |
-| married, with dependents | 74.7–74.9 | 67.3 |
-| not married, no dependents | 26.5–26.7 | 27.5 |
-| not married, with dependents | 39.6–40.2 | 38.5 |
-| 65+, gross Social Security $15–30k | 37.3–38.2 | 38.3 |
-| 65+, gross Social Security $30–50k | 58.0–59.4 | 52.0 |
+| targets inside their ranges | 474 of 474 (323 at an edge) | |
+| effective sample kept, from the prescaled start | 99.9% | |
+| effective sample kept, from the start before the prescaling | 99.2% | |
+| weight factor, 1st and 99th percentiles | 0.47, 1.59 | |
+| thin cells: warnings, stops | 61, 33 | |
+| non-filer units | 21.45 | CPS (filing rule v4): 21.45 |
+| net worth, total | $98.3 trillion | SCF 2019: $96.6 trillion |
+| median net worth, all 179.0 million units | $47,900 | SCF 2019, 162.8 million units: $63,570 |
+| top 1% share of net worth | 41.6% | SCF 2019: 40.2% |
+| mean net worth, wages $200k+ | $4.28 million | SCF 2019: $4.38 million |
 
-The two seeds agree within about $1–2k, so these gaps are not chance.
-Category shares within each wage band are within about 1 point of the
-CEX's. The income deciles compare AGI with the CEX's own income measure,
-which runs well below AGI at the same rank; and the CEX compresses its top
-wages. Report: `tilt/<run>/cex_report.md`.
+- **The prescaling.** Before it, filer returns with a primary filer 65 and over were 16.8% (joint) and 10.5%
+  (non-joint) below SOI Table 1.6, and non-filer heads and spouses aged 18-25 39.6% above the CPS; it moved the
+  start by 0.002 nats in each batch.
+- **Thin cells.** Most stops are dollar amounts at the top (net losses of partnerships, S corporations and
+  Schedule C at $5 million and over, taxable interest at $10 million and over) and at no AGI, where a few records
+  hold most of a cell's dollars.
+- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 3.4 standard
+  errors in Table 1.4, 2.4 in Table 1.6 and 2.2 in Table 1.7. The largest are Schedule D net losses above
+  $1.5 million of AGI (the file has several times SOI's) and taxable Social Security at no AGI.
+- **Net worth.** The file's units include its dependent filers, who hold no wealth; the SCF's units do not, so
+  the two medians are not on the same base.
 
-A check run of this committed code from scratch (seed 20261016, H100,
-`explore/2026-10-22/pipeline_candidate/`) rebuilt the CEX and SCF units
-byte for byte and gave the same consumption by wages within about $1–3k.
-Its exact business tilt failed on one tiny cell (estate and trust net
-losses at AGI $50–100k: 6,232 returns and $107 million targeted; the stack
-drew 12,698 returns and $40 million), so the business targets fell back
-to 2%, and that cell still missed by 8–9%; everything else was met, with
-90.0% of the effective sample kept.
-
-**Before that, from 21 October (night), "latest" rescaled the SCF's top wages**
-(above); three seeds; the age-range runs moved to
-`previous_2026-10-21_ages/`. Against them, after the tilt: mean net worth
-at wages $200k+ $3.67–3.73M ($3.40–3.56M), median $1.53–1.56M
-($1.37–1.44M); effective sample kept 88.5–89.0% (88.4–89.6%). Median net
-worth at 65+ with $200k+ of wages barely moves: $2.9M against the SCF's
-$6.5M (`ROADMAP.md`, known gaps). Full tables:
-`explore/2026-10-21/wage_scale/compare.md`.
-
-**Before that, "latest" added the primary filer's age range** to the
-two-slot run, three seeds (20261016–18); the two-slot runs
-moved to `previous_2026-10-21_two_slot/`. Against them, after the tilt:
-median $90.9k for both; tilt move 0.05–0.06 for both, effective sample
-kept 88.4–89.6% (89.1–89.8%); mean net worth at wages $200k+
-$3.40–3.56M ($3.47–3.57M). Generated filers' ranges match the PUF's
-(before the tilt, 11.2% under 26 and 16.4% 65+, against 11.1% and 16.2%).
-Full tables: `explore/2026-10-21/ages_v1/compare.md`. Net worth by age
-within wage band against the SCF is in the known gaps (`ROADMAP.md`).
-
-**Until then, "latest" was the two-slot run**, three
-seeds (20261016–18), in `model/`, `gen/` and `tilt/`; the cell-method runs
-described below moved to `previous_2026-10-21_cell/`. Two-slot against cell
-method, after the tilt, all three seeds: median $90.9k for both; mean net
-worth at wages $200k+ $3.47–3.57M (cell $3.38–3.68M); wages $1–25k
-$183–185k (cell $180–192k); tilt move 0.05–0.06 and about 90% of the
-effective sample kept for both. Full tables:
-`explore/2026-10-21/two_slot/compare.md`. The text below describes the
-cell-method runs.
-
-The balance-sheet run of 21 October, three seeds (20261016–18), outputs
-under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`; full tables in
-`explore/2026-10-21/compare_latest.md`. The previous latest (one net worth
-item) is kept in `previous_2026-10-20/`. Nominal 2019 dollars; ranges are
-over the three seeds.
-
-**With the offset** (the current latest; the run without it is kept as
-`gen/` and `tilt/seed<n>_no_offset/`). After the last of the three
-generations every ruled holding is within 0.02% of the model's own expected
-holders. After the tilt:
-
-| | With offset | Without | SCF 2019 |
-|---|---:|---:|---:|
-| home mortgage holders | 38.6–40.1% | 45.1–46.8% | 41.6% |
-| homeowners with a mortgage | 65.1–67.0% | 72.1–74.2% | 65.6% |
-| home mortgage dollars | $11.1–11.6 trillion | $12.3–12.8 trillion | $9.8 trillion |
-| other residential real estate holders | 11.4–12.9% | 15.7–17.7% | 12.7% |
-| nonresidential real estate holders | 5.4–5.7% | 6.7–7.1% | 6.5% |
-| homeowners | 59.4–60.0% | 62.5–63.1% | 63.4% |
-
-Shares of units are not fully comparable: the file has 187 million units
-(returns plus non-filers), the SCF 143 million, and the extra units are
-mostly dependent filers and non-filers who rarely hold these assets. The
-offset fixes counts, not sizes: mortgage dollars stay above the SCF's.
-Every IRS and business target is met exactly; 89.5–90.1% of the effective
-sample kept.
-
-**Without the offset** (the figures below):
-
-**The tilt:** every IRS target and all 140 business targets met exactly in
-every seed; 89.8–90.8% of the effective sample kept.
-
-**Net worth before the tilt:** $96.5–107.5 trillion (SCF $96.1 trillion).
-
-**After the tilt:**
-
-| | File | SCF 2019 |
-|---|---:|---:|
-| median net worth | $90,900–91,000 | $91,050 |
-| mean net worth, income under $25k | $125,000–131,000 | $78,900 |
-| mean net worth, income $1 million and over | $16.0–18.3 million | $26.2 million |
-| homeowners | 62.5–63.1% | 63.4% |
-| home mortgage holders | 45.1–46.8% | 41.6% |
-| home mortgage dollars | $12.3–12.8 trillion | $9.8 trillion |
-| mortgage above the home's value (% of mortgagors) | 2.9–3.3% | 1.5% |
-| other residential real estate holders | 15.7–17.7% | 12.7% |
-| business equity holders | 12.1–12.6% | 11.4% |
-| stocks outside retirement, holders | 16.2–17.3% | 19.2% |
-| dividends over $1,000 with no stocks (no rule) | 18.8–21.0% | 18.7% |
-
-Every consistency rule holds on every record (0% breaks).
-
-**What the rules add.** Of the draws each rule forced, the share the model
-alone would have drawn as zero, as a share of all holders in the stack
-(unweighted draws): home about 6%; home mortgage about 10%; other
-residential real estate about 25%; nonresidential real estate about 24%;
-owning a business about 0.1%. Nothing takes these holders back elsewhere, so
-mortgages and other real estate come out above the SCF.
-
-The previous latest (one net worth item, 20 October), after the tilt:
-median $90,850, income $1 million and over $17.2 million, income under $25k
-$121,400; 90% of the effective sample kept.
+Earlier runs' figures are in `HISTORY.md` and in this file's git history (up to commit bc72cc7).
 
 Known gaps are listed at the end of `ROADMAP.md`.

@@ -35,8 +35,8 @@ Steps, with the Stata module each one translates:
                                and type order, their ages youngest first, child credit and EITC children.
   build_units(roster, ...)     all of the above on one survey's member list.
 
-Married filing separately (mfs_split, a post-filing step, off by default: settings cps.mfs_split): a uniform share
-of joint filer couples, chosen by a draw keyed by unit id, become two separate returns, so that the count of
+Married filing separately (mfs_split, a post-filing step; the CPS's filing stage calls it, filing.py): a share of
+joint filer couples, chosen in the order of a draw keyed by unit id, become two separate returns, so that the count of
 separate returns equals SOI's (Table 1.6), as nonfiler_pool/07_mfs_split.R does with weights. The SCF instead splits
 the couples that say they file separately (roster_scf.py).
 
@@ -528,7 +528,7 @@ def collapse_units(r, away=None):
 
 
 # ---------------------------------------------------------------------------------------------------------------
-# Married filing separately: a post-filing step (setting mfs_split, off by default)
+# Married filing separately: a post-filing step (filing.py calls it)
 # ---------------------------------------------------------------------------------------------------------------
 INCOME_ITEMS = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'interest', 'dividends', 'rents', 'est_trust', 'pension',
                 'uc', 'ssb', 'rr_pension', 'ssi', 'va_benefits', 'wc', 'other_income']

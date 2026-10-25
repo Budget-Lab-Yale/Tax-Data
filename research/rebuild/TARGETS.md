@@ -47,7 +47,7 @@ records are flagged, with a stop for the worst (section 5).
 **5. Each year t: the report** (section 14): every target and where it landed, the thin cells, published numbers
 not targeted, what the tilt moved, and how far the two models disagree.
 
-**Built, as of 25 October (uncommitted):** steps 1-5 for 2019, with the stratified start, ranges and the report;
+**Built, as of 25 October:** steps 1-5 for 2019, with the stratified start, ranges and the report;
 the from_year start and hold_distribution are being tested on 2022. **Not built:** the survey-year borrowing rule
 (the surveys are drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial Accounts.
 **Known weakness:** the model draws too few returns at the very top (about 35% short in the top 0.1%-0.01%);
