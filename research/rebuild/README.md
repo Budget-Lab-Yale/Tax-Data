@@ -34,17 +34,16 @@ Every stage runs through Slurm, from the repository root:
 | cps | `build_cps.R` | CPS ASEC tax years as tax units (the filing stage's returns), with each person's items and childcare | minutes |
 | targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | errors | `errors.py soi_cv` | SOI's published coefficients of variation, parsed from the downloaded workbooks | seconds |
-| table | `build_table.py` | the training table, its bands, and the dollar maps | about 2 minutes |
-| labels | `build_table.py labels` | not in the default list: the strata labels added to a copy of the table (`data/strata/`) | minutes |
-| train | `train.py` (and `fillin.py`) | the model, with the two-slot fill-in | about 15 minutes on an H200 (10 seconds a pass) |
-| generate | `generate.py` | 400,000 filer records drawn by strata and the non-filer batch, half from each of two trained models | about 5 minutes |
+| table | `build_table.py` | the training table with the AGI group label, its bands, and the dollar maps (one per SCF wave for the balance sheet) | about 3 minutes |
+| train | `train.py` (and `fillin.py`, `qgroups.py`) | the model, with grouped weighting and the two-slot fill-in; train each pooled model with REBUILD_RUN set to its name in `generation.models` and REBUILD_SEED to its seed | about 25 minutes on an H200, an hour on an H100 (batches of 512) |
+| generate | `generate.py` | 400,000 filer records drawn AGI group by AGI group, and the non-filer batch, half from each of two trained models, each record's balance sheet from one SCF wave | about 10 minutes |
 | tilt | `tilt.py`, then `report_tilt.py` | the year's targets (`targets_config/`, `target_list.py`, `errors.py`), the target year's weights (`solver.py`) and file, and the run report | about 7 minutes on a CPU node |
 | report | `report_cex.py`, `report_cps.py`, `report_translation.py` | consumption and the CPS's person items in the file against the target year's CEX and CPS; the translation report | seconds |
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),
-`fillin.py` (the two-slot fill-in, run by training), `dollars.py` (bands to
-dollars), `ages.py` (the primary filer's age range, used by the table),
+`fillin.py` (the two-slot fill-in, run by training), `qgroups.py` (grouped
+weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (the primary filer's age range, used by the table),
 `tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
 targets from `targets_config/`), `errors.py` (their standard errors),
 `solver.py` (the reweighting).

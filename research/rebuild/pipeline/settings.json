@@ -39,10 +39,10 @@
   "dropout": 0.0
  },
  "training": {
-  "_what": "Training (train.py): seed (REBUILD_SEED overrides it), passes over the table (REBUILD_PASSES overrides it), batch (records per step), the learning rate's peak, warm-up passes and final share of the peak, weight_decay, the share of the table held back to measure the fit (holdback_share, holdback_seed), and how often the log reports (log_every_passes).",
+  "_what": "Training (train.py): seed (REBUILD_SEED overrides it), passes over the table (REBUILD_PASSES overrides it), batch (records per step; 512 since 26 October, 4,096 before: about 1,780 steps a pass, an hour of training on an H100), the learning rate's peak, warm-up passes and final share of the peak, weight_decay, the share of the table held back to measure the fit (holdback_share, holdback_seed), and how often the log reports (log_every_passes).",
   "seed": 20261016,
   "passes": 80,
-  "batch": 4096,
+  "batch": 512,
   "peak_learning_rate": 0.003,
   "warmup_passes": 3,
   "final_learning_rate_share": 0.05,
@@ -50,10 +50,19 @@
   "holdback_share": 0.02,
   "holdback_seed": 20261015,
   "log_every_passes": 10,
-  "precision": "fp32",
-  "_precision": "fp32 standard 32-bit; tf32 or bf16 cheaper formats for the training steps only (train.py). Tested 22 October (explore/2026-10-22/perf/precision/PRECISION.md): bf16 37% faster a pass, results within the difference between two seeds.",
+  "precision": "bf16",
+  "_precision": "fp32 standard 32-bit; tf32 or bf16 cheaper formats for the training steps only (train.py). Tested 22 October (explore/2026-10-22/perf/precision/PRECISION.md): bf16 37% faster a pass, results within the difference between two seeds. bf16 since 26 October.",
   "shares_shown_with_their_base": true,
-  "_shares_shown_with_their_base": "Step 2 (train.py, model.gate_shares): on CPS rows the spouse's share of the couple's wages (of its self-employment income) is left out of a record whenever married or the share's base is hidden, so its presence never tells the network what those hidden slots hold; needed to draw non-filers' married flag and amounts under the CPS label. false: as before step 2."
+  "_shares_shown_with_their_base": "Step 2 (train.py, model.gate_shares): on CPS rows the spouse's share of the couple's wages (of its self-employment income) is left out of a record whenever married or the share's base is hidden, so its presence never tells the network what those hidden slots hold; needed to draw non-filers' married flag and amounts under the CPS label. false: as before step 2.",
+  "q_groups": {
+   "puf": "agi12",
+   "scf": "income5"
+  },
+  "_q_groups": "Grouped weighting (qgroups.py, 26 October): each training record counts by its survey weight times q = records / weight within its group, the groups from bands: 12 band-AGI groups on the PUF (agi12), 5 band-income classes per wave on the SCF (income5); q = 1 on the CEX and CPS. null: q = 1 everywhere.",
+  "label_always_shown": true,
+  "_label_always_shown": "On PUF rows the AGI group label is never hidden in training and never scored (train.py), as generation always presets it (explore/2026-10-26/overnight/experiments/21_label_shown: $10M+ returns 3.3 times the PUF's with the label hidden half the time, 1.2 times with it always shown).",
+  "fillin_puf_side": "data",
+  "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
  "translation": {
   "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges.",
@@ -942,89 +951,28 @@
   "min_missing_share": 0.1,
   "primary_rule_salt": 20261021
  },
- "strata_labels": {
-  "_what": "TARGETS.md S4: the training table with the strata labels (the AGI class and business flag on the PUF, the net worth class on the SCF) and its band edges, inside the data folder. The shared data/table.parquet and data/band_edges.json have no labels and are left as they are: the stage 'labels' (build_table.py labels) writes these copies with the labels added; train.py and generate.py read them (model.py). null: the shared table and edges, and the network without labels (the models trained before S4).",
-  "table": "strata/table.parquet",
-  "edges": "strata/band_edges.json"
- },
  "generation": {
-  "_what": "The filer batch and the non-filer batch (generate.py says how). design: 'strata' (TARGETS.md S4), the filer batch drawn stratum by stratum on the strata labels; 'top_parts', the four parts of before S4 (needs strata_labels null and the models trained before S4); 'unstratified', nothing preset and no boost (a check on the strata).",
-  "design": "strata",
-  "strata": {
-   "_what": "TARGETS.md S4. records: the filer records drawn in each of the 12 strata, AGI class x business flag (the classes by weighted rank of AGI among the 2015 PUF's returns: p90 $133,700, p99 $464,200, p99.9 $2,127,000, p99.99 $11,050,000), over all pooled models (each draws an equal share). The sampling rate (records per return in 2015) rises across the classes: about 0.15% (no business) and 0.30% (business) below p90, 0.42% and 0.85% at p90-99, 2.2% and 3.3% at p99-99.9, 12% at p99.9-99.99, 58% and 31% at p99.99 and over; AGI zero or negative 0.8% and 1.2%. Each record's AGI class and business flag are set before anything is drawn; its weight is the model's own chance of its stratum over the stratum's share of the sample. nw_boost: the multiplier on each net worth class's chance (below p90, p90-99, p99-99.9, p99.9 and over) when the SCF items are drawn, the class first; corrected by p / q. seed: the batch's draws (plus each model's seed_shift).",
-   "seed": 41,
-   "records": {
-    "AGI zero or negative": {
-     "no business": 8000,
-     "business": 12000
-    },
-    "below p90": {
-     "no business": 163000,
-     "business": 76000
-    },
-    "p90-99": {
-     "no business": 35500,
-     "business": 44500
-    },
-    "p99-99.9": {
-     "no business": 9000,
-     "business": 31000
-    },
-    "p99.9-99.99": {
-     "no business": 2300,
-     "business": 13700
-    },
-    "p99.99+": {
-     "no business": 600,
-     "business": 4400
-    }
-   },
-   "nw_boost": [
-    1,
-    2,
-    5,
-    10
-   ],
-   "drop_mismatches": false,
-   "_drop_mismatches": "false (decided 25 October): every record is kept and the label check is only reported; the weights then represent the model's own distribution exactly (25 October test: agrees with an unstratified draw within noise below p99.9). true drops a record whose class computed from its drawn parts differs from its label; that biases the file (returns at p99.9-99.99 38% low against an unstratified draw) and is kept only for comparison."
-  },
-  "unstratified_records": 400000,
-  "unstratified_seed": 51,
-  "_unstratified": "design 'unstratified' only: the filer records over all models, every weight equal, and the seed of their draws (plus each model's seed_shift).",
-  "records_per_file": 100000,
-  "boost": 10.0,
-  "top_share": 0.01,
-  "_top_parts": "design 'top_parts' only: a stack of four parts of records_per_file PUF records each. Each oversamples the top 1% (top_share) of one variable (the bands covering the top 1% of its positive weight drawn boost times as often) and carries importance weights that undo it. The fourth oversamples business equity, drawn in its usual place in the SCF phase. Each part's seed fixes its draws.",
-  "top_parts": {
-   "wages": {
-    "seed": 31
-   },
-   "kg_lt": {
-    "seed": 32
-   },
-   "scorp_nonpass_inc": {
-    "seed": 33
-   },
-   "w_pass_throughs": {
-    "seed": 34
-   }
-  },
+  "_what": "The filer batch and the non-filer batch (generate.py says how). design: 'label' (26 October), the AGI group label preset on every filer record and everything else drawn given it. The designs of before (the strata of TARGETS.md S4, the four top-1% parts, the unstratified draw, the oversampling by rough AGI) are gone; they are in git history.",
+  "design": "label",
+  "label_records": 400000,
+  "label_seed": 61,
+  "_label": "label_records: the filer records over all pooled models (each draws an equal share), split across the 12 band-AGI groups (qgroups.py) in proportion to the PUF's records per group (about 18,400 at p99.99 and over, 30,500 at p99.9-99.99). Each record's group is preset; its weight is the group's 2015 PUF returns over the records drawn in it (1 / q). Every drawn record is kept; the share whose drawn bands fall in another group is only reported (label_check.csv). label_seed: the batch's draws (plus each model's seed_shift).",
+  "scf_wave_seed": 20261026,
+  "_scf_wave_seed": "TARGETS.md section 7: each record's SCF wave is drawn with the shares in the target year's configuration (targets_config/years/<year>.yaml, prior, 'balance sheet'), by a random generator seeded by this and the batch's generation seed, so no other draw moves.",
   "nonfiler_records": null,
   "nonfiler_seed": 35,
-  "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer batch's (filer_records: the strata's total under design 'strata') times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
+  "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer batch's (label_records) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
   "models": [
    {
-    "run": "strata_seed20261016",
+    "run": "label_seed20261016",
     "seed_shift": 0
    },
    {
-    "run": "strata_seed20261017",
+    "run": "label_seed20261017",
     "seed_shift": 1000
    }
   ],
-  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run.",
-  "agi_oversampling": null,
-  "_agi_oversampling": "Off since S4 (the strata replace it); design 'top_parts' only, as it ran on 24 October: {\"pilot_factor\": 12, \"line\": 1000000}. Each filer part draws its PUF items for a pilot pilot_factor times its size, keeps every record with rough AGI (each AGI part at its band's average 2019 dollars) at or above line, and fills the rest by sampling the others; weight divided by the known chance of being kept (p_keep), so the weights stay exact. Gives about 1,300 records at $10 million AGI or more instead of about 110, at about 9% of the effective sample. null turns it off."
+  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run."
  },
  "consistency": {
   "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
@@ -1093,6 +1041,6 @@
   "prescale": "demographic",
   "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
   "range_in_se": 1.0,
-  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly."
+  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. Half a standard error (0.5) was tested on 26 October (explore/2026-10-26/scf/07_grid_growth): every target met, but the effective sample kept fell to 11%, through one generated non-filer couple whose spouse is coded aged 16 (its weight up 2,416 times, supplying 43% of the non-filer children-under-17 target). 0.5 waits for a fix to such records and John's decision."
  }
 }

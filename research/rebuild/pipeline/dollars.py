@@ -8,6 +8,22 @@ The target year's maps are the PUF year's grown to the target year
 (build_table.build_maps); negative capital gains are not grown (the $3,000 cap
 is nominal).
 
+The balance sheet has one map per SCF wave (map_scf_wave<wave>_<year>): each
+wave's own records, grown to the target year per tax unit, item by item
+(build_table.build_maps). A record's wave is its column scf_wave (generate.py
+draws each record's balance sheet from one wave, by the year's mix), and its
+balance-sheet bands, which are on that wave's band edges, become dollars from
+that wave's map.
+
+Stored picks. Generation stores, for each record and each amount, one uniform
+number in [0, 1) (column u_<variable>). It selects the row within the band's
+list of real records (rows in the map's order, each with a chance proportional
+to its weight) in place of a fresh random number. Every year's map of a variable
+has the same rows in the same order with the same weights, only the values
+grown, so a record keeps the same real record's amount in every year and in
+every step that turns its bands into dollars. A frame without the column (the
+PUF's own records, say) draws a fresh number, as before.
+
 After the draws, the pieces are put on the definitions the IRS targets use:
   capital_gains   the Schedule D net, kg_st + kg_lt + kg_other (the line-13
                   total, with kg_dist, is kept as capital_gains_line13)
@@ -23,6 +39,9 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   total less the spouse's, so the two add up to the total
   CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
 """
+import glob
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -55,17 +74,26 @@ def agi(df):
     return df[AGI_PARTS].to_numpy(float).sum(1)
 
 
+SCF_SET = set(META['scf_amounts'])
+WAVE_MAPS = 'scf waves'                           # load_maps' key for {wave: {variable: map rows}}
+
+
 def load_maps(year):
-    """{variable: map rows} for a year: the PUF's, the SCF's balance sheet and the CEX's consumption."""
+    """{variable: map rows} for a year: the PUF's, the CEX's consumption and the CPS's items; and under WAVE_MAPS
+    each SCF wave's balance-sheet maps, {wave survey year: {variable: map rows}}."""
     split = lambda m: {v: g for v, g in m.groupby('variable')}
     maps = {}
-    for source in ['puf', 'scf', 'cex', 'cps']:
+    for source in ['puf', 'cex', 'cps']:
         maps.update(split(pd.read_parquet(f'{common.MAPS}/map_{source}_{year}.parquet')))
+    files = sorted(glob.glob(f'{common.MAPS}/map_scf_wave*_{year}.parquet'))
+    assert files, f'no SCF wave maps for {year} in {common.MAPS}'
+    maps[WAVE_MAPS] = {int(os.path.basename(f).split('_')[2][len('wave'):]): split(pd.read_parquet(f)) for f in files}
     return maps
 
 
-def draw_one(bands, vmap, rng):
-    u = rng.random(len(bands))
+def draw_one(bands, vmap, rng, u=None):
+    """Dollars for bands from the map rows vmap. u: each record's stored pick (see the top); None draws from rng."""
+    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
     values = np.full(len(bands), np.nan)
     for band, g in vmap.groupby('band', sort=True):
         idx = np.flatnonzero(bands == band)
@@ -77,14 +105,35 @@ def draw_one(bands, vmap, rng):
     return values
 
 
+def draw_by_wave(df, v, maps, rng, u):
+    """One balance-sheet amount, each record from its own SCF wave's map (column scf_wave)."""
+    assert WAVE_MAPS in maps, 'no SCF wave maps loaded'
+    assert 'scf_wave' in df, f'{v}: the frame says nothing of which SCF wave each record was drawn from (scf_wave)'
+    bands, wave = df[f'{v}_band'].to_numpy(), df['scf_wave'].to_numpy()
+    assert not pd.isna(wave).any(), f'{int(pd.isna(wave).sum())} records with no SCF wave'
+    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
+    values = np.full(len(bands), np.nan)
+    for w in np.unique(wave):
+        assert int(w) in maps[WAVE_MAPS] and v in maps[WAVE_MAPS][int(w)], f'no dollar map for {v} in the {int(w)} wave'
+        idx = np.flatnonzero(wave == w)
+        values[idx] = draw_one(bands[idx], maps[WAVE_MAPS][int(w)][v], None, u[idx])
+    return values
+
+
 def draw_dollars(df, maps):
-    """Dollars for every banded amount, then the pieces combined (see the top)."""
+    """Dollars for every banded amount, then the pieces combined (see the top). A column u_<variable> is the record's
+    stored pick; a balance-sheet amount comes from the record's own wave's map."""
     seed = common.SETTINGS['dollars']['seed']
     out = df.copy()
     for i, v in enumerate(ORDER):
         if f'{v}_band' in df:
-            assert v in maps, f'no dollar map for {v}'
-            out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], np.random.default_rng([seed, i]))
+            u = df[f'u_{v}'].to_numpy(float) if f'u_{v}' in df else None
+            rng = np.random.default_rng([seed, i])
+            if v in SCF_SET:
+                out[v] = draw_by_wave(df, v, maps, rng, u)
+            else:
+                assert v in maps, f'no dollar map for {v}'
+                out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
     remainder = out['other_agi'].to_numpy(float).copy()
     out['capital_gains_line13'] = out[KG_PIECES].sum(axis=1)
     out['capital_gains'] = out['kg_st'] + out['kg_lt'] + out['kg_other']

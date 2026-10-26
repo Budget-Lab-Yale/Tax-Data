@@ -57,7 +57,13 @@ ROW_COLUMNS = ['kind', 'group', 'target', 'statistic', 'population', 'variable',
 # terms (an AGI range, married, the age range, a line and the variable it is on), the dependent-filer rule, the error's
 # reason.
 CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'line', 'line_variable',
-                'dependent_filers', 'error_reason']
+                'dependent_filers', 'error_reason',
+                # an income rank group (its variable, its percentiles, and the survey's dollar
+                # lines at those percentiles, for the record; the file's lines are its own, set in conditions())
+                'rank_variable', 'rank_lo', 'rank_hi', 'rank_line_lo', 'rank_line_hi',
+                # a band's upper line (net worth at or below it), on line_variable; NaN for none. A
+                # band's lower line is 'line' (net worth above it), NaN for a band with no lower line.
+                'line_hi']
 TOP_KEYS = {'year', 'kind', 'inherits', 'prior', 'targets', 'drop', 'report', 'start', 'start_scaling',
             'hold_distribution'}
 YEAR_KEYS = ['year', 'kind', 'prior', 'report', 'start', 'start_scaling', 'hold_distribution']   # a later file replaces
@@ -239,12 +245,30 @@ def group_cells(spec):
             assert sel == 'all' or len(lines) == len(sel), f'{name}: unknown cells in {sel}'
             per_dim.append([{'parts': {name: ln[2]}, 'filters': [], 'agi': None, 'line': (g['variable'], *ln)}
                             for ln in lines])
+        elif 'ranks' in g:
+            # a range of a variable's weighted percentiles, each side its own
+            ranks = [rk for rk in g['ranks'] if sel == 'all' or rk[2] in sel]
+            assert sel == 'all' or len(ranks) == len(sel), f'{name}: unknown cells in {sel}'
+            per_dim.append([{'parts': {name: rk[2]}, 'filters': [], 'agi': None, 'line': None,
+                             'rank': (g['variable'], float(rk[0]), float(rk[1]))} for rk in ranks])
+        elif 'bands' in g:
+            # a band of the variable between two lines, [lower, upper, label]; each line is
+            # [percentile, p] (the survey's p-th percentile, in dollars) or [dollars, d] or null (none). A unit is in
+            # the band when it is above the lower line and at or below the upper one, as "above the line" is
+            # strictly above.
+            bands = [bd for bd in g['bands'] if sel == 'all' or bd[2] in sel]
+            assert sel == 'all' or len(bands) == len(sel), f'{name}: unknown cells in {sel}'
+            per_dim.append([{'parts': {name: bd[2]}, 'filters': [], 'agi': None, 'line': None,
+                             'band': (g['variable'], bd[0], bd[1])} for bd in bands])
         else:
             raise NotImplementedError(name)
-    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None}]
+    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None}]
     for dim in per_dim:
         out = [{'parts': {**a['parts'], **b['parts']}, 'filters': a['filters'] + b['filters'],
-                'agi': a['agi'] or b['agi'], 'line': a['line'] or b['line']} for a in out for b in dim]
+                'agi': a['agi'] or b['agi'], 'line': a['line'] or b['line'],
+                'rank': a.get('rank') or b.get('rank'), 'band': a.get('band') or b.get('band')}
+               for a in out for b in dim]
+    assert not any(c['line'] and c['band'] for c in out), 'a cell with both a line and a band'
     for c in out:
         c['label'] = ', '.join(c['parts'].values()) or 'all'
     return out
@@ -448,17 +472,34 @@ def survey_rows(source, year, cells, v, stats):
         m = np.ones(len(u), bool)
         for col, val in c['filters']:
             m &= (u[col] == val).to_numpy()
+        rank_lines = (np.nan, np.nan)
+        if c.get('rank') is not None:
+            # the survey's units in the income rank group, by the survey's own weighted
+            # percentiles over all its units (lower edge inclusive)
+            rv, lo, hi = c['rank']
+            xr = survey_rank_value(source, u, rv)
+            rank_lines = rank_dollar_lines(xr, w, lo, hi)
+            m &= (xr >= rank_lines[0]) & (xr < rank_lines[1])
         assert m.any(), f'{source} {year}, cell {c["label"]}: no survey units'
-        line, above, line_var = None, m, ''
+        line, above, line_var, line_hi = None, m, '', None
         if c['line'] is not None:
             # the line is on the grouping's variable (net worth), which may differ from the target's (stocks)
             line_var, kind, num, _ = c['line']
             xl = record_value(u, line_var)
             line = float(common.wquantile(xl, w, [num / 100])[0]) if kind == 'percentile' else float(num)
             above = m & (xl > line)
+        if c.get('band') is not None:
+            # a band between two lines on the survey's own percentiles (dollar lines), above the lower
+            # and at or below the upper
+            line_var, lo_spec, hi_spec = c['band']
+            xl = record_value(u, line_var)
+            dollar = lambda s: None if s is None else \
+                float(common.wquantile(xl, w, [s[1] / 100])[0]) if s[0] == 'percentile' else float(s[1])
+            line, line_hi = dollar(lo_spec), dollar(hi_spec)
+            above = m & ((xl > line) if line is not None else True) & ((xl <= line_hi) if line_hi is not None else True)
         for st in stats:
             if st == 'share':
-                assert line is not None, f'{source} {year}, cell {c["label"]}: a share needs a line'
+                assert line is not None or line_hi is not None, f'{source} {year}, cell {c["label"]}: a share needs a line'
                 val = w[above].sum() / w[m].sum()
             elif st == 'amount':
                 val = (x * w)[above].sum()
@@ -468,9 +509,51 @@ def survey_rows(source, year, cells, v, stats):
             else:
                 raise NotImplementedError(f'{source}: statistic {st}')
             rows.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'line': line,
-                         'line_variable': line_var,
-                         'source': f'{source} {year} ({os.path.relpath(path, common.OUT)}), all units'})
+                         'line_variable': line_var, 'rank_lines': rank_lines, 'line_hi': line_hi,
+                         'source': f'{source} {year} ({os.path.relpath(path, common.OUT)}), all units'
+                                   + ('' if c.get('rank') is None else
+                                      f'; income group {c["rank"][1]:g}-{c["rank"][2]:g} percentile of '
+                                      f'{c["rank"][0]} on the survey: {rank_lines[0]:,.0f} to {rank_lines[1]:,.0f} '
+                                      f'dollars; {int(m.sum())} unit rows in the group, {int(above.sum())} above the '
+                                      f'net worth line ({u.loc[above, "household_id"].nunique() if "household_id" in u else -1} '
+                                      'households, five implicates pooled)')})
     return rows
+
+
+# ---- income rank groups (the income x net worth grid) -----------------------------------------------------
+_RANK_VALUES = {}
+
+
+def survey_rank_value(source, u, v):
+    """A survey unit's value of the ranking variable v (catalog survey_parts). For the SCF the items are the training
+    table's SCF rows after translation (function 1), the same columns qgroups.SCF_INCOME sums, joined to the units by
+    record_id (the parquet of units carries the table's ids). Every unit must find its row and every item a value:
+    a missing one is an error, never dropped."""
+    key = (source, v, len(u))
+    if key not in _RANK_VALUES:
+        assert source == 'scf', f'{source}: no rank variable source'
+        parts = variable_def(v)['survey_parts']
+        t = pd.read_parquet(common.TABLE, columns=['source', 'record_id'] + parts)
+        t = t[(t['source'] == 'scf') & t['record_id'].isin(u['record_id'])]
+        j = u[['record_id']].merge(t, on='record_id', how='left', validate='one_to_one', indicator=True)
+        unmatched = int((j['_merge'] != 'both').sum())
+        nan = int(j[parts].isna().any(axis=1).sum())
+        common.say(f'  {source} units: {len(u)} rows; {unmatched} with no training-table row; {nan} with an income item '
+                   f'missing ({parts})')
+        assert unmatched == 0 and nan == 0, f'{source}: units without their income items'
+        _RANK_VALUES[key] = j[parts].to_numpy(float).sum(1)
+    return _RANK_VALUES[key]
+
+
+def rank_dollar_lines(x, w, lo, hi):
+    """The dollar lines of the lo-th and hi-th weighted percentiles of x (common.wquantile: the smallest x whose
+    cumulative weight share reaches the share); 0 and 100 are no line."""
+    a = -np.inf if lo <= 0 else float(common.wquantile(x, w, [lo / 100])[0])
+    b = np.inf if hi >= 100 else float(common.wquantile(x, w, [hi / 100])[0])
+    return a, b
+
+
+FILE_RANK_LINES = {}   # (variable, population, percentile) -> the file's dollar line, as last set by conditions()
 
 
 def pipeline_rows(year, cells, v, stats):
@@ -489,6 +572,31 @@ def pipeline_rows(year, cells, v, stats):
 
 
 _CPS_AGES = {}
+
+
+def check_nonfiler_bands(df, rows):
+    """Every non-filer head and spouse in the file (filer 0; a member with an age) must fall in exactly one of the
+    non-filer people targets' bands (rows of kind 'non-filer people'). A head or spouse in no band (a 17-year-old:
+    adults are counted from 18, children under 17) or in two would let the tilt move the non-filer count through
+    records the people targets cannot see. Fails loudly, with the ages that break it."""
+    people = rows.loc[rows['kind'] == 'non-filer people', 'variable'].unique()
+    if not len(people):
+        return
+    nf = (df['filer'] == 0).to_numpy()
+    for m in ('head', 'spouse'):
+        a = df[AGE_COLUMNS[m]].to_numpy(float)[nf]
+        has = a >= 0                                      # -1: no such member
+        n = np.zeros(int(nf.sum()))
+        for v in people:
+            p = variable_def(v)['people']
+            if m in p['members']:
+                n += (a >= p['from']) & (a < (np.inf if p['to'] is None else p['to']))
+        bad = has & (n != 1)
+        assert not bad.any(), (f'{int(bad.sum())} non-filer {m}s fall in {sorted(set(n[bad].astype(int)))} of the '
+                               f'non-filer people bands, not exactly one; their ages: '
+                               f'{pd.Series(a[bad]).value_counts().sort_index().to_dict()}')
+    common.say(f'non-filer people bands: every non-filer head and spouse falls in exactly one ({int(nf.sum()):,} '
+               'non-filer records)')
 
 
 def cps_nonfiler_people(year, v):
@@ -596,7 +704,13 @@ def expand_entry(e, year, soi):
                 'married': filt.get('married', np.nan), 'age_range': filt.get('age_range', np.nan),
                 'line': r.get('line', np.nan) if r.get('line') is not None else np.nan,
                 'line_variable': r.get('line_variable', ''),
-                'dependent_filers': e.get('dependent_filers', ''), 'error_reason': err.get('reason', '')})
+                'dependent_filers': e.get('dependent_filers', ''), 'error_reason': err.get('reason', ''),
+                'rank_variable': c['rank'][0] if c.get('rank') else '',
+                'rank_lo': c['rank'][1] if c.get('rank') else np.nan,
+                'rank_hi': c['rank'][2] if c.get('rank') else np.nan,
+                'rank_line_lo': r.get('rank_lines', (np.nan, np.nan))[0],
+                'rank_line_hi': r.get('rank_lines', (np.nan, np.nan))[1],
+                'line_hi': r.get('line_hi') if r.get('line_hi') is not None else np.nan})
     return out
 
 
@@ -663,6 +777,12 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     if 'line_variable' not in rows:   # a target list written before 25 October: every line was on the target's variable
         rows = rows.assign(line_variable=np.where(rows['line'].notna(), rows['variable'], ''))
     rows = rows.fillna({'line_variable': ''})
+    if 'rank_variable' not in rows:   # a target list with no income rank groups
+        rows = rows.assign(rank_variable='', rank_lo=np.nan, rank_hi=np.nan)
+    rows = rows.fillna({'rank_variable': ''})
+    if 'line_hi' not in rows:   # a target list with no bands
+        rows = rows.assign(line_hi=np.nan)
+    rows = rows.assign(line_hi=rows['line_hi'].astype(float))
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
     if units is None and average_form == 'units' and rows['statistic'].isin(['average', 'share', 'share of total']).any():
@@ -684,13 +804,32 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             cell &= married == r.married
         if not np.isnan(r.age_range):
             cell &= rng == r.age_range
+        if r.rank_variable:
+            # the income rank group on the file, by the file's own weighted percentiles
+            # among the entry's population on the starting weights w_start (the importance weights when there are
+            # none, for expand's reach check only); fixed as dollar lines, so the group is the same records through
+            # the tilt
+            if r.rank_variable not in values:
+                values[r.rank_variable] = record_value(df, r.rank_variable)
+            xr, pop = values[r.rank_variable], pops[r.population]
+            ws = np.asarray(w_start, float) if w_start is not None else \
+                df['weight'].to_numpy(float) if 'weight' in df else np.ones(len(df))
+            lo_line, hi_line = rank_dollar_lines(xr[pop], ws[pop], r.rank_lo, r.rank_hi)
+            FILE_RANK_LINES[(r.rank_variable, r.population, r.rank_lo)] = lo_line
+            FILE_RANK_LINES[(r.rank_variable, r.population, r.rank_hi)] = hi_line
+            cell &= (xr >= lo_line) & (xr < hi_line)
         for name in (r.variable, r.line_variable):
             if name and name not in values:
                 values[name] = record_value(df, name)
         x = values.get(r.variable)
         # the line is on its own variable: net worth above the SCF's 99th percentile, for a target in stocks
-        assert np.isnan(r.line) or r.line_variable, f'{r.group} {r.target}: a line with no variable'
-        line = None if np.isnan(r.line) else (values[r.line_variable] > r.line).astype(float)
+        assert (np.isnan(r.line) and np.isnan(r.line_hi)) or r.line_variable, f'{r.group} {r.target}: a line with no variable'
+        if np.isnan(r.line_hi):
+            line = None if np.isnan(r.line) else (values[r.line_variable] > r.line).astype(float)
+        else:
+            # a band, above the lower line (if any) and at or below the upper one
+            xl = values[r.line_variable]
+            line = ((xl <= r.line_hi) & ((xl > r.line) if not np.isnan(r.line) else True)).astype(float)
         if r.statistic == 'units':
             F[:, j] = cell
             if r.dependent_filers:

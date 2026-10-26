@@ -173,6 +173,13 @@ variables:
       IRAs and Keoghs, account-type plans at current jobs, and account-type plans from past jobs or now paying out
       (SCF IRAKH + THRIFT + FUTPEN + CURRPEN, the SCF's quasi-liquid retirement assets, RETQLIQ); defined-benefit
       pensions are not in the SCF's net worth and not here
+  # The seven income items the SCF and the file share, for ranking units by income (the income x net worth grid,
+  # historical.yaml). On the file: wages, interest, dividends, line-13 capital gains, gross retirement income,
+  # Schedules C and F, Schedule E. On the SCF's units: the same items as the training table carries them after translation.
+  income_7_items:
+    parts: [wages, interest, dividends, capital_gains_line13, retirement_gross, sch_cf_income, sch_e_income]
+    survey_parts: [wages, interest, dividends, capital_gains, retirement_gross, sch_cf_income, sch_e_income]
+    short: income
   c_clothing:              {record: c_clothing, short: c_clothing}
   c_motor_vehicles:        {record: c_motor_vehicles, short: c_motor_vehicles}
   c_durables:              {record: c_durables, short: c_durables}
@@ -246,7 +253,8 @@ groupings:
     merge_top_until: {records: 500, in_a_file_of: 200000}
     # The five top brackets, $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over, each its own cell (TARGETS.md
     # S2). The merge rule would join them into one "$1,000,000 or more" cell (in 2019 the $10M+ bracket is 20,876
-    # returns, 26 records in a 200,000-record file); the strata of the generation (S4) put thousands of records there.
+    # returns, 26 records in a 200,000-record file); generation, with the AGI group drawn first (qgroups.py), puts
+    # thousands of records there.
     kept_separate: [1000000, 1500000, 2000000, 5000000, 10000000]
   soi_1_7_agi_brackets:
     variable: agi
@@ -302,3 +310,26 @@ groupings:
       - [percentile, 90, above the SCF 90th percentile]
       - [percentile, 50, above the SCF 50th percentile]
       - [dollars, 1000000, above $1 million]
+  # Four income groups by the seven shared income items, each side by its own weighted percentiles
+  # among the entry's population (the SCF on its own units; the file on its starting weights after the demographic
+  # prescaling, then held fixed in dollars through the tilt). [low percentile, high percentile, label], low inclusive.
+  income_rank_groups:
+    variable: income_7_items
+    ranks:
+      - [0, 90, income below p90]
+      - [90, 99, income p90-99]
+      - [99, 99.9, income p99-99.9]
+      - [99.9, 100, income p99.9+]
+  # Four net worth classes between the SCF's percentile lines in dollars (as scf_net_worth_lines):
+  # above the lower line and at or below the upper one. [lower line, upper line, label]; null is no line.
+  scf_net_worth_classes:
+    variable: net_worth
+    bands:
+      - [null, [percentile, 90], net worth below SCF p90]
+      - [[percentile, 90], [percentile, 99], net worth SCF p90-99]
+      - [[percentile, 99], [percentile, 99.9], net worth SCF p99-99.9]
+      - [[percentile, 99.9], null, net worth above SCF p99.9]
+      # merged classes for the thin cells (historical.yaml, wealth_grid_*): a class resting on fewer than 10 SCF
+      # households is merged into the next richer class of the same income group until it has 10 or more
+      - [null, [percentile, 99], net worth at or below SCF p99]
+      - [null, [percentile, 99.9], net worth at or below SCF p99.9]

@@ -11,12 +11,20 @@ hours worked, and childcare, weighted to 2019 targets.
   (v4) with no outside model in it.
 - **Tax units.** The CPS, SCF and CEX all build their tax units with one
   module of CBO's rules (`TAX_UNITS.md`).
-- **Generation and targets.** Filers are drawn stratum by stratum (AGI class
-  × business), pooled from two trained models; the 2019 targets come from
+- **Training.** Each record counts by its survey weight times q, which makes
+  the few records at the top of the PUF and the SCF count as much as the many
+  in the middle (grouped weighting, below). The PUF record's AGI group is a
+  label the network always sees.
+- **Generation and targets.** Filers are drawn AGI group by AGI group, the
+  group set first and everything else drawn given it, pooled from two trained
+  models. The balance sheet is drawn from a mix of SCF waves (55% the 2019
+  wave, 33% the 2022 wave, 12% the 2016 wave for 2019). Every dollar amount is
+  in 2019 dollars before the tilt. The 2019 targets come from
   `pipeline/targets_config/`, each with a standard error, and are met within
   ranges (`TARGETS.md`).
-- **Since when.** This is latest since 25 October. The code is in
-  `pipeline/`; every setting is in `pipeline/settings.json`.
+- **Since when.** This is latest since 26 October (until then: the strata of
+  25 October, `TARGETS.md` S4). The code is in `pipeline/`; every setting is
+  in `pipeline/settings.json`.
 
 ## Data
 
@@ -73,6 +81,9 @@ hours worked, and childcare, weighted to 2019 targets.
   Schedules C and F income; each adult's weeks worked and usual weekly
   hours; childcare expenses. The file's wages1 and wages2 (and se1, se2)
   are the total split by the drawn share, so they add up to the total.
+- the AGI group label (PUF only; `qgroups.py`, `build_table.py`
+  agi_group_label): the record's band-AGI group, one of 12 (below). It is
+  computed from the record's bands, not its exact dollars.
 
 All four sources share married, dependents, the primary filer's age range
 and wages. The SCF, the CEX and the CPS share the exact ages of the
@@ -158,8 +169,8 @@ tilt.nonfiler_targets_dir).
     the target year by SOI's wages per return (a placeholder).
 - **Rules at generation** (`generate.py`, cps_structure): the spouse's
   items are none or zero unless married, and a married spouse has an age
-  and a sex; the k-th dependent has an age exactly when there are at least
-  k dependents; a
+  of 18 or over (since 26 October) and a sex; the k-th dependent has an age exactly when there are at least
+  k dependents; a non-filer unit's head is 18 or over (since 26 October); a
   spouse's share is zero when the couple has none of the item. A dependent
   filer holds no CPS item (ages none, shares zero, so its wages are all its
   own). Where a share is absent on the training rows (no couple, or none of
@@ -406,16 +417,57 @@ Two standard functions and one table (`settings.json`, "translation";
   mixed batch (`explore/2026-10-22/perf/packing/PACKING.md`).
 - **Output layers** are computed in one batched multiplication, only the
   batch's own source's (the same answers, 10% faster a pass).
-- **Precision** (settings "training", "precision"): standard 32-bit.
-  bfloat16 for the training steps was 37% faster a pass with results
-  within the difference between two seeds; not switched on
-  (`explore/2026-10-22/perf/precision/PRECISION.md`).
+- **Precision** (settings "training", "precision"): bfloat16 for the
+  training steps since 26 October (37% faster a pass than standard 32-bit,
+  with results within the difference between two seeds;
+  `explore/2026-10-22/perf/precision/PRECISION.md`). The fill-in, the
+  held-back loss and the logs run in 32-bit.
 - **What it learns.** It is trained to fill in any hidden subset of a
   record's variables from the rest. So one network answers every question
   of the form "this variable, given those".
-- **Weights.** Survey weights are used as they are, rescaled within each
-  source.
-- **Training.** 80 passes, all records but a 2% held-back slice. Peak
+- **Weights: grouped weighting** (`qgroups.py`; settings "training",
+  q_groups; since 26 October, `explore/2026-10-25/q_build`). Each record
+  counts by its survey weight times q, where q = records ÷ survey weight
+  within the record's group. Within a group records count by weight as
+  before; across groups they count by number. Each source's share of
+  training is unchanged (the weights are rescaled within each source).
+  - The PUF: 12 groups by band-AGI, AGI computed from a fixed amount for
+    each band (the weighted mean of the real 2015 PUF amounts in it), so a
+    record's group depends only on what the network sees. AGI zero or
+    negative in three groups (below -$1 million, -$1 million to -$50,000,
+    -$50,000 to 0), positive AGI at the weighted rank lines p50, p75, p90,
+    p95, p99, p99.5, p99.9 and p99.99 of band-AGI among 2015 returns
+    ($35,813 to $11.3 million). A record at p99.99 and over counts about 1.6
+    returns' worth of weight, one below p50 about 1,390: the top group,
+    0.02% of returns, is 4.6% of the PUF's training weight.
+  - The SCF: 5 classes per wave at the weighted p50, p90, p99 and p99.9 of
+    band-income (wages, interest, dividends, capital gains, gross retirement
+    income, Schedules C and F, Schedule E; the reported amounts for the three
+    items the fill-in fills).
+  - The CEX and the CPS: q = 1.
+  - Averages meant to describe the population use the survey weights
+    without q: the fill-in's averages over a type and the per-variable log.
+    The fill-in's PUF side (the filers' share by type) is read from the PUF's
+    own training rows (settings training.fillin_puf_side "data"), because the
+    network's answer given the type alone leans toward the top AGI groups
+    under q; for types with fewer than 30 PUF records (0.7% of SCF weight)
+    the network's answer is kept.
+- **The AGI group label** (settings training.label_always_shown). Each PUF
+  record carries its band-AGI group as a category. In training the label is
+  never hidden on PUF rows and never scored, because generation always sets
+  it (`explore/2026-10-26/overnight/experiments/21_label_shown`: with the
+  label hidden half the time, as any other slot, the file had 3.3 times the
+  PUF's $10 million-and-over returns; always shown, 1.2 times). The other
+  slots are hidden exactly as before. One consequence: the network is never
+  asked about a PUF record with its label hidden, so no step may ask it that
+  (generation always presets it; the fill-in's rare-type fallback does ask,
+  for 0.7% of SCF weight).
+- **Training.** 80 passes in batches of 512 records (4,096 until 26 October:
+  a batch one eighth as large lowered the share of records whose drawn parts
+  add up to another AGI group from 15% to 13% and brought the middle of the
+  income distribution closer, at about four times the training time:
+  `explore/2026-10-26/overnight/experiments/23_label_small_batch`), all
+  records but a 2% held-back slice. About an hour per model on an H100. Peak
   learning rate 0.003: in a sweep of 0.001 to 0.01 (two or three seeds
   each, 21 October), it brought the top income group's net worth before
   the tilt close to the SCF's, at a slightly worse fit on the average
@@ -433,11 +485,23 @@ Two standard functions and one table (`settings.json`, "translation";
    as the CPS would see the unit (CPS label and generation year 2019): the
    CPS covers every tax unit, filers and non-filers, in every year, and its
    view holds the filing flag. The primary filer's age lies inside its age
-   range; the spouse's exists exactly when married;
+   range; the spouse's exists exactly when married and is 18 or over (since
+   26 October, John: a spouse is an adult; ages under 18 get no chance and
+   the other ages are rescaled, on every record, filers and non-filers. Before
+   it, a generated non-filer couple with a spouse of 16 counted as a child in
+   the non-filer targets and took most of the weight at ranges of half a
+   standard error). A non-filer unit's head (the CPS-label batch) is also 18
+   or over, by the same rule (26 October, John): a 17-year-old head is counted
+   in none of the non-filer people bands (adults from 18, children under 17),
+   so the tilt could move the non-filer count through such units, about 200
+   times their weight at tight ranges. Filers keep their PUF age ranges, since
+   dependent filers can be teenagers. The tilt checks that every non-filer head
+   and spouse falls in exactly one counted band and stops if not
+   (`target_list.check_nonfiler_bands`);
 4. the SCF-only items, in a random order (the mortgage share after the
    home), as the SCF would see the household (SCF label, PUF-only variables
-   left out, the exact ages seen). Net worth is computed from the balance
-   sheet in dollars;
+   left out, the exact ages seen), at the income year of the record's own
+   SCF wave (below). Net worth is computed from the balance sheet in dollars;
 5. the 8 consumption categories, in a random order, as the CEX would
    see the unit (CEX label and generation year 2019, everything the CEX
    lacks left out, the exact ages seen);
@@ -489,37 +553,57 @@ no rule touches are scaled down. The last run is kept; `gen/<run>/
 consistency.csv` reports, per run and holding, the model's own expected
 holders, the holders with the rules, and the factors.
 
-**The stack: strata** (settings `generation.design` "strata"; TARGETS.md S4; since 25 October). The
-training table carries three labels computed from each record's own dollars (`build_table.py labels`, written to
-`data/strata/`): on PUF records an AGI class by weighted rank among 2015 returns (zero or negative; below p90,
-$133,700; p90-99, to $464,200; p99-99.9, to $2,127,000; p99.9-99.99, to $11,050,000; p99.99 and over) and a business
-flag (Schedule C, partnership or S corporation, or farm income nonzero); on SCF records a net worth class (below
-p90, p90-99, p99-99.9, p99.9 and over). The network learns them like any item (`model/strata_seed*`).
-- **Filers:** a fixed number of records in each of the 12 AGI class x business strata (`generation.strata.records`,
-  400,000 in all, from about 0.15% of returns below p90 to 30-60% at p99.99 and over). Each record starts with its
-  stratum preset; its weight is the model's own chance of the stratum over the stratum's share of the sample.
-- **Net worth:** when the SCF items are drawn, the net worth class comes first, its chances boosted 1, 2, 5 and 10
-  times by class (`nw_boost`), corrected by p / q.
-- **Labels are checked, not trusted.** AGI and net worth are computed from the drawn parts; a record whose
-  computed class differs from its label is kept and counted (`strata_check.csv`; `drop_mismatches` false). The
-  network often contradicts its own label at the top (80% of p99.99-and-over records compute lower), and dropping
-  them biased the file (returns at p99.9-99.99 38% low against an unstratified draw).
-- `design` "top_parts" restores the earlier stack (four parts oversampling the top 1% of wages, long-term gains,
-  S corporation nonpassive income and business equity, with oversampling by rough AGI); "unstratified" draws with
-  nothing preset.
+**The filer batch: the AGI group first** (settings `generation.design` "label"; since 26 October,
+`explore/2026-10-25/q_build`, STATUS_LABEL.md). 400,000 filer records (`label_records`) are split across the 12
+band-AGI groups in proportion to the PUF's records per group: about 18,400 at p99.99 and over, 30,500 at
+p99.9-99.99, 102,000 below p50. Each record starts with its group set; everything else is drawn given it. Its weight
+is the group's 2015 returns over the records drawn in it, 1 ÷ q of the group, which undoes training's grouped
+weighting exactly. Every drawn record is kept.
+- **The label is checked, not trusted.** Each record's band-AGI group is computed from its drawn bands and compared
+  with its label (`gen/<run>/label_check.csv`, and the stack's columns q_group and label_ok); the weight follows
+  the label. In the scratch run about 13% of filer records had parts adding to another group (`23_label_small_batch`).
+  A version that redrew such records until they agreed was tried and is not kept: it brought the $10 million-and-over
+  returns to the PUF's (17,600 against 18,000) but thinned business income in the middle (partnership holders below
+  p90 2.1 to 2.3 million against the PUF's 2.8 million).
+- **Removed on 26 October** (in git history): the strata of 25 October (TARGETS.md S4: the AGI class x business
+  flag labels, the net worth class label and its boost, `generation.design` "strata", `build_table.py labels` and
+  settings `strata_labels`), the four top-1% parts ("top_parts"), the oversampling by rough AGI
+  (`agi_oversampling`) and the unstratified design.
+
+**The SCF waves** (TARGETS.md section 7; since 26 October, `explore/2026-10-26/scf/04_wave_mix`). Each record,
+filers and non-filers alike, is given one SCF wave at random with the shares in the year's configuration
+(`targets_config/years/2019.yaml`, prior, "balance sheet": the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016
+wave 12.20%, by the rule of 24 October), by a random generator of its own (`generation.scf_wave_seed`), so no other
+draw moves. Its SCF phase runs at that wave's income year, and its balance sheet becomes dollars through that wave's
+own map (below). The stack carries scf_wave and scf_year. The CEX and the CPS are still drawn at one fixed year
+(settings cex and cps, generation_year).
+
+**Stored picks** (`dollars.py`). For each record and each amount the stack stores one uniform number
+(u_<variable>) that picks the record's real dollar amount within its band, so every step that turns bands into
+dollars gives a record the same amounts, and its 2019 dollars are its 2015 dollars grown.
 
 **Two models pooled** (settings `generation.models`; TARGETS.md section 8). Every batch is drawn half from each
-trained model (now `strata_seed20261016`, `strata_seed20261017`), each with its own generation seeds (its
+trained model (now `label_seed20261016`, `label_seed20261017`), each with its own generation seeds (its
 `seed_shift`), each record saying which drew it (column `model`), ids unique across models. The consistency offset
 is found per model.
 
 ## Post-training: the 2019 file
 
-**Dollars.** Each band's real 2015 values, grown to 2019 by SOI's growth
-in dollars per return holding each item. The balance sheet: each band's real
-values from the 2016 SCF wave, carried to the 2019 wave's dollars by the two
-waves' asset price factors, 1.2334 and 1.1592 (2022 dollars per wave
-dollar). Consumption: each
+**Dollars.** Every dollar amount is put in 2019 dollars before the tilt, item
+by item. The PUF's: each band's real 2015 values, grown to 2019 by SOI's growth
+in dollars per return holding each item. The balance sheet (since 26 October,
+`explore/2026-10-26/scf/07_grid_growth`): each band's real values from the
+record's own SCF wave, grown per tax unit to the 2019 wave item by item: the
+2019 wave's weighted mean of the item per unit over the drawing wave's, each in
+its own dollars (`build_table.scf_growth`; `data/maps/scf_growth_factors.csv`).
+For the 2022 wave stocks grow by 0.641, homes by 0.704, cash by 0.709; for the
+2016 wave by 1.058, 1.166 and 1.110. The mortgage is drawn as a share of the
+home's value, so it moves with the home. This replaced the asset price factors
+(one per wave), which left the 2022 wave's net worth per unit 24% above the 2019
+wave's ($738,000 against $593,600; grown per unit, $602,600). It carries only
+each wave's mean: the shape of a wave's distribution is not changed. The
+start from an earlier year's file (`from_year`) grows the balance sheet by the
+same rule. Consumption: each
 band's real CEX 2019 values, with no growth. The CPS's items: each band's
 real CPS 2019 values (childcare grown by SOI's wages per return, which is
 no growth when the generation year is the target year). Every dollar column
@@ -541,7 +625,15 @@ non-filer people by age (section 4).
 target within its value ± `tilt.range_in_se` (1) standard errors; identities exact. If the ranges cannot all be
 met, a miss beyond a range costs (miss ÷ standard error)². A range on an average is measured on the average itself,
 with the cell's weight after the tilt. Cells resting on too few effective records, or on a record moved too far,
-are flagged as warnings or stops (section 5). The 2019 targets (474):
+are flagged as warnings or stops (section 5).
+- **Half a standard error is tentative and not on.** `tilt.range_in_se` stays 1. Ranges of 0.5 were tested on 26
+  October (`explore/2026-10-26/scf/07_grid_growth`): every target was met, but the effective sample kept fell from
+  98% to 11%. The cause is one generated non-filer couple whose spouse is coded aged 16: its weight rose 2,416
+  times and it supplied 43% of the non-filer children-under-17 target (the young spouse counts as a child), with
+  the non-filer people and the CEX cells pulling against each other. 0.5 waits for a fix to such records and
+  John's decision.
+
+The 2019 targets (496):
 
 | Targets | Number |
 |---|---:|
@@ -551,46 +643,61 @@ are flagged as warnings or stops (section 5). The 2019 targets (474):
 | Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
 | Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
 | SCF 2019 wealth: shares of units and net worth above the 99.9th, 99th, 90th and 50th percentile lines and $1 million; the four asset types (stocks, business equity, real estate, retirement accounts) above the 99.9th, 99th and 90th lines | 22 |
+| SCF 2019 income x net worth grid (tentative, below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | CEX 2019 consumption: 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
 
-Counts by kind as in `tilt/strata_full2019/targets.csv`.
+**The income x net worth grid** (since 26 October; **tentative**, pending John's review of
+`explore/2026-10-26/scf/07_grid_growth`; historical.yaml, wealth_grid_shares and wealth_grid_dollars; errors.py,
+wealth_grid_errors). Four income groups by the seven income items the SCF and the file share (wages, interest,
+dividends, capital gains, gross retirement income, Schedules C and F, Schedule E): below p90, p90-99, p99-99.9 and
+p99.9 and over, each side by its own weighted percentiles (the file's lines set on its starting weights, then held
+fixed in dollars through the tilt). Four net worth classes between the SCF's dollar lines at p90, p99 and p99.9
+($957,700, $9.21 million, $38.66 million). In each cell the share of the income group's units in the class (the
+lowest class left out: one minus the others) and the class's net worth. A cell resting on fewer than 10 SCF
+households is merged into the next richer class of its income group (three cells). Standard errors from the 999
+replicate weights and the five implicates. Without it the tilt left $6.7 trillion with units at p99.9+ of income
+against the SCF's $10.6 trillion, and 12% of the top 0.1% by wealth had income below p90 (SCF: 3.9%); with it, $9.0
+trillion and 6.3% (07, one standard error).
+
+Counts by kind as in `tilt/<run>/targets.csv`.
 `hold_distribution` (optional, S7) adds each item's share in AGI rank groups of the start file as targets.
 `report_tilt.py` writes the run report (section 14).
 
-The combined 2019 run of 25 October (`tilt/strata_full2019`, strata models, mismatched labels kept): all 474
-targets inside their ranges; effective sample kept 99.9% from the prescaled start; 61 warnings and 33 stops, most
-at net-loss and interest amounts at the top and at no AGI, where one record holds most of a cell's dollars.
+The 26 October test run (below): all 496 targets inside their ranges; effective sample kept 98.1% from the
+prescaled start; 51 warnings and 31 stops.
 
 ## How the latest run comes out
 
-The combined 2019 run of 25 October (`tilt/strata_full2019`; the stack is `gen/strata_pooled_nodrop`: the two
-strata models, 400,000 filer records and 54,379 non-filer records, mismatched labels kept). Its `summary.md` and
-`report.md` have the full tables. Counts in millions, nominal 2019 dollars.
+The 2019 test run of 26 October, from the pipeline as it now stands except the non-filer head rule, which came
+after it (output in `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-26/port/out`: models
+`label_seed20261016` and `label_seed20261017`, trained on L40S cards, about 34 seconds a pass; stack and file
+`label_pooled`; 400,000 filer records and 54,379 non-filer records). Its `summary.md` and `report.md` have the full
+tables; `port/STATUS.md` compares it with the scratch runs. Counts in millions, nominal 2019 dollars unless said.
 
 | | File | Reference |
 |---|---:|---:|
-| targets inside their ranges | 474 of 474 (323 at an edge) | |
-| effective sample kept, from the prescaled start | 99.9% | |
-| effective sample kept, from the start before the prescaling | 99.2% | |
-| weight factor, 1st and 99th percentiles | 0.47, 1.59 | |
-| thin cells: warnings, stops | 61, 33 | |
-| non-filer units | 21.45 | CPS (filing rule v4): 21.45 |
-| net worth, total | $98.3 trillion | SCF 2019: $96.6 trillion |
-| median net worth, all 179.0 million units | $47,900 | SCF 2019, 162.8 million units: $63,570 |
+| targets inside their ranges (1 standard error) | 496 of 496 (337 at an edge) | |
+| effective sample kept, from the prescaled start | 98.1% | |
+| effective sample kept, from the start before the prescaling | 97.7% | |
+| weight factor, 1st and 99th percentiles | 0.35, 1.81 | |
+| thin cells: warnings, stops | 51, 31 | |
+| returns with AGI of $10 million and over, before the tilt (2015 dollars and returns) | 0.0229 | PUF 2015: 0.0180 |
+| returns with AGI of $1 million and over, before the tilt (same) | 0.497 | PUF 2015: 0.446 |
+| returns with AGI zero or negative, before the tilt (same) | 2.83 | PUF 2015: 2.04 |
+| filer records whose drawn parts add up to another AGI group than their label | 13.5% | |
+| SCF waves: share of records, 2019 / 2022 / 2016 wave | 54.6 / 33.3 / 12.2% | prior: 54.65 / 33.15 / 12.20% |
+| net worth, total, before and after the tilt | $117.9 and $98.0 trillion | SCF 2019: $96.6 trillion |
+| median net worth, all 179.2 million units | $52,600 | SCF 2019, 162.8 million units: $63,570 |
 | top 1% share of net worth | 41.6% | SCF 2019: 40.2% |
-| mean net worth, wages $200k+ | $4.28 million | SCF 2019: $4.38 million |
+| mean net worth, wages $200k+ | $4.18 million | SCF 2019: $4.38 million |
+| top 0.1% by net worth with income below the file's p90, before and after the tilt | 19.6%, 6.4% | SCF 2019: 3.9% |
+| spouses under 18 | 0 | |
+| non-filer heads under 18 (the head rule came after this run) | 40 records, 15,300 units | |
 
-- **The prescaling.** Before it, filer returns with a primary filer 65 and over were 16.8% (joint) and 10.5%
-  (non-joint) below SOI Table 1.6, and non-filer heads and spouses aged 18-25 39.6% above the CPS; it moved the
-  start by 0.002 nats in each batch.
-- **Thin cells.** Most stops are dollar amounts at the top (net losses of partnerships, S corporations and
-  Schedule C at $5 million and over, taxable interest at $10 million and over) and at no AGI, where a few records
-  hold most of a cell's dollars.
-- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 3.4 standard
-  errors in Table 1.4, 2.4 in Table 1.6 and 2.2 in Table 1.7. The largest are Schedule D net losses above
-  $1.5 million of AGI (the file has several times SOI's) and taxable Social Security at no AGI.
+- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 3.3 standard
+  errors in Table 1.4, 2.1 in Table 1.6 and 2.3 in Table 1.7.
 - **Net worth.** The file's units include its dependent filers, who hold no wealth; the SCF's units do not, so
-  the two medians are not on the same base.
+  the two medians are not on the same base. Before the tilt the file holds $21 trillion more than the SCF.
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (up to commit bc72cc7).
 

@@ -15,16 +15,18 @@ non-filers, whose revenue and distribution results are right. Top incomes and to
 
 **1. Pretraining (once, not per year).** One network learns the joint distribution of tax units from the PUF
 (2015), the SCF, the CEX and the CPS. Each training record carries its source and its year. Amounts are learned as
-ranks, and rank-to-dollar maps turn them into each year's dollars. PUF records also carry an AGI class and a
-business flag, SCF records a net worth class (S4). Two copies are trained from different random starts, and every
-file pools them half and half (section 8).
+ranks, and rank-to-dollar maps turn them into each year's dollars. Each record counts by its survey weight times q,
+so the few records at the top of the PUF and the SCF count as much as the many in the middle; PUF records also carry
+their AGI group as a label, always shown (S8). Two copies are trained from different random starts, and every file
+pools them half and half (section 8).
 
 **2. Each year t: the start.** The year's configuration file says which of two starts (S7):
-- *generate*: draw a fresh sample from the two models, with year t's mix of survey years (section 7). The sample
-  is stratified: a set number of records in each AGI class x business stratum, more at the top, with the net worth
-  class boosted at the SCF step; each record's weight undoes the oversampling exactly (S4). Its dollars come from
-  year t's rank-to-dollar maps (the PUF's amounts grown to year t), and its weights are scaled to year t's
-  demographic cells (section 4). Historical years use this.
+- *generate*: draw a fresh sample from the two models, with year t's mix of survey years (section 7; built for the
+  SCF's waves). The AGI group is drawn first: a set number of records in each of 12 AGI groups, more at the top,
+  each weighted by its group's returns over the records drawn in it, which undoes q exactly (S8). Its dollars come
+  from year t's rank-to-dollar maps (the PUF's amounts grown to year t per return, the balance sheet grown per tax
+  unit from its wave to year t's wave), and its weights are scaled to year t's demographic cells (section 4).
+  Historical years use this.
 - *from_year s*: take year s's finished file, scale its weights to year t's demographic cells and grow each
   record's amounts to year t. Future years use this, from the last historical year, so they carry its
   distribution of income.
@@ -32,7 +34,8 @@ file pools them half and half (section 8).
 **3. Each year t: the targets.** Facts about year t, each with a value and a standard error (sections 2, 3, 9):
 - hand-written in the configuration: SOI detail in historical years (AGI brackets with the five top ones separate,
   income items and their composition at the top, business income, ages, dependent filers), SCF wealth at the top
-  and by asset type, CEX consumption, the non-filer count and non-filer people by age; in future years, macro
+  and by asset type, an SCF income x net worth grid (tentative, 26 October), CEX consumption, the non-filer count
+  and non-filer people by age; in future years, macro
   totals and population by age (projected totals may be exact, to match the baseline);
 - optionally built automatically from the start file (*hold_distribution*): each item's share in AGI rank groups,
   so the distribution does not drift.
@@ -40,18 +43,21 @@ A family of targets is kept only if it bears on an output, its source matches th
 miss it without it (S5).
 
 **4. Each year t: the tilt.** The weights move as little as possible (smallest Kullback-Leibler move) so that every
-target lands within its value ± k standard errors (k = 1 for now, a setting; S6). Identities are exact. If the
+target lands within its value ± k standard errors (k = 1 for now, a setting; S6; 0.5 was tested on 26 October and
+waits, see S6). Identities are exact. If the
 ranges cannot all be met, misses beyond them are weighed by their standard errors. Cells resting on too few
 records are flagged, with a stop for the worst (section 5).
 
 **5. Each year t: the report** (section 14): every target and where it landed, the thin cells, published numbers
 not targeted, what the tilt moved, and how far the two models disagree.
 
-**Built, as of 25 October:** steps 1-5 for 2019, with the stratified start, ranges and the report;
-the from_year start and hold_distribution are being tested on 2022. **Not built:** the survey-year borrowing rule
-(the surveys are drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial Accounts.
-**Known weakness:** the model draws too few returns at the very top (about 35% short in the top 0.1%-0.01%);
-training with the top counted more heavily is being tested.
+**Built, as of 26 October:** steps 1-5 for 2019, with grouped weighting and the AGI group drawn first (S8), the
+SCF's waves mixed by section 7's rule, every dollar amount in target-year dollars before the tilt, ranges and the
+report; the from_year start and hold_distribution are being tested on 2022. **Not built:** the borrowing rule for
+the CEX and the CPS (drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial
+Accounts. **Known weakness:** the network's drawn parts often add up to another AGI group than the one it was given
+(about 13% of filer records); the file still has about 1.3 times the PUF's returns at $10 million and over before
+the tilt, and 1.5 times its returns with AGI at or below zero.
 
 ## 1. What post-training is for (agreed 24 October)
 
@@ -258,8 +264,12 @@ is 2018). For target year T:
 
 Past the last wave the mix stays fixed. The rule gives the 2019 file 55% of the 2019 wave, 33% of the 2022 wave and
 12% of the 2016 wave. The CEX's and the CPS's rules are still to be written; they field more often than the SCF.
-The pipeline does not use any such rule yet: each survey is drawn at one fixed year (the SCF at 2015, the 2016 wave;
-the CEX and CPS at 2019). This is ROADMAP item 3.
+**Built for the SCF on 26 October:** generation reads the year file's prior ("balance sheet": the 2019 wave
+54.65%, the 2022 wave 33.15%, the 2016 wave 12.20% for 2019), gives each record one wave at random with those
+shares, draws its balance sheet at that wave's year and turns it into dollars with that wave's own records, grown
+per tax unit to the target year's wave item by item (`FEATURES.md`). The shares are written in the year file by
+hand from the rule; the code does not compute them. The CEX and CPS are still drawn at one fixed year (2019). This
+is ROADMAP item 3.
 
 **No chaining for historical years.** Each historical year has its own prior, so last year's file is not this
 year's starting point.
@@ -406,6 +416,10 @@ network draws.
 
 ### S4. Strata as labels the network draws (agreed 25 October)
 
+**Replaced on 26 October by S8** (grouped weighting and the AGI group drawn first). The strata labels, the net
+worth class and its boost, and the design "strata" are gone from the pipeline (in git history). Kept here as the
+record of how it was reached.
+
 This replaces the pool-then-sample design of S3: instead of drawing a large pool and sampling it, the network is
 taught a coarse stratum label and each record's stratum is fixed before the rest of it is drawn.
 
@@ -455,6 +469,11 @@ itself, with the cell's weight after the tilt. So noisy targets barely bind (cap
 million, standard error 82%, range $25-249 million) and precise ones stay nearly exact (returns at AGI $50-75k:
 22.24 million ± 113,000). The width multiplier is a setting.
 
+**Half a standard error, tested 26 October (tentative, not on).** `explore/2026-10-26/scf/07_grid_growth`: at 0.5
+every target was met, but the effective sample kept fell from 98% to 11%, through one generated non-filer couple
+whose spouse was coded aged 16 (counted as a child in the non-filer targets; its weight rose 2,416 times). A spouse
+must now be 18 or over at generation (26 October). The setting stays at 1 until John decides.
+
 ### S7. One algorithm for every year, with the start as a parameter (agreed 25 October)
 
 Every year t runs the same three steps: build year t's start, build year t's targets, tilt. The year's
@@ -477,3 +496,25 @@ configuration file says how each is built.
 3. **The tilt**, with ranges (S6).
 
 Projected totals in future years may be identities, so the file matches the baseline it is scored against.
+
+### S8. Grouped weighting and the AGI group drawn first (agreed 26 October; replaces S4)
+
+Tested in `explore/2026-10-25/q_build` (q_band, q_label) and `explore/2026-10-26/overnight/experiments` (21, 23).
+
+**Training counts the top as much as the middle.** Each training record counts by its survey weight times q, with
+q = records ÷ survey weight within its group: 12 groups by AGI on the PUF, 5 income classes per wave on the SCF, q = 1
+on the CEX and CPS. The groups are computed from the record's bands (each band at a fixed representative amount),
+not its exact dollars, because the network sees only bands: records it cannot tell apart always get the same q.
+
+**The AGI group is a label, always shown.** The PUF record's group is a category the network learns, never hidden in
+training, because generation always sets it. With the label hidden half the time like any other slot, the file had
+3.3 times the PUF's $10 million-and-over returns; always shown, 1.2 times.
+
+**Generation draws the group first.** 400,000 filer records are split across the 12 groups in proportion to the
+PUF's records per group; each starts with its group set and everything else is drawn given it. A record's weight is
+its group's 2015 returns over the records drawn in it, which is 1 ÷ q and undoes the training's up-counting exactly.
+Every drawn record is kept: about 13% have parts that add up to another group, and that share is only reported.
+Redrawing them until they agree was tried and not kept: it fixed the top counts but thinned business income in
+the middle.
+
+**Training settings with it:** batches of 512 records, 80 passes, bfloat16, a network of width 128 and 4 layers.

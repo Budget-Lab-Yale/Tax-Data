@@ -24,7 +24,13 @@ size range, from the reporting-rate formula:
                            label, the PUF year, over the PUF's units other than
                            dependent filers: the item given the type and each
                            adult age range, mixed by the model's chance of that
-                           range. Non-filers: CPS label, the CPS year nearest the
+                           range. With settings training.fillin_puf_side
+                           "data" (needed with grouped weighting, which
+                           tilts the network's answer toward the top AGI
+                           groups) the filers' share is the PUF training
+                           rows' own, survey-weighted, by type; the network's
+                           answer is kept only for types with fewer than 30
+                           PUF records. Non-filers: CPS label, the CPS year nearest the
                            survey year, the filing flag 0, everything else but
                            the type hidden; an item the CPS does not measure
                            (interest, from 23 October) has no non-filer holder,
@@ -166,9 +172,16 @@ class FillIn:
         self.type_of = torch.tensor(train_rows.groupby(keys, sort=False).ngroup().to_numpy(),
                                     device=device)[self.scf_rows]
         self.n_types = int(self.type_of.max()) + 1
-        self.weight = tr['weight'][self.scf_rows].double()
+        # the population weights (survey weights, no q: qgroups.py) for the averages over a type and the log
+        self.weight = tr['pop_weight'][self.scf_rows].double()
         self.puf_year_wave = torch.tensor(train_rows['year'].to_numpy() == common.PUF_YEAR, device=device)[self.scf_rows]
         scf = train_rows[(train_rows['source'] == 'scf').to_numpy()]
+        # the filers' share (A, PUF side): settings training.fillin_puf_side, "data" from the PUF's training rows
+        # directly (puf_data_shares), "model" from the network (puf_probs_by_band)
+        self.puf_side = common.SETTINGS['training'].get('fillin_puf_side') or 'model'
+        assert self.puf_side in ('model', 'data'), self.puf_side
+        if self.puf_side == 'data':
+            self.data_a, self.data_ok = self.puf_data_shares(train_rows, scf)
         n_f, n_n = tax_data_counts(scf)
         self.n_filer = torch.tensor(n_f, dtype=torch.float64, device=device)
         self.n_nonfiler = torch.tensor(n_n, dtype=torch.float64, device=device)
@@ -178,6 +191,46 @@ class FillIn:
         self.type_labels = scf[keys].iloc[first.to_numpy()].reset_index(drop=True).assign(type=first.index.to_numpy())
         self.chunk = M.safe_chunk(len(M.SLOTS))   # the full width: safe for the source widths too
         self.dist, self.log = {}, []
+
+    MIN_PUF_RECORDS = 30
+
+    def puf_data_shares(self, train_rows, scf):
+        """A by band among filers from the PUF's training rows directly (settings training.fillin_puf_side "data"):
+        survey weights, dependent filers out (a record with no age range counts with its step 0 chance of an adult
+        range), by type (married, dependents, wage band: the PUF year's, as the network's PUF view reads the SCF row's
+        bands). With grouped weighting the network's own answer given the type only leans toward the top AGI groups
+        (it averages over groups whose sizes q has changed), so the data is used instead. Per SCF training row: the
+        shares of its type ({item: [rows, bands]}), and whether the type has at least MIN_PUF_RECORDS PUF records;
+        where it has fewer, the network's answer is kept for that row (refit)."""
+        puf = train_rows[(train_rows['source'] == 'puf').to_numpy()]
+        w = puf['weight'].to_numpy(float)
+        ar = puf['age_range'].to_numpy()
+        adult = np.where(ar == -1, puf[M.AGE_PROBS[:common.ADULT_RANGES]].to_numpy(float).sum(1),
+                         (ar >= 0) & (ar < common.ADULT_RANGES))
+        w = w * adult
+        keys = [M.column(v) for v in TYPE]
+        tk = puf[keys].copy()
+        sk = scf[keys].reset_index(drop=True)
+        cnt = tk.assign(n=(w > 0).astype(float)).groupby(keys)['n'].sum()
+        # an SCF type with no PUF record has no count (0 records: the network's answer is kept)
+        ok = sk.merge(cnt.rename('n').reset_index(), on=keys, how='left')['n'].fillna(0).to_numpy() >= self.MIN_PUF_RECORDS
+        out = {}
+        for v in MAPPED:
+            nb = self.n_bands[v]
+            b = puf[M.column(v)].to_numpy()
+            assert (b >= 0).all() and (b < nb).all(), v
+            tab = pd.DataFrame(tk).assign(b=b, w=w).groupby(keys + ['b'])['w'].sum().unstack('b', fill_value=0.0)
+            tab = tab.reindex(columns=range(nb), fill_value=0.0)
+            # a type with no adult weight has no shares; it is under MIN_PUF_RECORDS, so its rows keep the network's
+            tab = tab.div(tab.sum(1).replace(0, np.nan), axis=0).fillna(0.0)
+            m = sk.merge(tab.reset_index(), on=keys, how='left')[list(range(nb))].fillna(0.0).to_numpy()
+            out[v] = torch.tensor(m, dtype=torch.float64, device=self.device)
+        okt = torch.tensor(ok, device=self.device)
+        wt = self.weight
+        common.say(f'  fill-in PUF side from the PUF data: {len(cnt)} types; SCF weight in a type with fewer than '
+                   f'{self.MIN_PUF_RECORDS} PUF records (network answer kept) '
+                   f'{100 * float(wt[~okt].sum() / wt.sum()):.2f}%')
+        return out, okt
 
     def type_view(self, vals):
         """SCF records as the PUF would see them with only their type known: PUF label and year, every slot the
@@ -266,7 +319,10 @@ class FillIn:
             rows = slice(a, a + self.chunk)
             vals = self.tr['values'][self.scf_rows[rows]]
             puf = self.puf_probs_by_band(vals)
-            non = self.nonfiler_probs_by_band(vals, self.cps_year[rows])
+            if self.puf_side == 'data':   # the PUF data's shares wherever the type has enough PUF records
+                ok = self.data_ok[rows][:, None]
+                puf = {v: torch.where(ok, self.data_a[v][rows], puf[v]) for v in MAPPED}
+            non =self.nonfiler_probs_by_band(vals, self.cps_year[rows])
             for v in MAPPED:
                 a_bands[v].append(share_f[rows, None] * puf[v] + (1 - share_f[rows, None]) * non[v])
                 filer_ranges[v].append(self.by_range(puf[v], v))

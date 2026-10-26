@@ -6,8 +6,8 @@ Each amount is a band index (band 0 = exactly zero, then the negative bands
 from most negative, then the positive bands in dollar order); married, number
 of dependents, the primary filer's age range (ages.py), the filing flag, full
 filing status, the child credit and EITC children (TAX_STATUS), the yes/no business items, the exact ages (primary filer and spouse: SCF, CEX and
-CPS; dependents: CPS), the CPS's sex and the strata labels (TARGETS.md S4: the AGI class and the business flag on the
-PUF, the net worth class on the SCF; STRATA) are categories.
+CPS; dependents: CPS), the CPS's sex and the AGI group label (qgroups.py: on the PUF, the record's band-AGI group;
+LABELS) are categories.
 A slot one source never has (the balance sheet and the exact ages on the PUF,
 the PUF-only items on the SCF, everything but the shared items and the
 consumption categories on the CEX, everything but the shared items and the
@@ -28,14 +28,9 @@ import torch
 import torch.nn as nn
 
 import common
+import qgroups
 import translate as TR
 
-# The table and band edges with the strata labels (TARGETS.md S4; settings "strata_labels", as in build_table.py):
-# training and generation read them instead of the shared ones. null: the shared ones.
-_LABELLED = common.SETTINGS.get('strata_labels') or {}
-if _LABELLED.get('table'):
-    common.TABLE, common.EDGES = f"{common.DATA}/{_LABELLED['table']}", f"{common.DATA}/{_LABELLED['edges']}"
-    common._EDGES = None
 SOURCES = ['puf', 'scf', 'cex', 'cps']
 CONTEXT = ['source', 'year']
 YEARS = sorted({int(y) for y in pq.read_table(common.TABLE, columns=['year']).column('year').to_pylist()})
@@ -56,17 +51,17 @@ CPS_CATEGORIES = META['cps_categories']            # CPS-only categories (depend
 # generation right after the PUF items (generate.py). PERSON_CATEGORIES: these and the CPS-only categories.
 EXACT_AGES = list(META['exact_ages'])
 PERSON_CATEGORIES = META['person_categories']
-# The strata labels (TARGETS.md S4; build_table.STRATA_LABELS): the AGI class and the business flag on the PUF, the net
-# worth class on the SCF, each a category learned like any other. {label: number of values}; empty with the shared
-# table, which has none (the network is then the one trained before S4).
-STRATA = {v: int(d['values']) for v, d in META.get('strata_labels', {}).items()}
-PUF_LABELS = [v for v in STRATA if META['strata_labels'][v]['source'] == 'puf']   # agi_class, business
-SCF_LABELS = [v for v in STRATA if META['strata_labels'][v]['source'] == 'scf']   # nw_class
+# The AGI group label (qgroups.py; build_table.agi_group_label): on PUF rows the record's band-AGI group, one of 12, a
+# category learned like any other and always shown in training (train.py); absent on the surveys. Generation presets it
+# on every filer record (generate.py). {label: number of values}.
+LABELS = {v: int(d['values']) for v, d in META['labels'].items()}
+PUF_LABELS = [v for v in LABELS if META['labels'][v]['source'] == 'puf']   # agi_group
+assert PUF_LABELS == list(LABELS), 'labels on the PUF only'
 CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-    + list(STRATA)
+    + list(LABELS)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
-SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf'] + SCF_LABELS
+SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
 NET_WORTH_PARTS = dict(META['net_worth_parts'])
 RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item, its base)
 # Two slots per translated item: a second, SCF-only slot holds what the
@@ -121,7 +116,7 @@ def band_layout():
 
 BAND_LAYOUT = band_layout()
 N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-             **PERSON_CATEGORIES, **STRATA, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+             **PERSON_CATEGORIES, **LABELS, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
 
@@ -141,7 +136,7 @@ MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
                'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-               **PERSON_CATEGORIES, **STRATA}
+               **PERSON_CATEGORIES, **LABELS}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -197,11 +192,13 @@ def read_table():
         'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
-    for c, n in {**PERSON_CATEGORIES, **STRATA}.items():
+    for c, n in {**PERSON_CATEGORIES, **LABELS}.items():
         assert table[c].between(-1, n - 1).all(), c
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')
+    table['q'] = qgroups.q_of(table)      # grouped weighting: q per row (1 everywhere with q_groups null)
+    assert (table['q'] > 0).all() and np.isfinite(table['q']).all()
     return table
 
 
@@ -233,28 +230,38 @@ def held_back(table):
     return out
 
 
-def training_weights(table):
-    """Survey weights rescaled to sum to the record count within each source and split."""
+def training_weights(table, use_q=True):
+    """Survey weights times q (grouped weighting, qgroups.py; column q from read_table) when use_q, then rescaled to
+    sum to the record count within each source and split. use_q False gives the population weights: survey weights
+    alone, rescaled the same way."""
     w = table['weight'].astype(float)
+    if use_q and 'q' in table:
+        w = w * table['q'].astype(float)
     total = w.groupby([table['source'], table['split']]).transform('sum')
     count = w.groupby([table['source'], table['split']]).transform('size')
     return (w * count / total).to_numpy()
 
 
 def encode(table, device='cpu'):
-    """values[:, j]: the within-variable index of slot j (-1 where absent); and training weights."""
+    """values[:, j]: the within-variable index of slot j (-1 where absent); the training weights (with q); and the
+    population weights (without q), for averages that must describe the population (fillin.py, the logs)."""
     cols = [table['source'].map(SOURCES.index), table['year'].map(YEARS.index)] + \
            [table[column(v)] for v in PREDICTED]
     values = np.column_stack([np.asarray(c, dtype=np.int64) for c in cols])
     return {'values': torch.tensor(values, device=device),
-            'weight': torch.tensor(training_weights(table), dtype=torch.float32, device=device)}
+            'weight': torch.tensor(training_weights(table), dtype=torch.float32, device=device),
+            'pop_weight': torch.tensor(training_weights(table, use_q=False), dtype=torch.float32, device=device)}
 
 
 def seen_as(values, hidden, label, year=None):
-    """The record as source label would see it: that label (and year, if given), the slots it lacks absent."""
+    """The record as source label would see it: that label (and year, if given), the slots it lacks absent. year: one
+    year for every record, or a tensor of one index into YEARS per record (the SCF phase of generation, each record
+    at its own wave's year)."""
     view, view_hidden = values.clone(), hidden.clone()
     view[:, 0] = SOURCES.index(label)
-    if year is not None:
+    if isinstance(year, torch.Tensor):
+        view[:, 1] = year
+    elif year is not None:
         view[:, 1] = YEARS.index(year)
     for j, v in enumerate(PREDICTED):
         if label not in PRESENT_ON[v]:
@@ -404,7 +411,9 @@ def log_probs_as(model, values, hidden, src):
 
 
 def new_model(device):
-    return SlotTransformer(**common.SETTINGS['network']).to(device)
+    # keys starting with '_' are notes in settings.json, not network settings
+    network = {k: v for k, v in common.SETTINGS['network'].items() if not k.startswith('_')}
+    return SlotTransformer(**network).to(device)
 
 
 def save_model(model, path):

@@ -1,7 +1,7 @@
 # Roadmap: from the current pipeline to the end goal
 
 What the pipeline does now is in `FEATURES.md`; the end state is in
-`GOAL.md`. Items 1, 4, 5, 8 and 10 are done or mostly done; items 2 and 6 are partly done; the rest are not
+`GOAL.md`. Items 1, 4, 5, 8 and 10 are done or mostly done; items 2, 3 and 6 are partly done; the rest are not
 started. The order is rough. Paths starting `archive/` are under `research/archive/rebuild_2026-10/`.
 
 1. **Target construction, made formal.** Built 25 October (`TARGETS.md`; `FEATURES.md`, post-training): the
@@ -66,8 +66,13 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
        shares by size range.
 3. **Year priors: the survey-year borrowing rule.** A rule for which
    source years a target year draws on, for every year through 2060. The
-   year token is in the model; the rule is not: generation draws the CEX
-   and the CPS at fixed years (settings cex and cps, generation_year).
+   year token is in the model. Done 26 October for the SCF: the balance
+   sheet is drawn from a mix of waves read from the year file (TARGETS.md
+   section 7), each wave's dollars grown per tax unit to the target year.
+   Left: the shares are written by hand in the year file, not computed from
+   the rule; the CEX's and the CPS's rules (they are still drawn at fixed
+   years, settings cex and cps, generation_year); the growth carries only
+   each wave's mean per unit, not the shape of its distribution.
 4. **The other surveys and imputed variables.** Everything `src/main.R`
    imputes today: tips, overtime, consumption, state and local taxes, auto
    loan interest, child care and the rest.
@@ -91,12 +96,17 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
 6. **Pretraining settings.** How the network and training choices affect
    the file.
    - Known so far: dropout biases rare items down, so it is off.
+   - Adopted 26 October (TARGETS.md S8): grouped weighting, the AGI group
+     label always shown, batches of 512, bfloat16. Left: about 13% of filer
+     records still have parts adding up to another AGI group than their
+     label; AGI at or below zero comes out 1.5 times the PUF's.
    - The model's answers do not fit one joint distribution exactly, which
      costs a few percent of rare holders.
    - Training speed, before the table grows with more surveys:
      `PERFORMANCE.md`. Measured and partly done 22 October (packing, batched
-     output layers, faster generation); left: bfloat16 (tested, not
-     switched on), the B200 question, fewer passes over a larger table.
+     output layers, faster generation; bfloat16 switched on 26 October);
+     left: the B200 question, fewer passes over a larger table. Batches of
+     512 make training about four times slower (an hour per model).
 7. **Real PUF records or synthetic ones** for the PUF's own variables.
    - On 19 October the real 2015 PUF cost no more to reweight to 2019
      than a synthetic file, and it kept the business-income patterns no

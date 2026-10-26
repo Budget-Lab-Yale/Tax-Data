@@ -33,6 +33,19 @@ share's base is hidden, so its presence never tells the network what those
 hidden slots hold. Generation needs this to draw non-filers' married flag and
 amounts under the CPS label.
 
+Grouped weighting (qgroups.py; settings "training", q_groups). Each record counts by its survey weight times q, q
+constant within a group (12 band-AGI groups on the PUF, 5 band-income classes per SCF wave, 1 on the CEX and CPS), then
+rescaled within each source, so each source's share of training is unchanged. The training log prints the groups and
+their q. Averages meant to describe the population use the survey weights without q: the fill-in's averages over a
+type (fillin.py) and the per-variable log.
+
+The AGI group label (settings "training", label_always_shown). Generation always presets a filer's AGI group, so on PUF
+rows the label is never hidden in training and never scored: the hidden set is drawn over all of a record's present
+slots, the label included, then the label alone is set back to shown. Which other slots are hidden, and how many, is
+therefore as if the label were an ordinary slot. A record whose only hidden slot was the label has nothing hidden
+(about 0.04% of PUF rows a pass) and adds nothing to the loss. The loss denominator still counts the label among the
+expected hidden slots. The held-back loss in train_log.csv is measured with the label shown too.
+
 Precision of the training steps (settings "training", precision): fp32,
 standard 32-bit; tf32, large matrix multiplications at TF32's reduced internal
 precision, storage 32-bit; bf16, the forward pass under autocast in bfloat16,
@@ -55,6 +68,7 @@ import torch
 import common
 import fillin
 import model as M
+import qgroups
 
 S = common.SETTINGS['translation']
 T = dict(common.SETTINGS['training'], passes=common.PASSES)
@@ -62,6 +76,19 @@ PRECISION = T.get('precision', 'fp32')
 GATE_SHARES = bool(T.get('shares_shown_with_their_base', True))
 assert PRECISION in ('fp32', 'tf32', 'bf16'), PRECISION
 C, P = len(M.CONTEXT), M.PREDICTED
+LABEL_SHOWN = bool(T.get('label_always_shown', False))
+J_LABEL = [P.index(v) for v in M.PUF_LABELS]       # the AGI group label's position among the predicted slots
+
+
+def show_label(hidden, slots=None):
+    """hidden [N, predicted slots of `slots`] (all of PREDICTED when slots is None), with the label set to shown."""
+    if not LABEL_SHOWN:
+        return hidden
+    cols = list(range(len(P))) if slots is None else M.predicted_of(slots)
+    for j in J_LABEL:
+        if j in cols:
+            hidden[:, cols.index(j)] = False
+    return hidden
 
 
 def training_precision(on):
@@ -79,7 +106,7 @@ def encode(part, device):
     d = M.encode(part, device)
     age_rows, age_probs = M.age_draws(part, device)
     filer_rows, filer_p = M.filer_draws(part, device)
-    return dict(values=d['values'], weight=d['weight'], age_rows=age_rows, age_probs=age_probs,
+    return dict(values=d['values'], weight=d['weight'], pop_weight=d['pop_weight'], age_rows=age_rows, age_probs=age_probs,
                 filer_rows=filer_rows, filer_p=filer_p,
                 **{src: torch.tensor((part['source'] == src).to_numpy(), device=device) for src in M.SOURCES},
                 rep_band={v: d['values'][:, C + P.index(v)].clone() for v in fillin.MAPPED})
@@ -128,6 +155,12 @@ def main():
     gpu = torch.cuda.get_device_name() if device == "cuda" else "cpu"
     common.say(f'device {gpu}; precision {PRECISION}; fill-in chunk {fill.chunk} records')
     common.say(f'batches per pass {spe}; weight x expected hidden slots per record {per_record:.3f}')
+    common.say(f'grouped weighting: q_groups {qgroups.Q_GROUPS or None}; fill-in PUF side '
+               f'{T.get("fillin_puf_side") or "model"}; AGI group label always shown {LABEL_SHOWN}')
+    if qgroups.Q_GROUPS:
+        common.say(qgroups.describe(table).to_string(index=False, float_format=lambda x: f'{x:.6g}'))
+        common.say('training share by source (unchanged by q): '
+                   + str(train_rows.groupby('source').size().div(len(train_rows)).round(4).to_dict()))
 
     def batches(order_gen):
         """(slots, row indices) per batch for one pass."""
@@ -158,7 +191,7 @@ def main():
     sched = torch.optim.lr_scheduler.LambdaLR(
         opt, lambda s: (s + 1) / warm if s < warm else
         floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * (s - warm) / max(1, total - warm))))
-    val_hidden = [M.draw_hidden(te['values'], gen) for _ in range(4)]
+    val_hidden = [show_label(M.draw_hidden(te['values'], gen)) for _ in range(4)]
 
     # ---- the per-variable log: held-back PUF records for the PUF items, held-back CEX records for consumption
     logged = {'puf': [v for v in M.AMOUNTS if f'puf/{common.PUF_YEAR}/{v}' in common.edges()], 'cex': M.CEX_SLOTS,
@@ -171,7 +204,7 @@ def main():
         for src, names in logged.items():
             hb = te[src].nonzero().squeeze(1)
             slots = M.SOURCE_SLOTS[src]
-            hb_vals, hb_w = te['values'][hb][:, M.slot_tensor(slots, device)], te['weight'][hb].double()
+            hb_vals, hb_w = te['values'][hb][:, M.slot_tensor(slots, device)], te['pop_weight'][hb].double()
             present = hb_vals[:, C:] >= 0
             ch = M.safe_chunk(len(slots))
             for v in names:
@@ -212,7 +245,7 @@ def main():
             if filling:
                 fill.draw(idx)
             values, weight = tr['values'][idx][:, M.slot_tensor(slots, device)], tr['weight'][idx]
-            values, hidden = gate(values, M.draw_hidden(values, gen), slots)
+            values, hidden = gate(values, show_label(M.draw_hidden(values, gen), slots), slots)
             with autocast():
                 loss = M.masked_loss(model, values, weight, hidden, slots, denominator=len(idx) * per_record)
             opt.zero_grad()

@@ -161,16 +161,15 @@ def grow_dollars(df, s, t):
     series the dollar maps are grown by (build_table.build_maps), as a ratio of year t's factor to year s's:
       - PUF amounts: SOI Table 1.4's dollars per return with the item (build_table.growth: positive and negative
         values separately; capital losses, mortgage interest and real estate tax not grown);
-      - the balance sheet: the SCF waves' asset price factor, the wave of income year t - 1 over that of s - 1 (the
-        maps' rule); not grown when year t - 1 has no wave;
+      - the balance sheet: growth per tax unit, item by item, the mean per unit of the wave of income year t - 1
+        over that of s - 1 (build_table.scf_growth, the maps' rule); not grown when either wave is missing, or for
+        an item whose mean per unit is not positive in both;
       - consumption: NIPA PCE per return, by category;
       - the CPS-only dollars (childcare): SOI's wages per return; the CPS shares, weeks and hours not grown.
     Then every computed column is computed again from the grown parts (recombine; checked first to reproduce the
     file's own columns). Ages and every category are left as they are. Returns the grown frame and a table of the
     factors, one row per column."""
-    table, edges_path = common.TABLE, common.EDGES
-    import build_table as BT   # importing it points common.TABLE at the strata table (settings strata_labels)
-    common.TABLE, common.EDGES = table, edges_path   # the tilt reads the shared table, as before
+    import build_table as BT
     same, done = recombine(df)
     for c in done:
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
@@ -194,20 +193,21 @@ def grow_dollars(df, s, t):
         series = 'none: no SOI line' if v in BT.NO_GROWTH else \
             'SOI 1.4 per return with the item' + ('; losses not grown' if v.startswith('kg_') or v == 'capital_gains' else '')
         grow(col, gt[0] / gs[0], gt[1] / gs[1], series)
-    # the wave of income year y - 1 is the SCF of year y; its asset price factor is on every one of its units
-    # (build_scf.R), the same factor the maps read from the table
-    af = {}
-    for y in (s, t):
-        f = f'{common.DATA}/scf_units_{y}.csv.gz'
-        af[y] = pd.read_csv(f, usecols=['asset_factor'])['asset_factor'] if os.path.exists(f) else pd.Series([], dtype=float)
-    scf_ok = all(len(a) and a.nunique() == 1 for a in af.values())
-    f_scf = af[s].iloc[0] / af[t].iloc[0] if scf_ok else 1.0
+    # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
+    scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
+    scf = scf[scf.source == 'scf']
+    have = set(scf['year'].unique())
+    f_scf = BT.scf_growth(scf, s - 1, t - 1) if {s - 1, t - 1} <= have else None
     for v in BT.SCF_AMOUNTS:
         if v in out:
-            ratio = v == 'w_primary_ltv'
-            grow(v, 1.0 if ratio else f_scf, 1.0 if ratio else f_scf,
-                 'a ratio, not grown' if ratio else (f'SCF asset price factor, wave of {t - 1} over wave of {s - 1}'
-                                                     if scf_ok else f'NOT GROWN: no SCF wave of income year {t - 1}'))
+            if v == 'w_primary_ltv':
+                grow(v, 1.0, 1.0, 'a ratio, not grown')
+            elif f_scf is None:
+                grow(v, 1.0, 1.0, f'NOT GROWN: no SCF wave of income year {s - 1} or {t - 1}')
+            elif not np.isfinite(f_scf[v]):
+                grow(v, 1.0, 1.0, f'NOT GROWN: a mean per unit not positive in the wave of {s - 1} or {t - 1}')
+            else:
+                grow(v, f_scf[v], f_scf[v], f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
     pce = pd.read_csv(common.RAW['pce']).set_index('year')
     for v in BT.CEX_AMOUNTS:
         if v in out:
@@ -328,6 +328,7 @@ def main():
     # the targets (targets_config/, expanded by target_list.py, errors by errors.py) and the solve (solver.py):
     # every target hit exactly when they can all be hit; otherwise the standard errors decide which give way
     rows = TLS.expand(Y, start=g19)
+    TLS.check_nonfiler_bands(g19, rows)   # every non-filer head and spouse in exactly one non-filer people band
     F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     missing = rows.loc[~identity & ~(se > 0), ['kind', 'group', 'target']]
@@ -338,10 +339,17 @@ def main():
                                              g19['married'].to_numpy(), soi)
     # hold_distribution: built from the start as scaled, so its rank groups and shares are the scaled start's
     hold = TLS.hold_rows(Y, g19, w0)
-    if len(hold):
-        rows = pd.concat([rows, hold], ignore_index=True)
+    # income rank groups (the income x net worth grid) are set on the file's starting weights, so their conditions
+    # are written again after the prescaling (a list without them is unchanged)
+    ranked = 'rank_variable' in rows and rows['rank_variable'].fillna('').astype(str).ne('').any()
+    if len(hold) or ranked:
+        if len(hold):
+            rows = pd.concat([rows, hold], ignore_index=True)
         F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
         se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
+    if ranked:
+        common.say('income rank lines on the file (starting weights): '
+                   + '; '.join(f'{k[0]} {k[1]} p{k[2]:g}: {v:,.0f}' for k, v in TLS.FILE_RANK_LINES.items()))
     TLS.write(rows, common.TILT, Y)
     w1, info = SV.solve(w0, F, T, se, identity, averages, S)
     if spec['mode'] == 'from_year':

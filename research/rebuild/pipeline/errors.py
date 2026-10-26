@@ -460,6 +460,68 @@ def wealth_errors(rows, year):
     return out
 
 
+GRID_CELLS = []   # one dict per grid target, the SCF sample behind it (for the record)
+
+
+def wealth_grid_errors(rows, year):
+    """The income x net worth grid. Each cell is an income rank group (the seven shared income items,
+    the SCF's own weighted percentiles) crossed with a net worth band between the SCF's percentile lines (above the
+    lower line, at or below the upper one; the rows' line and line_hi). Two statistics: 'share', the share of the
+    income group's units in the band; 'amount', the band's net worth in the income group. The same method as
+    wealth_errors: the 999 replicate weights on the first implicate for the sampling variance, the five implicates
+    for the imputation variance (an implicate's totals on 5 x its weights, as wealth_errors), total = sampling +
+    1.2 x imputation; every line (income and net worth) held at its full-sample value. Also records the SCF sample
+    households behind each cell, in GRID_CELLS."""
+    import target_list as TLS
+    u, _ = TLS.survey_frame('scf', year)
+    x, w = u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)
+    imp = u['implicate'].to_numpy()
+    assert set(imp) == {1, 2, 3, 4, 5}
+    u1, rep = scf_replicates(year, u)
+    first = imp == 1
+    assert np.array_equal(u1['record_id'].to_numpy(), u.loc[first, 'record_id'].to_numpy()), 'implicate 1 out of order'
+    hh = u['household_id'].to_numpy()
+    out = []
+    for r in rows.itertuples():
+        inc = TLS.survey_rank_value('scf', u, r.rank_variable)
+        lo, hi = TLS.rank_dollar_lines(inc, w, r.rank_lo, r.rank_hi)
+        g = (inc >= lo) & (inc < hi)
+        nlo = -np.inf if np.isnan(r.line) else float(r.line)
+        nhi = np.inf if np.isnan(r.line_hi) else float(r.line_hi)
+        band = (x > nlo) & (x <= nhi)
+        cell = g & band
+        if r.statistic == 'share':
+            stat = lambda gg, cc, xx, ww: (ww * cc).sum(-1) / (ww * gg).sum(-1)
+            scale = 1.0
+        elif r.statistic == 'amount':
+            stat = lambda gg, cc, xx, ww: (ww * cc * xx).sum(-1)
+            scale = 5.0
+        else:
+            raise NotImplementedError(r.statistic)
+        full = float(stat(g, cell, x, w))
+        by_imp = np.array([stat(g[imp == k], cell[imp == k], x[imp == k], scale * w[imp == k]) for k in range(1, 6)])
+        reps = stat(g[first], cell[first], x[first], rep.T)
+        v_samp = ((reps - reps.mean()) ** 2).sum() / (len(reps) - 1)
+        v_imp = ((by_imp - by_imp.mean()) ** 2).sum() / 4
+        se = float(np.sqrt(v_samp + 1.2 * v_imp))
+        n_hh = [len(np.unique(hh[cell & (imp == k)])) for k in range(1, 6)]
+        n_any = len(np.unique(hh[cell]))
+        GRID_CELLS.append({'group': r.group, 'statistic': r.statistic, 'value': full, 'se': se,
+                           'se_sampling': float(np.sqrt(v_samp)), 'se_imputation': float(np.sqrt(v_imp)),
+                           'households_any_implicate': n_any, 'households_min_implicate': min(n_hh),
+                           'households_max_implicate': max(n_hh), 'unit_rows': int(cell.sum()),
+                           'households_in_income_group': len(np.unique(hh[g])),
+                           'replicates_with_zero_in_cell': int((reps == 0).sum()),
+                           'income_lo': lo, 'income_hi': hi, 'net_worth_lo': nlo, 'net_worth_hi': nhi})
+        note = '' if abs(full - r.value) <= 1e-9 * max(abs(r.value), 1) else f'; full-sample value {full:,.6g}, not {r.value:,.6g}'
+        out.append((r.Index, se, 'survey_replicate',
+                    f'SCF {year} replicate weights (999, first implicate) and the five implicates: sampling se '
+                    f'{np.sqrt(v_samp):,.4g}, imputation se {np.sqrt(v_imp):,.4g}; income lines {lo:,.0f} to {hi:,.0f}; '
+                    f'net worth lines {nlo:,.0f} to {nhi:,.0f}; sample households in the cell by implicate {n_hh}, in '
+                    f'any implicate {n_any}; households in the income group {len(np.unique(hh[g]))}{note}'))
+    return out
+
+
 def cex_replicates(year, units):
     """Each CEX tax unit's 44 replicate weights: its interview's WTREPnn / 4 x MO_SCOPE / 3, the same rule as the main
     weight (build_cex.R's FINLWT21 / 4 x MO_SCOPE / 3), so weight x WTREPnn / FINLWT21."""
@@ -556,9 +618,11 @@ def standard_errors(rows, year=Y):
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']), 'wealth': rows.kind == 'wealth',
-          'consumption': rows.kind == 'consumption', 'nonfiler': rows.kind.isin(['non-filers', 'non-filer people'])}
+          'consumption': rows.kind == 'consumption', 'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']),
+          'wealth_grid': rows.kind == 'wealth grid'}
     for name, f in [('soi', soi_errors), ('wealth', wealth_errors), ('consumption', consumption_errors),
-                    ('nonfiler', nonfiler_errors)]:
+                    ('nonfiler', nonfiler_errors),
+                    ('wealth_grid', wealth_grid_errors)]:
         if by[name].any():
             for i, se, kind, why in f(rows[by[name]], year):
                 res[i] = (se, kind, why)

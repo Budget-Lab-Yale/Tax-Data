@@ -12,8 +12,6 @@
 # Stages, in order: scf, cex, filing, cps (the surveys' tax units: the shared rules in Python, then R; filing is the
 # CPS's units and their calibrated filing chances, which cps reads), targets (SOI), errors (SOI's CVs), table, train,
 # generate, tilt (the year's targets, the reweighting and the run report), report (the CEX, CPS and translation reports).
-# Not in the default list: labels (TARGETS.md S4), the strata labels added to a copy of an existing table
-# (settings strata_labels; build_table.py labels), for a build that keeps data/table.parquet as it is.
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:
 #   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf cex filing cps targets table
 # H100 and H200 only: one stack from a B200 drew fewer rare business items (PRECISION.md); until that is
@@ -42,7 +40,6 @@ for s in $STAGES; do
     cps)      module purge; module load R/4.4.1-foss-2022b   # ipumsr is not in the module; John's own library has it
               R_LIBS=$HOME/R/4.4.1-foss-2022b Rscript $P/build_cps.R; module purge ;;
     table)    python $P/build_table.py ;;
-    labels)   python $P/build_table.py labels ;;   # S4: the strata labels added to a copy of the table (settings strata_labels)
     targets)  python $P/targets.py ;;
     errors)   python $P/errors.py soi_cv ;;   # SOI's published CVs, parsed from the workbooks in <out>/targets/soi_cv/raw
     train)    python $P/train.py ;;

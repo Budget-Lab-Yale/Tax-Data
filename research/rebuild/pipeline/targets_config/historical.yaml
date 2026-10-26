@@ -170,6 +170,49 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable}'}
 
+  # The income x net worth grid (26 October; tentative: explore/2026-10-26/scf/07_grid_growth). Four income groups
+  # (below p90, p90-99, p99-99.9, p99.9+ of the seven shared income items, each side's own percentiles) by four net worth classes (below the SCF's p90 line,
+  # p90-99, p99-99.9, above p99.9, the SCF's dollar lines). In each cell: the share of the income group's units in
+  # the net worth class (the count of units, stated within the income group, whose size is fixed by rank on both
+  # sides), and the class's net worth in the group (dollars). The share of the lowest class is left out in each
+  # income group: it is one minus the others exactly.
+  # Thin cells merged (a cell resting on fewer than 10 SCF households, in any implicate, is merged into the next
+  # richer net worth class of the same income group until it has 10 or more):
+  #   income p99-99.9: below p90 (3 households) + p90-99 (132) -> at or below p99 (135);
+  #   income p99.9+: below p90 (0) + p90-99 (7) + p99-99.9 (83) -> at or below p99.9 (86: a household can sit in
+  #   different cells in different implicates, so the merged count is not the sum).
+  - id: wealth_grid_shares
+    kind: wealth grid
+    statistic: share
+    population: units_other_than_dependent_filers
+    variable: net_worth
+    cells:
+      - {scf_net_worth_classes: [net worth SCF p90-99, net worth SCF p99-99.9, net worth above SCF p99.9],
+         income_rank_groups: [income below p90, income p90-99]}
+      - {scf_net_worth_classes: [net worth SCF p99-99.9, net worth above SCF p99.9],
+         income_rank_groups: [income p99-99.9]}
+      - {scf_net_worth_classes: [net worth above SCF p99.9], income_rank_groups: [income p99.9+]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{scf_net_worth_classes}, {income_rank_groups}', target: share of the income group's units}
+
+  - id: wealth_grid_dollars
+    kind: wealth grid
+    statistic: amount
+    population: units_other_than_dependent_filers
+    variable: net_worth
+    cells:
+      - {scf_net_worth_classes: [net worth below SCF p90, net worth SCF p90-99, net worth SCF p99-99.9,
+                                 net worth above SCF p99.9],
+         income_rank_groups: [income below p90, income p90-99]}
+      - {scf_net_worth_classes: [net worth at or below SCF p99, net worth SCF p99-99.9, net worth above SCF p99.9],
+         income_rank_groups: [income p99-99.9]}
+      - {scf_net_worth_classes: [net worth at or below SCF p99.9, net worth above SCF p99.9],
+         income_rank_groups: [income p99.9+]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{scf_net_worth_classes}, {income_rank_groups}', target: net worth}
+
   # CEX consumption: each category's average per unit, over all units and in the 12 cells of the primary filer's
   # adult age range by married or not. The overall averages are kept because the cells do not imply them: the
   # file's units fall into the cells in other shares than the CEX's.

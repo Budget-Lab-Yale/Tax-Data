@@ -39,12 +39,9 @@ PUF N24) and n_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); filer_p 
     PUF only, not in AGI);
   k1_owner: any partnership or S corporation part nonzero (on the SCF: a
     partnership, S corporation or LLC interest, from build_scf.R);
-  the strata labels (TARGETS.md S4; STRATA_LABELS), computed from the dollars before banding: on the PUF the AGI
-    class (AGI zero or negative, then by weighted rank among all the PUF year's returns: below p90, p90-99,
-    p99-99.9, p99.9-99.99, p99.99 and over) and the business flag (Schedule C, a partnership or S corporation
-    part, or farm income nonzero); on the SCF the net worth class by weighted rank within the wave (below p90,
-    p90-99, p99-99.9, p99.9 and over); -1 elsewhere. `build_table.py labels` adds them to the existing table
-    (label_table);
+  agi_group, the AGI group label (qgroups.py; agi_group_label): on the PUF the record's band-AGI group, one of 12,
+    computed from its bands after the maps are built (AGI from the representative amount of each band, on the
+    weighted rank lines of band-AGI among the PUF year's returns); -1 elsewhere;
   SCF only: the 20 balance-sheet components (net worth is computed from them),
     with the home mortgage carried as its share of the home's value
     (w_primary_ltv); the 4 unrealized gains; owns_business.
@@ -85,18 +82,21 @@ band with no record gets a fill value.
   PUF side    the PUF year's records; the target year's map grows each value by
               SOI's growth in dollars per return with the item
               (growth_factors.csv; targets.py has the SOI lookups);
-  SCF         the balance sheet from the wave whose tax year is the PUF year (the
-              2016 wave), in that wave's dollars; the target year's map carries
-              them to the target year's wave dollars by the two waves' asset
-              price factors;
+  SCF         the balance sheet, one map per wave from that wave's own records
+              (generation draws each record's balance sheet from one wave), for
+              the target year only: each item grown per tax unit from its wave to
+              the target year's wave (the wave of income year target - 1), by the
+              ratio of the two waves' weighted means per unit, each in its own
+              dollars (scf_growth; scf_growth_factors.csv). The mortgage's share
+              of the home's value is a ratio and is not grown;
   CEX         the generation year's records; the target year's map grows them by
               NIPA PCE per return;
   CPS         the generation year's records; the target year's map grows childcare
               by SOI's wages per return, and leaves the shares, weeks and hours.
 
-Writes common.TABLE, common.EDGES, common.MAPS/map_{puf,scf}_{PUF year, target
-year}.parquet, map_cex_ and map_cps_{generation year, target year}.parquet and
-growth_factors.csv; data/translation_report.csv; data/scf_units_<target year>.parquet (the tilt's wealth
+Writes common.TABLE, common.EDGES, common.MAPS/map_puf_{PUF year, target
+year}.parquet, map_scf_wave<wave>_<target year>.parquet, map_cex_ and map_cps_{generation year, target year}.parquet,
+growth_factors.csv and scf_growth_factors.csv; data/translation_report.csv; data/scf_units_<target year>.parquet (the tilt's wealth
 targets), data/cex_units_<target year>_all.parquet (the consumption
 targets) and data/cps_units_<target year>_all.parquet (report_cps.py).
 """
@@ -114,13 +114,6 @@ import translate as TR
 from common import PUF_YEAR, TARGET_YEAR
 
 RAW = common.RAW
-# The table and band edges with the strata labels (TARGETS.md S4): settings "strata_labels" names them inside the data
-# folder, beside the shared data/table.parquet and data/band_edges.json, which this build leaves as they are
-# (label_table). model.py redirects the same way, so training and generation read them. null: the shared names.
-SHARED_TABLE, SHARED_EDGES = common.TABLE, common.EDGES
-_LABELLED = common.SETTINGS.get('strata_labels') or {}
-if _LABELLED.get('table'):
-    common.TABLE, common.EDGES = f"{common.DATA}/{_LABELLED['table']}", f"{common.DATA}/{_LABELLED['edges']}"
 # ---- constants -------------------------------------------------------------------
 assert PUF_YEAR == 2015, 'ages.py carries 2015 constants'
 WAVE_2013_ID_OFFSET = 2.013e12
@@ -198,17 +191,6 @@ CATEGORIES = {'k1_owner': 'shared', 'owns_business': 'scf'}   # yes/no items bey
 # Categories on the PUF and the CPS (-1 on the SCF and CEX): {slot: number of values}. mars 1-4 (0 unused); n_ctc,
 # n_eitc 0-3.
 TAX_CATEGORIES = {'mars': 5, 'n_ctc': 4, 'n_eitc': 4}
-# The strata labels (TARGETS.md S4), categories the network learns like any other and generation presets. On PUF
-# rows: the AGI class, by weighted rank of AGI among all the PUF year's returns (dependent filers and returns with
-# AGI zero or negative included in the ranking), class 0 being AGI zero or negative; and the business flag, any of
-# Schedule C, a partnership or S corporation part, or Schedule F farm income nonzero. On SCF rows: the net worth
-# class, by weighted rank of net worth among the wave's tax units (all implicates). -1 on every other source.
-AGI_CLASS_LINES = [0.90, 0.99, 0.999, 0.9999]
-AGI_CLASS_LABELS = ['AGI zero or negative', 'below p90', 'p90-99', 'p99-99.9', 'p99.9-99.99', 'p99.99+']
-NW_CLASS_LINES = [0.90, 0.99, 0.999]
-NW_CLASS_LABELS = ['below p90', 'p90-99', 'p99-99.9', 'p99.9+']
-BUSINESS_PARTS = ['sch_c', 'farm'] + K1_PARTS
-STRATA_LABELS = {'agi_class': len(AGI_CLASS_LABELS), 'business': 2, 'nw_class': len(NW_CLASS_LABELS)}
 
 
 # ---- banding -----------------------------------------------------------------------
@@ -685,93 +667,33 @@ def scf_rows():
     return s
 
 
-# ---- the strata labels (TARGETS.md S4) ------------------------------------------------------
-def puf_agi(d):
-    """AGI of PUF rows in dollars from its parts, as the table defines them: wages, interest, dividends, line-13
-    capital gains, the AGI items with their signs, and the remainder other_agi (so it is E00100 exactly)."""
-    return (d['wages'] + d['interest'] + d['dividends'] + d['capital_gains'] + d['other_agi']
-            + sum(s * d[v] for v, (s, _, _) in ITEMS.items() if s != 0)).to_numpy(float)
-
-
-def scf_net_worth(d):
-    """Net worth of SCF rows in dollars from the balance sheet: the 14 assets less the 6 debts."""
-    return sum(s * d[c] for c, s in NET_WORTH_PARTS.items()).to_numpy(float)
-
-
-def class_of(x, cuts):
-    """Class index of each value: the number of cut points at or below it (a value at a cut is in the class above)."""
-    return np.searchsorted(np.asarray(cuts, float), x, side='right')
-
-
-def strata_labels(t):
-    """The three labels (see STRATA_LABELS) on t, whose amounts are still in dollars, and their meta: the class
-    labels, the cut points (AGI in PUF-year dollars; net worth per wave, in its own dollars) and the weighted shares.
-    Prints the PUF's 12 strata: records and weighted returns."""
-    for c in STRATA_LABELS:
-        t[c] = -1
-    meta = {'agi_class': {'values': STRATA_LABELS['agi_class'], 'source': 'puf', 'labels': AGI_CLASS_LABELS,
-                          'lines': AGI_CLASS_LINES},
-            'business': {'values': 2, 'source': 'puf', 'labels': ['no business', 'business'], 'parts': BUSINESS_PARTS},
-            'nw_class': {'values': STRATA_LABELS['nw_class'], 'source': 'scf', 'labels': NW_CLASS_LABELS,
-                         'lines': NW_CLASS_LINES, 'cuts': {}}}
-    puf = (t.source == 'puf').to_numpy()
-    d = t[puf]
-    assert not d[PUF_AMOUNTS].isna().any().any(), 'a PUF amount missing'
-    agi, w = puf_agi(d), d['weight'].to_numpy(float)
-    cuts = common.wquantile(agi, w, AGI_CLASS_LINES)
-    assert cuts[0] > 0, 'the 90th percentile line of AGI is not positive'
-    t.loc[puf, 'agi_class'] = np.where(agi <= 0, 0, 1 + class_of(agi, cuts))
-    t.loc[puf, 'business'] = np.column_stack([d[p].to_numpy(float) != 0 for p in BUSINESS_PARTS]).any(1).astype(np.int64)
-    meta['agi_class']['cuts'] = [float(c) for c in cuts]
-    s = t[puf].assign(w=w)
-    tab = s.groupby(['agi_class', 'business']).agg(records=('w', 'size'), returns=('w', 'sum'))
-    tab['share of returns'] = tab['returns'] / w.sum()
-    meta['agi_class']['strata_shares'] = {f'{a}/{b}': float(r) for (a, b), r in tab['share of returns'].items()}
-    tab.index = [f'{AGI_CLASS_LABELS[a]}, {"business" if b else "no business"}' for a, b in tab.index]
-    common.say(f'AGI class lines ({PUF_YEAR} dollars, all {PUF_YEAR} returns): '
-               + ', '.join(f'p{100 * p:g} ${c:,.0f}' for p, c in zip(AGI_CLASS_LINES, cuts)))
-    common.say('the PUF\'s 12 strata:\n' + tab.assign(returns=tab['returns'] / 1e6).rename(
-        columns={'returns': 'returns (millions)'}).to_string(float_format=lambda x: f'{x:.6f}'))
-    scf = (t.source == 'scf').to_numpy()
-    for y in sorted(t.loc[scf, 'year'].unique()):
-        sel = scf & (t.year == y).to_numpy()
-        d = t[sel]
-        assert not d[list(NET_WORTH_PARTS)].isna().any().any(), f'SCF {y}: a balance-sheet item missing'
-        nw, w = scf_net_worth(d), d['weight'].to_numpy(float)
-        assert np.allclose(nw, d['net_worth'].to_numpy(float), rtol=1e-9, atol=1e-3), \
-            f'SCF {y}: net worth from its parts differs from the units file'
-        cuts = common.wquantile(nw, w, NW_CLASS_LINES)
-        t.loc[sel, 'nw_class'] = class_of(nw, cuts)
-        meta['nw_class']['cuts'][str(int(y))] = [float(c) for c in cuts]
-        k = class_of(nw, cuts)
-        common.say(f'SCF tax year {y}: net worth lines ' + ', '.join(f'p{100 * p:g} ${c:,.0f}' for p, c in
-                                                                      zip(NW_CLASS_LINES, cuts))
-                   + '; rows per class ' + ', '.join(f'{NW_CLASS_LABELS[j]} {int((k == j).sum()):,}'
-                                                     for j in range(len(NW_CLASS_LABELS))))
-    for c in STRATA_LABELS:
-        t[c] = t[c].astype(np.int64)
-    return t, meta
-
-
-def label_table():
-    """This build only (S4, 25 October): the shared table and band edges stay as they are, so the labels are added to a
-    copy. Reads common.SHARED_TABLE and SHARED_EDGES (data/table.parquet, data/band_edges.json), whose amounts are kept
-    in dollars, adds the labels (strata_labels) and writes the labelled table and edges where settings
-    "strata_labels" says (common.TABLE and common.EDGES as redirected above). The rows and every other column are
-    unchanged."""
-    assert (common.TABLE, common.EDGES) != (SHARED_TABLE, SHARED_EDGES), 'settings strata_labels: no table named'
-    t = pd.read_parquet(SHARED_TABLE)
-    edges = json.load(open(SHARED_EDGES))
-    assert not set(STRATA_LABELS) & set(t), 'the shared table already has labels'
-    t, meta = strata_labels(t)
-    edges['meta']['strata_labels'] = meta
-    for c in STRATA_LABELS:
-        edges['meta']['present_on'][c] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, c] >= 0).any())
-    os.makedirs(os.path.dirname(common.TABLE), exist_ok=True)
-    t.to_parquet(common.TABLE, index=False)
-    json.dump(edges, open(common.EDGES, 'w'), indent=1)
-    common.say(f'wrote {common.TABLE} ({len(t):,} rows) and {common.EDGES}; labels present on: '
-               + json.dumps({c: edges['meta']['present_on'][c] for c in STRATA_LABELS}))
+# ---- the AGI group label (qgroups.py) --------------------------------------------------------
+def agi_group_label(t, edges):
+    """The AGI group label on t (column agi_group): on PUF rows the record's band-AGI group (qgroups.puf_groups, which
+    reads the PUF year's dollar map, so this runs after build_maps), -1 on every other source; and its meta in
+    edges['meta']['labels'] (the groups' names, lines, records and returns) and present_on. Then a check: band-AGI
+    recomputed from the rows' bands gives every PUF row's label back."""
+    common._EDGES = None              # qgroups and dollars read the band edges just written
+    import qgroups as Q
+    ref = Q.puf_groups(t)
+    label = pd.Series(np.int64(-1), index=t.index)
+    label[ref['group'].index] = ref['group'].to_numpy().astype(np.int64)
+    t = t.assign(agi_group=label.astype(np.int64))
+    edges['meta']['labels'] = {'agi_group': {
+        'values': len(Q.PUF_LABELS), 'source': 'puf', 'labels': Q.PUF_LABELS, 'lines': Q.PUF_LINES, 'cuts': ref['cuts'],
+        'records': ref['records'], 'returns': ref['returns'],
+        'what': 'band-AGI group (qgroups.puf_groups): AGI from the representative amounts of the bands'}}
+    edges['meta']['present_on']['agi_group'] = ['puf']
+    puf = t[t.source == 'puf']
+    again = Q.puf_group(Q.band_agi(puf), ref['cuts'])
+    assert (again == puf['agi_group'].to_numpy()).all(), 'a PUF row whose label differs from its band-AGI group'
+    tab = pd.DataFrame({'group': Q.PUF_LABELS, 'records': np.asarray(ref['records'], int),
+                        'returns (m)': np.asarray(ref['returns']) / 1e6, 'q': ref['q']})
+    tab['returns per record'] = 1 / tab['q']
+    common.say('the AGI group label (band-AGI lines, ' + ', '.join(f'p{100 * p:g} ${c:,.0f}' for p, c in
+                                                                     zip(Q.PUF_LINES, ref['cuts'])) + '):\n'
+               + tab.to_string(index=False, float_format=lambda x: f'{x:,.5f}'))
+    return t, edges
 
 
 # ---- bands --------------------------------------------------------------------------------
@@ -992,6 +914,28 @@ def build_map(df, edges, source, variables, year=PUF_YEAR):
         .reset_index(drop=True)
 
 
+def scf_growth(scf, y_from, y_to):
+    """{balance-sheet item: its growth per tax unit from the SCF wave of income year y_from to that of y_to}: the ratio
+    of the two waves' weighted means per tax unit, each in its own dollars (all units and all five implicates, zeros
+    included; scf: SCF rows with year, weight and the items in dollars). It carries price change and the change in
+    holdings per unit together. The mortgage's share of the home's value (w_primary_ltv) is a ratio and is not grown:
+    the mortgage in dollars moves with the home."""
+    out = {}
+    for v in SCF_AMOUNTS:
+        if v == 'w_primary_ltv':
+            out[v] = 1.0
+            continue
+        mean = {}
+        for y in (y_from, y_to):
+            d = scf[scf.year == y]
+            assert len(d), f'no SCF wave of income year {y}'
+            assert not d[[v, 'weight']].isna().any().any(), f'SCF {y}: {v} or the weight missing on some unit'
+            mean[y] = float(np.average(d[v].to_numpy(float), weights=d['weight'].to_numpy(float)))
+        # a mean at or below zero (possible for the unrealized gains) makes the ratio meaningless: no factor
+        out[v] = mean[y_to] / mean[y_from] if mean[y_from] > 0 and mean[y_to] > 0 else np.nan
+    return out
+
+
 def build_maps(t, edges):
     os.makedirs(common.MAPS, exist_ok=True)
     pside = t[t.source == 'puf'].reset_index(drop=True)
@@ -1008,21 +952,29 @@ def build_maps(t, edges):
         x[x < 0] *= fn
         m_target.loc[r, 'value'] = x
     m_target.to_parquet(f'{common.MAPS}/map_puf_{TARGET_YEAR}.parquet', index=False)
-    # the balance sheet: the wave whose tax year is the PUF year, in its own dollars; for the target year, carried
-    # to the target year's wave dollars by the two waves' asset price factors (2022 dollars per wave dollar). The
-    # mortgage's share of the home's value is a ratio, not dollars.
-    base = t[(t.source == 'scf') & (t.year == PUF_YEAR)].reset_index(drop=True)
-    m_scf = build_map(base, edges, 'scf', SCF_AMOUNTS)
-    m_scf.to_parquet(f'{common.MAPS}/map_scf_{PUF_YEAR}.parquet', index=False)
-    af = {y: t.loc[(t.source == 'scf') & (t.year == y), 'asset_factor'] for y in (PUF_YEAR, TARGET_YEAR - 1)}
-    assert all(a.nunique() == 1 for a in af.values())
-    f_scf = af[PUF_YEAR].iloc[0] / af[TARGET_YEAR - 1].iloc[0]
-    m_scf_target = m_scf.copy()
-    dollars = (m_scf_target['variable'] != 'w_primary_ltv').to_numpy()
-    m_scf_target.loc[dollars, 'value'] = m_scf_target.loc[dollars, 'value'] * f_scf
-    m_scf_target.to_parquet(f'{common.MAPS}/map_scf_{TARGET_YEAR}.parquet', index=False)
-    for v in SCF_AMOUNTS:
-        g[v] = (1.0, 1.0) if v == 'w_primary_ltv' else (f_scf, f_scf)
+    # the balance sheet: one map per wave, from the wave's own records on its own band edges, each item grown per tax
+    # unit to the target year's wave (scf_growth). Generation draws each record's balance sheet from one wave
+    # (generate.py), and dollars.py turns its bands into dollars with that wave's map.
+    scf = t[t.source == 'scf']
+    rows = []
+    for y in sorted(scf['year'].unique()):
+        base = scf[scf.year == y].reset_index(drop=True)
+        f = scf_growth(scf, y, TARGET_YEAR - 1)
+        rows += [{'wave': int(y) + 1, 'income year': int(y), 'variable': v, 'factor to the target year': f[v]}
+                 for v in SCF_AMOUNTS]
+        no_factor = [v for v, x in f.items() if not np.isfinite(x)]
+        if no_factor:   # the wave cannot be put in target-year dollars; generation stops if the year's mix uses it
+            common.say(f'SCF wave {int(y) + 1}: NO MAP for {TARGET_YEAR}; a mean per unit at or below zero in '
+                       f'{no_factor}')
+            continue
+        m = build_map(base, edges, 'scf', SCF_AMOUNTS, year=y)
+        m['value'] = m['value'].to_numpy(float) * m['variable'].map(f).to_numpy(float)
+        assert not m['value'].isna().any(), f'SCF {y}: a map value with no growth factor'
+        m.to_parquet(f'{common.MAPS}/map_scf_wave{int(y) + 1}_{TARGET_YEAR}.parquet', index=False)
+    pd.DataFrame(rows).to_csv(f'{common.MAPS}/scf_growth_factors.csv', index=False)
+    common.say('SCF balance sheet, growth per tax unit to the target year\'s wave, by wave:\n'
+               + pd.DataFrame(rows).pivot(index='variable', columns='wave', values='factor to the target year')
+               .to_string(float_format=lambda x: f'{x:.4f}'))
     # the CEX categories: the generation year's real records, and the same grown to the target year by NIPA PCE per
     # return (the category's PCE over SOI's return count, target year over the CEX year)
     yc = CX['generation_year']
@@ -1058,8 +1010,7 @@ def present_on(t):
     out = {}
     for v in AMOUNTS:
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, f'{v}_band'] >= 0).any())
-    for v in ['married', 'n_dep', 'age_range', 'filer'] + list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-            + [c for c in STRATA_LABELS if c in t]:
+    for v in ['married', 'n_dep', 'age_range', 'filer'] + list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES):
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, v] >= 0).any())
     return out
 
@@ -1187,9 +1138,7 @@ def main():
     t = pd.concat([puf_rows(puf), scf_rows(), cex_rows(), cps_rows()], ignore_index=True)
     assert not t.duplicated(['source', 'record_id']).any()
     t, pi = primary_age_range(t, puf)
-    t, labels = strata_labels(t)
     t, edges = band_table(t, pi)
-    edges['meta']['strata_labels'] = labels
     cps_ss_taxable_check(t)
     # the report's CPS units also carry their wages after function 1 (the tax data's wages at the same count from the
     # top), so the report's wage groups mean the same on both sides
@@ -1201,7 +1150,7 @@ def main():
     u.to_parquet(f, index=False)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer', 'filer_p'] + \
         list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
-        ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + list(STRATA_LABELS)
+        ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + ['agi_group']
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
     for k in range(ages.N_RANGES):
         t[f'age_p{k}'] = t[f'age_p{k}'].fillna(0.0)
@@ -1217,13 +1166,14 @@ def main():
         assert not t[c].isna().any(), c
         t[c] = t[c].astype(np.int64)
     age_range_table(t)
+    json.dump(edges, open(common.EDGES, 'w'), indent=1)   # dollars.py, which the label uses, reads the edges' meta
+    build_maps(t, edges)
+    t, edges = agi_group_label(t, edges)                   # from the bands and the PUF year's map
     t[keep].to_parquet(common.TABLE, index=False)
     json.dump(edges, open(common.EDGES, 'w'), indent=1)
-    build_maps(t, edges)
     common.say(f'{len(t):,} rows:', t.groupby(['source', 'year', 'filer']).size().to_dict())
     table_summary(t)
 
 
 if __name__ == '__main__':
-    import sys
-    label_table() if sys.argv[1:] == ['labels'] else main()
+    main()
