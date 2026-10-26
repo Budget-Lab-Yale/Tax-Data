@@ -132,7 +132,11 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # SCF wealth, in the wave's own dollars: the share of units above the SCF's 99.9th, 99th, 90th and 50th
+  # Every SCF target (kinds wealth and wealth grid) is computed on the year's mix of SCF waves, the year file's prior
+  # "balance sheet", each wave's balance sheet grown per tax unit to the target year's wave, each wave with its own
+  # lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance (scf_targets.py,
+  # TARGETS.md S9). Their ranges are half a standard error (settings tilt.range_in_se_by_kind).
+  # SCF wealth: the share of units above the SCF's 99.9th, 99th, 90th and 50th
   # percentile lines and above $1 million, and net worth above each percentile line and in total. Among units other
   # than dependent filers, who hold no wealth in the file.
   - id: wealth_shares
@@ -170,14 +174,15 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable}'}
 
-  # The income x net worth grid (26 October; tentative: explore/2026-10-26/scf/07_grid_growth). Four income groups
+  # The income x net worth grid (26 October: explore/2026-10-26/scf/07_grid_growth, approved with 09's P3). Four income groups
   # (below p90, p90-99, p99-99.9, p99.9+ of the seven shared income items, each side's own percentiles) by four net worth classes (below the SCF's p90 line,
   # p90-99, p99-99.9, above p99.9, the SCF's dollar lines). In each cell: the share of the income group's units in
   # the net worth class (the count of units, stated within the income group, whose size is fixed by rank on both
   # sides), and the class's net worth in the group (dollars). The share of the lowest class is left out in each
   # income group: it is one minus the others exactly.
-  # Thin cells merged (a cell resting on fewer than 10 SCF households, in any implicate, is merged into the next
-  # richer net worth class of the same income group until it has 10 or more):
+  # Thin cells merged (a cell resting on fewer than 10 SCF households of the 2019 wave, in any implicate, is merged
+  # into the next richer net worth class of the same income group until it has 10 or more; counted before the waves
+  # were pooled, which roughly triples each cell's households, and kept since):
   #   income p99-99.9: below p90 (3 households) + p90-99 (132) -> at or below p99 (135);
   #   income p99.9+: below p90 (0) + p90-99 (7) + p99-99.9 (83) -> at or below p99.9 (86: a household can sit in
   #   different cells in different implicates, so the merged count is not the sum).

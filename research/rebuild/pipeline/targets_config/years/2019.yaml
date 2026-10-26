@@ -3,8 +3,9 @@
 # percentile line and the top net worth by kind of asset).
 #
 # What the year adds, drops or overrides relative to historical.yaml, each with its reason. Every target's value is
-# 2019's: SOI 2019 Tables 1.4, 1.2 and 1.6, the 2019 SCF wave (income of 2018, wealth at interview), the 2019 CEX,
-# and the CPS filing stage's 2019 non-filers.
+# 2019's: SOI 2019 Tables 1.4, 1.2 and 1.6, the SCF waves of the prior below (the 2019 wave, income of 2018, wealth
+# at interview, pooled with the 2022 and 2016 waves grown to it per tax unit; scf_targets.py), the 2019 CEX, and the
+# CPS filing stage's 2019 non-filers.
 
 year: 2019
 kind: historical
@@ -13,7 +14,8 @@ inherits: historical
 # The prior the generated file is drawn under (TARGETS.md section 7). Generation reads the "balance sheet" entry
 # (generate.py, scf_waves): each record is given one SCF wave at random with these shares, its balance sheet drawn
 # under the SCF label at that wave's income year, its dollars from that wave's own records grown per tax unit to the
-# 2019 wave. The other entries are only recorded: generation draws the PUF variables under the PUF 2015 label, and
+# 2019 wave. The SCF targets are computed on the same waves with the same shares (scf_targets.py, settings
+# tilt.scf_target_waves). The other entries are only recorded: generation draws the PUF variables under the PUF 2015 label, and
 # consumption and the CPS items at 2019 (settings cex and cps, generation_year).
 # Section 7's rule for 2019: weights exp(-|2019 - t| / 2) over the waves' income years t = 2021, 2018, 2015, 2012
 # give 0.3679, 0.6065, 0.1353, 0.0302; as shares of their sum 32.3%, 53.2%, 11.9%, 2.6%; the 2013 wave (2.6%) is

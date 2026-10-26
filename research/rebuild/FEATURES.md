@@ -21,7 +21,8 @@ hours worked, and childcare, weighted to 2019 targets.
   wave, 33% the 2022 wave, 12% the 2016 wave for 2019). Every dollar amount is
   in 2019 dollars before the tilt. The 2019 targets come from
   `pipeline/targets_config/`, each with a standard error, and are met within
-  ranges (`TARGETS.md`).
+  ranges: half a standard error for the SCF targets, which come from the same
+  mix of waves as the balance sheet, and one for the rest (`TARGETS.md` S9).
 - **Since when.** This is latest since 26 October (until then: the strata of
   25 October, `TARGETS.md` S4). The code is in `pipeline/`; every setting is
   in `pipeline/settings.json`.
@@ -621,17 +622,27 @@ dollars grown item by item to year t). Weights are scaled to SOI's return count 
 and non-joint returns, then (`tilt.prescale` "demographic") to Table 1.6's returns by age x joint and to the
 non-filer people by age (section 4).
 
-**The tilt** (`solver.py`; TARGETS.md S6): the smallest reweighting, by Kullback-Leibler divergence, that puts every
-target within its value ± `tilt.range_in_se` (1) standard errors; identities exact. If the ranges cannot all be
-met, a miss beyond a range costs (miss ÷ standard error)². A range on an average is measured on the average itself,
-with the cell's weight after the tilt. Cells resting on too few effective records, or on a record moved too far,
-are flagged as warnings or stops (section 5).
-- **Half a standard error is tentative and not on.** `tilt.range_in_se` stays 1. Ranges of 0.5 were tested on 26
-  October (`explore/2026-10-26/scf/07_grid_growth`): every target was met, but the effective sample kept fell from
-  98% to 11%. The cause is one generated non-filer couple whose spouse is coded aged 16: its weight rose 2,416
-  times and it supplied 43% of the non-filer children-under-17 target (the young spouse counts as a child), with
-  the non-filer people and the CEX cells pulling against each other. 0.5 waits for a fix to such records and
-  John's decision.
+**The tilt** (`solver.py`; TARGETS.md S6, S9): the smallest reweighting, by Kullback-Leibler divergence, that puts
+every target within its value ± k standard errors; identities exact. k is set by kind of target: 0.5 for the SCF
+targets (`tilt.range_in_se_by_kind`: wealth and wealth grid) and 1 for every other kind (`tilt.range_in_se`). If the
+ranges cannot all be met, a miss beyond a range costs (miss ÷ standard error)². A range on an average is measured on
+the average itself, with the cell's weight after the tilt. Cells resting on too few effective records, or on a
+record moved too far, are flagged as warnings or stops (section 5).
+- **Why half a standard error only for the SCF.** At 0.5 for every target (`explore/2026-10-26/scf/09_pooled_targets`,
+  run P1) 23 targets could not be met, the non-filer people bands against the CEX food and health averages, and the
+  effective sample kept fell to 31%. At 0.5 for the SCF targets alone (run P3, approved by John) every target is met
+  and 97.75% is kept; the file keeps more net worth at the top of income than with every range at 1 ($9.91
+  against $9.35 trillion with units at p99.9+ of income; pooled SCF $10.38 trillion).
+
+**The SCF targets** (`scf_targets.py`; TARGETS.md S9; since 26 October) are computed on the same SCF waves, with
+the same shares, as the file's balance sheet: the year file's prior "balance sheet" (2019: the 2019 wave 54.65%,
+2022 33.15%, 2016 12.20%; settings `tilt.scf_target_waves` "prior"). Each wave's balance sheet is grown per tax unit
+to the target year's wave by the maps' factors, its weights scaled to the target year's wave's 162.76 million units;
+each wave keeps its own income ranks and net worth lines, and its value and variance in each cell come from its own
+999 replicate weights and five implicates. Value = Σ share × the wave's value; variance = Σ share² × the wave's
+variance; the file's net worth lines are the share-weighted average of the waves' lines. Standard errors are about
+0.65 of one wave's. The replicate weights of each wave sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to
+fetch them). `tilt/<run>/scf_targets_by_wave.csv` has each target's value, error, lines and SCF households by wave.
 
 The 2019 targets (496):
 
@@ -642,62 +653,65 @@ The 2019 targets (496):
 | Dependent filers (Table 1.7): returns by AGI | 9 |
 | Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
 | Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
-| SCF 2019 wealth: shares of units and net worth above the 99.9th, 99th, 90th and 50th percentile lines and $1 million; the four asset types (stocks, business equity, real estate, retirement accounts) above the 99.9th, 99th and 90th lines | 22 |
-| SCF 2019 income x net worth grid (tentative, below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
+| SCF wealth, the 2016, 2019 and 2022 waves pooled: shares of units and net worth above the 99.9th, 99th, 90th and 50th percentile lines and $1 million; the four asset types (stocks, business equity, real estate, retirement accounts) above the 99.9th, 99th and 90th lines | 22 |
+| SCF income x net worth grid, the same waves pooled (below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | CEX 2019 consumption: 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
 
-**The income x net worth grid** (since 26 October; **tentative**, pending John's review of
-`explore/2026-10-26/scf/07_grid_growth`; historical.yaml, wealth_grid_shares and wealth_grid_dollars; errors.py,
-wealth_grid_errors). Four income groups by the seven income items the SCF and the file share (wages, interest,
+**The income x net worth grid** (since 26 October, `explore/2026-10-26/scf/07_grid_growth`, approved with 09's
+P3; historical.yaml, wealth_grid_shares and wealth_grid_dollars; scf_targets.py). Four income groups by the seven income items the SCF and the file share (wages, interest,
 dividends, capital gains, gross retirement income, Schedules C and F, Schedule E): below p90, p90-99, p99-99.9 and
 p99.9 and over, each side by its own weighted percentiles (the file's lines set on its starting weights, then held
 fixed in dollars through the tilt). Four net worth classes between the SCF's dollar lines at p90, p99 and p99.9
-($957,700, $9.21 million, $38.66 million). In each cell the share of the income group's units in the class (the
-lowest class left out: one minus the others) and the class's net worth. A cell resting on fewer than 10 SCF
-households is merged into the next richer class of its income group (three cells). Standard errors from the 999
-replicate weights and the five implicates. Without it the tilt left $6.7 trillion with units at p99.9+ of income
-against the SCF's $10.6 trillion, and 12% of the top 0.1% by wealth had income below p90 (SCF: 3.9%); with it, $9.0
-trillion and 6.3% (07, one standard error).
+(pooled over the waves: $986,300, $8.95 million, $39.50 million; the 2019 wave alone $957,700, $9.21 million,
+$38.66 million). In each cell the share of the income group's units in the class (the lowest class left out: one
+minus the others) and the class's net worth. A cell resting on fewer than 10 households of the 2019 wave is merged
+into the next richer class of its income group (three cells; kept after pooling, which roughly triples each cell's
+households). Without the grid the tilt left $6.7 trillion with units at p99.9+ of income against the SCF's $10.6
+trillion, and 12% of the top 0.1% by wealth had income below p90 (SCF: 3.9%); with it, $9.0 trillion and 6.3% (07,
+one standard error, single-wave targets).
 
 Counts by kind as in `tilt/<run>/targets.csv`.
 `hold_distribution` (optional, S7) adds each item's share in AGI rank groups of the start file as targets.
 `report_tilt.py` writes the run report (section 14).
 
-The 26 October test run (below): all 496 targets inside their ranges; effective sample kept 98.1% from the
-prescaled start; 51 warnings and 31 stops.
+The 26 October test run (below): all 496 targets inside their ranges (the 44 SCF targets at half a standard error);
+effective sample kept 98.0% from the prescaled start; 49 warnings and 33 stops.
 
 ## How the latest run comes out
 
-The 2019 test run of 26 October, from the pipeline as it now stands except the non-filer head rule, which came
-after it (output in `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-26/port/out`: models
-`label_seed20261016` and `label_seed20261017`, trained on L40S cards, about 34 seconds a pass; stack and file
-`label_pooled`; 400,000 filer records and 54,379 non-filer records). Its `summary.md` and `report.md` have the full
-tables; `port/STATUS.md` compares it with the scratch runs. Counts in millions, nominal 2019 dollars unless said.
+The 2019 test run of 26 October, from the pipeline as it now stands (output in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-26/port2/out`: models `label_seed20261016` and
+`label_seed20261017`, trained on L40S cards in `explore/2026-10-26/port`; stack `gen19`, drawn on an A40 card, with
+400,000 filer records and 54,379 non-filer records; file `tilt/p3_final`). Its `summary.md` and `report.md` have the
+full tables; `port2/STATUS.md` compares it with 09's P3. Counts in millions, nominal 2019 dollars unless said.
 
 | | File | Reference |
 |---|---:|---:|
-| targets inside their ranges (1 standard error) | 496 of 496 (337 at an edge) | |
-| effective sample kept, from the prescaled start | 98.1% | |
+| targets inside their ranges (SCF 0.5, the rest 1 standard error) | 496 of 496 (345 at an edge) | |
+| effective sample kept, from the prescaled start | 98.0% | 09 P3: 97.75% |
 | effective sample kept, from the start before the prescaling | 97.7% | |
-| weight factor, 1st and 99th percentiles | 0.35, 1.81 | |
-| thin cells: warnings, stops | 51, 31 | |
-| returns with AGI of $10 million and over, before the tilt (2015 dollars and returns) | 0.0229 | PUF 2015: 0.0180 |
-| returns with AGI of $1 million and over, before the tilt (same) | 0.497 | PUF 2015: 0.446 |
-| returns with AGI zero or negative, before the tilt (same) | 2.83 | PUF 2015: 2.04 |
-| filer records whose drawn parts add up to another AGI group than their label | 13.5% | |
+| weight factor, 1st and 99th percentiles | 0.32, 1.99 | |
+| thin cells: warnings, stops | 49, 33 | |
+| returns with AGI of $10 million and over, before the tilt (2015 dollars and returns) | 0.0260 | PUF 2015: 0.0180 |
+| returns with AGI of $1 million and over, before the tilt (same) | 0.500 | PUF 2015: 0.446 |
+| returns with AGI zero or negative, before the tilt (same) | 2.85 | PUF 2015: 2.04 |
+| filer records whose drawn parts add up to another AGI group than their label | 13.6% | |
 | SCF waves: share of records, 2019 / 2022 / 2016 wave | 54.6 / 33.3 / 12.2% | prior: 54.65 / 33.15 / 12.20% |
-| net worth, total, before and after the tilt | $117.9 and $98.0 trillion | SCF 2019: $96.6 trillion |
-| median net worth, all 179.2 million units | $52,600 | SCF 2019, 162.8 million units: $63,570 |
-| top 1% share of net worth | 41.6% | SCF 2019: 40.2% |
-| mean net worth, wages $200k+ | $4.18 million | SCF 2019: $4.38 million |
-| top 0.1% by net worth with income below the file's p90, before and after the tilt | 19.6%, 6.4% | SCF 2019: 3.9% |
-| spouses under 18 | 0 | |
-| non-filer heads under 18 (the head rule came after this run) | 40 records, 15,300 units | |
+| net worth, total, before and after the tilt | $119.5 and $97.4 trillion | SCF pooled: $97.1 trillion |
+| net worth with units at p99.9+ of income (each side its own percentiles) | $10.15 trillion | SCF pooled: $10.38 trillion |
+| median net worth, all 179.0 million units | $53,600 | SCF pooled, 162.8 million units: $66,600 |
+| top 1% share of net worth | 40.7% | SCF pooled: 39.6% |
+| top 0.1% by net worth with income below the file's p90, before and after the tilt | 23.5%, 3.5% | SCF pooled: 2.8% |
+| spouses under 18; non-filer heads under 18 | 0; 0 | |
 
-- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 3.3 standard
-  errors in Table 1.4, 2.1 in Table 1.6 and 2.3 in Table 1.7.
+- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 3.4 standard
+  errors in Table 1.4, 2.4 in Table 1.6 and 1.9 in Table 1.7.
 - **Net worth.** The file's units include its dependent filers, who hold no wealth; the SCF's units do not, so
-  the two medians are not on the same base. Before the tilt the file holds $21 trillion more than the SCF.
+  the two medians are not on the same base. Before the tilt the file holds $22 trillion more than the SCF.
+- **The largest weight factor is 2,594**: one filer record labelled in the top AGI group whose drawn parts give AGI
+  of -$0.83 million and net worth of -$30 million (weight 0.81 to 2,091). The same record moves 3,363 times with the
+  single-wave targets and ranges of 1, so it comes from this stack, not from the pooled targets. Ten records move
+  more than a hundredfold; together they end with 9,600 units.
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (up to commit bc72cc7).
 

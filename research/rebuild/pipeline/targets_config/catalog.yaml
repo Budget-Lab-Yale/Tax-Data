@@ -41,7 +41,8 @@ sources:
     file: data/scf_units_{year}.parquet
     built_by: [roster_scf.py, build_scf.R]
     tax_unit_rules: shared_cbo
-    what: every tax unit of the SCF wave of that year (its income is the year before), five implicates, weights as built
+    what: every tax unit of the SCF wave of that year (its income is the year before), five implicates, weights as built;
+      the targets read each wave's units from the training table and pool the year's mix of waves (scf_targets.py)
   cex:
     kind: survey
     file: data/cex_units_{year}_all.parquet

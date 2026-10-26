@@ -3,7 +3,8 @@ its thin-cell measures.
 
 The rule.
   - Each target that is not an identity is met anywhere within its range, its value plus or minus k standard
-    errors (k = range_in_se, 1 by default), at no cost inside the range. Among the reweightings that meet every
+    errors (k = range_in_se, 1 by default; or one k per target, range_in_se_by_target, which tilt.py builds from
+    settings range_in_se_by_kind), at no cost inside the range. Among the reweightings that meet every
     range, the one closest to the starting weights is chosen: the smallest move in Kullback-Leibler divergence. So
     the starting weights decide where inside its range each target lands. A target the start already puts inside
     its range is not pulled anywhere; it moves only as far as the other targets' moves carry it, and only to its
@@ -78,6 +79,28 @@ import pandas as pd
 
 def _get(settings, name, default):
     return default if settings is None else settings.get(name, default)
+
+
+def _range_k(settings, m):
+    """Each target's range in standard errors: settings range_in_se (one number, default 1); or, where tilt.py has
+    set range_in_se_by_target (one number per target, from settings range_in_se_by_kind), that array. Returns the
+    number, or the array of m numbers."""
+    v = _get(settings, 'range_in_se_by_target', None)
+    if v is None:
+        k = float(_get(settings, 'range_in_se', 1.0))
+        assert k >= 0, 'range_in_se must be 0 or more'
+        return k
+    k = np.asarray(v, float)
+    assert k.shape == (m,) and np.isfinite(k).all() and (k >= 0).all(), 'range_in_se_by_target: m numbers, 0 or more'
+    return k
+
+
+def _range_name(k):
+    """'1' for one number (or an array of one value); else each value with its count of targets."""
+    u = np.unique(np.asarray(k, float))
+    if len(u) == 1:
+        return f'{u[0]:g}'
+    return ' / '.join(f'{x:g} ({int((np.asarray(k) == x).sum())} targets)' for x in u)
 
 
 # ---- the conditions --------------------------------------------------------------------
@@ -283,8 +306,8 @@ def solve(w0, F, T, se, identity, averages, settings=None):
     bad = ~identity & ~(np.isfinite(se) & (se > 0))
     assert not bad.any(), f'targets {np.flatnonzero(bad).tolist()}: not identities, but no positive standard error'
 
-    k = float(_get(settings, 'range_in_se', 1.0))
-    assert k >= 0, 'range_in_se must be 0 or more'
+    k = _range_k(settings, m)            # one number, or one per target
+    kv = np.broadcast_to(np.asarray(k, float), (m,))
     max_steps = _get(settings, 'solver_max_newton_steps', 200)
     tol = _get(settings, 'solver_gradient_tolerance', 1e-10)
     max_kl = _get(settings, 'solver_max_kl_nats', 20.0)
@@ -308,10 +331,10 @@ def solve(w0, F, T, se, identity, averages, settings=None):
 
     # the ranges on the solver's scale: a total's half-width k se / size; an average's, k se for each member of the
     # group (times W / size), which the weights turn into k se times the group's weight
-    ranged = k > 0
+    ranged = bool((kv > 0).any())
     b = np.where(free & ~is_avg, k * np.where(free, se, 0.0) / size, 0.0)
     kc = np.flatnonzero(free & is_avg)
-    K = (kc, np.column_stack([member[j] * (k * se[j] * W / size[j]) for j in kc])) if ranged and len(kc) else None
+    K = (kc, np.column_stack([member[j] * (kv[j] * se[j] * W / size[j]) for j in kc])) if ranged and len(kc) else None
     if not ranged:
         b = np.zeros(m)
     eps_steps = smoothing if ranged else [0.0]
@@ -337,7 +360,7 @@ def solve(w0, F, T, se, identity, averages, settings=None):
         return np.where(free, ex / np.where(free, s, 1.0), 0.0)
 
     s0 = scaled_se(w0)
-    name = f'ranges of {k:g} se' if ranged else 'exact'
+    name = f'ranges of {_range_name(k)} se' if ranged else 'exact'
 
     # 1. every range met (every target exact when k = 0)
     lam, e, status = smoothed(np.zeros(m), np.zeros(m), max_kl)
@@ -487,7 +510,7 @@ def _per_target(w0, w1, F, T, se, identity, averages, settings, landed=None, G=N
     miss = after - value
     se = np.asarray(se, float)
     exact = np.asarray(identity, bool) | ~(se > 0)
-    k = float(_get(settings, 'range_in_se', 1.0))
+    k = _range_k(settings, len(T))       # one number, or one per target
     half = np.where(exact, 0.0, k * np.where(exact, 0.0, se))
     with np.errstate(divide='ignore', invalid='ignore'):
         miss_in_se = np.where(exact, np.nan, miss / se)
@@ -567,7 +590,7 @@ def summary_lines(info, fit):
         lines += [f"**STOP: {info['stops']} target(s) rest on too few records or too large a weight factor "
                   f"(see the thin cells table).**", '']
     k = info.get('range_in_se', 1.0)
-    within = f'inside its range of {k:g} standard error(s)' if k > 0 else 'hit exactly'
+    within = f'inside its range of {_range_name(k)} standard error(s)' if np.any(np.asarray(k) > 0) else 'hit exactly'
     lines += [f"- Every non-identity target {within}: {'yes' if info['feasible'] else 'no'}"
               f"{'' if info['feasible'] else ' (standard errors decided which gave way)'}.",
               f"- Solver converged: {'yes' if info['converged'] or info['feasible'] else 'NO'} ({info['how']}).",

@@ -1041,6 +1041,18 @@
   "prescale": "demographic",
   "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
   "range_in_se": 1.0,
-  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. Half a standard error (0.5) was tested on 26 October (explore/2026-10-26/scf/07_grid_growth): every target met, but the effective sample kept fell to 11%, through one generated non-filer couple whose spouse is coded aged 16 (its weight up 2,416 times, supplying 43% of the non-filer children-under-17 target). 0.5 waits for a fix to such records and John's decision."
+  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. The number for every kind of target not in range_in_se_by_kind, and for the demographic prescaling. Half a standard error for every target was tested on 26 October (explore/2026-10-26/scf/09_pooled_targets, run P1): 23 targets (non-filer people bands against CEX food and health averages) could not all be met and the effective sample kept fell to 31%.",
+  "range_in_se_by_kind": {
+   "wealth": 0.5,
+   "wealth grid": 0.5
+  },
+  "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October; explore/2026-10-26/scf/09_pooled_targets, run P3): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before.",
+  "scf_target_waves": "prior",
+  "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, the single-wave targets of before 26 October (for checks)."
+ },
+ "errors": {
+  "_what": "Standard errors (errors.py, TARGETS.md section 9). Every setting here is optional, with the default given; none is set today.",
+  "_scf_replicate_dir": "The folder of each SCF wave's replicate weights (p<yy>_rw1.dta, from the Federal Reserve; errors.py says how to fetch them), with {wave} in the path for the wave. Default: <out>/data/scf_rw/{wave}, which holds the 2016, 2019 and 2022 waves' files. Every wave in a year's mix needs its folder (scf_targets.py).",
+  "_other": "soi_cv_dir (default <out>/targets/soi_cv), borrow_neighbours (5), full_sample_se (0.01), nonfiler_count_se (0.06), nonfiler_people_population_se (0.005), definition_gap ({}): errors.py's docstring says what each means."
  }
 }

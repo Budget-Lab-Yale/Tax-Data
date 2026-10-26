@@ -24,8 +24,9 @@ fields of one, and every drop or override carries a written reason.
                                 w (TARGETS.md S7)
 
 Values. Published values come from the run's SOI numbers (targets.py: Tables 1.4 and 1.2 in targets/soi.csv, Table
-1.6 by targets.table_1_6); survey values from the survey's own tax units in the run's data folder; the non-filer
-values from the CPS filing stage of the same run.
+1.6 by targets.table_1_6); survey values from the survey's own tax units in the run's data folder, the SCF's from
+the year's mix of SCF waves (scf_targets.py, which computes their standard errors with them); the non-filer values
+from the CPS filing stage of the same run.
 
 Standard errors. errors.standard_errors(rows, year) (errors.py) gives each target's standard error, in the units of
 the published statistic (on an average, on the average itself); 0 for an identity.
@@ -461,7 +462,11 @@ def survey_frame(source, year):
 
 
 def survey_rows(source, year, cells, v, stats):
-    """The statistic computed on the survey's own units in each cell."""
+    """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
+    waves, with their standard errors (scf_targets.py)."""
+    if source == 'scf':
+        import scf_targets
+        return scf_targets.rows(cells, v, stats, year)
     u, path = survey_frame(source, year)
     if 'age_range' in u:
         assert (u['age_range'] < common.ADULT_RANGES).all(), f'{path}: a dependent filer among the survey units'
@@ -472,31 +477,16 @@ def survey_rows(source, year, cells, v, stats):
         m = np.ones(len(u), bool)
         for col, val in c['filters']:
             m &= (u[col] == val).to_numpy()
-        rank_lines = (np.nan, np.nan)
-        if c.get('rank') is not None:
-            # the survey's units in the income rank group, by the survey's own weighted
-            # percentiles over all its units (lower edge inclusive)
-            rv, lo, hi = c['rank']
-            xr = survey_rank_value(source, u, rv)
-            rank_lines = rank_dollar_lines(xr, w, lo, hi)
-            m &= (xr >= rank_lines[0]) & (xr < rank_lines[1])
+        assert c.get('rank') is None and c.get('band') is None, \
+            f'{source} {year}, cell {c["label"]}: income rank groups and bands are built for the SCF only (scf_targets.py)'
         assert m.any(), f'{source} {year}, cell {c["label"]}: no survey units'
         line, above, line_var, line_hi = None, m, '', None
         if c['line'] is not None:
-            # the line is on the grouping's variable (net worth), which may differ from the target's (stocks)
+            # the line is on the grouping's variable, which may differ from the target's
             line_var, kind, num, _ = c['line']
             xl = record_value(u, line_var)
             line = float(common.wquantile(xl, w, [num / 100])[0]) if kind == 'percentile' else float(num)
             above = m & (xl > line)
-        if c.get('band') is not None:
-            # a band between two lines on the survey's own percentiles (dollar lines), above the lower
-            # and at or below the upper
-            line_var, lo_spec, hi_spec = c['band']
-            xl = record_value(u, line_var)
-            dollar = lambda s: None if s is None else \
-                float(common.wquantile(xl, w, [s[1] / 100])[0]) if s[0] == 'percentile' else float(s[1])
-            line, line_hi = dollar(lo_spec), dollar(hi_spec)
-            above = m & ((xl > line) if line is not None else True) & ((xl <= line_hi) if line_hi is not None else True)
         for st in stats:
             if st == 'share':
                 assert line is not None or line_hi is not None, f'{source} {year}, cell {c["label"]}: a share needs a line'
@@ -509,42 +499,12 @@ def survey_rows(source, year, cells, v, stats):
             else:
                 raise NotImplementedError(f'{source}: statistic {st}')
             rows.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'line': line,
-                         'line_variable': line_var, 'rank_lines': rank_lines, 'line_hi': line_hi,
-                         'source': f'{source} {year} ({os.path.relpath(path, common.OUT)}), all units'
-                                   + ('' if c.get('rank') is None else
-                                      f'; income group {c["rank"][1]:g}-{c["rank"][2]:g} percentile of '
-                                      f'{c["rank"][0]} on the survey: {rank_lines[0]:,.0f} to {rank_lines[1]:,.0f} '
-                                      f'dollars; {int(m.sum())} unit rows in the group, {int(above.sum())} above the '
-                                      f'net worth line ({u.loc[above, "household_id"].nunique() if "household_id" in u else -1} '
-                                      'households, five implicates pooled)')})
+                         'line_variable': line_var, 'rank_lines': (np.nan, np.nan), 'line_hi': line_hi,
+                         'source': f'{source} {year} ({os.path.relpath(path, common.OUT)}), all units'})
     return rows
 
 
 # ---- income rank groups (the income x net worth grid) -----------------------------------------------------
-_RANK_VALUES = {}
-
-
-def survey_rank_value(source, u, v):
-    """A survey unit's value of the ranking variable v (catalog survey_parts). For the SCF the items are the training
-    table's SCF rows after translation (function 1), the same columns qgroups.SCF_INCOME sums, joined to the units by
-    record_id (the parquet of units carries the table's ids). Every unit must find its row and every item a value:
-    a missing one is an error, never dropped."""
-    key = (source, v, len(u))
-    if key not in _RANK_VALUES:
-        assert source == 'scf', f'{source}: no rank variable source'
-        parts = variable_def(v)['survey_parts']
-        t = pd.read_parquet(common.TABLE, columns=['source', 'record_id'] + parts)
-        t = t[(t['source'] == 'scf') & t['record_id'].isin(u['record_id'])]
-        j = u[['record_id']].merge(t, on='record_id', how='left', validate='one_to_one', indicator=True)
-        unmatched = int((j['_merge'] != 'both').sum())
-        nan = int(j[parts].isna().any(axis=1).sum())
-        common.say(f'  {source} units: {len(u)} rows; {unmatched} with no training-table row; {nan} with an income item '
-                   f'missing ({parts})')
-        assert unmatched == 0 and nan == 0, f'{source}: units without their income items'
-        _RANK_VALUES[key] = j[parts].to_numpy(float).sum(1)
-    return _RANK_VALUES[key]
-
-
 def rank_dollar_lines(x, w, lo, hi):
     """The dollar lines of the lo-th and hi-th weighted percentiles of x (common.wquantile: the smallest x whose
     cumulative weight share reaches the share); 0 and 100 are no line."""
@@ -692,9 +652,12 @@ def expand_entry(e, year, soi):
             c, st = r['cell_spec'], r['statistic']
             filt = dict(c['filters'])
             se = {'identity': 0.0, 'judgment': err.get('relative', np.nan) * abs(r['value'])}.get(err['kind'], np.nan)
+            group, target = _fill(e['key']['group'], c, v, st, vyear), _fill(e['key']['target'], c, v, st, vyear)
+            if 'pooled' in r:   # an SCF target: its standard error, computed with its value, for errors.py
+                import scf_targets
+                scf_targets.RESULTS[(e['kind'], group, target)] = r['pooled']
             out.append({
-                'kind': e['kind'], 'group': _fill(e['key']['group'], c, v, st, vyear),
-                'target': _fill(e['key']['target'], c, v, st, vyear),
+                'kind': e['kind'], 'group': group, 'target': target,
                 'statistic': st, 'population': e['population'], 'variable': v or '', 'value': float(r['value']),
                 'error_kind': err['kind'], 'se': se, 'identity': err['kind'] == 'identity',
                 'source': r['source'], 'reason': reasons,

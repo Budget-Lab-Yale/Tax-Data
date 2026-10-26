@@ -23,13 +23,16 @@ The targets. The year's list from targets_config/ (target_list.expand), each wit
 (errors.py); target_list.conditions writes each as a linear condition on the weights.
 
 The tilt. solver.solve: the smallest move of the weights, in Kullback-Leibler divergence, that puts every target
-inside its range of settings tilt.range_in_se standard errors (identities exactly); where the ranges cannot all be
-met, the standard errors decide which give way (TARGETS.md S6).
+inside its range of settings tilt.range_in_se standard errors, or of range_in_se_by_kind's number for its kind
+(identities exactly); where the ranges cannot all be met, the standard errors decide which give way (TARGETS.md S6,
+S9).
 
 Writes, in common.TILT: file_<target year>.parquet (every record, every dollar column in nominal target-year
 dollars, net worth and its parts included; weight_start and weight, before and after the tilt), fit.csv (every
 target, before and after, with its miss in standard errors and the thin-cell measures), targets.csv and
-resolved_<year>.yaml (target_list.write), summary.md. report_tilt.py writes the run report from them.
+resolved_<year>.yaml (target_list.write), scf_targets_by_wave.csv (each SCF target's value, standard error, lines
+and sample households in each wave of the pool, scf_targets.py), summary.md. report_tilt.py writes the run report
+from them.
 """
 import os
 
@@ -351,7 +354,20 @@ def main():
         common.say('income rank lines on the file (starting weights): '
                    + '; '.join(f'{k[0]} {k[1]} p{k[2]:g}: {v:,.0f}' for k, v in TLS.FILE_RANK_LINES.items()))
     TLS.write(rows, common.TILT, Y)
-    w1, info = SV.solve(w0, F, T, se, identity, averages, S)
+    S_main = S
+    by_kind = S.get('range_in_se_by_kind') or {}
+    if by_kind:
+        # the range in standard errors by kind of target (settings tilt.range_in_se_by_kind, {kind: k}); every other
+        # kind keeps range_in_se. The demographic prescaling above keeps range_in_se.
+        unknown = set(by_kind) - set(rows['kind'])
+        assert not unknown, f'settings tilt.range_in_se_by_kind: kinds with no targets this year {unknown}'
+        base = float(S.get('range_in_se', 1.0))
+        kv = rows['kind'].map(lambda q: float(by_kind.get(q, base))).to_numpy(float)
+        S_main = {**S, 'range_in_se_by_target': kv}
+        common.say(f'range in standard errors by kind (default {base:g}): '
+                   + '; '.join(f'{q}: {kv[(rows.kind == q).to_numpy()][0]:g} ({int((rows.kind == q).sum())} targets)'
+                               for q in rows['kind'].unique()))
+    w1, info = SV.solve(w0, F, T, se, identity, averages, S_main)
     if spec['mode'] == 'from_year':
         start_lines = [f"## The start: the {spec['year']} tilted file (TARGETS.md S7)", '',
                        f"- tilt/{spec['run']}/file_{spec['year']}.parquet: {len(g19):,} records; its tilted weights "
@@ -368,13 +384,18 @@ def main():
                         hold_table(rows, g19, w0, w1).to_markdown(index=False, floatfmt='.3f'), '']
 
     # outputs
-    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, S, identity)
+    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, S_main, identity)
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    import scf_targets
+    if scf_targets.RESULTS:   # the SCF targets by wave (scf_targets.py), for the record
+        scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
     scf_path = f'{common.DATA}/scf_units_{Y}.parquet'   # a year with no SCF wave has no column of its own
     u = pd.read_parquet(scf_path) if os.path.exists(scf_path) else None
-    nw = net_worth_table({**({f'SCF {Y}': (u, u['net_worth'].to_numpy(float), u['weight'].to_numpy(float))}
+    pooled = scf_targets.reference(Y) if scf_targets.RESULTS else None
+    nw = net_worth_table({**({f'SCF {Y} wave': (u, u['net_worth'].to_numpy(float), u['weight'].to_numpy(float))}
                              if u is not None else {}),
+                          **({'SCF, the targets\' waves pooled': pooled} if pooled is not None else {}),
                           'before the tilt': (g19, x, w0), 'after the tilt': (g19, x, w1)})
     summary = pd.Series({'targets': len(T), **cost(w0, w1),
                          'KL move from the unscaled start (nats)': cost(w_plain, w1)['KL move (nats)'],
@@ -387,6 +408,10 @@ def main():
     text = [f'# The {Y} tilt', '', *SV.summary_lines(info, fit), '', summary.to_frame('').to_markdown(floatfmt=',.4f'),
             '', *start_lines, *prescale_lines(prescaled), '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',
             f'## Net worth (nominal {Y} dollars)', '', nw.to_markdown(floatfmt=',.1f'), '']
+    if pooled is not None:
+        text += ['The pooled SCF is the SCF targets\' waves and shares (scf_targets.py), each wave grown per tax unit to '
+                 f'the {Y} wave. Its wage groups use the training table\'s wages (the SCF\'s translated to the PUF\'s '
+                 f'definition, in each wave\'s own income year); the {Y} wave column uses the SCF\'s own wages.', '']
     open(f'{common.TILT}/summary.md', 'w').write('\n'.join(text))
     common.say('\n'.join(text))
 

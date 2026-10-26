@@ -28,13 +28,15 @@ right, and only three kinds are computed; everything else is a judgment number w
 3. Survey targets ('survey_replicate'): the sampling error from the survey's own replicate weights, carried to the
    tax units by the same rule as the main weight (a tax unit's replicate weight is its household's or interview's,
    as its weight is).
-   - SCF (the wealth targets): the Federal Reserve's method (codebook, "Replicate weights and multiplicity
-     factors"): the replicate weights are WT1Bi x MMi (missing values are 0, as in the Fed's own program), for the
-     first implicate only; sampling variance = sum over the 999 replicates of (estimate - mean of the replicate
-     estimates)^2 / 998, on the first implicate; imputation variance = the variance of the five implicates'
-     estimates (divisor 4); total variance = sampling + (1 + 1/5) x imputation. The percentile lines the targets
-     are defined by are held at their full-sample values, because the file is asked for the share above those
-     dollar lines.
+   - SCF (the wealth and wealth grid targets): computed with their values by scf_targets.py, over the year's mix of
+     SCF waves (TARGETS.md S9). Within each wave, the Federal Reserve's method (codebook, "Replicate weights and
+     multiplicity factors"): the replicate weights are WT1Bi x MMi (missing values are 0, as in the Fed's own
+     program; scf_replicates below), for the first implicate only; sampling variance = sum over the 999
+     replicates of (estimate - mean of the replicate estimates)^2 / 998, on the first implicate; imputation
+     variance = the variance of the five implicates' estimates (divisor 4); total variance = sampling + (1 + 1/5)
+     x imputation. The percentile lines the targets are defined by are held at their full-sample values, because
+     the file is asked for the share above those dollar lines. The waves are independent samples, so the pooled
+     variance is the sum over waves of share^2 x the wave's variance.
    - CEX (the consumption averages): the BLS's balanced repeated replication with 44 replicate weights
      (WTREP01-WTREP44 in the FMLI files, standard method up to the 2024 data): variance = sum over the 44 replicates
      of (replicate estimate - full-sample estimate)^2 / 44.
@@ -50,8 +52,16 @@ share, in dollars or returns for a total), error_kind and se_reason.
 Data, downloaded once (public; to scratch, never to the shared raw-data folder; the login node has the network):
   <soi_cv_dir>/raw/       the CV workbooks, with manifest.csv (file, URL, sha256):
                           curl -sSLO https://www.irs.gov/pub/irs-soi/19in14cv.xls   (and so on for each year and table)
-  <scf_replicate_dir>/    the SCF wave's replicate weights, p19_rw1.dta for 2019:
+  <scf_replicate_dir>/    each SCF wave's replicate weights, one folder per wave in the year's mix ({wave} in the
+                          path; default <out>/data/scf_rw/<wave>): p16_rw1.dta, p19_rw1.dta, p22_rw1.dta for the
+                          2016, 2019 and 2022 waves:
                           curl -sSLO https://www.federalreserve.gov/econres/files/scf2019rw1s.zip; unzip scf2019rw1s.zip
+                          (and scf2016rw1s.zip, scf2022rw1s.zip). Check that unzip succeeds: one download of the
+                          2022 file was cut short (26 October 2026). The 2016 and 2022 files were fetched on 26
+                          October 2026 (explore/2026-10-26/scf/09_pooled_targets); sha256 of the .dta files:
+                          p16_rw1.dta 936201623d499a61d39461c5383f1b62fee9411f0d208c719298952e3b56ab0e,
+                          p19_rw1.dta 0cfe01b806045c0fc3abe8b4902804ee05dda47da490c05397b1101f6e221739,
+                          p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2.
   The CEX's replicate weights are read from the FMLI files in the shared raw-data folder (settings paths.raw.cex).
 Settings (section errors, each with a default): soi_cv_dir, scf_replicate_dir ({wave} in the path), borrow_neighbours,
 nonfiler_count_se, nonfiler_people_population_se, definition_gap.
@@ -406,119 +416,22 @@ def scf_replicates(wave, units):
     return u1, rep[idx]
 
 
-def wealth_variable(r):
-    """The variable a wealth target adds up: the row's own (target_list.expand), else from the target's name ('share
-    of units' and 'net worth' are net worth; the asset kinds by their short name in the targets catalog)."""
-    v = getattr(r, 'variable', '')
-    if isinstance(v, str) and v:
-        return v
-    if r.target in ('share of units', 'net worth'):
-        return 'net_worth'
+def scf_errors(rows, year):
+    """The SCF targets (kinds 'wealth' and 'wealth grid'): the standard errors scf_targets.py computed with their
+    values, over the year's mix of SCF waves. They are recorded when target_list.expand builds the year's targets;
+    for a list read from a file (python errors.py errors), the year's targets are built first."""
+    import scf_targets
     import target_list
-    hit = [k for k, d in target_list.CAT['variables'].items() if d.get('short') == r.target]
-    assert len(hit) == 1, f'wealth target {r.group} | {r.target}: no variable'
-    return hit[0]
-
-
-def wealth_errors(rows, year):
-    """The wealth targets (target_list's wealth entries): shares of units above the SCF's
-    99.9th, 99th, 90th and 50th percentile lines and above $1 million, net worth above each line and in total, and
-    the dollars of each kind of asset (stocks, business equity, real estate, retirement accounts) held above the top
-    lines. The lines are on net worth, held at their full-sample values (all five implicates, as target_list computes
-    them)."""
-    import target_list
-    u = pd.read_parquet(f'{common.DATA}/scf_units_{year}.parquet')
-    x, w = u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)
-    pct = {'99.9th': 0.999, '99th': 0.99, '90th': 0.90, '50th': 0.50}
-    lines = dict(zip(pct, common.wquantile(x, w, list(pct.values()))))
-    u1, rep = scf_replicates(year, u)
-    x1 = u1['net_worth'].to_numpy(float)
-    imp = u['implicate'].to_numpy()
-    assert set(imp) == {1, 2, 3, 4, 5}
+    keys = list(zip(rows['kind'], rows['group'], rows['target']))
+    if any(k not in scf_targets.RESULTS for k in keys):
+        target_list.expand(year)
     out = []
-    for r in rows.itertuples():
-        m = re.fullmatch(r'above the SCF ([\d.]+th) percentile', r.group)
-        line = lines[m.group(1)] if m else 1e6 if r.group == 'above $1 million' else -INF if r.group == 'all' else None
-        assert line is not None, f'wealth target {r.group}: unknown group'
-        v = wealth_variable(r)
-        # the amount added up (net worth, or one kind of asset) and the line's variable (always net worth)
-        y, y1 = target_list.record_value(u, v), target_list.record_value(u1, v)
-        if r.target == 'share of units':
-            stat = lambda xx, yy, ww: (ww * (xx > line)).sum(-1) / ww.sum(-1)
-        else:
-            stat = lambda xx, yy, ww: (ww * yy * (xx > line)).sum(-1)
-        full = float(stat(x, y, w))
-        by_imp = np.array([stat(x[imp == k], y[imp == k], 5 * w[imp == k]) for k in range(1, 6)])
-        reps = stat(x1, y1, rep.T)
-        v_samp = ((reps - reps.mean()) ** 2).sum() / (len(reps) - 1)
-        v_imp = ((by_imp - by_imp.mean()) ** 2).sum() / 4
-        se = float(np.sqrt(v_samp + 1.2 * v_imp))
-        note = '' if abs(full - r.value) <= 1e-9 * max(abs(r.value), 1) else f'; full-sample value {full:,.6g}, not {r.value:,.6g}'
-        out.append((r.Index, se, 'survey_replicate',
-                    f'SCF {year} replicate weights (999, first implicate) and the five implicates: sampling se '
-                    f'{np.sqrt(v_samp):,.4g}, imputation se {np.sqrt(v_imp):,.4g}{note}'))
-    return out
-
-
-GRID_CELLS = []   # one dict per grid target, the SCF sample behind it (for the record)
-
-
-def wealth_grid_errors(rows, year):
-    """The income x net worth grid. Each cell is an income rank group (the seven shared income items,
-    the SCF's own weighted percentiles) crossed with a net worth band between the SCF's percentile lines (above the
-    lower line, at or below the upper one; the rows' line and line_hi). Two statistics: 'share', the share of the
-    income group's units in the band; 'amount', the band's net worth in the income group. The same method as
-    wealth_errors: the 999 replicate weights on the first implicate for the sampling variance, the five implicates
-    for the imputation variance (an implicate's totals on 5 x its weights, as wealth_errors), total = sampling +
-    1.2 x imputation; every line (income and net worth) held at its full-sample value. Also records the SCF sample
-    households behind each cell, in GRID_CELLS."""
-    import target_list as TLS
-    u, _ = TLS.survey_frame('scf', year)
-    x, w = u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)
-    imp = u['implicate'].to_numpy()
-    assert set(imp) == {1, 2, 3, 4, 5}
-    u1, rep = scf_replicates(year, u)
-    first = imp == 1
-    assert np.array_equal(u1['record_id'].to_numpy(), u.loc[first, 'record_id'].to_numpy()), 'implicate 1 out of order'
-    hh = u['household_id'].to_numpy()
-    out = []
-    for r in rows.itertuples():
-        inc = TLS.survey_rank_value('scf', u, r.rank_variable)
-        lo, hi = TLS.rank_dollar_lines(inc, w, r.rank_lo, r.rank_hi)
-        g = (inc >= lo) & (inc < hi)
-        nlo = -np.inf if np.isnan(r.line) else float(r.line)
-        nhi = np.inf if np.isnan(r.line_hi) else float(r.line_hi)
-        band = (x > nlo) & (x <= nhi)
-        cell = g & band
-        if r.statistic == 'share':
-            stat = lambda gg, cc, xx, ww: (ww * cc).sum(-1) / (ww * gg).sum(-1)
-            scale = 1.0
-        elif r.statistic == 'amount':
-            stat = lambda gg, cc, xx, ww: (ww * cc * xx).sum(-1)
-            scale = 5.0
-        else:
-            raise NotImplementedError(r.statistic)
-        full = float(stat(g, cell, x, w))
-        by_imp = np.array([stat(g[imp == k], cell[imp == k], x[imp == k], scale * w[imp == k]) for k in range(1, 6)])
-        reps = stat(g[first], cell[first], x[first], rep.T)
-        v_samp = ((reps - reps.mean()) ** 2).sum() / (len(reps) - 1)
-        v_imp = ((by_imp - by_imp.mean()) ** 2).sum() / 4
-        se = float(np.sqrt(v_samp + 1.2 * v_imp))
-        n_hh = [len(np.unique(hh[cell & (imp == k)])) for k in range(1, 6)]
-        n_any = len(np.unique(hh[cell]))
-        GRID_CELLS.append({'group': r.group, 'statistic': r.statistic, 'value': full, 'se': se,
-                           'se_sampling': float(np.sqrt(v_samp)), 'se_imputation': float(np.sqrt(v_imp)),
-                           'households_any_implicate': n_any, 'households_min_implicate': min(n_hh),
-                           'households_max_implicate': max(n_hh), 'unit_rows': int(cell.sum()),
-                           'households_in_income_group': len(np.unique(hh[g])),
-                           'replicates_with_zero_in_cell': int((reps == 0).sum()),
-                           'income_lo': lo, 'income_hi': hi, 'net_worth_lo': nlo, 'net_worth_hi': nhi})
-        note = '' if abs(full - r.value) <= 1e-9 * max(abs(r.value), 1) else f'; full-sample value {full:,.6g}, not {r.value:,.6g}'
-        out.append((r.Index, se, 'survey_replicate',
-                    f'SCF {year} replicate weights (999, first implicate) and the five implicates: sampling se '
-                    f'{np.sqrt(v_samp):,.4g}, imputation se {np.sqrt(v_imp):,.4g}; income lines {lo:,.0f} to {hi:,.0f}; '
-                    f'net worth lines {nlo:,.0f} to {nhi:,.0f}; sample households in the cell by implicate {n_hh}, in '
-                    f'any implicate {n_any}; households in the income group {len(np.unique(hh[g]))}{note}'))
+    for i, k in zip(rows.index, keys):
+        assert k in scf_targets.RESULTS, f'SCF target {k}: not among the {year} targets'
+        d = scf_targets.RESULTS[k]
+        note = '' if abs(d['value'] - rows.loc[i, 'value']) <= 1e-9 * max(abs(d['value']), 1) else \
+            f'; computed value {d["value"]:,.6g}, not {rows.loc[i, "value"]:,.6g}'
+        out.append((i, d['se'], 'survey_replicate', d['reason'] + note))
     return out
 
 
@@ -617,12 +530,11 @@ def standard_errors(rows, year=Y):
     for a share). A kind this module does not know gets no error (error_kind 'none') and is listed in the summary."""
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']), 'wealth': rows.kind == 'wealth',
-          'consumption': rows.kind == 'consumption', 'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']),
-          'wealth_grid': rows.kind == 'wealth grid'}
-    for name, f in [('soi', soi_errors), ('wealth', wealth_errors), ('consumption', consumption_errors),
-                    ('nonfiler', nonfiler_errors),
-                    ('wealth_grid', wealth_grid_errors)]:
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']),
+          'scf': rows.kind.isin(['wealth', 'wealth grid']), 'consumption': rows.kind == 'consumption',
+          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people'])}
+    for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
+                    ('nonfiler', nonfiler_errors)]:
         if by[name].any():
             for i, se, kind, why in f(rows[by[name]], year):
                 res[i] = (se, kind, why)

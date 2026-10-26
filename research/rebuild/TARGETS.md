@@ -34,17 +34,18 @@ pools them half and half (section 8).
 **3. Each year t: the targets.** Facts about year t, each with a value and a standard error (sections 2, 3, 9):
 - hand-written in the configuration: SOI detail in historical years (AGI brackets with the five top ones separate,
   income items and their composition at the top, business income, ages, dependent filers), SCF wealth at the top
-  and by asset type, an SCF income x net worth grid (tentative, 26 October), CEX consumption, the non-filer count
+  and by asset type, an SCF income x net worth grid (26 October), CEX consumption, the non-filer count
   and non-filer people by age; in future years, macro
   totals and population by age (projected totals may be exact, to match the baseline);
 - optionally built automatically from the start file (*hold_distribution*): each item's share in AGI rank groups,
   so the distribution does not drift.
 A family of targets is kept only if it bears on an output, its source matches the concept, and the file would
-miss it without it (S5).
+miss it without it (S5). The SCF targets are computed on the same mix of SCF waves the start draws its balance
+sheet from (S9).
 
 **4. Each year t: the tilt.** The weights move as little as possible (smallest Kullback-Leibler move) so that every
-target lands within its value ± k standard errors (k = 1 for now, a setting; S6; 0.5 was tested on 26 October and
-waits, see S6). Identities are exact. If the
+target lands within its value ± k standard errors (S6): k = 0.5 for the SCF targets and 1 for every other kind,
+a setting by kind of target (S9). Identities are exact. If the
 ranges cannot all be met, misses beyond them are weighed by their standard errors. Cells resting on too few
 records are flagged, with a stop for the worst (section 5).
 
@@ -52,8 +53,8 @@ records are flagged, with a stop for the worst (section 5).
 not targeted, what the tilt moved, and how far the two models disagree.
 
 **Built, as of 26 October:** steps 1-5 for 2019, with grouped weighting and the AGI group drawn first (S8), the
-SCF's waves mixed by section 7's rule, every dollar amount in target-year dollars before the tilt, ranges and the
-report; the from_year start and hold_distribution are being tested on 2022. **Not built:** the borrowing rule for
+SCF's waves mixed by section 7's rule in the start and in the SCF targets (S9), every dollar amount in target-year
+dollars before the tilt, ranges by kind of target and the report; the from_year start and hold_distribution are being tested on 2022. **Not built:** the borrowing rule for
 the CEX and the CPS (drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial
 Accounts. **Known weakness:** the network's drawn parts often add up to another AGI group than the one it was given
 (about 13% of filer records); the file still has about 1.3 times the PUF's returns at $10 million and over before
@@ -267,7 +268,8 @@ Past the last wave the mix stays fixed. The rule gives the 2019 file 55% of the 
 **Built for the SCF on 26 October:** generation reads the year file's prior ("balance sheet": the 2019 wave
 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20% for 2019), gives each record one wave at random with those
 shares, draws its balance sheet at that wave's year and turns it into dollars with that wave's own records, grown
-per tax unit to the target year's wave item by item (`FEATURES.md`). The shares are written in the year file by
+per tax unit to the target year's wave item by item (`FEATURES.md`). The SCF targets are computed on the same
+waves with the same shares (S9). The shares are written in the year file by
 hand from the rule; the code does not compute them. The CEX and CPS are still drawn at one fixed year (2019). This
 is ROADMAP item 3.
 
@@ -469,10 +471,13 @@ itself, with the cell's weight after the tilt. So noisy targets barely bind (cap
 million, standard error 82%, range $25-249 million) and precise ones stay nearly exact (returns at AGI $50-75k:
 22.24 million ± 113,000). The width multiplier is a setting.
 
-**Half a standard error, tested 26 October (tentative, not on).** `explore/2026-10-26/scf/07_grid_growth`: at 0.5
+**Half a standard error, tested 26 October.** `explore/2026-10-26/scf/07_grid_growth`: at 0.5 for every target,
 every target was met, but the effective sample kept fell from 98% to 11%, through one generated non-filer couple
-whose spouse was coded aged 16 (counted as a child in the non-filer targets; its weight rose 2,416 times). A spouse
-must now be 18 or over at generation (26 October). The setting stays at 1 until John decides.
+whose spouse was coded aged 16 (counted as a child in the non-filer targets; its weight rose 2,416 times). A spouse,
+and a non-filer unit's head, must now be 18 or over at generation (26 October). With that fixed
+(`explore/2026-10-26/scf/09_pooled_targets`, run P1), 0.5 for every target still left 23 targets unmet (non-filer
+people bands against CEX food and health averages) and kept 31% of the effective sample. Since 26 October the
+range is set by kind of target: 0.5 for the SCF targets, 1 for the rest (S9).
 
 ### S7. One algorithm for every year, with the start as a parameter (agreed 25 October)
 
@@ -518,3 +523,40 @@ Redrawing them until they agree was tried and not kept: it fixed the top counts 
 the middle.
 
 **Training settings with it:** batches of 512 records, 80 passes, bfloat16, a network of width 128 and 4 layers.
+
+### S9. SCF targets from the year's mix of waves, held to half a standard error (agreed 26 October)
+
+Tested in `explore/2026-10-26/scf/09_pooled_targets` (run P3, approved by John); in the pipeline since 26 October
+(`pipeline/scf_targets.py`; tested in `explore/2026-10-26/port2`).
+
+**The SCF targets come from the same waves as the file's balance sheet.** Every SCF target (the 22 wealth targets
+and the 22 grid targets) is computed on the year's mix of SCF waves, the year file's prior "balance sheet" (section
+7; 2019: the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%). Before, they came from the target
+year's wave alone, while the file drew its balance sheet from all three.
+- **Dollars.** Each wave's balance sheet is grown per tax unit to the target year's wave, item by item, by the
+  factors the dollar maps use, so the targets and the file share one dollar concept. Each wave's weights are
+  scaled to the target year's wave's number of units (162.76 million in 2019): dollars per unit carry over, and
+  the file's number of units is set by SOI and the non-filer count.
+- **Lines.** Each wave keeps its own: its income groups by its own percentiles of the seven income items (each in
+  its own income year's dollars), its net worth lines at its own percentiles. A cell's value is computed within
+  each wave. The file gets one dollar line per net worth percentile, the share-weighted average of the waves'
+  lines.
+- **Value and error.** Value = sum over waves of share x the wave's value. The waves are independent samples, so
+  variance = sum over waves of share² x the wave's variance, each from its own 999 replicate weights and five
+  implicates. Standard errors fall to about 0.65 of one wave's.
+- **The values move little.** 36 of the 44 targets moved by less than half of the old standard error. The largest
+  move: net worth with both income and net worth below p90, $16.61 to $17.32 trillion (+2.2 old standard errors),
+  from the 2022 wave.
+
+**Ranges by kind of target.** The SCF targets are met within ± 0.5 standard errors, every other kind within ± 1
+(settings `tilt.range_in_se_by_kind`). Half a standard error for every target leaves 23 non-SCF targets unmet and
+31% of the effective sample (S6); for the SCF targets alone, every target is met and 97.75% of the effective sample
+is kept (09's P3), against 97.9% with every range at 1. The narrower SCF ranges keep more net worth at the top
+of income: $9.91 trillion with units at p99.9+ of income (pooled SCF: $10.38 trillion), against $9.35 trillion
+with every range at 1. The pipeline's own test (`port2`, other trained models) gives the same picture: every
+target met, 98.0% kept, $10.15 trillion at p99.9+ of income, 3.5% of the top 0.1% by wealth with income below p90
+(pooled SCF: 2.8%).
+
+**Settings:** `tilt.scf_target_waves` "prior" (the year's mix; "target year" gives the single-wave targets of
+before, for checks), `tilt.range_in_se_by_kind` {wealth: 0.5, wealth grid: 0.5}, `tilt.range_in_se` 1. The
+replicate weights of every wave in the mix sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to fetch them).

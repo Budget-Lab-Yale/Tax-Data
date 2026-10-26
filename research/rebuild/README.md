@@ -45,7 +45,8 @@ age ranges, wage groups), `model.py` (the network, and every call of it),
 `fillin.py` (the two-slot fill-in, run by training), `qgroups.py` (grouped
 weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (the primary filer's age range, used by the table),
 `tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
-targets from `targets_config/`), `errors.py` (their standard errors),
+targets from `targets_config/`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
+mix of SCF waves), `errors.py` (their standard errors),
 `solver.py` (the reweighting).
 Every setting is in one settings file: `settings.json`, or the file named by
 `REBUILD_SETTINGS` (every stage, R and Python, reads it; a variant run is a
