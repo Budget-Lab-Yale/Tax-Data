@@ -99,14 +99,17 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    - Adopted 26 October (TARGETS.md S8): grouped weighting, the AGI group
      label always shown, batches of 512, bfloat16. Left: about 13% of filer
      records still have parts adding up to another AGI group than their
-     label; AGI at or below zero comes out 1.5 times the PUF's.
+     label; AGI at or below zero comes out 1.4 times the PUF's, and the
+     network draws too little wealth for top earners below the top wealth
+     line (`HISTORY.md`, 25–26 October, open items).
    - The model's answers do not fit one joint distribution exactly, which
      costs a few percent of rare holders.
    - Training speed, before the table grows with more surveys:
      `PERFORMANCE.md`. Measured and partly done 22 October (packing, batched
      output layers, faster generation; bfloat16 switched on 26 October);
      left: the B200 question, fewer passes over a larger table. Batches of
-     512 make training about four times slower (an hour per model).
+     512 make training about twice as slow as 4,096 on the same card (an
+     hour per model on an H100).
 7. **Real PUF records or synthetic ones** for the PUF's own variables.
    - On 19 October the real 2015 PUF cost no more to reweight to 2019
      than a synthetic file, and it kept the business-income patterns no

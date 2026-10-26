@@ -60,7 +60,7 @@
   },
   "_q_groups": "Grouped weighting (qgroups.py, 26 October): each training record counts by its survey weight times q = records / weight within its group, the groups from bands: 12 band-AGI groups on the PUF (agi12), 5 band-income classes per wave on the SCF (income5); q = 1 on the CEX and CPS. null: q = 1 everywhere.",
   "label_always_shown": true,
-  "_label_always_shown": "On PUF rows the AGI group label is never hidden in training and never scored (train.py), as generation always presets it (explore/2026-10-26/overnight/experiments/21_label_shown: $10M+ returns 3.3 times the PUF's with the label hidden half the time, 1.2 times with it always shown).",
+  "_label_always_shown": "On PUF rows the AGI group label is never hidden in training and never scored (train.py), as generation always presets it (TARGETS.md S8: $10M+ returns 3.3 times the PUF's with the label hidden half the time, 1.2 times with it always shown).",
   "fillin_puf_side": "data",
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
@@ -952,7 +952,7 @@
   "primary_rule_salt": 20261021
  },
  "generation": {
-  "_what": "The filer batch and the non-filer batch (generate.py says how). design: 'label' (26 October), the AGI group label preset on every filer record and everything else drawn given it. The designs of before (the strata of TARGETS.md S4, the four top-1% parts, the unstratified draw, the oversampling by rough AGI) are gone; they are in git history.",
+  "_what": "The filer batch and the non-filer batch (generate.py says how). design: 'label' (26 October), the AGI group label preset on every filer record and everything else drawn given it.",
   "design": "label",
   "label_records": 400000,
   "label_seed": 61,
@@ -1041,14 +1041,14 @@
   "prescale": "demographic",
   "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
   "range_in_se": 1.0,
-  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. The number for every kind of target not in range_in_se_by_kind, and for the demographic prescaling. Half a standard error for every target was tested on 26 October (explore/2026-10-26/scf/09_pooled_targets, run P1): 23 targets (non-filer people bands against CEX food and health averages) could not all be met and the effective sample kept fell to 31%.",
+  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. The number for every kind of target not in range_in_se_by_kind, and for the demographic prescaling. Half a standard error for every target was tested on 26 October (TARGETS.md S6): 23 targets (non-filer people bands against CEX food and health averages) could not all be met and the effective sample kept fell to 31%.",
   "range_in_se_by_kind": {
    "wealth": 0.5,
    "wealth grid": 0.5
   },
-  "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October; explore/2026-10-26/scf/09_pooled_targets, run P3): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before.",
+  "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before.",
   "scf_target_waves": "prior",
-  "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, the single-wave targets of before 26 October (for checks)."
+  "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks."
  },
  "errors": {
   "_what": "Standard errors (errors.py, TARGETS.md section 9). Every setting here is optional, with the default given; none is set today.",

@@ -16,7 +16,7 @@ to 675,000 rows, 86 slots); reports under
 | packing: a batch holds one source and only its slots (`packing/`) | 8.5 | 5.7 GB | same answers to rounding; trained results within seed noise | yes |
 | and the output layers in one batched multiplication (`precision/`) | 7.8 | 5.8 GB | same answers | yes |
 | and TF32 for the training steps (`precision/`) | 6.5 | 5.8 GB | within seed noise | setting, off |
-| and bfloat16 instead (`precision/`) | 5.4 | 5.6 GB | within seed noise, on every measure checked | setting, off |
+| and bfloat16 instead (`precision/`) | 5.4 | 5.6 GB | within seed noise, on every measure checked | setting, on since 26 October |
 | table stored as 8-bit integers (`benchmark/`) | no change | table 364 MB → 45 MB | | no: matters only at tens of millions of rows |
 | batch of 16,384 records (`benchmark/`) | −5% | 36 GB | | no |
 
@@ -116,8 +116,10 @@ problem.
 
 ## 3. Precision
 
-Today everything is standard 32-bit floating point (about 7 significant
-digits); `train.py` turns on no reduced precision.
+Written before the measurements above; since 26 October training runs in
+bfloat16 (settings training.precision). Before then everything was standard
+32-bit floating point (about 7 significant
+digits).
 
 | Option | What it is | Tradeoff |
 |---|---|---|
@@ -137,8 +139,13 @@ overhead around each step; unmeasured.
 
 ## 4. Fewer passes over a larger table
 
-A pass shows the model every training record once: today about 120 weight
-updates (batches of 4,096), so 80 passes are about 9,600 updates. What the
+A pass shows the model every training record once. With batches of 4,096
+(until 26 October) a pass was about 224 weight updates; with batches of
+512 (since then) about 1,790, so 80 passes are about 143,000 updates.
+The tests of 25–26 October (`HISTORY.md`) bear on this: on the real model,
+320 passes at batch 4,096 helped the top of the file, 640 added nothing,
+and batch 512 at 80 passes helped less than 320 passes did, so passes over
+the data mattered more than the number of updates. What the
 model gains depends on the number of updates and how much distinct data
 they see, not on passes as such. With ten times the rows, 8–10 passes give
 as many updates as today, on data seen less often, which usually

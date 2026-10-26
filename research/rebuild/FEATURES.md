@@ -23,9 +23,10 @@ hours worked, and childcare, weighted to 2019 targets.
   `pipeline/targets_config/`, each with a standard error, and are met within
   ranges: half a standard error for the SCF targets, which come from the same
   mix of waves as the balance sheet, and one for the rest (`TARGETS.md` S9).
-- **Since when.** This is latest since 26 October (until then: the strata of
-  25 October, `TARGETS.md` S4). The code is in `pipeline/`; every setting is
-  in `pipeline/settings.json`.
+- **Since when.** This is latest since 26 October (commits 157b9e9 and
+  5441ad6). Until then: the strata of 25 October (`TARGETS.md` S4), now in
+  `previous_2026-10-25_strata/` of the output folder. The code is in
+  `pipeline/`; every setting is in `pipeline/settings.json`.
 
 ## Data
 
@@ -427,7 +428,7 @@ Two standard functions and one table (`settings.json`, "translation";
   record's variables from the rest. So one network answers every question
   of the form "this variable, given those".
 - **Weights: grouped weighting** (`qgroups.py`; settings "training",
-  q_groups; since 26 October, `explore/2026-10-25/q_build`). Each record
+  q_groups; since 26 October, TARGETS.md S8). Each record
   counts by its survey weight times q, where q = records ÷ survey weight
   within the record's group. Within a group records count by weight as
   before; across groups they count by number. Each source's share of
@@ -456,7 +457,7 @@ Two standard functions and one table (`settings.json`, "translation";
 - **The AGI group label** (settings training.label_always_shown). Each PUF
   record carries its band-AGI group as a category. In training the label is
   never hidden on PUF rows and never scored, because generation always sets
-  it (`explore/2026-10-26/overnight/experiments/21_label_shown`: with the
+  it (TARGETS.md S8: with the
   label hidden half the time, as any other slot, the file had 3.3 times the
   PUF's $10 million-and-over returns; always shown, 1.2 times). The other
   slots are hidden exactly as before. One consequence: the network is never
@@ -466,8 +467,8 @@ Two standard functions and one table (`settings.json`, "translation";
 - **Training.** 80 passes in batches of 512 records (4,096 until 26 October:
   a batch one eighth as large lowered the share of records whose drawn parts
   add up to another AGI group from 15% to 13% and brought the middle of the
-  income distribution closer, at about four times the training time:
-  `explore/2026-10-26/overnight/experiments/23_label_small_batch`), all
+  income distribution closer, at about twice the training time on the same
+  card; HISTORY.md, 25–26 October), all
   records but a 2% held-back slice. About an hour per model on an H100. Peak
   learning rate 0.003: in a sweep of 0.001 to 0.01 (two or three seeds
   each, 21 October), it brought the top income group's net worth before
@@ -554,24 +555,19 @@ no rule touches are scaled down. The last run is kept; `gen/<run>/
 consistency.csv` reports, per run and holding, the model's own expected
 holders, the holders with the rules, and the factors.
 
-**The filer batch: the AGI group first** (settings `generation.design` "label"; since 26 October,
-`explore/2026-10-25/q_build`, STATUS_LABEL.md). 400,000 filer records (`label_records`) are split across the 12
+**The filer batch: the AGI group first** (settings `generation.design` "label"; since 26 October, TARGETS.md
+S8). 400,000 filer records (`label_records`) are split across the 12
 band-AGI groups in proportion to the PUF's records per group: about 18,400 at p99.99 and over, 30,500 at
 p99.9-99.99, 102,000 below p50. Each record starts with its group set; everything else is drawn given it. Its weight
 is the group's 2015 returns over the records drawn in it, 1 ÷ q of the group, which undoes training's grouped
 weighting exactly. Every drawn record is kept.
 - **The label is checked, not trusted.** Each record's band-AGI group is computed from its drawn bands and compared
   with its label (`gen/<run>/label_check.csv`, and the stack's columns q_group and label_ok); the weight follows
-  the label. In the scratch run about 13% of filer records had parts adding to another group (`23_label_small_batch`).
-  A version that redrew such records until they agreed was tried and is not kept: it brought the $10 million-and-over
-  returns to the PUF's (17,600 against 18,000) but thinned business income in the middle (partnership holders below
-  p90 2.1 to 2.3 million against the PUF's 2.8 million).
-- **Removed on 26 October** (in git history): the strata of 25 October (TARGETS.md S4: the AGI class x business
-  flag labels, the net worth class label and its boost, `generation.design` "strata", `build_table.py labels` and
-  settings `strata_labels`), the four top-1% parts ("top_parts"), the oversampling by rough AGI
-  (`agi_oversampling`) and the unstratified design.
+  the label. In the latest run 13.6% of filer records had parts adding to another group.
+  Redrawing such records until they agree was tried and not kept: it thins business income in the middle
+  (`HISTORY.md`, 25–26 October).
 
-**The SCF waves** (TARGETS.md section 7; since 26 October, `explore/2026-10-26/scf/04_wave_mix`). Each record,
+**The SCF waves** (TARGETS.md section 7; since 26 October). Each record,
 filers and non-filers alike, is given one SCF wave at random with the shares in the year's configuration
 (`targets_config/years/2019.yaml`, prior, "balance sheet": the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016
 wave 12.20%, by the rule of 24 October), by a random generator of its own (`generation.scf_wave_seed`), so no other
@@ -592,17 +588,15 @@ is found per model.
 
 **Dollars.** Every dollar amount is put in 2019 dollars before the tilt, item
 by item. The PUF's: each band's real 2015 values, grown to 2019 by SOI's growth
-in dollars per return holding each item. The balance sheet (since 26 October,
-`explore/2026-10-26/scf/07_grid_growth`): each band's real values from the
+in dollars per return holding each item. The balance sheet (since 26 October):
+each band's real values from the
 record's own SCF wave, grown per tax unit to the 2019 wave item by item: the
 2019 wave's weighted mean of the item per unit over the drawing wave's, each in
 its own dollars (`build_table.scf_growth`; `data/maps/scf_growth_factors.csv`).
 For the 2022 wave stocks grow by 0.641, homes by 0.704, cash by 0.709; for the
 2016 wave by 1.058, 1.166 and 1.110. The mortgage is drawn as a share of the
-home's value, so it moves with the home. This replaced the asset price factors
-(one per wave), which left the 2022 wave's net worth per unit 24% above the 2019
-wave's ($738,000 against $593,600; grown per unit, $602,600). It carries only
-each wave's mean: the shape of a wave's distribution is not changed. The
+home's value, so it moves with the home. The growth carries only each wave's
+mean: the shape of a wave's distribution is not changed. The
 start from an earlier year's file (`from_year`) grows the balance sheet by the
 same rule. Consumption: each
 band's real CEX 2019 values, with no growth. The CPS's items: each band's
@@ -628,8 +622,8 @@ targets (`tilt.range_in_se_by_kind`: wealth and wealth grid) and 1 for every oth
 ranges cannot all be met, a miss beyond a range costs (miss ÷ standard error)². A range on an average is measured on
 the average itself, with the cell's weight after the tilt. Cells resting on too few effective records, or on a
 record moved too far, are flagged as warnings or stops (section 5).
-- **Why half a standard error only for the SCF.** At 0.5 for every target (`explore/2026-10-26/scf/09_pooled_targets`,
-  run P1) 23 targets could not be met, the non-filer people bands against the CEX food and health averages, and the
+- **Why half a standard error only for the SCF.** At 0.5 for every target (run P1, `HISTORY.md` 25–26 October)
+  23 targets could not be met, the non-filer people bands against the CEX food and health averages, and the
   effective sample kept fell to 31%. At 0.5 for the SCF targets alone (run P3, approved by John) every target is met
   and 97.75% is kept; the file keeps more net worth at the top of income than with every range at 1 ($9.91
   against $9.35 trillion with units at p99.9+ of income; pooled SCF $10.38 trillion).
@@ -657,8 +651,7 @@ The 2019 targets (496):
 | SCF income x net worth grid, the same waves pooled (below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | CEX 2019 consumption: 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
 
-**The income x net worth grid** (since 26 October, `explore/2026-10-26/scf/07_grid_growth`, approved with 09's
-P3; historical.yaml, wealth_grid_shares and wealth_grid_dollars; scf_targets.py). Four income groups by the seven income items the SCF and the file share (wages, interest,
+**The income x net worth grid** (since 26 October, approved with run P3; historical.yaml, wealth_grid_shares and wealth_grid_dollars; scf_targets.py). Four income groups by the seven income items the SCF and the file share (wages, interest,
 dividends, capital gains, gross retirement income, Schedules C and F, Schedule E): below p90, p90-99, p99-99.9 and
 p99.9 and over, each side by its own weighted percentiles (the file's lines set on its starting weights, then held
 fixed in dollars through the tilt). Four net worth classes between the SCF's dollar lines at p90, p99 and p99.9
@@ -667,28 +660,28 @@ $38.66 million). In each cell the share of the income group's units in the class
 minus the others) and the class's net worth. A cell resting on fewer than 10 households of the 2019 wave is merged
 into the next richer class of its income group (three cells; kept after pooling, which roughly triples each cell's
 households). Without the grid the tilt left $6.7 trillion with units at p99.9+ of income against the SCF's $10.6
-trillion, and 12% of the top 0.1% by wealth had income below p90 (SCF: 3.9%); with it, $9.0 trillion and 6.3% (07,
-one standard error, single-wave targets).
+trillion, and 12% of the top 0.1% by wealth had income below p90 (SCF: 3.9%); with it, $9.0 trillion and 6.3% (26 October,
+ranges of one standard error, targets from the 2019 wave alone; `HISTORY.md`).
 
 Counts by kind as in `tilt/<run>/targets.csv`.
 `hold_distribution` (optional, S7) adds each item's share in AGI rank groups of the start file as targets.
 `report_tilt.py` writes the run report (section 14).
 
-The 26 October test run (below): all 496 targets inside their ranges (the 44 SCF targets at half a standard error);
+The latest run (below): all 496 targets inside their ranges (the 44 SCF targets at half a standard error);
 effective sample kept 98.0% from the prescaled start; 49 warnings and 33 stops.
 
 ## How the latest run comes out
 
-The 2019 test run of 26 October, from the pipeline as it now stands (output in
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-26/port2/out`: models `label_seed20261016` and
-`label_seed20261017`, trained on L40S cards in `explore/2026-10-26/port`; stack `gen19`, drawn on an A40 card, with
-400,000 filer records and 54,379 non-filer records; file `tilt/p3_final`). Its `summary.md` and `report.md` have the
-full tables; `port2/STATUS.md` compares it with 09's P3. Counts in millions, nominal 2019 dollars unless said.
+The 2019 run of 26 October, from the pipeline as it now stands, in the default output folder
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` at the default settings: models `model/label_seed20261016` and
+`model/label_seed20261017` (trained on L40S cards); the stack `gen/seed20261016` (drawn on an A40 card, with
+400,000 filer records and 54,379 non-filer records); the file `tilt/seed20261016`. Its `summary.md` and `report.md`
+have the full tables. Counts in millions, nominal 2019 dollars unless said.
 
 | | File | Reference |
 |---|---:|---:|
 | targets inside their ranges (SCF 0.5, the rest 1 standard error) | 496 of 496 (345 at an edge) | |
-| effective sample kept, from the prescaled start | 98.0% | 09 P3: 97.75% |
+| effective sample kept, from the prescaled start | 98.0% | run P3 (other models): 97.75% |
 | effective sample kept, from the start before the prescaling | 97.7% | |
 | weight factor, 1st and 99th percentiles | 0.32, 1.99 | |
 | thin cells: warnings, stops | 49, 33 | |

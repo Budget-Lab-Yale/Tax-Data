@@ -58,7 +58,7 @@ Data, downloaded once (public; to scratch, never to the shared raw-data folder; 
                           curl -sSLO https://www.federalreserve.gov/econres/files/scf2019rw1s.zip; unzip scf2019rw1s.zip
                           (and scf2016rw1s.zip, scf2022rw1s.zip). Check that unzip succeeds: one download of the
                           2022 file was cut short (26 October 2026). The 2016 and 2022 files were fetched on 26
-                          October 2026 (explore/2026-10-26/scf/09_pooled_targets); sha256 of the .dta files:
+                          October 2026 from the Federal Reserve; sha256 of the .dta files:
                           p16_rw1.dta 936201623d499a61d39461c5383f1b62fee9411f0d208c719298952e3b56ab0e,
                           p19_rw1.dta 0cfe01b806045c0fc3abe8b4902804ee05dda47da490c05397b1101f6e221739,
                           p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2.

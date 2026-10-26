@@ -102,7 +102,7 @@ drawn record is kept. The label is checked, not trusted: each record's band-AGI 
 model and group (label_check.csv) and kept in the stack (q_group, label_ok). It is only reported: the weight follows
 the label.
 
-The non-filer batch is one part with no oversampling (stratifier "nonfiler"), every weight 1.
+The non-filer batch is one part (stratifier "nonfiler"), every weight 1.
 Its number of records (settings "generation", nonfiler_records; null: in proportion) is the filer batch's records
 times the CPS's expected non-filers in the target year (the sum of weight x (1 - filer_p)) over SOI's returns for
 that year, so the stack's weights carry the two batches in their real proportion (the tilt sets their levels).
@@ -194,8 +194,7 @@ MARS, MARRIED, AGE_RANGE = P.index('mars'), P.index('married'), P.index('age_ran
 MODELS = G.get('models', [{'run': 'seed20261016', 'seed_shift': 0}, {'run': 'seed20261017', 'seed_shift': 1000}])
 ID_BLOCK = 10_000_000                       # model k's record ids start at k x ID_BLOCK
 # The filer batch's design (settings "generation", design; see the top): 'label', the AGI group preset on every
-# record. The designs of before 26 October (the strata of TARGETS.md S4, the four top-1% parts, the unstratified
-# draw) are gone; they are in git history.
+# record.
 DESIGN = G['design']
 assert DESIGN == 'label', f'generation design {DESIGN!r}: only "label" is built'
 LABEL = 'agi_group'

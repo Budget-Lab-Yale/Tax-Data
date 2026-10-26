@@ -174,7 +174,7 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable}'}
 
-  # The income x net worth grid (26 October: explore/2026-10-26/scf/07_grid_growth, approved with 09's P3). Four income groups
+  # The income x net worth grid (26 October; TARGETS.md S9, HISTORY.md). Four income groups
   # (below p90, p90-99, p99-99.9, p99.9+ of the seven shared income items, each side's own percentiles) by four net worth classes (below the SCF's p90 line,
   # p90-99, p99-99.9, above p99.9, the SCF's dollar lines). In each cell: the share of the income group's units in
   # the net worth class (the count of units, stated within the income group, whose size is fixed by rank on both

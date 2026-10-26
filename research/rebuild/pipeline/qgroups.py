@@ -1,4 +1,4 @@
-"""Grouped weighting (q) and the AGI group label (agreed 26 October; tested in explore/2026-10-25/q_build).
+"""Grouped weighting (q) and the AGI group label (agreed 26 October: TARGETS.md S8; the tests are in HISTORY.md).
 
 Training counts each record by its survey weight times q, q constant within a group:
   q = (records in the group) / (total survey weight in the group).

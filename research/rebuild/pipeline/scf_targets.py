@@ -3,8 +3,7 @@
 Every SCF target (kind 'wealth' and 'wealth grid' in targets_config/) is computed on the same waves, with the same
 shares, as the generated file draws its balance sheet from: the year file's prior, "balance sheet" (2019: the 2019
 wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%). Settings tilt.scf_target_waves: "prior" (the default)
-uses that mix; "target year" uses the target year's wave alone, which gives the single-wave targets of before 26
-October (checked against them, explore/2026-10-26/port2).
+uses that mix; "target year" uses the target year's wave alone, for checks.
 
 Each wave, on its own:
   - its units are its rows of the training table (source scf, the wave's income year, all five implicates);

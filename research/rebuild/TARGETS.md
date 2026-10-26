@@ -57,8 +57,8 @@ SCF's waves mixed by section 7's rule in the start and in the SCF targets (S9), 
 dollars before the tilt, ranges by kind of target and the report; the from_year start and hold_distribution are being tested on 2022. **Not built:** the borrowing rule for
 the CEX and the CPS (drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial
 Accounts. **Known weakness:** the network's drawn parts often add up to another AGI group than the one it was given
-(about 13% of filer records); the file still has about 1.3 times the PUF's returns at $10 million and over before
-the tilt, and 1.5 times its returns with AGI at or below zero.
+(about 13% of filer records); the file still has about 1.4 times the PUF's returns at $10 million and over before
+the tilt, and 1.4 times its returns with AGI at or below zero (the latest run, `FEATURES.md`).
 
 ## 1. What post-training is for (agreed 24 October)
 
@@ -239,9 +239,10 @@ Also considered and set aside on 24 October:
 Two things to do, from the memo:
 1. **Oversample by rough AGI before the tilt.** Draw the income items for many records and compute each record's
    partial AGI. Keep every record above a line (say $1 million) and a fraction of the rest, then finish the kept
-   records. Each record's weight undoes the thinning exactly. This generalizes today's boost, which oversamples the
-   top 1% of one variable at a time. Example: the file would go from about 120 records above $10 million of AGI to
-   about 1,200, and the tilt does not change.
+   records. Each record's weight undoes the thinning exactly. This generalizes the boost of the time, which
+   oversampled the top 1% of one variable at a time. Example: the file would go from about 120 records above $10
+   million of AGI to about 1,200, and the tilt does not change. **Built 24 October, then replaced on 26 October**
+   by the AGI group drawn first (S8), which sets the number of records in each AGI group directly.
 2. **Test whether the year input carries survey change into the prior.** The surveys cover many years and the PUF
    only 2015. Generate the PUF filer batch with the year input at 2019 instead of 2015 and compare both, before any
    tilt, with SOI's 2019 targets and with untargeted statistics. If the 2019 setting moves holdings and the joint
@@ -471,11 +472,11 @@ itself, with the cell's weight after the tilt. So noisy targets barely bind (cap
 million, standard error 82%, range $25-249 million) and precise ones stay nearly exact (returns at AGI $50-75k:
 22.24 million ± 113,000). The width multiplier is a setting.
 
-**Half a standard error, tested 26 October.** `explore/2026-10-26/scf/07_grid_growth`: at 0.5 for every target,
+**Half a standard error, tested 26 October** (`HISTORY.md`, 25–26 October). At 0.5 for every target,
 every target was met, but the effective sample kept fell from 98% to 11%, through one generated non-filer couple
 whose spouse was coded aged 16 (counted as a child in the non-filer targets; its weight rose 2,416 times). A spouse,
 and a non-filer unit's head, must now be 18 or over at generation (26 October). With that fixed
-(`explore/2026-10-26/scf/09_pooled_targets`, run P1), 0.5 for every target still left 23 targets unmet (non-filer
+(run P1), 0.5 for every target still left 23 targets unmet (non-filer
 people bands against CEX food and health averages) and kept 31% of the effective sample. Since 26 October the
 range is set by kind of target: 0.5 for the SCF targets, 1 for the rest (S9).
 
@@ -504,7 +505,7 @@ Projected totals in future years may be identities, so the file matches the base
 
 ### S8. Grouped weighting and the AGI group drawn first (agreed 26 October; replaces S4)
 
-Tested in `explore/2026-10-25/q_build` (q_band, q_label) and `explore/2026-10-26/overnight/experiments` (21, 23).
+Tested 25–26 October; the record is in `HISTORY.md` (the scratch folders were deleted on 26 October).
 
 **Training counts the top as much as the middle.** Each training record counts by its survey weight times q, with
 q = records ÷ survey weight within its group: 12 groups by AGI on the PUF, 5 income classes per wave on the SCF, q = 1
@@ -526,8 +527,8 @@ the middle.
 
 ### S9. SCF targets from the year's mix of waves, held to half a standard error (agreed 26 October)
 
-Tested in `explore/2026-10-26/scf/09_pooled_targets` (run P3, approved by John); in the pipeline since 26 October
-(`pipeline/scf_targets.py`; tested in `explore/2026-10-26/port2`).
+Tested 26 October (run P3, approved by John; `HISTORY.md`); in the pipeline since 26 October
+(`pipeline/scf_targets.py`, commit 5441ad6).
 
 **The SCF targets come from the same waves as the file's balance sheet.** Every SCF target (the 22 wealth targets
 and the 22 grid targets) is computed on the year's mix of SCF waves, the year file's prior "balance sheet" (section
@@ -551,9 +552,9 @@ year's wave alone, while the file drew its balance sheet from all three.
 **Ranges by kind of target.** The SCF targets are met within ± 0.5 standard errors, every other kind within ± 1
 (settings `tilt.range_in_se_by_kind`). Half a standard error for every target leaves 23 non-SCF targets unmet and
 31% of the effective sample (S6); for the SCF targets alone, every target is met and 97.75% of the effective sample
-is kept (09's P3), against 97.9% with every range at 1. The narrower SCF ranges keep more net worth at the top
+is kept (run P3), against 97.9% with every range at 1. The narrower SCF ranges keep more net worth at the top
 of income: $9.91 trillion with units at p99.9+ of income (pooled SCF: $10.38 trillion), against $9.35 trillion
-with every range at 1. The pipeline's own test (`port2`, other trained models) gives the same picture: every
+with every range at 1. The pipeline's own test (the latest run, other trained models) gives the same picture: every
 target met, 98.0% kept, $10.15 trillion at p99.9+ of income, 3.5% of the top 0.1% by wealth with income below p90
 (pooled SCF: 2.8%).
 

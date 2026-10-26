@@ -354,7 +354,7 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
   target exact. That run became latest on 24 October.
 
 **24–25 October: targets rederived** (`TARGETS.md`; builds in
-`explore/2026-10-24/build/` and `explore/2026-10-25/strata_build/`).
+`explore/2026-10-24/build/`; the 25 October build's folder was deleted on 26 October).
 - The principles were worked out with John one question at a time and
   written in `TARGETS.md`, which opens with the process on one page.
 - A configuration of targets (`targets_config/`, `target_list.py`) with a
@@ -374,18 +374,244 @@ DC accounts now fall from 65–69 to 80+ about as in the SCF; DB balances at
   year's file carried forward, with optional targets that hold the
   distribution. 2022 carried from 2019 matched SOI's untargeted bracket
   detail within 3% for returns and wages, not for gains or interest.
-- The combined 2019 run (`tilt/strata_full2019`): all 474 targets within
+- The combined 2019 run (`previous_2026-10-25_strata/tilt/strata_full2019`): all 474 targets within
   range, 99.9% of the effective sample kept, 33 thin-cell stops at the top.
 
 **25 October: cleanup.** The code, settings and documents were brought in line
 with the system above, with no change in what it does (the 2019 tilt
-reproduces `tilt/strata_full2019`). Removed: tilt.py's old target builders
+reproduces `strata_full2019`). Removed: tilt.py's old target builders
 and solver (replaced by `targets_config/`, `target_list.py` and
 `solver.py`), the settings only they read (the wealth and fallback
 tolerances, the consumption band, the age level, the business AGI groups,
 the bracket rule) and the unused CPS separate-returns switch. FEATURES.md's
 figures for the runs of 20–24 October are in its git history (commit
 bc72cc7).
+
+### 25–26 October: the top of the network, and SCF wealth on the wrong incomes
+
+The scratch record of these two days was deleted on 26 October; what is worth
+keeping is here. The code is in commits 157b9e9 (grouped weighting, group-first
+generation, the label always shown, batch 512, the wave mix, growth per tax
+unit, the income × wealth grid, two age rules) and 5441ad6 (pooled SCF targets,
+ranges by kind of target); the decisions are `TARGETS.md` S8 and S9. Two pages
+keep the tables: the overnight review
+(https://claude.ai/artifact/DRp9vSS2BCYBis7Ejz1XMx) and the 2019 comparison
+page, which shows run P3 below (https://claude.ai/artifact/3m7FrTpMnvY8zWegcaFf9C).
+Unless said, PUF comparisons are 2015 filers in 2015 dollars, two trained seeds
+shown as "a / b".
+
+**The problem: the network underfit the top, and the tilt hid it.** The strata
+run of 25 October met all 474 targets, but underneath:
+- 200,000 filers drawn with nothing preset held 22 records with AGI of $10M+
+  (the PUF: 9,739 records). A record drawn with the label "top 0.01%" had parts
+  adding up to a lower AGI 73–80% of the time (the PUF's own records, through
+  the same band-to-dollar step: 16%). Partnership and S corporation income at
+  $10M+: $22bn against the PUF's $80bn.
+- In the 2019 file the top 0.1% by income held $39.5M of net worth on average
+  (SCF $65.6M), and 21% of the wealthiest 0.1% had income below p90 (SCF 4%).
+
+**Two causes.**
+- **Weights that differ 10–100 times between groups.** Training counted each
+  record by its survey weight. A PUF record stands for about 1,400 returns
+  below p50, 22 at p99.5–99.9 and 1.6 at p99.99+, so records at p99 and above
+  were 29% of the records and about 1% of what the network was fitted to. The
+  SCF is the same: its wealthiest 0.1% are 5% of rows and 0.1% of weight.
+- **The training loss barely charges small chances.** A 0.1% chance that a
+  below-p50 record has a $10M item costs almost nothing in the loss. At
+  generation that record carries 1,400 returns, so the small chance becomes
+  many top returns. Cutting every band with a chance under 0.1% at generation
+  removed only 0.3–1.0% of each draw's chance, yet halved the $10M+ returns
+  (52.6k / 66.0k to 23.4k / 28.6k; PUF 18.0k). Only 20% of the returns landing
+  at p99.99+ had been drawn for that group.
+
+**Not the fix: size, precision, drawing order.** Twenty models (width × layers
+from 128 × 4 to 512 × 8, 32-bit and bfloat16, two seeds):
+- bfloat16 matched 32-bit within seed noise and was a third faster (adopted);
+- a wider or deeper network lowered the PUF's held-back error at p99.99+ only
+  from 2.12 to 2.10, and began to memorise the SCF (held-back SCF error 1.12
+  rising to 1.17–1.20); 512 × 8 was worse everywhere;
+- fixed drawing orders (largest amounts first, smallest first, one fixed
+  shuffle) gave 17–32 records at $10M+ per 200,000, against 22 in random order.
+
+**Grouped weighting (q).** Each training record counts by its survey weight
+times q, q = records ÷ weight within its group (12 AGI groups on the PUF, 5
+income classes per wave on the SCF, 1 on the CEX and CPS), so each group counts
+by its number of records; generation weights each record by 1 ÷ q. The first
+version: held-back loss at p99.99+ fell 19%, $10M+ returns came to 0.99 of the
+PUF (old weighting 0.71) on 646 effective records (34), and the tilt met every
+target keeping 96.8% of the effective sample (old weighting, unstratified: 100
+targets unmet, 73.9%). But held-back loss below p50 rose 6%, and SCF net worth
+before the tilt was $139.6T against $96.6T.
+
+**Groups from bands, not dollars.** The network sees only bands. With groups
+set from exact dollars:
+- two SCF households with the same bands but on opposite sides of a class line
+  got different q, and the network blended them toward the up-counted one;
+- a PUF record's generation weight came from one random dollar pick within its
+  bands, and later steps picked again, so the weight could belong to another
+  group than the record's final AGI.
+
+Groups are now computed from each band's fixed representative amount (the
+weighted mean of the real 2015 PUF amounts in it); 93.5% of PUF records keep
+their group. Training and generation use the same function of bands, so 1 ÷ q
+undoes the up-counting exactly. Each record's dollar picks are drawn once and
+stored, so it has one set of dollars in every step. Result: $10M+ returns 0.96
+of the PUF on 6,783 effective records; tilt 97.3% kept. The middle still
+slipped (held-back loss below p50 +6.5%).
+
+**Group-first generation and the hidden label: the biggest gain.** The PUF
+record's group became a label the network learns. Generation sets it first,
+400,000 filers split by the PUF's records per group, each weighted by its
+group's returns over the records drawn in it. The first version had 3.3 times
+the PUF's $10M+ returns. The cause, found overnight: training hid the label
+like any other item, on 51% of PUF rows, while generation always sets it, so
+half of training asked the network to predict the group, a total computed from
+the parts. Always showing it (one line of code):
+- $10M+ returns 52.6k / 66.0k to 23.3k / 21.4k (PUF 18.0k; 3.3 to 1.2 times),
+  their AGI $1,128bn / $1,752bn to $514bn / $493bn (PUF $408bn);
+- $1M+ returns 693k / 838k to 485k / 510k (PUF 446k);
+- partnership non-passive income at p99+ $289bn / $445bn to $228bn / $227bn
+  (PUF $200bn); the two seeds now agree;
+- the 2019 tilt kept 98.1% (96.9%).
+
+The rule: always show in training any label that generation always presets.
+
+**Drift, and why every drawn record is kept.** Drift is the share of drawn
+records whose parts add up to AGI in another group than the one they were
+drawn for: 19.3% with the label hidden, 15.4% shown, 13–14% with batch 512.
+Between p50 and p99.5 a typical miss is about 21% of the group's AGI line.
+Redrawing a drifting record until it lands in its group (up to 20 tries)
+fixed the top counts (label hidden: $10M+ returns 1.01 of the PUF, AGI ≤ 0 returns 2.08m
+against 2.04m) but kept only records the network draws consistently, which
+drops holders of rare and offsetting items: partnership holders below p90
+were 1.88m / 1.85m in the redrawn file with the label shown, against the PUF's 2.79m, and 2.87m /
+2.83m in the file with every record kept (label shown, batch 512). Kept: every
+drawn record, weighted by the group it was drawn for, which keeps the weights
+exact for the model's own distribution.
+
+**Training length and batch** (label hidden unless said):
+- 320 passes instead of 80: drift 19.3% to 14.9%, $10M+ returns 34.0k / 40.4k
+  (2.1 times the PUF); less than showing the label;
+- 640 passes: nothing more ($10M+ 39.9k / 46.8k), and held-back SCF loss kept
+  rising (1.153, 1.188, 1.214 at 80, 320, 640);
+- the end of the learning-rate schedule (a final rate of 0.5% of the peak, or
+  80 more passes at the final rate): nothing, or slightly worse (AGI ≤ 0
+  returns 4.0m);
+- with the label shown, batch 512 instead of 4,096: drift 15.4% to 13.9 /
+  12.7%; long-term gains at p50–90 $50.4bn / $47.4bn (PUF $52.1bn); about
+  twice the training time. Batch 256 and 128 put more returns at the top
+  ($10M+ 1.6 and 2.2 times the PUF, against 1.3) with no lower drift. 512 was
+  adopted.
+
+**Closed negatives** (two seeds each unless said, judged on the drawn file):
+- *A loss term rewarding parts that add up to the group:* drift 19% to 5%, but
+  $1M+ returns 951k / 876k (PUF 446k), S corporation passive holders below
+  p90 921k / 1,229k (PUF 300k), tilt 82% kept; three times stronger, $10M+
+  returns 13 / 5.8 times the PUF.
+- *The ranked probability score in the loss* (charges chance by how many bands
+  from the truth): the wealthiest 0.1% with income below p90 rose from 21.9% to
+  36.7% (one seed).
+- *AGI fixed from a real PUF record of the group, other income the remainder:*
+  counts right (AGI ≤ 0 2.02m / 1.99m, $10M+ 16.6k / 17.1k), but other income
+  became -38% / -21% of AGI below p50 (PUF -0.7%) and long-term gains at p50–90
+  $297bn / $339bn (PUF $52bn). When a total is fixed, the error moves into the
+  part left free.
+- *No q on PUF rows, once the group is drawn first:* drift at p99.99+ 72–75%
+  (24–26% with q).
+- *Training on PUF records below p90 only:* middle records still drew $1M+
+  items, now with offsetting losses (0.33 / 0.49% of p50–90 returns, against
+  0.18 / 0.24%; PUF 0.00%).
+- *Chain weighting* (each scored item weighted so training counts every step
+  of a draw equally): $10M+ returns 81.5k / 107.3k.
+- *Fixed drawing orders:* wages last was modestly better than random order
+  ($1M+ returns 608k / 809k against 693k / 838k; wages first 842k / 947k),
+  still 1.5 times the PUF.
+- *Cutting small chances at generation:* the top came right, but partnership
+  non-passive holders below p90 fell from 763k / 797k to 146k / 188k (PUF
+  1,104k): an item held by 1–2% of a group spreads its chance over many small
+  bands.
+- *The running total of AGI, and each shown band's dollars, as inputs:* the
+  network read them (a wrong total misled it), but with wages hidden it kept
+  the record in its group only 0.3–2.8 points more often (p99+: 82% to 84%);
+  drift 18.5% and 19.2% against 19.3%. "It cannot add because it never sees
+  dollars" was not supported.
+
+**Held-back loss barely moves; judge by the file.** In every overnight
+experiment held-back loss moved under 0.5% while the file's top moved 2–3
+times (label shown: PUF 0.4974 to 0.4964, with $10M+ returns more than
+halved). On a synthetic table with a known truth, drift fell from 4.0% to 1.1%
+while held-back loss stayed at 2.26–2.29.
+
+**SCF top wealth on the wrong incomes.** In the SCF own-households test (real
+2019-wave households keep their incomes, the network draws their wealth),
+20–22% of the wealthiest 0.1% had income below p90, against 3.9% recorded.
+- *Right in sample households, wrong in weights.* In every wave the network
+  draws 10–15 such sample households, against 8–15 recorded; but the drawn
+  ones are households that stand for 1,700–2,600 units each, the recorded ones
+  for 200–700 (the SCF oversamples the rich with small weights). The network
+  does not see weights, so it cannot tell an oversampled rich household from
+  an ordinary one with similar items. Batch 512 moved the share to 12–14%; no
+  training setting fixed it.
+- *The wave mix does not fix it.* Drawing the balance sheet from three waves
+  (TARGETS.md section 7) left 16.6% before the tilt, against 16.3% from the
+  2016 wave alone.
+- *Growth per tax unit.* The waves were first carried to 2019-wave dollars by
+  one asset-price factor (0.8627 for the 2022 wave). That carries prices only:
+  the 2022 wave came to $120.7T, 25% above the 2019 wave's $96.6T, and the
+  file's net worth before the tilt rose from $107.5T to $119.9T. Now each item
+  is grown by the 2019 wave's mean per unit over the drawing wave's (stocks
+  0.64 for the 2022 wave; the mortgage with the home); the 2022 wave comes to
+  $98.5T, and the file's start to $112.5T. Every dollar amount is now in
+  target-year dollars, grown per unit, before the tilt.
+- *The income × wealth grid fixes it in the reweighting.* 22 SCF targets: net
+  worth classes at the SCF's lines within four income groups (below p90,
+  p90–99, p99–99.9, p99.9+, each side at its own percentiles), shares and
+  dollars, cells under 10 SCF households merged. After the tilt the share of
+  the wealthiest 0.1% below p90 fell from 12.2% to 6.3%, and net worth at
+  p99.9+ of income rose from $6.7T to $9.0T (SCF $10.6T), for 0.6 points of
+  effective sample.
+- *Top-income wealth sat at the bottom of wide ranges.* The two p99.9+ income
+  cells ended at the lower edge of their ranges in every run (above the p99.9
+  line: $7.05T against $8.39T ± $1.35T).
+- *Pooled SCF targets narrow them.* Computed on the same wave mix as the file,
+  their standard errors fell to about 0.65 of one wave's, and the thinnest
+  cells rest on 50 households instead of 15.
+- *Half a standard error everywhere is infeasible.* 23 non-SCF targets gave
+  way (six non-filer people bands, 17 CEX food-at-home and health averages,
+  which pull against each other), 31% of the effective sample kept, weight
+  piled on non-filer couples with a head near 50 and a spouse aged 19–23. For
+  the SCF targets alone, with 1 for the rest (run P3), every one of 496 targets
+  was met with 97.75% kept; net worth at p99.9+ of income $9.91T (pooled SCF
+  $10.38T; $9.35T with every range at 1), and 3.5% of the wealthiest 0.1% below
+  p90 (pooled SCF 2.8%). Adopted (5441ad6).
+- *Two age rules.* At half a standard error one generated non-filer couple
+  whose spouse was coded aged 16 (counted as a child in the non-filer targets)
+  went from 381 to 921,000 units and took the effective sample to 11%. With a
+  spouse 18 or over on every record, it was 43%: next, 14 non-filers living
+  alone with a head aged 17, who fall in no people band, carried 1.08m units.
+  Rules: a spouse is 18 or over; a non-filer unit's head is 18 or over. The tilt
+  now stops if a non-filer head or spouse falls in no people band, or in two.
+
+**Latest since 26 October** (`FEATURES.md`, "How the latest run comes out"): the
+pipeline of 157b9e9 and 5441ad6, retrained and redrawn (all 496 targets met,
+98.0% of the effective sample kept). The strata run of 25 October moved to
+`previous_2026-10-25_strata/`.
+
+**Open items.**
+- *Too many returns with AGI ≤ 0:* about 3.1m in the overnight runs (2.85m in
+  the run now latest) against the PUF's 2.04m. With the label shown, the excess
+  is mostly small records drawn for below p50: 43% with AGI between -$1k and $0,
+  about 465k with every item zero. John chose not to pursue a rule for
+  all-zero records.
+- *One record in the latest stack moves about 2,600-fold:* labelled in the top
+  AGI group, its parts give AGI of -$0.83M and net worth of -$30M (weight 0.81
+  to 2,091). Its share of the squared weights is negligible.
+- *Generation reproduces only on the same GPU type:* the same seeds on an L40S
+  and an H200 differed on 446,575 of 454,379 records. Pin the partition when a
+  draw must be repeated.
+- *Too little wealth for top earners below the top wealth line:* units at p99.9+
+  of income with net worth at or below the p99.9 line start at $1.58T against
+  a target of $2.07T and end at the range's lower edge ($1.89T).
 
 ## Paths tried and not taken
 
@@ -413,3 +639,23 @@ bc72cc7).
 | Mok's filing probits and the Pub 5785 hazard for the CPS's non-filers | An outside model fitted to old data; replaced by a rule calibrated to counts each year (v2, then v3 and v4) |
 | Social Security plus pensions shared with the CEX | PUF total pensions include rollovers; 65+ spent 17% too much |
 | Post-training by changing the network instead of reweighting (22 October): fine-tuning to the targets by reward, by distribution matching (Khalifa and coauthors 2021), and distilling the tilted stack | Not viable or practical (John). For 2019 none met the targets without a final tilt, each moved as far from the pretrained model as the tilt or further, at 5–10 times the GPU time; untargeted tables the same as the tilt's. Distilling loses accuracy by itself (a copy of the untilted stack misses it by 5–7%, thin at the top of net worth), so it compounds over chained years. Post-training is reweighting. The distilled network is kept only as a query tool. Reports: `explore/2026-10-22/finetune_direct/`, `explore/2026-10-22/distill_machine/` |
+| Strata labels: AGI class × business flag, and a net worth class boosted at generation (25 October) | Records drawn for the top class added up to a lower class 73–80% of the time; replaced by grouped weighting and the AGI group drawn first (TARGETS.md S8) |
+| A bigger network for the top (25 October; up to 512 × 8) | PUF held-back error at p99.99+ 2.12 to 2.10; began to memorise the SCF; 512 × 8 worse everywhere |
+| Grouped weighting with groups set from exact dollars | The network sees bands: households with the same bands got different weights and were blended; weights followed one random dollar pick. Groups now come from bands |
+| Redrawing records whose parts land in another group (the redraw file) | Top counts right, but drops holders of rare and offsetting items: partnership holders below p90 1.88m against the PUF's 2.79m |
+| Weighting each record by the group it lands in rather than the one it was drawn for | $10M+ returns 1.23 times the PUF with the label hidden; not pursued once the label was shown |
+| The AGI group label hidden in training like any other item | Generation always sets it; $10M+ returns 3.3 times the PUF against 1.2 with it always shown |
+| No grouped weighting on PUF rows once the group is drawn first | Drift at p99.99+ 72–75% against 24–26% |
+| A loss term rewarding parts that add up to the group | Drift 19% to 5%, but $1M+ returns about twice the PUF's and the tilt kept 82% |
+| The ranked probability score in the loss | Wealthiest 0.1% with income below p90 21.9% to 36.7%; drift up on a synthetic table |
+| AGI fixed from a real PUF record, one part computed as the remainder | Counts right, the error moved into the remainder (long-term gains at p50–90 six times the PUF's) |
+| Training on PUF records below p90 only | Middle records still drew $1M+ items, with offsetting losses |
+| Chain weighting (each step of a draw counted equally in training) | $10M+ returns 81.5k / 107.3k against 52.6k / 66.0k |
+| Fixed drawing orders at generation (25 and 26 October) | No more top records than random order; wages last modestly better, still 1.5 times the PUF at $1M+ |
+| Cutting chances under 0.1% at generation | Top right, but removes real rare holders (partnership holders below p90 to a seventh of the PUF's) |
+| The running total of AGI, or each shown band's dollars, as network inputs | Group kept 0.3–2.8 points more often; drift and the file unchanged |
+| 640 passes, or a lower end to the learning-rate schedule | No gain over 320 passes, and the SCF held-back fit worse; the schedule's end did nothing |
+| Batches of 256 or 128 | More returns at the top (1.6 and 2.2 times the PUF at $10M+) and no lower drift than 512 |
+| SCF waves carried to the target year's wave by one asset-price factor | Carries prices only; the 2022 wave came to 25% above the 2019 wave. Replaced by growth per tax unit, item by item |
+| SCF targets from the target year's wave alone | The file draws its balance sheet from three waves; replaced by targets on the same mix, with narrower errors |
+| Ranges of half a standard error for every target | 23 non-SCF targets unmet and 31% of the effective sample kept; half a standard error is kept for the SCF targets only |
