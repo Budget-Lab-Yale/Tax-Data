@@ -495,13 +495,55 @@ def survey_frame(source, year):
     return _SURVEY[key]
 
 
+def cex_mix_rows(year, cells, v, stats):
+    """The CEX's statistics over the year's mix of CEX years (survey_mix.py; TARGETS.md section 7): each year's units
+    in the target year's dollars (the maps' factors), the statistic computed on each year alone, then pooled, value =
+    the sum over years of share x the year's value. Only averages: an average does not depend on a year's number of
+    units. The standard error is pooled in errors.consumption_errors (variance = sum of share^2 x the year's)."""
+    import survey_mix
+    assert stats == ['average'], f'CEX {year}: the year mix is built for averages, not {stats}'
+    per_year = []
+    for y, share in survey_mix.mix('cex', year):
+        per_year.append((y, share, _survey_rows_one('cex', y, cells, v, stats, survey_frame_grown(y))))
+    rows = []
+    for k in range(len(per_year[0][2])):
+        base = dict(per_year[0][2][k])
+        base['value'] = sum(share * r[k]['value'] for _, share, r in per_year)
+        base['source'] = (f'cex over the year mix {", ".join(f"{y} {100 * sh:.2f}%" for y, sh, _ in per_year)}, all units, '
+                          f'each year\'s spending in {common.TARGET_YEAR} dollars by NIPA PCE per return '
+                          f'(survey_mix.py); pooled: sum of share x the year\'s average')
+        rows.append(base)
+    return rows
+
+
+_GROWN_CEX = {}
+
+
+def survey_frame_grown(y):
+    """The CEX year y's units with spending in the target year's dollars (read once)."""
+    if y not in _GROWN_CEX:
+        import survey_mix
+        u = survey_mix.grown_units('cex', y)
+        assert u['weight'].notna().all() and (u['weight'] > 0).all(), f'CEX {y}: a unit with no positive weight'
+        _GROWN_CEX[y] = u
+    return _GROWN_CEX[y]
+
+
 def survey_rows(source, year, cells, v, stats):
     """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
     waves, with their standard errors (scf_targets.py)."""
     if source == 'scf':
         import scf_targets
         return scf_targets.rows(cells, v, stats, year)
+    if source == 'cex':
+        return cex_mix_rows(year, cells, v, stats)
     u, path = survey_frame(source, year)
+    return _survey_rows_one(source, year, cells, v, stats, u, path)
+
+
+def _survey_rows_one(source, year, cells, v, stats, u, path=None):
+    """survey_rows on one year's units u."""
+    path = path or f'{common.DATA}/{source}_units_{year}_all.parquet'
     if 'age_range' in u:
         assert (u['age_range'] < common.ADULT_RANGES).all(), f'{path}: a dependent filer among the survey units'
     w = u['weight'].to_numpy(float)
@@ -731,7 +773,19 @@ def _w2_table(path, sheet):
 
 
 def w2_dependent_share(source, year):
-    """The SIPP's share of dependents among the year's non-joint people with tips: (share of people, share of tips,
+    """The SIPP's share of dependents among the year's non-joint people with tips, over the year's mix of SIPP years
+    (survey_mix.py; TARGETS.md section 7): the sum over years of share x the year's share, for people and for tips
+    (a share of the people or the dollars does not depend on a year's population). Returns (share of people, share of
+    tips, description)."""
+    import survey_mix
+    parts = [(y, s, w2_dependent_share_one(source, y)) for y, s in survey_mix.mix('sipp', year)]
+    return (sum(s * r[0] for _, s, r in parts), sum(s * r[1] for _, s, r in parts),
+            f'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
+                f'{100 * s:.2f}% x [{r[2]}]' for _, s, r in parts))
+
+
+def w2_dependent_share_one(source, year):
+    """One SIPP year's share of dependents among the year's non-joint people with tips: (share of people, share of tips,
     description). Dependents are the people the shared tax-unit rules made dependents (persons file, dep_type);
     the other non-joint people with tips are the primary filers with tips of the SIPP's units that are not joint."""
     d = CAT['sources'][source]['dependent_share']

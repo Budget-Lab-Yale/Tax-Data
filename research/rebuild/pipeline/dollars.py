@@ -24,6 +24,12 @@ grown, so a record keeps the same real record's amount in every year and in
 every step that turns its bands into dollars. A frame without the column (the
 PUF's own records, say) draws a fresh number, as before.
 
+The CEX's consumption, the CPS's items and the SIPP's tips have one map per survey year (map_<survey>_from<year>_to
+<target year>, since 28 October): that year's own records, grown to the target year (build_table.build_maps). A record's
+year of each survey is its column cex_year, cps_year or sipp_year (generate.py draws them with the shares of the year
+file's prior); its bands become dollars from that year's map. A frame without the column draws from the single-year
+map (map_<survey>_<target year>), as before.
+
 After the draws, the pieces are put on the definitions the IRS targets use:
   capital_gains   the Schedule D net, kg_st + kg_lt + kg_other (the line-13
                   total, with kg_dist, is kept as capital_gains_line13)
@@ -110,6 +116,9 @@ def agi(df):
 
 SCF_SET = set(META['scf_amounts'])
 WAVE_MAPS = 'scf waves'                           # load_maps' key for {wave: {variable: map rows}}
+YEAR_MAPS = 'survey years'                        # load_maps' key for {survey: {tax year: {variable: map rows}}}
+YEAR_SURVEYS = {'cex': set(META['cex_amounts']), 'cps': set(META['cps_amounts']), 'sipp': set(META.get('sipp_amounts', []))}
+SURVEY_OF = {v: src for src, vs in YEAR_SURVEYS.items() for v in vs}   # an amount: the survey whose year picks its map
 
 
 def load_maps(year):
@@ -122,6 +131,13 @@ def load_maps(year):
     files = sorted(glob.glob(f'{common.MAPS}/map_scf_wave*_{year}.parquet'))
     assert files, f'no SCF wave maps for {year} in {common.MAPS}'
     maps[WAVE_MAPS] = {int(os.path.basename(f).split('_')[2][len('wave'):]): split(pd.read_parquet(f)) for f in files}
+    years = {}
+    for src in YEAR_SURVEYS:
+        for f in sorted(glob.glob(f'{common.MAPS}/map_{src}_from*_to{year}.parquet')):
+            y = int(os.path.basename(f).split('_')[2][len('from'):])
+            years.setdefault(src, {})[y] = split(pd.read_parquet(f))
+    if years:
+        maps[YEAR_MAPS] = years
     return maps
 
 
@@ -151,6 +167,21 @@ def draw_by_wave(df, v, maps, rng, u):
         assert int(w) in maps[WAVE_MAPS] and v in maps[WAVE_MAPS][int(w)], f'no dollar map for {v} in the {int(w)} wave'
         idx = np.flatnonzero(wave == w)
         values[idx] = draw_one(bands[idx], maps[WAVE_MAPS][int(w)][v], None, u[idx])
+    return values
+
+
+def draw_by_year(df, v, maps, rng, u):
+    """One CEX, CPS or SIPP amount, each record from the map of its own year of that survey (column <survey>_year)."""
+    src = SURVEY_OF[v]
+    assert YEAR_MAPS in maps and src in maps[YEAR_MAPS], f'no {src} maps by year loaded'
+    bands, year = df[f'{v}_band'].to_numpy(), df[f'{src}_year'].to_numpy()
+    assert not pd.isna(year).any(), f'{int(pd.isna(year).sum())} records with no {src} year'
+    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
+    values = np.full(len(bands), np.nan)
+    for y in np.unique(year):
+        assert int(y) in maps[YEAR_MAPS][src] and v in maps[YEAR_MAPS][src][int(y)], f'no dollar map for {v} in {src} {int(y)}'
+        idx = np.flatnonzero(year == y)
+        values[idx] = draw_one(bands[idx], maps[YEAR_MAPS][src][int(y)][v], None, u[idx])
     return values
 
 
@@ -244,6 +275,8 @@ def draw_dollars(df, maps, year=None):
             rng = np.random.default_rng([seed, i])
             if v in SCF_SET:
                 out[v] = draw_by_wave(df, v, maps, rng, u)
+            elif v in SURVEY_OF and f'{SURVEY_OF[v]}_year' in df:
+                out[v] = draw_by_year(df, v, maps, rng, u)
             else:
                 assert v in maps, f'no dollar map for {v}'
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)

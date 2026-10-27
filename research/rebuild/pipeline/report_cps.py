@@ -1,6 +1,6 @@
 """The CPS-only items in the target year's file (2019 below) against that year's CPS ASEC.
 
-The CPS side is the target year's tax units (build_table.cps_person_slots): every tax unit, filers and non-filers,
+The CPS side is the tax units of the year mix of the target year's file (survey_mix.py; dollars grown to the target year by SOI wages per return) (build_table.cps_person_slots): every tax unit, filers and non-filers,
 the person items in primary-filer order by the rule the age range uses, dependent filers folded into the unit that
 claims them. The file's dependent filers hold no CPS item (generate.py), so the file side below leaves them out.
 Both sides are weighted: the file by its tilted weights, the CPS by its own. Wage groups: the file's wages (nominal
@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 import common
+import survey_mix
 
 Y = common.TARGET_YEAR
 ADULT = common.AGE_LABELS[:common.ADULT_RANGES]
@@ -60,7 +61,7 @@ def shares(d, col, bands):
 
 def main():
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
-    c = pd.read_parquet(f'{common.DATA}/cps_units_{Y}_all.parquet')
+    c = survey_mix.mixed_units('cps')
     f = f[f['age_range'] < common.ADULT_RANGES].copy()        # dependent filers hold no CPS item
     f['w'] = f['weight']
     c['w'] = c['weight']
@@ -72,12 +73,12 @@ def main():
     c['wages2'] = c['wages_spouse_reported']        # the spouse's share uses the CPS's own amounts
     c['sch_cf_income'] = c['se_primary_reported'] + c['se_spouse_reported']
     c['se2'] = c['se_spouse_reported']
-    src = {'file': f, f'CPS {Y}': c}
+    src = {'file': f, f'CPS mix': c}
     for d in src.values():
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
         d['n_young'] = sum(((d[f'age_dep{k}'] >= 0) & (d[f'age_dep{k}'] < 13)).astype(int) for k in (1, 2, 3))
         d['woman'] = (d['sex_primary'] == 2).astype(float)
-    out = [f'# The CPS-only items in the {Y} file against the CPS {Y}', '',
+    out = [f'# The CPS-only items in the {Y} file against the CPS year mix', '',
            f'CPS: tax year {Y}, every tax unit (filers and non-filers), weighted. File: after the tilt, dependent filers '
            'left out (they hold no CPS item). Nothing here is targeted. Units in millions; ages in years.', '',
            f'Units: file {f.w.sum() / 1e6:.1f} million; CPS {c.w.sum() / 1e6:.1f} million.', '']
