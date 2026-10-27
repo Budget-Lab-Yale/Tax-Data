@@ -78,3 +78,29 @@ targets:
     value: {published: soi w2 pctiles}
     error: {kind: soi_borrowed}
     key: {group: tipped workers, target: '{variable} workers above ${line:,.0f}'}
+
+  # Elective deferrals (28 October; decided by John 27 October): SOI's Form W-2 statistics for 2019, Table 2.D,
+  # contributions (traditional plus Roth) by AGI, in eight AGI groups (catalog w2_agi_groups): on joint returns the
+  # dollars only (Table 2.D counts taxpayers, up to two on a joint return, and the file's counts are of returns); on
+  # non-joint returns the returns with any and the dollars. The file's deferrals are each person's after the legal
+  # limit and their own wages (catalog w2_elective_deferrals). Returns other than dependent filers': the non-joint
+  # values are reduced by the SIPP's dependent share and half the reduction is added to the error (catalog source
+  # soi w2 2.d). Only 2019 and 2020 have this layout of the W-2 tables, so the entries are the year's own.
+  - id: deferrals_w2_joint
+    kind: deferrals
+    statistic: amount
+    population: independent_filers
+    variable: w2_elective_deferrals
+    cells: {w2_agi_groups: all, joint_or_not: [joint]}
+    value: {published: soi w2 2.d}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+  - id: deferrals_w2_nonjoint
+    kind: deferrals
+    statistic: [count, amount]
+    population: independent_filers
+    variable: w2_elective_deferrals
+    cells: {w2_agi_groups: all, joint_or_not: [non-joint]}
+    value: {published: soi w2 2.d}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}

@@ -86,6 +86,20 @@ sources:
     summary_sheet: Table 4.B
     dependent_share: {survey: sipp, persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}_all.parquet', gap_share: 0.5}
     what: SOI Form W-2 statistics, Table 4.C, values of selected items by percentile, box 7 (Social Security tips)
+  # The W-2 statistics' Table 2.D (28 October; decided by John 27 October): taxpayers with elective retirement
+  # contributions (traditional plus Roth) and the contributions, by size of AGI and by return and earner type
+  # (w2_t2_<year>.xlsx; the 2019 and 2020 layout). Every AGI row of the table must fall inside one of the entry's AGI
+  # groups (target_list.published_w2_agi). Non-joint returns include dependent filers, who hold no survey items in the
+  # file: for a population that leaves them out, the non-joint value is reduced by the SIPP's share of dependents
+  # among non-joint people with deferrals (people for a count, dollars for an amount; the SIPP year nearest the target
+  # year that asks deferrals), and half of that reduction is added to the error, as for the tips targets.
+  soi w2 2.d:
+    kind: published
+    layout: w2_by_agi
+    file: w2_t2_{year}.xlsx
+    sheet: Table 2.D
+    dependent_share: {survey: sipp, years: [2021, 2023], persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}.csv.gz', gap_share: 0.5}
+    what: SOI Form W-2 statistics, Table 2.D, taxpayers with elective retirement contributions by size of AGI and return and earner type
   scf:
     kind: survey
     file: data/scf_units_{year}.parquet
@@ -380,6 +394,14 @@ variables:
     published:
       soi w2: {item: 'Box 7: Social security tips'}
       soi w2 pctiles: {item: 'Box 7: Social security tips'}
+  # Elective deferrals as the W-2 statistics count them (28 October): each person's elective contributions,
+  # traditional plus Roth, after the legal limit for their age and their own wages (dollars.deferral_items), summed
+  # over the primary filer and the spouse. A count is returns with any (on non-joint returns, one taxpayer each).
+  w2_elective_deferrals:
+    parts: [elective1, elective2]
+    short: elective deferrals
+    published:
+      soi w2 2.d: {count: Number of taxpayers, amount: Contributions}
   # Auto loan interest (27 October, candidate): the SCF's auto_int_exp, the amount still owed on each of up to four
   # vehicle loans times its current rate (build_scf.R), the same column on the SCF's units and on the file (drawn in
   # the SCF phase and grown per tax unit to the target year's wave, as the balance sheet). The share of units with
@@ -550,6 +572,19 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
+  # The AGI groups of the W-2 elective deferral targets (Table 2.D; 28 October): the table's AGI rows summed into
+  # eight groups, so no cell rests on the table's thin rows below $25,000 or above $1 million.
+  w2_agi_groups:
+    variable: agi
+    edges:
+      - [null, 25000, under $25k]
+      - [25000, 50000, $25k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 500000, $200k-500k]
+      - [500000, 1000000, $500k-1m]
+      - [1000000, null, $1m and over]
   joint_or_not:
     variable: married
     values: [[1, joint], [0, non-joint]]
@@ -557,6 +592,7 @@ groupings:
     in soi 1.6: {joint: [joint], non-joint: [single, separate, head_of_household]}   # targets.table_1_6 statuses
     # Table 4.B of the W-2 statistics: the column groups of each cell (returns or taxpayers, amount)
     in soi w2: {joint: 'Joint returns, total', non-joint: 'Nonjoint returns, wage earner'}
+    in soi w2 2.d: {joint: 'Joint returns, total', non-joint: 'Nonjoint returns, wage earner'}   # Table 2.D's column groups
   # The four filing statuses of Table 1.3 (the file's mars; surviving spouses are in joint returns, as in SOI)
   filing_four:
     variable: mars

@@ -91,7 +91,11 @@ def frame(wave, year):
         return _FRAMES[key]
     import errors as E
     f = growth_factors(wave, year)
-    items = [v for v in f if v != 'w_primary_ltv']   # the ltv is a ratio: the mortgage in dollars moves with the home
+    # the ltv is a ratio: the mortgage in dollars moves with the home. The elective deferrals and the spouse's share of
+    # them (since 28 October; build_table.SCF_NOT_ASKED) are missing where the SCF does not ask and no SCF target reads
+    # them (their targets are the W-2 statistics'), so they are left out here
+    not_asked = ['elective_deferrals', 'spouse_deferral_share']
+    items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
     cols = list(dict.fromkeys(items + ['w_primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
     t = _table(['household_id', 'implicate', 'weight', 'age_range'] + cols)
     u = t[t.year == wave - 1].reset_index(drop=True)

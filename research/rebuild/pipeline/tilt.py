@@ -162,7 +162,7 @@ def recombine(df, year):
         put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
     if 'elective_deferrals' in out:                       # the traditional deferrals and Medicare wages (28 October)
         D.deferral_items(out, year)
-        done += ['trad_deferrals', 'medicare_wages']
+        done += ['elective1', 'elective2', 'trad_contr_er1', 'trad_contr_er2', 'trad_deferrals', 'medicare_wages']
     return out, done
 
 
@@ -211,7 +211,7 @@ def grow_dollars(df, s, t):
     f_scf = BT.scf_growth(scf, s - 1, t - 1) if {s - 1, t - 1} <= have else None
     for v in BT.SCF_AMOUNTS:
         if v in out:
-            if v == 'w_primary_ltv':
+            if v in BT.SCF_RATIOS:
                 grow(v, 1.0, 1.0, 'a ratio, not grown')
             elif f_scf is None:
                 grow(v, 1.0, 1.0, f'NOT GROWN: no SCF wave of income year {s - 1} or {t - 1}')

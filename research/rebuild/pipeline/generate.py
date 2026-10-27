@@ -39,8 +39,12 @@ One record is drawn slot by slot:
      spouse's exists exactly when married (cps_structure). The SCF, CEX and CPS
      phases below all see these ages;
   4. the SCF-only slots (the balance sheet, the unrealized gains and
-     owns_business) in a random order per record, except that the home
-     mortgage, carried as a share of the home's value, comes after the home.
+     owns_business, and since 28 October the elective deferrals and the
+     spouse's share of them) in a random order per record, except that the
+     home mortgage, carried as a share of the home's value, comes after the
+     home, and the spouse's share of the deferrals after the deferrals.
+     Deferrals are zero without wages, the spouse's share zero unless married
+     (deferral_structure).
      Each is drawn under the SCF label with the PUF-only slots left out, as
      the SCF would see the household, at the income year of the record's own
      SCF wave (below);
@@ -397,8 +401,20 @@ def sipp_structure(values, slot, probs):
     return probs
 
 
+def deferral_structure(values, slot, probs):
+    """Elective deferrals (decided 27 October): the unit's are zero without wages (none without wages, as for tips;
+    dollars.py then holds each person's to their own wages and to the legal limit), and the spouse's share of them
+    is zero unless married (with no deferrals it is zero by the ratio rule in structural)."""
+    if 'elective_deferrals' in P:
+        probs = only(probs, (slot == P.index('elective_deferrals')) & (values[:, NC + P.index('wages')] <= 0))
+    if 'spouse_deferral_share' in P:
+        probs = only(probs, (slot == P.index('spouse_deferral_share')) & (values[:, NC + MARRIED] != 1))
+    return probs
+
+
 def structural(values, slot, probs):
-    """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them).
+    """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them; no
+    deferrals: no spouse's share of them). Elective deferrals follow wages and marriage (deferral_structure).
     The CPS's person items follow the PUF items (cps_structure). A dependent filer holds no survey-only item
     (balance sheet, unrealized gains, business ownership, consumption, the CPS's person items and childcare): the
     surveys count it in the household that claims it, so on its own return every one is zero or none, and its
@@ -409,6 +425,7 @@ def structural(values, slot, probs):
         probs[no_base, 0] = 1.0
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
+    probs = deferral_structure(values, slot, probs)
     dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
     probs[dep] = 0.0
     probs[dep, 0] = 1.0
