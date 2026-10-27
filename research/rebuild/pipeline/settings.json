@@ -932,11 +932,11 @@
     "items": [
      "wages"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "default"
+    "reason": "the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run)"
    },
    {
     "survey": "sipp",
