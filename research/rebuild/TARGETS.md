@@ -561,3 +561,46 @@ target met, 98.0% kept, $10.15 trillion at p99.9+ of income, 3.5% of the top 0.1
 **Settings:** `tilt.scf_target_waves` "prior" (the year's mix; "target year" gives the single-wave targets of
 before, for checks), `tilt.range_in_se_by_kind` {wealth: 0.5, wealth grid: 0.5}, `tilt.range_in_se` 1. The
 replicate weights of every wave in the mix sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to fetch them).
+
+### S10. Target changes wait for the core of the file (agreed 26 October)
+
+**No targets are added or changed until three things are built:** every PUF variable in pretraining, the imputed
+variables that `src/main.R` adds today (ROADMAP item 4), and the tax calculator in post-training (ROADMAP item 9).
+Until then the cost of a target cannot be judged: it depends on what the finished file holds and on taxes computed
+from it.
+- **Deductions need the calculator.** Who itemizes depends on each year's law; the 2018 law change (TCJA) cut the
+  number of itemizers sharply, so SOI Table 2.1's itemized deductions cannot be targeted by reweighting the records
+  without computing each record's choice under that year's law.
+- **Targets that move a lot from year to year are untested.** Example: unemployment compensation in 2020. Whether
+  reweighting alone can reach it, or generation must draw the year differently, is not known.
+
+**Ideas set aside for when the core is built:**
+1. **Automatic measures at three stages:** after pretraining, for the generated file after the demographic
+   prescaling (against the target year), and for the reweighted file, the last one most of all. Three kinds:
+   - pass/fail rules that stop a run (split sums add up exactly, no spouse under 18, positive weights, the
+     record's parts against its AGI group);
+   - held-out targets: reweight to part of the list and measure the misses on the rest, in standard errors;
+   - outside benchmarks, for computed tax items only: liability, child tax credit, the number of itemizers and
+     similar, against SOI for historical years and CBO's projected Form 1040 lines for future years; JCT and
+     Treasury tax expenditure estimates for some items. Some become hard targets (itemizers).
+2. **What makes one target list better than another.** Not the number of published cells hit. What matters is
+   that the joint distributions relevant to tax and distribution are right; a small above-the-line item moving
+   does not matter, the number of mortgage interest deductions does. Most relationships within demographic
+   groups move slowly (wages per working-age adult, the chance of children by age) and the prescaling with a small
+   tilt handles them. The hard ones change in kind between 2015 and the target year. Example: interest. With
+   higher rates after 2022 more units hold interest and hold more, and the new holders are likely younger and
+   lower-income than 2015's. A target on holders alone scales up 2015-style holders (older, richer); only a
+   joint target (holders by income, by age) picks the new ones. The prior for what a record looks like is the
+   source data, so untargeted joint distributions should move as little as possible.
+3. **A backtest on a year when the world moved.** Build 2022 from the 2015 prior and score it on a short list,
+   ranked by importance to tax: mortgage interest (returns and dollars by AGI), itemizers by AGI, interest and
+   dividends by AGI, the SCF 2022's interest holders by age. A list is better if it gets these right without
+   being told them, or with one targeted fix. With the calculator: misses measured in tax dollars.
+4. **Fewer CEX cells by age x married,** traded for cells by income.
+5. **A catalog of SOI's tables:** every table in the shared mirror, what it publishes and for which years.
+6. **Tables 1.3 and 4.3, tested 26 October** (`Tax-Data-targets`, branch rebuild-targets-13-43,
+   `explore_targets_13_43_RESULTS.md`). Table 1.3's income items by filing status: all met, effective sample kept
+   98.0% to 88.0%, side effects small (John: acceptable). Table 4.3: the top 0.001% (1,482 returns, AGI above
+   $60.7 million) cannot be met; the PUF's aggregate records are not unpacked yet, so the file likely lacks those
+   records. Decided (John, 26 October): Table 4.3's top group is the top 0.01% as a whole, with the 0.1% and 1%
+   below it, until the aggregate records are in.

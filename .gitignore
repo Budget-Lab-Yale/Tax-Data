@@ -34,3 +34,6 @@ research/**/*.docx
 !research/tools/reference.docx
 !research/docx_sources/*.docx
 !research/archive/*.docx
+
+# Local copy of shared input data (SOI tables from our IRS-Ind fork); large, rebuildable from that repo
+inputs/

@@ -15,6 +15,8 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    - Estates and trusts are still left out of the business targets.
    - Choose the level of detail with held-out targets.
    - Calculator targets (item 9), the Forbes 400 and the Distributional Financial Accounts.
+   - No targets added or changed until every PUF variable, the imputed variables and the calculator are in
+     (`TARGETS.md` S10, 26 October); the ideas set aside are listed there.
 2. **Translation, finalized.** An algorithm for lining up the variables
    the sources share, by population, definition and measurement, driven by
    data and theory. The two-slot fill-in (21 October) replaced the cell method, which needed
