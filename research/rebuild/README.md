@@ -10,6 +10,7 @@ feeds `src/main.R` yet.
 | `GOAL.md` | what we are building and why |
 | `FEATURES.md` | what the pipeline does now |
 | `ROADMAP.md` | what is left between the two |
+| `NEXT_STEPS.md` | the agreed order of the next pieces of work, what is waiting on something, and open decisions |
 | `TARGETS.md` | post-training: the process on one page, then each decision and how it was reached |
 | `HISTORY.md` | how we got here, and the paths we tried and dropped |
 | `AGES.md` | plan: ages for every person in a unit, including the high-income records with none |
