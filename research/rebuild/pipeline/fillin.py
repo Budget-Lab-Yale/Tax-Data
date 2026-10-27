@@ -232,12 +232,71 @@ class FillIn:
             puf = train_rows[(train_rows['source'] == 'puf').to_numpy()]
             for k in KEYS:
                 self.data_a[k], self.data_ok[k] = self.puf_data_shares(puf, k)
+        self.totals_setup(train_rows)
         self.chunk = M.safe_chunk(len(M.SLOTS))   # the full width: safe for the source widths too
         self.dist, self.log, self.range_log = {}, [], []
         for s in SURVEYS:
             common.say(f'  fill-in {s}: {len(self.recs[s]):,} training records; rows '
                        + ', '.join(f'{v} (type {TYPE[(s, v)]}, zero-reporters {int(self.zero[(s, v)].sum()):,})'
                                    for ss, v in KEYS if ss == s))
+
+    def totals_setup(self, train_rows):
+        """The computed totals on a survey's rows with a filled-in part (28 October; the CPS: ordinary dividends from
+        qualified dividends, capital gains from long-term gains, Schedules C and F and business income from Schedule
+        C), recomputed after each draw so a record's total agrees with its filled-in parts (draw): each part's band as
+        dollars (the survey year's own median in the band, else the PUF-year median grown to the year), summed with
+        the total's signs, cut on the survey year's cut points of the total. self.totals[s] = {total: parts};
+        self.dollars[(s, part)] = [years, bands]; self.cuts[(s, total)] = per year (negative cuts, positive cuts)."""
+        edges, growth = common.edges(), common.meta()['growth_factors']
+        self.totals, self.dollars, self.cuts = {}, {}, {}
+        filled_on = {s: {v for ss, v in KEYS if ss == s} for s in SURVEYS}
+        for s in SURVEYS:
+            years = sorted(int(y) for y in self.frame[s]['year'].unique())
+            tots = {t: p for t, p in M.COMPUTED.items() if s in M.PRESENT_ON[t] and t not in filled_on[s]
+                    and set(p) & filled_on[s] and all(s in M.PRESENT_ON[q] for q in p)}
+            if not tots:
+                continue
+            self.totals[s] = tots
+            missing = 0
+            for part in sorted({q for p in tots.values() for q in p}):
+                nb = M.N_CHOICES[part]
+                tab = torch.zeros(len(M.YEARS), nb, dtype=torch.float64)
+                puf_med = [b['median'] for b in edges[f'puf/{common.PUF_YEAR}/{part}']['bands']]
+                for y in years:
+                    fp, fn = growth[str(y)].get(part, (1.0, 1.0))
+                    for b in edges[f'{s}/{y}/{part}']['bands'][1:]:
+                        k = b['band']
+                        m = b['median'] if b['records'] else (None if puf_med[k] is None else
+                                                              puf_med[k] * (fp if puf_med[k] > 0 else fn))
+                        missing += m is None
+                        tab[M.YEARS.index(y), k] = 0.0 if m is None else m
+                self.dollars[(s, part)] = tab.to(self.device)
+            for t in tots:
+                self.cuts[(s, t)] = {M.YEARS.index(y): (torch.tensor(edges[f'{s}/{y}/{t}']['negative']['cuts'], dtype=torch.float64, device=self.device),
+                                                       torch.tensor(edges[f'{s}/{y}/{t}'].get('positive', {}).get('cuts', []), dtype=torch.float64, device=self.device))
+                                     for y in years}
+            common.say(f'  fill-in {s}: totals recomputed from filled-in parts: {list(tots)}; part bands with no record '
+                       f'in the survey year or the PUF (read as zero dollars): {missing}')
+
+    def recompute_totals(self, ii, s):
+        """The computed totals of survey s's records ii from their parts' bands (see totals_setup)."""
+        v = self.tr['values']
+        yr = v[ii, 1]
+        for t, parts in self.totals[s].items():
+            x = sum(sg * self.dollars[(s, q)][yr, v[ii, C + P.index(q)]] for q, sg in parts.items())
+            band = torch.zeros(len(ii), dtype=torch.long, device=self.device)
+            fp = M.BAND_LAYOUT[t]['first_positive']
+            for y in torch.unique(yr).tolist():
+                neg, pos = self.cuts[(s, t)][y]
+                m = yr == y
+                xm = x[m]
+                bm = torch.zeros(len(xm), dtype=torch.long, device=self.device)
+                if len(neg):
+                    bm = torch.where(xm < 0, 1 + torch.searchsorted(neg, xm.contiguous(), side='left'), bm)
+                if len(pos):
+                    bm = torch.where(xm > 0, fp + torch.searchsorted(pos, xm.contiguous(), side='left'), bm)
+                band[m] = bm
+            v[ii, C + P.index(t)] = band
 
     def puf_data_shares(self, puf, key):
         """The filers' share by band from the PUF's training rows directly (settings training.fillin_puf_side "data"):
@@ -339,13 +398,22 @@ class FillIn:
 
     def report_probs_by_band(self, vals, key):
         """C by band: the chance of reporting each band of the row's item, as the survey sees the record with every
-        PUF-concept slot it fills in and the item's reported slot hidden."""
+        PUF-concept slot it fills in and the item's reported slot hidden, and also (28 October) every slot that would
+        give a filled-in amount away: a computed total with a filled-in part (the CPS's ordinary dividends, capital
+        gains, Schedules C and F, business income) hidden, and a CPS share whose base is filled in (the spouse's share
+        of the couple's wages) left out, as model.gate_shares does when its base is hidden."""
         s, v = key
         hidden = torch.zeros(len(vals), len(P), dtype=torch.bool, device=self.device)
         hidden[:, self.reported_slot[v]] = True
         for ss, u in KEYS:
             if ss == s:
                 hidden[:, self.slot[u]] = True
+        for tot in self.totals.get(s, {}):
+            hidden[:, P.index(tot)] = vals[:, C + P.index(tot)] >= 0
+        vals = vals.clone()
+        for j, (_, b) in M.SHARE_GATES.items():
+            if hidden[0, b]:
+                vals[:, C + j], hidden[:, j] = -1, False
         lp = M.log_probs_as(self.model, vals, hidden, s)
         return lp(self.reported_slot[v])[:, :self.n_bands[v]].exp().double()
 
@@ -486,3 +554,14 @@ class FillIn:
                 continue
             band = torch.multinomial(self.dist[k][zp[z]], 1, generator=self.gen).squeeze(1)
             self.tr['values'][ii[z], C + self.slot[v]] = band
+        for s in self.totals:   # totals with a filled-in part, on the records with any filled-in part redrawn
+            ii = idx[self.tr[s][idx]]
+            if not len(ii):
+                continue
+            pos = self.position[ii]
+            redrawn = torch.zeros(len(ii), dtype=torch.bool, device=self.device)
+            for (ss, v) in KEYS:
+                if ss == s and any(v in p for p in self.totals[s].values()):
+                    redrawn |= self.zpos[(ss, v)][pos] >= 0
+            if redrawn.any():
+                self.recompute_totals(ii[redrawn], s)
