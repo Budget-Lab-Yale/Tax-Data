@@ -240,3 +240,84 @@ targets:
     value: {survey: cex}
     error: {kind: survey_replicate}
     key: {group: 'CEX {year}, age {adult_age_ranges}, {married_or_not}', target: '{variable}, average'}
+
+  # SOI Table 1.3 (27 October; run G2 of explore_targets_13_43_RESULTS.md, approved by John): returns, and the
+  # number with and the amount of 22 income items (AGI its amount only), in each of the four filing statuses. Filers
+  # (dependent filers included, as SOI counts them). Errors borrowed from the nearest Table 1.4 cells.
+  - id: soi_1_3_returns
+    kind: soi 1.3
+    statistic: units
+    population: filers
+    cells: {filing_four: all}
+    value: {published: soi 1.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  - id: soi_1_3_agi
+    kind: soi 1.3
+    statistic: amount
+    population: filers
+    variable: agi
+    cells: {filing_four: all}
+    value: {published: soi 1.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: soi_1_3_items
+    kind: soi 1.3
+    statistic: [count, amount]
+    population: filers
+    variable: soi_1_3_items
+    cells: {filing_four: all}
+    value: {published: soi 1.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # SOI Table 4.3 (27 October; run G2): returns, AGI, and the number with and the amount of eight income items, in the
+  # top 0.01% (one group, the top 0.001% inside it: John, 26 October, since the file probably lacks those records
+  # until the PUF's aggregate records are unpacked), the top 0.1% and the top 1% of AGI. Returns other than dependent
+  # filers', ranked by AGI on the file's starting weights; the dollar lines are then held fixed through the tilt.
+  - id: soi_4_3_returns
+    kind: soi 4.3
+    statistic: units
+    population: independent_filers
+    cells: {agi_cumulative: [top 0.01 percent, top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  - id: soi_4_3_agi
+    kind: soi 4.3
+    statistic: amount
+    population: independent_filers
+    variable: agi
+    cells: {agi_cumulative: [top 0.01 percent, top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: soi_4_3_items
+    kind: soi 4.3
+    statistic: [count, amount]
+    population: independent_filers
+    variable: soi_4_3_items
+    cells: {agi_cumulative: [top 0.01 percent, top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Auto loan interest from the SCF (27 October, candidate): in the four income groups of the wealth grid, the share
+  # of the group's units with any auto loan interest and its dollars per unit, on the year's mix of SCF waves
+  # (scf_targets.py), each wave's amounts grown per tax unit to the target year's wave. Stated per unit, not as
+  # totals: the SCF's units add to 162.76 million in 2019, the file's units other than dependent filers to about
+  # 169.5 million, and the dollars per unit are what carries over (TARGETS.md S9). Half a standard error, as the
+  # other SCF targets (settings tilt.range_in_se_by_kind).
+  - id: auto_loans
+    kind: auto loans
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: auto_loans
+    cells: {income_rank_groups: all}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{income_rank_groups}', target: '{variable}, average'}

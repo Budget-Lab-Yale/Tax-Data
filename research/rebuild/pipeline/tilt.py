@@ -140,7 +140,7 @@ def recombine(df):
     put('capital_gains', out['kg_st'] + out['kg_lt'] + out['kg_other'])
     parts = D.META['computed_totals']['business_income']
     put('business_income', out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float))
-    for sub in ['sch_cf_income', 'sch_e_income']:
+    for sub in [k for k in D.META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
         sp = D.META['computed_totals'][sub]
         put(sub, out[list(sp)].to_numpy(float) @ np.array(list(sp.values()), float))
     put('other_agi', out['other_agi_remainder'] + out['kg_dist']
@@ -154,6 +154,9 @@ def recombine(df):
     for item, (total, other) in D.REMAINDERS.items():
         if other in out:
             put(item, out[total] - out[other])
+    if all(f'{slot}_band' in out for slot in D.PERSON_RATIOS):    # tips1, tips2, tips and the leisure flags
+        D.person_items(out, out)
+        done += [item for item, _ in D.PERSON_RATIOS.values()] + list(D.SUMS) + list(D.FLAGS_WITH)
     if all(c in out for c in D.NET_WORTH_PARTS):
         put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
     return out, done
@@ -187,7 +190,7 @@ def grow_dollars(df, s, t):
                      'records with a value': int((x != 0).sum())})
     drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
     for v in BT.PUF_AMOUNTS:
-        if v in ('capital_gains', 'sch_cf_income', 'sch_e_income'):
+        if v == 'capital_gains' or (v in D.META['computed_totals'] and v != 'business_income'):
             continue                                  # computed from their parts (recombine)
         col = drawn_as.get(v, v)
         if col not in out:

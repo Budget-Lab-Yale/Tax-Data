@@ -1,6 +1,6 @@
 """scf_targets.py: the SCF targets' values and standard errors, from the year's mix of SCF waves (TARGETS.md S9).
 
-Every SCF target (kind 'wealth' and 'wealth grid' in targets_config/) is computed on the same waves, with the same
+Every SCF target (kinds 'wealth', 'wealth grid' and 'auto loans' in targets_config/) is computed on the same waves, with the same
 shares, as the generated file draws its balance sheet from: the year file's prior, "balance sheet" (2019: the 2019
 wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%). Settings tilt.scf_target_waves: "prior" (the default)
 uses that mix; "target year" uses the target year's wave alone, for checks.
@@ -157,7 +157,7 @@ def _dollar_line(x, w, spec):
 
 
 def wave_cell(wave, year, c, v, st):
-    """One wave's value of statistic st (share or amount) of variable v in cell c, with its variance, its lines and
+    """One wave's value of statistic st (share, amount or average) of variable v in cell c, with its variance, its lines and
     the SCF households behind it."""
     import target_list as TLS
     rank, line_var, lo_spec, hi_spec = _cell_spec(c)
@@ -186,6 +186,11 @@ def wave_cell(wave, year, c, v, st):
     elif st == 'amount':
         stat = lambda cc, mm, yy, ww: (ww * cc * yy).sum(-1)
         sc = 5.0
+    elif st == 'average':
+        # the variable's average over the cell's units (auto loan interest, 27 October): a share of units with any is
+        # the average of a 0/1 indicator
+        stat = lambda cc, mm, yy, ww: (ww * cc * yy).sum(-1) / (ww * cc).sum(-1)
+        sc = 1.0
     else:
         raise NotImplementedError(f'SCF targets: statistic {st}')
     full = float(stat(cell, m, y, w))

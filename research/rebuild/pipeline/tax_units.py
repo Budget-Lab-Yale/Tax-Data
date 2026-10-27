@@ -1,4 +1,4 @@
-"""tax_units.py: the shared tax-unit rules for every survey (the CPS, SCF and CEX), by CBO's public algorithm
+"""tax_units.py: the shared tax-unit rules for every survey (the CPS, SCF, CEX and SIPP), by CBO's public algorithm
 (US-CBO/CPS-tax-filing-units, Stata), translated rule by rule (research/rebuild/TAX_UNITS.md, section 4).
 
 The rules run on a standard member list that each survey's reader produces (roster_cps.py, roster_scf.py,
@@ -106,6 +106,12 @@ FALLBACKS = pd.DataFrame.from_dict({
             'student': 'enrolled in college (IN_COLL 1-2); no labor-force condition', 'disability': 'none',
             'income_test': 'member income only (wages, self-employment, Social Security, SSI)',
             'group_claim': 'off', 'children_away': 'none'},
+    'sipp': {'relationship': 'observed', 'parent_links': 'observed (at the interview)',
+             'spouse_links': 'observed (at the interview, both pointers agreeing)', 'age': 'observed (at the interview)',
+             'student': 'enrolled in December and no earnings that month', 'disability': 'any core disability (RDIS)',
+             'income_test': 'observed: wages, self-employment, property income, unemployment, Social Security, other '
+                            'income including pensions (TPOTHINC)',
+             'group_claim': 'off', 'children_away': 'none'},
 }, orient='index')
 
 

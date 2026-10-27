@@ -31,7 +31,7 @@ import common
 import qgroups
 import translate as TR
 
-SOURCES = ['puf', 'scf', 'cex', 'cps']
+SOURCES = ['puf', 'scf', 'cex', 'cps', 'sipp']   # appended in this order, so each source's held-back slice stays
 CONTEXT = ['source', 'year']
 YEARS = sorted({int(y) for y in pq.read_table(common.TABLE, columns=['year']).column('year').to_pylist()})
 _EDGES = common.edges()
@@ -57,8 +57,10 @@ PERSON_CATEGORIES = META['person_categories']
 LABELS = {v: int(d['values']) for v, d in META['labels'].items()}
 PUF_LABELS = [v for v in LABELS if META['labels'][v]['source'] == 'puf']   # agi_group
 assert PUF_LABELS == list(LABELS), 'labels on the PUF only'
+# The SIPP-only categories (whether each adult's tips are mostly from leisure and hospitality): {slot: values}
+SIPP_CATEGORIES = META['sipp_categories']
 CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-    + list(LABELS)
+    + list(LABELS) + list(SIPP_CATEGORIES)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
 SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
@@ -68,13 +70,15 @@ RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item
 # household reported; the original slot is the PUF concept, filled in on the SCF side during training (train.py).
 REPORTED = {f'{r["variable"]}_reported': r['variable'] for r in TR.filled()}
 CEX_SLOTS = list(META['cex_amounts'])     # the consumption categories, CEX only
-CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's person items and childcare, CPS only
+CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's person items and childcare (the spouse's
+# share of the couple's wages is also on the SIPP)
+SIPP_SLOTS = list(META['sipp_amounts']) + list(SIPP_CATEGORIES)   # each adult's tip share and leisure flag, SIPP only
 # The order (step 2, 23 October): the type (married, dependents, age range), the filing flag, full filing status and
 # the credit children, then the amounts. Generation draws a batch's own items in this order (generate.py).
 TYPE_SLOTS = ['married', 'n_dep', 'age_range']
 PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
-             + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS)
+             + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS + SIPP_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
 # The sources that have each slot; a slot on one source only is owned by it.
@@ -104,7 +108,8 @@ def band_layout():
         n = {r['n_bands'] for r in recs}
         assert len(n) == 1, f'{a}: band counts differ by source'
         n = n.pop()
-        owner = OWNED_BY.get(a, 'puf')
+        # a slot on several surveys and not on the PUF (the spouse's wage share, CPS and SIPP): the first in SOURCES
+        owner = OWNED_BY.get(a, 'puf' if 'puf' in PRESENT_ON[a] else next(s for s in SOURCES if s in PRESENT_ON[a]))
         # the owner's latest year that has the variable (net worth: the last SCF wave)
         top = list(next(_EDGES[f'{owner}/{y}/{a}'] for y in reversed(YEARS)
                         if 'positive' in _EDGES.get(f'{owner}/{y}/{a}', {}))['positive']['probs']) + [1.0]
@@ -116,7 +121,7 @@ def band_layout():
 
 BAND_LAYOUT = band_layout()
 N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-             **PERSON_CATEGORIES, **LABELS, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+             **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
 
@@ -136,7 +141,7 @@ MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
                'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-               **PERSON_CATEGORIES, **LABELS}
+               **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -192,7 +197,7 @@ def read_table():
         'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
-    for c, n in {**PERSON_CATEGORIES, **LABELS}.items():
+    for c, n in {**PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES}.items():
         assert table[c].between(-1, n - 1).all(), c
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a

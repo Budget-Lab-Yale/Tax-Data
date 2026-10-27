@@ -29,6 +29,11 @@ its chance of not filing.
   function 2        holding: the two-slot fill-in (fillin.py), run in training
                     on function 1's bands, for rows with fill_in.
 
+Rows shared between two surveys and not with the PUF (shared_with: the survey that owns the slot; the SIPP's
+spouse_wage_share, which the CPS owns) have no tax data to be translated against: they are taken as reported and cut
+on the owner's cut points of the nearest year (build_table.shared_between_surveys), and the report compares the two
+surveys (describe_share). rows(amounts_only=True) leaves them out.
+
 The report (report_rows()): for each row and survey year, the survey as
 reported, after function 1 and the tax data, each as: units, the share with
 none, the share with a loss, millions of units in size ranges (report_lines),
@@ -57,18 +62,31 @@ for _r in TABLE:
     _key = (_r['survey'], _r['variable'])
     assert _key not in _seen, f'translation table: {_key} twice'
     _seen.add(_key)
-    if _r['variable'] in CATEGORY_VARIABLES:
+    if _r.get('shared_with'):
+        assert not {'dollar_line', 'loss_cap', 'fill_in'} & set(_r), f'{_key}: a row shared with a survey has no amount settings'
+        assert not _r['type_for_fill_in'], f'{_key}: a row shared with a survey is not a type for the fill-in'
+    elif _r['variable'] in CATEGORY_VARIABLES:
         assert not {'dollar_line', 'loss_cap', 'fill_in'} & set(_r), f'{_key}: a category has no amount settings'
     else:
         assert {'dollar_line', 'loss_cap', 'fill_in'} <= set(_r), f'{_key}: an amount row needs all three settings'
         assert not (_r['fill_in'] and _r['type_for_fill_in']), f'{_key}: a type variable cannot have the fill-in'
         assert _r.get('part') in (None, 'positive', 'loss'), f'{_key}: part is positive, loss or absent'
+        # rank_against (stage 3, 27 October): function 1 matches the survey's amount to the tax data's amount of this
+        # PUF variable, a computed total, instead of the row's own: a survey that reports only a total puts it in one
+        # of the total's parts (the CPS's dividends, in qualified dividends) without changing its translated dollars
+        assert _r.get('rank_against') is None or isinstance(_r['rank_against'], str), f'{_key}: rank_against is a name'
     assert _r.get('reason'), f'{_key}: no reason'
 
 
 def rows(survey=None, amounts_only=False):
+    """The table's rows (of one survey); amounts_only: the amounts shared with the PUF."""
     return [r for r in TABLE if (survey is None or r['survey'] == survey)
-            and not (amounts_only and r['variable'] in CATEGORY_VARIABLES)]
+            and not (amounts_only and (r['variable'] in CATEGORY_VARIABLES or r.get('shared_with')))]
+
+
+def shared_rows(survey=None):
+    """The rows shared between two surveys and not with the PUF (shared_with)."""
+    return [r for r in TABLE if r.get('shared_with') and (survey is None or r['survey'] == survey)]
 
 
 def filled():
@@ -174,6 +192,22 @@ def describe(x, w):
     for p in (1, 10):
         k = np.searchsorted(cw, p / 100)
         d[f'top {p}% of units, share of positive dollars (%)'] = 100 * cx[min(k, len(cx) - 1)] / total if total > 0 else np.nan
+    return d
+
+
+def describe_share(x, w):
+    """A share from 0 to 1, recorded on some units only (absent, NaN, elsewhere): units, the share of units with it
+    recorded, and among those the share at 0 and at 1, the mean, and the 10th, 50th and 90th percentiles."""
+    x, w = np.asarray(x, float), np.asarray(w, float)
+    ok = ~np.isnan(x)
+    d = {'units (millions)': w.sum() / 1e6, 'recorded (%)': 100 * w[ok].sum() / w.sum()}
+    if ok.any():
+        xs, ws = x[ok], w[ok]
+        d['at 0 (% of recorded)'] = 100 * ws[xs == 0].sum() / ws.sum()
+        d['at 1 (% of recorded)'] = 100 * ws[xs == 1].sum() / ws.sum()
+        d['mean'] = float((xs * ws).sum() / ws.sum())
+        for p, q in zip((10, 50, 90), common.wquantile(xs, ws, [0.1, 0.5, 0.9])):
+            d[f'p{p}'] = float(q)
     return d
 
 

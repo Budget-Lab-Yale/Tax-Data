@@ -38,6 +38,7 @@ hours worked, and childcare, weighted to 2019 targets.
 | SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, five implicates each; tax units by the shared rules (below) |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 | CPS ASEC, tax years 2015, 2017, 2019, 2021, 2023 | 90,351 / 88,954 / 79,054 / 77,618 / 74,502 | every tax unit, filers and non-filers (`build_cps.R`, below) |
+| SIPP, reference years 2015, 2017, 2019, 2021, 2023 (candidate, 26 October) | see `sipp_summary.csv` | every tax unit (`roster_sipp.py`, below) |
 
 **Variables:**
 - marital status (joint or not), dependents (0–3), and the filing flag;
@@ -50,6 +51,13 @@ hours worked, and childcare, weighted to 2019 targets.
 - three items outside AGI: gross Social Security plus pensions,
   tax-exempt interest, and gross Social Security alone (shared with the
   CEX);
+- (candidate, 27 October, branch `rebuild-puf-vars`; `explore_stage3_RESULTS.md`) the other PUF items production
+  carries, 40 PUF-only slots under production's names: ordinary dividends as qualified (div_pref) plus other
+  (div_ord) and the statutory adjustments as their eleven parts, both totals computed from the parts; unrecaptured
+  section 1250 gain, 28% collectibles gain, partnership income subject to self-employment tax (part_se), nine
+  itemized deduction items (medical, state and local income or sales tax, cash and noncash charity, casualty, job
+  expenses, tax preparation, other miscellaneous, other itemized), two AMT items, eleven credits and two other taxes
+  (below, "The other PUF items");
 - two itemized deductions (PUF only, itemizers only): mortgage interest
   paid and real estate tax. They are kept in 2015 dollars in the 2019 file
   (SOI Table 1.4 has no row to grow them by);
@@ -71,6 +79,12 @@ hours worked, and childcare, weighted to 2019 targets.
   home mortgage is carried as its share of the home's value;
 - the 4 unrealized gains (home, other real estate, business, stocks and
   funds) and whether the unit owns any private business (SCF only);
+- auto loan interest (SCF only, candidate 26 October; `auto_int_exp`): a
+  year's interest on the household's vehicle loans at the interview's
+  balance and rate (below, "Auto loan interest");
+- tips (SIPP only, candidate 26 October): each adult's tips as a share of
+  that adult's wages, and whether that adult's tips are mostly from leisure
+  and hospitality (below, "The SIPP");
 - spending in production's 8 categories (CEX only): clothing; motor
   vehicles; other durables; other nondurables; food at home (with
   alcohol); gasoline; housing and utilities; other services and health.
@@ -184,6 +198,29 @@ tilt.nonfiler_targets_dir).
 - **Checks** on the candidate file: wages1 + wages2 equals wages, and se1 +
   se2 equals Schedules C and F income, to within $0.000000001 on every
   record (floating point); every rule above holds on every record.
+
+**The SIPP** (candidate, 26 October; `pipeline/roster_sipp.py`, `pipeline/sipp_read.py`, settings "sipp"). The
+Census Bureau's Survey of Income and Program Participation, one public-use release per reference year: 2015 (the 2014
+panel, wave 3), 2017, 2019, 2021 and 2023 (the releases of 2018, 2020, 2022 and 2024), the CPS's years. The household
+is the sample unit as interviewed (the people present at the interview, the CPS's convention), split into tax units
+by the shared rules; income is the reference year's 12 months. Dependent filers are folded into the unit that claims
+them, separate returns by the CEX's rule. Shared with the PUF: married, dependents, the age range, the exact ages of
+the primary filer and the spouse, and wages (jobs for an employer); shared with the CPS: the spouse's share of the
+couple's wages (a translation-table row with `shared_with`, cut on the CPS's cut points of the same year). SIPP only:
+each adult's tips as a share of that adult's wages, and the leisure and hospitality flags. Tips are production's
+definition (`src/imputations/tips.R`): tips on jobs for an employer (TJBn_TXAMT, job lines 1-4), not on
+self-employment; a person's tips are from leisure and hospitality when more than half are from jobs with Census
+industry codes 8560-8690. The SIPP's job earnings include the job's tips (no job-month has tips above its earnings),
+so tips are part of wages, as on Form W-2. In the file, tips1 = the primary filer's share times wages1, tips2 the
+spouse's times wages2, tips = tips1 + tips2 exactly; tips_lh1 and tips_lh2 are 0 without tips. Nothing is targeted.
+
+**Auto loan interest** (candidate, 26 October; `build_scf.R`). The SCF's own vehicles 1-4 (every wave the model uses:
+2013, 2016, 2019, 2022, with the same items and codes): the amount still owed (X2218, X2318, X2418, X7169) times the
+current annual rate in hundredths of a percent (X2219, X2319, X2419, X7170) over 10,000, Tedeschi's car interest
+rule; a rate coded -1 (no interest) reads as 0. A household debt, divided among the PEU's units as installment debt
+is, none to units outside the PEU (the group's vehicle loans are not asked). An SCF-only amount, drawn in the SCF
+phase from the record's wave and grown per tax unit to the target year's wave like the balance sheet; not part of
+net worth. Nothing is targeted.
 
 **The CEX** (`pipeline/build_cex.R`, settings "cex"). BLS's interview
 survey, five quarterly files per survey year (the year's first quarter
@@ -669,6 +706,42 @@ Counts by kind as in `tilt/<run>/targets.csv`.
 
 The latest run (below): all 496 targets inside their ranges (the 44 SCF targets at half a standard error);
 effective sample kept 98.0% from the prescaled start; 49 warnings and 33 stops.
+
+**The other PUF items** (candidate, 27 October, branch `rebuild-puf-vars`; `build_table.py`, STAGE3). Every PUF item
+production's variable guide takes from the PUF that the model did not draw, with production's names and definitions
+(`config/variable_guide/baseline.csv`, `src/process_puf.R`), plus the two adjustments the file's total already held
+and production does not carry (se_tax_ded, E03260, and hsa_ded, E03290). All are PUF-only: absent on the SCF, the CEX
+and the SIPP, not measured by the CPS, so a non-filer has none (generation's rule for a PUF amount the CPS lacks).
+- Ordinary dividends = div_pref (E00650) + div_ord (E00600 - E00650), and the adjustments = their eleven parts, are
+  computed from the parts at generation and in the dollars, so they add up exactly. The CPS's one dividend amount goes
+  to div_pref, ranked against the tax data's ordinary dividends (the translation table's `rank_against`), so its
+  translated dollars stay as before; its adjustments, which it never asked, are absent instead of zero.
+- part_se: on a return with any partnership income or loss, (E30400 + E30500) / 0.9235 less Schedules C and F.
+  other_item_exp: itemized deductions before the overall limitation (P04470 + E21040) less deductible medical
+  expenses (floor 7.5% of AGI at 65+, else 10%), the two taxes, interest, charity, casualty and net limited
+  miscellaneous deductions, on itemizers. The PUF rounds each item on its own, so it is negative on 15 million
+  returns, mostly by under $500.
+- Growth to the target year: per return with the item by its own SOI Table 1.4 line (qualified dividends; ordinary
+  dividends for div_ord; each adjustment; Schedule D gains for the two gains; partnership and S corporation income
+  for part_se). The itemized deduction items, AMT items, credits and other taxes have no Table 1.4 line and stay in
+  PUF-year dollars, as mortgage interest and real estate tax do.
+- Not targeted. The AGI group label is unchanged (band-AGI reads the two totals' bands, as before).
+
+**Candidate targets (27 October, branch `rebuild-tips-autoloan`; `explore_stage2_RESULTS.md`).** 250 targets added to
+the 496, every value and error of the 496 unchanged:
+- SOI Table 1.3 (184): returns, AGI, and the number with and amount of 22 income items in each filing status; SOI
+  Table 4.3 (54): returns, AGI and eight income items in the top 0.01% (one group), 0.1% and 1% of AGI among returns
+  other than dependent filers'. Run G2's set (Tax-Data-targets, approved by John), with Table 1.3's capital loss
+  measured as the loss allowed on the return. Read from the local IRS-Ind store's tidy files (settings
+  `paths.raw.soi_tables`); errors borrowed from the nearest Table 1.4 cells (`target_list.published_grid`).
+- Tips (4): SOI's 2019 Form W-2 statistics, Table 4.B, box 7 (Social Security tips), returns with any and the amount
+  in joint and non-joint returns (settings `paths.raw.soi_w2`; `target_list.published_w2`). The file's tips are
+  measured as box 7 holds them, at most the Social Security wage base less the other wages (catalog `ss_tips`).
+  Non-joint values exclude dependent filers by the SIPP's share of dependents among non-joint tipped people (10.1% of
+  people, 2.9% of tips), half of that reduction added to the error. Borrowed errors.
+- Auto loan interest (8): the SCF's share of units with any and dollars per unit in the four income groups of the
+  wealth grid, on the year's mix of waves (`scf_targets.py`, statistic average), half a standard error.
+All 746 are met (run S2), with 87.7% of the effective sample kept.
 
 ## How the latest run comes out
 

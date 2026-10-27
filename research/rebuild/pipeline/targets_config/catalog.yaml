@@ -36,6 +36,44 @@ sources:
   soi 1.6:
     kind: published
     what: SOI Publication 1304, Table 1.6, returns by filing status and age of the primary taxpayer, all AGI
+  # Tables 1.3 and 4.3 (27 October; run G2 of explore_targets_13_43_RESULTS.md, approved by John), read from the tidy
+  # files of the local IRS-Ind store (settings paths.raw.soi_tables): one row per published cell, selected by the
+  # variable's item and measure (variables, "published") and the grouping's published labels (groupings). Errors are
+  # borrowed from the nearest Table 1.4 cells (target_list.published_grid); a Table 4.3 group whose published AGI
+  # cutoff is at or above full_sample_above gets errors.full_sample_se instead (SOI samples every such return).
+  soi 1.3:
+    kind: published
+    layout: tidy_grid
+    table: '1.3'
+    file: bystatus_all_items.csv
+    units: {item: adjusted gross income less deficit, units: returns}
+    what: SOI Publication 1304, Table 1.3, all returns, sources of income by filing status
+  soi 4.3:
+    kind: published
+    layout: tidy_grid
+    table: '4.3'
+    file: pctile_top_items.csv
+    units: {item: all, units: returns}
+    cutoff_item: adjusted gross income floor on percentiles (whole dollars)
+    full_sample_above: 10000000
+    what: >-
+      SOI Table 4.3, returns other than dependent filers' by cumulative AGI percentile group (top 0.001% to top 50%),
+      selected income items
+  # SOI's Form W-2 statistics (27 October, candidate): Table 4.B, the summary of W-2 items for taxpayers on
+  # individual returns, by joint and non-joint returns (settings paths.raw.soi_w2, w2_t4_<year>.xlsx). W-2s of
+  # people who file no return are not in it. Box 7 is Social Security tips: tips the employee reported to the
+  # employer, with box 3 (Social Security wages) plus box 7 at most that year's Social Security wage base.
+  # Non-joint returns include dependent filers, who hold no tips in the file (stage 1, decision 11): for a target
+  # whose population leaves them out, the non-joint value is reduced by the SIPP's share of non-joint tipped people
+  # (for a count) or tips (for an amount) who are dependents (target_list.published_w2), and half of that reduction
+  # is added to the error as a definition gap.
+  soi w2:
+    kind: published
+    layout: w2_summary
+    file: w2_t4_{year}.xlsx
+    sheet: Table 4.B
+    dependent_share: {survey: sipp, persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}_all.parquet', gap_share: 0.5}
+    what: SOI Form W-2 statistics, Table 4.B, summary of items for taxpayers with Form W-2, by joint and non-joint returns
   scf:
     kind: survey
     file: data/scf_units_{year}.parquet
@@ -82,6 +120,7 @@ populations:
   all_units:                          {rule: all}
   units_other_than_dependent_filers:  {rule: age_range < 6, why: the surveys count dependent filers inside the unit that claims them}
   dependent_filers:                   {rule: filer == 1 and age_range >= 6, why: "the PUF's three dependent age ranges (common.DEPENDENT_RANGES)"}
+  independent_filers:                 {rule: filer == 1 and age_range < 6, why: "returns other than dependent filers' (Table 4.3's population; the W-2 tips targets)"}
 
 # ---------------------------------------------------------------------------------------------------------------
 # Statistics. Each is a linear condition on the file's weights.
@@ -118,6 +157,15 @@ error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
 #                negative); the net is the signed sum of the family's PUF parts (targets.FAMILIES)
 #   people:      the number of people in the unit, among the given members, whose exact age is in [from, to);
 #                members: head, spouse, dep1-dep3 (columns age_primary, age_spouse, age_dep1-3; -1 for none)
+#   family with side net: the family's signed net (income less loss)
+#   base + transform: another variable's value, transformed: positive (its positive part), loss (minus its negative
+#                part), loss_allowed (the loss allowed on Form 1040: at most $3,000, $1,500 if married filing
+#                separately, mars 3), any (1 where it is not zero, else 0; its average is the share of units with any)
+#   ss_tips:     W-2 box 7 tips: each person's tips held so that wages less tips plus tips is at most the target year's
+#                Social Security wage base (wage_base, by year), summed over the people [[wages, tips], ...]
+#   count_variable: the variable whose nonzero values the count statistic counts, where a published count and
+#                amount have different definitions (Table 4.3's capital gains: returns with a gain, net gain less loss)
+#   published:   the variable's item and measures in a tidy published table (sources soi 1.3, soi 4.3)
 # The SOI lines are the variable names of the run's targets/soi.csv (targets.T14).
 # ---------------------------------------------------------------------------------------------------------------
 variables:
@@ -125,14 +173,23 @@ variables:
     record: wages
     short: wages
     soi 1.4: {count: [wages], amount: [wages]}
+    published:
+      soi 1.3: {item: salaries and wages, count: returns, amount: amount}
+      soi 4.3: {item: salaries and wages, count: returns, amount: amount}
   taxable_interest:
     record: interest
     short: interest
     soi 1.4: {count: [taxable_interest], amount: [taxable_interest]}
+    published:
+      soi 1.3: {item: taxable interest, count: returns, amount: amount}
+      soi 4.3: {item: taxable interest, count: returns, amount: amount}
   ordinary_dividends:
     record: dividends
     short: dividends
     soi 1.4: {count: [ordinary_dividends], amount: [ordinary_dividends]}
+    published:
+      soi 1.3: {item: ordinary dividends, count: returns, amount: amount}
+      soi 4.3: {item: ordinary dividends, count: returns, amount: amount}
   sch_d_net_capital_gain:
     record: capital_gains               # the Schedule D net: short term + long term + other (dollars.py)
     short: capital_gains
@@ -144,6 +201,181 @@ variables:
   agi:
     parts: [wages, interest, dividends, capital_gains, other_agi]
     short: agi
+    published:
+      soi 1.3: {item: adjusted gross income less deficit, count: returns, amount: amount}
+      soi 4.3: {item: adjusted gross income less deficit, count: returns, amount: value, returns_item: all}
+  # Table 1.3's and Table 4.3's income items on the file's definitions (dollars.py), 27 October (run G2 of
+  # explore_targets_13_43_RESULTS.md). Total income is AGI plus the adjustments. Capital gains: Form 1040 line 13
+  # (capital_gains_line13, distributions included); Table 1.3's net gain is its positive part, its net loss the loss
+  # allowed on the return (run G2: the file's Schedule D pieces are drawn separately, so their sum can pass the cap;
+  # SOI's loss is the allowed loss). Table 4.3's capital gains amount is the net gain less the loss, its count the
+  # returns with a gain. Its business item is Schedules C and F together.
+  total_income:
+    parts: [wages, interest, dividends, capital_gains, other_agi, adjustments]
+    short: total_income
+    published:
+      soi 1.3: {item: total income, count: returns, amount: amount}
+  tax_exempt_interest:
+    record: tax_exempt_interest
+    short: tax_exempt_interest
+    published:
+      soi 1.3: {item: tax exempt interest, count: returns, amount: amount}
+  state_refunds:
+    record: state_refunds
+    short: state_refunds
+    published:
+      soi 1.3: {item: state income tax refunds, count: returns, amount: amount}
+  alimony:
+    record: alimony
+    short: alimony
+    published:
+      soi 1.3: {item: alimony received, count: returns, amount: amount}
+  capital_gain_total:
+    record: capital_gains_line13
+    short: capital_gain_total
+    count_variable: capital_gain_positive
+    published:
+      soi 4.3: {item: 'sales of capital assets, net gain less loss', count: returns, amount: amount}
+  capital_gain_positive:
+    base: capital_gain_total
+    transform: positive
+    short: capital_gain_positive
+    published:
+      soi 1.3: {item: sales of capital assets net gain, count: returns, amount: amount}
+  capital_gain_loss:
+    base: capital_gain_total
+    transform: loss_allowed
+    short: capital_gain_loss
+    published:
+      soi 1.3: {item: sales of capital assets net loss, count: returns, amount: amount}
+  other_gains:
+    record: other_gains
+    short: other_gains
+    published:
+      soi 1.3: {item: 'sales of property other than capital assets, net gain less loss', count: returns, amount: amount}
+  ira_taxable:
+    record: ira_taxable
+    short: ira_taxable
+    published:
+      soi 1.3: {item: taxable individual retirement arrangement (ira) distributions, count: returns, amount: amount}
+  pensions_taxable:
+    record: pensions_taxable
+    short: pensions_taxable
+    published:
+      soi 1.3: {item: taxable pensions and annuities, count: returns, amount: amount}
+  ss_taxable:
+    record: ss_taxable
+    short: ss_taxable
+    published:
+      soi 1.3: {item: taxable social security benefits, count: returns, amount: amount}
+  unemployment:
+    record: unemployment
+    short: unemployment
+    published:
+      soi 1.3: {item: unemployment compensation, count: returns, amount: amount}
+  sch_c_net_income:
+    family: sch_c
+    side: net_income
+    short: sch_c net_income
+    soi 1.4: {count: [sch_c_net_income], amount: [sch_c_net_income]}
+    published:
+      soi 1.3: {item: business or profession net income, count: returns, amount: amount}
+  sch_c_net_loss:
+    family: sch_c
+    side: net_loss
+    short: sch_c net_loss
+    soi 1.4: {count: [sch_c_net_loss], amount: [sch_c_net_loss]}
+    published:
+      soi 1.3: {item: business or profession net loss, count: returns, amount: amount}
+  rent_royalty_net_income:
+    family: rent_royalty
+    side: net_income
+    short: rent_royalty net_income
+    soi 1.4: {count: [rent_royalty_net_income], amount: [rent_royalty_net_income]}
+    published:
+      soi 1.3: {item: total rental and royalty net income, count: returns, amount: amount}
+  rent_royalty_net_loss:
+    family: rent_royalty
+    side: net_loss
+    short: rent_royalty net_loss
+    soi 1.4: {count: [rent_royalty_net_loss], amount: [rent_royalty_net_loss]}
+    published:
+      soi 1.3: {item: total rental and royalty net loss, count: returns, amount: amount}
+  pship_scorp_net_income:
+    family: pship_scorp
+    side: net_income
+    short: pship_scorp net_income
+    soi 1.4: {count: [pship_scorp_net_income], amount: [pship_scorp_net_income]}
+    published:
+      soi 4.3: {item: partnership and s corporation > net income, count: returns, amount: amount}
+  pship_scorp_net_loss:
+    family: pship_scorp
+    side: net_loss
+    short: pship_scorp net_loss
+    soi 1.4: {count: [pship_scorp_net_loss], amount: [pship_scorp_net_loss]}
+    published:
+      soi 4.3: {item: partnership and s corporation > net loss, count: returns, amount: amount}
+  pship_scorp_net:
+    family: pship_scorp
+    side: net
+    short: pship_scorp_net
+    published:
+      soi 1.3: {item: partnership and s corporation net income less loss, count: returns, amount: amount}
+  estate_trust_net:
+    family: estate_trust
+    side: net
+    short: estate_trust_net
+    published:
+      soi 1.3: {item: estate and trust net income less loss, count: returns, amount: amount}
+  farm_net:
+    family: farm
+    side: net
+    short: farm_net
+    published:
+      soi 1.3: {item: farm net income less loss, count: returns, amount: amount}
+  farm_rental_net:
+    family: farm_rental
+    side: net
+    short: farm_rental_net
+    published:
+      soi 1.3: {item: farm rental net income less loss, count: returns, amount: amount}
+  sch_cf_income:
+    record: sch_cf_income
+    short: Schedules C and F income
+  sch_cf_positive:
+    base: sch_cf_income
+    transform: positive
+    short: sch_cf_positive
+    published:
+      soi 4.3: {item: business or profession (from schedules c and f) > net income, count: returns, amount: amount}
+  sch_cf_loss:
+    base: sch_cf_income
+    transform: loss
+    short: sch_cf_loss
+    published:
+      soi 4.3: {item: business or profession (from schedules c and f) > net loss, count: returns, amount: amount}
+  # Tips as Form W-2 box 7 has them (27 October, candidate): each person's tips (tips1, tips2, drawn from the SIPP)
+  # held so that the person's wages other than tips plus the tips are at most the Social Security wage base, as box 3
+  # plus box 7 are (Form W-2 instructions); a person whose other wages pass the base has no box 7 tips. The base by
+  # year is the SSA's contribution and benefit base.
+  ss_tips:
+    ss_tips: [[wages1, tips1], [wages2, tips2]]
+    wage_base: {2015: 118500, 2016: 118500, 2017: 127200, 2018: 128400, 2019: 132900, 2020: 137700,
+                2021: 142800, 2022: 147000, 2023: 160200, 2024: 168600}
+    short: Social Security tips
+    published:
+      soi w2: {item: 'Box 7: Social security tips'}
+  # Auto loan interest (27 October, candidate): the SCF's auto_int_exp, the amount still owed on each of up to four
+  # vehicle loans times its current rate (build_scf.R), the same column on the SCF's units and on the file (drawn in
+  # the SCF phase and grown per tax unit to the target year's wave, as the balance sheet). The share of units with
+  # any is the average of the 0/1 indicator.
+  auto_loan_interest:
+    record: auto_int_exp
+    short: auto loan interest
+  any_auto_loan_interest:
+    base: auto_loan_interest
+    transform: any
+    short: units with auto loan interest
   business_income:
     record: business_income
     short: business_income
@@ -229,6 +461,15 @@ variable_lists:
                     heads_spouses_55_64, heads_spouses_65_74, heads_spouses_75_up, children_under_17]
   # The SCF's balance sheet by kind of asset, for the top net worth lines (TARGETS.md S2)
   scf_top_assets: [stocks, business_equity, real_estate, retirement_accounts]
+  # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
+  soi_1_3_items: [wages, taxable_interest, ordinary_dividends, tax_exempt_interest, state_refunds, alimony,
+                  sch_c_net_income, sch_c_net_loss, capital_gain_positive, capital_gain_loss, other_gains, ira_taxable,
+                  pensions_taxable, ss_taxable, unemployment, rent_royalty_net_income, rent_royalty_net_loss,
+                  pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
+  soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,
+                  pship_scorp_net_income, pship_scorp_net_loss]
+  # Auto loan interest from the SCF: the share of units with any and the dollars per unit
+  auto_loans: [any_auto_loan_interest, auto_loan_interest]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Groupings: named ways of cutting units into cells. An entry's cells are "all", one grouping (all its cells or a
@@ -296,6 +537,40 @@ groupings:
     values: [[1, joint], [0, non-joint]]
     in soi 1.2: {joint: [joint], non-joint: [nonjoint]}                       # targets/soi.csv filing_status
     in soi 1.6: {joint: [joint], non-joint: [single, separate, head_of_household]}   # targets.table_1_6 statuses
+    # Table 4.B of the W-2 statistics: the column groups of each cell (returns or taxpayers, amount)
+    in soi w2: {joint: 'Joint returns, total', non-joint: 'Nonjoint returns, wage earner'}
+  # The four filing statuses of Table 1.3 (the file's mars; surviving spouses are in joint returns, as in SOI)
+  filing_four:
+    variable: mars
+    values: [[1, single], [2, joint], [3, separate], [4, head of household]]
+    published_column: panel
+    published_labels:
+      single: [Returns of single persons]
+      joint: [Returns of married persons filing jointly and returns of surviving spouses]
+      separate: [Returns of married persons filing separately]
+      head of household: [Returns of heads of households]
+  # Table 4.3's cumulative AGI percentile groups, by AGI rank among returns other than dependent filers' (the
+  # file's lines on its starting weights after the demographic prescaling, held fixed in dollars through the tilt,
+  # as income_rank_groups). [low percentile, high percentile, label].
+  agi_cumulative:
+    variable: agi
+    ranks:
+      - [99.999, 100, top 0.001 percent]
+      - [99.99, 100, top 0.01 percent]
+      - [99.9, 100, top 0.1 percent]
+      - [99, 100, top 1 percent]
+      - [95, 100, top 5 percent]
+      - [90, 100, top 10 percent]
+      - [50, 100, top 50 percent]
+    published_column: pctile_group
+    published_labels:
+      top 0.001 percent: [top 0.001 percent]
+      top 0.01 percent: [top 0.01 percent]
+      top 0.1 percent: [top 0.1 percent]
+      top 1 percent: [top 1 percent]
+      top 5 percent: [top 5 percent]
+      top 10 percent: [top 10 percent]
+      top 50 percent: [top 50 percent]
   married_or_not:
     variable: married
     values: [[1, married], [0, not married]]

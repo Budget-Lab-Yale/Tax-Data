@@ -19,8 +19,13 @@
    ],
    "nonfiler_pool": "/nfs/roberts/project/pi_nrs36/shared/model_data/ASEC-Nonfilers/v1/2026091201/historical/nonfiler_pool_{year}.csv.gz",
    "soi_mirror": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned",
+   "soi_tables": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/IRS-Ind/aligned",
+   "_soi_tables": "The local IRS-Ind store, built 26 October 2026 (its README.md): the shared mirror plus SOI Tables 1.3 (every item by filing status) and 4.3 (items of the top AGI percentile groups) as tidy files, bystatus_all_items.csv and pctile_top_items.csv (targets_config/catalog.yaml, sources soi 1.3 and soi 4.3).",
+   "soi_w2": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/IRS-Ind/national/w2",
+   "_soi_w2": "SOI's Form W-2 statistics as published (irs.gov/pub/irs-soi/{yy}in0{n}w2all.xlsx; the store's manifest.csv): w2_t4_{year}.xlsx, Table 4.B, the summary of W-2 items by filing status, read for the tips targets (catalog source soi w2). Built for the 2019 and 2020 layout.",
    "pce": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/resources/pce_historical.csv",
-   "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX"
+   "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX",
+   "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927"
   }
  },
  "tax_units": {
@@ -65,7 +70,7 @@
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges.",
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 matches the survey's amount to the tax data's amount of the named PUF variable (a computed total) instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts.",
   "table": [
    {
     "survey": "scf",
@@ -487,7 +492,7 @@
    },
    {
     "survey": "cps",
-    "variable": "dividends",
+    "variable": "div_pref",
     "items": [
      "dividends"
     ],
@@ -495,7 +500,18 @@
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top"
+    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top. Since stage 3 (27 October) ordinary dividends are computed from qualified and other dividends; the CPS reports one dividend amount, so it goes to qualified dividends (most of ordinary dividends: 78% of the 2015 PUF's dollars) and the CPS's other dividends are zero, as the CPS's capital gains go to long-term gains; ranked against the tax data's ordinary dividends (rank_against), so the CPS's translated dividends are as before stage 3",
+    "rank_against": "dividends"
+   },
+   {
+    "survey": "cps",
+    "variable": "div_ord",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "stage 3 (27 October): the CPS reports one dividend amount, put in qualified dividends (row div_pref); ordinary dividends less qualified are zero on the CPS"
    },
    {
     "survey": "cps",
@@ -619,16 +635,6 @@
    {
     "survey": "cps",
     "variable": "state_refunds",
-    "items": [],
-    "dollar_line": null,
-    "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
-   },
-   {
-    "survey": "cps",
-    "variable": "adjustments",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -879,6 +885,71 @@
     "fill_in": null,
     "type_for_fill_in": false,
     "reason": "the rest of the pool's gross income: survivor and disability pensions other than Social Security (INCSURV + INCDISAB) and other income (INCOTHER, which holds alimony) (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "married",
+    "items": [
+     "married"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "n_dep",
+    "items": [
+     "n_dep"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "age_range",
+    "items": [
+     "age_range"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the primary filer's range, couples by the rule in ages.py"
+   },
+   {
+    "survey": "sipp",
+    "variable": "age_primary",
+    "items": [
+     "age_primary"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported (age at the interview, as the CPS): the primary filer by the rule in ages.py; 80 and over as 80, as for the other surveys"
+   },
+   {
+    "survey": "sipp",
+    "variable": "age_spouse",
+    "items": [
+     "age_spouse"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
+   },
+   {
+    "survey": "sipp",
+    "variable": "wages",
+    "items": [
+     "wages"
+    ],
+    "dollar_line": 0,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "spouse_wage_share",
+    "items": [],
+    "shared_with": "cps",
+    "type_for_fill_in": false,
+    "reason": "the spouse's share of the couple's wages (jobs for an employer), on married couples with some wages, as the CPS records it; shared with the CPS (not the PUF), taken as reported on the CPS's cut points of the same year, so the SIPP's tips follow each person's own wages at generation"
    }
   ],
   "fill_from_pass": 3,
@@ -926,6 +997,37 @@
   "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
   "step1_out": "returns",
   "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads."
+ },
+ "sipp": {
+  "_what": "The SIPP as a fifth source (roster_sipp.py, build_table.py): the Survey of Income and Program Participation's public-use files, one per reference (tax) year, its households as of the interview split into tax units by CBO's rules (tax_units.py, the shared module), every tax unit, dependent filers folded into the unit that claims them. Shared with the PUF (translation table): married, dependents, the primary filer's age range, wages, and the exact ages of the primary filer and the spouse; shared with the CPS: the spouse's share of the couple's wages. SIPP only: each adult's tips as a share of that adult's wages, and whether that adult's tips are mostly from leisure and hospitality (tip_share_primary, tip_share_spouse, tips_lh_primary, tips_lh_spouse), drawn last at generation under the SIPP label and generation_year. The file's tips1 and tips2 are each share times that person's wages (wages1, wages2), and tips their sum.",
+  "years": [
+   2015,
+   2017,
+   2019,
+   2021,
+   2023
+  ],
+  "_years": "Reference years, chosen as the CPS's (settings cps.years): every other year from the PUF year to the last year with a release. 2015 is the 2014 panel's wave 3; 2017-2023 the annual releases of 2018, 2020, 2022 and 2024 (NOTES.md in paths.raw.sipp: the 2018 release in the older folder is truncated, this one is complete).",
+  "releases": {
+   "2015": "pu2014w3.csv.gz",
+   "2017": "pu2018.csv.gz",
+   "2019": "pu2020.csv",
+   "2021": "pu2022.csv",
+   "2023": "pu2024_csv.zip"
+  },
+  "generation_year": 2019,
+  "_generation_year": "The SIPP label's year at generation: the target year, as for the CEX and the CPS.",
+  "lh_industries": [
+   [
+    8560,
+    8690
+   ]
+  ],
+  "_lh_industries": "Leisure and hospitality: Census industry codes 8560-8690 (arts, entertainment and recreation; accommodation and food services; NAICS 71 and 72). Production (tips.R) uses 8561-8690, the 2017 and later Census codes; the 2014 panel's codes (2012 Census codes) put performing arts, spectator sports and independent artists in 8560, so the range starts at 8560 here to cover both codings.",
+  "lh_share": 0.5,
+  "_lh_share": "A person's tips are from leisure and hospitality when more than this share of the person's tips on jobs for an employer is from such jobs (production's tips.R).",
+  "mfs_salt": 20261023,
+  "_mfs_salt": "Separate returns: joint couples are split by the CEX's rule (tax_units.mfs_split, keyed draw with this salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns."
  },
  "filing": {
   "_what": "The CPS's filing stage (filing.py, filing_requirement.R; run.sbatch stage filing): every CPS tax unit's chance of filing, by the filing rule v4 (John, 24 October 2026): logit(chance) = a(age band of the head) + k x (a child under 17) + required x (r + s x log gross income, centred on the year's weighted median among required units + b x (business or farm income not zero)), required being the statutory filing requirement. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11 targets hold exactly: non-filing heads and spouses in 7 age bands = CPS adults - adults on returns (SOI Table 1.6, age_shape's filing_adults) - dependents aged 15+ not filing their own return (group quarters left out, so zero); and the four shares below. Dependents' own returns: file if required to or with any wages. No outside filing model.",
@@ -1044,9 +1146,10 @@
   "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. The number for every kind of target not in range_in_se_by_kind, and for the demographic prescaling. Half a standard error for every target was tested on 26 October (TARGETS.md S6): 23 targets (non-filer people bands against CEX food and health averages) could not all be met and the effective sample kept fell to 31%.",
   "range_in_se_by_kind": {
    "wealth": 0.5,
-   "wealth grid": 0.5
+   "wealth grid": 0.5,
+   "auto loans": 0.5
   },
-  "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before.",
+  "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before. Auto loan interest (kind auto loans, 27 October, candidate) is an SCF target on the same pooled waves, so it takes the SCF targets' half standard error.",
   "scf_target_waves": "prior",
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks."
  },
@@ -1054,5 +1157,6 @@
   "_what": "Standard errors (errors.py, TARGETS.md section 9). Every setting here is optional, with the default given; none is set today.",
   "_scf_replicate_dir": "The folder of each SCF wave's replicate weights (p<yy>_rw1.dta, from the Federal Reserve; errors.py says how to fetch them), with {wave} in the path for the wave. Default: <out>/data/scf_rw/{wave}, which holds the 2016, 2019 and 2022 waves' files. Every wave in a year's mix needs its folder (scf_targets.py).",
   "_other": "soi_cv_dir (default <out>/targets/soi_cv), borrow_neighbours (5), full_sample_se (0.01), nonfiler_count_se (0.06), nonfiler_people_population_se (0.005), definition_gap ({}): errors.py's docstring says what each means."
- }
+ },
+ "_targets_config": "Optional key targets_config: a folder holding a copy of targets_config/ (catalog, defaults, historical, projection, years/) to read instead of the pipeline's own, for a reweighting variant (target_list.py). Absent: pipeline/targets_config."
 }

@@ -1,4 +1,4 @@
-"""Pretraining: the transformer on the PUF, SCF, CEX and CPS table.
+"""Pretraining: the transformer on the PUF, SCF, CEX, CPS and SIPP table.
 
 Masked any-subset training (model.py) on every record but a 2% held-back
 slice, for a fixed number of passes, keeping the last.
@@ -53,7 +53,7 @@ the log-probabilities, loss, gradients and weight updates in 32-bit. The
 fill-in, the held-back loss and the per-variable log always run in 32-bit.
 
 Writes, in common.MODEL: model.pt, train_log.csv (loss per pass),
-var_log.csv (held-back PUF, CEX and CPS holder shares per variable, every few
+var_log.csv (held-back PUF, CEX, CPS and SIPP holder shares per variable, every few
 passes; for a CPS category, the share not in value 0), fill_log.csv (fillin.py), train_meta.json (settings).
 """
 import json
@@ -195,7 +195,7 @@ def main():
 
     # ---- the per-variable log: held-back PUF records for the PUF items, held-back CEX records for consumption
     logged = {'puf': [v for v in M.AMOUNTS if f'puf/{common.PUF_YEAR}/{v}' in common.edges()], 'cex': M.CEX_SLOTS,
-              'cps': M.CPS_SLOTS}
+              'cps': M.CPS_SLOTS, 'sipp': M.SIPP_SLOTS}
     var_log = []
 
     @torch.no_grad()

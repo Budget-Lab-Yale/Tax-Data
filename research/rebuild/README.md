@@ -21,7 +21,8 @@ decision) is in `research/archive/rebuild_2026-10/`.
 
 ## Running it
 
-Every stage runs through Slurm, from the repository root:
+Every stage runs through Slurm, from the repository root (the job runs the code of the repository it is submitted
+from, so a worktree runs its own):
 
     sbatch research/rebuild/pipeline/run.sbatch                  # every stage
     sbatch research/rebuild/pipeline/run.sbatch generate tilt    # some stages
@@ -32,13 +33,14 @@ Every stage runs through Slurm, from the repository root:
 | cex | `roster_cex.py`, `build_cex.R` | CEX survey years split into tax units by the shared rules, with their spending | a few minutes |
 | filing | `filing.py`, `filing_requirement.R` | the CPS's tax units by the shared rules, each unit's statutory filing requirement, and its filing chance by the filing rule (v4), calibrated each year; separate returns; checks | about 7 minutes |
 | cps | `build_cps.R` | CPS ASEC tax years as tax units (the filing stage's returns), with each person's items and childcare | minutes |
+| sipp | `roster_sipp.py`, `sipp_read.py` | SIPP reference years split into tax units by the shared rules, with each adult's wages and tips (candidate, 26 October) | a few minutes (the first read of each release about a minute) |
 | targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | errors | `errors.py soi_cv` | SOI's published coefficients of variation, parsed from the downloaded workbooks | seconds |
 | table | `build_table.py` | the training table with the AGI group label, its bands, and the dollar maps (one per SCF wave for the balance sheet) | about 3 minutes |
 | train | `train.py` (and `fillin.py`, `qgroups.py`) | the model, with grouped weighting and the two-slot fill-in; train each pooled model with REBUILD_RUN set to its name in `generation.models` and REBUILD_SEED to its seed | about 25 minutes on an H200, an hour on an H100 (batches of 512) |
 | generate | `generate.py` | 400,000 filer records drawn AGI group by AGI group, and the non-filer batch, half from each of two trained models, each record's balance sheet from one SCF wave | about 10 minutes |
 | tilt | `tilt.py`, then `report_tilt.py` | the year's targets (`targets_config/`, `target_list.py`, `errors.py`), the target year's weights (`solver.py`) and file, and the run report | about 7 minutes on a CPU node |
-| report | `report_cex.py`, `report_cps.py`, `report_translation.py` | consumption and the CPS's person items in the file against the target year's CEX and CPS; the translation report | seconds |
+| report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and tips in the file against the target year's CEX, CPS and SIPP; the translation report | seconds |
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),

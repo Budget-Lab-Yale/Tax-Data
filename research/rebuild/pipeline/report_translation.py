@@ -24,7 +24,8 @@ import pandas as pd
 import common
 import translate as TR
 
-STAGES = ['as reported', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)']
+STAGES = ['as reported', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)',
+          'CPS (same year)']
 
 
 def after_fill_in():
