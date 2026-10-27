@@ -46,8 +46,13 @@ before the next; then one big run:
      percentile; Schedules C and F fill-in plus count from the top; tax-exempt interest fill-in. Social Security
      plus pensions is replaced by gross Social Security alone, matched to the return's gross Social Security
      (John, 27 October): the SCF's benefits section (X5301-X5312, respondent and spouse, current benefit at
-     interview), SSI left out (scratch `explore/2026-10-28/scf_social_security/`). **Open:** Schedule E, including whether function 2
-     can turn zeros or positives into losses (scratch `explore/2026-10-28/scf_schedule_e/`).
+     interview), SSI left out (scratch `explore/2026-10-28/scf_social_security/`). **Schedule E decided (John, 27 October):** the SCF's X5714 is split in
+     two: rental income (the property section's net income per property, X1730, X1830, X2010, X2020, plus rent
+     from part of the home or farm) against the PUF's rents and royalties, and the rest (X5714 less rental,
+     floored at zero) against the PUF's other Schedule E parts. In each, function 2 fills in missing holders,
+     losses included (zeros only), steered to owners of property or a pass-through, then amounts by percentile,
+     income and losses separately. No depreciation estimate. The SCF's business-section profit share is not used
+     (book profit, $1,845 billion against $806 billion). Scratch `explore/2026-10-28/scf_schedule_e/`.
    - CEX: Social Security as today; self-employment fill-in plus count from the top; interest and dividends,
      pensions and net rent not shared.
    - CPS: Social Security and the filing flag as today; dividends fill-in plus percentile; pensions fill-in
