@@ -236,9 +236,9 @@ them. Figures are from runs before 25 October unless a date says otherwise:
     network gives a few top earners a tip share the SIPP sees only at low
     wages, and the share multiplies large wages;
   - open: whether the dependent-filer term in the spread targets' errors
-    (up to 4 points at the $121 line) is the right size, and whether to draw
-    more tipped workers at generation instead (5.74 million tipped workers
-    against a target of 6.05 million).
+    (up to 4 points at the $121 line) is the right size. Reweighting stays:
+    raising the weight of tipped records and drawing more of them are the
+    same thing statistically (John, 27 October).
 - **The other PUF items** (27 October; against the 2015 PUF grown to 2019,
   2015 dollars for items SOI cannot grow):
   - the foreign tax credit is 65% high in dollars ($36.0 billion against
