@@ -466,26 +466,37 @@ def cex_replicates(year, units):
 
 def consumption_errors(rows, year):
     """The consumption targets (target_list's consumption entries): each category's average per tax unit over all units and in
-    each cell of the primary filer's adult age range by married."""
-    u = pd.read_parquet(f'{common.DATA}/cex_units_{year}_all.parquet')
-    w = u['weight'].to_numpy(float)
-    rep = cex_replicates(year, u)
+    each cell of the primary filer's adult age range by married, over the year's mix of CEX years (survey_mix.py):
+    each year's standard error from its own 44 replicate weights, on its spending in the target year's dollars (the
+    maps' factors, so a replicate's average is grown as the full-sample one is); the years are independent samples,
+    so the pooled variance is the sum over years of share^2 x the year's variance."""
+    import survey_mix
+    parts = []
+    for y, share in survey_mix.mix('cex', year):
+        u = survey_mix.grown_units('cex', y)
+        parts.append((y, share, u, u['weight'].to_numpy(float), cex_replicates(y, u)))
     out = []
     for r in rows.itertuples():
         g = r.group.split(', ', 1)[1]
-        if g == 'all':
-            mu = np.ones(len(u), bool)
-        else:
-            m = re.fullmatch(r'age (.+), (married|not married)', g)
-            assert m, f'consumption target {r.group}: unknown cell'
-            mu = ((u['age_range'] == AGES.index(m.group(1))) & (u['married'] == int(m.group(2) == 'married'))).to_numpy()
-        v = u[r.target.split(',')[0]].to_numpy(float)
-        full = (w * v)[mu].sum() / w[mu].sum()
-        reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
-        se = float(np.sqrt(((reps - full) ** 2).sum() / 44))
-        note = '' if abs(full - r.value) <= 1e-9 * abs(r.value) else f'; full-sample value {full:,.6g}, not {r.value:,.6g}'
-        out.append((r.Index, se, 'survey_replicate',
-                    f'CEX {year} replicate weights (44, BLS formula); {int(mu.sum())} unit rows in the cell{note}'))
+        var, value, notes = 0.0, 0.0, []
+        for y, share, u, w, rep in parts:
+            if g == 'all':
+                mu = np.ones(len(u), bool)
+            else:
+                m = re.fullmatch(r'age (.+), (married|not married)', g)
+                assert m, f'consumption target {r.group}: unknown cell'
+                mu = ((u['age_range'] == AGES.index(m.group(1))) & (u['married'] == int(m.group(2) == 'married'))).to_numpy()
+            assert mu.any(), f'consumption target {r.group}: no CEX {y} units in the cell'
+            v = u[r.target.split(',')[0]].to_numpy(float)
+            full = (w * v)[mu].sum() / w[mu].sum()
+            reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
+            var += share ** 2 * ((reps - full) ** 2).sum() / 44
+            value += share * full
+            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} unit rows')
+        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
+                    'CEX year mix, replicate weights (44, BLS formula) year by year, variance = sum of share^2 x the '
+                    f'year\'s; {"; ".join(notes)}{note}'))
     return out
 
 

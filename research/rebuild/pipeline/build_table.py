@@ -643,7 +643,8 @@ def cps_person_slots(t, primary_is_2):
     1 a man, 2 a woman. The spouse's share of the couple's wages and of its self-employment income: only on married
     couples with some of the item (elsewhere absent: the model is never asked it there). Where the two spouses' self-employment incomes have opposite signs the share is cut to 0-1
     (counted below), so the file's two parts still add up to the couple's total. Also writes the target year's CPS
-    units, primary filer first, for report_cps.py: data/cps_units_<target year>_all.parquet."""
+    units, primary filer first, for report_cps.py: data/cps_units_<year>_all.parquet, one for each year of the CPS's
+    mix in the target year's file (survey_mix.py)."""
     c = (t.source == 'cps').to_numpy()
     sw = primary_is_2[c]
     d = t[c]
@@ -688,7 +689,8 @@ def cps_person_slots(t, primary_is_2):
         list(TAX_CATEGORIES) + \
         list(PERSON_CATEGORIES) + CPS_AMOUNTS + ['wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
                                               'se_spouse_reported'] + [c for c in d if c.startswith('raw_')]
-    d[d.year == TARGET_YEAR][keep].to_parquet(f'{common.DATA}/cps_units_{TARGET_YEAR}_all.parquet', index=False)
+    for y in mix_years('cps'):
+        d[d.year == y][keep].to_parquet(f'{common.DATA}/cps_units_{y}_all.parquet', index=False)
     return t.drop(columns=[c for c in t if c.endswith(('_primary_reported', '_spouse_reported'))])
 
 
@@ -743,7 +745,8 @@ def sipp_person_slots(t, primary_is_2):
     without wages: the SIPP has no tips above a person's wages, checked in sipp_rows), whether the adult's tips are mostly from leisure and hospitality (0 without
     tips), and the spouse's share of the couple's wages (the CPS's slot, which the SIPP shares: recorded only on
     married couples with some wages, else absent, as on the CPS). Also writes the target year's SIPP units, primary
-    filer first, for report_sipp.py: data/sipp_units_<target year>_all.parquet."""
+    filer first, for report_sipp.py: data/sipp_units_<year>_all.parquet, one for each year of the SIPP's mix in the
+    target year's file (survey_mix.py)."""
     c = (t.source == 'sipp').to_numpy()
     sw = primary_is_2[c]
     d = t[c]
@@ -771,7 +774,8 @@ def sipp_person_slots(t, primary_is_2):
     keep = ['year', 'record_id', 'household_id', 'weight', 'married', 'n_dep', 'age_range', 'spouse_wage_share'] + \
         SIPP_AMOUNTS + list(SIPP_CATEGORIES) + [c for c in out if c.endswith('_reported')] + \
         [c for c in d if c.startswith('raw_')]
-    d[d.year == TARGET_YEAR][keep].to_parquet(f'{common.DATA}/sipp_units_{TARGET_YEAR}_all.parquet', index=False)
+    for y in mix_years('sipp'):
+        d[d.year == y][keep].to_parquet(f'{common.DATA}/sipp_units_{y}_all.parquet', index=False)
     return t.drop(columns=[c for c in out if c.endswith('_reported')])
 
 
@@ -1215,6 +1219,37 @@ def build_maps(t, edges):
     m_sipp_target.to_parquet(f'{common.MAPS}/map_sipp_{TARGET_YEAR}.parquet', index=False)
     pd.DataFrame([{'variable': v, 'factor, positive values': fp, 'factor, negative values': fn}
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
+    build_year_maps(t, edges, pce)
+
+
+def build_year_maps(t, edges, pce):
+    """One map per survey year of the CEX, the CPS and the SIPP in the target year's file (TARGETS.md section 7,
+    survey_mix.py): that year's own records, every value grown from that year to the target year, by the same rules
+    the single-year maps above use. The CEX's categories: NIPA PCE per return, the category's PCE over SOI's return
+    count, target year over the survey year. The CPS's childcare and the SIPP's tips: SOI's wages per return with
+    wages, target year over the survey year (a placeholder: no series measures them per unit); the CPS's shares, weeks
+    and hours are not grown. For the target year itself the factor is 1. Files map_<survey>_from<year>_to<target>.parquet;
+    the factors are in survey_year_growth_factors.csv."""
+    rows = []
+    for src, amounts in [('cex', CEX_AMOUNTS), ('cps', CPS_AMOUNTS), ('sipp', SIPP_AMOUNTS)]:
+        for y in mix_years(src):
+            m = build_map(t[(t.source == src) & (t.year == y)].reset_index(drop=True), edges, src, amounts, year=y)
+            for v in amounts:
+                if src == 'cex':
+                    f = (pce.loc[TARGET_YEAR, v] / TG.all_returns(TARGET_YEAR)) / (pce.loc[y, v] / TG.all_returns(y))
+                elif src == 'cps':
+                    f = growth('wages', TARGET_YEAR)[0] / growth('wages', y)[0] if v in CP['dollar_amounts'] else 1.0
+                else:
+                    f = growth('wages', TARGET_YEAR)[0] / growth('wages', y)[0]
+                r = (m['variable'] == v).to_numpy()
+                m.loc[r, 'value'] = m.loc[r, 'value'].to_numpy(float) * f
+                rows.append({'survey': src, 'year': y, 'variable': v, 'factor to the target year': f})
+            m.to_parquet(f'{common.MAPS}/map_{src}_from{y}_to{TARGET_YEAR}.parquet', index=False)
+    f = pd.DataFrame(rows)
+    f.to_csv(f'{common.MAPS}/survey_year_growth_factors.csv', index=False)
+    common.say('CEX, CPS and SIPP maps by year, growth factor to the target year (wages per return for the CPS and SIPP '
+               'dollars):\n' + f.pivot_table(index=['survey', 'variable'], columns='year', values='factor to the target year')
+               .to_string(float_format=lambda x: f'{x:.4f}'))
 
 
 def present_on(t):
@@ -1228,12 +1263,24 @@ def present_on(t):
     return out
 
 
+def mix_years(source):
+    """The tax years of the survey in the target year's file (the year file's prior, survey_mix.py), the target year
+    first when it is among them."""
+    import survey_mix
+    return sorted(survey_mix.years(source), key=lambda y: (y != TARGET_YEAR, y))
+
+
 def cex_target_units(pi):
-    """The target year's CEX tax units, all of them (a consumer unit's spending divided among its tax units by head
-    count, build_cex.R, which folds dependent filers into the unit that claims them), with the primary filer's age
-    range by the rule the training rows use. For the tilt's consumption targets and the report:
-    data/cex_units_<target year>_all.parquet."""
-    y = TARGET_YEAR
+    """The CEX's tax units, all of them (a consumer unit's spending divided among its tax units by head count,
+    build_cex.R, which folds dependent filers into the unit that claims them), with the primary filer's age range by
+    the rule the training rows use, for each year of the CEX's mix in the target year's file. For the tilt's consumption
+    targets and the report: data/cex_units_<year>_all.parquet."""
+    for y in mix_years('cex'):
+        cex_year_units(pi, y)
+
+
+def cex_year_units(pi, y):
+    """One year's CEX tax units (cex_target_units)."""
     s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
     couple = (s['married'] == 1).to_numpy()
     assert not s.loc[couple, ['age2', 'male2']].isna().any().any() and not s[['age1', 'male1']].isna().any().any()
@@ -1359,12 +1406,13 @@ def main():
     # the report's CPS and SIPP units also carry their wages after function 1 (the CPS's: the tax data's wages at the
     # same count from the top), so the report's wage groups mean the same on both sides
     for src in ('cps', 'sipp'):
-        f = f'{common.DATA}/{src}_units_{TARGET_YEAR}_all.parquet'
-        u = pd.read_parquet(f)
-        tw = t.loc[(t.source == src) & (t.year == TARGET_YEAR), ['record_id', 'wages']]
-        u = u.merge(tw.rename(columns={'wages': 'wages_translated'}), on='record_id', how='left', validate='one_to_one')
-        assert u['wages_translated'].notna().all()
-        u.to_parquet(f, index=False)
+        for y in mix_years(src):
+            f = f'{common.DATA}/{src}_units_{y}_all.parquet'
+            u = pd.read_parquet(f)
+            tw = t.loc[(t.source == src) & (t.year == y), ['record_id', 'wages']]
+            u = u.merge(tw.rename(columns={'wages': 'wages_translated'}), on='record_id', how='left', validate='one_to_one')
+            assert u['wages_translated'].notna().all()
+            u.to_parquet(f, index=False)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer', 'filer_p'] + \
         list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + AMOUNTS + \
         ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \

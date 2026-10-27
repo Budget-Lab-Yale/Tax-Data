@@ -976,7 +976,8 @@
    2023,
    2024
   ],
-  "generation_year": 2019
+  "generation_year": 2019,
+  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column."
  },
  "cps": {
   "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population by CBO's rules (tax_units.py, the shared tax-unit module) as the filing stage built them (filing.py), filers and non-filers; dependent filers folded into the unit that claims them. p_file (the table's filer_p) is the return's calibrated filing chance from the filing stage (its separate returns, filing status and statutory requirement come from there too); training draws the filing flag from it in every pass. filer is one draw from it, one uniform per unit seeded by filer_seed plus the year, kept for the table's checks and reports. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
@@ -988,6 +989,7 @@
    2023
   ],
   "generation_year": 2019,
+  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
   "filer_seed": 20261023,
   "dollar_amounts": [
    "childcare"
@@ -1016,7 +1018,7 @@
    "2023": "pu2024_csv.zip"
   },
   "generation_year": 2019,
-  "_generation_year": "The SIPP label's year at generation: the target year, as for the CEX and the CPS.",
+  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
   "lh_industries": [
    [
     8560,
@@ -1061,6 +1063,8 @@
   "_label": "label_records: the filer records over all pooled models (each draws an equal share), split across the 12 band-AGI groups (qgroups.py) in proportion to the PUF's records per group (about 18,400 at p99.99 and over, 30,500 at p99.9-99.99). Each record's group is preset; its weight is the group's 2015 PUF returns over the records drawn in it (1 / q). Every drawn record is kept; the share whose drawn bands fall in another group is only reported (label_check.csv). label_seed: the batch's draws (plus each model's seed_shift).",
   "scf_wave_seed": 20261026,
   "_scf_wave_seed": "TARGETS.md section 7: each record's SCF wave is drawn with the shares in the target year's configuration (targets_config/years/<year>.yaml, prior, 'balance sheet'), by a random generator seeded by this and the batch's generation seed, so no other draw moves.",
+  "survey_year_seeds": {"cex": 20261028, "cps": 20261029, "sipp": 20261030},
+  "_survey_year_seeds": "TARGETS.md section 7 (27 October): each record's CEX year, CPS year and SIPP year are drawn with the shares in the target year's configuration (prior, 'consumption', 'cps items', 'sipp tips'), each by a random generator of its own, seeded by the survey's number here and the batch's generation seed, so no other draw moves (as scf_wave_seed does for the SCF's waves).",
   "nonfiler_records": null,
   "nonfiler_seed": 35,
   "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer batch's (label_records) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
