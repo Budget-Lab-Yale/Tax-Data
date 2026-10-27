@@ -31,9 +31,51 @@ Plan agreed 27 October (late). Each piece is built on one branch and checked at 
 before the next; then one big run:
 1. Commit the day's documents; branch from `rebuild-tips-dollars` (tips in dollars).
 2. Wages and deferrals (below): link wage, percentile mapping, SCF deferral slot. Check: the translation report.
+   **Wage mapping decided (John, 27 October):** fill in the surveys' missing small earners first (function 2 on
+   wages, so each survey's share with wages matches the tax data's), then map by percentile among earners. The
+   percentile rule alone moved wages 9-19% (SCF 2018 -11%), because the surveys have 1.5-8 points fewer earners
+   (built on `rebuild-wages-deferrals`, 515ca78; scratch `explore/2026-10-28/wages_deferrals/RESULTS.md`, with four
+   smaller open questions on deferrals). Built with the fill-in extension in piece 3.
+   **Deferral questions decided (John, 27 October):** (1) the SCF uses the income year's legal limit; (2) the
+   SIPP's deferrals also lose the Roth share and are held to the limit; (3) each person's deferrals at most their
+   own wages, in the surveys; (4) a second slot for the spouse's share of the unit's deferrals, as for wages, so
+   Tax-Simulator gets each spouse's traditional deferrals; (5) at generation, deferrals at most each person's
+   wages (none without wages), as for tips; (6) after a wave is grown to the target year, each person's deferrals
+   held to the target year's limit for their age; (7) W-2 targets from Table 2.D (contributions by AGI, joint and
+   non-joint returns; dollars only on joint returns), dependent filers allowed for in the targets' errors as for
+   tips (needs a new reader).
 3. The non-wage mappings, after John goes through the audit (scratch `explore/2026-10-27/mapping/AUDIT.md`). Check:
-   the same report.
+   the same report. **Approved 27 October (late), survey by survey:** "fill-in" is function 2; "percentile" is
+   the survey's p-th percentile holder getting the tax data's p-th percentile holder's amount.
+   - Function 2 is extended to the CEX and the CPS (it runs only on the SCF today).
+   - Any rule with a dollar line maps above the line by percentile among the units above it, in each data set
+     (the audit's flaw in function 1, which today breaks the order of units just above the line).
+   - SCF: interest, dividends, the partnership flag as today; capital gains fill-in and loss cap, above $50,000
+     percentile; Schedules C and F fill-in plus count from the top; tax-exempt interest fill-in. Social Security
+     plus pensions is replaced by gross Social Security alone, matched to the return's gross Social Security
+     (John, 27 October): the SCF's benefits section (X5301-X5312, respondent and spouse, current benefit at
+     interview), SSI left out (scratch `explore/2026-10-28/scf_social_security/`). **Schedule E decided (John, 27 October):** the SCF's X5714 is split in
+     two: rental income (the property section's net income per property, X1730, X1830, X2010, X2020, plus rent
+     from part of the home or farm) against the PUF's rents and royalties, and the rest (X5714 less rental,
+     floored at zero) against the PUF's other Schedule E parts. In each, function 2 fills in missing holders,
+     losses included (zeros only), steered to owners of property or a pass-through, then amounts by percentile,
+     income and losses separately. No depreciation estimate. The SCF's business-section profit share is not used
+     (book profit, $1,845 billion against $806 billion). Scratch `explore/2026-10-28/scf_schedule_e/`.
+   - CEX: Social Security as today; self-employment fill-in plus count from the top; interest and dividends,
+     pensions and net rent not shared.
+   - CPS: Social Security and the filing flag as today; dividends fill-in plus percentile; pensions fill-in
+     (compared with taxable pensions plus taxable IRA distributions); capital gains fill-in plus percentile;
+     unemployment fill-in; Schedule C fill-in plus count from the top; rents income as today; survivor and
+     disability pensions moved into pensions (check which disability sources are taxable); interest not shared.
+   - SIPP, new shared items: dividends (fill-in, dollars below $50,000, percentile above), gross Social Security
+     as reported, and pensions (fill-in plus percentile, against taxable pensions). Interest, self-employment,
+     unemployment, rent and alimony not shared.
 4. The surveys' year mix in generation (TARGETS.md section 7).
+   **Built and approved (John, 27 October):** branch `rebuild-year-mix` (31bf8a9, c70481c), tested on the
+   tips-in-dollars models with no training: 753 of 753 targets met, effective sample kept 86.1% against 87.1%;
+   CEX consumption targets pooled over the two years. Left open: non-filer counts still 2019 only; 2017 childcare
+   and tips grown by wages per return; the CEX report's income groups mix dollar years (scratch
+   `explore/2026-10-28/year_mix/RESULTS.md`).
 5. The big run: train, draw, reweight with the W-2 deferral targets added; compare with the latest; John approves.
 Left out for now (John, 27 October): overtime (data pulled, below) and the young tax units (below; "it is what it is").
 
