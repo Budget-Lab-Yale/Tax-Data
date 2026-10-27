@@ -31,6 +31,11 @@ Plan agreed 27 October (late). Each piece is built on one branch and checked at 
 before the next; then one big run:
 1. Commit the day's documents; branch from `rebuild-tips-dollars` (tips in dollars).
 2. Wages and deferrals (below): link wage, percentile mapping, SCF deferral slot. Check: the translation report.
+   **Wage mapping decided (John, 27 October):** fill in the surveys' missing small earners first (function 2 on
+   wages, so each survey's share with wages matches the tax data's), then map by percentile among earners. The
+   percentile rule alone moved wages 9-19% (SCF 2018 -11%), because the surveys have 1.5-8 points fewer earners
+   (built on `rebuild-wages-deferrals`, 515ca78; scratch `explore/2026-10-28/wages_deferrals/RESULTS.md`, with four
+   smaller open questions on deferrals). Built with the fill-in extension in piece 3.
 3. The non-wage mappings, after John goes through the audit (scratch `explore/2026-10-27/mapping/AUDIT.md`). Check:
    the same report. **Approved 27 October (late), survey by survey:** "fill-in" is function 2; "percentile" is
    the survey's p-th percentile holder getting the tax data's p-th percentile holder's amount.
