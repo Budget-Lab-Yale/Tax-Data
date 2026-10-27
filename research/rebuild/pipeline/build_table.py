@@ -37,6 +37,13 @@ PUF N24) and n_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); filer_p 
   gross Social Security plus pensions, and tax-exempt interest (not in AGI);
   mortgage interest paid E19200 and real estate tax E18500 (itemizers only;
     PUF only, not in AGI);
+  since stage 3 (27 October), production's other PUF items (STAGE3; PUF only, absent on the SCF, CEX and SIPP, not
+    measured by the CPS): ordinary dividends as qualified (div_pref, E00650) plus other (div_ord), the adjustments
+    as their eleven parts (ADJ_PARTS), both totals computed from the parts; unrecaptured section 1250 gain, 28%
+    collectibles gain, partnership income subject to self-employment tax (part_se, production's formula), the
+    itemized deduction items, the two AMT items, the credits and the two other taxes (NEW_ITEMS). On the CPS the
+    dividends go to div_pref (div_ord zero; the translation table); the adjustments, which the CPS never asked
+    (zero until stage 3), are absent on the CPS like the other new items (generation gives non-filers none);
   k1_owner: any partnership or S corporation part nonzero (on the SCF: a
     partnership, S corporation or LLC interest, from build_scf.R);
   agi_group, the AGI group label (qgroups.py; agi_group_label): on the PUF the record's band-AGI group, one of 12,
@@ -138,6 +145,7 @@ ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the mode
     'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None),
     'ss_gross': (0, False, None)}   # gross Social Security, not in AGI; shared with the CEX (not the SCF)
 NO_GROWTH = ['mortgage_interest', 'real_estate_tax']   # no SOI 1.4 row: kept in PUF-year dollars in the target map
+# (stage 3's items without a Table 1.4 line are added below, STAGE3_NO_GROWTH)
 PARTS = {  # part: (PUF field, sign in business income); loss fields are stored positive
     'sch_c': ('E00900', 1), 'part_pass_inc': ('E25940', 1), 'part_nonpass_inc': ('E25980', 1),
     'part_pass_loss': ('E25920', -1), 'part_nonpass_loss': ('E25960', -1), 'part_179': ('E26110', -1),
@@ -145,6 +153,28 @@ PARTS = {  # part: (PUF field, sign in business income); loss fields are stored 
     'scorp_nonpass_loss': ('E26180', -1), 'scorp_179': ('E26100', -1), 'rent_inc': ('E25850', 1),
     'rent_loss': ('E25860', -1), 'estate_inc': ('E26390', 1), 'estate_loss': ('E26400', -1),
     'farm_rent': ('E27200', 1), 'sche_other': (None, 1), 'farm': ('E02100', 1)}
+# Stage 3 (27 October): the PUF items production carries (config/variable_guide/baseline.csv, src/process_puf.R)
+# that the model did not draw, with production's names. Every one is a PUF-only amount outside AGI, drawn like the
+# other PUF-only items (absent on the SCF, CEX and SIPP; not measured by the CPS, so zero on non-filers). Ordinary
+# dividends and the statutory adjustments become totals computed from their parts (COMPUTED), so the totals the
+# file had stay exactly the sums of their parts.
+DIV_PARTS = {'div_pref': 'E00650', 'div_ord': None}     # qualified dividends; ordinary less qualified (E00600 - E00650)
+ADJ_PARTS = dict(zip(['trad_contr_ira', 'sl_int_ded', 'ed_exp', 'tuition_ded', 'dpad', 'se_tax_ded', 'se_health',
+                      'hsa_ded', 'keogh_contr', 'early_penalty', 'alimony_exp'], ADJ_FIELDS))
+NEW_ITEMS = {  # item: PUF field (None: derived, as production derives it, in puf_rows)
+    'kg_1250': 'E24515', 'kg_collect': 'E24518', 'part_se': None,
+    'med_exp': 'E17500', 'salt_inc_sales': 'E18400', 'char_cash': 'E19800', 'char_noncash': 'E20100',
+    'casualty_exp': 'E20500', 'job_exp': 'E20550', 'tax_prep_exp': 'E20600', 'other_misc_exp': 'E20400',
+    'other_item_exp': None,
+    'amt_nols': 'P60100', 'amt_ftc': 'E62900',
+    'ftc': 'E07300', 'aoc_exp': 'P87482', 'llc_exp': 'E87530', 'old_cred': 'E07200', 'savers_cred': 'E07240',
+    'res_energy_cred': 'E07260', 'gbc': 'E07400', 'prior_yr_cred': 'E07600', 'other_nonref': 'P08000',
+    'net_ptc': 'E11560', 'excess_ptc': 'E85785', 'recapture_tax': 'E09700', 'ira_penalty': 'E09900'}
+STAGE3 = list(DIV_PARTS) + list(ADJ_PARTS) + list(NEW_ITEMS)   # the new slots, in slot order
+# No SOI Table 1.4 line: kept in PUF-year dollars in the target year's map, as mortgage interest and real estate tax
+# (itemized deductions, AMT items, credits and other taxes). Table 1.4 grows the dividend parts, the adjustments,
+# the two capital gain items (with Schedule D net gain) and part_se (with partnership and S corporation income).
+STAGE3_NO_GROWTH = [v for v in NEW_ITEMS if v not in ('kg_1250', 'kg_collect', 'part_se')]
 SCHE_PARTS = [p for p, (f, _) in PARTS.items() if f and p not in ('sch_c', 'farm')]
 CF_PARTS = ['sch_c', 'farm']                                  # Schedules C and F: the SCF's X5704
 E_PARTS = [p for p in PARTS if p not in CF_PARTS]             # Schedule E: the SCF's X5714
@@ -160,7 +190,9 @@ SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c i
     + ['w_' + c for c in KG_WEALTH] + ['auto_int_exp']
 # auto_int_exp (since 26 October): the unit's auto loan interest, a year's interest on its vehicle loans at the
 # interview's balance and rate (build_scf.R). Not part of net worth.
-PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + ['other_agi']
+NO_GROWTH = NO_GROWTH + STAGE3_NO_GROWTH
+PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
+    ['other_agi']
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
             'c_gasoline', 'c_housing_utilities', 'c_other_services_health']
 CEX_AMOUNTS = list(CEX_CATS)
@@ -270,7 +302,8 @@ def grown_edge(edge, positive, negative):
 PUF_FIELDS = ['RECID', 'S006', 'MARS', 'N24', 'EIC', 'XOCAH', 'XOCAWH', 'XOPAR', 'XOODEP', 'E00100', 'E00200', 'E00300', 'E00400',
               'E00600', 'E00700', 'E00800', 'E00900', 'E01000', 'E01100', 'E01200', 'E01400', 'E01500', 'E01700',
               'E02000', 'E02100', 'E02300', 'E02400', 'E02500', 'E18500', 'E19200', 'P22250', 'P23250'] + \
-    ADJ_FIELDS + [f for f, _ in PARTS.values() if f and f not in ('E00900', 'E02100')]
+    ADJ_FIELDS + [f for f, _ in PARTS.values() if f and f not in ('E00900', 'E02100')] + \
+    ['E00650', 'E30400', 'E30500', 'FDED', 'P04470', 'E21040', 'E19700', 'E20800'] + [f for f in NEW_ITEMS.values() if f]
 
 
 def read_puf():
@@ -316,6 +349,19 @@ def puf_rows(puf):
     out.update(items)
     out['k1_owner'] = np.column_stack([parts[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)
     out['owns_business'] = -1                                     # SCF only
+    # stage 3: the dividend parts and the adjustments' parts add up to the totals exactly (whole dollars)
+    out['div_pref'], out['div_ord'] = I['E00650'], I['E00600'] - I['E00650']
+    assert (out['div_pref'] >= 0).all() and (out['div_ord'] >= 0).all(), 'qualified dividends above ordinary dividends'
+    assert np.array_equal(out['div_pref'] + out['div_ord'], out['dividends'])
+    out.update({p: I[fld] for p, fld in ADJ_PARTS.items()})
+    assert np.array_equal(sum(out[p] for p in ADJ_PARTS), items['adjustments'])
+    out.update({v: I[fld] for v, fld in NEW_ITEMS.items() if fld})
+    # part_se, production's partnership income subject to self-employment tax: on a return with any partnership
+    # income or loss, Schedule SE's earnings of both spouses (E30400 + E30500, after the 92.35% factor) grossed up,
+    # less Schedules C and F; zero elsewhere (src/process_puf.R). Not whole dollars (the division by 0.9235).
+    k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
+    out['part_se'] = np.where(k1_part, (I['E30400'] + I['E30500']) / 0.9235 - I['E00900'] - I['E02100'], 0.0)
+    out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
     out['other_agi'] = I['E00100'] - out['wages'] - out['interest'] - out['dividends'] - out['capital_gains'] - \
         sum(ITEMS[v][0] * items[v] for v in ITEMS)
     df = pd.DataFrame(out)
@@ -328,10 +374,22 @@ def puf_rows(puf):
     df['age_range'] = rng.age_range.to_numpy()
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]
+    # other_item_exp, production's other itemized deductions (src/process_puf.R): on itemizers (FDED 1), total
+    # itemized deductions before the overall limitation (P04470 + E21040) less deductible medical expenses, the two
+    # taxes, interest paid, charity, casualty losses and net limited miscellaneous deductions; zero otherwise. The
+    # medical floor is 7.5% of AGI for the 65+ range and 10% otherwise (production's rule); a record with no range
+    # counts as 65+ when step 0 gives 65+ more than half (production imputes the range there). The PUF rounds each
+    # item on its own, so the residual is negative on many itemizers (mostly by under $500).
+    old = (df['age_range'].to_numpy() == 5) | (df['age_p5'].to_numpy() > 0.5)
+    agi_ = I['E00100'].astype(float)
+    medical = np.maximum(0, I['E17500'] - np.maximum(0, agi_ * np.where(old, 0.075, 0.1)))
+    df['other_item_exp'] = np.where(I['FDED'] == 1, I['P04470'] + I['E21040'] - medical - I['E18400'] - I['E18500']
+                                    - I['E19200'] - I['E19700'] - I['E20500'] - I['E20800'], 0.0)
     return df
 
 
 COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES},
+            'dividends': {p: 1 for p in DIV_PARTS}, 'adjustments': {p: 1 for p in ADJ_PARTS},
             'business_income': {p: s for p, (_, s) in PARTS.items()},
             'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
             'sch_e_income': {p: PARTS[p][1] for p in E_PARTS}}
@@ -353,7 +411,7 @@ def growth(v, y):
     (the $3,000 cap is nominal); mortgage interest and real estate tax have no Table 1.4 row and do not grow."""
     if (v, y) not in _GROWTH:
         G = lambda item, **k: TG.per_return_growth(item, year=y, **k)
-        if v in ('capital_gains', 'kg_st', 'kg_lt', 'kg_other'):
+        if v in ('capital_gains', 'kg_st', 'kg_lt', 'kg_other', 'kg_1250', 'kg_collect'):
             f = (G('sch_d_net_gain'), 1.0)
         elif v == 'kg_dist':
             f = (G('kg_dist'), 1.0)
@@ -364,7 +422,8 @@ def growth(v, y):
             fp = G('business_income') if pos_rows == 'business_income' else G(None, rows=pos_rows, absolute=True)
             f = (fp, G(None, rows=neg_rows, absolute=True) if neg_rows else fp)
         else:
-            assert v in ['wages', 'interest', 'dividends', 'other_agi'] + list(ITEMS), v
+            assert v in ['wages', 'interest', 'dividends', 'other_agi'] + list(ITEMS) + list(DIV_PARTS) + \
+                list(ADJ_PARTS), v
             f = (G(v), G(v))
         _GROWTH[(v, y)] = f
     return _GROWTH[(v, y)]
@@ -447,6 +506,9 @@ def tax_data(t, y, pi=None):
     surveys = sorted(set(t.loc[(t.year == y) & (t.source != 'puf'), 'source']))
     assert surveys, f'no survey of year {y}'
     shared = sorted({r['variable'] for src in surveys for r in TR.rows(src, amounts_only=True)})
+    # and the totals a row is ranked against (rank_against: the CPS's dividends against ordinary dividends)
+    shared = sorted(set(shared) | {r['rank_against'] for src in surveys for r in TR.rows(src, amounts_only=True)
+                                   if r.get('rank_against')})
     needed = sorted({p for v in shared for p in COMPUTED.get(v, {v: 1})})
     filers = grown(puf, y, columns=needed).assign(weight=puf.weight.to_numpy() * f)
     for k in range(common.ADULT_RANGES):
@@ -815,7 +877,9 @@ def translate_surveys(t, edges, pi):
                 x = TR.survey_amount(d, row, y)
                 fp, fn = growth(v, y)
                 line = None if row['dollar_line'] is None else row['dollar_line'] * fp
-                new, beyond = TR.amounts(x, w[sel], T[v].to_numpy(float), tw, line)
+                # rank_against (stage 3): a survey total put in one of its parts is matched to the tax data's total
+                against = row.get('rank_against', v)
+                new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line)
                 done[v] = new
                 b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
                 rec['cut_rule'] = (f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} positive, '
@@ -825,7 +889,7 @@ def translate_surveys(t, edges, pi):
                                            'units past the tax data\'s last holder (millions)': beyond / 1e6}
                 report += TR.report_rows(row, y, {'as reported': TR.describe(reported, w[sel]),
                                                   'after function 1': TR.describe(new, w[sel]),
-                                                  'tax data': TR.describe(T[v].to_numpy(float), tw)})
+                                                  'tax data': TR.describe(T[against].to_numpy(float), tw)})
             # computed totals the survey has no row for but has every part of: from the translated parts
             for v, parts in COMPUTED.items():
                 if v in done or not set(parts) <= set(done):
@@ -896,7 +960,7 @@ def cps_ss_taxable_check(t):
         d = t[(t.source == 'cps') & (t.year == y)]
         a = survey_puf_amounts(d, 'cps', y)
         other = a['wages'] + a.get('interest', 0.0) + a['dividends'] + a['capital_gains'] + \
-            sum(ITEMS[v][0] * a[v] for v in ITEMS if ITEMS[v][0] != 0 and v != 'ss_taxable') + a['other_agi'] + \
+            sum(ITEMS[v][0] * a.get(v, 0.0) for v in ITEMS if ITEMS[v][0] != 0 and v != 'ss_taxable') + a['other_agi'] + \
             a['tax_exempt_interest']
         tx = taxable_social_security(a['ss_gross'].to_numpy(float), other.to_numpy(float), d['mars'].to_numpy())
         w, p = d['weight'].to_numpy(float), d['filer_p'].to_numpy(float)
@@ -973,9 +1037,10 @@ def shared_between_surveys(t, edges):
 def table_meta(t, factor):
     """What later stages need to know about the table: the items and who has them, the computed totals and
     flags, the surveys' own slots, the AGI signs, net worth's parts."""
-    item_order = list(ITEMS) + list(PARTS)
+    item_order = list(ITEMS) + list(PARTS) + STAGE3
     return {'items': {v: ('shared' if v in ITEMS and ITEMS[v][1] else 'puf') for v in item_order},
-            'computed_totals': {'business_income': {p: s for p, (_, s) in PARTS.items()},
+            'computed_totals': {'dividends': COMPUTED['dividends'], 'adjustments': COMPUTED['adjustments'],
+                                'business_income': {p: s for p, (_, s) in PARTS.items()},
                                     'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
                                     'sch_e_income': {p: PARTS[p][1] for p in E_PARTS}},
             'categories': CATEGORIES,

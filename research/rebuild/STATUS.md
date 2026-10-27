@@ -1,4 +1,23 @@
-# Status: tips (SIPP) and auto loan interest (SCF), 26-27 October
+# Status: stage 3, the PUF items the model did not draw (27 October)
+
+Worktree `Tax-Data-puf`, branch `rebuild-puf-vars` (from `rebuild-tips-autoloan` at c58daa7); outputs in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild_puf` (REBUILD_OUT). `rebuild_tips` and `rebuild` are only read. Results
+page (when done): `explore_stage3_RESULTS.md`. Scripts and their notes: `rebuild_puf/explore/stage3/`; logs:
+`rebuild_puf/logs/`. Jobs are submitted from the worktree root, as below for stage 1.
+
+- Inputs copied from `rebuild_tips` (not outputs): `data/scf_rw/`, `targets/soi_cv/raw/` and `targets/soi_cv/manifest.csv`.
+- Code: `build_table.py` (STAGE3: DIV_PARTS, ADJ_PARTS, NEW_ITEMS; dividends and adjustments computed from parts),
+  `targets.py` (SOI lines that grow the new items), `dollars.py` and `tilt.py` (the two new computed totals),
+  `settings.json` (the CPS's translation rows: dividends to div_pref, div_ord zero, the 11 adjustment parts zero).
+- The inventory file named in the brief (`variable_inventory.md` in a scratchpad under /tmp) was gone; the list came
+  from the brief and production's `config/variable_guide/baseline.csv` and `src/process_puf.R`.
+
+## Progress
+1. 03:05 CPU stages scf ... errors submitted (job 30953541).
+2. 03:25 PUF fields checked on the raw PUF (`explore/stage3/puf_fields.py`, `other_item.py`); new PUF rows tested
+   (`test_puf_rows.py`: totals equal parts exactly; every growth factor found).
+
+# Earlier: tips (SIPP) and auto loan interest (SCF), 26-27 October
 
 A working note so a later session can resume. The results page is `explore_tips_autoloan_RESULTS.md`.
 

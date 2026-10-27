@@ -28,6 +28,8 @@ After the draws, the pieces are put on the definitions the IRS targets use:
   capital_gains   the Schedule D net, kg_st + kg_lt + kg_other (the line-13
                   total, with kg_dist, is kept as capital_gains_line13)
   business_income the exact signed sum of its eighteen parts
+  dividends       qualified plus other dividends (div_pref + div_ord), exactly
+  adjustments     the exact sum of its eleven parts (since 27 October)
   other_agi       AGI minus wages, interest, dividends and capital gains:
                   the drawn remainder plus kg_dist plus the AGI items folded
                   back in (FOLD); the remainder alone is other_agi_remainder
@@ -69,6 +71,8 @@ META = common.meta()
 LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
 ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER] \
     + list(META['cex_amounts']) + ['ss_gross'] + list(META['cps_amounts']) + LATER
+# Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
+ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
@@ -170,8 +174,13 @@ def draw_dollars(df, maps):
     parts = META['computed_totals']['business_income']
     out['business_income_drawn'] = out['business_income']
     out['business_income'] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
-    for sub in ['sch_cf_income', 'sch_e_income']:
+    for sub in [k for k in META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
         sp = META['computed_totals'][sub]
+        if sub in ('dividends', 'adjustments') and not all(f'{p}_band' in df for p in sp):
+            # a frame with the total's band and not its parts' (qgroups.band_agi, whose AGI group label reads the
+            # two totals' bands, as before stage 3) keeps the total's own dollars
+            assert f'{sub}_band' in df, f'{sub}: neither its band nor its parts\' bands'
+            continue
         out[sub] = out[list(sp)].to_numpy(float) @ np.array(list(sp.values()), float)
     out['other_agi_remainder'] = remainder
     out['other_agi'] = out['other_agi'] + out[list(FOLD)].to_numpy(float) @ np.array(list(FOLD.values()), float)

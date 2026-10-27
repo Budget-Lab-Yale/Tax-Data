@@ -70,7 +70,7 @@
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges.",
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 matches the survey's amount to the tax data's amount of the named PUF variable (a computed total) instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts.",
   "table": [
    {
     "survey": "scf",
@@ -492,7 +492,7 @@
    },
    {
     "survey": "cps",
-    "variable": "dividends",
+    "variable": "div_pref",
     "items": [
      "dividends"
     ],
@@ -500,7 +500,18 @@
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top"
+    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top. Since stage 3 (27 October) ordinary dividends are computed from qualified and other dividends; the CPS reports one dividend amount, so it goes to qualified dividends (most of ordinary dividends: 78% of the 2015 PUF's dollars) and the CPS's other dividends are zero, as the CPS's capital gains go to long-term gains; ranked against the tax data's ordinary dividends (rank_against), so the CPS's translated dividends are as before stage 3",
+    "rank_against": "dividends"
+   },
+   {
+    "survey": "cps",
+    "variable": "div_ord",
+    "items": [],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "stage 3 (27 October): the CPS reports one dividend amount, put in qualified dividends (row div_pref); ordinary dividends less qualified are zero on the CPS"
    },
    {
     "survey": "cps",
@@ -624,16 +635,6 @@
    {
     "survey": "cps",
     "variable": "state_refunds",
-    "items": [],
-    "dollar_line": null,
-    "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
-   },
-   {
-    "survey": "cps",
-    "variable": "adjustments",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,

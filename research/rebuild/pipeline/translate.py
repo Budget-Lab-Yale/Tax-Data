@@ -71,6 +71,10 @@ for _r in TABLE:
         assert {'dollar_line', 'loss_cap', 'fill_in'} <= set(_r), f'{_key}: an amount row needs all three settings'
         assert not (_r['fill_in'] and _r['type_for_fill_in']), f'{_key}: a type variable cannot have the fill-in'
         assert _r.get('part') in (None, 'positive', 'loss'), f'{_key}: part is positive, loss or absent'
+        # rank_against (stage 3, 27 October): function 1 matches the survey's amount to the tax data's amount of this
+        # PUF variable, a computed total, instead of the row's own: a survey that reports only a total puts it in one
+        # of the total's parts (the CPS's dividends, in qualified dividends) without changing its translated dollars
+        assert _r.get('rank_against') is None or isinstance(_r['rank_against'], str), f'{_key}: rank_against is a name'
     assert _r.get('reason'), f'{_key}: no reason'
 
 

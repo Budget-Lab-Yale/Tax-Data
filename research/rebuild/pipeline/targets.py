@@ -161,7 +161,17 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'adjustments': [('statutory adjustments > total', 1)],
     'retirement_gross': [('social security benefits > total', 1), ('pensions and annuities > total', 1)],
     'ss_gross': [('social security benefits > total', 1)],
-    'tax_exempt_interest': [('tax exempt interest', 1)], 'other_agi': NET('other income')}
+    'tax_exempt_interest': [('tax exempt interest', 1)], 'other_agi': NET('other income'),
+    # stage 3 (27 October): the two parts of ordinary dividends and the eleven statutory adjustments, each by its own
+    # Table 1.4 line (the part "ordinary less qualified" has no line of its own: ordinary dividends')
+    'div_pref': [('qualified dividends', 1)], 'div_ord': [('ordinary dividends', 1)],
+    **{v: [('statutory adjustments > ' + line, 1)] for v, line in {
+        'trad_contr_ira': 'ira payments', 'sl_int_ded': 'student loan interest deduction',
+        'ed_exp': 'educator expenses deduction', 'tuition_ded': 'tuition and fees deduction',
+        'dpad': 'domestic production activities deduction', 'se_tax_ded': 'deductible part of self employment tax',
+        'se_health': 'self employed health insurance deduction', 'hsa_ded': 'health savings account deduction',
+        'keogh_contr': 'payments to a keogh plan', 'early_penalty': 'penalty on early withdrawal of savings',
+        'alimony_exp': 'alimony paid'}.items()}}
 NI, NL = ' > net income', r' > net loss.*'
 # The SOI rows that grow each business part's dollars: (rows for positive values, for negative values; None: the
 # positive rows). The section 179 deductions grow with partnership and S corporation net income, as the tables of
@@ -176,7 +186,10 @@ PART_GROWTH = {
        for p in ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc', 'part_179', 'scorp_179']},
     **{p: (['partnership and s corporation' + NL], None)
        for p in ['part_pass_loss', 'part_nonpass_loss', 'scorp_pass_loss', 'scorp_nonpass_loss']},
-    'sche_other': ('business_income', None)}
+    'sche_other': ('business_income', None),
+    # stage 3: partnership income subject to self-employment tax (production's part_se), with partnership and
+    # S corporation net income and net loss
+    'part_se': (['partnership and s corporation' + NI], ['partnership and s corporation' + NL])}
 _TOTALS = None
 
 
