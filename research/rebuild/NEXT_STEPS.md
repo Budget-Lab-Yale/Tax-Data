@@ -58,6 +58,11 @@ before the next; then one big run:
      as reported, and pensions (fill-in plus percentile, against taxable pensions). Interest, self-employment,
      unemployment, rent and alimony not shared.
 4. The surveys' year mix in generation (TARGETS.md section 7).
+   **Built and approved (John, 27 October):** branch `rebuild-year-mix` (31bf8a9, c70481c), tested on the
+   tips-in-dollars models with no training: 753 of 753 targets met, effective sample kept 86.1% against 87.1%;
+   CEX consumption targets pooled over the two years. Left open: non-filer counts still 2019 only; 2017 childcare
+   and tips grown by wages per return; the CEX report's income groups mix dollar years (scratch
+   `explore/2026-10-28/year_mix/RESULTS.md`).
 5. The big run: train, draw, reweight with the W-2 deferral targets added; compare with the latest; John approves.
 Left out for now (John, 27 October): overtime (data pulled, below) and the young tax units (below; "it is what it is").
 
