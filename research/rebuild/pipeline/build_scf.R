@@ -48,6 +48,14 @@
 # S corporation or LLC interest), household answers, each given to the units
 # holding the household's business equity, or to the respondent's unit when
 # that equity is zero.
+# Auto loan interest (auto_int_exp): the household's vehicle loans, up to four (the SCF's own vehicles 1-4: the amount
+# still owed, X2218, X2318, X2418, X7169, times the current annual rate in hundredths of a percent, X2219, X2319,
+# X2419, X7170, over 10,000; Tedeschi's car interest code, Reports/2024/Car-Interest). The rate's code -1 (no
+# interest charged) and any other negative code read as 0. The items and their codes are the same in the 2013, 2016,
+# 2019 and 2022 waves (checked 26 October). Interview-year dollars, a year's interest at the balance and rate of the
+# interview. A household debt: divided among the PEU's units as build_scf.R divides installment debt (all of it to a
+# unit holding the whole PEU, else by the earnings shares), and none to units outside the PEU (the group's vehicle
+# loans are not asked; its debts are one item, X6439) or to other units.
 # Ages and sexes of the unit's head and spouse (age1, male1; age2, male2 on
 # joint units, else -1; male missing (NA, not observed) where the SCF does not
 # report sex: members other than the respondent and the spouse or partner), for the primary
@@ -85,6 +93,7 @@ PERSON_ITEMS = c('X4112', 'X4113', 'X4712', 'X4713', 'X4131', 'X4132', 'X4731', 
                  'X6558', 'X6566', 'X6574', 'X6464', 'X6465', 'X6469', 'X6470', 'X6474', 'X6475', 'X6479', 'X6480',
                  'X6965', 'X6966', 'X6971', 'X6972', 'X6977', 'X6978', 'X6983', 'X6984',
                  'X5606', 'X5614', 'X5622', 'X5630', 'X5724', 'X5725')
+AUTO_LOANS = c(x2218 = 'x2219', x2318 = 'x2319', x2418 = 'x2419', x7169 = 'x7170')   # balance = rate
 HOUSING = c('primary_home', 'other_home', 're_fund', 'primary_mortgage', 'other_mortgage',
             'kg_primary_home', 'kg_other_re')
 
@@ -126,12 +135,21 @@ for (wave in settings$paths$raw$scf_waves) {
   raw_path = file.path(dir, sprintf('p%02di6.dta', wave %% 100))
   scfp = fread(file.path(dir, sprintf('SCFP%d.csv', wave))) %>% as_tibble()
   hh = read_dta(raw_path, col_select = all_of(c('y1', 'yy1', 'x42001', 'x3902', tolower(INCOME), BUSINESS_ITEMS,
-                                                 tolower(PERSON_ITEMS)))) %>%
+                                                 tolower(PERSON_ITEMS), names(AUTO_LOANS), unname(AUTO_LOANS)))) %>%
     mutate(across(everything(), as.numeric))
   names(hh) = toupper(names(hh))
   stopifnot(!anyDuplicated(hh$Y1), !anyNA(hh), nrow(hh) == nrow(scfp))
   hh = hh %>% mutate(across(all_of(unname(INCOME)), minus_one_to_zero))
   stopifnot(all(hh$X5702 >= 0), all(hh$X5706 >= 0), all(hh$X5708 >= 0), all(hh$X5710 >= 0), all(hh$X5722 >= 0))
+  hh$auto_int_exp = 0
+  for (b in names(AUTO_LOANS)) {
+    bal = hh[[toupper(b)]]; rate = hh[[toupper(AUTO_LOANS[[b]])]]
+    stopifnot(all(bal >= 0))
+    hh$auto_int_exp = hh$auto_int_exp + bal * pmax(rate, 0) / 10000
+  }
+  cat(sprintf('wave %d: auto loan interest $%.2f billion, households with any %.2f million (rate codes below 0 read as 0: %d)\n',
+              wave, sum(hh$X42001 / 5 * hh$auto_int_exp) / 1e9, sum(hh$X42001[hh$auto_int_exp > 0] / 5) / 1e6,
+              sum(sapply(unname(AUTO_LOANS), function(r) sum(hh[[toupper(r)]] < 0)))))
 
   # the asset price factor: SAVBND / X3902, the same on every household
   fx = scfp %>% select(Y1, SAVBND) %>% inner_join(hh, by = 'Y1') %>% filter(X3902 > 0)
@@ -150,7 +168,7 @@ for (wave in settings$paths$raw$scf_waves) {
   stopifnot(setequal(setdiff(names(peu), 'Y1'), c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)))
   names(peu)[-1] = paste0('w_', names(peu)[-1])
   WCOLS = setdiff(names(peu), 'Y1')
-  peu = peu %>% inner_join(hh %>% select(Y1, all_of(unname(INCOME))), by = 'Y1') %>%
+  peu = peu %>% inner_join(hh %>% select(Y1, all_of(unname(INCOME)), auto_int_exp), by = 'Y1') %>%
     inner_join(person_incomes(hh), by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh), !anyNA(peu))
 
@@ -178,16 +196,18 @@ for (wave in settings$paths$raw$scf_waves) {
     p[[v]] = p[[INCOME[[v]]]] * (if (v == 'wages') p$sh_lab else if (v == 'business_income') p$sh_bus else p$sh_earn)
   }
   for (v in WCOLS) p[[v]] = p[[v]] * (if (sub('^w_', '', v) %in% HOUSING) p$sh_house else p$sh_earn)
+  p$auto_int_exp = p$auto_int_exp * p$sh_earn     # as installment debt (w_installment_debt)
   p = p %>% mutate(taxunit_code = case_when(peu_dollars == 'all' ~ 0L, peu_dollars == 'r' ~ 1L, TRUE ~ 2L)) %>%
-    select(uid, all_of(names(INCOME)), all_of(WCOLS), taxunit_code)
+    select(uid, all_of(names(INCOME)), all_of(WCOLS), auto_int_exp, taxunit_code)
 
   # units outside the PEU: their members' shares of the group; other units: nothing
   npeu = mu %>% filter(source == 'npeu') %>% select(uid) %>% left_join(nd, by = 'uid')
   stopifnot(!anyNA(npeu$wages))
-  for (v in setdiff(c(names(INCOME), WCOLS), names(npeu))) npeu[[v]] = 0
-  npeu = npeu %>% mutate(taxunit_code = 9L) %>% select(uid, all_of(names(INCOME)), all_of(WCOLS), taxunit_code)
+  for (v in setdiff(c(names(INCOME), WCOLS, 'auto_int_exp'), names(npeu))) npeu[[v]] = 0
+  npeu = npeu %>% mutate(taxunit_code = 9L) %>%
+    select(uid, all_of(names(INCOME)), all_of(WCOLS), auto_int_exp, taxunit_code)
   other = mu %>% filter(source == 'other') %>% select(uid)
-  for (v in c(names(INCOME), WCOLS)) other[[v]] = 0
+  for (v in c(names(INCOME), WCOLS, 'auto_int_exp')) other[[v]] = 0
   other$taxunit_code = rep(8L, nrow(other))
   dollars = bind_rows(p, npeu, other)
   stopifnot(nrow(dollars) == nrow(mu), !anyDuplicated(dollars$uid))
@@ -217,7 +237,7 @@ for (wave in settings$paths$raw$scf_waves) {
               male1 = if_else(head_sex == 0, NA_integer_, as.integer(head_sex == 1)),
               male2 = if_else(filing_status == 'joint', if_else(spouse_sex == 0, NA_integer_, as.integer(spouse_sex == 1)), -1L),
               taxunit_code, across(all_of(names(INCOME))), net_worth, asset_factor = asset_factor,
-              across(all_of(WCOLS)), owns_business, k1_owner, filing_status, n_child_away,
+              across(all_of(WCOLS)), auto_int_exp, owns_business, k1_owner, filing_status, n_child_away,
               group_level = as.integer(group_level), npeu_people,
               any_age_assumed = as.integer(any_age_assumed), any_link_assumed = as.integer(any_link_assumed),
               any_income_assumed = as.integer(any_income_assumed),
@@ -229,7 +249,7 @@ for (wave in settings$paths$raw$scf_waves) {
             all(units$taxunit_code[is.na(units$male1) | is.na(units$male2)] > 2))
 
   # the PEU's dollars are divided between units, never created or lost
-  for (v in c(names(INCOME), WCOLS)) {
+  for (v in c(names(INCOME), WCOLS, 'auto_int_exp')) {
     a = sum(hh$X42001 / 5 * peu[[if (v %in% names(INCOME)) INCOME[[v]] else v]])
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
     stopifnot(abs(z - a) <= 1e-6 * max(1, abs(a)))

@@ -38,6 +38,7 @@ hours worked, and childcare, weighted to 2019 targets.
 | SCF waves 2013, 2016, 2019, 2022 | 33,058 / 34,377 / 31,830 / 25,600 | tax years 2012–2021, five implicates each; tax units by the shared rules (below) |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 34,901 / 32,924 / 28,431 / 27,550 / 25,470 / 26,630 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 | CPS ASEC, tax years 2015, 2017, 2019, 2021, 2023 | 90,351 / 88,954 / 79,054 / 77,618 / 74,502 | every tax unit, filers and non-filers (`build_cps.R`, below) |
+| SIPP, reference years 2015, 2017, 2019, 2021, 2023 (candidate, 26 October) | see `sipp_summary.csv` | every tax unit (`roster_sipp.py`, below) |
 
 **Variables:**
 - marital status (joint or not), dependents (0–3), and the filing flag;
@@ -71,6 +72,12 @@ hours worked, and childcare, weighted to 2019 targets.
   home mortgage is carried as its share of the home's value;
 - the 4 unrealized gains (home, other real estate, business, stocks and
   funds) and whether the unit owns any private business (SCF only);
+- auto loan interest (SCF only, candidate 26 October; `auto_int_exp`): a
+  year's interest on the household's vehicle loans at the interview's
+  balance and rate (below, "Auto loan interest");
+- tips (SIPP only, candidate 26 October): each adult's tips as a share of
+  that adult's wages, and whether that adult's tips are mostly from leisure
+  and hospitality (below, "The SIPP");
 - spending in production's 8 categories (CEX only): clothing; motor
   vehicles; other durables; other nondurables; food at home (with
   alcohol); gasoline; housing and utilities; other services and health.
@@ -184,6 +191,29 @@ tilt.nonfiler_targets_dir).
 - **Checks** on the candidate file: wages1 + wages2 equals wages, and se1 +
   se2 equals Schedules C and F income, to within $0.000000001 on every
   record (floating point); every rule above holds on every record.
+
+**The SIPP** (candidate, 26 October; `pipeline/roster_sipp.py`, `pipeline/sipp_read.py`, settings "sipp"). The
+Census Bureau's Survey of Income and Program Participation, one public-use release per reference year: 2015 (the 2014
+panel, wave 3), 2017, 2019, 2021 and 2023 (the releases of 2018, 2020, 2022 and 2024), the CPS's years. The household
+is the sample unit as interviewed (the people present at the interview, the CPS's convention), split into tax units
+by the shared rules; income is the reference year's 12 months. Dependent filers are folded into the unit that claims
+them, separate returns by the CEX's rule. Shared with the PUF: married, dependents, the age range, the exact ages of
+the primary filer and the spouse, and wages (jobs for an employer); shared with the CPS: the spouse's share of the
+couple's wages (a translation-table row with `shared_with`, cut on the CPS's cut points of the same year). SIPP only:
+each adult's tips as a share of that adult's wages, and the leisure and hospitality flags. Tips are production's
+definition (`src/imputations/tips.R`): tips on jobs for an employer (TJBn_TXAMT, job lines 1-4), not on
+self-employment; a person's tips are from leisure and hospitality when more than half are from jobs with Census
+industry codes 8560-8690. The SIPP's job earnings include the job's tips (no job-month has tips above its earnings),
+so tips are part of wages, as on Form W-2. In the file, tips1 = the primary filer's share times wages1, tips2 the
+spouse's times wages2, tips = tips1 + tips2 exactly; tips_lh1 and tips_lh2 are 0 without tips. Nothing is targeted.
+
+**Auto loan interest** (candidate, 26 October; `build_scf.R`). The SCF's own vehicles 1-4 (every wave the model uses:
+2013, 2016, 2019, 2022, with the same items and codes): the amount still owed (X2218, X2318, X2418, X7169) times the
+current annual rate in hundredths of a percent (X2219, X2319, X2419, X7170) over 10,000, Tedeschi's car interest
+rule; a rate coded -1 (no interest) reads as 0. A household debt, divided among the PEU's units as installment debt
+is, none to units outside the PEU (the group's vehicle loans are not asked). An SCF-only amount, drawn in the SCF
+phase from the record's wave and grown per tax unit to the target year's wave like the balance sheet; not part of
+net worth. Nothing is targeted.
 
 **The CEX** (`pipeline/build_cex.R`, settings "cex"). BLS's interview
 survey, five quarterly files per survey year (the year's first quarter

@@ -37,6 +37,12 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   share times the couple's total (wages; Schedules C and F as
                   computed above); wages1 and se1, the primary filer's, are the
                   total less the spouse's, so the two add up to the total
+  tips1, tips2    each adult's tips: the drawn share of that adult's wages
+                  times wages1 or wages2; tips = tips1 + tips2 exactly;
+                  tips_lh1, tips_lh2 the leisure and hospitality flags, 0
+                  where that adult has no tips
+  auto_int_exp    the auto loan interest drawn (an SCF amount, from the
+                  record's own wave's map)
   CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
 """
 import glob
@@ -58,11 +64,17 @@ ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_wo
 # Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
 # itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
 META = common.meta()
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + list(META['scf_amounts']) + list(META['cex_amounts']) + ['ss_gross'] \
-    + list(META['cps_amounts'])
+# Amounts added since 26 October go at the very end, so no earlier amount's stream moves: auto loan interest (an SCF
+# amount, but not in the SCF's place in the list) and the SIPP's tip shares.
+LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
+ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER] \
+    + list(META['cex_amounts']) + ['ss_gross'] + list(META['cps_amounts']) + LATER
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
+PERSON_RATIOS = META.get('person_ratios', {})     # slot: [item, its base], the base a remainder (tips1 of wages1)
+SUMS = META.get('sums', {})                       # item: its parts (tips = tips1 + tips2)
+FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amount it holds with] (0 without it)
 AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
 KG_PIECES = META['kg_pieces']
 FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
@@ -83,7 +95,7 @@ def load_maps(year):
     each SCF wave's balance-sheet maps, {wave survey year: {variable: map rows}}."""
     split = lambda m: {v: g for v, g in m.groupby('variable')}
     maps = {}
-    for source in ['puf', 'cex', 'cps']:
+    for source in ['puf', 'cex', 'cps', 'sipp']:
         maps.update(split(pd.read_parquet(f'{common.MAPS}/map_{source}_{year}.parquet')))
     files = sorted(glob.glob(f'{common.MAPS}/map_scf_wave*_{year}.parquet'))
     assert files, f'no SCF wave maps for {year} in {common.MAPS}'
@@ -118,6 +130,23 @@ def draw_by_wave(df, v, maps, rng, u):
         idx = np.flatnonzero(wave == w)
         values[idx] = draw_one(bands[idx], maps[WAVE_MAPS][int(w)][v], None, u[idx])
     return values
+
+
+def person_items(out, df):
+    """In place, after the remainders: the items that are a share of a person's amount (tips1 = the primary filer's tip
+    share x wages1), then their sums (tips = tips1 + tips2) and the yes/no items that hold only with the item
+    (tips_lh1: 0 where tips1 is 0). A record without the share's band column gets none of these."""
+    if not all(f'{slot}_band' in df for slot in PERSON_RATIOS):
+        return out
+    for slot, (item, base) in PERSON_RATIOS.items():
+        x = out[slot].to_numpy(float)
+        assert (x >= 0).all() and (x <= 1 + 1e-9).all(), f'{slot} outside 0-1'
+        out[item] = x * out[base].to_numpy(float)
+    for item, parts in SUMS.items():
+        out[item] = out[parts].to_numpy(float).sum(1)
+    for item, (flag, amount) in FLAGS_WITH.items():
+        out[item] = np.where(out[amount].to_numpy(float) != 0, out[flag].to_numpy(), 0).astype(np.int64)
+    return out
 
 
 def draw_dollars(df, maps):
@@ -157,6 +186,7 @@ def draw_dollars(df, maps):
         if other in out:
             out[item] = out[total] - out[other]
             assert np.allclose(out[item] + out[other], out[total], rtol=1e-12, atol=1e-6), item
+    person_items(out, df)
     for a in AGE_SLOTS:                            # in years, -1 none
         if a in out:
             out[a] = out[a] - 1

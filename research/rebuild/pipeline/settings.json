@@ -20,7 +20,8 @@
    "nonfiler_pool": "/nfs/roberts/project/pi_nrs36/shared/model_data/ASEC-Nonfilers/v1/2026091201/historical/nonfiler_pool_{year}.csv.gz",
    "soi_mirror": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned",
    "pce": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/resources/pce_historical.csv",
-   "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX"
+   "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX",
+   "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927"
   }
  },
  "tax_units": {
@@ -879,6 +880,71 @@
     "fill_in": null,
     "type_for_fill_in": false,
     "reason": "the rest of the pool's gross income: survivor and disability pensions other than Social Security (INCSURV + INCDISAB) and other income (INCOTHER, which holds alimony) (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "married",
+    "items": [
+     "married"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "n_dep",
+    "items": [
+     "n_dep"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "age_range",
+    "items": [
+     "age_range"
+    ],
+    "type_for_fill_in": false,
+    "reason": "the primary filer's range, couples by the rule in ages.py"
+   },
+   {
+    "survey": "sipp",
+    "variable": "age_primary",
+    "items": [
+     "age_primary"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported (age at the interview, as the CPS): the primary filer by the rule in ages.py; 80 and over as 80, as for the other surveys"
+   },
+   {
+    "survey": "sipp",
+    "variable": "age_spouse",
+    "items": [
+     "age_spouse"
+    ],
+    "type_for_fill_in": false,
+    "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
+   },
+   {
+    "survey": "sipp",
+    "variable": "wages",
+    "items": [
+     "wages"
+    ],
+    "dollar_line": null,
+    "loss_cap": null,
+    "fill_in": null,
+    "type_for_fill_in": false,
+    "reason": "default"
+   },
+   {
+    "survey": "sipp",
+    "variable": "spouse_wage_share",
+    "items": [],
+    "shared_with": "cps",
+    "type_for_fill_in": false,
+    "reason": "the spouse's share of the couple's wages (jobs for an employer), on married couples with some wages, as the CPS records it; shared with the CPS (not the PUF), taken as reported on the CPS's cut points of the same year, so the SIPP's tips follow each person's own wages at generation"
    }
   ],
   "fill_from_pass": 3,
@@ -926,6 +992,37 @@
   "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
   "step1_out": "returns",
   "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads."
+ },
+ "sipp": {
+  "_what": "The SIPP as a fifth source (roster_sipp.py, build_table.py): the Survey of Income and Program Participation's public-use files, one per reference (tax) year, its households as of the interview split into tax units by CBO's rules (tax_units.py, the shared module), every tax unit, dependent filers folded into the unit that claims them. Shared with the PUF (translation table): married, dependents, the primary filer's age range, wages, and the exact ages of the primary filer and the spouse; shared with the CPS: the spouse's share of the couple's wages. SIPP only: each adult's tips as a share of that adult's wages, and whether that adult's tips are mostly from leisure and hospitality (tip_share_primary, tip_share_spouse, tips_lh_primary, tips_lh_spouse), drawn last at generation under the SIPP label and generation_year. The file's tips1 and tips2 are each share times that person's wages (wages1, wages2), and tips their sum.",
+  "years": [
+   2015,
+   2017,
+   2019,
+   2021,
+   2023
+  ],
+  "_years": "Reference years, chosen as the CPS's (settings cps.years): every other year from the PUF year to the last year with a release. 2015 is the 2014 panel's wave 3; 2017-2023 the annual releases of 2018, 2020, 2022 and 2024 (NOTES.md in paths.raw.sipp: the 2018 release in the older folder is truncated, this one is complete).",
+  "releases": {
+   "2015": "pu2014w3.csv.gz",
+   "2017": "pu2018.csv.gz",
+   "2019": "pu2020.csv",
+   "2021": "pu2022.csv",
+   "2023": "pu2024_csv.zip"
+  },
+  "generation_year": 2019,
+  "_generation_year": "The SIPP label's year at generation: the target year, as for the CEX and the CPS.",
+  "lh_industries": [
+   [
+    8560,
+    8690
+   ]
+  ],
+  "_lh_industries": "Leisure and hospitality: Census industry codes 8560-8690 (arts, entertainment and recreation; accommodation and food services; NAICS 71 and 72). Production (tips.R) uses 8561-8690, the 2017 and later Census codes; the 2014 panel's codes (2012 Census codes) put performing arts, spectator sports and independent artists in 8560, so the range starts at 8560 here to cover both codings.",
+  "lh_share": 0.5,
+  "_lh_share": "A person's tips are from leisure and hospitality when more than this share of the person's tips on jobs for an employer is from such jobs (production's tips.R).",
+  "mfs_salt": 20261023,
+  "_mfs_salt": "Separate returns: joint couples are split by the CEX's rule (tax_units.mfs_split, keyed draw with this salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns."
  },
  "filing": {
   "_what": "The CPS's filing stage (filing.py, filing_requirement.R; run.sbatch stage filing): every CPS tax unit's chance of filing, by the filing rule v4 (John, 24 October 2026): logit(chance) = a(age band of the head) + k x (a child under 17) + required x (r + s x log gross income, centred on the year's weighted median among required units + b x (business or farm income not zero)), required being the statutory filing requirement. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11 targets hold exactly: non-filing heads and spouses in 7 age bands = CPS adults - adults on returns (SOI Table 1.6, age_shape's filing_adults) - dependents aged 15+ not filing their own return (group quarters left out, so zero); and the four shares below. Dependents' own returns: file if required to or with any wages. No outside filing model.",

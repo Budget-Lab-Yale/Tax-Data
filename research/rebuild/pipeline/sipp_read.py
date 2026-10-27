@@ -1,0 +1,78 @@
+"""sipp_read.py: the SIPP public-use person-month files, only the columns the pipeline uses (roster_sipp.py).
+
+The files (settings paths.raw.sipp, a folder; sipp.releases maps each reference year to its file) are pipe-delimited,
+one row per person and month of the reference year (MONTHCODE 1-12), several GB each, so only the columns below are
+read (pyarrow, include_columns) and the result is cached as a parquet file in the run's data folder
+(sipp_raw_<year>.parquet); delete the cache to read the file again. The 2014 panel names its columns in mixed case;
+every name is read case-blind and stored in upper case. A zipped release (2023: pu2024_csv.zip) is read from the one
+CSV inside it.
+"""
+import io
+import os
+import zipfile
+import gzip
+
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.csv as pcsv
+
+import common
+
+PERSON = ['SSUID', 'PNUM', 'MONTHCODE', 'ERESIDENCEID', 'THHLDSTATUS', 'SPANEL', 'SWAVE', 'ERELRPE', 'ESEX', 'TAGE',
+          'TAGE_EHC', 'EMS', 'EMS_EHC', 'EPNSPOUSE', 'EPNSPOUS_EHC', 'EPNCOHAB', 'EPNCOHAB_EHC', 'EPNPAR1', 'EPNPAR2',
+          'EPAR1TYP', 'EPAR2TYP', 'EDEPCLM', 'EFSTATUS', 'WPFINWGT', 'RENROLL', 'EEDGRADE', 'RDIS', 'RFAMNUM',
+          'RFAMREF']
+INCOME = ['TPEARN', 'TSSSAMT', 'TSSI_AMT', 'TUC1AMT', 'TUC2AMT', 'TPPRPINC', 'TPOTHINC', 'TPTOTINC']
+JOBS = 7            # job lines 1-7: earnings (MSUM), industry (IND) and class of worker (CLWRK)
+TIP_JOBS = 4        # tips (TXAMT) are asked of job lines 1-4 only (5-7 are suppressed), as in production's annualize.R
+JOB_COLS = [f'TJB{j}_MSUM' for j in range(1, JOBS + 1)] + [f'TJB{j}_IND' for j in range(1, JOBS + 1)] + \
+    [f'EJB{j}_CLWRK' for j in range(1, JOBS + 1)] + [f'TJB{j}_TXAMT' for j in range(1, TIP_JOBS + 1)]
+COLUMNS = PERSON + INCOME + JOB_COLS
+STRINGS = ['SSUID', 'ERESIDENCEID'] + [f'TJB{j}_IND' for j in range(1, JOBS + 1)]
+
+
+def release_path(year):
+    S = common.SETTINGS['sipp']
+    return os.path.join(common.RAW['sipp'], S['releases'][str(year)])
+
+
+def _open(path):
+    """A binary stream of the release's CSV (plain, gzipped or the one CSV in a zip)."""
+    if path.endswith('.zip'):
+        z = zipfile.ZipFile(path)
+        names = [n for n in z.namelist() if n.lower().endswith('.csv')]
+        assert len(names) == 1, (path, names)
+        return z.open(names[0])
+    if path.endswith('.gz'):
+        return gzip.open(path, 'rb')
+    return open(path, 'rb')
+
+
+def read_release(year, cache=True):
+    """The person-month rows of the release for reference year `year`, the columns COLUMNS (upper case), numbers as
+    floats (missing = NaN), SSUID, the residence id (letters in the 2014 panel) and industry codes as strings."""
+    out = f'{common.DATA}/sipp_raw_{year}.parquet'
+    if cache and os.path.exists(out):
+        return pd.read_parquet(out)
+    path = release_path(year)
+    with _open(path) as f:
+        header = f.readline().decode().rstrip('\r\n').split('|')
+    by_upper = {h.upper(): h for h in header}
+    missing = [c for c in COLUMNS if c not in by_upper]
+    assert not missing, f'{path}: columns not found: {missing}'
+    names = [by_upper[c] for c in COLUMNS]
+    types = {by_upper[c]: (pa.string() if c in STRINGS else pa.float64()) for c in COLUMNS}
+    with _open(path) as f:
+        tab = pcsv.read_csv(f, parse_options=pcsv.ParseOptions(delimiter='|'),
+                            read_options=pcsv.ReadOptions(block_size=1 << 26),
+                            convert_options=pcsv.ConvertOptions(include_columns=names, column_types=types,
+                                                                strings_can_be_null=True))
+    d = tab.to_pandas()
+    d.columns = [c.upper() for c in d.columns]
+    common.say(f'SIPP {year} ({os.path.basename(path)}): {len(d):,} person-month rows, '
+               f'{d.groupby(["SSUID", "PNUM"]).ngroups:,} people')
+    if cache:
+        os.makedirs(common.DATA, exist_ok=True)
+        d.to_parquet(out, index=False)
+    return d

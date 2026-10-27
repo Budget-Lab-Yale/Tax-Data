@@ -154,6 +154,9 @@ def recombine(df):
     for item, (total, other) in D.REMAINDERS.items():
         if other in out:
             put(item, out[total] - out[other])
+    if all(f'{slot}_band' in out for slot in D.PERSON_RATIOS):    # tips1, tips2, tips and the leisure flags
+        D.person_items(out, out)
+        done += [item for item, _ in D.PERSON_RATIOS.values()] + list(D.SUMS) + list(D.FLAGS_WITH)
     if all(c in out for c in D.NET_WORTH_PARTS):
         put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
     return out, done
