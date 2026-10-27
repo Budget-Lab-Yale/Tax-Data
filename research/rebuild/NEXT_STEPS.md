@@ -38,9 +38,10 @@ before the next; then one big run:
    - Any rule with a dollar line maps above the line by percentile among the units above it, in each data set
      (the audit's flaw in function 1, which today breaks the order of units just above the line).
    - SCF: interest, dividends, the partnership flag as today; capital gains fill-in and loss cap, above $50,000
-     percentile; Schedules C and F fill-in plus count from the top; tax-exempt interest fill-in. **Open:** Social
-     Security alone in place of Social Security plus pensions (John: does not care about matching taxable
-     pensions; scratch `explore/2026-10-28/scf_social_security/`), and Schedule E, including whether function 2
+     percentile; Schedules C and F fill-in plus count from the top; tax-exempt interest fill-in. Social Security
+     plus pensions is replaced by gross Social Security alone, matched to the return's gross Social Security
+     (John, 27 October): the SCF's benefits section (X5301-X5312, respondent and spouse, current benefit at
+     interview), SSI left out (scratch `explore/2026-10-28/scf_social_security/`). **Open:** Schedule E, including whether function 2
      can turn zeros or positives into losses (scratch `explore/2026-10-28/scf_schedule_e/`).
    - CEX: Social Security as today; self-employment fill-in plus count from the top; interest and dividends,
      pensions and net rent not shared.
