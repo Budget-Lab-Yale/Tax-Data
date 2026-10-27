@@ -32,7 +32,25 @@ before the next; then one big run:
 1. Commit the day's documents; branch from `rebuild-tips-dollars` (tips in dollars).
 2. Wages and deferrals (below): link wage, percentile mapping, SCF deferral slot. Check: the translation report.
 3. The non-wage mappings, after John goes through the audit (scratch `explore/2026-10-27/mapping/AUDIT.md`). Check:
-   the same report.
+   the same report. **Approved 27 October (late), survey by survey:** "fill-in" is function 2; "percentile" is
+   the survey's p-th percentile holder getting the tax data's p-th percentile holder's amount.
+   - Function 2 is extended to the CEX and the CPS (it runs only on the SCF today).
+   - Any rule with a dollar line maps above the line by percentile among the units above it, in each data set
+     (the audit's flaw in function 1, which today breaks the order of units just above the line).
+   - SCF: interest, dividends, the partnership flag as today; capital gains fill-in and loss cap, above $50,000
+     percentile; Schedules C and F fill-in plus count from the top; tax-exempt interest fill-in. **Open:** Social
+     Security alone in place of Social Security plus pensions (John: does not care about matching taxable
+     pensions; scratch `explore/2026-10-28/scf_social_security/`), and Schedule E, including whether function 2
+     can turn zeros or positives into losses (scratch `explore/2026-10-28/scf_schedule_e/`).
+   - CEX: Social Security as today; self-employment fill-in plus count from the top; interest and dividends,
+     pensions and net rent not shared.
+   - CPS: Social Security and the filing flag as today; dividends fill-in plus percentile; pensions fill-in
+     (compared with taxable pensions plus taxable IRA distributions); capital gains fill-in plus percentile;
+     unemployment fill-in; Schedule C fill-in plus count from the top; rents income as today; survivor and
+     disability pensions moved into pensions (check which disability sources are taxable); interest not shared.
+   - SIPP, new shared items: dividends (fill-in, dollars below $50,000, percentile above), gross Social Security
+     as reported, and pensions (fill-in plus percentile, against taxable pensions). Interest, self-employment,
+     unemployment, rent and alimony not shared.
 4. The surveys' year mix in generation (TARGETS.md section 7).
 5. The big run: train, draw, reweight with the W-2 deferral targets added; compare with the latest; John approves.
 Left out for now (John, 27 October): overtime (data pulled, below) and the young tax units (below; "it is what it is").
