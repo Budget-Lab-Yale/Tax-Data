@@ -71,7 +71,7 @@ TOP_KEYS = {'year', 'kind', 'inherits', 'prior', 'targets', 'drop', 'report', 's
             'hold_distribution'}
 YEAR_KEYS = ['year', 'kind', 'prior', 'report', 'start', 'start_scaling', 'hold_distribution']   # a later file replaces
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key',
-              'dependent_filers', 'note', 'override'}
+              'dependent_filers', 'note', 'override', 'percentiles'}
 ERROR_KEYS = {'kind', 'relative', 'reason'}
 
 
@@ -201,6 +201,23 @@ AGE_COLUMNS = {'head': 'age_primary', 'spouse': 'age_spouse', 'dep1': 'age_dep1'
                'dep3': 'age_dep3'}
 
 
+def person_values(df, v):
+    """A variable defined person by person (catalog ss_tips): an array (records x people slots), each person's value.
+    W-2 box 7: each person's tips held so that wages other than tips plus tips are at most the wage base. The record's
+    value (record_value) is the sum over the slots; the worker-level statistics count and rank the slots."""
+    d = variable_def(v)
+    assert 'ss_tips' in d, f'{v}: not defined person by person'
+    base = d['wage_base'].get(common.TARGET_YEAR)
+    assert base, f'{v}: no Social Security wage base for {common.TARGET_YEAR} in the catalog'
+    out = np.zeros((len(df), len(d['ss_tips'])))
+    for k, (wcol, tcol) in enumerate(d['ss_tips']):
+        wg, tp = df[wcol].to_numpy(float), df[tcol].to_numpy(float)
+        assert np.isfinite(wg).all() and np.isfinite(tp).all(), f'{v}: {wcol} or {tcol} missing'
+        assert (tp <= wg + 1e-6).all(), f'{v}: {tcol} above {wcol} on {int((tp > wg + 1e-6).sum())} records'
+        out[:, k] = np.minimum(tp, np.maximum(0.0, float(base) - (wg - tp)))
+    return out
+
+
 def record_value(df, v):
     """A record's value of variable v (in the file's dollars)."""
     d = variable_def(v)
@@ -222,16 +239,7 @@ def record_value(df, v):
             return np.minimum(np.maximum(-x, 0), np.where(df['mars'].to_numpy() == 3, 1500.0, 3000.0))
         return np.maximum(x, 0) if d['transform'] == 'positive' else np.maximum(-x, 0)
     if 'ss_tips' in d:
-        # W-2 box 7: each person's tips held so that wages other than tips plus tips are at most the wage base
-        base = d['wage_base'].get(common.TARGET_YEAR)
-        assert base, f'{v}: no Social Security wage base for {common.TARGET_YEAR} in the catalog'
-        out = np.zeros(len(df))
-        for wcol, tcol in d['ss_tips']:
-            wg, tp = df[wcol].to_numpy(float), df[tcol].to_numpy(float)
-            assert np.isfinite(wg).all() and np.isfinite(tp).all(), f'{v}: {wcol} or {tcol} missing'
-            assert (tp <= wg + 1e-6).all(), f'{v}: {tcol} above {wcol} on {int((tp > wg + 1e-6).sum())} records'
-            out += np.minimum(tp, np.maximum(0.0, float(base) - (wg - tp)))
-        return out
+        return person_values(df, v).sum(1)
     if 'people' in d:
         p = d['people']
         hi = np.inf if p['to'] is None else p['to']
@@ -766,18 +774,20 @@ def published_w2(source, year, cells, v, stats, population):
         count_col = 'Number of returns' if 'Number of returns' in have else 'Number of taxpayers'
         count, amount = have[count_col], have['Amount']
         assert np.isfinite(count) and np.isfinite(amount), f'{path}: {item}, {group}: withheld or missing'
+        workers = have.get('Number of taxpayers', np.nan)
         for st in stats:
-            val = {'count': count, 'amount': amount}[st]
-            src = f'{source} {year}: {item}, {group}, {count_col if st == "count" else "amount"} ({path})'
+            val = {'count': count, 'amount': amount, 'workers': workers}[st]
+            assert np.isfinite(val), f'{path}: {item}, {group}: no {st}'
+            src = f'{source} {year}: {item}, {group}, {"amount" if st == "amount" else "number of taxpayers" if st == "workers" else count_col} ({path})'
             reduction, gap_why = 0.0, ''
             if share is not None and c['filters'] == [('married', 0)]:
-                sh = share[0] if st == 'count' else share[1]
-                reduction = val * sh
+                sh = share[1] if st == 'amount' else share[0]
+                reduction = val * sh   # a non-joint return is one taxpayer, so its workers and its returns are the same count
                 gap_why = (f'; less the dependent filers, {100 * sh:.1f}% ({share[2]}); plus '
                            f'{100 * definition["dependent_share"]["gap_share"]:g}% of that reduction as a definition gap')
             published = val
             val = published - reduction
-            cv, what = errors.borrow_cv(donors, count=val) if st == 'count' else \
+            cv, what = errors.borrow_cv(donors, count=val) if st in ('count', 'workers') else \
                 errors.borrow_cv(donors, amount=val, returns=count)
             se = float(np.sqrt((val * cv / 100) ** 2 + (definition['dependent_share']['gap_share'] * reduction) ** 2))
             out.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'source': src,
@@ -787,12 +797,58 @@ def published_w2(source, year, cells, v, stats, population):
     return out
 
 
+def _w2_percentiles(path, sheet):
+    """A W-2 statistics percentile table (Table 4.C): {item label: {percentile: value in dollars}}, the percentile
+    columns read from the heading row ('10th' is 10)."""
+    import openpyxl
+    rows = [list(r) for r in openpyxl.load_workbook(path, read_only=True, data_only=True)[sheet].iter_rows(values_only=True)]
+    (hr,) = [i for i, r in enumerate(rows) if any(isinstance(c, str) and c.strip() == '10th' for c in r)]
+    cols = {int(c.strip()[:-2]): k for k, c in enumerate(rows[hr]) if isinstance(c, str) and c.strip()[-2:] in ('th', 'st', 'nd', 'rd')}
+    return {r[0].strip(): {p: float(r[k]) for p, k in cols.items()} for r in rows[hr + 1:]
+            if isinstance(r[0], str) and r[0].startswith('Box') and all(isinstance(r[k], (int, float)) for k in cols.values())}
+
+
+def published_w2_shares(source, year, cells, v, e):
+    """Worker share rows from SOI's W-2 percentile table (catalog source with layout w2_percentiles): for each
+    percentile p of the entry's list, the share of workers (individuals with box 7 tips) above the p-th percentile
+    line is 1 - p/100, the line the table's dollar value. The workers are on filed returns other than dependent
+    filers'; the table covers every individual with a box 7 value, dependent filers included.
+    Error: the borrowed CV (as for any count) of the count above the line (share times the workers' number) and of
+    the workers' number, added in quadrature, times the share (the two are positively related, so this is not
+    small); plus half the most the dependent filers could move the share (all of them below the line: s d / (1 - d),
+    at most 1 - s, d the dependents' share of all workers, from the SIPP as in w2_dependent_share), in quadrature."""
+    import errors
+    definition = CAT['sources'][source]
+    path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
+    item = variable_def(v)['published'][source]['item']
+    pct = _w2_percentiles(path, definition['sheet'])[item]
+    summary = _w2_table(path, definition['summary_sheet'])[item]
+    n_all, n_nonjoint = summary[('All taxpayers', 'Number of taxpayers')], summary[('Nonjoint returns, wage earner', 'Number of taxpayers')]
+    d = w2_dependent_share(source, year)[0] * n_nonjoint / n_all
+    donors, donor_year = errors.soi_cells(year)
+    cv_n, _ = errors.borrow_cv(donors, count=n_all)
+    out = []
+    for c in cells:
+        for p in e['percentiles']:
+            s, line = 1.0 - p / 100.0, pct[p]
+            cv_a, what = errors.borrow_cv(donors, count=s * n_all)
+            gap = 0.5 * min(s * d / (1 - d), 1 - s)
+            se = float(np.sqrt((s * np.hypot(cv_a, cv_n) / 100) ** 2 + gap ** 2))
+            out.append({'cell': c['label'], 'cell_spec': c, 'statistic': 'worker share', 'value': s, 'line': line,
+                        'line_variable': v, 'error_kind': 'soi_borrowed', 'se': se,
+                        'source': f'{source} {year}: {item}, {p}th percentile ${line:,.0f}, so {100 * s:g}% of workers above ({path})',
+                        'se_reason': f'{100 * s:g}% of {n_all:,.0f} workers; CV {cv_a:g}% on the count above and {cv_n:g}% on the workers '
+                                     f'(borrowed from the nearest Table 1.4 cells, {donor_year}: {what}), in quadrature; plus half the most the '
+                                     f'dependent filers (SIPP: {100 * d:.1f}% of workers) could move the share, {gap:.4f}'})
+    return out
+
+
 # ---- expansion ------------------------------------------------------------------------------------------------
-def _fill(template, cell, v, st, year):
+def _fill(template, cell, v, st, year, line=None):
     parts = dict(cell['parts'])
     d = variable_def(v) if v else {}
     return template.format(cell=cell['label'], variable=d.get('short', ''), label=d.get('label', ''), statistic=st,
-                           year=year, **parts)
+                           year=year, line=line, **parts)
 
 
 def expand_entry(e, year, soi):
@@ -813,6 +869,8 @@ def expand_entry(e, year, soi):
             rows = published_grid(src, vyear, cells, v, stats)
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_summary':
             rows = published_w2(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_percentiles':
+            rows = published_w2_shares(src, vyear, cells, v, e)
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
@@ -827,7 +885,8 @@ def expand_entry(e, year, soi):
             c, st = r['cell_spec'], r['statistic']
             filt = dict(c['filters'])
             se = {'identity': 0.0, 'judgment': err.get('relative', np.nan) * abs(r['value'])}.get(err['kind'], np.nan)
-            group, target = _fill(e['key']['group'], c, v, st, vyear), _fill(e['key']['target'], c, v, st, vyear)
+            line = r.get('line')
+            group, target = _fill(e['key']['group'], c, v, st, vyear, line), _fill(e['key']['target'], c, v, st, vyear, line)
             if 'pooled' in r:   # an SCF target: its standard error, computed with its value, for errors.py
                 import scf_targets
                 scf_targets.RESULTS[(e['kind'], group, target)] = r['pooled']
@@ -880,7 +939,7 @@ def expand(year=common.TARGET_YEAR, start=None):
     rows = rows[~zero].reset_index(drop=True)
     if start is not None:
         F, _, _ = conditions(start, rows, None, check=False)
-        reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share']).to_numpy()
+        reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)
         rows = rows[reach].reset_index(drop=True)
     keys = rows[['kind', 'group', 'target']].apply(tuple, axis=1)
@@ -927,7 +986,7 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     rows = rows.assign(line_hi=rows['line_hi'].astype(float))
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
-    if units is None and average_form == 'units' and rows['statistic'].isin(['average', 'share', 'share of total']).any():
+    if units is None and average_form == 'units' and rows['statistic'].isin(['average', 'share', 'share of total', 'worker share']).any():
         units = file_units(int(years[0]))
     a = D.agi(df)
     rng = df['age_range'].to_numpy()
@@ -991,6 +1050,26 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             F[:, j] = cell * (xc != 0)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
+        elif r.statistic == 'workers':
+            # a worker-level count: the people (primary and spouse slots) with a positive value of the variable
+            F[:, j] = cell * (person_values(df, r.variable) > 0).sum(1)
+        elif r.statistic == 'worker share':
+            # the share of the workers (people with a positive value) whose value is above the dollar line r.line.
+            # With n the record's workers and a those above the line, the share s is met when sum w (a - s n) = 0.
+            # In the solver's average form (member, v, m = s) that is member = the records with workers and
+            # v = s + (a - s n) W_member / W_workers, W the starting weights' totals, so the average of v over member
+            # is the share itself on the starting weights and moves with the miss on the share (as 'share of total').
+            assert not np.isnan(r.line), f'{r.group} {r.target}: a worker share needs a line'
+            px = person_values(df, r.variable)
+            n_w, n_above = (px > 0).sum(1).astype(float), (px > r.line).sum(1).astype(float)
+            member = cell & (n_w > 0)
+            ws = np.asarray(w_start, float) if w_start is not None else np.ones(len(df))
+            assert member.any(), f'{r.group} {r.target}: no workers'
+            k = ws[member].sum() / (ws * n_w * cell).sum()
+            v = r.value + (n_above - r.value * n_w) * k
+            F[:, j] = average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
+            T[j] = units if average_form == 'units' else 0.0
+            averages[j] = (member, v, r.value)
         elif r.statistic == 'share of total':
             # a hold_distribution target (hold_rows): the item's share of its total in an AGI rank group, s =
             # sum over the group of w x / sum over the population of w x, written sum over the population of

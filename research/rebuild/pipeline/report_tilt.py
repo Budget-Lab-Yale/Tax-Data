@@ -158,7 +158,7 @@ def show(v, stat):
     """A number as the page prints it."""
     if v is None or not np.isfinite(v):
         return '' if v is None or np.isnan(v) else ('inf' if v > 0 else '-inf')
-    if stat == 'share':
+    if stat in ('share', 'worker share'):
         return f'{100 * v:.2f}%'
     if stat in ('amount', 'average', 'total'):
         a = abs(v)

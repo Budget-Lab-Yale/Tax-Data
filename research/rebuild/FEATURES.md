@@ -6,7 +6,7 @@ interest from the SCF (20 balance-sheet items, with net worth computed from
 them), spending in 8 categories from the CEX, from the CPS ASEC each person's
 age and sex, dependents' ages, the split of a couple's wages and
 self-employment income between the spouses, weeks and hours worked, and
-childcare, and each adult's tips from the SIPP, weighted to 746 targets for
+childcare, and each adult's tips from the SIPP, weighted to 753 targets for
 2019.
 - **Filers and non-filers.** Filers come from the PUF label and non-filers
   from the CPS label. The CPS's filing chances come from a calibrated rule
@@ -27,7 +27,8 @@ childcare, and each adult's tips from the SIPP, weighted to 746 targets for
   mix of waves as the balance sheet, and one for the rest (`TARGETS.md` S9).
 - **Since when.** This is latest since 27 October (merge 5d2a637: the SIPP,
   auto loan interest, the targets of Tables 1.3 and 4.3, W-2 tips and auto
-  loans, and the other PUF items). The run before (26 October) is in
+  loans, and the other PUF items); the tilt was rerun the same day with 7 more tips targets (753 in all; the
+  file before that is in `previous_2026-10-27_before_tips_spread/` of the output folder). The run before (26 October) is in
   `previous_2026-10-26/` of the output folder. The code is in `pipeline/`;
   every setting is in `pipeline/settings.json`.
 
@@ -726,7 +727,7 @@ variance; the file's net worth lines are the share-weighted average of the waves
 0.65 of one wave's. The replicate weights of each wave sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to
 fetch them). `tilt/<run>/scf_targets_by_wave.csv` has each target's value, error, lines and SCF households by wave.
 
-The 2019 targets (746):
+The 2019 targets (753):
 
 | Targets | Number |
 |---|---:|
@@ -737,7 +738,7 @@ The 2019 targets (746):
 | Dependent filers (Table 1.7): returns by AGI | 9 |
 | Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
 | Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
-| Tips: SOI's 2019 Form W-2 statistics (Table 4.B, box 7), returns with tips and the amount, joint and non-joint | 4 |
+| Tips: SOI's 2019 Form W-2 statistics (Tables 4.B and 4.C, box 7): returns with tips and the amount, joint and non-joint (4); tipped workers on joint returns (1); the share of tipped workers above each of six percentile lines of tips per worker (6) | 11 |
 | SCF wealth, the 2016, 2019 and 2022 waves pooled: shares of units and net worth above the 99.9th, 99th, 90th and 50th percentile lines and $1 million; the four asset types (stocks, business equity, real estate, retirement accounts) above the 99.9th, 99th and 90th lines | 22 |
 | SCF income x net worth grid, the same waves pooled (below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | SCF auto loan interest, the same waves pooled: the share of units with any and dollars per unit in the grid's 4 income groups | 8 |
@@ -756,6 +757,16 @@ base ($132,900 in 2019) less that person's other wages (catalog `ss_tips`). The 
 who hold no tips in the file, so the non-joint values are reduced by the SIPP's share of dependents among non-joint
 tipped people (10.1% of people, 2.9% of tips), half of that reduction added to the error. Non-filers' tips are not
 targeted (the W-2 statistics cover filed returns only).
+
+Tips per worker (27 October, after the first tips targets). Seven more targets give the spread of tips among tipped people: the
+number of tipped workers on joint returns (Table 4.B, 1,237,794, error 2.7%) and the share of tipped workers whose box 7 tips are above
+$121, $537, $2,444, $8,409, $18,281 and $44,054 (Table 4.C's 10th, 25th, 50th, 75th, 90th and 99th percentiles, so the targets are
+90%, 75%, 50%, 25%, 10% and 1%). A worker is a person, the primary filer or the spouse, with box 7 tips above zero, over filers other
+than dependent filers. A non-joint return has one worker, so the non-joint worker count is the count of non-joint returns with tips,
+already a target. Table 4.C includes dependent filers, who hold no tips in the file, so each share's error carries half the most that
+removing them could move it (4.2 points at the $121 line, 0.13 at the $44,054 line). Code: `person_values`, the statistics `workers` and
+`worker share` and `published_w2_shares` in `pipeline/target_list.py`; configuration in `catalog.yaml` (source `soi w2 pctiles`) and
+`years/2019.yaml` (`tips_w2_workers`, `tips_w2_spread`).
 
 **Auto loan interest** (since 27 October; `historical.yaml`). Per unit rather than totals, because the SCF's units
 (162.8 million) are fewer than the file's units other than dependent filers (about 169.5 million).
@@ -787,20 +798,20 @@ nominal 2019 dollars unless said.
 
 | | File | Reference |
 |---|---:|---:|
-| targets inside their ranges (SCF 0.5, the rest 1 standard error) | 746 of 746 (496 at an edge) | |
-| effective sample kept, from the prescaled start | 87.3% | run S2 (stage 1's models): 87.7% |
-| effective sample kept, from the start before the prescaling | 87.0% | |
+| targets inside their ranges (SCF 0.5, the rest 1 standard error) | 753 of 753 (502 at an edge) | before the tips spread targets: 746 of 746 (496 at an edge) |
+| effective sample kept, from the prescaled start | 87.2% | before the tips spread targets: 87.3%; run S2 (stage 1's models): 87.7% |
+| effective sample kept, from the start before the prescaling | 86.8% | before the tips spread targets: 87.0% |
 | weight factor, 1st and 99th percentiles | 0.047, 3.24 | |
-| thin cells: warnings, stops | 109, 54 | |
+| thin cells: warnings, stops | 108, 54 | before the tips spread targets: 109, 54 |
 | returns with AGI of $10 million and over, before the tilt (2015 dollars and returns) | 0.0252 | PUF 2015: 0.0175 |
 | returns with AGI of $1 million and over, before the tilt (same) | 0.541 | PUF 2015: 0.443 |
 | returns with AGI zero or negative, before the tilt (same) | 3.00 | PUF 2015: 2.02 |
 | filer records whose drawn parts add up to another AGI group than their label | 14.1% | |
 | net worth, total, before and after the tilt | $110.8 and $97.0 trillion | SCF pooled: $97.1 trillion |
 | net worth with units at p99.9+ of income, above and at or below the SCF's p99.9 net worth line | $7.98 and $1.89 trillion | targets: $8.39 and $2.07 trillion |
-| median net worth, all 179.1 million units | $51,600 | SCF pooled, 162.8 million units: $66,600 |
+| median net worth, all 179.1 million units | $51,560 | SCF pooled, 162.8 million units: $66,600 |
 | top 1% share of net worth | 40.8% | SCF pooled: 39.6% |
-| tips: total, units with any | $49.4 billion, 6.11 | W-2 2019 (filers): $42.4 billion, 6.51 million returns; SIPP 2019: $33.6 billion, 3.76 |
+| tips: total, units with any | $48.1 billion, 6.13 | W-2 2019 (filers): $42.4 billion, 6.51 million returns; SIPP 2019: $33.6 billion, 3.76 |
 | auto loan interest: total, units with any | $44.4 billion, 49.4 | SCF pooled (162.8 million units): $43.2 billion, 47.3 |
 | qualified dividends, filers other than dependent filers | $259.5 billion | the 2015 PUF grown: $232.9 billion |
 | returns with any itemized deduction item, before and after the tilt | 46.3, 40.4 | the 2015 PUF grown: 46.6 |
@@ -813,7 +824,19 @@ nominal 2019 dollars unless said.
   (interest, farm income and partnership losses at no AGI, and Table 1.3's joint cells).
 - **Tips.** The file's total includes non-filers' tips and tips above the box 7 limit, which the W-2 targets do not
   count. The tilt meets the W-2 counts by raising the weight of records that already have tips (by 1.66 times on
-  average in run S2). Units with $200,000 or more of wages hold $4.9 billion of tips (SIPP 2019: $0.9 billion).
+  average in run S2). Units with $200,000 or more of wages hold $5.9 billion of tips (SIPP 2019: $0.9 billion; $4.9 billion
+  before the tips spread targets). The spread targets (27 October) weight records with small tips about twice their starting
+  weight; they cost 0.1 point of the effective sample. Tips per worker, box 7 measure, filers (nominal 2019 dollars):
+
+  | | p25 | p50 | p75 | p99 |
+  |---|---:|---:|---:|---:|
+  | W-2 2019 (Table 4.C) | 537 | 2,444 | 8,409 | 44,054 |
+  | file before the tips spread targets | 872 | 3,531 | 9,367 | 52,272 |
+  | file now | 686 | 2,789 | 8,922 | 47,138 |
+
+  All seven new targets are inside their ranges, six at the edge, so the spread is closer to the W-2's but does not reach it; the
+  dependent-filer term in their errors is what lets the solver stop at the edge. Tipped workers: 5.74 million against a target of
+  6.05 million.
 - **Itemizers** fall in the tilt because Table 1.3's state income tax refund targets (2019: $5.6 billion, few
   taxable refunds after the 2017 law) cut the weight of itemizers with a refund to about a fifth; every itemized item
   loses 15-20% of its holders at AGI $25,000-200,000.

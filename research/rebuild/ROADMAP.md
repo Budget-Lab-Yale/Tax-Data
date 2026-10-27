@@ -16,7 +16,7 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    - Choose the level of detail with held-out targets.
    - Calculator targets (item 9), the Forbes 400 and the Distributional Financial Accounts.
    - Added 27 October, by John's exception to S10: SOI Table 1.3 by filing status, Table 4.3 for the top 0.01%,
-     0.1% and 1%, W-2 box 7 tips and SCF auto loan interest (746 targets in all, every one met). Otherwise no
+     0.1% and 1%, W-2 box 7 tips and SCF auto loan interest (753 targets in all, every one met). Otherwise no
      targets are added or changed until the imputed variables and the calculator are in (`TARGETS.md` S10); the
      ideas set aside are listed there.
    - Table 4.3's top 0.001% waits for the PUF's aggregate records to be unpacked.
@@ -223,15 +223,22 @@ them. Figures are from runs before 25 October unless a date says otherwise:
     W-2's counts by raising the weight of tipped records 1.66 times on
     average; the other way is to draw more tipped workers at generation;
   - against W-2 Table 4.C (box 7 among people with any), the file's tips per
-    tipped worker are too high in the bottom half: the 25th percentile $961
-    against $537, the median $3,666 against $2,444; the 90th percentile is
-    close ($18,538 against $18,281);
+    tipped worker were too high in the bottom half: the 25th percentile $872
+    against $537, the median $3,531 against $2,444. Seven targets on the
+    spread (the share of tipped workers above six of Table 4.C's percentile
+    lines, and tipped workers on joint returns) are now in the latest run and
+    met, at the edge of their ranges for six: the 25th percentile is $686,
+    the median $2,789, the 99th $47,138 against $44,054. The spread is
+    closer but does not reach the W-2's;
   - tips on high earners: in the latest run units with $200,000 or more of
-    wages hold $4.9 billion of tips against the SIPP's $0.9 billion. The
+    wages hold $5.9 billion of tips ($4.9 billion before the spread targets)
+    against the SIPP's $0.9 billion. The
     network gives a few top earners a tip share the SIPP sees only at low
     wages, and the share multiplies large wages;
-  - both decisions wait for a reweighting test of the W-2's spread of tips
-    per worker (branch `rebuild-tips-autoloan`).
+  - open: whether the dependent-filer term in the spread targets' errors
+    (up to 4 points at the $121 line) is the right size, and whether to draw
+    more tipped workers at generation instead (5.74 million tipped workers
+    against a target of 6.05 million).
 - **The other PUF items** (27 October; against the 2015 PUF grown to 2019,
   2015 dollars for items SOI cannot grow):
   - the foreign tax credit is 65% high in dollars ($36.0 billion against

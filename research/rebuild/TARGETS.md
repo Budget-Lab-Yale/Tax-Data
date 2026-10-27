@@ -53,7 +53,7 @@ records are flagged, with a stop for the worst (section 5).
 **5. Each year t: the report** (section 14): every target and where it landed, the thin cells, published numbers
 not targeted, what the tilt moved, and how far the two models disagree.
 
-**Built, as of 27 October:** steps 1-5 for 2019 (746 targets), with grouped weighting and the AGI group drawn first (S8), the
+**Built, as of 27 October:** steps 1-5 for 2019 (753 targets), with grouped weighting and the AGI group drawn first (S8), the
 SCF's waves mixed by section 7's rule in the start and in the SCF targets (S9), every dollar amount in target-year
 dollars before the tilt, ranges by kind of target and the report; the from_year start and hold_distribution are being tested on 2022. **Not built:** the borrowing rule for
 the CEX, the CPS and the SIPP (drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial
@@ -572,8 +572,8 @@ file holds and on taxes computed from it.
 
 **The exception (John, 27 October).** Four families were added with the tips, auto loan interest and the other PUF
 items: Table 1.3 by filing status (184), Table 4.3 for the top 0.01%, 0.1% and 1% (54; item 6 below), W-2 box 7
-tips (4) and SCF auto loan interest (8). With them the list has 746 targets; the latest run meets every one with
-87.3% of the effective sample kept, against 98.0% with the 496 before (`FEATURES.md`; `HISTORY.md`, 26–27 October).
+tips (4, and 7 more on the spread of tips per worker later that day) and SCF auto loan interest (8). With them the list has 753 targets;
+the latest run meets every one with 87.2% of the effective sample kept, against 98.0% with the 496 before (`FEATURES.md`; `HISTORY.md`, 26–27 October).
 - **Deductions need the calculator.** Who itemizes depends on each year's law; the 2018 law change (TCJA) cut the
   number of itemizers sharply, so SOI Table 2.1's itemized deductions cannot be targeted by reweighting the records
   without computing each record's choice under that year's law. Table 1.3's state income tax refund targets already

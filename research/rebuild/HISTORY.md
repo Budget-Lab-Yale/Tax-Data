@@ -661,6 +661,11 @@ $42.4 billion, filers only). Table 1.3's refund targets cut state income tax
 refunds from $27.4 billion to $5.7 billion (SOI: $5.6 billion), and mortgage
 interest paid fell 13% with them.
 
+Later on 27 October, seven more tips targets (753 in all) went into the latest run: tipped workers on joint returns (Table 4.B)
+and the share of tipped workers above six of Table 4.C's percentile lines. The tilt alone was rerun on the same records; all 753
+are met, the effective sample kept went from 87.3% to 87.2%, and the file's tips per worker moved toward the W-2's (median
+$3,531 to $2,789, against $2,444).
+
 Tables 1.3 and 4.3 were first tested on the run before's records
 (`Tax-Data-targets`, branch `rebuild-targets-13-43`; TARGETS.md S10):
 - Table 1.3 alone: every target met, 88.0% kept.
@@ -707,8 +712,9 @@ pass 9% longer), a new stack drawn and reweighted to the 746:
 - other_item_exp stays as the PUF has it, including its negatives, which come
   from the PUF rounding each item separately.
 - Tips on earners over $200,000, and whether to draw more tipped workers instead
-  of raising their weights: pending a reweighting test of the W-2's spread of
-  tips per worker (Table 4.C), running on branch `rebuild-tips-autoloan`.
+  of raising their weights: the W-2's spread of tips per worker (Table 4.C) was
+  tested as reweighting targets and adopted on 27 October (see above); the two
+  questions stay open (`ROADMAP.md`).
 
 ## Paths tried and not taken
 

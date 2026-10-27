@@ -74,6 +74,18 @@ sources:
     sheet: Table 4.B
     dependent_share: {survey: sipp, persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}_all.parquet', gap_share: 0.5}
     what: SOI Form W-2 statistics, Table 4.B, summary of items for taxpayers with Form W-2, by joint and non-joint returns
+  # The same workbook's Table 4.C (28 October, candidate): the percentiles of box 7 among individuals with a box 7
+  # value (all individuals on filed returns, dependent filers included). A target is the share of workers above a
+  # percentile's dollar line, one minus the percentile; the dependent filers' share of workers (Table 4.B, the SIPP)
+  # sets part of its error (target_list.published_w2_shares).
+  soi w2 pctiles:
+    kind: published
+    layout: w2_percentiles
+    file: w2_t4_{year}.xlsx
+    sheet: Table 4.C
+    summary_sheet: Table 4.B
+    dependent_share: {survey: sipp, persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}_all.parquet', gap_share: 0.5}
+    what: SOI Form W-2 statistics, Table 4.C, values of selected items by percentile, box 7 (Social Security tips)
   scf:
     kind: survey
     file: data/scf_units_{year}.parquet
@@ -126,6 +138,8 @@ populations:
 # Statistics. Each is a linear condition on the file's weights.
 #   units    number of units in the cell (no variable)
 #   count    number of units in the cell with the variable nonzero
+#   workers  (variables defined person by person: ss_tips) the number of people, primary and spouse, with a positive value
+#   worker share  the share of those people whose value is above a dollar line (the row's line)
 #   amount   sum of the variable over the cell
 #   average  the variable's average over the cell's units, zeros included
 #   share    the share of the cell's units above a line (the average of a 0/1 indicator)
@@ -134,7 +148,7 @@ populations:
 # An average or a share is written as a condition that holds whatever the reweighting does to the number of units
 # in the cell (target_list.average_condition).
 # ---------------------------------------------------------------------------------------------------------------
-statistics: [units, count, amount, average, share]
+statistics: [units, count, amount, average, share, workers, worker share]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Kinds of error (TARGETS.md section 9). errors.py computes the first three; a judgment number is written in the
@@ -365,6 +379,7 @@ variables:
     short: Social Security tips
     published:
       soi w2: {item: 'Box 7: Social security tips'}
+      soi w2 pctiles: {item: 'Box 7: Social security tips'}
   # Auto loan interest (27 October, candidate): the SCF's auto_int_exp, the amount still owed on each of up to four
   # vehicle loans times its current rate (build_scf.R), the same column on the SCF's units and on the file (drawn in
   # the SCF phase and grown per tax unit to the target year's wave, as the balance sheet). The share of units with
