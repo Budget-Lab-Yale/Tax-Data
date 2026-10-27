@@ -43,7 +43,8 @@ before the next; then one big run:
    wages (none without wages), as for tips; (6) after a wave is grown to the target year, each person's deferrals
    held to the target year's limit for their age; (7) W-2 targets from Table 2.D (contributions by AGI, joint and
    non-joint returns; dollars only on joint returns), dependent filers allowed for in the targets' errors as for
-   tips (needs a new reader).
+   tips (needs a new reader). Built 28 October (9694c14 on `rebuild-wages-deferrals`): 24 targets in eight AGI
+   groups (under $25k, $25-50k, $50-75k, $75-100k, $100-200k, $200-500k, $500k-1m, $1m+), kept by John.
 3. The non-wage mappings, after John goes through the audit (scratch `explore/2026-10-27/mapping/AUDIT.md`). Check:
    the same report. **Approved 27 October (late), survey by survey:** "fill-in" is function 2; "percentile" is
    the survey's p-th percentile holder getting the tax data's p-th percentile holder's amount.
