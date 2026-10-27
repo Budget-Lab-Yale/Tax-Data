@@ -25,11 +25,12 @@ A working note so a later session can resume. The results page is `explore_tips_
 5. SIPP unit checks pass integrity in every year (data/checks/checks_sipp_<year>.md); SIPP vs CPS unit totals in
    explore/units_vs_cps.md.
 
-## Running (27 October, from 23:35)
-- 30930966 tips_quick: REBUILD_SETTINGS=explore/settings_quick.json REBUILD_RUN=quick REBUILD_PASSES=3, stages
-  train generate tilt report.
-- 30930967, 30930968: train label_seed20261016 and label_seed20261017 (REBUILD_RUN, REBUILD_SEED).
+## Done since (27 October, 00:00-01:20)
+- Both models trained (H100 67 min, H200 35 min); generate, tilt and report ran (tilt/seed20261016/). The report
+  stage's last step, report_translation.py, failed because it looks for model/seed20261016; rerun with
+  REBUILD_RUN=label_seed20261016 (job 30937848, CPU, writes model/label_seed20261016/translation_report.md).
+- explore/results_tables.md, explore/compare_latest.md, explore/tips_top.py written and run.
+- Results page written: explore_tips_autoloan_RESULTS.md.
 
-## Next
-- When both models are trained: generate tilt report (REBUILD_RUN unset = seed20261016), then
-  explore/results_tables.py (through explore/py.sbatch) and the results page.
+## Open
+- Decision 7 of the results page (tips at high wages) waits for John.
