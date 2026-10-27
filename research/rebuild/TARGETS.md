@@ -266,14 +266,21 @@ is 2018). For target year T:
 3. drop any under 5% and rescale the rest.
 
 Past the last wave the mix stays fixed. The rule gives the 2019 file 55% of the 2019 wave, 33% of the 2022 wave and
-12% of the 2016 wave. The CEX's and the CPS's rules are still to be written; they field more often than the SCF.
+12% of the 2016 wave.
+
+**The CPS, the CEX and the SIPP (John, 27 October): the two nearest of their years, weighted by distance.** Their
+years are the odd tax years 2015-2023. For target year T, use the two years nearest T and weight each by
+exp(−|T − t| ÷ 2 years), the SCF's formula, rescaled to sum to one. An odd T takes its own year and the one two
+years before: 73% and 27% (2019: 73% 2019, 27% 2017). An even T takes the years either side, 50% each (2020: 2019
+and 2021). Past the last year the mix stays fixed at 2023 and 2021, 73% and 27%. Not built yet: it goes into
+generation in the next big run (NEXT_STEPS.md), with or without overtime.
 **Built for the SCF on 26 October:** generation reads the year file's prior ("balance sheet": the 2019 wave
 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20% for 2019), gives each record one wave at random with those
 shares, draws its balance sheet at that wave's year and turns it into dollars with that wave's own records, grown
 per tax unit to the target year's wave item by item (`FEATURES.md`). The SCF targets are computed on the same
 waves with the same shares (S9). The shares are written in the year file by
-hand from the rule; the code does not compute them. The CEX and CPS are still drawn at one fixed year (2019). This
-is ROADMAP item 3.
+hand from the rule; the code does not compute them. The CEX, CPS and SIPP are still drawn at one fixed year (2019)
+until the rule above is built. This is ROADMAP item 3.
 
 **No chaining for historical years.** Each historical year has its own prior, so last year's file is not this
 year's starting point.
