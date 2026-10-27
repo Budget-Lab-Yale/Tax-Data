@@ -14,7 +14,7 @@ later decision replaced an earlier one, this page follows the later one.
 non-filers, whose revenue and distribution results are right. Top incomes and top wealth come first (S1).
 
 **1. Pretraining (once, not per year).** One network learns the joint distribution of tax units from the PUF
-(2015), the SCF, the CEX and the CPS. Each training record carries its source and its year. Amounts are learned as
+(2015), the SCF, the CEX, the CPS and the SIPP. Each training record carries its source and its year. Amounts are learned as
 ranks, and rank-to-dollar maps turn them into each year's dollars. Each record counts by its survey weight times q,
 so the few records at the top of the PUF and the SCF count as much as the many in the middle; PUF records also carry
 their AGI group as a label, always shown (S8). Two copies are trained from different random starts, and every file
@@ -33,8 +33,9 @@ pools them half and half (section 8).
 
 **3. Each year t: the targets.** Facts about year t, each with a value and a standard error (sections 2, 3, 9):
 - hand-written in the configuration: SOI detail in historical years (AGI brackets with the five top ones separate,
-  income items and their composition at the top, business income, ages, dependent filers), SCF wealth at the top
-  and by asset type, an SCF income x net worth grid (26 October), CEX consumption, the non-filer count
+  income items and their composition at the top, income items by filing status (Table 1.3) and in the top 0.01%,
+  0.1% and 1% (Table 4.3), business income, ages, dependent filers, W-2 tips), SCF wealth at the top and by asset
+  type, an SCF income x net worth grid (26 October), SCF auto loan interest, CEX consumption, the non-filer count
   and non-filer people by age; in future years, macro
   totals and population by age (projected totals may be exact, to match the baseline);
 - optionally built automatically from the start file (*hold_distribution*): each item's share in AGI rank groups,
@@ -44,7 +45,7 @@ miss it without it (S5). The SCF targets are computed on the same mix of SCF wav
 sheet from (S9).
 
 **4. Each year t: the tilt.** The weights move as little as possible (smallest Kullback-Leibler move) so that every
-target lands within its value ± k standard errors (S6): k = 0.5 for the SCF targets and 1 for every other kind,
+target lands within its value ± k standard errors (S6): k = 0.5 for the SCF targets (auto loans included) and 1 for every other kind,
 a setting by kind of target (S9). Identities are exact. If the
 ranges cannot all be met, misses beyond them are weighed by their standard errors. Cells resting on too few
 records are flagged, with a stop for the worst (section 5).
@@ -52,13 +53,13 @@ records are flagged, with a stop for the worst (section 5).
 **5. Each year t: the report** (section 14): every target and where it landed, the thin cells, published numbers
 not targeted, what the tilt moved, and how far the two models disagree.
 
-**Built, as of 26 October:** steps 1-5 for 2019, with grouped weighting and the AGI group drawn first (S8), the
+**Built, as of 27 October:** steps 1-5 for 2019 (746 targets), with grouped weighting and the AGI group drawn first (S8), the
 SCF's waves mixed by section 7's rule in the start and in the SCF targets (S9), every dollar amount in target-year
 dollars before the tilt, ranges by kind of target and the report; the from_year start and hold_distribution are being tested on 2022. **Not built:** the borrowing rule for
-the CEX and the CPS (drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial
+the CEX, the CPS and the SIPP (drawn at fixed years), calculator targets, the Forbes 400 and Distributional Financial
 Accounts. **Known weakness:** the network's drawn parts often add up to another AGI group than the one it was given
-(about 13% of filer records); the file still has about 1.4 times the PUF's returns at $10 million and over before
-the tilt, and 1.4 times its returns with AGI at or below zero (the latest run, `FEATURES.md`).
+(about 14% of filer records); the file still has about 1.4 times the PUF's returns at $10 million and over before
+the tilt, and 1.5 times its returns with AGI at or below zero (the latest run, `FEATURES.md`).
 
 ## 1. What post-training is for (agreed 24 October)
 
@@ -562,15 +563,22 @@ target met, 98.0% kept, $10.15 trillion at p99.9+ of income, 3.5% of the top 0.1
 before, for checks), `tilt.range_in_se_by_kind` {wealth: 0.5, wealth grid: 0.5}, `tilt.range_in_se` 1. The
 replicate weights of every wave in the mix sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to fetch them).
 
-### S10. Target changes wait for the core of the file (agreed 26 October)
+### S10. Target changes wait for the core of the file (agreed 26 October; four families added 27 October)
 
-**No targets are added or changed until three things are built:** every PUF variable in pretraining, the imputed
-variables that `src/main.R` adds today (ROADMAP item 4), and the tax calculator in post-training (ROADMAP item 9).
-Until then the cost of a target cannot be judged: it depends on what the finished file holds and on taxes computed
-from it.
+**No other targets are added or changed until three things are built:** every PUF variable in pretraining (every
+item production carries; done 27 October), the imputed variables that `src/main.R` adds today (ROADMAP item 4), and
+the tax calculator in post-training (ROADMAP item 9). Until then the cost of a target cannot be judged: it depends on what the finished
+file holds and on taxes computed from it.
+
+**The exception (John, 27 October).** Four families were added with the tips, auto loan interest and the other PUF
+items: Table 1.3 by filing status (184), Table 4.3 for the top 0.01%, 0.1% and 1% (54; item 6 below), W-2 box 7
+tips (4) and SCF auto loan interest (8). With them the list has 746 targets; the latest run meets every one with
+87.3% of the effective sample kept, against 98.0% with the 496 before (`FEATURES.md`; `HISTORY.md`, 26–27 October).
 - **Deductions need the calculator.** Who itemizes depends on each year's law; the 2018 law change (TCJA) cut the
   number of itemizers sharply, so SOI Table 2.1's itemized deductions cannot be targeted by reweighting the records
-  without computing each record's choice under that year's law.
+  without computing each record's choice under that year's law. Table 1.3's state income tax refund targets already
+  move itemizers: few 2019 returns have a taxable refund, and the refunds sit almost only on itemizers, so the tilt
+  cuts itemizers by 13%. That waits for the calculator, when itemized deductions are revisited (John, 27 October).
 - **Targets that move a lot from year to year are untested.** Example: unemployment compensation in 2020. Whether
   reweighting alone can reach it, or generation must draw the year differently, is not known.
 
@@ -598,9 +606,11 @@ from it.
    being told them, or with one targeted fix. With the calculator: misses measured in tax dollars.
 4. **Fewer CEX cells by age x married,** traded for cells by income.
 5. **A catalog of SOI's tables:** every table in the shared mirror, what it publishes and for which years.
-6. **Tables 1.3 and 4.3, tested 26 October** (`Tax-Data-targets`, branch rebuild-targets-13-43,
-   `explore_targets_13_43_RESULTS.md`). Table 1.3's income items by filing status: all met, effective sample kept
-   98.0% to 88.0%, side effects small (John: acceptable). Table 4.3: the top 0.001% (1,482 returns, AGI above
-   $60.7 million) cannot be met; the PUF's aggregate records are not unpacked yet, so the file likely lacks those
-   records. Decided (John, 26 October): Table 4.3's top group is the top 0.01% as a whole, with the 0.1% and 1%
-   below it, until the aggregate records are in.
+6. **Tables 1.3 and 4.3, tested 26 October, added 27 October** (`Tax-Data-targets`, branch rebuild-targets-13-43;
+   its page is in `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-27/`). Table 1.3's income items by
+   filing status: all met, effective sample kept 98.0% to 88.0%, side effects small (John: acceptable). Table 4.3:
+   the top 0.001% (1,482 returns, AGI above $60.7 million) cannot be met; the PUF's aggregate records are not
+   unpacked yet, so the file likely lacks those records. Decided (John, 26 October): Table 4.3's top group is the
+   top 0.01% as a whole, with the 0.1% and 1% below it, until the aggregate records are in. Table 1.3's capital loss
+   is measured as the loss allowed on the return (at most $3,000), as SOI publishes it; generated records that carry
+   a net loss past the cap are left as drawn (John, 27 October: the item is definitional).

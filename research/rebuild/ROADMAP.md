@@ -15,8 +15,11 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    - Estates and trusts are still left out of the business targets.
    - Choose the level of detail with held-out targets.
    - Calculator targets (item 9), the Forbes 400 and the Distributional Financial Accounts.
-   - No targets added or changed until every PUF variable, the imputed variables and the calculator are in
-     (`TARGETS.md` S10, 26 October); the ideas set aside are listed there.
+   - Added 27 October, by John's exception to S10: SOI Table 1.3 by filing status, Table 4.3 for the top 0.01%,
+     0.1% and 1%, W-2 box 7 tips and SCF auto loan interest (746 targets in all, every one met). Otherwise no
+     targets are added or changed until the imputed variables and the calculator are in (`TARGETS.md` S10); the
+     ideas set aside are listed there.
+   - Table 4.3's top 0.001% waits for the PUF's aggregate records to be unpacked.
 2. **Translation, finalized.** An algorithm for lining up the variables
    the sources share, by population, definition and measurement, driven by
    data and theory. The two-slot fill-in (21 October) replaced the cell method, which needed
@@ -80,10 +83,12 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    loan interest, child care and the rest.
    - Done: consumption in 8 categories from the CEX (22 October); the CPS
      in pretraining, with each person's items, the split of a couple's
-     wages and self-employment income, and childcare (22-24 October;
-     `FEATURES.md`).
-   - Tips and overtime are earned by a person; the split of a couple's
-     wages is now drawn, so they can be built on it.
+     wages and self-employment income, and childcare (22-24 October); tips
+     from the SIPP as a fifth source and auto loan interest from the SCF
+     (27 October). Every PUF item production carries is now in pretraining
+     (27 October; `FEATURES.md`).
+   - Left: overtime, state and local taxes, and the rest of what
+     `src/main.R` imputes.
    - CEX tax units: divide a shared household's spending by a model, not
      head count (`explore/2026-10-21/cex/splitting/SPLITTING.md`: learn
      from one-unit households what a unit spends, divide in proportion,
@@ -99,9 +104,9 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    the file.
    - Known so far: dropout biases rare items down, so it is off.
    - Adopted 26 October (TARGETS.md S8): grouped weighting, the AGI group
-     label always shown, batches of 512, bfloat16. Left: about 13% of filer
+     label always shown, batches of 512, bfloat16. Left: about 14% of filer
      records still have parts adding up to another AGI group than their
-     label; AGI at or below zero comes out 1.4 times the PUF's, and the
+     label; AGI at or below zero comes out 1.5 times the PUF's, and the
      network draws too little wealth for top earners below the top wealth
      line (`HISTORY.md`, 25–26 October, open items).
    - The model's answers do not fit one joint distribution exactly, which
@@ -110,8 +115,8 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
      `PERFORMANCE.md`. Measured and partly done 22 October (packing, batched
      output layers, faster generation; bfloat16 switched on 26 October);
      left: the B200 question, fewer passes over a larger table. Batches of
-     512 make training about twice as slow as 4,096 on the same card (an
-     hour per model on an H100).
+     512 make training about twice as slow as 4,096 on the same card (about
+     75 minutes per model on an H100 since the other PUF items).
 7. **Real PUF records or synthetic ones** for the PUF's own variables.
    - On 19 October the real 2015 PUF cost no more to reweight to 2019
      than a synthetic file, and it kept the business-income patterns no
@@ -127,7 +132,9 @@ started. The order is rough. Paths starting `archive/` are under `research/archi
    nearest CPS year (the tilt's non-filer count, the geometric mean of the
    two around it), a placeholder.
 9. **A tax calculator in post-training.** Targets on computed tax values:
-   itemizers after TCJA, taxable income, liability by AGI. Possibly
+   itemizers after TCJA, taxable income, liability by AGI. Waiting for it
+   (John, 27 October): the itemizer drop, the foreign tax credit and the AMT
+   adjustments (known gaps below). Possibly
    calibration to revenue estimates. Each record's contribution is
    computed once by the calculator, then the tilt runs as now.
 10. **Pre-scaling by age as well as filing status.** Done 25 October: the
@@ -210,6 +217,46 @@ them. Figures are from runs before 25 October unless a date says otherwise:
 - **CEX against NIPA:** CEX spending is about 46% of NIPA PCE (2019:
   $6.7 trillion against $14.4 trillion). Production scales each category
   up to PCE afterwards (capped at 2 times); the rebuild does not.
+- **Tips** (27 October; numbers from run S2, stage 1's models, unless said):
+  - the SIPP finds about 60% of the W-2's tipped workers (3.77 million
+    people against 6.59 million), at a higher average. The tilt meets the
+    W-2's counts by raising the weight of tipped records 1.66 times on
+    average; the other way is to draw more tipped workers at generation;
+  - against W-2 Table 4.C (box 7 among people with any), the file's tips per
+    tipped worker are too high in the bottom half: the 25th percentile $961
+    against $537, the median $3,666 against $2,444; the 90th percentile is
+    close ($18,538 against $18,281);
+  - tips on high earners: in the latest run units with $200,000 or more of
+    wages hold $4.9 billion of tips against the SIPP's $0.9 billion. The
+    network gives a few top earners a tip share the SIPP sees only at low
+    wages, and the share multiplies large wages;
+  - both decisions wait for a reweighting test of the W-2's spread of tips
+    per worker (branch `rebuild-tips-autoloan`).
+- **The other PUF items** (27 October; against the 2015 PUF grown to 2019,
+  2015 dollars for items SOI cannot grow):
+  - the foreign tax credit is 65% high in dollars ($36.0 billion against
+    $21.8 billion; the AMT foreign tax credit 54%), with holders about right;
+    the excess is at AGI under $50,000 ($4.8 billion against $0.1 billion)
+    and $200,000-1 million ($12.8 billion against $7.3 billion);
+  - the AMT net operating loss adjustment, almost all at AGI below $1 on the
+    PUF, is spread up the income scale: $15.1 billion at AGI of $1 million
+    and over against $0.6 billion;
+  - itemizers fall 13% in the tilt (46.3 million to 40.4 million) through
+    Table 1.3's state refund targets;
+  - qualified dividends are 11% high ($259.5 billion against $232.9
+    billion), most of it at $1 million and over;
+  - the first three wait for the tax calculator (item 9; John, 27 October).
+- **Deductions the law removed** are to be zero in the years after repeal:
+  domestic production activities from 2020, tuition and fees from 2021
+  (John, 27 October). Not built: SOI Table 1.4 has no line for them in those
+  years, so a target year from 2020 on stops at the dollar maps. In the 2019
+  file the domestic production deduction keeps its 2015 incidence (0.68
+  million returns, $3.3 billion, against SOI 2019's 0.06 million and $0.26
+  billion).
+- **Capital losses past the $3,000 cap:** generated records draw the
+  Schedule D pieces separately, so 2.6 million returns carry a net loss past
+  the cap. The targets measure the allowed loss; John: definitional, no
+  generation fix.
 - **Survey cut points are grown by SOI's growth in each item's total**, not
   per return with the item. Where holders grow, survey amounts land in
   lower PUF bands (Social Security, 2015–2022: 1.44 against 1.27). Applies

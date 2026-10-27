@@ -613,6 +613,103 @@ pipeline of 157b9e9 and 5441ad6, retrained and redrawn (all 496 targets met,
   of income with net worth at or below the p99.9 line start at $1.58T against
   a target of $2.07T and end at the range's lower edge ($1.89T).
 
+### 26–27 October: tips, auto loan interest, more targets, the other PUF items
+
+Built overnight in three stages, each checked before the next began; merged on
+27 October (5d2a637) and installed as latest (the run before is in
+`previous_2026-10-26/`). The results pages, the Table 1.3 and 4.3 experiment's
+page and the overnight log are in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-27/`. Nominal 2019
+dollars unless said.
+
+**Stage 1: tips from the SIPP, auto loan interest from the SCF.**
+- The SIPP became a fifth source with its own label: reference years 2015,
+  2017, 2019, 2021 and 2023, about 128,000 tax-unit rows built by the shared
+  rules. It shares married, dependents, the age range, the exact ages and wages
+  with the PUF (wages by count from the top), and the spouse's share of the
+  couple's wages with the CPS. Its own slots: each adult's tips as a share of
+  that adult's wages, and whether those tips are mostly from leisure and
+  hospitality.
+- Auto loan interest from the SCF, every wave: the balance owed on each of up
+  to four vehicle loans times its rate (Tedeschi's rule).
+- With the 496 targets of the run before (neither item targeted): tips $34.0
+  billion on 3.67 million units (SIPP 2019: $33.6 billion on 3.76 million); auto
+  loan interest $45.9 billion (SCF pooled: $43.2 billion, about $900 per holder
+  in both). Targeted PUF items moved under 2%; 97.5% of the effective sample
+  kept (98.0% before).
+- Found: the SIPP has about 60% of the W-2's tipped workers (3.77 million
+  people against 6.59 million) at a higher average. Primary filers with their
+  own wages over $200,000 got $2.7 billion of tips (SIPP: $0.06 billion): a tip
+  share drawn for a few top earners multiplies large wages.
+
+**Stage 2: 250 targets added, 746 in all** (the 496 unchanged):
+- SOI Table 1.3 (184): returns, AGI and 22 income items in each of the four
+  filing statuses;
+- SOI Table 4.3 (54): returns, AGI and 8 income items in the top 0.01%, 0.1%
+  and 1% of AGI;
+- Form W-2 box 7 tips for 2019 (4): returns with tips and the amount, joint and
+  non-joint, the file's tips held to the Social Security wage base as box 7
+  holds them;
+- SCF auto loan interest (8): the share with any and dollars per unit in the
+  four income groups of the wealth grid.
+
+Reweighting stage 1's records to all 746 (run S2) met every target with 87.7%
+of the effective sample kept. Tables 1.3 and 4.3 cost about nine points, tips
+about one. To reach the W-2's 6.5 million tipped returns the tilt raised the
+weight of tipped records 1.66 times on average; tips rose to $47.6 billion (W-2:
+$42.4 billion, filers only). Table 1.3's refund targets cut state income tax
+refunds from $27.4 billion to $5.7 billion (SOI: $5.6 billion), and mortgage
+interest paid fell 13% with them.
+
+Tables 1.3 and 4.3 were first tested on the run before's records
+(`Tax-Data-targets`, branch `rebuild-targets-13-43`; TARGETS.md S10):
+- Table 1.3 alone: every target met, 88.0% kept.
+- Table 4.3 with its top 0.001% (1,482 returns): 15 targets could not be met.
+  John: the top 0.01% as one group until the PUF's aggregate records are
+  unpacked.
+- Table 1.3's capital loss is the loss allowed on the return (at most $3,000).
+  Measured on the file without that cap, the file's losses were $43.8 billion
+  against SOI's $16.3 billion; with the cap, $14.8 billion. The target now
+  measures the allowed loss. Generated records still carry 2.6 million net
+  losses past the cap; John: the item is definitional, no generation fix.
+
+**Stage 3: the PUF items the model did not draw.** 40 PUF-only slots under
+production's names: qualified and other dividends, the eleven statutory
+adjustments, two capital gain items, partnership income subject to
+self-employment tax, nine itemized deduction items, two AMT items, eleven
+credits and two other taxes. Ordinary dividends and the adjustments are now
+computed from these parts. Both models retrained (73 minutes each on an H100, a
+pass 9% longer), a new stack drawn and reweighted to the 746:
+- every target met, 87.3% of the effective sample kept;
+- before the tilt the top slightly worse: returns with AGI of $10 million and
+  over 1.44 times the PUF's, against 1.33 with stage 1's models, about what a
+  new pair of seeds gives;
+- after the tilt 31 of the 40 new items' totals are within 15% of the 2015 PUF
+  grown to 2019. The largest departures: the foreign tax credit 65% high
+  ($36.0 billion against $21.8 billion, both in 2015 dollars, since the item has
+  no SOI line to grow it), with $4.8 billion at AGI under $50,000 against $0.1
+  billion; the AMT net operating loss adjustment spread up the income scale
+  ($15.1 billion at AGI of $1 million and over against $0.6 billion; on the PUF
+  almost all of it is at AGI below $1);
+- itemizers fell 13% in the tilt (46.3 million returns with an itemized item
+  before, 40.4 million after; the PUF grown, 46.6 million): Table 1.3's refund
+  targets cut the weight of itemizers with a state refund to about a fifth.
+
+**Decided (John, 27 October).**
+- Stage 3 is kept. The foreign tax credit and AMT problems wait for the tax
+  calculator.
+- The itemizer drop waits for the calculator; itemized deductions are revisited
+  then.
+- Deductions the law removed are zero in the years after repeal: domestic
+  production activities from 2020, tuition and fees from 2021. Not built yet;
+  until it is, a target year from 2020 on stops at the dollar maps, which find no
+  SOI line to grow them by.
+- other_item_exp stays as the PUF has it, including its negatives, which come
+  from the PUF rounding each item separately.
+- Tips on earners over $200,000, and whether to draw more tipped workers instead
+  of raising their weights: pending a reweighting test of the W-2's spread of
+  tips per worker (Table 4.C), running on branch `rebuild-tips-autoloan`.
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -659,3 +756,5 @@ pipeline of 157b9e9 and 5441ad6, retrained and redrawn (all 496 targets met,
 | SCF waves carried to the target year's wave by one asset-price factor | Carries prices only; the 2022 wave came to 25% above the 2019 wave. Replaced by growth per tax unit, item by item |
 | SCF targets from the target year's wave alone | The file draws its balance sheet from three waves; replaced by targets on the same mix, with narrower errors |
 | Ranges of half a standard error for every target | 23 non-SCF targets unmet and 31% of the effective sample kept; half a standard error is kept for the SCF targets only |
+| Table 4.3's top 0.001% as its own group (26 October) | 15 targets could not be met; the file probably lacks those records until the PUF's aggregate records are unpacked. The top 0.01% is one group |
+| Table 1.3's capital loss measured on the file without the $3,000 cap (26 October) | SOI publishes the allowed loss; uncapped, the file's losses were 2.7 times SOI's and the tilt pulled weight off records with large losses |
