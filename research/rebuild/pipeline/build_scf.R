@@ -62,11 +62,12 @@
 # amount is its amount per period times periods per year (aconv) where given, else its percent of pay (hundredths of a
 # percent; above 100% read as a code, not a share) times the person's yearly pay on the main job; traditional and Roth
 # together, as the SCF asks them. The interview year's contributions. Each person's total is held to the legal limit
-# of the tax year (the wave's income year; the catch-up limit from age 50 at the interview), then the unit's to its
-# wages. A unit holding the whole PEU takes both people's, the respondent's part the respondent's, the spouse's or
-# partner's part theirs; units outside the PEU and other units are not asked: missing (NA), not zero. Each person's
-# amounts before and after the limit are also written to scf_deferral_persons_{wave}.csv.gz (for the checks against
-# SOI's W-2 tables).
+# of the tax year (the wave's income year; the catch-up limit from age 50 at the interview), then to the person's own
+# wages (the PEU's wages split by main-job pay, as for split units; decided 27 October). A unit holding the whole PEU
+# takes both people's, the respondent's part the respondent's, the spouse's or partner's part theirs, as the head's
+# (elective1) and the spouse's (elective2, joint units only); units outside the PEU and other units are not asked:
+# missing (NA), not zero. Each person's amounts before and after the limit and the wage cap are also written to
+# scf_deferral_persons_{wave}.csv.gz (for the checks against SOI's W-2 tables).
 # Ages and sexes of the unit's head and spouse (age1, male1; age2, male2 on
 # joint units, else -1; male missing (NA, not observed) where the SCF does not
 # report sex: members other than the respondent and the spouse or partner), for the primary
@@ -151,7 +152,7 @@ for (wave in settings$paths$raw$scf_waves) {
   scfp = fread(file.path(dir, sprintf('SCFP%d.csv', wave))) %>% as_tibble()
   hh = read_dta(raw_path, col_select = all_of(c('y1', 'yy1', 'x42001', 'x3902', tolower(INCOME), BUSINESS_ITEMS,
                                                  tolower(PERSON_ITEMS), names(AUTO_LOANS), unname(AUTO_LOANS),
-                                                 tolower(DEFERRAL_ITEMS), 'x14', 'x19'))) %>%
+                                                 tolower(DEFERRAL_ITEMS), 'x14', 'x19', 'x102'))) %>%
     mutate(across(everything(), as.numeric))
   names(hh) = toupper(names(hh))
   stopifnot(!anyDuplicated(hh$Y1), !anyNA(hh), nrow(hh) == nrow(scfp))
@@ -211,16 +212,26 @@ for (wave in settings$paths$raw$scf_waves) {
     elective[[who]] = tot
   }
   limit = lapply(age, function(a) if_else(a >= settings$deferrals$catch_up_age, lim[2], lim[1]))
+  # each person's wages (decided 27 October: each person's deferrals at most their own wages): the PEU's wages
+  # (X5702) split by main-job pay as the split units' wages are (r_share; a half each when both are zero), all to the
+  # respondent without a spouse or partner (X102 = 0)
+  has_sp = hh$X102 > 0
+  r_wage = hh$X5702 * if_else(has_sp, r_share(pay$r, pay$s), 1)
   dper = tibble(Y1 = hh$Y1, weight = hh$X42001 / 5, r_age = hh$X14, s_age = hh$X19, r_pay = pay$r, s_pay = pay$s,
+                has_sp = has_sp, r_wage = r_wage, s_wage = hh$X5702 - r_wage,
                 r_reported = elective$r, s_reported = elective$s,
-                r_elective = pmin(elective$r, limit$r), s_elective = pmin(elective$s, limit$s), X5702 = hh$X5702)
-  stopifnot(!anyNA(dper))
+                r_limited = pmin(elective$r, limit$r), s_limited = pmin(elective$s, limit$s)) %>%
+    mutate(r_elective = pmin(r_limited, r_wage), s_elective = pmin(s_limited, s_wage), X5702 = hh$X5702)
+  stopifnot(!anyNA(dper), all(dper$s_wage >= 0))
   cat(sprintf(paste0('wave %d: elective deferrals, respondents and spouses or partners: $%.1f billion reported, $%.1f billion ',
-                     'after the %d limit ($%s, $%s from %d); people above the limit %.2f m\n'),
+                     'after the %d limit ($%s, $%s from %d), $%.1f billion after each person\'s own wages; people above ',
+                     'the limit %.2f m, above their own wages %.2f m\n'),
               wave, sum(dper$weight * (dper$r_reported + dper$s_reported)) / 1e9,
-              sum(dper$weight * (dper$r_elective + dper$s_elective)) / 1e9, year, format(lim[1], big.mark = ','),
+              sum(dper$weight * (dper$r_limited + dper$s_limited)) / 1e9, year, format(lim[1], big.mark = ','),
               format(lim[2], big.mark = ','), settings$deferrals$catch_up_age,
-              sum(dper$weight * ((dper$r_reported > dper$r_elective) + (dper$s_reported > dper$s_elective))) / 1e6))
+              sum(dper$weight * (dper$r_elective + dper$s_elective)) / 1e9,
+              sum(dper$weight * ((dper$r_reported > dper$r_limited) + (dper$s_reported > dper$s_limited))) / 1e6,
+              sum(dper$weight * ((dper$r_limited > dper$r_elective) + (dper$s_limited > dper$s_elective))) / 1e6))
   fwrite(dper, file.path(OUT, sprintf('scf_deferral_persons_%d.csv.gz', wave)))
   peu = peu %>% inner_join(dper %>% select(Y1, r_elective, s_elective), by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh))
@@ -236,7 +247,7 @@ for (wave in settings$paths$raw$scf_waves) {
   stopifnot(all((k$all == 1 & k$r == 0 & k$sp == 0) | (k$all == 0 & k$r == 1 & k$sp == 1)), nrow(k) == nrow(hh))
 
   # PEU units: shares by kind of item
-  p = mu %>% filter(source == 'peu') %>% select(uid, hh, peu_dollars) %>%
+  p = mu %>% filter(source == 'peu') %>% select(uid, hh, peu_dollars, head_pn, filing_status) %>%
     inner_join(peu, by = c('hh' = 'Y1')) %>%
     mutate(sh_lab = case_when(peu_dollars == 'all' ~ 1, peu_dollars == 'r' ~ r_share(r_lab, s_lab),
                               TRUE ~ 1 - r_share(r_lab, s_lab)),
@@ -250,27 +261,31 @@ for (wave in settings$paths$raw$scf_waves) {
   }
   for (v in WCOLS) p[[v]] = p[[v]] * (if (sub('^w_', '', v) %in% HOUSING) p$sh_house else p$sh_earn)
   p$auto_int_exp = p$auto_int_exp * p$sh_earn     # as installment debt (w_installment_debt)
-  # elective deferrals: both people's to a unit holding the whole PEU, each person's own to a split unit; then held to
-  # the unit's wages (the plan's money comes out of them)
-  p$elective_deferrals = case_when(p$peu_dollars == 'all' ~ p$r_elective + p$s_elective,
-                                    p$peu_dollars == 'r' ~ p$r_elective, TRUE ~ p$s_elective)
-  over_wages = p$elective_deferrals > p$wages
-  cat(sprintf('wave %d: PEU units with elective deferrals above their wages (held to their wages): %d rows\n',
-              wave, sum(over_wages)))
-  p$elective_deferrals = pmin(p$elective_deferrals, p$wages)
+  # elective deferrals, the unit's head's (elective1) and spouse's (elective2; 0 without a spouse): on a joint unit
+  # holding the whole PEU, each person's own by who heads it; on any other unit holding the whole PEU, both people's
+  # to the head (a partner it claims has no slot of its own); on a split unit, that person's own. Each person's are
+  # at most their own wages, so the unit's are at most its wages (checked)
+  joint_all = p$peu_dollars == 'all' & p$filing_status == 'joint'
+  stopifnot(all(p$head_pn[joint_all] %in% c(1, 2)))
+  p$elective1 = case_when(joint_all & p$head_pn == 2 ~ p$s_elective, joint_all ~ p$r_elective,
+                          p$peu_dollars == 'all' ~ p$r_elective + p$s_elective,
+                          p$peu_dollars == 'r' ~ p$r_elective, TRUE ~ p$s_elective)
+  p$elective2 = case_when(joint_all & p$head_pn == 2 ~ p$r_elective, joint_all ~ p$s_elective, TRUE ~ 0)
+  p$elective_deferrals = p$elective1 + p$elective2
+  stopifnot(all(p$elective_deferrals <= p$wages * (1 + 1e-9) + 1e-6))
   p = p %>% mutate(taxunit_code = case_when(peu_dollars == 'all' ~ 0L, peu_dollars == 'r' ~ 1L, TRUE ~ 2L)) %>%
-    select(uid, all_of(names(INCOME)), all_of(WCOLS), auto_int_exp, elective_deferrals, taxunit_code)
+    select(uid, all_of(names(INCOME)), all_of(WCOLS), auto_int_exp, elective_deferrals, elective1, elective2, taxunit_code)
 
   # units outside the PEU: their members' shares of the group; other units: nothing
   npeu = mu %>% filter(source == 'npeu') %>% select(uid) %>% left_join(nd, by = 'uid')
   stopifnot(!anyNA(npeu$wages))
   for (v in setdiff(c(names(INCOME), WCOLS, 'auto_int_exp'), names(npeu))) npeu[[v]] = 0
-  npeu$elective_deferrals = NA_real_                 # not asked outside the PEU: missing, not zero
+  for (v in c('elective_deferrals', 'elective1', 'elective2')) npeu[[v]] = NA_real_   # not asked: missing, not zero
   npeu = npeu %>% mutate(taxunit_code = 9L) %>%
-    select(uid, all_of(names(INCOME)), all_of(WCOLS), auto_int_exp, elective_deferrals, taxunit_code)
+    select(uid, all_of(names(INCOME)), all_of(WCOLS), auto_int_exp, elective_deferrals, elective1, elective2, taxunit_code)
   other = mu %>% filter(source == 'other') %>% select(uid)
   for (v in c(names(INCOME), WCOLS, 'auto_int_exp')) other[[v]] = 0
-  other$elective_deferrals = rep(NA_real_, nrow(other))   # not asked: missing, not zero
+  for (v in c('elective_deferrals', 'elective1', 'elective2')) other[[v]] = rep(NA_real_, nrow(other))   # not asked
   other$taxunit_code = rep(8L, nrow(other))
   dollars = bind_rows(p, npeu, other)
   stopifnot(nrow(dollars) == nrow(mu), !anyDuplicated(dollars$uid))
@@ -300,7 +315,7 @@ for (wave in settings$paths$raw$scf_waves) {
               male1 = if_else(head_sex == 0, NA_integer_, as.integer(head_sex == 1)),
               male2 = if_else(filing_status == 'joint', if_else(spouse_sex == 0, NA_integer_, as.integer(spouse_sex == 1)), -1L),
               taxunit_code, across(all_of(names(INCOME))), net_worth, asset_factor = asset_factor,
-              across(all_of(WCOLS)), auto_int_exp, elective_deferrals, owns_business, k1_owner, filing_status, n_child_away,
+              across(all_of(WCOLS)), auto_int_exp, elective_deferrals, elective1, elective2, owns_business, k1_owner, filing_status, n_child_away,
               group_level = as.integer(group_level), npeu_people,
               any_age_assumed = as.integer(any_age_assumed), any_link_assumed = as.integer(any_link_assumed),
               any_income_assumed = as.integer(any_income_assumed),
@@ -308,8 +323,10 @@ for (wave in settings$paths$raw$scf_waves) {
               any_claimed_in_group = as.integer(any_claimed_in_group))
   # sex is allowed missing (not observed outside the respondent and the spouse or partner), and elective deferrals
   # (not asked outside the PEU)
-  stopifnot(nrow(units) == nrow(mu), !anyDuplicated(units$record_id), !anyNA(select(units, -male1, -male2, -elective_deferrals)),
+  stopifnot(nrow(units) == nrow(mu), !anyDuplicated(units$record_id), !anyNA(select(units, -male1, -male2, -elective_deferrals, -elective1, -elective2)),
             all(is.na(units$elective_deferrals) == (units$taxunit_code > 2)),
+            all(is.na(units$elective2) == (units$taxunit_code > 2)),
+            all(units$elective2[units$married == 0 & units$taxunit_code <= 2] == 0),
             all(units$age2[units$married == 1] >= 0),
             all(units$taxunit_code[is.na(units$male1) | is.na(units$male2)] > 2))
 

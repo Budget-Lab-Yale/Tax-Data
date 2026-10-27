@@ -187,14 +187,17 @@ DEBTS = ['primary_mortgage', 'other_mortgage', 'credit_lines', 'credit_cards', '
 KG_WEALTH = ['kg_primary_home', 'kg_other_re', 'kg_pass_throughs', 'kg_other']
 NET_WORTH_PARTS = {**{'w_' + c: 1 for c in ASSETS}, **{'w_' + c: -1 for c in DEBTS}}
 SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c in DEBTS if c != 'primary_mortgage'] \
-    + ['w_' + c for c in KG_WEALTH] + ['auto_int_exp', 'elective_deferrals']
+    + ['w_' + c for c in KG_WEALTH] + ['auto_int_exp', 'elective_deferrals', 'spouse_deferral_share']
 # auto_int_exp (since 26 October): the unit's auto loan interest, a year's interest on its vehicle loans at the
 # interview's balance and rate (build_scf.R). Not part of net worth.
 # elective_deferrals (since 28 October): the unit's elective deferrals to 401(k)-type plans, traditional plus Roth, as
-# the SCF reports them for the respondent and the spouse or partner, each person's held to the legal limit, the unit's
-# to its wages (build_scf.R, settings deferrals). Missing (absent, band -1) on the units the SCF does not ask: units
-# outside the PEU and other units. Not part of net worth.
-SCF_NOT_ASKED = ['elective_deferrals']   # SCF amounts missing where the SCF does not ask
+# the SCF reports them for the respondent and the spouse or partner, each person's held to the legal limit and to
+# their own wages (build_scf.R, settings deferrals). spouse_deferral_share (decided 27 October): the spouse's share of
+# them, as the CPS's spouse_wage_share is of wages (scf_person_slots); 0 unless married with some deferrals, so
+# generation draws it after them and sets it to 0 there (generate.deferral_structure). Both missing (absent, band
+# -1) on the units the SCF does not ask: units outside the PEU and other units. Not part of net worth.
+SCF_NOT_ASKED = ['elective_deferrals', 'spouse_deferral_share']   # SCF amounts missing where the SCF does not ask
+SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share']           # SCF shares: not grown between waves
 NO_GROWTH = NO_GROWTH + STAGE3_NO_GROWTH
 PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
@@ -789,6 +792,29 @@ def sipp_person_slots(t, primary_is_2):
     return t.drop(columns=[c for c in out if c.endswith('_reported')])
 
 
+def scf_person_slots(t, primary_is_2):
+    """The SCF's spouse_deferral_share (decided 27 October), primary filer first (primary_is_2 as for the CPS): the
+    spouse's share of the unit's elective deferrals (build_scf.R's elective1, the head's, and elective2, the
+    spouse's), as the CPS's spouse_wage_share is of wages. 0 on a unit that is not married or has no deferrals (a rule
+    generation applies, generate.deferral_structure); missing where the SCF does not ask (the deferrals are)."""
+    c = (t.source == 'scf').to_numpy()
+    d = t[c]
+    e, e1, e2 = (d[k].to_numpy(float) for k in ('elective_deferrals', 'elective1', 'elective2'))
+    spouse = np.where(primary_is_2[c], e1, e2)
+    married = (d['married'] == 1).to_numpy()
+    asked = ~np.isnan(e)
+    share = np.where(married & (e > 0), spouse / np.where(e > 0, e, 1.0), 0.0)
+    t.loc[c, 'spouse_deferral_share'] = np.where(asked, share, np.nan)
+    s = t.loc[c, 'spouse_deferral_share'].to_numpy(float)
+    assert (np.isnan(s) == ~asked).all() and ((s[asked] >= 0) & (s[asked] <= 1 + 1e-9)).all()
+    w = d['weight'].to_numpy(float)
+    on = asked & married & (e > 0)
+    common.say(f'SCF spouse_deferral_share: married units with deferrals {w[on].sum() / 1e6:.2f} m over the waves '
+               f'together; of them, all to the primary filer {100 * w[on & (s == 0)].sum() / w[on].sum():.1f}%, all to the '
+               f'spouse {100 * w[on & (s >= 1 - 1e-9)].sum() / w[on].sum():.1f}% (weighted, every wave)')
+    return t.drop(columns=['elective1', 'elective2'])
+
+
 def exact_age_value(age):
     """An exact-age slot's value from ages in years (negative or missing: none): 0 none, else the age plus 1, with
     ages 80 and over as 80 (EXACT_AGE_TOP), the one coding the SCF, the CEX and the CPS all allow."""
@@ -831,6 +857,9 @@ def scf_rows():
         e = s['elective_deferrals'].to_numpy(float)
         assert not np.isnan(e[asked]).any() and np.isnan(e[~asked]).all(), 'elective deferrals missing on a PEU unit'
         assert (e[asked] >= 0).all() and (e[asked] <= s['wages'].to_numpy(float)[asked] + 1e-6).all()
+        e1, e2 = s['elective1'].to_numpy(float), s['elective2'].to_numpy(float)     # the head's and the spouse's
+        assert np.allclose(e1[asked] + e2[asked], e[asked]) and np.isnan(e2[~asked]).all()
+        assert (e2[asked & (s['married'] == 0).to_numpy()] == 0).all(), 'a spouse\'s deferrals off a couple'
         common.say(f'  elective deferrals not asked (units outside the PEU, other units; missing, not zero): '
                    f'{int((~asked).sum())} rows, {s.weight[~asked].sum() / 1e6:.2f} m units with '
                    f'${(s.weight * s.wages)[~asked].sum() / 1e9:.1f} billion of wages')
@@ -1095,8 +1124,10 @@ def table_meta(t, factor):
             'present_on': present_on(t),
             'net_worth_parts': NET_WORTH_PARTS,
             'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home'],
-                       'spouse_wage_share': ['wages2', 'wages'], 'spouse_se_share': ['se2', 'sch_cf_income']},
-            'remainders': {'wages1': ['wages', 'wages2'], 'se1': ['sch_cf_income', 'se2']},
+                       'spouse_wage_share': ['wages2', 'wages'], 'spouse_se_share': ['se2', 'sch_cf_income'],
+                       'spouse_deferral_share': ['elective2', 'elective_deferrals']},
+            'remainders': {'wages1': ['wages', 'wages2'], 'se1': ['sch_cf_income', 'se2'],
+                           'elective1': ['elective_deferrals', 'elective2']},
             # after the remainders: a person's amount in dollars held to at most a remainder (a person's tips, at
             # most the person's wages: tips1 is the smaller of the drawn tips_primary and wages1), then the sums of
             # the person items (tips = tips1 + tips2) and the yes/no items that hold only with the item (tips_lh1:
@@ -1157,7 +1188,7 @@ def scf_growth(scf, y_from, y_to):
     deferrals, not asked outside the PEU): the mean over the units asked."""
     out = {}
     for v in SCF_AMOUNTS:
-        if v == 'w_primary_ltv':
+        if v in SCF_RATIOS:      # a share: the mortgage's of the home, the spouse's of the unit's deferrals
             out[v] = 1.0
             continue
         mean = {}
@@ -1320,6 +1351,7 @@ def primary_age_range(t, puf):
     primary_is_2 = (mixed & (woman_first == (m1 == 1))) | (ordered & ~mixed & (a2 > a1))
     t = cps_person_slots(t, primary_is_2)
     t = sipp_person_slots(t, primary_is_2)
+    t = scf_person_slots(t, primary_is_2)
     # the exact ages on the SCF and CEX rows (the CPS's are set above), where the translation table shares them: the
     # primary filer's age by the same rule as its range, the spouse's on couples only
     spouse = np.where(couple, np.where(primary_is_2, a1, a2), -1.0)

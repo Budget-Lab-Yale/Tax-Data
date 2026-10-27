@@ -47,12 +47,19 @@ After the draws, the pieces are put on the definitions the IRS targets use:
   auto_int_exp    the auto loan interest drawn (an SCF amount, from the
                   record's own wave's map)
   elective_deferrals  the unit's elective deferrals to 401(k)-type plans,
-                  traditional plus Roth (an SCF amount, from the record's own
-                  wave's map; since 28 October); with the file's year given
-                  (draw_dollars' year): trad_deferrals, the traditional part,
-                  elective x (1 - the year's Roth share for joint or non-joint
-                  returns, settings deferrals), and medicare_wages, wages
-                  (box 1, which holds the Roth part) plus trad_deferrals
+                  traditional plus Roth, as drawn (an SCF amount, from the
+                  record's own wave's map, grown to the target year's wave;
+                  since 28 October), split between the two people by the
+                  drawn spouse_deferral_share (elective2; elective1 the rest),
+                  then, with the file's year given (draw_dollars' year;
+                  decided 27 October), each person's held to that year's legal
+                  limit for their age and to their own wages (wages1, wages2:
+                  none without wages, as for tips); elective1 and elective2 are
+                  the held amounts. trad_contr_er1, trad_contr_er2 (Tax-
+                  Simulator's names): each person's traditional part, elective
+                  x (1 - the year's Roth share for joint or non-joint returns,
+                  settings deferrals); trad_deferrals their sum; medicare_wages
+                  wages (box 1, which holds the Roth part) plus trad_deferrals
   CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
 """
 import glob
@@ -78,7 +85,7 @@ META = common.meta()
 # amount, but not in the SCF's place in the list) and the SIPP's tips.
 LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
 # Elective deferrals (28 October), an SCF amount, after stage 3's items at the very end, so no earlier stream moves
-NEWEST = ['elective_deferrals']
+NEWEST = ['elective_deferrals', 'spouse_deferral_share']   # the spouse's share since 28 October, after it
 ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST] \
     + list(META['cex_amounts']) + ['ss_gross'] + list(META['cps_amounts']) + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
@@ -176,28 +183,52 @@ def person_items(out, df):
 
 
 def deferral_items(out, year):
-    """In place (since 28 October): the traditional part of the drawn elective deferrals in tax year year, elective x
-    (1 - the year's Roth share for joint or non-joint returns, settings deferrals; translate.traditional_deferrals),
-    and Medicare wages, wages (box 1, which holds the Roth part) plus the traditional part: the payroll tax base for
-    wages. Prints the records whose drawn deferrals do not fit their wages: deferrals with no wages, and a Roth part
-    above the wages (box 1 holds it, so it cannot exceed them). Nothing is changed on them. A frame without the drawn
-    deferrals gets none of these."""
+    """In place (since 28 October; the person rules decided 27 October), after the ages are in years: each person's
+    elective deferrals, the drawn unit total split by the drawn spouse's share (elective2 = share x total, elective1 the
+    rest; all to the primary filer when the frame has no share), each held to the year's legal limit for that
+    person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age_primary and age_spouse) and to
+    that person's own wages (wages1, wages2: none without wages, as for tips); elective1 and elective2 are the held
+    amounts. Then each person's traditional part (Tax-Simulator's trad_contr_er1, trad_contr_er2: elective x (1 - the
+    year's Roth share for joint or non-joint returns), translate.traditional_deferrals), their sum trad_deferrals, and
+    Medicare wages, wages (box 1, which holds the Roth part) plus trad_deferrals: the payroll tax base for wages. The
+    drawn total stays in elective_deferrals. Prints what each hold takes off. A frame without the drawn deferrals, or
+    with no year, gets none of these."""
     if 'elective_deferrals' not in out or year is None:
         return out
     import translate as TR
+    D = common.SETTINGS['deferrals']
+    assert str(year) in D['limits'], f'no legal limit for {year} in settings deferrals.limits'
+    lim = D['limits'][str(year)]
     e = out['elective_deferrals'].to_numpy(float)
     assert not np.isnan(e).any() and (e >= 0).all(), 'elective deferrals missing or below zero on a record'
-    trad = TR.traditional_deferrals(e, year, out['married'].to_numpy())
+    married = out['married'].to_numpy()
+    if 'elective2' in out:
+        drawn = {1: out['elective1'].to_numpy(float), 2: out['elective2'].to_numpy(float)}
+    else:
+        drawn = {1: e, 2: np.zeros(len(e))}
+    assert (drawn[2][married != 1] == 0).all(), 'a spouse\'s deferrals off a couple'
+    w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
+    lines = []
+    trad = np.zeros(len(e))
+    for k, age_col in [(1, 'age_primary'), (2, 'age_spouse')]:
+        assert age_col in out and f'wages{k}' in out, f'deferral_items needs {age_col} and wages{k}'
+        age = out[age_col].to_numpy(float)
+        limit = np.where(age >= D['catch_up_age'], lim[1], lim[0])
+        x = drawn[k]
+        held = np.minimum(x, limit)
+        own = np.minimum(held, np.maximum(out[f'wages{k}'].to_numpy(float), 0.0))
+        out[f'elective{k}'] = own
+        out[f'trad_contr_er{k}'] = TR.traditional_deferrals(own, year, married)
+        trad = trad + out[f'trad_contr_er{k}'].to_numpy(float)
+        lines.append(f'person {k}: drawn ${(w * x).sum() / 1e9:,.2f} billion ({w[x > 0].sum() / 1e6:,.2f} million); the '
+                     f'{year} limit takes ${(w * (x - held)).sum() / 1e9:,.2f} billion off {w[x > held].sum() / 1e6:,.3f} '
+                     f'million; own wages take ${(w * (held - own)).sum() / 1e9:,.2f} billion off '
+                     f'{w[held > own].sum() / 1e6:,.3f} million ({w[(held > 0) & (own == 0)].sum() / 1e6:,.3f} million '
+                     f'with no wages); left ${(w * own).sum() / 1e9:,.2f} billion ({w[own > 0].sum() / 1e6:,.2f} million)')
     out['trad_deferrals'] = trad
     out['medicare_wages'] = out['wages'].to_numpy(float) + trad
-    wg = out['wages'].to_numpy(float)
-    w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
-    no_wage, roth_over = (e > 0) & (wg <= 0), (e - trad) > np.maximum(wg, 0) + 1e-6
-    common.say(f'elective deferrals ({year}): {w[e > 0].sum() / 1e6:,.2f} million units with any, '
-               f'${(w * e).sum() / 1e9:,.1f} billion, traditional ${(w * trad).sum() / 1e9:,.1f} billion; with no wages '
-               f'{int(no_wage.sum()):,} records ({w[no_wage].sum() / 1e6:,.3f} million units, '
-               f'${(w * e)[no_wage].sum() / 1e9:,.2f} billion); Roth part above wages {int(roth_over.sum()):,} records '
-               '(weights: the frame\'s weight column, else 1 per record)')
+    common.say(f'elective deferrals ({year}; weights: the frame\'s weight column, else 1 per record):\n  '
+               + '\n  '.join(lines) + f'\n  traditional, both people: ${(w * trad).sum() / 1e9:,.2f} billion')
     return out
 
 
@@ -245,10 +276,10 @@ def draw_dollars(df, maps, year=None):
             out[item] = out[total] - out[other]
             assert np.allclose(out[item] + out[other], out[total], rtol=1e-12, atol=1e-6), item
     person_items(out, df)
-    deferral_items(out, year)
     for a in AGE_SLOTS:                            # in years, -1 none
         if a in out:
             out[a] = out[a] - 1
+    deferral_items(out, year)                      # after the ages: the legal limit depends on each person's
     if all(f'{c}_band' in df for c in META['scf_amounts']):
         assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
         out['net_worth'] = out[list(NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(NET_WORTH_PARTS.values()), float)

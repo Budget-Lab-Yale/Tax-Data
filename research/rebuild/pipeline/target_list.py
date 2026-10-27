@@ -797,6 +797,127 @@ def published_w2(source, year, cells, v, stats, population):
     return out
 
 
+# ---- W-2 Table 2.D: elective deferrals by AGI and return type (28 October) -------------------------------------------
+def _agi_bounds(label):
+    """(lo, hi) of a W-2 table's AGI row label: 'No adjusted gross income', '$1 under $5,000', '$10,000,000 and over'."""
+    s = label.replace(',', '').replace('$', '').strip()
+    if s.lower().startswith('no adjusted gross income'):
+        return -np.inf, 1.0
+    if ' under ' in s:
+        lo, hi = s.split(' under ')
+        return float(lo), float(hi)
+    assert s.endswith(' and over'), f'an AGI row label not understood: {label!r}'
+    return float(s[:-len(' and over')]), np.inf
+
+
+def _w2_by_agi(path, sheet):
+    """A W-2 statistics table by size of AGI (Table 2.D): {(lo, hi, row label): {(column group, measure): value}},
+    the column groups read from the heading row (merged cells carried right, footnote marks dropped), money amounts
+    in dollars. Only the sheet's first table: its rows stop at the first row after the data that is not an AGI row
+    (the sheet also holds Table 2.D.1 below)."""
+    import openpyxl
+    rows = [list(r) for r in openpyxl.load_workbook(path, read_only=True, data_only=True)[sheet].iter_rows(values_only=True)]
+    hr = next(i for i, r in enumerate(rows) if any(isinstance(c, str) and c.startswith('All taxpayers') for c in r))
+    assert any('thousands of dollars' in str(c) for r in rows[:hr] for c in r if c), f'{path}: amounts not in thousands'
+    groups, g = [], None
+    for c in rows[hr][1:]:
+        g = c.split(' [')[0].strip() if isinstance(c, str) and c.strip() else g
+        groups.append(g)
+    measures = [str(c).split(' [')[0].strip() if c is not None else None for c in rows[hr + 1][1:]]
+    out, started = {}, False
+    for r in rows[hr + 2:]:
+        lab = r[0].strip() if isinstance(r[0], str) else ''
+        is_agi = lab.startswith('$') or lab.lower().startswith('no adjusted gross income')
+        if not is_agi:
+            if started:
+                break
+            continue
+        started = True
+        cells = {}
+        for gname, meas, val in zip(groups, measures, r[1:]):
+            if gname is None or meas is None or val is None:
+                continue
+            num = float(val) if isinstance(val, (int, float)) else np.nan   # 'd' (withheld) or a flag
+            cells[(gname, meas)] = num * (1000.0 if meas == 'Contributions' else 1.0)
+        out[(*_agi_bounds(lab), lab)] = cells
+    assert out, f'{path} {sheet}: no AGI rows'
+    return out
+
+
+def w2_deferral_dependent_share(source, year):
+    """The SIPP's share of dependents among the non-joint people with elective deferrals, (share of people, share of
+    dollars, description), in the SIPP year nearest year that asks deferrals (catalog dependent_share years; the
+    SIPP asks them from 2021). Dependents are the people the shared tax-unit rules made dependents (persons file,
+    dep_type); the other non-joint people with deferrals are the primary filers with deferrals (elective1) of the
+    SIPP's units that are not joint. Deferrals after the legal limit and the person's own wages (roster_sipp.py)."""
+    d = CAT['sources'][source]['dependent_share']
+    sy = min(d['years'], key=lambda c: (abs(c - year), c))
+    p = pd.read_parquet(f"{common.OUT}/{d['persons'].format(year=sy)}", columns=['weight', 'elective', 'dep_type'])
+    u = pd.read_csv(f"{common.OUT}/{d['units'].format(year=sy)}", usecols=['weight', 'married', 'elective1'])
+    for name, x in [('persons', p[['weight', 'elective']]), ('units', u)]:
+        assert x.notna().all().all(), f'{source}: SIPP {name} {sy} with missing values (deferrals not asked?)'
+    dep = p['dep_type'].fillna('').ne('').to_numpy() & (p['elective'] > 0).to_numpy()
+    nj = (u['married'] == 0).to_numpy() & (u['elective1'] > 0).to_numpy() & (u['weight'] > 0).to_numpy()
+    n_dep, t_dep = float(p['weight'][dep].sum()), float((p['weight'] * p['elective'])[dep].sum())
+    n_nj, t_nj = float(u['weight'][nj].sum()), float((u['weight'] * u['elective1'])[nj].sum())
+    why = (f'SIPP {sy}: dependents with deferrals {n_dep / 1e6:.3f} million people ({int(dep.sum())} records), '
+           f'${t_dep / 1e9:.2f} billion; other non-joint people with deferrals {n_nj / 1e6:.3f} million '
+           f'({int(nj.sum())} records), ${t_nj / 1e9:.2f} billion')
+    return n_dep / (n_dep + n_nj), t_dep / (t_dep + t_nj), why
+
+
+def published_w2_agi(source, year, cells, v, stats, population):
+    """Rows from SOI's W-2 Table 2.D (catalog source with layout w2_by_agi): the variable's measures (its
+    'published' entry: count, the number of taxpayers; amount, the contributions) in each cell's column group (the
+    grouping's 'in <source>' labels), summed over the table's AGI rows inside each of the cell's AGI groups (an AGI
+    grouping with edges; every AGI row must fall inside one group). On non-joint returns a taxpayer is a return. Where
+    the population leaves dependent filers out, the non-joint value is reduced by the SIPP's dependent share
+    (w2_deferral_dependent_share) and gap_share of the reduction is added to the borrowed error, as for the tips
+    targets (published_w2)."""
+    import errors
+    definition = CAT['sources'][source]
+    path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
+    table = _w2_by_agi(path, definition['sheet'])
+    spec = variable_def(v)['published'][source]
+    donors, donor_year = errors.soi_cells(year)
+    no_dependents = 'age_range < 6' in CAT['populations'][population]['rule']
+    share = w2_deferral_dependent_share(source, year) if no_dependents else None
+    out = []
+    for c in cells:
+        assert c['agi'] and 'edges' in CAT['groupings'][c['agi']], f'{source}: cells need an AGI grouping with edges'
+        ((gname, label),) = c['parts'].items()
+        group = CAT['groupings'][gname][f'in {source}'][label]
+        agi_groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab)
+                      for lo, hi, lab in CAT['groupings'][c['agi']]['edges']]
+        for lo_r, hi_r, lab_r in table:
+            n_in = sum(lo <= lo_r and hi_r <= hi for lo, hi, _ in agi_groups)
+            assert n_in == 1, f'{path}: the AGI row {lab_r!r} lies in {n_in} of the groups of {c["agi"]}'
+        for lo, hi, lab in agi_groups:
+            inside = [cells_ for (lo_r, hi_r, _), cells_ in table.items() if lo <= lo_r and hi_r <= hi]
+            got = {m: sum(x[(group, spec[m])] for x in inside) for m in ('count', 'amount')}
+            assert all(np.isfinite(x) for x in got.values()), f'{path}: {group}, {lab}: withheld or missing'
+            spec_c = {**c, 'parts': {c['agi']: lab, **c['parts']}, 'label': f'{lab}, {label}', 'agi': c['agi']}
+            for st in stats:
+                val = got[st]
+                reduction, gap_why = 0.0, ''
+                if share is not None and c['filters'] == [('married', 0)]:
+                    sh = share[1] if st == 'amount' else share[0]
+                    reduction = val * sh
+                    gap_why = (f'; less the dependent filers, {100 * sh:.1f}% ({share[2]}); plus '
+                               f'{100 * definition["dependent_share"]["gap_share"]:g}% of that reduction as a definition gap')
+                published = val
+                val = published - reduction
+                cv, what = errors.borrow_cv(donors, count=val) if st == 'count' else \
+                    errors.borrow_cv(donors, amount=val, returns=got['count'])
+                se = float(np.sqrt((val * cv / 100) ** 2 + (definition['dependent_share']['gap_share'] * reduction) ** 2))
+                out.append({'cell': spec_c['label'], 'cell_spec': spec_c, 'agi': (lo, hi), 'statistic': st,
+                            'value': val, 'error_kind': 'soi_borrowed', 'se': se,
+                            'source': f'{source} {year}: {group}, {spec[st]}, AGI {lab} ({path})',
+                            'se_reason': f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}{gap_why}'
+                                         + (f'; published {published:,.0f}' if reduction else '')})
+    return out
+
+
 def _w2_percentiles(path, sheet):
     """A W-2 statistics percentile table (Table 4.C): {item label: {percentile: value in dollars}}, the percentile
     columns read from the heading row ('10th' is 10)."""
@@ -871,6 +992,8 @@ def expand_entry(e, year, soi):
             rows = published_w2(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_percentiles':
             rows = published_w2_shares(src, vyear, cells, v, e)
+        elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_by_agi':
+            rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
