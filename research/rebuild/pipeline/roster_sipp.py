@@ -51,12 +51,20 @@ Separate returns: joint couples split by the CEX's rule (tax_units.mfs_split, a 
 sipp.mfs_salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns. Dependent
 filers are folded into the unit that claims them: their own income goes nowhere (build_cps.R's rule).
 
-Units file (sipp_units_<year>.csv.gz, one row per tax unit, read by build_table.py), no missing values:
+Units file (sipp_units_<year>.csv.gz, one row per tax unit, read by build_table.py), no missing values except the
+elective deferrals in years the release does not ask them:
   year, record_id (the unit's uid; a separate return's uid x 10 + person), household_id, weight (the head's),
   married (1 joint), n_dep (capped at 3), dep_filer (0), age1, age2, sex1, sex2, male1, male2 (person 1 and person 2;
   person 1 the man in a mixed-sex couple, the older in a same-sex one, as tax_units.primary_and_spouse; no spouse:
   age2 -1, sex2 0, male2 -1), wages1, wages2, wages (= wages1 + wages2), tips1, tips2, tips_lh1, tips_lh2 (0 or 1;
-  0 without tips).
+  0 without tips), elective1, elective2, elective_deferrals (= elective1 + elective2; since 28 October): each adult's
+  elective deferrals, missing on every unit in a year the release does not ask them (2015-2019).
+
+Elective deferrals (settings deferrals): each person's own contributions to 401(k), 403(b), 503(b) and Thrift Savings
+Plan accounts at the main employer (TSCNTAMT_401, a yearly amount repeated in every month: the largest monthly value;
+no value in any month read as none, the person not in a plan there; traditional and Roth together), held to the
+legal limit of the reference year (the catch-up limit from age 50 at the interview), then to the person's own wages
+(the plan's money comes out of them).
 Also writes persons_sipp_<year>.parquet, units_sipp_<year>.parquet and mfs_sipp_<year>.parquet (the rules' output, for
 check_units.py) and sipp_summary.csv. Usage (through Slurm): python roster_sipp.py [year ...] [--out DIR].
 """
@@ -103,6 +111,14 @@ def person_year(d):
                       'uc': f('TUC1AMT') + f('TUC2AMT'), 'property': f('TPPRPINC'), 'other': f('TPOTHINC')})
     y = x.groupby(['SSUID', 'PNUM'], sort=False).sum()
     y['selfemp'] = y.earn - y.wage
+    item = common.SETTINGS['deferrals']['sipp_item']
+    if item in d:   # elective deferrals (28 October): a yearly amount, repeated by month
+        g = d.groupby(['SSUID', 'PNUM'], sort=False)[item]
+        y['elective_reported'] = g.max().clip(lower=0).reindex(y.index).fillna(0.0).to_numpy()
+        y['elective_no_value'] = g.count().reindex(y.index).eq(0).to_numpy()   # no value in any month: none
+        y['elective_asked'] = True
+    else:
+        y['elective_reported'], y['elective_no_value'], y['elective_asked'] = 0.0, True, False
     dec = d[d.MONTHCODE == 12].set_index(['SSUID', 'PNUM'])
     y['enrolled_dec'] = dec.RENROLL.reindex(y.index).eq(1).to_numpy()
     y['earn_dec'] = dec.TPEARN.reindex(y.index).fillna(0).to_numpy()
@@ -271,6 +287,30 @@ def read_roster(year):
         r[c] = False
     # passthrough: tips
     r['tips'] = P.tips.to_numpy(); r['tips_lh_dollars'] = P.tips_lh_dollars.to_numpy()
+    # elective deferrals: held to the year's legal limit (catch-up from age 50), then to the person's own wages
+    asked = bool(P.elective_asked.all())
+    assert asked or not P.elective_asked.any()
+    if asked:
+        D = common.SETTINGS['deferrals']
+        lim = D['limits'][str(year)]
+        rep = P.elective_reported.to_numpy(float)
+        limit = np.where(r.age.to_numpy() >= D['catch_up_age'], lim[1], lim[0])
+        capped = np.minimum(rep, limit)
+        own = np.minimum(capped, np.maximum(r.wage.to_numpy(float), 0.0))
+        wt = r.weight.to_numpy(float)
+        common.say(f'  elective deferrals ({D["sipp_item"]}): people with any {wt[rep > 0].sum() / 1e6:.2f} m, '
+                   f'${(wt * rep).sum() / 1e9:.1f} billion reported; above the {year} limit '
+                   f'{wt[rep > limit].sum() / 1e6:.2f} m people, ${(wt * (rep - capped)).sum() / 1e9:.2f} billion '
+                   f'taken off; above their own wages {wt[capped > own].sum() / 1e6:.2f} m people, '
+                   f'${(wt * (capped - own)).sum() / 1e9:.2f} billion taken off; no value in any month (read as none) '
+                   f'{wt[P.elective_no_value.to_numpy(bool)].sum() / 1e6:.1f} m people')
+        r['elective'] = own
+        r['elective_reported'] = rep
+    else:
+        common.say(f'  elective deferrals: not asked in the {year} release (the units\' deferrals are missing)')
+        r['elective'] = 0.0
+        r['elective_reported'] = 0.0
+    r['elective_asked'] = asked
     r['SSUID'] = P.SSUID.to_numpy(); r['PNUM'] = P.PNUM.astype(int).to_numpy()
     assert not r.isna().any().any(), r.isna().sum()[r.isna().sum() > 0]
     assert (r.groupby('hh').pn.min() == 1).all()
@@ -317,10 +357,18 @@ def unit_rows(units, persons, mfs, year):
         lh = g('tips_lh_dollars', 0.0).astype(float)
         out[f'tips{k}'] = tips
         out[f'tips_lh{k}'] = ((tips > 0) & (lh > S['lh_share'] * np.where(tips > 0, tips, 1))).astype(int)
+        out[f'elective{k}'] = g('elective', 0.0).astype(float)
     out['wages'] = out.wages1 + out.wages2
+    # elective deferrals: missing on every unit in a year the release does not ask them
+    asked = bool(persons.elective_asked.all())
+    assert asked or not persons.elective_asked.any()
+    out['elective_deferrals'] = out.elective1 + out.elective2
+    if not asked:
+        out[['elective1', 'elective2', 'elective_deferrals']] = np.nan
     assert (out.loc[out.married == 0, ['wages2', 'tips2', 'tips_lh2']] == 0).all().all()
     assert ((out.age2 >= 0) == (out.married == 1)).all()
-    assert not out.isna().any().any() and not out.record_id.duplicated().any()
+    assert not out.drop(columns=['elective1', 'elective2', 'elective_deferrals']).isna().any().any()
+    assert asked == out.elective_deferrals.notna().all() and not out.record_id.duplicated().any()
     return out
 
 

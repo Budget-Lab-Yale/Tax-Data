@@ -70,7 +70,7 @@
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 matches the survey's amount to the tax data's amount of the named PUF variable (a computed total) instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts.",
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 matches the survey's amount to the tax data's amount of the named PUF variable (a computed total) instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts. match (optional, since 28 October): how amounts beyond the dollar line are put on the tax data's scale: \"count\" (the default) by the same count from the top (losses: from the bottom); \"percentile\" by the same percentile among the units beyond the line in each data set (the survey's unit at the p-th percentile of its units beyond the line gets the tax data's p-th percentile of its units beyond the line; equal amounts get one value), so the order of units is kept and the map is continuous at the line. less_traditional_deferrals (optional, since 28 October): a definition fix, the survey column of each unit's elective deferrals (traditional plus Roth; missing where the survey does not ask), whose traditional part (settings deferrals: x (1 - the Roth share)) is subtracted from the amount: the link wage.",
   "table": [
    {
     "survey": "scf",
@@ -132,11 +132,13 @@
     "items": [
      "wages"
     ],
-    "dollar_line": 100000,
+    "less_traditional_deferrals": "elective_deferrals",
+    "dollar_line": 0,
+    "match": "percentile",
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": true,
-    "reason": "the SCF has more units than the tax data above every line from about $100,000 (22 October); above the line, by count from the top"
+    "reason": "link wage (28 October): the PEU's wages (X5702) less the traditional part of the respondent's and the spouse's or partner's elective deferrals (settings deferrals; not asked outside the PEU, so nothing is subtracted there); then by percentile among earners onto the tax data's box 1 wages, the SCF's share with wages kept. Before 28 October: dollars to $100,000, count from the top above it (the SCF has more units than the tax data above every line from about $100,000)"
    },
    {
     "survey": "scf",
@@ -358,11 +360,12 @@
     "items": [
      "wages"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
+    "match": "percentile",
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "default"
+    "reason": "link wage (28 October): wages as reported (the CEX reports no deferrals); by percentile among earners onto the tax data's box 1 wages, the CEX's share with wages kept. Before 28 October: dollars"
    },
    {
     "survey": "cex",
@@ -485,10 +488,11 @@
      "wages"
     ],
     "dollar_line": 0,
+    "match": "percentile",
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top"
+    "reason": "link wage (28 October): wages as reported (no RETCB_VAL pull, John 27 October); by percentile among earners onto the tax data's box 1 wages, the CPS's share with wages kept. Before 28 October, by count from the top: the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top"
    },
    {
     "survey": "cps",
@@ -937,11 +941,13 @@
     "items": [
      "wages"
     ],
+    "less_traditional_deferrals": "elective_deferrals",
     "dollar_line": 0,
+    "match": "percentile",
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run)"
+    "reason": "link wage (28 October): wages less the traditional part of each adult's own elective deferrals at the main employer (TSCNTAMT_401, asked in 2021 and 2023 only; settings deferrals), as reported in 2015-2019; by percentile among earners onto the tax data's box 1 wages, the SIPP's share with wages kept. Before 28 October, by count from the top: the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run)"
    },
    {
     "survey": "sipp",
@@ -1028,6 +1034,38 @@
   "_lh_share": "A person's tips are from leisure and hospitality when more than this share of the person's tips on jobs for an employer is from such jobs (production's tips.R).",
   "mfs_salt": 20261023,
   "_mfs_salt": "Separate returns: joint couples are split by the CEX's rule (tax_units.mfs_split, keyed draw with this salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns."
+ },
+ "deferrals": {
+  "_what": "Elective deferrals to 401(k)-type plans (since 28 October; NEXT_STEPS.md, wages and pre-tax deductions). Each person's elective contributions (traditional plus Roth, as the SCF and the SIPP report them and as SOI's W-2 Tables 2.x count them) are held to the legal limit of the row's tax year (limits: [under 50, 50 and over], the section 402(g) limit and the catch-up; age at the interview), then the unit's to its wages (build_scf.R, roster_sipp.py). The traditional part is elective x (1 - the Roth share), the share from SOI's W-2 statistics by joint and non-joint returns (roth_share), the W-2 year nearest the row's year. A survey's link wage is its gross wages less the traditional part (translate.py, the definition fix less_traditional_deferrals); the Roth part stays in box 1 wages. The SCF's elective deferrals are also an SCF-only slot (elective_deferrals), drawn at generation; the file's traditional deferrals and Medicare wages (wages plus traditional deferrals) come from it with the target year's Roth share (dollars.py).",
+  "limits": {
+   "2012": [17000, 22500],
+   "2013": [17500, 23000],
+   "2014": [17500, 23000],
+   "2015": [18000, 24000],
+   "2016": [18000, 24000],
+   "2017": [18000, 24000],
+   "2018": [18500, 24500],
+   "2019": [19000, 25000],
+   "2020": [19500, 26000],
+   "2021": [19500, 26000],
+   "2022": [20500, 27000],
+   "2023": [22500, 30000]
+  },
+  "catch_up_age": 50,
+  "roth_share": {
+   "2012": {"joint": 0.0328, "nonjoint": 0.0363},
+   "2013": {"joint": 0.0377, "nonjoint": 0.0414},
+   "2014": {"joint": 0.0441, "nonjoint": 0.0470},
+   "2015": {"joint": 0.0537, "nonjoint": 0.0609},
+   "2016": {"joint": 0.0584, "nonjoint": 0.0680},
+   "2017": {"joint": 0.0632, "nonjoint": 0.0741},
+   "2018": {"joint": 0.0707, "nonjoint": 0.0888},
+   "2019": {"joint": 0.0799, "nonjoint": 0.0990},
+   "2020": {"joint": 0.0927, "nonjoint": 0.1021}
+  },
+  "_roth_share": "Roth (box 12 codes AA, BB, EE) over all elective contributions (codes D, E, F, G, H, S plus the Roth codes), dollars, joint returns and non-joint returns: SOI W-2 statistics, Table 5.A of w2_all_2018.xls for 2012-2018 and Table 4.B of w2_t4_<year>.xlsx for 2019 and 2020 (paths.raw.soi_w2; all taxpayers 2019: $30.3 billion of $352.9 billion, 8.6%). Years after 2020 take 2020's.",
+  "sipp_item": "TSCNTAMT_401",
+  "_sipp_item": "The SIPP's own contributions to 401(k), 403(b), 503(b) and Thrift Savings Plan accounts at the main employer, asked in the 2022 and 2024 releases (reference years 2021 and 2023); the earlier releases do not have it, so their units' deferrals are missing (not asked) and their link wage is gross wages."
  },
  "filing": {
   "_what": "The CPS's filing stage (filing.py, filing_requirement.R; run.sbatch stage filing): every CPS tax unit's chance of filing, by the filing rule v4 (John, 24 October 2026): logit(chance) = a(age band of the head) + k x (a child under 17) + required x (r + s x log gross income, centred on the year's weighted median among required units + b x (business or farm income not zero)), required being the statutory filing requirement. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11 targets hold exactly: non-filing heads and spouses in 7 age bands = CPS adults - adults on returns (SOI Table 1.6, age_shape's filing_adults) - dependents aged 15+ not filing their own return (group quarters left out, so zero); and the four shares below. Dependents' own returns: file if required to or with any wages. No outside filing model.",

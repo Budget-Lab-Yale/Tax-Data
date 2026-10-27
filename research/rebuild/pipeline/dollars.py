@@ -46,6 +46,13 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   where that adult has no tips
   auto_int_exp    the auto loan interest drawn (an SCF amount, from the
                   record's own wave's map)
+  elective_deferrals  the unit's elective deferrals to 401(k)-type plans,
+                  traditional plus Roth (an SCF amount, from the record's own
+                  wave's map; since 28 October); with the file's year given
+                  (draw_dollars' year): trad_deferrals, the traditional part,
+                  elective x (1 - the year's Roth share for joint or non-joint
+                  returns, settings deferrals), and medicare_wages, wages
+                  (box 1, which holds the Roth part) plus trad_deferrals
   CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
 """
 import glob
@@ -70,10 +77,13 @@ META = common.meta()
 # Amounts added since 26 October go at the very end, so no earlier amount's stream moves: auto loan interest (an SCF
 # amount, but not in the SCF's place in the list) and the SIPP's tips.
 LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER] \
+# Elective deferrals (28 October), an SCF amount, after stage 3's items at the very end, so no earlier stream moves
+NEWEST = ['elective_deferrals']
+ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST] \
     + list(META['cex_amounts']) + ['ss_gross'] + list(META['cps_amounts']) + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
 ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
+ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']]
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
@@ -165,9 +175,36 @@ def person_items(out, df):
     return out
 
 
-def draw_dollars(df, maps):
+def deferral_items(out, year):
+    """In place (since 28 October): the traditional part of the drawn elective deferrals in tax year year, elective x
+    (1 - the year's Roth share for joint or non-joint returns, settings deferrals; translate.traditional_deferrals),
+    and Medicare wages, wages (box 1, which holds the Roth part) plus the traditional part: the payroll tax base for
+    wages. Prints the records whose drawn deferrals do not fit their wages: deferrals with no wages, and a Roth part
+    above the wages (box 1 holds it, so it cannot exceed them). Nothing is changed on them. A frame without the drawn
+    deferrals gets none of these."""
+    if 'elective_deferrals' not in out or year is None:
+        return out
+    import translate as TR
+    e = out['elective_deferrals'].to_numpy(float)
+    assert not np.isnan(e).any() and (e >= 0).all(), 'elective deferrals missing or below zero on a record'
+    trad = TR.traditional_deferrals(e, year, out['married'].to_numpy())
+    out['trad_deferrals'] = trad
+    out['medicare_wages'] = out['wages'].to_numpy(float) + trad
+    wg = out['wages'].to_numpy(float)
+    w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
+    no_wage, roth_over = (e > 0) & (wg <= 0), (e - trad) > np.maximum(wg, 0) + 1e-6
+    common.say(f'elective deferrals ({year}): {w[e > 0].sum() / 1e6:,.2f} million units with any, '
+               f'${(w * e).sum() / 1e9:,.1f} billion, traditional ${(w * trad).sum() / 1e9:,.1f} billion; with no wages '
+               f'{int(no_wage.sum()):,} records ({w[no_wage].sum() / 1e6:,.3f} million units, '
+               f'${(w * e)[no_wage].sum() / 1e9:,.2f} billion); Roth part above wages {int(roth_over.sum()):,} records '
+               '(weights: the frame\'s weight column, else 1 per record)')
+    return out
+
+
+def draw_dollars(df, maps, year=None):
     """Dollars for every banded amount, then the pieces combined (see the top). A column u_<variable> is the record's
-    stored pick; a balance-sheet amount comes from the record's own wave's map."""
+    stored pick; a balance-sheet amount comes from the record's own wave's map. year: the tax year of the maps'
+    dollars, for the traditional deferrals and Medicare wages (deferral_items; None: not made)."""
     seed = common.SETTINGS['dollars']['seed']
     out = df.copy()
     for i, v in enumerate(ORDER):
@@ -208,6 +245,7 @@ def draw_dollars(df, maps):
             out[item] = out[total] - out[other]
             assert np.allclose(out[item] + out[other], out[total], rtol=1e-12, atol=1e-6), item
     person_items(out, df)
+    deferral_items(out, year)
     for a in AGE_SLOTS:                            # in years, -1 none
         if a in out:
             out[a] = out[a] - 1

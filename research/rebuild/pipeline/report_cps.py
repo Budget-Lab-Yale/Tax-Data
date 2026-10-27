@@ -4,8 +4,8 @@ The CPS side is the target year's tax units (build_table.cps_person_slots): ever
 the person items in primary-filer order by the rule the age range uses, dependent filers folded into the unit that
 claims them. The file's dependent filers hold no CPS item (generate.py), so the file side below leaves them out.
 Both sides are weighted: the file by its tilted weights, the CPS by its own. Wage groups: the file's wages (nominal
-2019 dollars) and the CPS's wages after function 1 (the translation table puts them on the tax data's scale by count
-from the top), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
+2019 dollars) and the CPS's wages after function 1 (the translation table puts them on the tax data's scale by percentile
+among earners since 28 October), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
 
 None of this is targeted. Sections: the primary filer's and the spouse's age within each age range; dependents'
 ages; the primary filer's sex; for married couples, whether the spouse has wages and the spouse's share of the
@@ -68,7 +68,7 @@ def main():
     for a in ['age_primary', 'age_spouse', 'age_dep1', 'age_dep2', 'age_dep3']:
         c[a] = c[a] - 1
     c['wages_reported'] = c['wages_primary_reported'] + c['wages_spouse_reported']
-    c['wages'] = c['wages_translated']             # the tax data's wages at the same count from the top
+    c['wages'] = c['wages_translated']             # the tax data's wages at the same percentile among earners
     c['wages2'] = c['wages_spouse_reported']        # the spouse's share uses the CPS's own amounts
     c['sch_cf_income'] = c['se_primary_reported'] + c['se_spouse_reported']
     c['se2'] = c['se_spouse_reported']

@@ -125,12 +125,13 @@ def prescale_lines(prescaled):
 
 
 # ---- the start from an earlier year's tilted file (TARGETS.md S7) ---------------------------------------------
-def recombine(df):
+def recombine(df, year):
     """The columns dollars.draw_dollars computes from the drawn amounts, computed again from the (grown) drawn
     amounts in the same order: the capital gains totals, business income and its two schedules from the eighteen
     parts, other AGI (the drawn remainder plus capital gain distributions plus the AGI items folded in), total
     consumption, the amounts made from a share (the spouse's wages, the home mortgage), the remainders (the primary
-    filer's wages) and net worth. Returns the frame and the columns recomputed."""
+    filer's wages), net worth, and (with the elective deferrals) the traditional deferrals and Medicare wages of tax year
+    year. Returns the frame and the columns recomputed."""
     out, done = df.copy(), []
 
     def put(col, values):
@@ -159,6 +160,9 @@ def recombine(df):
         done += [item for item, _ in D.PERSON_CAPS.values()] + list(D.SUMS) + list(D.FLAGS_WITH)
     if all(c in out for c in D.NET_WORTH_PARTS):
         put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
+    if 'elective_deferrals' in out:                       # the traditional deferrals and Medicare wages (28 October)
+        D.deferral_items(out, year)
+        done += ['trad_deferrals', 'medicare_wages']
     return out, done
 
 
@@ -177,7 +181,7 @@ def grow_dollars(df, s, t):
     file's own columns). Ages and every category are left as they are. Returns the grown frame and a table of the
     factors, one row per column."""
     import build_table as BT
-    same, done = recombine(df)
+    same, done = recombine(df, s)
     for c in done:
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
             f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
@@ -229,7 +233,7 @@ def grow_dollars(df, s, t):
         if v in out:
             f = BT.growth('wages', t)[0] / BT.growth('wages', s)[0]
             grow(v, f, f, 'SOI wages per return with wages')
-    out, _ = recombine(out)
+    out, _ = recombine(out, t)
     return out, pd.DataFrame(rows)
 
 
@@ -317,7 +321,7 @@ def main():
     growth, start_lines = None, []
     if spec['mode'] == 'generate':
         raw = pd.read_parquet(f'{common.GEN}/stack.parquet')
-        g19 = D.draw_dollars(raw, D.load_maps(Y))   # every dollar amount in target-year dollars
+        g19 = D.draw_dollars(raw, D.load_maps(Y), Y)   # every dollar amount in target-year dollars
         imp = g19['weight'].to_numpy(float)
     else:
         g19, imp, growth = start_from_year(spec)   # every dollar amount grown to the target year

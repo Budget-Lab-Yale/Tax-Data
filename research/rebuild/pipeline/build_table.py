@@ -187,9 +187,14 @@ DEBTS = ['primary_mortgage', 'other_mortgage', 'credit_lines', 'credit_cards', '
 KG_WEALTH = ['kg_primary_home', 'kg_other_re', 'kg_pass_throughs', 'kg_other']
 NET_WORTH_PARTS = {**{'w_' + c: 1 for c in ASSETS}, **{'w_' + c: -1 for c in DEBTS}}
 SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c in DEBTS if c != 'primary_mortgage'] \
-    + ['w_' + c for c in KG_WEALTH] + ['auto_int_exp']
+    + ['w_' + c for c in KG_WEALTH] + ['auto_int_exp', 'elective_deferrals']
 # auto_int_exp (since 26 October): the unit's auto loan interest, a year's interest on its vehicle loans at the
 # interview's balance and rate (build_scf.R). Not part of net worth.
+# elective_deferrals (since 28 October): the unit's elective deferrals to 401(k)-type plans, traditional plus Roth, as
+# the SCF reports them for the respondent and the spouse or partner, each person's held to the legal limit, the unit's
+# to its wages (build_scf.R, settings deferrals). Missing (absent, band -1) on the units the SCF does not ask: units
+# outside the PEU and other units. Not part of net worth.
+SCF_NOT_ASKED = ['elective_deferrals']   # SCF amounts missing where the SCF does not ask
 NO_GROWTH = NO_GROWTH + STAGE3_NO_GROWTH
 PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
@@ -714,6 +719,15 @@ def sipp_rows():
         ['married', 'n_dep', 'age1', 'age2', 'sex1', 'sex2', 'wages1', 'wages2', 'tips1', 'tips2', 'tips_lh1', 'tips_lh2']
     n_missing = s[need].isna().sum()
     assert not n_missing.any(), f'missing values in the SIPP units:\n{n_missing[n_missing > 0]}'
+    # elective deferrals (since 28 October): asked in some years only, so missing in exactly the years not asked
+    for y in SP['years']:
+        e = s.loc[s.year == y, 'elective_deferrals'].to_numpy(float)
+        n_na = int(np.isnan(e).sum())
+        assert n_na in (0, len(e)), f'SIPP {y}: elective deferrals missing on some units only'
+        common.say(f'SIPP {y}: elective deferrals ' + ('not asked (missing on every unit)' if n_na else 'asked'))
+    e, wg = s['elective_deferrals'].to_numpy(float), s['wages'].to_numpy(float)
+    asked = ~np.isnan(e)
+    assert (e[asked] >= 0).all() and (e[asked] <= wg[asked] + 1e-6).all(), 'SIPP deferrals below zero or above wages'
     assert (s['dep_filer'] == 0).all(), 'roster_sipp.py folds dependent filers into the unit that claims them'
     assert np.allclose(s['wages1'] + s['wages2'], s['wages'], rtol=0, atol=1e-6)
     couple = (s['married'] == 1).to_numpy()
@@ -784,9 +798,9 @@ def exact_age_value(age):
 
 def survey_items(s, survey):
     """The survey's columns that the translation table's amount rows read, as raw_<column> (translate.py turns them
-    into the shared slots)."""
+    into the shared slots), and the deferral columns of their definition fixes (less_traditional_deferrals)."""
     return {f'raw_{c}': s[c].astype(float) for c in sorted({c for r in TR.rows(survey, amounts_only=True)
-                                                            for c in r['items']})}
+                                                            for c in TR.columns(r)})}
 
 
 def loan_to_value(s):
@@ -811,6 +825,15 @@ def scf_rows():
         s['household_id'] += off
         s['age_key'] = s['household_id']
         common.say(f'wave {wave}:')
+        # elective deferrals (since 28 October): asked of the PEU's respondent and spouse or partner only, so missing
+        # exactly on the units outside the PEU and the other units (taxunit_code 8, 9)
+        asked = (s['taxunit_code'] <= 2).to_numpy()
+        e = s['elective_deferrals'].to_numpy(float)
+        assert not np.isnan(e[asked]).any() and np.isnan(e[~asked]).all(), 'elective deferrals missing on a PEU unit'
+        assert (e[asked] >= 0).all() and (e[asked] <= s['wages'].to_numpy(float)[asked] + 1e-6).all()
+        common.say(f'  elective deferrals not asked (units outside the PEU, other units; missing, not zero): '
+                   f'{int((~asked).sum())} rows, {s.weight[~asked].sum() / 1e6:.2f} m units with '
+                   f'${(s.weight * s.wages)[~asked].sum() / 1e9:.1f} billion of wages')
         s = loan_to_value(s.assign(source='scf', filer=-1, filer_p=-1.0, **{c: -1 for c in TAX_CATEGORIES}))
         if wave == TARGET_YEAR:     # the tilt's wealth targets and wealth by wage group, in this wave's dollars
             s.to_parquet(f'{common.DATA}/scf_units_{TARGET_YEAR}.parquet', index=False)
@@ -858,8 +881,8 @@ def translate_surveys(t, edges, pi):
     """The shared amounts of every survey year from the translation table (translate.py): the definition fixes,
     function 1 against the tax data for the year, the PUF's cut points grown to the year; then the computed totals
     (and k1_owner) a survey has rows for all the parts of, from the translated parts; then the categories. The
-    report: the survey as reported, after function 1, the tax data. Each year's tax data is written to
-    data/tax_data_<year>.parquet."""
+    report: the survey as reported, the link (after the definition fixes), after function 1 (with its move), the tax
+    data. Each year's tax data is written to data/tax_data_<year>.parquet."""
     w = t['weight'].to_numpy(float)
     report, notes, tax = [], {}, {}
     for src in ('scf', 'cex', 'cps', 'sipp'):
@@ -874,22 +897,32 @@ def translate_surveys(t, edges, pi):
             done = {}
             for row in TR.rows(src, amounts_only=True):
                 v = row['variable']
-                reported = TR.survey_amount(d, {**row, 'first_year': None, 'part': None, 'loss_cap': None}, y)
-                x = TR.survey_amount(d, row, y)
+                reported = TR.reported_amount(d, row, y)       # the items summed, as the survey reports them
+                x = TR.survey_amount(d, row, y)                # the link: after the definition fixes
                 fp, fn = growth(v, y)
                 line = None if row['dollar_line'] is None else row['dollar_line'] * fp
+                match = row.get('match', 'count')
                 # rank_against (stage 3): a survey total put in one of its parts is matched to the tax data's total
                 against = row.get('rank_against', v)
-                new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line)
+                new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line, match)
                 done[v] = new
                 b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
                 rec['cut_rule'] = (f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} positive, '
-                                   f'{fn:.4f} losses); dollar line {line}')
+                                   f'{fn:.4f} losses); dollar line {line}, match {match}')
                 t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
-                notes[f'{src} {y} {v}'] = {'dollar line (survey-year dollars)': line,
+                notes[f'{src} {y} {v}'] = {'dollar line (survey-year dollars)': line, 'match': match,
                                            'units past the tax data\'s last holder (millions)': beyond / 1e6}
-                report += TR.report_rows(row, y, {'as reported': TR.describe(reported, w[sel]),
-                                                  'after function 1': TR.describe(new, w[sel]),
+                link = TR.describe(x, w[sel])
+                ded, not_asked = TR.deferrals_subtracted(d, row, y)
+                if ded is not None:            # the link wage: what the deferral fix took off, and from whom
+                    link['traditional deferrals subtracted ($ billion)'] = (w[sel] * ded).sum() / 1e9
+                    link['units with deferrals subtracted (millions)'] = w[sel][ded > 0].sum() / 1e6
+                    link['units not asked about deferrals (millions)'] = w[sel][not_asked].sum() / 1e6
+                    link['wages of units not asked ($ billion)'] = (w[sel] * reported)[not_asked].sum() / 1e9
+                    notes[f'{src} {y} {v}']['units not asked about deferrals (millions)'] = w[sel][not_asked].sum() / 1e6
+                report += TR.report_rows(row, y, {'as reported': TR.describe(reported, w[sel]), 'link': link,
+                                                  'after function 1': {**TR.describe(new, w[sel]),
+                                                                       **TR.move(x, new, w[sel])},
                                                   'tax data': TR.describe(T[against].to_numpy(float), tw)})
             # computed totals the survey has no row for but has every part of: from the translated parts
             for v, parts in COMPUTED.items():
@@ -1120,7 +1153,8 @@ def scf_growth(scf, y_from, y_to):
     of the two waves' weighted means per tax unit, each in its own dollars (all units and all five implicates, zeros
     included; scf: SCF rows with year, weight and the items in dollars). It carries price change and the change in
     holdings per unit together. The mortgage's share of the home's value (w_primary_ltv) is a ratio and is not grown:
-    the mortgage in dollars moves with the home."""
+    the mortgage in dollars moves with the home. An amount the SCF does not ask of some units (SCF_NOT_ASKED: elective
+    deferrals, not asked outside the PEU): the mean over the units asked."""
     out = {}
     for v in SCF_AMOUNTS:
         if v == 'w_primary_ltv':
@@ -1130,6 +1164,8 @@ def scf_growth(scf, y_from, y_to):
         for y in (y_from, y_to):
             d = scf[scf.year == y]
             assert len(d), f'no SCF wave of income year {y}'
+            if v in SCF_NOT_ASKED:     # the units asked only: the others are missing by design, not zero
+                d = d[d[v].notna()]
             assert not d[[v, 'weight']].isna().any().any(), f'SCF {y}: {v} or the weight missing on some unit'
             mean[y] = float(np.average(d[v].to_numpy(float), weights=d['weight'].to_numpy(float)))
         # a mean at or below zero (possible for the unrealized gains) makes the ratio meaningless: no factor
@@ -1357,7 +1393,7 @@ def main():
     t, edges = band_table(t, pi)
     cps_ss_taxable_check(t)
     # the report's CPS and SIPP units also carry their wages after function 1 (the CPS's: the tax data's wages at the
-    # same count from the top), so the report's wage groups mean the same on both sides
+    # same percentile among earners since 28 October), so the report's wage groups mean the same on both sides
     for src in ('cps', 'sipp'):
         f = f'{common.DATA}/{src}_units_{TARGET_YEAR}_all.parquet'
         u = pd.read_parquet(f)
