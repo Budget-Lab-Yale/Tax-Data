@@ -34,3 +34,10 @@ A working note so a later session can resume. The results page is `explore_tips_
 
 ## Open
 - Decision 7 of the results page (tips at high wages) waits for John.
+
+## Stage 2, 27 October (targets; results page `explore_stage2_RESULTS.md`)
+- Added to the default targets: G2's Tables 1.3 and 4.3 (238), W-2 box 7 tips (4), SCF auto loan interest (8); 746
+  in all. Reweighting only, CPU: runs `tilt/S2` (all), `tilt/G2`, `tilt/G2_tips`, `tilt/G2_auto` (variants through
+  copies of targets_config in `explore/stage2/`, written with `REBUILD_TILT_RUN`). The runs used this code before it
+  was committed, so their reports say "with uncommitted changes".
+- Open: decision 7 of stage 1; whether to meet the W-2 count of tipped returns by weights (as now) or at generation.

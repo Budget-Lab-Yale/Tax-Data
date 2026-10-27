@@ -34,3 +34,19 @@ targets:
     override: >-
       estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met (with
       standard errors they could come back, giving way where they conflict)
+
+  # Tips (27 October, candidate): SOI's Form W-2 statistics for 2019, Table 4.B, box 7 (Social Security tips),
+  # returns with any and the amount, in joint and non-joint returns. SOI publishes no tips by size of wages. The
+  # file's tips are measured as box 7 has them (catalog ss_tips: held to the Social Security wage base). Returns other
+  # than dependent filers': the non-joint value is SOI's less the SIPP 2019's share of dependents among non-joint
+  # tipped people (count) or tips (amount), and half that reduction is added to the error (catalog source soi w2).
+  # Only 2019 and 2020 have this layout of the W-2 tables (settings paths.raw.soi_w2), so the entry is the year's own.
+  - id: tips_w2
+    kind: tips
+    statistic: [count, amount]
+    population: independent_filers
+    variable: ss_tips
+    cells: {joint_or_not: all}
+    value: {published: soi w2}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}

@@ -5,6 +5,7 @@ x every cell, with its population, where its value comes from and the kind of it
 (targets_config/catalog.yaml) says what the words mean. A year's file (years/<year>.yaml) inherits from
 historical.yaml or projection.yaml, which inherit from defaults.yaml; a year can add an entry, drop one or override
 fields of one, and every drop or override carries a written reason.
+Settings targets_config can name an isolated copy of this directory for an experiment.
 
   resolve(year)                 the year's entries, inheritance applied, each with the file it came from and the
                                 reason for every field a later file overrode
@@ -39,6 +40,7 @@ default 'zero'), is the plain sum over the group of w (x / m - 1) = 0; solver.py
 """
 import copy
 import importlib.util
+import json
 import os
 import subprocess
 
@@ -51,7 +53,7 @@ import dollars as D
 import targets as TG
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG = os.path.join(HERE, 'targets_config')
+CONFIG = common.SETTINGS.get('targets_config', os.path.join(HERE, 'targets_config'))
 ROW_COLUMNS = ['kind', 'group', 'target', 'statistic', 'population', 'variable', 'value', 'error_kind', 'se',
                'identity', 'source', 'reason', 'tax_unit_rules']
 # Columns after the contract's, which conditions() reads: the entry, the year of the value, the cell in machine
@@ -205,7 +207,31 @@ def record_value(df, v):
     if 'family' in d:
         f = TG.FAMILIES[d['family']]
         net = df[f['income']].to_numpy(float).sum(1) - (df[f['loss']].to_numpy(float).sum(1) if f['loss'] else 0.0)
+        if d['side'] == 'net':
+            assert np.isfinite(net).all(), f'{v}: a missing or nonfinite business part'
+            return net
         return np.where(net > 0, net, 0.0) if d['side'] == 'net_income' else np.where(net < 0, -net, 0.0)
+    if 'transform' in d:
+        assert d['transform'] in ('positive', 'loss', 'loss_allowed', 'any'), f'{v}: unknown transform {d["transform"]}'
+        x = record_value(df, d['base'])
+        if d['transform'] == 'any':
+            assert np.isfinite(x).all(), f'{v}: {int((~np.isfinite(x)).sum())} records with {d["base"]} missing'
+            return (x != 0).astype(float)
+        if d['transform'] == 'loss_allowed':
+            # The loss allowed on the return: $3,000, or $1,500 if married filing separately (mars 3).
+            return np.minimum(np.maximum(-x, 0), np.where(df['mars'].to_numpy() == 3, 1500.0, 3000.0))
+        return np.maximum(x, 0) if d['transform'] == 'positive' else np.maximum(-x, 0)
+    if 'ss_tips' in d:
+        # W-2 box 7: each person's tips held so that wages other than tips plus tips are at most the wage base
+        base = d['wage_base'].get(common.TARGET_YEAR)
+        assert base, f'{v}: no Social Security wage base for {common.TARGET_YEAR} in the catalog'
+        out = np.zeros(len(df))
+        for wcol, tcol in d['ss_tips']:
+            wg, tp = df[wcol].to_numpy(float), df[tcol].to_numpy(float)
+            assert np.isfinite(wg).all() and np.isfinite(tp).all(), f'{v}: {wcol} or {tcol} missing'
+            assert (tp <= wg + 1e-6).all(), f'{v}: {tcol} above {wcol} on {int((tp > wg + 1e-6).sum())} records'
+            out += np.minimum(tp, np.maximum(0.0, float(base) - (wg - tp)))
+        return out
     if 'people' in d:
         p = d['people']
         hi = np.inf if p['to'] is None else p['to']
@@ -233,7 +259,7 @@ def group_cells(spec):
     per_dim = []
     for name, sel in spec.items():
         g = CAT['groupings'][name]
-        if g['variable'] == 'agi':
+        if g['variable'] == 'agi' and 'ranks' not in g:
             assert sel == 'all', f'{name}: AGI groupings take all their cells'
             per_dim.append([{'parts': {}, 'filters': [], 'agi': name, 'line': None}])
         elif 'values' in g:
@@ -616,6 +642,151 @@ def tax_unit_rules(source):
             f'{"; ".join(picks)}; code commit {_COMMIT}')
 
 
+# ---- published grids ----------------------------------------------------------------------------------------
+def published_grid(source, year, cells, v, stats):
+    """A tidy published table, selected by catalog item, measure and group labels.
+
+    Group labels map to one or several published panels (several panels are added). Rank cells map to published
+    cumulative groups. Errors borrow errors.py's nearest Table 1.4 cells using the paired holder count. A published
+    AGI cutoff at or above the catalog's full-sample line gets errors.full_sample_se instead.
+    """
+    import errors
+    definition = CAT['sources'][source]
+    t = pd.read_csv(os.path.join(common.RAW['soi_tables'], definition['file']), keep_default_na=False, dtype=str)
+    t = t[(t.tax_year == str(year)) & (t.table == str(definition['table']))]
+    donors, donor_year = errors.soi_cells(year)
+    spec = definition['units'] if v is None else variable_def(v)['published'][source]
+    out = []
+    for c in cells:
+        selected = t
+        cutoff = None
+        for grouping, label in c['parts'].items():
+            g = CAT['groupings'][grouping]
+            selected = selected[selected[g['published_column']].isin(g['published_labels'][label])]
+        if definition.get('cutoff_item'):
+            cut = selected[selected.item == definition['cutoff_item']]
+            assert len(cut) == 1, f'{source} {c["label"]}: expected one AGI cutoff'
+            if cut.iloc[0].value:
+                cutoff = float(cut.iloc[0].value)
+        def value(measure, item=None):
+            z = selected[(selected.item == (item or spec['item'])) & (selected.measure == measure)]
+            expected = 1
+            for grouping, label in c['parts'].items():
+                expected *= len(CAT['groupings'][grouping]['published_labels'][label])
+            assert len(z) == expected, f'{source} {c["label"]} {spec["item"]} {measure}: {len(z)} cells, expected {expected}'
+            assert z.value.ne('').all(), f'{source} {c["label"]} {spec["item"]}: {int(z.value.eq("").sum())} missing values: {z.flag.tolist()}'
+            scales = z.unit.map({'returns': 1, '$ thousands': 1000, 'whole dollars': 1})
+            assert scales.notna().all(), f'{source}: unknown units {z.unit.tolist()}'
+            return float((pd.to_numeric(z.value) * scales).sum())
+        for st in stats:
+            val = value(spec[st])
+            count = value(spec.get('count', spec.get('units', 'returns')), spec.get('returns_item'))
+            if cutoff is not None and cutoff >= definition.get('full_sample_above', np.inf):
+                se, kind = errors.FULL_SAMPLE_SE * abs(val), 'judgment'
+                reason = (f'{100 * errors.FULL_SAMPLE_SE:g}% of value (errors.full_sample_se): published AGI cutoff '
+                          f'${cutoff:,.0f} is in the fully sampled AGI range; allowance for definition differences')
+            else:
+                cv, what = errors.borrow_cv(donors, count=abs(val)) if st in ('count', 'units') else \
+                    errors.borrow_cv(donors, amount=abs(val), returns=count)
+                se, kind = abs(val) * cv / 100, 'soi_borrowed'
+                reason = f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}'
+            out.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val,
+                        'source': f'{source} {year}: {spec["item"]}, {c["label"]}; {definition["file"]}',
+                        'se': se, 'error_kind': kind, 'se_reason': reason})
+    return out
+
+
+def _w2_table(path, sheet):
+    """A W-2 statistics summary table (Table 4.B): {item label: {(column group, measure): value}}, the column groups
+    read from the heading row (merged cells carried right, footnote marks dropped), money amounts in dollars."""
+    import openpyxl
+    rows = [list(r) for r in openpyxl.load_workbook(path, read_only=True, data_only=True)[sheet].iter_rows(values_only=True)]
+    (hr,) = [i for i, r in enumerate(rows) if any(isinstance(c, str) and c.startswith('All taxpayers') for c in r)]
+    assert any('thousands of dollars' in str(c) for r in rows[:hr] for c in r if c), f'{path}: amounts not in thousands'
+    groups, g = [], None
+    for c in rows[hr][1:]:
+        g = c.split(' [')[0].strip() if isinstance(c, str) and c.strip() else g
+        groups.append(g)
+    measures = [str(c).strip() if c is not None else None for c in rows[hr + 1][1:]]
+    out = {}
+    for r in rows[hr + 2:]:
+        if not isinstance(r[0], str) or not r[0].startswith('Box'):
+            continue
+        cells = {}
+        for gname, meas, val in zip(groups, measures, r[1:]):
+            if gname is None or meas is None or val is None:
+                continue
+            num = float(val) if isinstance(val, (int, float)) else np.nan   # 'd' (withheld) or 'N/A'
+            cells[(gname, meas)] = num * (1000.0 if meas == 'Amount' else 1.0)
+        out[r[0].strip()] = cells
+    return out
+
+
+def w2_dependent_share(source, year):
+    """The SIPP's share of dependents among the year's non-joint people with tips: (share of people, share of tips,
+    description). Dependents are the people the shared tax-unit rules made dependents (persons file, dep_type);
+    the other non-joint people with tips are the primary filers with tips of the SIPP's units that are not joint."""
+    d = CAT['sources'][source]['dependent_share']
+    p = pd.read_parquet(f"{common.OUT}/{d['persons'].format(year=year)}", columns=['weight', 'tips', 'dep_type'])
+    u = pd.read_parquet(f"{common.OUT}/{d['units'].format(year=year)}",
+                        columns=['weight', 'married', 'tips_primary_reported'])
+    for name, x in [('persons', p[['weight', 'tips']]), ('units', u)]:
+        assert x.notna().all().all(), f'{source}: SIPP {name} {year} with missing values'
+    dep = p['dep_type'].fillna('').ne('').to_numpy() & (p['tips'] > 0).to_numpy()
+    nj = (u['married'] == 0).to_numpy() & (u['tips_primary_reported'] > 0).to_numpy()
+    n_dep, t_dep = float(p['weight'][dep].sum()), float((p['weight'] * p['tips'])[dep].sum())
+    n_nj, t_nj = float(u['weight'][nj].sum()), float((u['weight'] * u['tips_primary_reported'])[nj].sum())
+    why = (f'SIPP {year}: dependents with tips {n_dep / 1e6:.3f} million people ({int(dep.sum())} records), '
+           f'${t_dep / 1e9:.2f} billion; other non-joint people with tips {n_nj / 1e6:.3f} million ({int(nj.sum())} '
+           f'records), ${t_nj / 1e9:.2f} billion')
+    return n_dep / (n_dep + n_nj), t_dep / (t_dep + t_nj), why
+
+
+def published_w2(source, year, cells, v, stats, population):
+    """Rows from SOI's W-2 summary table (catalog source with layout w2_summary): the variable's item (its
+    'published' entry), in each cell's column group (the grouping's 'in <source>' labels); a count is the column's
+    number of returns (or of taxpayers where the group has one per return), an amount its amount. Where the
+    population leaves dependent filers out, the non-joint value is reduced by the SIPP's dependent share
+    (w2_dependent_share), and gap_share of the reduction is added to the borrowed error (square root of the sum of
+    squares)."""
+    import errors
+    definition = CAT['sources'][source]
+    path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
+    table = _w2_table(path, definition['sheet'])
+    item = variable_def(v)['published'][source]['item']
+    assert item in table, f'{path}: no row {item!r}'
+    donors, donor_year = errors.soi_cells(year)
+    no_dependents = 'age_range < 6' in CAT['populations'][population]['rule']   # dependent filers left out
+    share = w2_dependent_share(source, year) if no_dependents else None
+    out = []
+    for c in cells:
+        ((gname, label),) = c['parts'].items()
+        group = CAT['groupings'][gname][f'in {source}'][label]
+        have = {m: x for (g, m), x in table[item].items() if g == group}
+        count_col = 'Number of returns' if 'Number of returns' in have else 'Number of taxpayers'
+        count, amount = have[count_col], have['Amount']
+        assert np.isfinite(count) and np.isfinite(amount), f'{path}: {item}, {group}: withheld or missing'
+        for st in stats:
+            val = {'count': count, 'amount': amount}[st]
+            src = f'{source} {year}: {item}, {group}, {count_col if st == "count" else "amount"} ({path})'
+            reduction, gap_why = 0.0, ''
+            if share is not None and c['filters'] == [('married', 0)]:
+                sh = share[0] if st == 'count' else share[1]
+                reduction = val * sh
+                gap_why = (f'; less the dependent filers, {100 * sh:.1f}% ({share[2]}); plus '
+                           f'{100 * definition["dependent_share"]["gap_share"]:g}% of that reduction as a definition gap')
+            published = val
+            val = published - reduction
+            cv, what = errors.borrow_cv(donors, count=val) if st == 'count' else \
+                errors.borrow_cv(donors, amount=val, returns=count)
+            se = float(np.sqrt((val * cv / 100) ** 2 + (definition['dependent_share']['gap_share'] * reduction) ** 2))
+            out.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'source': src,
+                        'se': se, 'error_kind': 'soi_borrowed',
+                        'se_reason': f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}{gap_why}'
+                                     + (f'; published {published:,.0f}' if reduction else '')})
+    return out
+
+
 # ---- expansion ------------------------------------------------------------------------------------------------
 def _fill(template, cell, v, st, year):
     parts = dict(cell['parts'])
@@ -638,6 +809,10 @@ def expand_entry(e, year, soi):
                 published_17(soi, vyear, cells, stats)
             for r in rows:
                 r['cell_spec'] = {'parts': {}, 'filters': [], 'line': None, 'label': r['cell']}
+        elif vkind == 'published' and CAT['sources'][src].get('layout') == 'tidy_grid':
+            rows = published_grid(src, vyear, cells, v, stats)
+        elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_summary':
+            rows = published_w2(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
@@ -659,15 +834,16 @@ def expand_entry(e, year, soi):
             out.append({
                 'kind': e['kind'], 'group': group, 'target': target,
                 'statistic': st, 'population': e['population'], 'variable': v or '', 'value': float(r['value']),
-                'error_kind': err['kind'], 'se': se, 'identity': err['kind'] == 'identity',
+                'error_kind': r.get('error_kind', err['kind']), 'se': r.get('se', se), 'identity': err['kind'] == 'identity',
                 'source': r['source'], 'reason': reasons,
                 'tax_unit_rules': tax_unit_rules(src) if vkind in ('survey', 'pipeline') else '',
                 'entry': e['id'], 'year': vyear,
                 'agi_lo': r['agi'][0] if 'agi' in r else np.nan, 'agi_hi': r['agi'][1] if 'agi' in r else np.nan,
                 'married': filt.get('married', np.nan), 'age_range': filt.get('age_range', np.nan),
+                'filters': json.dumps([(col, val) for col, val in c['filters'] if col not in ('married', 'age_range')]),
                 'line': r.get('line', np.nan) if r.get('line') is not None else np.nan,
                 'line_variable': r.get('line_variable', ''),
-                'dependent_filers': e.get('dependent_filers', ''), 'error_reason': err.get('reason', ''),
+                'dependent_filers': e.get('dependent_filers', ''), 'error_reason': r.get('se_reason', err.get('reason', '')),
                 'rank_variable': c['rank'][0] if c.get('rank') else '',
                 'rank_lo': c['rank'][1] if c.get('rank') else np.nan,
                 'rank_hi': c['rank'][2] if c.get('rank') else np.nan,
@@ -695,8 +871,10 @@ def expand(year=common.TARGET_YEAR, start=None):
     on the rows never carry them)."""
     cfg = resolve(year)
     soi = TG.load()
-    rows = pd.DataFrame([r for e in cfg['targets'] for r in expand_entry(e, int(year), soi)],
-                        columns=ROW_COLUMNS + CELL_COLUMNS)
+    expanded = [r for e in cfg['targets'] for r in expand_entry(e, int(year), soi)]
+    # Save additional discrete groupings only when a configuration uses them. The default list keeps its schema.
+    extra = ['filters'] if any(r.get('filters', '[]') != '[]' for r in expanded) else []
+    rows = pd.DataFrame(expanded, columns=ROW_COLUMNS + CELL_COLUMNS + extra)
     zero = (rows['value'] == 0) & rows['statistic'].isin(['count', 'amount', 'units'])
     excluded = rows[zero].assign(why='published as zero')
     rows = rows[~zero].reset_index(drop=True)
@@ -714,7 +892,8 @@ def expand(year=common.TARGET_YEAR, start=None):
         got = m['se'].notna().to_numpy() & ~rows['identity'].to_numpy()
         rows.loc[got, 'se'] = m.loc[got, 'se'].to_numpy()
         rows.loc[got, 'error_kind'] = m.loc[got, 'error_kind'].to_numpy()
-        rows['se_reason'] = m['se_reason'].fillna('').to_numpy()
+        rows['se_reason'] = np.where(got | rows['identity'].to_numpy(),
+                                     m['se_reason'].fillna('').to_numpy(), rows['error_reason'].fillna(''))
     LAST.update(excluded=excluded, config=cfg, year=int(year))
     return rows
 
@@ -761,6 +940,12 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     averages = [None] * len(rows)
     for j, r in enumerate(rows.itertuples(index=False)):
         cell = pops[r.population].copy()
+        extra = getattr(r, 'filters', '')
+        if isinstance(extra, str) and extra:
+            for column, value in json.loads(extra):
+                if value is not None:
+                    assert df[column].notna().all(), f'{column}: missing group values'
+                    cell &= df[column].to_numpy() == value
         if not np.isnan(r.agi_lo):
             cell &= (a >= r.agi_lo) & (a < r.agi_hi)
         if not np.isnan(r.married):
@@ -801,7 +986,9 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
                 dep_26 = pops[r.population] & (married == r.married) & (rng == common.DEPENDENT_RANGES[-1])
                 F[:, j] += dep_26 * r.value / rows.loc[same, 'value'].sum()
         elif r.statistic == 'count':
-            F[:, j] = cell * (x != 0)
+            count_var = variable_def(r.variable).get('count_variable')
+            xc = record_value(df, count_var) if count_var else x
+            F[:, j] = cell * (xc != 0)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
         elif r.statistic == 'share of total':

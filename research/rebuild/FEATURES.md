@@ -700,6 +700,22 @@ Counts by kind as in `tilt/<run>/targets.csv`.
 The latest run (below): all 496 targets inside their ranges (the 44 SCF targets at half a standard error);
 effective sample kept 98.0% from the prescaled start; 49 warnings and 33 stops.
 
+**Candidate targets (27 October, branch `rebuild-tips-autoloan`; `explore_stage2_RESULTS.md`).** 250 targets added to
+the 496, every value and error of the 496 unchanged:
+- SOI Table 1.3 (184): returns, AGI, and the number with and amount of 22 income items in each filing status; SOI
+  Table 4.3 (54): returns, AGI and eight income items in the top 0.01% (one group), 0.1% and 1% of AGI among returns
+  other than dependent filers'. Run G2's set (Tax-Data-targets, approved by John), with Table 1.3's capital loss
+  measured as the loss allowed on the return. Read from the local IRS-Ind store's tidy files (settings
+  `paths.raw.soi_tables`); errors borrowed from the nearest Table 1.4 cells (`target_list.published_grid`).
+- Tips (4): SOI's 2019 Form W-2 statistics, Table 4.B, box 7 (Social Security tips), returns with any and the amount
+  in joint and non-joint returns (settings `paths.raw.soi_w2`; `target_list.published_w2`). The file's tips are
+  measured as box 7 holds them, at most the Social Security wage base less the other wages (catalog `ss_tips`).
+  Non-joint values exclude dependent filers by the SIPP's share of dependents among non-joint tipped people (10.1% of
+  people, 2.9% of tips), half of that reduction added to the error. Borrowed errors.
+- Auto loan interest (8): the SCF's share of units with any and dollars per unit in the four income groups of the
+  wealth grid, on the year's mix of waves (`scf_targets.py`, statistic average), half a standard error.
+All 746 are met (run S2), with 87.7% of the effective sample kept.
+
 ## How the latest run comes out
 
 The 2019 run of 26 October, from the pipeline as it now stands, in the default output folder

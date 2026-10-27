@@ -417,7 +417,7 @@ def scf_replicates(wave, units):
 
 
 def scf_errors(rows, year):
-    """The SCF targets (kinds 'wealth' and 'wealth grid'): the standard errors scf_targets.py computed with their
+    """The SCF targets (kinds 'wealth', 'wealth grid' and 'auto loans'): the standard errors scf_targets.py computed with their
     values, over the year's mix of SCF waves. They are recorded when target_list.expand builds the year's targets;
     for a list read from a file (python errors.py errors), the year's targets are built first."""
     import scf_targets
@@ -531,7 +531,7 @@ def standard_errors(rows, year=Y):
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']),
-          'scf': rows.kind.isin(['wealth', 'wealth grid']), 'consumption': rows.kind == 'consumption',
+          'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people'])}
     for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
                     ('nonfiler', nonfiler_errors)]:
