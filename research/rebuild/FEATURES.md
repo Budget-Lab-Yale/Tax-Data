@@ -51,6 +51,13 @@ hours worked, and childcare, weighted to 2019 targets.
 - three items outside AGI: gross Social Security plus pensions,
   tax-exempt interest, and gross Social Security alone (shared with the
   CEX);
+- (candidate, 27 October, branch `rebuild-puf-vars`; `explore_stage3_RESULTS.md`) the other PUF items production
+  carries, 40 PUF-only slots under production's names: ordinary dividends as qualified (div_pref) plus other
+  (div_ord) and the statutory adjustments as their eleven parts, both totals computed from the parts; unrecaptured
+  section 1250 gain, 28% collectibles gain, partnership income subject to self-employment tax (part_se), nine
+  itemized deduction items (medical, state and local income or sales tax, cash and noncash charity, casualty, job
+  expenses, tax preparation, other miscellaneous, other itemized), two AMT items, eleven credits and two other taxes
+  (below, "The other PUF items");
 - two itemized deductions (PUF only, itemizers only): mortgage interest
   paid and real estate tax. They are kept in 2015 dollars in the 2019 file
   (SOI Table 1.4 has no row to grow them by);
@@ -699,6 +706,26 @@ Counts by kind as in `tilt/<run>/targets.csv`.
 
 The latest run (below): all 496 targets inside their ranges (the 44 SCF targets at half a standard error);
 effective sample kept 98.0% from the prescaled start; 49 warnings and 33 stops.
+
+**The other PUF items** (candidate, 27 October, branch `rebuild-puf-vars`; `build_table.py`, STAGE3). Every PUF item
+production's variable guide takes from the PUF that the model did not draw, with production's names and definitions
+(`config/variable_guide/baseline.csv`, `src/process_puf.R`), plus the two adjustments the file's total already held
+and production does not carry (se_tax_ded, E03260, and hsa_ded, E03290). All are PUF-only: absent on the SCF, the CEX
+and the SIPP, not measured by the CPS, so a non-filer has none (generation's rule for a PUF amount the CPS lacks).
+- Ordinary dividends = div_pref (E00650) + div_ord (E00600 - E00650), and the adjustments = their eleven parts, are
+  computed from the parts at generation and in the dollars, so they add up exactly. The CPS's one dividend amount goes
+  to div_pref, ranked against the tax data's ordinary dividends (the translation table's `rank_against`), so its
+  translated dollars stay as before; its adjustments, which it never asked, are absent instead of zero.
+- part_se: on a return with any partnership income or loss, (E30400 + E30500) / 0.9235 less Schedules C and F.
+  other_item_exp: itemized deductions before the overall limitation (P04470 + E21040) less deductible medical
+  expenses (floor 7.5% of AGI at 65+, else 10%), the two taxes, interest, charity, casualty and net limited
+  miscellaneous deductions, on itemizers. The PUF rounds each item on its own, so it is negative on 15 million
+  returns, mostly by under $500.
+- Growth to the target year: per return with the item by its own SOI Table 1.4 line (qualified dividends; ordinary
+  dividends for div_ord; each adjustment; Schedule D gains for the two gains; partnership and S corporation income
+  for part_se). The itemized deduction items, AMT items, credits and other taxes have no Table 1.4 line and stay in
+  PUF-year dollars, as mortgage interest and real estate tax do.
+- Not targeted. The AGI group label is unchanged (band-AGI reads the two totals' bands, as before).
 
 **Candidate targets (27 October, branch `rebuild-tips-autoloan`; `explore_stage2_RESULTS.md`).** 250 targets added to
 the 496, every value and error of the 496 unchanged:

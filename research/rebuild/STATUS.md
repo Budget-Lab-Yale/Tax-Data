@@ -16,6 +16,21 @@ page (when done): `explore_stage3_RESULTS.md`. Scripts and their notes: `rebuild
 1. 03:05 CPU stages scf ... errors submitted (job 30953541).
 2. 03:25 PUF fields checked on the raw PUF (`explore/stage3/puf_fields.py`, `other_item.py`); new PUF rows tested
    (`test_puf_rows.py`: totals equal parts exactly; every growth factor found).
+3. 03:32 table built (job 30957103) and checked (`check_table.py`, `check_table.md`): every new item on the PUF rows
+   equals the raw PUF; PUF, SCF, CEX and SIPP rows and the AGI label identical to stage 1's table; the CPS's
+   dividends within 2.4% of stage 1's in 2019. Commit e8473a7.
+4. 03:40 quick test (settings `explore/stage3/settings_quick.json`, REBUILD_RUN=quick, 4 passes; job 30957496) and
+   the two full models (REBUILD_RUN=label_seed20261016 / label_seed20261017, jobs 30957529 / 30957530) submitted.
+   Next: generate, tilt, report for the pooled run (no REBUILD_RUN: folder seed20261016), then
+   `report_translation.py` with REBUILD_RUN=label_seed20261016, then `before_tilt.py` (stage3) and
+   `compare_stage3.py seed20261016 label_seed20261016,label_seed20261017`.
+5. 04:50 both models trained (H100, 73 minutes each); 05:20 generate (15 min) and tilt done: 746 of 746 targets met,
+   87.3% kept. Tables: `explore/stage3/tables_seed20261016.md`, `extras.md`. Results page written:
+   `explore_stage3_RESULTS.md`. The translation report (job 30958770, REBUILD_RUN=label_seed20261016) was still
+   running at the hand-off; it writes `model/label_seed20261016/translation_report.md`.
+
+## Open
+- See the results page, section 6 (2020+ growth for repealed deductions; other_item_exp negatives).
 
 # Earlier: tips (SIPP) and auto loan interest (SCF), 26-27 October
 

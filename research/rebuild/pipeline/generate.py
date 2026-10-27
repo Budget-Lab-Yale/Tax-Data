@@ -22,9 +22,10 @@ One record is drawn slot by slot:
      nothing drawn for it, and every slot the CPS has is present and hidden
      until its turn, except the CPS's two shares, absent
      until married and the share's base are drawn (model.gate_shares);
-  2. the computed totals: line-13 capital gains from its four pieces, and
+  2. the computed totals: line-13 capital gains from its four pieces,
      business income and its two subtotals (Schedules C and F, Schedule E)
-     from its eighteen parts. Each part gets a dollar value inside its band
+     from its eighteen parts, and (since 27 October) ordinary dividends from
+     qualified and other dividends and the adjustments from their eleven parts. Each part gets a dollar value inside its band
      (one of 32 equally spaced weighted quantile points of the PUF records in
      that band), the signed sum is placed in the total's band on the PUF's
      cut points. Then the computed flag k1_owner: any partnership or
