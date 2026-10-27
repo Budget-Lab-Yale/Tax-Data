@@ -36,6 +36,14 @@ before the next; then one big run:
    percentile rule alone moved wages 9-19% (SCF 2018 -11%), because the surveys have 1.5-8 points fewer earners
    (built on `rebuild-wages-deferrals`, 515ca78; scratch `explore/2026-10-28/wages_deferrals/RESULTS.md`, with four
    smaller open questions on deferrals). Built with the fill-in extension in piece 3.
+   **Deferral questions decided (John, 27 October):** (1) the SCF uses the income year's legal limit; (2) the
+   SIPP's deferrals also lose the Roth share and are held to the limit; (3) each person's deferrals at most their
+   own wages, in the surveys; (4) a second slot for the spouse's share of the unit's deferrals, as for wages, so
+   Tax-Simulator gets each spouse's traditional deferrals; (5) at generation, deferrals at most each person's
+   wages (none without wages), as for tips; (6) after a wave is grown to the target year, each person's deferrals
+   held to the target year's limit for their age; (7) W-2 targets from Table 2.D (contributions by AGI, joint and
+   non-joint returns; dollars only on joint returns), dependent filers allowed for in the targets' errors as for
+   tips (needs a new reader).
 3. The non-wage mappings, after John goes through the audit (scratch `explore/2026-10-27/mapping/AUDIT.md`). Check:
    the same report. **Approved 27 October (late), survey by survey:** "fill-in" is function 2; "percentile" is
    the survey's p-th percentile holder getting the tax data's p-th percentile holder's amount.
