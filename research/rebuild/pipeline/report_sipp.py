@@ -5,8 +5,8 @@ primary-filer order by the rule the age range uses, dependent filers folded into
 tips go nowhere). The file's dependent filers hold no SIPP item (generate.py), so the file side leaves them out. Both
 sides are weighted: the file by its tilted weights, the SIPP by its own. Wage groups: the unit's wages, the file's in
 nominal 2019 dollars and the SIPP's as the translation table gives them (its wages row; dollars throughout by
-default), so the groups mean the same on both sides. Tips are each adult's tip share times that adult's wages: the
-file's in the file's wages, the SIPP's as reported.
+default), so the groups mean the same on both sides. Tips: the file's are each adult's drawn tips held to at most
+that adult's wages (dollars.person_items), the SIPP's as reported.
 
 None of this is targeted. Writes common.TILT/sipp_report.md.
 """

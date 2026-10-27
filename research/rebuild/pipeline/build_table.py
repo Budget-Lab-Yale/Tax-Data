@@ -216,14 +216,14 @@ PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGOR
 SPOUSE_SLOTS = ['age_spouse', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse']
 DEPENDENT_AGE_SLOTS = ['age_dep1', 'age_dep2', 'age_dep3']   # the k-th: present exactly when n_dep >= k
 SHARES = ['spouse_wage_share', 'spouse_se_share']   # only for married couples with some of the item; else absent
-# SIPP only (settings "sipp"): each adult's tips as a share of that adult's wages (zero without wages or without tips),
-# amounts cut into bands within each year; whether the adult's tips are mostly from leisure and hospitality, a yes/no
-# category (0 without tips). The spouse's items are zero unless married. The SIPP also reports the spouse's share of
-# the couple's wages, which it shares with the CPS (the translation table's row with shared_with "cps").
-SIPP_AMOUNTS = ['tip_share_primary', 'tip_share_spouse']
+# SIPP only (settings "sipp"): each adult's tips in dollars (zero without wages or without tips), amounts cut into
+# bands within each year; whether the adult's tips are mostly from leisure and hospitality, a yes/no category (0
+# without tips). The spouse's items are zero unless married. The SIPP also reports the spouse's share of the couple's
+# wages, which it shares with the CPS (the translation table's row with shared_with "cps").
+SIPP_AMOUNTS = ['tips_primary', 'tips_spouse']
 SIPP_CATEGORIES = {'tips_lh_primary': 2, 'tips_lh_spouse': 2}
-SIPP_SPOUSE_SLOTS = ['tip_share_spouse', 'tips_lh_spouse']
-SIPP_LH_OF = {'tips_lh_primary': 'tip_share_primary', 'tips_lh_spouse': 'tip_share_spouse'}
+SIPP_SPOUSE_SLOTS = ['tips_spouse', 'tips_lh_spouse']
+SIPP_LH_OF = {'tips_lh_primary': 'tips_primary', 'tips_lh_spouse': 'tips_spouse'}
 AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS + CEX_AMOUNTS + CPS_AMOUNTS + SIPP_AMOUNTS
 CX = common.SETTINGS['cex']
 CP = common.SETTINGS['cps']
@@ -739,8 +739,8 @@ def sipp_rows():
 
 
 def sipp_person_slots(t, primary_is_2):
-    """The SIPP's own slots, primary filer first (primary_is_2 as for the CPS): each adult's tips as a share of that
-    adult's wages (zero without wages), whether the adult's tips are mostly from leisure and hospitality (0 without
+    """The SIPP's own slots, primary filer first (primary_is_2 as for the CPS): each adult's tips in dollars (zero
+    without wages: the SIPP has no tips above a person's wages, checked in sipp_rows), whether the adult's tips are mostly from leisure and hospitality (0 without
     tips), and the spouse's share of the couple's wages (the CPS's slot, which the SIPP shares: recorded only on
     married couples with some wages, else absent, as on the CPS). Also writes the target year's SIPP units, primary
     filer first, for report_sipp.py: data/sipp_units_<target year>_all.parquet."""
@@ -752,12 +752,13 @@ def sipp_person_slots(t, primary_is_2):
     out = {}
     for k, who in [(1, 'primary'), (2, 'spouse')]:
         wg, tp, lh = pick('wages', k), pick('tips', k), pick('tips_lh', k)
-        out[f'tip_share_{who}'] = np.where(wg > 0, tp / np.where(wg > 0, wg, 1.0), 0.0)
+        out[f'tips_{who}'] = np.where(wg > 0, tp, 0.0)
         out[f'tips_lh_{who}'] = np.where(tp > 0, lh, 0).astype(np.int64)
         out[f'wages_{who}_reported'], out[f'tips_{who}_reported'] = wg, tp
     total = pick('wages', 1) + pick('wages', 2)
     out['spouse_wage_share'] = np.where(married_ & (total > 0), pick('wages', 2) / np.where(total > 0, total, 1.0), np.nan)
-    assert (out['tip_share_primary'] <= 1 + 1e-9).all() and (out['tip_share_spouse'] <= 1 + 1e-9).all()
+    for who in ['primary', 'spouse']:
+        assert (out[f'tips_{who}'] == out[f'tips_{who}_reported']).all(), f'{who}: SIPP tips without wages'
     t = pd.concat([t, pd.DataFrame({v: np.nan for v in out if v not in t}, index=t.index)], axis=1)
     for v, x in out.items():
         t.loc[c, v] = x
@@ -1057,16 +1058,17 @@ def table_meta(t, factor):
             'sipp_amounts': SIPP_AMOUNTS,
             'sipp_categories': SIPP_CATEGORIES,
             'sipp_structure': {'spouse': SIPP_SPOUSE_SLOTS, 'lh_of': SIPP_LH_OF,
-                               'zero_without': {'tip_share_primary': 'wages', 'tip_share_spouse': 'spouse_wage_share'}},
+                               'zero_without': {'tips_primary': 'wages', 'tips_spouse': 'spouse_wage_share'}},
             'present_on': present_on(t),
             'net_worth_parts': NET_WORTH_PARTS,
             'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home'],
                        'spouse_wage_share': ['wages2', 'wages'], 'spouse_se_share': ['se2', 'sch_cf_income']},
             'remainders': {'wages1': ['wages', 'wages2'], 'se1': ['sch_cf_income', 'se2']},
-            # after the remainders: an item that is a share of a remainder (a person's tips, of the person's wages),
-            # then the sums of the person items (tips = tips1 + tips2) and the yes/no items that hold only with the
-            # item (tips_lh1: the primary filer's leisure and hospitality flag, 0 without tips)
-            'person_ratios': {'tip_share_primary': ['tips1', 'wages1'], 'tip_share_spouse': ['tips2', 'wages2']},
+            # after the remainders: a person's amount in dollars held to at most a remainder (a person's tips, at
+            # most the person's wages: tips1 is the smaller of the drawn tips_primary and wages1), then the sums of
+            # the person items (tips = tips1 + tips2) and the yes/no items that hold only with the item (tips_lh1:
+            # the primary filer's leisure and hospitality flag, 0 without tips)
+            'person_caps': {'tips_primary': ['tips1', 'wages1'], 'tips_spouse': ['tips2', 'wages2']},
             'sums': {'tips': ['tips1', 'tips2']},
             'flags_with': {'tips_lh1': ['tips_lh_primary', 'tips1'], 'tips_lh2': ['tips_lh_spouse', 'tips2']},
             'kg_pieces': KG_PIECES,
@@ -1200,14 +1202,17 @@ def build_maps(t, edges):
         r = (m_cps_target['variable'] == v).to_numpy()
         m_cps_target.loc[r, 'value'] = m_cps_target.loc[r, 'value'] * f
     m_cps_target.to_parquet(f'{common.MAPS}/map_cps_{TARGET_YEAR}.parquet', index=False)
-    # the SIPP's tip shares: the generation year's real records; shares, not dollars, so the target year's map is the
-    # same (a person's tips in dollars are the share times that person's wages in the target year's dollars)
+    # the SIPP's tips in dollars: the generation year's real records; for the target year, grown by SOI's growth in
+    # wages per return with wages, as the CPS's childcare (no growth when the generation year is the target year)
     ys = SP['generation_year']
     ms = build_map(t[(t.source == 'sipp') & (t.year == ys)].reset_index(drop=True), edges, 'sipp', SIPP_AMOUNTS, year=ys)
     ms.to_parquet(f'{common.MAPS}/map_sipp_{ys}.parquet', index=False)
-    ms.to_parquet(f'{common.MAPS}/map_sipp_{TARGET_YEAR}.parquet', index=False)
+    m_sipp_target = ms.copy()
+    f = growth('wages', TARGET_YEAR)[0] / growth('wages', ys)[0]
+    m_sipp_target['value'] = m_sipp_target['value'] * f
     for v in SIPP_AMOUNTS:
-        g[v] = (1.0, 1.0)
+        g[v] = (f, f)
+    m_sipp_target.to_parquet(f'{common.MAPS}/map_sipp_{TARGET_YEAR}.parquet', index=False)
     pd.DataFrame([{'variable': v, 'factor, positive values': fp, 'factor, negative values': fn}
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
 

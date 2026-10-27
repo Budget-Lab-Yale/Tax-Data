@@ -154,9 +154,9 @@ def recombine(df):
     for item, (total, other) in D.REMAINDERS.items():
         if other in out:
             put(item, out[total] - out[other])
-    if all(f'{slot}_band' in out for slot in D.PERSON_RATIOS):    # tips1, tips2, tips and the leisure flags
+    if all(f'{slot}_band' in out for slot in D.PERSON_CAPS):    # tips1, tips2, tips and the leisure flags
         D.person_items(out, out)
-        done += [item for item, _ in D.PERSON_RATIOS.values()] + list(D.SUMS) + list(D.FLAGS_WITH)
+        done += [item for item, _ in D.PERSON_CAPS.values()] + list(D.SUMS) + list(D.FLAGS_WITH)
     if all(c in out for c in D.NET_WORTH_PARTS):
         put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
     return out, done
@@ -171,7 +171,8 @@ def grow_dollars(df, s, t):
         over that of s - 1 (build_table.scf_growth, the maps' rule); not grown when either wave is missing, or for
         an item whose mean per unit is not positive in both;
       - consumption: NIPA PCE per return, by category;
-      - the CPS-only dollars (childcare): SOI's wages per return; the CPS shares, weeks and hours not grown.
+      - the CPS-only dollars (childcare) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks and hours
+        not grown.
     Then every computed column is computed again from the grown parts (recombine; checked first to reproduce the
     file's own columns). Ages and every category are left as they are. Returns the grown frame and a table of the
     factors, one row per column."""
@@ -224,6 +225,10 @@ def grow_dollars(df, s, t):
             dollars_ = v in common.SETTINGS['cps']['dollar_amounts']
             f = BT.growth('wages', t)[0] / BT.growth('wages', s)[0] if dollars_ else 1.0
             grow(v, f, f, 'SOI wages per return with wages (a placeholder)' if dollars_ else 'not dollars, not grown')
+    for v in BT.SIPP_AMOUNTS:
+        if v in out:
+            f = BT.growth('wages', t)[0] / BT.growth('wages', s)[0]
+            grow(v, f, f, 'SOI wages per return with wages')
     out, _ = recombine(out)
     return out, pd.DataFrame(rows)
 

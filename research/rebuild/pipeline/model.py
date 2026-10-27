@@ -72,7 +72,7 @@ REPORTED = {f'{r["variable"]}_reported': r['variable'] for r in TR.filled()}
 CEX_SLOTS = list(META['cex_amounts'])     # the consumption categories, CEX only
 CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's person items and childcare (the spouse's
 # share of the couple's wages is also on the SIPP)
-SIPP_SLOTS = list(META['sipp_amounts']) + list(SIPP_CATEGORIES)   # each adult's tip share and leisure flag, SIPP only
+SIPP_SLOTS = list(META['sipp_amounts']) + list(SIPP_CATEGORIES)   # each adult's tips and leisure flag, SIPP only
 # The order (step 2, 23 October): the type (married, dependents, age range), the filing flag, full filing status and
 # the credit children, then the amounts. Generation draws a batch's own items in this order (generate.py).
 TYPE_SLOTS = ['married', 'n_dep', 'age_range']

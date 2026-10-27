@@ -39,8 +39,9 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   share times the couple's total (wages; Schedules C and F as
                   computed above); wages1 and se1, the primary filer's, are the
                   total less the spouse's, so the two add up to the total
-  tips1, tips2    each adult's tips: the drawn share of that adult's wages
-                  times wages1 or wages2; tips = tips1 + tips2 exactly;
+  tips1, tips2    each adult's tips: the drawn tips in dollars (tips_primary,
+                  tips_spouse, from the SIPP's map), at most that adult's
+                  wages (wages1, wages2); tips = tips1 + tips2 exactly;
                   tips_lh1, tips_lh2 the leisure and hospitality flags, 0
                   where that adult has no tips
   auto_int_exp    the auto loan interest drawn (an SCF amount, from the
@@ -67,7 +68,7 @@ ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_wo
 # itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
 META = common.meta()
 # Amounts added since 26 October go at the very end, so no earlier amount's stream moves: auto loan interest (an SCF
-# amount, but not in the SCF's place in the list) and the SIPP's tip shares.
+# amount, but not in the SCF's place in the list) and the SIPP's tips.
 LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
 ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER] \
     + list(META['cex_amounts']) + ['ss_gross'] + list(META['cps_amounts']) + LATER
@@ -76,7 +77,7 @@ ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['c
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
-PERSON_RATIOS = META.get('person_ratios', {})     # slot: [item, its base], the base a remainder (tips1 of wages1)
+PERSON_CAPS = META.get('person_caps', {})         # slot: [item, its cap], the cap a remainder (tips1 at most wages1)
 SUMS = META.get('sums', {})                       # item: its parts (tips = tips1 + tips2)
 FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amount it holds with] (0 without it)
 AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
@@ -137,15 +138,26 @@ def draw_by_wave(df, v, maps, rng, u):
 
 
 def person_items(out, df):
-    """In place, after the remainders: the items that are a share of a person's amount (tips1 = the primary filer's tip
-    share x wages1), then their sums (tips = tips1 + tips2) and the yes/no items that hold only with the item
-    (tips_lh1: 0 where tips1 is 0). A record without the share's band column gets none of these."""
-    if not all(f'{slot}_band' in df for slot in PERSON_RATIOS):
+    """In place, after the remainders: a person's amount in dollars held to at most a person's other amount (tips1 =
+    the drawn tips_primary, at most wages1: a person's tips are part of that person's wages, as on Form W-2), then
+    their sums (tips = tips1 + tips2) and the yes/no items that hold only with the item (tips_lh1: 0 where tips1 is 0).
+    Prints how many people, and how many dollars, the cap takes off: records, and units by the frame's weight column
+    when it has one. A record without the drawn amount's band column gets none of these."""
+    if not all(f'{slot}_band' in df for slot in PERSON_CAPS):
         return out
-    for slot, (item, base) in PERSON_RATIOS.items():
-        x = out[slot].to_numpy(float)
-        assert (x >= 0).all() and (x <= 1 + 1e-9).all(), f'{slot} outside 0-1'
-        out[item] = x * out[base].to_numpy(float)
+    w = out['weight'].to_numpy(float) if 'weight' in out else None
+    for slot, (item, cap) in PERSON_CAPS.items():
+        x, c = out[slot].to_numpy(float), np.maximum(out[cap].to_numpy(float), 0.0)
+        assert (x >= 0).all(), f'{slot} below zero'
+        out[item] = np.minimum(x, c)
+        bound = x > c
+        line = (f'{item} at most {cap}: {int((x > 0).sum()):,} records with {slot} above zero; the cap binds on '
+                f'{int(bound.sum()):,} of them ({int((bound & (c == 0)).sum()):,} with no {cap}), taking off '
+                f'${(x - c)[bound].sum() / 1e6:,.1f} million of ${x.sum() / 1e6:,.1f} million (records unweighted)')
+        if w is not None:
+            line += (f'; weighted: {w[bound].sum() / 1e6:,.3f} million of {w[x > 0].sum() / 1e6:,.3f} million people, '
+                     f'${(w * (x - c))[bound].sum() / 1e9:,.2f} billion of ${(w * x).sum() / 1e9:,.2f} billion')
+        common.say(line)
     for item, parts in SUMS.items():
         out[item] = out[parts].to_numpy(float).sum(1)
     for item, (flag, amount) in FLAGS_WITH.items():

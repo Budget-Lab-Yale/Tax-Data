@@ -55,16 +55,17 @@ One record is drawn slot by slot:
      "cps", generation_year) with every slot the CPS lacks left out. They
      follow the record's PUF items (cps_structure): the spouse's items only
      when married, the k-th dependent's age only with k or more dependents;
-  7. the SIPP-only slots (since 26 October): each adult's tips as a share of
-     that adult's wages, in a random order, then the two leisure and
+  7. the SIPP-only slots (since 26 October): each adult's tips in dollars,
+     in a random order, then the two leisure and
      hospitality flags, in a random order, each under the SIPP label and year
      (settings "sipp", generation_year) with every slot the SIPP lacks left
      out: given married, dependents, the age range, the exact ages, wages and
      the spouse's share of the couple's wages drawn in step 6 (absent where
      not asked, as on the SIPP's rows). Rules (sipp_structure): the spouse's
-     items are zero unless married; the primary filer's tip share is zero
+     items are zero unless married; the primary filer's tips are zero
      without wages, the spouse's without a spouse's share of wages above zero;
-     a flag is 0 where its tip share is zero.
+     a flag is 0 where its tips are zero. Each person's tips are then held to
+     at most that person's wages when bands become dollars (dollars.py).
 Each step runs the network only on the slots present in its phase and
 computes only the output layers it needs.
 
@@ -172,8 +173,8 @@ SIPP_SLOTS = M.SIPP_SLOTS
 SIPP_YEAR = common.SETTINGS['sipp']['generation_year']
 SIPP_STRUCTURE = M.META['sipp_structure']
 SIPP_SPOUSE = torch.tensor([P.index(v) for v in SIPP_STRUCTURE['spouse']])
-SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the tip shares
-SIPP_SHARES = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
+SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the tips
+SIPP_TIPS = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
 AGE_SLOTS = M.EXACT_AGES                   # drawn after the PUF items, under the CPS label (see the top)
 SPOUSE = torch.tensor([P.index(v) for v in CPS_STRUCTURE['spouse']])
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
@@ -381,9 +382,9 @@ def cps_structure(values, slot, probs):
 
 
 def sipp_structure(values, slot, probs):
-    """The SIPP's items follow the record's: the spouse's tip share and flag are zero unless married; the primary
-    filer's tip share is zero without wages, the spouse's without a spouse's share of wages above zero (not asked, -1,
-    or zero); a leisure and hospitality flag is 0 where its tip share is zero (the share is drawn first)."""
+    """The SIPP's items follow the record's: the spouse's tips and flag are zero unless married; the primary filer's
+    tips are zero without wages, the spouse's without a spouse's share of wages above zero (not asked, -1, or zero); a
+    leisure and hospitality flag is 0 where its tips are zero (the tips are drawn first)."""
     married = values[:, NC + MARRIED] == 1
     probs = only(probs, torch.isin(slot, SIPP_SPOUSE.to(slot.device)) & ~married)
     for share, base in SIPP_STRUCTURE['zero_without'].items():
@@ -637,7 +638,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     own = torch.cat([first, then, rest])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
     cps = torch.tensor([P.index(v) for v in CPS_SLOTS])
-    sipp_shares = torch.tensor([P.index(v) for v in SIPP_SHARES])
+    sipp_tips = torch.tensor([P.index(v) for v in SIPP_TIPS])
     sipp_flags = torch.tensor([P.index(v) for v in SIPP_FLAGS])
     age = torch.tensor([P.index(v) for v in AGE_SLOTS])
     n_own, n_age, n_scf, n_cex, n_cps = len(own), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
@@ -651,7 +652,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
                           scf_order(size, cpu_gen),
                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
                           cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)],
-                          sipp_shares[torch.rand(size, len(sipp_shares), generator=cpu_gen).argsort(1)],
+                          sipp_tips[torch.rand(size, len(sipp_tips), generator=cpu_gen).argsort(1)],
                           sipp_flags[torch.rand(size, len(sipp_flags), generator=cpu_gen).argsort(1)]], 1).to(device)
 
     def finish(d, order):
