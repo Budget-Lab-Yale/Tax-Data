@@ -1,6 +1,6 @@
 """The CPS-only items in the target year's file (2019 below) against that year's CPS ASEC.
 
-The CPS side is the target year's tax units (build_table.cps_person_slots): every tax unit, filers and non-filers,
+The CPS side is the tax units of the year mix of the target year's file (survey_mix.py; dollars grown to the target year by SOI wages per return) (build_table.cps_person_slots): every tax unit, filers and non-filers,
 the person items in primary-filer order by the rule the age range uses, dependent filers folded into the unit that
 claims them. The file's dependent filers hold no CPS item (generate.py), so the file side below leaves them out.
 Both sides are weighted: the file by its tilted weights, the CPS by its own. Wage groups: the file's wages (nominal

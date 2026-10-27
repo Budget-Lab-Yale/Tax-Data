@@ -57,7 +57,7 @@ def main():
     for d in src.values():
         d['wg'] = common.groups_by(d['wages'].to_numpy(float), WAGES)
     out = [f'# Tips in the {Y} file against the SIPP year mix', '',
-           f'SIPP: reference year {Y}, every tax unit, weighted. File: after the tilt, dependent filers left out (they '
+           f'SIPP: the year mix of the {Y} file (survey_mix.py), each year in {Y} dollars by SOI wages per return, every tax unit, weighted. File: after the tilt, dependent filers left out (they '
            'hold no SIPP item). Nothing here is targeted. Nominal dollars of the year.', '',
            '## All units', '', table(src, [('all', lambda d: d.w > 0)]), '',
            '## By the unit\'s wages', '', table(src, [(lab, (lambda lab: lambda d: d.wg == lab)(lab)) for _, _, lab in WAGES]), '',

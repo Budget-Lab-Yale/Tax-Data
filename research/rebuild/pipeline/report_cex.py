@@ -77,7 +77,7 @@ def main():
     o_ad = o_ad.assign(dec=deciles(o_ad['income'].to_numpy(float), o_ad.w.to_numpy(float)))
 
     out = [f'# Consumption in the {Y} file against the CEX year mix', '',
-           f'CEX: survey year {Y}, all tax units (a shared household\'s spending divided by head count), and the one-unit '
+           f'CEX: the year mix of the {Y} file (survey_mix.py), each year in {Y} dollars by NIPA PCE per return (income and Social Security are not grown), all tax units (a shared household\'s spending divided by head count), and the one-unit '
            f'households. Nominal {Y} dollars. The model trains on every CEX tax unit. The tilt targets each category\'s '
            'average per unit, overall and by the adult age ranges by married, within a 5% band; nothing else here is targeted.', '']
 
