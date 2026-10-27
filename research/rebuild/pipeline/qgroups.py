@@ -16,11 +16,12 @@ value).
     p99.99 of band-AGI over the PUF year's returns; band-AGI zero or negative in 3 groups: -$50,000 to 0 (0
     included), -$1,000,000 to below -$50,000, below -$1,000,000. A record exactly at a line is in the group above.
   SCF "income5": within each wave, 5 classes cut at the weighted p50, p90, p99 and p99.9 of band-income, the sum of
-    wages, interest, dividends, capital gains, gross retirement income, Schedules C and F and Schedule E, each from the
+    wages, interest, dividends, capital gains, gross Social Security, Schedules C and F and Schedule E's two parts
+    (rental and the rest; before 28 October gross retirement income and Schedule E as one item), each from the
     representative amount of the household's band. The SCF's bands are the PUF's with the cut points grown to the wave,
-    so a band's representative amount is the PUF one times that growth. For interest, dividends and capital gains the
-    band is the household's reported one (model.REPORTED), not the filled-in PUF-concept slot (fillin.py), which
-    changes every pass.
+    so a band's representative amount is the PUF one times that growth. For every item with the fill-in the
+    band is the household's reported one (model.REPORTED: every item with the fill-in, wages included since 28 October),
+    not the filled-in PUF-concept slot (fillin.py), which changes every pass.
   CEX, CPS: q = 1.
 q is computed on all of a source's rows (training and held back together), so a group has one q. Settings "training",
 q_groups: {"puf": "agi12", "scf": "income5"}; null or missing gives q = 1 everywhere.
@@ -45,7 +46,9 @@ PUF_LABELS = ['AGI below -$1M', 'AGI -$1M to -$50k', 'AGI -$50k to 0', 'below p5
               'p95-99', 'p99-99.5', 'p99.5-99.9', 'p99.9-99.99', 'p99.99+']
 SCF_LINES = [0.5, 0.9, 0.99, 0.999]
 SCF_LABELS = ['below p50', 'p50-90', 'p90-99', 'p99-99.9', 'p99.9+']
-SCF_INCOME = ['wages', 'interest', 'dividends', 'capital_gains', 'retirement_gross', 'sch_cf_income', 'sch_e_income']
+# (28 October: gross Social Security in place of Social Security plus pensions, and Schedule E as its two shared
+# parts, rental and the rest, as the translation table shares them)
+SCF_INCOME = ['wages', 'interest', 'dividends', 'capital_gains', 'ss_gross', 'sch_cf_income', 'sche_rent', 'sche_rest']
 
 
 def puf_group(agi, cuts):

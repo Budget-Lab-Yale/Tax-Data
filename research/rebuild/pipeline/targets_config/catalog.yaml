@@ -422,11 +422,14 @@ variables:
       (SCF IRAKH + THRIFT + FUTPEN + CURRPEN, the SCF's quasi-liquid retirement assets, RETQLIQ); defined-benefit
       pensions are not in the SCF's net worth and not here
   # The seven income items the SCF and the file share, for ranking units by income (the income x net worth grid,
-  # historical.yaml). On the file: wages, interest, dividends, line-13 capital gains, gross retirement income,
-  # Schedules C and F, Schedule E. On the SCF's units: the same items as the training table carries them after translation.
+  # historical.yaml). On the file: wages, interest, dividends, line-13 capital gains, gross Social Security,
+  # Schedules C and F, Schedule E. On the SCF's units: the same items as the training table carries them after
+  # translation. Since 28 October gross Social Security in place of Social Security plus pensions, and the SCF's
+  # Schedule E as its two shared parts (rental and the rest), as the translation table now shares them: the SCF no
+  # longer carries the old two items.
   income_7_items:
-    parts: [wages, interest, dividends, capital_gains_line13, retirement_gross, sch_cf_income, sch_e_income]
-    survey_parts: [wages, interest, dividends, capital_gains, retirement_gross, sch_cf_income, sch_e_income]
+    parts: [wages, interest, dividends, capital_gains_line13, ss_gross, sch_cf_income, sch_e_income]
+    survey_parts: [wages, interest, dividends, capital_gains, ss_gross, sch_cf_income, sche_rent, sche_rest]
     short: income
   c_clothing:              {record: c_clothing, short: c_clothing}
   c_motor_vehicles:        {record: c_motor_vehicles, short: c_motor_vehicles}

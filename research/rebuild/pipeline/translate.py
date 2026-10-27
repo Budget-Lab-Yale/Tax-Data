@@ -69,6 +69,7 @@ import common
 
 S = common.SETTINGS['translation']
 TABLE = S['table']
+MATCHES = ('count', 'percentile', 'percentile_from_top')
 CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age_primary', 'age_spouse', 'mars', 'n_ctc',
                       'n_eitc']
 # Exact ages (value 0 none, else the age plus 1, 80 and over as 80): the tax data has none, so the report compares each
@@ -88,15 +89,27 @@ for _r in TABLE:
         assert not {'dollar_line', 'loss_cap', 'fill_in'} & set(_r), f'{_key}: a category has no amount settings'
     else:
         assert {'dollar_line', 'loss_cap', 'fill_in'} <= set(_r), f'{_key}: an amount row needs all three settings'
-        assert not (_r['fill_in'] and _r['type_for_fill_in']), f'{_key}: a type variable cannot have the fill-in'
+        # a type variable with the fill-in (wages, since 28 October) is left out of its own type (fill_type)
+        if _r['fill_in']:
+            assert set(_r['fill_in']) <= {'size_ranges', 'type_extra'}, f'{_key}: fill_in has size_ranges, type_extra'
+            assert all(v in CATEGORY_VARIABLES for v in _r['fill_in'].get('type_extra', [])), \
+                f'{_key}: type_extra names categories'
         assert _r.get('part') in (None, 'positive', 'loss'), f'{_key}: part is positive, loss or absent'
         # rank_against (stage 3, 27 October): function 1 matches the survey's amount to the tax data's amount of this
         # PUF variable, a computed total, instead of the row's own: a survey that reports only a total puts it in one
-        # of the total's parts (the CPS's dividends, in qualified dividends) without changing its translated dollars
-        assert _r.get('rank_against') is None or isinstance(_r['rank_against'], str), f'{_key}: rank_against is a name'
+        # of the total's parts (the CPS's dividends, in qualified dividends) without changing its translated dollars.
+        # Since 28 October also a list of PUF variables, summed (the CPS's pensions against taxable pensions plus
+        # taxable IRA distributions), and function 2 reads the same: its tax-data shares are the named total's.
+        _ra = _r.get('rank_against')
+        assert _ra is None or isinstance(_ra, str) or (isinstance(_ra, list) and all(isinstance(x, str) for x in _ra)), \
+            f'{_key}: rank_against is a name or a list of names'
         # match (28 October): how amounts beyond the dollar line are matched; a match needs a line
-        assert _r.get('match', 'count') in ('count', 'percentile'), f'{_key}: match is count or percentile'
+        assert _r.get('match', 'count') in MATCHES, f'{_key}: match is one of {MATCHES}'
         assert _r.get('match') is None or _r['dollar_line'] is not None, f'{_key}: a match with no dollar line'
+        # the fix of 28 October (explore/2026-10-27/mapping/AUDIT.md, "a flaw in function 1"): a line above zero is
+        # matched by percentile among the units beyond it in each data set, never by count from the top
+        assert not (_r['dollar_line'] and _r.get('match', 'count') == 'count'), \
+            f'{_key}: a dollar line above zero needs a percentile match (count from the top breaks the order at the line)'
         # less_traditional_deferrals (28 October): a column name, the unit's elective deferrals
         assert _r.get('less_traditional_deferrals') is None or isinstance(_r['less_traditional_deferrals'], str), \
             f'{_key}: less_traditional_deferrals is a column name'
@@ -121,10 +134,31 @@ def filled():
     return [r for r in TABLE if r.get('fill_in')]
 
 
-def fill_type():
-    """The variables function 2 conditions on (with the survey year)."""
-    return list(dict.fromkeys(r['variable'] for r in TABLE
-                              if r['type_for_fill_in'] and r['survey'] in {f['survey'] for f in filled()}))
+def fill_type(row):
+    """The variables function 2 conditions on for a row with the fill-in (and the survey year): its survey's variables
+    with type_for_fill_in less the row's own variable (wages, filled in since 28 October, is in the type of every
+    other item of its survey but not in its own), plus the row's type_extra (the SCF's Schedule E rest: the
+    partnership flag)."""
+    own = [r['variable'] for r in TABLE if r['survey'] == row['survey'] and r['type_for_fill_in']
+           and r['variable'] != row['variable']]
+    return list(dict.fromkeys(own + list(row['fill_in'].get('type_extra', []))))
+
+
+def against(row):
+    """The PUF variables a row's amount is compared with, summed: rank_against, or the row's own variable."""
+    a = row.get('rank_against') or row['variable']
+    return [a] if isinstance(a, str) else list(a)
+
+
+def against_name(row):
+    """The tax data's column for against(row): the variable, or its parts joined by '+'."""
+    return '+'.join(against(row))
+
+
+def fills_in(row, year):
+    """Whether the row's fill-in runs in survey year year: from its first_year on. A year the survey does not ask the
+    item (the CPS's capital gains before tax year 2018) has no reporters, so its zeros hide no holders."""
+    return bool(row.get('fill_in')) and (row.get('first_year') is None or year >= row['first_year'])
 
 
 def columns(row):
@@ -213,19 +247,20 @@ def _mid_percentile(x, w):
     return mid[inv]
 
 
-def _by_percentile(x, w, tx, tw):
-    """For each x (all one sign, as magnitudes), the tax data's magnitude at the same weighted percentile among its
-    own (tx); equal x get one value. Linear between the tax data's mid-points, flat beyond its first and last."""
+def _at_percentile(p, tx, tw):
+    """The tax data's magnitude (tx, all one sign, weights tw) at the weighted percentiles p (0-1) among its own.
+    Linear between the tax data's mid-points, flat beyond its first and last."""
     o = np.argsort(tx, kind='stable')
     t_val, t_pct = tx[o], (np.cumsum(tw[o]) - tw[o] / 2) / tw.sum()
-    return np.interp(_mid_percentile(x, w), t_pct, t_val)
+    return np.interp(p, t_pct, t_val)
 
 
 def amounts(x, w, tax_x, tax_w, line, match='count'):
     """Function 1: x (one survey year, survey-year dollars) on the tax data's scale beyond the dollar line (in the
-    same year's dollars; None: unchanged), by match (count from the top, or percentile among the units beyond the
-    line). Also the weighted count of units placed past the tax data's last holder of their sign (count only: they
-    get its smallest amount)."""
+    same year's dollars; None: unchanged), by match (count from the top; percentile among the units beyond the line;
+    or percentile_from_top, the same counted as shares of all units from the top). Also the weighted count of units
+    placed past the tax data's last holder of their sign (count and percentile_from_top: they get its smallest
+    amount)."""
     out = x.astype(float).copy()
     beyond = 0.0
     if line is None:
@@ -234,12 +269,24 @@ def amounts(x, w, tax_x, tax_w, line, match='count'):
         sel = sign * x > line
         if not sel.any():
             continue
-        if match == 'percentile':
+        if match in ('percentile', 'percentile_from_top'):
             # among the units beyond the line in each data set: the survey's share beyond the line is kept, and the
             # order of units and continuity at the line with it
             tsel = sign * tax_x > line
             assert tsel.any(), 'survey amounts beyond a line the tax data has none beyond'
-            out[sel] = sign * _by_percentile(sign * x[sel], w[sel], sign * tax_x[tsel], tax_w[tsel])
+            p = _mid_percentile(sign * x[sel], w[sel])
+            if match == 'percentile_from_top':
+                # (28 October, wages) the units the survey is missing beyond the line are taken to be the smallest:
+                # each survey unit keeps its share of ALL the survey's units above it, and gets the tax data's amount
+                # with the same share of all the tax data's units above it. A survey with a smaller share beyond the
+                # line leaves the tax data's smallest amounts to function 2, which fills them in during training: the
+                # percentile rule among all holders once the missing ones are in. A unit past the tax data's share
+                # gets its smallest amount beyond the line (counted in beyond).
+                s_share, t_share = w[sel].sum() / w.sum(), tax_w[tsel].sum() / tax_w.sum()
+                p = 1 - (1 - p) * s_share / t_share
+                beyond += float(w[sel][p < 0].sum())
+                p = np.maximum(p, 0.0)
+            out[sel] = sign * _at_percentile(p, sign * tax_x[tsel], tax_w[tsel])
             o = np.argsort(sign * x[sel], kind='stable')
             assert (np.diff(sign * out[sel][o]) >= -1e-9 * np.abs(out[sel][o][1:])).all(), 'the order of units not kept'
             assert (sign * out[sel] >= line).all(), 'a unit beyond the line placed within it'
@@ -299,6 +346,29 @@ def describe(x, w):
         k = np.searchsorted(cw, p / 100)
         d[f'top {p}% of units, share of positive dollars (%)'] = 100 * cx[min(k, len(cx) - 1)] / total if total > 0 else np.nan
     return d
+
+
+def shortfall(row, year, x, w, tx, tw, fp, fn):
+    """Function 2's task for a row with the fill-in, at the table stage: in each of its size ranges (settings, PUF-year
+    dollars; here grown to the survey year, positive edges by fp, negative by fn) the survey's share of units after
+    function 1 (x, w) and the tax data's (tx, tw), and the shortfall, the tax data's share less the survey's. Function 2
+    fills a shortfall from the survey's zeros; it cannot remove a surplus. Overall, not by type (function 2 works type
+    by type, so its fill can exceed the sum of the positive shortfalls here). Long rows."""
+    grow = lambda e: e * (fp if e > 0 else fn)
+    out = [('none', x == 0, tx == 0)]
+    for lo, hi in row['fill_in']['size_ranges']:
+        a = -np.inf if lo is None else grow(lo)
+        b = np.inf if hi is None else grow(hi)
+        lab = f'{_dollars(a) if np.isfinite(a) else "below"} to {_dollars(b) if np.isfinite(b) else "and over"}'
+        sel = (lambda z: (z > 0) & (z < b)) if lo == 0 else (lambda z: (z >= a) & (z < b) & (z != 0))
+        out.append((lab, sel(x), sel(tx)))
+    rows = []
+    for lab, m, tm in out:
+        s, t = 100 * w[m].sum() / w.sum(), 100 * tw[tm].sum() / tw.sum()
+        rows.append({'survey': row['survey'], 'variable': row['variable'], 'year': year, 'range': lab,
+                     'survey after function 1 (%)': s, 'tax data (%)': t, 'shortfall (points)': t - s,
+                     'survey units (millions)': w[m].sum() / 1e6, 'tax data units (millions)': tw[tm].sum() / 1e6})
+    return rows
 
 
 def move(link, mapped, w):

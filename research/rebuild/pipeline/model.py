@@ -66,9 +66,13 @@ CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + lis
 SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
 NET_WORTH_PARTS = dict(META['net_worth_parts'])
 RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item, its base)
-# Two slots per translated item: a second, SCF-only slot holds what the
-# household reported; the original slot is the PUF concept, filled in on the SCF side during training (train.py).
-REPORTED = {f'{r["variable"]}_reported': r['variable'] for r in TR.filled()}
+# Two slots per translated item with the fill-in: a second slot, on each survey that fills the item in (since 28
+# October every survey, and wages), holds what the unit reported; the original slot is the PUF concept, filled in on
+# the survey side during training (fillin.py, train.py).
+FILLED_ON = {}
+for _r in TR.filled():
+    FILLED_ON.setdefault(_r['variable'], set()).add(_r['survey'])
+REPORTED = {f'{v}_reported': v for v in FILLED_ON}
 CEX_SLOTS = list(META['cex_amounts'])     # the consumption categories, CEX only
 CPS_SLOTS = list(META['cps_amounts']) + list(CPS_CATEGORIES)   # the CPS's person items and childcare (the spouse's
 # share of the couple's wages is also on the SIPP)
@@ -82,7 +86,7 @@ PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'int
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
 # The sources that have each slot; a slot on one source only is owned by it.
-PRESENT_ON = {**{v: set(s) for v, s in META['present_on'].items()}, **{f'{r["variable"]}_reported': {r['survey']} for r in TR.filled()}}
+PRESENT_ON = {**{v: set(s) for v, s in META['present_on'].items()}, **{r: set(FILLED_ON[v]) for r, v in REPORTED.items()}}
 assert set(PREDICTED) <= set(PRESENT_ON), set(PREDICTED) - set(PRESENT_ON)
 OWNED_BY = {v: next(iter(PRESENT_ON[v])) for v in PREDICTED if len(PRESENT_ON[v]) == 1}
 # The computed totals: never drawn, computed from their parts after the parts are drawn. The same for
@@ -170,7 +174,7 @@ def read_table():
     """The training table, checked; split relabelled: the held-back 2% 'test', the rest 'train'."""
     table = pd.read_parquet(common.TABLE)
     for r, v in REPORTED.items():
-        table[r + '_band'] = np.where(table['source'] == 'scf', table[v + '_band'], -1)
+        table[r + '_band'] = np.where(table['source'].isin(FILLED_ON[v]), table[v + '_band'], -1)
     used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id', 'filer_p'] + [column(v) for v in PREDICTED] \
         + AGE_PROBS
     n_missing = table[used].isna().sum()

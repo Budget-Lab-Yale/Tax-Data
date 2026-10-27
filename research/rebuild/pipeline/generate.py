@@ -466,8 +466,8 @@ class Chunk:
         for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS:
             self.values[:, NC + P.index(v)] = -1                      # absent until their turn
         if label == 'cps':        # the CPS's own slots: present and hidden from the start, as on a CPS training row
-            for v in AGE_SLOTS + CPS_SLOTS:
-                self.values[:, NC + P.index(v)] = 0
+            for v in AGE_SLOTS + CPS_SLOTS + [r for r in M.REPORTED if 'cps' in M.PRESENT_ON[r]]:
+                self.values[:, NC + P.index(v)] = 0     # (and the CPS's reported slots of its filled-in items, 28 Oct.)
         for tot in list(COMPUTED) + list(FLAGS):
             self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
         self.filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)

@@ -149,6 +149,9 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'sch_cf_income': NET('business or profession') + NET('farm'),
     'sch_e_income': NET('partnership and s corporation') + NET('rent') + NET('royalty') + NET('estate and trust')
     + NET('farm rental'),
+    # (28 October) Schedule E's two parts the SCF shares: rents and royalties, and the rest
+    'sche_rent': NET('rent') + NET('royalty'),
+    'sche_rest': NET('partnership and s corporation') + NET('estate and trust') + NET('farm rental'),
     'business_income': NET('business or profession') + NET('partnership and s corporation') + NET('farm')
     + NET('rent') + NET('royalty') + NET('estate and trust') + NET('farm rental'),
     'other_gains': [('sales of property other than capital assets > net gain', 1),

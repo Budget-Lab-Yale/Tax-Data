@@ -137,13 +137,17 @@ KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
 ADJ_FIELDS = ['E03150', 'E03210', 'E03220', 'E03230', 'E03240', 'E03260', 'E03270', 'E03290',
               'E03300', 'E03400', 'E03500']
 ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the model's slot order.
-    'business_income': (1, False, None), 'sch_cf_income': (0, True, 'rank'), 'sch_e_income': (0, True, 'rank'),
+    'business_income': (1, False, None), 'sch_cf_income': (0, True, 'rank'), 'sch_e_income': (0, False, None),
+    # (28 October) Schedule E's two parts the SCF shares in place of the whole: rents and royalties (sche_rent, the
+    # SCF's property income) and the rest (sche_rest: partnerships, S corporations, estates and trusts, farm rental)
+    'sche_rent': (0, True, 'percentile'), 'sche_rest': (0, True, 'percentile'),
     'other_gains': (1, False, None), 'ira_taxable': (1, False, None),
     'pensions_taxable': (1, False, None), 'ss_taxable': (1, False, None), 'unemployment': (1, False, None),
     'alimony': (1, False, None), 'state_refunds': (1, False, None), 'adjustments': (-1, False, None),
-    'retirement_gross': (0, True, 'unchanged'), 'tax_exempt_interest': (0, True, 'unchanged'),
+    'retirement_gross': (0, False, None), 'tax_exempt_interest': (0, True, 'unchanged'),
     'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None),
-    'ss_gross': (0, False, None)}   # gross Social Security, not in AGI; shared with the CEX (not the SCF)
+    'ss_gross': (0, True, 'unchanged')}   # gross Social Security, not in AGI; shared with the CEX, the CPS, the SIPP and
+# (since 28 October, in place of Social Security plus pensions) the SCF
 NO_GROWTH = ['mortgage_interest', 'real_estate_tax']   # no SOI 1.4 row: kept in PUF-year dollars in the target map
 # (stage 3's items without a Table 1.4 line are added below, STAGE3_NO_GROWTH)
 PARTS = {  # part: (PUF field, sign in business income); loss fields are stored positive
@@ -177,7 +181,9 @@ STAGE3 = list(DIV_PARTS) + list(ADJ_PARTS) + list(NEW_ITEMS)   # the new slots, 
 STAGE3_NO_GROWTH = [v for v in NEW_ITEMS if v not in ('kg_1250', 'kg_collect', 'part_se')]
 SCHE_PARTS = [p for p, (f, _) in PARTS.items() if f and p not in ('sch_c', 'farm')]
 CF_PARTS = ['sch_c', 'farm']                                  # Schedules C and F: the SCF's X5704
-E_PARTS = [p for p in PARTS if p not in CF_PARTS]             # Schedule E: the SCF's X5714
+E_PARTS = [p for p in PARTS if p not in CF_PARTS]             # Schedule E (before 28 October the SCF's X5714)
+RENT_PARTS = ['rent_inc', 'rent_loss']                        # rents and royalties: the SCF's rental income
+REST_PARTS = [p for p in E_PARTS if p not in RENT_PARTS]      # the rest of Schedule E: X5714 less rental
 K1_PARTS = [p for p in PARTS if p.startswith(('part_', 'scorp_'))]
 # The balance sheet (production's wealth_schema.R): net worth is computed from the 20 components. The home
 # mortgage is carried as its share of the home's value (w_primary_ltv), so it is drawn after the home.
@@ -349,6 +355,9 @@ def puf_rows(puf):
     assert np.array_equal(sum(PARTS[p][1] * parts[p] for p in PARTS), items['business_income'])
     items['sch_cf_income'] = sum(PARTS[p][1] * parts[p] for p in CF_PARTS)
     items['sch_e_income'] = sum(PARTS[p][1] * parts[p] for p in E_PARTS)
+    items['sche_rent'] = sum(PARTS[p][1] * parts[p] for p in RENT_PARTS)
+    items['sche_rest'] = sum(PARTS[p][1] * parts[p] for p in REST_PARTS)
+    assert np.array_equal(items['sche_rent'] + items['sche_rest'], items['sch_e_income'])
     assert np.array_equal(items['sch_cf_income'], I['E00900'] + I['E02100'])
     assert np.array_equal(items['sch_e_income'], I['E02000'])
     out.update(items)
@@ -397,7 +406,8 @@ COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES},
             'dividends': {p: 1 for p in DIV_PARTS}, 'adjustments': {p: 1 for p in ADJ_PARTS},
             'business_income': {p: s for p, (_, s) in PARTS.items()},
             'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
-            'sch_e_income': {p: PARTS[p][1] for p in E_PARTS}}
+            'sch_e_income': {p: PARTS[p][1] for p in E_PARTS},
+            'sche_rent': {p: PARTS[p][1] for p in RENT_PARTS}, 'sche_rest': {p: PARTS[p][1] for p in REST_PARTS}}
 
 
 def computed_totals(df):
@@ -511,9 +521,12 @@ def tax_data(t, y, pi=None):
     surveys = sorted(set(t.loc[(t.year == y) & (t.source != 'puf'), 'source']))
     assert surveys, f'no survey of year {y}'
     shared = sorted({r['variable'] for src in surveys for r in TR.rows(src, amounts_only=True)})
-    # and the totals a row is ranked against (rank_against: the CPS's dividends against ordinary dividends)
-    shared = sorted(set(shared) | {r['rank_against'] for src in surveys for r in TR.rows(src, amounts_only=True)
-                                   if r.get('rank_against')})
+    # and the totals a row is ranked against (rank_against: the CPS's dividends against ordinary dividends; since 28
+    # October also a sum, the CPS's pensions against taxable pensions plus taxable IRA distributions: tax_data's column
+    # TR.against_name, the parts joined by '+')
+    sums = {TR.against_name(r): TR.against(r) for src in surveys for r in TR.rows(src, amounts_only=True)
+            if len(TR.against(r)) > 1}
+    shared = sorted(set(shared) | {a for src in surveys for r in TR.rows(src, amounts_only=True) for a in TR.against(r)})
     needed = sorted({p for v in shared for p in COMPUTED.get(v, {v: 1})})
     filers = grown(puf, y, columns=needed).assign(weight=puf.weight.to_numpy() * f)
     for k in range(common.ADULT_RANGES):
@@ -540,6 +553,8 @@ def tax_data(t, y, pi=None):
         nf[f'age_p{k}'] = (rng == k).astype(float)
     cols = ['weight'] + TAX_DATA_CATEGORIES + [f'age_p{k}' for k in range(common.ADULT_RANGES)] + shared
     out = pd.concat([filers[cols], nf[cols]], ignore_index=True)
+    for name, parts in sums.items():
+        out[name] = sum(out[p] for p in parts)
     assert not out.isna().any().any(), 'missing values in the tax data'
     common.say(f'tax data {y}: {filers.weight.sum() / 1e6:.2f}M filers (PUF {PUF_YEAR}: {puf.weight.sum() / 1e6:.2f}M), '
                f'{nf.weight.sum() / 1e6:.2f}M non-filers (CPS {cy}, expected non-filers'
@@ -884,7 +899,7 @@ def translate_surveys(t, edges, pi):
     report: the survey as reported, the link (after the definition fixes), after function 1 (with its move), the tax
     data. Each year's tax data is written to data/tax_data_<year>.parquet."""
     w = t['weight'].to_numpy(float)
-    report, notes, tax = [], {}, {}
+    report, notes, tax, shortfall = [], {}, {}, []
     for src in ('scf', 'cex', 'cps', 'sipp'):
         for y in sorted(t.loc[t.source == src, 'year'].unique()):
             if y not in tax:
@@ -903,7 +918,7 @@ def translate_surveys(t, edges, pi):
                 line = None if row['dollar_line'] is None else row['dollar_line'] * fp
                 match = row.get('match', 'count')
                 # rank_against (stage 3): a survey total put in one of its parts is matched to the tax data's total
-                against = row.get('rank_against', v)
+                against = TR.against_name(row)
                 new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line, match)
                 done[v] = new
                 b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
@@ -920,10 +935,18 @@ def translate_surveys(t, edges, pi):
                     link['units not asked about deferrals (millions)'] = w[sel][not_asked].sum() / 1e6
                     link['wages of units not asked ($ billion)'] = (w[sel] * reported)[not_asked].sum() / 1e9
                     notes[f'{src} {y} {v}']['units not asked about deferrals (millions)'] = w[sel][not_asked].sum() / 1e6
-                report += TR.report_rows(row, y, {'as reported': TR.describe(reported, w[sel]), 'link': link,
-                                                  'after function 1': {**TR.describe(new, w[sel]),
-                                                                       **TR.move(x, new, w[sel])},
-                                                  'tax data': TR.describe(T[against].to_numpy(float), tw)})
+                tx = T[against].to_numpy(float)
+                stages = {'as reported': TR.describe(reported, w[sel]), 'link': link,
+                          'after function 1': {**TR.describe(new, w[sel]), **TR.move(x, new, w[sel])},
+                          'tax data': TR.describe(tx, tw)}
+                if line:   # the units beyond the row's dollar line (since 28 October)
+                    for st, (xx, ww) in {'as reported': (reported, w[sel]), 'link': (x, w[sel]),
+                                         'after function 1': (new, w[sel]), 'tax data': (tx, tw)}.items():
+                        stages[st][f'above the dollar line, ${line:,.0f} (millions)'] = ww[xx > line].sum() / 1e6
+                        stages[st][f'above the dollar line, ${line:,.0f} (%)'] = 100 * ww[xx > line].sum() / ww.sum()
+                report += TR.report_rows(row, y, stages)
+                if TR.fills_in(row, int(y)):   # function 2's task: the tax data's share less the survey's, by range
+                    shortfall += TR.shortfall(row, int(y), new, w[sel], tx, tw, fp, fn)
             # computed totals the survey has no row for but has every part of: from the translated parts
             for v, parts in COMPUTED.items():
                 if v in done or not set(parts) <= set(done):
@@ -958,6 +981,10 @@ def translate_surveys(t, edges, pi):
     rep = pd.DataFrame(report)
     rep.to_csv(f'{common.DATA}/translation_report.csv', index=False)
     TR.say_report(rep)
+    sf = pd.DataFrame(shortfall)
+    sf.to_csv(f'{common.DATA}/fillin_shortfall.csv', index=False)
+    common.say('function 2, the shortfall it is asked to fill (tax data less the survey after function 1, % of units, '
+               'by size range in survey-year dollars):\n' + sf.round(2).to_string(index=False))
     common.say('function 1: ' + json.dumps(notes, indent=1, default=float))
     factors = {}
     for y, T in tax.items():   # the amounts of the surveys of year y, and the totals computed from them
@@ -1076,7 +1103,9 @@ def table_meta(t, factor):
             'computed_totals': {'dividends': COMPUTED['dividends'], 'adjustments': COMPUTED['adjustments'],
                                 'business_income': {p: s for p, (_, s) in PARTS.items()},
                                     'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
-                                    'sch_e_income': {p: PARTS[p][1] for p in E_PARTS}},
+                                    'sch_e_income': {p: PARTS[p][1] for p in E_PARTS},
+                                    'sche_rent': {p: PARTS[p][1] for p in RENT_PARTS},
+                                    'sche_rest': {p: PARTS[p][1] for p in REST_PARTS}},
             'categories': CATEGORIES,
             'tax_categories': TAX_CATEGORIES,
             'computed_flags': {'k1_owner': K1_PARTS},

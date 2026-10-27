@@ -95,18 +95,20 @@ def after_fill_in():
     model = M.load_model(device, os.path.join(common.MODEL, 'model.pt'))
     fill = fillin.FillIn(model, tr, train_rows, torch.Generator(device=device).manual_seed(common.SEED))
     fill.refit(0, write_log=False)
-    scf = fill.scf_rows.cpu().numpy()
-    year = train_rows['year'].to_numpy()[scf]
-    w = train_rows['weight'].to_numpy(float)[scf]
     edges = common.edges()
     growth = edges['meta']['growth_factors']
     rows = []
-    for r in TR.filled():
-        v = r['variable']
-        zero = (tr['rep_band'][v][fill.scf_rows] == 0).cpu().numpy()
-        dist = fill.dist[v].double().cpu().numpy()
+    for (s, v), r in fillin.ROW.items():
+        recs = fill.recs[s].cpu().numpy()
+        year = train_rows['year'].to_numpy()[recs]
+        w = train_rows['weight'].to_numpy(float)[recs]
+        zero = fill.zero[(s, v)].cpu().numpy()                      # the zero-reporters in the years filled in
+        dist = np.zeros((len(recs), fill.n_bands[v]))
+        dist[zero] = fill.dist[(s, v)].double().cpu().numpy()
         med = np.array([np.nan if b['median'] is None else b['median'] for b in edges[f'puf/{common.PUF_YEAR}/{v}']['bands']])
         for y in sorted(set(year)):
+            if not TR.fills_in(r, int(y)):
+                continue
             # the shares of the zero-reporters' weight in each band, over the training rows
             m = (year == y) & zero
             share = (w[m, None] * dist[m]).sum(0) / w[m].sum()
@@ -115,7 +117,7 @@ def after_fill_in():
             value[0] = 0.0
             used = share > 0
             assert not np.isnan(value[used]).any(), f'{v} {y}: fill-in in a band with no PUF record'
-            d = table[(table.source == r['survey']) & (table.year == y)]
+            d = table[(table.source == s) & (table.year == y)]
             x, wt = d[v].to_numpy(float), d['weight'].to_numpy(float)
             xx = np.concatenate([x[x != 0], value[used]])
             ww = np.concatenate([wt[x != 0], wt[x == 0].sum() * share[used]])

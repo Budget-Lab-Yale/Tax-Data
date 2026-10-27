@@ -70,7 +70,7 @@
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 matches the survey's amount to the tax data's amount of the named PUF variable (a computed total) instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts. match (optional, since 28 October): how amounts beyond the dollar line are put on the tax data's scale: \"count\" (the default) by the same count from the top (losses: from the bottom); \"percentile\" by the same percentile among the units beyond the line in each data set (the survey's unit at the p-th percentile of its units beyond the line gets the tax data's p-th percentile of its units beyond the line; equal amounts get one value), so the order of units is kept and the map is continuous at the line. less_traditional_deferrals (optional, since 28 October): a definition fix, the survey column of each unit's elective deferrals (traditional plus Roth; missing where the survey does not ask), whose traditional part (settings deferrals: x (1 - the Roth share)) is subtracted from the amount: the link wage.",
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, on any survey (since 28 October the SCF, the CEX, the CPS and the SIPP), with size_ranges (PUF-year dollars) where reporting rates are read, and optionally type_extra (categories added to this row's type: the SCF's Schedule E rest, the partnership flag); it conditions on its survey's variables with type_for_fill_in (and the survey year) less the row's own variable (wages has the fill-in and is in every other item's type). A row with first_year fills in from that year only. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 (and since 28 October function 2) compares the survey's amount with the tax data's amount of the named PUF variable (a computed total), or the sum of a list of them, instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts. match (optional, since 28 October): how amounts beyond the dollar line are put on the tax data's scale: \"count\" (the default; a line of zero only) by the same count from the top (losses: from the bottom); \"percentile_from_top\" (wages) by the same share of ALL units counted from the top, so a survey missing small holders leaves the tax data's smallest amounts to function 2; \"percentile\" (required with a line above zero) by the same percentile among the units beyond the line in each data set (the survey's unit at the p-th percentile of its units beyond the line gets the tax data's p-th percentile of its units beyond the line; equal amounts get one value), so the order of units is kept and the map is continuous at the line. less_traditional_deferrals (optional, since 28 October): a definition fix, the survey column of each unit's elective deferrals (traditional plus Roth; missing where the survey does not ask), whose traditional part (settings deferrals: x (1 - the Roth share)) is subtracted from the amount: the link wage.",
   "table": [
    {
     "survey": "scf",
@@ -134,11 +134,42 @@
     ],
     "less_traditional_deferrals": "elective_deferrals",
     "dollar_line": 0,
-    "match": "percentile",
+    "match": "percentile_from_top",
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": true,
-    "reason": "link wage (28 October): the PEU's wages (X5702) less the traditional part of the respondent's and the spouse's or partner's elective deferrals (settings deferrals; not asked outside the PEU, so nothing is subtracted there); then by percentile among earners onto the tax data's box 1 wages, the SCF's share with wages kept. Before 28 October: dollars to $100,000, count from the top above it (the SCF has more units than the tax data above every line from about $100,000)"
+    "reason": "link wage (28 October): the PEU's wages (X5702) less the traditional part of the respondent's and the spouse's or partner's elective deferrals (settings deferrals; not asked outside the PEU, so nothing is subtracted there); then onto the tax data's box 1 wages, the SCF's share with wages kept. Before 28 October: dollars to $100,000, count from the top above it (the SCF has more units than the tax data above every line from about $100,000); function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
    },
    {
     "survey": "scf",
@@ -224,7 +255,7 @@
     "items": [
      "capital_gains"
     ],
-    "dollar_line": null,
+    "dollar_line": 50000,
     "loss_cap": -3000,
     "fill_in": {
      "size_ranges": [
@@ -259,19 +290,20 @@
      ]
     },
     "type_for_fill_in": false,
-    "reason": "losses past $3,000 are not on the return (definition); zero-reporters hide holders"
+    "reason": "losses past $3,000 are not on the return (definition); zero-reporters hide holders (function 2); above $50,000 (PUF-year dollars, grown to the year) by percentile among the units above the line in each data set (28 October): the SCF has 27% more units than the tax data at $100,000 or more and 44% more at $1 million (explore/2026-10-27/mapping/AUDIT.md)",
+    "match": "percentile"
    },
    {
     "survey": "scf",
-    "variable": "retirement_gross",
+    "variable": "ss_gross",
     "items": [
-     "retirement_gross"
+     "ss_gross"
     ],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "default"
+    "reason": "gross Social Security alone (John, 27 October), in place of Social Security plus pensions (X5722, whose pensions include no rollovers while the PUF's do): the benefits section, the respondent's and the spouse's or partner's current benefit (X5301-X5312) annualized, SSI (kind code 7) left out; units outside the PEU their share of X6406 (build_scf.R; explore/2026-10-28/scf_social_security/)"
    },
    {
     "survey": "scf",
@@ -281,9 +313,36 @@
     ],
     "dollar_line": null,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "default"
+    "reason": "zero-reporters hide holders, as for taxable interest (28 October): 2.1% against 3.6% with any, equal at $5,000 or more (AUDIT.md)"
    },
    {
     "survey": "scf",
@@ -293,21 +352,139 @@
     ],
     "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -10000
+      ],
+      [
+       -10000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the SCF's business income (X5704) is not measured as on Schedules C and F; by count from the top"
+    "reason": "the SCF's business income (X5704) is not measured as on Schedules C and F; by count from the top; function 2 (28 October) fills in the missing small holders and losses (10.7% against 18.6% with any, losses 0.8% against 4.4%; after count from the top alone no SCF unit is below about $5,000: AUDIT.md)"
    },
    {
     "survey": "scf",
-    "variable": "sch_e_income",
+    "variable": "sche_rent",
     "items": [
-     "rent_royalty_estate"
+     "rental_income"
     ],
     "dollar_line": 0,
+    "match": "percentile",
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -25000
+      ],
+      [
+       -25000,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the SCF's Schedule E income (X5714) is not measured as on the return; by count from the top"
+    "reason": "Schedule E split in two (John, 27 October): rental income, the property section's net income per property (X1730, X1830, X2010, X2020) plus gross rent from part of the home or farm (X1224, X505), against the PUF's rents and royalties; function 2 fills in missing holders, losses included (zeros only), then amounts by percentile among holders, income and losses separately; no depreciation estimate (explore/2026-10-28/scf_schedule_e/). Not steered by an owner flag: the tax data has no measure of owning rental property other than a rental amount itself (RESULTS.md of 28 October)"
+   },
+   {
+    "survey": "scf",
+    "variable": "sche_rest",
+    "items": [
+     "sche_rest"
+    ],
+    "dollar_line": 0,
+    "match": "percentile",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -25000
+      ],
+      [
+       -25000,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ],
+     "type_extra": [
+      "k1_owner"
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "Schedule E split in two (John, 27 October): the rest, X5714 less rental income floored at zero, against the PUF's other Schedule E parts (partnerships, S corporations, estates and trusts, farm rental); function 2 fills in missing holders, losses included (zeros only), steered to owners of a pass-through (the partnership flag in its type), then amounts by percentile among holders, income and losses separately. The SCF's business-section profit share is not used (book profit)"
    },
    {
     "survey": "cex",
@@ -315,7 +492,7 @@
     "items": [
      "married"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
    },
    {
@@ -324,7 +501,7 @@
     "items": [
      "n_dep"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
    },
    {
@@ -361,11 +538,42 @@
      "wages"
     ],
     "dollar_line": 0,
-    "match": "percentile",
+    "match": "percentile_from_top",
     "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "link wage (28 October): wages as reported (the CEX reports no deferrals); by percentile among earners onto the tax data's box 1 wages, the CEX's share with wages kept. Before 28 October: dollars"
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": true,
+    "reason": "link wage (28 October): wages as reported (the CEX reports no deferrals); onto the tax data's box 1 wages, the CEX's share with wages kept. Before 28 October: dollars; function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
    },
    {
     "survey": "cex",
@@ -387,9 +595,40 @@
     ],
     "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -10000
+      ],
+      [
+       -10000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the CEX's self-employment income is not measured as on Schedules C and F; by count from the top"
+    "reason": "the CEX's self-employment income is not measured as on Schedules C and F; by count from the top; function 2 (28 October) fills in the missing small holders and losses (11.5% against 18.8% with any, losses 0.4% against 4.3%: AUDIT.md)"
    },
    {
     "survey": "cps",
@@ -397,7 +636,7 @@
     "items": [
      "married"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_cps.R). Every couple is one joint unit, so 36-38% are married against 32-34% of the tax data's units"
    },
    {
@@ -406,7 +645,7 @@
     "items": [
      "n_dep"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_cps.R). 72-75% claim no dependent against 66-69% in the tax data"
    },
    {
@@ -488,11 +727,42 @@
      "wages"
     ],
     "dollar_line": 0,
-    "match": "percentile",
+    "match": "percentile_from_top",
     "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "link wage (28 October): wages as reported (no RETCB_VAL pull, John 27 October); by percentile among earners onto the tax data's box 1 wages, the CPS's share with wages kept. Before 28 October, by count from the top: the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top"
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": true,
+    "reason": "link wage (28 October): wages as reported (no RETCB_VAL pull, John 27 October); onto the tax data's box 1 wages, the CPS's share with wages kept. Before 28 October, by count from the top: the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top; function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
    },
    {
     "survey": "cps",
@@ -502,10 +772,38 @@
     ],
     "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top. Since stage 3 (27 October) ordinary dividends are computed from qualified and other dividends; the CPS reports one dividend amount, so it goes to qualified dividends (most of ordinary dividends: 78% of the 2015 PUF's dollars) and the CPS's other dividends are zero, as the CPS's capital gains go to long-term gains; ranked against the tax data's ordinary dividends (rank_against), so the CPS's translated dividends are as before stage 3",
-    "rank_against": "dividends"
+    "reason": "the CPS reports one dividend amount, put in qualified dividends (most of ordinary dividends: 78% of the 2015 PUF's dollars; the CPS's other dividends are zero) and compared with the tax data's ordinary dividends (rank_against). Since 28 October: function 2 fills in the missing holders (15.5% against 18.0% with any, about 0.8 times the tax data's units at every line up to $10,000), then amounts by percentile among holders (holders are missing at all sizes; AUDIT.md). Before: by count from the top",
+    "rank_against": "dividends",
+    "match": "percentile"
    },
    {
     "survey": "cps",
@@ -545,12 +843,44 @@
     "items": [
      "capital_gains"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
     "loss_cap": 0,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
     "first_year": 2018,
-    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (agreed 23 October). Since 28 October: function 2 fills in the missing holders in the years asked (6.1% against 10.4% with any), losses included, then amounts by percentile among holders (the CPS's amounts fall short more the larger they are: median $2,000 against $4,800; AUDIT.md)",
+    "match": "percentile"
    },
    {
     "survey": "cps",
@@ -596,13 +926,45 @@
     "survey": "cps",
     "variable": "pensions_taxable",
     "items": [
-     "retirement_income"
+     "retirement_income",
+     "survdis_pension"
     ],
     "dollar_line": null,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "all pensions and retirement distributions taken as taxable (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October): the builder's series bridged across the 2019 redesign"
+    "reason": "all pensions and retirement distributions taken as taxable (the old non-filer pool's mapping, agreed 23 October): the builder's series bridged across the 2019 redesign; since 28 October with the survivor and disability pensions that are pensions on a return (Form 1099-R sources, build_cps.R), and function 2 fills in the missing recipients, compared with the tax data's taxable pensions plus taxable IRA distributions (filers only 21.1 against 36.8 million; 0.56-0.59 of the tax data's units at every line from $1,000 to $100,000; AUDIT.md)",
+    "rank_against": [
+     "pensions_taxable",
+     "ira_taxable"
+    ]
    },
    {
     "survey": "cps",
@@ -622,9 +984,32 @@
     ],
     "dollar_line": null,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       3000
+      ],
+      [
+       3000,
+       6000
+      ],
+      [
+       6000,
+       12000
+      ],
+      [
+       12000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "taken as reported (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "taken as reported (agreed 23 October); since 28 October function 2 fills in the missing recipients (2.0% against 3.9% with any, at all sizes: AUDIT.md)"
    },
    {
     "survey": "cps",
@@ -651,13 +1036,14 @@
     "variable": "retirement_gross",
     "items": [
      "ss_gross",
-     "retirement_income"
+     "retirement_income",
+     "survdis_pension"
     ],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "gross Social Security plus all pensions and retirement distributions, as on the PUF (E02400 + E01500)"
+    "reason": "gross Social Security plus all pensions and retirement distributions, as on the PUF (E02400 + E01500); since 28 October with the survivor and disability pensions that are pensions on a return"
    },
    {
     "survey": "cps",
@@ -695,11 +1081,42 @@
     "items": [
      "sch_cf_income"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -10000
+      ],
+      [
+       -10000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "nonfarm and farm self-employment income (INCBUS + INCFARM) together as Schedule C, farm zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "nonfarm and farm self-employment income (INCBUS + INCFARM) together as Schedule C, farm zero (agreed 23 October). Since 28 October: function 2 fills in the missing small holders and losses (filers only 6.4 against 19.4 million holders, 0.27 against 7.2 million losses), and amounts by count from the top (the CPS has more units at $50,000 or more: 2.35 against 1.76 million; AUDIT.md)"
    },
    {
     "survey": "cps",
@@ -881,14 +1298,14 @@
     "survey": "cps",
     "variable": "other_agi",
     "items": [
-     "survivor_disability",
+     "survdis_other",
      "other_income"
     ],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the rest of the pool's gross income: survivor and disability pensions other than Social Security (INCSURV + INCDISAB) and other income (INCOTHER, which holds alimony) (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "the rest of the pool's gross income: other income (INCOTHER, which holds alimony) and, since 28 October, only the survivor and disability payments that are not pensions on a return (workers' compensation, black lung, estates and trusts and the like, build_cps.R); the 1099-R pension sources went to pensions"
    },
    {
     "survey": "sipp",
@@ -896,7 +1313,7 @@
     "items": [
      "married"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
    },
    {
@@ -905,7 +1322,7 @@
     "items": [
      "n_dep"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
    },
    {
@@ -943,11 +1360,134 @@
     ],
     "less_traditional_deferrals": "elective_deferrals",
     "dollar_line": 0,
+    "match": "percentile_from_top",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": true,
+    "reason": "link wage (28 October): wages less the traditional part of each adult's own elective deferrals at the main employer (TSCNTAMT_401, asked in 2021 and 2023 only; settings deferrals), as reported in 2015-2019; onto the tax data's box 1 wages, the SIPP's share with wages kept. Before 28 October, by count from the top: the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run); function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "dividends",
+    "items": [
+     "dividends"
+    ],
+    "dollar_line": 50000,
     "match": "percentile",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "new 28 October (John, 27 October): income from stocks and mutual funds (TINC_STMF) against the tax data's ordinary dividends; function 2 fills in the missing holders (14.1% against 18.0% with any), dollars below $50,000 (PUF-year dollars, grown to the year), above it by percentile among the units above the line (top-coded: 0.74 against 0.41 million at $100,000, none at $500,000; AUDIT.md)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "ss_gross",
+    "items": [
+     "ss_gross"
+    ],
+    "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "link wage (28 October): wages less the traditional part of each adult's own elective deferrals at the main employer (TSCNTAMT_401, asked in 2021 and 2023 only; settings deferrals), as reported in 2015-2019; by percentile among earners onto the tax data's box 1 wages, the SIPP's share with wages kept. Before 28 October, by count from the top: the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run)"
+    "reason": "new 28 October (John, 27 October): gross Social Security as reported (TSSSAMT, before Medicare premiums, summed over the year): 25.5% against 23.0% with any, amounts close (AUDIT.md)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "pensions_taxable",
+    "items": [
+     "pensions"
+    ],
+    "dollar_line": 0,
+    "match": "percentile",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "new 28 October (John, 27 October): retirement income items 1-8 (TRET1AMT-TRET8AMT) against the tax data's taxable pensions; function 2 fills in the missing recipients (23.1 against 34.1 million), then amounts by percentile among holders (0.11 against 1.14 million at $100,000; no IRA or 401(k) withdrawals in the public file; AUDIT.md)"
    },
    {
     "survey": "sipp",
