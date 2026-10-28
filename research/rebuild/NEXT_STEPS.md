@@ -1,7 +1,8 @@
-# Next steps (as of 27 October 2026)
+# Next steps (as of 28 October 2026)
 
-The latest run has five sources (the PUF, SCF, CEX, CPS and SIPP), tips, auto loan interest, about 40 more PUF
-items and 753 targets (`FEATURES.md`). This list is the order of work agreed with John on 27 October. Each step is
+The latest run (installed 28 October) has five sources (the PUF, SCF, CEX, CPS and SIPP), three pooled seeds,
+tips in dollars, elective deferrals, overtime, the survey year mix, the fill-in on every survey and 789 targets
+(`FEATURES.md`). This list is the order of work agreed with John on 27 October. Each step is
 one change on a branch, a full run, a comparison with the latest run, John's approval, then the new latest.
 
 ## Before the tax calculator
