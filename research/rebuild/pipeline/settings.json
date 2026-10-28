@@ -53,7 +53,7 @@
  },
  "training": {
   "_what": "Training (train.py): seed (REBUILD_SEED overrides it), passes over the table (REBUILD_PASSES overrides it), batch (records per step; 512 since 26 October, 4,096 before: about 1,780 steps a pass, an hour of training on an H100), the learning rate's peak, warm-up passes and final share of the peak, weight_decay, the share of the table held back to measure the fit (holdback_share, holdback_seed), and how often the log reports (log_every_passes).",
-  "seed": 20261016,
+  "seed": 20261017,
   "passes": 80,
   "batch": 512,
   "peak_learning_rate": 0.003,
