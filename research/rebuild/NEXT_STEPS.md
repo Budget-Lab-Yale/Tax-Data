@@ -44,6 +44,8 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    - Q7, holding period and basis of long-term gains (John, 28 October): production's method for now (holding
      group drawn from SOCA's gain shares, unconditional; basis from the SOCA regression), evaluated at the target
      year's trailing S&P returns.
+   - Q8, parents' income rank (John, 28 October): production's method as is (each unit's broad income ranked among
+     all units, parent rank drawn from Chetty et al.'s matrix).
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
