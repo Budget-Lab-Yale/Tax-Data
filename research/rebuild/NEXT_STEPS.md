@@ -46,6 +46,8 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      year's trailing S&P returns.
    - Q8, parents' income rank (John, 28 October): production's method as is (each unit's broad income ranked among
      all units, parent rank drawn from Chetty et al.'s matrix).
+   - Q9, checks (John, 28 October): each imputation's published check is reported only, not a stop, until normal
+     misses are known; then limits may be set from them.
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
