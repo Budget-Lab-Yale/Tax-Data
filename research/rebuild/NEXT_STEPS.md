@@ -33,6 +33,9 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      birthplace and the parents' items turned into "probably has no number" by a rule), per child, not production's
      flat 1.5%. The method is being researched (scratch `explore/2026-10-28/rules_framework/ssn/`, including whether
      any of David Splinter's papers gives a basis).
+   - Q5, QBI service status and wage bill (John, 28 October): something more involved than production's rule;
+     being researched (SCF business items, SOI pass-through tables by industry, the 199A literature; scratch
+     `explore/2026-10-28/rules_framework/qbi/`).
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
