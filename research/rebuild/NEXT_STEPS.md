@@ -94,6 +94,25 @@ Left out for now (John, 27 October): overtime (data pulled, below) and the young
     files may hold the same people's pay (link `MARBASECIDP`), untested. Scratch
     `explore/2026-10-27/cps_overtime/WEEKPAY_GAP.md`. For now overtime is missing (not zero) on the records without
     pay; those records are used for everything else, in pretraining and in generation's year mix.
+  - **Built 28 October** on branch `rebuild-overtime` (worktree `Tax-Data-overtime`; scratch
+    `explore/2026-10-28/overtime/RESULTS.md`): Tedeschi's rules per CPS worker, overtime for hours over 40 last week
+    times weeks worked, held to wages. 2023: 12.0 million workers, $244 billion (Tedeschi's file 12.6 million, $272
+    billion; the gap is above $200,000 of pay). The lost 2024-2026 weekly pay is recovered from the March basic
+    monthly file for 99.8% of workers (link `MARBASECIDP`). Joins the next big run, not the 28 October one.
+  - **Decided (John, 27 October):**
+    1. The whole overtime pay is stored, not the premium, under Tax-Simulator's existing names: `ot1` (primary
+       filer), `ot2` (spouse), `ot` (the unit). The branch's `overtime1`/`overtime2`/`overtime` are renamed.
+    2. Tedeschi's rule kept: a covered worker whose usual hours vary has no overtime.
+    3. Hours at the main job (from the linked March basic file), not at all jobs.
+    4. The tax year's salary threshold, not the one at the interview.
+    5. A target, so overtime does not drift: from the CPS's own units, as the CEX consumption targets are; the share
+       of units with any overtime and overtime dollars per unit, over all units and in 5 groups of the unit's wages
+       (under $25,000, $25,000-50,000, $50,000-100,000, $100,000-200,000, $200,000 and over), 12 targets with the
+       CPS's own errors; years without their own CPS year take the pretraining year mix, grown with wages per return.
+    6. Each person's overtime is held to their wages less their tips (tips drawn first); the overtime check reports
+       how many people and dollars the cap takes.
+    7. The March basic extract sits in the repo's local `inputs/CPS-March-Basic/` (gitignored) for now, to move to
+       `raw_data` later; settings point there (`ccc78b4`).
 - **The surveys' year mix** (TARGETS.md section 7, decided 27 October): the CPS, CEX and SIPP each draw on their two
   years nearest the target year, weighted by distance (2019: 73% 2019, 27% 2017). Built in generation as the
   SCF's waves are, in the big run (step 4 above).
