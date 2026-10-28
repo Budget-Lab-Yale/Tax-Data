@@ -37,6 +37,10 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    - Q5, QBI service status and wage bill (John, 28 October): something more involved than production's rule;
      being researched (SCF business items, SOI pass-through tables by industry, the 199A literature; scratch
      `explore/2026-10-28/rules_framework/qbi/`).
+   - Q6, yearly unrealized gains (John, 28 October): one column. Historical years use that year's actual Federal
+     Reserve Financial Accounts (Z.1) revaluation rate by asset, so each record's gain lines up with its year; years
+     without full data (projections) use the long-run averages production uses now. The retirement accounts' stock
+     share is fitted as a single SCF variable in pretraining, not production's age rule.
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
