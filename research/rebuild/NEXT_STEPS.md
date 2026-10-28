@@ -16,6 +16,12 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    published check per rule. Nine questions for John, taken one at a time; decisions recorded here as they are made.
    These items are also most of the 39 inputs the calculator experiment sets to 0 (branch `rebuild-calculator`,
    `CALCULATOR_CONTRACT.md`).
+   - Q1, where the rules run (John, 28 October): inside the tilt stage, on the start, before the targets are built,
+     so the calculator in post-training can use the columns; the two ranking rules (death probabilities, parents'
+     rank) rank on the start's weights and hold the ranks fixed.
+   - Q2, dependent filers (John, 28 October): each gets an exact age and a sex drawn from the CPS's dependents who
+     would file (earnings above the filing threshold), within the record's PUF dependent-filer age range, the draw
+     keyed by record id; then the normal death-probability and blindness rules apply.
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
