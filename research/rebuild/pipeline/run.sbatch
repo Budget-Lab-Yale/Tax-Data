@@ -11,7 +11,8 @@
 #   sbatch research/rebuild/pipeline/run.sbatch train generate   only those
 # Stages, in order: scf, cex, filing, cps (the surveys' tax units: the shared rules in Python, then R; filing is the
 # CPS's units and their calibrated filing chances, which cps reads), sipp (the SIPP's tax units, in Python), targets (SOI), errors (SOI's CVs), table, train,
-# generate, tilt (the year's targets, the reweighting and the run report), report (the CEX, CPS and translation reports).
+# generate, tilt (the year's targets, the reweighting and the run report), report (the CEX, CPS and translation reports);
+# calculator (an experiment, not in the default list: each record's taxes from the GPU tax calculator, calculator.py).
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:
 #   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf cex filing cps sipp targets table
 # H100 and H200 only: one stack from a B200 drew fewer rare business items (PRECISION.md); until that is
@@ -52,6 +53,7 @@ for s in $STAGES; do
     generate) python $P/generate.py ;;
     tilt)     python $P/tilt.py; python $P/report_tilt.py ;;
     report)   python $P/report_cex.py; python $P/report_cps.py; python $P/report_sipp.py; python $P/report_translation.py ;;
+    calculator) python $P/calculator.py; python $P/report_calculator.py ;;   # every record's taxes from the GPU tax calculator (settings calculator), against SOI
     *) echo "unknown stage $s"; exit 1 ;;
   esac
 done
