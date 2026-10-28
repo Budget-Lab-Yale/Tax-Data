@@ -1,36 +1,45 @@
 # What the pipeline does now
 
 The current run ("latest") produces a 2019 file of tax units: every PUF
-item production carries, plus the household balance sheet and auto loan
-interest from the SCF (20 balance-sheet items, with net worth computed from
-them), spending in 8 categories from the CEX, from the CPS ASEC each person's
-age and sex, dependents' ages, the split of a couple's wages and
-self-employment income between the spouses, weeks and hours worked, and
-childcare, and each adult's tips from the SIPP, weighted to 753 targets for
-2019.
+item production carries; from the SCF the household balance sheet (20 items,
+with net worth computed from them), elective deferrals to 401(k)-type plans and
+auto loan interest; spending in 8 categories from the CEX; from the CPS ASEC
+each person's age and sex, dependents' ages, the split of a couple's wages and
+self-employment income between the spouses, weeks and hours worked, childcare
+and overtime pay; and each adult's tips from the SIPP. It is weighted to 789
+targets for 2019.
 - **Filers and non-filers.** Filers come from the PUF label and non-filers
   from the CPS label. The CPS's filing chances come from a calibrated rule
   (v4) with no outside model in it.
 - **Tax units.** The CPS, SCF, CEX and SIPP all build their tax units with
   one module of CBO's rules (`TAX_UNITS.md`).
+- **Translation.** Each survey's shared items are put on the PUF's terms by two
+  standard functions and one table (below): a dollar mapping, and a fill-in during
+  training of the holders a survey misses. Since 28 October the fill-in runs on
+  every survey, wages included.
 - **Training.** Each record counts by its survey weight times q, which makes
   the few records at the top of the PUF and the SCF count as much as the many
   in the middle (grouped weighting, below). The PUF record's AGI group is a
   label the network always sees.
 - **Generation and targets.** Filers are drawn AGI group by AGI group, the
-  group set first and everything else drawn given it, pooled from two trained
-  models. The balance sheet is drawn from a mix of SCF waves (55% the 2019
-  wave, 33% the 2022 wave, 12% the 2016 wave for 2019). Every dollar amount is
-  in 2019 dollars before the tilt. The 2019 targets come from
-  `pipeline/targets_config/`, each with a standard error, and are met within
-  ranges: half a standard error for the SCF targets, which come from the same
-  mix of waves as the balance sheet, and one for the rest (`TARGETS.md` S9).
-- **Since when.** This is latest since 27 October (merge 5d2a637: the SIPP,
-  auto loan interest, the targets of Tables 1.3 and 4.3, W-2 tips and auto
-  loans, and the other PUF items); the tilt was rerun the same day with 7 more tips targets (753 in all; the
-  file before that is in `previous_2026-10-27_before_tips_spread/` of the output folder). The run before (26 October) is in
-  `previous_2026-10-26/` of the output folder. The code is in `pipeline/`;
-  every setting is in `pipeline/settings.json`.
+  group set first and everything else drawn given it, pooled from three trained
+  models (seeds 20261017, 20261018 and 20261019, a third of the records each).
+  The balance sheet is drawn from a mix of SCF waves (55% the 2019 wave, 33% the
+  2022 wave, 12% the 2016 wave for 2019); the CEX, CPS and SIPP items each from a
+  mix of two survey years (73% 2019, 27% 2017). Every dollar amount is in 2019
+  dollars before the tilt. The 2019 targets come from `pipeline/targets_config/`,
+  each with a standard error, and are met within ranges: half a standard error
+  for the SCF targets, which come from the same mix of waves as the balance
+  sheet, and one for the rest (`TARGETS.md` S9).
+- **Since when.** This is latest since 28 October (merge d9bd762 of
+  `rebuild-ot3`, and d56c75d): wages net of deferrals and the SCF's deferrals
+  with the W-2 deferral targets, the shared-variable mappings with the fill-in
+  on every survey, the survey year mix, tips drawn in dollars, overtime with its
+  CPS targets, three seeds and the cap on SCF other debt (`HISTORY.md`, 27–28
+  October). The run before (27 October) is in
+  `previous_2026-10-28_before_bigrun/` of the output folder, and earlier ones in
+  the other `previous_*` folders. The code is in `pipeline/`; every setting is in
+  `pipeline/settings.json`.
 
 ## Data
 
@@ -58,8 +67,8 @@ held-back rows included.
   the statutory adjustments (computed from their eleven parts), and the rest
   of AGI ("other income");
 - three items outside AGI: gross Social Security plus pensions,
-  tax-exempt interest, and gross Social Security alone (shared with the
-  CEX);
+  tax-exempt interest, and gross Social Security alone (shared with every
+  survey);
 - the other PUF items production carries (since 27 October), 40 PUF-only
   slots under production's names: qualified and other dividends, the eleven
   adjustments, unrecaptured section 1250 gain, 28% collectibles gain,
@@ -74,8 +83,10 @@ held-back rows included.
 - business income in its 18 PUF parts: Schedule C; partnership and
   S corporation income, losses and section 179, passive and nonpassive;
   rents, royalties, estates and trusts; farm rental; farm. Business income
-  is computed from the parts, and so are two subtotals of it: Schedules C
-  and F, and Schedule E;
+  is computed from the parts, and so are four subtotals of it: Schedules C
+  and F; Schedule E; and Schedule E in two parts, rents and royalties
+  (`sche_rent`) and the rest (`sche_rest`: partnerships, S corporations,
+  estates and trusts, farm rental), which the SCF shares (since 28 October);
 - whether the unit holds a partnership, S corporation or LLC interest
   (on the PUF: any partnership or S corporation part nonzero);
 - the balance sheet (SCF only), the 20 items of production's wealth
@@ -92,9 +103,12 @@ held-back rows included.
 - auto loan interest (SCF only, since 27 October; `auto_int_exp`): a
   year's interest on the household's vehicle loans at the interview's
   balance and rate (below, "Auto loan interest");
-- tips (SIPP only, since 27 October): each adult's tips as a share of
-  that adult's wages, and whether that adult's tips are mostly from leisure
-  and hospitality (below, "The SIPP");
+- elective deferrals (SCF only, since 28 October): the unit's elective
+  contributions to 401(k)-type plans, traditional plus Roth, and the spouse's
+  share of them (below, "Elective deferrals");
+- tips (SIPP only, since 27 October; in dollars since 28 October): each
+  adult's tips in dollars, and whether that adult's tips are mostly from
+  leisure and hospitality (below, "The SIPP");
 - spending in production's 8 categories (CEX only): clothing; motor
   vehicles; other durables; other nondurables; food at home (with
   alcohol); gasoline; housing and utilities; other services and health.
@@ -105,21 +119,33 @@ held-back rows included.
   (youngest first); the sex of the primary
   filer and the spouse; the spouse's share of the couple's wages and of its
   Schedules C and F income; each adult's weeks worked and usual weekly
-  hours; childcare expenses. The file's wages1 and wages2 (and se1, se2)
-  are the total split by the drawn share, so they add up to the total.
+  hours; childcare expenses; each adult's overtime pay (since 28 October;
+  below, "Overtime"). The file's wages1 and wages2 (and se1, se2) are the
+  total split by the drawn share, so they add up to the total.
 - the AGI group label (PUF only; `qgroups.py`, `build_table.py`
   agi_group_label): the record's band-AGI group, one of 12 (below). It is
   computed from the record's bands, not its exact dollars.
 
-All five sources share married, dependents, the primary filer's age range
-and wages. The SCF, the CEX, the CPS and the SIPP share the exact ages of the
-primary filer and the spouse; the CPS and the SIPP share the spouse's share
-of the couple's wages. The PUF, the SCF and the CEX also share Schedules C and F
-income. The PUF and the SCF also share interest, dividends, capital gains,
-Schedule E income, the partnership/S corporation/LLC flag, gross Social
-Security plus pensions and tax-exempt interest; the PUF and the CEX also
-share gross Social Security; the PUF and the CPS also share the filing flag,
-dividends (the CPS's go to qualified dividends) and gross Social Security.
+All five sources share married, dependents, the primary filer's age range,
+wages and gross Social Security. The SCF, the CEX, the CPS and the SIPP share
+the exact ages of the primary filer and the spouse; the CPS and the SIPP share
+the spouse's share of the couple's wages. The PUF also shares:
+- with the SCF, the CEX and the CPS, Schedules C and F income (the CPS's as its
+  Schedule C);
+- with the SCF, the CPS and the SIPP, ordinary dividends (the CPS's go to
+  qualified dividends);
+- with the SCF and the CPS, capital gains (the CPS's as long-term gains, from
+  tax year 2018), the two parts of Schedule E, tax-exempt interest and the
+  partnership/S corporation/LLC flag (on the CPS, tax-exempt interest and the
+  flag are zero: it does not ask them);
+- with the SCF alone, taxable interest;
+- with the CPS and the SIPP, taxable pensions;
+- with the CPS alone, every other PUF tax item, because its rows are the
+  non-filers: the filing flag, filing status, child credit and EITC children,
+  unemployment, rents, gross Social Security plus pensions and the rest of AGI
+  from its answers, and zero for the items it does not ask (short-term gains,
+  the partnership and S corporation parts and the like).
+
 The rest belong to one source. A slot a source lacks is absent on its records
 (`model.py`, "present_on").
 
@@ -136,7 +162,11 @@ the run's data folder). This is the only path: until 24 October a setting
 (`src/nonfilers/asec_tax_units.R`) and the non-filer pool's filing model
 and calibration; that path is gone (it is in git history).
 Childcare is the SPM unit's child care expenses, given to the
-units that claim its children.
+units that claim its children. Survivor and disability pensions paid on Form
+1099-R (company or union, government, military and railroad pensions,
+annuities) count as pensions since 28 October; the other survivor and
+disability payments (workers' compensation, estates and trusts, accident
+insurance and the like) stay in the rest of AGI (`data/cps_survivor_disability_sources.csv`).
 
 **The CPS's filing chances: the filing rule v4** (stage filing:
 `pipeline/filing.py` and `pipeline/filing_requirement.R`, settings
@@ -192,14 +222,17 @@ tilt.nonfiler_targets_dir).
     the PUF's total exactly, whatever the total's translation. Couples whose
     two self-employment incomes have opposite signs (0.4%) have their share
     cut to 0-1;
-  - weeks worked, usual weekly hours and childcare are amounts, cut within
-    each year; childcare's dollars are grown from the generation year to
-    the target year by SOI's wages per return (a placeholder).
+  - weeks worked, usual weekly hours, childcare and each adult's overtime
+    pay are amounts, cut within each year; childcare's and overtime's
+    dollars are grown from the survey year to the target year by SOI's wages
+    per return (a placeholder).
 - **Rules at generation** (`generate.py`, cps_structure): the spouse's
   items are none or zero unless married, and a married spouse has an age
   of 18 or over (since 26 October) and a sex; the k-th dependent has an age exactly when there are at least
   k dependents; a non-filer unit's head is 18 or over (since 26 October); a
-  spouse's share is zero when the couple has none of the item. A dependent
+  spouse's share is zero when the couple has none of the item; overtime is
+  drawn after the other CPS items, the primary filer's zero without wages and
+  the spouse's zero without a share of wages. A dependent
   filer holds no CPS item (ages none, shares zero, so its wages are all its
   own). Where a share is absent on the training rows (no couple, or none of
   the item, or a dependent filer), generation leaves it absent too until
@@ -211,22 +244,57 @@ tilt.nonfiler_targets_dir).
   se2 equals Schedules C and F income, to within $0.000000001 on every
   record (floating point); every rule above holds on every record.
 
+**Overtime** (since 28 October; `pipeline/overtime_cps.R`, called by `build_cps.R`; settings cps.overtime). Each CPS
+worker's overtime pay by Ernie Tedeschi's rules (`Reports/2024/Overtime`): who the Fair Labor Standards Act covers
+(private, state and local government employees, not clergy; the postal service, TVA and Library of Congress put
+back); the named exempt occupations and industries; for salaried workers at or above the tax year's salary threshold
+($455 a week through 2019, $684 from 2020), the white-collar duties test as a chance from the Labor Department's
+occupation class and the person's pay (one seeded draw per person); the highly compensated line ($100,000 through
+2019, $107,432 from 2020); then time and a half for hours over 40 last week at the main job, times weeks worked in
+the tax year, at most the person's wages. A covered worker whose usual hours vary has none, as in Tedeschi's code.
+Occupations are read on IPUMS's harmonized 2010 codes in every year.
+- **Who is asked.** Only the CPS's earnings-question group (months 4 and 8 in sample) is asked weekly pay and hours
+  at the main job; on other units overtime is missing, not zero, and absent in training, and those units are used for
+  everything else. Hours at the main job, and the weekly pay the March 2024 ASEC lost for its month-4 group, come from
+  the March basic monthly file, linked person by person (IPUMS's `MARBASECIDP`; pay recovered for 99.8% of workers;
+  settings `paths.raw.cps_march_basic`, today the repository's local `inputs/CPS-March-Basic/`, gitignored).
+- **Levels.** Workers with overtime pay and the dollars (nominal dollars of the tax year): 2015 12.3 million and $204
+  billion; 2019 13.3 million and $255 billion; 2023 12.0 million and $244 billion, against Tedeschi's 12.6 million
+  and $272 billion for 2023 (his file; the gap is above $200,000 of pay, where the CPS's weekly pay is top-coded and
+  each person's overtime is held to their wages). The whole overtime pay is stored, not the premium alone (one third
+  of it), which the 2025 law deducts.
+- **In the file:** Tax-Simulator's names, `ot1` (the primary filer), `ot2` (the spouse) and `ot = ot1 + ot2`
+  exactly; the drawn amounts before the cap are `ot_primary` and `ot_spouse`. Each person's overtime is at most their
+  wages less their tips (tips are made first, then overtime gives way): `ot1 = min(ot_primary, max(wages1 - tips1,
+  0))`, the same for the spouse. In the model's drawing order overtime comes before tips, so the model does not see a
+  person's tips when it draws their overtime; the cap applies where bands become dollars. The CPS report
+  (`tilt/<run>/cps_report.md`) shows what the wages and the tips each take off.
+- **Targets:** 12, from the CPS's own units (post-training, below).
+
 **The SIPP** (since 27 October; `pipeline/roster_sipp.py`, `pipeline/sipp_read.py`, settings "sipp"). The
 Census Bureau's Survey of Income and Program Participation, one public-use release per reference year: 2015 (the 2014
 panel, wave 3), 2017, 2019, 2021 and 2023 (the releases of 2018, 2020, 2022 and 2024), the CPS's years. The household
 is the sample unit as interviewed (the people present at the interview, the CPS's convention), split into tax units
 by the shared rules; income is the reference year's 12 months. Dependent filers are folded into the unit that claims
-them, separate returns by the CEX's rule. Shared with the PUF: married, dependents, the age range, the exact ages of
-the primary filer and the spouse, and wages (jobs for an employer, by count from the top: dollar line 0, as the CPS's
-wages; the SIPP has more units than the tax data above $100,000 and almost none above $1 million); shared with the CPS: the spouse's share of the
-couple's wages (a translation-table row with `shared_with`, cut on the CPS's cut points of the same year). SIPP only:
-each adult's tips as a share of that adult's wages, and the leisure and hospitality flags. Tips are production's
-definition (`src/imputations/tips.R`): tips on jobs for an employer (TJBn_TXAMT, job lines 1-4), not on
-self-employment; a person's tips are from leisure and hospitality when more than half are from jobs with Census
-industry codes 8560-8690. The SIPP's job earnings include the job's tips (no job-month has tips above its earnings),
-so tips are part of wages, as on Form W-2. In the file, tips1 = the primary filer's share times wages1, tips2 the
-spouse's times wages2, tips = tips1 + tips2 exactly; tips_lh1 and tips_lh2 are 0 without tips. Dependent filers
-hold none. The W-2 box 7 targets (post-training, below) set the number of tipped returns and the amount.
+them, separate returns by the CEX's rule.
+- **Shared with the PUF:** married, dependents, the age range, the exact ages of the primary filer and the spouse,
+  wages (jobs for an employer, less the traditional part of each adult's elective deferrals in 2021 and 2023, the
+  years the SIPP asks them: below, "Wages and elective deferrals"), and since 28 October dividends (income from stocks
+  and mutual funds, TINC_STMF, against ordinary dividends), gross Social Security (TSSSAMT, before Medicare premiums)
+  and pensions (retirement income items 1-8, TRET1AMT-TRET8AMT, against taxable pensions), each the primary filer's
+  plus the spouse's. Shared with the CPS: the spouse's share of the couple's wages (a translation-table row with
+  `shared_with`, cut on the CPS's cut points of the same year).
+- **SIPP only:** each adult's tips in dollars (since 28 October; before, a share of that adult's wages, which put
+  $5.9 billion of tips on units with $200,000 or more of wages), and the leisure and hospitality flags. Tips are
+  production's definition (`src/imputations/tips.R`): tips on jobs for an employer (TJBn_TXAMT, job lines 1-4), not
+  on self-employment; a person's tips are from leisure and hospitality when more than half are from jobs with Census
+  industry codes 8560-8690. The SIPP's job earnings include the job's tips (no job-month has tips above its
+  earnings), so tips are part of wages, as on Form W-2.
+- **In the file:** tips1 and tips2 are each person's drawn tips (`tips_primary`, `tips_spouse`) held to at most that
+  person's wages (wages1, wages2), and tips = tips1 + tips2 exactly; tips_lh1 and tips_lh2 are 0 without tips.
+  Dependent filers hold none. The SIPP finds about half the W-2's tipped workers (3.7 million tipped people in the
+  2019 file's year mix against the W-2's 6.05 million); the W-2 box 7 targets (post-training, below) set the number of
+  tipped returns and workers and the amount.
 
 **Auto loan interest** (since 27 October; `build_scf.R`). The SCF's own vehicles 1-4 (every wave the model uses:
 2013, 2016, 2019, 2022, with the same items and codes): the amount still owed (X2218, X2318, X2418, X7169) times the
@@ -296,6 +364,38 @@ used; they are in git history. The latest run was trained on the old units.
   divided by head count, dependents' own returns staying people of the
   claiming unit; separate returns by the CPS's draw to SOI's count. 2019:
   162.8 million units (152.5 with BLS's codes).
+
+**Gross Social Security on the SCF** (since 28 October; `build_scf.R`; scratch `explore/2026-10-28/scf_social_security/`).
+The SCF's benefits section, asked in every wave before the income section: the respondent's and the spouse's or
+partner's current benefit (X5301-X5312), before Medicare premiums, made yearly from its period; SSI (kind code 7)
+left out, since it is not Social Security for tax purposes (the 2013 wave's public file has no SSI code, so its
+amounts include SSI). Adults outside the PEU get their share of the group's Social Security item (X6406). It replaces
+the SCF's combined Social Security and pensions (X5722), whose pensions leave out the rollovers the PUF's include.
+2019 wave: 25.8% of units with any against the tax data's 22.9% (2018), $890 billion against $858 billion.
+
+**Schedule E on the SCF in two parts** (since 28 October; `build_scf.R`; scratch `explore/2026-10-28/scf_schedule_e/`).
+The SCF's Schedule E question (X5714) is split: rental income, the property section's net income per property
+(X1730, X1830, X2010, X2020) plus gross rent from part of the home or farm (X1224, X505), against the PUF's rents and
+royalties (`sche_rent`); and the rest, X5714 less rental income, floored at zero, against the PUF's other Schedule E
+parts (`sche_rest`). No depreciation estimate is made. The SCF's business-section share of the business's net income
+is not used: it is book profit ($1,845 billion against the tax data's $806 billion of partnership and S corporation
+income in 2018).
+
+**Elective deferrals on the SCF** (since 28 October; `build_scf.R`, settings "deferrals"). Each person's elective
+contributions to up to two plans on the current main job, the respondent's and the spouse's or partner's, traditional
+plus Roth (the SCF does not separate them), as the W-2 counts them:
+1. each person's held to the income year's legal limit for their age at the interview ($18,500, or $24,500 from age
+   50, in 2018);
+2. then to that person's own wages (the PEU's wages split between the two by their pay on the main job);
+3. missing, not zero, on units outside the PEU, who are not asked.
+
+2019 wave: $330.5 billion on 43.1 million units, against the W-2's $332.5 billion for 2018. Two SCF slots: the
+unit's elective deferrals (`elective_deferrals`), and the spouse's share of them (`spouse_deferral_share`: 0 unless
+married with deferrals, missing where not asked; not grown between waves). The traditional part, elective x (1 - the
+Roth share), comes off the SCF's wages to make its link wage (below, "Wages and elective deferrals"). The Roth share is
+SOI's (W-2 Table 5.A for 2012-2018, Table 4.B for 2019-2020, joint and non-joint returns; 2019: 8.0% joint, 9.9%
+non-joint). The SIPP's deferrals (2021 and 2023) are held to the same limits and to the person's wages, and only make
+its link wage; the CEX and the CPS report none.
 
 **Business items on the SCF.** The SCF's two business income questions
 follow the tax return: X5704 is Schedules C and F, X5714 is Schedule E
@@ -388,30 +488,66 @@ Two standard functions and one table (`settings.json`, "translation";
   - The PUF side of the training table is the PUF's filers, dependent filers
     included; the non-filers are on the CPS rows.
 - **The table.** One row per survey and shared variable: the survey's
-  items (summed), definition fixes, the dollar line, whether function 2
-  applies, whether the variable is part of the type function 2 conditions
-  on, and the reason. A variable not in the table is not shared.
-  - Defaults: dollars, no fill-in.
-  - Departures today:
-    - SCF wages: a dollar line at $100,000;
-    - the SCF's two business subtotals and the CEX's self-employment
-      income: a line of zero;
-    - CPS wages and dividends, and SIPP wages: a line of zero;
-    - CPS dividends ranked against the tax data's ordinary dividends and
-      placed in qualified dividends (`rank_against`);
-    - the spouse's share of the couple's wages on the SIPP: taken as
-      reported and cut on the CPS's cut points of the same year
-      (`shared_with`);
-    - SCF capital losses read as no more than $3,000;
-    - function 2 on SCF interest, dividends and capital gains.
+  items (summed), definition fixes, the dollar line and how amounts beyond it
+  are matched, whether function 2 applies (and its size ranges), whether the
+  variable is part of the type function 2 conditions on, and the reason. A
+  variable not in the table is not shared. Defaults: dollars, no fill-in.
+- **The rules by survey** (since 28 October; John's decisions of 27 October,
+  scratch `explore/2026-10-27/mapping/AUDIT.md`). "Fill-in" is function 2;
+  "percentile" means the survey's p-th percentile holder gets the tax data's
+  p-th percentile holder's amount; "count from the top" means the survey unit
+  with N units above it gets the tax data's amount with N units above it.
+
+  | Survey | Item | Rule |
+  |---|---|---|
+  | every survey | wages | the link wage (below), fill-in, then percentile counted over all units from the top |
+  | SCF | taxable interest, dividends | dollars, fill-in |
+  | SCF | capital gains | losses read as no more than $3,000; fill-in; dollars to $50,000, percentile above |
+  | SCF | tax-exempt interest | dollars, fill-in |
+  | SCF | Schedules C and F | fill-in, count from the top |
+  | SCF | Schedule E: rental income; the rest | each fill-in (losses included, zeros only), then percentile, income and losses separately; the rest's fill-in steered by the partnership flag |
+  | SCF | gross Social Security | dollars (the benefits section, above) |
+  | CEX | self-employment, against Schedules C and F | fill-in, count from the top |
+  | CEX | gross Social Security | dollars |
+  | CPS | dividends, into qualified dividends | ranked against the tax data's ordinary dividends; fill-in, percentile |
+  | CPS | capital gains, into long-term gains | asked from tax year 2018 (zero before), losses read as zero; fill-in, percentile |
+  | CPS | pensions, with the 1099-R survivor and disability pensions | compared with taxable pensions plus taxable IRA distributions; fill-in, dollars |
+  | CPS | unemployment | fill-in, dollars |
+  | CPS | Schedule C (nonfarm and farm self-employment) | fill-in, count from the top |
+  | CPS | gross Social Security, rents, the filing flag, the rest | dollars, as before |
+  | SIPP | dividends, against ordinary dividends | fill-in; dollars to $50,000, percentile above |
+  | SIPP | gross Social Security | dollars |
+  | SIPP | pensions, against taxable pensions | fill-in, percentile |
+  | SIPP | the spouse's share of the couple's wages | taken as reported, cut on the CPS's cut points of the same year (`shared_with`) |
+
+  Not shared: CEX interest and dividends (one item, top-coded), pensions and
+  net rent; CPS interest; SIPP interest, self-employment, unemployment, rent and
+  alimony.
+- **Wages and elective deferrals** (since 28 October; settings "deferrals";
+  scratch `explore/2026-10-28/wages_deferrals/RESULTS.md`). The file carries
+  net wages (Form W-2 box 1, the PUF's), so each survey's wages are first made
+  a link wage: gross wages less the traditional part of the elective deferrals
+  the survey reports (the SCF; the SIPP in 2021 and 2023), and gross wages as
+  reported where it reports none (the CEX, the CPS, the SIPP to 2019). Health
+  premiums and other cafeteria-plan items stay inside the link wage for the
+  mapping to absorb. Every survey has fewer units with wages than the tax data
+  (by 1.5 to 8 points), so the missing small earners are filled in first:
+  function 1 gives each earner the tax data's wage at the same share of all
+  units counted from the top (`match` "percentile_from_top"), which leaves the
+  tax data's smallest wages to function 2. Mapped by percentile among earners
+  alone, wages fell 9-19% (SCF 2018: its median earner's $42,610 became the tax
+  data's median, $38,992). Worked example of the rule used: in the SCF 2018,
+  units with $100,000 or more of wages are 12.5% of units after function 1, as
+  in the tax data.
 - **Function 1, amounts.** An amount within the dollar line (2015 dollars,
-  grown per return to the survey's year) keeps its dollars. Above the line,
-  a unit gets the tax data's amount with the same number of units above it.
-  Below minus the line, it gets the tax data's loss with the same number
-  below it. No line means dollars throughout; a line of zero means rank
-  throughout. The result is cut on the PUF's cut points grown to that year.
-  The old wage swap also multiplied by a constant that kept the map
-  continuous at $100,000; function 1 has no such constant.
+  grown per return to the survey's year) keeps its dollars. Beyond the line,
+  by the row's match: count from the top (the default, with a line of zero
+  only; losses counted from the bottom); percentile among the units beyond the
+  line in each data set (required with a line above zero, so the order of units
+  is kept and the map is continuous at the line; since 28 October); or, for
+  wages, percentile counted over all units from the top. No line means
+  dollars throughout; a line of zero means the match throughout. The result is
+  cut on the PUF's cut points grown to that year.
 - **The report** (`data/translation_report.csv`, and the table stage's log)
   covers each row and survey year: the survey as reported, after function
   1, and the tax data. Each column gives units, the share with none, the
@@ -431,23 +567,21 @@ Two standard functions and one table (`settings.json`, "translation";
     $210,000 a person with one shared value.
   - It misses many small self-employment holders and most losses.
   - Interest and dividends are one item, top-coded, and not used.
-- **The CPS, why the departures and exclusions**
-  (`rebuild_cps/explore/cps_translation/TRANSLATION_CPS.md` in scratch):
+- **The CPS, why the rules** (`rebuild_cps/explore/cps_translation/TRANSLATION_CPS.md` in scratch, and the
+  27 October audit):
   - wages: the CPS has more units than the tax data above every line from
-    $25,000 (2019: 29.0 against 21.9 million above $100,000; 0.30 against
-    0.19 million above $1 million) and fewer below $10,000; the share with
-    none is within 3 points. Its wages are before pre-tax deductions, and
-    its top-coding does not leave it short at the top;
-  - dividends: the share with none is within 3 points, but fewer units
-    above every line (2019: 0.27 against 0.42 million above $100,000);
+    $25,000 (2019: 29.0 against 21.9 million above $100,000) and fewer below
+    $10,000; its wages are before pre-tax deductions. The fill-in barely moves
+    it (74.1% with wages after the fill-in against the tax data's 77.3%):
+    88.6% of its units without wages say nobody worked any week (left as is,
+    John, 27 October);
+  - dividends, capital gains, pensions, unemployment, Schedule C: the CPS's
+    zeros hide holders (2019: 7.1% of units with self-employment income against
+    the tax data's 17.9%, almost no losses; half the unemployment recipients;
+    15.8% with pensions against 23.9%), hence the fill-ins;
   - not shared: interest (the CPS has twice the tax data's holders and 2-6
-    times its dollars, more after its 2019 redesign; no setting removes
-    holders); Schedules C and F, unemployment and taxable pensions (the
-    CPS's zeros hide holders: 7% of units with self-employment income
-    against 18%, almost no losses; half the unemployment recipients outside
-    2021; 30-40% fewer pension holders), which wait for function 2 on the
-    CPS; Schedule E (it includes partnership and S corporation income, the
-    CPS's rent item does not).
+    times its dollars, more after its 2019 redesign; the fill-in cannot remove
+    holders).
 - **The SCF, why the departures.** The SCF reports more high earners than
   tax data at every line (2015: 0.47 million units with $1M+ of wages
   against the PUF's 0.15 million), as the literature also finds (Gale,
@@ -455,32 +589,66 @@ Two standard functions and one table (`settings.json`, "translation";
   AGI). The SCF's own pattern of zeros stays visible, through a source
   label the model always sees. The balance sheet is not shared: it is
   banded within each wave.
-- **Function 2: two slots, filled during training** (`fillin.py`).
- Many SCF households that report
-  zero interest, dividends or capital gains do hold some. Each of these
-  items has two slots on SCF rows: what the household reported (never
-  changed) and the PUF-concept amount (reporters copy their answer;
-  zero-reporters are filled in). The PUF has only the PUF-concept slot.
+- **Function 2: two slots, filled during training** (`fillin.py`; on the SCF
+  since 21 October, on every survey since 28 October). Surveys miss holders:
+  many units that report zero wages, interest, dividends, capital gains,
+  pensions or business income hold some. Each item with the fill-in has two
+  slots on that survey's rows: what the unit reported (never changed) and the
+  PUF-concept amount (reporters copy their answer; zero-reporters are filled
+  in). The PUF has only the PUF-concept slot.
   - From pass 3, at the start of each pass, each zero-reporter gets its
     chance of a hidden holding in each size range from the reporting-rate
     formula: its own chance of reporting that range (from the rest of its
-    record, every filled-in slot hidden), times (PUF share ÷ SCF share − 1)
-    for its type (married, dependents, wage band), divided by its chance
-    of reporting zero; capped at 100%. Each batch redraws the fill-ins from
-    those chances.
-  - The formula reads only the reported slots and the PUF, never a fill-in.
-  - No cells, top lines or loss floors: a range where the SCF has as many
-    holders as the PUF, or more, gets none.
+    record, every filled-in slot hidden), times (tax data share ÷ survey share
+    − 1) for its type, divided by its chance of reporting zero; capped at 100%.
+    Each batch redraws the fill-ins from those chances.
+  - The type is the survey year plus married, dependents and the wage band,
+    less the item itself (wages are not in their own type); the SCF's rest of
+    Schedule E adds the partnership flag.
+  - The tax data's share for a type mixes filers (the PUF's own training rows,
+    dependent filers left out) and non-filers (the CPS label, filing flag 0) by
+    their counts in the tax data.
+  - The formula reads only the reported slots and the tax data, never a
+    fill-in. Totals built from a filled-in part (on the CPS: ordinary dividends,
+    capital gains, Schedules C and F, business income) and the spouse's share of
+    wages are hidden when the formula reads a unit's chance of reporting, and
+    recomputed from the filled-in parts after each draw (since 28 October; before
+    the fix the CPS's Schedule C total gave its reported answer away).
+  - A range where the survey has as many holders as the tax data, or more, gets
+    none: the fill-in adds holders and never removes them. So a survey with too
+    many holders in some ranges ends above the tax data overall (SCF rental
+    income, below).
   - It assumes a holder's chance of reporting depends only on its type and
     true amount, not on net worth or anything else on the record.
-  - The PUF side of the formula (the PUF share for each type) leaves out
-    dependent filers, which are not tax units in any comparison with a
-    survey: it mixes the model's answers over the six adult age ranges, by
-    the model's chance of each range given the type.
+  - A row fills in only in the years its survey asks the item (the CPS's
+    capital gains from tax year 2018).
   - In the 2% held-back slice no fill-in is drawn, so there a zero-reporter's
     PUF-concept amount is unknown: not shown and not scored.
   - Net worth is drawn given the PUF-concept amounts; the reported slots
     stay hidden at generation.
+  - Share of units with any, main year, after 80 passes of the installed
+    seed-20261017 model (`model/<run>/fill_log.csv`):
+
+    | Survey and item | Reported | After the fill-in | Tax data at the survey's types |
+    |---|---:|---:|---:|
+    | SCF 2018 wages | 72.3% | 77.6% | 77.0% |
+    | SCF 2018 taxable interest | 11.6% | 24.9% | 26.0% |
+    | SCF 2018 dividends | 10.4% | 17.0% | 18.8% |
+    | SCF 2018 capital gains | 7.4% | 14.2% | 14.7% |
+    | SCF 2018 Schedules C and F | 10.7% | 17.7% | 20.7% |
+    | SCF 2018 rental income | 6.4% | 9.7% | 7.6% |
+    | SCF 2018 rest of Schedule E | 5.4% | 8.4% | 7.3% |
+    | CEX 2019 wages | 75.4% | 79.5% | 77.6% |
+    | CEX 2019 self-employment | 11.4% | 22.6% | 22.0% |
+    | CPS 2019 wages | 73.8% | 74.1% | 77.3% |
+    | CPS 2019 dividends | 15.6% | 18.8% | 19.0% |
+    | CPS 2019 capital gains | 6.1% | 10.2% | 11.3% |
+    | CPS 2019 pensions | 15.8% | 16.7% | 24.4% |
+    | CPS 2019 unemployment | 2.0% | 4.1% | 4.1% |
+    | CPS 2019 Schedule C | 7.1% | 15.6% | 20.7% |
+    | SIPP 2019 wages | 69.5% | 78.3% | 77.1% |
+    | SIPP 2019 dividends | 14.0% | 20.5% | 19.5% |
+    | SIPP 2019 pensions | 13.6% | 22.4% | 21.7% |
 
 ## The model
 
@@ -520,9 +688,11 @@ Two standard functions and one table (`settings.json`, "translation";
     returns' worth of weight, one below p50 about 1,390: the top group,
     0.02% of returns, is 4.6% of the PUF's training weight.
   - The SCF: 5 classes per wave at the weighted p50, p90, p99 and p99.9 of
-    band-income (wages, interest, dividends, capital gains, gross retirement
-    income, Schedules C and F, Schedule E; the reported amounts for the three
-    items the fill-in fills).
+    band-income (wages, interest, dividends, capital gains, gross Social
+    Security, Schedules C and F, and Schedule E's two parts; since 28 October
+    gross Social Security and the two parts replace gross retirement income and
+    Schedule E as one item). For every item with the fill-in, wages included,
+    the band is the household's reported one, not the filled-in slot.
   - The CEX, the CPS and the SIPP: q = 1.
   - Averages meant to describe the population use the survey weights
     without q: the fill-in's averages over a type and the per-variable log.
@@ -546,14 +716,26 @@ Two standard functions and one table (`settings.json`, "translation";
   add up to another AGI group from 15% to 13% and brought the middle of the
   income distribution closer, at about twice the training time on the same
   card; HISTORY.md, 25–26 October), all
-  records but a 2% held-back slice. About 75 minutes per model on an H100
-  (since the other PUF items, 27 October; 9% longer a pass). Peak
+  records but a 2% held-back slice. The installed models took 94 to 103
+  minutes each on an H100 (about 75 before 28 October; the fill-in's refit on
+  every survey takes about 18 seconds a pass against 8 on the SCF alone). Peak
   learning rate 0.003: in a sweep of 0.001 to 0.01 (two or three seeds
   each, 21 October), it brought the top income group's net worth before
   the tilt close to the SCF's, at a slightly worse fit on the average
   held-back record.
 - **Why no dropout.** Dropout made rare items come out 10–20% too low
   (`HISTORY.md`).
+- **Seeds.** The same seed, data, code and kind of GPU (H100) give the same
+  network, weight for weight. Networks of different seeds vary more than their
+  held-back loss shows: of four trained on 28 October, three drew net worth
+  before reweighting of $105-111 trillion and one (seed 20261016) $140 trillion,
+  against the SCF's $97.1 trillion, with held-back losses equal to the third
+  decimal place. The bad network drew too many filers with capital and business
+  income for their AGI group. A check of the share of filers with seven income
+  items in each Table 1.4 AGI class against the PUF picks it out (median miss
+  1.69 points against 0.56-0.99) and needs no SCF data
+  (`explore/2026-10-28/model_variability/RESULTS.md`). Seed 20261016 was
+  dropped; the file pools seeds 20261017-19 (below).
 
 ## Generation
 
@@ -563,7 +745,7 @@ Two standard functions and one table (`settings.json`, "translation";
    dividends and the adjustments, computed from their parts; then the
    partnership/S corporation/LLC flag;
 3. the exact ages of the primary filer and the spouse, in a random order,
-   as the CPS would see the unit (CPS label and generation year 2019): the
+   as the CPS would see the unit (CPS label, at the record's CPS year): the
    CPS covers every tax unit, filers and non-filers, in every year, and its
    view holds the filing flag. The primary filer's age lies inside its age
    range; the spouse's exists exactly when married and is 18 or over (since
@@ -580,25 +762,27 @@ Two standard functions and one table (`settings.json`, "translation";
    and spouse falls in exactly one counted band and stops if not
    (`target_list.check_nonfiler_bands`);
 4. the SCF-only items, in a random order (the mortgage share after the
-   home), as the SCF would see the household (SCF label, PUF-only variables
-   left out, the exact ages seen), at the income year of the record's own
-   SCF wave (below). Net worth is computed from the balance sheet in dollars;
+   home; the spouse's share of deferrals after the deferrals), as the SCF
+   would see the household (SCF label, PUF-only variables left out, the exact
+   ages seen), at the income year of the record's own SCF wave (below). Net
+   worth is computed from the balance sheet in dollars. Deferrals are zero
+   without wages, and the spouse's share is zero unless married;
 5. the 8 consumption categories, in a random order, as the CEX would
-   see the unit (CEX label and generation year 2019, everything the CEX
+   see the unit (CEX label, at the record's CEX year, everything the CEX
    lacks left out, the exact ages seen);
-6. the CPS's own person items and childcare, in a random order, as
-   the CPS would see the unit (CPS label and generation year 2019), under
-   the rules above (The CPS);
-7. the SIPP's items last: the two adults' tip shares in a random order,
+6. the CPS's own person items and childcare, in a random order, then the two
+   adults' overtime, as the CPS would see the unit (CPS label, at the record's
+   CPS year), under the rules above (The CPS);
+7. the SIPP's items last: the two adults' tips in dollars in a random order,
    then the two leisure and hospitality flags, as the SIPP would see the
-   unit (SIPP label and generation year 2019), given the spouse's share of
-   wages drawn in step 6. The spouse's items are zero unless married; a tip
-   share is zero without that adult's wages; a flag is zero without tips.
+   unit (SIPP label, at the record's SIPP year), given the spouse's share of
+   wages drawn in step 6. The spouse's items are zero unless married; tips
+   are zero without that adult's wages; a flag is zero without tips.
 
 **Dependent filers** (the PUF's three dependent-filer age ranges) hold no
 SCF, CEX, CPS or SIPP item: every balance-sheet item, unrealized gain, business
-ownership, auto loan interest, consumption category, exact age, CPS person
-item and tip is zero or none on their records. The surveys
+ownership, auto loan interest, elective deferral, consumption category, exact
+age, CPS person item, overtime and tip is zero or none on their records. The surveys
 count their wealth and spending in the household that claims them. Their
 tax items stay as drawn.
 
@@ -647,7 +831,7 @@ is the group's 2015 returns over the records drawn in it, 1 ÷ q of the group, w
 weighting exactly. Every drawn record is kept.
 - **The label is checked, not trusted.** Each record's band-AGI group is computed from its drawn bands and compared
   with its label (`gen/<run>/label_check.csv`, and the stack's columns q_group and label_ok); the weight follows
-  the label. In the latest run 13.6% of filer records had parts adding to another group.
+  the label. In the latest run 14.1% of filer records had parts adding to another group.
   Redrawing such records until they agree was tried and not kept: it thins business income in the middle
   (`HISTORY.md`, 25–26 October).
 
@@ -656,17 +840,27 @@ filers and non-filers alike, is given one SCF wave at random with the shares in 
 (`targets_config/years/2019.yaml`, prior, "balance sheet": the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016
 wave 12.20%, by the rule of 24 October), by a random generator of its own (`generation.scf_wave_seed`), so no other
 draw moves. Its SCF phase runs at that wave's income year, and its balance sheet becomes dollars through that wave's
-own map (below). The stack carries scf_wave and scf_year. The CEX and the CPS are still drawn at one fixed year
-(settings cex and cps, generation_year).
+own map (below). The stack carries scf_wave and scf_year.
+
+**The survey year mix** (TARGETS.md section 7; since 28 October; `survey_mix.py`). In the same way each record draws
+its CEX year, its CPS year and its SIPP year, each by a random generator of its own (`generation.survey_year_seeds`),
+with the shares in the year's configuration (prior, "consumption", "cps items", "sipp tips"): the survey's two years
+nearest the target year, weighted by distance, for 2019 the 2019 survey 73.11% and the 2017 survey 26.89%. The exact
+ages and the CPS phase run at the record's CPS year, the CEX phase at its CEX year, the SIPP phase at its SIPP year,
+and each year's bands become dollars through that year's own map. The stack carries cex_year, cps_year and sipp_year.
+Generation refuses a year the training table lacks for a survey. The non-filer count and the non-filer people
+targets are still the 2019 filing stage's.
 
 **Stored picks** (`dollars.py`). For each record and each amount the stack stores one uniform number
 (u_<variable>) that picks the record's real dollar amount within its band, so every step that turns bands into
 dollars gives a record the same amounts, and its 2019 dollars are its 2015 dollars grown.
 
-**Two models pooled** (settings `generation.models`; TARGETS.md section 8). Every batch is drawn half from each
-trained model (now `label_seed20261016`, `label_seed20261017`), each with its own generation seeds (its
-`seed_shift`), each record saying which drew it (column `model`), ids unique across models. The consistency offset
-is found per model.
+**Three models pooled** (settings `generation.models`; TARGETS.md section 8; three since 28 October). Every batch
+is drawn in equal thirds from the three trained models (`label_seed20261017`, `label_seed20261018`,
+`label_seed20261019`), each with its own generation seeds (its `seed_shift`: 0, 1000, 2000), each record saying which
+drew it (column `model`), ids unique across models. The consistency offset is found per model. Pooling averages the
+models: a pooled file's net worth before reweighting is about the average of its models drawn alone, so it dilutes a
+bad network but does not remove it (above, "Seeds").
 
 ## Post-training: the 2019 file
 
@@ -683,16 +877,36 @@ home's value, so it moves with the home. The growth carries only each wave's
 mean: the shape of a wave's distribution is not changed. The
 start from an earlier year's file (`from_year`) grows the balance sheet by the
 same rule. Consumption: each
-band's real CEX 2019 values, with no growth. The CPS's items: each band's
-real CPS 2019 values (childcare grown by SOI's wages per return, which is
-no growth when the generation year is the target year). Auto loan interest
-grows per tax unit with its wave, like the balance sheet; tips are shares of
-the record's own 2019 wages. Every dollar column of the file is in nominal
+band's real CEX values of the record's CEX year (2017's grown to 2019 by NIPA
+consumption per return, category by category). The CPS's items: each band's
+real CPS values of the record's CPS year (childcare and overtime grown by SOI's
+wages per return; 2017 to 2019, 1.062). Tips: the SIPP's values of the record's
+SIPP year, grown the same way. Auto loan interest and elective deferrals grow per
+tax unit with the SCF wave, like the balance sheet (deferrals by the mean per unit
+over the units asked); then each person's deferrals are held to the target year's
+legal limit for their age ($19,000, or $25,000 from 50, in 2019) and to their own
+wages. Every dollar column of the file is in nominal
 2019 dollars except the PUF items SOI Table 1.4 has no line for (mortgage
 interest, real estate tax, the other itemized deduction items, the AMT items,
-credits and other taxes), which stay in 2015 dollars. Nothing from the CPS is
-targeted (`tilt/<run>/cps_report.md` compares the file with the CPS 2019;
-`sipp_report.md` the file's tips with the SIPP 2019).
+credits and other taxes), which stay in 2015 dollars. `tilt/<run>/cps_report.md`
+compares the file with the CPS year mix (only overtime is targeted from the CPS);
+`sipp_report.md` the file's tips with the SIPP year mix.
+
+**SCF other debt held to the 99.9th percentile** (since 28 October; settings `dollars.scf_caps`;
+`build_table.cap_scf_map`). In each SCF wave's dollar map, before it is grown to the target year, other debt is held
+to the 99.9th percentile among the wave's holders (weighted): $560,000 in the 2013 wave, $900,000 in 2016, $500,000
+in 2019, $2.0 million in 2022. Without it the SCF's largest amounts ($15-69 million) reached ordinary records through
+the maps, and in each of three runs the tilt used one such record (other debt $7-35 million, wages $33,000-53,000) to
+lower net worth in a wealth grid cell, raising its weight 39 to 47 fold until it carried $0.23-0.92 trillion of other
+debt. Only the dollars
+a drawn band turns into change; the training table, its bands and the models do not. In the latest run other debt is
+$140 billion after the tilt against $135 billion before.
+
+**In the file, per person** (`dollars.py`): wages1 and wages2; tips1, tips2 and tips; ot1, ot2 and ot; elective1 and
+elective2 (each person's elective deferrals after the holds), Tax-Simulator's trad_contr_er1 and trad_contr_er2 (each
+person's traditional part, elective x (1 - the W-2 Roth share for joint or non-joint returns)), trad_deferrals (their
+sum) and medicare_wages (wages plus both); elective_deferrals keeps the drawn total. Each sum adds up to its parts
+exactly.
 
 **The year's configuration** (`pipeline/targets_config/`; TARGETS.md section 12 and S7): a catalog of
 definitions, defaults, historical and projection files, and one file per year. `target_list.py` expands it into
@@ -727,7 +941,7 @@ variance; the file's net worth lines are the share-weighted average of the waves
 0.65 of one wave's. The replicate weights of each wave sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to
 fetch them). `tilt/<run>/scf_targets_by_wave.csv` has each target's value, error, lines and SCF households by wave.
 
-The 2019 targets (753):
+The 2019 targets (789):
 
 | Targets | Number |
 |---|---:|
@@ -739,10 +953,12 @@ The 2019 targets (753):
 | Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
 | Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
 | Tips: SOI's 2019 Form W-2 statistics (Tables 4.B and 4.C, box 7): returns with tips and the amount, joint and non-joint (4); tipped workers on joint returns (1); the share of tipped workers above each of six percentile lines of tips per worker (6) | 11 |
+| Elective deferrals: SOI's 2019 Form W-2 Table 2.D, in eight AGI groups: contributions on joint returns (8); returns with any and contributions on non-joint returns (16) | 24 |
 | SCF wealth, the 2016, 2019 and 2022 waves pooled: shares of units and net worth above the 99.9th, 99th, 90th and 50th percentile lines and $1 million; the four asset types (stocks, business equity, real estate, retirement accounts) above the 99.9th, 99th and 90th lines | 22 |
 | SCF income x net worth grid, the same waves pooled (below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | SCF auto loan interest, the same waves pooled: the share of units with any and dollars per unit in the grid's 4 income groups | 8 |
-| CEX 2019 consumption: 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
+| CEX consumption, the 2019 and 2017 surveys pooled (73.11% and 26.89%): 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
+| CPS overtime, the 2019 and 2017 surveys pooled: the share of units with any and overtime per unit, over all units and in 5 groups of the unit's wages | 12 |
 
 **Tables 1.3 and 4.3** (since 27 October; `historical.yaml`, read from the local IRS-Ind store's tidy files, settings
 `paths.raw.soi_tables`). Errors are borrowed from the nearest Table 1.4 cells. Table 1.3's capital loss is measured
@@ -768,11 +984,45 @@ removing them could move it (4.2 points at the $121 line, 0.13 at the $44,054 li
 `worker share` and `published_w2_shares` in `pipeline/target_list.py`; configuration in `catalog.yaml` (source `soi w2 pctiles`) and
 `years/2019.yaml` (`tips_w2_workers`, `tips_w2_spread`).
 
+**Elective deferrals** (since 28 October; `years/2019.yaml`, reader `target_list._w2_by_agi`, catalog source `soi w2
+2.d`). SOI's W-2 Table 2.D, its 19 AGI rows summed into eight groups (under $25,000, $25,000-50,000,
+$50,000-75,000, $75,000-100,000, $100,000-200,000, $200,000-500,000, $500,000-1 million, $1 million and over). The
+file's measure is elective1 + elective2 over filers other than dependent filers. Table 2.D counts people, up to two
+on a joint return, so on joint returns only the dollars are targeted. As for tips, the non-joint values are reduced
+by the SIPP's share of dependents among non-joint people with deferrals (SIPP 2021, the nearest year that asks: 0.5%
+of people, 0.1% of dollars), half of that reduction added to the error; errors are borrowed from the nearest Table
+1.4 cells. 2019 targets: $243.6 billion on joint returns; 27.7 million non-joint returns with $109.1 billion.
+
+**Overtime** (since 28 October; `years/2019.yaml` entries `overtime_all` and `overtime_by_wages`; catalog source
+`cps`; `target_list.cps_mix_rows`, `errors.overtime_errors`). Built as the CEX consumption targets are: from the CPS's
+own units (the shared tax-unit rules), units other than dependent filers, filers and non-filers. Only units asked the
+earnings questions have overtime; each target is an average over the asked units in the cell with their own weights.
+The unit's wages are the CPS's after function 1, so a wage group holds the same ranks on both sides. The 2019 value
+is 73.11% of the 2019 CPS's plus 26.89% of the 2017 CPS's (grown by SOI's wages per return). Errors from the ASEC's
+160 person replicate weights (successive difference replication: variance = 4/160 times the sum of squared
+differences), pooled over the two years as for the CEX.
+
+| Unit's wages | Share with any overtime | Overtime per unit |
+|---|---:|---:|
+| all units | 7.57% (standard error 0.22 points) | $1,469 ($55) |
+| under $25,000 | 2.01% (0.17) | $180 ($21) |
+| $25,000-50,000 | 13.22% (0.60) | $1,755 ($95) |
+| $50,000-100,000 | 13.94% (0.65) | $3,065 ($187) |
+| $100,000-200,000 | 12.76% (0.80) | $4,256 ($355) |
+| $200,000 and over | 7.45% (1.19) | $2,808 ($537) |
+
+**Consumption over the year mix** (since 28 October). Each CEX year's spending is put in 2019 dollars by NIPA
+consumption per return, category by category; the target is 73.11% of the 2019 average plus 26.89% of the grown 2017
+average, and its standard error combines each year's own (from its 44 replicate weights) as independent samples.
+Pooling lowered the standard errors by 22% at the median. The target labels still say "CEX 2019".
+
 **Auto loan interest** (since 27 October; `historical.yaml`). Per unit rather than totals, because the SCF's units
 (162.8 million) are fewer than the file's units other than dependent filers (about 169.5 million).
 
 **The income x net worth grid** (since 26 October, approved with run P3; historical.yaml, wealth_grid_shares and wealth_grid_dollars; scf_targets.py). Four income groups by the seven income items the SCF and the file share (wages, interest,
-dividends, capital gains, gross retirement income, Schedules C and F, Schedule E): below p90, p90-99, p99-99.9 and
+dividends, capital gains, gross Social Security, Schedules C and F, Schedule E; on the SCF Schedule E is its two parts;
+since 28 October gross Social Security replaces gross retirement income on both sides, which moves some units between
+income groups): below p90, p90-99, p99-99.9 and
 p99.9 and over, each side by its own weighted percentiles (the file's lines set on its starting weights, then held
 fixed in dollars through the tilt). Four net worth classes between the SCF's dollar lines at p90, p99 and p99.9
 (pooled over the waves: $986,300, $8.95 million, $39.50 million; the 2019 wave alone $957,700, $9.21 million,
@@ -789,57 +1039,67 @@ Counts by kind as in `tilt/<run>/targets.csv`.
 
 ## How the latest run comes out
 
-The 2019 run of 27 October, from the pipeline as it now stands, in the default output folder
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` at the default settings: models `model/label_seed20261016` and
-`model/label_seed20261017` (each trained in about 73 minutes on an H100); the stack `gen/seed20261016` (drawn on an
-H100 in 15 minutes, 400,000 filer records and 54,379 non-filer records); the file `tilt/seed20261016` (the tilt and
-its report 14 minutes). Its `summary.md`, `report.md` and `sipp_report.md` have the full tables. Counts in millions,
-nominal 2019 dollars unless said.
+The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` at the default settings: models `model/label_seed20261017`,
+`model/label_seed20261018` and `model/label_seed20261019` (each trained in 94 to 103 minutes on an H100); the stack
+`gen/seed20261017` (400,000 filer records and 54,379 non-filer records, a third from each model, drawn in about 16
+minutes); the file `tilt/seed20261017` (the tilt and its reports about 22 minutes). It was built in
+`explore/2026-10-28/bigrun_ot3cap/` (run name `seeds17_18_19`) and moved into place. Its `summary.md`, `report.md`,
+`cps_report.md`, `cex_report.md` and `sipp_report.md` have the full tables. Counts in millions, nominal 2019 dollars
+unless said. "Run before" is the latest of 27 October (`previous_2026-10-28_before_bigrun/`).
 
 | | File | Reference |
 |---|---:|---:|
-| targets inside their ranges (SCF 0.5, the rest 1 standard error) | 753 of 753 (502 at an edge) | before the tips spread targets: 746 of 746 (496 at an edge) |
-| effective sample kept, from the prescaled start | 87.2% | before the tips spread targets: 87.3%; run S2 (stage 1's models): 87.7% |
-| effective sample kept, from the start before the prescaling | 86.8% | before the tips spread targets: 87.0% |
-| weight factor, 1st and 99th percentiles | 0.047, 3.24 | |
-| thin cells: warnings, stops | 108, 54 | before the tips spread targets: 109, 54 |
-| returns with AGI of $10 million and over, before the tilt (2015 dollars and returns) | 0.0252 | PUF 2015: 0.0175 |
-| returns with AGI of $1 million and over, before the tilt (same) | 0.541 | PUF 2015: 0.443 |
-| returns with AGI zero or negative, before the tilt (same) | 3.00 | PUF 2015: 2.02 |
-| filer records whose drawn parts add up to another AGI group than their label | 14.1% | |
-| net worth, total, before and after the tilt | $110.8 and $97.0 trillion | SCF pooled: $97.1 trillion |
-| net worth with units at p99.9+ of income, above and at or below the SCF's p99.9 net worth line | $7.98 and $1.89 trillion | targets: $8.39 and $2.07 trillion |
-| median net worth, all 179.1 million units | $51,560 | SCF pooled, 162.8 million units: $66,600 |
-| top 1% share of net worth | 40.8% | SCF pooled: 39.6% |
-| tips: total, units with any | $48.1 billion, 6.13 | W-2 2019 (filers): $42.4 billion, 6.51 million returns; SIPP 2019: $33.6 billion, 3.76 |
-| auto loan interest: total, units with any | $44.4 billion, 49.4 | SCF pooled (162.8 million units): $43.2 billion, 47.3 |
-| qualified dividends, filers other than dependent filers | $259.5 billion | the 2015 PUF grown: $232.9 billion |
-| returns with any itemized deduction item, before and after the tilt | 46.3, 40.4 | the 2015 PUF grown: 46.6 |
+| targets inside their ranges (SCF 0.5, the rest 1 standard error) | 789 of 789 (548 at an edge) | run before: 753 of 753 (502 at an edge) |
+| effective sample kept, from the prescaled start | 81.3% | run before: 87.2% |
+| effective sample kept, from the start before the prescaling | 81.0% | run before: 86.8% |
+| KL move (nats) | 0.131 | run before: 0.098 |
+| weight factor, 1st and 99th percentiles | 0.039, 3.94 | run before: 0.047, 3.24 |
+| thin cells: warnings, stops | 121, 75 | run before: 108, 54 |
+| filer records whose drawn parts add up to another AGI group than their label | 14.1% | run before: 14.1% |
+| median miss before the tilt: IRS Table 1.4, Table 1.3, business, SCF wealth | 7.2%, 12.8%, 16.2%, 9.0% | run before: 9.0%, 13.8%, 20.7%, 14.3% |
+| wages, all units | $8,596 billion | run before: $8,597 billion |
+| elective deferrals: total, units with any | $387 billion, 54.1 | W-2 Table 2.D targets (filers other than dependent filers): $352.7 billion; the file on the same measure $349.7 billion |
+| traditional deferrals; Medicare wages | $328 billion; $8,924 billion | |
+| net worth, total, before and after the tilt | $105.6 and $97.3 trillion | SCF pooled: $97.1 trillion |
+| median net worth, all 179.3 million units | $53,540 | SCF pooled, 162.8 million units: $66,590 |
+| top 1% share of net worth | 41.0% | SCF pooled: 39.6% |
+| other debt, before and after the tilt | $135 and $140 billion | run before: $292 and $298 billion |
+| tips: total, units with any | $42.5 billion, 6.00 | W-2 2019 (filers): $42.4 billion, 6.51 million returns; SIPP year mix: $32.8 billion, 3.70 |
+| overtime: total, share of units with any, per unit (dependent filers left out) | $242.5 billion, 7.8%, $1,431 | CPS year mix: $246.9 billion, 7.6%, $1,469 |
+| auto loan interest: total, units with any | $44.9 billion, 49.6 | SCF pooled (162.8 million units): $43.2 billion, 47.3 |
+| consumption, total | $6,914 billion | CEX year mix (161.8 million units): $6,673 billion |
+| returns with any of nine itemized deduction items, before and after the tilt | 47.2, 40.8 | run before, measured the same way: 46.4, 40.5 |
 
-- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 2.1 standard
-  errors in Table 1.4, 1.6 in Table 1.6 and 2.3 in Table 1.7 (the run before, with 496 targets: 3.4, 2.4, 1.9).
+- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 2.0 standard
+  errors in Table 1.4, 1.7 in Table 1.6 and 2.3 in Table 1.7 (run before: 2.1, 1.6, 2.3).
+- **The models differ.** The three models' records, each scaled to the file's weight, differ by a median 14.6% on
+  statistics with at least 200 records in each model (`report_models.csv`); the largest gaps are on dependent filers'
+  rare items.
 - **Net worth.** The file's units include its dependent filers, who hold no wealth; the SCF's units do not, so
-  the two medians are not on the same base.
-- **The largest weight factor is 381**: one joint filer record with no AGI that sits in several targeted cells
-  (interest, farm income and partnership losses at no AGI, and Table 1.3's joint cells).
+  the two medians are not on the same base. Before the tilt net worth is 9% above the SCF's ($105.6 against $97.1
+  trillion; run before $110.8 trillion).
+- **Deferrals.** All 24 W-2 targets are met. Before the tilt the file's deferrals on joint returns were short at the
+  top (AGI $500,000-1 million: $9.6 billion against $17.6 billion; $1 million and over: $4.0 billion against $7.1
+  billion) and long on non-joint returns under $25,000 ($6.8 billion against $3.7 billion); the tilt closes both.
 - **Tips.** The file's total includes non-filers' tips and tips above the box 7 limit, which the W-2 targets do not
-  count. The tilt meets the W-2 counts by raising the weight of records that already have tips (by 1.66 times on
-  average in run S2). Units with $200,000 or more of wages hold $5.9 billion of tips (SIPP 2019: $0.9 billion; $4.9 billion
-  before the tips spread targets). The spread targets (27 October) weight records with small tips about twice their starting
-  weight; they cost 0.1 point of the effective sample. Tips per worker, box 7 measure, filers (nominal 2019 dollars):
+  count. Before the tilt the file has $28.9 billion of tips on 3.51 million units, about the SIPP's; the tilt meets
+  the W-2 counts by raising the weight of tipped records. Units with $200,000 or more of wages hold $1.0 billion
+  (SIPP year mix: $0.8 billion; $5.9 billion in the run of 27 October, when tips were a share of wages). Tipped
+  workers: 5.74 million against a target of 6.05 million, inside its range. Share of tipped workers (filers, box 7
+  measure) above Table 4.C's percentile lines:
 
-  | | p25 | p50 | p75 | p99 |
-  |---|---:|---:|---:|---:|
-  | W-2 2019 (Table 4.C) | 537 | 2,444 | 8,409 | 44,054 |
-  | file before the tips spread targets | 872 | 3,531 | 9,367 | 52,272 |
-  | file now | 686 | 2,789 | 8,922 | 47,138 |
+  | Line | $121 | $537 | $2,444 | $8,409 | $18,281 | $44,054 |
+  |---|---:|---:|---:|---:|---:|---:|
+  | W-2 2019 (the target) | 90% | 75% | 50% | 25% | 10% | 1% |
+  | file before the tilt | 93.5% | 81.3% | 60.2% | 31.2% | 13.2% | 1.9% |
+  | file after the tilt | 92.3% | 78.2% | 52.4% | 26.3% | 10.6% | 1.1% |
 
-  All seven new targets are inside their ranges, six at the edge, so the spread is closer to the W-2's but does not reach it; the
-  dependent-filer term in their errors is what lets the solver stop at the edge. Tipped workers: 5.74 million against a target of
-  6.05 million.
+- **Overtime.** Before the tilt the file has $271.7 billion on 14.96 million units; after, $242.5 billion. Holding
+  each person's overtime to their wages took $13.3 billion of the $256.5 billion drawn (1.03 million people, file
+  weights), and subtracting tips $0.7 billion more (0.09 million people).
 - **Itemizers** fall in the tilt because Table 1.3's state income tax refund targets (2019: $5.6 billion, few
-  taxable refunds after the 2017 law) cut the weight of itemizers with a refund to about a fifth; every itemized item
-  loses 15-20% of its holders at AGI $25,000-200,000.
+  taxable refunds after the 2017 law) cut the weight of itemizers with a refund to about a fifth.
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (up to commit bc72cc7).
 
