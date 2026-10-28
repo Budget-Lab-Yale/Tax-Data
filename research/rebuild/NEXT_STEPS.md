@@ -7,13 +7,13 @@ one change on a branch, a full run, a comparison with the latest run, John's app
 
 ## Before the tax calculator
 
-1. **Rules applied after drawing.** No new data. Child credit eligibility for each dependent, dependents' Social
+1. **Non-microdata imputations** (named by John, 28 October; earlier "rules applied after drawing"). No new data. Child credit eligibility for each dependent, dependents' Social
    Security numbers, blindness, the QBI wage and specified-service flags for each business, parents' income rank,
    death probabilities, yearly unrealized gains on each asset, and the basis and holding period of capital gains
    from SOI's Sales of Capital Assets tables (published tables, so a rule, not a source). Production's versions are
    in `src/imputations/` and `src/mortality_ledger.R`.
    **Next, from 28 October (John).** The proposal is in scratch `explore/2026-10-28/rules_framework/PROPOSAL.md`:
-   one module, `rules.py`, one function per item, each year's own published table, draws keyed by record id, a
+   one module, `non_micro_imputations.py` (named by John, 28 October), one function per item, each year's own published table, draws keyed by record id, a
    published check per rule. Nine questions for John, taken one at a time; decisions recorded here as they are made.
    These items are also most of the 39 inputs the calculator experiment sets to 0 (branch `rebuild-calculator`,
    `CALCULATOR_CONTRACT.md`).
@@ -113,7 +113,7 @@ Left as is (John, 27 October):
     workaround in every year, two indexed values a little off);
   - the file's own consistency: AMT at five times SOI's, from AMT adjustments drawn without the matching net
     operating losses; gross pensions below taxable pensions on 27.3 million units; the PUF items still in 2015
-    dollars; ages for dependent filers (settled by the rules framework, Q2); $70 billion of income tax on non-filers;
+    dollars; ages for dependent filers (settled by the non-microdata imputations, Q2); $70 billion of income tax on non-filers;
   - how to compare: which AGI sorts records into SOI's groups, and whether to target the calculator's taxable
     income and tax before credits now (the side test met all 74 such targets, partly through the gaps above).
 
