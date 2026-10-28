@@ -1254,6 +1254,25 @@ def build_map(df, edges, source, variables, year=PUF_YEAR):
         .reset_index(drop=True)
 
 
+def cap_scf_map(m, base, wave):
+    """The wave's dollar map with each item in settings dollars.scf_caps held to that percentile among the wave's
+    holders (weighted, the wave's own dollars, before growth). Only the dollars a drawn band turns into change; the
+    training table and its bands do not. Prints the cap and how many map values it lowers."""
+    for v, q in common.SETTINGS['dollars'].get('scf_caps', {}).items():
+        x, w = base[v].to_numpy(float), base['weight'].to_numpy(float)
+        assert np.isfinite(x).all(), f'SCF wave {wave}: {v} missing or not finite'
+        h = x > 0
+        assert h.any(), f'SCF wave {wave}: no holders of {v}'
+        order = np.argsort(x[h], kind='stable')
+        xs, cw = x[h][order], np.cumsum(w[h][order]) / w[h].sum()
+        cap = float(xs[min(np.searchsorted(cw, q), len(xs) - 1)])
+        r = (m['variable'] == v).to_numpy() & (m['value'].to_numpy(float) > cap)
+        common.say(f'SCF wave {wave}: {v} held to ${cap:,.0f} (the {q:.1%} point among holders); '
+                   f'{int(r.sum())} map values lowered, the largest ${m.loc[r, "value"].max() if r.any() else 0:,.0f}')
+        m.loc[r, 'value'] = cap
+    return m
+
+
 def scf_growth(scf, y_from, y_to):
     """{balance-sheet item: its growth per tax unit from the SCF wave of income year y_from to that of y_to}: the ratio
     of the two waves' weighted means per tax unit, each in its own dollars (all units and all five implicates, zeros
@@ -1311,6 +1330,7 @@ def build_maps(t, edges):
                        f'{no_factor}')
             continue
         m = build_map(base, edges, 'scf', SCF_AMOUNTS, year=y)
+        m = cap_scf_map(m, base, int(y) + 1)
         m['value'] = m['value'].to_numpy(float) * m['variable'].map(f).to_numpy(float)
         assert not m['value'].isna().any(), f'SCF {y}: a map value with no growth factor'
         m.to_parquet(f'{common.MAPS}/map_scf_wave{int(y) + 1}_{TARGET_YEAR}.parquet', index=False)

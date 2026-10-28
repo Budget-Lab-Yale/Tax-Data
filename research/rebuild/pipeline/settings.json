@@ -1677,15 +1677,19 @@
   "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer batch's (label_records) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
   "models": [
    {
-    "run": "label_seed20261016",
+    "run": "label_seed20261017",
     "seed_shift": 0
    },
    {
-    "run": "label_seed20261017",
+    "run": "label_seed20261018",
     "seed_shift": 1000
+   },
+   {
+    "run": "label_seed20261019",
+    "seed_shift": 2000
    }
   ],
-  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run."
+  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run. Three seeds, 20261017-19, since 28 October (John): the seed-20261016 network was a much worse fit (explore/2026-10-28/model_variability/RESULTS.md)."
  },
  "consistency": {
   "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
@@ -1745,7 +1749,11 @@
  },
  "dollars": {
   "_what": "seed: the seed of the draws that pick each record's dollars within its drawn band from the dollar map (dollars.py).",
-  "seed": 20261104
+  "seed": 20261104,
+  "scf_caps": {
+   "w_other_debt": 0.999
+  },
+  "_scf_caps": "Balance-sheet items whose dollar map is held to a percentile among the wave's holders (weighted), in each SCF wave before it is grown to the target year (build_table.build_maps). Other debt: the SCF's largest amounts ($15-69 million) landed on ordinary records and one such record carried $0.27-0.92 trillion after the tilt; held to the 99.9th percentile among holders, $0.5-2.0 million (John, 28 October). The training table is unchanged, so the models are unaffected."
  },
  "tilt": {
   "_what": "Post-training (tilt.py, solver.py, TARGETS.md): the start's weights scaled, then the smallest Kullback-Leibler move of the weights that puts every target in the year's list (targets_config/, expanded by target_list.py, each with its standard error from errors.py) inside its range. Which targets, their values and their errors are in targets_config/, not here.",
