@@ -29,6 +29,10 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      itemizers, the surveys and the 3% that are not whole numbers. The model learns it by age and draws it for the
      primary filer and the spouse; checked against Pub 4801's blind boxes (scratch
      `explore/2026-10-28/rules_framework/blind_puf.py`).
+   - Q4, dependents' Social Security numbers (John, 28 October): learned from the CPS in pretraining (citizenship,
+     birthplace and the parents' items turned into "probably has no number" by a rule), per child, not production's
+     flat 1.5%. The method is being researched (scratch `explore/2026-10-28/rules_framework/ssn/`, including whether
+     any of David Splinter's papers gives a basis).
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
