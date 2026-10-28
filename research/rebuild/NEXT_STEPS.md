@@ -154,6 +154,10 @@ Left out for now (John, 27 October): overtime (data pulled, below) and the young
 - **Young tax units:** the CPS has 20.0 million units headed by someone under 26 against the tax data's 17.6
   million, about 1.7 million of the excess with no wages; likely young adults the CPS rules make their own unit whom
   real filers claim as dependents. Left as is (John, 27 October).
+- **CPS wages not filled in:** the CPS has 74.3% of units with wages against the tax data's 77.2%, but 88.6% of its
+  zero-wage units say nobody worked any week, so the fill-in finds almost no hidden earners there (scratch
+  `explore/2026-10-28/mappings/RESULTS.md`, open question 2). Left as is for now (John, 27 October); the other
+  option was to hide weeks worked when the fill-in reads the chance of reporting wages.
 
 ## Waiting on something
 
