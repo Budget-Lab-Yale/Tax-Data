@@ -16,7 +16,7 @@ tips, ot, sole_prop and farm as Tax-Data writes them; the calculator splits them
 
 | Where the column comes from | Columns |
 |---|---:|
-| the rebuild's column, same name | 62 (59 in a file without overtime: ot, ot1 and ot2 are then 0) |
+| the rebuild's column, same name | 62 (59 in a file without overtime: ot, ot1 and ot2 are then 0; the overtime run of 28 October has all 62) |
 | the rebuild's column, another name | 50 |
 | computed from the rebuild's columns | 17 |
 | 0 for now | 36 |
