@@ -35,9 +35,11 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      flat 1.5%. Research in scratch `explore/2026-10-28/rules_framework/ssn/RESULTS.md` (no Splinter paper estimates
      it; two adjust for ITIN dependents). Decided (John, 28 October): option 2. The CPS builder gives each person a
      status (citizen; noncitizen with a sign of legal status; noncitizen without one), entered in pretraining under
-     the CPS label. A noncitizen without a sign lacks a number; the signs are the person's own Social Security, SSI,
-     Medicare or military cover, a citizen parent in the unit, or a noncitizen parent with Social Security, Medicare,
-     a government job or veteran status. Medicaid is not a sign. The rule is fixed (1.03 million dependents under 17
+     the CPS label. A noncitizen without a sign lacks a number; the signs are rule B2 as coded in the scratch
+     `size_check.py`: for a child, its own Social Security, SSI, Medicare or military cover, a citizen parent in the
+     unit, or a noncitizen parent with a sign of their own (Social Security, SSI, Medicare, Medicaid, military cover,
+     unemployment insurance, public housing, a government job, veteran status, or marriage to a citizen); the filer
+     and spouse use that adult list. A child's own Medicaid is not a sign. The rule is fixed (1.03 million dependents under 17
      in 2019 against DHS's 1.01 million unauthorized children under 18); the DHS comparison is reported only. Per
      child, and for the filer and spouse too (`ssn1`, `ssn2`; Tax-Simulator needs a column for them, step 2).
      Children of temporary visa holders fall in the third group. Possible check: SOI's count of ITIN dependents,
