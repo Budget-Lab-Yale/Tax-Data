@@ -74,6 +74,19 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   settings deferrals); trad_deferrals their sum; medicare_wages
                   wages (box 1, which holds the Roth part) plus trad_deferrals
   CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
+  ssn1, ssn2, dep_ssn1-3  (since 28 October; John, NEXT_STEPS.md item 1, Q4)
+                  whether each person has a Social Security number, 1 or 0,
+                  from the drawn CPS status (ssn_status_primary, _spouse,
+                  _dep1-3: 1 citizen, 2 noncitizen with a sign of lawful
+                  status, 3 noncitizen without one): 0 for status 3, else 1.
+                  dep_ssn1-3 follow the dependents' ages (youngest first) and
+                  are Tax-Simulator's names, which it reads for three
+                  dependents; missing (NA) where there is no such dependent,
+                  as Tax-Simulator expects. ssn2 is missing without a spouse.
+                  ssn1 is missing on the dependent filers' records, whose
+                  survey items are all none (generate.structural); the non-
+                  microdata imputations give them one. Tax-Simulator has no
+                  column for ssn1 and ssn2 yet (NEXT_STEPS.md step 2).
 """
 import glob
 import os
@@ -315,6 +328,28 @@ def deferral_items(out, year):
     return out
 
 
+SSN_COLUMNS = {'ssn_status_primary': 'ssn1', 'ssn_status_spouse': 'ssn2', 'ssn_status_dep1': 'dep_ssn1',
+               'ssn_status_dep2': 'dep_ssn2', 'ssn_status_dep3': 'dep_ssn3'}
+
+
+def ssn_items(out):
+    """In place: ssn1, ssn2, dep_ssn1-3 from the drawn statuses (see the top): 1 has a number (status 1 or 2), 0 has
+    none (status 3), missing where there is no such person (status 0). A frame without the statuses is left alone.
+    Prints the weighted counts (weight column, else 1 per record)."""
+    if not all(v in out for v in SSN_COLUMNS):
+        return out
+    w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
+    lines = []
+    for slot, col in SSN_COLUMNS.items():
+        st = out[slot].to_numpy()
+        assert np.isin(st, [0, 1, 2, 3]).all(), f'{slot}: a status outside 0-3'
+        out[col] = np.where(st == 0, np.nan, (st != 3).astype(float))
+        lines.append(f'{col}: {w[st == 0].sum() / 1e6:,.2f} million none, {w[st != 0].sum() / 1e6:,.2f} million '
+                     f'people, {w[st == 3].sum() / 1e6:,.3f} million of them without a number')
+    common.say('Social Security numbers (weighted):\n  ' + '\n  '.join(lines))
+    return out
+
+
 def draw_dollars(df, maps, year=None):
     """Dollars for every banded amount, then the pieces combined (see the top). A column u_<variable> is the record's
     stored pick; a balance-sheet amount comes from the record's own wave's map. year: the tax year of the maps'
@@ -364,6 +399,7 @@ def draw_dollars(df, maps, year=None):
     for a in AGE_SLOTS:                            # in years, -1 none
         if a in out:
             out[a] = out[a] - 1
+    ssn_items(out)
     deferral_items(out, year)                      # after the ages: the legal limit depends on each person's
     if all(f'{c}_band' in df for c in META['scf_amounts']):
         assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
