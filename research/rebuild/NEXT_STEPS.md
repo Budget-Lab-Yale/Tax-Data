@@ -22,6 +22,13 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    - Q2, dependent filers (John, 28 October): each gets an exact age and a sex drawn from the CPS's dependents who
      would file (earnings above the filing threshold), within the record's PUF dependent-filer age range, the draw
      keyed by record id; then the normal death-probability and blindness rules apply.
+   - Q3, blindness (John, 28 October): read from the PUF, learned in pretraining, not a flat rate. On unmarried
+     standard-deduction returns the deduction above the basic amount, in units of the additional amount ($1,550 in
+     2015), gives the extra boxes (whole numbers for 97% of them); blind = boxes less one at 65 and over. Joint
+     returns show only 0, 2 or 4 boxes in the 2015 PUF (the spouses evened out), so blindness is unknown there, as on
+     itemizers, the surveys and the 3% that are not whole numbers. The model learns it by age and draws it for the
+     primary filer and the spouse; checked against Pub 4801's blind boxes (scratch
+     `explore/2026-10-28/rules_framework/blind_puf.py`).
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
