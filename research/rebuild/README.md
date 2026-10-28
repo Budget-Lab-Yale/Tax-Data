@@ -30,18 +30,18 @@ from, so a worktree runs its own):
 
 | Stage | Script | What it does | Time |
 |---|---|---|---|
-| scf | `roster_scf.py`, `build_scf.R` | SCF waves split into tax units by the shared rules (`tax_units.py`), with their income, balance sheet and auto loan interest | minutes |
+| scf | `roster_scf.py`, `build_scf.R` | SCF waves split into tax units by the shared rules (`tax_units.py`), with their income (gross Social Security from the benefits section, Schedule E as rental income and the rest), balance sheet, elective deferrals and auto loan interest | minutes |
 | cex | `roster_cex.py`, `build_cex.R` | CEX survey years split into tax units by the shared rules, with their spending | a few minutes |
 | filing | `filing.py`, `filing_requirement.R` | the CPS's tax units by the shared rules, each unit's statutory filing requirement, and its filing chance by the filing rule (v4), calibrated each year; separate returns; checks | about 7 minutes |
-| cps | `build_cps.R` | CPS ASEC tax years as tax units (the filing stage's returns), with each person's items and childcare | minutes |
-| sipp | `roster_sipp.py`, `sipp_read.py` | SIPP reference years split into tax units by the shared rules, with each adult's wages and tips | a few minutes (the first read of each release about a minute) |
+| cps | `build_cps.R`, `overtime_cps.R` | CPS ASEC tax years as tax units (the filing stage's returns), with each person's items, childcare and overtime pay (Tedeschi's rules; hours and missing pay from the March basic file) | minutes |
+| sipp | `roster_sipp.py`, `sipp_read.py` | SIPP reference years split into tax units by the shared rules, with each adult's wages, elective deferrals (2021 and 2023) and tips, and the unit's dividends, gross Social Security and pensions | a few minutes (the first read of each release about a minute) |
 | targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
 | errors | `errors.py soi_cv` | SOI's published coefficients of variation, parsed from the downloaded workbooks | seconds |
-| table | `build_table.py` | the training table (every source, the PUF with all its items) with the AGI group label, its bands, and the dollar maps (one per SCF wave for the balance sheet) | about 3 minutes |
-| train | `train.py` (and `fillin.py`, `qgroups.py`) | the model, with grouped weighting and the two-slot fill-in; train each pooled model with REBUILD_RUN set to its name in `generation.models` and REBUILD_SEED to its seed | about 75 minutes on an H100 (batches of 512) |
-| generate | `generate.py` | 400,000 filer records drawn AGI group by AGI group, and the non-filer batch, half from each of two trained models, each record's balance sheet from one SCF wave | about 15 minutes on an H100 |
-| tilt | `tilt.py`, then `report_tilt.py` | the year's 746 targets (`targets_config/`, `target_list.py`, `errors.py`), the target year's weights (`solver.py`) and file, and the run report | about 15 minutes (26 on a CPU node) |
-| report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and tips in the file against the target year's CEX, CPS and SIPP; the translation report | seconds |
+| table | `build_table.py` | the training table (every source, the PUF with all its items) with the AGI group label, its bands, and the dollar maps (one per SCF wave for the balance sheet, other debt held to each wave's 99.9th percentile among holders; one per survey year for the CEX, CPS and SIPP) | about 3 minutes |
+| train | `train.py` (and `fillin.py`, `qgroups.py`) | the model, with grouped weighting and the two-slot fill-in on every survey; train each pooled model with REBUILD_RUN set to its name in `generation.models` (`label_seed20261017`, `label_seed20261018`, `label_seed20261019`) and REBUILD_SEED to its seed | about 95-105 minutes on an H100 (batches of 512) |
+| generate | `generate.py` | 400,000 filer records drawn AGI group by AGI group, and the non-filer batch, a third from each of three trained models, each record's balance sheet from one SCF wave and its CEX, CPS and SIPP items from one survey year | about 16 minutes |
+| tilt | `tilt.py`, then `report_tilt.py` | the year's 789 targets (`targets_config/`, `target_list.py`, `errors.py`), the target year's weights (`solver.py`) and file, and the run report | about 15 minutes (26 on a CPU node) |
+| report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and overtime, and tips in the file against the target year's CEX, CPS and SIPP year mix; the translation report | seconds |
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),
@@ -49,7 +49,7 @@ age ranges, wage groups), `model.py` (the network, and every call of it),
 weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (the primary filer's age range, used by the table),
 `tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
 targets from `targets_config/`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
-mix of SCF waves), `errors.py` (their standard errors),
+mix of SCF waves), `survey_mix.py` (the CEX, CPS and SIPP year mix), `errors.py` (their standard errors),
 `solver.py` (the reweighting).
 Every setting is in one settings file: `settings.json`, or the file named by
 `REBUILD_SETTINGS` (every stage, R and Python, reads it; a variant run is a
@@ -64,7 +64,7 @@ Outputs, under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`:
 |---|---|
 | `data/` | the table, band edges, dollar maps, SCF, CEX, CPS and SIPP units; `data/filing/`, the filing stage's units, returns and checks |
 | `targets/` | the published SOI numbers |
-| `model/<run>/` | the trained model and its training log (`<run>` is `REBUILD_RUN`, default `seed<n>`) |
+| `model/<run>/` | the trained model and its training log (`<run>` is `REBUILD_RUN`, default `seed<n>`; the default training seed is 20261017, so the default run name, `seed20261017`, is the installed latest's) |
 | `gen/<run>/` | the generated stack |
 | `tilt/<run>/` | the final file (`file_2019.parquet`, dollar columns in nominal 2019 dollars except the PUF items with no SOI Table 1.4 line to grow them, which stay in 2015 dollars: `FEATURES.md`), the target list (`targets.csv`), every target before and after (`fit.csv`), a summary (`summary.md`), the run report (`report.md` and `report_*.csv`), and the consumption, CPS and SIPP reports |
 

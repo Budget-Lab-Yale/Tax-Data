@@ -716,6 +716,160 @@ pass 9% longer), a new stack drawn and reweighted to the 746:
   tested as reweighting targets and adopted on 27 October (see above); the two
   questions stay open (`ROADMAP.md`).
 
+### 27–28 October: wages and deferrals, the survey mappings, the year mix, overtime, three seeds
+
+Planned on 27 October (late) as four pieces, each built on its own branch and checked at the table stage (no
+training), then one big run. Overtime joined on 28 October. Installed as latest on 28 October (merge d9bd762 of
+`rebuild-ot3`, then d56c75d; the run before is in `previous_2026-10-28_before_bigrun/`). The write-ups are in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-28/`, named below. Nominal dollars of the income year
+for the surveys, nominal 2019 dollars for the file.
+
+**Tips in dollars** (branch `rebuild-tips-dollars`, decided 27 October; `explore/2026-10-27/tips_dollars/`). Each
+adult's tips are drawn in dollars rather than as a share of wages, then held to that person's wages. Tested on the
+models of the day: tips on units with $200,000 or more of wages $1.2 billion against $5.9 billion with shares (SIPP
+$0.9 billion); before reweighting $30.3 billion against $53.7 billion (SIPP $33.6 billion); all 753 targets met,
+87.1% of the effective sample kept against 87.2%. The cap takes off about 10% of drawn tip dollars. Folded into the
+big run rather than installed alone.
+
+**Wages and deferrals** (`rebuild-wages-deferrals`, 515ca78 and 9694c14; `wages_deferrals/RESULTS.md`).
+- Each survey's link wage is its gross wages less the traditional elective deferrals it reports (the SCF; the SIPP
+  in 2021 and 2023), mapped onto the PUF's box 1 wages.
+- The first mapping, each survey earner given the tax data's wage at the same percentile among earners, moved wages
+  by 9-19% rather than the 3-8% expected (SCF 2018: -11%), because every survey has 1.5-8 points fewer units with
+  wages than the tax data. Worked example, SCF 2018: its median earner's link wage of $42,610 became the tax data's
+  median, $38,992. John decided: fill in the surveys' missing small earners first (function 2 on wages), then map by
+  percentile. Built as the match `percentile_from_top`: each earner keeps its share of all units counted from the
+  top, and the fill-in supplies the bottom.
+- SCF deferrals, each person's held to the income year's legal limit and to their own wages: $330.5 billion in the
+  2019 wave against the W-2's $332.5 billion for 2018. Before the limit the SCF's mean per contributor was 2-2.4
+  times the W-2's from $500,000 of wages up; after it, within about 3%.
+- John's seven deferral decisions of 27 October (the income year's limit; the SIPP also loses the Roth share and is
+  held to the limit; each person's deferrals at most their own wages; a second slot for the spouse's share; none
+  without wages at generation; each person held to the target year's limit; W-2 Table 2.D targets with a
+  dependent-filer allowance) were built on 28 October: 24 targets in eight AGI groups, kept by John.
+
+**The survey mappings** (`rebuild-mappings`, 1281d02 and 69dde7a; `mappings/RESULTS.md`, `scf_social_security/`,
+`scf_schedule_e/`). The audit of 27 October, approved survey by survey:
+- function 2 (the fill-in) runs on every survey, not only the SCF: wages everywhere; SCF Schedules C and F,
+  tax-exempt interest and both Schedule E parts; CEX self-employment; CPS dividends, long-term gains, pensions,
+  unemployment and Schedule C; SIPP dividends and pensions;
+- a dollar line above zero maps the amounts above it by percentile among the units above it (count from the top had
+  broken the order of units just above the line);
+- SCF Social Security alone, from the benefits section (current benefit, SSI left out), in place of Social Security
+  plus pensions: 25.8% of units with any against the tax data's 22.9%, $890 billion against $858 billion (2019
+  wave against 2018);
+- SCF Schedule E split into rental income (the property section's net income plus rent from part of the home or
+  farm) against the PUF's rents and royalties, and the rest against the PUF's other Schedule E parts. The business
+  section's profit share was not used: it is book profit, $1,845 billion against the tax data's $806 billion of
+  partnership and S corporation income;
+- CPS survivor and disability pensions paid on Form 1099-R moved into pensions ($50.5 billion on 3.39 million units
+  in 2019); SIPP dividends, gross Social Security and pensions shared for the first time.
+
+A 5-pass training test found that the fill-in barely moved the CPS, because a total built from the reported part
+(Schedules C and F from the reported Schedule C) gave the answer away; hiding such totals took CPS Schedule C holders
+from 7.9% to 16.3% (tax data 19.9%). After 80 passes in the installed run (model of seed 20261017, share of units
+with any, main year):
+
+| Survey and item | Reported | After the fill-in | Tax data |
+|---|---:|---:|---:|
+| SCF wages | 72.3% | 77.6% | 77.0% |
+| SCF interest | 11.6% | 24.9% | 26.0% |
+| SCF Schedules C and F | 10.7% | 17.7% | 20.7% |
+| SCF rental income | 6.4% | 9.7% | 7.6% |
+| CEX self-employment | 11.4% | 22.6% | 22.0% |
+| CPS wages | 73.8% | 74.1% | 77.3% |
+| CPS Schedule C | 7.1% | 15.6% | 20.7% |
+| CPS pensions | 15.8% | 16.7% | 24.4% |
+| SIPP wages | 69.5% | 78.3% | 77.1% |
+| SIPP dividends | 14.0% | 20.5% | 19.5% |
+
+CPS wages are not filled in: 88.6% of its units without wages say nobody worked any week (left as is, John).
+
+**The survey year mix** (`rebuild-year-mix`, 31bf8a9 and c70481c; `year_mix/RESULTS.md`). Each record draws its CEX,
+CPS and SIPP year from the two years nearest the target year, weighted by distance (2019: 73.11% 2019, 26.89%
+2017), as its SCF wave already was; each year has its own dollar map, and the CEX consumption targets average the
+two years. Tested on the tips-in-dollars models with no training: all 753 targets met, 86.1% kept against 87.1%;
+the consumption targets' standard errors fall 22% at the median, and targets held at an edge rose from 502 to 525.
+
+**Overtime** (`rebuild-overtime`, 5375112 and 24252df; `overtime/RESULTS.md`). Each CPS worker's overtime pay by
+Ernie Tedeschi's rules (coverage, exempt occupations and industries, the duties test above the salary threshold,
+time and a half for hours over 40 last week, times weeks worked), only for the workers asked the earnings
+questions. The weekly pay the March 2024 ASEC lost for its month-4 group is recovered from the March basic file for
+99.8% of workers. 2019: 13.3 million workers, $255 billion; 2023: 12.0 million and $244 billion against Tedeschi's
+12.6 million and $272 billion, the gap above $200,000 of pay. Decided by John on 27 October: the whole overtime pay
+under Tax-Simulator's names (`ot1`, `ot2`, `ot`), Tedeschi's rule on varying hours, hours at the main job, the tax
+year's threshold, 12 CPS targets (share with any and dollars per unit, all units and five wage groups), each
+person's overtime held to their wages less their tips.
+
+**The big run** (`explore/2026-10-28/bigrun_full/`, branch `rebuild-bigrun-1028`; `bigrun_full/COMPARISON.md`). The
+first four pieces, seeds 20261016 and 20261017. All 777 targets met (753 plus the 24 deferral targets); effective
+sample kept 79.7% against the latest's 87.2%; KL move 0.139 against 0.098.
+- **The seed check.** Each model drawn and reweighted alone kept 77.0% (seed 20261016) and 80.9% (seed 20261017).
+  Before reweighting, the two models' target values differed by a median 15%; the big run and the latest by 6.5%, so
+  most of the change was within training chance. But seed 20261016 was the worse model on every kind of target
+  (median miss before reweighting, Table 1.3: 28.0% against 11.0%; SCF wealth 31.7% against 8.1%), with almost the
+  same held-back loss (0.7063 against 0.7049).
+- **One record of other debt.** A PUF-labelled single filer with $52,600 of wages and $34.6 million of other debt
+  had its weight raised 38.6 times and carried $0.92 trillion of other debt: the cheapest way for the tilt to take
+  $1.7 trillion off the wealth grid cell "net worth below p90, income below p90". The file's other debt was $1.10
+  trillion against $0.30 trillion in the latest.
+
+**The overtime run** (`bigrun_ot/`, the same plus overtime, both seeds retrained). All 789 targets met; 79.2% kept;
+overtime after reweighting $241 billion, 7.8% of units with any (CPS year mix: $247 billion, 7.6%). The cap took
+$14.1 billion of $256 billion drawn through wages and $0.7 billion more through tips. The other-debt record
+repeated (another record, $7.4 million, weight raised from 686 to 30,549, $227 billion), and seed 20261016 was again
+the worse model (76.7% kept alone against 80.4%).
+
+**Why seed 20261016 was worse** (`scf_bug/training/RESULTS.md`, `scf_bug/generation/RESULTS.md`). No bug:
+- both trainings use the same records and held-back slice; only the random draws differ;
+- swapping generation seeds moves net worth before reweighting by about $3 trillion, swapping networks by about $34
+  trillion, so the cause is the trained network, not generation;
+- network 16 draws too many filers with capital and business income for a given AGI group (dividends 21.6% against
+  the PUF's 18.4% and network 17's 18.7%; Schedule C 17.6% against 16.4% and 14.6%), and the balance sheet follows
+  those items; on the same records it also draws about 6% more wealth than network 17.
+
+**How much networks vary** (`model_variability/RESULTS.md`; 14.2 GPU-hours):
+- of four seeds, three are close (net worth before reweighting $105.1, $105.6 and $111.0 trillion against the SCF's
+  $97.1 trillion) and seed 20261016 is the outlier ($139.7 trillion);
+- the held-back loss does not pick out the bad network (all differ in the third or fourth decimal place). A check of
+  the share of filers with seven income items in each Table 1.4 AGI class against the PUF does: median miss 0.56 to
+  0.99 points for the good seeds, 1.69 for seed 20261016; its rank correlation with net worth is 0.77;
+- the networks saved at passes 20, 40 and 60 of the 80-pass run are worse on every check than at pass 80;
+- 8 layers in place of 4 moved both seeds toward the SCF but did not fix the bad seed, at 45% more time a pass;
+- the same seed, data, code and GPU kind reproduce a network exactly, weight for weight.
+
+**The three-seed run** (`bigrun_ot3/`, run `seeds17_18_19`; John, 28 October). Seed 20261016 dropped; seeds
+20261017, 20261018 and 20261019 pooled, a third of the records each. All 789 targets met; 81.2% kept; KL move 0.131;
+net worth $105.6 trillion before reweighting, $97.2 trillion after. Median miss before reweighting against the
+latest: IRS 7.2% (9.0%), Table 1.3 12.8% (13.8%), business 16.2% (20.7%), SCF wealth 9.0% (14.3%), tips 35.1%
+(23.3%, tips now in dollars). The other-debt record appeared again: a CPS-labelled record aged 71 with $53,000 of
+wages and $15.4 million of other debt, weight raised from 373 to 17,545; other debt $472 billion after reweighting
+against $189 billion before.
+
+**The other-debt cap** (54c4f27; John, 28 October). The SCF's largest other-debt amounts ($15-69 million) reach
+ordinary records through the dollar maps. Each wave's map now holds other debt to the 99.9th percentile among the
+wave's holders: $560,000 (2013 wave), $900,000 (2016), $500,000 (2019), $2.0 million (2022). The training table and
+its bands are unchanged, so the three models were kept; the stack was redrawn and reweighted
+(`explore/2026-10-28/bigrun_ot3cap/`). Other debt is $140 billion after reweighting against $135 billion before.
+All 789 targets met; 81.3% kept; KL move 0.131. This run was installed as latest.
+
+**The calculator experiment** (branch `rebuild-calculator`, not installed; `calculator/RESULTS.md`). Every record
+of the big run's and the overtime run's files through the GPU tax calculator under 2019 law: taxable income 3.2%
+above SOI and income tax before credits 5.3-5.5% above, the excess from AGI $500,000 up; 36 of 165 inputs still 0.
+Its open questions are in `NEXT_STEPS.md`.
+
+**Decided (John, 27–28 October).**
+- Tips in dollars; the wage mapping (fill-in, then percentile); the seven deferral decisions; the survey mappings;
+  the year mix; overtime with its names, cap and targets; all in the big run.
+- The CPS wages fill-in and the young tax units left as is.
+- Seed 20261016 dropped; three seeds pooled (20261017-19); the default training seed is 20261017, so the default run
+  name is the installed latest.
+- SCF other debt held to the 99.9th percentile among holders in each wave's dollar map.
+- Tips on units with $200,000 or more of wages, an open question since 27 October, came down with tips in dollars:
+  $1.0 billion in the installed file against the SIPP year mix's $0.8 billion.
+- To do: a fill-in on the SIPP's tips, a joint-return deferral count target, screening each seed alone before
+  pooling, and the calculator's open questions (`NEXT_STEPS.md`).
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -764,3 +918,12 @@ pass 9% longer), a new stack drawn and reweighted to the 746:
 | Ranges of half a standard error for every target | 23 non-SCF targets unmet and 31% of the effective sample kept; half a standard error is kept for the SCF targets only |
 | Table 4.3's top 0.001% as its own group (26 October) | 15 targets could not be met; the file probably lacks those records until the PUF's aggregate records are unpacked. The top 0.01% is one group |
 | Table 1.3's capital loss measured on the file without the $3,000 cap (26 October) | SOI publishes the allowed loss; uncapped, the file's losses were 2.7 times SOI's and the tilt pulled weight off records with large losses |
+| Tips as a share of each adult's wages (26–27 October) | A share drawn for a few top earners multiplied large wages: $5.9 billion of tips on units with $200,000 or more of wages against the SIPP's $0.9 billion. Tips are drawn in dollars |
+| Survey wages mapped by percentile among earners alone (27–28 October) | The surveys have 1.5–8 points fewer earners than the tax data, so every earner moved down a few percentiles and wages fell 9–19%. The missing small earners are filled in first |
+| Count from the top above a dollar line above zero (the SCF's wages to 28 October) | Breaks the order of units just above the line. Amounts above a line are now mapped by percentile among the units above it |
+| SCF Social Security plus pensions as one shared item | The SCF's pensions leave out rollovers, which the PUF's include. Replaced by gross Social Security alone |
+| The SCF's business-section profit share as partnership and S corporation income | Book profit: $1,845 billion against the tax data's $806 billion (2018) |
+| Seed 20261016 in the pool (28 October) | Drew too many filers with capital and business income for their AGI group, and the balance sheet followed; net worth before reweighting $139.7 trillion against $105-111 trillion for three other seeds |
+| Choosing networks by their held-back loss | Differences in the third or fourth decimal place, not in the order of the networks' wealth fit. The income-item check against the PUF does pick out the bad network |
+| A network saved at pass 20, 40 or 60 of the 80-pass run | Worse on every check than at pass 80 (seed 20261017's net worth before reweighting $226, $141, $126 and $105 trillion) |
+| 8 layers in place of 4 (28 October) | Moved both seeds toward the SCF a little but did not fix the bad seed; 45% more time a pass. Not adopted on two seeds |
