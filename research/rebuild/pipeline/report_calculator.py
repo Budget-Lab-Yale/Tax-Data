@@ -210,6 +210,7 @@ def main():
              s.to_markdown(index=False, floatfmt=',.3f'), '']
     tot = lv[lv['AGI group'] == 'all returns']
     t = tot[['table', 'item', 'statistic', 'SOI', 'before the tilt', 'after the tilt']].copy()
+    t['table'] = 'Table ' + t['table']   # as text, so the table number is not printed as a number
     div = np.where(t['statistic'] == 'count', 1e6, 1e9)
     for k in ('SOI', 'before the tilt', 'after the tilt'):
         t[k] = t[k] / div
