@@ -6,8 +6,8 @@ still has to supply before Tax-Simulator can run on it. An experiment of 28 Octo
 `rebuild-calculator`; not part of the pipeline's default stages.
 
 The list of record is `CONTRACT` in `pipeline/calculator.py`; `CALCULATOR_CONTRACT.csv` beside this file is written
-from it. `pipeline/calculator_run.py` checks at every run that the pinned calculator reads no column outside the
-list, so the list cannot fall out of date when the commit moves.
+from it. `pipeline/calculator_run.py` checks at every run that every column the pinned calculator reads is in the list
+(and names the listed columns it does not read), so the list cannot fall out of date when the commit moves.
 
 ## Counts
 
