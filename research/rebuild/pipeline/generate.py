@@ -56,7 +56,8 @@ One record is drawn slot by slot:
      random order per record, then (since 28 October) each adult's overtime pay
      in a random order (the primary filer's zero without wages, the spouse's
      without a spouse's share of wages above zero; each held to that person's
-     wages when bands become dollars, dollars.py), each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
+     wages less tips when bands become dollars, dollars.py; the tips are drawn
+     later in the order, under the SIPP label), each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
      follow the record's PUF items (cps_structure): the spouse's items only
      when married, the k-th dependent's age only with k or more dependents;
   7. the SIPP-only slots (since 26 October): each adult's tips in dollars,
@@ -412,7 +413,7 @@ def cps_structure(values, slot, probs):
         sel = (slot == j) & (n_dep >= k)
         probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
     # overtime (28 October): the primary filer's is zero without wages, the spouse's without a spouse's share of the
-    # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages in dollars (dollars.py)
+    # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages less tips in dollars (dollars.py)
     for item, base in CPS_ZERO_WITHOUT.items():
         probs = only(probs, (slot == P.index(item)) & (values[:, NC + P.index(base)] <= 0))
     sel = slot == PRIMARY_AGE

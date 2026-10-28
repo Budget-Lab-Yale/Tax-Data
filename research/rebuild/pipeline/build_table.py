@@ -216,11 +216,11 @@ CEX_AMOUNTS = list(CEX_CATS)
 # person's weeks worked and usual weekly hours, and childcare, as amounts (cut into bands within each year); exact
 # ages and sex as categories (CPS_CATEGORIES: the number of values). Every person item is the primary filer's or the
 # spouse's, the primary chosen by the rule the age range uses (ages.py).
-# Since 28 October, each adult's overtime pay in dollars (CPS_OVERTIME; build_cps.R's overtime1, overtime2, by
+# Since 28 October, each adult's overtime pay in dollars (CPS_OVERTIME; build_cps.R's ot1, ot2, by
 # Tedeschi's rules, overtime_cps.R): at most the person's wages (zero without wages), the spouse's zero unless
 # married, and missing (absent) on every unit whose adults were not asked the earnings questions, about three
-# quarters of the CPS's units; at generation drawn after the other CPS slots and held to each person's wages.
-CPS_OVERTIME = ['overtime_primary', 'overtime_spouse']
+# quarters of the CPS's units; at generation drawn after the other CPS slots and held to each person's wages less tips.
+CPS_OVERTIME = ['ot_primary', 'ot_spouse']
 CPS_AMOUNTS = ['spouse_wage_share', 'spouse_se_share', 'weeks_primary', 'weeks_spouse', 'hours_primary',
                'hours_spouse', 'childcare'] + CPS_OVERTIME
 MAX_AGE = 85                                   # the CPS's top code (80 is 80-84, 85 is 85 and over)
@@ -235,7 +235,7 @@ CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS if a not in EXACT_AGES},
                   'sex_primary': 3, 'sex_spouse': 3}   # CPS only; sex: 0 none, 1 man, 2 woman
 PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGORIES}   # every person category
 SPOUSE_SLOTS = ['age_spouse', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse',
-                'overtime_spouse']
+                'ot_spouse']
 DEPENDENT_AGE_SLOTS = ['age_dep1', 'age_dep2', 'age_dep3']   # the k-th: present exactly when n_dep >= k
 SHARES = ['spouse_wage_share', 'spouse_se_share']   # only for married couples with some of the item; else absent
 # SIPP only (settings "sipp"): each adult's tips in dollars (zero without wages or without tips), amounts cut into
@@ -630,8 +630,8 @@ def cps_rows():
     n_missing = s[need].isna().sum()
     assert not n_missing.any(), f'missing values in the CPS units:\n{n_missing[n_missing > 0]}'
     # overtime (since 28 October): missing exactly on the units not asked the earnings questions, both adults together
-    ot_na = s['overtime1'].isna()
-    assert (ot_na == s['overtime2'].isna()).all(), 'overtime missing on one adult of a unit only'
+    ot_na = s['ot1'].isna()
+    assert (ot_na == s['ot2'].isna()).all(), 'overtime missing on one adult of a unit only'
     for y in CP['years']:
         sel = (s['year'] == y).to_numpy()
         common.say(f'CPS {y}: overtime asked on {int((~ot_na[sel]).sum()):,} of {int(sel.sum()):,} units '
@@ -664,7 +664,7 @@ def cps_rows():
                        'age_key': hh,
                        **{f'p{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2)
                           for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']},
-                       **{f'p{k}_overtime': s[f'overtime{k}'].astype(float) for k in (1, 2)},
+                       **{f'p{k}_ot': s[f'ot{k}'].astype(float) for k in (1, 2)},
                        **{f'dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
                        'cps_childcare': s['childcare'].astype(float)})
     for v in AMOUNTS:
@@ -674,7 +674,7 @@ def cps_rows():
 
 
 PERSON_COLUMNS = [f'p{k}_{c}' for k in (1, 2) for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']] + \
-    ['p1_overtime', 'p2_overtime', 'dep_age1', 'dep_age2', 'dep_age3', 'cps_childcare']
+    ['p1_ot', 'p2_ot', 'dep_age1', 'dep_age2', 'dep_age3', 'cps_childcare']
 
 
 def cps_person_slots(t, primary_is_2):
@@ -698,7 +698,7 @@ def cps_person_slots(t, primary_is_2):
            'hours_primary': pick('usual_hours', 1), 'hours_spouse': pick('usual_hours', 2),
            'childcare': d['cps_childcare'].to_numpy(float),
            # each adult's overtime in dollars, missing where the unit was not asked (build_cps.R)
-           'overtime_primary': pick('overtime', 1), 'overtime_spouse': pick('overtime', 2)}
+           'ot_primary': pick('ot', 1), 'ot_spouse': pick('ot', 2)}
     for k in (1, 2, 3):
         out[f'age_dep{k}'] = np.where(d[f'dep_age{k}'] >= 0, d[f'dep_age{k}'] + 1, 0)
     for share, item in [('spouse_wage_share', 'wages'), ('spouse_se_share', 'se')]:
@@ -730,15 +730,15 @@ def cps_person_slots(t, primary_is_2):
         assert (d.loc[~married, v] == 0).all() or (v in SHARES and d.loc[~married, v].isna().all()), v
     # overtime: at most the person's own wages as the CPS reports them (build_cps.R holds it there), so zero without
     # wages; missing on both adults together
-    for v, item in [('overtime_primary', 'wages_primary_reported'), ('overtime_spouse', 'wages_spouse_reported')]:
+    for v, item in [('ot_primary', 'wages_primary_reported'), ('ot_spouse', 'wages_spouse_reported')]:
         x, cap = d[v].to_numpy(float), d[item].to_numpy(float)
         ok = ~np.isnan(x)
         assert (x[ok] >= 0).all() and (x[ok] <= np.maximum(cap[ok], 0) + 1e-6).all(), f'{v} above the person\'s wages'
-    assert (d.overtime_primary.isna() == d.overtime_spouse.isna()).all()
-    a = d.overtime_primary.notna().to_numpy()
+    assert (d.ot_primary.isna() == d.ot_spouse.isna()).all()
+    a = d.ot_primary.notna().to_numpy()
     common.say(f'CPS overtime: asked on {int(a.sum()):,} rows; among them, primary filers with overtime '
-               f'{100 * w[a & (d.overtime_primary > 0).to_numpy()].sum() / w[a].sum():.1f}% (weighted), spouses '
-               f'{100 * w[a & (d.overtime_spouse > 0).to_numpy()].sum() / w[a].sum():.1f}%')
+               f'{100 * w[a & (d.ot_primary > 0).to_numpy()].sum() / w[a].sum():.1f}% (weighted), spouses '
+               f'{100 * w[a & (d.ot_spouse > 0).to_numpy()].sum() / w[a].sum():.1f}%')
     for v in SHARES:
         common.say(f'CPS {v}: recorded on {int(d[v].notna().sum()):,} rows (married couples with some of the item)')
     keep = ['year', 'record_id', 'household_id', 'weight', 'married', 'n_dep', 'filer', 'filer_p', 'age_range'] + \
@@ -1186,7 +1186,7 @@ def table_meta(t, factor):
                               # (28 October) each adult's overtime: drawn after the other CPS slots; the primary
                               # filer's zero without wages, the spouse's without a spouse's share of wages above zero
                               'overtime': CPS_OVERTIME,
-                              'zero_without': {'overtime_primary': 'wages', 'overtime_spouse': 'spouse_wage_share'}},
+                              'zero_without': {'ot_primary': 'wages', 'ot_spouse': 'spouse_wage_share'}},
             'sipp_amounts': SIPP_AMOUNTS,
             'sipp_categories': SIPP_CATEGORIES,
             'sipp_structure': {'spouse': SIPP_SPOUSE_SLOTS, 'lh_of': SIPP_LH_OF,
@@ -1202,10 +1202,13 @@ def table_meta(t, factor):
             # most the person's wages: tips1 is the smaller of the drawn tips_primary and wages1), then the sums of
             # the person items (tips = tips1 + tips2) and the yes/no items that hold only with the item (tips_lh1:
             # the primary filer's leisure and hospitality flag, 0 without tips)
-            # (28 October) each adult's overtime, as tips: overtime1 the smaller of the drawn overtime_primary and wages1
+            # (28 October; decided by John 27 October) each adult's overtime pay, Tax-Simulator's ot1 and ot2: the
+            # drawn ot_primary held to the person's wages less the person's tips (ot1 at most wages1 - tips1, never
+            # below zero). A third entry is subtracted from the cap; it must be made by an earlier entry, so the
+            # tips come first and the overtime gives way. ot = ot1 + ot2.
             'person_caps': {'tips_primary': ['tips1', 'wages1'], 'tips_spouse': ['tips2', 'wages2'],
-                            'overtime_primary': ['overtime1', 'wages1'], 'overtime_spouse': ['overtime2', 'wages2']},
-            'sums': {'tips': ['tips1', 'tips2'], 'overtime': ['overtime1', 'overtime2']},
+                            'ot_primary': ['ot1', 'wages1', 'tips1'], 'ot_spouse': ['ot2', 'wages2', 'tips2']},
+            'sums': {'tips': ['tips1', 'tips2'], 'ot': ['ot1', 'ot2']},
             'flags_with': {'tips_lh1': ['tips_lh_primary', 'tips1'], 'tips_lh2': ['tips_lh_spouse', 'tips2']},
             'kg_pieces': KG_PIECES,
             'agi_signs': {v: ITEMS[v][0] for v in ITEMS if ITEMS[v][0] != 0},

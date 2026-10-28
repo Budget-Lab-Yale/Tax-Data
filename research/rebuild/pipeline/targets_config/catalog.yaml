@@ -113,6 +113,20 @@ sources:
     built_by: [roster_cex.py, build_cex.R]
     tax_unit_rules: shared_cbo
     what: every tax unit of the CEX year (build_table.cex_target_units); dependent filers folded into the unit that claims them
+  # The CPS ASEC's tax units (28 October, for the overtime targets): the filing stage's units with build_cps.R's
+  # items, written by the table stage for each year of the CPS's mix in the target year's file
+  # (build_table.cps_person_slots), with their wages after function 1 (wages_translated: the tax data's wages at the
+  # same percentile among earners). Dependent filers are folded into the unit that claims them, as in the CEX.
+  # Overtime pay is known only for the units asked the earnings questions (months 4 and 8 of the main sample); the
+  # overtime targets are computed over those units with their own weights (target_list.cps_mix_rows).
+  cps:
+    kind: survey
+    file: data/cps_units_{year}_all.parquet
+    built_by: [filing.py, build_cps.R, build_table.py]
+    tax_unit_rules: shared_cbo
+    what: >-
+      every tax unit of the CPS year, filers and non-filers (build_table.cps_person_slots); dependent filers folded
+      into the unit that claims them; the overtime statistics over the units asked the earnings questions
   filing_stage:
     kind: pipeline
     built_by: [filing.py, build_cps.R, build_table.py]
@@ -135,6 +149,7 @@ tax_unit_rules:
     settings:
       scf: [tax_units.reassign, tax_units.npeu_split]
       cex: [tax_units.reassign]
+      cps: [cps.cbo_variant, filing.mfs_salt]
       filing_stage: [cps.cbo_variant, filing.mfs_salt]
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -461,6 +476,17 @@ variables:
   c_gasoline:              {record: c_gasoline, short: c_gasoline}
   c_housing_utilities:     {record: c_housing_utilities, short: c_housing_utilities}
   c_other_services_health: {record: c_other_services_health, short: c_other_services_health}
+  # Overtime pay (28 October): the unit's overtime pay, the whole pay for the hours over 40 (Tax-Simulator's ot, the
+  # primary filer's ot1 plus the spouse's ot2, each held to the person's wages less tips; dollars.py). On the CPS's
+  # units the same sum, ot_primary + ot_spouse, over the units asked the earnings questions (target_list.cps_mix_rows).
+  ot:
+    record: ot
+    short: overtime pay
+    what: the unit's overtime pay, ot1 + ot2 (Tedeschi's rules on the CPS)
+  any_ot:
+    base: ot
+    transform: any
+    short: units with overtime pay
   # The people in non-filer units, counted on the CPS units of the training table by the file's own rule
   # (target_list.cps_nonfiler_people, weighted by each unit's chance of not filing): heads and spouses by their own
   # exact age; children under 17 among the head, the spouse and the three dependents the file carries (the youngest
@@ -510,11 +536,15 @@ variable_lists:
                   pship_scorp_net_income, pship_scorp_net_loss]
   # Auto loan interest from the SCF: the share of units with any and the dollars per unit
   auto_loans: [any_auto_loan_interest, auto_loan_interest]
+  # Overtime pay from the CPS (28 October): the share of units with any and the dollars per unit
+  overtime: [any_ot, ot]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Groupings: named ways of cutting units into cells. An entry's cells are "all", one grouping (all its cells or a
 # list of their labels), or several groupings crossed. A cell's label in a target's key is the grouping's label.
-#   edges:         dollar ranges [low, high, label] of a variable, low inclusive, null for no limit
+#   edges:         dollar ranges [low, high, label] of a variable, low inclusive, null for no limit. On AGI they are
+#                  matched to published cells; on any other variable (since 28 October) each range is a cell on the
+#                  file and on a survey's units alike, the variable computed the same way on both (record_value)
 #   as_published:  the published table's own AGI brackets in the target year, the top ones merged until each would
 #                  hold enough records (merge_top_until); brackets whose lower edge is listed in kept_separate are
 #                  never merged (each must be published that year), and the merge rule applies to those below them
@@ -572,6 +602,18 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
+  # The unit's wages in five groups (28 October, the CPS overtime targets; decided by John 27 October): the file's
+  # wages (the PUF's, Form W-2 box 1, primary filer plus spouse) and, on the CPS's units, their wages after function
+  # 1 (the tax data's wages at the same percentile among earners), so a group holds the same ranks on both sides.
+  # "under $25k" includes the units with no wages.
+  wage_groups_5:
+    variable: wages
+    edges:
+      - [null, 25000, wages under $25k]
+      - [25000, 50000, wages $25k-50k]
+      - [50000, 100000, wages $50k-100k]
+      - [100000, 200000, wages $100k-200k]
+      - [200000, null, wages $200k and over]
   # The AGI groups of the W-2 elective deferral targets (Table 2.D; 28 October): the table's AGI rows summed into
   # eight groups, so no cell rests on the table's thin rows below $25,000 or above $1 million.
   w2_agi_groups:

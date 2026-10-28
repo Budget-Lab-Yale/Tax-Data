@@ -112,3 +112,34 @@ targets:
     value: {published: soi w2 2.d}
     error: {kind: soi_borrowed}
     key: {group: '{cell} returns', target: '{variable} {statistic}'}
+
+  # Overtime pay (28 October; decided by John 27 October, so overtime does not drift): from the CPS's own tax units,
+  # as the CEX consumption targets are. The share of units with any overtime pay and overtime dollars per unit
+  # (the catalog's variable list "overtime": any_ot, ot), over all units and in five groups of the unit's wages
+  # (catalog wage_groups_5): 12 targets. The file's ot is ot1 + ot2, each person's held to their wages less their
+  # tips (dollars.py); the CPS's is Tedeschi's rules per person (overtime_cps.R), held to the person's own wages.
+  # Universe: overtime is known only for the units asked the earnings questions (months 4 and 8 of the main sample;
+  # the rest have it missing), so each average is over the asked units in the cell, with their own weights
+  # (target_list.cps_overtime_units). Population: units other than dependent filers, the rule of every survey target
+  # (the CPS folds dependent filers into the unit that claims them; the file's dependent filers hold no CPS item).
+  # Value: the CPS year mix of the prior's "cps items" (2019 73.11%, 2017 26.89%), the 2017 units' overtime and wages
+  # grown to 2019 by SOI's wages per return (survey_mix.py). Error: the ASEC's 160 replicate weights
+  # (errors.overtime_errors).
+  - id: overtime_all
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: all
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, all', target: '{variable}, average'}
+  - id: overtime_by_wages
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: {wage_groups_5: all}
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, {wage_groups_5}', target: '{variable}, average'}

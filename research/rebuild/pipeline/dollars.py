@@ -50,10 +50,13 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   wages (wages1, wages2); tips = tips1 + tips2 exactly;
                   tips_lh1, tips_lh2 the leisure and hospitality flags, 0
                   where that adult has no tips
-  overtime1, overtime2  each adult's overtime pay (since 28 October): the
-                  drawn overtime in dollars (overtime_primary, overtime_spouse,
-                  from the CPS's map), at most that adult's wages, as tips;
-                  overtime = overtime1 + overtime2 exactly
+  ot1, ot2        each adult's overtime pay, the whole pay for the hours over
+                  40 (since 28 October; Tax-Simulator's names): the drawn
+                  overtime in dollars (ot_primary, ot_spouse, from the CPS's
+                  map), at most that adult's wages less that adult's tips
+                  (wages1 - tips1, never below zero; decided 27 October: the
+                  tips are made first and the overtime gives way);
+                  ot = ot1 + ot2 exactly
   auto_int_exp    the auto loan interest drawn (an SCF amount, from the
                   record's own wave's map)
   elective_deferrals  the unit's elective deferrals to 401(k)-type plans,
@@ -106,7 +109,8 @@ ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
-PERSON_CAPS = META.get('person_caps', {})         # slot: [item, its cap], the cap a remainder (tips1 at most wages1)
+PERSON_CAPS = META.get('person_caps', {})         # slot: [item, its cap(, less)]: tips1 at most wages1; ot1 at most
+#                                                   wages1 - tips1 (the third entry, made by an earlier entry)
 SUMS = META.get('sums', {})                       # item: its parts (tips = tips1 + tips2)
 FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amount it holds with] (0 without it)
 AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
@@ -191,32 +195,65 @@ def draw_by_year(df, v, maps, rng, u):
     return values
 
 
+def person_cap(x, cap, less=None):
+    """A person's drawn amount x (at least 0) held to at most cap less `less` (never below zero), and what each part
+    of the rule takes off. Returns (held, by_cap, by_less): held = min(x, max(cap - less, 0)); by_cap, what the cap
+    alone takes off, x - min(x, max(cap, 0)); by_less, what reducing the cap by `less` takes off on top of that (0
+    where less is None). by_cap + by_less = x - held. Example: wages 50,000, tips 20,000, drawn overtime 40,000:
+    held 30,000, by_cap 0, by_less 10,000."""
+    x, c = np.asarray(x, float), np.maximum(np.asarray(cap, float), 0.0)
+    assert (x >= 0).all(), 'a drawn amount below zero'
+    by_wages = np.minimum(x, c)
+    if less is None:
+        return by_wages, x - by_wages, np.zeros(len(x))
+    less = np.asarray(less, float)
+    assert (less >= 0).all() and np.isfinite(less).all(), 'the amount the cap is reduced by is below zero or missing'
+    held = np.minimum(x, np.maximum(np.asarray(cap, float) - less, 0.0))
+    return held, x - by_wages, by_wages - held
+
+
 def person_items(out, df):
     """In place, after the remainders: a person's amount in dollars held to at most a person's other amount (tips1 =
-    the drawn tips_primary, at most wages1: a person's tips are part of that person's wages, as on Form W-2), then
-    their sums (tips = tips1 + tips2) and the yes/no items that hold only with the item (tips_lh1: 0 where tips1 is 0).
+    the drawn tips_primary, at most wages1: a person's tips are part of that person's wages, as on Form W-2), or to
+    that amount less one made before it (ot1 = the drawn ot_primary, at most wages1 - tips1: tips and overtime pay
+    are both part of the person's wages; the tips are made first and the overtime gives way), then their sums (tips =
+    tips1 + tips2, ot = ot1 + ot2) and the yes/no items that hold only with the item (tips_lh1: 0 where tips1 is 0).
     Prints how many people, and how many dollars, the cap takes off: records, and units by the frame's weight column
-    when it has one. Each item is made only where the frame has its drawn amount's band column (a frame from before
+    when it has one; for a cap less another amount, what the wages alone take off and what the other amount takes off
+    on top, separately. Each item is made only where the frame has its drawn amount's band column (a frame from before
     overtime has the tips and not the overtime), and a sum or flag only where its parts were made."""
     have = {slot: f'{slot}_band' in df for slot in PERSON_CAPS}
     if not any(have.values()):
         return out
     w = out['weight'].to_numpy(float) if 'weight' in out else None
     made = set()
-    for slot, (item, cap) in PERSON_CAPS.items():
+    for slot, (item, cap, *less) in PERSON_CAPS.items():
         if not have[slot]:
             continue
+        assert len(less) <= 1, f'person_caps {slot}: at most one amount to subtract'
+        less = less[0] if less else None
+        assert less is None or less in made, f'{item}: its cap is {cap} less {less}, which must be made first'
         made.add(item)
-        x, c = out[slot].to_numpy(float), np.maximum(out[cap].to_numpy(float), 0.0)
-        assert (x >= 0).all(), f'{slot} below zero'
-        out[item] = np.minimum(x, c)
-        bound = x > c
-        line = (f'{item} at most {cap}: {int((x > 0).sum()):,} records with {slot} above zero; the cap binds on '
-                f'{int(bound.sum()):,} of them ({int((bound & (c == 0)).sum()):,} with no {cap}), taking off '
-                f'${(x - c)[bound].sum() / 1e6:,.1f} million of ${x.sum() / 1e6:,.1f} million (records unweighted)')
+        x = out[slot].to_numpy(float)
+        held, by_cap, by_less = person_cap(x, out[cap].to_numpy(float),
+                                           None if less is None else out[less].to_numpy(float))
+        out[item] = held
+        c = np.maximum(out[cap].to_numpy(float), 0.0)
+        bound = by_cap > 0
+        line = (f'{item} at most {cap}{"" if less is None else " less " + less}: {int((x > 0).sum()):,} records with '
+                f'{slot} above zero; {cap} binds on {int(bound.sum()):,} of them ({int((bound & (c == 0)).sum()):,} with '
+                f'no {cap}), taking off ${by_cap.sum() / 1e6:,.1f} million of ${x.sum() / 1e6:,.1f} million')
+        if less is not None:
+            line += (f'; subtracting {less} takes off ${by_less.sum() / 1e6:,.1f} million more, on '
+                     f'{int((by_less > 0).sum()):,} records ({int(((by_less > 0) & ~bound).sum()):,} of them not held '
+                     f'by {cap} alone)')
+        line += ' (records unweighted)'
         if w is not None:
-            line += (f'; weighted: {w[bound].sum() / 1e6:,.3f} million of {w[x > 0].sum() / 1e6:,.3f} million people, '
-                     f'${(w * (x - c))[bound].sum() / 1e9:,.2f} billion of ${(w * x).sum() / 1e9:,.2f} billion')
+            line += (f'; weighted: {cap} binds on {w[bound].sum() / 1e6:,.3f} million of {w[x > 0].sum() / 1e6:,.3f} '
+                     f'million people, ${(w * by_cap).sum() / 1e9:,.2f} billion of ${(w * x).sum() / 1e9:,.2f} billion')
+            if less is not None:
+                line += (f'; subtracting {less} takes off ${(w * by_less).sum() / 1e9:,.2f} billion more, on '
+                         f'{w[by_less > 0].sum() / 1e6:,.3f} million people')
         common.say(line)
     for item, parts in SUMS.items():
         if all(p in made for p in parts):

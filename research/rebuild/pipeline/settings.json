@@ -27,11 +27,13 @@
    "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX",
    "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927",
    "cps_earnings": "/nfs/roberts/project/pi_nrs36/jar335/raw_data/CPS-ASEC/cps_asec_common_v2",
-   "_cps_earnings": "The CPS ASEC pull of 27 October with the earnings questions (weekly pay, hourly wage, paid by the hour, hours, the earnings weight), occupation (OCC2010), industry, class of worker and metro size; the same records as the common extract read_asec() reads. overtime_cps.R reads it (build_cps.R, overtime1 and overtime2).",
+   "_cps_earnings": "The CPS ASEC pull of 27 October with the earnings questions (weekly pay, hourly wage, paid by the hour, hours, the earnings weight), occupation (OCC2010), industry, class of worker and metro size; the same records as the common extract read_asec() reads. overtime_cps.R reads it (build_cps.R, ot1 and ot2).",
    "cps_march_basic": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/CPS-March-Basic/overtime_extract",
    "_cps_march_basic": "A small IPUMS pull of 28 October (common_ipums_download; the parameter files parameters.cps.marbasic*.yaml sit next to it): the March basic monthly samples (cpsYYYY_03b) and the ASEC samples (cpsYYYY_03s) of the CPS years, with the link key MARBASECIDP. overtime_cps.R takes from it hours last week at the main job (AHRSWORK1, not in the ASEC) and, in the March 2024 ASEC (tax year 2023), the weekly pay and hourly wage of the month-4 group, which that ASEC lost (RESULTS.md there, part 1). Kept in the repo's local inputs folder (gitignored) for now; to move to raw_data later (John, 27 October). null: none (hours at all jobs; the lost group missing).",
    "eap_codes": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Reports/2024/Overtime/resources/eap_codes.dta",
-   "_eap_codes": "DOL's 2016 table of white-collar duties classes by occupation (Census 2002/2010 codes), from Tedeschi's overtime report (The Budget Lab, September 2024)."
+   "_eap_codes": "DOL's 2016 table of white-collar duties classes by occupation (Census 2002/2010 codes), from Tedeschi's overtime report (The Budget Lab, September 2024).",
+   "cps_repwt": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CPS-ASEC/cps_asec_common_repwt",
+   "_cps_repwt": "The CPS ASEC's replicate weights (the shared IPUMS layer of 4 September 2026, one folder per March sample cpsYYYY_03s: SERIAL, PERNUM, ASECWT and the 160 person replicate weights REPWTP1-REPWTP160, Census's successive difference replication). errors.py reads them for the standard errors of the CPS overtime targets (28 October)."
   }
  },
  "tax_units": {
@@ -1545,8 +1547,8 @@
   "filer_seed": 20261023,
   "dollar_amounts": [
    "childcare",
-   "overtime_primary",
-   "overtime_spouse"
+   "ot_primary",
+   "ot_spouse"
   ],
   "cbo_variant": "cbo",
   "step1_dir": "filing",
@@ -1554,7 +1556,7 @@
   "step1_out": "returns",
   "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads.",
   "overtime": {
-   "_what": "Each person's overtime pay (overtime_cps.R, Tedeschi's rules; build_cps.R overtime1 and overtime2; the table's overtime_primary and overtime_spouse, CPS dollar slots held at generation to at most each person's wages). salary_threshold: the FLSA weekly salary level of each tax year ($455 from 2004 through 2019; $684 from 1 January 2020; the 2024 rule's $844, in force July to November 2024, was vacated). hce_annual: the highly compensated employee line ($100,000 through 2019, $107,432 from 2020). computer_hourly: the computer-employee hourly line, $27.63. seed: the duties-test draw, plus the year.",
+   "_what": "Each person's overtime pay (overtime_cps.R, Tedeschi's rules; build_cps.R ot1 and ot2; the table's ot_primary and ot_spouse, CPS dollar slots; in the file, Tax-Simulator's ot1, ot2 and ot = ot1 + ot2, each person's held to their wages less their tips). salary_threshold: the FLSA weekly salary level of each tax year ($455 from 2004 through 2019; $684 from 1 January 2020; the 2024 rule's $844, in force July to November 2024, was vacated). hce_annual: the highly compensated employee line ($100,000 through 2019, $107,432 from 2020). computer_hourly: the computer-employee hourly line, $27.63. seed: the duties-test draw, plus the year.",
    "salary_threshold": {
     "2015": 455,
     "2017": 455,

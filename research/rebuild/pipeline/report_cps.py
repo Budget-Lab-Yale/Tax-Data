@@ -59,39 +59,69 @@ def shares(d, col, bands):
     return {lab: 100 * d.w[g == lab].sum() / d.w.sum() if d.w.sum() > 0 else np.nan for _, _, lab in bands}
 
 
+def overtime_cap_table(f):
+    """What the overtime cap takes off in the file (decided 27 October): each person's drawn overtime (ot_primary,
+    ot_spouse) is held to the person's wages less the person's tips (dollars.person_cap). For each person and both
+    together: the people with drawn overtime, those the wages alone hold and the dollars that takes off, and those
+    the subtraction of tips holds further and the dollars that takes off on top; weighted by the file's weights."""
+    import dollars as D
+    rows, tot = [], {}
+    for who, slot, wages, tips in [('primary filer', 'ot_primary', 'wages1', 'tips1'),
+                                   ('spouse', 'ot_spouse', 'wages2', 'tips2')]:
+        x = f[slot].to_numpy(float)
+        held, by_cap, by_less = D.person_cap(x, f[wages].to_numpy(float), f[tips].to_numpy(float))
+        w = f.w.to_numpy(float)
+        r = {'person': who, 'with drawn overtime (m)': w[x > 0].sum() / 1e6, 'drawn ($bn)': (w * x).sum() / 1e9,
+             'held by wages (m people)': w[by_cap > 0].sum() / 1e6, 'taken off by wages ($bn)': (w * by_cap).sum() / 1e9,
+             'held by wages less tips, further (m people)': w[by_less > 0].sum() / 1e6,
+             'taken off by the tips ($bn)': (w * by_less).sum() / 1e9, 'kept ($bn)': (w * held).sum() / 1e9}
+        rows.append(r)
+        for k, v in r.items():
+            if k != 'person':
+                tot[k] = tot.get(k, 0.0) + v
+    rows.append({'person': 'both', **tot})
+    return pd.DataFrame(rows).set_index('person').to_markdown(floatfmt=',.2f')
+
+
 def overtime_section(src):
-    """Overtime pay (since 28 October) by the unit's wages: units, the share with overtime, the mean among those with
-    any, and the total. The file: overtime1 + overtime2 (each held to the person's wages). The CPS: only the units
-    asked the earnings questions have overtime (the rest are missing); within each survey year their weights are
-    scaled up to the year's whole weight, so the totals are for every unit (the asked units are a random part of the
-    sample: months 4 and 8 in the survey)."""
+    """Overtime pay (since 28 October) by the unit's wages: units, the share with overtime, the mean over all units
+    and among those with any, and the total. The file: ot = ot1 + ot2 (each held to the person's wages less tips). The
+    CPS: only the units asked the earnings questions have overtime (the rest are missing); within each survey year
+    their weights are scaled up to the year's whole weight, so the totals are for every unit (the asked units are
+    those in months 4 and 8 of the main sample). Then what the cap takes off in the file."""
     def ot(m):
-        x, w = m['overtime'].to_numpy(float), m.w.to_numpy(float)
+        x, w = m['ot'].to_numpy(float), m.w.to_numpy(float)
         return {'units (m)': w.sum() / 1e6, 'with overtime (%)': 100 * w[x > 0].sum() / w.sum() if w.sum() > 0 else np.nan,
+                'mean, all units ($)': wavg(x, w),
                 'mean, those with any ($)': wavg(x[x > 0], w[x > 0]), 'total ($bn)': (w * x).sum() / 1e9}
-    frames = {}
+    frames, cap = {}, []
     for name, d in src.items():
-        if 'overtime1' in d:                                        # the file
-            d = d.copy()
-            d['overtime'] = d['overtime1'] + d['overtime2']
+        if 'ot' in d and 'ot1' in d:                          # the file
             frames[name] = d
-        elif 'overtime_primary' in d:                               # the CPS side: asked units, scaled up
-            a = d[d['overtime_primary'].notna()].copy()
+            if 'ot_primary' in d:
+                cap = ['### What the cap takes off in the file', '',
+                       'Each person\'s drawn overtime is held to the person\'s wages less the person\'s tips (tips are '
+                       'made first; decided 27 October). "Held by wages": the drawn overtime is above the person\'s '
+                       'wages. "Further": what subtracting the tips takes off on top (a person can be in both). '
+                       'People and dollars weighted by the file\'s weights, dependent filers left out.', '',
+                       overtime_cap_table(d), '']
+        elif 'ot_primary' in d:                               # the CPS side: asked units, scaled up
+            a = d[d['ot_primary'].notna()].copy()
             if 'survey_year' in d:
                 scale = d.groupby('survey_year')['w'].sum() / a.groupby('survey_year')['w'].sum()
                 a['w'] = a['w'] * a['survey_year'].map(scale)
             else:
                 a['w'] = a['w'] * d.w.sum() / a.w.sum()
-            a['overtime'] = a['overtime_primary'] + a['overtime_spouse']
+            a['ot'] = a['ot_primary'] + a['ot_spouse']
             frames[name] = a
     if len(frames) < 2:
         return []
     return ['## Overtime pay, by the unit\'s wages', '',
             'Each adult\'s overtime by Tedeschi\'s rules (FLSA coverage, exemptions, hours over 40 at time and a half, '
-            'times weeks worked), at most the person\'s wages. CPS: the units asked the earnings questions, weighted up to '
-            'every unit of their year. Nominal dollars of the file\'s year.', '',
+            'times weeks worked), at most the person\'s wages (in the file, wages less tips). CPS: the units asked the '
+            'earnings questions, weighted up to every unit of their year. Nominal dollars of the file\'s year.', '',
             side_by_side(frames, [(lab, (lambda lab: lambda d: d['wg'] == lab)(lab)) for _, _, lab in WAGES]
-                         + [('all', lambda d: d['married'] >= 0)], ot), '']
+                         + [('all', lambda d: d['married'] >= 0)], ot), ''] + cap
 
 
 def main():

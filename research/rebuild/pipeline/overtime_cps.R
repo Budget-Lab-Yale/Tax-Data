@@ -82,8 +82,9 @@
 #                       hours over 40 [ot_weekly_earnings]: the whole pay for
 #                       the hours over 40, base and premium, as Tedeschi counts
 #                       it (the premium alone is a third of it)
-#   overtime            weekly overtime x weeks worked in the tax year
-#                       (WKSWORK1), at most the person's wages (INCWAGE)
+#   ot                  overtime pay in the year: weekly overtime x weeks worked
+#                       in the tax year (WKSWORK1), at most the person's wages
+#                       (INCWAGE). Tax-Simulator's name (ot1, ot2, ot on the unit)
 #
 # The occupation codes. Tedeschi's code lists, and DOL's table of classes, are
 # in the Census 2002/2010 occupation codes; the ASEC's own OCC changes to the 2018
@@ -251,6 +252,6 @@ cps_overtime = function(yr, x_keys) {
   x[, pay_missing := asked & ELIGORG == 1 & emp & !has_pay]
   x[, ot_year_raw := ot_week * WKSWORK1]
   x[, wages_ := pmax(fifelse(INCWAGE >= 99999998, 0, as.numeric(INCWAGE)), 0)]
-  x[, overtime := fifelse(asked & !pay_missing, pmin(ot_year_raw, wages_), NA_real_)]
+  x[, ot := fifelse(asked & !pay_missing, pmin(ot_year_raw, wages_), NA_real_)]
   x[]
 }
