@@ -41,7 +41,7 @@
 # Ids. record_id = SERIAL x 100 + the PERNUM of the builder's unit head
 # (the builder's unit_id), unique within the year. household_id = SERIAL.
 #
-# Columns, one row per tax unit, no NA. Dollars are nominal dollars of the tax
+# Columns, one row per tax unit, no NA except overtime (below). Dollars are nominal dollars of the tax
 # year as reported (the ASEC asks about the previous calendar year).
 #   year, record_id, household_id, weight (the head's ASECWT)
 #   married (1 joint unit), n_dep (dependents claimed, capped at 3 as the SCF
@@ -92,6 +92,13 @@
 #                         and the class are written to
 #                         cps_survivor_disability_sources.csv.
 #     other_income        INCOTHER (includes alimony)
+#   overtime1, overtime2 (since 28 October): the primary filer's and the
+#     spouse's overtime pay in the tax year, by Tedeschi's rules
+#     (overtime_cps.R), at most the person's wages (INCWAGE); missing (NA),
+#     not zero, on every unit whose adults were not asked the earnings
+#     questions (about three quarters of units: only months 4 and 8 in sample
+#     are asked), and on the few asked workers with no pay. overtime2 is 0 on
+#     an asked unit with no spouse. The only columns that can be NA.
 #   CPS-only, per person: wages1, wages2 (INCWAGE); se1, se2 (INCBUS +
 #     INCFARM); weeks_worked1/2 (WKSWORK1, weeks worked last year);
 #     usual_hours1/2 (UHRSWORKLY, usual weekly hours last year, its
@@ -117,7 +124,8 @@
 # REBUILD_OUT/data. Optional arguments name tax years to build (default: all
 # of settings cps.years). Writes {out}/data/cps_units_{year}.csv.gz,
 # cps_summary.csv (the printed totals per year) and
-# cps_survivor_disability_sources.csv (the sources' table, every year built). Run from the repository root
+# cps_survivor_disability_sources.csv (the sources' table, every year built), and per year
+# cps_overtime_persons_{year}.csv.gz (every person's overtime build, for the checks). Run from the repository root
 # through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
 # hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
 # R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.sbatch, stage cps.
@@ -137,6 +145,7 @@ stopifnot(all(YEARS %in% settings$cps$years))
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table()
 source('research/rebuild/pipeline/tax_units_cbo.R')
+source('research/rebuild/pipeline/overtime_cps.R')  # cps_overtime(): each person's overtime pay, Tedeschi's rules
 # the filing stage's folder inside the run's data folder (cps.step1_dir) and the folder of its returns inside it
 # (cps.step1_out)
 if (is.null(settings$cps$step1_dir) || is.null(settings$cps$step1_out))
@@ -345,6 +354,18 @@ for (yr in YEARS) {
                  yr, yr + 1, paste(miss, collapse = ', ')))
   report_na(x[, c(RAW_USED, ret_cols, SURVDIS_ITEMS), with = FALSE], 'raw ASEC columns used')
   cat(sprintf('  %d person records, %d households\n', nrow(x), uniqueN(x$SERIAL)))
+  # Overtime pay per person (overtime_cps.R), from the extract with the earnings questions; NA where not asked
+  ot = cps_overtime(yr, x[, .(SERIAL, PERNUM)])
+  ot_out = ot[, .(SERIAL, PERNUM, MISH, EARNWT, asked, basic_pay, pay_missing, ELIGORG, EMPSTAT, CLASSWKR, OCC2010, IND,
+                  hourly, weekpay, wage, usual, lastwk, finalhours, inelig, exempt, eap_code, eap_prob, passes_duties,
+                  ot_cat, ot_week, WKSWORK1, INCWAGE = wages_, ot_year_raw, overtime)]
+  fwrite(ot_out, file.path(OUT, sprintf('cps_overtime_persons_%d.csv.gz', yr)))
+  cat(sprintf('  overtime: %d people asked (EARNWT %.1f m); among them %d with pay missing; %.2f m people (EARNWT) with overtime, $%.1f bn (EARNWT); the cap at own wages takes off $%.2f bn\n',
+              sum(ot$asked), ot[asked == TRUE, sum(EARNWT)] / 1e6, sum(ot$pay_missing), ot[overtime > 0, sum(EARNWT)] / 1e6,
+              ot[asked == TRUE & !pay_missing, sum(EARNWT * overtime)] / 1e9,
+              ot[asked == TRUE & !pay_missing, sum(EARNWT * (ot_year_raw - overtime))] / 1e9))
+  cat('  named industry codes, people with the code (a zero would mean the code is not in this year\'s scheme):\n')
+  print(ot[IND %in% OT_IND_NAMED, .N, by = IND][order(IND)][, paste(IND, N, sep = ':')], quote = FALSE)
 
   # Income concepts and the filing model's inputs, cleaned as the pool's driver (01_build_units.R) does
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
@@ -401,9 +422,11 @@ for (yr in YEARS) {
               nrow(units), sum(units$weight) / 1e6, nrow(dep_units), sum(dep_units$weight) / 1e6,
               bn(dep_units$weight, dep_units$INCWAGE)))
 
+  p[ot, on = c('SERIAL', 'PERNUM'), `:=`(overtime = i.overtime, ot_asked = i.asked)]
+  stopifnot(!anyNA(p$ot_asked))
   hs = p[role %in% c('primary', 'spouse'),
          .(unit_id, PERNUM, role, AGE, SEX, INCWAGE, se = INCBUS + INCFARM, weeks = as.numeric(WKSWORK1),
-           hours = usual_hours)]
+           hours = usual_hours, overtime, ot_asked)]
   stopifnot(all(hs$SEX %in% 1:2))
   hs[, n_adult := .N, by = unit_id]
   stopifnot(all(hs$n_adult %in% 1:2))
@@ -415,10 +438,13 @@ for (yr in YEARS) {
   cat(sprintf('  couples: %d mixed-sex, %d same-sex; builder\'s head is not person 1 in %d couples\n',
               hs[pos == 1 & n_adult == 2 & mixed, .N], hs[pos == 1 & n_adult == 2 & !mixed, .N],
               hs[pos == 1 & n_adult == 2 & role != 'primary', .N]))
+  # a unit's overtime is missing when either adult's is (not asked, or pay missing)
+  hs[, ot_unit_na := anyNA(overtime), by = unit_id]
+  ot_asked_units = as.integer(unique(hs[ot_asked == TRUE, unit_id]))
   p1 = hs[pos == 1, .(unit_id, age1 = AGE, sex1 = SEX, wages1 = INCWAGE, se1 = se, weeks_worked1 = weeks,
-                      usual_hours1 = hours)]
+                      usual_hours1 = hours, overtime1 = fifelse(ot_unit_na, NA_real_, overtime), ot_unit_na)]
   p2 = hs[pos == 2, .(unit_id, age2 = AGE, sex2 = SEX, wages2 = INCWAGE, se2 = se, weeks_worked2 = weeks,
-                      usual_hours2 = hours)]
+                      usual_hours2 = hours, overtime2 = fifelse(ot_unit_na, NA_real_, overtime))]
 
   #-----------------------------------------------------------------------------
   # Dependents
@@ -485,7 +511,8 @@ for (yr in YEARS) {
   stopifnot(all(is.na(out$age2) == !married), all(is.na(out$n_dep_raw) == (out$unit_id %in% dtab$unit_id == FALSE)))
   out[, married := as.integer(filing_status == 'joint')]
   # not in universe: no spouse (person 2 zero, age -1, sex 0); no dependents (0, ages -1); no child care (0)
-  out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0)]
+  out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0,
+                         overtime2 = fifelse(ot_unit_na, NA_real_, 0))]
   out[is.na(n_dep_raw), `:=`(n_dep_raw = 0L, n13 = 0L, n6 = 0L, n_ctc_raw = 0L, n_eitc_raw = 0L,
                              dep_age1 = -1, dep_age2 = -1, dep_age3 = -1)]
   stopifnot(all(out$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
@@ -515,8 +542,17 @@ for (yr in YEARS) {
                 n_dep_under13 = pmin(n13, 3L), n_dep_under6 = pmin(n6, 3L),
                 wages, sch_cf_income, interest, dividends, ss_gross, unemployment, retirement_income,
                 rent_royalty_estate, survivor_disability, survdis_pension, survdis_other, other_income, capital_gains,
-                wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare)]
-  stopifnot(!anyNA(out), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
+                wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare,
+                overtime1, overtime2)]
+  # overtime: missing on both adults together, never above the person's wages
+  stopifnot(identical(is.na(out$overtime1), is.na(out$overtime2)),
+            all(out$overtime1 <= out$wages1 + 1e-6 & out$overtime1 >= 0, na.rm = TRUE),
+            all(out$overtime2 <= out$wages2 + 1e-6 & out$overtime2 >= 0, na.rm = TRUE),
+            all(out[married == 0 & !is.na(overtime2), overtime2] == 0))
+  cat(sprintf('  overtime on units: asked %d of %d units (%.1f%% of the weight); missing on %d units (%d of them asked but with a worker\'s pay missing)\n',
+              sum(!is.na(out$overtime1)), nrow(out), 100 * sum(out$weight[!is.na(out$overtime1)]) / sum(out$weight),
+              sum(is.na(out$overtime1)), sum(is.na(out$overtime1) & out$record_id %in% ot_asked_units)))
+  stopifnot(!anyNA(out[, !c('overtime1', 'overtime2')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
             all(out$n_eitc <= out$n_dep), all((out$mars == 2) == (out$married == 1)),
             all((out$dep_age1 >= 0) == (out$n_dep > 0)))
   fwrite(out, file.path(OUT, sprintf('cps_units_%d.csv.gz', yr)))

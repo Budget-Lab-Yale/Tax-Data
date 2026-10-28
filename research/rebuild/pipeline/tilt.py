@@ -155,9 +155,12 @@ def recombine(df, year):
     for item, (total, other) in D.REMAINDERS.items():
         if other in out:
             put(item, out[total] - out[other])
-    if all(f'{slot}_band' in out for slot in D.PERSON_CAPS):    # tips1, tips2, tips and the leisure flags
+    have = [slot for slot in D.PERSON_CAPS if f'{slot}_band' in out]   # tips and overtime, each where drawn
+    if have:                                                           # tips1, tips2, tips, the flags, overtime
         D.person_items(out, out)
-        done += [item for item, _ in D.PERSON_CAPS.values()] + list(D.SUMS) + list(D.FLAGS_WITH)
+        made = {D.PERSON_CAPS[slot][0] for slot in have}
+        done += sorted(made) + [k for k, parts in D.SUMS.items() if all(p in made for p in parts)] + \
+            [k for k, (_, amount) in D.FLAGS_WITH.items() if amount in made]
     if all(c in out for c in D.NET_WORTH_PARTS):
         put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
     if 'elective_deferrals' in out:                       # the traditional deferrals and Medicare wages (28 October)
@@ -175,7 +178,7 @@ def grow_dollars(df, s, t):
         over that of s - 1 (build_table.scf_growth, the maps' rule); not grown when either wave is missing, or for
         an item whose mean per unit is not positive in both;
       - consumption: NIPA PCE per return, by category;
-      - the CPS-only dollars (childcare) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks and hours
+      - the CPS-only dollars (childcare, overtime) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks and hours
         not grown.
     Then every computed column is computed again from the grown parts (recombine; checked first to reproduce the
     file's own columns). Ages and every category are left as they are. Returns the grown frame and a table of the

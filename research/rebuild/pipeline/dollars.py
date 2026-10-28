@@ -50,6 +50,10 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   wages (wages1, wages2); tips = tips1 + tips2 exactly;
                   tips_lh1, tips_lh2 the leisure and hospitality flags, 0
                   where that adult has no tips
+  overtime1, overtime2  each adult's overtime pay (since 28 October): the
+                  drawn overtime in dollars (overtime_primary, overtime_spouse,
+                  from the CPS's map), at most that adult's wages, as tips;
+                  overtime = overtime1 + overtime2 exactly
   auto_int_exp    the auto loan interest drawn (an SCF amount, from the
                   record's own wave's map)
   elective_deferrals  the unit's elective deferrals to 401(k)-type plans,
@@ -92,11 +96,13 @@ META = common.meta()
 LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
 # Elective deferrals (28 October), an SCF amount, after stage 3's items at the very end, so no earlier stream moves
 NEWEST = ['elective_deferrals', 'spouse_deferral_share']   # the spouse's share since 28 October, after it
+# Overtime (28 October), the CPS's dollar slots for each adult, at the very end after the elective deferrals
+OVERTIME = list(META['cps_structure'].get('overtime', []))
 ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST] \
-    + list(META['cex_amounts']) + ['ss_gross'] + list(META['cps_amounts']) + LATER
+    + list(META['cex_amounts']) + ['ss_gross'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
 ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
-ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']]
+ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
@@ -190,11 +196,17 @@ def person_items(out, df):
     the drawn tips_primary, at most wages1: a person's tips are part of that person's wages, as on Form W-2), then
     their sums (tips = tips1 + tips2) and the yes/no items that hold only with the item (tips_lh1: 0 where tips1 is 0).
     Prints how many people, and how many dollars, the cap takes off: records, and units by the frame's weight column
-    when it has one. A record without the drawn amount's band column gets none of these."""
-    if not all(f'{slot}_band' in df for slot in PERSON_CAPS):
+    when it has one. Each item is made only where the frame has its drawn amount's band column (a frame from before
+    overtime has the tips and not the overtime), and a sum or flag only where its parts were made."""
+    have = {slot: f'{slot}_band' in df for slot in PERSON_CAPS}
+    if not any(have.values()):
         return out
     w = out['weight'].to_numpy(float) if 'weight' in out else None
+    made = set()
     for slot, (item, cap) in PERSON_CAPS.items():
+        if not have[slot]:
+            continue
+        made.add(item)
         x, c = out[slot].to_numpy(float), np.maximum(out[cap].to_numpy(float), 0.0)
         assert (x >= 0).all(), f'{slot} below zero'
         out[item] = np.minimum(x, c)
@@ -207,8 +219,11 @@ def person_items(out, df):
                      f'${(w * (x - c))[bound].sum() / 1e9:,.2f} billion of ${(w * x).sum() / 1e9:,.2f} billion')
         common.say(line)
     for item, parts in SUMS.items():
-        out[item] = out[parts].to_numpy(float).sum(1)
+        if all(p in made for p in parts):
+            out[item] = out[parts].to_numpy(float).sum(1)
     for item, (flag, amount) in FLAGS_WITH.items():
+        if amount not in made:
+            continue
         out[item] = np.where(out[amount].to_numpy(float) != 0, out[flag].to_numpy(), 0).astype(np.int64)
     return out
 

@@ -25,7 +25,13 @@
    "_soi_w2": "SOI's Form W-2 statistics as published (irs.gov/pub/irs-soi/{yy}in0{n}w2all.xlsx; the store's manifest.csv): w2_t4_{year}.xlsx, Table 4.B, the summary of W-2 items by filing status, read for the tips targets (catalog source soi w2). Built for the 2019 and 2020 layout.",
    "pce": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/resources/pce_historical.csv",
    "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX",
-   "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927"
+   "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927",
+   "cps_earnings": "/nfs/roberts/project/pi_nrs36/jar335/raw_data/CPS-ASEC/cps_asec_common_v2",
+   "_cps_earnings": "The CPS ASEC pull of 27 October with the earnings questions (weekly pay, hourly wage, paid by the hour, hours, the earnings weight), occupation (OCC2010), industry, class of worker and metro size; the same records as the common extract read_asec() reads. overtime_cps.R reads it (build_cps.R, overtime1 and overtime2).",
+   "cps_march_basic": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-28/overtime/ipums/overtime_extract",
+   "_cps_march_basic": "A small IPUMS pull of 28 October (common_ipums_download; scratch explore/2026-10-28/overtime/scripts/parameters.cps.marbasic*.yaml): the March basic monthly samples (cpsYYYY_03b) and the ASEC samples (cpsYYYY_03s) of the CPS years, with the link key MARBASECIDP. overtime_cps.R takes from it hours last week at the main job (AHRSWORK1, not in the ASEC) and, in the March 2024 ASEC (tax year 2023), the weekly pay and hourly wage of the month-4 group, which that ASEC lost (RESULTS.md there, part 1). Scratch for now: to move to raw_data when John approves. null: none (hours at all jobs; the lost group missing).",
+   "eap_codes": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Reports/2024/Overtime/resources/eap_codes.dta",
+   "_eap_codes": "DOL's 2016 table of white-collar duties classes by occupation (Census 2002/2010 codes), from Tedeschi's overtime report (The Budget Lab, September 2024)."
   }
  },
  "tax_units": {
@@ -1538,13 +1544,34 @@
   "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
   "filer_seed": 20261023,
   "dollar_amounts": [
-   "childcare"
+   "childcare",
+   "overtime_primary",
+   "overtime_spouse"
   ],
   "cbo_variant": "cbo",
   "step1_dir": "filing",
   "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
   "step1_out": "returns",
-  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads."
+  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads.",
+  "overtime": {
+   "_what": "Each person's overtime pay (overtime_cps.R, Tedeschi's rules; build_cps.R overtime1 and overtime2; the table's overtime_primary and overtime_spouse, CPS dollar slots held at generation to at most each person's wages). salary_threshold: the FLSA weekly salary level of each tax year ($455 from 2004 through 2019; $684 from 1 January 2020; the 2024 rule's $844, in force July to November 2024, was vacated). hce_annual: the highly compensated employee line ($100,000 through 2019, $107,432 from 2020). computer_hourly: the computer-employee hourly line, $27.63. seed: the duties-test draw, plus the year.",
+   "salary_threshold": {
+    "2015": 455,
+    "2017": 455,
+    "2019": 455,
+    "2021": 684,
+    "2023": 684
+   },
+   "hce_annual": {
+    "2015": 100000,
+    "2017": 100000,
+    "2019": 100000,
+    "2021": 107432,
+    "2023": 107432
+   },
+   "computer_hourly": 27.63,
+   "seed": 20261028
+  }
  },
  "sipp": {
   "_what": "The SIPP as a fifth source (roster_sipp.py, build_table.py): the Survey of Income and Program Participation's public-use files, one per reference (tax) year, its households as of the interview split into tax units by CBO's rules (tax_units.py, the shared module), every tax unit, dependent filers folded into the unit that claims them. Shared with the PUF (translation table): married, dependents, the primary filer's age range, wages, and the exact ages of the primary filer and the spouse; shared with the CPS: the spouse's share of the couple's wages. SIPP only: each adult's tips in dollars, and whether that adult's tips are mostly from leisure and hospitality (tips_primary, tips_spouse, tips_lh_primary, tips_lh_spouse), drawn last at generation under the SIPP label and generation_year; the tips' dollar map is the generation year's records, grown to the target year by SOI's wages per return with wages, as the CPS's childcare. The file's tips1 and tips2 are each person's drawn tips held to at most that person's wages (wages1, wages2: tips are part of wages, as on Form W-2), and tips their sum.",

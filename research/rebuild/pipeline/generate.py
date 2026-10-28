@@ -53,7 +53,10 @@ One record is drawn slot by slot:
      self-employment income and the categories drawn so far;
   6. the CPS-only slots (dependents' ages, sex, the spouse's shares of the couple's
      wages and self-employment income, weeks and hours worked, childcare) in a
-     random order per record, each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
+     random order per record, then (since 28 October) each adult's overtime pay
+     in a random order (the primary filer's zero without wages, the spouse's
+     without a spouse's share of wages above zero; each held to that person's
+     wages when bands become dollars, dollars.py), each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
      follow the record's PUF items (cps_structure): the spouse's items only
      when married, the k-th dependent's age only with k or more dependents;
   7. the SIPP-only slots (since 26 October): each adult's tips in dollars,
@@ -182,6 +185,10 @@ SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the 
 SIPP_TIPS = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
 AGE_SLOTS = M.EXACT_AGES                   # drawn after the PUF items, under the CPS label (see the top)
 SPOUSE = torch.tensor([P.index(v) for v in CPS_STRUCTURE['spouse']])
+# (28 October) each adult's overtime: drawn after the other CPS slots, so the spouse's share of wages is in place
+CPS_OVERTIME = [v for v in CPS_STRUCTURE.get('overtime', []) if v in CPS_SLOTS]
+CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
+CPS_ZERO_WITHOUT = CPS_STRUCTURE.get('zero_without', {})
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
 # the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
@@ -404,6 +411,10 @@ def cps_structure(values, slot, probs):
         probs = only(probs, (slot == j) & (n_dep < k))
         sel = (slot == j) & (n_dep >= k)
         probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    # overtime (28 October): the primary filer's is zero without wages, the spouse's without a spouse's share of the
+    # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages in dollars (dollars.py)
+    for item, base in CPS_ZERO_WITHOUT.items():
+        probs = only(probs, (slot == P.index(item)) & (values[:, NC + P.index(base)] <= 0))
     sel = slot == PRIMARY_AGE
     if sel.any():
         rng = RANGE_OF_AGE_VALUE.to(probs.device)
@@ -688,7 +699,8 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
                          and v not in STATUS_SLOTS and v not in M.PUF_LABELS], dtype=torch.long)
     own = torch.cat([first, then, rest])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
-    cps = torch.tensor([P.index(v) for v in CPS_SLOTS])
+    cps = torch.tensor([P.index(v) for v in CPS_FIRST])
+    cps_ot = torch.tensor([P.index(v) for v in CPS_OVERTIME], dtype=torch.long)
     sipp_tips = torch.tensor([P.index(v) for v in SIPP_TIPS])
     sipp_flags = torch.tensor([P.index(v) for v in SIPP_FLAGS])
     age = torch.tensor([P.index(v) for v in AGE_SLOTS])
@@ -703,6 +715,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
                           scf_order(size, cpu_gen),
                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
                           cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)],
+                          cps_ot[torch.rand(size, len(cps_ot), generator=cpu_gen).argsort(1)],
                           sipp_tips[torch.rand(size, len(sipp_tips), generator=cpu_gen).argsort(1)],
                           sipp_flags[torch.rand(size, len(sipp_flags), generator=cpu_gen).argsort(1)]], 1).to(device)
 

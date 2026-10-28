@@ -10,7 +10,7 @@ among earners since 28 October), so a group holds the same ranks on both sides; 
 None of this is targeted. Sections: the primary filer's and the spouse's age within each age range; dependents'
 ages; the primary filer's sex; for married couples, whether the spouse has wages and the spouse's share of the
 couple's wages, by the couple's wages, and the same for self-employment income; childcare by the number of
-dependents under 13 and by wages; weeks and hours worked.
+dependents under 13 and by wages; weeks and hours worked; overtime pay (since 28 October; overtime_section).
 
 Writes common.TILT/cps_report.md.
 """
@@ -57,6 +57,41 @@ def shares(d, col, bands):
     """Percent of weight in each band of col."""
     g = groups_by(d[col].to_numpy(float), bands)
     return {lab: 100 * d.w[g == lab].sum() / d.w.sum() if d.w.sum() > 0 else np.nan for _, _, lab in bands}
+
+
+def overtime_section(src):
+    """Overtime pay (since 28 October) by the unit's wages: units, the share with overtime, the mean among those with
+    any, and the total. The file: overtime1 + overtime2 (each held to the person's wages). The CPS: only the units
+    asked the earnings questions have overtime (the rest are missing); within each survey year their weights are
+    scaled up to the year's whole weight, so the totals are for every unit (the asked units are a random part of the
+    sample: months 4 and 8 in the survey)."""
+    def ot(m):
+        x, w = m['overtime'].to_numpy(float), m.w.to_numpy(float)
+        return {'units (m)': w.sum() / 1e6, 'with overtime (%)': 100 * w[x > 0].sum() / w.sum() if w.sum() > 0 else np.nan,
+                'mean, those with any ($)': wavg(x[x > 0], w[x > 0]), 'total ($bn)': (w * x).sum() / 1e9}
+    frames = {}
+    for name, d in src.items():
+        if 'overtime1' in d:                                        # the file
+            d = d.copy()
+            d['overtime'] = d['overtime1'] + d['overtime2']
+            frames[name] = d
+        elif 'overtime_primary' in d:                               # the CPS side: asked units, scaled up
+            a = d[d['overtime_primary'].notna()].copy()
+            if 'survey_year' in d:
+                scale = d.groupby('survey_year')['w'].sum() / a.groupby('survey_year')['w'].sum()
+                a['w'] = a['w'] * a['survey_year'].map(scale)
+            else:
+                a['w'] = a['w'] * d.w.sum() / a.w.sum()
+            a['overtime'] = a['overtime_primary'] + a['overtime_spouse']
+            frames[name] = a
+    if len(frames) < 2:
+        return []
+    return ['## Overtime pay, by the unit\'s wages', '',
+            'Each adult\'s overtime by Tedeschi\'s rules (FLSA coverage, exemptions, hours over 40 at time and a half, '
+            'times weeks worked), at most the person\'s wages. CPS: the units asked the earnings questions, weighted up to '
+            'every unit of their year. Nominal dollars of the file\'s year.', '',
+            side_by_side(frames, [(lab, (lambda lab: lambda d: d['wg'] == lab)(lab)) for _, _, lab in WAGES]
+                         + [('all', lambda d: d['married'] >= 0)], ot), '']
 
 
 def main():
@@ -151,6 +186,7 @@ def main():
                     f'{" (married couples)" if who == "spouse" else ""}, by the unit\'s wages', '',
                     side_by_side(src, [(lab, (lambda lab, cond=cond: lambda d: cond(d) & (d['wg'] == lab))(lab))
                                        for _, _, lab in WAGES] + [('all', cond)], stat), '']
+    out += overtime_section(src)
     open(f'{common.TILT}/cps_report.md', 'w').write('\n'.join(out))
     common.say('\n'.join(out))
 
