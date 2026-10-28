@@ -43,7 +43,9 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      in 2019 against DHS's 1.01 million unauthorized children under 18); the DHS comparison is reported only. Per
      child, and for the filer and spouse too (`ssn1`, `ssn2`; Tax-Simulator needs a column for them, step 2).
      Children of temporary visa holders fall in the third group. Possible check: SOI's count of ITIN dependents,
-     which David Splinter might be asked for.
+     which David Splinter might be asked for. Built through the training table on branch `rebuild-ssn` (8a4aa2c, 28 October; scratch
+     `explore/2026-10-28/ssn_build/RESULTS.md`): counts equal the size check, the rest of the table unchanged; enters
+     the file at the next retrain.
    - Q5, QBI service status and wage bill (John, 28 October): something more involved than production's rule;
      being researched (SCF business items, SOI pass-through tables by industry, the 199A literature; scratch
      `explore/2026-10-28/rules_framework/qbi/`).
