@@ -11,6 +11,11 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    death probabilities, yearly unrealized gains on each asset, and the basis and holding period of capital gains
    from SOI's Sales of Capital Assets tables (published tables, so a rule, not a source). Production's versions are
    in `src/imputations/` and `src/mortality_ledger.R`.
+   **Next, from 28 October (John).** The proposal is in scratch `explore/2026-10-28/rules_framework/PROPOSAL.md`:
+   one module, `rules.py`, one function per item, each year's own published table, draws keyed by record id, a
+   published check per rule. Nine questions for John, taken one at a time; decisions recorded here as they are made.
+   These items are also most of the 39 inputs the calculator experiment sets to 0 (branch `rebuild-calculator`,
+   `CALCULATOR_CONTRACT.md`).
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
