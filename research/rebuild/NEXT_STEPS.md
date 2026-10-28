@@ -41,6 +41,9 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      Reserve Financial Accounts (Z.1) revaluation rate by asset, so each record's gain lines up with its year; years
      without full data (projections) use the long-run averages production uses now. The retirement accounts' stock
      share is fitted as a single SCF variable in pretraining, not production's age rule.
+   - Q7, holding period and basis of long-term gains (John, 28 October): production's method for now (holding
+     group drawn from SOCA's gain shares, unconditional; basis from the SOCA regression), evaluated at the target
+     year's trailing S&P returns.
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
