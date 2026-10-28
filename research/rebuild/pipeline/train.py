@@ -78,6 +78,7 @@ import torch
 import common
 import fillin
 import model as M
+import overfit_log
 import qgroups
 
 S = common.SETTINGS['translation']
@@ -241,6 +242,8 @@ def main():
         opt, lambda s: (s + 1) / warm if s < warm else
         floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * (s - warm) / max(1, total - warm))))
     val_hidden = [show_label(M.draw_hidden(te['values'], gen)) for _ in range(4)]
+    # overfitting diagnostic (overfit_log.py): its own random generators, so training's draws are unchanged
+    olog = overfit_log.OverfitLog(model, tr, te, val_hidden, gate, show_label, common.SEED, common.MODEL)
 
     # ---- the per-variable log: held-back PUF records for the PUF items, held-back CEX records for consumption
     logged = {'puf': [v for v in M.AMOUNTS if f'puf/{common.PUF_YEAR}/{v}' in common.edges()], 'cex': M.CEX_SLOTS,
@@ -323,6 +326,14 @@ def main():
                    + f'  {row["seconds"]:.1f}s (fill-in {t_refit:.1f}s, batches {t_batches:.1f}s)  peak {row["peak_gpu_gb"]:.2f} GB')
         if epoch == 1 or epoch % T['log_every_passes'] == 0 or epoch == T['passes']:
             log_variables(epoch)
+        olog.log(epoch)
+        if epoch % 10 == 0 and epoch < T['passes']:
+            # overfitting diagnostic: the network after this pass, in a model folder of its own (<run>_p<pass>)
+            ck = f'{common.OUT}/model/{common.RUN}_p{epoch}'
+            os.makedirs(ck, exist_ok=True)
+            M.save_model(model, os.path.join(ck, 'model.pt'))
+            json.dump(dict(seed=common.SEED, saved_at_pass=epoch, schedule_passes=T['passes'], settings=common.SETTINGS),
+                      open(os.path.join(ck, 'train_meta.json'), 'w'), indent=1, default=float)
     pd.DataFrame(log).to_csv(os.path.join(common.MODEL, 'train_log.csv'), index=False)
     M.save_model(model, os.path.join(common.MODEL, 'model.pt'))
     meta = dict(seed=common.SEED, settings=common.SETTINGS, precision=PRECISION, shares_gated=GATE_SHARES, gpu=gpu,
