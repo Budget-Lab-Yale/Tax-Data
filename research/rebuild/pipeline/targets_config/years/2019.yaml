@@ -15,17 +15,25 @@ inherits: historical
 # (generate.py, scf_waves): each record is given one SCF wave at random with these shares, its balance sheet drawn
 # under the SCF label at that wave's income year, its dollars from that wave's own records grown per tax unit to the
 # 2019 wave. The SCF targets are computed on the same waves with the same shares (scf_targets.py, settings
-# tilt.scf_target_waves). The other entries are only recorded: generation draws the PUF variables under the PUF 2015 label, and
-# consumption and the CPS items at 2019 (settings cex and cps, generation_year).
-# Section 7's rule for 2019: weights exp(-|2019 - t| / 2) over the waves' income years t = 2021, 2018, 2015, 2012
+# tilt.scf_target_waves). Since 28 October the "consumption", "cps items" and "sipp tips" entries are read the same
+# way (generate.py, survey_mix.py): each record is given one CEX year, one CPS year and one SIPP year, each at random
+# with these shares and by a generator of its own, and its CEX, CPS and SIPP phases run under that survey's label at
+# that year, its dollars from that year's own records grown to 2019 (build_table.build_maps). The CEX consumption
+# targets are computed on the same years with the same shares (survey_mix.py, target_list.survey_rows). The only
+# entry only recorded is "puf variables": generation draws the PUF variables under the PUF 2015 label.
+# Section 7's rule for the SCF in 2019: weights exp(-|2019 - t| / 2) over the waves' income years t = 2021, 2018, 2015, 2012
 # give 0.3679, 0.6065, 0.1353, 0.0302; as shares of their sum 32.3%, 53.2%, 11.9%, 2.6%; the 2013 wave (2.6%) is
 # under 5% and dropped; the other three rescaled to 54.65%, 33.15%, 12.20% (exactly 0.546549, 0.331499, 0.121952;
 # rounded so they sum to 1).
+# Section 7's rule for the CEX, CPS and SIPP in 2019 (an odd year takes its own year and the one two years before):
+# weights exp(-|2019 - t| / 2) over t = 2019, 2017 give 1 and 0.3679; as shares of their sum 73.11% and 26.89%
+# (exactly 0.731059, 0.268941).
 prior:
   puf variables: {puf 2015: 1.0}
   balance sheet: {scf 2019: 0.5465, scf 2022: 0.3315, scf 2016: 0.1220}
-  consumption: {cex 2019: 1.0}
-  cps items: {cps 2019: 1.0}
+  consumption: {cex 2019: 0.7311, cex 2017: 0.2689}
+  cps items: {cps 2019: 0.7311, cps 2017: 0.2689}
+  sipp tips: {sipp 2019: 0.7311, sipp 2017: 0.2689}
 
 targets:
   - id: business
@@ -78,3 +86,60 @@ targets:
     value: {published: soi w2 pctiles}
     error: {kind: soi_borrowed}
     key: {group: tipped workers, target: '{variable} workers above ${line:,.0f}'}
+
+  # Elective deferrals (28 October; decided by John 27 October): SOI's Form W-2 statistics for 2019, Table 2.D,
+  # contributions (traditional plus Roth) by AGI, in eight AGI groups (catalog w2_agi_groups): on joint returns the
+  # dollars only (Table 2.D counts taxpayers, up to two on a joint return, and the file's counts are of returns); on
+  # non-joint returns the returns with any and the dollars. The file's deferrals are each person's after the legal
+  # limit and their own wages (catalog w2_elective_deferrals). Returns other than dependent filers': the non-joint
+  # values are reduced by the SIPP's dependent share and half the reduction is added to the error (catalog source
+  # soi w2 2.d). Only 2019 and 2020 have this layout of the W-2 tables, so the entries are the year's own.
+  - id: deferrals_w2_joint
+    kind: deferrals
+    statistic: amount
+    population: independent_filers
+    variable: w2_elective_deferrals
+    cells: {w2_agi_groups: all, joint_or_not: [joint]}
+    value: {published: soi w2 2.d}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+  - id: deferrals_w2_nonjoint
+    kind: deferrals
+    statistic: [count, amount]
+    population: independent_filers
+    variable: w2_elective_deferrals
+    cells: {w2_agi_groups: all, joint_or_not: [non-joint]}
+    value: {published: soi w2 2.d}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+
+  # Overtime pay (28 October; decided by John 27 October, so overtime does not drift): from the CPS's own tax units,
+  # as the CEX consumption targets are. The share of units with any overtime pay and overtime dollars per unit
+  # (the catalog's variable list "overtime": any_ot, ot), over all units and in five groups of the unit's wages
+  # (catalog wage_groups_5): 12 targets. The file's ot is ot1 + ot2, each person's held to their wages less their
+  # tips (dollars.py); the CPS's is Tedeschi's rules per person (overtime_cps.R), held to the person's own wages.
+  # Universe: overtime is known only for the units asked the earnings questions (months 4 and 8 of the main sample;
+  # the rest have it missing), so each average is over the asked units in the cell, with their own weights
+  # (target_list.cps_overtime_units). Population: units other than dependent filers, the rule of every survey target
+  # (the CPS folds dependent filers into the unit that claims them; the file's dependent filers hold no CPS item).
+  # Value: the CPS year mix of the prior's "cps items" (2019 73.11%, 2017 26.89%), the 2017 units' overtime and wages
+  # grown to 2019 by SOI's wages per return (survey_mix.py). Error: the ASEC's 160 replicate weights
+  # (errors.overtime_errors).
+  - id: overtime_all
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: all
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, all', target: '{variable}, average'}
+  - id: overtime_by_wages
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: {wage_groups_5: all}
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, {wage_groups_5}', target: '{variable}, average'}

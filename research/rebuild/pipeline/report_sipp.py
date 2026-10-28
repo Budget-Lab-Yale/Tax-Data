@@ -5,8 +5,8 @@ primary-filer order by the rule the age range uses, dependent filers folded into
 tips go nowhere). The file's dependent filers hold no SIPP item (generate.py), so the file side leaves them out. Both
 sides are weighted: the file by its tilted weights, the SIPP by its own. Wage groups: the unit's wages, the file's in
 nominal 2019 dollars and the SIPP's as the translation table gives them (its wages row; dollars throughout by
-default), so the groups mean the same on both sides. Tips are each adult's tip share times that adult's wages: the
-file's in the file's wages, the SIPP's as reported.
+default), so the groups mean the same on both sides. Tips: the file's are each adult's drawn tips held to at most
+that adult's wages (dollars.person_items), the SIPP's as reported.
 
 None of this is targeted. Writes common.TILT/sipp_report.md.
 """
@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 import common
+import survey_mix
 
 Y = common.TARGET_YEAR
 WAGES = common.WAGE_GROUPS
@@ -46,17 +47,17 @@ def main():
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
     f = f[f['age_range'] < common.ADULT_RANGES].copy()
     f['w'] = f['weight']
-    s = pd.read_parquet(f'{common.DATA}/sipp_units_{Y}_all.parquet')
+    s = survey_mix.mixed_units('sipp')
     s['w'] = s['weight']
     s['tips1'], s['tips2'] = s['tips_primary_reported'], s['tips_spouse_reported']
     s['tips'] = s['tips1'] + s['tips2']
     s['tips_lh1'], s['tips_lh2'] = s['tips_lh_primary'], s['tips_lh_spouse']
     s['wages'] = s['wages_translated']
-    src = {'file': f, f'SIPP {Y}': s}
+    src = {'file': f, f'SIPP mix': s}
     for d in src.values():
         d['wg'] = common.groups_by(d['wages'].to_numpy(float), WAGES)
-    out = [f'# Tips in the {Y} file against the SIPP {Y}', '',
-           f'SIPP: reference year {Y}, every tax unit, weighted. File: after the tilt, dependent filers left out (they '
+    out = [f'# Tips in the {Y} file against the SIPP year mix', '',
+           f'SIPP: the year mix of the {Y} file (survey_mix.py), each year in {Y} dollars by SOI wages per return, every tax unit, weighted. File: after the tilt, dependent filers left out (they '
            'hold no SIPP item). Nothing here is targeted. Nominal dollars of the year.', '',
            '## All units', '', table(src, [('all', lambda d: d.w > 0)]), '',
            '## By the unit\'s wages', '', table(src, [(lab, (lambda lab: lambda d: d.wg == lab)(lab)) for _, _, lab in WAGES]), '',

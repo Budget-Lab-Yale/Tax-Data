@@ -32,41 +32,54 @@ One record is drawn slot by slot:
      S corporation part nonzero;
   (On a dependent filer, every survey slot below is zero or none: see structural.)
   3. the exact ages of the primary filer and the spouse (model.EXACT_AGES), in
-     a random order per record, under the CPS label and year (settings "cps",
-     generation_year) with every slot the CPS lacks left out: the CPS covers
+     a random order per record, under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out: the CPS covers
      every tax unit, filers and non-filers, in every year, and its view holds
      the filing flag. The primary filer's age lies inside its age range; the
      spouse's exists exactly when married (cps_structure). The SCF, CEX and CPS
      phases below all see these ages;
   4. the SCF-only slots (the balance sheet, the unrealized gains and
-     owns_business) in a random order per record, except that the home
-     mortgage, carried as a share of the home's value, comes after the home.
+     owns_business, and since 28 October the elective deferrals and the
+     spouse's share of them) in a random order per record, except that the
+     home mortgage, carried as a share of the home's value, comes after the
+     home, and the spouse's share of the deferrals after the deferrals.
+     Deferrals are zero without wages, the spouse's share zero unless married
+     (deferral_structure).
      Each is drawn under the SCF label with the PUF-only slots left out, as
      the SCF would see the household, at the income year of the record's own
      SCF wave (below);
   5. the CEX-only slots (the 8 consumption categories) in a random order per
-     record, each under the CEX label and year (settings "cex",
-     generation_year) with every slot the CEX lacks left out: given married,
+     record, each under the CEX label and the record's own CEX year (below) with every slot the CEX lacks left out: given married,
      dependents, the age range, the exact ages, wages, gross Social Security,
      self-employment income and the categories drawn so far;
   6. the CPS-only slots (dependents' ages, sex, the spouse's shares of the couple's
      wages and self-employment income, weeks and hours worked, childcare) in a
-     random order per record, each under the CPS label and year (settings
-     "cps", generation_year) with every slot the CPS lacks left out. They
+     random order per record, then (since 28 October) each adult's overtime pay
+     in a random order (the primary filer's zero without wages, the spouse's
+     without a spouse's share of wages above zero; each held to that person's
+     wages less tips when bands become dollars, dollars.py; the tips are drawn
+     later in the order, under the SIPP label), each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
      follow the record's PUF items (cps_structure): the spouse's items only
      when married, the k-th dependent's age only with k or more dependents;
-  7. the SIPP-only slots (since 26 October): each adult's tips as a share of
-     that adult's wages, in a random order, then the two leisure and
-     hospitality flags, in a random order, each under the SIPP label and year
-     (settings "sipp", generation_year) with every slot the SIPP lacks left
+  7. the SIPP-only slots (since 26 October): each adult's tips in dollars,
+     in a random order, then the two leisure and
+     hospitality flags, in a random order, each under the SIPP label and the record's own SIPP year (below) with every slot the SIPP lacks left
      out: given married, dependents, the age range, the exact ages, wages and
      the spouse's share of the couple's wages drawn in step 6 (absent where
      not asked, as on the SIPP's rows). Rules (sipp_structure): the spouse's
-     items are zero unless married; the primary filer's tip share is zero
+     items are zero unless married; the primary filer's tips are zero
      without wages, the spouse's without a spouse's share of wages above zero;
-     a flag is 0 where its tip share is zero.
+     a flag is 0 where its tips are zero. Each person's tips are then held to
+     at most that person's wages when bands become dollars (dollars.py).
 Each step runs the network only on the slots present in its phase and
 computes only the output layers it needs.
+
+The CEX, CPS and SIPP years (TARGETS.md section 7, 27 October; built 28 October). Each record is given one year of
+each of the three surveys at random, with the shares in the target year's configuration (prior, "consumption", "cps
+items", "sipp tips"; for 2019 the 2019 year 73.11% and the 2017 year 26.89%, survey_mix.py), each survey by a random
+generator of its own (settings generation.survey_year_seeds and the batch's generation seed), so no other draw moves.
+Its CPS phases (exact ages and the CPS-only items), its CEX phase and its SIPP phase run under that survey's label at
+that year, and dollars.py turns its bands into dollars with that year's own map, grown to the target year. The stack
+carries cex_year, cps_year and sipp_year. The non-filer batch's own items stay under the CPS label at the target year.
 
 The SCF waves (TARGETS.md section 7). The balance sheet is drawn from a mix of SCF waves: the target year's
 configuration file gives each wave's share (targets_config/years/<target year>.yaml, prior, "balance sheet"; for 2019
@@ -164,18 +177,19 @@ FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
 SCF_SLOTS = M.SCF_SLOTS
 CEX_SLOTS = M.CEX_SLOTS
-CEX_YEAR = common.SETTINGS['cex']['generation_year']
 CPS_SLOTS = M.CPS_SLOTS
-CPS_YEAR = common.SETTINGS['cps']['generation_year']
 CPS_STRUCTURE = M.META['cps_structure']
 SIPP_SLOTS = M.SIPP_SLOTS
-SIPP_YEAR = common.SETTINGS['sipp']['generation_year']
 SIPP_STRUCTURE = M.META['sipp_structure']
 SIPP_SPOUSE = torch.tensor([P.index(v) for v in SIPP_STRUCTURE['spouse']])
-SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the tip shares
-SIPP_SHARES = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
+SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the tips
+SIPP_TIPS = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
 AGE_SLOTS = M.EXACT_AGES                   # drawn after the PUF items, under the CPS label (see the top)
 SPOUSE = torch.tensor([P.index(v) for v in CPS_STRUCTURE['spouse']])
+# (28 October) each adult's overtime: drawn after the other CPS slots, so the spouse's share of wages is in place
+CPS_OVERTIME = [v for v in CPS_STRUCTURE.get('overtime', []) if v in CPS_SLOTS]
+CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
+CPS_ZERO_WITHOUT = CPS_STRUCTURE.get('zero_without', {})
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
 # the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
@@ -261,6 +275,35 @@ def assign_waves(n, seed):
     u = np.random.default_rng([int(G['scf_wave_seed']), int(seed)]).random(n)
     k = np.searchsorted(np.cumsum([s for _, _, s in SCF_WAVES]), u, side='right')
     return np.minimum(k, len(SCF_WAVES) - 1)
+
+
+# ---- the CEX, CPS and SIPP years (TARGETS.md section 7, 27 October) ----------------------------
+def survey_years():
+    """{survey: [(tax year, share)]} for the CEX, CPS and SIPP, from the target year's configuration (prior,
+    "consumption", "cps items", "sipp tips"; survey_mix.py). Every year must be one the model saw: the training table
+    must hold rows of that survey in that year, and the year must be one of the model's years."""
+    import survey_mix
+    t = pd.read_parquet(common.TABLE, columns=['source', 'year'])
+    out = {}
+    for src in survey_mix.SOURCES:
+        out[src] = survey_mix.mix(src)
+        seen = set(t.loc[t.source == src, 'year'])
+        for y, share in out[src]:
+            assert y in seen and y in M.YEARS, \
+                f'{src} {y} is in the year mix but the training table has {src} years {sorted(seen)}: a year the model never saw cannot be drawn'
+    return out
+
+
+SURVEY_YEARS = survey_years()
+SURVEY_YEAR_INDEX = {src: np.array([M.YEARS.index(y) for y, _ in m]) for src, m in SURVEY_YEARS.items()}
+
+
+def assign_years(src, n, seed):
+    """Each of n records' year of the survey src (an index into SURVEY_YEARS[src]), drawn with the shares by a generator
+    of its own for that survey (settings generation.survey_year_seeds), so no other draw moves."""
+    u = np.random.default_rng([int(G['survey_year_seeds'][src]), int(seed)]).random(n)
+    k = np.searchsorted(np.cumsum([s for _, s in SURVEY_YEARS[src]]), u, side='right')
+    return np.minimum(k, len(SURVEY_YEARS[src]) - 1)
 
 
 # ---- computed totals ---------------------------------------------------------
@@ -369,6 +412,10 @@ def cps_structure(values, slot, probs):
         probs = only(probs, (slot == j) & (n_dep < k))
         sel = (slot == j) & (n_dep >= k)
         probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    # overtime (28 October): the primary filer's is zero without wages, the spouse's without a spouse's share of the
+    # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages less tips in dollars (dollars.py)
+    for item, base in CPS_ZERO_WITHOUT.items():
+        probs = only(probs, (slot == P.index(item)) & (values[:, NC + P.index(base)] <= 0))
     sel = slot == PRIMARY_AGE
     if sel.any():
         rng = RANGE_OF_AGE_VALUE.to(probs.device)
@@ -381,9 +428,9 @@ def cps_structure(values, slot, probs):
 
 
 def sipp_structure(values, slot, probs):
-    """The SIPP's items follow the record's: the spouse's tip share and flag are zero unless married; the primary
-    filer's tip share is zero without wages, the spouse's without a spouse's share of wages above zero (not asked, -1,
-    or zero); a leisure and hospitality flag is 0 where its tip share is zero (the share is drawn first)."""
+    """The SIPP's items follow the record's: the spouse's tips and flag are zero unless married; the primary filer's
+    tips are zero without wages, the spouse's without a spouse's share of wages above zero (not asked, -1, or zero); a
+    leisure and hospitality flag is 0 where its tips are zero (the tips are drawn first)."""
     married = values[:, NC + MARRIED] == 1
     probs = only(probs, torch.isin(slot, SIPP_SPOUSE.to(slot.device)) & ~married)
     for share, base in SIPP_STRUCTURE['zero_without'].items():
@@ -396,8 +443,20 @@ def sipp_structure(values, slot, probs):
     return probs
 
 
+def deferral_structure(values, slot, probs):
+    """Elective deferrals (decided 27 October): the unit's are zero without wages (none without wages, as for tips;
+    dollars.py then holds each person's to their own wages and to the legal limit), and the spouse's share of them
+    is zero unless married (with no deferrals it is zero by the ratio rule in structural)."""
+    if 'elective_deferrals' in P:
+        probs = only(probs, (slot == P.index('elective_deferrals')) & (values[:, NC + P.index('wages')] <= 0))
+    if 'spouse_deferral_share' in P:
+        probs = only(probs, (slot == P.index('spouse_deferral_share')) & (values[:, NC + MARRIED] != 1))
+    return probs
+
+
 def structural(values, slot, probs):
-    """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them).
+    """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them; no
+    deferrals: no spouse's share of them). Elective deferrals follow wages and marriage (deferral_structure).
     The CPS's person items follow the PUF items (cps_structure). A dependent filer holds no survey-only item
     (balance sheet, unrealized gains, business ownership, consumption, the CPS's person items and childcare): the
     surveys count it in the household that claims it, so on its own return every one is zero or none, and its
@@ -408,6 +467,7 @@ def structural(values, slot, probs):
         probs[no_base, 0] = 1.0
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
+    probs = deferral_structure(values, slot, probs)
     dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
     probs[dep] = 0.0
     probs[dep, 0] = 1.0
@@ -450,12 +510,14 @@ class Chunk:
     """size records being drawn: every slot's band (-1 absent), which slots are drawn, and the rules'
     bookkeeping. Each step runs the network only on the slots present in its phase (model.SOURCE_SLOTS:
     the PUF's, then the CPS's view for the exact ages, then the SCF's, the CEX's and the CPS's views) and computes only the output layers it needs.
-    scf_year: each record's index into model.YEARS for its SCF phase (its wave's income year)."""
+    scf_year: each record's index into model.YEARS for its SCF phase (its wave's income year); survey_year: the same
+    for the CEX, CPS and SIPP phases, per survey."""
 
-    def __init__(self, model, size, order, preset, start, factors, gen, scf_year, label='puf', year=None):
+    def __init__(self, model, size, order, preset, start, factors, gen, scf_year, survey_year, label='puf', year=None):
         device = order.device
         self.model, self.order, self.factors, self.gen = model, order, factors, gen
         self.scf_year = scf_year.to(device)
+        self.survey_year = {src: y.to(device) for src, y in survey_year.items()}   # per survey: each record's year index
         self.label = label                                           # the batch's label for its own items
         self.rows = torch.arange(size, device=device)
         self.values = torch.full((size, len(M.SLOTS)), -1, dtype=torch.long, device=device)
@@ -465,8 +527,8 @@ class Chunk:
         for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS:
             self.values[:, NC + P.index(v)] = -1                      # absent until their turn
         if label == 'cps':        # the CPS's own slots: present and hidden from the start, as on a CPS training row
-            for v in AGE_SLOTS + CPS_SLOTS:
-                self.values[:, NC + P.index(v)] = 0
+            for v in AGE_SLOTS + CPS_SLOTS + [r for r in M.REPORTED if 'cps' in M.PRESENT_ON[r]]:
+                self.values[:, NC + P.index(v)] = 0     # (and the CPS's reported slots of its filled-in items, 28 Oct.)
         for tot in list(COMPUTED) + list(FLAGS):
             self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
         self.filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
@@ -630,14 +692,17 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
     wave_k = assign_waves(n, seed)                                 # each record's SCF wave (see the top)
     scf_year = torch.as_tensor(SCF_YEAR_INDEX[wave_k])
+    svy_k = {src: assign_years(src, n, seed) for src in SURVEY_YEARS}      # each record's CEX, CPS and SIPP year
+    svy_year = {src: torch.as_tensor(SURVEY_YEAR_INDEX[src][k]) for src, k in svy_k.items()}
     first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
     then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
     rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
                          and v not in STATUS_SLOTS and v not in M.PUF_LABELS], dtype=torch.long)
     own = torch.cat([first, then, rest])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
-    cps = torch.tensor([P.index(v) for v in CPS_SLOTS])
-    sipp_shares = torch.tensor([P.index(v) for v in SIPP_SHARES])
+    cps = torch.tensor([P.index(v) for v in CPS_FIRST])
+    cps_ot = torch.tensor([P.index(v) for v in CPS_OVERTIME], dtype=torch.long)
+    sipp_tips = torch.tensor([P.index(v) for v in SIPP_TIPS])
     sipp_flags = torch.tensor([P.index(v) for v in SIPP_FLAGS])
     age = torch.tensor([P.index(v) for v in AGE_SLOTS])
     n_own, n_age, n_scf, n_cex, n_cps = len(own), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
@@ -651,26 +716,27 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
                           scf_order(size, cpu_gen),
                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
                           cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)],
-                          sipp_shares[torch.rand(size, len(sipp_shares), generator=cpu_gen).argsort(1)],
+                          cps_ot[torch.rand(size, len(cps_ot), generator=cpu_gen).argsort(1)],
+                          sipp_tips[torch.rand(size, len(sipp_tips), generator=cpu_gen).argsort(1)],
                           sipp_flags[torch.rand(size, len(sipp_flags), generator=cpu_gen).argsort(1)]], 1).to(device)
 
     def finish(d, order):
         """Steps 3 to 7 on a chunk whose own items and totals are drawn."""
         k = n_own
         for step in range(k, k + n_age):
-            d.survey_step(order[:, step], 'cps', CPS_YEAR)
+            d.survey_step(order[:, step], 'cps', d.survey_year['cps'])
         k += n_age
         for step in range(k, k + n_scf):       # each record at its own wave's income year
             d.survey_step(order[:, step], 'scf', d.scf_year)
         k += n_scf
         for step in range(k, k + n_cex):
-            d.survey_step(order[:, step], 'cex', CEX_YEAR)
+            d.survey_step(order[:, step], 'cex', d.survey_year['cex'])
         k += n_cex
         for step in range(k, k + n_cps):
-            d.survey_step(order[:, step], 'cps', CPS_YEAR)
+            d.survey_step(order[:, step], 'cps', d.survey_year['cps'])
         k += n_cps
         for step in range(k, order.shape[1]):
-            d.survey_step(order[:, step], 'sipp', SIPP_YEAR)
+            d.survey_step(order[:, step], 'sipp', d.survey_year['sipp'])
         d.finish()
         return d.values.cpu(), d.own_chance.cpu(), d.forced.cpu()
 
@@ -678,7 +744,8 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     for start in range(0, n, chunk):           # steps 1 to 6, chunk by chunk
         size = min(chunk, n - start)
         order = orders(size)
-        d = Chunk(model, size, order, preset, start, factors, gpu_gen, scf_year[start:start + size], label, year)
+        d = Chunk(model, size, order, preset, start, factors, gpu_gen, scf_year[start:start + size],
+                  {src: y[start:start + size] for src, y in svy_year.items()}, label, year)
         for step in range(n_own):
             d.puf_step(order[:, step])
         for name, count in d.compute_totals().items():
@@ -690,6 +757,8 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
         table[f'_own_{v}'], table[f'_forced_{v}'] = oc[:, i], fc[:, i]
     table['scf_wave'] = np.array([w for w, _, _ in SCF_WAVES])[wave_k]
     table['scf_year'] = np.array([y for _, y, _ in SCF_WAVES])[wave_k]
+    for src, k in svy_k.items():       # the year each record's CEX, CPS and SIPP phases ran at (the tax year)
+        table[f'{src}_year'] = np.array([y for y, _ in SURVEY_YEARS[src]])[k]
     return table, rule_counts
 
 
@@ -826,6 +895,11 @@ def build_stack(models, factors):
                                'share of records': stack.groupby('scf_wave').size() / len(stack),
                                'share of weight': w,
                                'prior': pd.Series({wv: s for wv, _, s in SCF_WAVES})}).to_string())
+    for src, m in SURVEY_YEARS.items():     # the CEX, CPS and SIPP years, records and starting weight against the prior
+        cnt, ws = stack.groupby(f'{src}_year').size(), stack.groupby(f'{src}_year')['weight'].sum() / stack['weight'].sum()
+        common.say(f'{src.upper()} years, share of records and of the starting weight against the prior:\n'
+                   + pd.DataFrame({'records': cnt, 'share of records': cnt / len(stack), 'share of weight': ws,
+                                   'prior': pd.Series(dict(m))}).to_string())
     common.say('consistency rules: records each applies to, over the whole stack:')
     common.say(pd.Series(rule_counts).to_string())
     return stack, pd.concat(checks, ignore_index=True)
@@ -869,6 +943,8 @@ def main():
     torch.manual_seed(common.SEED)
     models = load_models(device)
     os.makedirs(common.GEN, exist_ok=True)
+    common.say('survey years: ' + '; '.join(f"{src} " + ', '.join(f'{y} {100 * s:.2f}%' for y, s in m)
+                                           for src, m in SURVEY_YEARS.items()))
     common.say('SCF waves of the balance sheet: ' + ', '.join(f'{w} wave (income year {y}) {100 * s:.2f}%'
                                                               for w, y, s in SCF_WAVES))
     factors, report = {m['run']: {} for m in models}, []

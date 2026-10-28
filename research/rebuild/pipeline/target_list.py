@@ -66,7 +66,10 @@ CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'li
                 'rank_variable', 'rank_lo', 'rank_hi', 'rank_line_lo', 'rank_line_hi',
                 # a band's upper line (net worth at or below it), on line_variable; NaN for none. A
                 # band's lower line is 'line' (net worth above it), NaN for a band with no lower line.
-                'line_hi']
+                'line_hi',
+                # (28 October) a dollar range of a variable other than AGI (catalog groupings with edges): the unit
+                # is in the cell when range_lo <= the variable < range_hi; '' and NaN for none
+                'range_variable', 'range_lo', 'range_hi']
 TOP_KEYS = {'year', 'kind', 'inherits', 'prior', 'targets', 'drop', 'report', 'start', 'start_scaling',
             'hold_distribution'}
 YEAR_KEYS = ['year', 'kind', 'prior', 'report', 'start', 'start_scaling', 'hold_distribution']   # a later file replaces
@@ -295,13 +298,24 @@ def group_cells(spec):
             assert sel == 'all' or len(bands) == len(sel), f'{name}: unknown cells in {sel}'
             per_dim.append([{'parts': {name: bd[2]}, 'filters': [], 'agi': None, 'line': None,
                              'band': (g['variable'], bd[0], bd[1])} for bd in bands])
+        elif 'edges' in g:
+            # (28 October) dollar ranges of a variable other than AGI, [low, high, label], low inclusive, null for
+            # no limit: each range is a cell, on the file and on a survey's units alike (record_value)
+            ranges = [ed for ed in g['edges'] if sel == 'all' or ed[2] in sel]
+            assert sel == 'all' or len(ranges) == len(sel), f'{name}: unknown cells in {sel}'
+            per_dim.append([{'parts': {name: ed[2]}, 'filters': [], 'agi': None, 'line': None,
+                             'range': (g['variable'], -np.inf if ed[0] is None else float(ed[0]),
+                                       np.inf if ed[1] is None else float(ed[1]))} for ed in ranges])
         else:
             raise NotImplementedError(name)
-    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None}]
+    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None, 'range': None}]
     for dim in per_dim:
+        for a in out:
+            assert not (a.get('range') and any(b.get('range') for b in dim)), 'a cell with two dollar ranges'
         out = [{'parts': {**a['parts'], **b['parts']}, 'filters': a['filters'] + b['filters'],
                 'agi': a['agi'] or b['agi'], 'line': a['line'] or b['line'],
-                'rank': a.get('rank') or b.get('rank'), 'band': a.get('band') or b.get('band')}
+                'rank': a.get('rank') or b.get('rank'), 'band': a.get('band') or b.get('band'),
+                'range': a.get('range') or b.get('range')}
                for a in out for b in dim]
     assert not any(c['line'] and c['band'] for c in out), 'a cell with both a line and a band'
     for c in out:
@@ -495,13 +509,114 @@ def survey_frame(source, year):
     return _SURVEY[key]
 
 
+def cex_mix_rows(year, cells, v, stats):
+    """The CEX's statistics over the year's mix of CEX years (survey_mix.py; TARGETS.md section 7): each year's units
+    in the target year's dollars (the maps' factors), the statistic computed on each year alone, then pooled, value =
+    the sum over years of share x the year's value. Only averages: an average does not depend on a year's number of
+    units. The standard error is pooled in errors.consumption_errors (variance = sum of share^2 x the year's)."""
+    import survey_mix
+    assert stats == ['average'], f'CEX {year}: the year mix is built for averages, not {stats}'
+    per_year = []
+    for y, share in survey_mix.mix('cex', year):
+        per_year.append((y, share, _survey_rows_one('cex', y, cells, v, stats, survey_frame_grown(y))))
+    rows = []
+    for k in range(len(per_year[0][2])):
+        base = dict(per_year[0][2][k])
+        base['value'] = sum(share * r[k]['value'] for _, share, r in per_year)
+        base['source'] = (f'cex over the year mix {", ".join(f"{y} {100 * sh:.2f}%" for y, sh, _ in per_year)}, all units, '
+                          f'each year\'s spending in {common.TARGET_YEAR} dollars by NIPA PCE per return '
+                          f'(survey_mix.py); pooled: sum of share x the year\'s average')
+        rows.append(base)
+    return rows
+
+
+_GROWN_CEX = {}
+
+
+def survey_frame_grown(y):
+    """The CEX year y's units with spending in the target year's dollars (read once)."""
+    if y not in _GROWN_CEX:
+        import survey_mix
+        u = survey_mix.grown_units('cex', y)
+        assert u['weight'].notna().all() and (u['weight'] > 0).all(), f'CEX {y}: a unit with no positive weight'
+        _GROWN_CEX[y] = u
+    return _GROWN_CEX[y]
+
+
+_CPS_OT = {}
+
+
+def cps_overtime_units(y):
+    """The CPS year y's tax units for the overtime targets (read once): survey_mix.grown_units('cps', y), every dollar
+    column in the target year's dollars (the overtime slots and the translated wages by SOI's wages per return, the
+    maps' factors), restricted to the units asked the earnings questions.
+
+    Universe. Overtime pay needs weekly pay and hours, asked only of the households in months 4 and 8 of the CPS's
+    main sample (not of the ASEC's extra sample); on every other unit, and on the few asked units with a worker's pay
+    missing, build_cps.R leaves it missing. Those units are left out here and counted in the printout; each statistic
+    is an average over the asked units in the cell, with their own ASEC weights (the head's ASECWT), so it does not
+    depend on how many units were asked. Dependent filers are folded into the unit that claims them (build_cps.R), as
+    in the CEX, so the population matches the file's units other than dependent filers.
+    Columns added: ot = ot_primary + ot_spouse (the unit's overtime, as the file's ot = ot1 + ot2) and wages =
+    wages_translated (the tax data's wages at the same percentile among earners, so the wage groups mean the same as
+    on the file)."""
+    if y not in _CPS_OT:
+        import survey_mix
+        u = survey_mix.grown_units('cps', y)
+        assert u['weight'].notna().all() and (u['weight'] > 0).all(), f'CPS {y}: a unit with no positive weight'
+        na1, na2 = u['ot_primary'].isna().to_numpy(), u['ot_spouse'].isna().to_numpy()
+        assert (na1 == na2).all(), f'CPS {y}: overtime missing on one adult of a unit only'
+        assert 'wages' not in u, f'CPS {y}: the unit file already has a column wages'
+        w = u['weight'].to_numpy(float)
+        common.say(f'CPS {y} overtime targets: {int((~na1).sum()):,} of {len(u):,} units asked the earnings questions '
+                   f'({100 * w[~na1].sum() / w.sum():.1f}% of the weight); the other {int(na1.sum()):,} have overtime '
+                   'missing (not asked, or a worker\'s pay missing) and are left out')
+        a = u[~na1].copy()   # the universe: the units asked the earnings questions (see above)
+        a['ot'] = a['ot_primary'].to_numpy(float) + a['ot_spouse'].to_numpy(float)
+        a['wages'] = a['wages_translated'].to_numpy(float)
+        _CPS_OT[y] = a
+    return _CPS_OT[y]
+
+
+def cps_mix_rows(year, cells, v, stats):
+    """The CPS overtime targets over the year's mix of CPS years (survey_mix.py; TARGETS.md section 7), as the CEX's
+    (cex_mix_rows): each year's asked units in the target year's dollars (cps_overtime_units), the average computed on
+    each year alone, value = the sum over years of share x the year's average. The standard error is pooled in
+    errors.overtime_errors from the CPS's replicate weights (variance = sum of share^2 x the year's)."""
+    import survey_mix
+    assert stats == ['average'], f'CPS {year}: the year mix is built for averages, not {stats}'
+    per_year = []
+    for y, share in survey_mix.mix('cps', year):
+        per_year.append((y, share, _survey_rows_one('cps', y, cells, v, stats, cps_overtime_units(y))))
+    rows = []
+    for k in range(len(per_year[0][2])):
+        base = dict(per_year[0][2][k])
+        base['value'] = sum(share * r[k]['value'] for _, share, r in per_year)
+        base['source'] = (f'cps over the year mix {", ".join(f"{y} {100 * sh:.2f}%" for y, sh, _ in per_year)}, the '
+                          'units asked the earnings questions, weighted; each year\'s overtime and wages in '
+                          f'{common.TARGET_YEAR} dollars by SOI wages per return (survey_mix.py); pooled: sum of share x '
+                          'the year\'s average; by year: ' + ', '.join(f'{y} {r[k]["value"]:,.6g}' for y, _, r in per_year))
+        rows.append(base)
+    return rows
+
+
 def survey_rows(source, year, cells, v, stats):
     """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
     waves, with their standard errors (scf_targets.py)."""
     if source == 'scf':
         import scf_targets
         return scf_targets.rows(cells, v, stats, year)
+    if source == 'cex':
+        return cex_mix_rows(year, cells, v, stats)
+    if source == 'cps':
+        return cps_mix_rows(year, cells, v, stats)
     u, path = survey_frame(source, year)
+    return _survey_rows_one(source, year, cells, v, stats, u, path)
+
+
+def _survey_rows_one(source, year, cells, v, stats, u, path=None):
+    """survey_rows on one year's units u."""
+    path = path or f'{common.DATA}/{source}_units_{year}_all.parquet'
     if 'age_range' in u:
         assert (u['age_range'] < common.ADULT_RANGES).all(), f'{path}: a dependent filer among the survey units'
     w = u['weight'].to_numpy(float)
@@ -513,6 +628,12 @@ def survey_rows(source, year, cells, v, stats):
             m &= (u[col] == val).to_numpy()
         assert c.get('rank') is None and c.get('band') is None, \
             f'{source} {year}, cell {c["label"]}: income rank groups and bands are built for the SCF only (scf_targets.py)'
+        if c.get('range'):
+            # a dollar range of a variable other than AGI, low inclusive (the unit's wages for the overtime targets)
+            rv, lo, hi = c['range']
+            xg = record_value(u, rv)
+            assert np.isfinite(xg).all(), f'{source} {year}: {rv} missing on {int((~np.isfinite(xg)).sum())} units'
+            m &= (xg >= lo) & (xg < hi)
         assert m.any(), f'{source} {year}, cell {c["label"]}: no survey units'
         line, above, line_var, line_hi = None, m, '', None
         if c['line'] is not None:
@@ -731,7 +852,19 @@ def _w2_table(path, sheet):
 
 
 def w2_dependent_share(source, year):
-    """The SIPP's share of dependents among the year's non-joint people with tips: (share of people, share of tips,
+    """The SIPP's share of dependents among the year's non-joint people with tips, over the year's mix of SIPP years
+    (survey_mix.py; TARGETS.md section 7): the sum over years of share x the year's share, for people and for tips
+    (a share of the people or the dollars does not depend on a year's population). Returns (share of people, share of
+    tips, description)."""
+    import survey_mix
+    parts = [(y, s, w2_dependent_share_one(source, y)) for y, s in survey_mix.mix('sipp', year)]
+    return (sum(s * r[0] for _, s, r in parts), sum(s * r[1] for _, s, r in parts),
+            f'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
+                f'{100 * s:.2f}% x [{r[2]}]' for _, s, r in parts))
+
+
+def w2_dependent_share_one(source, year):
+    """One SIPP year's share of dependents among the year's non-joint people with tips: (share of people, share of tips,
     description). Dependents are the people the shared tax-unit rules made dependents (persons file, dep_type);
     the other non-joint people with tips are the primary filers with tips of the SIPP's units that are not joint."""
     d = CAT['sources'][source]['dependent_share']
@@ -794,6 +927,127 @@ def published_w2(source, year, cells, v, stats, population):
                         'se': se, 'error_kind': 'soi_borrowed',
                         'se_reason': f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}{gap_why}'
                                      + (f'; published {published:,.0f}' if reduction else '')})
+    return out
+
+
+# ---- W-2 Table 2.D: elective deferrals by AGI and return type (28 October) -------------------------------------------
+def _agi_bounds(label):
+    """(lo, hi) of a W-2 table's AGI row label: 'No adjusted gross income', '$1 under $5,000', '$10,000,000 and over'."""
+    s = label.replace(',', '').replace('$', '').strip()
+    if s.lower().startswith('no adjusted gross income'):
+        return -np.inf, 1.0
+    if ' under ' in s:
+        lo, hi = s.split(' under ')
+        return float(lo), float(hi)
+    assert s.endswith(' and over'), f'an AGI row label not understood: {label!r}'
+    return float(s[:-len(' and over')]), np.inf
+
+
+def _w2_by_agi(path, sheet):
+    """A W-2 statistics table by size of AGI (Table 2.D): {(lo, hi, row label): {(column group, measure): value}},
+    the column groups read from the heading row (merged cells carried right, footnote marks dropped), money amounts
+    in dollars. Only the sheet's first table: its rows stop at the first row after the data that is not an AGI row
+    (the sheet also holds Table 2.D.1 below)."""
+    import openpyxl
+    rows = [list(r) for r in openpyxl.load_workbook(path, read_only=True, data_only=True)[sheet].iter_rows(values_only=True)]
+    hr = next(i for i, r in enumerate(rows) if any(isinstance(c, str) and c.startswith('All taxpayers') for c in r))
+    assert any('thousands of dollars' in str(c) for r in rows[:hr] for c in r if c), f'{path}: amounts not in thousands'
+    groups, g = [], None
+    for c in rows[hr][1:]:
+        g = c.split(' [')[0].strip() if isinstance(c, str) and c.strip() else g
+        groups.append(g)
+    measures = [str(c).split(' [')[0].strip() if c is not None else None for c in rows[hr + 1][1:]]
+    out, started = {}, False
+    for r in rows[hr + 2:]:
+        lab = r[0].strip() if isinstance(r[0], str) else ''
+        is_agi = lab.startswith('$') or lab.lower().startswith('no adjusted gross income')
+        if not is_agi:
+            if started:
+                break
+            continue
+        started = True
+        cells = {}
+        for gname, meas, val in zip(groups, measures, r[1:]):
+            if gname is None or meas is None or val is None:
+                continue
+            num = float(val) if isinstance(val, (int, float)) else np.nan   # 'd' (withheld) or a flag
+            cells[(gname, meas)] = num * (1000.0 if meas == 'Contributions' else 1.0)
+        out[(*_agi_bounds(lab), lab)] = cells
+    assert out, f'{path} {sheet}: no AGI rows'
+    return out
+
+
+def w2_deferral_dependent_share(source, year):
+    """The SIPP's share of dependents among the non-joint people with elective deferrals, (share of people, share of
+    dollars, description), in the SIPP year nearest year that asks deferrals (catalog dependent_share years; the
+    SIPP asks them from 2021). Dependents are the people the shared tax-unit rules made dependents (persons file,
+    dep_type); the other non-joint people with deferrals are the primary filers with deferrals (elective1) of the
+    SIPP's units that are not joint. Deferrals after the legal limit and the person's own wages (roster_sipp.py)."""
+    d = CAT['sources'][source]['dependent_share']
+    sy = min(d['years'], key=lambda c: (abs(c - year), c))
+    p = pd.read_parquet(f"{common.OUT}/{d['persons'].format(year=sy)}", columns=['weight', 'elective', 'dep_type'])
+    u = pd.read_csv(f"{common.OUT}/{d['units'].format(year=sy)}", usecols=['weight', 'married', 'elective1'])
+    for name, x in [('persons', p[['weight', 'elective']]), ('units', u)]:
+        assert x.notna().all().all(), f'{source}: SIPP {name} {sy} with missing values (deferrals not asked?)'
+    dep = p['dep_type'].fillna('').ne('').to_numpy() & (p['elective'] > 0).to_numpy()
+    nj = (u['married'] == 0).to_numpy() & (u['elective1'] > 0).to_numpy() & (u['weight'] > 0).to_numpy()
+    n_dep, t_dep = float(p['weight'][dep].sum()), float((p['weight'] * p['elective'])[dep].sum())
+    n_nj, t_nj = float(u['weight'][nj].sum()), float((u['weight'] * u['elective1'])[nj].sum())
+    why = (f'SIPP {sy}: dependents with deferrals {n_dep / 1e6:.3f} million people ({int(dep.sum())} records), '
+           f'${t_dep / 1e9:.2f} billion; other non-joint people with deferrals {n_nj / 1e6:.3f} million '
+           f'({int(nj.sum())} records), ${t_nj / 1e9:.2f} billion')
+    return n_dep / (n_dep + n_nj), t_dep / (t_dep + t_nj), why
+
+
+def published_w2_agi(source, year, cells, v, stats, population):
+    """Rows from SOI's W-2 Table 2.D (catalog source with layout w2_by_agi): the variable's measures (its
+    'published' entry: count, the number of taxpayers; amount, the contributions) in each cell's column group (the
+    grouping's 'in <source>' labels), summed over the table's AGI rows inside each of the cell's AGI groups (an AGI
+    grouping with edges; every AGI row must fall inside one group). On non-joint returns a taxpayer is a return. Where
+    the population leaves dependent filers out, the non-joint value is reduced by the SIPP's dependent share
+    (w2_deferral_dependent_share) and gap_share of the reduction is added to the borrowed error, as for the tips
+    targets (published_w2)."""
+    import errors
+    definition = CAT['sources'][source]
+    path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
+    table = _w2_by_agi(path, definition['sheet'])
+    spec = variable_def(v)['published'][source]
+    donors, donor_year = errors.soi_cells(year)
+    no_dependents = 'age_range < 6' in CAT['populations'][population]['rule']
+    share = w2_deferral_dependent_share(source, year) if no_dependents else None
+    out = []
+    for c in cells:
+        assert c['agi'] and 'edges' in CAT['groupings'][c['agi']], f'{source}: cells need an AGI grouping with edges'
+        ((gname, label),) = c['parts'].items()
+        group = CAT['groupings'][gname][f'in {source}'][label]
+        agi_groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab)
+                      for lo, hi, lab in CAT['groupings'][c['agi']]['edges']]
+        for lo_r, hi_r, lab_r in table:
+            n_in = sum(lo <= lo_r and hi_r <= hi for lo, hi, _ in agi_groups)
+            assert n_in == 1, f'{path}: the AGI row {lab_r!r} lies in {n_in} of the groups of {c["agi"]}'
+        for lo, hi, lab in agi_groups:
+            inside = [cells_ for (lo_r, hi_r, _), cells_ in table.items() if lo <= lo_r and hi_r <= hi]
+            got = {m: sum(x[(group, spec[m])] for x in inside) for m in ('count', 'amount')}
+            assert all(np.isfinite(x) for x in got.values()), f'{path}: {group}, {lab}: withheld or missing'
+            spec_c = {**c, 'parts': {c['agi']: lab, **c['parts']}, 'label': f'{lab}, {label}', 'agi': c['agi']}
+            for st in stats:
+                val = got[st]
+                reduction, gap_why = 0.0, ''
+                if share is not None and c['filters'] == [('married', 0)]:
+                    sh = share[1] if st == 'amount' else share[0]
+                    reduction = val * sh
+                    gap_why = (f'; less the dependent filers, {100 * sh:.1f}% ({share[2]}); plus '
+                               f'{100 * definition["dependent_share"]["gap_share"]:g}% of that reduction as a definition gap')
+                published = val
+                val = published - reduction
+                cv, what = errors.borrow_cv(donors, count=val) if st == 'count' else \
+                    errors.borrow_cv(donors, amount=val, returns=got['count'])
+                se = float(np.sqrt((val * cv / 100) ** 2 + (definition['dependent_share']['gap_share'] * reduction) ** 2))
+                out.append({'cell': spec_c['label'], 'cell_spec': spec_c, 'agi': (lo, hi), 'statistic': st,
+                            'value': val, 'error_kind': 'soi_borrowed', 'se': se,
+                            'source': f'{source} {year}: {group}, {spec[st]}, AGI {lab} ({path})',
+                            'se_reason': f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}{gap_why}'
+                                         + (f'; published {published:,.0f}' if reduction else '')})
     return out
 
 
@@ -871,6 +1125,8 @@ def expand_entry(e, year, soi):
             rows = published_w2(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_percentiles':
             rows = published_w2_shares(src, vyear, cells, v, e)
+        elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_by_agi':
+            rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
@@ -908,7 +1164,10 @@ def expand_entry(e, year, soi):
                 'rank_hi': c['rank'][2] if c.get('rank') else np.nan,
                 'rank_line_lo': r.get('rank_lines', (np.nan, np.nan))[0],
                 'rank_line_hi': r.get('rank_lines', (np.nan, np.nan))[1],
-                'line_hi': r.get('line_hi') if r.get('line_hi') is not None else np.nan})
+                'line_hi': r.get('line_hi') if r.get('line_hi') is not None else np.nan,
+                'range_variable': c['range'][0] if c.get('range') else '',
+                'range_lo': c['range'][1] if c.get('range') else np.nan,
+                'range_hi': c['range'][2] if c.get('range') else np.nan})
     return out
 
 
@@ -984,6 +1243,9 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     if 'line_hi' not in rows:   # a target list with no bands
         rows = rows.assign(line_hi=np.nan)
     rows = rows.assign(line_hi=rows['line_hi'].astype(float))
+    if 'range_variable' not in rows:   # a target list with no dollar ranges of a variable other than AGI
+        rows = rows.assign(range_variable='', range_lo=np.nan, range_hi=np.nan)
+    rows = rows.fillna({'range_variable': ''})
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
     if units is None and average_form == 'units' and rows['statistic'].isin(['average', 'share', 'share of total', 'worker share']).any():
@@ -1007,6 +1269,13 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
                     cell &= df[column].to_numpy() == value
         if not np.isnan(r.agi_lo):
             cell &= (a >= r.agi_lo) & (a < r.agi_hi)
+        if r.range_variable:
+            # a dollar range of a variable other than AGI (the unit's wages for the overtime targets), low inclusive
+            if r.range_variable not in values:
+                values[r.range_variable] = record_value(df, r.range_variable)
+            xg = values[r.range_variable]
+            assert np.isfinite(xg[cell]).all(), f'{r.group} {r.target}: {r.range_variable} missing in the cell\'s population'
+            cell &= (xg >= r.range_lo) & (xg < r.range_hi)
         if not np.isnan(r.married):
             cell &= married == r.married
         if not np.isnan(r.age_range):

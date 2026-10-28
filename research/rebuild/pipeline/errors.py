@@ -40,6 +40,10 @@ right, and only three kinds are computed; everything else is a judgment number w
    - CEX (the consumption averages): the BLS's balanced repeated replication with 44 replicate weights
      (WTREP01-WTREP44 in the FMLI files, standard method up to the 2024 data): variance = sum over the 44 replicates
      of (replicate estimate - full-sample estimate)^2 / 44.
+   - CPS (the overtime averages, since 28 October): Census's successive difference replication with the ASEC's 160
+     person replicate weights (REPWTP1-REPWTP160, the unit head's, from settings paths.raw.cps_repwt): variance =
+     4 / 160 x the sum over the replicates of (replicate estimate - full-sample estimate)^2; over the year's mix of
+     CPS years, as the CEX's.
 4. Everything else ('judgment'): settings, each with its one-line reason (the non-filer count and the people in
    non-filer units, which come from the filing stage's calibration).
 A definition gap (settings definition_gap, by kind, a share of the value; none set today) adds to the sampling error
@@ -466,26 +470,145 @@ def cex_replicates(year, units):
 
 def consumption_errors(rows, year):
     """The consumption targets (target_list's consumption entries): each category's average per tax unit over all units and in
-    each cell of the primary filer's adult age range by married."""
-    u = pd.read_parquet(f'{common.DATA}/cex_units_{year}_all.parquet')
-    w = u['weight'].to_numpy(float)
-    rep = cex_replicates(year, u)
+    each cell of the primary filer's adult age range by married, over the year's mix of CEX years (survey_mix.py):
+    each year's standard error from its own 44 replicate weights, on its spending in the target year's dollars (the
+    maps' factors, so a replicate's average is grown as the full-sample one is); the years are independent samples,
+    so the pooled variance is the sum over years of share^2 x the year's variance."""
+    import survey_mix
+    parts = []
+    for y, share in survey_mix.mix('cex', year):
+        u = survey_mix.grown_units('cex', y)
+        parts.append((y, share, u, u['weight'].to_numpy(float), cex_replicates(y, u)))
     out = []
     for r in rows.itertuples():
         g = r.group.split(', ', 1)[1]
-        if g == 'all':
-            mu = np.ones(len(u), bool)
-        else:
-            m = re.fullmatch(r'age (.+), (married|not married)', g)
-            assert m, f'consumption target {r.group}: unknown cell'
-            mu = ((u['age_range'] == AGES.index(m.group(1))) & (u['married'] == int(m.group(2) == 'married'))).to_numpy()
-        v = u[r.target.split(',')[0]].to_numpy(float)
-        full = (w * v)[mu].sum() / w[mu].sum()
-        reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
-        se = float(np.sqrt(((reps - full) ** 2).sum() / 44))
-        note = '' if abs(full - r.value) <= 1e-9 * abs(r.value) else f'; full-sample value {full:,.6g}, not {r.value:,.6g}'
-        out.append((r.Index, se, 'survey_replicate',
-                    f'CEX {year} replicate weights (44, BLS formula); {int(mu.sum())} unit rows in the cell{note}'))
+        var, value, notes = 0.0, 0.0, []
+        for y, share, u, w, rep in parts:
+            if g == 'all':
+                mu = np.ones(len(u), bool)
+            else:
+                m = re.fullmatch(r'age (.+), (married|not married)', g)
+                assert m, f'consumption target {r.group}: unknown cell'
+                mu = ((u['age_range'] == AGES.index(m.group(1))) & (u['married'] == int(m.group(2) == 'married'))).to_numpy()
+            assert mu.any(), f'consumption target {r.group}: no CEX {y} units in the cell'
+            v = u[r.target.split(',')[0]].to_numpy(float)
+            full = (w * v)[mu].sum() / w[mu].sum()
+            reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
+            var += share ** 2 * ((reps - full) ** 2).sum() / 44
+            value += share * full
+            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} unit rows')
+        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
+                    'CEX year mix, replicate weights (44, BLS formula) year by year, variance = sum of share^2 x the '
+                    f'year\'s; {"; ".join(notes)}{note}'))
+    return out
+
+
+def _ipums_fixed_width(folder, fields):
+    """Columns of an IPUMS extract in fixed-width form (the .dat.gz and its DDI .xml in folder), read without ipumsr:
+    each field's start, width and implied decimals from the DDI. Returns {field: float array}. Every character of
+    every field read must be a digit (checked), so a blank or a sign cannot be misread."""
+    import gzip
+    import xml.etree.ElementTree as ET
+    xml, = glob.glob(f'{folder}/*.xml')
+    dat, = glob.glob(f'{folder}/*.dat.gz')
+    root = ET.parse(xml).getroot()
+    spec = {}
+    for v in root.iter():
+        if v.tag.split('}')[-1] == 'var' and v.get('ID') in fields:
+            loc = next(c for c in v if c.tag.split('}')[-1] == 'location')
+            spec[v.get('ID')] = (int(loc.get('StartPos')) - 1, int(loc.get('width')), int(v.get('dcml') or 0))
+    missing = set(fields) - set(spec)
+    assert not missing, f'{xml}: no {sorted(missing)}'
+    with gzip.open(dat, 'rb') as fh:
+        raw = fh.read()
+    n_line = raw.index(b'\n') + 1
+    assert len(raw) % n_line == 0, f'{dat}: lines of unequal length'
+    a = np.frombuffer(raw, dtype=np.uint8).reshape(-1, n_line)
+    out = {}
+    for name, (start, width, dcml) in spec.items():
+        d = a[:, start:start + width].astype(np.int64) - 48
+        assert ((d >= 0) & (d <= 9)).all(), f'{dat}: {name} holds a character other than a digit'
+        out[name] = (d @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float) / 10 ** dcml
+    return out
+
+
+CPS_REPLICATES = 160   # the ASEC's person replicate weights, successive difference replication
+
+
+def cps_replicates(year, units):
+    """Each CPS tax unit's 160 replicate weights. A unit's weight is its head's ASECWT (build_cps.R; the head's PERNUM
+    is the last two digits of build_cps.R's record_id), so its replicate weights are the head's REPWTP1-REPWTP160 times
+    the unit's weight over the head's ASECWT (1 where they agree; checked and printed). Read from the shared replicate
+    weights layer (settings paths.raw.cps_repwt, sample cps<year + 1>_03s: the ASEC of March of the next year)."""
+    import build_table as BT
+    folder = f"{common.RAW['cps_repwt']}/cps{year + 1}_03s"
+    reps = [f'REPWTP{i}' for i in range(1, CPS_REPLICATES + 1)]
+    f = _ipums_fixed_width(folder, ['SERIAL', 'PERNUM', 'ASECWT'] + reps)
+    key = f['SERIAL'].astype(np.int64) * 100 + f['PERNUM'].astype(np.int64)
+    assert len(np.unique(key)) == len(key), f'{folder}: SERIAL x 100 + PERNUM is not unique'
+    order = np.argsort(key)
+    sk = key[order]
+    rid = np.rint(units['record_id'].to_numpy(float) - BT.CPS_ID_OFFSET - (year - 2000) * 1e9).astype(np.int64)
+    pos = np.minimum(np.searchsorted(sk, rid), len(sk) - 1)
+    assert (sk[pos] == rid).all(), f'CPS {year}: {int((sk[pos] != rid).sum())} units whose head is not in {folder}'
+    idx = order[pos]
+    asecwt = f['ASECWT'][idx]
+    assert (asecwt > 0).all(), f'CPS {year}: a unit head with no ASEC weight'
+    ratio = units['weight'].to_numpy(float) / asecwt
+    off = np.abs(ratio - 1) > 1e-6
+    W = np.column_stack([f[r][idx] for r in reps]) * ratio[:, None]
+    tot = W.sum(0) / units['weight'].sum()
+    common.say(f'CPS {year} replicate weights ({folder}): {len(units):,} units; the unit\'s weight equals its head\'s '
+               f'ASECWT on all but {int(off.sum()):,}'
+               + (f' (ratio {ratio[off].min():.4f}-{ratio[off].max():.4f} there)' if off.any() else '')
+               + f'; each replicate\'s total over the main weight\'s: {tot.min():.3f}-{tot.max():.3f}')
+    assert (W >= 0).all() and (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
+    return W
+
+
+def overtime_errors(rows, year):
+    """The CPS overtime targets (kind 'overtime'): the share of units with overtime and overtime per unit, over all
+    units and by the unit's wages, over the year's mix of CPS years (target_list.cps_mix_rows), on the units asked
+    the earnings questions. Each year's standard error from the ASEC's 160 person replicate weights (the head's,
+    cps_replicates), by Census's successive difference replication formula: variance = 4 / 160 x the sum over the
+    replicates of (replicate estimate - full-sample estimate)^2; each replicate's average recomputed in full (its
+    weights in numerator and denominator). The years are independent samples, so the pooled variance is the sum over
+    years of share^2 x the year's variance. The cell is read from the row (range_variable, range_lo, range_hi)."""
+    import survey_mix
+    import target_list as TLS
+    parts = []
+    for y, share in survey_mix.mix('cps', year):
+        u = TLS.cps_overtime_units(y)
+        parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
+    # a list without the range columns (a fit.csv): the cell from its label, by the catalog's dollar ranges
+    by_label = {lab: (g['variable'], -np.inf if lo is None else lo, np.inf if hi is None else hi)
+                for g in TLS.CAT['groupings'].values() if 'edges' in g and g['variable'] != 'agi'
+                for lo, hi, lab in g['edges']}
+    out = []
+    for r in rows.itertuples():
+        rv = getattr(r, 'range_variable', '')
+        rng = (rv, r.range_lo, r.range_hi) if isinstance(rv, str) and rv else by_label.get(r.group.split(', ', 1)[1])
+        var, value, notes = 0.0, 0.0, []
+        for y, share, u, w, rep in parts:
+            if rng:
+                xg = TLS.record_value(u, rng[0])
+                mu = (xg >= rng[1]) & (xg < rng[2])
+            else:
+                assert r.group.endswith(', all'), f'overtime target {r.group}: a cell other than all with no range'
+                mu = np.ones(len(u), bool)
+            assert mu.any(), f'overtime target {r.group}: no CPS {y} units in the cell'
+            v = TLS.record_value(u, r.variable)
+            full = (w * v)[mu].sum() / w[mu].sum()
+            reps = (rep[mu] * v[mu, None]).sum(0) / rep[mu].sum(0)
+            var += share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum()
+            value += share * full
+            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} asked units')
+        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
+                    'CPS year mix, the ASEC\'s 160 person replicate weights (the unit head\'s), successive difference '
+                    'replication (variance = 4/160 x sum of squared deviations) year by year, variance = sum of '
+                    f'share^2 x the year\'s; {"; ".join(notes)}{note}'))
     return out
 
 
@@ -532,9 +655,9 @@ def standard_errors(rows, year=Y):
     res = {}
     by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']),
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
-          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people'])}
+          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime'}
     for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
-                    ('nonfiler', nonfiler_errors)]:
+                    ('nonfiler', nonfiler_errors), ('overtime', overtime_errors)]:
         if by[name].any():
             for i, se, kind, why in f(rows[by[name]], year):
                 res[i] = (se, kind, why)

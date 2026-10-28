@@ -270,6 +270,10 @@ def npeu_shares(P, d, how):
     out['wages'] = pos('X6403') * w_wage
     for k, f in flags.items():
         out[k] = other * f * (w_ret if k == 'retirement_gross' else eq)
+    # gross Social Security alone (build_scf.R's ss_gross): the Social Security kind's (X6406) part of the group's
+    # retirement income, divided as retirement income is; kept apart from retirement_gross, which also holds
+    # pensions (X6407) and disability (X6408). Not added to gi below: retirement_gross already holds it.
+    out['ss_gross'] = other * (h['X6406'].to_numpy() == 1) * w_ret
     # the balance sheet, always equally; the home share is the group's share of R's home, with its mortgage
     home = np.minimum(pos('X6432'), pos('X6436') * pos('X6435') / 10000)
     out['w_cash'] = pos('X6421') * eq

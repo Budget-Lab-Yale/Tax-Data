@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 import common
+import survey_mix
 import dollars as D
 
 CATS = common.meta()['cex_amounts']
@@ -56,13 +57,13 @@ def compare(sources, key, order):
 
 def main():
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
-    c = pd.read_parquet(f'{common.DATA}/cex_units_{Y}_all.parquet')
+    c = survey_mix.mixed_units('cex')
     f['w'], f['total'] = f['weight'], f['total_consumption']
     c['w'], c['total'] = c['weight'], c[CATS].sum(1)
     c['ss_gross'], c['income'] = c['social_security'], c[CEX_INCOME].sum(1)
     f['agi'] = D.agi(f)
     one = c[c['one_tu'] == 1]
-    src = {'file': f, f'CEX {Y}': c, f'CEX {Y}, one-unit': one}
+    src = {'file': f, f'CEX mix': c, f'CEX mix, one-unit': one}
     for d in src.values():
         d['age'] = d['age_range'].map(AGES)
         d['hh'] = np.char.add(np.where(d['married'] == 1, 'married', 'not married'),
@@ -75,13 +76,13 @@ def main():
     c_ad = c_ad.assign(dec=deciles(c_ad['income'].to_numpy(float), c_ad.w.to_numpy(float)))
     o_ad = o_ad.assign(dec=deciles(o_ad['income'].to_numpy(float), o_ad.w.to_numpy(float)))
 
-    out = [f'# Consumption in the {Y} file against the CEX {Y}', '',
-           f'CEX: survey year {Y}, all tax units (a shared household\'s spending divided by head count), and the one-unit '
+    out = [f'# Consumption in the {Y} file against the CEX year mix', '',
+           f'CEX: the year mix of the {Y} file (survey_mix.py), each year in {Y} dollars by NIPA PCE per return (income and Social Security are not grown), all tax units (a shared household\'s spending divided by head count), and the one-unit '
            f'households. Nominal {Y} dollars. The model trains on every CEX tax unit. The tilt targets each category\'s '
            'average per unit, overall and by the adult age ranges by married, within a 5% band; nothing else here is targeted.', '']
 
     tot = pd.DataFrame({'file ($bn)': [(f[v] * f.w).sum() / 1e9 for v in CATS],
-                        f'CEX {Y} ($bn)': [(c[v] * c.w).sum() / 1e9 for v in CATS]}, index=[NAMES[v] for v in CATS])
+                        f'CEX mix ($bn)': [(c[v] * c.w).sum() / 1e9 for v in CATS]}, index=[NAMES[v] for v in CATS])
     tot.loc['total'] = tot.sum()
     tot['file / CEX'] = tot.iloc[:, 0] / tot.iloc[:, 1]
     out += ['## Totals (not targeted: the targets are averages, and the file counts more units)', '',
@@ -94,13 +95,13 @@ def main():
             '## By wages', '', compare(src, 'wg', [l for _, _, l in WAGES]), '',
             '## By income decile, each source\'s own (file: AGI; CEX: income before taxes summed from its items); '
             'adults, dependent filers left out', '',
-            compare({'file': f_ad, f'CEX {Y}': c_ad, f'CEX {Y}, one-unit': o_ad}, 'dec', list(range(1, 11))), '',
+            compare({'file': f_ad, f'CEX mix': c_ad, f'CEX mix, one-unit': o_ad}, 'dec', list(range(1, 11))), '',
             '## By married and dependents', '', compare(src, 'hh', sorted(set(c['hh']))), '',
             '## 65+, by gross Social Security', '',
             compare({k: d[d['age'] == '65+'] for k, d in src.items()}, 'ssg', [l for _, _, l in SS]), '']
 
     rows = []
-    for lab, d in [('file', f), (f'CEX {Y}', c)]:
+    for lab, d in [('file', f), (f'CEX mix', c)]:
         for g in [l for _, _, l in WAGES]:
             m = d[d['wg'] == g]
             tt = (m.total * m.w).sum()
@@ -108,8 +109,8 @@ def main():
     out += ['## Category shares of consumption by wages (%)', '',
             pd.DataFrame(rows).set_index(['wages', 'source']).to_markdown(floatfmt='.1f'), '']
     z = pd.DataFrame({'file (%)': [100 * f.w[f[v] == 0].sum() / f.w.sum() for v in CATS],
-                      f'CEX {Y} (%)': [100 * c.w[c[v] == 0].sum() / c.w.sum() for v in CATS],
-                      f'CEX {Y}, one-unit (%)': [100 * one.w[one[v] == 0].sum() / one.w.sum() for v in CATS]},
+                      f'CEX mix (%)': [100 * c.w[c[v] == 0].sum() / c.w.sum() for v in CATS],
+                      f'CEX mix, one-unit (%)': [100 * one.w[one[v] == 0].sum() / one.w.sum() for v in CATS]},
                      index=[NAMES[v] for v in CATS])
     out += ['## Units with none of the category', '',
             'Head-count splitting gives every tax unit in a spending household some of each category, so the all-units CEX '

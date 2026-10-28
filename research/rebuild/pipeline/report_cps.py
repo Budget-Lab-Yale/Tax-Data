@@ -1,16 +1,16 @@
 """The CPS-only items in the target year's file (2019 below) against that year's CPS ASEC.
 
-The CPS side is the target year's tax units (build_table.cps_person_slots): every tax unit, filers and non-filers,
+The CPS side is the tax units of the year mix of the target year's file (survey_mix.py; dollars grown to the target year by SOI wages per return) (build_table.cps_person_slots): every tax unit, filers and non-filers,
 the person items in primary-filer order by the rule the age range uses, dependent filers folded into the unit that
 claims them. The file's dependent filers hold no CPS item (generate.py), so the file side below leaves them out.
 Both sides are weighted: the file by its tilted weights, the CPS by its own. Wage groups: the file's wages (nominal
-2019 dollars) and the CPS's wages after function 1 (the translation table puts them on the tax data's scale by count
-from the top), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
+2019 dollars) and the CPS's wages after function 1 (the translation table puts them on the tax data's scale by percentile
+among earners since 28 October), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
 
 None of this is targeted. Sections: the primary filer's and the spouse's age within each age range; dependents'
 ages; the primary filer's sex; for married couples, whether the spouse has wages and the spouse's share of the
 couple's wages, by the couple's wages, and the same for self-employment income; childcare by the number of
-dependents under 13 and by wages; weeks and hours worked.
+dependents under 13 and by wages; weeks and hours worked; overtime pay (since 28 October; overtime_section).
 
 Writes common.TILT/cps_report.md.
 """
@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 import common
+import survey_mix
 
 Y = common.TARGET_YEAR
 ADULT = common.AGE_LABELS[:common.ADULT_RANGES]
@@ -58,9 +59,74 @@ def shares(d, col, bands):
     return {lab: 100 * d.w[g == lab].sum() / d.w.sum() if d.w.sum() > 0 else np.nan for _, _, lab in bands}
 
 
+def overtime_cap_table(f):
+    """What the overtime cap takes off in the file (decided 27 October): each person's drawn overtime (ot_primary,
+    ot_spouse) is held to the person's wages less the person's tips (dollars.person_cap). For each person and both
+    together: the people with drawn overtime, those the wages alone hold and the dollars that takes off, and those
+    the subtraction of tips holds further and the dollars that takes off on top; weighted by the file's weights."""
+    import dollars as D
+    rows, tot = [], {}
+    for who, slot, wages, tips in [('primary filer', 'ot_primary', 'wages1', 'tips1'),
+                                   ('spouse', 'ot_spouse', 'wages2', 'tips2')]:
+        x = f[slot].to_numpy(float)
+        held, by_cap, by_less = D.person_cap(x, f[wages].to_numpy(float), f[tips].to_numpy(float))
+        w = f.w.to_numpy(float)
+        r = {'person': who, 'with drawn overtime (m)': w[x > 0].sum() / 1e6, 'drawn ($bn)': (w * x).sum() / 1e9,
+             'held by wages (m people)': w[by_cap > 0].sum() / 1e6, 'taken off by wages ($bn)': (w * by_cap).sum() / 1e9,
+             'held by wages less tips, further (m people)': w[by_less > 0].sum() / 1e6,
+             'taken off by the tips ($bn)': (w * by_less).sum() / 1e9, 'kept ($bn)': (w * held).sum() / 1e9}
+        rows.append(r)
+        for k, v in r.items():
+            if k != 'person':
+                tot[k] = tot.get(k, 0.0) + v
+    rows.append({'person': 'both', **tot})
+    return pd.DataFrame(rows).set_index('person').to_markdown(floatfmt=',.2f')
+
+
+def overtime_section(src):
+    """Overtime pay (since 28 October) by the unit's wages: units, the share with overtime, the mean over all units
+    and among those with any, and the total. The file: ot = ot1 + ot2 (each held to the person's wages less tips). The
+    CPS: only the units asked the earnings questions have overtime (the rest are missing); within each survey year
+    their weights are scaled up to the year's whole weight, so the totals are for every unit (the asked units are
+    those in months 4 and 8 of the main sample). Then what the cap takes off in the file."""
+    def ot(m):
+        x, w = m['ot'].to_numpy(float), m.w.to_numpy(float)
+        return {'units (m)': w.sum() / 1e6, 'with overtime (%)': 100 * w[x > 0].sum() / w.sum() if w.sum() > 0 else np.nan,
+                'mean, all units ($)': wavg(x, w),
+                'mean, those with any ($)': wavg(x[x > 0], w[x > 0]), 'total ($bn)': (w * x).sum() / 1e9}
+    frames, cap = {}, []
+    for name, d in src.items():
+        if 'ot' in d and 'ot1' in d:                          # the file
+            frames[name] = d
+            if 'ot_primary' in d:
+                cap = ['### What the cap takes off in the file', '',
+                       'Each person\'s drawn overtime is held to the person\'s wages less the person\'s tips (tips are '
+                       'made first; decided 27 October). "Held by wages": the drawn overtime is above the person\'s '
+                       'wages. "Further": what subtracting the tips takes off on top (a person can be in both). '
+                       'People and dollars weighted by the file\'s weights, dependent filers left out.', '',
+                       overtime_cap_table(d), '']
+        elif 'ot_primary' in d:                               # the CPS side: asked units, scaled up
+            a = d[d['ot_primary'].notna()].copy()
+            if 'survey_year' in d:
+                scale = d.groupby('survey_year')['w'].sum() / a.groupby('survey_year')['w'].sum()
+                a['w'] = a['w'] * a['survey_year'].map(scale)
+            else:
+                a['w'] = a['w'] * d.w.sum() / a.w.sum()
+            a['ot'] = a['ot_primary'] + a['ot_spouse']
+            frames[name] = a
+    if len(frames) < 2:
+        return []
+    return ['## Overtime pay, by the unit\'s wages', '',
+            'Each adult\'s overtime by Tedeschi\'s rules (FLSA coverage, exemptions, hours over 40 at time and a half, '
+            'times weeks worked), at most the person\'s wages (in the file, wages less tips). CPS: the units asked the '
+            'earnings questions, weighted up to every unit of their year. Nominal dollars of the file\'s year.', '',
+            side_by_side(frames, [(lab, (lambda lab: lambda d: d['wg'] == lab)(lab)) for _, _, lab in WAGES]
+                         + [('all', lambda d: d['married'] >= 0)], ot), ''] + cap
+
+
 def main():
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
-    c = pd.read_parquet(f'{common.DATA}/cps_units_{Y}_all.parquet')
+    c = survey_mix.mixed_units('cps')
     f = f[f['age_range'] < common.ADULT_RANGES].copy()        # dependent filers hold no CPS item
     f['w'] = f['weight']
     c['w'] = c['weight']
@@ -68,16 +134,16 @@ def main():
     for a in ['age_primary', 'age_spouse', 'age_dep1', 'age_dep2', 'age_dep3']:
         c[a] = c[a] - 1
     c['wages_reported'] = c['wages_primary_reported'] + c['wages_spouse_reported']
-    c['wages'] = c['wages_translated']             # the tax data's wages at the same count from the top
+    c['wages'] = c['wages_translated']             # the tax data's wages at the same percentile among earners
     c['wages2'] = c['wages_spouse_reported']        # the spouse's share uses the CPS's own amounts
     c['sch_cf_income'] = c['se_primary_reported'] + c['se_spouse_reported']
     c['se2'] = c['se_spouse_reported']
-    src = {'file': f, f'CPS {Y}': c}
+    src = {'file': f, f'CPS mix': c}
     for d in src.values():
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
         d['n_young'] = sum(((d[f'age_dep{k}'] >= 0) & (d[f'age_dep{k}'] < 13)).astype(int) for k in (1, 2, 3))
         d['woman'] = (d['sex_primary'] == 2).astype(float)
-    out = [f'# The CPS-only items in the {Y} file against the CPS {Y}', '',
+    out = [f'# The CPS-only items in the {Y} file against the CPS year mix', '',
            f'CPS: tax year {Y}, every tax unit (filers and non-filers), weighted. File: after the tilt, dependent filers '
            'left out (they hold no CPS item). Nothing here is targeted. Units in millions; ages in years.', '',
            f'Units: file {f.w.sum() / 1e6:.1f} million; CPS {c.w.sum() / 1e6:.1f} million.', '']
@@ -150,6 +216,7 @@ def main():
                     f'{" (married couples)" if who == "spouse" else ""}, by the unit\'s wages', '',
                     side_by_side(src, [(lab, (lambda lab, cond=cond: lambda d: cond(d) & (d['wg'] == lab))(lab))
                                        for _, _, lab in WAGES] + [('all', cond)], stat), '']
+    out += overtime_section(src)
     open(f'{common.TILT}/cps_report.md', 'w').write('\n'.join(out))
     common.say('\n'.join(out))
 

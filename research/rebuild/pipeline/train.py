@@ -13,8 +13,9 @@ a batch mixing all sources would have on average, so a source's records count
 as much in the objective as they would there.
 
 The fill-in (fillin.py, function 2): from the pass fill_from_pass on, the
-SCF's PUF-concept interest, dividends and capital gains of zero-reporters are
-redrawn in each batch. In the held-back slice no fill-in is drawn, so there a
+PUF-concept amount of every zero-reporter of every row of the translation table
+with fill_in (since 28 October on all four surveys, wages included) is redrawn
+in each batch. In the held-back slice no fill-in is drawn, so there a
 zero-reporter's PUF-concept slot is absent (unknown: not shown, not scored).
 
 Age range (ages.py). PUF records with no range carry step 0's probabilities;
@@ -121,8 +122,11 @@ def main():
     train_rows = table[table.split == 'train']
     tr = encode(train_rows, device)
     te = encode(table[table.split == 'test'], device)
-    for v in fillin.MAPPED:   # held-back SCF zero-reporters: the PUF-concept amount is unknown, so absent
-        te['values'][te['scf'] & (te['rep_band'][v] == 0), C + P.index(v)] = -1
+    te_year = torch.tensor(table.loc[table.split == 'test', 'year'].to_numpy(), device=device)
+    for s, v in fillin.KEYS:   # held-back zero-reporters: the PUF-concept amount is unknown, so absent
+        act = torch.tensor([fillin.TR.fills_in(fillin.ROW[(s, v)], int(y)) for y in M.YEARS], device=device)
+        yi = torch.searchsorted(torch.tensor(M.YEARS, device=device), te_year)
+        te['values'][te[s] & act[yi] & (te['rep_band'][v] == 0), C + P.index(v)] = -1
     j_age = C + P.index('age_range')
 
     def draw_ages(d):

@@ -25,7 +25,15 @@
    "_soi_w2": "SOI's Form W-2 statistics as published (irs.gov/pub/irs-soi/{yy}in0{n}w2all.xlsx; the store's manifest.csv): w2_t4_{year}.xlsx, Table 4.B, the summary of W-2 items by filing status, read for the tips targets (catalog source soi w2). Built for the 2019 and 2020 layout.",
    "pce": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/resources/pce_historical.csv",
    "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX",
-   "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927"
+   "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927",
+   "cps_earnings": "/nfs/roberts/project/pi_nrs36/jar335/raw_data/CPS-ASEC/cps_asec_common_v2",
+   "_cps_earnings": "The CPS ASEC pull of 27 October with the earnings questions (weekly pay, hourly wage, paid by the hour, hours, the earnings weight), occupation (OCC2010), industry, class of worker and metro size; the same records as the common extract read_asec() reads. overtime_cps.R reads it (build_cps.R, ot1 and ot2).",
+   "cps_march_basic": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/CPS-March-Basic/overtime_extract",
+   "_cps_march_basic": "A small IPUMS pull of 28 October (common_ipums_download; the parameter files parameters.cps.marbasic*.yaml sit next to it): the March basic monthly samples (cpsYYYY_03b) and the ASEC samples (cpsYYYY_03s) of the CPS years, with the link key MARBASECIDP. overtime_cps.R takes from it hours last week at the main job (AHRSWORK1, not in the ASEC) and, in the March 2024 ASEC (tax year 2023), the weekly pay and hourly wage of the month-4 group, which that ASEC lost (RESULTS.md there, part 1). Kept in the repo's local inputs folder (gitignored) for now; to move to raw_data later (John, 27 October). null: none (hours at all jobs; the lost group missing).",
+   "eap_codes": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Reports/2024/Overtime/resources/eap_codes.dta",
+   "_eap_codes": "DOL's 2016 table of white-collar duties classes by occupation (Census 2002/2010 codes), from Tedeschi's overtime report (The Budget Lab, September 2024).",
+   "cps_repwt": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CPS-ASEC/cps_asec_common_repwt",
+   "_cps_repwt": "The CPS ASEC's replicate weights (the shared IPUMS layer of 4 September 2026, one folder per March sample cpsYYYY_03s: SERIAL, PERNUM, ASECWT and the 160 person replicate weights REPWTP1-REPWTP160, Census's successive difference replication). errors.py reads them for the standard errors of the CPS overtime targets (28 October)."
   }
  },
  "tax_units": {
@@ -70,7 +78,7 @@
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, with the size ranges where reporting rates are read; it conditions on the variables with type_for_fill_in (and the survey year), which cannot have it themselves. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 matches the survey's amount to the tax data's amount of the named PUF variable (a computed total) instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts.",
+  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, on any survey (since 28 October the SCF, the CEX, the CPS and the SIPP), with size_ranges (PUF-year dollars) where reporting rates are read, and optionally type_extra (categories added to this row's type: the SCF's Schedule E rest, the partnership flag); it conditions on its survey's variables with type_for_fill_in (and the survey year) less the row's own variable (wages has the fill-in and is in every other item's type). A row with first_year fills in from that year only. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 (and since 28 October function 2) compares the survey's amount with the tax data's amount of the named PUF variable (a computed total), or the sum of a list of them, instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts. match (optional, since 28 October): how amounts beyond the dollar line are put on the tax data's scale: \"count\" (the default; a line of zero only) by the same count from the top (losses: from the bottom); \"percentile_from_top\" (wages) by the same share of ALL units counted from the top, so a survey missing small holders leaves the tax data's smallest amounts to function 2; \"percentile\" (required with a line above zero) by the same percentile among the units beyond the line in each data set (the survey's unit at the p-th percentile of its units beyond the line gets the tax data's p-th percentile of its units beyond the line; equal amounts get one value), so the order of units is kept and the map is continuous at the line. less_traditional_deferrals (optional, since 28 October): a definition fix, the survey column of each unit's elective deferrals (traditional plus Roth; missing where the survey does not ask), whose traditional part (settings deferrals: x (1 - the Roth share)) is subtracted from the amount: the link wage.",
   "table": [
    {
     "survey": "scf",
@@ -132,11 +140,44 @@
     "items": [
      "wages"
     ],
-    "dollar_line": 100000,
+    "less_traditional_deferrals": "elective_deferrals",
+    "dollar_line": 0,
+    "match": "percentile_from_top",
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": true,
-    "reason": "the SCF has more units than the tax data above every line from about $100,000 (22 October); above the line, by count from the top"
+    "reason": "link wage (28 October): the PEU's wages (X5702) less the traditional part of the respondent's and the spouse's or partner's elective deferrals (settings deferrals; not asked outside the PEU, so nothing is subtracted there); then onto the tax data's box 1 wages, the SCF's share with wages kept. Before 28 October: dollars to $100,000, count from the top above it (the SCF has more units than the tax data above every line from about $100,000); function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
    },
    {
     "survey": "scf",
@@ -222,7 +263,7 @@
     "items": [
      "capital_gains"
     ],
-    "dollar_line": null,
+    "dollar_line": 50000,
     "loss_cap": -3000,
     "fill_in": {
      "size_ranges": [
@@ -257,19 +298,20 @@
      ]
     },
     "type_for_fill_in": false,
-    "reason": "losses past $3,000 are not on the return (definition); zero-reporters hide holders"
+    "reason": "losses past $3,000 are not on the return (definition); zero-reporters hide holders (function 2); above $50,000 (PUF-year dollars, grown to the year) by percentile among the units above the line in each data set (28 October): the SCF has 27% more units than the tax data at $100,000 or more and 44% more at $1 million (explore/2026-10-27/mapping/AUDIT.md)",
+    "match": "percentile"
    },
    {
     "survey": "scf",
-    "variable": "retirement_gross",
+    "variable": "ss_gross",
     "items": [
-     "retirement_gross"
+     "ss_gross"
     ],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "default"
+    "reason": "gross Social Security alone (John, 27 October), in place of Social Security plus pensions (X5722, whose pensions include no rollovers while the PUF's do): the benefits section, the respondent's and the spouse's or partner's current benefit (X5301-X5312) annualized, SSI (kind code 7) left out; units outside the PEU their share of X6406 (build_scf.R; explore/2026-10-28/scf_social_security/)"
    },
    {
     "survey": "scf",
@@ -279,9 +321,36 @@
     ],
     "dollar_line": null,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "default"
+    "reason": "zero-reporters hide holders, as for taxable interest (28 October): 2.1% against 3.6% with any, equal at $5,000 or more (AUDIT.md)"
    },
    {
     "survey": "scf",
@@ -291,21 +360,139 @@
     ],
     "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -10000
+      ],
+      [
+       -10000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the SCF's business income (X5704) is not measured as on Schedules C and F; by count from the top"
+    "reason": "the SCF's business income (X5704) is not measured as on Schedules C and F; by count from the top; function 2 (28 October) fills in the missing small holders and losses (10.7% against 18.6% with any, losses 0.8% against 4.4%; after count from the top alone no SCF unit is below about $5,000: AUDIT.md)"
    },
    {
     "survey": "scf",
-    "variable": "sch_e_income",
+    "variable": "sche_rent",
     "items": [
-     "rent_royalty_estate"
+     "rental_income"
     ],
     "dollar_line": 0,
+    "match": "percentile",
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -25000
+      ],
+      [
+       -25000,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the SCF's Schedule E income (X5714) is not measured as on the return; by count from the top"
+    "reason": "Schedule E split in two (John, 27 October): rental income, the property section's net income per property (X1730, X1830, X2010, X2020) plus gross rent from part of the home or farm (X1224, X505), against the PUF's rents and royalties; function 2 fills in missing holders, losses included (zeros only), then amounts by percentile among holders, income and losses separately; no depreciation estimate (explore/2026-10-28/scf_schedule_e/). Not steered by an owner flag: the tax data has no measure of owning rental property other than a rental amount itself (RESULTS.md of 28 October)"
+   },
+   {
+    "survey": "scf",
+    "variable": "sche_rest",
+    "items": [
+     "sche_rest"
+    ],
+    "dollar_line": 0,
+    "match": "percentile",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -25000
+      ],
+      [
+       -25000,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ],
+     "type_extra": [
+      "k1_owner"
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "Schedule E split in two (John, 27 October): the rest, X5714 less rental income floored at zero, against the PUF's other Schedule E parts (partnerships, S corporations, estates and trusts, farm rental); function 2 fills in missing holders, losses included (zeros only), steered to owners of a pass-through (the partnership flag in its type), then amounts by percentile among holders, income and losses separately. The SCF's business-section profit share is not used (book profit)"
    },
    {
     "survey": "cex",
@@ -313,7 +500,7 @@
     "items": [
      "married"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
    },
    {
@@ -322,7 +509,7 @@
     "items": [
      "n_dep"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_scf.R, build_cex.R)"
    },
    {
@@ -358,11 +545,43 @@
     "items": [
      "wages"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
+    "match": "percentile_from_top",
     "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "default"
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": true,
+    "reason": "link wage (28 October): wages as reported (the CEX reports no deferrals); onto the tax data's box 1 wages, the CEX's share with wages kept. Before 28 October: dollars; function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
    },
    {
     "survey": "cex",
@@ -384,9 +603,40 @@
     ],
     "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -10000
+      ],
+      [
+       -10000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the CEX's self-employment income is not measured as on Schedules C and F; by count from the top"
+    "reason": "the CEX's self-employment income is not measured as on Schedules C and F; by count from the top; function 2 (28 October) fills in the missing small holders and losses (11.5% against 18.8% with any, losses 0.4% against 4.3%: AUDIT.md)"
    },
    {
     "survey": "cps",
@@ -394,7 +644,7 @@
     "items": [
      "married"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_cps.R). Every couple is one joint unit, so 36-38% are married against 32-34% of the tax data's units"
    },
    {
@@ -403,7 +653,7 @@
     "items": [
      "n_dep"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (build_cps.R). 72-75% claim no dependent against 66-69% in the tax data"
    },
    {
@@ -485,10 +735,42 @@
      "wages"
     ],
     "dollar_line": 0,
+    "match": "percentile_from_top",
     "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top"
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": true,
+    "reason": "link wage (28 October): wages as reported (no RETCB_VAL pull, John 27 October); onto the tax data's box 1 wages, the CPS's share with wages kept. Before 28 October, by count from the top: the CPS has more units than the tax data above every line from $25,000 (2019: 96.1 against 88.9 million above $25,000, 29.0 against 21.9 above $100,000, 0.30 against 0.19 above $1 million) and fewer below $10,000, with the share with none within 3 points; by count from the top; function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
    },
    {
     "survey": "cps",
@@ -498,10 +780,38 @@
     ],
     "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "the share with none is within 3 points of the tax data's, but the CPS has fewer units above every line (2019: 3.9 against 4.9 million above $10,000, 0.27 against 0.42 above $100,000; top-coded before 2019); by count from the top. Since stage 3 (27 October) ordinary dividends are computed from qualified and other dividends; the CPS reports one dividend amount, so it goes to qualified dividends (most of ordinary dividends: 78% of the 2015 PUF's dollars) and the CPS's other dividends are zero, as the CPS's capital gains go to long-term gains; ranked against the tax data's ordinary dividends (rank_against), so the CPS's translated dividends are as before stage 3",
-    "rank_against": "dividends"
+    "reason": "the CPS reports one dividend amount, put in qualified dividends (most of ordinary dividends: 78% of the 2015 PUF's dollars; the CPS's other dividends are zero) and compared with the tax data's ordinary dividends (rank_against). Since 28 October: function 2 fills in the missing holders (15.5% against 18.0% with any, about 0.8 times the tax data's units at every line up to $10,000), then amounts by percentile among holders (holders are missing at all sizes; AUDIT.md). Before: by count from the top",
+    "rank_against": "dividends",
+    "match": "percentile"
    },
    {
     "survey": "cps",
@@ -541,12 +851,44 @@
     "items": [
      "capital_gains"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
     "loss_cap": 0,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -3000
+      ],
+      [
+       -3000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
     "first_year": 2018,
-    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (agreed 23 October). Since 28 October: function 2 fills in the missing holders in the years asked (6.1% against 10.4% with any), losses included, then amounts by percentile among holders (the CPS's amounts fall short more the larger they are: median $2,000 against $4,800; AUDIT.md)",
+    "match": "percentile"
    },
    {
     "survey": "cps",
@@ -592,13 +934,45 @@
     "survey": "cps",
     "variable": "pensions_taxable",
     "items": [
-     "retirement_income"
+     "retirement_income",
+     "survdis_pension"
     ],
     "dollar_line": null,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "all pensions and retirement distributions taken as taxable (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October): the builder's series bridged across the 2019 redesign"
+    "reason": "all pensions and retirement distributions taken as taxable (the old non-filer pool's mapping, agreed 23 October): the builder's series bridged across the 2019 redesign; since 28 October with the survivor and disability pensions that are pensions on a return (Form 1099-R sources, build_cps.R), and function 2 fills in the missing recipients, compared with the tax data's taxable pensions plus taxable IRA distributions (filers only 21.1 against 36.8 million; 0.56-0.59 of the tax data's units at every line from $1,000 to $100,000; AUDIT.md)",
+    "rank_against": [
+     "pensions_taxable",
+     "ira_taxable"
+    ]
    },
    {
     "survey": "cps",
@@ -618,9 +992,32 @@
     ],
     "dollar_line": null,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       3000
+      ],
+      [
+       3000,
+       6000
+      ],
+      [
+       6000,
+       12000
+      ],
+      [
+       12000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "taken as reported (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "taken as reported (agreed 23 October); since 28 October function 2 fills in the missing recipients (2.0% against 3.9% with any, at all sizes: AUDIT.md)"
    },
    {
     "survey": "cps",
@@ -647,13 +1044,14 @@
     "variable": "retirement_gross",
     "items": [
      "ss_gross",
-     "retirement_income"
+     "retirement_income",
+     "survdis_pension"
     ],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "gross Social Security plus all pensions and retirement distributions, as on the PUF (E02400 + E01500)"
+    "reason": "gross Social Security plus all pensions and retirement distributions, as on the PUF (E02400 + E01500); since 28 October with the survivor and disability pensions that are pensions on a return"
    },
    {
     "survey": "cps",
@@ -691,11 +1089,42 @@
     "items": [
      "sch_cf_income"
     ],
-    "dollar_line": null,
+    "dollar_line": 0,
     "loss_cap": null,
-    "fill_in": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       null,
+       -10000
+      ],
+      [
+       -10000,
+       0
+      ],
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       250000
+      ],
+      [
+       250000,
+       null
+      ]
+     ]
+    },
     "type_for_fill_in": false,
-    "reason": "nonfarm and farm self-employment income (INCBUS + INCFARM) together as Schedule C, farm zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "nonfarm and farm self-employment income (INCBUS + INCFARM) together as Schedule C, farm zero (agreed 23 October). Since 28 October: function 2 fills in the missing small holders and losses (filers only 6.4 against 19.4 million holders, 0.27 against 7.2 million losses), and amounts by count from the top (the CPS has more units at $50,000 or more: 2.35 against 1.76 million; AUDIT.md)"
    },
    {
     "survey": "cps",
@@ -877,14 +1306,14 @@
     "survey": "cps",
     "variable": "other_agi",
     "items": [
-     "survivor_disability",
+     "survdis_other",
      "other_income"
     ],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the rest of the pool's gross income: survivor and disability pensions other than Social Security (INCSURV + INCDISAB) and other income (INCOTHER, which holds alimony) (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
+    "reason": "the rest of the pool's gross income: other income (INCOTHER, which holds alimony) and, since 28 October, only the survivor and disability payments that are not pensions on a return (workers' compensation, black lung, estates and trusts and the like, build_cps.R); the 1099-R pension sources went to pensions"
    },
    {
     "survey": "sipp",
@@ -892,7 +1321,7 @@
     "items": [
      "married"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
    },
    {
@@ -901,7 +1330,7 @@
     "items": [
      "n_dep"
     ],
-    "type_for_fill_in": false,
+    "type_for_fill_in": true,
     "reason": "taken as reported: the survey's tax units (roster_sipp.py)"
    },
    {
@@ -937,11 +1366,136 @@
     "items": [
      "wages"
     ],
+    "less_traditional_deferrals": "elective_deferrals",
     "dollar_line": 0,
+    "match": "percentile_from_top",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       120000
+      ],
+      [
+       120000,
+       300000
+      ],
+      [
+       300000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": true,
+    "reason": "link wage (28 October): wages less the traditional part of each adult's own elective deferrals at the main employer (TSCNTAMT_401, asked in 2021 and 2023 only; settings deferrals), as reported in 2015-2019; onto the tax data's box 1 wages, the SIPP's share with wages kept. Before 28 October, by count from the top: the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run); function 2 fills in the missing earners first (28 October, John 27 October: so the survey's share with wages matches the tax data's), so function 1 is percentile_from_top: each earner keeps its share of all the survey's units above it and gets the tax data's wages with the same share of all units above it, which leaves the tax data's smallest wages to function 2 (the percentile rule among all earners once the missing small earners are in)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "dividends",
+    "items": [
+     "dividends"
+    ],
+    "dollar_line": 50000,
+    "match": "percentile",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       100
+      ],
+      [
+       100,
+       500
+      ],
+      [
+       500,
+       2000
+      ],
+      [
+       2000,
+       10000
+      ],
+      [
+       10000,
+       50000
+      ],
+      [
+       50000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "new 28 October (John, 27 October): income from stocks and mutual funds (TINC_STMF) against the tax data's ordinary dividends; function 2 fills in the missing holders (14.1% against 18.0% with any), dollars below $50,000 (PUF-year dollars, grown to the year), above it by percentile among the units above the line (top-coded: 0.74 against 0.41 million at $100,000, none at $500,000; AUDIT.md)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "ss_gross",
+    "items": [
+     "ss_gross"
+    ],
+    "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "the SIPP has more units than the tax data above $100,000 in every year (2019: 25.0 against 22.0 million) and almost none above $1 million (0.01 against 0.19 million; its earnings are top-coded), the top 1% holding 10.9% of positive wages against 14.3%; the share with none is 6-8 points above the tax data's in every year (2019: 30.4% against 23.1%). By count from the top, as the CPS's wages (26 October, first table run)"
+    "reason": "new 28 October (John, 27 October): gross Social Security as reported (TSSSAMT, before Medicare premiums, summed over the year): 25.5% against 23.0% with any, amounts close (AUDIT.md)"
+   },
+   {
+    "survey": "sipp",
+    "variable": "pensions_taxable",
+    "items": [
+     "pensions"
+    ],
+    "dollar_line": 0,
+    "match": "percentile",
+    "loss_cap": null,
+    "fill_in": {
+     "size_ranges": [
+      [
+       0,
+       1000
+      ],
+      [
+       1000,
+       5000
+      ],
+      [
+       5000,
+       15000
+      ],
+      [
+       15000,
+       30000
+      ],
+      [
+       30000,
+       60000
+      ],
+      [
+       60000,
+       null
+      ]
+     ]
+    },
+    "type_for_fill_in": false,
+    "reason": "new 28 October (John, 27 October): retirement income items 1-8 (TRET1AMT-TRET8AMT) against the tax data's taxable pensions; function 2 fills in the missing recipients (23.1 against 34.1 million), then amounts by percentile among holders (0.11 against 1.14 million at $100,000; no IRA or 401(k) withdrawals in the public file; AUDIT.md)"
    },
    {
     "survey": "sipp",
@@ -976,7 +1530,8 @@
    2023,
    2024
   ],
-  "generation_year": 2019
+  "generation_year": 2019,
+  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column."
  },
  "cps": {
   "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population by CBO's rules (tax_units.py, the shared tax-unit module) as the filing stage built them (filing.py), filers and non-filers; dependent filers folded into the unit that claims them. p_file (the table's filer_p) is the return's calibrated filing chance from the filing stage (its separate returns, filing status and statutory requirement come from there too); training draws the filing flag from it in every pass. filer is one draw from it, one uniform per unit seeded by filer_seed plus the year, kept for the table's checks and reports. generation_year: the CPS label's year at generation. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label and generation_year. dollar_amounts: the CPS-only amounts in dollars, grown from the generation year to the target year by SOI's wages per return.",
@@ -988,18 +1543,40 @@
    2023
   ],
   "generation_year": 2019,
+  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
   "filer_seed": 20261023,
   "dollar_amounts": [
-   "childcare"
+   "childcare",
+   "ot_primary",
+   "ot_spouse"
   ],
   "cbo_variant": "cbo",
   "step1_dir": "filing",
   "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
   "step1_out": "returns",
-  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads."
+  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads.",
+  "overtime": {
+   "_what": "Each person's overtime pay (overtime_cps.R, Tedeschi's rules; build_cps.R ot1 and ot2; the table's ot_primary and ot_spouse, CPS dollar slots; in the file, Tax-Simulator's ot1, ot2 and ot = ot1 + ot2, each person's held to their wages less their tips). salary_threshold: the FLSA weekly salary level of each tax year ($455 from 2004 through 2019; $684 from 1 January 2020; the 2024 rule's $844, in force July to November 2024, was vacated). hce_annual: the highly compensated employee line ($100,000 through 2019, $107,432 from 2020). computer_hourly: the computer-employee hourly line, $27.63. seed: the duties-test draw, plus the year.",
+   "salary_threshold": {
+    "2015": 455,
+    "2017": 455,
+    "2019": 455,
+    "2021": 684,
+    "2023": 684
+   },
+   "hce_annual": {
+    "2015": 100000,
+    "2017": 100000,
+    "2019": 100000,
+    "2021": 107432,
+    "2023": 107432
+   },
+   "computer_hourly": 27.63,
+   "seed": 20261028
+  }
  },
  "sipp": {
-  "_what": "The SIPP as a fifth source (roster_sipp.py, build_table.py): the Survey of Income and Program Participation's public-use files, one per reference (tax) year, its households as of the interview split into tax units by CBO's rules (tax_units.py, the shared module), every tax unit, dependent filers folded into the unit that claims them. Shared with the PUF (translation table): married, dependents, the primary filer's age range, wages, and the exact ages of the primary filer and the spouse; shared with the CPS: the spouse's share of the couple's wages. SIPP only: each adult's tips as a share of that adult's wages, and whether that adult's tips are mostly from leisure and hospitality (tip_share_primary, tip_share_spouse, tips_lh_primary, tips_lh_spouse), drawn last at generation under the SIPP label and generation_year. The file's tips1 and tips2 are each share times that person's wages (wages1, wages2), and tips their sum.",
+  "_what": "The SIPP as a fifth source (roster_sipp.py, build_table.py): the Survey of Income and Program Participation's public-use files, one per reference (tax) year, its households as of the interview split into tax units by CBO's rules (tax_units.py, the shared module), every tax unit, dependent filers folded into the unit that claims them. Shared with the PUF (translation table): married, dependents, the primary filer's age range, wages, and the exact ages of the primary filer and the spouse; shared with the CPS: the spouse's share of the couple's wages. SIPP only: each adult's tips in dollars, and whether that adult's tips are mostly from leisure and hospitality (tips_primary, tips_spouse, tips_lh_primary, tips_lh_spouse), drawn last at generation under the SIPP label and generation_year; the tips' dollar map is the generation year's records, grown to the target year by SOI's wages per return with wages, as the CPS's childcare. The file's tips1 and tips2 are each person's drawn tips held to at most that person's wages (wages1, wages2: tips are part of wages, as on Form W-2), and tips their sum.",
   "years": [
    2015,
    2017,
@@ -1016,7 +1593,7 @@
    "2023": "pu2024_csv.zip"
   },
   "generation_year": 2019,
-  "_generation_year": "The SIPP label's year at generation: the target year, as for the CEX and the CPS.",
+  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
   "lh_industries": [
    [
     8560,
@@ -1028,6 +1605,38 @@
   "_lh_share": "A person's tips are from leisure and hospitality when more than this share of the person's tips on jobs for an employer is from such jobs (production's tips.R).",
   "mfs_salt": 20261023,
   "_mfs_salt": "Separate returns: joint couples are split by the CEX's rule (tax_units.mfs_split, keyed draw with this salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns."
+ },
+ "deferrals": {
+  "_what": "Elective deferrals to 401(k)-type plans (since 28 October; NEXT_STEPS.md, wages and pre-tax deductions). Each person's elective contributions (traditional plus Roth, as the SCF and the SIPP report them and as SOI's W-2 Tables 2.x count them) are held to the legal limit of the row's tax year (limits: [under 50, 50 and over], the section 402(g) limit and the catch-up; age at the interview), then to the person's own wages (build_scf.R, roster_sipp.py; decided 27 October). The traditional part is elective x (1 - the Roth share), the share from SOI's W-2 statistics by joint and non-joint returns (roth_share), the W-2 year nearest the row's year. A survey's link wage is its gross wages less the traditional part (translate.py, the definition fix less_traditional_deferrals); the Roth part stays in box 1 wages. The SCF's elective deferrals are also an SCF-only slot (elective_deferrals), with the spouse's share of them (spouse_deferral_share), drawn at generation (none without wages, the share 0 unless married); in the file each person's are held to the file year's legal limit for their age and to their own wages, and each person's traditional part is Tax-Simulator's trad_contr_er1 and trad_contr_er2, with Medicare wages = wages plus both (dollars.py; decided 27 October).",
+  "limits": {
+   "2012": [17000, 22500],
+   "2013": [17500, 23000],
+   "2014": [17500, 23000],
+   "2015": [18000, 24000],
+   "2016": [18000, 24000],
+   "2017": [18000, 24000],
+   "2018": [18500, 24500],
+   "2019": [19000, 25000],
+   "2020": [19500, 26000],
+   "2021": [19500, 26000],
+   "2022": [20500, 27000],
+   "2023": [22500, 30000]
+  },
+  "catch_up_age": 50,
+  "roth_share": {
+   "2012": {"joint": 0.0328, "nonjoint": 0.0363},
+   "2013": {"joint": 0.0377, "nonjoint": 0.0414},
+   "2014": {"joint": 0.0441, "nonjoint": 0.0470},
+   "2015": {"joint": 0.0537, "nonjoint": 0.0609},
+   "2016": {"joint": 0.0584, "nonjoint": 0.0680},
+   "2017": {"joint": 0.0632, "nonjoint": 0.0741},
+   "2018": {"joint": 0.0707, "nonjoint": 0.0888},
+   "2019": {"joint": 0.0799, "nonjoint": 0.0990},
+   "2020": {"joint": 0.0927, "nonjoint": 0.1021}
+  },
+  "_roth_share": "Roth (box 12 codes AA, BB, EE) over all elective contributions (codes D, E, F, G, H, S plus the Roth codes), dollars, joint returns and non-joint returns: SOI W-2 statistics, Table 5.A of w2_all_2018.xls for 2012-2018 and Table 4.B of w2_t4_<year>.xlsx for 2019 and 2020 (paths.raw.soi_w2; all taxpayers 2019: $30.3 billion of $352.9 billion, 8.6%). Years after 2020 take 2020's.",
+  "sipp_item": "TSCNTAMT_401",
+  "_sipp_item": "The SIPP's own contributions to 401(k), 403(b), 503(b) and Thrift Savings Plan accounts at the main employer, asked in the 2022 and 2024 releases (reference years 2021 and 2023); the earlier releases do not have it, so their units' deferrals are missing (not asked) and their link wage is gross wages."
  },
  "filing": {
   "_what": "The CPS's filing stage (filing.py, filing_requirement.R; run.sbatch stage filing): every CPS tax unit's chance of filing, by the filing rule v4 (John, 24 October 2026): logit(chance) = a(age band of the head) + k x (a child under 17) + required x (r + s x log gross income, centred on the year's weighted median among required units + b x (business or farm income not zero)), required being the statutory filing requirement. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11 targets hold exactly: non-filing heads and spouses in 7 age bands = CPS adults - adults on returns (SOI Table 1.6, age_shape's filing_adults) - dependents aged 15+ not filing their own return (group quarters left out, so zero); and the four shares below. Dependents' own returns: file if required to or with any wages. No outside filing model.",
@@ -1061,20 +1670,26 @@
   "_label": "label_records: the filer records over all pooled models (each draws an equal share), split across the 12 band-AGI groups (qgroups.py) in proportion to the PUF's records per group (about 18,400 at p99.99 and over, 30,500 at p99.9-99.99). Each record's group is preset; its weight is the group's 2015 PUF returns over the records drawn in it (1 / q). Every drawn record is kept; the share whose drawn bands fall in another group is only reported (label_check.csv). label_seed: the batch's draws (plus each model's seed_shift).",
   "scf_wave_seed": 20261026,
   "_scf_wave_seed": "TARGETS.md section 7: each record's SCF wave is drawn with the shares in the target year's configuration (targets_config/years/<year>.yaml, prior, 'balance sheet'), by a random generator seeded by this and the batch's generation seed, so no other draw moves.",
+  "survey_year_seeds": {"cex": 20261028, "cps": 20261029, "sipp": 20261030},
+  "_survey_year_seeds": "TARGETS.md section 7 (27 October): each record's CEX year, CPS year and SIPP year are drawn with the shares in the target year's configuration (prior, 'consumption', 'cps items', 'sipp tips'), each by a random generator of its own, seeded by the survey's number here and the batch's generation seed, so no other draw moves (as scf_wave_seed does for the SCF's waves).",
   "nonfiler_records": null,
   "nonfiler_seed": 35,
   "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. null: its number of records is the filer batch's (label_records) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year; a number fixes it. nonfiler_seed fixes its draws.",
   "models": [
    {
-    "run": "label_seed20261016",
+    "run": "label_seed20261017",
     "seed_shift": 0
    },
    {
-    "run": "label_seed20261017",
+    "run": "label_seed20261018",
     "seed_shift": 1000
+   },
+   {
+    "run": "label_seed20261019",
+    "seed_shift": 2000
    }
   ],
-  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run."
+  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run. Three seeds, 20261017-19, since 28 October (John): the seed-20261016 network was a much worse fit (explore/2026-10-28/model_variability/RESULTS.md)."
  },
  "consistency": {
   "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
@@ -1134,7 +1749,11 @@
  },
  "dollars": {
   "_what": "seed: the seed of the draws that pick each record's dollars within its drawn band from the dollar map (dollars.py).",
-  "seed": 20261104
+  "seed": 20261104,
+  "scf_caps": {
+   "w_other_debt": 0.999
+  },
+  "_scf_caps": "Balance-sheet items whose dollar map is held to a percentile among the wave's holders (weighted), in each SCF wave before it is grown to the target year (build_table.build_maps). Other debt: the SCF's largest amounts ($15-69 million) landed on ordinary records and one such record carried $0.27-0.92 trillion after the tilt; held to the 99.9th percentile among holders, $0.5-2.0 million (John, 28 October). The training table is unchanged, so the models are unaffected."
  },
  "tilt": {
   "_what": "Post-training (tilt.py, solver.py, TARGETS.md): the start's weights scaled, then the smallest Kullback-Leibler move of the weights that puts every target in the year's list (targets_config/, expanded by target_list.py, each with its standard error from errors.py) inside its range. Which targets, their values and their errors are in targets_config/, not here.",

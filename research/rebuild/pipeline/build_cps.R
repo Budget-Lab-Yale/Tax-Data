@@ -41,7 +41,7 @@
 # Ids. record_id = SERIAL x 100 + the PERNUM of the builder's unit head
 # (the builder's unit_id), unique within the year. household_id = SERIAL.
 #
-# Columns, one row per tax unit, no NA. Dollars are nominal dollars of the tax
+# Columns, one row per tax unit, no NA except ot1 and ot2 (below). Dollars are nominal dollars of the tax
 # year as reported (the ASEC asks about the previous calendar year).
 #   year, record_id, household_id, weight (the head's ASECWT)
 #   married (1 joint unit), n_dep (dependents claimed, capped at 3 as the SCF
@@ -72,8 +72,33 @@
 #     rent_royalty_estate INCRENT (net rent, roomers and boarders, estates,
 #                         trusts and royalties; can be negative)
 #     survivor_disability INCSURV + INCDISAB (survivor and disability
-#                         pensions other than Social Security)
+#                         pensions other than Social Security), the sum of
+#                         the next two, exactly
+#     survdis_pension     the part of it from sources that are pensions or
+#                         annuities on a return (Form 1099-R): survivor and
+#                         disability amounts from sources of class "pension"
+#                         in SURVDIS_SOURCES below
+#     survdis_other       the rest: workers' compensation, black lung, estates
+#                         and trusts, accident or disability insurance, state
+#                         temporary sickness, other or don't know (class
+#                         "other" in SURVDIS_SOURCES)
+#                         The split reads the ASEC's source items: the first
+#                         and second source of survivor benefits (SRCSURV1,
+#                         SRCSURV2, amounts INCSURV1, INCSURV2) and of
+#                         disability benefits (SRCDISA1, SRCDISA2, INCDISA1,
+#                         INCDISA2). The two amounts must add to INCSURV and
+#                         INCDISAB after cleaning, and a year without the items
+#                         stops. Per year and source, the people, the dollars
+#                         and the class are written to
+#                         cps_survivor_disability_sources.csv.
 #     other_income        INCOTHER (includes alimony)
+#   ot1, ot2 (since 28 October; Tax-Simulator's names): the primary filer's and the
+#     spouse's overtime pay in the tax year, by Tedeschi's rules
+#     (overtime_cps.R), at most the person's wages (INCWAGE); missing (NA),
+#     not zero, on every unit whose adults were not asked the earnings
+#     questions (about three quarters of units: only months 4 and 8 in sample
+#     are asked), and on the few asked workers with no pay. ot2 is 0 on
+#     an asked unit with no spouse. The only columns that can be NA.
 #   CPS-only, per person: wages1, wages2 (INCWAGE); se1, se2 (INCBUS +
 #     INCFARM); weeks_worked1/2 (WKSWORK1, weeks worked last year);
 #     usual_hours1/2 (UHRSWORKLY, usual weekly hours last year, its
@@ -97,8 +122,10 @@
 # Paths and years from settings.json ("cps"); the settings file is
 # REBUILD_SETTINGS if set, else the pipeline's own; output to
 # REBUILD_OUT/data. Optional arguments name tax years to build (default: all
-# of settings cps.years). Writes {out}/data/cps_units_{year}.csv.gz and
-# cps_summary.csv (the printed totals per year). Run from the repository root
+# of settings cps.years). Writes {out}/data/cps_units_{year}.csv.gz,
+# cps_summary.csv (the printed totals per year) and
+# cps_survivor_disability_sources.csv (the sources' table, every year built), and per year
+# cps_overtime_persons_{year}.csv.gz (every person's overtime build, for the checks). Run from the repository root
 # through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
 # hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
 # R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.sbatch, stage cps.
@@ -118,6 +145,7 @@ stopifnot(all(YEARS %in% settings$cps$years))
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table()
 source('research/rebuild/pipeline/tax_units_cbo.R')
+source('research/rebuild/pipeline/overtime_cps.R')  # cps_overtime(): each person's overtime pay, Tedeschi's rules
 # the filing stage's folder inside the run's data folder (cps.step1_dir) and the folder of its returns inside it
 # (cps.step1_out)
 if (is.null(settings$cps$step1_dir) || is.null(settings$cps$step1_out))
@@ -183,6 +211,130 @@ report_na = function(df, label) {
 }
 bn = function(w, x) sum(w * x) / 1e9
 
+# Survivor and disability benefits by source (the ASEC's codes 1-10; 0 is not in universe). Class "pension": a
+# pension or annuity on the return's pension lines (Form 1099-R). Class "other": not a pension on the return. The
+# label must match the DDI's, or the build stops. "MIXED" marks a source whose tax treatment is split; it sits in the
+# class judged closer. Publications: IRS Pub 525 (Taxable and Nontaxable Income), 575 (Pension and Annuity Income),
+# 915 (Social Security and Equivalent Railroad Retirement Benefits), 721 (Civil Service Retirement Benefits), 559
+# (Survivors, Executors and Administrators), 907 (Persons with Disabilities).
+SURVDIS_SOURCES = rbind(
+  data.table(benefit = 'survivor', code = 1:10, label = c(
+    'Company or union survivor pension', 'Federal government pension', 'US military retirement survivor pension',
+    'State or local govt survivor pension', 'US railroad retirement survivor pension', 'Workers compensation pension',
+    'Black lung survivor pension', 'Regular payments from estates or trusts',
+    'Regular payments from annuities or paid-up life insurance', 'Other or do not know'),
+    class = c('pension', 'pension', 'pension', 'pension', 'pension', 'other', 'other', 'other', 'pension', 'other'),
+    reason = c(
+      'survivor annuity from an employer plan, taxable on Form 1099-R (Pub 575, survivors of employees and retirees)',
+      'civil service survivor annuity, taxable on Form 1099-R (Pub 721; Pub 575)',
+      'Survivor Benefit Plan annuity, taxable on Form 1099-R (Pub 525, military retirement pay; Pub 575)',
+      'survivor annuity from a government plan, taxable on Form 1099-R (Pub 575)',
+      'MIXED: tier 2 and the rest on Form RRB-1099-R are pensions (Pub 575); tier 1 is taxed as Social Security (Form RRB-1099, Pub 915)',
+      'workers\' compensation is exempt, and the exemption applies to survivors (Pub 525, workers\' compensation)',
+      'black lung benefits are like workers\' compensation and not taxable in most cases (Pub 525, other sickness and injury benefits)',
+      'a beneficiary reports trust or estate income from Schedule K-1 (Form 1041) on Schedule E and by character, not as a pension (Pub 559)',
+      'MIXED: annuity payments are pensions and annuities on Form 1099-R, taxable part above the cost (Pub 575); life insurance paid in installments is excluded up to the proceeds, the rest interest (Pub 525, life insurance proceeds)',
+      'source unknown; not shown to be a Form 1099-R pension')),
+  data.table(benefit = 'disability', code = 1:10, label = c(
+    'Workers compensation', 'Company or union disability', 'Federal govt disability',
+    'US military retirement disability', 'State or local govt employee disability', 'US railroad retirement disability',
+    'Accident or disability insurance', 'Black lung miners disability', 'State temporary sickness',
+    'Other or don\'t know'),
+    class = c('other', 'pension', 'pension', 'pension', 'pension', 'pension', 'other', 'other', 'other', 'other'),
+    reason = c(
+      'workers\' compensation for occupational sickness or injury is exempt (Pub 525, workers\' compensation; Pub 907)',
+      'MIXED: a disability pension from an employer-paid plan is taxable on Form 1099-R, but before minimum retirement age it is reported on line 1h with wages, after it as a pension (Pub 525, disability pensions; Pub 575)',
+      'MIXED: civil service disability annuity on Form 1099-R; before minimum retirement age reported on line 1h with wages, after it as a pension (Pub 721; Pub 525, disability pensions)',
+      'MIXED: military disability retirement pay is on Form 1099-R and taxable as a pension, but excluded for combat-related injury, entitlement before 25 Sep 1975, or up to the VA compensation the person could get (Pub 525, military and government disability pensions)',
+      'MIXED: as company disability pensions (Pub 525, disability pensions); a plan in the nature of workers\' compensation (e.g. line-of-duty disability) is exempt',
+      'MIXED: tier 2 and the rest on Form RRB-1099-R are pensions, before minimum retirement age reported with wages (Pub 575; Pub 525); tier 1 is taxed as Social Security (Pub 915)',
+      'MIXED: taxable only if the employer paid the premiums, then as sick pay reported with wages (Form W-2), not a pension; not taxable if the person paid them (Pub 525, sick pay; Pub 907)',
+      'black lung benefits are like workers\' compensation and not taxable in most cases (Pub 525, other sickness and injury benefits)',
+      'MIXED: state sickness or disability fund payments are sick pay, taxable to the extent of employer contributions and reported with wages, not a pension; employee-funded plans (e.g. California SDI) are not taxable (Pub 525, sick pay)',
+      'source unknown; not shown to be a Form 1099-R pension')))
+stopifnot(all(SURVDIS_SOURCES$class %in% c('pension', 'other')))
+SURVDIS_ITEMS = c('SRCSURV1', 'SRCSURV2', 'INCSURV1', 'INCSURV2', 'SRCDISA1', 'SRCDISA2', 'INCDISA1', 'INCDISA2')
+
+# Splits each person's survivor and disability benefits by the class of their source. Adds survdis_pension and
+# survdis_other to x (per person; their sum is INCSURV + INCDISAB exactly) and returns the table by source of the
+# people in x (people with an amount from that source, weighted by ASECWT; their dollars; and the dollars of people
+# aged under 62, the earliest age most pension plans pay without a disability, as a rough guide to the disability
+# pensions reported with wages).
+split_survivor_disability = function(x, ddi, yr) {
+  miss = setdiff(SURVDIS_ITEMS, names(x))
+  if (length(miss))
+    stop(sprintf('tax year %d (ASEC %d) lacks the survivor and disability source items %s: cannot split survivor_disability into pensions and the rest',
+                 yr, yr + 1, paste(miss, collapse = ', ')))
+  stopifnot(!anyNA(x[, ..SURVDIS_ITEMS]))
+  for (v in c('INCSURV1', 'INCSURV2', 'INCDISA1', 'INCDISA2')) set(x, j = v, value = clean_asec_income(x, ddi, v))
+  # the DDI's labels must be the ones classified above
+  for (b in c('survivor', 'disability')) {
+    for (v in if (b == 'survivor') c('SRCSURV1', 'SRCSURV2') else c('SRCDISA1', 'SRCDISA2')) {
+      vl = ipumsr::ipums_val_labels(ddi, tidyselect::all_of(v))
+      want = SURVDIS_SOURCES[benefit == b]
+      got = vl[match(want$code, vl$val), ]
+      if (anyNA(got$val) || !identical(got$lbl, want$label) || !setequal(vl$val, 0:10))
+        stop(sprintf('%d: the DDI\'s labels for %s differ from the classified ones', yr, v))
+      stopifnot(all(x[[v]] %in% 0:10))
+    }
+  }
+  # The two sources add to the totals. In the 2016-2024 ASECs they do for every person but one in some years (one
+  # survivor in tax years 2015, 2021 and 2023, checked 27 October 2026: totals of $47,892, $86,838 and $30,410
+  # against sources adding to $25,092, $50,400 and $30,309), presumably the Census Bureau's disclosure protection
+  # applied to the total and the sources separately. There the total is kept (survivor_disability does not change)
+  # and shared between the two sources in proportion to their amounts. More than 5 such people in a year, or a
+  # total with no source amount, stops.
+  for (b in c('survivor', 'disability')) {
+    tot = if (b == 'survivor') 'INCSURV' else 'INCDISAB'
+    a1 = if (b == 'survivor') 'INCSURV1' else 'INCDISA1'
+    a2 = if (b == 'survivor') 'INCSURV2' else 'INCDISA2'
+    bad = which(x[[a1]] + x[[a2]] != x[[tot]])
+    if (length(bad) > 5 || any(x[[a1]][bad] + x[[a2]][bad] <= 0))
+      stop(sprintf('%d: first plus second source of %s benefits differs from the total for %d people (%d with no source amount)',
+                   yr, b, length(bad), sum(x[[a1]][bad] + x[[a2]][bad] <= 0)))
+    for (i in bad) {
+      cat(sprintf('  %s benefits: total $%.0f but the sources (codes %d, %d) add to $%.0f + $%.0f: the total shared between them in proportion\n',
+                  b, x[[tot]][i], x[[sub('INC', 'SRC', a1)]][i], x[[sub('INC', 'SRC', a2)]][i],
+                  x[[a1]][i], x[[a2]][i]))
+      s1 = round(x[[tot]][i] * x[[a1]][i] / (x[[a1]][i] + x[[a2]][i]))   # whole dollars, so the sum stays exact
+      set(x, i, a1, s1)
+      set(x, i, a2, x[[tot]][i] - s1)
+    }
+    stopifnot(all(x[[a1]] + x[[a2]] == x[[tot]]))
+  }
+  no_src = x[(INCSURV1 != 0 & SRCSURV1 == 0) | (INCSURV2 != 0 & SRCSURV2 == 0) |
+             (INCDISA1 != 0 & SRCDISA1 == 0) | (INCDISA2 != 0 & SRCDISA2 == 0), .N]
+  if (no_src > 0) stop(sprintf('%d: %d people have a survivor or disability amount with no source', yr, no_src))
+  is_p = function(b, code) {
+    s = SURVDIS_SOURCES[benefit == b]
+    k = s$class[match(code, s$code)]
+    !is.na(k) & k == 'pension'   # code 0 (not in universe; no amount, checked above) is not a pension
+  }
+  x[, survdis_pension := INCSURV1 * is_p('survivor', SRCSURV1) + INCSURV2 * is_p('survivor', SRCSURV2) +
+                         INCDISA1 * is_p('disability', SRCDISA1) + INCDISA2 * is_p('disability', SRCDISA2)]
+  x[, survdis_other := (INCSURV + INCDISAB) - survdis_pension]
+  stopifnot(!anyNA(x$survdis_pension), all(x$survdis_pension + x$survdis_other == x$INCSURV + x$INCDISAB))
+  # the table: one row per person and source with an amount (a person naming one source twice counts once in it)
+  x[, pid_ := .I]
+  long = rbind(
+    x[INCSURV1 != 0, .(pid_, w = ASECWT, age = AGE, benefit = 'survivor', code = SRCSURV1, amt = INCSURV1)],
+    x[INCSURV2 != 0, .(pid_, w = ASECWT, age = AGE, benefit = 'survivor', code = SRCSURV2, amt = INCSURV2)],
+    x[INCDISA1 != 0, .(pid_, w = ASECWT, age = AGE, benefit = 'disability', code = SRCDISA1, amt = INCDISA1)],
+    x[INCDISA2 != 0, .(pid_, w = ASECWT, age = AGE, benefit = 'disability', code = SRCDISA2, amt = INCDISA2)])
+  x[, pid_ := NULL]
+  long = long[, .(w = w[1], age = age[1], amt = sum(amt)), by = .(pid_, benefit, code)]
+  tab = long[, .(records = .N, people_m = sum(w) / 1e6, billions = sum(w * amt) / 1e9,
+                 billions_age_under_62 = sum((w * amt)[age < 62]) / 1e9), by = .(benefit, code)]
+  tab = merge(SURVDIS_SOURCES, tab, by = c('benefit', 'code'), all.x = TRUE)
+  # a source nobody reports this year: zero people and dollars (the universe is everyone in the frame)
+  for (v in c('records', 'people_m', 'billions', 'billions_age_under_62')) set(tab, which(is.na(tab[[v]])), v, 0)
+  tab[, benefit := factor(benefit, c('survivor', 'disability'))]
+  setorder(tab, benefit, code)
+  tab[, benefit := as.character(benefit)]
+  cbind(year = yr, tab[, .(benefit, code, label, class, records, people_m, billions, billions_age_under_62, reason)])
+}
+sources_rows = list()
+
 RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOMLOC', 'POPLOC', 'FTYPE', 'FAMID',
              'FAMREL', 'SCHLCOLL', 'ASECWT', 'GQ', 'EDUC', 'RACE', 'HISPAN', 'HIMCAIDLY', 'FOODSTAMP', 'INCWELFR',
              'INCTOT', 'INCSS', ASEC_GROSS_INCOME_ITEMS, 'WKSWORK1', 'UHRSWORKLY', 'SPMFAMUNIT', 'SPMCHXPNS',
@@ -196,8 +348,24 @@ for (yr in YEARS) {
   x = read_asec(yr)
   ddi = attr(x, 'ddi')
   ret_cols = if (yr <= 2017) 'INCRETIR' else ASEC_RETIREMENT_COMPONENTS
-  report_na(x[, c(RAW_USED, ret_cols), with = FALSE], 'raw ASEC columns used')
+  miss = setdiff(SURVDIS_ITEMS, names(x))
+  if (length(miss))
+    stop(sprintf('tax year %d (ASEC %d) lacks the survivor and disability source items %s: cannot split survivor_disability into pensions and the rest',
+                 yr, yr + 1, paste(miss, collapse = ', ')))
+  report_na(x[, c(RAW_USED, ret_cols, SURVDIS_ITEMS), with = FALSE], 'raw ASEC columns used')
   cat(sprintf('  %d person records, %d households\n', nrow(x), uniqueN(x$SERIAL)))
+  # Overtime pay per person (overtime_cps.R), from the extract with the earnings questions; NA where not asked
+  otp = cps_overtime(yr, x[, .(SERIAL, PERNUM)])
+  ot_out = otp[, .(SERIAL, PERNUM, MISH, EARNWT, asked, basic_pay, pay_missing, ELIGORG, EMPSTAT, CLASSWKR, OCC2010, IND,
+                  hourly, weekpay, wage, usual, lastwk, finalhours, inelig, exempt, eap_code, eap_prob, passes_duties,
+                  ot_cat, ot_week, WKSWORK1, INCWAGE = wages_, ot_year_raw, ot)]
+  fwrite(ot_out, file.path(OUT, sprintf('cps_overtime_persons_%d.csv.gz', yr)))
+  cat(sprintf('  overtime: %d people asked (EARNWT %.1f m); among them %d with pay missing; %.2f m people (EARNWT) with overtime, $%.1f bn (EARNWT); the cap at own wages takes off $%.2f bn\n',
+              sum(otp$asked), otp[asked == TRUE, sum(EARNWT)] / 1e6, sum(otp$pay_missing), otp[ot > 0, sum(EARNWT)] / 1e6,
+              otp[asked == TRUE & !pay_missing, sum(EARNWT * ot)] / 1e9,
+              otp[asked == TRUE & !pay_missing, sum(EARNWT * (ot_year_raw - ot))] / 1e9))
+  cat('  named industry codes, people with the code (a zero would mean the code is not in this year\'s scheme):\n')
+  print(otp[IND %in% OT_IND_NAMED, .N, by = IND][order(IND)][, paste(IND, N, sep = ':')], quote = FALSE)
 
   # Income concepts and the filing model's inputs, cleaned as the pool's driver (01_build_units.R) does
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
@@ -225,6 +393,16 @@ for (yr in YEARS) {
   cat(sprintf('  frame: %.2f m people in households; %.2f m in group quarters left out (as in the pool)\n',
               x[, sum(ASECWT)] / 1e6, gq_w / 1e6))
 
+  # Survivor and disability benefits split by source into pensions on the return and the rest (SURVDIS_SOURCES)
+  sv = split_survivor_disability(x, ddi, yr)
+  cat('  survivor and disability benefits by source, people in households (a person counts once per source; dollars as reported):\n')
+  print(sv[, .(benefit, code, label = substr(label, 1, 45), class, records, people_m = round(people_m, 3),
+               billions = round(billions, 2), billions_age_under_62 = round(billions_age_under_62, 2))])
+  cat(sprintf('  survivor and disability, people in households: pensions $%.2f bn, the rest $%.2f bn, together $%.2f bn (INCSURV + INCDISAB $%.2f bn)\n',
+              bn(x$ASECWT, x$survdis_pension), bn(x$ASECWT, x$survdis_other),
+              bn(x$ASECWT, x$survdis_pension + x$survdis_other), bn(x$ASECWT, x$INCSURV + x$INCDISAB)))
+  sources_rows[[as.character(yr)]] = sv
+
   #-----------------------------------------------------------------------------
   # Units, filing status and filing chances: step 1's
   #-----------------------------------------------------------------------------
@@ -244,9 +422,11 @@ for (yr in YEARS) {
               nrow(units), sum(units$weight) / 1e6, nrow(dep_units), sum(dep_units$weight) / 1e6,
               bn(dep_units$weight, dep_units$INCWAGE)))
 
+  p[otp, on = c('SERIAL', 'PERNUM'), `:=`(ot = i.ot, ot_asked = i.asked)]
+  stopifnot(!anyNA(p$ot_asked))
   hs = p[role %in% c('primary', 'spouse'),
          .(unit_id, PERNUM, role, AGE, SEX, INCWAGE, se = INCBUS + INCFARM, weeks = as.numeric(WKSWORK1),
-           hours = usual_hours)]
+           hours = usual_hours, ot, ot_asked)]
   stopifnot(all(hs$SEX %in% 1:2))
   hs[, n_adult := .N, by = unit_id]
   stopifnot(all(hs$n_adult %in% 1:2))
@@ -258,10 +438,13 @@ for (yr in YEARS) {
   cat(sprintf('  couples: %d mixed-sex, %d same-sex; builder\'s head is not person 1 in %d couples\n',
               hs[pos == 1 & n_adult == 2 & mixed, .N], hs[pos == 1 & n_adult == 2 & !mixed, .N],
               hs[pos == 1 & n_adult == 2 & role != 'primary', .N]))
+  # a unit's overtime is missing when either adult's is (not asked, or pay missing)
+  hs[, ot_unit_na := anyNA(ot), by = unit_id]
+  ot_asked_units = as.integer(unique(hs[ot_asked == TRUE, unit_id]))
   p1 = hs[pos == 1, .(unit_id, age1 = AGE, sex1 = SEX, wages1 = INCWAGE, se1 = se, weeks_worked1 = weeks,
-                      usual_hours1 = hours)]
+                      usual_hours1 = hours, ot1 = fifelse(ot_unit_na, NA_real_, ot), ot_unit_na)]
   p2 = hs[pos == 2, .(unit_id, age2 = AGE, sex2 = SEX, wages2 = INCWAGE, se2 = se, weeks_worked2 = weeks,
-                      usual_hours2 = hours)]
+                      usual_hours2 = hours, ot2 = fifelse(ot_unit_na, NA_real_, ot))]
 
   #-----------------------------------------------------------------------------
   # Dependents
@@ -311,28 +494,33 @@ for (yr in YEARS) {
                   wages = INCWAGE, sch_cf_income = se_income, interest = INCINT, dividends = INCDIVID,
                   ss_gross = INCSS, unemployment = INCUNEMP, retirement_income, rent_royalty_estate = INCRENT)]
   extra = p[role %in% c('primary', 'spouse'),
-            .(survivor_disability = sum(INCSURV + INCDISAB), other_income = sum(INCOTHER),
+            .(survivor_disability = sum(INCSURV + INCDISAB), survdis_pension = sum(survdis_pension),
+              survdis_other = sum(survdis_other), other_income = sum(INCOTHER),
               capital_gains = sum(capital_gains)), by = unit_id]
   out = merge(out, extra, by = 'unit_id', all.x = TRUE)
   out = merge(out, p1, by = 'unit_id', all.x = TRUE)
   out = merge(out, p2, by = 'unit_id', all.x = TRUE)
   out = merge(out, dtab, by = 'unit_id', all.x = TRUE)
   out = merge(out, cc, by = 'unit_id', all.x = TRUE)
-  stopifnot(nrow(out) == nrow(units), !anyNA(out$age1), !anyNA(out$survivor_disability))
+  stopifnot(nrow(out) == nrow(units), !anyNA(out$age1), !anyNA(out$survivor_disability),
+            !anyNA(out$survdis_pension), !anyNA(out$survdis_other),
+            all(out$survivor_disability == out$survdis_pension + out$survdis_other))
   cat('  NA counts after the joins, before filling (expected: person 2 on units with no spouse, dependents on units with none, child care on units given none):\n')
   na = colSums(is.na(out)); print(na[na > 0])
   married = out$filing_status == 'joint'
   stopifnot(all(is.na(out$age2) == !married), all(is.na(out$n_dep_raw) == (out$unit_id %in% dtab$unit_id == FALSE)))
   out[, married := as.integer(filing_status == 'joint')]
   # not in universe: no spouse (person 2 zero, age -1, sex 0); no dependents (0, ages -1); no child care (0)
-  out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0)]
+  out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0,
+                         ot2 = fifelse(ot_unit_na, NA_real_, 0))]
   out[is.na(n_dep_raw), `:=`(n_dep_raw = 0L, n13 = 0L, n6 = 0L, n_ctc_raw = 0L, n_eitc_raw = 0L,
                              dep_age1 = -1, dep_age2 = -1, dep_age3 = -1)]
   stopifnot(all(out$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
   out[is.na(childcare), childcare := 0]
 
   # split sums: exact
-  stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income))
+  stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income),
+            identical(out$survdis_pension + out$survdis_other, out$survivor_disability))
 
   setorder(out, unit_id)
   stopifnot(!anyDuplicated(out$unit_id), all(out$unit_id == round(out$unit_id)), max(out$unit_id) < 2^31)
@@ -353,9 +541,18 @@ for (yr in YEARS) {
                 dep_age1 = as.integer(dep_age1), dep_age2 = as.integer(dep_age2), dep_age3 = as.integer(dep_age3),
                 n_dep_under13 = pmin(n13, 3L), n_dep_under6 = pmin(n6, 3L),
                 wages, sch_cf_income, interest, dividends, ss_gross, unemployment, retirement_income,
-                rent_royalty_estate, survivor_disability, other_income, capital_gains,
-                wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare)]
-  stopifnot(!anyNA(out), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
+                rent_royalty_estate, survivor_disability, survdis_pension, survdis_other, other_income, capital_gains,
+                wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare,
+                ot1, ot2)]
+  # overtime: missing on both adults together, never above the person's wages
+  stopifnot(identical(is.na(out$ot1), is.na(out$ot2)),
+            all(out[!is.na(ot1), ot1 <= wages1 + 1e-6 & ot1 >= 0]),   # the asked units (the rest are NA by design)
+            all(out[!is.na(ot2), ot2 <= wages2 + 1e-6 & ot2 >= 0]),
+            all(out[married == 0 & !is.na(ot2), ot2] == 0))
+  cat(sprintf('  overtime on units: asked %d of %d units (%.1f%% of the weight); missing on %d units (%d of them asked but with a worker\'s pay missing)\n',
+              sum(!is.na(out$ot1)), nrow(out), 100 * sum(out$weight[!is.na(out$ot1)]) / sum(out$weight),
+              sum(is.na(out$ot1)), sum(is.na(out$ot1) & out$record_id %in% ot_asked_units)))
+  stopifnot(!anyNA(out[, !c('ot1', 'ot2')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
             all(out$n_eitc <= out$n_dep), all((out$mars == 2) == (out$married == 1)),
             all((out$dep_age1 >= 0) == (out$n_dep > 0)))
   fwrite(out, file.path(OUT, sprintf('cps_units_%d.csv.gz', yr)))
@@ -393,7 +590,8 @@ for (yr in YEARS) {
   spm_total_spmwt = sum(spm$chx * spm$spmwt) / 1e9
   spm_total_refw = sum(spm$chx * spm$ref_w) / 1e9
   amounts = c('wages', 'sch_cf_income', 'interest', 'dividends', 'ss_gross', 'unemployment', 'retirement_income',
-              'rent_royalty_estate', 'survivor_disability', 'other_income', 'capital_gains', 'childcare')
+              'rent_royalty_estate', 'survivor_disability', 'survdis_pension', 'survdis_other', 'other_income',
+              'capital_gains', 'childcare')
   tot = data.table(year = yr, item = amounts, billions = sapply(amounts, function(v) bn(w, out[[v]])),
                    recipients_m = sapply(amounts, function(v) sum(w * (out[[v]] != 0)) / 1e6))
   print(tot[, .(item, billions = round(billions, 1), recipients_m = round(recipients_m, 2))])
@@ -416,3 +614,10 @@ sp = file.path(OUT, 'cps_summary.csv')
 if (file.exists(sp)) s = rbind(fread(sp)[!year %in% YEARS], s)
 fwrite(s, sp)
 cat('\nwrote', sp, '\n')
+# the survivor and disability sources' table holds every year built so far
+sv = rbindlist(sources_rows)
+svp = file.path(OUT, 'cps_survivor_disability_sources.csv')
+if (file.exists(svp)) sv = rbind(fread(svp)[!year %in% YEARS], sv)
+setorder(sv, year)
+fwrite(sv, svp)
+cat('wrote', svp, '\n')
