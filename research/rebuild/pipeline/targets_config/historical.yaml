@@ -281,7 +281,8 @@ targets:
   # top 0.001%, the top 0.01%, the top 0.1% and the top 1% of AGI. Returns other than dependent filers', ranked by AGI
   # on the file's starting weights; the dollar lines are then held fixed through the tilt. The top 0.001% was folded
   # into the top 0.01% from 26 October (John) because the file lacked the PUF's aggregate records; it is restored with
-  # them (29 October, PLAN.md Part A step 9: top_hidden.py rebuilds them), and expand must keep it (must_reach).
+  # them (29 October, PLAN.md Part A step 9: top_hidden.py rebuilds them), and expand must keep it (must_reach). With
+  # settings tilt.top.enabled false, expand leaves the must_reach cells out, as before 29 October.
   - id: soi_4_3_returns
     kind: soi 4.3
     statistic: units

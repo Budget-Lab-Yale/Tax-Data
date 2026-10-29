@@ -1265,7 +1265,9 @@ A's rebuilt returns are added (`tilt.top.hidden_returns`, generated starts only;
 so the start's scaling grows them with the count of returns; free in the tilt; `synthetic_top` and `hidden_group` mark
 them; the build is cached in `REBUILD_HIDDEN_DIR`, `top_hidden.folder` or `<gen>/hidden`); generated balance
 sheets at $1 billion or more are drawn again; the year's Forbes list is added at weight 1. The ordinary non-microdata
-step then runs on the whole file.
+step then runs on the whole file. Table 4.3's top 0.001% (returns, AGI and the eight items) is a target again while
+`tilt.top.enabled` is true (its entries' `must_reach` cells, which `target_list.expand` must keep); with it false they
+are left out and the pipeline runs as before 29 October.
 
 **Above $1 billion the file is the Forbes list alone; below it, the SCF** (John's choice, a labelled assumption).
 1. The SCF targets are on the SCF's units below $1 billion of net worth (catalog population
