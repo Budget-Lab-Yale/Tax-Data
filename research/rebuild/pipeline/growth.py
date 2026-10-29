@@ -254,9 +254,14 @@ def between(v, s, t, year=common.TARGET_YEAR):
     if _is_none(spec):
         return 1.0
     if spec['series'] == 'soi 1.4':
-        return _factor(spec, t) / _factor(spec, s)
-    assert spec['series'] != 'scf mean per unit between waves', f'{v}: the SCF is grown by build_table.scf_growth'
-    return level(spec, t) / level(spec, s)
+        f = _factor(spec, t) / _factor(spec, s)
+    else:
+        assert spec['series'] != 'scf mean per unit between waves', f'{v}: the SCF is grown by build_table.scf_growth'
+        f = level(spec, t) / level(spec, s)
+    # the maps (build_table.build_maps, build_year_maps) multiply by this with no check of their own: a missing value
+    # in a series (a blank cell in the NIPA PCE file) would otherwise reach them as a missing factor
+    assert np.isfinite(f) and f > 0, f'{v}: growth factor {s} to {t} is {f} ({describe(v, year)})'
+    return f
 
 
 def grown_by(v, year=common.TARGET_YEAR):
@@ -317,7 +322,9 @@ def check(year=common.TARGET_YEAR):
             f = factors(v, year, year)
             if not all(np.isfinite(x) and x > 0 for x in f):
                 bad.append(f'PUF item {v}: factor {f} to {year} is not positive')
-        except (KeyError, AssertionError, ValueError) as e:
-            bad.append(f'PUF item {v}: no factor to {year} ({e})')
+        except (KeyError, AssertionError, ValueError, ArithmeticError) as e:
+            # ArithmeticError: an SOI line with no amount in the year (the domestic production activities deduction
+            # from 2020, the tuition deduction from 2021, after their repeal) gives 0 / 0
+            bad.append(f'PUF item {v}: no factor to {year} ({type(e).__name__}: {e})')
     assert not bad, f'{path(year)}: the growth configuration is not complete:\n  ' + '\n  '.join(bad)
     _CHECKED.add(year)

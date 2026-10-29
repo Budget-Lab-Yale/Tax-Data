@@ -186,8 +186,8 @@ def grow_dollars(df, s, t):
       - PUF amounts: SOI Table 1.4's dollars per return with the item where Table 1.4 has it, else the item's declared
         series (build_table.growth: positive and negative values separately; capital losses not grown);
       - the balance sheet: growth per tax unit, item by item, the mean per unit of the wave of income year t - 1
-        over that of s - 1 (build_table.scf_growth, the maps' rule); not grown when either wave is missing, or for
-        an item whose mean per unit is not positive in both;
+        over that of s - 1 (build_table.scf_growth, the maps' rule); when either wave is missing, or an item's mean
+        per unit is not positive in both, the run stops (until 30 October those were left ungrown);
       - consumption: NIPA PCE per return, by category;
       - the CPS-only dollars (childcare, overtime) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks
         and hours not grown.
@@ -220,17 +220,19 @@ def grow_dollars(df, s, t):
     # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
     scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
     scf = scf[scf.source == 'scf']
-    # (30 October) a year with no wave of its own is interpolated between waves, or after the last wave grown by Z.1
+    # (30 October, review of rebuild-year-config) every dollar item grown, or the run stops. (30 October, targets for
+    # every year) a year with no wave of its own is interpolated between waves, or after the last wave grown by Z.1
     # household net worth per person (build_table.scf_mean), so every year has a factor
+    grown_scf = [v for v in BT.SCF_AMOUNTS if v in out and v not in BT.SCF_RATIOS]
     f_scf = BT.scf_growth(scf, s - 1, t - 1)
+    if grown_scf:
+        none = [v for v in grown_scf if not np.isfinite(f_scf[v])]
+        assert not none, f'no growth factor {s} to {t} (a mean per unit at or below zero in the wave of {s - 1} or ' \
+                         f'{t - 1}): {none}'
     for v in BT.SCF_AMOUNTS:
         if v in out:
             if v in BT.SCF_RATIOS:
                 grow(v, 1.0, 1.0, 'a ratio, not grown')
-            elif f_scf is None:
-                grow(v, 1.0, 1.0, f'NOT GROWN: no SCF wave of income year {s - 1} or {t - 1}')
-            elif not np.isfinite(f_scf[v]):
-                grow(v, 1.0, 1.0, f'NOT GROWN: a mean per unit not positive in the wave of {s - 1} or {t - 1}')
             else:
                 grow(v, f_scf[v], f_scf[v], f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
     for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS:
