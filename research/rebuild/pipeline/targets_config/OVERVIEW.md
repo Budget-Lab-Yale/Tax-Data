@@ -2,7 +2,7 @@
 
 Written by `pipeline/config_overview.py` from the year folders in `pipeline/targets_config/`; do not edit by hand. Regenerate after any change to a year's folder: `python research/rebuild/pipeline/config_overview.py`.
 
-Years: 2019. Rows: 209 settings (each target entry's value source and definition, each growth line, each prior share, and the year's start settings). "(changed)" marks a cell that differs from the year before; 0 cells do. "-" means the year has no such setting. The same table is OVERVIEW.csv.
+Years: 2019. Rows: 208 settings (each target entry's value source and definition, each growth line, each prior share, and the year's start settings). "(changed)" marks a cell that differs from the year before; 0 cells do. "-" means the year has no such setting. The same table is OVERVIEW.csv.
 
 | setting | 2019 |
 |---|---|
@@ -81,13 +81,12 @@ Years: 2019. Rows: 209 settings (each target entry's value source and definition
 | prior sipp tips: sipp 2019 | 0.7311 |
 | prior sipp tips: sipp 2017 | 0.2689 |
 | growth wages | {series: soi 1.4, item: wages}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
-| growth interest | {series: soi 1.4, item: interest}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
+| growth txbl_int | {series: soi 1.4, item: txbl_int}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth dividends | {series: soi 1.4, item: dividends}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
-| growth capital_gains | {series: soi 1.4, item: sch_d_net_gain}; negative: none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed); dollars per return with a Schedule D net gain (SOI Table 1.4) |
-| growth kg_st | {series: soi 1.4, item: sch_d_net_gain}; negative: none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed); dollars per return with a Schedule D net gain (SOI Table 1.4) |
-| growth kg_lt | {series: soi 1.4, item: sch_d_net_gain}; negative: none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed); dollars per return with a Schedule D net gain (SOI Table 1.4) |
+| growth capital_gains | {series: soi 1.4, item: sch_d_net_gain}; negative: same; dollars per return with a Schedule D net gain (SOI Table 1.4) |
+| growth kg_st | {series: soi 1.4, item: sch_d_net_gain}; negative: same; dollars per return with a Schedule D net gain (SOI Table 1.4) |
+| growth kg_lt | {series: soi 1.4, item: sch_d_net_gain}; negative: same; dollars per return with a Schedule D net gain (SOI Table 1.4) |
 | growth kg_dist | {series: soi 1.4, item: kg_dist}; negative: none: capital gain distributions are not negative (as before 29 October); dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
-| growth kg_other | {series: soi 1.4, item: sch_d_net_gain}; negative: none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed); dollars per return with a Schedule D net gain (SOI Table 1.4) |
 | growth business_income | {series: soi 1.4, item: business_income}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth sch_cf_income | {series: soi 1.4, item: sch_cf_income}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth sch_e_income | {series: soi 1.4, item: sch_e_income}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
@@ -97,7 +96,7 @@ Years: 2019. Rows: 209 settings (each target entry's value source and definition
 | growth txbl_ira_dist | {series: soi 1.4, item: txbl_ira_dist}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth txbl_pens_dist | {series: soi 1.4, item: txbl_pens_dist}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth ss_taxable | {series: soi 1.4, item: ss_taxable}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
-| growth unemployment | {series: soi 1.4, item: unemployment}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
+| growth ui | {series: soi 1.4, item: ui}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth alimony | {series: soi 1.4, item: alimony}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth state_ref | {series: soi 1.4, item: state_ref}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
 | growth adjustments | {series: soi 1.4, item: adjustments}; negative: same; dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns) |
@@ -210,7 +209,7 @@ Years: 2019. Rows: 209 settings (each target entry's value source and definition
 | growth weeks_spouse | none: weeks, not dollars; negative: same; weeks |
 | growth hours_primary | none: hours, not dollars; negative: same; hours |
 | growth hours_spouse | none: hours, not dollars; negative: same; hours |
-| growth childcare | {series: soi 1.4, item: wages}; negative: same; dollars per return with wages (SOI Table 1.4) |
+| growth care_exp | {series: soi 1.4, item: wages}; negative: same; dollars per return with wages (SOI Table 1.4) |
 | growth ot_primary | {series: soi 1.4, item: wages}; negative: same; dollars per return with wages (SOI Table 1.4) |
 | growth ot_spouse | {series: soi 1.4, item: wages}; negative: same; dollars per return with wages (SOI Table 1.4) |
 | growth tips_primary | {series: soi 1.4, item: wages}; negative: same; dollars per return with wages (SOI Table 1.4) |
