@@ -1713,6 +1713,56 @@
   ],
   "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run. Three seeds, 20261017-19, since 28 October (John): the seed-20261016 network was a much worse fit (explore/2026-10-28/model_variability/RESULTS.md)."
  },
+ "top_hidden": {
+  "_what": "Part A of the top-of-file plan (explore/2026-10-29/top_research/PLAN.md, approved by John 29 October): the 2015 PUF's four aggregate records rebuilt as synthetic returns made from generated records (top_hidden.py says how). Nothing here changes training or the ordinary generation.",
+  "candidate_records": [
+   60000,
+   30000,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   30000,
+   90000,
+   300000
+  ],
+  "_candidate_records": "The extra batch of candidate filer records, by the 12 band-AGI label groups (qgroups.PUF_LABELS: below -$1M, -$1M to -$50k, -$50k to 0, below p50, ..., p99.5-99.9, p99.9-99.99, p99.99+), over all pooled models (each draws an equal share). Each candidate's weight is its group's 2015 PUF returns over the records drawn in it, so ranks counted in weight are population ranks. Groups left at 0 are not drawn: the aggregate records are returns with extreme items, which sit in the top three positive groups and the two loss groups.",
+  "candidate_seed": 7101,
+  "_candidate_seed": "The candidates' generation seed (plus each model's seed_shift), apart from label_seed so no draw of the file moves.",
+  "selection": {
+   "top_agi": 400,
+   "income_items": 30,
+   "loss_items": 30,
+   "other_fields": 10
+  },
+  "_selection": "SOI's rule (Bryant, Czajka, Ivsin and Nunns 2014), counted in population weight: the top 400 returns by AGI; the 30 highest of each income item; the 30 lowest of each loss; the 10 highest (and, for fields with both signs, lowest) of most other amount fields. The fields of each rule are listed in top_hidden.py.",
+  "records_per_group": 750,
+  "min_per_rule": 5,
+  "subsample_seed": 7102,
+  "_records_per_group": "At most this many chosen records per aggregate group: a random sample with chance in proportion to the population weight, plus up to min_per_rule records of every selection rule the sample would otherwise lack.",
+  "targeted_per_gap": 5,
+  "_targeted_per_gap": "Where a group must have a sign of a field (its raw record's net amount needs it) and its chosen records have none, this many candidates outside the chosen set that have it (the largest first) are added.",
+  "count_tolerance": {
+   "returns": 2,
+   "share": 0.02
+  },
+  "_count_tolerance": "Each booklet count (returns with a positive, and with a negative, amount) is matched within the larger of this many returns and this share of the count, by the reweighting solver (solver.solve, the tolerance as the standard error, one standard error either side); each group's count of returns is an identity. A count that cannot be met gives way and is reported.",
+  "group_iterations": 8,
+  "move_iterations": 6,
+  "_group_iterations": "After the dollars are scaled, a record whose AGI has left its group is moved to the group its AGI is in (the first move_iterations rounds) or dropped (the later rounds), and the weights and the scaling are done again.",
+  "wealth_cap": 1000000000.0,
+  "wealth_tries": 20,
+  "wealth_seed": 7103,
+  "wealth_salt": 2026102900,
+  "_wealth": "Step 7: every rebuilt return's balance sheet is drawn again under the SCF label given its final income items, up to wealth_tries times, until net worth in target-year dollars is below wealth_cap. Each try has its own network draws (wealth_seed and the try) and its own dollar picks keyed by record id (ages.uniform_by_id, wealth_salt). A record whose every try lands at or above the cap keeps its lowest try and is flagged (hidden_wealth_fallback).",
+  "id_block": 90000000,
+  "_id_block": "Record ids of the rebuilt returns: id_block + 0, 1, ... (the generated file's models use 0 to 29,999,999).",
+  "folder": null,
+  "_folder": "Where the rebuilt returns are written and read: null for <out>/gen/<run>/hidden; the environment variable REBUILD_HIDDEN_DIR overrides both."
+ },
  "consistency": {
   "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
   "rules": [
@@ -1792,7 +1842,21 @@
   },
   "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before. Auto loan interest (kind auto loans, 27 October, candidate) is an SCF target on the same pooled waves, so it takes the SCF targets' half standard error.",
   "scf_target_waves": "prior",
-  "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks."
+  "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks.",
+  "top": {
+   "enabled": true,
+   "billionaire_lists": {"2019": "forbes_billionaires_2019.csv"},
+   "hidden_returns": true,
+   "redraw_tries": 20,
+   "redraw_seed": 20261029,
+   "redraw_salt": 2026102901,
+   "stand_in_agi": 100000000,
+   "stand_in_min_records": 100,
+   "mix_from_hidden": true,
+   "gift_rate_top": 0.007,
+   "gift_rate_rest": 0.006
+  },
+  "_top": "The very top of the file (PLAN.md of explore/2026-10-29/top_research, approved by John 29 October; top_records.py, top_billionaires.py). enabled: the preparation step runs in tilt.main before any mask, condition or prescaling, and the SCF targets' population (catalog scf_units_below_a_billion) is the units below $1 billion of net worth, in the SCF and in the file; false: none of it, the SCF targets on every unit and Table 4.3's top 0.001% left out (target_list.expand drops the must_reach cells), as before. billionaire_lists: the year's Forbes list in research/rebuild/resources/top (a year with none: no billionaires, and a warning). hidden_returns: Part A (top_hidden.py, merged 29 October; generated starts only; its build is cached in REBUILD_HIDDEN_DIR, top_hidden.folder or <gen>/hidden). redraw_tries: tries per generated record whose net worth comes out at $1 billion or more (top_billionaires.redraw_record, the same function Part A's rebuilt returns use with settings top_hidden.wealth_*; the tries drawn as one batch from generators seeded by redraw_seed and the record id, the dollar picks keyed by the record id and redraw_salt); if every try is at or above $1 billion the lowest is kept and flagged (open question 2: 20 chosen, the fallback rate reported). stand_in_agi, stand_in_min_records: without Part A's rebuilt over-$100-million group (hidden_group 3; mix_from_hidden), the billionaires' item mix comes from the generated filers with AGI at or above this (target-year dollars), or the top 0.01% if fewer records. gift_rate_top, gift_rate_rest: gifts as a share of wealth, BSYZ (2025) Table 2's top 100 and next 300."
  },
  "non_micro_imputations": {
   "_what": "The non-microdata imputations (non_micro_imputations.py; NEXT_STEPS.md item 1, John's decisions Q1-Q9 of 28 October; FEATURES.md): items set from what the model has drawn plus a published table, no new microdata. Each item: the columns it reads, the published tables it reads (research/rebuild/resources/non_micro/, built by build_non_micro_tables.py; sources.csv there), the columns it writes and its random stream. They run inside the tilt stage on the start (target-year dollars, prescaled weights), before the solve; the two ranking items rank on the start's weights. Each item writes new columns only and never changes a drawn item or a weight, except that a primary filer with an age and no sex is given a sex first (fill_missing_sex), and an item may change a drawn column it lists in writes_back (column: the new column that keeps the drawn value; only amt_nol_cap does). Their published checks are reported only (Q9), in report.md section 6 and non_micro_checks.md.",

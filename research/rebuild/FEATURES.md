@@ -1270,6 +1270,94 @@ units at the start's weights and $46.0 billion of $74.8 billion removed; after t
 billion of $58.0 billion removed (filers; non-filers carry no `amt_nols`). Imputing again on that finished file
 reproduces every other column exactly. No target reads `amt_nols`, so the tilt's weights do not change.
 
+## The billionaires and one reweighting with them (branch `rebuild-top-billionaires`, 29 October)
+
+Parts B and C of the plan John approved on 29 October (scratch `explore/2026-10-29/top_research/PLAN.md`, steps 10-21),
+with Part A merged in from `rebuild-top-hidden` (the PUF's four aggregate records rebuilt from generated records,
+`pipeline/top_hidden.py`, and Table 4.3's top 0.001% restored as a target; its own record is scratch
+`explore/2026-10-29/top_build/hidden/RESULTS.md`). Not installed. Results in scratch
+`explore/2026-10-29/top_build/billionaires/RESULTS.md`.
+
+**Where it runs.** `tilt.main()` calls `top_records.prepare_top()` on the start, in target-year dollars, before it
+saves the population masks, builds the target conditions or does the demographic prescaling (settings `tilt.top`;
+`enabled` true). In order: an earlier year's billionaires are removed when the start is an earlier year's file; Part
+A's rebuilt returns are added (`tilt.top.hidden_returns`, generated starts only; in the generated records' weight units,
+so the start's scaling grows them with the count of returns; free in the tilt; `synthetic_top` and `hidden_group` mark
+them; the build is cached in `REBUILD_HIDDEN_DIR`, `top_hidden.folder` or `<gen>/hidden`); generated balance
+sheets at $1 billion or more are drawn again; the year's Forbes list is added at weight 1. The ordinary non-microdata
+step then runs on the whole file. Table 4.3's top 0.001% (returns, AGI and the eight items) is a target again while
+`tilt.top.enabled` is true (its entries' `must_reach` cells, which `target_list.expand` must keep); with it false they
+are left out and the pipeline runs as before 29 October.
+
+**Above $1 billion the file is the Forbes list alone; below it, the SCF** (John's choice, a labelled assumption).
+1. The SCF targets are on the SCF's units below $1 billion of net worth (catalog population
+   `scf_units_below_a_billion`, net worth in nominal target-year dollars after each wave is grown): every amount, share,
+   grid cell, percentile line and standard error is computed on that domain of each wave (`scf_targets.wave_cell`,
+   inside the full sample, so the replicate weights and implicates are used as they are; the restricted SCF is not
+   scaled back up). The file's side uses the same ceiling (`target_list.population`).
+2. Any generated record whose net worth comes out at $1 billion or more has its whole SCF block drawn again
+   (`top_billionaires.redraw_balance_sheets`): every SCF-only slot, under the SCF label given everything else on the
+   record, as generation drew it (its model, its SCF wave, the consistency rules with that model's offset factors).
+   20 tries per record (`redraw_tries`), drawn as one batch from generators seeded by the record id alone, each try's
+   dollar picks keyed by the record id; the first try below $1 billion is kept, else the lowest, flagged
+   `wealth_redraw_fallback`. The file carries `wealth_redrawn`. One function, `top_billionaires.redraw_record`, does
+   this for the generated records and for Part A's rebuilt returns (its step 7, with settings `top_hidden.wealth_*`).
+
+**The list** (`resources/top/forbes_billionaires_2019.csv`, built by `build_forbes_2019.py` from Forbes's own data for
+the March 2019 World's Billionaires list, wealth valued 8 February 2019): the 607 US citizens with $3,111.0 billion,
+Forbes's own count and total. Marital status, children and public holdings are not in the 2019 data; they come from
+production's later profiles (Forbes's 2025 data), as the public holdings' share of the person's 2025 net worth times
+the 2019 net worth. Spouses listed separately become one joint return (two couples: the Kroenkes and the Ozmens); a
+family fortune, or a couple or siblings named in one entry, stays one record: 605 tax units.
+
+**Each billionaire record** (`top_billionaires.build_billionaires`; flags `billionaire`, `billionaire_rank`,
+`forbes_uri`; ids from 95,000,000, after Part A's block at 90,000,000):
+- Rank groups: the top 92 units, the next 276 (BSYZ's "top 100" and "next 300", as tax units), and the rest, which take
+  the next group's figures (an extrapolation).
+- Wealth: Forbes's net worth; public holdings as above, else the rank group's wealth-weighted average share; the rest
+  private: real estate (`w_re_fund`) when Forbes's industry is real estate, otherwise `w_pass_throughs`. No home, no
+  debt. Basis zero for self-made fortunes (Forbes's 2019 flag), equal to value for inherited ones, written as
+  accumulated gains so the non-microdata step's `cost_basis` gives it.
+- Income: each group's dollars of each kind = its Forbes wealth times the IRS study's amount per dollar of wealth
+  (Balkir, Saez, Yagan and Zucman, IRS study Table 1, `resources/top/irs_wealth_groups_2018_2020.csv`: the same as
+  wealth x BSYZ's fiscal-income ratio x BSYZ's shares, on the underlying amounts). Kinds: capital gains and dividends,
+  shared among the group's units by public stock; business profits, and business losses separately, by private
+  holdings; taxable and tax-exempt interest, rental and royalty profits, rental losses, estate income, other income
+  and wages and pensions by total wealth. Net operating losses are left out.
+- Tax items: each kind split as in the item mix group (Part A's rebuilt returns of the over-$100-million aggregate
+  record, `hidden_group` 3, in target-year dollars; without Part A a stand-in, the generated filers with AGI of $100
+  million or more), except partnership against S corporation
+  profits and losses, from the IRS study. Schedule C and farm profits go only to the mix group's share of units
+  holding them (losses likewise), chosen by a draw keyed by record id and shared among those by private holdings:
+  spread over every unit, the list alone exceeded Table 4.3's count of top-0.001% returns with a Schedule C or F
+  profit (255 against 243), and the solve could not settle. Items beyond the kinds (state income tax, foreign tax credits, business
+  credits, self-employment items, other itemized deductions) at their ratio to AGI in the mix; consumption at its
+  average; Social Security, credits that phase out, and the rest listed in `ZERO_ITEMS` zero.
+- Charity: gifts of 0.7% of wealth in the top group and 0.6% in the rest (BSYZ Table 2), cash and other as in the mix,
+  entered as gifts; the calculator computes the deduction.
+- People: Forbes's 2019 age (held to 80), sex; married from the later profiles (missing: married, production's rule),
+  a spouse of the same age and the other sex (a separately listed spouse keeps their own); dependents by production's
+  rule; all earnings to the primary filer.
+- The non-microdata step places billionaire people at income percentile 100 for the death probabilities.
+
+**One reweighting.** `solver.solve(..., fixed=)` holds the billionaires at weight 1: their contribution is taken off
+each total, an average's fixed members enter as a constant and in the group weight its range is set on, and only the
+other weights are solved for (also in the demographic prescaling; the start's scaling to SOI's returns counts them).
+Before the solve, `solver.fixed_feasibility` checks each target: what the billionaires contribute, what is left, and
+whether the others can reach it (`top_feasibility.csv`). SOI's income targets apply to everyone, the SCF's to the units
+below $1 billion. The tilt folder also gets `billionaire_units.csv`, `billionaire_groups.csv`, `redraw.csv` and
+`top_notes.md` (the item mix used).
+
+**Growth and the allowed capital loss** (`tilt.grow_dollars`, found by Part A): a return held at the allowed loss
+($3,000; $1,500 married filing separately) stays at it after growth. The rule grows the positive "other" gain piece but
+not losses, so such a return used to turn into a gain.
+
+**With the merges of 29 October.** The top of the file runs before the tilt's fixed columns (`tilt.fixed_columns`,
+the calculator experiment), so a file of fixed columns must hold every record, the rebuilt hidden returns and the
+billionaires included. The AMT rule (`amt_nol_cap`) runs on every record in the non-microdata step, Part A's rebuilt
+returns included: their `amt_nols` was scaled to the aggregate records' dollars, and the rule then holds it to each
+record's loss.
+
 ## How the latest run comes out
 
 The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder

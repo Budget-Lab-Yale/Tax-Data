@@ -161,9 +161,12 @@ def _dollar_line(x, w, spec):
     return float(common.wquantile(x, w, [num / 100])[0]) if kind == 'percentile' else num
 
 
-def wave_cell(wave, year, c, v, st):
+def wave_cell(wave, year, c, v, st, ceiling=None):
     """One wave's value of statistic st (share, amount or average) of variable v in cell c, with its variance, its lines and
-    the SCF households behind it."""
+    the SCF households behind it. ceiling (29 October): None, or a net worth in nominal target-year dollars; then the
+    statistic is on the wave's units below it (grown net worth), a domain kept inside the full sample, so the replicate
+    weights and implicates are used as they are: the income rank lines and the net worth percentile lines are that
+    population's own percentiles, a share's denominator is its units, and the weights are not scaled back up."""
     import target_list as TLS
     rank, line_var, lo_spec, hi_spec = _cell_spec(c)
     u, rep, first, _ = frame(wave, year)
@@ -171,17 +174,18 @@ def wave_cell(wave, year, c, v, st):
     imp = u['implicate'].to_numpy()
     hh = u['household_id'].to_numpy()
     assert not c['filters'], f'SCF targets: a cell with a filter {c["filters"]}'
-    m = np.ones(len(u), bool)
+    m = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
     rl = (np.nan, np.nan)
     if rank is not None:
         inc = rank_income(wave, year, TLS.variable_def(rank[0])['survey_parts'])
-        rl = TLS.rank_dollar_lines(inc, w, rank[1], rank[2])
+        rl = TLS.rank_dollar_lines(inc[m], w[m], rank[1], rank[2])
         m &= (inc >= rl[0]) & (inc < rl[1])
     lo = hi = None
     cell = m
     if line_var:
         xl = TLS.record_value(u, line_var)
-        lo, hi = _dollar_line(xl, w, lo_spec), _dollar_line(xl, w, hi_spec)
+        dom = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
+        lo, hi = _dollar_line(xl[dom], w[dom], lo_spec), _dollar_line(xl[dom], w[dom], hi_spec)
         cell = m & ((xl > lo) if lo is not None else True) & ((xl <= hi) if hi is not None else True)
     y = TLS.record_value(u, v) if v else np.zeros(len(u))
     if st == 'share':
@@ -212,14 +216,14 @@ def wave_cell(wave, year, c, v, st):
             'replicates_with_zero_in_cell': int((reps == 0).sum())}
 
 
-def rows(cells, v, stats, year):
+def rows(cells, v, stats, year, ceiling=None):
     """target_list.survey_rows for the SCF: one row per cell x statistic, with the pooled value, the pooled dollar
-    lines for the file, and its standard error in 'pooled'."""
+    lines for the file, and its standard error in 'pooled'. ceiling: the population's net worth ceiling (wave_cell)."""
     sh = dict(mix(year))
     out = []
     for c in cells:
         for st in stats:
-            per = [wave_cell(wv, year, c, v, st) for wv in sh]
+            per = [wave_cell(wv, year, c, v, st, ceiling) for wv in sh]
             val = sum(sh[p['wave']] * p['value'] for p in per)
             var = sum(sh[p['wave']] ** 2 * p['var'] for p in per)
             pool = lambda k: None if per[0][k] is None else float(sum(sh[p['wave']] * p[k] for p in per))
@@ -234,10 +238,11 @@ def rows(cells, v, stats, year):
                    'from its 999 replicate weights (first implicate) and its five implicates: '
                    + '; '.join(f"wave {p['wave']} se {p['se']:,.4g} (sampling {p['se_sampling']:,.4g}, imputation "
                                f"{p['se_imputation']:,.4g})" for p in per))
+            below = '' if ceiling is None else f', units with net worth below ${ceiling:,.0f} only'
             out.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'line': line,
                         'line_variable': _cell_spec(c)[1] or '', 'rank_lines': rl, 'line_hi': line_hi,
                         'source': f'SCF waves pooled with the year\'s shares, each wave\'s balance sheet grown per tax '
-                                  f'unit to the {year} wave and its own lines: {desc}',
+                                  f'unit to the {year} wave and its own lines{below}: {desc}',
                         'pooled': {'se': float(np.sqrt(var)), 'reason': why, 'value': val, 'line': line,
                                    'line_hi': line_hi, 'shares': sh, 'per_wave': per}})
     return out
@@ -252,6 +257,26 @@ def details():
                         'pooled_se': d['se'], 'pooled_line': d['line'], 'pooled_line_hi': d['line_hi'],
                         'share': d['shares'][p['wave']], **{k: x for k, x in p.items() if k != 'var'}})
     return pd.DataFrame(out)
+
+
+def above_ceiling(year, ceiling):
+    """The SCF's units at or above a net worth ceiling (the units the SCF targets leave out, 29 October): per wave of the
+    year's mix and pooled with its shares, the units (weighted, at the wave's weights as scaled in frame, which add up
+    over the five implicates to the wave's units), the net worth, the households in any implicate, and the unit rows. Returns a frame."""
+    out = []
+    for wave, share in mix(year):
+        u = frame(wave, year)[0]
+        nw, w = u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)
+        m = nw >= ceiling
+        out.append({'wave': wave, 'share in the mix': share, 'units (weighted)': w[m].sum(),
+                    'net worth ($ billion)': (w * nw)[m].sum() / 1e9, 'households (any implicate)': u.loc[m, 'household_id'].nunique(),
+                    'unit rows (all implicates)': int(m.sum()), 'all units (weighted)': w.sum(),
+                    'all net worth ($ billion)': (w * nw).sum() / 1e9})
+    d = pd.DataFrame(out)
+    pooled = {'wave': 'pooled', 'share in the mix': d['share in the mix'].sum()}
+    for k in ['units (weighted)', 'net worth ($ billion)', 'all units (weighted)', 'all net worth ($ billion)']:
+        pooled[k] = float((d['share in the mix'] * d[k]).sum())
+    return pd.concat([d, pd.DataFrame([pooled])], ignore_index=True)
 
 
 def reference(year):

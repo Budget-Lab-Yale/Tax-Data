@@ -104,13 +104,17 @@ def _range_name(k):
 
 
 # ---- the conditions --------------------------------------------------------------------
-def _conditions(w0, F, T, averages):
+def _conditions(w0, F, T, averages, offset=None, extra=None, size_of=None):
     """The linear conditions the solver works with: F and T as given, except that an average or share is rewritten
     as sum over its group of w (v - m) = 0. Also each condition's size (to put every condition on a scale of about
-    1), and for averages the group (member) whose weight converts the standard error."""
+    1), and for averages the group (member) whose weight converts the standard error.
+    With records held fixed (solve's fixed; 29 October), the conditions are on the other records only: T is then the
+    target less the fixed records' contribution, offset[j] the right-hand side of an average's condition (minus the
+    fixed members' sum of w (v - m)), extra[j] the fixed members' weight in an average's group, and size_of the
+    full targets, so each condition keeps the size it has on the whole file."""
     G, Tl = F.copy(), T.copy()
     member = [None] * len(T)
-    size = np.abs(T).astype(float)
+    size = np.abs(T if size_of is None else size_of).astype(float)
     for j, a in enumerate(averages):
         if a is None:
             continue
@@ -119,9 +123,9 @@ def _conditions(w0, F, T, averages):
         v = np.asarray(v, float)
         assert np.isfinite(v[mem]).all(), f'target {j}: a missing value in an average'
         G[:, j] = mem * (v - m)
-        Tl[j] = 0.0
+        Tl[j] = 0.0 if offset is None else offset[j]
         member[j] = mem
-        size[j] = abs(m) * w0[mem].sum()
+        size[j] = abs(m) * (w0[mem].sum() + (0.0 if extra is None else extra[j]))
     # a condition whose target is zero (an average of zero, a count of zero): sized by the starting weight it rests on
     zero = size == 0
     size[zero] = np.abs(G[:, zero]).T @ w0
@@ -140,8 +144,10 @@ def contributions(F, averages):
     return C
 
 
-def _group_weight(w, member):
-    return np.array([np.nan if m is None else w[m].sum() for m in member])
+def _group_weight(w, member, extra=None):
+    """Each average's group weight under w (plus the fixed members' weight, extra); NaN for a total."""
+    g = np.array([np.nan if m is None else w[m].sum() for m in member])
+    return g if extra is None else g + extra
 
 
 # ---- Newton's method on the dual ---------------------------------------------------------
@@ -283,16 +289,10 @@ def _finish(X, t, p, s2, b, K, lam, free, s, eps, max_steps, tol, rounds):
 
 
 # ---- the solver --------------------------------------------------------------------------
-def solve(w0, F, T, se, identity, averages, settings=None):
-    """The section S6 rule. w0: starting weights (records). F: records x targets, so that target j is met when
-    F[:, j] @ w == T[j]. se: each target's standard error in the published statistic's units (on the average itself
-    for an average or share; ignored for identities); a target's range is T[j] +/- range_in_se x se[j]. identity:
-    True where the target is exact by definition. averages[j]: (member, v, m) for 'the average of v over the group
-    member is m' (F[:, j] and T[j] are then not used), else None. Returns the new weights and a dict: feasible
-    (every non-identity target inside its range), converged, how (a sentence), range_in_se, the Kullback-Leibler move
-    and effective sample kept, and per-target arrays (achieved, miss, miss_in_se, range_low, range_high,
-    inside_range, miss_beyond_range_in_se, at_range_edge, gave_way, effective_records, largest_weight_factor,
-    records, flag), plus stop (any target flagged 'stop') and at_range_edge_count."""
+def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=None, size_of=None):
+    """The section S6 rule on the records given (solve without fixed records, or the free records of solve with
+    them: offset, extra and size_of as in _conditions). Returns the new weights and the solve's own dict (feasible,
+    converged, how, range_in_se, continuation, multipliers); the arguments as in solve."""
     w0 = np.asarray(w0, float)
     F = np.asarray(F, float)
     T = np.asarray(T, float)
@@ -321,7 +321,7 @@ def solve(w0, F, T, se, identity, averages, settings=None):
     smoothing = list(_get(settings, 'solver_range_smoothing', [1e-2, 1e-4, 1e-6, 1e-8]))
     finish_rounds = _get(settings, 'solver_finish_rounds', 10)
 
-    G, Tl, size, member = _conditions(w0, F, T, averages)
+    G, Tl, size, member = _conditions(w0, F, T, averages, offset, extra, size_of)
     W = w0.sum()
     p = w0 / W
     X = G * (W / size)                 # every condition on its own scale: the miss as a share of the target's size
@@ -333,6 +333,8 @@ def solve(w0, F, T, se, identity, averages, settings=None):
     # group (times W / size), which the weights turn into k se times the group's weight
     ranged = bool((kv > 0).any())
     b = np.where(free & ~is_avg, k * np.where(free, se, 0.0) / size, 0.0)
+    if extra is not None:   # an average's range on the fixed members' weight: a constant part of its half-width
+        b = b + np.where(free & is_avg, kv * np.where(free, se, 0.0) * np.nan_to_num(extra) / size, 0.0)
     kc = np.flatnonzero(free & is_avg)
     K = (kc, np.column_stack([member[j] * (kv[j] * se[j] * W / size[j]) for j in kc])) if ranged and len(kc) else None
     if not ranged:
@@ -342,7 +344,7 @@ def solve(w0, F, T, se, identity, averages, settings=None):
 
     def scaled_se(w):
         """The standard error of each condition on the solver's scale; on an average, times the group's weight w."""
-        return np.where(is_avg, se * np.nan_to_num(_group_weight(w, member)), se) / size * free
+        return np.where(is_avg, se * np.nan_to_num(_group_weight(w, member, extra)), se) / size * free
 
     def smoothed(lam, s2, kl):
         """Newton's method with the range smoothing shrunk step by step (no smoothing without ranges)."""
@@ -376,7 +378,7 @@ def solve(w0, F, T, se, identity, averages, settings=None):
         # 2. standard errors decide: a shrinking penalty, then a few rounds for the averages' group weights
         lam = np.zeros(m)
         s = s0
-        weights_start = _group_weight(w0, member)
+        weights_start = _group_weight(w0, member, extra)
         last = None
         rounds = rounds if is_avg[free].any() else 1
         gave_line = _get(settings, 'gave_way_miss_in_se', 0.01)
@@ -401,7 +403,7 @@ def solve(w0, F, T, se, identity, averages, settings=None):
             # with the group weights after the tilt, until those stop changing
             if not (np.abs(miss[is_avg & free]) > gave_line).any():
                 break
-            weights = _group_weight(W * e, member)
+            weights = _group_weight(W * e, member, extra)
             if np.nanmax(np.abs(weights / weights_start - 1)) < round_change:
                 break
             s, weights_start = scaled_se(W * e), weights
@@ -427,18 +429,113 @@ def solve(w0, F, T, se, identity, averages, settings=None):
             if ok:
                 lam, e = lam_f, e_f
     w1 = W * e
+    return w1, {'feasible': bool(feasible), 'converged': bool(converged), 'how': '; '.join(how), 'range_in_se': k,
+                'continuation': pd.DataFrame(steps), 'multipliers': lam}
 
-    achieved = G.T @ w1
-    info = {'feasible': bool(feasible), 'converged': bool(converged), 'how': '; '.join(how), 'range_in_se': k,
-            'continuation': pd.DataFrame(steps), 'multipliers': lam}
+
+def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
+    """The section S6 rule. w0: starting weights (records). F: records x targets, so that target j is met when
+    F[:, j] @ w == T[j]. se: each target's standard error in the published statistic's units (on the average itself
+    for an average or share; ignored for identities); a target's range is T[j] +/- range_in_se x se[j]. identity:
+    True where the target is exact by definition. averages[j]: (member, v, m) for 'the average of v over the group
+    member is m' (F[:, j] and T[j] are then not used), else None.
+    fixed (29 October; the billionaires, PLAN.md step 19): None, or a mask of records whose weights stay exactly at
+    w0. Their contribution is a constant: a total's target becomes T less the fixed records' F.T @ w0; an average's
+    condition, sum over the group of w (v - m) = 0, becomes sum over the free members = minus the fixed members' sum,
+    and its range (k se times the group's weight) counts the fixed members' weight too. Only the other weights are
+    solved for; every measure below is on the whole file.
+    Returns the new weights and a dict: feasible (every non-identity target inside its range), converged, how (a
+    sentence), range_in_se, the Kullback-Leibler move and effective sample kept (with fixed records, also the same
+    two on the free records alone: kl_move_free, effective_sample_kept_free), and per-target arrays (achieved, miss,
+    miss_in_se, range_low, range_high, inside_range, miss_beyond_range_in_se, at_range_edge, gave_way,
+    effective_records, largest_weight_factor, records, flag), plus stop (any target flagged 'stop') and
+    at_range_edge_count."""
+    w0 = np.asarray(w0, float)
+    F = np.asarray(F, float)
+    T = np.asarray(T, float)
+    m = len(T)
+    averages = list(averages) if averages is not None else [None] * m
+    if fixed is None or not np.asarray(fixed, bool).any():
+        w1, info = _solve(w0, F, T, se, identity, averages, settings)
+        fixed = np.zeros(len(w0), bool)
+    else:
+        fixed = np.asarray(fixed, bool)
+        assert fixed.shape == w0.shape and (~fixed).any(), 'fixed: one flag per record, and some records free'
+        assert np.isfinite(w0[fixed]).all() and (w0[fixed] >= 0).all(), 'fixed records: weights finite and >= 0'
+        wf, free_ = w0[fixed], ~fixed
+        T_free = T - F[fixed].T @ wf
+        offset, extra = np.zeros(m), np.full(m, np.nan)
+        av_free = [None] * m
+        for j, a in enumerate(averages):
+            if a is None:
+                continue
+            mem, v, mm = a
+            mem, v = np.asarray(mem, bool), np.asarray(v, float)
+            assert np.isfinite(v[mem & fixed]).all(), f'target {j}: a missing value in an average (fixed records)'
+            offset[j] = -float((wf * mem[fixed] * (v[fixed] - mm)).sum())
+            extra[j] = float(wf[mem[fixed]].sum())
+            assert mem[free_].any(), f'target {j}: an average whose group has only fixed records'
+            av_free[j] = (mem[free_], v[free_], mm)
+        size_of = np.abs(T).astype(float)
+        w1f, info = _solve(w0[free_], F[free_], T_free, se, identity, av_free, settings, offset, extra, size_of)
+        w1 = w0.copy()
+        w1[free_] = w1f
+        mv = move(w0[free_], w1f)
+        info.update({'kl_move_free': mv['kl_move'], 'effective_sample_kept_free': mv['effective_sample_kept'],
+                     'fixed_records': int(fixed.sum()), 'fixed_weight': float(wf.sum())})
+    assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
     info.update(move(w0, w1))
-    table = _per_target(w0, w1, F, T, se, identity, averages, settings, landed=achieved, G=G, Tl=Tl, size=size)
+    table = _per_target(w0, w1, F, T, se, identity, averages, settings)
     info.update({k_: table[k_].to_numpy() for k_ in table.columns})
     info['stop'] = bool((table['flag'] == 'stop').any())
     info['warnings'] = int((table['flag'] == 'warning').sum())
     info['stops'] = int((table['flag'] == 'stop').sum())
     info['at_range_edge_count'] = int(table['at_range_edge'].sum())
     return w1, info
+
+
+def fixed_feasibility(w0, F, T, se, identity, averages, fixed, settings=None):
+    """PLAN.md step 20, before the solve: for every target, what the fixed records (the billionaires) contribute, what
+    is left for the others, and whether the others alone could reach it with nonnegative weights. A total: the free
+    records' sum of w x F can be any number of the signs their contributions have (0 or more if every contribution is 0
+    or more; any number if both signs occur; only 0 if none contributes), so the remainder's range (remainder plus or
+    minus k standard errors; exactly the remainder for an identity) must meet that set. An average m over a group: the
+    free members' sum of w (v - m) must equal minus the fixed members' sum, within the range's k se times the group's
+    weight, which is checked the same way on the signs of v - m among the free members (with the fixed members' weight
+    alone in the range, the least it can be). 'billionaires alone exceed': a total whose free contributions are all 0
+    or more, which the fixed records alone put above its range. Each target on its own; whether they can all be met
+    together is the solve's own answer (feasible). Returns one row per target."""
+    w0, F, T, se = (np.asarray(a, float) for a in (w0, F, T, se))
+    fixed = np.asarray(fixed, bool)
+    identity = np.asarray(identity, bool)
+    averages = list(averages) if averages is not None else [None] * len(T)
+    k = np.broadcast_to(np.asarray(_range_k(settings, len(T)), float), (len(T),))
+    half_total = np.where(identity, 0.0, k * se)
+    free = ~fixed
+    rows = []
+    for j in range(len(T)):
+        a = averages[j]
+        if a is None:
+            f = F[free, j]
+            contrib = float(F[fixed, j] @ w0[fixed])
+            rem, half = float(T[j] - contrib), float(half_total[j])
+            fixed_w = np.nan
+        else:
+            mem, v, m = a
+            mem, v = np.asarray(mem, bool), np.asarray(v, float)
+            f = np.where(mem[free], v[free] - m, 0.0)
+            contrib = float((w0[fixed] * mem[fixed] * (v[fixed] - m)).sum())
+            fixed_w = float(w0[fixed][mem[fixed]].sum())
+            rem, half = -contrib, float(half_total[j] * fixed_w)
+        pos, neg = bool((f > 0).any()), bool((f < 0).any())
+        lo, hi = rem - half, rem + half
+        reach = (pos and neg) or (pos and hi >= 0) or (neg and lo <= 0) or (lo <= 0 <= hi)
+        exceed = a is None and not neg and pos and hi < 0 and contrib > 0
+        rows.append({'target': j, 'fixed contribution': contrib, 'fixed members\' weight': fixed_w,
+                     'left for the others': rem, 'half-width of the range': half,
+                     'others can add': 'both signs' if pos and neg else 'positive' if pos else 'negative' if neg else 'nothing',
+                     'billionaires alone exceed': bool(exceed), 'reachable by the others': bool(reach)})
+    return pd.DataFrame(rows)
 
 
 def move(w0, w1):

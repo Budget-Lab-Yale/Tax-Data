@@ -74,7 +74,11 @@ TOP_KEYS = {'year', 'kind', 'inherits', 'prior', 'targets', 'drop', 'report', 's
             'hold_distribution'}
 YEAR_KEYS = ['year', 'kind', 'prior', 'report', 'start', 'start_scaling', 'hold_distribution']   # a later file replaces
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key',
-              'dependent_filers', 'note', 'override', 'percentiles'}
+              'dependent_filers', 'note', 'override', 'percentiles', 'must_reach'}
+# must_reach (29 October): an entry's cell labels that expand(start=...) must keep; a cell among them that no record
+# can reach is an error, not a quiet drop (Table 4.3's top 0.001%, restored with the rebuilt aggregate records). These
+# cells belong to the top of the file: with settings tilt.top.enabled false, expand leaves them out, as before 29
+# October, so the pipeline with the top step off is unchanged.
 ERROR_KEYS = {'kind', 'relative', 'reason'}
 
 
@@ -600,12 +604,14 @@ def cps_mix_rows(year, cells, v, stats):
     return rows
 
 
-def survey_rows(source, year, cells, v, stats):
+def survey_rows(source, year, cells, v, stats, population=None):
     """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
-    waves, with their standard errors (scf_targets.py)."""
+    waves, with their standard errors (scf_targets.py), on the population's units (its net worth ceiling, if any)."""
     if source == 'scf':
         import scf_targets
-        return scf_targets.rows(cells, v, stats, year)
+        return scf_targets.rows(cells, v, stats, year, ceiling=net_worth_ceiling(population) if population else None)
+    if population and net_worth_ceiling(population) is not None:
+        raise NotImplementedError(f'{source}: a net worth ceiling on a survey other than the SCF')
     if source == 'cex':
         return cex_mix_rows(year, cells, v, stats)
     if source == 'cps':
@@ -1130,7 +1136,7 @@ def expand_entry(e, year, soi):
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
-            rows = survey_rows(src, vyear, cells, v, stats)
+            rows = survey_rows(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'pipeline':
             rows = pipeline_rows(vyear, cells, v, stats)
             for r in rows:
@@ -1196,10 +1202,19 @@ def expand(year=common.TARGET_YEAR, start=None):
     zero = (rows['value'] == 0) & rows['statistic'].isin(['count', 'amount', 'units'])
     excluded = rows[zero].assign(why='published as zero')
     rows = rows[~zero].reset_index(drop=True)
+    must = {(e['id'], str(c)) for e in cfg['targets'] for c in e.get('must_reach', [])}
+    is_must = np.array([(en, str(g)) in must for en, g in zip(rows['entry'], rows['group'])], bool)
+    if must and not common.SETTINGS['tilt'].get('top', {}).get('enabled', False):
+        # the top of the file is off: the cells restored with it (must_reach) are left out, as before 29 October
+        excluded = pd.concat([excluded, rows[is_must].assign(why='restored with the top of the file, which is off '
+                                                                 '(settings tilt.top.enabled)')], ignore_index=True)
+        rows, is_must = rows[~is_must].reset_index(drop=True), np.zeros((~is_must).sum(), bool)
     if start is not None:
         F, _, _ = conditions(start, rows, None, check=False)
         reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)
+        dead = rows[~reach & is_must]
+        assert dead.empty, f'targets that must be kept (must_reach) and no record can reach:\n{dead[["kind", "group", "target"]]}'
         rows = rows[reach].reset_index(drop=True)
     keys = rows[['kind', 'group', 'target']].apply(tuple, axis=1)
     assert keys.is_unique, f'two entries give the same target: {keys[keys.duplicated()].tolist()}'
@@ -1217,9 +1232,25 @@ def expand(year=common.TARGET_YEAR, start=None):
 
 
 # ---- the conditions on the weights ----------------------------------------------------------------------------
+def net_worth_ceiling(name):
+    """A population's net worth ceiling in nominal target-year dollars (catalog net_worth_below; the SCF targets'
+    population, 29 October), or None: none set, or settings tilt.top.enabled false (the population is then its rule
+    alone, as before)."""
+    c = CAT['populations'][name].get('net_worth_below')
+    if c is None or not common.SETTINGS['tilt'].get('top', {}).get('enabled', False):
+        return None
+    return float(c)
+
+
 def population(df, name):
     rule = CAT['populations'][name]['rule']
-    return np.ones(len(df), bool) if rule == 'all' else df.eval(rule).to_numpy()
+    m = np.ones(len(df), bool) if rule == 'all' else df.eval(rule).to_numpy()
+    c = net_worth_ceiling(name)
+    if c is not None:   # units with net worth at or above the ceiling are outside (the Forbes list's range)
+        nw = df['net_worth'].to_numpy(float)
+        assert np.isfinite(nw[m]).all(), f'population {name}: net worth missing on {int((~np.isfinite(nw[m])).sum())} units'
+        m &= nw < c
+    return m
 
 
 def file_units(year):

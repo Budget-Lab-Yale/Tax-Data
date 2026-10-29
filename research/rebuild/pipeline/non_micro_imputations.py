@@ -232,6 +232,13 @@ def death_probabilities(df, year, w, ctx):
     P['w'], P['income'], P['id'] = w[P.rec], inc[P.rec], ids[P.rec]
     P['pctile'] = within_cell_percentile(P.sex.to_numpy(), P.age.to_numpy(), P.income.to_numpy(), P.id.to_numpy(),
                                          P.w.to_numpy())
+    # the billionaires (top_billionaires.py, 29 October; PLAN.md step 17): income percentile 100, set explicitly, as
+    # production does, for the primary filer and the spouse alike
+    n_bil = 0
+    if 'billionaire' in df:
+        bil = df['billionaire'].to_numpy()[P.rec.to_numpy()] == 1
+        P.loc[bil, 'pctile'] = 100
+        n_bil = int(bil.sum())
     base = np.array([q[(s, a)] for s, a in zip(P.sex, P.age)])
     cr = table('chetty_mortality_ratio.csv').set_index(['sex', 'age_bin', 'pctile'])['ratio']
     rc = cr.reindex(pd.MultiIndex.from_arrays([P.sex, chetty_bin(P.age.to_numpy()), P.pctile])).to_numpy()
@@ -258,7 +265,8 @@ def death_probabilities(df, year, w, ctx):
     ctx['notes'].append(f'death probabilities: SSA period life table {ly}; Johnson factors divided by the file\'s mean '
                         f'among men ({", ".join(f"{k} {v:.4f}" for k, v in rescale.items())}); '
                         f'{int((married & ~sp).sum())} married records with no spouse age or sex get no q_death2; '
-                        f'primary filers without a sex were given one first (fill_missing_sex)')
+                        f'primary filers without a sex were given one first (fill_missing_sex); '
+                        f'{n_bil} billionaire people (Forbes list) placed at income percentile 100')
     return {'q_death1': q1, 'q_death2': q2}
 
 
