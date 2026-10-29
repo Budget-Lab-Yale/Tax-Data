@@ -1079,7 +1079,7 @@ and never renumbered.
 | Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
 | Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
-| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (**placeholder**: production's age rule, 1.10 − age/100 held to 0.20-0.95, until the SCF stock share is learned in pretraining); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
+| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (since 29 October the SCF's, `w_dc_stock_share`, learned in pretraining and drawn with the balance sheet; before, and for a file from an earlier model, production's age rule, 1.10 − age/100 held to 0.20-0.95); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
 | Cost basis of each asset | `basis.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund` | production's rule: value − the SCF's unrealized gain (other real estate's gain split by value), the gain first held to no more than the value so a basis is never below 0 (29 October; the gain and the value are drawn separately) | |
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
@@ -1153,6 +1153,25 @@ a random generator of their own, so no other draw moves. The stack carries `blin
 chances `blind_chance1`, `blind_chance2`; `non_micro_imputations.blindness` writes the file's `blind1`, `blind2`, and
 its check compares blind people by age with Publication 4801's blind boxes (typed in from the publication,
 `resources/non_micro/pub4801_blind_boxes.csv`: 2019, 260,291 primary and 80,564 spouse boxes on all returns).
+
+**The retirement accounts' stock share as an SCF item** (Q6; `build_scf.R`, `build_table.py`). The SCF summary file's
+equity in quasi-liquid retirement assets over those assets, RETEQ / RETQLIQ (RETQLIQ = IRAKH + THRIFT + FUTPEN +
+CURRPEN, the rebuild's `w_dc` plus `w_db`; RETEQ never exceeds it, but it exceeds IRAKH + THRIFT alone in about 1,300
+rows a wave, so the share is taken over all four and applied to `w_dc`). RETEQ counts each account as all, half or
+none in stocks by the respondent's answer. A household ratio, the same on each of the household's PEU units; 0 where
+the unit has no `w_dc`; missing (not shown in training) on units outside the PEU and other units, as their elective
+deferrals. In the table it is the SCF slot `w_dc_stock_share`, a share of `w_dc` (meta `ratios`: generation draws it
+after `w_dc` and sets it to 0 without `w_dc`; it is not grown between waves; `dollars.py` also makes `w_dc_stocks` =
+share × `w_dc`). The weighted share is 0.53-0.55 in every wave. `non_micro_imputations` uses the drawn share for
+`accruals.dc` in place of production's age rule.
+
+**CPS capital gains not shown before tax year 2018** (`build_cps.R`, `translate.not_asked`, `build_table.py`). The
+CPS asks capital gains from tax year 2018 only. Until 28 October the 2015 and 2017 CPS rows carried them as zero, which
+taught the model that CPS units have no gains. Now `build_cps.R` writes them as missing in those years and the
+translation table's row (first_year 2018) leaves `kg_lt`, and `capital_gains` computed from it, missing on those rows:
+absent, not shown in training, as any item a survey does not ask. Nothing else in the table moves: the tax data's
+non-filers of 2015 and 2017 (the CPS of those years) still read the item as zero, as before, and the fill-in runs only
+from 2018, as before (`fillin.py` now allows the item to be absent in the years it does not fill in).
 
 ## How the latest run comes out
 
