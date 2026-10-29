@@ -870,6 +870,16 @@ Its open questions are in `NEXT_STEPS.md`.
 - To do: a fill-in on the SIPP's tips, a joint-return deferral count target, screening each seed alone before
   pooling, and the calculator's open questions (`NEXT_STEPS.md`).
 
+### 28 October: the non-microdata imputations
+
+**Built on branch `rebuild-nonmicro`** (not installed; scratch `explore/2026-10-28/nonmicro/RESULTS.md`). John decided
+the design question by question (`NEXT_STEPS.md` item 1, Q1-Q9). One module, `non_micro_imputations.py`, runs inside
+the tilt stage on the start: dependent filers' exact age and sex from the CPS's earning dependents, child credit
+eligibility, death probabilities, yearly unrealized gains at each year's Z.1 revaluation rates, cost basis, the
+holding period and basis of long-term gains, parents' rank; placeholders for dependents' Social Security numbers,
+blindness and the QBI items. On the latest run's stack the tilt gives the installed weights exactly and meets all 789
+targets; the checks are reported in `report.md` section 6.
+
 ## Paths tried and not taken
 
 | What | Why not |

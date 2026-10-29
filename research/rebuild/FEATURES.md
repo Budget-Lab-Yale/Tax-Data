@@ -31,6 +31,11 @@ targets for 2019.
   each with a standard error, and are met within ranges: half a standard error
   for the SCF targets, which come from the same mix of waves as the balance
   sheet, and one for the rest (`TARGETS.md` S9).
+- **Non-microdata imputations** (built 28 October on branch `rebuild-nonmicro`; not in the installed latest's file).
+  Items set inside the tilt stage from what the model drew plus a published table: dependent filers' exact age and
+  sex, child credit eligibility, death probabilities, yearly unrealized gains and cost basis of each asset, the
+  holding period and basis of long-term gains, parents' income rank; placeholders for dependents' Social Security
+  numbers, blindness and the QBI items (below, "The non-microdata imputations").
 - **Since when.** This is latest since 28 October (merge d9bd762 of
   `rebuild-ot3`, and d56c75d): wages net of deferrals and the SCF's deferrals
   with the W-2 deferral targets, the shared-variable mappings with the fill-in
@@ -1036,6 +1041,70 @@ ranges of one standard error, targets from the 2019 wave alone; `HISTORY.md`).
 Counts by kind as in `tilt/<run>/targets.csv`.
 `hold_distribution` (optional, S7) adds each item's share in AGI rank groups of the start file as targets.
 `report_tilt.py` writes the run report (section 14).
+
+## The non-microdata imputations
+
+Built 28 October on branch `rebuild-nonmicro` (`NEXT_STEPS.md` item 1, John's decisions Q1-Q9 of 28 October); the
+installed latest's file was made before them. These are items set from what the model has already drawn plus a
+published table, with no new microdata. Code: `pipeline/non_micro_imputations.py`, one function per item; settings
+`non_micro_imputations`, which registers each item: the columns it reads, the published tables it reads, the columns it
+writes, its random stream and the reason for each choice. The tables are CSVs in `research/rebuild/resources/non_micro/`
+(a year column where the numbers change by year), built from their sources by `pipeline/build_non_micro_tables.py`
+(stage `non_micro_tables`, run only when a source changes); `sources.csv` there gives each table's source.
+
+**Where they run** (Q1). Inside the tilt stage, on the start: after every dollar amount is in target-year dollars and
+the weights are prescaled, before the solve. They add new columns only and never change a drawn item or a weight. The
+two items that rank records (death probabilities, parents' rank) rank on the prescaled start's weights, and the ranks
+are held fixed through the tilt. No target reads the new columns yet, so the weights do not depend on them: on the
+latest run's stack the tilt gives the installed weights exactly, to the last digit. They can also run on a finished
+file, for checks (`python non_micro_imputations.py --run <tilt folder> --out <folder>`); imputing again on a finished
+file gives its columns exactly.
+
+**Random numbers.** Each is a fixed function of the record id, the item's stream number and the person
+(`ages.uniform_by_id`, salt = `salt_base` + 8 × stream + person; person 0 the unit, 1-2 the adults, 3-5 the
+dependents), so a draw never moves when other code or other records change. Streams are numbered once in the settings
+and never renumbered.
+
+**Years.** Each item reads its table's row for the target year; with no such row, the last year before it. The run's
+`summary.md` says which row each item used.
+
+| Item | Columns | Method | Published table |
+|---|---|---|---|
+| Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's CPS year, within its PUF dependent-filer age range; 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
+| Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
+| Dependents' Social Security numbers | `dep_ssn1-3` | **placeholder**: every dependent has a number (Q4, being researched) | |
+| Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
+| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (**placeholder**: production's age rule, 1.10 − age/100 held to 0.20-0.95, until the SCF stock share is learned in pretraining); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
+| Cost basis of each asset | `basis.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund` | production's rule: value − the SCF's unrealized gain (other real estate's gain split by value) | |
+| Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns | SOCA panel and shares, S&P 500 total return index |
+| Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
+| Blindness | `blind1`, `blind2` | **placeholder**: 0 (Q3: learned in pretraining, needs a retrain) | |
+| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | **placeholder**: 0, as the calculator experiment sets them (Q5, being researched) | |
+
+Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
+or 0, −1 where the dependent does not exist; `q_death2` is −1 without a spouse; `kg_lt_years_held` is −1 and
+`kg_lt_basis` 0 where there is no long-term gain or loss.
+
+Two departures from production, both stated in the settings: production's code sends the bottom 9% of incomes to
+parents' rank 100 (R's `cut()` gives them no group and `replace_na(100)` fills it), against its own comment; the rebuild
+uses the stated intent (rank 10). And in historical years the bond part of retirement accounts and trusts takes the
+year's actual Z.1 debt-securities revaluation (5.4% in 2019), where production's long-run rate is 0.
+
+**Checks** (Q9: reported only, never a stop). On the weights after the tilt, in `tilt/<run>/non_micro_checks.md` (and
+`non_micro_check_*.csv`), section 6 of `report.md`. On the latest run's stack, 2019, counts in millions, nominal 2019
+dollars:
+
+| Item | File | Published |
+|---|---|---|
+| dependent filers | 9.81, 52% men; ages 15-17: 1.97, 18-25: 7.75, 26 and over: 0.09 | SOI Table 1.7: 9.55 (no ages published); the CPS pools' age shares within each range by construction |
+| children under 17 flagged for the credit | 68.91 (66.63 on filers' returns); units with one: 41.6 | Census population under 17: 69.00; children on returns claiming the additional child tax credit (Schedule 8812 line 4 ÷ $1,400): 35.99, a lower bound |
+| expected deaths, heads and spouses | 2.566 million among 241.0 million people; deaths per 1,000 within 6% of SSA's in every age band and sex (within 2.5% from 35 to 79) | SSA life table × Census population 18 and over: 2.847 million among 256.9 million |
+| yearly unrealized gains | stocks $3,144 billion, businesses $1,246 billion, real estate $1,056 billion, retirement accounts $2,203 billion, trusts $436 billion | Z.1 2019 holding gains: corporate equities $3,615 billion, noncorporate business $654 billion, real estate $832 billion |
+| long-term gains by holding group | each group's share of gain dollars within 2.4 points of SOCA's; basis $1,727 billion on $947 billion of gains | SOCA's gain shares; the regression's basis-to-sales ratio by group (0.78 under 18 months to 0.31 at 20 years and over) |
+| parents' rank | mean parents' rank by own-rank decile within 0.4 of the matrix's | Chetty et al.'s matrix (a check of the draw) |
+
+The business line differs from Z.1 mostly in what is held: the SCF's businesses ($21.6 trillion in the file) include
+S and C corporations the household runs, Z.1's noncorporate equity ($11.4 trillion at the end of 2018) does not.
 
 ## How the latest run comes out
 

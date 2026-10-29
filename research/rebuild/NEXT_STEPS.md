@@ -62,6 +62,11 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      puts the bottom 9% at rank 100; production itself is not our concern (John, 28 October).
    - Q9, checks (John, 28 October): each imputation's published check is reported only, not a stop, until normal
      misses are known; then limits may be set from them.
+   - **Built 28 October on branch `rebuild-nonmicro`, merged into the latest the same day** (`FEATURES.md`, "The non-microdata
+     imputations"; scratch `explore/2026-10-28/nonmicro/RESULTS.md`): every item but three, which are placeholders
+     until their own work is done: dependents' Social Security numbers (Q4), blindness (Q3, a retrain) and the QBI
+     items (Q5); and the retirement accounts' stock share uses production's age rule until the SCF item is trained
+     (Q6).
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
    column Tax-Simulator reads checked against what the file has. Deductions the law removed (domestic production
    activities from 2020, tuition and fees from 2021) set to zero after repeal.

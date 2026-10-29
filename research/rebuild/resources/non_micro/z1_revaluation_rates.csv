@@ -1,0 +1,181 @@
+year,asset,rate,revaluation_millions,held_end_of_year_before_millions,held_end_of_year_millions,series,what
+1990,equities,-0.05935293527471563,-113583.0,1913688,1734697,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1991,equities,0.4275340304387452,741642.0,1734697,2491325,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1992,equities,0.11334811796935365,282387.0,2491325,2810125,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1993,equities,0.1565567367999644,439944.0,2810125,3110199,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1994,equities,0.0017744845265528027,5519.0,3110199,3013823,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1995,equities,0.35277984141736257,1063216.0,3013823,4029075,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1996,equities,0.16391454614272508,660424.0,4029075,4511914,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1997,equities,0.33758178901459557,1523140.0,4511914,5729812,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1998,equities,0.26644731101125135,1526693.0,5729812,6848492,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1999,equities,0.30211745885079516,2069049.0,6848492,8349785,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2000,equities,-0.10331236073743216,-862636.0,8349785,7170982,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2001,equities,-0.07361739298745974,-527909.0,7170982,6417991,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2002,equities,-0.20021872888260517,-1285002.0,6417991,5012539,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2003,equities,0.28545872660541893,1430873.0,5012539,6627087,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2004,equities,0.16453367822091367,1090379.0,6627087,7373407,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2005,equities,0.10862549700565831,800940.0,7373407,8193033,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2006,equities,0.2172001504204853,1779528.0,8193033,10151006,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2007,equities,0.0713415005369911,724188.0,10151006,9976767,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2008,equities,-0.32139028605158365,-3206436.0,9976767,5875695,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2009,equities,0.1881702504980262,1105631.0,5875695,7453271,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2010,equities,0.16106284073127086,1200445.0,7453271,8808818,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2011,equities,-0.02110135548265386,-185878.0,8808818,8347359,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2012,equities,0.14938724930843397,1246989.0,8347359,8829067,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2013,equities,0.3078691100656502,2718197.0,8829067,11529155,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2014,equities,0.12537579727221987,1445477.0,11529155,13269181,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2015,equities,-0.013650126560184838,-181126.0,13269181,12931673,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2016,equities,0.09537559448031202,1233366.0,12931673,14409232,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2017,equities,0.1847819509048088,2662566.0,14409232,17149217,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2018,equities,-0.07682461537456783,-1317482.0,17149217,15636734,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2019,equities,0.23117832662498447,3614874.0,15636734,19536497,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2020,equities,0.2061838414532554,4028110.0,19536497,24265405,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2021,equities,0.2381204434873434,5778089.0,24265405,30966438,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2022,equities,-0.20688311003028503,-6406433.0,30966438,25140293,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2023,equities,0.1925678431830528,4841212.0,25140293,30370239,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2024,equities,0.18652200926044737,5664718.0,30370239,36999300,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+2025,equities,0.1673675718189263,6192483.0,36999300,44322838,FR153064105.A / LM153064105.A (year before),"corporate equities, directly held"
+1990,mutual_funds,-0.05873856729269651,-27532.0,468721,470940,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1991,mutual_funds,0.17019365524270608,80151.0,470940,646801,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1992,mutual_funds,0.042770496644253794,27664.0,646801,815039,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1993,mutual_funds,0.11628768684688708,94779.0,815039,1099943,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1994,mutual_funds,-0.07063547838387989,-77695.0,1099943,1019327,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1995,mutual_funds,0.16400625118337883,167176.0,1019327,1239948,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1996,mutual_funds,0.11407010616574244,141441.0,1239948,1489156,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1997,mutual_funds,0.13012337189656423,193774.0,1489156,1880014,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1998,mutual_funds,0.1274416041582669,239592.0,1880014,2277198,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1999,mutual_funds,0.15653535617017053,356462.0,2277198,2743340,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2000,mutual_funds,-0.09787558231936253,-268506.0,2743340,2556769,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2001,mutual_funds,-0.09214872364300412,-235603.0,2556769,2414122,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2002,mutual_funds,-0.18375624761300383,-443610.0,2414122,2055460,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2003,mutual_funds,0.24117958997012834,495735.0,2055460,2733551,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2004,mutual_funds,0.11451990469539437,313046.0,2733551,3187917,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2005,mutual_funds,0.009261533471542703,29525.0,3187917,3409854,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2006,mutual_funds,0.12406132344669303,423031.0,3409854,4016444,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2007,mutual_funds,0.058711885438960436,235813.0,4016444,4540963,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2008,mutual_funds,-0.3422606614500052,-1554193.0,4540963,2904279,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2009,mutual_funds,0.2582713299927452,750092.0,2904279,4041869,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2010,mutual_funds,0.10498756886974812,424346.0,4041869,4728805,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2011,mutual_funds,-0.03212777858253829,-151926.0,4728805,4709266,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2012,mutual_funds,0.11449470044801037,539186.0,4709266,5581922,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2013,mutual_funds,0.1484279070900668,828513.0,5581922,6644513,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2014,mutual_funds,0.037553993799094076,249528.0,6644513,7116488,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2015,mutual_funds,-0.028564229996593825,-203277.0,7116488,6974452,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2016,mutual_funds,0.04265639795069204,297505.0,6974452,7333875,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2017,mutual_funds,0.1428254503928687,1047464.0,7333875,8693299,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2018,mutual_funds,-0.07775724727747199,-675967.0,8693299,8035065,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2019,mutual_funds,0.18788759020617754,1509689.0,8035065,10041768,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2020,mutual_funds,0.11422132038899922,1146984.0,10041768,11036593,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2021,mutual_funds,0.11737354091067778,1295404.0,11036593,12914010,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2022,mutual_funds,-0.18292753374048804,-2362328.0,12914010,9854087,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2023,mutual_funds,0.1438286469360378,1417300.0,9854087,11074689,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2024,mutual_funds,0.11186851386978,1238909.0,11074689,12187350,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+2025,mutual_funds,0.12509200113232163,1524540.0,12187350,13410400,FR153064205.A / LM153064205.A (year before),mutual fund shares (shown in the check only)
+1990,pass_throughs,0.0240901540496512,72194.0,2996826,3091173,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1991,pass_throughs,-0.021624153678878537,-66844.0,3091173,3054874,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1992,pass_throughs,-0.015269369538645456,-46646.0,3054874,3036332,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1993,pass_throughs,0.03698442726289484,112297.0,3036332,3195761,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1994,pass_throughs,0.05829597394798923,186300.0,3195761,3419915,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1995,pass_throughs,0.04779270829830566,163447.0,3419915,3604321,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1996,pass_throughs,0.053879773749341414,194200.0,3604321,3794960,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1997,pass_throughs,0.10533865969601787,399756.0,3794960,4175280,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1998,pass_throughs,0.06185142074303999,258247.0,4175280,4393655,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1999,pass_throughs,0.07847771388513664,344804.0,4393655,4666318,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2000,pass_throughs,0.09080928475084639,423745.0,4666318,5067588,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2001,pass_throughs,0.0396796266784119,201080.0,5067588,5255275,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2002,pass_throughs,0.07427870092430938,390355.0,5255275,5326579,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2003,pass_throughs,0.08021940536317963,427295.0,5326579,5787342,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2004,pass_throughs,0.17002278420732694,983980.0,5787342,6804554,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2005,pass_throughs,0.1612304054020293,1097101.0,6804554,7794196,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2006,pass_throughs,0.08958435225390791,698238.0,7794196,8443386,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2007,pass_throughs,0.013456568253541884,113619.0,8443386,8484006,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2008,pass_throughs,-0.11198035456363421,-950042.0,8484006,7162903,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2009,pass_throughs,-0.17147544787357863,-1228262.0,7162903,5886306,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2010,pass_throughs,0.08476130870532385,498931.0,5886306,6575891,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2011,pass_throughs,0.029401490991867108,193341.0,6575891,6933920,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2012,pass_throughs,0.07495197521748159,519711.0,6933920,7464186,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2013,pass_throughs,0.10706632980475031,799163.0,7464186,8427768,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2014,pass_throughs,0.07744731463894118,652708.0,8427768,9152194,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2015,pass_throughs,0.057952333615305794,530391.0,9152194,9837673,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2016,pass_throughs,0.05925557802134712,582937.0,9837673,10206312,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2017,pass_throughs,0.06915994729535997,705868.0,10206312,10999811,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2018,pass_throughs,0.0402716919408888,442981.0,10999811,11366084,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2019,pass_throughs,0.05758060559819899,654466.0,11366084,12077476,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2020,pass_throughs,0.07764635591078799,937772.0,12077476,13046174,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2021,pass_throughs,0.1889971726576696,2465690.0,13046174,15373587,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2022,pass_throughs,0.04581500725887849,704341.0,15373587,15953502,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2023,pass_throughs,-0.02723934845151867,-434563.0,15953502,15810306,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2024,pass_throughs,0.009076358167893778,143500.0,15810306,16038803,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+2025,pass_throughs,0.014300693137760966,229366.0,16038803,16324689,FR152090205.A / LM152090205.A (year before),proprietors' equity in noncorporate business
+1990,real_estate,0.0038371169503743563,29920.0,7797521,7927184,FR155035005.A / LM155035005.A (year before),real estate at market value
+1991,real_estate,0.00824782167286643,65382.0,7927184,8079609,FR155035005.A / LM155035005.A (year before),real estate at market value
+1992,real_estate,0.020650132945789827,166845.0,8079609,8353634,FR155035005.A / LM155035005.A (year before),real estate at market value
+1993,real_estate,0.02699352162184745,225494.0,8353634,8712100,FR155035005.A / LM155035005.A (year before),real estate at market value
+1994,real_estate,0.028117101502508006,244959.0,8712100,9111186,FR155035005.A / LM155035005.A (year before),real estate at market value
+1995,real_estate,0.0017041689193920528,15527.0,9111186,9268081,FR155035005.A / LM155035005.A (year before),real estate at market value
+1996,real_estate,0.030671182092603635,284263.0,9268081,9722744,FR155035005.A / LM155035005.A (year before),real estate at market value
+1997,real_estate,0.04496847803459599,437217.0,9722744,10342784,FR155035005.A / LM155035005.A (year before),real estate at market value
+1998,real_estate,0.07112727095528631,735654.0,10342784,11304866,FR155035005.A / LM155035005.A (year before),real estate at market value
+1999,real_estate,0.07451375363493914,842368.0,11304866,12381335,FR155035005.A / LM155035005.A (year before),real estate at market value
+2000,real_estate,0.1241352406666971,1536960.0,12381335,14162324,FR155035005.A / LM155035005.A (year before),real estate at market value
+2001,real_estate,0.11009824376281746,1559247.0,14162324,15973967,FR155035005.A / LM155035005.A (year before),real estate at market value
+2002,real_estate,0.08208530792632789,1311228.0,15973967,17566326,FR155035005.A / LM155035005.A (year before),real estate at market value
+2003,real_estate,0.07782913740756035,1367172.0,17566326,19264145,FR155035005.A / LM155035005.A (year before),real estate at market value
+2004,real_estate,0.13664945939723772,2632435.0,19264145,22285402,FR155035005.A / LM155035005.A (year before),real estate at market value
+2005,real_estate,0.12080423767989466,2692171.0,22285402,25392202,FR155035005.A / LM155035005.A (year before),real estate at market value
+2006,real_estate,0.027677788637629774,702800.0,25392202,26521255,FR155035005.A / LM155035005.A (year before),real estate at market value
+2007,real_estate,-0.0365087172533879,-968257.0,26521255,25831899,FR155035005.A / LM155035005.A (year before),real estate at market value
+2008,real_estate,-0.10479860578581544,-2707147.0,25831899,23242775,FR155035005.A / LM155035005.A (year before),real estate at market value
+2009,real_estate,-0.09131641983369025,-2122447.0,23242775,21152271,FR155035005.A / LM155035005.A (year before),real estate at market value
+2010,real_estate,-0.019943295923165887,-421846.0,21152271,20748905,FR155035005.A / LM155035005.A (year before),real estate at market value
+2011,real_estate,-0.028923550423504276,-600132.0,20748905,20171160,FR155035005.A / LM155035005.A (year before),real estate at market value
+2012,real_estate,0.02056406275097714,414801.0,20171160,20632459,FR155035005.A / LM155035005.A (year before),real estate at market value
+2013,real_estate,0.09129697046774696,1883681.0,20632459,22634943,FR155035005.A / LM155035005.A (year before),real estate at market value
+2014,real_estate,0.06308277427515502,1427875.0,22634943,24200569,FR155035005.A / LM155035005.A (year before),real estate at market value
+2015,real_estate,0.06385073012126286,1545224.0,24200569,25936491,FR155035005.A / LM155035005.A (year before),real estate at market value
+2016,real_estate,0.06506496965992817,1687557.0,25936491,27856777,FR155035005.A / LM155035005.A (year before),real estate at market value
+2017,real_estate,0.06575437639465613,1831705.0,27856777,29895665,FR155035005.A / LM155035005.A (year before),real estate at market value
+2018,real_estate,0.02876805048491144,860040.0,29895665,30992439,FR155035005.A / LM155035005.A (year before),real estate at market value
+2019,real_estate,0.02685129105198852,832187.0,30992439,32080649,FR155035005.A / LM155035005.A (year before),real estate at market value
+2020,real_estate,0.111458748855112,3575669.0,32080649,35977415,FR155035005.A / LM155035005.A (year before),real estate at market value
+2021,real_estate,0.1965889711642707,7072763.0,35977415,43450372,FR155035005.A / LM155035005.A (year before),real estate at market value
+2022,real_estate,0.05518396942608454,2397764.0,43450372,46191795,FR155035005.A / LM155035005.A (year before),real estate at market value
+2023,real_estate,0.05091109795581661,2351675.0,46191795,48842748,FR155035005.A / LM155035005.A (year before),real estate at market value
+2024,real_estate,0.036382699024223614,1777031.0,48842748,50955452,FR155035005.A / LM155035005.A (year before),real estate at market value
+2025,real_estate,0.014377421281632434,732608.0,50955452,52015266,FR155035005.A / LM155035005.A (year before),real estate at market value
+1990,bonds,0.0,0.0,1141670,1277494,FR154022005.A / LM154022005.A (year before),debt securities
+1991,bonds,0.0,0.0,1277494,1316319,FR154022005.A / LM154022005.A (year before),debt securities
+1992,bonds,7.596942686385291e-07,1.0,1316319,1355073,FR154022005.A / LM154022005.A (year before),debt securities
+1993,bonds,-3.6898381120426722e-06,-5.0,1355073,1405053,FR154022005.A / LM154022005.A (year before),debt securities
+1994,bonds,1.636948926481777e-05,23.0,1405053,1726938,FR154022005.A / LM154022005.A (year before),debt securities
+1995,bonds,-2.2004264194777114e-05,-38.0,1726938,1774604,FR154022005.A / LM154022005.A (year before),debt securities
+1996,bonds,0.015775913950379916,27996.0,1774604,1853870,FR154022005.A / LM154022005.A (year before),debt securities
+1997,bonds,0.02536855335055856,47030.0,1853870,1798406,FR154022005.A / LM154022005.A (year before),debt securities
+1998,bonds,0.01441665563838199,25927.0,1798406,1873783,FR154022005.A / LM154022005.A (year before),debt securities
+1999,bonds,-0.09332830962816932,-174877.0,1873783,1559505,FR154022005.A / LM154022005.A (year before),debt securities
+2000,bonds,0.04307584778503435,67177.0,1559505,1495520,FR154022005.A / LM154022005.A (year before),debt securities
+2001,bonds,0.0082559912271317,12347.0,1495520,1381256,FR154022005.A / LM154022005.A (year before),debt securities
+2002,bonds,0.05664482181434868,78241.0,1381256,1557050,FR154022005.A / LM154022005.A (year before),debt securities
+2003,bonds,0.01039851000289008,16191.0,1557050,1506454,FR154022005.A / LM154022005.A (year before),debt securities
+2004,bonds,-0.004605517327445777,-6938.0,1506454,2388405,FR154022005.A / LM154022005.A (year before),debt securities
+2005,bonds,-0.012562358561466752,-30004.0,2388405,2328291,FR154022005.A / LM154022005.A (year before),debt securities
+2006,bonds,-0.006034469059065212,-14050.0,2328291,2194288,FR154022005.A / LM154022005.A (year before),debt securities
+2007,bonds,-0.07238885688660741,-158842.0,2194288,2681987,FR154022005.A / LM154022005.A (year before),debt securities
+2008,bonds,-0.08216892923045488,-220376.0,2681987,3438387,FR154022005.A / LM154022005.A (year before),debt securities
+2009,bonds,0.0854191223966354,293704.0,3438387,3362180,FR154022005.A / LM154022005.A (year before),debt securities
+2010,bonds,0.002929944262353592,9851.0,3362180,3761443,FR154022005.A / LM154022005.A (year before),debt securities
+2011,bonds,0.05245008365140719,197288.0,3761443,4188225,FR154022005.A / LM154022005.A (year before),debt securities
+2012,bonds,0.027573972267488017,115486.0,4188225,4076192,FR154022005.A / LM154022005.A (year before),debt securities
+2013,bonds,-0.06263811910724519,-255325.0,4076192,3054605,FR154022005.A / LM154022005.A (year before),debt securities
+2014,bonds,0.05917786424103935,180765.0,3054605,3105820,FR154022005.A / LM154022005.A (year before),debt securities
+2015,bonds,-0.012183255951729335,-37839.0,3105820,3140029,FR154022005.A / LM154022005.A (year before),debt securities
+2016,bonds,-0.015424698306926464,-48434.0,3140029,3185006,FR154022005.A / LM154022005.A (year before),debt securities
+2017,bonds,0.01919085866714223,61123.0,3185006,3229340,FR154022005.A / LM154022005.A (year before),debt securities
+2018,bonds,-0.027447713774331597,-88638.0,3229340,3877947,FR154022005.A / LM154022005.A (year before),debt securities
+2019,bonds,0.0538527215560192,208838.0,3877947,4261930,FR154022005.A / LM154022005.A (year before),debt securities
+2020,bonds,0.0336427393223258,143383.0,4261930,3683482,FR154022005.A / LM154022005.A (year before),debt securities
+2021,bonds,-0.027772363215023178,-102299.0,3683482,2661114,FR154022005.A / LM154022005.A (year before),debt securities
+2022,bonds,-0.14352936401822694,-381948.0,2661114,4370437,FR154022005.A / LM154022005.A (year before),debt securities
+2023,bonds,0.03465625977448022,151463.0,4370437,5389933,FR154022005.A / LM154022005.A (year before),debt securities
+2024,bonds,-0.008991206384198097,-48462.0,5389933,5534629,FR154022005.A / LM154022005.A (year before),debt securities
+2025,bonds,0.028903111662949767,159968.0,5534629,5878261,FR154022005.A / LM154022005.A (year before),debt securities
