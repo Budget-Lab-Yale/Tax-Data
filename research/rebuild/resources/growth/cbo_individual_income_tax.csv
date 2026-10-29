@@ -1,0 +1,796 @@
+year,concept,value,row
+2022,Salaries and wages,9739,12
+2023,Salaries and wages,10260.3,12
+2024,Salaries and wages,10832.7,12
+2025,Salaries and wages,11367.3,12
+2026,Salaries and wages,11843.5,12
+2027,Salaries and wages,12350.9,12
+2028,Salaries and wages,12861.9,12
+2029,Salaries and wages,13377.8,12
+2030,Salaries and wages,13905.4,12
+2031,Salaries and wages,14443,12
+2032,Salaries and wages,14985.2,12
+2033,Salaries and wages,15538.3,12
+2034,Salaries and wages,16113,12
+2035,Salaries and wages,16708.7,12
+2036,Salaries and wages,17325.9,12
+2022,Taxable interest and ordinary dividends (excludes qualified dividends),232.7,13
+2023,Taxable interest and ordinary dividends (excludes qualified dividends),286.8,13
+2024,Taxable interest and ordinary dividends (excludes qualified dividends),309.7,13
+2025,Taxable interest and ordinary dividends (excludes qualified dividends),323.9,13
+2026,Taxable interest and ordinary dividends (excludes qualified dividends),356.5,13
+2027,Taxable interest and ordinary dividends (excludes qualified dividends),381.7,13
+2028,Taxable interest and ordinary dividends (excludes qualified dividends),415.7,13
+2029,Taxable interest and ordinary dividends (excludes qualified dividends),448.3,13
+2030,Taxable interest and ordinary dividends (excludes qualified dividends),462.5,13
+2031,Taxable interest and ordinary dividends (excludes qualified dividends),476.4,13
+2032,Taxable interest and ordinary dividends (excludes qualified dividends),492.2,13
+2033,Taxable interest and ordinary dividends (excludes qualified dividends),504.5,13
+2034,Taxable interest and ordinary dividends (excludes qualified dividends),517.8,13
+2035,Taxable interest and ordinary dividends (excludes qualified dividends),527.4,13
+2036,Taxable interest and ordinary dividends (excludes qualified dividends),535.1,13
+2022,Qualified dividends,313.2,14
+2023,Qualified dividends,342.9,14
+2024,Qualified dividends,354.3,14
+2025,Qualified dividends,364.3,14
+2026,Qualified dividends,387.7,14
+2027,Qualified dividends,388.1,14
+2028,Qualified dividends,387.9,14
+2029,Qualified dividends,387.2,14
+2030,Qualified dividends,405.2,14
+2031,Qualified dividends,428.8,14
+2032,Qualified dividends,455.3,14
+2033,Qualified dividends,483.2,14
+2034,Qualified dividends,511.3,14
+2035,Qualified dividends,539.8,14
+2036,Qualified dividends,567.2,14
+2022,Capital gain or lossa,1286,15
+2023,Capital gain or lossa,981.4,15
+2024,Capital gain or lossa,1290.9,15
+2025,Capital gain or lossa,1639.5,15
+2026,Capital gain or lossa,1703.5,15
+2027,Capital gain or lossa,1644.1999999999998,15
+2028,Capital gain or lossa,1558.8,15
+2029,Capital gain or lossa,1532.8,15
+2030,Capital gain or lossa,1542.2,15
+2031,Capital gain or lossa,1572.8999999999999,15
+2032,Capital gain or lossa,1615.5,15
+2033,Capital gain or lossa,1666.3,15
+2034,Capital gain or lossa,1724.1,15
+2035,Capital gain or lossa,1786.6,15
+2036,Capital gain or lossa,1851.5,15
+2022,"Net business income (all income and loss reported on Schedules C, E, and F)b",1557.2,16
+2023,"Net business income (all income and loss reported on Schedules C, E, and F)b",1701.1000000000001,16
+2024,"Net business income (all income and loss reported on Schedules C, E, and F)b",1915.9999999999998,16
+2025,"Net business income (all income and loss reported on Schedules C, E, and F)b",1805.6,16
+2026,"Net business income (all income and loss reported on Schedules C, E, and F)b",1919.8999999999999,16
+2027,"Net business income (all income and loss reported on Schedules C, E, and F)b",2025.2000000000003,16
+2028,"Net business income (all income and loss reported on Schedules C, E, and F)b",2068.7,16
+2029,"Net business income (all income and loss reported on Schedules C, E, and F)b",2207.1,16
+2030,"Net business income (all income and loss reported on Schedules C, E, and F)b",2307.9,16
+2031,"Net business income (all income and loss reported on Schedules C, E, and F)b",2408.8000000000006,16
+2032,"Net business income (all income and loss reported on Schedules C, E, and F)b",2509.7999999999997,16
+2033,"Net business income (all income and loss reported on Schedules C, E, and F)b",2610.2000000000003,16
+2034,"Net business income (all income and loss reported on Schedules C, E, and F)b",2714.9999999999995,16
+2035,"Net business income (all income and loss reported on Schedules C, E, and F)b",2825.2000000000003,16
+2036,"Net business income (all income and loss reported on Schedules C, E, and F)b",2935,16
+2022,Taxable pensions and annuities and IRA distributions,1350.1,17
+2023,Taxable pensions and annuities and IRA distributions,1381.2,17
+2024,Taxable pensions and annuities and IRA distributions,1522.5,17
+2025,Taxable pensions and annuities and IRA distributions,1818.9,17
+2026,Taxable pensions and annuities and IRA distributions,1981.4,17
+2027,Taxable pensions and annuities and IRA distributions,2053.2,17
+2028,Taxable pensions and annuities and IRA distributions,2076.7,17
+2029,Taxable pensions and annuities and IRA distributions,2096.6,17
+2030,Taxable pensions and annuities and IRA distributions,2121,17
+2031,Taxable pensions and annuities and IRA distributions,2164.4,17
+2032,Taxable pensions and annuities and IRA distributions,2221.5,17
+2033,Taxable pensions and annuities and IRA distributions,2287.2,17
+2034,Taxable pensions and annuities and IRA distributions,2364.7,17
+2035,Taxable pensions and annuities and IRA distributions,2452.5,17
+2036,Taxable pensions and annuities and IRA distributions,2543.6000000000004,17
+2022,Taxable Social Security benefits,459.3,18
+2023,Taxable Social Security benefits,514.9,18
+2024,Taxable Social Security benefits,577.2,18
+2025,Taxable Social Security benefits,657.8,18
+2026,Taxable Social Security benefits,713,18
+2027,Taxable Social Security benefits,761.7,18
+2028,Taxable Social Security benefits,808.1,18
+2029,Taxable Social Security benefits,858.5,18
+2030,Taxable Social Security benefits,907.7,18
+2031,Taxable Social Security benefits,952.5,18
+2032,Taxable Social Security benefits,1005,18
+2033,Taxable Social Security benefits,1062.2,18
+2034,Taxable Social Security benefits,1121.5,18
+2035,Taxable Social Security benefits,1184.6,18
+2036,Taxable Social Security benefits,1247.7,18
+2022,All other sources of incomec,24.99999999999999,19
+2023,All other sources of incomec,28.6,19
+2024,All other sources of incomec,41.1,19
+2025,All other sources of incomec,26.700000000000003,19
+2026,All other sources of incomec,79.3,19
+2027,All other sources of incomec,84.3,19
+2028,All other sources of incomec,87.29999999999998,19
+2029,All other sources of incomec,93.9,19
+2030,All other sources of incomec,96.8,19
+2031,All other sources of incomec,42.199999999999996,19
+2032,All other sources of incomec,43.300000000000004,19
+2033,All other sources of incomec,44.3,19
+2034,All other sources of incomec,45.39999999999999,19
+2035,All other sources of incomec,46.5,19
+2036,All other sources of incomec,44.800000000000004,19
+2022,Total income,14962.5,20
+2023,Total income,15497.2,20
+2024,Total income,16844.4,20
+2025,Total income,18004,20
+2026,Total income,18984.8,20
+2027,Total income,19689.3,20
+2028,Total income,20265.1,20
+2029,Total income,21002.2,20
+2030,Total income,21748.7,20
+2031,Total income,22489,20
+2032,Total income,23327.8,20
+2033,Total income,24196.2,20
+2034,Total income,25112.8,20
+2035,Total income,26071.3,20
+2036,Total income,27050.8,20
+2022,Subtract statutory adjustments,140.6,21
+2023,Subtract statutory adjustments,149.7,21
+2024,Subtract statutory adjustments,158.4,21
+2025,Subtract statutory adjustments,166.1,21
+2026,Subtract statutory adjustments,174.5,21
+2027,Subtract statutory adjustments,182.5,21
+2028,Subtract statutory adjustments,190.4,21
+2029,Subtract statutory adjustments,199.3,21
+2030,Subtract statutory adjustments,207.8,21
+2031,Subtract statutory adjustments,216.5,21
+2032,Subtract statutory adjustments,225.9,21
+2033,Subtract statutory adjustments,234.5,21
+2034,Subtract statutory adjustments,243.5,21
+2035,Subtract statutory adjustments,253.5,21
+2036,Subtract statutory adjustments,263.2,21
+2022,Adjusted gross income,14821.8,22
+2023,Adjusted gross income,15347.4,22
+2024,Adjusted gross income,16685.9,22
+2025,Adjusted gross income,17837.9,22
+2026,Adjusted gross income,18810.4,22
+2027,Adjusted gross income,19506.7,22
+2028,Adjusted gross income,20074.8,22
+2029,Adjusted gross income,20802.9,22
+2030,Adjusted gross income,21540.9,22
+2031,Adjusted gross income,22272.4,22
+2032,Adjusted gross income,23101.9,22
+2033,Adjusted gross income,23961.7,22
+2034,Adjusted gross income,24869.3,22
+2035,Adjusted gross income,25817.9,22
+2036,Adjusted gross income,26787.8,22
+2022,Subtract personal exemption amount (after limit),0,26
+2023,Subtract personal exemption amount (after limit),0,26
+2024,Subtract personal exemption amount (after limit),0,26
+2025,Subtract personal exemption amount (after limit),0,26
+2026,Subtract personal exemption amount (after limit),0,26
+2027,Subtract personal exemption amount (after limit),0,26
+2028,Subtract personal exemption amount (after limit),0,26
+2029,Subtract personal exemption amount (after limit),0,26
+2030,Subtract personal exemption amount (after limit),0,26
+2031,Subtract personal exemption amount (after limit),0,26
+2032,Subtract personal exemption amount (after limit),0,26
+2033,Subtract personal exemption amount (after limit),0,26
+2034,Subtract personal exemption amount (after limit),0,26
+2035,Subtract personal exemption amount (after limit),0,26
+2036,Subtract personal exemption amount (after limit),0,26
+2022,Subtract standard deduction (non-itemizers only),2671.4,27
+2023,Subtract standard deduction (non-itemizers only),2914,27
+2024,Subtract standard deduction (non-itemizers only),3107.5,27
+2025,Subtract standard deduction (non-itemizers only),3212.8,27
+2026,Subtract standard deduction (non-itemizers only),3293.4,27
+2027,Subtract standard deduction (non-itemizers only),3355.8,27
+2028,Subtract standard deduction (non-itemizers only),3411.1,27
+2029,Subtract standard deduction (non-itemizers only),3456.5,27
+2030,Subtract standard deduction (non-itemizers only),3725.9,27
+2031,Subtract standard deduction (non-itemizers only),3795.4,27
+2032,Subtract standard deduction (non-itemizers only),3859.4,27
+2033,Subtract standard deduction (non-itemizers only),3924.1,27
+2034,Subtract standard deduction (non-itemizers only),4002.1,27
+2035,Subtract standard deduction (non-itemizers only),4075.2,27
+2036,Subtract standard deduction (non-itemizers only),4162.3,27
+2022,Subtract total itemized deductions (itemizers only) after limitsd,662.8,28
+2023,Subtract total itemized deductions (itemizers only) after limitsd,725.3,28
+2024,Subtract total itemized deductions (itemizers only) after limitsd,776.6,28
+2025,Subtract total itemized deductions (itemizers only) after limitsd,1091.9,28
+2026,Subtract total itemized deductions (itemizers only) after limitsd,1144.9,28
+2027,Subtract total itemized deductions (itemizers only) after limitsd,1255.3,28
+2028,Subtract total itemized deductions (itemizers only) after limitsd,1381.6,28
+2029,Subtract total itemized deductions (itemizers only) after limitsd,1504.3,28
+2030,Subtract total itemized deductions (itemizers only) after limitsd,1240.3,28
+2031,Subtract total itemized deductions (itemizers only) after limitsd,1341.2,28
+2032,Subtract total itemized deductions (itemizers only) after limitsd,1438.8,28
+2033,Subtract total itemized deductions (itemizers only) after limitsd,1537.6,28
+2034,Subtract total itemized deductions (itemizers only) after limitsd,1628.2,28
+2035,Subtract total itemized deductions (itemizers only) after limitsd,1712.5,28
+2036,Subtract total itemized deductions (itemizers only) after limitsd,1796.7,28
+2022,Subtract qualified business income deduction,215.7,29
+2023,Subtract qualified business income deduction,235.9,29
+2024,Subtract qualified business income deduction,267.7,29
+2025,Subtract qualified business income deduction,247.7,29
+2026,Subtract qualified business income deduction,264.4,29
+2027,Subtract qualified business income deduction,279,29
+2028,Subtract qualified business income deduction,283.6,29
+2029,Subtract qualified business income deduction,303.1,29
+2030,Subtract qualified business income deduction,317.6,29
+2031,Subtract qualified business income deduction,331.1,29
+2032,Subtract qualified business income deduction,345.1,29
+2033,Subtract qualified business income deduction,358.9,29
+2034,Subtract qualified business income deduction,373.3,29
+2035,Subtract qualified business income deduction,388.5,29
+2036,Subtract qualified business income deduction,403.6,29
+2022,Subtract additional deductionse,0,30
+2023,Subtract additional deductionse,0,30
+2024,Subtract additional deductionse,0,30
+2025,Subtract additional deductionse,416.3,30
+2026,Subtract additional deductionse,432.4,30
+2027,Subtract additional deductionse,449.2,30
+2028,Subtract additional deductionse,463.9,30
+2029,Subtract additional deductionse,0,30
+2030,Subtract additional deductionse,0,30
+2031,Subtract additional deductionse,0,30
+2032,Subtract additional deductionse,0,30
+2033,Subtract additional deductionse,0,30
+2034,Subtract additional deductionse,0,30
+2035,Subtract additional deductionse,0,30
+2036,Subtract additional deductionse,0,30
+2022,Total exemptions and deductions after limitsf,3549.8999999999996,31
+2023,Total exemptions and deductions after limitsf,3875.2000000000003,31
+2024,Total exemptions and deductions after limitsf,4151.8,31
+2025,Total exemptions and deductions after limitsf,4968.700000000001,31
+2026,Total exemptions and deductions after limitsf,5135.099999999999,31
+2027,Total exemptions and deductions after limitsf,5339.3,31
+2028,Total exemptions and deductions after limitsf,5540.2,31
+2029,Total exemptions and deductions after limitsf,5263.900000000001,31
+2030,Total exemptions and deductions after limitsf,5283.8,31
+2031,Total exemptions and deductions after limitsf,5467.700000000001,31
+2032,Total exemptions and deductions after limitsf,5643.3,31
+2033,Total exemptions and deductions after limitsf,5820.599999999999,31
+2034,Total exemptions and deductions after limitsf,6003.6,31
+2035,Total exemptions and deductions after limitsf,6176.2,31
+2036,Total exemptions and deductions after limitsf,6362.6,31
+2022,Taxable incomeg,11709.322,32
+2023,Taxable incomeg,11960.078,32
+2024,Taxable incomeg,13055.179,32
+2025,Taxable incomeg,13490.71,32
+2026,Taxable incomeg,14245.168,32
+2027,Taxable incomeg,14760.196,32
+2028,Taxable incomeg,15155.984,32
+2029,Taxable incomeg,16096.007,32
+2030,Taxable incomeg,16826.735,32
+2031,Taxable incomeg,17397.166,32
+2032,Taxable incomeg,18069.209,32
+2033,Taxable incomeg,18773.658,32
+2034,Taxable incomeg,19519.435,32
+2035,Taxable incomeg,20313.807,32
+2036,Taxable incomeg,21121.515,32
+2022,Taxable income—taxed at ordinary rates (before AMT)h,10313.9,34
+2023,Taxable income—taxed at ordinary rates (before AMT)h,10825.3,34
+2024,Taxable income—taxed at ordinary rates (before AMT)h,11632.8,34
+2025,Taxable income—taxed at ordinary rates (before AMT)h,11727.9,34
+2026,Taxable income—taxed at ordinary rates (before AMT)h,12400.4,34
+2027,Taxable income—taxed at ordinary rates (before AMT)h,12977.1,34
+2028,Taxable income—taxed at ordinary rates (before AMT)h,13458.1,34
+2029,Taxable income—taxed at ordinary rates (before AMT)h,14427.1,34
+2030,Taxable income—taxed at ordinary rates (before AMT)h,15136.1,34
+2031,Taxable income—taxed at ordinary rates (before AMT)h,15663,34
+2032,Taxable income—taxed at ordinary rates (before AMT)h,16276.3,34
+2033,Taxable income—taxed at ordinary rates (before AMT)h,16913.1,34
+2034,Taxable income—taxed at ordinary rates (before AMT)h,17584.9,34
+2035,Taxable income—taxed at ordinary rates (before AMT)h,18301.3,34
+2036,Taxable income—taxed at ordinary rates (before AMT)h,19028.9,34
+2022,Taxable income in bracket 1,1719.6,35
+2023,Taxable income in bracket 1,1868,35
+2024,Taxable income in bracket 1,1992.9,35
+2025,Taxable income in bracket 1,2007.5,35
+2026,Taxable income in bracket 1,2107.8,35
+2027,Taxable income in bracket 1,2180,35
+2028,Taxable income in bracket 1,2249.2,35
+2029,Taxable income in bracket 1,2379.8,35
+2030,Taxable income in bracket 1,2455,35
+2031,Taxable income in bracket 1,2528.9,35
+2032,Taxable income in bracket 1,2604.9,35
+2033,Taxable income in bracket 1,2679.4,35
+2034,Taxable income in bracket 1,2753.7,35
+2035,Taxable income in bracket 1,2834.9,35
+2036,Taxable income in bracket 1,2912.7,35
+2022,in bracket 2,3486.2,36
+2023,in bracket 2,3725.1,36
+2024,in bracket 2,3950,36
+2025,in bracket 2,3967.9,36
+2026,in bracket 2,4141.6,36
+2027,in bracket 2,4295.7,36
+2028,in bracket 2,4434.2,36
+2029,in bracket 2,4776.4,36
+2030,in bracket 2,4951.4,36
+2031,in bracket 2,5111.9,36
+2032,in bracket 2,5285.6,36
+2033,in bracket 2,5464.7,36
+2034,in bracket 2,5649.2,36
+2035,in bracket 2,5842.8,36
+2036,in bracket 2,6043.5,36
+2022,in bracket 3,2064.3,37
+2023,in bracket 3,2128.8,37
+2024,in bracket 3,2247.3,37
+2025,in bracket 3,2277.3,37
+2026,in bracket 3,2337.1,37
+2027,in bracket 3,2438.7,37
+2028,in bracket 3,2525,37
+2029,in bracket 3,2741.9,37
+2030,in bracket 3,2893.9,37
+2031,in bracket 3,2998.1,37
+2032,in bracket 3,3122.9,37
+2033,in bracket 3,3255.6,37
+2034,in bracket 3,3395.2,37
+2035,in bracket 3,3544.6,37
+2036,in bracket 3,3698.3,37
+2022,in bracket 4,1124.3,38
+2023,in bracket 4,1136.2,38
+2024,in bracket 4,1220.6,38
+2025,in bracket 4,1254.6,38
+2026,in bracket 4,1356.9,38
+2027,in bracket 4,1435.5,38
+2028,in bracket 4,1500.1,38
+2029,in bracket 4,1600.4,38
+2030,in bracket 4,1739.6,38
+2031,in bracket 4,1810,38
+2032,in bracket 4,1895.9,38
+2033,in bracket 4,1988.1,38
+2034,in bracket 4,2087.2,38
+2035,in bracket 4,2193.4,38
+2036,in bracket 4,2301.7,38
+2022,in bracket 5,282.5,39
+2023,in bracket 5,284.2,39
+2024,in bracket 5,310.7,39
+2025,in bracket 5,320.1,39
+2026,in bracket 5,352,39
+2027,in bracket 5,375.8,39
+2028,in bracket 5,395.2,39
+2029,in bracket 5,418.9,39
+2030,in bracket 5,453.4,39
+2031,in bracket 5,472.5,39
+2032,in bracket 5,496.1,39
+2033,in bracket 5,521,39
+2034,in bracket 5,548.8,39
+2035,in bracket 5,578.4,39
+2036,in bracket 5,609.1,39
+2022,in bracket 6,436.4,40
+2023,in bracket 6,438.6,40
+2024,in bracket 6,488.4,40
+2025,in bracket 6,507.5,40
+2026,in bracket 6,563.3,40
+2027,in bracket 6,605.3,40
+2028,in bracket 6,640,40
+2029,in bracket 6,679.2,40
+2030,in bracket 6,725.7,40
+2031,in bracket 6,757,40
+2032,in bracket 6,795.7,40
+2033,in bracket 6,836.7,40
+2034,in bracket 6,882.3,40
+2035,in bracket 6,931.3,40
+2036,in bracket 6,981.3,40
+2022,in bracket 7,1200.5,41
+2023,in bracket 7,1244.4,41
+2024,in bracket 7,1422.9,41
+2025,in bracket 7,1393,41
+2026,in bracket 7,1541.7,41
+2027,in bracket 7,1646.1,41
+2028,in bracket 7,1714.4,41
+2029,in bracket 7,1830.4,41
+2030,in bracket 7,1917.1,41
+2031,in bracket 7,1984.5,41
+2032,in bracket 7,2075.2,41
+2033,in bracket 7,2167.5,41
+2034,in bracket 7,2268.6,41
+2035,in bracket 7,2375.8,41
+2036,in bracket 7,2482.3,41
+2022,Taxable income—taxed at reduced rates for capital gains and dividends,1395.4,43
+2023,Taxable income—taxed at reduced rates for capital gains and dividends,1134.7,43
+2024,Taxable income—taxed at reduced rates for capital gains and dividends,1422.4,43
+2025,Taxable income—taxed at reduced rates for capital gains and dividends,1762.8,43
+2026,Taxable income—taxed at reduced rates for capital gains and dividends,1844.7,43
+2027,Taxable income—taxed at reduced rates for capital gains and dividends,1783.1,43
+2028,Taxable income—taxed at reduced rates for capital gains and dividends,1697.9,43
+2029,Taxable income—taxed at reduced rates for capital gains and dividends,1668.9,43
+2030,Taxable income—taxed at reduced rates for capital gains and dividends,1690.6,43
+2031,Taxable income—taxed at reduced rates for capital gains and dividends,1734.2,43
+2032,Taxable income—taxed at reduced rates for capital gains and dividends,1792.9,43
+2033,Taxable income—taxed at reduced rates for capital gains and dividends,1860.6,43
+2034,Taxable income—taxed at reduced rates for capital gains and dividends,1934.5,43
+2035,Taxable income—taxed at reduced rates for capital gains and dividends,2012.5,43
+2036,Taxable income—taxed at reduced rates for capital gains and dividends,2092.6,43
+2022,Total income tax (including AMT) before credits,2246.6,48
+2023,Total income tax (including AMT) before credits,2274.8,48
+2024,Total income tax (including AMT) before credits,2504.6,48
+2025,Total income tax (including AMT) before credits,2584.7,48
+2026,Total income tax (including AMT) before credits,2754.2,48
+2027,Total income tax (including AMT) before credits,2870.3,48
+2028,Total income tax (including AMT) before credits,2955.7,48
+2029,Total income tax (including AMT) before credits,3140.6,48
+2030,Total income tax (including AMT) before credits,3298.8,48
+2031,Total income tax (including AMT) before credits,3414.7,48
+2032,Total income tax (including AMT) before credits,3556,48
+2033,Total income tax (including AMT) before credits,3704.6,48
+2034,Total income tax (including AMT) before credits,3864,48
+2035,Total income tax (including AMT) before credits,4034,48
+2036,Total income tax (including AMT) before credits,4206.6,48
+2022,Tax from taxable income and taxed at ordinary ratesi,2001.6,49
+2023,Tax from taxable income and taxed at ordinary ratesi,2079.8,49
+2024,Tax from taxable income and taxed at ordinary ratesi,2257.5,49
+2025,Tax from taxable income and taxed at ordinary ratesi,2274.5,49
+2026,Tax from taxable income and taxed at ordinary ratesi,2427.8,49
+2027,Tax from taxable income and taxed at ordinary ratesi,2555.7,49
+2028,Tax from taxable income and taxed at ordinary ratesi,2657.4,49
+2029,Tax from taxable income and taxed at ordinary ratesi,2847.5,49
+2030,Tax from taxable income and taxed at ordinary ratesi,3002.3,49
+2031,Tax from taxable income and taxed at ordinary ratesi,3110.8,49
+2032,Tax from taxable income and taxed at ordinary ratesi,3241.9,49
+2033,Tax from taxable income and taxed at ordinary ratesi,3378.7,49
+2034,Tax from taxable income and taxed at ordinary ratesi,3525,49
+2035,Tax from taxable income and taxed at ordinary ratesi,3681,49
+2036,Tax from taxable income and taxed at ordinary ratesi,3839.4,49
+2022,Tax from bracket 1,172,50
+2023,Tax from bracket 1,186.8,50
+2024,Tax from bracket 1,199.3,50
+2025,Tax from bracket 1,200.8,50
+2026,Tax from bracket 1,210.8,50
+2027,Tax from bracket 1,218,50
+2028,Tax from bracket 1,224.9,50
+2029,Tax from bracket 1,238,50
+2030,Tax from bracket 1,245.5,50
+2031,Tax from bracket 1,252.9,50
+2032,Tax from bracket 1,260.5,50
+2033,Tax from bracket 1,267.9,50
+2034,Tax from bracket 1,275.4,50
+2035,Tax from bracket 1,283.5,50
+2036,Tax from bracket 1,291.3,50
+2022,from bracket 2,418.3,51
+2023,from bracket 2,447,51
+2024,from bracket 2,474,51
+2025,from bracket 2,476.1,51
+2026,from bracket 2,497,51
+2027,from bracket 2,515.5,51
+2028,from bracket 2,532.1,51
+2029,from bracket 2,573.2,51
+2030,from bracket 2,594.2,51
+2031,from bracket 2,613.4,51
+2032,from bracket 2,634.3,51
+2033,from bracket 2,655.8,51
+2034,from bracket 2,677.9,51
+2035,from bracket 2,701.1,51
+2036,from bracket 2,725.2,51
+2022,from bracket 3,454.1,52
+2023,from bracket 3,468.3,52
+2024,from bracket 3,494.4,52
+2025,from bracket 3,501,52
+2026,from bracket 3,514.2,52
+2027,from bracket 3,536.5,52
+2028,from bracket 3,555.5,52
+2029,from bracket 3,603.2,52
+2030,from bracket 3,636.7,52
+2031,from bracket 3,659.6,52
+2032,from bracket 3,687,52
+2033,from bracket 3,716.2,52
+2034,from bracket 3,746.9,52
+2035,from bracket 3,779.8,52
+2036,from bracket 3,813.6,52
+2022,from bracket 4,269.8,53
+2023,from bracket 4,272.7,53
+2024,from bracket 4,292.9,53
+2025,from bracket 4,301.1,53
+2026,from bracket 4,325.7,53
+2027,from bracket 4,344.5,53
+2028,from bracket 4,360,53
+2029,from bracket 4,384.1,53
+2030,from bracket 4,417.5,53
+2031,from bracket 4,434.4,53
+2032,from bracket 4,455,53
+2033,from bracket 4,477.1,53
+2034,from bracket 4,500.9,53
+2035,from bracket 4,526.4,53
+2036,from bracket 4,552.4,53
+2022,from bracket 5,90.4,54
+2023,from bracket 5,90.9,54
+2024,from bracket 5,99.4,54
+2025,from bracket 5,102.4,54
+2026,from bracket 5,112.6,54
+2027,from bracket 5,120.3,54
+2028,from bracket 5,126.5,54
+2029,from bracket 5,134,54
+2030,from bracket 5,145.1,54
+2031,from bracket 5,151.2,54
+2032,from bracket 5,158.8,54
+2033,from bracket 5,166.7,54
+2034,from bracket 5,175.6,54
+2035,from bracket 5,185.1,54
+2036,from bracket 5,194.9,54
+2022,from bracket 6,152.7,55
+2023,from bracket 6,153.5,55
+2024,from bracket 6,170.9,55
+2025,from bracket 6,177.6,55
+2026,from bracket 6,197.2,55
+2027,from bracket 6,211.9,55
+2028,from bracket 6,224,55
+2029,from bracket 6,237.7,55
+2030,from bracket 6,254,55
+2031,from bracket 6,265,55
+2032,from bracket 6,278.5,55
+2033,from bracket 6,292.8,55
+2034,from bracket 6,308.8,55
+2035,from bracket 6,326,55
+2036,from bracket 6,343.5,55
+2022,from bracket 7,444.2,56
+2023,from bracket 7,460.4,56
+2024,from bracket 7,526.5,56
+2025,from bracket 7,515.4,56
+2026,from bracket 7,570.4,56
+2027,from bracket 7,609.1,56
+2028,from bracket 7,634.3,56
+2029,from bracket 7,677.2,56
+2030,from bracket 7,709.3,56
+2031,from bracket 7,734.3,56
+2032,from bracket 7,767.8,56
+2033,from bracket 7,802,56
+2034,from bracket 7,839.4,56
+2035,from bracket 7,879,56
+2036,from bracket 7,918.5,56
+2022,Tax from taxable income and taxed at reduced rates for capital gains and dividends,240.1,58
+2023,Tax from taxable income and taxed at reduced rates for capital gains and dividends,190.4,58
+2024,Tax from taxable income and taxed at reduced rates for capital gains and dividends,242.1,58
+2025,Tax from taxable income and taxed at reduced rates for capital gains and dividends,304.3,58
+2026,Tax from taxable income and taxed at reduced rates for capital gains and dividends,319.4,58
+2027,Tax from taxable income and taxed at reduced rates for capital gains and dividends,307.6,58
+2028,Tax from taxable income and taxed at reduced rates for capital gains and dividends,291.4,58
+2029,Tax from taxable income and taxed at reduced rates for capital gains and dividends,286.3,58
+2030,Tax from taxable income and taxed at reduced rates for capital gains and dividends,289.7,58
+2031,Tax from taxable income and taxed at reduced rates for capital gains and dividends,296.7,58
+2032,Tax from taxable income and taxed at reduced rates for capital gains and dividends,306.6,58
+2033,Tax from taxable income and taxed at reduced rates for capital gains and dividends,318.3,58
+2034,Tax from taxable income and taxed at reduced rates for capital gains and dividends,331.1,58
+2035,Tax from taxable income and taxed at reduced rates for capital gains and dividends,344.7,58
+2036,Tax from taxable income and taxed at reduced rates for capital gains and dividends,358.7,58
+2022,Tax from AMT (including credits limited under the regular tax),4.8,60
+2023,Tax from AMT (including credits limited under the regular tax),4.6,60
+2024,Tax from AMT (including credits limited under the regular tax),5,60
+2025,Tax from AMT (including credits limited under the regular tax),5.9,60
+2026,Tax from AMT (including credits limited under the regular tax),7,60
+2027,Tax from AMT (including credits limited under the regular tax),7,60
+2028,Tax from AMT (including credits limited under the regular tax),6.9,60
+2029,Tax from AMT (including credits limited under the regular tax),6.8,60
+2030,Tax from AMT (including credits limited under the regular tax),6.8,60
+2031,Tax from AMT (including credits limited under the regular tax),7.2,60
+2032,Tax from AMT (including credits limited under the regular tax),7.5,60
+2033,Tax from AMT (including credits limited under the regular tax),7.7,60
+2034,Tax from AMT (including credits limited under the regular tax),8,60
+2035,Tax from AMT (including credits limited under the regular tax),8.2,60
+2036,Tax from AMT (including credits limited under the regular tax),8.5,60
+2022,Total credits (refundable and nonrefundable) j,231.8,62
+2023,Total credits (refundable and nonrefundable) j,242.3,62
+2024,Total credits (refundable and nonrefundable) j,249.3,62
+2025,Total credits (refundable and nonrefundable) j,257.5,62
+2026,Total credits (refundable and nonrefundable) j,261.5,62
+2027,Total credits (refundable and nonrefundable) j,267.8,62
+2028,Total credits (refundable and nonrefundable) j,270.8,62
+2029,Total credits (refundable and nonrefundable) j,277.1,62
+2030,Total credits (refundable and nonrefundable) j,279,62
+2031,Total credits (refundable and nonrefundable) j,286.1,62
+2032,Total credits (refundable and nonrefundable) j,287.7,62
+2033,Total credits (refundable and nonrefundable) j,293.7,62
+2034,Total credits (refundable and nonrefundable) j,294.9,62
+2035,Total credits (refundable and nonrefundable) j,300.2,62
+2036,Total credits (refundable and nonrefundable) j,302.8,62
+2022,Income tax after creditsk,2109.6,63
+2023,Income tax after creditsk,2136.1,63
+2024,Income tax after creditsk,2364,63
+2025,Income tax after creditsk,2440.2,63
+2026,Income tax after creditsk,2607.8,63
+2027,Income tax after creditsk,2719.8,63
+2028,Income tax after creditsk,2803.7,63
+2029,Income tax after creditsk,2982,63
+2030,Income tax after creditsk,3137.9,63
+2031,Income tax after creditsk,3249.1,63
+2032,Income tax after creditsk,3388.5,63
+2033,Income tax after creditsk,3532.6,63
+2034,Income tax after creditsk,3690.3,63
+2035,Income tax after creditsk,3855.7,63
+2036,Income tax after creditsk,4026.2,63
+2022,Net investment income tax,40,64
+2023,Net investment income tax,35.9,64
+2024,Net investment income tax,44.4,64
+2025,Net investment income tax,53.4,64
+2026,Net investment income tax,57.2,64
+2027,Net investment income tax,57,64
+2028,Net investment income tax,56.2,64
+2029,Net investment income tax,57.1,64
+2030,Net investment income tax,58.8,64
+2031,Net investment income tax,61,64
+2032,Net investment income tax,63.8,64
+2033,Net investment income tax,66.9,64
+2034,Net investment income tax,70.2,64
+2035,Net investment income tax,73.6,64
+2036,Net investment income tax,77,64
+2022,Individual income tax liability,2149.6,65
+2023,Individual income tax liability,2171.9,65
+2024,Individual income tax liability,2408.4,65
+2025,Individual income tax liability,2493.7,65
+2026,Individual income tax liability,2665,65
+2027,Individual income tax liability,2776.8,65
+2028,Individual income tax liability,2860,65
+2029,Individual income tax liability,3039.1,65
+2030,Individual income tax liability,3196.7,65
+2031,Individual income tax liability,3310.2,65
+2032,Individual income tax liability,3452.3,65
+2033,Individual income tax liability,3599.4,65
+2034,Individual income tax liability,3760.4,65
+2035,Individual income tax liability,3929.3,65
+2036,Individual income tax liability,4103.3,65
+2022,Number of returns (millions)l,161.3,69
+2023,Number of returns (millions)l,164.7,69
+2024,Number of returns (millions)l,167.1,69
+2025,Number of returns (millions)l,168,69
+2026,Number of returns (millions)l,169.5,69
+2027,Number of returns (millions)l,170.8,69
+2028,Number of returns (millions)l,172.1,69
+2029,Number of returns (millions)l,173.2,69
+2030,Number of returns (millions)l,174.3,69
+2031,Number of returns (millions)l,175.8,69
+2032,Number of returns (millions)l,176.9,69
+2033,Number of returns (millions)l,177.9,69
+2034,Number of returns (millions)l,178.8,69
+2035,Number of returns (millions)l,179.7,69
+2036,Number of returns (millions)l,180.5,69
+2022,Number with itemized deductions,15,70
+2023,Number with itemized deductions,15.1,70
+2024,Number with itemized deductions,15.6,70
+2025,Number with itemized deductions,20.9,70
+2026,Number with itemized deductions,21.9,70
+2027,Number with itemized deductions,23.9,70
+2028,Number with itemized deductions,26,70
+2029,Number with itemized deductions,27.9,70
+2030,Number with itemized deductions,22.6,70
+2031,Number with itemized deductions,23.9,70
+2032,Number with itemized deductions,25.2,70
+2033,Number with itemized deductions,26.3,70
+2034,Number with itemized deductions,27.2,70
+2035,Number with itemized deductions,28,70
+2036,Number with itemized deductions,28.6,70
+2022,Number affected by the AMTm,0.33832799999999996,71
+2023,Number affected by the AMTm,0.302688,71
+2024,Number affected by the AMTm,0.313993,71
+2025,Number affected by the AMTm,0.505474,71
+2026,Number affected by the AMTm,0.578376,71
+2027,Number affected by the AMTm,0.557867,71
+2028,Number affected by the AMTm,0.539353,71
+2029,Number affected by the AMTm,0.442204,71
+2030,Number affected by the AMTm,0.38158800000000004,71
+2031,Number affected by the AMTm,0.389609,71
+2032,Number affected by the AMTm,0.39187299999999997,71
+2033,Number affected by the AMTm,0.395249,71
+2034,Number affected by the AMTm,0.400377,71
+2035,Number affected by the AMTm,0.40296699999999996,71
+2036,Number affected by the AMTm,0.402909,71
+2022,"Individual income tax receipts (billions of dollars, fiscal year)n",2632.1,73
+2023,"Individual income tax receipts (billions of dollars, fiscal year)n",2176.5,73
+2024,"Individual income tax receipts (billions of dollars, fiscal year)n",2426.1,73
+2025,"Individual income tax receipts (billions of dollars, fiscal year)n",2656,73
+2026,"Individual income tax receipts (billions of dollars, fiscal year)n",2751.3,73
+2027,"Individual income tax receipts (billions of dollars, fiscal year)n",2947,73
+2028,"Individual income tax receipts (billions of dollars, fiscal year)n",3044.2,73
+2029,"Individual income tax receipts (billions of dollars, fiscal year)n",3193.3,73
+2030,"Individual income tax receipts (billions of dollars, fiscal year)n",3339,73
+2031,"Individual income tax receipts (billions of dollars, fiscal year)n",3461.1,73
+2032,"Individual income tax receipts (billions of dollars, fiscal year)n",3594.4,73
+2033,"Individual income tax receipts (billions of dollars, fiscal year)n",3743.9,73
+2034,"Individual income tax receipts (billions of dollars, fiscal year)n",3902.6,73
+2035,"Individual income tax receipts (billions of dollars, fiscal year)n",4071.9,73
+2036,"Individual income tax receipts (billions of dollars, fiscal year)n",4249,73
+2022,Earned income tax credito,59.4,75
+2023,Earned income tax credito,66,75
+2024,Earned income tax credito,70.8,75
+2025,Earned income tax credito,71.2,75
+2026,Earned income tax credito,72.2,75
+2027,Earned income tax credito,73.6,75
+2028,Earned income tax credito,74.8,75
+2029,Earned income tax credito,75,75
+2030,Earned income tax credito,75.4,75
+2031,Earned income tax credito,76.3,75
+2032,Earned income tax credito,76.7,75
+2033,Earned income tax credito,77,75
+2034,Earned income tax credito,77.3,75
+2035,Earned income tax credito,77.6,75
+2036,Earned income tax credito,78.2,75
+2022,Child tax credit/credit for other dependentso,117.6,76
+2023,Child tax credit/credit for other dependentso,119.4,76
+2024,Child tax credit/credit for other dependentso,119.6,76
+2025,Child tax credit/credit for other dependentso,126.4,76
+2026,Child tax credit/credit for other dependentso,126,76
+2027,Child tax credit/credit for other dependentso,129.3,76
+2028,Child tax credit/credit for other dependentso,129.3,76
+2029,Child tax credit/credit for other dependentso,133.2,76
+2030,Child tax credit/credit for other dependentso,132.7,76
+2031,Child tax credit/credit for other dependentso,137,76
+2032,Child tax credit/credit for other dependentso,136.4,76
+2033,Child tax credit/credit for other dependentso,140.1,76
+2034,Child tax credit/credit for other dependentso,139.1,76
+2035,Child tax credit/credit for other dependentso,142.1,76
+2036,Child tax credit/credit for other dependentso,142,76
+2022,Top 1 percent,22.9,80
+2023,Top 1 percent,22.1,80
+2024,Top 1 percent,23.3,80
+2025,Top 1 percent,23.3,80
+2026,Top 1 percent,23.5,80
+2027,Top 1 percent,23.3,80
+2028,Top 1 percent,22.9,80
+2029,Top 1 percent,22.9,80
+2030,Top 1 percent,22.8,80
+2031,Top 1 percent,22.8,80
+2032,Top 1 percent,22.8,80
+2033,Top 1 percent,22.9,80
+2034,Top 1 percent,22.9,80
+2035,Top 1 percent,23,80
+2036,Top 1 percent,23,80
+2022,Top 5 percent,38.8,81
+2023,Top 5 percent,37.8,81
+2024,Top 5 percent,39.1,81
+2025,Top 5 percent,39,81
+2026,Top 5 percent,39.3,81
+2027,Top 5 percent,39.2,81
+2028,Top 5 percent,38.9,81
+2029,Top 5 percent,38.8,81
+2030,Top 5 percent,38.8,81
+2031,Top 5 percent,38.7,81
+2032,Top 5 percent,38.7,81
+2033,Top 5 percent,38.8,81
+2034,Top 5 percent,38.8,81
+2035,Top 5 percent,38.8,81
+2036,Top 5 percent,38.8,81
+2022,Top 10 percent,50.1,82
+2023,Top 10 percent,49,82
+2024,Top 10 percent,50.2,82
+2025,Top 10 percent,50.2,82
+2026,Top 10 percent,50.5,82
+2027,Top 10 percent,50.4,82
+2028,Top 10 percent,50.1,82
+2029,Top 10 percent,50.1,82
+2030,Top 10 percent,50,82
+2031,Top 10 percent,50,82
+2032,Top 10 percent,50,82
+2033,Top 10 percent,50,82
+2034,Top 10 percent,50,82
+2035,Top 10 percent,50,82
+2036,Top 10 percent,50,82
+2022,Top 25 percent,70.8,83
+2023,Top 25 percent,70.1,83
+2024,Top 25 percent,70.8,83
+2025,Top 25 percent,70.8,83
+2026,Top 25 percent,70.9,83
+2027,Top 25 percent,70.9,83
+2028,Top 25 percent,70.7,83
+2029,Top 25 percent,70.6,83
+2030,Top 25 percent,70.6,83
+2031,Top 25 percent,70.5,83
+2032,Top 25 percent,70.5,83
+2033,Top 25 percent,70.5,83
+2034,Top 25 percent,70.4,83
+2035,Top 25 percent,70.4,83
+2036,Top 25 percent,70.4,83
+2022,Top 50 percent,89.4,84
+2023,Top 50 percent,89,84
+2024,Top 50 percent,89.3,84
+2025,Top 50 percent,89.1,84
+2026,Top 50 percent,89.2,84
+2027,Top 50 percent,89.1,84
+2028,Top 50 percent,89,84
+2029,Top 50 percent,89,84
+2030,Top 50 percent,89,84
+2031,Top 50 percent,88.9,84
+2032,Top 50 percent,88.9,84
+2033,Top 50 percent,88.8,84
+2034,Top 50 percent,88.8,84
+2035,Top 50 percent,88.8,84
+2036,Top 50 percent,88.8,84

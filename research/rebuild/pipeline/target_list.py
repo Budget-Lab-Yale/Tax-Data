@@ -528,6 +528,10 @@ def nonfiler_count(year):
     scaling does (tilt.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
     t = t[t.source == 'cps']
+    if year > max(cps_years()):   # past the last CPS year (30 October): grown with the population
+        import growth as GR
+        last = max(cps_years())
+        return nonfiler_count(last) * GR.population(year) / GR.population(last)
     if year not in set(t['year']):
         lo, hi = cps_neighbours(year)
         return float(np.sqrt(nonfiler_count(lo) * nonfiler_count(hi)))
@@ -720,6 +724,18 @@ FILE_RANK_LINES = {}   # (variable, population, percentile) -> the file's dollar
 
 def pipeline_rows(year, cells, v, stats):
     assert cells == [group_cells('all')[0]] and stats in (['units'], ['amount'])
+    if year > max(cps_years()):   # past the last CPS year (30 October): the last year's grown with the population
+        import growth as GR
+        last = max(cps_years())
+        f = GR.population(year) / GR.population(last)
+        if v is None:
+            return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
+                     'source': f'past the last CPS year: the filing stage\'s expected non-filers in {last} times the '
+                               f'growth of the Social Security area population, {f:.4f}'}]
+        return [{'cell': 'all', 'statistic': 'amount', 'value': cps_nonfiler_people(last, v) * f,
+                 'source': f'past the last CPS year: the filing stage\'s people among the expected non-filers in {last}, '
+                           f'counted as the file counts them, times the growth of the Social Security area population, '
+                           f'{f:.4f}'}]
     if year not in cps_years():   # an even year (30 October): the geometric mean of the CPS years either side
         lo, hi = cps_neighbours(year)
         if v is None:

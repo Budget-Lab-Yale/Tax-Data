@@ -220,8 +220,9 @@ def grow_dollars(df, s, t):
     # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
     scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
     scf = scf[scf.source == 'scf']
-    have = set(scf['year'].unique())
-    f_scf = BT.scf_growth(scf, s - 1, t - 1) if {s - 1, t - 1} <= have else None
+    # (30 October) a year with no wave of its own is interpolated between waves, or after the last wave grown by Z.1
+    # household net worth per person (build_table.scf_mean), so every year has a factor
+    f_scf = BT.scf_growth(scf, s - 1, t - 1)
     for v in BT.SCF_AMOUNTS:
         if v in out:
             if v in BT.SCF_RATIOS:
@@ -301,6 +302,9 @@ def start_nonfilers():
     count = lambda y: float((t.loc[t.year == y, 'weight'] * (1 - t.loc[t.year == y, 'filer_p'])).sum())
     if Y in have:
         return TLS.nonfiler_count(Y), ''
+    if Y > max(have):   # past the last CPS year (30 October): the last year's count grown with the population
+        n = TLS.nonfiler_count(Y)
+        return n, f'past the last CPS year ({max(have)}): its expected non-filers grown with the Social Security area population'
     lo, hi = max([y for y in have if y < Y], default=None), min([y for y in have if y > Y], default=None)
     assert lo is not None and hi is not None, f'no CPS units for {Y}, and no CPS year on both sides'
     n = float(np.sqrt(count(lo) * count(hi)))

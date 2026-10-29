@@ -1360,17 +1360,54 @@ def scf_growth(scf, y_from, y_to):
         if v in SCF_RATIOS:      # a share: the mortgage's of the home, the spouse's of the unit's deferrals
             out[v] = 1.0
             continue
-        mean = {}
-        for y in (y_from, y_to):
-            d = scf[scf.year == y]
-            assert len(d), f'no SCF wave of income year {y}'
-            if v in SCF_NOT_ASKED:     # the units asked only: the others are missing by design, not zero
-                d = d[d[v].notna()]
-            assert not d[[v, 'weight']].isna().any().any(), f'SCF {y}: {v} or the weight missing on some unit'
-            mean[y] = float(np.average(d[v].to_numpy(float), weights=d['weight'].to_numpy(float)))
+        mean = {y: scf_mean(scf, v, y) for y in (y_from, y_to)}
         # a mean at or below zero (possible for the unrealized gains) makes the ratio meaningless: no factor
         out[v] = mean[y_to] / mean[y_from] if mean[y_from] > 0 and mean[y_to] > 0 else np.nan
     return out
+
+
+def _wave_mean(scf, v, y):
+    d = scf[scf.year == y]
+    assert len(d), f'no SCF wave of income year {y}'
+    if v in SCF_NOT_ASKED:     # the units asked only: the others are missing by design, not zero
+        d = d[d[v].notna()]
+    assert not d[[v, 'weight']].isna().any().any(), f'SCF {y}: {v} or the weight missing on some unit'
+    return float(np.average(d[v].to_numpy(float), weights=d['weight'].to_numpy(float)))
+
+
+def scf_mean(scf, v, y):
+    """The SCF's weighted mean per tax unit of item v at income year y (30 October, targets for every year): a wave's
+    own mean where the table has a wave of income year y; between two waves, the geometric interpolation of their means
+    (y = a + l (b - a): mean_a^(1 - l) mean_b^l; the arithmetic one if either mean is at or below zero); after the last
+    wave, the last wave's mean grown by household net worth per person (the Federal Reserve's Financial Accounts, Z.1,
+    over the Social Security area population; stock years y + 1 over the last wave's, the wave of income year y being
+    interviewed in year y + 1; past 2025 Z.1 is held at its ratio to nominal GDP; growth.scf_extension). Before the
+    first wave: an error."""
+    have = sorted(int(x) for x in scf['year'].unique())
+    if y in have:
+        return _wave_mean(scf, v, y)
+    lo, hi = max([w for w in have if w < y], default=None), min([w for w in have if w > y], default=None)
+    assert lo is not None, f'SCF: income year {y} is before the first wave ({have[0]})'
+    if hi is None:
+        return _wave_mean(scf, v, lo) * GR.scf_extension(lo + 1, y + 1)
+    a, b, lam = _wave_mean(scf, v, lo), _wave_mean(scf, v, hi), (y - lo) / (hi - lo)
+    return a ** (1 - lam) * b ** lam if a > 0 and b > 0 else a + lam * (b - a)
+
+
+def scf_units_at(scf, y):
+    """The SCF's number of tax units (sum of weights, as the wave's rows carry them) at income year y, by the rule of
+    scf_mean: a wave's own; between waves geometric interpolation; after the last wave grown with the Social Security
+    area population (stock years y + 1 over the last wave's)."""
+    have = sorted(int(x) for x in scf['year'].unique())
+    n = lambda w: float(scf.loc[scf.year == w, 'weight'].sum())
+    if y in have:
+        return n(y)
+    lo, hi = max([w for w in have if w < y], default=None), min([w for w in have if w > y], default=None)
+    assert lo is not None, f'SCF: income year {y} is before the first wave ({have[0]})'
+    if hi is None:
+        return n(lo) * GR.population(y + 1) / GR.population(lo + 1)
+    lam = (y - lo) / (hi - lo)
+    return n(lo) ** (1 - lam) * n(hi) ** lam
 
 
 def puf_target_map(m_puf, y=TARGET_YEAR):

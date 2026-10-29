@@ -115,7 +115,8 @@ def read(table, years):
 
 
 def build():
-    years = [common.PUF_YEAR, common.TARGET_YEAR]
+    # past SOI's last year (30 October), the last year is read too: returns() carries it forward
+    years = sorted({common.PUF_YEAR, common.TARGET_YEAR, min(common.TARGET_YEAR, total_years()[-1])})
     t = pd.concat([read('1.4', years), read('1.2', years)], ignore_index=True)
     blank = t['value'].isna()
     assert (t.loc[blank, 'flag'] == 'combined').all(), t[blank & (t['flag'] != 'combined')]
@@ -132,7 +133,11 @@ def load():
 
 
 def returns(soi, year, table='1.4', status='all'):
-    """The number of returns, all AGI, in one table and filing status."""
+    """The number of returns, all AGI, in one table and filing status. Past SOI's last year (30 October): the last
+    year's count times CBO's growth in the number of returns (all_returns), the mix of filing statuses kept."""
+    last = total_years()[-1]
+    if year > last:
+        return returns(soi, last, table, status) * all_returns(year) / all_returns(last)
     s = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == status)
             & (soi.label == 'all') & (soi.variable == 'returns')]
     return s['value'].item()
@@ -267,13 +272,51 @@ def soi_item(y, item, base=None, rows=None, absolute=False):
     return amt, cnt
 
 
-def carried(f, y):
-    """f(y) for a year in Table 1.4; past its last year, the last year's value times its last growth for each year
-    beyond (a placeholder until the targeting framework supplies a rule for borrowing from other years)."""
+def carried(f, y, concept=None):
+    """f(y) for a year in Table 1.4; past its last year, f(last) times CBO's growth of the concept per return (CBO's
+    February 2026 individual income tax projections, cbo_growth; 30 October, TARGETS.md section 3: our own last level
+    times an outside change). concept None (a count or a ratio with no CBO line): the last year's value times its last
+    growth for each year beyond, the placeholder of before 30 October."""
     last = total_years()[-1]
     if y <= last:
         return f(y)
+    if concept is not None:
+        return f(last) * cbo_growth(concept, last, y)
     return f(last) * (f(last) / f(last - 1)) ** (y - last)
+
+
+# ---- CBO's projections, past SOI's last year (30 October) -------------------------------------------------------
+# CBO's February 2026 individual income tax details (Revenue Projections by Category, sheet 3; calendar years 2022-2036;
+# research/rebuild/resources/growth/cbo_individual_income_tax.csv). Each SOI item grows past SOI's last year with the
+# CBO line closest to it, per return (CBO's amount over CBO's number of returns): CBO publishes no number with each item.
+CBO_CONCEPT = {
+    'wages': 'Salaries and wages', 'interest': 'Taxable interest and ordinary dividends',
+    'div_ord': 'Taxable interest and ordinary dividends', 'dividends': 'Qualified dividends',
+    'div_pref': 'Qualified dividends', 'sch_d_net_gain': 'Capital gain or loss', 'kg_dist': 'Capital gain or loss',
+    'business_income': 'Net business income', 'sch_cf_income': 'Net business income', 'sch_e_income': 'Net business income',
+    'sche_rent': 'Net business income', 'sche_rest': 'Net business income',
+    'pensions_taxable': 'Taxable pensions and annuities', 'ira_taxable': 'Taxable pensions and annuities',
+    'ss_taxable': 'Taxable Social Security benefits', 'ss_gross': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
+    'returns': 'Number of returns', 'agi': 'Adjusted gross income'}
+_CBO = None
+
+
+def cbo_level(concept, y):
+    """CBO's projected level of a concept (its line's name starts with concept) in calendar year y."""
+    global _CBO
+    if _CBO is None:
+        _CBO = pd.read_csv(os.path.join(os.path.dirname(common.HERE), 'resources', 'growth', 'cbo_individual_income_tax.csv'))
+    d = _CBO[_CBO['concept'].str.startswith(concept) & (_CBO['year'] == y)]
+    assert len(d) == 1, f'CBO line {concept!r} in {y}: {len(d)} rows (CBO publishes 2022-2036)'
+    return float(d['value'].iloc[0])
+
+
+def cbo_growth(concept, a, b):
+    """CBO's growth of a concept per return from year a to b (a count, 'Number of returns', as itself)."""
+    if concept == 'Number of returns':
+        return cbo_level(concept, b) / cbo_level(concept, a)
+    per = lambda y: cbo_level(concept, y) / cbo_level('Number of returns', y)
+    return per(b) / per(a)
 
 
 def per_return_growth(item, rows=None, absolute=False, year=None):
@@ -283,12 +326,15 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
     def g(b):
         (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
         return (a1 / c1) / (a0 / c0)
-    return carried(g, common.TARGET_YEAR if year is None else year)
+    concept = CBO_CONCEPT.get(item, 'Net business income' if rows is not None and any(
+        k in r for r in rows for k in ('partnership', 'business', 'farm', 'rent', 'royalty', 'estate')) else
+        'Adjusted gross income')
+    return carried(g, common.TARGET_YEAR if year is None else year, concept)
 
 
 def all_returns(y):
     """Table 1.4's number of returns in year y (past its last year, carried forward)."""
-    return carried(lambda b: totals()[(b, 'number of returns')], y)
+    return carried(lambda b: totals()[(b, 'number of returns')], y, 'Number of returns')
 
 
 # ---- 3. Table 1.6: returns by filing status and the primary filer's age -----------------------
@@ -310,7 +356,10 @@ def table_1_6(y):
         assert (t.value != '').all(), 'Table 1.6: a blank all-AGI cell'
         t = t.assign(status=t.panel.map(status), year=t.tax_year.astype(int), value=t.value.astype(float))
         _T16 = t.groupby(['year', 'status', 'row_label'])['value'].sum().to_dict()
-    return {(s, k): carried(lambda b: _T16[(b, s, row)], y) for s in T16_PANELS for k, row in enumerate(T16_ROWS)}
+    # past the last year: each cell grows with CBO's number of returns (30 October), so the last year's mix of filing
+    # status and age is kept (no projection of returns by age exists)
+    return {(s, k): carried(lambda b: _T16[(b, s, row)], y, 'Number of returns') for s in T16_PANELS
+            for k, row in enumerate(T16_ROWS)}
 
 
 if __name__ == '__main__':

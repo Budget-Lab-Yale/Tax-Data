@@ -110,9 +110,10 @@ def frame(wave, year):
         u[v] = u[v].to_numpy(float) * f[v]
     u['w_primary_mortgage'] = u['w_primary_mortgage'].to_numpy(float) * f['w_primary_home']
     u['net_worth'] = u[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
-    ref = t.loc[t.year == year - 1, 'weight']
-    assert len(ref), f'no SCF wave of {year} in the table: the waves are scaled to its number of units'
-    scale = float(ref.sum()) / float(u['weight'].sum())
+    # the target year's wave's number of units; a year with no wave of its own (30 October): interpolated between the
+    # waves either side, or after the last wave grown with the population (build_table.scf_units_at)
+    import build_table as BT
+    scale = BT.scf_units_at(_table(['weight']), year - 1) / float(u['weight'].sum())
     u['weight'] = u['weight'].to_numpy(float) * scale
     u = u.sort_values(['implicate', 'record_id'], kind='stable').reset_index(drop=True)
     u1, rep = E.scf_replicates(wave, u)   # settings errors.scf_replicate_dir, one folder per wave

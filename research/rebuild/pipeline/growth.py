@@ -168,6 +168,20 @@ def _soi_per_capita_extension(y, last):
         * _at(cbo, y, 'CBO personal income per capita') / _at(cbo, b_last, 'CBO personal income per capita')
 
 
+def population(y):
+    """The Social Security area population in year y (resources/growth/ss_area_population.csv: Macro-Projections, CBO's
+    January 2026 demographic projections; build_projection_series.py)."""
+    return _at(_csv('ss_area_population.csv'), y, 'Social Security area population')
+
+
+def scf_extension(a, b):
+    """The SCF balance sheet's growth per person from stock year a to b after the last wave (30 October): household
+    net worth (Z.1 S1M.b, FL152090005, fourth quarter; past 2025 held at its 2025 ratio to nominal GDP) over the
+    Social Security area population. One factor for every balance-sheet item (build_table.scf_mean)."""
+    nw = _csv('z1_household_net_worth.csv')
+    return (_at(nw, b, 'Z.1 household net worth') / population(b)) / (_at(nw, a, 'Z.1 household net worth') / population(a))
+
+
 def agi_per_return(y):
     tot = TG.totals()
     years = TG.total_years()
@@ -191,7 +205,16 @@ def level(spec, y):
     if s == 'nipa pce per return':
         if 'pce' not in _CSV:
             _CSV['pce'] = pd.read_csv(common.RAW['pce']).set_index('year')
-        return _CSV['pce'].loc[y, spec['category']] / TG.all_returns(y)
+        p = _CSV['pce']
+        if y in p.index:
+            return p.loc[y, spec['category']] / TG.all_returns(y)
+        # past the PCE file's last year (30 October, years after the surveys): the last year's level per return grown
+        # by CBO's personal income per person (the extension agi per return uses past BEA's last year), a placeholder
+        last = int(p.index.max())
+        assert y > last, f'PCE: no {y}'
+        cbo = _csv('cbo_personal_income_population.csv')
+        return p.loc[last, spec['category']] / TG.all_returns(last) * _at(cbo, y, 'CBO personal income per capita') \
+            / _at(cbo, last, 'CBO personal income per capita')
     if s in ('acs real estate tax per paying owner', 'meps out-of-pocket per person with any',
              'cpi tax preparation fees', 'college board tuition and fees'):
         return _at(_csv(SERIES[s][1][0]), y, s)
