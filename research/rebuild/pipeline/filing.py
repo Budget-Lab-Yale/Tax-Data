@@ -122,8 +122,8 @@ def nacount(df, name):
 def eitc_eligible(u, nkids, year):
     unm, jnt, inv_lim, (lo, hi) = EITC[year]
     earned = u.wage + u.selfemp
-    agi = u.wage + u.selfemp + u.txbl_int + u.dividends + u.rents + u.est_trust + u.pension + u.uc
-    inv = u.txbl_int + u.dividends + np.maximum(u.rents, 0)
+    agi = u.wage + u.selfemp + u.interest + u.dividends + u.rents + u.est_trust + u.pension + u.uc
+    inv = u.interest + u.dividends + np.maximum(u.rents, 0)
     k = np.minimum(nkids, 3).astype(int)
     joint = (u.filing_status == 'joint').to_numpy()
     end = np.where(joint, np.array(jnt)[k], np.array(unm)[k])

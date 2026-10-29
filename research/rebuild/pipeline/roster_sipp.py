@@ -356,10 +356,10 @@ def read_roster(year):
     # incomes (CBO's 3a)
     for c in T.INCOME_ITEMS:
         r[c] = 0.0
-    r['wage'] = P.wage.to_numpy(); r['selfemp'] = P.selfemp.to_numpy(); r['txbl_int'] = P.property.to_numpy()
+    r['wage'] = P.wage.to_numpy(); r['selfemp'] = P.selfemp.to_numpy(); r['interest'] = P.property.to_numpy()
     r['uc'] = P.uc.to_numpy(); r['ssb'] = P.ssb.to_numpy(); r['ssi'] = P.ssi.to_numpy()
     r['pension'] = P.other.to_numpy()
-    gi0 = r.wage + r.selfemp + r.txbl_int + r.uc + r.pension
+    gi0 = r.wage + r.selfemp + r.interest + r.uc + r.pension
     ssb = r.ssb.to_numpy()
     combined = np.maximum(gi0 + 0.5 * ssb, 0)
     t1 = np.where(marst == 1, 32000, 25000); t2 = np.where(marst == 1, 44000, 34000)

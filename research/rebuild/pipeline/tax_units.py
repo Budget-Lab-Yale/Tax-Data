@@ -456,7 +456,7 @@ def collapse_units(r, away=None):
     head = r[r.tu_rel == 1].set_index('uid')
     assert head.index.is_unique, 'two heads in one unit'
     assert set(r.uid) == set(head.index), 'a unit without a head'
-    inc_cols = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'txbl_int', 'dividends', 'rents', 'est_trust', 'pension',
+    inc_cols = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'interest', 'dividends', 'rents', 'est_trust', 'pension',
                 'uc', 'ssb', 'rr_pension', 'ssi', 'va_benefits', 'wc', 'other_income']
     u = hs.groupby('uid')[inc_cols].sum()
     sp = r[r.tu_rel == 2].groupby('uid')
@@ -536,7 +536,7 @@ def collapse_units(r, away=None):
 # ---------------------------------------------------------------------------------------------------------------
 # Married filing separately: a post-filing step (filing.py calls it)
 # ---------------------------------------------------------------------------------------------------------------
-INCOME_ITEMS = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'txbl_int', 'dividends', 'rents', 'est_trust', 'pension',
+INCOME_ITEMS = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'interest', 'dividends', 'rents', 'est_trust', 'pension',
                 'uc', 'ssb', 'rr_pension', 'ssi', 'va_benefits', 'wc', 'other_income']
 
 

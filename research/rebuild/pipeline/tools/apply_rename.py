@@ -30,6 +30,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MAP = os.path.join(HERE, 'rename_map.csv')
 EXT = ('.py', '.R', '.json', '.yaml', '.md', '.csv', '.sbatch', '.txt')
 SKIP = ('HISTORY.md', 'rename_map.csv', 'apply_rename.py')
+# The shared tax-unit rules' own person income fields (wage, selfemp, interest, dividends, rents, ...) are not the
+# file's items: 'interest' there is the person's interest or property income, read from keyword arguments the rules
+# cannot see renamed (roster_cps.py), so it keeps its name in these files.
+KEEP_ONE_WORD = {'tax_units.py': {'interest'}, 'filing.py': {'interest'}, 'roster_sipp.py': {'interest'},
+                 'roster_cps.py': {'interest'}, 'roster_cex.py': {'interest'}, 'check_units.py': {'interest'}}
 PREFIX = r'(?:u_|raw_)?'
 SUFFIX = r'(?:_reported_band|_reported|_band|_drawn)?'
 STRING = re.compile(r"""('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")""")
@@ -133,7 +138,10 @@ def main():
         ext = os.path.splitext(path)[1]
         text = open(path).read()
         new = text
+        keep = KEEP_ONE_WORD.get(os.path.basename(path), set())
         for old, nm in pairs:
+            if old in keep:
+                continue
             new = (multi_part(old, nm) if ('_' in old or '.' in old) else one_word(old, nm, ext))(new)
         if new != text:
             changed += 1
