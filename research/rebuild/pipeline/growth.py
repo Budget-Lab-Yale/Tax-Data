@@ -231,9 +231,14 @@ def between(v, s, t, year=common.TARGET_YEAR):
     if _is_none(spec):
         return 1.0
     if spec['series'] == 'soi 1.4':
-        return _factor(spec, t) / _factor(spec, s)
-    assert spec['series'] != 'scf mean per unit between waves', f'{v}: the SCF is grown by build_table.scf_growth'
-    return level(spec, t) / level(spec, s)
+        f = _factor(spec, t) / _factor(spec, s)
+    else:
+        assert spec['series'] != 'scf mean per unit between waves', f'{v}: the SCF is grown by build_table.scf_growth'
+        f = level(spec, t) / level(spec, s)
+    # the maps (build_table.build_maps, build_year_maps) multiply by this with no check of their own: a missing value
+    # in a series (a blank cell in the NIPA PCE file) would otherwise reach them as a missing factor
+    assert np.isfinite(f) and f > 0, f'{v}: growth factor {s} to {t} is {f} ({describe(v, year)})'
+    return f
 
 
 def grown_by(v, year=common.TARGET_YEAR):
