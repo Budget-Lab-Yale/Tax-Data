@@ -273,6 +273,8 @@
     ],
     "dollar_line": 50000,
     "loss_cap": -3000,
+    "loss_line": 2999,
+    "_loss_line": "29-30 October (capital gains drawn before the loss limit; John, 29 October): the slot holds the Schedule D gain or loss before the $3,000 limit, the SCF asks the amount on the return, where a loss stops at the limit. Losses held at the limit (loss_cap) are the units with a loss past it; past a loss line of $2,999 they are put on the tax data's losses past $3,000 by the row's match (percentile among the units past the line in each data set). Smaller losses keep their dollars. DECISIONS_FOR_JOHN.md (explore/2026-10-30).",
     "fill_in": {
      "size_ranges": [
       [
@@ -905,18 +907,6 @@
    {
     "survey": "cps",
     "variable": "kg_dist",
-    "in_training": false,
-    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
-    "items": [],
-    "dollar_line": null,
-    "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
-   },
-   {
-    "survey": "cps",
-    "variable": "kg_other",
     "in_training": false,
     "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
     "items": [],

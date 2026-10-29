@@ -240,7 +240,7 @@ variables:
       soi 1.3: {item: ordinary dividends, count: returns, amount: amount}
       soi 4.3: {item: ordinary dividends, count: returns, amount: amount}
   sch_d_net_capital_gain:
-    record: capital_gains               # the Schedule D net: short term + long term + other (dollars.py)
+    record: capital_gains               # the Schedule D net in AGI: short + long term, a loss held to $3,000 (dollars.py)
     short: capital_gains
     what: returns with a Schedule D net gain or net loss, and the net gain less the net loss
     soi 1.4: {count: [sch_d_net_gain, sch_d_net_loss], amount: [sch_d_net_gain, minus sch_d_net_loss]}

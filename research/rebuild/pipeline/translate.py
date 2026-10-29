@@ -117,6 +117,11 @@ for _r in TABLE:
         # matched by percentile among the units beyond it in each data set, never by count from the top
         assert not (_r['dollar_line'] and _r.get('match', 'count') == 'count'), \
             f'{_key}: a dollar line above zero needs a percentile match (count from the top breaks the order at the line)'
+        # loss_line (29-30 October): the dollar line for losses, in plain dollars (a statutory amount, not grown), in
+        # place of dollar_line; losses past it are matched with the row's match. The SCF's capital gains: losses on the
+        # return stop at the $3,000 limit, while the slot holds the loss before the limit
+        assert _r.get('loss_line') is None or (_r['dollar_line'] is not None and _r['loss_line'] >= 0), \
+            f'{_key}: loss_line is a number of dollars at or above 0, with a dollar line'
         # less_traditional_deferrals (28 October): a column name, the unit's elective deferrals
         assert _r.get('less_traditional_deferrals') is None or isinstance(_r['less_traditional_deferrals'], str), \
             f'{_key}: less_traditional_deferrals is a column name'
@@ -287,17 +292,19 @@ def _at_percentile(p, tx, tw):
     return np.interp(p, t_pct, t_val)
 
 
-def amounts(x, w, tax_x, tax_w, line, match='count'):
+def amounts(x, w, tax_x, tax_w, line, match='count', loss_line=None):
     """Function 1: x (one survey year, survey-year dollars) on the tax data's scale beyond the dollar line (in the
     same year's dollars; None: unchanged), by match (count from the top; percentile among the units beyond the line;
-    or percentile_from_top, the same counted as shares of all units from the top). Also the weighted count of units
-    placed past the tax data's last holder of their sign (count and percentile_from_top: they get its smallest
-    amount)."""
+    or percentile_from_top, the same counted as shares of all units from the top). loss_line: the line for losses,
+    if not line (the row's loss_line). Also the weighted count of units placed past the tax data's last holder of
+    their sign (count and percentile_from_top: they get its smallest amount)."""
     out = x.astype(float).copy()
     beyond = 0.0
     if line is None:
         return out, beyond
+    lines = {1: line, -1: line if loss_line is None else loss_line}
     for sign in (1, -1):
+        line = lines[sign]
         sel = sign * x > line
         if not sel.any():
             continue

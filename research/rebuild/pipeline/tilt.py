@@ -147,8 +147,10 @@ def recombine(df, year):
     def put(col, values):
         out[col] = values
         done.append(col)
-    put('capital_gains_line13', out[D.KG_PIECES].sum(axis=1))
-    put('capital_gains', out['kg_st'] + out['kg_lt'] + out['kg_other'])
+    # the Schedule D gains and losses before the loss limit; AGI's capital gain applies it (as dollars.draw_dollars)
+    put('capital_gains', common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
+                                                     out['filing_status'] if 'filing_status' in out else None))
+    put('capital_gains_line13', out['capital_gains'] + out['kg_dist'])
     parts = D.META['computed_totals']['business_income']
     put('business_income', out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float))
     for sub in [k for k in D.META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
@@ -236,20 +238,9 @@ def grow_dollars(df, s, t):
         if v in out:
             f = GR.between(v, s, t)
             grow(v, f, f, GR.describe(v))
-    # the allowed capital loss (29 October, from Part A's top_hidden.py, where it was found): the rule grows the
-    # positive "other" gain piece but not losses, so a return held at the allowed loss in year s (a large loss, with
-    # kg_other taking up the cap) would turn into a gain. The cap is nominal: such a return stays at it, and no return
-    # goes below it
-    if all(c in out for c in ['kg_st', 'kg_lt', 'kg_other', 'capital_gains', 'filing_status']):
-        cap = np.where(df['filing_status'].to_numpy() == 3, -1500.0, -3000.0)
-        at_cap = df['capital_gains'].to_numpy(float) <= cap + 0.5
-        floor = cap - out['kg_st'].to_numpy(float) - out['kg_lt'].to_numpy(float)
-        before = out['kg_other'].to_numpy(float)
-        out['kg_other'] = np.where(at_cap, floor, np.maximum(before, floor))
-        rows.append({'column': 'kg_other', 'factor, positive values': np.nan, 'factor, negative values': np.nan,
-                     'series': f'then held at the allowed capital loss: {int(at_cap.sum())} records at it in {s} kept at '
-                               f'it, {int((~at_cap & (before < floor)).sum())} others raised to it',
-                     'records with a value': int((before != 0).sum())})
+    # the allowed capital loss: since 29-30 October the short and long term pieces are the gains and losses before the
+    # $3,000 limit, grown like any amount, and recombine() applies the nominal limit again in year t (before, a piece
+    # kg_other held the limit and needed a rule here)
     out, _ = recombine(out, t)
     return out, pd.DataFrame(rows)
 

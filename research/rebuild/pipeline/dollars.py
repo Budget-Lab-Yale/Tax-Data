@@ -31,8 +31,11 @@ file's prior); its bands become dollars from that year's map. A frame without th
 map (map_<survey>_<target year>), as before.
 
 After the draws, the pieces are put on the definitions the IRS targets use:
-  capital_gains   the Schedule D net, kg_st + kg_lt + kg_other (the line-13
-                  total, with kg_dist, is kept as capital_gains_line13)
+  capital_gains   the Schedule D net as it enters AGI: kg_st + kg_lt, the
+                  gains and losses before the $3,000 limit (since 29-30
+                  October), a net loss held to the limit ($1,500 on a
+                  separate return; common.allowed_capital_gain); with kg_dist
+                  it is Form 1040 line 13, capital_gains_line13
   business_income the exact signed sum of its eighteen parts
   dividends       qualified plus other dividends (div_pref + div_ord), exactly
   adjustments     the exact sum of its eleven parts (since 27 October)
@@ -96,7 +99,8 @@ import pandas as pd
 
 import common
 
-# The order fixes each amount's random stream; it must not change.
+# The order fixes each amount's random stream; it must not change. (kg_other, dropped on 29-30 October, keeps its
+# place so the streams after it do not move; a frame without its band skips it.)
 ORDER = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
          'kg_st', 'kg_lt', 'kg_dist', 'kg_other',
          'business_income', 'retirement_gross', 'exempt_int', 'other_gains', 'txbl_ira_dist',
@@ -372,8 +376,10 @@ def draw_dollars(df, maps, year=None):
                 assert v in maps, f'no dollar map for {v}'
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
     remainder = out['other_agi'].to_numpy(float).copy()
-    out['capital_gains_line13'] = out[KG_PIECES].sum(axis=1)
-    out['capital_gains'] = out['kg_st'] + out['kg_lt'] + out['kg_other']
+    # the Schedule D gains and losses are drawn before the loss limit; AGI's capital gain applies it (29-30 October)
+    out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
+                                                       out['filing_status'] if 'filing_status' in out else None)
+    out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
     out['other_agi'] = out['other_agi'] + out['kg_dist']
     parts = META['computed_totals']['business_income']
     out['business_income_drawn'] = out['business_income']

@@ -176,6 +176,11 @@ Left as is (John, 27 October):
   the full short- and long-term gains and losses from Schedule D, and the loss carryovers if the PUF has them (check
   which fields it carries); keep only what is left of line 13 that is not the limit as an item, or nothing; let the
   calculator apply the limit. Needs a retrain.
+  **Built 29-30 October on branch `rebuild-names-gains`** (`FEATURES.md`, "Capital gains before the loss limit"):
+  `kg_other` dropped, the limit applied where AGI is made. Loss carryovers: P22250 and P23250 are Schedule D's net
+  lines, which take the carryovers in already; the PUF's other Schedule D fields (E22320, E22370) were not examined and
+  are not drawn. Retrained overnight (scratch
+  `explore/2026-10-30/train/RESULTS.md`).
 - **Later: a removal rule beside the fill-in** (John, 28 October). The fill-in can add holders a survey misses but
   not remove holders a survey has too many of (SCF rental income 9.7% against the tax data's 7.6%); the tilt closes
   the gap for now.

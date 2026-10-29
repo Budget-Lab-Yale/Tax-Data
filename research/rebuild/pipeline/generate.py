@@ -22,7 +22,8 @@ One record is drawn slot by slot:
      nothing drawn for it, and every slot the CPS has is present and hidden
      until its turn, except the CPS's two shares, absent
      until married and the share's base are drawn (model.gate_shares);
-  2. the computed totals: line-13 capital gains from its four pieces,
+  2. the computed totals: capital gains from its three pieces (short and long term before the loss limit,
+     distributions; since 29-30 October),
      business income and its two subtotals (Schedules C and F, Schedule E)
      from its eighteen parts, and (since 27 October) ordinary dividends from
      qualified and other dividends and the adjustments from their eleven parts. Each part gets a dollar value inside its band

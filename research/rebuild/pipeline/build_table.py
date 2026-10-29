@@ -22,8 +22,12 @@ Variables. married, n_dep (capped at 3), filer, and, on the PUF and the CPS (-1 
 status: 1 single, 2 joint with surviving spouses, 3 separate, 4 head of household), n_dep_ctc (child credit children,
 PUF N24) and n_dep_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); filer_p (-1 on the SCF and CEX); the amounts:
   wages E00200, taxable interest E00300, ordinary dividends E00600;
-  capital gains as line 13 (E01000 + E01100) and its four pieces: short term
-    P22250, long term P23250, distributions E01100, other E01000 - P22250 - P23250;
+  capital gains before the $3,000 loss limit (since 29-30 October; John, 29 October) and its three pieces: short
+    term P22250 and long term P23250, the full Schedule D gains and losses, and distributions E01100; the total is
+    their sum. The limit is not drawn: AGI applies it (common.allowed_capital_gain), as the calculator does. The
+    third piece of before, kg_other (line 13 less short and long term, almost entirely the part of a loss the
+    limit holds back) is gone; what is left of line 13 once the limit is applied (E01000 less the allowed
+    Schedule D net; zero on nearly every return) stays in other_agi, so AGI is the PUF's exactly;
   business income E00900 + E02000 + E02100 and its eighteen parts (PARTS), and
     two subtotals of it shared with the SCF: Schedules C and F (sch_cf_income;
     SCF X5704) and Schedule E (sch_e_income; SCF X5714, which is where the SCF
@@ -136,7 +140,7 @@ POS_SHARES = np.round(np.concatenate([0.02 * np.arange(1, 46), 0.90 + 0.01 * np.
 N_BANDS = POS0 + len(POS_SHARES) + 1
 assert N_BANDS == 84
 
-KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist', 'kg_other']
+KG_PIECES = ['kg_st', 'kg_lt', 'kg_dist']   # before the loss limit (29-30 October; kg_other, the limit itself, dropped)
 # the AGI items: PUF fields, sign in AGI (0: not in AGI), whether the SCF has them, the SCF banding rule
 ADJ_FIELDS = ['E03150', 'E03210', 'E03220', 'E03230', 'E03240', 'E03260', 'E03270', 'E03290',
               'E03300', 'E03400', 'E03500']
@@ -379,9 +383,10 @@ def puf_rows(puf):
            'dep_filer': (puf['DSI'] == 1).astype(np.int64).to_numpy(),
            'n_dep': np.minimum(n_dep, 3).astype(np.int64), 'filer': 1, 'filer_p': 1.0,
            'wages': I['E00200'], 'txbl_int': I['E00300'], 'dividends': I['E00600']}
-    kg = {'kg_st': I['P22250'], 'kg_lt': I['P23250'], 'kg_dist': I['E01100'],
-          'kg_other': I['E01000'] - I['P22250'] - I['P23250']}
-    out.update(kg, capital_gains=I['E01000'] + I['E01100'])
+    kg = {'kg_st': I['P22250'], 'kg_lt': I['P23250'], 'kg_dist': I['E01100']}
+    out.update(kg, capital_gains=I['P22250'] + I['P23250'] + I['E01100'])   # before the loss limit
+    # line 13 in AGI: the allowed Schedule D net plus distributions; the rest of E01000 goes to other_agi below
+    line13_allowed = common.allowed_capital_gain(I['P22250'] + I['P23250'], I['MARS']) + I['E01100']
     items = {'business_income': I['E00900'] + I['E02000'] + I['E02100'], 'other_gains': I['E01200'],
              'txbl_ira_dist': I['E01400'], 'txbl_pens_dist': I['E01700'], 'ss_taxable': I['E02500'],
              'ui': I['E02300'], 'alimony': I['E00800'], 'state_ref': I['E00700'],
@@ -415,7 +420,7 @@ def puf_rows(puf):
     k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
     out['part_se'] = np.where(k1_part, (I['E30400'] + I['E30500']) / 0.9235 - I['E00900'] - I['E02100'], 0.0)
     out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
-    out['other_agi'] = I['E00100'] - out['wages'] - out['txbl_int'] - out['dividends'] - out['capital_gains'] - \
+    out['other_agi'] = I['E00100'] - out['wages'] - out['txbl_int'] - out['dividends'] - line13_allowed - \
         sum(ITEMS[v][0] * items[v] for v in ITEMS)
     df = pd.DataFrame(out)
     for v in PUF_AMOUNTS:
@@ -1051,7 +1056,7 @@ def translate_surveys(t, edges, pi):
                 match = row.get('match', 'count')
                 # rank_against (stage 3): a survey total put in one of its parts is matched to the tax data's total
                 against = TR.against_name(row)
-                new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line, match)
+                new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line, match, row.get('loss_line'))
                 done[v] = new
                 b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
                 rec['cut_rule'] = (f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} positive, '

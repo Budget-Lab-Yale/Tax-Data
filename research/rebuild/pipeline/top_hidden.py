@@ -43,8 +43,9 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      possible, in logs, to one common factor per group and field (solve_field). Totals are then computed from the parts
      exactly as dollars.draw_dollars computes them. The accounting rules kept: qualified dividends at most ordinary
      dividends (the parts are qualified and other dividends, both at least 0); the capital gain on the return is short
-     plus long term plus the other piece, at least the allowed loss (-$3,000, -$1,500 married filing separately), the
-     other piece (a residual in the PUF) taking up the cap; taxable Social Security at most 85% of gross; taxable
+     plus long term (both before the loss limit since 29-30 October), a net loss held to the allowed loss (-$3,000,
+     -$1,500 married filing separately) where AGI is made (common.allowed_capital_gain), the difference between each
+     group's allowed gain and the raw record's moved into other_agi_remainder; taxable Social Security at most 85% of gross; taxable
      pensions at most total pensions, total pensions (gross retirement less gross Social Security, E01500) being the
      part scaled (BOUNDED). A bounded part is scaled on the records inside its bound, iterated; what a bounded part
      falls short of its group's net moves into other_agi_remainder, so each group's AGI equals the raw record's.
@@ -119,7 +120,7 @@ PRIMITIVES = (['wages', 'txbl_int', 'div_pref', 'div_ord'] + BT.KG_PIECES + list
                  'state_ref', 'retirement_gross', 'gross_ss', 'exempt_int', 'first_mort_int',
                  'salt_prop'] + list(BT.ADJ_PARTS) + list(BT.NEW_ITEMS) + ['other_agi_remainder'])
 # Parts that are residuals in the PUF's translation (no PUF field of their own; no booklet line)
-RESIDUALS = ['div_ord', 'kg_other', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_remainder', 'retirement_gross']
+RESIDUALS = ['div_ord', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_remainder', 'retirement_gross']
 
 
 def puf_items(raw, itemizer=None, old=None):
@@ -129,8 +130,7 @@ def puf_items(raw, itemizer=None, old=None):
     f = {c: raw[c].to_numpy(float) for c in raw.columns}
     n = len(raw)
     out = {'wages': f['E00200'], 'txbl_int': f['E00300'], 'div_pref': f['E00650'], 'div_ord': f['E00600'] - f['E00650'],
-           'kg_st': f['P22250'], 'kg_lt': f['P23250'], 'kg_dist': f['E01100'],
-           'kg_other': f['E01000'] - f['P22250'] - f['P23250']}
+           'kg_st': f['P22250'], 'kg_lt': f['P23250'], 'kg_dist': f['E01100']}   # before the loss limit (29-30 October)
     for p, (fld, _) in BT.PARTS.items():
         if fld:
             out[p] = f[fld]
@@ -154,7 +154,9 @@ def puf_items(raw, itemizer=None, old=None):
              'ui': out['ui'], 'alimony': out['alimony'], 'state_ref': out['state_ref'],
              'adjustments': sum(f[c] for c in BT.ADJ_FIELDS)}
     assert set(items) == set(SIGNED_ITEMS), (set(items) ^ set(SIGNED_ITEMS))
-    out['other_agi_remainder'] = f['E00100'] - f['E00200'] - f['E00300'] - f['E00600'] - f['E01000'] - f['E01100'] \
+    # line 13 in AGI as build_table.puf_rows has it: the allowed Schedule D net plus distributions (29-30 October)
+    allowed = common.allowed_capital_gain(f['P22250'] + f['P23250'], f['MARS'] if 'MARS' in f else None)
+    out['other_agi_remainder'] = f['E00100'] - f['E00200'] - f['E00300'] - f['E00600'] - allowed - f['E01100'] \
         - sum(SIGNED_ITEMS[v] * items[v] for v in items)
     df = pd.DataFrame({v: np.asarray(out[v], float) for v in PRIMITIVES}, index=raw.index)
     return df
@@ -163,8 +165,9 @@ def puf_items(raw, itemizer=None, old=None):
 def puf_totals(df):
     """The totals from the parts (2015 frame), exactly as dollars.draw_dollars computes them; plus agi."""
     out = df.copy()
-    out['capital_gains_line13'] = out[D.KG_PIECES].sum(axis=1)
-    out['capital_gains'] = out['kg_st'] + out['kg_lt'] + out['kg_other']
+    out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
+                                                       out['filing_status'] if 'filing_status' in out else None)
+    out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
     for tot, parts in D.META['computed_totals'].items():
         out[tot] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
     out['business_income_drawn'] = out['business_income']
@@ -202,6 +205,10 @@ def raw_targets(agg):
         if fld in blank:
             means[part] = np.nan
     nets = means.mul(n, axis=0)
+    # the allowed Schedule D net of each raw record (the loss limit on its mean), as its residual was made (puf_items)
+    f = agg.fillna({c: 0.0 for c in blank})
+    nets['sched_d_allowed'] = n * common.allowed_capital_gain(f['P22250'].to_numpy(float) + f['P23250'].to_numpy(float),
+                                                              f['MARS'].to_numpy() if 'MARS' in f else None)
     nets.index = GROUPS
     return n, means, nets
 
@@ -275,7 +282,7 @@ EXCLUDED_FROM_SELECTION = {
     'capped or income-limited': ['gross_ss', 'ss_taxable', 'trad_contr_ira', 'sl_int_ded', 'ed_exp', 'tuition_ded',
                                  'hsa_contr', 'keogh_contr', 'aoc_exp', 'llc_exp', 'savers_cred', 'old_cred', 'net_ptc',
                                  'excess_ptc', 'capital loss (the $3,000 cap)'],
-    'derived': ['div_ord', 'kg_other', 'kg_dist (zero on the aggregate records)', 'sche_other', 'part_se',
+    'derived': ['div_ord', 'kg_dist (zero on the aggregate records)', 'sche_other', 'part_se',
                 'other_item_exp', 'other_agi_remainder', 'se_tax_ded', 'se_health', 'business_income',
                 'sch_cf_income', 'sche_rent', 'sche_rest', 'adjustments']}
 
@@ -381,14 +388,7 @@ def apply_factors(x, grp, a, b):
 
 # Parts held to a bound on each record: (part, lower bound, upper bound), each a function of the frame after the
 # parts it depends on are scaled (BOUNDED is scaled last, in this order).
-def _loss_floor(d):
-    """The capital gain on the return is at least the allowed loss: kg_other >= cap - kg_st - kg_lt."""
-    cap = np.where(d['filing_status'].to_numpy() == 3, -1500.0, -3000.0)
-    return cap - d['kg_st'].to_numpy(float) - d['kg_lt'].to_numpy(float)
-
-
-BOUNDED = [('kg_other', _loss_floor, None),
-           ('ss_taxable', None, lambda d: 0.85 * d['gross_ss'].to_numpy(float)),
+BOUNDED = [('ss_taxable', None, lambda d: 0.85 * d['gross_ss'].to_numpy(float)),
            ('txbl_pens_dist', None, lambda d: np.maximum(0.0, d['retirement_gross'].to_numpy(float)
                                                             - d['gross_ss'].to_numpy(float)))]
 
@@ -493,6 +493,12 @@ def scale_all(base, w, grp, nets, book, hold=False):
     for b_part, _, _ in BOUNDED:
         got = np.array([(w * out[b_part].to_numpy(float))[grp == g].sum() for g in range(N_G)])
         short += nets[b_part].to_numpy(float) - got
+    # the capital gain in AGI (29-30 October): each rebuilt record's Schedule D net held to the allowed loss; what the
+    # group's records allow differs from the raw record's allowed net, and the difference moves into the residual
+    if 'sched_d_allowed' in nets:
+        fs = out['filing_status'] if 'filing_status' in out else None
+        got = common.allowed_capital_gain(out['kg_st'].to_numpy(float) + out['kg_lt'].to_numpy(float), fs)
+        short += nets['sched_d_allowed'].to_numpy(float) - np.array([(w * got)[grp == g].sum() for g in range(N_G)])
     T = nets[v].to_numpy(float) + short
     note = ('held parts short of their nets, moved into it: ' + ', '.join(f'{GROUPS[g]} ${short[g] / 1e6:,.1f}m'
                                                                             for g in range(N_G) if abs(short[g]) > 1))
@@ -907,7 +913,7 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
     counts.to_csv(f'{out}/check_counts.csv', index=False)
     # dollars by group against the raw records, every part and the totals
     rows = []
-    tot = puf_totals(pd.DataFrame({v: nets[v].to_numpy() for v in PRIMITIVES}).fillna(0.0).assign(mars=0))
+    tot = puf_totals(pd.DataFrame({v: nets[v].to_numpy() for v in PRIMITIVES}).fillna(0.0).assign(filing_status=0))
     for part in SUPPRESSED_FIELDS.values():          # suppressed: no raw amount (the totals read them as 0)
         if nets[part].isna().all():
             tot[part] = np.nan
@@ -944,7 +950,8 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
         'every record inside its AGI group (2015 dollars)': agi_group(h15['agi']) == grp,
         'qualified dividends at most ordinary dividends': h15['div_pref'] <= h15['dividends'] + 1e-6,
         'dividends = qualified + other': np.isclose(h15['dividends'], h15['div_pref'] + h15['div_ord']),
-        'capital gain = short + long + other': np.isclose(h15['capital_gains'], h15['kg_st'] + h15['kg_lt'] + h15['kg_other']),
+        'capital gain = short + long, a loss held to the limit': np.isclose(
+            h15['capital_gains'], common.allowed_capital_gain(h15['kg_st'] + h15['kg_lt'], h15['filing_status'])),
         'capital gain at least the allowed loss': h15['capital_gains'] >= cap - 1e-6,
         'taxable Social Security at most 85% of gross': h15['ss_taxable'] <= 0.85 * h15['gross_ss'] + 1e-6,
         'taxable pensions at most total pensions': h15['txbl_pens_dist'] <= h15['retirement_gross'] - h15['gross_ss'] + 1e-6,
@@ -1016,22 +1023,10 @@ def target_year_rows(h15, donors, models, factors, out):
                              'other_agi'] + [k for k in D.META['computed_totals'] if k != 'business_income']].copy()
     puf15 = puf15.loc[:, ~puf15.columns.duplicated()]
     grown, growth = TL.grow_dollars(puf15, PY, Y)
-    # The growth rule grows the positive "other" capital gain piece but not losses, so a return held at the allowed
-    # loss in 2015 (a large loss with kg_other taking up the cap) would turn into a gain. The cap is nominal: such a
-    # return stays at it, and no return goes below it.
-    cap = np.where(h15['filing_status'].to_numpy() == 3, -1500.0, -3000.0)
-    at_cap = h15['capital_gains'].to_numpy(float) <= cap + 0.5
-    floor = cap - grown['kg_st'].to_numpy(float) - grown['kg_lt'].to_numpy(float)
-    before = grown['kg_other'].to_numpy(float)
-    grown['kg_other'] = np.where(at_cap, floor, np.maximum(before, floor))
+    # since 29-30 October the short and long term pieces are the gains and losses before the loss limit, grown like any
+    # amount; recombine() applies the nominal limit in the target year (before, a piece kg_other held the limit and a
+    # rule here kept returns at it)
     grown, _ = TL.recombine(grown, Y)
-    common.say(f'capital loss cap after growth: {int(at_cap.sum())} returns held at the allowed loss in {PY} kept at it; '
-               f'{int((~at_cap & (before < floor)).sum())} others raised to it; the growth alone would have given the '
-               f'held returns ${(before - floor)[at_cap].sum() / 1e6:,.1f} million of gains (records unweighted)')
-    pd.DataFrame({'returns held at the loss cap in 2015': [int(at_cap.sum())],
-                  'their gains from growth alone, records unweighted ($m)': [(before - floor)[at_cap].sum() / 1e6],
-                  'their gains from growth alone, weighted ($m)': [(h15['weight'].to_numpy() * (before - floor))[at_cap].sum() / 1e6]}
-                 ).to_csv(f'{out}/check_loss_cap_growth.csv', index=False)
     for c in grown:
         rows[c] = grown[c].to_numpy()
     rows, _ = TL.recombine(rows, Y)

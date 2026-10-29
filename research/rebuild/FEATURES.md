@@ -66,8 +66,9 @@ held-back rows included.
 - marital status (joint or not), dependents (0–3), and the filing flag;
 - the primary filer's age range (below);
 - wages, taxable interest, ordinary dividends (computed: qualified plus
-  other), and capital gains in four pieces (short term, long term,
-  distributions, other);
+  other), and capital gains in three pieces (short-term and long-term gains
+  and losses from Schedule D before the $3,000 loss limit, and capital gain
+  distributions; since 29-30 October, below);
 - more AGI items: other gains, taxable IRA distributions, taxable
   pensions, taxable Social Security, unemployment, alimony, state refunds,
   the statutory adjustments (computed from their eleven parts), and the rest
@@ -1394,6 +1395,29 @@ Where the calculator does not read an item but production Tax-Data's file has a 
 - **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the training table built after the rename equals the one
   built before, column for column, apart from the names; a 2019 draw and tilt from the installed networks on the
   renamed code equal those on the code before.
+
+## Capital gains before the loss limit (29-30 October)
+
+John, 29 October: the $3,000 limit on a net capital loss is computed at tax time; it is not a feature of the data.
+Until then the rebuild drew a third gains piece, `kg_other`, Form 1040 line 13 (PUF E01000) less short- and long-term
+gains, which on a return with a net loss is the part of the loss the limit holds back, drawn as if it were an item.
+
+- **The pieces.** The training table carries `kg_st` (PUF P22250) and `kg_lt` (P23250), the full Schedule D gains and
+  losses, and `kg_dist` (E01100, distributions reported on Form 1040). `kg_other` is gone. The table's total
+  `capital_gains` is the sum of the three, before the limit.
+- **The limit, where AGI is made.** `common.allowed_capital_gain`: the Schedule D net (short plus long term) with a net
+  loss held to $3,000 ($1,500 on a separate return), nominal and not indexed. The file's `capital_gains` (Schedule D
+  net in AGI, SOI Table 1.4's line) and `capital_gains_line13` (with distributions) apply it in `dollars.py`, in the
+  tilt's recombination of a grown file, in the top step's rebuilt hidden returns and in the band AGI that sets the AGI
+  group label. The calculator applies the same limit itself to `kg_st` and `kg_lt`.
+- **Line 13 on the PUF.** What is left of E01000 once the allowed net is taken out (zero on nearly every return) stays
+  in other AGI, so each PUF record's AGI is still exactly the PUF's.
+- **Growth.** The pieces' losses grow with the gains (Schedule D net gain per return with one, `growth.yaml`); until
+  now losses were not grown because they sat at the nominal limit.
+- **The SCF.** It asks the amount on the return, where a loss stops at $3,000. Its losses are read as at most $3,000,
+  and those held at the limit are put on the tax data's losses past $3,000 by the row's percentile match (the new
+  `loss_line` setting, $2,999); smaller losses and gains as before. The CPS carries no capital gains in training.
+- **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the table before and after, gains by source.
 
 ## How the latest run comes out
 
