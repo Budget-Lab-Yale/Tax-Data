@@ -82,6 +82,12 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    activities from 2020, tuition and fees from 2021) set to zero after repeal.
 3. **Tax-Simulator on the rebuild's 2019 file.** Revenue, the distribution tables and the main credits against
    production's file and against SOI. The first test of the whole chain.
+   **Items 2 and 3 built 29 October on branch `rebuild-taxsim-file`, not merged** (John, "all the way through"):
+   `pipeline/taxsim_file.py` (stage `taxsim_file`) writes production's 188 columns with its conventions for missing
+   values (`TAXSIM_FILE_COLUMNS.csv`); Tax-Simulator (R, main 145a80eb1) ran 2019 on it and on production's file.
+   Results and open points: scratch `explore/2026-10-29/taxsim_file/RESULTS.md` (income tax before credits within
+   0.1% of SOI; itemizers 13.9 million against SOI's 17.4 million). The repeal dates for the file: the domestic
+   production activities deduction from 2018 (the statute), tuition and fees from 2021.
 4. **The calculator in post-training.** Each record's taxes computed once, then targets on computed values:
    itemizers, taxable income, the child tax credit, liability by AGI. Itemized deductions, the foreign tax credit,
    the AMT items and the 13% fall in itemizers after the tilt are revisited here.

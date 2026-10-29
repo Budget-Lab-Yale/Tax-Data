@@ -1890,5 +1890,13 @@
   "_scf_replicate_dir": "The folder of each SCF wave's replicate weights (p<yy>_rw1.dta, from the Federal Reserve; errors.py says how to fetch them), with {wave} in the path for the wave. Default: <out>/data/scf_rw/{wave}, which holds the 2016, 2019 and 2022 waves' files. Every wave in a year's mix needs its folder (scf_targets.py).",
   "_other": "soi_cv_dir (default <out>/targets/soi_cv), borrow_neighbours (5), full_sample_se (0.01), nonfiler_count_se (0.06), nonfiler_people_population_se (0.005), definition_gap ({}): errors.py's docstring says what each means."
  },
- "_targets_config": "Optional key targets_config: a folder holding a copy of targets_config/ (catalog, defaults, historical, projection, years/) to read instead of the pipeline's own, for a reweighting variant (target_list.py). Absent: pipeline/targets_config."
+ "_targets_config": "Optional key targets_config: a folder holding a copy of targets_config/ (catalog, defaults, historical, projection, years/) to read instead of the pipeline's own, for a reweighting variant (target_list.py). Absent: pipeline/targets_config.",
+ "calculator": {
+  "_what": "The GPU tax calculator used as a library (calculator.py, calculator_run.py, report_calculator.py; experiment of 28 October, CALCULATOR_CONTRACT.md). commit: the tax-simulator-gpu commit the run uses; the code is read from a copy of the repository at that commit (git archive into <out>/lib/tax-simulator-gpu_<first 12 characters>), so moving to a newer version is this one line. repo: the repository the copy is taken from (read only). python: the calculator's own Python environment (its jax, pandas and GPU libraries). draw_seed: the seed of the calculator's random draws keyed by record id (its default run seed, 76). law_year: the year of the law the taxes are computed under (null: the target year).",
+  "commit": "2f028e85d52219788b5f3122aa57946f6a70cfc9",
+  "repo": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu",
+  "python": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu/.venv/bin/python",
+  "draw_seed": 76,
+  "law_year": null
+ }
 }

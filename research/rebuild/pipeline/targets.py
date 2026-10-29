@@ -56,6 +56,12 @@ T14 = {  # SOI item -> (variable, statistic)
         ('sch_d_net_loss', 'count'),
     'sales of capital assets reported on form 1040, schedule d > taxable net loss > amount':
         ('sch_d_net_loss', 'amount'),
+    # (28 October, the calculator experiment) two lines the tax calculator computes; read for a test, targeted by no
+    # default configuration
+    'taxable income > number of returns': ('taxable_income', 'count'),
+    'taxable income > amount': ('taxable_income', 'amount'),
+    'income tax before credits > number of returns': ('income_tax_before_credits', 'count'),
+    'income tax before credits > amount': ('income_tax_before_credits', 'amount'),
 }
 for _fam, _f in FAMILIES.items():
     for _side in ('net income', 'net loss'):
