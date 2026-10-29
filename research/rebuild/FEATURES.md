@@ -1305,7 +1305,10 @@ family fortune, or a couple or siblings named in one entry, stays one record: 60
 - Tax items: each kind split as in the item mix group (Part A's rebuilt returns of the over-$100-million aggregate
   record, `hidden_group` 3, in target-year dollars; without Part A a stand-in, the generated filers with AGI of $100
   million or more), except partnership against S corporation
-  profits and losses, from the IRS study. Items beyond the kinds (state income tax, foreign tax credits, business
+  profits and losses, from the IRS study. Schedule C and farm profits go only to the mix group's share of units
+  holding them (losses likewise), chosen by a draw keyed by record id and shared among those by private holdings:
+  spread over every unit, the list alone exceeded Table 4.3's count of top-0.001% returns with a Schedule C or F
+  profit (255 against 243), and the solve could not settle. Items beyond the kinds (state income tax, foreign tax credits, business
   credits, self-employment items, other itemized deductions) at their ratio to AGI in the mix; consumption at its
   average; Social Security, credits that phase out, and the rest listed in `ZERO_ITEMS` zero.
 - Charity: gifts of 0.7% of wealth in the top group and 0.6% in the rest (BSYZ Table 2), cash and other as in the mix,
