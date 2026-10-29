@@ -748,6 +748,38 @@ def check_holding(df, w, ctx):
     return pd.DataFrame(rows), lines
 
 
+def check_blindness(df, w, ctx):
+    """Blind people in the file by age, filers and all units, against SOI Publication 4801's blind boxes on all returns
+    (pub4801_blind_boxes.csv; the nearest earlier year the table has)."""
+    if ctx.get('blind') is None:
+        return pd.DataFrame(), ['The file has no drawn blindness (a model from before 29 October): nobody is blind.']
+    filer = df['filer'].to_numpy() == 1
+    a1, _ = primary_age_sex(df)
+    a2 = df['age_spouse'].to_numpy()
+    b1, b2 = df['blind1'].to_numpy() == 1, df['blind2'].to_numpy() == 1
+    rows = []
+    for lo, hi, lab in [(0, 26, 'under 26'), (26, 45, '26-44'), (45, 65, '45-64'), (65, 75, '65-74'), (75, 200, '75 and over'),
+                        (0, 200, 'all ages')]:
+        m1, m2 = (a1 >= lo) & (a1 < hi), (a2 >= lo) & (a2 < hi) & has_spouse(df)
+        rows.append({'age': lab, 'primary filers, filers (millions)': w[m1 & filer].sum() / 1e6,
+                     'blind primary filers, filers (thousands)': w[m1 & filer & b1].sum() / 1e3,
+                     'blind share, primary filers (%)': 100 * w[m1 & b1].sum() / max(w[m1].sum(), 1),
+                     'spouses, filers (millions)': w[m2 & filer].sum() / 1e6,
+                     'blind spouses, filers (thousands)': w[m2 & filer & b2].sum() / 1e3,
+                     'blind share, spouses (%)': 100 * w[m2 & b2].sum() / max(w[m2].sum(), 1),
+                     'blind, non-filers (thousands)': (w[m1 & ~filer & b1].sum() + w[m2 & ~filer & b2].sum()) / 1e3})
+    t = pd.DataFrame(rows)
+    p = table('pub4801_blind_boxes.csv')
+    py = year_used(p['year'], ctx['year'])
+    r = p[p.year == py].iloc[0]
+    lines = [f'SOI Publication 4801, {py}, all returns: {r.primary_blind / 1e3:,.1f} thousand "you are blind" boxes and '
+             f'{r.spouse_blind / 1e3:,.1f} thousand "spouse is blind" boxes; the file\'s filers: '
+             f'{w[filer & b1].sum() / 1e3:,.1f} thousand and {w[filer & b2].sum() / 1e3:,.1f} thousand. A blind box is '
+             'checked only where it changes the standard deduction, so itemizers may leave it blank: the file counts '
+             'every blind person, the publication the boxes checked.']
+    return t, lines
+
+
 def check_parents(df, w, ctx):
     child = ctx['child_rank']
     par = df['parent_rank'].to_numpy()
@@ -789,6 +821,8 @@ def checks(df, year, w, ctx=None):
     out.append(('Cost basis of each asset', t, ln))
     t, ln = check_holding(df, w, ctx)
     out.append(('Holding period and basis of long-term gains against SOCA', [t], ln))
+    t, ln = check_blindness(df, w, ctx)
+    out.append(('Blindness against Publication 4801\'s blind boxes', [t], ln))
     t, ln = check_parents(df, w, ctx)
     out.append(('Parents\' income rank', [t], ln))
     ph = [{'item': k, 'columns': ', '.join(it['writes']), 'value': PLACEHOLDER_VALUES[k]}

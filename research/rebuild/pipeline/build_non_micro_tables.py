@@ -11,6 +11,7 @@ says, for every table, where its numbers come from and how they were turned into
     2026 (settings paths.raw.z1);
   - the Census Bureau's population estimates by single year of age and sex (settings paths.raw.census_pep);
   - SOI's Publication 4801 line items (settings paths.raw.soi_mirror, line_items.csv);
+  - SOI's Publication 4801 blind boxes, typed in from the pages (since 29 October);
   - the law: the dependent filing threshold (Form 1040 instructions, Chart B, as production's
     src/nonfilers/asec_tax_units.R has it) and the child tax credit's age limit (IRC section 24(c)).
 """
@@ -212,14 +213,43 @@ def soi_children():
          'claiming the additional child tax credit, so a lower bound on all the credit\'s children')
 
 
-def main():
+def pub4801_blind():
+    """The age and blindness boxes checked on all individual returns, and the returns taking the standard deduction,
+    SOI Publication 4801 (line item estimates), read off the publication's pages (29 October; scratch
+    explore/2026-10-29/retrain/p4801/): 2015 and 2017 the all-forms total of Form 1040 line 39a and Form 1040A line 23a
+    (1040EZ has no boxes); 2018 and 2019 Form 1040 page 1 (the age and blindness boxes) and the summary table's basic
+    standard deduction."""
+    rows = [(2015, 24362239, 256557, 10153231, 81906, 103844288), (2017, 25924675, 260535, 10959898, 83983, 104013115),
+            (2018, 26686849, 269239, 11260158, 75785, 134270136), (2019, 27477794, 260291, 11609322, 80564, 138307604)]
+    write(pd.DataFrame(rows, columns=['year', 'primary_65_or_older', 'primary_blind', 'spouse_65_or_older', 'spouse_blind',
+                                      'standard_deduction_returns']), 'pub4801_blind_boxes.csv')
+    note('pub4801_blind_boxes.csv', 'SOI Publication 4801, line item estimates, all returns: 2015 and 2017 Form 1040 '
+         'line 39a plus Form 1040A line 23a (the printed all-forms total); 2018 and 2019 Form 1040 page 1; the basic '
+         'standard deduction returns from the all-forms page (2015, 2017) or the summary table (2018, 2019)',
+         'typed in from the pages (scratch explore/2026-10-29/retrain/p4801/), 2015 and 2017-2019')
+
+
+TABLES = [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates, copies,
+          soi_children, pub4801_blind]
+
+
+def main(names=None):
+    """Every table; or, with names (python build_non_micro_tables.py cps_private_pay ...), only those, their rows of
+    sources.csv replaced and the other rows kept."""
     os.makedirs(OUTDIR, exist_ok=True)
-    for f in [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates,
-              copies, soi_children]:
+    run = [f for f in TABLES if not names or f.__name__ in names]
+    assert not names or len(run) == len(names), f'unknown tables in {names}'
+    for f in run:
         f()
-    pd.DataFrame(SOURCES).to_csv(os.path.join(OUTDIR, 'sources.csv'), index=False)
+    src = pd.DataFrame(SOURCES)
+    path = os.path.join(OUTDIR, 'sources.csv')
+    if names and os.path.exists(path):
+        old = pd.read_csv(path)
+        src = pd.concat([old[~old['table'].isin(src['table'])], src], ignore_index=True)
+    src.to_csv(path, index=False)
     common.say(f'wrote {len(SOURCES)} tables and sources.csv to {OUTDIR}')
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    main(sys.argv[1:] or None)
