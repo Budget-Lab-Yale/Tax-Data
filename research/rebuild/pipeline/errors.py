@@ -113,7 +113,12 @@ IRS_PARTS = {'returns': [('returns', 'count', 1)],
              'dividends count': [('ordinary_dividends', 'count', 1)],
              'dividends amount': [('ordinary_dividends', 'amount', 1)],
              'capital_gains count': [('sch_d_net_gain', 'count', 1), ('sch_d_net_loss', 'count', 1)],
-             'capital_gains amount': [('sch_d_net_gain', 'amount', 1), ('sch_d_net_loss', 'amount', -1)]}
+             'capital_gains amount': [('sch_d_net_gain', 'amount', 1), ('sch_d_net_loss', 'amount', -1)],
+             # (28 October, the calculator experiment) the tax calculator's two lines, named by a separate configuration
+             'calc_taxable_income count': [('taxable_income', 'count', 1)],
+             'calc_taxable_income amount': [('taxable_income', 'amount', 1)],
+             'calc_income_tax_bc count': [('income_tax_before_credits', 'count', 1)],
+             'calc_income_tax_bc amount': [('income_tax_before_credits', 'amount', 1)]}
 
 
 # ---- 1. SOI's published coefficients of variation ------------------------------------------------

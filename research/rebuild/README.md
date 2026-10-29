@@ -43,6 +43,7 @@ from, so a worktree runs its own):
 | tilt | `tilt.py`, then `report_tilt.py` | the year's 789 targets (`targets_config/`, `target_list.py`, `errors.py`), the non-microdata imputations on the start (`non_micro_imputations.py`; new columns only, no effect on the weights), the target year's weights (`solver.py`) and file, and the run report | about 15 minutes (26 on a CPU node) |
 | non_micro_tables | `build_non_micro_tables.py` | the published tables the non-microdata imputations read, into `research/rebuild/resources/non_micro/` (committed; not in the default list, run only when a source changes) | a minute |
 | report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and overtime, and tips in the file against the target year's CEX, CPS and SIPP year mix; the translation report | seconds |
+| calculator | `calculator.py`, `calculator_run.py`, `report_calculator.py` | an experiment, not in the default stages: each record's federal income tax from the GPU tax calculator (tax-simulator-gpu at the commit in settings `calculator`), the AGI check and the levels against SOI 2019 (`CALCULATOR_CONTRACT.md`) | under a minute on a GPU, a few minutes for the report |
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),
