@@ -236,8 +236,31 @@ def convert(f):
     what the conversion met). Every rebuild column it reads must be present and have no missing value."""
     notes = []
     x = lambda c: f[c].to_numpy(float)
-    gone = [c for c in f.columns if f[c].isna().any()]
+    # 29 October work copy (explore/2026-10-29/calculator): the retrained file carries columns this branch never read
+    # (the survey items' amounts, which are missing where not in their universe, and ssn1 on dependent filers). The
+    # check is kept for every column the converter reads; the others' missing values are counted in the notes.
+    reads = {s.split(' ')[0].rstrip(';') for n, st, s, _ in CONTRACT if st in (SAME, RENAMED)} | set(NO_AGE_COLUMNS.values()) \
+        | {'filer', 'age_range', 'mars', 'n_dep', 'spouse_se_share', 'married', 'sch_c', 'farm', 'part_se', 'se2',
+           'sex_primary', 'retirement_gross', 'ss_gross', 'other_agi_remainder', 'farm_rent', 'sche_other', 'kg_lt',
+           'kg_dist', 'w_other_home', 'w_re_fund', 'w_kg_other_re', 'w_equities', 'w_kg_other', 'w_pass_throughs',
+           'w_kg_pass_throughs', 'w_primary_home', 'w_kg_primary_home', 'weight', 'ot', 'ot1', 'ot2'} \
+        | {n for n, st, _, _ in CONTRACT if st == ZERO and n in f.columns}
+    # dep_ssn1-3 in the retrained file are missing where the record has no k-th dependent (and on a few records
+    # whose dependent count and dependent ages disagree): set to 0 here, as the contract's earlier default, and counted.
+    f = f.copy()
+    for k in (1, 2, 3):
+        c = f'dep_ssn{k}'
+        if c in f.columns and f[c].isna().any():
+            na = f[c].isna().to_numpy()
+            has = f['n_dep'].to_numpy() >= k
+            notes.append(f'{c} missing: {na.sum():,} records ({(na & ~has).sum():,} with fewer than {k} dependents, '
+                         f'{(na & has).sum():,} with a {k}-th dependent); set to 0')
+            f[c] = f[c].fillna(0.0)
+    gone = [c for c in f.columns if c in reads and f[c].isna().any()]
     assert not gone, f'missing values in the file: {gone}'
+    other = {c: int(f[c].isna().sum()) for c in f.columns if c not in reads and f[c].isna().any()}
+    notes.append('missing values in columns the converter does not read (records): '
+                 + (', '.join(f'{c} {n:,}' for c, n in other.items()) or 'none'))
     out = {}
     for name, status, source, _ in CONTRACT:
         if status in (SAME, RENAMED) and name not in NO_AGE_COLUMNS and name not in ('ot', 'ot1', 'ot2'):
@@ -299,9 +322,19 @@ def convert(f):
     out['basis.primary_home'] = x('w_primary_home') - x('w_kg_primary_home')
     out['basis.other_home'] = x('w_other_home') - x('w_kg_other_re') * part_home
     out['basis.re_fund'] = x('w_re_fund') - x('w_kg_other_re') * (1 - part_home)
+    # 29 October work copy: a column the contract sets to 0 is taken from the file when the file now has it (the
+    # retrain's non-microdata imputations: blindness, the child credit's eligibility, dependents' SSNs, the QBI wage
+    # bills and specified-service flags, death chances, gains' basis and holding period, yearly unrealized gains).
+    from_file = []
     for name, status, _, _ in CONTRACT:
         if status == ZERO:
-            out[name] = np.zeros(len(f))
+            if name in f.columns:
+                out[name] = x(name)
+                from_file.append(name)
+            else:
+                out[name] = np.zeros(len(f))
+    notes.append('set to 0 in the contract but taken from the file (29 October): ' + (', '.join(from_file) or 'none'))
+    notes.append('still 0: ' + ', '.join(n for n, st, _, _ in CONTRACT if st == ZERO and n not in from_file))
     # identities the calculator relies on (Tax-Simulator's split-sum rule)
     for tot, a, b in [('wages', 'wages1', 'wages2'), ('tips', 'tips1', 'tips2'), ('ot', 'ot1', 'ot2'),
                       ('sole_prop', 'sole_prop1', 'sole_prop2'), ('farm', 'farm1', 'farm2')]:

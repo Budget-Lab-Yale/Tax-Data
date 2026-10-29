@@ -9,8 +9,9 @@
      self-employment tax deduction  half the computed self-employment tax, against the drawn se_tax_ded;
      state tax workaround the calculator's frame step moves part of some owners' state income tax into the
                           partnership's or S corporation's loss (75% of eligible owners, a random draw);
-     pass-through losses  the calculator counts partnership and S corporation income in AGI only when the two
-                          net to a gain; a net loss is left out of AGI;
+     pass-through losses  the pass-through amount in the calculator's Schedule E against the rebuild's net
+                          partnership and S corporation income (less the workaround): before the fix of 29 October
+                          the calculator counted it only when the two net to a gain;
      other adjustments    the law's caps on the adjustments (tuition and fees, domestic production activities)
                           and any other gap in the deductions above the line;
      rest                 whatever is left (should be rounding only).
@@ -112,7 +113,9 @@ def agi_check(f, c, inp):
         'taxable Social Security': x(c, 'txbl_ss') - x(f, 'ss_taxable'),
         'self-employment tax deduction': -(seca - x(f, 'se_tax_ded')),
         'state tax workaround': -workaround,
-        'pass-through losses': x(c, 'part_scorp') - (p0 - workaround),
+        # calculator_fix work copy (29 October): the pass-through amount the calculator puts in Schedule E, read as
+        # Schedule E less net rent and net estate income, so the step is right with or without the pass-through fix
+        'pass-through losses': (x(c, 'sch_e') - x(c, 'net_rent') - x(c, 'net_estate')) - (p0 - workaround),
         'other adjustments': -((x(c, 'above_ded') - seca) - (x(f, 'adjustments') - x(f, 'se_tax_ded'))),
     })
     gap = x(c, 'agi') - rebuild
