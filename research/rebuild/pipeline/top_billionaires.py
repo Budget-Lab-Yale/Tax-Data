@@ -341,6 +341,8 @@ def build_billionaires(lst, df, w, year, notes):
     put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)
     put('record_id', ID_BASE + u['unit_rank'].to_numpy())
     put('scf_wave', year); put('scf_year', year - 1)
+    if 'hidden_group' in df:          # Part A's group label: none (-1) on every record not rebuilt by Part A
+        put('hidden_group', -1)
     for src in ['cex', 'cps', 'sipp']:
         if f'{src}_year' in df:
             put(f'{src}_year', year)
