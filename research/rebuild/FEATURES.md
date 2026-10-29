@@ -1360,6 +1360,7 @@ returns included: their `amt_nols` was scaled to the aggregate records' dollars,
 record's loss.
 
 ## The names: Tax-Simulator's, everywhere (29-30 October)
+<!-- old names -->
 
 John, 29 October: "there is no reason for the names to differ. at all." Every variable of the rebuild that is the same
 item as an input column of tax-simulator-gpu (master 9424483, 156 columns read) carries the calculator's name, in the
@@ -1395,6 +1396,8 @@ Where the calculator does not read an item but production Tax-Data's file has a 
 - **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the training table built after the rename equals the one
   built before, column for column, apart from the names; a 2019 draw and tilt from the installed networks on the
   renamed code equal those on the code before.
+
+<!-- /old names -->
 
 ## Capital gains before the loss limit (29-30 October)
 

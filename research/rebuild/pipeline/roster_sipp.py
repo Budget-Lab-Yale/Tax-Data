@@ -161,7 +161,7 @@ def shared_items(d, year):
     nun = d.groupby(key, sort=False)['TINC_STMF'].nunique(dropna=True)
     mixed = d.TINC_STMF.isna().groupby(key, sort=False).agg(lambda s: 0 < s.sum() < len(s))
     y = pd.DataFrame({'own_dividends': div.groupby(key, sort=False).max(),
-                      'own_ss_gross': pd.Series(ss, index=d.index).groupby(key, sort=False).sum(),
+                      'own_gross_ss': pd.Series(ss, index=d.index).groupby(key, sort=False).sum(),
                       'own_pensions': pd.Series(ret, index=d.index).groupby(key, sort=False).sum()})
     holders = y.own_dividends > 0
     varies = float((nun.reindex(y.index) > 1)[holders].mean()) if holders.any() else 0.0
@@ -199,7 +199,7 @@ def person_year(d, year):
     y = x.groupby(['SSUID', 'PNUM'], sort=False).sum()
     y['selfemp'] = y.earn - y.wage
     y = y.join(shared_items(d, year))
-    assert np.abs(y.own_ss_gross - y.ssb).max() < 0.005, 'gross Social Security differs from ssb'
+    assert np.abs(y.own_gross_ss - y.ssb).max() < 0.005, 'gross Social Security differs from ssb'
     item = common.SETTINGS['deferrals']['sipp_item']
     if item in d:   # elective deferrals (28 October): a yearly amount, repeated by month
         g = d.groupby(['SSUID', 'PNUM'], sort=False)[item]
@@ -401,7 +401,7 @@ def read_roster(year):
         r['elective_reported'] = 0.0
     r['elective_asked'] = asked
     # passthrough: the shared items (since 28 October; shared_items)
-    for c in ['own_dividends', 'own_ss_gross', 'own_pensions']:
+    for c in ['own_dividends', 'own_gross_ss', 'own_pensions']:
         r[c] = P[c].to_numpy(float)
     r['SSUID'] = P.SSUID.to_numpy(); r['PNUM'] = P.PNUM.astype(int).to_numpy()
     assert not r.isna().any().any(), r.isna().sum()[r.isna().sum() > 0]

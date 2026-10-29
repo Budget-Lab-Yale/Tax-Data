@@ -35,7 +35,7 @@ SKIP = ('HISTORY.md', 'rename_map.csv', 'apply_rename.py')
 # cannot see renamed (roster_cps.py), so it keeps its name in these files.
 KEEP_ONE_WORD = {'tax_units.py': {'interest'}, 'filing.py': {'interest'}, 'roster_sipp.py': {'interest'},
                  'roster_cps.py': {'interest'}, 'roster_cex.py': {'interest'}, 'check_units.py': {'interest'}}
-PREFIX = r'(?:u_|raw_)?'
+PREFIX = r'(?:u_|raw_|own_)?'
 SUFFIX = r'(?:_reported_band|_reported|_band|_drawn)?'
 STRING = re.compile(r"""('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")""")
 
@@ -91,7 +91,12 @@ def one_word(old, new, ext):
     # Python and R code: quoted names, attributes (.x, $x), and in R bare column names in code
     attr = re.compile(r'(?<=[.$])' + re.escape(old) + r'(?![A-Za-z0-9_(])')
     bare = re.compile(r'(?<![A-Za-z0-9_.$\'"])' + re.escape(old) + r'(?![A-Za-z0-9_\'"(])')
-    kwarg = re.compile(r'([(,]\s*)' + re.escape(old) + r'(\s*=(?!=))')   # a keyword argument: x.assign(mars=0)
+    kwarg_pat = re.compile(r'([(,]\s*)' + re.escape(old) + r'(\s*=(?!=))')   # a keyword argument: x.assign(mars=0)
+
+    class kwarg:   # only inside an open parenthesis, so a tuple assignment (a, mars = ...) is left alone
+        @staticmethod
+        def sub(f, s):
+            return kwarg_pat.sub(lambda m: f(m) if s[:m.start()].count('(') > s[:m.start()].count(')') else m.group(0), s)
     def code_sub(text):
         out, in_doc = [], False
         for line in text.split('\n'):
@@ -117,6 +122,15 @@ def one_word(old, new, ext):
     return code_sub
 
 
+def rename_text(new, pairs, ext, path):
+    keep = KEEP_ONE_WORD.get(os.path.basename(path), set())
+    for old, nm in pairs:
+        if old in keep:
+            continue
+        new = (multi_part(old, nm) if ('_' in old or '.' in old) else one_word(old, nm, ext))(new)
+    return new
+
+
 def files(args):
     roots = args or ['research/rebuild']
     for root in roots:
@@ -138,12 +152,9 @@ def main():
     for path in files(args):
         ext = os.path.splitext(path)[1]
         text = open(path).read()
-        new = text
-        keep = KEEP_ONE_WORD.get(os.path.basename(path), set())
-        for old, nm in pairs:
-            if old in keep:
-                continue
-            new = (multi_part(old, nm) if ('_' in old or '.' in old) else one_word(old, nm, ext))(new)
+        # text between the markers <!-- old names --> and <!-- /old names --> (docs that describe the rename) is left
+        pieces = re.split(r'(<!-- old names -->.*?<!-- /old names -->)', text, flags=re.S)
+        new = ''.join(p if p.startswith('<!-- old names -->') else rename_text(p, pairs, ext, path) for p in pieces)
         if new != text:
             changed += 1
             n = sum(1 for a, b in zip(text.split('\n'), new.split('\n')) if a != b)
