@@ -168,12 +168,12 @@ items:
   part_passive_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
-    measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
+    measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
   part_active_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
-    measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
+    measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
   part_179:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
@@ -193,12 +193,12 @@ items:
   scorp_passive_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
-    measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
+    measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
   scorp_active_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
-    measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
+    measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
   scorp_179:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
@@ -213,7 +213,7 @@ items:
   rent_loss:
     source: {series: soi 1.4, rows: ['total rental and royalty > net loss.*'], absolute: true}
     negative: same
-    measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
+    measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
   estate:
     source: {series: soi 1.4, rows: ['estate and trust > net income'], absolute: true}
@@ -223,7 +223,7 @@ items:
   estate_loss:
     source: {series: soi 1.4, rows: ['estate and trust > net loss.*'], absolute: true}
     negative: same
-    measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
+    measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
   farm_rent:
     source: {series: soi 1.4, rows: ['farm rental > net income'], absolute: true}
