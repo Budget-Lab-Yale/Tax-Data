@@ -35,7 +35,8 @@ targets for 2019.
   Items set inside the tilt stage from what the model drew plus a published table: dependent filers' exact age and
   sex, child credit eligibility, death probabilities, yearly unrealized gains and cost basis of each asset, the
   holding period and basis of long-term gains, parents' income rank; placeholders for dependents' Social Security
-  numbers, blindness and the QBI items (below, "The non-microdata imputations").
+  numbers, blindness and the QBI items (below, "The non-microdata imputations"). Since 29 October (branch
+  `rebuild-amt-rule`) also a rule that holds the AMT net operating loss adjustment to the record's net operating loss.
 - **Since when.** This is latest since 28 October (merge d9bd762 of
   `rebuild-ot3`, and d56c75d): wages net of deferrals and the SCF's deferrals
   with the W-2 deferral targets, the shared-variable mappings with the fill-in
@@ -1063,7 +1064,7 @@ writes, its random stream and the reason for each choice. The tables are CSVs in
 (stage `non_micro_tables`, run only when a source changes); `sources.csv` there gives each table's source.
 
 **Where they run** (Q1). Inside the tilt stage, on the start: after every dollar amount is in target-year dollars and
-the weights are prescaled, before the solve. They add new columns only and never change a drawn item or a weight, with one exception: a primary filer with an age and no sex (two records in the 20261019 model's generation, ids 20019566 and 20035145, both unmarried filers aged 39 and 38 with sex 0) is given a sex, man or woman with even chances, by the death item's keyed draw, written back to `sex_primary` before any item runs (`fill_missing_sex`). The
+the weights are prescaled, before the solve. They add new columns only and never change a drawn item or a weight, with one exception: a primary filer with an age and no sex (two records in the 20261019 model's generation, ids 20019566 and 20035145, both unmarried filers aged 39 and 38 with sex 0) is given a sex, man or woman with even chances, by the death item's keyed draw, written back to `sex_primary` before any item runs (`fill_missing_sex`). A second exception since 29 October (branch `rebuild-amt-rule`): an item may change a drawn column it lists in its settings `writes_back`, keeping the drawn value in a new column; only the AMT rule does (`amt_nols`, its drawn value kept as `amt_nols_drawn`). The
 two items that rank records (death probabilities, parents' rank) rank on the prescaled start's weights, and the ranks
 are held fixed through the tilt. No target reads the new columns yet, so the weights do not depend on them: on the
 latest run's stack the tilt gives the installed weights exactly, to the last digit. They can also run on a finished
@@ -1089,6 +1090,7 @@ and never renumbered.
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
 | Blindness | `blind1`, `blind2` | since the second retrain of 29 October (branch `rebuild-retrain-1029`) a rule: each primary filer, and each spouse on a married-joint return, blind with chance = the 2015 PUF's blind rate for the person's age range × one factor per person type, the factor set so blind filers at the start's weights equal Publication 4801's boxes for the target year (below, "The second retrain of 29 October"); before, a PUF slot learned in pretraining | the PUF's blind rates by age range (`puf_blind_rates.csv`); SOI Publication 4801's blind boxes (`pub4801_blind_boxes.csv`) |
+| AMT net operating loss adjustment held to the loss | `amt_nols` (changed), `amt_nols_drawn` (the drawn value) | since 29 October (branch `rebuild-amt-rule`; John): `amt_nols` (the PUF's P60100) is held to at most the record's net operating loss, the negative part of `other_agi_remainder` (the PUF has no field of its own for the loss; a net operating loss deduction is a negative amount in other income, Form 1040 line 21, which sits in the AGI remainder), so it is 0 on a record with no loss; a negative `amt_nols` is left as drawn. `amt_nols` is in 2015 dollars (no Table 1.4 line), the loss in target-year dollars; they are compared as they are. No target reads `amt_nols`, so the weights do not move. Below, "The AMT rule of 29 October" | |
 | QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 29 October (branch `rebuild-retrain-1029`) the simple plan's rule on the SCF items the model draws (below, "The retrain of 29 October"); 0 for a file from an earlier model | the CPS's average pay of private employees by SCF industry group (`cps_private_pay_by_scf_group.csv`) |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
@@ -1249,6 +1251,24 @@ table is read at -1 (also in the fill-in's log), and an assert stops on a negati
 - `overfit_log` (from branch `rebuild-overfit-diag`, 448d148): the loss per slot on the held-back records and on a
   fixed sample of training records each pass (`slot_log.csv`), and the network every 10 passes. Logging only; training
   is the same either way.
+
+## The AMT rule of 29 October (branch `rebuild-amt-rule`)
+
+A non-microdata item, `amt_nol_cap` (John, 29 October): the AMT net operating loss adjustment (`amt_nols`, the PUF's
+P60100) is held to at most the record's net operating loss, and is 0 on a record with no loss. The PUF has no field of
+its own for the loss; a net operating loss deduction is reported as a negative amount in other income (Form 1040 line
+21), which is in the AGI remainder, so the loss is the negative part of `other_agi_remainder`. A negative `amt_nols`
+is left as drawn. The drawn value is kept as `amt_nols_drawn`. The model draws `amt_nols` and the remainder
+separately; on the 28 October calculator run AMT came to five times SOI's, 88% of it on records whose AMT adjustment
+exceeded their whole AGI.
+
+On the 2015 PUF itself (its own weights) the rule would change little: of $66.3 billion of positive `amt_nols`, $1.3
+billion is above the record's negative remainder ($0.55 billion of it on records with no negative remainder), and the
+median ratio of the adjustment to the loss is 0.94. On the second retrain's pooled file (version A, `five`, 2019): 5,096
+of the 7,957 records with a positive `amt_nols` are changed, 2,683 of them because they have no loss; 0.21 million
+units at the start's weights and $46.0 billion of $74.8 billion removed; after the tilt, 0.18 million units and $34.3
+billion of $58.0 billion removed (filers; non-filers carry no `amt_nols`). Imputing again on that finished file
+reproduces every other column exactly. No target reads `amt_nols`, so the tilt's weights do not change.
 
 ## How the latest run comes out
 

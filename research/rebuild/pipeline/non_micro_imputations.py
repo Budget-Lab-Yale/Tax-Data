@@ -4,15 +4,20 @@ Items set from what the model has already drawn plus a published table, with no 
 age and sex, child tax credit eligibility for each dependent, death probabilities, yearly unrealized gains on each
 asset and the cost basis of each asset, the holding period and basis of long-term gains, parents' income rank, and
 blindness (since the second retrain of 29 October: the PUF's blind rate by age times a factor that meets Publication
-4801's blind boxes); and the QBI service flags and wage bills from the items the model draws for them (since 29 October;
-dependents' Social Security numbers come from the model's own draws, dollars.py, ssn1, ssn2, dep_ssn1-3) (settings non_micro_imputations, which also says why each item is what it is).
+4801's blind boxes); the QBI service flags and wage bills from the items the model draws for them (since 29 October;
+dependents' Social Security numbers come from the model's own draws, dollars.py, ssn1, ssn2, dep_ssn1-3); and the AMT
+net operating loss adjustment held to at most the record's net operating loss (29 October) (settings
+non_micro_imputations, which also says why each item is what it is).
 
 How every item works (the settings section registers each one):
   - it reads columns of the file and published tables, CSVs under research/rebuild/resources/non_micro/ (built by
     build_non_micro_tables.py from their sources; sources.csv there). A table with a year column is read at the
     target year's row; with no such row, the last year before it, or the first year for a year before the table
     starts. Which row each item used is reported;
-  - it writes new columns only: it never changes a drawn item or a weight (impute checks both);
+  - it writes new columns only: it never changes a drawn item or a weight (impute checks both). Two exceptions: a
+    primary filer with an age and no sex is given one (fill_missing_sex), and an item may change a drawn column it
+    names in its settings writes_back, keeping the drawn value in a new column (the AMT cap: amt_nols, kept as
+    amt_nols_drawn);
   - every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person): a fixed function of the
     record, the item's stream and the person (0 the unit, 1 and 2 the primary filer and the spouse, 3 to 5
     dependents 1 to 3), so a draw never moves when other code or other records change;
@@ -25,7 +30,8 @@ tilt (Q9: reported only, never a stop). It can also run on a finished file, for 
 
     python non_micro_imputations.py --run <tilt folder> --out <folder> [--year 2019] [--write-file]
 
-which drops any of these columns already in the file, imputes them again with the file's weight_start, writes
+which drops any of these columns already in the file (and puts each written-back column back to its drawn value),
+imputes them again with the file's weight_start, writes
 non_micro_checks.md (and the file with the columns, with --write-file) to --out. In a Slurm job, as every stage.
 
 Conventions, as in the rest of the file: -1 for an age or a person that does not exist, 0 for no sex; flags are 1 or
@@ -621,6 +627,39 @@ def qbi(df, year, w, ctx):
     return {col: out[col] for col in writes}
 
 
+# ---- 8. the AMT net operating loss adjustment held to the loss (John, 29 October) ---------------------------------
+def nol(df):
+    """The record's net operating loss: the negative part of other_agi_remainder, the AGI remainder where the PUF's
+    other income (Form 1040 line 21, which carries a net operating loss deduction as a negative amount) sits; 0 where
+    the remainder is 0 or more. The PUF has no field of its own for the loss."""
+    rem = df['other_agi_remainder'].to_numpy(float)
+    assert np.isfinite(rem).all(), f'other_agi_remainder missing on {int((~np.isfinite(rem)).sum())} records'
+    return np.maximum(0.0, -rem)
+
+
+def amt_nol_cap(df, year, w, ctx):
+    """The AMT net operating loss adjustment (amt_nols, the PUF's P60100) is held to at most the record's net
+    operating loss (nol), so it is 0 on a record with no loss. A negative amt_nols is left as drawn. The drawn value
+    is kept as amt_nols_drawn and amt_nols is written back: the one item that changes a drawn column (settings
+    writes_back). amt_nols is in PUF-year dollars (it has no Table 1.4 line), the loss in target-year dollars; they
+    are compared as they are."""
+    drawn = df['amt_nols'].to_numpy(float)
+    assert np.isfinite(drawn).all(), f'amt_nols missing on {int((~np.isfinite(drawn)).sum())} records'
+    held = np.minimum(drawn, nol(df))
+    cut = held < drawn
+    w = np.asarray(w, float)
+    filer = df['filer'].to_numpy() == 1
+    ctx['amt cap'] = {'records': int(cut.sum()), 'records with no loss': int((cut & (nol(df) == 0)).sum()),
+                      'units': float(w[cut].sum()), 'filer units': float(w[cut & filer].sum()),
+                      'removed': float((w * (drawn - held)).sum()), 'removed, filers': float((w * (drawn - held))[filer].sum()),
+                      'drawn total': float((w * drawn).sum()), 'drawn positive records': int((drawn > 0).sum())}
+    c = ctx['amt cap']
+    ctx['notes'].append(f'AMT net operating loss adjustment held to the loss: {c["records"]:,} records changed '
+                        f'({c["records with no loss"]:,} with no loss), {c["units"] / 1e6:.3f} million units, '
+                        f'${c["removed"] / 1e9:,.1f} billion removed at the start\'s weights')
+    return {'amt_nols_drawn': drawn, 'amt_nols': held}
+
+
 PLACEHOLDER_VALUES = {'dependent_ssn': 'every dependent has a number (1)', 'blindness': 'nobody is blind (0)',
                       'qbi': 'no specified service business (0), no wages paid (0)'}
 
@@ -628,11 +667,26 @@ FUNCTIONS = {'dependent_filer_age_sex': dependent_filer_age_sex, 'child_credit':
              'death_probabilities': death_probabilities,
              'unrealized_gains': unrealized_gains, 'cost_basis': cost_basis,
              'gains_holding_period': gains_holding_period, 'parents_rank': parents_rank, 'blindness': blindness,
-             'qbi': qbi}
+             'qbi': qbi, 'amt_nol_cap': amt_nol_cap}
 
 
 def written_columns():
     return [c for it in ITEMS.values() for c in it['writes']]
+
+
+def written_back():
+    """The drawn columns an item changes, each with the new column that keeps its drawn value (settings writes_back)."""
+    return {c: keep for it in ITEMS.values() for c, keep in it.get('writes_back', {}).items()}
+
+
+def as_drawn(df):
+    """A finished file with every written-back column restored to its drawn value and the written columns dropped, so
+    impute can run on it again."""
+    df = df.copy()
+    for c, keep in written_back().items():
+        if keep in df:
+            df[c] = df[keep]
+    return df.drop(columns=[c for c in written_columns() if c in df])
 
 
 def impute(df, year, w):
@@ -649,14 +703,17 @@ def impute(df, year, w):
                                                       'record_ids': df['record_id'].to_numpy()[nosex].tolist()}}
     ctx['notes'].append(f'primary filers with an age and no sex given one: {int(nosex.sum())} records '
                         f'({w[nosex].sum():,.0f} units at the start\'s weights)')
+    back = written_back()
+    assert all(c in df for c in back), f'written-back columns not in the file: {[c for c in back if c not in df]}'
     for name, f in FUNCTIONS.items():
         cols = f(out, year, w, ctx)
-        assert list(cols) == ITEMS[name]['writes'], f'{name}: wrote {list(cols)}, settings say {ITEMS[name]["writes"]}'
+        want = ITEMS[name]['writes'] + list(ITEMS[name].get('writes_back', {}))
+        assert list(cols) == want, f'{name}: wrote {list(cols)}, settings say {want}'
         for c, v in cols.items():
             v = np.asarray(v)
             assert len(v) == len(out) and not pd.isna(v).any(), f'{name}: {c} has missing values'
             out[c] = v
-    for c in df.columns:   # nothing drawn changed
+    for c in [c for c in df.columns if c not in back]:   # nothing drawn changed, except the written-back columns
         assert np.array_equal(before[c], out[c].to_numpy(), equal_nan=before[c].dtype.kind == 'f'), f'{c} changed'
     common.say('non-microdata imputations: ' + ' | '.join(ctx['notes']))
     return out, ctx
@@ -920,15 +977,38 @@ def check_parents(df, w, ctx):
                                 'the mean the draw aims at, so this checks the draw, not the method.']
 
 
+def check_amt_nol_cap(df, w, ctx):
+    drawn, held = df['amt_nols_drawn'].to_numpy(float), df['amt_nols'].to_numpy(float)
+    loss = nol(df)
+    filer = df['filer'].to_numpy() == 1
+    cut = held < drawn
+    rows = []
+    for lab, m in [('filers', filer), ('non-filers', ~filer), ('all units', np.ones(len(df), bool))]:
+        rows.append({'units': lab, 'records changed': int((cut & m).sum()),
+                     'records changed with no loss': int((cut & m & (loss == 0)).sum()),
+                     'units changed (millions)': w[cut & m].sum() / 1e6,
+                     'units with amt_nols above 0, drawn (millions)': w[m & (drawn > 0)].sum() / 1e6,
+                     'units with amt_nols above 0, held (millions)': w[m & (held > 0)].sum() / 1e6,
+                     'amt_nols drawn ($ billion)': _bn((w * drawn)[m].sum()),
+                     'amt_nols held ($ billion)': _bn((w * held)[m].sum()),
+                     'removed ($ billion)': _bn((w * (drawn - held))[m].sum())})
+    c = ctx['amt cap']
+    return pd.DataFrame(rows), [
+        'amt_nols (PUF P60100) held to at most the record\'s net operating loss, the negative part of '
+        'other_agi_remainder (other income); 0 where the record has no loss; a negative amt_nols is left as drawn. '
+        'amt_nols is in PUF-year dollars, the loss in target-year dollars. Weights after the tilt; at the start\'s '
+        f'weights the rule changed {c["records"]:,} records ({c["units"] / 1e6:.3f} million units) and removed '
+        f'${c["removed"] / 1e9:,.1f} billion.']
+
+
 def checks(df, year, w, ctx=None):
     """Every item's published check, on the weights w (after the tilt). ctx: impute's context; if None (an older
     file, or a check on a finished file), the pieces the checks need are rebuilt by imputing again on the file's
     weight_start, and the result must equal the file's columns. Returns [(title, [tables], [lines])]."""
     w = np.asarray(w, float)
     if ctx is None:
-        again, ctx = impute(df.drop(columns=[c for c in written_columns() if c in df]), year,
-                            df['weight_start'].to_numpy(float))
-        for c in written_columns():
+        again, ctx = impute(as_drawn(df), year, df['weight_start'].to_numpy(float))
+        for c in written_columns() + list(written_back()):
             if c in df:
                 assert np.allclose(again[c].to_numpy(float), df[c].to_numpy(float)), f'{c}: imputing again differs'
         df = again
@@ -956,6 +1036,9 @@ def checks(df, year, w, ctx=None):
                      'Start weights (before the tilt). The deduction itself needs the calculator (roadmap step 4).']))
     t, ln = check_parents(df, w, ctx)
     out.append(('Parents\' income rank', [t], ln))
+    if 'amt_nols_drawn' in df:
+        t, ln = check_amt_nol_cap(df, w, ctx)
+        out.append(('AMT net operating loss adjustment held to the loss', [t], ln))
     ph = [{'item': k, 'columns': ', '.join(it['writes']), 'value': PLACEHOLDER_VALUES[k]}
           for k, it in ITEMS.items() if it.get('placeholder')]
     if ctx.get('stock share') == 'age rule':
@@ -988,7 +1071,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
     df = pd.read_parquet(os.path.join(a.run, f'file_{a.year}.parquet'))
-    df = df.drop(columns=[c for c in written_columns() if c in df])
+    df = as_drawn(df)
     df, ctx = impute(df, a.year, df['weight_start'].to_numpy(float))
     common.say('\n'.join(write_checks(checks(df, a.year, df['weight'].to_numpy(float), ctx), a.out, a.year)))
     if a.write_file:

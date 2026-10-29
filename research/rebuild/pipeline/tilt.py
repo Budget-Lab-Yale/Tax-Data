@@ -364,8 +364,9 @@ def main():
         w0, prescaled = prescale_demographic(w0, F, T, se, identity, averages, rows, filer,
                                              g19['married'].to_numpy(), soi)
     # the non-microdata imputations (non_micro_imputations.py; NEXT_STEPS item 1, Q1): on the start, in target-year
-    # dollars and with its prescaled weights, before the solve. New columns only; the ranking items rank on w0, and
-    # no target reads their columns yet
+    # dollars and with its prescaled weights, before the solve. New columns only, except amt_nols, which the AMT cap
+    # changes (its drawn value kept as amt_nols_drawn); the ranking items rank on w0, and no target reads their columns
+    # or amt_nols yet
     nmi_ctx = None
     if NMI.S.get('run_in_tilt', False):
         g19, nmi_ctx = NMI.impute(g19, Y, w0)
