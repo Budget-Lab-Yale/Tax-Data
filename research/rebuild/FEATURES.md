@@ -1019,7 +1019,8 @@ differences), pooled over the two years as for the CEX.
 
 Since 29 October (John, 28 October; branch `rebuild-retrain-1029`) the top two groups are one, $100,000 and over
 (catalog `wage_groups_4`): the $200,000-and-over group rested on about 430 asked CPS units a year. The table above
-is the five-group version of 28 October; the merged group's values come with the next run's target list.
+is the five-group version of 28 October. The merged group: $100,000 and over, 11.51% with any overtime (standard error
+0.65 points), $3,918 per unit ($298); the other groups are unchanged.
 
 **Consumption over the year mix** (since 28 October). Each CEX year's spending is put in 2019 dollars by NIPA
 consumption per return, category by category; the target is 73.11% of the 2019 average plus 26.89% of the grown 2017
