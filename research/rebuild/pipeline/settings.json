@@ -1789,7 +1789,7 @@
   "run_in_tilt": true,
   "_run_in_tilt": "false: tilt.py leaves the file without these columns (the file as before 28 October).",
   "salt_base": 2026102800,
-  "_salt_base": "Every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person), person 0 for the unit, 1 and 2 for the primary filer and the spouse, 3 to 5 for dependents 1 to 3: a fixed function of the record, the stream and the person, so it never moves when other code or other records change. Streams are numbered once in the items below and never renumbered.",
+  "_salt_base": "Every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person), person 0 for the unit, 1 and 2 for the primary filer and the spouse, 3 to 5 for dependents 1 to 3: a fixed function of the record, the stream and the person, so it never moves when other code or other records change. Streams are numbered once in the items below and never renumbered. Stream 3 (the placeholder for dependents' Social Security numbers until 29 October) is no longer used: the numbers come from the model's draws (dollars.py).",
   "items": {
    "dependent_filer_age_sex": {
     "reads": ["record_id", "age_range", "cps_year"],
@@ -1808,14 +1808,6 @@
     "writes": ["dep_ctc1", "dep_ctc2", "dep_ctc3"],
     "stream": 2,
     "_why": "Production's rule (src/imputations/ages.R): dependent k (youngest first) passes every child credit test except age and Social Security number when it is under 17 and the record's n_ctc (the PUF's count of child credit children, 2015 law) is at least k; dependents from 17 to the year's law age less one (17 alone in every year but 2021) pass by chance, 1 - the share of units with dependents under 17 whose count of them exceeds n_ctc (start weights), as production. 1 passes, 0 not, -1 no such dependent. Tax-Simulator applies the age limit of the law it simulates."
-   },
-   "dependent_ssn": {
-    "reads": ["age_dep1", "age_dep2", "age_dep3"],
-    "tables": [],
-    "writes": ["dep_ssn1", "dep_ssn2", "dep_ssn3"],
-    "stream": 3,
-    "placeholder": true,
-    "_why": "PLACEHOLDER (Q4 is being researched): every dependent has a Social Security number (1; -1 no such dependent). Replaced by the SSN item."
    },
    "death_probabilities": {
     "reads": ["age_primary", "age_spouse", "sex_primary", "sex_spouse", "married", "dep_filer_age", "dep_filer_sex", "the broad income items"],

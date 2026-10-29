@@ -3,8 +3,8 @@
 Items set from what the model has already drawn plus a published table, with no new microdata: dependent filers' exact
 age and sex, child tax credit eligibility for each dependent, death probabilities, yearly unrealized gains on each
 asset and the cost basis of each asset, the holding period and basis of long-term gains, and parents' income rank;
-and, until their own items are built, placeholders for dependents' Social Security numbers, blindness and the QBI
-service flags and wage bills (settings non_micro_imputations, which also says why each item is what it is).
+and blindness and the QBI service flags and wage bills from the items the model draws for them (since 29 October;
+dependents' Social Security numbers come from the model's own draws, dollars.py, ssn1, ssn2, dep_ssn1-3) (settings non_micro_imputations, which also says why each item is what it is).
 
 How every item works (the settings section registers each one):
   - it reads columns of the file and published tables, CSVs under research/rebuild/resources/non_micro/ (built by
@@ -177,12 +177,6 @@ def child_credit(df, year, w, ctx):
     ctx['notes'].append(f'child credit: law age under {law} (table year {ly}); 17-year-olds flagged with chance '
                         f'{1 - share:.4f}')
     return {f'dep_ctc{j + 1}': np.where(exists[:, j], flag[:, j].astype(int), -1) for j in range(3)}
-
-
-def dependent_ssn(df, year, w, ctx):
-    """PLACEHOLDER until the SSN item (Q4) is built: every dependent has a Social Security number."""
-    ages = df[DEP_AGES].to_numpy(float)
-    return {f'dep_ssn{j + 1}': np.where(ages[:, j] >= 0, 1, -1) for j in range(3)}
 
 
 # ---- 3. death probabilities ---------------------------------------------------------------------------------------
@@ -593,7 +587,7 @@ PLACEHOLDER_VALUES = {'dependent_ssn': 'every dependent has a number (1)', 'blin
                       'qbi': 'no specified service business (0), no wages paid (0)'}
 
 FUNCTIONS = {'dependent_filer_age_sex': dependent_filer_age_sex, 'child_credit': child_credit,
-             'dependent_ssn': dependent_ssn, 'death_probabilities': death_probabilities,
+             'death_probabilities': death_probabilities,
              'unrealized_gains': unrealized_gains, 'cost_basis': cost_basis,
              'gains_holding_period': gains_holding_period, 'parents_rank': parents_rank, 'blindness': blindness,
              'qbi': qbi}

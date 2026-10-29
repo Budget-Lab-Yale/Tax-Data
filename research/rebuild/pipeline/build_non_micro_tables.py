@@ -13,6 +13,7 @@ says, for every table, where its numbers come from and how they were turned into
   - SOI's Publication 4801 line items (settings paths.raw.soi_mirror, line_items.csv);
   - the CPS ASEC (settings paths.raw.cps_earnings, the common extract): average pay of private employees by SCF
     industry group and tax year, for the QBI wage bills (since 29 October);
+  - SOI's Publication 4801 blind boxes, typed in from the pages (since 29 October);
   - the law: the dependent filing threshold (Form 1040 instructions, Chart B, as production's
     src/nonfilers/asec_tax_units.R has it) and the child tax credit's age limit (IRC section 24(c)).
 """
