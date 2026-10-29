@@ -1864,12 +1864,14 @@
     "_why": "Q3 (John, 28 October; built 29 October): each person's blindness as generation drew it from the PUF slot learned in pretraining (settings blindness; generate.py, Chunk.blind_phase), 1 blind, 0 not; blind2 is 0 without a spouse. The stream is not used (the draw is generation's). A file from a model before 29 October has no draws: 0 for everyone, as the placeholder of 28 October."
    },
    "qbi": {
-    "reads": [],
-    "tables": [],
+    "reads": ["biz_industry_schc", "biz_industry_part", "biz_industry_scorp", "biz_workers_schc", "biz_workers_part", "biz_workers_scorp", "sch_c", "the partnership and S corporation parts", "farm", "wages"],
+    "tables": ["cps_private_pay_by_scf_group.csv"],
     "writes": ["sstb_sole_prop", "sstb_part", "sstb_scorp", "sstb_farm", "wagebill_sole_prop", "wagebill_part", "wagebill_scorp", "wagebill_farm"],
     "stream": 7,
-    "placeholder": true,
-    "_why": "PLACEHOLDER: 0, as the calculator experiment sets them (CALCULATOR_CONTRACT.md on branch rebuild-calculator): no business is a specified service business and none pays wages, so the QBI deduction is 0 above the taxable income threshold. Q5 is being researched."
+    "a": 1.0,
+    "b": 1.0,
+    "c_by_scf_group": {"1": 0.02, "2": 0.01, "3": 0.09, "4": 0.01, "5": 0.05, "6": 0.16, "7": 0.01},
+    "_why": "Q5 (John, 28 October; scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md; built 29 October). For each record and kind (Schedule C, partnership, S corporation) with positive income of that kind: specified service drawn (person 1-3 by kind) with chance b x c(group), at most 1, the group the model drew for the kind (an SCF item learned in pretraining); wage bill = a x the drawn owner's share of outside workers x the CPS's average pay of private employees in the group in the target year, plus, for an S corporation, all the record's wages when it has S corporation income and no Schedule C or partnership income (first version). Group 8 (no industry code): c is the average of groups 1-7 weighted by positive income on the file, pay is all private employees'. Farms: never specified service, wage bill = positive farm income. c_by_scf_group: the plan's table (Treasury's Form 8995-A shares by detailed industry, Goodman, Lim, Sacerdote and Whitten Table A1, averaged within each SCF group over CPS self-employed people 2017-2019). a and b: the two dials, 1 until they are solved against Treasury's share and SOI's deduction (needs the calculator). Changing a, b or c needs only a rerun of the tilt stage. No QBI targets."
    }
   }
  },

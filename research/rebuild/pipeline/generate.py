@@ -186,6 +186,12 @@ PUF_LATE = [v for v in M.PUF_CATEGORIES]
 PUF_DRAWN = [v for v in PUF_SLOTS if v not in PUF_LATE]
 BLIND = P.index('blind') if 'blind' in P else None
 BLIND_SETTINGS = common.SETTINGS.get('blindness', {})
+# (29 October) the QBI items under the SCF label (build_table, meta scf_structure): each kind's outside workers drawn
+# after its industry group and zero with none; the industry group never none on a record with any of the kind's PUF
+# parts nonzero
+SCF_STRUCTURE = M.META.get('scf_structure', {'after': {}, 'industry_parts': {}})
+SCF_AFTER = {P.index(v): P.index(b) for v, b in SCF_STRUCTURE['after'].items()}
+INDUSTRY_PARTS = {P.index(v): torch.tensor([P.index(q) for q in parts]) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
 SCF_SLOTS = M.SCF_SLOTS
 CEX_SLOTS = M.CEX_SLOTS
 CPS_SLOTS = M.CPS_SLOTS
@@ -375,10 +381,9 @@ def scf_order(size, gen):
     scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
     perm = scf[torch.rand(size, len(scf), generator=gen).argsort(1)]
     rows = torch.arange(size)
-    for slot, (_, base) in M.RATIOS.items():
-        if slot not in SCF_SLOTS:
-            continue                                # the CPS's ratios: their base is a PUF slot, drawn earlier
-        i, ib = P.index(slot), P.index(base)
+    pairs = [(P.index(slot), P.index(base)) for slot, (_, base) in M.RATIOS.items() if slot in SCF_SLOTS]
+    # (the CPS's ratios: their base is a PUF slot, drawn earlier); the QBI items' workers after their industry group
+    for i, ib in pairs + list(SCF_AFTER.items()):
         pos, pos_b = (perm == i).int().argmax(1), (perm == ib).int().argmax(1)
         swap = pos < pos_b
         perm[rows[swap], pos[swap]], perm[rows[swap], pos_b[swap]] = ib, i
@@ -477,6 +482,23 @@ def deferral_structure(values, slot, probs):
     return probs
 
 
+def qbi_structure(values, slot, probs):
+    """The QBI items (29 October): a kind's outside workers are zero where its industry group is none (drawn first,
+    scf_order); its industry group is not none where any of the kind's PUF parts is nonzero (the record has such a
+    business: the model's chances of the 8 groups, rescaled)."""
+    for j, ind in SCF_AFTER.items():
+        probs = only(probs, (slot == j) & (values[:, NC + ind] == 0))
+    for j, parts in INDUSTRY_PARTS.items():
+        sel = slot == j
+        if not bool(sel.any()):
+            continue
+        has = (values[:, NC + parts.to(values.device)] != 0).any(1) & sel
+        not_none = torch.ones(probs.shape[1], device=probs.device)
+        not_none[0] = 0.0
+        probs = only(probs, has, not_none.expand(int(has.sum()), -1))
+    return probs
+
+
 def structural(values, slot, probs):
     """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them; no
     deferrals: no spouse's share of them). Elective deferrals follow wages and marriage (deferral_structure).
@@ -491,6 +513,7 @@ def structural(values, slot, probs):
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
     probs = deferral_structure(values, slot, probs)
+    probs = qbi_structure(values, slot, probs)
     dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
     probs[dep] = 0.0
     probs[dep, 0] = 1.0

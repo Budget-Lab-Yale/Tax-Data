@@ -94,6 +94,20 @@
 #   owns_other_re: owns any real estate other than the home (X1700 = 1, or the summary file's ORESRE or NNRESRE
 #     nonzero), with or without income;
 #   rents_home_part: collects rent from part of the home or from farm or ranch land (X1224 > 0 or X505 > 0).
+# The QBI items (since 29 October; John, NEXT_STEPS.md item 1, Q5; scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md),
+# from the household's actively managed businesses 1 and 2, for each of three kinds of business by legal form (X3119,
+# X3219): Schedule C (2 sole proprietorship, 40 not a formal business), partnership (1 partnership, 11 and 12 limited
+# partnership, LLP or LLC) and S corporation (3); other corporations (4) and the 2013 wave's code 6 (11 rows) have no
+# item:
+#   biz_industry_<kind>: the industry group of the household's largest business of that kind (largest by the value of
+#     the household's share, X3129 / X3229; business 1 on a tie): the public file's 7 groups (X3107 / X3207, 1-7), 8 for
+#     the code 99 ("no industry code", businesses worth $100 million or more), 0 with no business of the kind;
+#   biz_workers_<kind>: the owner's share of the outside workers, summed over the household's businesses of the kind:
+#     the business's workers (X3111 / X3211) less the household members who work in it (X3113-X3117 / X3213-X3217 equal
+#     to 1), at least 0, times the household's share of the business (X3128 / X3228, hundredths of a percent).
+# Given, as owns_business, to the units holding the household's business equity (else the respondent's unit): the
+# industry to each, the workers in proportion to each unit's business equity (all to the one unit where there is
+# none). Units outside the PEU and other units: none (0; the business section is asked of the PEU only).
 # The retirement accounts' stock share (w_dc_stock_share, since 29 October; John, NEXT_STEPS.md item 1, Q6): the summary
 # file's equity in quasi-liquid retirement assets (RETEQ: IRAs, Keoghs, thrift-type plans and account-type pensions,
 # each counted as all, half or none stocks by the respondent's answer) over those assets (RETQLIQ = IRAKH + THRIFT +
@@ -127,6 +141,10 @@ minus_one_to_zero = function(x) if_else(x == -1, 0, x)
 # limited partnership, LLP or LLC); not actively managed limited partnerships (X3407), other partnerships
 # (X3411), LLCs (X3451) and S corporations (X3415).
 BUSINESS_ITEMS = c('x3103', 'x3401', 'x3119', 'x3219', 'x3407', 'x3411', 'x3451', 'x3415')
+# The QBI items (see the top): per business b (1, 2) the industry group, workers, household members working in it, the
+# household's share and the value of the share
+QBI_ITEMS = unlist(lapply(c('31', '32'), function(b) paste0('x', b, c('07', '11', '13', '14', '15', '16', '17', '28', '29'))))
+QBI_KINDS = list(schc = c(2, 40), part = c(1, 11, 12), scorp = 3)
 K1_FORMS = c(1, 3, 11, 12)
 INCOME = c(wages = 'X5702', interest = 'X5708', dividends = 'X5710', capital_gains = 'X5712',
            business_income = 'X5704', rent_royalty_estate = 'X5714', retirement_gross = 'X5722',
@@ -191,7 +209,7 @@ for (wave in settings$paths$raw$scf_waves) {
   dir = sub('{wave}', wave, settings$paths$raw$scf, fixed = TRUE)
   raw_path = file.path(dir, sprintf('p%02di6.dta', wave %% 100))
   scfp = fread(file.path(dir, sprintf('SCFP%d.csv', wave))) %>% as_tibble()
-  hh = read_dta(raw_path, col_select = all_of(c('y1', 'yy1', 'x42001', 'x3902', tolower(INCOME), BUSINESS_ITEMS,
+  hh = read_dta(raw_path, col_select = all_of(c('y1', 'yy1', 'x42001', 'x3902', tolower(INCOME), BUSINESS_ITEMS, QBI_ITEMS,
                                                  tolower(PERSON_ITEMS), names(AUTO_LOANS), unname(AUTO_LOANS),
                                                  tolower(DEFERRAL_ITEMS), 'x14', 'x19', 'x102', tolower(SS_ITEMS),
                                                  tolower(RENTAL_ITEMS)))) %>%
@@ -254,8 +272,8 @@ for (wave in settings$paths$raw$scf_waves) {
   # the retirement accounts' stock share (see the top): a ratio, no asset factor
   ret = scfp %>% transmute(Y1, ret_stock_share = if_else(RETQLIQ > 0, RETEQ / pmax(RETQLIQ, 1e-9), 0))
   stopifnot(!anyNA(ret$ret_stock_share), all(ret$ret_stock_share >= 0), all(ret$ret_stock_share <= 1 + 1e-9))
-  cat(sprintf('wave %d: retirement accounts\' stock share: weighted RETEQ / RETQLIQ %.3f; households with accounts %.2f m\n',
-              wave, sum(scfp$WGT * scfp$RETEQ) / sum(scfp$WGT * scfp$RETQLIQ), sum(scfp$WGT[scfp$RETQLIQ > 0]) / 1e6 / 5))
+  cat(sprintf('wave %d: retirement accounts\' stock share: weighted RETEQ / RETQLIQ %.3f; share of rows with accounts %.3f\n',
+              wave, sum(scfp$WGT * scfp$RETEQ) / sum(scfp$WGT * scfp$RETQLIQ), mean(scfp$RETQLIQ > 0)))
   stopifnot(setequal(setdiff(names(peu), 'Y1'), c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)))
   names(peu)[-1] = paste0('w_', names(peu)[-1])
   WCOLS = setdiff(names(peu), 'Y1')
@@ -415,14 +433,53 @@ for (wave in settings$paths$raw$scf_waves) {
     ungroup()
   stopifnot(!anyNA(ur$inc_re), all((ur %>% group_by(hh) %>% summarise(n = sum(holder)))$n >= 1))
 
+  # The QBI items (see the top): per household and kind, the largest business's industry group and the owner's
+  # share of outside workers; then to the business-equity holders
+  qb = tibble(hh = hh$Y1)
+  for (k in names(QBI_KINDS)) {
+    ind = rep(0, nrow(hh)); best = rep(-Inf, nrow(hh)); wk = rep(0, nrow(hh))
+    for (b in c('31', '32')) {
+      x = function(i) hh[[paste0('X', b, i)]]
+      is_k = x('19') %in% QBI_KINDS[[k]]
+      fam = (x('13') == 1) + (x('14') == 1) + (x('15') == 1) + (x('16') == 1) + (x('17') == 1)
+      outside = pmax(x('11') - fam, 0) * x('28') / 10000
+      wk = wk + if_else(is_k, outside, 0)
+      code = if_else(x('07') == 99, 8, x('07'))
+      stopifnot(all(code[is_k] %in% 1:8), all(x('28')[is_k] > 0 & x('28')[is_k] <= 10000))
+      take = is_k & x('29') > best          # strictly larger: business 1 on a tie
+      ind = if_else(take, code, ind); best = if_else(take, x('29'), best)
+    }
+    qb[[paste0('biz_industry_', k)]] = ind
+    qb[[paste0('biz_workers_', k)]] = wk
+  }
+  stopifnot(!anyNA(qb))
+  ub = ub %>% group_by(hh) %>% mutate(eq_share = if (any(holder & w_pass_throughs > 0))
+    if_else(holder, pmax(w_pass_throughs, 0) / sum(pmax(w_pass_throughs, 0)[holder]), 0) else as.numeric(holder) / sum(holder)) %>%
+    ungroup()
+  uq = ub %>% select(uid, hh, holder, eq_share) %>% left_join(qb, by = 'hh')
+  for (k in names(QBI_KINDS)) {
+    uq[[paste0('biz_industry_', k)]] = if_else(uq$holder, uq[[paste0('biz_industry_', k)]], 0)
+    uq[[paste0('biz_workers_', k)]] = uq[[paste0('biz_workers_', k)]] * uq$eq_share
+  }
+  QBI_COLS = c(paste0('biz_industry_', names(QBI_KINDS)), paste0('biz_workers_', names(QBI_KINDS)))
+  stopifnot(!anyNA(uq[, QBI_COLS]), all(abs((ub %>% group_by(hh) %>% summarise(s = sum(eq_share)))$s - 1) < 1e-9))
+  for (k in names(QBI_KINDS)) {
+    w5 = hh$X42001 / 5
+    cat(sprintf('wave %d: QBI %s: households with a business of the kind %.2f m; outside workers, owners\' share %.1f m; industry groups (households, m): %s\n',
+                wave, k, sum(w5[qb[[paste0('biz_industry_', k)]] > 0]) / 1e6, sum(w5 * qb[[paste0('biz_workers_', k)]]) / 1e6,
+                paste(sprintf('%d: %.2f', 1:8, sapply(1:8, function(g) sum(w5[qb[[paste0('biz_industry_', k)]] == g]) / 1e6)), collapse = ', ')))
+  }
+
   units = mu %>% inner_join(dollars, by = 'uid') %>%
     left_join(ub %>% transmute(uid, owns_business = as.integer(owns & holder), k1_owner = as.integer(k1 & holder)),
               by = 'uid') %>%
+    left_join(uq %>% select(uid, all_of(QBI_COLS)), by = 'uid') %>%
     left_join(ur %>% transmute(uid, owns_income_re = as.integer(inc_re & holder),
                                owns_other_re = as.integer(oth_re & holder), rents_home_part = as.integer(home_part & holder)),
               by = 'uid') %>%
     # outside the PEU, other units: none (the business and property sections are asked of the PEU only)
-    mutate(across(c(owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part), ~ replace_na(.x, 0L))) %>%
+    mutate(across(c(owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part), ~ replace_na(.x, 0L)),
+           across(all_of(QBI_COLS), ~ replace_na(.x, 0))) %>%
     transmute(record_id = if_else(separate, uid, uid * 10), household_id = hh %/% 10,
               implicate = as.integer(hh %% 10), year = wave - 1L, weight, married = as.integer(filing_status == 'joint'),
               n_dep = as.integer(pmin(n_dep, 3)), age1 = as.integer(head_age),
@@ -431,7 +488,7 @@ for (wave in settings$paths$raw$scf_waves) {
               male2 = if_else(filing_status == 'joint', if_else(spouse_sex == 0, NA_integer_, as.integer(spouse_sex == 1)), -1L),
               taxunit_code, across(all_of(names(INCOME))), ss_gross, rental_income, sche_rest, net_worth,
               asset_factor = asset_factor, across(all_of(WCOLS)), auto_int_exp, elective_deferrals, elective1, elective2,
-              w_dc_stock_share,
+              w_dc_stock_share, across(all_of(QBI_COLS)),
               owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part, filing_status, n_child_away,
               group_level = as.integer(group_level), npeu_people,
               any_age_assumed = as.integer(any_age_assumed), any_link_assumed = as.integer(any_link_assumed),

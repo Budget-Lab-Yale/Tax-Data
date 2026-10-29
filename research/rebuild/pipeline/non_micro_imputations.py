@@ -503,9 +503,90 @@ def blindness(df, year, w, ctx):
     return {'blind1': b1.astype(int), 'blind2': b2.astype(int)}
 
 
+QBI_KINDS = {  # file kind: (industry slot, workers slot, the PUF parts whose signed sum is the kind's income, person)
+    'sole_prop': ('biz_industry_schc', 'biz_workers_schc', {'sch_c': 1}, 1),
+    'part': ('biz_industry_part', 'biz_workers_part', {'part_pass_inc': 1, 'part_nonpass_inc': 1, 'part_pass_loss': -1,
+                                                       'part_nonpass_loss': -1, 'part_179': -1}, 2),
+    'scorp': ('biz_industry_scorp', 'biz_workers_scorp', {'scorp_pass_inc': 1, 'scorp_nonpass_inc': 1,
+                                                          'scorp_pass_loss': -1, 'scorp_nonpass_loss': -1,
+                                                          'scorp_179': -1}, 3)}
+
+
+def qbi_income(df, parts):
+    return sum(sg * df[p].to_numpy(float) for p, sg in parts.items())
+
+
 def qbi(df, year, w, ctx):
-    """PLACEHOLDER until the QBI item (Q5): no specified service business, no wages paid."""
-    return {c: np.zeros(len(df), float if c.startswith('wagebill') else int) for c in ITEMS['qbi']['writes']}
+    """Q5 (John, 28 October; the simple plan, scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md; built 29 October).
+    For each record and kind of business (Schedule C, partnership, S corporation) with positive income of that kind:
+      - specified service (sstb_<kind>): 1 when the record's keyed draw (stream 7, person 1-3 by kind) is below
+        b x c(group), held to at most 1; c(group) per SCF industry group (settings c_by_scf_group), the group the
+        model drew for the kind (biz_industry_<kind>); for group 8 (no industry code), and for none (0, which generation
+        allows only without such income), the average of c over groups 1-7 weighted by the kind's positive income on
+        the file (start weights), all three kinds together;
+      - wage bill (wagebill_<kind>): a x the owner's share of outside workers drawn (biz_workers_<kind>) x the average
+        pay of private employees in the group in the target year (cps_private_pay_by_scf_group.csv; group 8 and none:
+        all private employees); for an S corporation plus the owner's own wages: in this first version all of the
+        record's wages when it has S corporation income and no Schedule C or partnership income.
+    Farms (positive farm income): never specified service; wage bill = the farm income, so the wage limit never binds.
+    Otherwise 0. a and b are settings, 1 for now (two dials, set later against Treasury's and SOI's numbers).
+    A file from a model before 29 October has no drawn industry: every item 0 (the placeholder of 28 October)."""
+    it = ITEMS['qbi']
+    writes = it['writes']
+    if not all(QBI_KINDS[k][0] in df for k in QBI_KINDS):
+        ctx['qbi'] = None
+        ctx['notes'].append('QBI: the file has no drawn industry groups (a model from before 29 October): all 0')
+        return {c: np.zeros(len(df), float if c.startswith('wagebill') else int) for c in writes}
+    a, b = float(it['a']), float(it['b'])
+    c = {int(g): float(v) for g, v in it['c_by_scf_group'].items()}
+    assert sorted(c) == list(range(1, 8)), 'c_by_scf_group: groups 1-7'
+    pay = table('cps_private_pay_by_scf_group.csv')
+    py = year_used(pay['year'], year)
+    pay = pay[pay.year == py].set_index('scf_industry_group')['average_pay']
+    assert sorted(pay.index) == list(range(1, 9)), 'pay table: groups 1-8'
+    inc = {k: qbi_income(df, parts) for k, (_, _, parts, _) in QBI_KINDS.items()}
+    grp = {k: df[ind].to_numpy().astype(int) for k, (ind, _, _, _) in QBI_KINDS.items()}
+    for k, g in grp.items():
+        assert np.isin(g, range(9)).all(), f'{k}: industry group outside 0-8'
+    # the chance for no industry code (and none): c over groups 1-7, weighted by positive income of the kind
+    num = sum((w * np.maximum(inc[k], 0) * np.vectorize(lambda x: c.get(x, 0.0))(grp[k]) * (grp[k] >= 1) * (grp[k] <= 7)).sum()
+              for k in QBI_KINDS)
+    den = sum((w * np.maximum(inc[k], 0) * (grp[k] >= 1) * (grp[k] <= 7)).sum() for k in QBI_KINDS)
+    c_other = float(num / den)
+    out, rows = {}, []
+    only_scorp = (inc['scorp'] > 0) & (df['sch_c'].to_numpy(float) == 0) & \
+        np.column_stack([df[p].to_numpy(float) == 0 for p in QBI_KINDS['part'][2]]).all(1)
+    for k, (ind, wk, parts, person) in QBI_KINDS.items():
+        g = grp[k]
+        on = inc[k] > 0
+        chance = np.minimum(1.0, b * np.where((g >= 1) & (g <= 7), np.vectorize(lambda x: c.get(x, 0.0))(g), c_other))
+        u = uniform(df, 'qbi', person)
+        sstb = (on & (u < chance)).astype(int)
+        p = np.where((g >= 1) & (g <= 8), pay.reindex(np.clip(g, 1, 8)).to_numpy(float), float(pay[8]))
+        workers = df[wk].to_numpy(float)
+        assert (workers >= 0).all() and np.isfinite(workers).all(), f'{wk}: below 0 or missing'
+        bill = np.where(on, a * workers * p, 0.0)
+        if k == 'scorp':
+            bill = bill + np.where(on & only_scorp, df['wages'].to_numpy(float), 0.0)
+        out[f'sstb_{k}'], out[f'wagebill_{k}'] = sstb, bill
+        rows.append({'kind': k, 'units with positive income (millions)': w[on].sum() / 1e6,
+                     'income ($ billion)': (w * np.maximum(inc[k], 0)).sum() / 1e9,
+                     'industry none where income (millions, generation allows none only without it)': w[on & (g == 0)].sum() / 1e6,
+                     'no industry code (millions)': w[on & (g == 8)].sum() / 1e6,
+                     'specified service (millions)': w[sstb == 1].sum() / 1e6,
+                     'specified service share of the income (%)': 100 * (w * np.maximum(inc[k], 0) * sstb).sum() / max((w * np.maximum(inc[k], 0)).sum(), 1),
+                     'with outside workers (millions)': w[on & (workers > 0)].sum() / 1e6,
+                     'wage bill ($ billion)': (w * bill).sum() / 1e9})
+    farm = df['farm'].to_numpy(float)
+    out['sstb_farm'] = np.zeros(len(df), int)
+    out['wagebill_farm'] = np.maximum(farm, 0.0)
+    rows.append({'kind': 'farm', 'units with positive income (millions)': w[farm > 0].sum() / 1e6,
+                 'income ($ billion)': (w * np.maximum(farm, 0)).sum() / 1e9, 'specified service (millions)': 0.0,
+                 'wage bill ($ billion)': (w * out['wagebill_farm']).sum() / 1e9})
+    ctx['qbi'] = {'table': pd.DataFrame(rows), 'a': a, 'b': b, 'c_other': c_other, 'pay_year': py}
+    ctx['notes'].append(f'QBI: a = {a:g}, b = {b:g}; chance for no industry code {c_other:.4f}; pay table year {py}; '
+                        f'S corporation owners\' own wages added on {w[only_scorp].sum() / 1e6:.2f} million units')
+    return {col: out[col] for col in writes}
 
 
 PLACEHOLDER_VALUES = {'dependent_ssn': 'every dependent has a number (1)', 'blindness': 'nobody is blind (0)',
@@ -832,6 +913,12 @@ def checks(df, year, w, ctx=None):
     out.append(('Holding period and basis of long-term gains against SOCA', [t], ln))
     t, ln = check_blindness(df, w, ctx)
     out.append(('Blindness against Publication 4801\'s blind boxes', [t], ln))
+    if ctx.get('qbi'):
+        q = ctx['qbi']
+        out.append(('QBI service status and wage bill (first version, no QBI targets)', [q['table']],
+                    [f'Dials a = {q["a"]:g} (wage bill) and b = {q["b"]:g} (specified service chance), set later; the chance for '
+                     f'"no industry code" is {q["c_other"]:.4f}; average pay of private employees from the CPS of {q["pay_year"]}. '
+                     'Start weights (before the tilt). The deduction itself needs the calculator (roadmap step 4).']))
     t, ln = check_parents(df, w, ctx)
     out.append(('Parents\' income rank', [t], ln))
     ph = [{'item': k, 'columns': ', '.join(it['writes']), 'value': PLACEHOLDER_VALUES[k]}

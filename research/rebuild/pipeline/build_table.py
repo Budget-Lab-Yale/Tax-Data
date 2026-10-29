@@ -212,6 +212,18 @@ SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c i
 SCF_AMOUNTS = SCF_AMOUNTS + ['w_dc_stock_share']
 SCF_NOT_ASKED = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']   # missing where the SCF does not ask
 SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share', 'w_dc_stock_share']   # SCF shares: not grown between waves
+# The QBI items (since 29 October; John, NEXT_STEPS.md item 1, Q5; build_scf.R): for each kind of business (Schedule C,
+# partnership, S corporation) the industry group of the household's largest business of the kind (a category, 0 none,
+# 1-7 the SCF's public groups, 8 no industry code) and the owner's share of its outside workers (an amount, a count of
+# workers, never grown between waves). Generation draws each kind's workers after its industry group, the workers zero
+# with no industry, and the industry group never none on a record with income of that kind (meta scf_structure).
+QBI_KINDS = {'schc': ['sch_c'],
+             'part': ['part_pass_inc', 'part_nonpass_inc', 'part_pass_loss', 'part_nonpass_loss', 'part_179'],
+             'scorp': ['scorp_pass_inc', 'scorp_nonpass_inc', 'scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179']}
+SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_KINDS]
+SCF_AMOUNTS = SCF_AMOUNTS + SCF_WORKERS
+SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not dollars: not grown either)
+SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_KINDS}
 NO_GROWTH = NO_GROWTH + STAGE3_NO_GROWTH
 PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
@@ -1275,6 +1287,11 @@ def table_meta(t, factor):
             'categories': CATEGORIES,
             'tax_categories': TAX_CATEGORIES,
             'puf_categories': PUF_CATEGORIES,
+            'scf_categories': SCF_CATEGORIES,
+            # (29 October) the QBI items: each kind's workers drawn after its industry group (zero with none); the
+            # industry group never none where any of the kind's PUF parts is nonzero
+            'scf_structure': {'after': {f'biz_workers_{k}': f'biz_industry_{k}' for k in QBI_KINDS},
+                              'industry_parts': {f'biz_industry_{k}': parts for k, parts in QBI_KINDS.items()}},
             'computed_flags': {'k1_owner': K1_PARTS},
             'scf_amounts': SCF_AMOUNTS,
             'cex_amounts': CEX_AMOUNTS,
@@ -1521,7 +1538,7 @@ def present_on(t):
     for v in AMOUNTS:
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, f'{v}_band'] >= 0).any())
     for v in ['married', 'n_dep', 'age_range', 'filer'] + list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-            + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES):
+            + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES):
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, v] >= 0).any())
     return out
 
@@ -1679,7 +1696,7 @@ def main():
             u.to_parquet(f, index=False)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer', 'filer_p'] + \
         list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + \
-        AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
+        list(SCF_CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
         ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + ['agi_group']
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
     for k in range(ages.N_RANGES):
@@ -1690,6 +1707,9 @@ def main():
     for c in PUF_CATEGORIES:      # PUF only
         assert not t.loc[t.source == 'puf', c].isna().any() and t.loc[t.source != 'puf', c].isna().all(), c
         t[c] = t[c].fillna(-1)
+    for c in SCF_CATEGORIES:      # SCF only
+        assert not t.loc[t.source == 'scf', c].isna().any() and t.loc[t.source != 'scf', c].isna().all(), c
+        t[c] = t[c].fillna(-1)
     for c in PERSON_CATEGORIES:   # absent (-1) on every source that does not report it
         has = [src for src in ('scf', 'cex', 'sipp') if c in EXACT_AGES and shares(src, c)] + ['cps']
         assert not t.loc[t.source.isin(has), c].isna().any(), c
@@ -1698,7 +1718,7 @@ def main():
     assert not t['filer_p'].isna().any() and ((t.filer_p == -1) == ~t.source.isin(['puf', 'cps'])).all()
     assert (t.loc[t.source == 'puf', 'filer_p'] == 1).all() and t.loc[t.source == 'cps', 'filer_p'].between(0, 1).all()
     for c in ['year', 'married', 'n_dep', 'filer', 'age_range'] + list(TAX_CATEGORIES) + list(CATEGORIES) + \
-            list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES):
+            list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES):
         assert not t[c].isna().any(), c
         t[c] = t[c].astype(np.int64)
     age_range_table(t)
