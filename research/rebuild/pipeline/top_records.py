@@ -85,7 +85,9 @@ def prepare_top(g19, raw, imp, year, mode):
     for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
         if c not in g19:
             g19[c] = 0
-    g19['synthetic_top'], g19['hidden_group'] = 0, -1
+    for c, none in [('synthetic_top', 0), ('hidden_group', -1)]:   # an earlier year's file keeps its own labels
+        if c not in g19:
+            g19[c] = none
     if h is not None:
         assert not (h['net_worth'] >= ceiling).any(), 'Part A: a rebuilt return at or above the ceiling'
         assert not set(h['record_id']) & set(g19['record_id'])
