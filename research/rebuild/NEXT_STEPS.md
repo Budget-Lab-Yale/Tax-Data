@@ -52,12 +52,14 @@ one change on a branch, a full run, a comparison with the latest run, John's app
    - Q6, yearly unrealized gains (John, 28 October): one column. Historical years use that year's actual Federal
      Reserve Financial Accounts (Z.1) revaluation rate by asset, so each record's gain lines up with its year; years
      without full data (projections) use the long-run averages production uses now. The retirement accounts' stock
-     share is fitted as a single SCF variable in pretraining, not production's age rule.
+     share is fitted as a single SCF variable in pretraining, not production's age rule. Bonds in retirement accounts and trusts also
+     gain at the year's actual Z.1 debt-securities rate in historical years (John, 28 October; production uses 0).
    - Q7, holding period and basis of long-term gains (John, 28 October): production's method for now (holding
      group drawn from SOCA's gain shares, unconditional; basis from the SOCA regression), evaluated at the target
      year's trailing S&P returns.
    - Q8, parents' income rank (John, 28 October): production's method as is (each unit's broad income ranked among
-     all units, parent rank drawn from Chetty et al.'s matrix).
+     all units, parent rank drawn from Chetty et al.'s matrix). The rebuild follows production's stated intent where its code
+     puts the bottom 9% at rank 100; production itself is not our concern (John, 28 October).
    - Q9, checks (John, 28 October): each imputation's published check is reported only, not a stop, until normal
      misses are known; then limits may be set from them.
 2. **The file Tax-Simulator reads.** Production's column names, one CSV per year, record IDs and seeds; every
