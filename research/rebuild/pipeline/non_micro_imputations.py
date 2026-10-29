@@ -477,8 +477,21 @@ def parents_rank(df, year, w, ctx):
 
 # ---- placeholders -------------------------------------------------------------------------------------------------
 def blindness(df, year, w, ctx):
-    """PLACEHOLDER until blindness is learned in pretraining (Q3): nobody is blind."""
-    return {'blind1': np.zeros(len(df), int), 'blind2': np.zeros(len(df), int)}
+    """Q3 (John, 28 October; built 29 October): each person's blindness as generation drew it from the PUF's learned
+    slot (generate.py, Chunk.blind_phase: blind_drawn1 the primary filer's, blind_drawn2 the spouse's, 0 without a
+    spouse). 1 blind, 0 not. A file made before the slot existed has no draws: nobody is blind there (the placeholder of
+    28 October), and the notes say so."""
+    if 'blind_drawn1' not in df:
+        ctx['blind'] = None
+        ctx['notes'].append('blindness: the file has no drawn blindness (a model from before 29 October): nobody blind')
+        return {'blind1': np.zeros(len(df), int), 'blind2': np.zeros(len(df), int)}
+    b1, b2 = df['blind_drawn1'].to_numpy(), df['blind_drawn2'].to_numpy()
+    assert np.isin(b1, [0, 1]).all() and np.isin(b2, [0, 1]).all(), 'blindness drawn outside 0-1'
+    assert not (b2[~has_spouse(df)] == 1).any(), 'a blind spouse on a record with no spouse'
+    ctx['blind'] = True
+    ctx['notes'].append(f'blindness: drawn in generation; blind primary filers {w[b1 == 1].sum() / 1e6:.3f} million, '
+                        f'spouses {w[b2 == 1].sum() / 1e6:.3f} million (start weights)')
+    return {'blind1': b1.astype(int), 'blind2': b2.astype(int)}
 
 
 def qbi(df, year, w, ctx):

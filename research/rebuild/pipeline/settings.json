@@ -1666,6 +1666,14 @@
   "min_missing_share": 0.1,
   "primary_rule_salt": 20261021
  },
+ "blindness": {
+  "_what": "The primary filer's blindness, a PUF slot learned in pretraining (since 29 October; John, NEXT_STEPS.md item 1, Q3; build_table.puf_blindness, generate.py, non_micro_imputations.blindness). On unmarried returns taking the standard deduction (single, head of household; not dependent filers) the deduction above the basic amount, in units of the additional amount for the aged or blind, is the number of extra boxes; blind = the boxes less one at 65 and over. The 2015 PUF's amounts: the basic standard deduction by filing status (1 single, 4 head of household) and the additional amount for an unmarried filer. whole_tolerance: how far from a whole number the boxes may be (97% of these returns are within it).",
+  "puf_basic_standard_deduction": {"1": 6300, "4": 9250},
+  "puf_additional_amount_unmarried": 1550,
+  "whole_tolerance": 0.02,
+  "generation_seed": 20261029,
+  "_generation": "generate.py draws each record's blindness for the primary filer and the spouse after every other slot, from the network under the PUF label at the PUF year with the slot hidden, among 'not blind' and 'blind' only (the chance of 'not known' set aside), with the person's own age range shown (the spouse's from the drawn exact age; a dependent filer's under-18 and 18-25 ranges as under 26, its 26-and-over range and a spouse with no age hidden) and, on a married or separate return, married and full filing status hidden (the PUF shows blindness on single and head-of-household returns only, so the network has never seen it beside a joint or separate return). A non-filer record is seen with its filing flag hidden and its band-AGI group as its AGI group label. The draws use a random generator of their own, seeded by generation_seed and the batch's generation seed, so no other draw moves."
+ },
  "generation": {
   "_what": "The filer batch and the non-filer batch (generate.py says how). design: 'label' (26 October), the AGI group label preset on every filer record and everything else drawn given it.",
   "design": "label",
@@ -1849,12 +1857,11 @@
     "_why": "Q8 (John, 28 October): production's method (src/imputations/mobility.R): each unit's income ranked among all units in percentiles (start weights), the bottom 10 merged into rank 10, then a parent rank drawn from Chetty et al.'s matrix. Production's code sends the bottom 9% to rank 100 (cut() gives them no group, replace_na(100)); the rebuild follows the code's stated intent (rank 10)."
    },
    "blindness": {
-    "reads": [],
+    "reads": ["blind_drawn1", "blind_drawn2"],
     "tables": [],
     "writes": ["blind1", "blind2"],
     "stream": 6,
-    "placeholder": true,
-    "_why": "PLACEHOLDER: 0 for everyone. Q3 (John, 28 October): blindness is read from the PUF and learned in pretraining, which needs a retrain."
+    "_why": "Q3 (John, 28 October; built 29 October): each person's blindness as generation drew it from the PUF slot learned in pretraining (settings blindness; generate.py, Chunk.blind_phase), 1 blind, 0 not; blind2 is 0 without a spouse. The stream is not used (the draw is generation's). A file from a model before 29 October has no draws: 0 for everyone, as the placeholder of 28 October."
    },
    "qbi": {
     "reads": [],
