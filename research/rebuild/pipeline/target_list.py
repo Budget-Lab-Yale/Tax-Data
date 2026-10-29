@@ -2,16 +2,18 @@
 
 The configuration says what to target in words: each entry is a block of targets, every statistic x every variable
 x every cell, with its population, where its value comes from and the kind of its error. The catalog
-(targets_config/catalog.yaml) says what the words mean. A year's file (years/<year>.yaml) inherits from
-historical.yaml or projection.yaml, which inherit from defaults.yaml; a year can add an entry, drop one or override
-fields of one, and every drop or override carries a written reason.
+(targets_config/catalog.yaml) says what the words mean; it is a dictionary shared by every year. Each year has a
+folder of its own, targets_config/<year>/, with three files written out in full (since 29 October; nothing is
+inherited): targets.yaml (the entries), prior.yaml (the year's prior) and growth.yaml (how every dollar item is grown,
+growth.py). A new year starts as a copy of the nearest year's folder. config_overview.py writes one table of every
+setting by year (targets_config/OVERVIEW.md).
 Settings targets_config can name an isolated copy of this directory for an experiment.
 
-  resolve(year)                 the year's entries, inheritance applied, each with the file it came from and the
-                                reason for every field a later file overrode
+  resolve(year)                 the year's entries, prior and growth lines, checked: every entry has a value source
+                                the catalog defines, every dollar item a growth line (growth.check); stops otherwise
   expand(year, start=None)      one row per target (the columns in ROW_COLUMNS): its key (kind, group, target),
                                 the parts of TARGETS.md section 2 in words, its value, its error kind and standard
-                                error, whether it is an identity, its source lines, the reasons for any override, and
+                                error, whether it is an identity, its source lines, the entry's reason, and
                                 for a survey target the tax-unit rules its value was computed on. With a starting
                                 file, a cell no record can reach is left out (listed, with the cells published as zero, in
                                 LAST['excluded'])
@@ -70,15 +72,20 @@ CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'li
                 # (28 October) a dollar range of a variable other than AGI (catalog groupings with edges): the unit
                 # is in the cell when range_lo <= the variable < range_hi; '' and NaN for none
                 'range_variable', 'range_lo', 'range_hi']
-TOP_KEYS = {'year', 'kind', 'inherits', 'prior', 'targets', 'drop', 'report', 'start', 'start_scaling',
-            'hold_distribution'}
-YEAR_KEYS = ['year', 'kind', 'prior', 'report', 'start', 'start_scaling', 'hold_distribution']   # a later file replaces
+# A year's folder (TARGETS.md section 12; 29 October): targets_config/<year>/targets.yaml, prior.yaml and growth.yaml,
+# each fully written out; nothing is inherited. targets.yaml holds the keys below, prior.yaml the year and its prior,
+# growth.yaml the year and its growth lines (growth.py reads and checks those).
+TARGETS_KEYS = {'year', 'kind', 'targets', 'report', 'start', 'start_scaling', 'hold_distribution'}
+PRIOR_KEYS = {'year', 'prior'}
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key',
-              'dependent_filers', 'note', 'override', 'percentiles', 'must_reach'}
+              'dependent_filers', 'note', 'reason', 'percentiles', 'must_reach'}
+# reason: why the entry is as it is in this year where it departs from the general rule or from other years (before
+# 29 October, the override reason of a year file); it fills targets.csv's reason column.
 # must_reach (29 October): an entry's cell labels that expand(start=...) must keep; a cell among them that no record
 # can reach is an error, not a quiet drop (Table 4.3's top 0.001%, restored with the rebuilt aggregate records). These
 # cells belong to the top of the file: with settings tilt.top.enabled false, expand leaves them out, as before 29
 # October, so the pipeline with the top step off is unchanged.
+VALUE_KINDS = {'published', 'survey', 'pipeline'}
 ERROR_KEYS = {'kind', 'relative', 'reason'}
 
 
@@ -112,62 +119,64 @@ def _no_scientific(x, where):
         raise ValueError(f'{where}: {x!r} is text; write numbers out in full')
 
 
-def read(name):
-    d = _yaml(os.path.join(CONFIG, f'{name}.yaml'))
-    bad = set(d) - TOP_KEYS
-    assert not bad, f'{name}: unknown keys {bad}'
-    for e in d.get('targets') or []:
-        bad = set(e) - ENTRY_KEYS
-        assert not bad, f'{name}, entry {e.get("id")}: unknown keys {bad}'
-        if 'error' in e:
-            bad = set(e['error']) - ERROR_KEYS
-            assert not bad, f'{name}, entry {e["id"]}: unknown keys in error {bad}'
-            _no_scientific(e['error'].get('relative'), f'{name}, entry {e["id"]}, error')
+def folder(year):
+    return os.path.join(CONFIG, str(int(year)))
+
+
+def years():
+    """The years with a folder of their own."""
+    return sorted(int(d) for d in os.listdir(CONFIG) if d.isdigit() and os.path.isdir(os.path.join(CONFIG, d)))
+
+
+def read(year, name):
+    """One file of the year's folder, its top-level keys checked."""
+    p = os.path.join(folder(year), f'{name}.yaml')
+    assert os.path.exists(p), f'no {name}.yaml for {year} in {folder(year)} (a new year starts as a copy of the ' \
+                              f'nearest year\'s folder)'
+    d = _yaml(p)
+    allowed = {'targets': TARGETS_KEYS, 'prior': PRIOR_KEYS}[name]
+    bad = set(d) - allowed
+    assert not bad, f'{p}: unknown keys {bad}'
+    assert int(d.get('year', -1)) == int(year), f'{p} says year {d.get("year")}'
     return d
 
 
-def _merge_entries(base, child, name):
-    """Entries by id, in order: a new id is added at the end; an inherited id must carry 'override' (the reason),
-    and the fields it gives replace the inherited ones."""
-    out = {e['id']: e for e in base}
-    for e in child:
-        e = dict(e)
-        if e['id'] in out:
-            assert e.get('override'), f'{name}: entry {e["id"]} is inherited; say why with override'
-            reason = e.pop('override')
-            merged = {**out[e['id']], **{k: v for k, v in e.items() if k != 'id'}}
-            merged['_overridden'] = {**out[e['id']].get('_overridden', {}),
-                                     **{k: f'{name}: {reason}' for k in e if k != 'id'}}
-            out[e['id']] = merged
-        else:
-            assert 'override' not in e, f'{name}: entry {e["id"]} overrides nothing'
-            out[e['id']] = {**e, '_from': name}
-    return list(out.values())
+def value_source(e):
+    """(kind, source) of an entry's value, checked: one of VALUE_KINDS, a source the catalog defines."""
+    v = e.get('value')
+    assert isinstance(v, dict), f'entry {e.get("id")}: no value source'
+    kinds = [k for k in v if k != 'year']
+    assert len(kinds) == 1 and kinds[0] in VALUE_KINDS, \
+        f'entry {e.get("id")}: value must name one of {sorted(VALUE_KINDS)} (and optionally a year), not {v}'
+    assert v[kinds[0]] in CAT['sources'], f'entry {e.get("id")}: value source {v[kinds[0]]!r} is not in the catalog'
+    return kinds[0], v[kinds[0]]
 
 
-def _resolve(name):
-    d = read(name)
-    r = copy.deepcopy(_resolve(d['inherits'])) if d.get('inherits') else {'targets': []}
-    for k in YEAR_KEYS:
-        if k in d:
-            r[k] = d[k]
-    r['targets'] = _merge_entries(r['targets'], d.get('targets') or [], name)
-    for dr in d.get('drop') or []:
-        assert dr.get('reason'), f'{name}: dropping {dr["id"]} needs a reason'
-        n = len(r['targets'])
-        r['targets'] = [e for e in r['targets'] if e['id'] != dr['id']]
-        assert len(r['targets']) == n - 1, f'{name}: nothing to drop: {dr["id"]}'
-        r.setdefault('dropped', []).append({**dr, '_in': name})
-    return r
+_RESOLVED = {}
 
 
 def resolve(year):
-    """The year's resolved configuration: years/<year>.yaml with its inheritance applied."""
-    r = _resolve(f'years/{year}')
-    assert int(r['year']) == int(year), f'years/{year}.yaml says year {r["year"]}'
+    """The year's configuration: its targets.yaml and prior.yaml as written, with the growth lines of its growth.yaml
+    (under 'growth'). Checked before any use (TARGETS.md section 12): every entry has its parts and a value source
+    the catalog defines, and every dollar item has a growth line for the year (growth.check). Stops otherwise."""
+    year = int(year)
+    if year in _RESOLVED:
+        return copy.deepcopy(_RESOLVED[year])
+    t, p = read(year, 'targets'), read(year, 'prior')
+    r = {k: t[k] for k in ['year', 'kind', 'report', 'start', 'start_scaling', 'hold_distribution'] if k in t}
+    r['prior'] = p['prior']
+    r['targets'] = t.get('targets') or []
+    ids = [e.get('id') for e in r['targets']]
+    assert len(ids) == len(set(ids)), f'{folder(year)}/targets.yaml: an entry id twice'
     for e in r['targets']:
+        bad = set(e) - ENTRY_KEYS
+        assert not bad, f'entry {e.get("id")}: unknown keys {bad}'
         missing = {'id', 'kind', 'statistic', 'population', 'cells', 'value', 'error', 'key'} - set(e)
         assert not missing, f'entry {e["id"]}: missing {missing}'
+        bad = set(e['error']) - ERROR_KEYS
+        assert not bad, f'entry {e["id"]}: unknown keys in error {bad}'
+        _no_scientific(e['error'].get('relative'), f'entry {e["id"]}, error')
+        value_source(e)
         assert e['population'] in CAT['populations'], f'entry {e["id"]}: no population {e["population"]}'
         assert e['error']['kind'] in CAT['error_kinds'], f'entry {e["id"]}: no error kind {e["error"]["kind"]}'
         if e['error']['kind'] == 'judgment':
@@ -175,7 +184,11 @@ def resolve(year):
                 f'entry {e["id"]}: a judgment error needs its number (relative) and a reason'
         for st in _as_list(e['statistic']):
             assert st in CAT['statistics'], f'entry {e["id"]}: no statistic {st}'
-    return r
+    import growth as GR
+    GR.check(year)
+    r['growth'] = GR.load(year)
+    _RESOLVED[year] = r
+    return copy.deepcopy(r)
 
 
 def _as_list(x):
@@ -1117,7 +1130,7 @@ def expand_entry(e, year, soi):
     (vkind, src), = [(k, v) for k, v in e['value'].items() if k != 'year']
     vyear = int(e['value'].get('year', year))
     err = e['error']
-    reasons = '; '.join(f'{k}: {r}' for k, r in e.get('_overridden', {}).items())
+    reasons = e.get('reason', '')
     out = []
     for v in variable_names(e.get('variable')):
         if vkind == 'published' and src in ('soi 1.4', 'soi 1.7'):
@@ -1423,18 +1436,18 @@ def start_spec(year):
         spec = {'mode': 'generate'}
     else:
         assert isinstance(st, dict) and set(st) == {'from_year', 'run'}, \
-            f'years/{year}.yaml: start is generate or {{from_year: <year>, run: <tilt run>}}, not {st!r}'
-        assert int(st['from_year']) < int(year), f'years/{year}.yaml: from_year {st["from_year"]} is not earlier'
+            f'{year}/targets.yaml: start is generate or {{from_year: <year>, run: <tilt run>}}, not {st!r}'
+        assert int(st['from_year']) < int(year), f'{year}/targets.yaml: from_year {st["from_year"]} is not earlier'
         spec = {'mode': 'from_year', 'year': int(st['from_year']), 'run': str(st['run'])}
     sc = dict(cfg.get('start_scaling') or {})
     bad = set(sc) - set(START_SCALING)
-    assert not bad, f'years/{year}.yaml: unknown keys in start_scaling {bad}'
+    assert not bad, f'{year}/targets.yaml: unknown keys in start_scaling {bad}'
     spec['weights'] = sc.get('weights', common.SETTINGS['tilt']['prescale'])
     spec['dollars'] = sc.get('dollars', 'per_return_growth' if spec['mode'] == 'from_year' else 'none')
     for k, allowed in START_SCALING.items():
-        assert spec[k] in allowed, f'years/{year}.yaml: start_scaling {k} {spec[k]!r} is not one of {allowed}'
+        assert spec[k] in allowed, f'{year}/targets.yaml: start_scaling {k} {spec[k]!r} is not one of {allowed}'
     assert spec['mode'] == 'from_year' or spec['dollars'] == 'none', \
-        f'years/{year}.yaml: a generated start has its dollars from the year\'s maps; start_scaling dollars is for from_year'
+        f'{year}/targets.yaml: a generated start has its dollars from the year\'s maps; start_scaling dollars is for from_year'
     return spec
 
 
@@ -1460,7 +1473,7 @@ def hold_rows(year, df, w):
     if not h:
         return pd.DataFrame(columns=cols)
     bad = set(h) - HOLD_KEYS
-    assert not bad, f'years/{year}.yaml: unknown keys in hold_distribution {bad}'
+    assert not bad, f'{year}/targets.yaml: unknown keys in hold_distribution {bad}'
     assert h.get('statistic', 'share of total') == 'share of total', 'hold_distribution: statistic share of total only'
     assert h['ranks']['variable'] == 'agi', 'hold_distribution: ranks by AGI only (the groups are stored as AGI ranges)'
     err = h['error']

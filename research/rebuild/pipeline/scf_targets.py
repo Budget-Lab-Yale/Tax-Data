@@ -50,7 +50,7 @@ def mix(year):
     assert how == 'prior', f'settings tilt.scf_target_waves: {how!r} (prior or target year)'
     import target_list as TLS
     prior = TLS.resolve(year).get('prior', {}).get('balance sheet')
-    where = f'targets_config/years/{year}.yaml, prior "balance sheet"'
+    where = f'targets_config/{year}/prior.yaml, prior "balance sheet"'
     assert prior, f'{where}: missing; the SCF targets are pooled over its waves (or set tilt.scf_target_waves)'
     out = []
     for key, share in prior.items():

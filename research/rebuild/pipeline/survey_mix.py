@@ -1,7 +1,7 @@
 """survey_mix.py: the years of the CEX, the CPS and the SIPP that a target year's file is drawn from (TARGETS.md
 section 7, "the two nearest of their years, weighted by distance").
 
-The shares are written by hand in the target year's configuration file, targets_config/years/<year>.yaml, in the
+The shares are written by hand in the target year's configuration, targets_config/<year>/prior.yaml, in the
 prior, one entry per survey (the SCF's are the "balance sheet" entry, read by generate.scf_waves):
     consumption: {cex 2019: 0.7311, cex 2017: 0.2689}      the CEX
     cps items:   {cps 2019: 0.7311, cps 2017: 0.2689}      the CPS
@@ -21,7 +21,7 @@ def mix(source, year=None):
     import target_list as TLS
     year = common.TARGET_YEAR if year is None else year
     prior = TLS.resolve(year).get('prior', {}).get(ENTRY[source])
-    where = f'targets_config/years/{year}.yaml, prior "{ENTRY[source]}"'
+    where = f'targets_config/{year}/prior.yaml, prior "{ENTRY[source]}"'
     assert prior, f'{where}: missing (the {source} year mix)'
     out = []
     for key, share in prior.items():
