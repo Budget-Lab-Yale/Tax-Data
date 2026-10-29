@@ -620,7 +620,22 @@ def overtime_errors(rows, year):
 # ---- 4. Judgment -----------------------------------------------------------------------------------
 def nonfiler_errors(rows, year):
     """The non-filer count and the people in non-filer units (the filing stage's calibration targets)."""
-    t = pd.read_csv(f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{year}_nonfilers_vs_targets.csv").set_index('band')
+    def census(y):
+        """The filing stage's population by band in year y; a year with no CPS year of its own (30 October): the
+        geometric mean of the CPS years either side, or past the last CPS year the last one grown with the
+        population."""
+        p = f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{y}_nonfilers_vs_targets.csv"
+        if os.path.exists(p):
+            return pd.read_csv(p).set_index('band')['census_adults']
+        import growth as GR
+        import target_list as TLS
+        have = TLS.cps_years()
+        if y > max(have):
+            return census(max(have)) * GR.population(y) / GR.population(max(have))
+        lo, hi = TLS.cps_neighbours(y)
+        return np.sqrt(census(lo) * census(hi))
+    need = rows.kind.eq('non-filer people').any()
+    t = census(year).to_frame('census_adults') if need else None
     out = []
     for r in rows.itertuples():
         if r.kind == 'non-filers':
