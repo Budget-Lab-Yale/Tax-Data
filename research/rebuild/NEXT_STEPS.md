@@ -46,9 +46,17 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      which David Splinter might be asked for. Built through the training table on branch `rebuild-ssn` (8a4aa2c, 28 October; scratch
      `explore/2026-10-28/ssn_build/RESULTS.md`): counts equal the size check, the rest of the table unchanged; enters
      the file at the next retrain.
-   - Q5, QBI service status and wage bill (John, 28 October): something more involved than production's rule;
-     being researched (SCF business items, SOI pass-through tables by industry, the 199A literature; scratch
-     `explore/2026-10-28/rules_framework/qbi/`).
+   - Q5, QBI service status and wage bill (John, 28 October): the simple plan in scratch
+     `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md` (research in `PLAN.md` there and `rules_framework/qbi/RESULTS.md`).
+     The SCF is the prior: for each of Schedule C, partnership and S corporation, the industry group of the largest
+     business and the owner's share of outside workers, learned in pretraining. The rule: specified service drawn with
+     chance b x a fixed chance per SCF industry group (Treasury's Form 8995-A shares by detailed industry, averaged
+     within the group); wage bill = a x outside workers x average pay in the group, plus an S corporation owner's own
+     wages. Two dials solved before the reweighting: a so that non-specified owners above the phase-in keep
+     Treasury's measured share of the full 20% (Goodman, Lim, Sacerdote and Whitten, Table A1, column 1: 0.59 to
+     0.84 by industry, actual 2018-2019 returns); then b so that the deduction from AGI $500,000 up equals SOI's.
+     Needs each record's taxable income before the deduction from the calculator once (open: bring the calculator
+     in early, or run with a = b = 1 until step 4). Goes in with the next retrain.
    - Q6, yearly unrealized gains (John, 28 October): one column. Historical years use that year's actual Federal
      Reserve Financial Accounts (Z.1) revaluation rate by asset, so each record's gain lines up with its year; years
      without full data (projections) use the long-run averages production uses now. The retirement accounts' stock
@@ -119,7 +127,8 @@ Left as is (John, 27 October):
     years no longer teach the model that CPS units have no gains;
   - the primary filer's sex never drawn as none (generation rule; two records in the latest);
   - the overtime targets' top wage group ($200,000 and over) merged with $100,000-200,000 (targets only);
-  - the QBI items, if their plan is ready (scratch `explore/2026-10-28/qbi_plan/`);
+  - the QBI items: SCF industry group and outside workers by kind of business, the rule and the two dials (Q5;
+    scratch `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`);
   - the SCF overfitting result, if it calls for a change (scratch `explore/2026-10-28/overfit/`).
 - **Later: a removal rule beside the fill-in** (John, 28 October). The fill-in can add holders a survey misses but
   not remove holders a survey has too many of (SCF rental income 9.7% against the tax data's 7.6%); the tilt closes
