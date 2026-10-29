@@ -43,7 +43,7 @@ Outputs, under the run's data folder (common.DATA) / settings cps.step1_dir ("fi
   returns/      (settings cps.step1_out) units_<year>.csv.gz and .parquet, one row per return (separate returns
                 included; build_cps.R reads the csv): ids (uid, couple_uid and person for separate returns, hh,
                 head_pn, spouse_pn), weight, p_file_cal (the calibrated chance), must_file, filing_status, ages and
-                sex, dependents in the PUF's terms, n24, n_eitc, eic, has_kid_target_age, reason (required, EITC
+                sex, dependents in the PUF's terms, n24, n_dep_eitc, eic, has_kid_target_age, reason (required, EITC
                 eligible, or a refundable child credit), the income items, eitc_eligible, year;
                 persons_<year>.parquet, one row per person, with return_uid and p_own_return (a dependent's own
                 return: 1 files, 0 not, -1 no such return)
@@ -122,8 +122,8 @@ def nacount(df, name):
 def eitc_eligible(u, nkids, year):
     unm, jnt, inv_lim, (lo, hi) = EITC[year]
     earned = u.wage + u.selfemp
-    agi = u.wage + u.selfemp + u.interest + u.dividends + u.rents + u.est_trust + u.pension + u.uc
-    inv = u.interest + u.dividends + np.maximum(u.rents, 0)
+    agi = u.wage + u.selfemp + u.txbl_int + u.dividends + u.rents + u.est_trust + u.pension + u.uc
+    inv = u.txbl_int + u.dividends + np.maximum(u.rents, 0)
     k = np.minimum(nkids, 3).astype(int)
     joint = (u.filing_status == 'joint').to_numpy()
     end = np.where(joint, np.array(jnt)[k], np.array(unm)[k])
@@ -197,7 +197,7 @@ def calibrate(year):
         f'{w_d.sum() / 1e6:.2f} m dependents aged 15+; adult netting {dnet.sum() / 1e6:.2f} m')
     earned = (M.wage + M.selfemp).to_numpy()
     r_req = M.must_file.to_numpy()
-    r_eitc = eitc_eligible(M, M.n_eitc, year)
+    r_eitc = eitc_eligible(M, M.n_dep_eitc, year)
     r_ctc = (M.n24.to_numpy() > 0) & ((earned > CTC_FLOOR.get(year, 2500)) if year != 2021 else True)
     r_wage = M.wage.to_numpy() > 0
     reason = r_req | r_eitc | r_ctc
@@ -326,7 +326,7 @@ def calibrate(year):
     for c in ['spouse_pn', 'spouse_age']:
         R[c] = -1
     R['spouse_sex'] = 0
-    R['n_ctc'] = R.n24
+    R['n_dep_ctc'] = R.n24
     R['puf_child_away'] = 0
     R['has_kid_target_age'] = cu.has_kid_target_age.reindex(R.couple_uid).to_numpy()
     R['reason'] = cu.reason.reindex(R.couple_uid).to_numpy()
@@ -338,9 +338,9 @@ def calibrate(year):
     keep = ['uid', 'couple_uid', 'person', 'hh', 'head_pn', 'spouse_pn', 'weight', 'p_file_cal',
             'must_file', 'filing_status', 'head_age', 'head_sex', 'spouse_age', 'spouse_sex', 'n_dep', 'puf_n_dep',
             'puf_child_home', 'puf_child_away', 'puf_other', 'puf_parent', 'dep_age1', 'dep_age2', 'dep_age3', 'n24',
-            'n_eitc', 'eic', 'has_kid_target_age', 'reason'] + T.INCOME_ITEMS
+            'n_dep_eitc', 'eic', 'has_kid_target_age', 'reason'] + T.INCOME_ITEMS
     out = pd.concat([M[~M.uid.isin(chosen)][keep], R[keep]], ignore_index=True)
-    out['eitc_eligible'] = eitc_eligible(out, out.n_eitc, year)
+    out['eitc_eligible'] = eitc_eligible(out, out.n_dep_eitc, year)
     out['year'] = year
     assert not out.uid.duplicated().any()
     assert nacount(out, 'units file') == 0
@@ -501,7 +501,7 @@ def rows_for(d, p):
         for lab, lo, hi in AGES:
             r[f'first three dependents, {lab}'] = (wt[:, None] * ((a >= lo) & (a < hi))).sum()
         r['child credit children (under 17, qualifying)'] = (wt * d.n24).sum()
-        el = d.eitc_eligible.to_numpy(); k = np.minimum(d.n_eitc.to_numpy(), 3)
+        el = d.eitc_eligible.to_numpy(); k = np.minimum(d.n_dep_eitc.to_numpy(), 3)
         for i, lab in enumerate(['0', '1', '2', '3+']):
             r[f'EITC returns, {lab} children'] = wt[el & (k == i)].sum()
         r['EITC children (up to 3, on EITC returns)'] = (wt * k * el).sum()

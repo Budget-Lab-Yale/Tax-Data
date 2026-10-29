@@ -217,8 +217,8 @@ def variable_def(v):
     raise KeyError(f'no variable {v} in the catalog')
 
 
-AGE_COLUMNS = {'head': 'age_primary', 'spouse': 'age_spouse', 'dep1': 'age_dep1', 'dep2': 'age_dep2',
-               'dep3': 'age_dep3'}
+AGE_COLUMNS = {'head': 'age1', 'spouse': 'age2', 'dep1': 'dep_age1', 'dep2': 'dep_age2',
+               'dep3': 'dep_age3'}
 
 
 def person_values(df, v):
@@ -256,7 +256,7 @@ def record_value(df, v):
             return (x != 0).astype(float)
         if d['transform'] == 'loss_allowed':
             # The loss allowed on the return: $3,000, or $1,500 if married filing separately (mars 3).
-            return np.minimum(np.maximum(-x, 0), np.where(df['mars'].to_numpy() == 3, 1500.0, 3000.0))
+            return np.minimum(np.maximum(-x, 0), np.where(df['filing_status'].to_numpy() == 3, 1500.0, 3000.0))
         return np.maximum(x, 0) if d['transform'] == 'positive' else np.maximum(-x, 0)
     if 'ss_tips' in d:
         return person_values(df, v).sum(1)

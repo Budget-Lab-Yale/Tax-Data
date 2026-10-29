@@ -48,7 +48,7 @@ SCF_LINES = [0.5, 0.9, 0.99, 0.999]
 SCF_LABELS = ['below p50', 'p50-90', 'p90-99', 'p99-99.9', 'p99.9+']
 # (28 October: gross Social Security in place of Social Security plus pensions, and Schedule E as its two shared
 # parts, rental and the rest, as the translation table shares them)
-SCF_INCOME = ['wages', 'interest', 'dividends', 'capital_gains', 'ss_gross', 'sch_cf_income', 'sche_rent', 'sche_rest']
+SCF_INCOME = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'gross_ss', 'sch_cf_income', 'sche_rent', 'sche_rest']
 
 
 def puf_group(agi, cuts):

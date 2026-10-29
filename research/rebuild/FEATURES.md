@@ -314,7 +314,7 @@ net worth. Targeted by income group (post-training, below).
 **The other PUF items** (since 27 October; `build_table.py`, STAGE3). Every PUF item production's variable guide
 takes from the PUF that the model did not draw before, with production's names and definitions
 (`config/variable_guide/baseline.csv`, `src/process_puf.R`), plus two adjustments the file's total already held and
-production does not carry (se_tax_ded, E03260, and hsa_ded, E03290). All are PUF-only: absent on the SCF, the CEX
+production does not carry (se_tax_ded, E03260, and hsa_contr, E03290). All are PUF-only: absent on the SCF, the CEX
 and the SIPP, not measured by the CPS, so a non-filer has none.
 - Ordinary dividends = div_pref (E00650) + div_ord (E00600 - E00650), and the adjustments = their eleven parts, are
   computed from the parts at generation and in the dollars, so they add up exactly. The CPS's one dividend amount goes
@@ -1082,7 +1082,7 @@ and never renumbered.
 | Item | Columns | Method | Published table |
 |---|---|---|---|
 | Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's CPS year, within its PUF dependent-filer age range; 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
-| Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
+| Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_dep_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
 | Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
 | Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (since 29 October the SCF's, `w_dc_stock_share`, learned in pretraining and drawn with the balance sheet; before, and for a file from an earlier model, production's age rule, 1.10 − age/100 held to 0.20-0.95); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
@@ -1163,13 +1163,13 @@ its check compares blind people by age with Publication 4801's blind boxes (type
 
 **The retirement accounts' stock share as an SCF item** (Q6; `build_scf.R`, `build_table.py`). The SCF summary file's
 equity in quasi-liquid retirement assets over those assets, RETEQ / RETQLIQ (RETQLIQ = IRAKH + THRIFT + FUTPEN +
-CURRPEN, the rebuild's `w_dc` plus `w_db`; RETEQ never exceeds it, but it exceeds IRAKH + THRIFT alone in about 1,300
-rows a wave, so the share is taken over all four and applied to `w_dc`). RETEQ counts each account as all, half or
+CURRPEN, the rebuild's `value.dc` plus `value.db`; RETEQ never exceeds it, but it exceeds IRAKH + THRIFT alone in about 1,300
+rows a wave, so the share is taken over all four and applied to `value.dc`). RETEQ counts each account as all, half or
 none in stocks by the respondent's answer. A household ratio, the same on each of the household's PEU units; 0 where
-the unit has no `w_dc`; missing (not shown in training) on units outside the PEU and other units, as their elective
-deferrals. In the table it is the SCF slot `w_dc_stock_share`, a share of `w_dc` (meta `ratios`: generation draws it
-after `w_dc` and sets it to 0 without `w_dc`; it is not grown between waves; `dollars.py` also makes `w_dc_stocks` =
-share × `w_dc`). The weighted share is 0.53-0.55 in every wave. `non_micro_imputations` uses the drawn share for
+the unit has no `value.dc`; missing (not shown in training) on units outside the PEU and other units, as their elective
+deferrals. In the table it is the SCF slot `w_dc_stock_share`, a share of `value.dc` (meta `ratios`: generation draws it
+after `value.dc` and sets it to 0 without `value.dc`; it is not grown between waves; `dollars.py` also makes `w_dc_stocks` =
+share × `value.dc`). The weighted share is 0.53-0.55 in every wave. `non_micro_imputations` uses the drawn share for
 `accruals.dc` in place of production's age rule.
 
 **CPS capital gains not shown before tax year 2018** (`build_cps.R`, `translate.not_asked`, `build_table.py`; since the
@@ -1315,7 +1315,7 @@ family fortune, or a couple or siblings named in one entry, stays one record: 60
 - Rank groups: the top 92 units, the next 276 (BSYZ's "top 100" and "next 300", as tax units), and the rest, which take
   the next group's figures (an extrapolation).
 - Wealth: Forbes's net worth; public holdings as above, else the rank group's wealth-weighted average share; the rest
-  private: real estate (`w_re_fund`) when Forbes's industry is real estate, otherwise `w_pass_throughs`. No home, no
+  private: real estate (`value.re_fund`) when Forbes's industry is real estate, otherwise `value.pass_throughs`. No home, no
   debt. Basis zero for self-made fortunes (Forbes's 2019 flag), equal to value for inherited ones, written as
   accumulated gains so the non-microdata step's `cost_basis` gives it.
 - Income: each group's dollars of each kind = its Forbes wealth times the IRS study's amount per dollar of wealth

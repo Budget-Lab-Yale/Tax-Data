@@ -87,7 +87,7 @@ SIPP_SLOTS = list(META['sipp_amounts']) + list(SIPP_CATEGORIES)   # each adult's
 # The order (step 2, 23 October): the type (married, dependents, age range), the filing flag, full filing status and
 # the credit children, then the amounts. Generation draws a batch's own items in this order (generate.py).
 TYPE_SLOTS = ['married', 'n_dep', 'age_range']
-PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
+PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared'] + list(PUF_CATEGORIES)
              + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS + SIPP_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
@@ -203,9 +203,9 @@ def read_table():
     assert table.loc[cps, 'filer_p'].between(0, 1).all()
     for c, n in TAX_STATUS.items():
         assert table[c].between(-1, n - 1).all(), c
-    assert table.loc[table.mars >= 0, 'mars'].isin([1, 2, 3, 4]).all()
-    have = table.mars >= 0
-    assert ((table.loc[have, 'mars'] == 2) == (table.loc[have, 'married'] == 1)).all(), \
+    assert table.loc[table.filing_status >= 0, 'filing_status'].isin([1, 2, 3, 4]).all()
+    have = table.filing_status >= 0
+    assert ((table.loc[have, 'filing_status'] == 2) == (table.loc[have, 'married'] == 1)).all(), \
         'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
@@ -434,12 +434,39 @@ def new_model(device):
 
 
 def save_model(model, path):
-    torch.save({'state': model.state_dict(), 'settings': model.settings, 'band_layout': BAND_LAYOUT}, path)
+    torch.save({'state': model.state_dict(), 'settings': model.settings, 'band_layout': BAND_LAYOUT,
+                'slots': SLOTS}, path)
+
+
+_RENAMES = None
+
+
+def renamed(name):
+    """A slot name as the rename of 29-30 October has it (tools/rename_map.csv, the rows of kind renamed): an old name,
+    or its reported form, becomes the new one. Networks trained before the rename saved their names the old way; their
+    slot positions are unchanged, only the names."""
+    global _RENAMES
+    if _RENAMES is None:
+        rows = pd.read_csv(f'{common.HERE}/tools/rename_map.csv')
+        ren = rows[rows.kind == 'renamed']
+        _RENAMES = dict(zip(ren.old_name, ren.new_name))
+    if name in _RENAMES:
+        return _RENAMES[name]
+    if name.endswith('_reported') and name[:-len('_reported')] in _RENAMES:
+        return _RENAMES[name[:-len('_reported')]] + '_reported'
+    return name
 
 
 def load_model(device, path):
+    """A trained network. One saved before the rename of 29-30 October has no slot list; its band layout's names are
+    read through renamed(), and the layout, names and order, must then equal today's."""
     saved = torch.load(path, map_location=device)
+    if 'slots' in saved:
+        assert saved['slots'] == SLOTS, 'the slots changed since training'
+    else:
+        saved['band_layout'] = {renamed(k): v for k, v in saved['band_layout'].items()}
     assert saved['band_layout'] == BAND_LAYOUT, 'the band edges changed since training'
+    assert list(saved['band_layout']) == list(BAND_LAYOUT), 'the amounts\' order changed since training'
     model = SlotTransformer(**saved['settings']).to(device)
     model.load_state_dict(saved['state'])
     return model.eval()

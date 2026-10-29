@@ -240,8 +240,8 @@ def grow_dollars(df, s, t):
     # positive "other" gain piece but not losses, so a return held at the allowed loss in year s (a large loss, with
     # kg_other taking up the cap) would turn into a gain. The cap is nominal: such a return stays at it, and no return
     # goes below it
-    if all(c in out for c in ['kg_st', 'kg_lt', 'kg_other', 'capital_gains', 'mars']):
-        cap = np.where(df['mars'].to_numpy() == 3, -1500.0, -3000.0)
+    if all(c in out for c in ['kg_st', 'kg_lt', 'kg_other', 'capital_gains', 'filing_status']):
+        cap = np.where(df['filing_status'].to_numpy() == 3, -1500.0, -3000.0)
         at_cap = df['capital_gains'].to_numpy(float) <= cap + 0.5
         floor = cap - out['kg_st'].to_numpy(float) - out['kg_lt'].to_numpy(float)
         before = out['kg_other'].to_numpy(float)

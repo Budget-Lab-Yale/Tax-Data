@@ -19,8 +19,8 @@ Rows, in this order:
                   every PUF amount is present on the CPS.
 
 Variables. married, n_dep (capped at 3), filer, and, on the PUF and the CPS (-1 on the SCF and CEX), mars (filing
-status: 1 single, 2 joint with surviving spouses, 3 separate, 4 head of household), n_ctc (child credit children,
-PUF N24) and n_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); filer_p (-1 on the SCF and CEX); the amounts:
+status: 1 single, 2 joint with surviving spouses, 3 separate, 4 head of household), n_dep_ctc (child credit children,
+PUF N24) and n_dep_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); filer_p (-1 on the SCF and CEX); the amounts:
   wages E00200, taxable interest E00300, ordinary dividends E00600;
   capital gains as line 13 (E01000 + E01100) and its four pieces: short term
     P22250, long term P23250, distributions E01100, other E01000 - P22250 - P23250;
@@ -53,7 +53,7 @@ PUF N24) and n_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); filer_p 
     with the home mortgage carried as its share of the home's value
     (w_primary_ltv); the 4 unrealized gains; owns_business.
   CEX only: the 8 consumption categories (CEX_CATS). The CEX shares married,
-    n_dep, the age range, wages, ss_gross (gross Social Security and
+    n_dep, the age range, wages, gross_ss (gross Social Security and
     railroad retirement; on the PUF E02400) and sch_cf_income
     (self-employment income); every other slot is absent on it. Pensions are
     left out: the PUF's total pensions (E01500) include rollovers and lump
@@ -145,19 +145,19 @@ ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the mode
     # (28 October) Schedule E's two parts the SCF shares in place of the whole: rents and royalties (sche_rent, the
     # SCF's property income) and the rest (sche_rest: partnerships, S corporations, estates and trusts, farm rental)
     'sche_rent': (0, True, 'percentile'), 'sche_rest': (0, True, 'percentile'),
-    'other_gains': (1, False, None), 'ira_taxable': (1, False, None),
-    'pensions_taxable': (1, False, None), 'ss_taxable': (1, False, None), 'unemployment': (1, False, None),
-    'alimony': (1, False, None), 'state_refunds': (1, False, None), 'adjustments': (-1, False, None),
-    'retirement_gross': (0, False, None), 'tax_exempt_interest': (0, True, 'unchanged'),
-    'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None),
-    'ss_gross': (0, True, 'unchanged')}   # gross Social Security, not in AGI; shared with the CEX, the CPS, the SIPP and
+    'other_gains': (1, False, None), 'txbl_ira_dist': (1, False, None),
+    'txbl_pens_dist': (1, False, None), 'ss_taxable': (1, False, None), 'ui': (1, False, None),
+    'alimony': (1, False, None), 'state_ref': (1, False, None), 'adjustments': (-1, False, None),
+    'retirement_gross': (0, False, None), 'exempt_int': (0, True, 'unchanged'),
+    'first_mort_int': (0, False, None), 'salt_prop': (0, False, None),
+    'gross_ss': (0, True, 'unchanged')}   # gross Social Security, not in AGI; shared with the CEX, the CPS, the SIPP and
 # (since 28 October, in place of Social Security plus pensions) the SCF
 PARTS = {  # part: (PUF field, sign in business income); loss fields are stored positive
-    'sch_c': ('E00900', 1), 'part_pass_inc': ('E25940', 1), 'part_nonpass_inc': ('E25980', 1),
-    'part_pass_loss': ('E25920', -1), 'part_nonpass_loss': ('E25960', -1), 'part_179': ('E26110', -1),
-    'scorp_pass_inc': ('E26170', 1), 'scorp_nonpass_inc': ('E26190', 1), 'scorp_pass_loss': ('E26160', -1),
-    'scorp_nonpass_loss': ('E26180', -1), 'scorp_179': ('E26100', -1), 'rent_inc': ('E25850', 1),
-    'rent_loss': ('E25860', -1), 'estate_inc': ('E26390', 1), 'estate_loss': ('E26400', -1),
+    'sole_prop': ('E00900', 1), 'part_passive': ('E25940', 1), 'part_active': ('E25980', 1),
+    'part_passive_loss': ('E25920', -1), 'part_active_loss': ('E25960', -1), 'part_179': ('E26110', -1),
+    'scorp_passive': ('E26170', 1), 'scorp_active': ('E26190', 1), 'scorp_passive_loss': ('E26160', -1),
+    'scorp_active_loss': ('E26180', -1), 'scorp_179': ('E26100', -1), 'rent': ('E25850', 1),
+    'rent_loss': ('E25860', -1), 'estate': ('E26390', 1), 'estate_loss': ('E26400', -1),
     'farm_rent': ('E27200', 1), 'sche_other': (None, 1), 'farm': ('E02100', 1)}
 # Stage 3 (27 October): the PUF items production carries (config/variable_guide/baseline.csv, src/process_puf.R)
 # that the model did not draw, with production's names. Every one is a PUF-only amount outside AGI, drawn like the
@@ -166,7 +166,7 @@ PARTS = {  # part: (PUF field, sign in business income); loss fields are stored 
 # file had stay exactly the sums of their parts.
 DIV_PARTS = {'div_pref': 'E00650', 'div_ord': None}     # qualified dividends; ordinary less qualified (E00600 - E00650)
 ADJ_PARTS = dict(zip(['trad_contr_ira', 'sl_int_ded', 'ed_exp', 'tuition_ded', 'dpad', 'se_tax_ded', 'se_health',
-                      'hsa_ded', 'keogh_contr', 'early_penalty', 'alimony_exp'], ADJ_FIELDS))
+                      'hsa_contr', 'keogh_contr', 'early_penalty', 'alimony_exp'], ADJ_FIELDS))
 NEW_ITEMS = {  # item: PUF field (None: derived, as production derives it, in puf_rows)
     'kg_1250': 'E24515', 'kg_collect': 'E24518', 'part_se': None,
     'med_exp': 'E17500', 'salt_inc_sales': 'E18400', 'char_cash': 'E19800', 'char_noncash': 'E20100',
@@ -181,10 +181,10 @@ STAGE3 = list(DIV_PARTS) + list(ADJ_PARTS) + list(NEW_ITEMS)   # the new slots, 
 # parts, the adjustments, the two capital gain items (with Schedule D net gain) and part_se (with partnership and S
 # corporation income); the items with no Table 1.4 line (itemized deductions, AMT items, credits and other taxes) are
 # grown, since 29 October, by a declared series exogenous to tax policy (until then they stayed in PUF-year dollars).
-SCHE_PARTS = [p for p, (f, _) in PARTS.items() if f and p not in ('sch_c', 'farm')]
-CF_PARTS = ['sch_c', 'farm']                                  # Schedules C and F: the SCF's X5704
+SCHE_PARTS = [p for p, (f, _) in PARTS.items() if f and p not in ('sole_prop', 'farm')]
+CF_PARTS = ['sole_prop', 'farm']                                  # Schedules C and F: the SCF's X5704
 E_PARTS = [p for p in PARTS if p not in CF_PARTS]             # Schedule E (before 28 October the SCF's X5714)
-RENT_PARTS = ['rent_inc', 'rent_loss']                        # rents and royalties: the SCF's rental income
+RENT_PARTS = ['rent', 'rent_loss']                        # rents and royalties: the SCF's rental income
 REST_PARTS = [p for p in E_PARTS if p not in RENT_PARTS]      # the rest of Schedule E: X5714 less rental
 K1_PARTS = [p for p in PARTS if p.startswith(('part_', 'scorp_'))]
 # The balance sheet (production's wealth_schema.R): net worth is computed from the 20 components. The home
@@ -193,8 +193,8 @@ ASSETS = ['cash', 'equities', 'bonds', 'dc', 'db', 'life_ins', 'annuities', 'tru
           'primary_home', 'other_home', 're_fund', 'other_nonfin']
 DEBTS = ['primary_mortgage', 'other_mortgage', 'credit_lines', 'credit_cards', 'installment_debt', 'other_debt']
 KG_WEALTH = ['kg_primary_home', 'kg_other_re', 'kg_pass_throughs', 'kg_other']
-NET_WORTH_PARTS = {**{'w_' + c: 1 for c in ASSETS}, **{'w_' + c: -1 for c in DEBTS}}
-SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c in DEBTS if c != 'primary_mortgage'] \
+NET_WORTH_PARTS = {**{'value.' + c: 1 for c in ASSETS}, **{'value.' + c: -1 for c in DEBTS}}
+SCF_AMOUNTS = ['value.' + c for c in ASSETS] + ['w_primary_ltv'] + ['value.' + c for c in DEBTS if c != 'primary_mortgage'] \
     + ['w_' + c for c in KG_WEALTH] + ['auto_int_exp', 'elective_deferrals', 'spouse_deferral_share']
 # auto_int_exp (since 26 October): the unit's auto loan interest, a year's interest on its vehicle loans at the
 # interview's balance and rate (build_scf.R). Not part of net worth.
@@ -205,8 +205,8 @@ SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c i
 # generation draws it after them and sets it to 0 there (generate.deferral_structure). Both missing (absent, band
 # -1) on the units the SCF does not ask: units outside the PEU and other units. Not part of net worth.
 # w_dc_stock_share (since 29 October; John, NEXT_STEPS.md item 1, Q6): the share of the household's retirement accounts
-# held in stocks, RETEQ / RETQLIQ of the summary file (build_scf.R), carried as a share of w_dc (meta ratios: generation
-# draws it after w_dc and sets it to 0 without w_dc; dollars.py makes w_dc_stocks = share x w_dc); missing (absent) on
+# held in stocks, RETEQ / RETQLIQ of the summary file (build_scf.R), carried as a share of value.dc (meta ratios: generation
+# draws it after value.dc and sets it to 0 without value.dc; dollars.py makes w_dc_stocks = share x value.dc); missing (absent) on
 # the units outside the PEU and other units, as the elective deferrals. non_micro_imputations.unrealized_gains uses it
 # in place of production's age rule.
 SCF_AMOUNTS = SCF_AMOUNTS + ['w_dc_stock_share']
@@ -217,14 +217,14 @@ SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share', 'w_dc_stock_share']   # 
 # 1-7 the SCF's public groups, 8 no industry code) and the owner's share of its outside workers (an amount, a count of
 # workers, never grown between waves). Generation draws each kind's workers after its industry group, the workers zero
 # with no industry, and the industry group never none on a record with income of that kind (meta scf_structure).
-QBI_KINDS = {'schc': ['sch_c'],
-             'part': ['part_pass_inc', 'part_nonpass_inc', 'part_pass_loss', 'part_nonpass_loss', 'part_179'],
-             'scorp': ['scorp_pass_inc', 'scorp_nonpass_inc', 'scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179']}
+QBI_KINDS = {'schc': ['sole_prop'],
+             'part': ['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179'],
+             'scorp': ['scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']}
 SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_KINDS]
 SCF_AMOUNTS = SCF_AMOUNTS + SCF_WORKERS
 SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not dollars: not grown either)
 SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_KINDS}
-PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
+PUF_AMOUNTS = ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
             'c_gasoline', 'c_housing_utilities', 'c_other_services_health']
@@ -239,9 +239,9 @@ CEX_AMOUNTS = list(CEX_CATS)
 # quarters of the CPS's units; at generation drawn after the other CPS slots and held to each person's wages less tips.
 CPS_OVERTIME = ['ot_primary', 'ot_spouse']
 CPS_AMOUNTS = ['spouse_wage_share', 'spouse_se_share', 'weeks_primary', 'weeks_spouse', 'hours_primary',
-               'hours_spouse', 'childcare'] + CPS_OVERTIME
+               'hours_spouse', 'care_exp'] + CPS_OVERTIME
 MAX_AGE = 85                                   # the CPS's top code (80 is 80-84, 85 is 85 and over)
-AGE_SLOTS = ['age_primary', 'age_spouse', 'age_dep1', 'age_dep2', 'age_dep3']   # value: 0 none, else the age + 1
+AGE_SLOTS = ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']   # value: 0 none, else the age + 1
 # The primary filer's and the spouse's exact ages are shared by the SCF, the CEX and the CPS (translation table), absent
 # on the PUF. One coding on every source: exact ages to 79, and 80 for 80 and over (EXACT_AGE_TOP). It is the finest
 # all three allow: the CPS codes 80-84 as 80 and 85 and over as 85; the CEX codes everyone from 83 (84 in 2019 and
@@ -258,9 +258,9 @@ CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS if a not in EXACT_AGES},
                   'sex_primary': 3, 'sex_spouse': 3,   # CPS only; sex: 0 none, 1 man, 2 woman
                   **{v: 4 for v in SSN_STATUS_SLOTS}}
 PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGORIES}   # every person category
-SPOUSE_SLOTS = ['age_spouse', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse',
+SPOUSE_SLOTS = ['age2', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse',
                 'ot_spouse', 'ssn_status_spouse']
-DEPENDENT_AGE_SLOTS = ['age_dep1', 'age_dep2', 'age_dep3']   # the k-th: present exactly when n_dep >= k
+DEPENDENT_AGE_SLOTS = ['dep_age1', 'dep_age2', 'dep_age3']   # the k-th: present exactly when n_dep >= k
 SHARES = ['spouse_wage_share', 'spouse_se_share']   # only for married couples with some of the item; else absent
 # SIPP only (settings "sipp"): each adult's tips in dollars (zero without wages or without tips), amounts cut into
 # bands within each year; whether the adult's tips are mostly from leisure and hospitality, a yes/no category (0
@@ -278,9 +278,9 @@ CPS_ID_OFFSET = 3e12                           # CPS ids: 3e12 + (year - 2000) x
 SIPP_ID_OFFSET = 4e12                          # SIPP ids: 4e12 + (year - 2000) x 1e10 + roster_sipp.py's id
 SP = common.SETTINGS['sipp']
 CATEGORIES = {'k1_owner': 'shared', 'owns_business': 'scf'}   # yes/no items beyond married, n_dep, filer
-# Categories on the PUF and the CPS (-1 on the SCF and CEX): {slot: number of values}. mars 1-4 (0 unused); n_ctc,
-# n_eitc 0-3.
-TAX_CATEGORIES = {'mars': 5, 'n_ctc': 4, 'n_eitc': 4}
+# Categories on the PUF and the CPS (-1 on the SCF and CEX): {slot: number of values}. mars 1-4 (0 unused); n_dep_ctc,
+# n_dep_eitc 0-3.
+TAX_CATEGORIES = {'filing_status': 5, 'n_dep_ctc': 4, 'n_dep_eitc': 4}
 # PUF-only categories: {slot: number of values}. None since the second retrain of 29 October: the primary filer's
 # blindness was one (29 October), and is now a rule in the non-microdata step (non_micro_imputations.blindness), with
 # the PUF's blind rates by age range read by build_non_micro_tables.puf_blind_rates.
@@ -374,20 +374,20 @@ def puf_rows(puf):
     assert np.isin(I['MARS'], [1, 2, 3, 4]).all(), 'MARS outside 1-4 (surviving spouses are coded joint on this PUF)'
     assert (I['N24'] >= 0).all() and (I['EIC'] >= 0).all() and (I['EIC'] <= 3).all()
     out = {'source': 'puf', 'year': PUF_YEAR, 'record_id': raw.RECID.astype(float), 'household_id': raw.RECID.astype(float),
-           'weight': raw.S006 / 100, 'married': (I['MARS'] == 2).astype(np.int64), 'mars': I['MARS'],
-           'n_ctc': np.minimum(I['N24'], 3).astype(np.int64), 'n_eitc': np.minimum(I['EIC'], 3).astype(np.int64),
+           'weight': raw.S006 / 100, 'married': (I['MARS'] == 2).astype(np.int64), 'filing_status': I['MARS'],
+           'n_dep_ctc': np.minimum(I['N24'], 3).astype(np.int64), 'n_dep_eitc': np.minimum(I['EIC'], 3).astype(np.int64),
            'dep_filer': (puf['DSI'] == 1).astype(np.int64).to_numpy(),
            'n_dep': np.minimum(n_dep, 3).astype(np.int64), 'filer': 1, 'filer_p': 1.0,
-           'wages': I['E00200'], 'interest': I['E00300'], 'dividends': I['E00600']}
+           'wages': I['E00200'], 'txbl_int': I['E00300'], 'dividends': I['E00600']}
     kg = {'kg_st': I['P22250'], 'kg_lt': I['P23250'], 'kg_dist': I['E01100'],
           'kg_other': I['E01000'] - I['P22250'] - I['P23250']}
     out.update(kg, capital_gains=I['E01000'] + I['E01100'])
     items = {'business_income': I['E00900'] + I['E02000'] + I['E02100'], 'other_gains': I['E01200'],
-             'ira_taxable': I['E01400'], 'pensions_taxable': I['E01700'], 'ss_taxable': I['E02500'],
-             'unemployment': I['E02300'], 'alimony': I['E00800'], 'state_refunds': I['E00700'],
+             'txbl_ira_dist': I['E01400'], 'txbl_pens_dist': I['E01700'], 'ss_taxable': I['E02500'],
+             'ui': I['E02300'], 'alimony': I['E00800'], 'state_ref': I['E00700'],
              'adjustments': sum(I[c] for c in ADJ_FIELDS), 'retirement_gross': I['E02400'] + I['E01500'],
-             'ss_gross': I['E02400'],
-             'tax_exempt_interest': I['E00400'], 'mortgage_interest': I['E19200'], 'real_estate_tax': I['E18500']}
+             'gross_ss': I['E02400'],
+             'exempt_int': I['E00400'], 'first_mort_int': I['E19200'], 'salt_prop': I['E18500']}
     parts = {p: I[f] for p, (f, _) in PARTS.items() if f}
     parts['sche_other'] = I['E02000'] - sum(PARTS[p][1] * parts[p] for p in SCHE_PARTS)
     out.update(parts)
@@ -415,7 +415,7 @@ def puf_rows(puf):
     k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
     out['part_se'] = np.where(k1_part, (I['E30400'] + I['E30500']) / 0.9235 - I['E00900'] - I['E02100'], 0.0)
     out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
-    out['other_agi'] = I['E00100'] - out['wages'] - out['interest'] - out['dividends'] - out['capital_gains'] - \
+    out['other_agi'] = I['E00100'] - out['wages'] - out['txbl_int'] - out['dividends'] - out['capital_gains'] - \
         sum(ITEMS[v][0] * items[v] for v in ITEMS)
     df = pd.DataFrame(out)
     for v in PUF_AMOUNTS:
@@ -546,7 +546,7 @@ def tax_data(t, y, pi=None):
     status = ['single', 'joint', 'separate', 'head_of_household']
     t_y, t_0 = TG.table_1_6(y), TG.table_1_6(PUF_YEAR)
     F = np.array([[t_y[(s, k)] / t_0[(s, k)] for k in range(common.ADULT_RANGES)] for s in status])
-    f = (P * F[puf.mars.to_numpy().astype(np.int64) - 1]).sum(1)
+    f = (P * F[puf.filing_status.to_numpy().astype(np.int64) - 1]).sum(1)
     # the amounts shared by the surveys of year y (an item no survey of year y shares need not have SOI growth to y:
     # other gains has a net loss in 2012)
     surveys = sorted(set(t.loc[(t.year == y) & (t.source != 'puf'), 'source']))
@@ -615,7 +615,7 @@ def cex_rows():
                        'filer': -1, 'filer_p': -1.0, 'k1_owner': -1, 'owns_business': -1,
                        **{c: -1 for c in TAX_CATEGORIES},
                        **survey_items(s, 'cex'),
-                       'age1': s['age1'], 'age2': s['age2'], 'male1': s['male1'], 'male2': s['male2'],
+                       'svy_age1': s['age1'], 'svy_age2': s['age2'], 'male1': s['male1'], 'male2': s['male2'],
                        'age_key': s['household_id'].astype(float)})
     for c in CEX_CATS:
         df[c] = s[c].astype(float)
@@ -633,7 +633,7 @@ def shares(survey, variable):
 def cps_rows():
     """The CPS ASEC tax units (build_cps.R), every year in settings "cps": every tax unit, filers and non-filers,
     dependent filers folded into the unit that claims them. filer_p is the unit's calibrated filing chance (build_cps.R's
-    p_file), filer the one draw from it build_cps.R makes; mars, n_ctc and n_eitc as build_cps.R writes them. The PUF
+    p_file), filer the one draw from it build_cps.R makes; mars, n_dep_ctc and n_dep_eitc as build_cps.R writes them. The PUF
     amounts come from the translation table (translate_surveys); k1_owner is set there, from the parts. The person items stay as person 1 and person 2 here
     (p1_..., p2_...); cps_person_slots puts them in primary-filer order once the primary rule is set."""
     rows = []
@@ -645,7 +645,7 @@ def cps_rows():
     s = pd.concat(rows, ignore_index=True)
     person = ['wages1', 'wages2', 'se1', 'se2', 'weeks_worked1', 'weeks_worked2', 'usual_hours1', 'usual_hours2']
     need = sorted({c for r in TR.rows('cps', amounts_only=True) for c in r['items']}) + person + \
-        ['married', 'n_dep', 'filer', 'p_file', 'mars', 'n_ctc', 'n_eitc', 'age1', 'age2', 'sex1', 'sex2', 'dep_age1', 'dep_age2', 'dep_age3', 'childcare',
+        ['married', 'n_dep', 'filer', 'p_file', 'filing_status', 'n_dep_ctc', 'n_dep_eitc', 'age1', 'age2', 'sex1', 'sex2', 'dep_age1', 'dep_age2', 'dep_age3', 'care_exp',
          'wages', 'sch_cf_income', 'ssn_status1', 'ssn_status2', 'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3']
     # an item the CPS does not ask in some years (a row's first_year: capital gains before tax year 2018) is missing
     # exactly in those years (build_cps.R, since 29 October)
@@ -682,8 +682,8 @@ def cps_rows():
     for k in (1, 2, 3):
         assert s[f'dep_ssn_status{k}'].isin([0, 1, 2, 3]).all()
         assert ((s[f'dep_ssn_status{k}'] > 0) == (s[f'dep_age{k}'] >= 0)).all(), f'dep_ssn_status{k}'
-    assert s['p_file'].between(0, 1).all() and s['mars'].isin([1, 2, 3, 4]).all()
-    assert ((s['mars'] == 2) == couple).all() and (s['n_eitc'] <= s['n_dep']).all() and (s['n_ctc'] <= s['n_dep']).all()
+    assert s['p_file'].between(0, 1).all() and s['filing_status'].isin([1, 2, 3, 4]).all()
+    assert ((s['filing_status'] == 2) == couple).all() and (s['n_dep_eitc'] <= s['n_dep']).all() and (s['n_dep_ctc'] <= s['n_dep']).all()
     assert s['record_id'].max() < 1e9 and s['household_id'].max() < 1e9
     rid = CPS_ID_OFFSET + (s['year'] - 2000) * 1e9 + s['record_id'].astype(float)
     hh = CPS_ID_OFFSET + (s['year'] - 2000) * 1e9 + s['household_id'].astype(float)
@@ -695,16 +695,16 @@ def cps_rows():
                        **{c: s[c].astype(np.int64) if shares('cps', c) else -1 for c in TAX_CATEGORIES},
                        'k1_owner': -1, 'owns_business': -1,
                        **survey_items(s, 'cps'),
-                       'age1': s['age1'].astype(float), 'age2': s['age2'].astype(float),
+                       'svy_age1': s['age1'].astype(float), 'svy_age2': s['age2'].astype(float),
                        'male1': (s['sex1'] == 1).astype(float), 'male2': (s['sex2'] == 1).astype(float),
                        'age_key': hh,
                        **{f'p{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2)
                           for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']},
                        **{f'p{k}_ot': s[f'ot{k}'].astype(float) for k in (1, 2)},
                        **{f'p{k}_ssn_status': s[f'ssn_status{k}'].astype(np.int64) for k in (1, 2)},
-                       **{f'dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
+                       **{f'svy_dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
                        **{f'dep_ssn_status{k}': s[f'dep_ssn_status{k}'].astype(np.int64) for k in (1, 2, 3)},
-                       'cps_childcare': s['childcare'].astype(float)})
+                       'cps_childcare': s['care_exp'].astype(float)})
     for v in AMOUNTS:
         if v not in df:
             df[v] = np.nan
@@ -712,7 +712,7 @@ def cps_rows():
 
 
 PERSON_COLUMNS = [f'p{k}_{c}' for k in (1, 2) for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']] + \
-    ['p1_ot', 'p2_ot', 'dep_age1', 'dep_age2', 'dep_age3', 'cps_childcare', 'p1_ssn_status', 'p2_ssn_status',
+    ['p1_ot', 'p2_ot', 'svy_dep_age1', 'svy_dep_age2', 'svy_dep_age3', 'cps_childcare', 'p1_ssn_status', 'p2_ssn_status',
      'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3']
 
 
@@ -731,17 +731,17 @@ def cps_person_slots(t, primary_is_2):
     age = {k: pick('age', k) for k in (1, 2)}
     w = d['weight'].to_numpy(float)
     married_ = (d['married'] == 1).to_numpy()
-    out = {'age_primary': exact_age_value(age[1]), 'age_spouse': exact_age_value(age[2]),
+    out = {'age1': exact_age_value(age[1]), 'age2': exact_age_value(age[2]),
            'sex_primary': pick('sex', 1), 'sex_spouse': pick('sex', 2),
            'weeks_primary': pick('weeks_worked', 1), 'weeks_spouse': pick('weeks_worked', 2),
            'hours_primary': pick('usual_hours', 1), 'hours_spouse': pick('usual_hours', 2),
-           'childcare': d['cps_childcare'].to_numpy(float),
+           'care_exp': d['cps_childcare'].to_numpy(float),
            # each adult's overtime in dollars, missing where the unit was not asked (build_cps.R)
            'ot_primary': pick('ot', 1), 'ot_spouse': pick('ot', 2),
            # each person's Social Security number status (0 none, 1 citizen, 2 noncitizen with a sign, 3 without)
            'ssn_status_primary': pick('ssn_status', 1), 'ssn_status_spouse': pick('ssn_status', 2)}
     for k in (1, 2, 3):
-        out[f'age_dep{k}'] = np.where(d[f'dep_age{k}'] >= 0, d[f'dep_age{k}'] + 1, 0)
+        out[f'age_dep{k}'] = np.where(d[f'svy_dep_age{k}'] >= 0, d[f'svy_dep_age{k}'] + 1, 0)
         out[f'ssn_status_dep{k}'] = d[f'dep_ssn_status{k}'].to_numpy()
     for share, item in [('spouse_wage_share', 'wages'), ('spouse_se_share', 'se')]:
         total = pick(item, 1) + pick(item, 2)
@@ -759,10 +759,10 @@ def cps_person_slots(t, primary_is_2):
     # what generation enforces (generate.structural) holds in the data
     d = t[c]
     married = (d.married == 1).to_numpy()
-    assert ((d.age_spouse > 0).to_numpy() == married).all() and ((d.sex_spouse > 0).to_numpy() == married).all()
-    assert (d.sex_primary > 0).all() and (d.age_primary > 0).all()
-    assert (ages.adult_range(d.age_primary - 1) == d.age_range).all(), 'the primary filer\'s age is not in its range'
-    assert d.age_primary.between(1, EXACT_AGE_TOP + 1).all() and d.age_spouse.between(0, EXACT_AGE_TOP + 1).all()
+    assert ((d.age2 > 0).to_numpy() == married).all() and ((d.sex_spouse > 0).to_numpy() == married).all()
+    assert (d.sex_primary > 0).all() and (d.age1 > 0).all()
+    assert (ages.adult_range(d.age1 - 1) == d.age_range).all(), 'the primary filer\'s age is not in its range'
+    assert d.age1.between(1, EXACT_AGE_TOP + 1).all() and d.age2.between(0, EXACT_AGE_TOP + 1).all()
     for k in (1, 2, 3):
         assert ((d[f'age_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'age_dep{k} and n_dep disagree'
         assert ((d[f'ssn_status_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'ssn_status_dep{k} and n_dep disagree'
@@ -846,7 +846,7 @@ def sipp_rows():
                        'n_dep': s['n_dep'].clip(upper=3).astype(np.int64), 'filer': -1, 'filer_p': -1.0,
                        **{c: -1 for c in TAX_CATEGORIES}, 'k1_owner': -1, 'owns_business': -1,
                        **survey_items(s, 'sipp'),
-                       'age1': s['age1'].astype(float), 'age2': s['age2'].astype(float),
+                       'svy_age1': s['age1'].astype(float), 'svy_age2': s['age2'].astype(float),
                        'male1': (s['sex1'] == 1).astype(float), 'male2': (s['sex2'] == 1).astype(float),
                        'age_key': hh,
                        **{f'q{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2) for c in SIPP_PERSON}})
@@ -935,12 +935,12 @@ def survey_items(s, survey):
 def loan_to_value(s):
     """The home mortgage as a share of the home's value; zero with no home. A mortgage on a unit with
     no home value (none expected) is moved to other debt, so net worth is unchanged; the count is printed."""
-    home, mort = s['w_primary_home'].to_numpy(float), s['w_primary_mortgage'].to_numpy(float)
+    home, mort = s['value.primary_home'].to_numpy(float), s['value.primary_mortgage'].to_numpy(float)
     stray = (home <= 0) & (mort != 0)
     common.say(f'  home mortgage with no home value: {int(stray.sum())} rows, moved to other debt')
-    s.loc[stray, 'w_other_debt'] = s.loc[stray, 'w_other_debt'] + s.loc[stray, 'w_primary_mortgage']
-    s.loc[stray, 'w_primary_mortgage'] = 0.0
-    s['w_primary_ltv'] = np.where(home > 0, s['w_primary_mortgage'] / np.where(home > 0, home, 1.0), 0.0)
+    s.loc[stray, 'value.other_debt'] = s.loc[stray, 'value.other_debt'] + s.loc[stray, 'value.primary_mortgage']
+    s.loc[stray, 'value.primary_mortgage'] = 0.0
+    s['w_primary_ltv'] = np.where(home > 0, s['value.primary_mortgage'] / np.where(home > 0, home, 1.0), 0.0)
     return s
 
 
@@ -969,6 +969,7 @@ def scf_rows():
         s = loan_to_value(s.assign(source='scf', filer=-1, filer_p=-1.0, **{c: -1 for c in TAX_CATEGORIES}))
         if wave == TARGET_YEAR:     # the tilt's wealth targets and wealth by wage group, in this wave's dollars
             s.to_parquet(f'{common.DATA}/scf_units_{TARGET_YEAR}.parquet', index=False)
+        s = s.rename(columns={'age1': 'svy_age1', 'age2': 'svy_age2'})   # the SCF's person 1 and 2, before the primary rule
         raw = survey_items(s, 'scf')
         s = s.drop(columns=[c for c in s if c in PUF_AMOUNTS]).assign(**raw)
         waves.append(s)
@@ -1151,12 +1152,12 @@ def cps_ss_taxable_check(t):
     for y in CP['years']:
         d = t[(t.source == 'cps') & (t.year == y)]
         a = survey_puf_amounts(d, 'cps', y)
-        other = a['wages'] + a.get('interest', 0.0) + a['dividends'] + a['capital_gains'] + \
+        other = a['wages'] + a.get('txbl_int', 0.0) + a['dividends'] + a['capital_gains'] + \
             sum(ITEMS[v][0] * a.get(v, 0.0) for v in ITEMS if ITEMS[v][0] != 0 and v != 'ss_taxable') + a['other_agi'] + \
-            a['tax_exempt_interest']
-        tx = taxable_social_security(a['ss_gross'].to_numpy(float), other.to_numpy(float), d['mars'].to_numpy())
+            a['exempt_int']
+        tx = taxable_social_security(a['gross_ss'].to_numpy(float), other.to_numpy(float), d['filing_status'].to_numpy())
         w, p = d['weight'].to_numpy(float), d['filer_p'].to_numpy(float)
-        pos, ss = tx > 0, a['ss_gross'].to_numpy(float) > 0
+        pos, ss = tx > 0, a['gross_ss'].to_numpy(float) > 0
         nfw = w * (1 - p)
         rows.append({'year': y, 'units with Social Security (millions)': w[ss].sum() / 1e6,
                      'expected non-filers with Social Security (millions)': nfw[ss].sum() / 1e6,
@@ -1253,7 +1254,7 @@ def table_meta(t, factor):
             'person_categories': PERSON_CATEGORIES,
             'exact_ages': EXACT_AGES,
             'cps_structure': {'spouse': SPOUSE_SLOTS, 'dependent_ages': DEPENDENT_AGE_SLOTS,
-                              'primary_age': 'age_primary', 'ages': AGE_SLOTS,
+                              'primary_age': 'age1', 'ages': AGE_SLOTS,
                               # (28 October) each adult's overtime: drawn after the other CPS slots; the primary
                               # filer's zero without wages, the spouse's without a spouse's share of wages above zero
                               'overtime': CPS_OVERTIME,
@@ -1267,10 +1268,10 @@ def table_meta(t, factor):
                                'zero_without': {'tips_primary': 'wages', 'tips_spouse': 'spouse_wage_share'}},
             'present_on': present_on(t),
             'net_worth_parts': NET_WORTH_PARTS,
-            'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home'],
+            'ratios': {'w_primary_ltv': ['value.primary_mortgage', 'value.primary_home'],
                        'spouse_wage_share': ['wages2', 'wages'], 'spouse_se_share': ['se2', 'sch_cf_income'],
                        'spouse_deferral_share': ['elective2', 'elective_deferrals'],
-                       'w_dc_stock_share': ['w_dc_stocks', 'w_dc']},
+                       'w_dc_stock_share': ['w_dc_stocks', 'value.dc']},
             'remainders': {'wages1': ['wages', 'wages2'], 'se1': ['sch_cf_income', 'se2'],
                            'elective1': ['elective_deferrals', 'elective2']},
             # after the remainders: a person's amount in dollars held to at most a remainder (a person's tips, at
@@ -1544,17 +1545,17 @@ def primary_age_range(t, puf):
     # sex not observed (missing): only on the SCF's units outside the PEU, whose members' sex the SCF does not report.
     # A couple there is ordered by neither sex rule: its primary filer is the unit's head (person 1), as for one adult.
     unknown_sex = (t.male1.isna() | (couple & t.male2.isna())).to_numpy() & rows
-    assert not t.loc[rows, 'age1'].isna().any() and (t.loc[unknown_sex, 'source'] == 'scf').all()
-    assert not t.loc[couple, 'age2'].isna().any() and (t.loc[couple, 'age2'] >= 0).all()
+    assert not t.loc[rows, 'svy_age1'].isna().any() and (t.loc[unknown_sex, 'source'] == 'scf').all()
+    assert not t.loc[couple, 'svy_age2'].isna().any() and (t.loc[couple, 'svy_age2'] >= 0).all()
     ordered = couple & ~unknown_sex      # couples the sex rules order
     mixed = ordered & (t.male1 != t.male2).to_numpy()
     m = t[mixed & sv]
-    man = np.where(m.male1 == 1, m.age1, m.age2)
-    woman = np.where(m.male1 == 1, m.age2, m.age1)
+    man = np.where(m.male1 == 1, m.svy_age1, m.svy_age2)
+    woman = np.where(m.male1 == 1, m.svy_age2, m.svy_age1)
     target = ages.puf_female_primary_share(puf)
     pi, share = ages.woman_first_chance(man, woman, m.weight, target)
-    a1 = t.age1.fillna(0).to_numpy(float)
-    a2 = t.age2.fillna(0).to_numpy(float)
+    a1 = t.svy_age1.fillna(0).to_numpy(float)
+    a2 = t.svy_age2.fillna(0).to_numpy(float)
     # sex enters only for the couples the rules order (primary_age reads it nowhere else); the PUF rows' and the
     # unknown-sex rows' missing values are not read
     m1 = np.where(ordered, t.male1.to_numpy(float), 0.0)
@@ -1574,13 +1575,13 @@ def primary_age_range(t, puf):
     spouse = np.where(couple, np.where(primary_is_2, a1, a2), -1.0)
     assert np.array_equal(np.where(primary_is_2, a2, a1)[rows], age[rows])
     for src, sel in [('scf', sv), ('cex', cx), ('sipp', si)]:
-        for v, x in [('age_primary', age), ('age_spouse', spouse)]:
+        for v, x in [('age1', age), ('age2', spouse)]:
             if shares(src, v):
                 t.loc[sel, v] = exact_age_value(x[sel])
         d = t[sel]
-        if shares(src, 'age_primary'):
-            assert (ages.adult_range(d.age_primary - 1) == d.age_range).all(), f'{src}: an exact age outside its range'
-            assert ((d.age_spouse > 0) == (d.married == 1)).all(), f'{src}: a spouse age off a couple'
+        if shares(src, 'age1'):
+            assert (ages.adult_range(d.age1 - 1) == d.age_range).all(), f'{src}: an exact age outside its range'
+            assert ((d.age2 > 0) == (d.married == 1)).all(), f'{src}: a spouse age off a couple'
     w = t.weight.to_numpy(float)
     report = pd.DataFrame({'range': ['under 26', '26-34', '35-44', '45-54', '55-64', '65+'],
                            'woman-first chance by the man\'s range (%)': 100 * pi,
@@ -1593,7 +1594,7 @@ def primary_age_range(t, puf):
                    f'(weighted); same-sex couples {100 * w[c & ordered & ~mixed].sum() / w[c].sum():.2f}%; '
                    f'sex not observed {100 * w[c & unknown_sex].sum() / w[c].sum():.2f}%')
     assert t.age_range.notna().all()
-    return t.drop(columns=['age1', 'age2', 'male1', 'male2', 'age_key', 'taxunit_code'] + PERSON_COLUMNS +
+    return t.drop(columns=['svy_age1', 'svy_age2', 'male1', 'male2', 'age_key', 'taxunit_code'] + PERSON_COLUMNS +
                   SIPP_PERSON_COLUMNS, errors='ignore'), pi
 
 
@@ -1653,7 +1654,7 @@ def main():
             u.to_parquet(f, index=False)
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer', 'filer_p'] + \
         list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + \
-        list(SCF_CATEGORIES) + AMOUNTS + ['net_worth', 'w_primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
+        list(SCF_CATEGORIES) + AMOUNTS + ['net_worth', 'value.primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
         ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + ['agi_group']
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
     for k in range(ages.N_RANGES):

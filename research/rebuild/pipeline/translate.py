@@ -77,11 +77,11 @@ import common
 S = common.SETTINGS['translation']
 TABLE = S['table']
 MATCHES = ('count', 'percentile', 'percentile_from_top')
-CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age_primary', 'age_spouse', 'mars', 'n_ctc',
-                      'n_eitc']
+CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age1', 'age2', 'filing_status', 'n_dep_ctc',
+                      'n_dep_eitc']
 # Exact ages (value 0 none, else the age plus 1, 80 and over as 80): the tax data has none, so the report compares each
 # survey year with the CPS of the nearest year, in the groups AGE_GROUPS (lower edge inclusive, years).
-EXACT_AGES = ['age_primary', 'age_spouse']
+EXACT_AGES = ['age1', 'age2']
 AGE_GROUPS = [(0, 26, 'under 26'), (26, 35, '26-34'), (35, 45, '35-44'), (45, 55, '45-54'), (55, 65, '55-64'),
               (65, 70, '65-69'), (70, 75, '70-74'), (75, 80, '75-79'), (80, 200, '80 and over')]
 _seen = set()

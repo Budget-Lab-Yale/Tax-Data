@@ -117,18 +117,18 @@
    },
    {
     "survey": "scf",
-    "variable": "age_primary",
+    "variable": "age1",
     "items": [
-     "age_primary"
+     "age1"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported: the primary filer's age by the rule in ages.py (so it lies in its age range); 80 and over as 80, the coarsest of the three surveys' top codes (the CEX's, which groups everyone from 83 or 84)"
    },
    {
     "survey": "scf",
-    "variable": "age_spouse",
+    "variable": "age2",
     "items": [
-     "age_spouse"
+     "age2"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
@@ -189,9 +189,9 @@
    },
    {
     "survey": "scf",
-    "variable": "interest",
+    "variable": "txbl_int",
     "items": [
-     "interest"
+     "txbl_int"
     ],
     "dollar_line": null,
     "loss_cap": null,
@@ -311,9 +311,9 @@
    },
    {
     "survey": "scf",
-    "variable": "ss_gross",
+    "variable": "gross_ss",
     "items": [
-     "ss_gross"
+     "gross_ss"
     ],
     "dollar_line": null,
     "loss_cap": null,
@@ -323,9 +323,9 @@
    },
    {
     "survey": "scf",
-    "variable": "tax_exempt_interest",
+    "variable": "exempt_int",
     "items": [
-     "tax_exempt_interest"
+     "exempt_int"
     ],
     "dollar_line": null,
     "loss_cap": null,
@@ -531,18 +531,18 @@
    },
    {
     "survey": "cex",
-    "variable": "age_primary",
+    "variable": "age1",
     "items": [
-     "age_primary"
+     "age1"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported: the primary filer's age by the rule in ages.py (so it lies in its age range); 80 and over as 80, since the CEX codes everyone from 83 (84 in 2019 and 2024) as one value"
    },
    {
     "survey": "cex",
-    "variable": "age_spouse",
+    "variable": "age2",
     "items": [
-     "age_spouse"
+     "age2"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
@@ -593,7 +593,7 @@
    },
    {
     "survey": "cex",
-    "variable": "ss_gross",
+    "variable": "gross_ss",
     "items": [
      "social_security"
     ],
@@ -675,18 +675,18 @@
    },
    {
     "survey": "cps",
-    "variable": "age_primary",
+    "variable": "age1",
     "items": [
-     "age_primary"
+     "age1"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported: the primary filer by the rule in ages.py; 80 and over as 80 (the CPS codes 80-84 as 80 and 85 and over as 85, the CEX cannot separate them)"
    },
    {
     "survey": "cps",
-    "variable": "age_spouse",
+    "variable": "age2",
     "items": [
-     "age_spouse"
+     "age2"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
@@ -702,27 +702,27 @@
    },
    {
     "survey": "cps",
-    "variable": "mars",
+    "variable": "filing_status",
     "items": [
-     "mars"
+     "filing_status"
     ],
     "type_for_fill_in": false,
     "reason": "the units' filing status (build_cps.R): joint for every couple, head of household for an unmarried head with a qualifying-child dependent, single otherwise; separate only on CBO units with the separate-return split. Non-filing units carry the status the rules give them"
    },
    {
     "survey": "cps",
-    "variable": "n_ctc",
+    "variable": "n_dep_ctc",
     "items": [
-     "n_ctc"
+     "n_dep_ctc"
     ],
     "type_for_fill_in": false,
     "reason": "child credit children: dependents who are qualifying children under 17 (build_cps.R, the approximation tax_units.py makes); the PUF's N24 counts only children on returns that claim the credit"
    },
    {
     "survey": "cps",
-    "variable": "n_eitc",
+    "variable": "n_dep_eitc",
     "items": [
-     "n_eitc"
+     "n_dep_eitc"
     ],
     "type_for_fill_in": false,
     "reason": "EITC children: dependents who are qualifying children (build_cps.R, the approximation tax_units.py makes); the PUF's EIC counts only children on returns that claim the credit"
@@ -833,9 +833,9 @@
    },
    {
     "survey": "cps",
-    "variable": "ss_gross",
+    "variable": "gross_ss",
     "items": [
-     "ss_gross"
+     "gross_ss"
     ],
     "dollar_line": null,
     "loss_cap": null,
@@ -938,7 +938,7 @@
    },
    {
     "survey": "cps",
-    "variable": "ira_taxable",
+    "variable": "txbl_ira_dist",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -948,7 +948,7 @@
    },
    {
     "survey": "cps",
-    "variable": "pensions_taxable",
+    "variable": "txbl_pens_dist",
     "items": [
      "retirement_income",
      "survdis_pension"
@@ -986,8 +986,8 @@
     "type_for_fill_in": false,
     "reason": "all pensions and retirement distributions taken as taxable (the old non-filer pool's mapping, agreed 23 October): the builder's series bridged across the 2019 redesign; since 28 October with the survivor and disability pensions that are pensions on a return (Form 1099-R sources, build_cps.R), and function 2 fills in the missing recipients, compared with the tax data's taxable pensions plus taxable IRA distributions (filers only 21.1 against 36.8 million; 0.56-0.59 of the tax data's units at every line from $1,000 to $100,000; AUDIT.md)",
     "rank_against": [
-     "pensions_taxable",
-     "ira_taxable"
+     "txbl_pens_dist",
+     "txbl_ira_dist"
     ]
    },
    {
@@ -1002,9 +1002,9 @@
    },
    {
     "survey": "cps",
-    "variable": "unemployment",
+    "variable": "ui",
     "items": [
-     "unemployment"
+     "ui"
     ],
     "dollar_line": null,
     "loss_cap": null,
@@ -1047,7 +1047,7 @@
    },
    {
     "survey": "cps",
-    "variable": "state_refunds",
+    "variable": "state_ref",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1059,7 +1059,7 @@
     "survey": "cps",
     "variable": "retirement_gross",
     "items": [
-     "ss_gross",
+     "gross_ss",
      "retirement_income",
      "survdis_pension"
     ],
@@ -1071,7 +1071,7 @@
    },
    {
     "survey": "cps",
-    "variable": "tax_exempt_interest",
+    "variable": "exempt_int",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1081,7 +1081,7 @@
    },
    {
     "survey": "cps",
-    "variable": "mortgage_interest",
+    "variable": "first_mort_int",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1091,7 +1091,7 @@
    },
    {
     "survey": "cps",
-    "variable": "real_estate_tax",
+    "variable": "salt_prop",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1101,7 +1101,7 @@
    },
    {
     "survey": "cps",
-    "variable": "sch_c",
+    "variable": "sole_prop",
     "items": [
      "sch_cf_income"
     ],
@@ -1144,7 +1144,7 @@
    },
    {
     "survey": "cps",
-    "variable": "part_pass_inc",
+    "variable": "part_passive",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1154,7 +1154,7 @@
    },
    {
     "survey": "cps",
-    "variable": "part_nonpass_inc",
+    "variable": "part_active",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1164,7 +1164,7 @@
    },
    {
     "survey": "cps",
-    "variable": "part_pass_loss",
+    "variable": "part_passive_loss",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1174,7 +1174,7 @@
    },
    {
     "survey": "cps",
-    "variable": "part_nonpass_loss",
+    "variable": "part_active_loss",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1194,7 +1194,7 @@
    },
    {
     "survey": "cps",
-    "variable": "scorp_pass_inc",
+    "variable": "scorp_passive",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1204,7 +1204,7 @@
    },
    {
     "survey": "cps",
-    "variable": "scorp_nonpass_inc",
+    "variable": "scorp_active",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1214,7 +1214,7 @@
    },
    {
     "survey": "cps",
-    "variable": "scorp_pass_loss",
+    "variable": "scorp_passive_loss",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1224,7 +1224,7 @@
    },
    {
     "survey": "cps",
-    "variable": "scorp_nonpass_loss",
+    "variable": "scorp_active_loss",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1244,7 +1244,7 @@
    },
    {
     "survey": "cps",
-    "variable": "rent_inc",
+    "variable": "rent",
     "items": [
      "rent_royalty_estate"
     ],
@@ -1270,7 +1270,7 @@
    },
    {
     "survey": "cps",
-    "variable": "estate_inc",
+    "variable": "estate",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1360,18 +1360,18 @@
    },
    {
     "survey": "sipp",
-    "variable": "age_primary",
+    "variable": "age1",
     "items": [
-     "age_primary"
+     "age1"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported (age at the interview, as the CPS): the primary filer by the rule in ages.py; 80 and over as 80, as for the other surveys"
    },
    {
     "survey": "sipp",
-    "variable": "age_spouse",
+    "variable": "age2",
     "items": [
-     "age_spouse"
+     "age2"
     ],
     "type_for_fill_in": false,
     "reason": "taken as reported, couples only; 80 and over as 80, as for the primary filer"
@@ -1463,9 +1463,9 @@
    },
    {
     "survey": "sipp",
-    "variable": "ss_gross",
+    "variable": "gross_ss",
     "items": [
-     "ss_gross"
+     "gross_ss"
     ],
     "dollar_line": null,
     "loss_cap": null,
@@ -1475,7 +1475,7 @@
    },
    {
     "survey": "sipp",
-    "variable": "pensions_taxable",
+    "variable": "txbl_pens_dist",
     "items": [
      "pensions"
     ],
@@ -1532,12 +1532,12 @@
    1000000
   ],
   "cps_zero_in_tax_data": [
-   "interest"
+   "txbl_int"
   ],
   "_cps_zero_in_tax_data": "PUF amounts the CPS has no row for (absent on CPS rows) that the CPS units in the tax data carry as zero. interest (John, 23 October): the CPS has no interest item lined up with the PUF's taxable interest."
  },
  "cex": {
-  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview; every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them, and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (ss_gross) and self-employment income. The tilt's consumption targets come from the target year's CEX, all tax units.",
+  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview; every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them, and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label and generation_year; dollars from that year's records. Shared with the PUF: married, dependents, age range, wages, gross Social Security (gross_ss) and self-employment income. The tilt's consumption targets come from the target year's CEX, all tax units.",
   "years": [
    2015,
    2017,
@@ -1562,7 +1562,7 @@
   "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
   "filer_seed": 20261023,
   "dollar_amounts": [
-   "childcare",
+   "care_exp",
    "ot_primary",
    "ot_spouse"
   ],
@@ -1769,12 +1769,12 @@
    {
     "name": "rental income or loss",
     "when_any_nonzero": [
-     "rent_inc",
+     "rent",
      "rent_loss"
     ],
     "then_at_least_one_nonzero": [
-     "w_other_home",
-     "w_re_fund"
+     "value.other_home",
+     "value.re_fund"
     ]
    },
    {
@@ -1784,23 +1784,23 @@
     ],
     "then_at_least_one_nonzero": [
      "owns_business",
-     "w_other_home",
-     "w_re_fund"
+     "value.other_home",
+     "value.re_fund"
     ]
    },
    {
     "name": "mortgage interest paid: a home",
     "when_any_nonzero": [
-     "mortgage_interest"
+     "first_mort_int"
     ],
     "then_at_least_one_nonzero": [
-     "w_primary_home"
+     "value.primary_home"
     ]
    },
    {
     "name": "mortgage interest paid: a mortgage",
     "when_any_nonzero": [
-     "mortgage_interest"
+     "first_mort_int"
     ],
     "then_at_least_one_nonzero": [
      "w_primary_ltv"
@@ -1809,11 +1809,11 @@
    {
     "name": "real estate tax paid",
     "when_any_nonzero": [
-     "real_estate_tax"
+     "salt_prop"
     ],
     "then_at_least_one_nonzero": [
-     "w_primary_home",
-     "w_other_home"
+     "value.primary_home",
+     "value.other_home"
     ]
    }
   ],
@@ -1823,7 +1823,7 @@
   "_what": "seed: the seed of the draws that pick each record's dollars within its drawn band from the dollar map (dollars.py).",
   "seed": 20261104,
   "scf_caps": {
-   "w_other_debt": 0.999
+   "value.other_debt": 0.999
   },
   "_scf_caps": "Balance-sheet items whose dollar map is held to a percentile among the wave's holders (weighted), in each SCF wave before it is grown to the target year (build_table.build_maps). Other debt: the SCF's largest amounts ($15-69 million) landed on ordinary records and one such record carried $0.27-0.92 trillion after the tilt; held to the 99.9th percentile among holders, $0.5-2.0 million (John, 28 October). The training table is unchanged, so the models are unaffected."
  },
@@ -1877,14 +1877,14 @@
     "_why": "Q2 (John, 28 October): each dependent filer (the PUF's three dependent-filer age ranges) gets an exact age and a sex drawn from the CPS's dependents who would file, those with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's own CPS year, within the record's age range; the draw keyed by record id. A range whose pool has fewer than min_pool_records sample people (26 and over: the CPS has no dependent of that age earning above the threshold) takes the dependents the filing stage counts as filing their own return (required to, or with any wages). Ages above top_age are put at top_age (80 means 80 and over, as for the primary filer). dep_filer_age is -1 and dep_filer_sex 0 on every other record."
    },
    "child_credit": {
-    "reads": ["age_dep1", "age_dep2", "age_dep3", "n_ctc"],
+    "reads": ["dep_age1", "dep_age2", "dep_age3", "n_dep_ctc"],
     "tables": ["ctc_age_limit.csv"],
     "writes": ["dep_ctc1", "dep_ctc2", "dep_ctc3"],
     "stream": 2,
-    "_why": "Production's rule (src/imputations/ages.R): dependent k (youngest first) passes every child credit test except age and Social Security number when it is under 17 and the record's n_ctc (the PUF's count of child credit children, 2015 law) is at least k; dependents from 17 to the year's law age less one (17 alone in every year but 2021) pass by chance, 1 - the share of units with dependents under 17 whose count of them exceeds n_ctc (start weights), as production. 1 passes, 0 not, -1 no such dependent. Tax-Simulator applies the age limit of the law it simulates."
+    "_why": "Production's rule (src/imputations/ages.R): dependent k (youngest first) passes every child credit test except age and Social Security number when it is under 17 and the record's n_dep_ctc (the PUF's count of child credit children, 2015 law) is at least k; dependents from 17 to the year's law age less one (17 alone in every year but 2021) pass by chance, 1 - the share of units with dependents under 17 whose count of them exceeds n_dep_ctc (start weights), as production. 1 passes, 0 not, -1 no such dependent. Tax-Simulator applies the age limit of the law it simulates."
    },
    "death_probabilities": {
-    "reads": ["age_primary", "age_spouse", "sex_primary", "sex_spouse", "married", "dep_filer_age", "dep_filer_sex", "the broad income items"],
+    "reads": ["age1", "age2", "sex_primary", "sex_spouse", "married", "dep_filer_age", "dep_filer_sex", "the broad income items"],
     "tables": ["ssa_period_life_table.csv", "chetty_mortality_ratio.csv", "johnson_marital_factor.csv"],
     "writes": ["q_death1", "q_death2"],
     "stream": 8,
@@ -1892,7 +1892,7 @@
     "_why": "Production's three layers (src/mortality_ledger.R), no draw: the SSA period life table for the year, age and sex (80 means 80 and over: the average of q over ages 80-119 weighted by the table's L); times Chetty et al.'s mortality ratio at the person's percentile of broad income within sex and single age (start weights); times, for men only, Johnson et al.'s married or unmarried factor, rescaled to average 1 on the file within under 65 and 65 and over. Dependent filers use their ages and sex from dependent_filer_age_sex. q_death2 is -1 without a spouse. Stream 8 only for primary filers whom generation gave an age but no sex (2 records on 28 October): a sex with even chances, written back to sex_primary before any item runs (fill_missing_sex; the one drawn column this module changes; generate.py now forces the primary filer's sex to a man or a woman)."
    },
    "unrealized_gains": {
-    "reads": ["w_equities", "w_pass_throughs", "w_primary_home", "w_other_home", "w_re_fund", "w_dc", "w_trusts", "w_dc_stock_share", "age_primary", "age_spouse", "dep_filer_age"],
+    "reads": ["value.equities", "value.pass_throughs", "value.primary_home", "value.other_home", "value.re_fund", "value.dc", "value.trusts", "w_dc_stock_share", "age1", "age2", "dep_filer_age"],
     "tables": ["z1_revaluation_rates.csv", "accrual_long_run_rates.csv"],
     "writes": ["accruals.equities", "accruals.pass_throughs", "accruals.primary_home", "accruals.other_home", "accruals.re_fund", "accruals.dc", "accruals.trusts"],
     "stream": null,
@@ -1901,7 +1901,7 @@
     "_why": "Q6 (John, 28 October): one column per asset, value x the year's Z.1 revaluation rate (households and nonprofits): stocks at the corporate equities rate, businesses at noncorporate business equity's, the three kinds of real estate at real estate's, trusts at 60% stocks and 40% bonds (debt securities), retirement accounts at a stock share x the stocks rate + the rest x the bonds rate. Years with no full year of Z.1 data take production's long-run rates (bonds 0). The retirement accounts' stock share: since 29 October the SCF's (w_dc_stock_share, RETEQ / RETQLIQ, learned in pretraining and drawn with the balance sheet); a file from a model before then has no draw and uses production's age rule, 1.10 - age of the older adult / 100 held to 0.20-0.95 (retirement_stock_share_rule)."
    },
    "cost_basis": {
-    "reads": ["w_equities", "w_pass_throughs", "w_primary_home", "w_other_home", "w_re_fund", "w_kg_other", "w_kg_pass_throughs", "w_kg_primary_home", "w_kg_other_re"],
+    "reads": ["value.equities", "value.pass_throughs", "value.primary_home", "value.other_home", "value.re_fund", "w_kg_other", "w_kg_pass_throughs", "w_kg_primary_home", "w_kg_other_re"],
     "tables": [],
     "writes": ["basis.equities", "basis.pass_throughs", "basis.primary_home", "basis.other_home", "basis.re_fund"],
     "stream": null,
@@ -1923,14 +1923,14 @@
     "_why": "Q8 (John, 28 October): production's method (src/imputations/mobility.R): each unit's income ranked among all units in percentiles (start weights), the bottom 10 merged into rank 10, then a parent rank drawn from Chetty et al.'s matrix. Production's code sends the bottom 9% to rank 100 (cut() gives them no group, replace_na(100)); the rebuild follows the code's stated intent (rank 10)."
    },
    "blindness": {
-    "reads": ["age_primary", "dep_filer_age", "age_spouse", "married", "mars", "filer", "record_id", "the start's weights"],
+    "reads": ["age1", "dep_filer_age", "age2", "married", "filing_status", "filer", "record_id", "the start's weights"],
     "tables": ["puf_blind_rates.csv", "pub4801_blind_boxes.csv"],
     "writes": ["blind1", "blind2"],
     "stream": 6,
     "_why": "Q3 as a rule (John, second retrain of 29 October): for each primary filer, and each spouse on a married-joint record, a draw keyed by record id and person, blind with chance = the 2015 PUF's blind rate for the person's age range (where the return shows it) times one factor per person type; each factor makes the filers' weighted count at the start's weights equal Publication 4801's blind boxes for the target year. Non-filers are drawn by the same rule and not counted. Replaces the PUF slot learned in pretraining (29 October), whose draws were ten times too many."
    },
    "qbi": {
-    "reads": ["biz_industry_schc", "biz_industry_part", "biz_industry_scorp", "biz_workers_schc", "biz_workers_part", "biz_workers_scorp", "sch_c", "the partnership and S corporation parts", "farm", "wages"],
+    "reads": ["biz_industry_schc", "biz_industry_part", "biz_industry_scorp", "biz_workers_schc", "biz_workers_part", "biz_workers_scorp", "sole_prop", "the partnership and S corporation parts", "farm", "wages"],
     "tables": ["cps_private_pay_by_scf_group.csv"],
     "writes": ["sstb_sole_prop", "sstb_part", "sstb_scorp", "sstb_farm", "wagebill_sole_prop", "wagebill_part", "wagebill_scorp", "wagebill_farm"],
     "stream": 7,

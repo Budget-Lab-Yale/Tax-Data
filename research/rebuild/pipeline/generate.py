@@ -230,8 +230,8 @@ DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
 SURVEY_ONLY = torch.tensor([P.index(v) for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS])
 POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
-STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_ctc, n_eitc)
-MARS, MARRIED, AGE_RANGE = P.index('mars'), P.index('married'), P.index('age_range')
+STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_dep_ctc, n_dep_eitc)
+MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index('age_range')
 # The trained models pooled (see the top): each a run under OUT/model and the shift added to its generation seeds.
 # null: the run's own model (common.MODEL) alone, with today's seeds.
 MODELS = G.get('models', [{'run': 'seed20261016', 'seed_shift': 0}, {'run': 'seed20261017', 'seed_shift': 1000}])

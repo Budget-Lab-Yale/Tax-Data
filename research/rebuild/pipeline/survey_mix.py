@@ -54,7 +54,7 @@ def growth(source, y):
 def wage_growth(source, y):
     """The factor SOI's wages per return gives, survey year y to the target year (the CPS and SIPP maps' rule)."""
     f = growth(source, y)
-    return f['childcare'] if source == 'cps' else next(iter(f.values()))
+    return f['care_exp'] if source == 'cps' else next(iter(f.values()))
 
 
 # columns of a survey's unit file that are dollars but not map amounts, grown by the wage factor in reports

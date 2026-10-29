@@ -58,14 +58,14 @@ elective deferrals in years the release does not ask them:
   person 1 the man in a mixed-sex couple, the older in a same-sex one, as tax_units.primary_and_spouse; no spouse:
   age2 -1, sex2 0, male2 -1), wages1, wages2, wages (= wages1 + wages2), tips1, tips2, tips_lh1, tips_lh2 (0 or 1;
   0 without tips), elective1, elective2, elective_deferrals (= elective1 + elective2; since 28 October): each adult's
-  elective deferrals, missing on every unit in a year the release does not ask them (2015-2019); dividends, ss_gross,
+  elective deferrals, missing on every unit in a year the release does not ask them (2015-2019); dividends, gross_ss,
   pensions (since 28 October): the primary filer's plus the spouse's (below).
 
 The shared non-wage items (since 28 October; shared_items), per person, then the primary filer's plus the spouse's on
 the unit, as wages (a dependent's own amounts go nowhere; a separate return carries its one person's):
   - dividends: income from stocks and mutual funds (TINC_STMF), a yearly amount repeated in every month row, read
     once (checked: the run stops if more than 1% of the people with any have different values in different months);
-  - ss_gross: Social Security received for oneself (TSSSAMT), monthly, before Medicare premiums, summed over the 12
+  - gross_ss: Social Security received for oneself (TSSSAMT), monthly, before Medicare premiums, summed over the 12
     months; benefits received on behalf of children (TSSCAMT) are left out. The same dollars as the person's ssb;
   - pensions: retirement income items 1-8 (TRET1AMT-TRET8AMT: company or union, federal, state, local, military,
     railroad, reserve and other retirement income), monthly, summed over the months and the items. No IRA or 401(k)
@@ -99,7 +99,7 @@ LH = [tuple(r) for r in S['lh_industries']]
 WAGE_CLASSES = [1, 2, 3, 4, 5, 6]              # class of worker: for an employer (7, 8 self-employed)
 BLOOD = [7, 8, 9, 10, 13, 14]                  # the householder's relatives by blood (in-laws 11, 12 are not)
 RELATIVES = [3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
-SHARED_ITEMS = ['dividends', 'ss_gross', 'pensions']   # the units file's shared non-wage items (shared_items)
+SHARED_ITEMS = ['dividends', 'gross_ss', 'pensions']   # the units file's shared non-wage items (shared_items)
 # Items a release publishes as a wholly blank column although some people say they received them: their amounts are
 # unknown and read as zero, counted in the log (28 October). Reference year 2021 (the 2022 release): National Guard or
 # reserve retirement, TRET7AMT, blank for all; 3 people (36 person-months, about 20,000 people weighted) say received.
@@ -356,10 +356,10 @@ def read_roster(year):
     # incomes (CBO's 3a)
     for c in T.INCOME_ITEMS:
         r[c] = 0.0
-    r['wage'] = P.wage.to_numpy(); r['selfemp'] = P.selfemp.to_numpy(); r['interest'] = P.property.to_numpy()
+    r['wage'] = P.wage.to_numpy(); r['selfemp'] = P.selfemp.to_numpy(); r['txbl_int'] = P.property.to_numpy()
     r['uc'] = P.uc.to_numpy(); r['ssb'] = P.ssb.to_numpy(); r['ssi'] = P.ssi.to_numpy()
     r['pension'] = P.other.to_numpy()
-    gi0 = r.wage + r.selfemp + r.interest + r.uc + r.pension
+    gi0 = r.wage + r.selfemp + r.txbl_int + r.uc + r.pension
     ssb = r.ssb.to_numpy()
     combined = np.maximum(gi0 + 0.5 * ssb, 0)
     t1 = np.where(marst == 1, 32000, 25000); t2 = np.where(marst == 1, 44000, 34000)

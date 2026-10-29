@@ -73,7 +73,7 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   x (1 - the year's Roth share for joint or non-joint returns,
                   settings deferrals); trad_deferrals their sum; medicare_wages
                   wages (box 1, which holds the Roth part) plus trad_deferrals
-  CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
+  CPS ages        age1, age2, dep_age1-3 in years, -1 for none
   ssn1, ssn2, dep_ssn1-3  (since 28 October; John, NEXT_STEPS.md item 1, Q4)
                   whether each person has a Social Security number, 1 or 0,
                   from the drawn CPS status (ssn_status_primary, _spouse,
@@ -97,13 +97,13 @@ import pandas as pd
 import common
 
 # The order fixes each amount's random stream; it must not change.
-ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
+ORDER = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
          'kg_st', 'kg_lt', 'kg_dist', 'kg_other',
-         'business_income', 'retirement_gross', 'tax_exempt_interest', 'other_gains', 'ira_taxable',
-         'pensions_taxable', 'ss_taxable', 'unemployment', 'alimony', 'state_refunds', 'adjustments',
-         'sch_c', 'part_pass_inc', 'part_nonpass_inc', 'part_pass_loss', 'part_nonpass_loss', 'part_179',
-         'scorp_pass_inc', 'scorp_nonpass_inc', 'scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179',
-         'rent_inc', 'rent_loss', 'estate_inc', 'estate_loss', 'farm_rent', 'sche_other', 'farm']
+         'business_income', 'retirement_gross', 'exempt_int', 'other_gains', 'txbl_ira_dist',
+         'txbl_pens_dist', 'ss_taxable', 'ui', 'alimony', 'state_ref', 'adjustments',
+         'sole_prop', 'part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
+         'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179',
+         'rent', 'rent_loss', 'estate', 'estate_loss', 'farm_rent', 'sche_other', 'farm']
 # Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
 # itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
 META = common.meta()
@@ -117,8 +117,8 @@ OVERTIME = list(META['cps_structure'].get('overtime', []))
 # The SCF amounts of the retrain of 29 October (the retirement accounts' stock share; the QBI items' outside workers),
 # at the very end after the overtime, so no earlier stream moves
 RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_schc', 'biz_workers_part', 'biz_workers_scorp']
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST + RETRAIN_1029] \
-    + list(META['cex_amounts']) + ['ss_gross'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
+ORDER = ORDER + ['first_mort_int', 'salt_prop'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST + RETRAIN_1029] \
+    + list(META['cex_amounts']) + ['gross_ss'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
 ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
 ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
@@ -133,7 +133,7 @@ FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amou
 AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
 KG_PIECES = META['kg_pieces']
 FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
-AGI_PARTS = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi']
+AGI_PARTS = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']
 
 
 def agi(df):
@@ -286,7 +286,7 @@ def deferral_items(out, year):
     """In place (since 28 October; the person rules decided 27 October), after the ages are in years: each person's
     elective deferrals, the drawn unit total split by the drawn spouse's share (elective2 = share x total, elective1 the
     rest; all to the primary filer when the frame has no share), each held to the year's legal limit for that
-    person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age_primary and age_spouse) and to
+    person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age1 and age2) and to
     that person's own wages (wages1, wages2: none without wages, as for tips); elective1 and elective2 are the held
     amounts. Then each person's traditional part (Tax-Simulator's trad_contr_er1, trad_contr_er2: elective x (1 - the
     year's Roth share for joint or non-joint returns), translate.traditional_deferrals), their sum trad_deferrals, and
@@ -310,7 +310,7 @@ def deferral_items(out, year):
     w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
     lines = []
     trad = np.zeros(len(e))
-    for k, age_col in [(1, 'age_primary'), (2, 'age_spouse')]:
+    for k, age_col in [(1, 'age1'), (2, 'age2')]:
         assert age_col in out and f'wages{k}' in out, f'deferral_items needs {age_col} and wages{k}'
         age = out[age_col].to_numpy(float)
         limit = np.where(age >= D['catch_up_age'], lim[1], lim[0])
