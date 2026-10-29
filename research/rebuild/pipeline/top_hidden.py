@@ -20,8 +20,11 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      returns fall short of the aggregated ones, so the first assignment is by rank: the selected returns with negative
      AGI form the negative group; the others, ranked by AGI, are split in the shares of the three positive groups'
      population counts. After the dollars are scaled (step 6), each record must lie in its group by its final AGI in
-     2015 dollars ($0 to $10,000,000; $10,000,001 to $100,000,000; above): a record outside it is moved to its group
-     (or, after settings move_iterations rounds, dropped) and steps 4 to 6 are repeated (settings group_iterations).
+     2015 dollars ($0 to $10,000,000; $10,000,001 to $100,000,000; above): for settings move_iterations rounds a record
+     outside it is moved to the group its AGI is in and steps 4 to 6 are repeated; after that, each record is held
+     inside its group through the residual part other_agi_remainder (other income: the PUF's AGI less every identified
+     item), set at the group's line where needed and the rest of the part scaled to keep the group's net; a record
+     still outside is dropped (settings group_iterations).
      Each group keeps a manageable, varied set (settings records_per_group, min_per_rule). Where a group must hold a
      sign of a field that its records lack (its raw record's net amount needs it), the largest such candidates from
      the rest of the pool are added (settings targeted_per_gap).
@@ -42,7 +45,11 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      dividends (the parts are qualified and other dividends, both at least 0); the capital gain on the return is short
      plus long term plus the other piece, at least the allowed loss (-$3,000, -$1,500 married filing separately), the
      other piece (a residual in the PUF) taking up the cap; taxable Social Security at most 85% of gross; taxable
-     pensions at most total pensions (BOUNDED). A bounded part is scaled on the records inside its bound, iterated.
+     pensions at most total pensions, total pensions (gross retirement less gross Social Security, E01500) being the
+     part scaled (BOUNDED). A bounded part is scaled on the records inside its bound, iterated; what a bounded part
+     falls short of its group's net moves into other_agi_remainder, so each group's AGI equals the raw record's.
+     Donors whose total pensions are below their taxable pensions (the network draws them as separate items) are
+     raised first. A part a group's raw record has none of is zero on that group's records, redone each round.
      Charity: char_cash is E19800 (cash gifts), char_noncash E20100 (gifts other than cash); E19700 (the deduction)
      is a check only.
   7. Wealth drawn again after the scaling (redraw_wealth): every rebuilt return's whole balance sheet (every SCF slot:
