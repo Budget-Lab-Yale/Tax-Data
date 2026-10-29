@@ -51,7 +51,9 @@ age ranges, wage groups), `model.py` (the network, and every call of it),
 `fillin.py` (the two-slot fill-in, run by training), `qgroups.py` (grouped
 weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (the primary filer's age range, used by the table),
 `tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
-targets from `targets_config/`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
+targets from `targets_config/<year>/`, checked before every run), `growth.py` (how every dollar item is grown between
+years, from `targets_config/<year>/growth.yaml` and the series in `resources/growth/`), `config_overview.py` (the
+table of every setting by year, `targets_config/OVERVIEW.md`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
 mix of SCF waves), `survey_mix.py` (the CEX, CPS and SIPP year mix), `errors.py` (their standard errors),
 `solver.py` (the reweighting), `non_micro_imputations.py` (the non-microdata imputations: items set from the drawn
 items and a published table, and their checks).
@@ -70,7 +72,7 @@ Outputs, under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`:
 | `targets/` | the published SOI numbers |
 | `model/<run>/` | the trained model and its training log (`<run>` is `REBUILD_RUN`, default `seed<n>`; the default training seed is 20261017, so the default run name, `seed20261017`, is the installed latest's) |
 | `gen/<run>/` | the generated stack |
-| `tilt/<run>/` | the final file (`file_2019.parquet`, dollar columns in nominal 2019 dollars except the PUF items with no SOI Table 1.4 line to grow them, which stay in 2015 dollars: `FEATURES.md`), the target list (`targets.csv`), every target before and after (`fit.csv`), a summary (`summary.md`), the run report (`report.md` and `report_*.csv`), and the consumption, CPS and SIPP reports |
+| `tilt/<run>/` | the final file (`file_2019.parquet`, every dollar column in nominal 2019 dollars, each grown by its line in `targets_config/2019/growth.yaml` since 29 October; until then the PUF items with no SOI Table 1.4 line stayed in 2015 dollars: `FEATURES.md`), the target list (`targets.csv`), every target before and after (`fit.csv`), a summary (`summary.md`), the run report (`report.md` and `report_*.csv`), and the consumption, CPS and SIPP reports |
 
 ## Working rules
 
