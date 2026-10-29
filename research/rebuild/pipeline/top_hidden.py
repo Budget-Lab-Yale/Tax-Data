@@ -131,6 +131,9 @@ def puf_items(raw, itemizer=None, old=None):
     n = len(raw)
     out = {'wages': f['E00200'], 'txbl_int': f['E00300'], 'div_pref': f['E00650'], 'div_ord': f['E00600'] - f['E00650'],
            'kg_st': f['P22250'], 'kg_lt': f['P23250'], 'kg_dist': f['E01100']}   # before the loss limit (29-30 October)
+    # line 13's shortfall below the allowed net put on the short-term piece, as build_table.puf_rows does
+    mars = f['MARS'] if 'MARS' in f else None
+    out['kg_st'] = f['P22250'] + np.minimum(f['E01000'] - common.allowed_capital_gain(f['P22250'] + f['P23250'], mars), 0)
     for p, (fld, _) in BT.PARTS.items():
         if fld:
             out[p] = f[fld]
@@ -155,7 +158,7 @@ def puf_items(raw, itemizer=None, old=None):
              'adjustments': sum(f[c] for c in BT.ADJ_FIELDS)}
     assert set(items) == set(SIGNED_ITEMS), (set(items) ^ set(SIGNED_ITEMS))
     # line 13 in AGI as build_table.puf_rows has it: the allowed Schedule D net plus distributions (29-30 October)
-    allowed = common.allowed_capital_gain(f['P22250'] + f['P23250'], f['MARS'] if 'MARS' in f else None)
+    allowed = common.allowed_capital_gain(out['kg_st'] + f['P23250'], mars)
     out['other_agi_remainder'] = f['E00100'] - f['E00200'] - f['E00300'] - f['E00600'] - allowed - f['E01100'] \
         - sum(SIGNED_ITEMS[v] * items[v] for v in items)
     df = pd.DataFrame({v: np.asarray(out[v], float) for v in PRIMITIVES}, index=raw.index)
@@ -207,7 +210,7 @@ def raw_targets(agg):
     nets = means.mul(n, axis=0)
     # the allowed Schedule D net of each raw record (the loss limit on its mean), as its residual was made (puf_items)
     f = agg.fillna({c: 0.0 for c in blank})
-    nets['sched_d_allowed'] = n * common.allowed_capital_gain(f['P22250'].to_numpy(float) + f['P23250'].to_numpy(float),
+    nets['sched_d_allowed'] = n * common.allowed_capital_gain(means['kg_st'].to_numpy(float) + means['kg_lt'].to_numpy(float),
                                                               f['MARS'].to_numpy() if 'MARS' in f else None)
     nets.index = GROUPS
     return n, means, nets

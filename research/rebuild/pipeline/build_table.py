@@ -383,10 +383,17 @@ def puf_rows(puf):
            'dep_filer': (puf['DSI'] == 1).astype(np.int64).to_numpy(),
            'n_dep': np.minimum(n_dep, 3).astype(np.int64), 'filer': 1, 'filer_p': 1.0,
            'wages': I['E00200'], 'txbl_int': I['E00300'], 'dividends': I['E00600']}
-    kg = {'kg_st': I['P22250'], 'kg_lt': I['P23250'], 'kg_dist': I['E01100']}
-    out.update(kg, capital_gains=I['P22250'] + I['P23250'] + I['E01100'])   # before the loss limit
+    # The PUF's line 13 (E01000) falls below the allowed Schedule D net (P22250 + P23250, a loss held to the limit) on
+    # 6.2 million 2015 returns, $52 billion: 3.4 million show the full allowed loss on line 13 while their pieces do
+    # not (disclosure protection perturbs each field on its own), the rest small gaps. That shortfall is put on the
+    # short-term piece, so line 13 is the allowed net again and the returns keep their loss (DECISIONS_FOR_JOHN.md,
+    # 30 October); what is left the other way (line 13 above the allowed net; $0.1 billion) stays in other_agi.
+    left = I['E01000'] - common.allowed_capital_gain(I['P22250'] + I['P23250'], I['MARS'])
+    kg = {'kg_st': I['P22250'] + np.minimum(left, 0).astype(np.int64), 'kg_lt': I['P23250'], 'kg_dist': I['E01100']}
+    out.update(kg, capital_gains=kg['kg_st'] + kg['kg_lt'] + kg['kg_dist'])   # before the loss limit
     # line 13 in AGI: the allowed Schedule D net plus distributions; the rest of E01000 goes to other_agi below
-    line13_allowed = common.allowed_capital_gain(I['P22250'] + I['P23250'], I['MARS']) + I['E01100']
+    line13_allowed = common.allowed_capital_gain(kg['kg_st'] + kg['kg_lt'], I['MARS']) + I['E01100']
+    assert ((line13_allowed - I['E01100'] == I['E01000']) | (left > 0)).all(), 'line 13 not restored'
     items = {'business_income': I['E00900'] + I['E02000'] + I['E02100'], 'other_gains': I['E01200'],
              'txbl_ira_dist': I['E01400'], 'txbl_pens_dist': I['E01700'], 'ss_taxable': I['E02500'],
              'ui': I['E02300'], 'alimony': I['E00800'], 'state_ref': I['E00700'],

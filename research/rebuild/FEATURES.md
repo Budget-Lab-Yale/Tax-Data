@@ -1445,8 +1445,12 @@ gains, which on a return with a net loss is the part of the loss the limit holds
   net in AGI, SOI Table 1.4's line) and `capital_gains_line13` (with distributions) apply it in `dollars.py`, in the
   tilt's recombination of a grown file, in the top step's rebuilt hidden returns and in the band AGI that sets the AGI
   group label. The calculator applies the same limit itself to `kg_st` and `kg_lt`.
-- **Line 13 on the PUF.** What is left of E01000 once the allowed net is taken out (zero on nearly every return) stays
-  in other AGI, so each PUF record's AGI is still exactly the PUF's.
+- **Line 13 on the PUF.** On 6.2 million 2015 returns ($52 billion) line 13 (E01000) is below the allowed Schedule D
+  net of the two pieces: 3.4 million returns ($35 billion) show the full allowed loss on line 13 while their pieces do
+  not reach it, 1.6 million differ by rounding, 1.2 million ($16 billion) by more (the PUF perturbs each field on its
+  own). That shortfall is put on the short-term piece, so the return's allowed net is its line 13 again and it keeps
+  its loss (SOI counts it among the returns with a net loss). What is left the other way ($0.1 billion on 1.7 million
+  returns) stays in other AGI, so each PUF record's AGI is still exactly the PUF's.
 - **Growth.** The pieces' losses grow with the gains (Schedule D net gain per return with one, `growth.yaml`); until
   now losses were not grown because they sat at the nominal limit.
 - **The SCF.** It asks the amount on the return, where a loss stops at $3,000. Its losses are read as at most $3,000,
