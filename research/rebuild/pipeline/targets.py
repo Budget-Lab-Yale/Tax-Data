@@ -325,6 +325,13 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
 
     def g(b):
         (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
+        if not (c1 > 0 and a1 != 0):
+            # (30 October) a line SOI stopped publishing after the law repealed the item (the domestic production
+            # activities deduction from 2018-2020, the tuition and fees deduction from 2021): not grown past the last
+            # year it was published; the calculator applies the year's law (the item is zero under it)
+            prev = [y for y in total_years() if a < y < b and soi_item(y, item, a, rows, absolute)[1] > 0]
+            assert prev, f'{item or rows}: no SOI amount in {b} and none between {a} and {b}'
+            return g(prev[-1])
         return (a1 / c1) / (a0 / c0)
     concept = CBO_CONCEPT.get(item, 'Net business income' if rows is not None and any(
         k in r for r in rows for k in ('partnership', 'business', 'farm', 'rent', 'royalty', 'estate')) else

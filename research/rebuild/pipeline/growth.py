@@ -193,8 +193,33 @@ def agi_per_return(y):
     return lev(last) * _soi_per_capita_extension(y, last)
 
 
+def income_per_person_growth(a, b):
+    """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3) while BEA has both years,
+    then CBO's projection (cbo_personal_income_population.csv, its growth only)."""
+    bea = _csv('bea_personal_income_per_capita.csv')
+    b_last = int(bea.index.max())
+    if b <= b_last:
+        return _at(bea, b, 'BEA personal income per capita') / _at(bea, a, 'BEA personal income per capita')
+    cbo = _csv('cbo_personal_income_population.csv')
+    mid = max(a, b_last)
+    head = _at(bea, mid, 'BEA') / _at(bea, a, 'BEA') if mid > a else 1.0
+    return head * _at(cbo, b, 'CBO personal income per capita') / _at(cbo, mid, 'CBO personal income per capita')
+
+
 def level(spec, y):
-    """The series' level in year y (a series given as a level; not SOI 1.4, which is a ratio between years)."""
+    """The series' level in year y (a series given as a level; not SOI 1.4, which is a ratio between years). Past the
+    last year its files cover (30 October, years after the data): the last year's level grown with personal income
+    per person (BEA, then CBO's projection; income_per_person_growth), a placeholder recorded in the year's growth
+    report."""
+    files = SERIES[spec['series']][1]
+    if files:
+        last = min(int(_csv(f).index.max()) for f in files)
+        if y > last:
+            return _level(spec, last) * income_per_person_growth(last, y)
+    return _level(spec, y)
+
+
+def _level(spec, y):
     s = spec['series']
     if s == 'agi per return':
         return agi_per_return(y)
@@ -204,7 +229,8 @@ def level(spec, y):
         return _at(_csv('census_sl_income_tax.csv'), y, s) / TG.all_returns(y)
     if s == 'nipa pce per return':
         if 'pce' not in _CSV:
-            _CSV['pce'] = pd.read_csv(common.RAW['pce']).set_index('year')
+            f = common.RAW['pce'] if os.path.isabs(common.RAW['pce']) else os.path.join(RESOURCES, common.RAW['pce'])
+            _CSV['pce'] = pd.read_csv(f).set_index('year')
         p = _CSV['pce']
         if y in p.index:
             return p.loc[y, spec['category']] / TG.all_returns(y)
