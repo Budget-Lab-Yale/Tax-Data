@@ -146,6 +146,21 @@ Left as is (John, 27 October):
   `previous_2026-10-29_before_retrain2/`. Left open: the new networks give too many filers dividends, interest and
   capital gains before reweighting (capital gains 15.3% against the PUF's 13.3%), not yet traced; and non-filers no
   longer have capital gains ($65 billion on 1.7 million before), which John accepted.
+- **Every dollar item grown, from a declared source, and the targets configuration as one folder per year**
+  (John, 29 October). Today `build_table.growth()` grows each PUF item by SOI Table 1.4's dollars per return with the
+  item and silently leaves 26 items with no Table 1.4 line in 2015 dollars (mortgage interest, real estate tax and
+  the other itemized deductions, the AMT items, the credits and two other taxes; `NO_GROWTH`). Tax-Simulator on the
+  2019 file found itemized deductions 25-35% below production's from this. Rules:
+  - every dollar item needs a growth source in every year; the pipeline stops if one is missing;
+  - the source must be exogenous to tax policy: SOI's itemized deduction tables (Table 2.1) are ruled out, since
+    the 2017 law's collapse in itemizers moves their totals and means; a series on the underlying spending or tax,
+    per holder where a clean one exists (for example the ACS's real estate taxes paid by owners), else per household
+    when the share of holders is steady, else AGI per return as a rough prior (Codex research: scratch
+    `explore/2026-10-29/growth_sources/REPORT.md`);
+  - the targets configuration becomes one folder per year (`targets_config/<year>/targets.yaml`, `growth.yaml`,
+    `prior.yaml`), fully written out, no inheritance; a new year starts as a copy of the nearest year's folder; a
+    check before every run (a growth line for every dollar item, a value source for every target); and one overview
+    table, settings by years, marking what differs from the neighbouring year, in place of the defaults layers.
 - **For the next retrain: capital gains drawn before the $3,000 loss limit** (John, 29 October). The limit is
   computed at tax time; it is not a feature of the data. Today the rebuild draws a third gains piece, `kg_other`, the
   PUF's Form 1040 line 13 (E01000) less short- and long-term gains, and on returns with net losses that piece is the
