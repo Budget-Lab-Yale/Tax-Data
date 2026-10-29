@@ -69,14 +69,28 @@ def uniform(df, item, person):
     return uniform_by_id(df['record_id'].to_numpy(), salt)
 
 
+def fill_missing_sex(df):
+    """The one drawn column this module writes back (John, 28 October): a primary filer with an age and no sex (2 records
+    of the model 20261019's generation, both with the sex 0 = none) is given a sex, man or woman with even chances, by
+    the death item's keyed draw (stream 8, person 1: the same number the item used before the write-back, so the death
+    probabilities do not move). Generation now forces the primary filer's sex to a man or a woman (generate.py,
+    cps_structure), so this finds nobody in a file made after that change. Returns the frame and the rows changed."""
+    nosex = (df['age_primary'].to_numpy() >= 0) & (df['sex_primary'].to_numpy() <= 0)
+    df = df.copy()
+    if nosex.any():
+        draw = np.where(uniform(df, 'death_probabilities', 1) < 0.5, 1, 2).astype(df['sex_primary'].dtype)
+        df.loc[nosex, 'sex_primary'] = draw[nosex]
+    return df, nosex
+
+
 def primary_age_sex(df):
     """The primary filer's exact age and sex: the drawn ones, or a dependent filer's from dependent_filer_age_sex.
-    The sex is 0 where generation drew an age but no sex (2 records in the run of 28 October; death_probabilities
-    says what it does with them)."""
+    The sex is never 0 after fill_missing_sex."""
     dep = df['age_primary'].to_numpy() < 0
     age = np.where(dep, df['dep_filer_age'].to_numpy(), df['age_primary'].to_numpy())
     sex = np.where(dep, df['dep_filer_sex'].to_numpy(), df['sex_primary'].to_numpy())
     assert not (age < 0).any(), f'{int((age < 0).sum())} records with no primary age after the dependent filers\' draw'
+    assert not (sex <= 0).any(), f'{int((sex <= 0).sum())} primary filers with no sex (fill_missing_sex runs first)'
     assert not (dep & (sex <= 0)).any(), 'a dependent filer with no sex after the draw'
     return age.astype(int), sex.astype(int)
 
@@ -205,8 +219,6 @@ def death_probabilities(df, year, w, ctx):
     q, ly = life_table_q(year, top)
     a1, s1 = primary_age_sex(df)
     a1 = np.minimum(a1, top)
-    nosex = s1 <= 0      # an age but no sex from generation: a sex by a keyed draw, even chances, for this item only
-    s1 = np.where(nosex, np.where(uniform(df, 'death_probabilities', 1) < 0.5, 1, 2), s1)
     sp = has_spouse(df)
     a2 = np.minimum(df['age_spouse'].to_numpy().astype(int), top)
     s2 = df['sex_spouse'].to_numpy().astype(int)
@@ -245,8 +257,7 @@ def death_probabilities(df, year, w, ctx):
     ctx['notes'].append(f'death probabilities: SSA period life table {ly}; Johnson factors divided by the file\'s mean '
                         f'among men ({", ".join(f"{k} {v:.4f}" for k, v in rescale.items())}); '
                         f'{int((married & ~sp).sum())} married records with no spouse age or sex get no q_death2; '
-                        f'{int(nosex.sum())} primary filers with an age but no sex ({w[nosex].sum():,.0f} units) take a '
-                        'sex by a keyed draw')
+                        f'primary filers without a sex were given one first (fill_missing_sex)')
     return {'q_death1': q1, 'q_death2': q2}
 
 
@@ -291,14 +302,35 @@ def unrealized_gains(df, year, w, ctx):
 
 
 def cost_basis(df, year, w, ctx):
+    w = np.asarray(w, float)
     oh, rf = df['w_other_home'].to_numpy(float), df['w_re_fund'].to_numpy(float)
     tot = oh + rf
     s = np.divide(oh, tot, out=np.full(len(df), 0.5), where=tot > 0)
-    kg = df['w_kg_other_re'].to_numpy(float)
-    return {'basis.equities': df['w_equities'].to_numpy(float) - df['w_kg_other'].to_numpy(float),
-            'basis.pass_throughs': df['w_pass_throughs'].to_numpy(float) - df['w_kg_pass_throughs'].to_numpy(float),
-            'basis.primary_home': df['w_primary_home'].to_numpy(float) - df['w_kg_primary_home'].to_numpy(float),
-            'basis.other_home': oh - kg * s, 'basis.re_fund': rf - kg * (1 - s)}
+    def held(g, v):    # a holding's share of the gain, held to its value exactly (the split's rounding can leave a hair over)
+        return np.where(v > 0, np.minimum(g, v), g)
+
+    gain = {'equities': df['w_kg_other'].to_numpy(float), 'pass_throughs': df['w_kg_pass_throughs'].to_numpy(float),
+            'primary_home': df['w_kg_primary_home'].to_numpy(float)}
+    value = {'equities': df['w_equities'].to_numpy(float), 'pass_throughs': df['w_pass_throughs'].to_numpy(float),
+             'primary_home': df['w_primary_home'].to_numpy(float)}
+    # other real estate: one gain on the two holdings together, held to their combined value (each share of it is then
+    # at most that holding's value, because the split is by value)
+    gain['other_re'], value['other_re'] = df['w_kg_other_re'].to_numpy(float), tot
+    out, cut = {}, []
+    for k in gain:     # hold each gain to its value: basis = value - min(gain, value), never below 0 (John, 28 October)
+        g = np.minimum(gain[k], value[k])
+        cut.append({'asset': 'other_homes and other real estate (one gain)' if k == 'other_re' else k,
+                    'units capped': int((g < gain[k]).sum()), 'weighted units (millions)': w[g < gain[k]].sum() / 1e6,
+                    'gain removed ($ billion, weights as given)': (w * (gain[k] - g)).sum() / 1e9})
+        gain[k] = g
+    ctx['basis capped'] = pd.DataFrame(cut)
+    ctx['notes'].append('cost basis, drawn gains held to the value: ' + '; '.join(
+        f'{r.asset} {r["units capped"]:,} records' for _, r in ctx['basis capped'].iterrows()))
+    return {'basis.equities': value['equities'] - gain['equities'],
+            'basis.pass_throughs': value['pass_throughs'] - gain['pass_throughs'],
+            'basis.primary_home': value['primary_home'] - gain['primary_home'],
+            'basis.other_home': oh - held(gain['other_re'] * s, oh),
+            'basis.re_fund': rf - held(gain['other_re'] * (1 - s), rf)}
 
 
 # ---- 5. holding period and basis of long-term gains (Q7) ----------------------------------------------------------
@@ -358,14 +390,25 @@ def draw_holding(u1, u2, probs, M):
 
 
 def gains_holding_period(df, year, w, ctx):
+    w = np.asarray(w, float)
     M = holding_model(year)
     kg = df['kg_lt'].to_numpy(float)
     u1, u2 = uniform(df, 'gains_holding_period', 1), uniform(df, 'gains_holding_period', 2)
     years_held, basis = np.full(len(df), -1.0), np.zeros(len(df))
     group = np.full(len(df), -1)
+    # a holding period is at most the owner's age less 18 (John, 28 October). The owner is the older of the primary
+    # filer and the spouse (the gain is the couple's; either may hold the asset); no spouse, or none with an age, is
+    # the primary filer's age alone. The cap is held to at least 1 year, the shortest long-term holding period, so a
+    # filer under 19 holds for a year.
+    a1, _ = primary_age_sex(df)
+    oldest = np.maximum(a1, df['age_spouse'].to_numpy().astype(int))
+    cap = np.maximum(oldest - 18, 1).astype(float)
+    drawn = np.full(len(df), np.nan)
     for sign, probs in [(1, M['pi_g']), (-1, M['pi_l'])]:
         m = np.sign(kg) == sign
         h, b = draw_holding(u1[m], u2[m], probs, M)
+        drawn[m] = h
+        h = np.minimum(h, cap[m])
         years_held[m], group[m] = h, b
         if sign == 1:
             r = M['gain_ratio'](h)
@@ -374,6 +417,11 @@ def gains_holding_period(df, year, w, ctx):
             r = M['loss_ratio'](h)
             basis[m] = -kg[m] * r / (r - 1)
     assert np.isfinite(basis).all() and (basis[kg != 0] > 0).all(), 'a long-term gain with no positive basis'
+    capped = ~np.isnan(drawn) & (drawn > cap)
+    ctx['holding capped'] = {'records': int(capped.sum()), 'units': float(w[capped].sum()),
+                             'long-term records': int((kg != 0).sum()), 'units with long-term': float(w[kg != 0].sum()),
+                             'longest before': float(np.nanmax(drawn)), 'longest after': float(years_held.max()),
+                             'under 19 (cap 1 year)': int(((oldest < 19) & (kg != 0)).sum())}
     ctx['holding'] = {'model': M, 'group': group}
     ctx['notes'].append(f'holding period: basis-to-sales regression at {year}\'s trailing S&P 500 returns; ratio by '
                         f'group ' + ', '.join(f'{r:.3f}' for r in M['pred']) + f'; top group length {M["h_top"]:.1f} years')
@@ -460,9 +508,12 @@ def impute(df, year, w):
     assert not clash, f'columns the non-microdata imputations write are already in the file: {clash}'
     w = np.asarray(w, float)
     assert len(w) == len(df) and np.isfinite(w).all() and (w >= 0).all()
-    out = df.copy()
+    out, nosex = fill_missing_sex(df)      # the only drawn column changed: sex_primary, where it was none
     before = {c: out[c].to_numpy(copy=True) for c in df.columns}
-    ctx = {'notes': [], 'year': year}
+    ctx = {'notes': [], 'year': year, 'sex filled': {'records': int(nosex.sum()), 'units': float(w[nosex].sum()),
+                                                      'record_ids': df['record_id'].to_numpy()[nosex].tolist()}}
+    ctx['notes'].append(f'primary filers with an age and no sex given one: {int(nosex.sum())} records '
+                        f'({w[nosex].sum():,.0f} units at the start\'s weights)')
     for name, f in FUNCTIONS.items():
         cols = f(out, year, w, ctx)
         assert list(cols) == ITEMS[name]['writes'], f'{name}: wrote {list(cols)}, settings say {ITEMS[name]["writes"]}'
@@ -635,7 +686,7 @@ def check_accruals(df, w, ctx):
     return t, pd.DataFrame(comp), lines
 
 
-def check_basis(df, w):
+def check_basis(df, w, ctx):
     rows = []
     for k, v, g in [('equities', 'w_equities', None), ('pass_throughs', 'w_pass_throughs', 'w_kg_pass_throughs'),
                     ('primary_home', 'w_primary_home', 'w_kg_primary_home'), ('other_home', 'w_other_home', None),
@@ -644,9 +695,13 @@ def check_basis(df, w):
         val = df[v].to_numpy(float)
         rows.append({'asset': k, 'value ($ billion)': _bn((w * val).sum()),
                      'unrealized gain ($ billion)': _bn((w * (val - b)).sum()), 'basis ($ billion)': _bn((w * b).sum()),
-                     'units with a negative basis (millions)': w[b < 0].sum() / 1e6})
-    return pd.DataFrame(rows), ['basis = value - the SCF\'s unrealized gain (the gain on other real estate split by '
-                                'value); a negative basis is a drawn gain larger than the drawn value.']
+                     'units with a negative basis (millions, should be 0)': w[b < 0].sum() / 1e6})
+    return [pd.DataFrame(rows), ctx['basis capped']], [
+        'basis = value - the SCF\'s unrealized gain (the gain on other real estate split by value), the gain first held '
+        'to no more than the value so a basis is never below 0. The second table counts the records where the drawn gain '
+        'exceeded the value and the gain removed (the gain and the value are drawn separately). A basis can still be '
+        'below 0 where the drawn value itself is negative (other real estate in some records), which the rule does '
+        'not touch.']
 
 
 def check_holding(df, w, ctx):
@@ -672,6 +727,11 @@ def check_holding(df, w, ctx):
              f'${_bn((w * b)[gain].sum()):,.1f} billion; losses: {w[loss].sum() / 1e6:.2f} million units, '
              f'${_bn(L):,.1f} billion, basis ${_bn((w * b)[loss].sum()):,.1f} billion. The group is drawn unconditionally '
              'with SOCA\'s shares, so the file\'s shares differ only by chance and by the tilt.']
+    c = ctx['holding capped']
+    lines.append(f'Each period is held to at most the older adult\'s age less 18 (at least 1 year): {c["records"]:,} of '
+                 f'{c["long-term records"]:,} records with a long-term gain or loss changed ({c["units"] / 1e6:.2f} of '
+                 f'{c["units with long-term"] / 1e6:.2f} million units at the start\'s weights); {c["under 19 (cap 1 year)"]:,} '
+                 f'are under 19; the longest period fell from {c["longest before"]:.0f} to {c["longest after"]:.0f} years.')
     return pd.DataFrame(rows), lines
 
 
@@ -712,8 +772,8 @@ def checks(df, year, w, ctx=None):
     out.append(('Death probabilities: expected deaths against SSA', [t], ln))
     t, comp, ln = check_accruals(df, w, ctx)
     out.append(('Yearly unrealized gains against Z.1 holding gains', [t, comp], ln))
-    t, ln = check_basis(df, w)
-    out.append(('Cost basis of each asset', [t], ln))
+    t, ln = check_basis(df, w, ctx)
+    out.append(('Cost basis of each asset', t, ln))
     t, ln = check_holding(df, w, ctx)
     out.append(('Holding period and basis of long-term gains against SOCA', [t], ln))
     t, ln = check_parents(df, w, ctx)
