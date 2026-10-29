@@ -89,6 +89,7 @@ assert PRECISION in ('fp32', 'tf32', 'bf16'), PRECISION
 C, P = len(M.CONTEXT), M.PREDICTED
 LABEL_SHOWN = bool(T.get('label_always_shown', False))
 ONE_IMPLICATE = bool(T.get('scf_one_implicate_per_pass', False))
+OVERFIT_LOG = bool(T.get('overfit_log', False))
 IMPLICATE_SALT = 20261029
 J_LABEL = [P.index(v) for v in M.PUF_LABELS]       # the AGI group label's position among the predicted slots
 
@@ -242,8 +243,10 @@ def main():
         opt, lambda s: (s + 1) / warm if s < warm else
         floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * (s - warm) / max(1, total - warm))))
     val_hidden = [show_label(M.draw_hidden(te['values'], gen)) for _ in range(4)]
-    # overfitting diagnostic (overfit_log.py): its own random generators, so training's draws are unchanged
-    olog = overfit_log.OverfitLog(model, tr, te, val_hidden, gate, show_label, common.SEED, common.MODEL)
+    # overfitting diagnostic (overfit_log.py; settings training.overfit_log, off by default): its own random
+    # generators, so training's draws are unchanged
+    olog = overfit_log.OverfitLog(model, tr, te, val_hidden, gate, show_label, common.SEED, common.MODEL) \
+        if OVERFIT_LOG else None
 
     # ---- the per-variable log: held-back PUF records for the PUF items, held-back CEX records for consumption
     logged = {'puf': [v for v in M.AMOUNTS if f'puf/{common.PUF_YEAR}/{v}' in common.edges()], 'cex': M.CEX_SLOTS,
@@ -326,8 +329,9 @@ def main():
                    + f'  {row["seconds"]:.1f}s (fill-in {t_refit:.1f}s, batches {t_batches:.1f}s)  peak {row["peak_gpu_gb"]:.2f} GB')
         if epoch == 1 or epoch % T['log_every_passes'] == 0 or epoch == T['passes']:
             log_variables(epoch)
-        olog.log(epoch)
-        if epoch % 10 == 0 and epoch < T['passes']:
+        if olog is not None:
+            olog.log(epoch)
+        if olog is not None and epoch % 10 == 0 and epoch < T['passes']:
             # overfitting diagnostic: the network after this pass, in a model folder of its own (<run>_p<pass>)
             ck = f'{common.OUT}/model/{common.RUN}_p{epoch}'
             os.makedirs(ck, exist_ok=True)

@@ -80,6 +80,8 @@
   "_label_always_shown": "On PUF rows the AGI group label is never hidden in training and never scored (train.py), as generation always presets it (TARGETS.md S8: $10M+ returns 3.3 times the PUF's with the label hidden half the time, 1.2 times with it always shown).",
   "scf_one_implicate_per_pass": false,
   "_scf_one_implicate_per_pass": "Experiment (branch rebuild-implicate1, 29 October; not adopted): true trains each pass on one of the five implicates of each SCF training household, chosen at random by the seed and the pass, its rows counting 5 times their weight (train.py). false: all five implicates every pass, as installed.",
+  "overfit_log": false,
+  "_overfit_log": "The overfitting diagnostic of 28 October (overfit_log.py, branch rebuild-overfit-diag): true writes slot_log.csv in the model folder, the loss per slot on the held-back records and on a fixed sample of training records each pass, and saves the network every 10 passes (<run>_p10 to _p70). Logging only, with random generators of its own: training is the same either way. false: no log, as installed.",
   "fillin_puf_side": "data",
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
