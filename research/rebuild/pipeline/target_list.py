@@ -921,7 +921,13 @@ def published_grid(source, year, cells, v, stats):
             assert z.value.ne('').all(), f'{source} {c["label"]} {spec["item"]}: {int(z.value.eq("").sum())} missing values: {z.flag.tolist()}'
             scales = z.unit.map({'returns': 1, '$ thousands': 1000, 'whole dollars': 1})
             assert scales.notna().all(), f'{source}: unknown units {z.unit.tolist()}'
-            return float((pd.to_numeric(z.value) * scales).sum())
+            x = pd.to_numeric(z.value) * scales
+            if 'net loss' in name and measure != spec.get('count', 'returns'):
+                # (30 October) Table 4.3 prints a net loss's amount as a negative number in some years (partnership
+                # and S corporation losses in 2020 and 2023, Schedules C and F losses in 2023) and as a positive one in
+                # others; the file's loss variables are sizes, so the published amount is read as its size
+                x = x.abs()
+            return float(x.sum())
         for st in stats:
             val = value(spec[st])
             count = value(spec.get('count', spec.get('units', 'returns')), spec.get('returns_item'))
