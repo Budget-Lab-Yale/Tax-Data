@@ -1084,7 +1084,7 @@ and never renumbered.
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
 | Blindness | `blind1`, `blind2` | since 29 October (branch `rebuild-retrain-1029`) each person's blindness as generation drew it from the PUF slot learned in pretraining (`blind_drawn1`, `blind_drawn2`; below, "The retrain of 29 October"); 0 for a file from an earlier model | SOI Publication 4801's blind boxes (the check) |
-| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | **placeholder**: 0, as the calculator experiment sets them (Q5, being researched) | |
+| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 29 October (branch `rebuild-retrain-1029`) the simple plan's rule on the SCF items the model draws (below, "The retrain of 29 October"); 0 for a file from an earlier model | the CPS's average pay of private employees by SCF industry group (`cps_private_pay_by_scf_group.csv`) |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
 or 0, −1 where the dependent does not exist; `q_death2` is −1 without a spouse; `kg_lt_years_held` is −1 and
@@ -1172,6 +1172,35 @@ translation table's row (first_year 2018) leaves `kg_lt`, and `capital_gains` co
 absent, not shown in training, as any item a survey does not ask. Nothing else in the table moves: the tax data's
 non-filers of 2015 and 2017 (the CPS of those years) still read the item as zero, as before, and the fill-in runs only
 from 2018, as before (`fillin.py` now allows the item to be absent in the years it does not fill in).
+
+**The overtime targets' wage groups** (`targets_config`; above, "Overtime" under the targets). The top group, $200,000
+and over, is merged into $100,000 and over (catalog `wage_groups_4`): 10 overtime targets instead of 12, 787 targets in
+all. Targets only; no retrain needed for this piece.
+
+**The QBI items** (Q5; the simple plan, scratch `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, research in `PLAN.md`
+there). Two parts.
+- *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). From the household's actively managed
+  businesses 1 and 2, for each of three kinds by legal form: Schedule C (sole proprietorship, or "not a formal
+  business"), partnership (partnership, or limited partnership, LLP or LLC) and S corporation; other corporations get no
+  item. `biz_industry_<kind>` (a category): the industry group of the household's largest business of the kind, largest
+  by the value of the household's share, the SCF public file's 7 groups, 8 for "no industry code" (the businesses worth
+  $100 million or more), 0 with no such business. `biz_workers_<kind>` (an amount, a count not grown between waves): the
+  owner's share of outside workers, the business's workers less the household members working in it, times the
+  household's ownership share, summed over the kind's businesses. Given, as `owns_business`, to the units holding the
+  household's business equity, the workers in proportion to each unit's equity; 0 on units outside the PEU. Generation
+  draws each kind's workers after its industry group (zero with none) and never draws "none" for the industry group of
+  a record with nonzero income of that kind (its PUF parts: Schedule C; the partnership parts; the S corporation parts).
+- *The rule* (`non_micro_imputations.qbi`, settings `non_micro_imputations.items.qbi`), for each record and kind with
+  positive income of that kind: specified service (`sstb_<kind>`) when the record's keyed draw is below b × c(group),
+  at most 1, with c(group) the plan's fixed chance per SCF group (6: 0.16, 3: 0.09, 5: 0.05, 1: 0.02, the others 0.01;
+  for "no industry code" the average of the seven weighted by the kind's positive income on the file); wage bill
+  (`wagebill_<kind>`) = a × the drawn owner's share of outside workers × the average pay of private employees in the
+  group in the target year (from the CPS ASEC, `build_non_micro_tables.cps_private_pay`, by the SCF codebook's collapse
+  of Census industry codes; "no industry code" takes all private employees), plus, for an S corporation, all the
+  record's wages when it has S corporation income and no Schedule C or partnership income (first version). Farms:
+  never specified service; wage bill = positive farm income. The dials a and b are 1 for now (solved later against
+  Treasury's and SOI's numbers, with the calculator); a, b and c are settings, so changing them needs only a rerun of
+  the tilt stage. No QBI targets.
 
 ## How the latest run comes out
 
