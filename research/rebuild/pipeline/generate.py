@@ -192,6 +192,7 @@ CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
 CPS_ZERO_WITHOUT = CPS_STRUCTURE.get('zero_without', {})
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
+SEX_PRIMARY = P.index('sex_primary')
 # the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
 # over (John, 26 October; cps_structure)
 SPOUSE_AGE = P.index(next(v for v in CPS_STRUCTURE['spouse'] if v in CPS_STRUCTURE['ages']))
@@ -391,7 +392,8 @@ def only(probs, rows, allowed=None):
 def cps_structure(values, slot, probs):
     """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married,
     and a married couple's spouse has an age and a sex, the age 18 or over (every record, filers and non-filers;
-    ages under 18 get no chance and the other ages are rescaled); the k-th dependent has an age exactly when there
+    ages under 18 get no chance and the other ages are rescaled); the primary filer's sex is a man or a woman, never
+    none (a dependent filer's is set to none after, in structural); the k-th dependent has an age exactly when there
     are at least k dependents; the primary filer's exact age lies in its age range, and a non-filer unit's head (the
     CPS-label batch, filing flag 0) is 18 or over (a 17-year-old head falls in none of the non-filer people targets'
     bands, adults from 18 and children under 17). Filers keep their PUF ranges: dependent filers can be teenagers."""
@@ -403,6 +405,8 @@ def cps_structure(values, slot, probs):
     not_none[0] = False
     probs = only(probs, on_spouse & ~married)
     sel = on_spouse & married & categorical
+    probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    sel = slot == SEX_PRIMARY    # the primary filer's sex is a man or a woman, never none (29 October: two records of the 20261019 model had an age and no sex)
     probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
     sel = (slot == SPOUSE_AGE) & married
     adult = torch.zeros(probs.shape[1], device=probs.device)

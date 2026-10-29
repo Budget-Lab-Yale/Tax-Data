@@ -1777,7 +1777,7 @@
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks."
  },
  "non_micro_imputations": {
-  "_what": "The non-microdata imputations (non_micro_imputations.py; NEXT_STEPS.md item 1, John's decisions Q1-Q9 of 28 October; FEATURES.md): items set from what the model has drawn plus a published table, no new microdata. Each item: the columns it reads, the published tables it reads (research/rebuild/resources/non_micro/, built by build_non_micro_tables.py; sources.csv there), the columns it writes and its random stream. They run inside the tilt stage on the start (target-year dollars, prescaled weights), before the solve; the two ranking items rank on the start's weights. Each item writes new columns only and never changes a drawn item or a weight. Their published checks are reported only (Q9), in report.md section 6 and non_micro_checks.md.",
+  "_what": "The non-microdata imputations (non_micro_imputations.py; NEXT_STEPS.md item 1, John's decisions Q1-Q9 of 28 October; FEATURES.md): items set from what the model has drawn plus a published table, no new microdata. Each item: the columns it reads, the published tables it reads (research/rebuild/resources/non_micro/, built by build_non_micro_tables.py; sources.csv there), the columns it writes and its random stream. They run inside the tilt stage on the start (target-year dollars, prescaled weights), before the solve; the two ranking items rank on the start's weights. Each item writes new columns only and never changes a drawn item or a weight, except that a primary filer with an age and no sex is given a sex first (fill_missing_sex). Their published checks are reported only (Q9), in report.md section 6 and non_micro_checks.md.",
   "run_in_tilt": true,
   "_run_in_tilt": "false: tilt.py leaves the file without these columns (the file as before 28 October).",
   "salt_base": 2026102800,
@@ -1815,7 +1815,7 @@
     "writes": ["q_death1", "q_death2"],
     "stream": 8,
     "top_age": 80,
-    "_why": "Production's three layers (src/mortality_ledger.R), no draw: the SSA period life table for the year, age and sex (80 means 80 and over: the average of q over ages 80-119 weighted by the table's L); times Chetty et al.'s mortality ratio at the person's percentile of broad income within sex and single age (start weights); times, for men only, Johnson et al.'s married or unmarried factor, rescaled to average 1 on the file within under 65 and 65 and over. Dependent filers use their ages and sex from dependent_filer_age_sex. q_death2 is -1 without a spouse. Stream 8 only for primary filers whom generation gave an age but no sex (2 records on 28 October): a sex with even chances, used for this item and not written."
+    "_why": "Production's three layers (src/mortality_ledger.R), no draw: the SSA period life table for the year, age and sex (80 means 80 and over: the average of q over ages 80-119 weighted by the table's L); times Chetty et al.'s mortality ratio at the person's percentile of broad income within sex and single age (start weights); times, for men only, Johnson et al.'s married or unmarried factor, rescaled to average 1 on the file within under 65 and 65 and over. Dependent filers use their ages and sex from dependent_filer_age_sex. q_death2 is -1 without a spouse. Stream 8 only for primary filers whom generation gave an age but no sex (2 records on 28 October): a sex with even chances, written back to sex_primary before any item runs (fill_missing_sex; the one drawn column this module changes; generate.py now forces the primary filer's sex to a man or a woman)."
    },
    "unrealized_gains": {
     "reads": ["w_equities", "w_pass_throughs", "w_primary_home", "w_other_home", "w_re_fund", "w_dc", "w_trusts", "age_primary", "age_spouse", "dep_filer_age"],
@@ -1831,7 +1831,7 @@
     "tables": [],
     "writes": ["basis.equities", "basis.pass_throughs", "basis.primary_home", "basis.other_home", "basis.re_fund"],
     "stream": null,
-    "_why": "Production's rule (src/imputations/wealth.R, to_output_schema): basis = value - the SCF's unrealized gain; the gain on other real estate is split between other homes and other real estate by value (half each when both are zero)."
+    "_why": "Production's rule (src/imputations/wealth.R, to_output_schema): basis = value - the SCF's unrealized gain; the gain on other real estate is split between other homes and other real estate by value (half each when both are zero). Each gain is first held to no more than the value, so a basis is never below 0 (John, 28 October; the gain and the value are drawn separately, so a gain could exceed the value)."
    },
    "gains_holding_period": {
     "reads": ["kg_lt"],
@@ -1839,7 +1839,7 @@
     "writes": ["kg_lt_years_held", "kg_lt_basis"],
     "stream": 4,
     "weibull": {"shape": 0.7711, "scale": 9.1458},
-    "_why": "Q7 (John, 28 October): production's method (src/imputations/capital_gains.R). A holding-period group drawn with SOCA's share of long-term gain dollars (loss dollars for losses), an exact period in the group from a Weibull shape (an exponential tail above 20 years); basis from production's regression on SOCA's panel, log(basis/sales) = a constant per group + b x years x log(1 + trailing S&P 500 return), evaluated at the target year's trailing returns (past the index's last year, the index grows at its 1926-last geometric mean). Person 1 picks the group, person 2 the period. kg_lt_years_held is -1 and kg_lt_basis 0 where kg_lt is 0."
+    "_why": "Q7 (John, 28 October): production's method (src/imputations/capital_gains.R). A holding-period group drawn with SOCA's share of long-term gain dollars (loss dollars for losses), an exact period in the group from a Weibull shape (an exponential tail above 20 years); basis from production's regression on SOCA's panel, log(basis/sales) = a constant per group + b x years x log(1 + trailing S&P 500 return), evaluated at the target year's trailing returns (past the index's last year, the index grows at its 1926-last geometric mean). Person 1 picks the group, person 2 the period. kg_lt_years_held is -1 and kg_lt_basis 0 where kg_lt is 0. Each period is held to at most the older adult's age less 18, and at least 1 year (John, 28 October; the basis is computed at the held period)."
    },
    "parents_rank": {
     "reads": ["the income items of production's measure", "the start's weights"],
