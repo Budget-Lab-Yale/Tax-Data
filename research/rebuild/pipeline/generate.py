@@ -70,6 +70,8 @@ One record is drawn slot by slot:
      without wages, the spouse's without a spouse's share of wages above zero;
      a flag is 0 where its tips are zero. Each person's tips are then held to
      at most that person's wages when bands become dollars (dollars.py).
+Blindness is not drawn here: since the second retrain of 29 October it is a rule in the non-microdata step
+(non_micro_imputations.blindness).
 Each step runs the network only on the slots present in its phase and
 computes only the output layers it needs.
 
@@ -175,6 +177,12 @@ P = M.PREDICTED
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
+# (29 October) the QBI items under the SCF label (build_table, meta scf_structure): each kind's outside workers drawn
+# after its industry group and zero with none; the industry group never none on a record with any of the kind's PUF
+# parts nonzero
+SCF_STRUCTURE = M.META.get('scf_structure', {'after': {}, 'industry_parts': {}})
+SCF_AFTER = {P.index(v): P.index(b) for v, b in SCF_STRUCTURE['after'].items()}
+INDUSTRY_PARTS = {P.index(v): torch.tensor([P.index(q) for q in parts]) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
 SCF_SLOTS = M.SCF_SLOTS
 CEX_SLOTS = M.CEX_SLOTS
 CPS_SLOTS = M.CPS_SLOTS
@@ -191,6 +199,9 @@ CPS_OVERTIME = [v for v in CPS_STRUCTURE.get('overtime', []) if v in CPS_SLOTS]
 CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
 CPS_ZERO_WITHOUT = CPS_STRUCTURE.get('zero_without', {})
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
+# (28 October) the dependents' Social Security number status: the k-th present when n_dep >= k, as the ages
+DEP_SSN = [P.index(v) for v in CPS_STRUCTURE.get('dependent_ssn', [])]
+PRIMARY_SSN = [P.index(v) for v in CPS_STRUCTURE.get('primary_ssn', [])]        # the primary filer's: never none
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
 SEX_PRIMARY = P.index('sex_primary')
 # the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
@@ -360,10 +371,9 @@ def scf_order(size, gen):
     scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
     perm = scf[torch.rand(size, len(scf), generator=gen).argsort(1)]
     rows = torch.arange(size)
-    for slot, (_, base) in M.RATIOS.items():
-        if slot not in SCF_SLOTS:
-            continue                                # the CPS's ratios: their base is a PUF slot, drawn earlier
-        i, ib = P.index(slot), P.index(base)
+    pairs = [(P.index(slot), P.index(base)) for slot, (_, base) in M.RATIOS.items() if slot in SCF_SLOTS]
+    # (the CPS's ratios: their base is a PUF slot, drawn earlier); the QBI items' workers after their industry group
+    for i, ib in pairs + list(SCF_AFTER.items()):
         pos, pos_b = (perm == i).int().argmax(1), (perm == ib).int().argmax(1)
         swap = pos < pos_b
         perm[rows[swap], pos[swap]], perm[rows[swap], pos_b[swap]] = ib, i
@@ -393,8 +403,9 @@ def cps_structure(values, slot, probs):
     """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married,
     and a married couple's spouse has an age and a sex, the age 18 or over (every record, filers and non-filers;
     ages under 18 get no chance and the other ages are rescaled); the primary filer's sex is a man or a woman, never
-    none (a dependent filer's is set to none after, in structural); the k-th dependent has an age exactly when there
-    are at least k dependents; the primary filer's exact age lies in its age range, and a non-filer unit's head (the
+    none (a dependent filer's is set to none after, in structural); the k-th dependent has an age, and a Social
+    Security number status, exactly when there are at least k dependents (the primary filer always has a status); the
+    primary filer's exact age lies in its age range, and a non-filer unit's head (the
     CPS-label batch, filing flag 0) is 18 or over (a 17-year-old head falls in none of the non-filer people targets'
     bands, adults from 18 and children under 17). Filers keep their PUF ranges: dependent filers can be teenagers."""
     married = values[:, NC + P.index('married')] == 1
@@ -412,9 +423,12 @@ def cps_structure(values, slot, probs):
     adult = torch.zeros(probs.shape[1], device=probs.device)
     adult[ADULT_AGE + 1:M.PERSON_CATEGORIES[P[SPOUSE_AGE]]] = 1.0   # value a + 1 is age a
     probs = only(probs, sel, adult.expand(int(sel.sum()), -1))
-    for k, j in enumerate(DEP_AGES, start=1):
+    for k, j in list(enumerate(DEP_AGES, start=1)) + list(enumerate(DEP_SSN, start=1)):
         probs = only(probs, (slot == j) & (n_dep < k))
         sel = (slot == j) & (n_dep >= k)
+        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    for j in PRIMARY_SSN:
+        sel = slot == j
         probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
     # overtime (28 October): the primary filer's is zero without wages, the spouse's without a spouse's share of the
     # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages less tips in dollars (dollars.py)
@@ -458,6 +472,23 @@ def deferral_structure(values, slot, probs):
     return probs
 
 
+def qbi_structure(values, slot, probs):
+    """The QBI items (29 October): a kind's outside workers are zero where its industry group is none (drawn first,
+    scf_order); its industry group is not none where any of the kind's PUF parts is nonzero (the record has such a
+    business: the model's chances of the 8 groups, rescaled)."""
+    for j, ind in SCF_AFTER.items():
+        probs = only(probs, (slot == j) & (values[:, NC + ind] == 0))
+    for j, parts in INDUSTRY_PARTS.items():
+        sel = slot == j
+        if not bool(sel.any()):
+            continue
+        has = (values[:, NC + parts.to(values.device)] != 0).any(1) & sel
+        not_none = torch.ones(probs.shape[1], device=probs.device)
+        not_none[0] = 0.0
+        probs = only(probs, has, not_none.expand(int(has.sum()), -1))
+    return probs
+
+
 def structural(values, slot, probs):
     """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them; no
     deferrals: no spouse's share of them). Elective deferrals follow wages and marriage (deferral_structure).
@@ -472,6 +503,7 @@ def structural(values, slot, probs):
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
     probs = deferral_structure(values, slot, probs)
+    probs = qbi_structure(values, slot, probs)
     dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
     probs[dep] = 0.0
     probs[dep, 0] = 1.0

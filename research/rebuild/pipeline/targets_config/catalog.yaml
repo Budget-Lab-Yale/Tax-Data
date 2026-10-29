@@ -614,6 +614,15 @@ groupings:
       - [50000, 100000, wages $50k-100k]
       - [100000, 200000, wages $100k-200k]
       - [200000, null, wages $200k and over]
+  # The overtime targets' wage groups since 29 October (John, 28 October): wage_groups_5 with its top two groups merged,
+  # $100,000 and over, because the $200,000-and-over group rested on about 430 asked CPS units a year.
+  wage_groups_4:
+    variable: wages
+    edges:
+      - [null, 25000, wages under $25k]
+      - [25000, 50000, wages $25k-50k]
+      - [50000, 100000, wages $50k-100k]
+      - [100000, null, wages $100k and over]
   # The AGI groups of the W-2 elective deferral targets (Table 2.D; 28 October): the table's AGI rows summed into
   # eight groups, so no cell rests on the table's thin rows below $25,000 or above $1 million.
   w2_agi_groups:

@@ -139,8 +139,8 @@ the spouse's share of the couple's wages. The PUF also shares:
   Schedule C);
 - with the SCF, the CPS and the SIPP, ordinary dividends (the CPS's go to
   qualified dividends);
-- with the SCF and the CPS, capital gains (the CPS's as long-term gains, from
-  tax year 2018), the two parts of Schedule E, tax-exempt interest and the
+- with the SCF, capital gains (on the branch `rebuild-retrain-1029` since the second retrain of 29 October; before,
+  also the CPS's as long-term gains from tax year 2018), with the SCF and the CPS the two parts of Schedule E, tax-exempt interest and the
   partnership/S corporation/LLC flag (on the CPS, tax-exempt interest and the
   flag are zero: it does not ask them);
 - with the SCF alone, taxable interest;
@@ -516,7 +516,7 @@ Two standard functions and one table (`settings.json`, "translation";
   | CEX | self-employment, against Schedules C and F | fill-in, count from the top |
   | CEX | gross Social Security | dollars |
   | CPS | dividends, into qualified dividends | ranked against the tax data's ordinary dividends; fill-in, percentile |
-  | CPS | capital gains, into long-term gains | asked from tax year 2018 (zero before), losses read as zero; fill-in, percentile |
+  | CPS | capital gains, into long-term gains | kept out of training in every year since the second retrain of 29 October (branch `rebuild-retrain-1029`); the row still gives the tax data's non-filers their gains from tax year 2018 (zero before); before, shown from 2018 with the fill-in, percentile |
   | CPS | pensions, with the 1099-R survivor and disability pensions | compared with taxable pensions plus taxable IRA distributions; fill-in, dollars |
   | CPS | unemployment | fill-in, dollars |
   | CPS | Schedule C (nonfarm and farm self-employment) | fill-in, count from the top |
@@ -619,15 +619,19 @@ Two standard functions and one table (`settings.json`, "translation";
     capital gains, Schedules C and F, business income) and the spouse's share of
     wages are hidden when the formula reads a unit's chance of reporting, and
     recomputed from the filled-in parts after each draw (since 28 October; before
-    the fix the CPS's Schedule C total gave its reported answer away).
+    the fix the CPS's Schedule C total gave its reported answer away). A total with
+    a missing part stays missing (since the second retrain of 29 October: before,
+    the recomputation read a missing part as its top band, which put a capital gain
+    of about $45 million on every 2015 and 2017 CPS training record).
   - A range where the survey has as many holders as the tax data, or more, gets
     none: the fill-in adds holders and never removes them. So a survey with too
     many holders in some ranges ends above the tax data overall (SCF rental
     income, below).
   - It assumes a holder's chance of reporting depends only on its type and
     true amount, not on net worth or anything else on the record.
-  - A row fills in only in the years its survey asks the item (the CPS's
-    capital gains from tax year 2018).
+  - A row fills in only in the years its survey asks the item, and only if it is
+    shown in training (the CPS's capital gains are not, since the second retrain of
+    29 October).
   - In the 2% held-back slice no fill-in is drawn, so there a zero-reporter's
     PUF-concept amount is unknown: not shown and not scored.
   - Net worth is drawn given the PUF-concept amounts; the reported slots
@@ -947,7 +951,7 @@ variance; the file's net worth lines are the share-weighted average of the waves
 0.65 of one wave's. The replicate weights of each wave sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to
 fetch them). `tilt/<run>/scf_targets_by_wave.csv` has each target's value, error, lines and SCF households by wave.
 
-The 2019 targets (789):
+The 2019 targets (789 on 28 October; 787 from the next run, with the overtime groups merged):
 
 | Targets | Number |
 |---|---:|
@@ -964,7 +968,7 @@ The 2019 targets (789):
 | SCF income x net worth grid, the same waves pooled (below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | SCF auto loan interest, the same waves pooled: the share of units with any and dollars per unit in the grid's 4 income groups | 8 |
 | CEX consumption, the 2019 and 2017 surveys pooled (73.11% and 26.89%): 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
-| CPS overtime, the 2019 and 2017 surveys pooled: the share of units with any and overtime per unit, over all units and in 5 groups of the unit's wages | 12 |
+| CPS overtime, the 2019 and 2017 surveys pooled: the share of units with any and overtime per unit, over all units and in 4 groups of the unit's wages (since 29 October; 5 groups and 12 targets before) | 10 |
 
 **Tables 1.3 and 4.3** (since 27 October; `historical.yaml`, read from the local IRS-Ind store's tidy files, settings
 `paths.raw.soi_tables`). Errors are borrowed from the nearest Table 1.4 cells. Table 1.3's capital loss is measured
@@ -1016,6 +1020,11 @@ differences), pooled over the two years as for the CEX.
 | $50,000-100,000 | 13.94% (0.65) | $3,065 ($187) |
 | $100,000-200,000 | 12.76% (0.80) | $4,256 ($355) |
 | $200,000 and over | 7.45% (1.19) | $2,808 ($537) |
+
+Since 29 October (John, 28 October; branch `rebuild-retrain-1029`) the top two groups are one, $100,000 and over
+(catalog `wage_groups_4`): the $200,000-and-over group rested on about 430 asked CPS units a year. The table above
+is the five-group version of 28 October. The merged group: $100,000 and over, 11.51% with any overtime (standard error
+0.65 points), $3,918 per unit ($298); the other groups are unchanged.
 
 **Consumption over the year mix** (since 28 October). Each CEX year's spending is put in 2019 dollars by NIPA
 consumption per return, category by category; the target is 73.11% of the 2019 average plus 26.89% of the grown 2017
@@ -1073,14 +1082,14 @@ and never renumbered.
 |---|---|---|---|
 | Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's CPS year, within its PUF dependent-filer age range; 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
 | Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
-| Dependents' Social Security numbers | `dep_ssn1-3` | **placeholder**: every dependent has a number (Q4, being researched) | |
+| Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
-| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (**placeholder**: production's age rule, 1.10 − age/100 held to 0.20-0.95, until the SCF stock share is learned in pretraining); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
+| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (since 29 October the SCF's, `w_dc_stock_share`, learned in pretraining and drawn with the balance sheet; before, and for a file from an earlier model, production's age rule, 1.10 − age/100 held to 0.20-0.95); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
 | Cost basis of each asset | `basis.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund` | production's rule: value − the SCF's unrealized gain (other real estate's gain split by value), the gain first held to no more than the value so a basis is never below 0 (29 October; the gain and the value are drawn separately) | |
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
-| Blindness | `blind1`, `blind2` | **placeholder**: 0 (Q3: learned in pretraining, needs a retrain) | |
-| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | **placeholder**: 0, as the calculator experiment sets them (Q5, being researched) | |
+| Blindness | `blind1`, `blind2` | since the second retrain of 29 October (branch `rebuild-retrain-1029`) a rule: each primary filer, and each spouse on a married-joint return, blind with chance = the 2015 PUF's blind rate for the person's age range × one factor per person type, the factor set so blind filers at the start's weights equal Publication 4801's boxes for the target year (below, "The second retrain of 29 October"); before, a PUF slot learned in pretraining | the PUF's blind rates by age range (`puf_blind_rates.csv`); SOI Publication 4801's blind boxes (`pub4801_blind_boxes.csv`) |
+| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 29 October (branch `rebuild-retrain-1029`) the simple plan's rule on the SCF items the model draws (below, "The retrain of 29 October"); 0 for a file from an earlier model | the CPS's average pay of private employees by SCF industry group (`cps_private_pay_by_scf_group.csv`) |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
 or 0, −1 where the dependent does not exist; `q_death2` is −1 without a spouse; `kg_lt_years_held` is −1 and
@@ -1108,6 +1117,138 @@ dollars:
 
 The business line differs from Z.1 mostly in what is held: the SCF's businesses ($21.6 trillion in the file) include
 S and C corporations the household runs, Z.1's noncorporate equity ($11.4 trillion at the end of 2018) does not.
+
+## The retrain of 29 October (branch `rebuild-retrain-1029`; built and checked at the table stage, not yet trained)
+
+The bundle John set on 28 October (`NEXT_STEPS.md`, "The next retrain, one bundle"), one commit (or a commit and its
+follow-up) per piece, so any piece can be dropped. Everything here changes the training table or generation, so it
+takes effect only with newly trained networks. The table-stage checks are in scratch
+`explore/2026-10-29/retrain/RESULTS.md`.
+
+**Social Security number status** (Q4; branch `rebuild-ssn` merged, 8a4aa2c; scratch
+`explore/2026-10-28/ssn_build/RESULTS.md`). `build_cps.R` gives every person in a CPS tax unit a status: 1 a citizen,
+2 a noncitizen with a sign of lawful status, 3 a noncitizen without one, taken to have no Social Security number (rule
+B2: for a child its own Social Security, SSI, Medicare or military cover, a citizen parent, or a noncitizen parent with
+a sign; for the filer and spouse their own Social Security, SSI, Medicare, Medicaid, military cover, unemployment
+insurance, public housing, a government job, veteran status, or marriage to a citizen). The table has five CPS-only
+slots, `ssn_status_primary`, `ssn_status_spouse`, `ssn_status_dep1-3` (0 none, then the status), in primary-filer
+order; generation draws them with the other CPS items (the k-th dependent's exactly when there are k dependents, the
+primary filer's never none, as the primary filer's sex is never none). `dollars.py` turns them into `ssn1`, `ssn2` and
+`dep_ssn1-3` (1 has a number, 0 none, missing where there is no such person; `ssn1` missing on dependent filers, whose
+survey items are all none). The non-microdata placeholder for dependents' numbers is removed (the two would write the
+same columns). In 2019, 1.03 million dependents under 17 lack a number (DHS: 1.01 million unauthorized children under
+18 in 2020, reported only).
+
+**Blindness learned from the PUF** (Q3; replaced by a rule in the second retrain of 29 October, below; this paragraph
+describes the first retrain). A PUF slot `blind` with three values: 0 not known, 1 not blind, 2 blind. It is known only
+on returns that are single or head of household, take the standard deduction, are not dependent filers and have an
+age range: there the deduction above the basic amount ($6,300 single, $9,250 head of household in 2015), divided by
+the additional amount ($1,550), is the number of extra boxes (a whole number on 97% of these returns), and blind =
+the boxes less one at 65 and over. Joint returns (whose boxes are evened out between the spouses on the 2015 PUF),
+separate returns, itemizers, dependent filers, records with no age range and boxes that are not a whole number or do
+not fit the age are "not known". "Not known" is a value rather than a slot left out, so that the slot's presence never
+tells the network anything about the return (a slot present only on single standard-deduction returns would tell every
+other draw that the return is single and does not itemize). The surveys do not have the slot. Generation draws
+blindness last, for the primary filer and the spouse alike: the network under the PUF label, the slot hidden, the
+person's own age range shown (the spouse's from the drawn exact age; a dependent filer's under-18 and 18-25 ranges as
+under 26, its 26-and-over range hidden), married and full filing status hidden on joint and separate returns (the
+network never saw blindness beside them), and only "not blind" and "blind" allowed (the chance of "not known" is set
+aside). Non-filers are seen with the filing flag hidden and their band-AGI group as the AGI group label. The draws have
+a random generator of their own, so no other draw moves. The stack carries `blind_drawn1`, `blind_drawn2` and the
+chances `blind_chance1`, `blind_chance2`; `non_micro_imputations.blindness` writes the file's `blind1`, `blind2`, and
+its check compares blind people by age with Publication 4801's blind boxes (typed in from the publication,
+`resources/non_micro/pub4801_blind_boxes.csv`: 2019, 260,291 primary and 80,564 spouse boxes on all returns).
+
+**The retirement accounts' stock share as an SCF item** (Q6; `build_scf.R`, `build_table.py`). The SCF summary file's
+equity in quasi-liquid retirement assets over those assets, RETEQ / RETQLIQ (RETQLIQ = IRAKH + THRIFT + FUTPEN +
+CURRPEN, the rebuild's `w_dc` plus `w_db`; RETEQ never exceeds it, but it exceeds IRAKH + THRIFT alone in about 1,300
+rows a wave, so the share is taken over all four and applied to `w_dc`). RETEQ counts each account as all, half or
+none in stocks by the respondent's answer. A household ratio, the same on each of the household's PEU units; 0 where
+the unit has no `w_dc`; missing (not shown in training) on units outside the PEU and other units, as their elective
+deferrals. In the table it is the SCF slot `w_dc_stock_share`, a share of `w_dc` (meta `ratios`: generation draws it
+after `w_dc` and sets it to 0 without `w_dc`; it is not grown between waves; `dollars.py` also makes `w_dc_stocks` =
+share × `w_dc`). The weighted share is 0.53-0.55 in every wave. `non_micro_imputations` uses the drawn share for
+`accruals.dc` in place of production's age rule.
+
+**CPS capital gains not shown before tax year 2018** (`build_cps.R`, `translate.not_asked`, `build_table.py`; since the
+second retrain of 29 October not shown in any year, below). The
+CPS asks capital gains from tax year 2018 only. Until 28 October the 2015 and 2017 CPS rows carried them as zero, which
+taught the model that CPS units have no gains. Now `build_cps.R` writes them as missing in those years and the
+translation table's row (first_year 2018) leaves `kg_lt`, and `capital_gains` computed from it, missing on those rows:
+absent, not shown in training, as any item a survey does not ask. Nothing else in the table moves: the tax data's
+non-filers of 2015 and 2017 (the CPS of those years) still read the item as zero, as before, and the fill-in runs only
+from 2018, as before (`fillin.py` now allows the item to be absent in the years it does not fill in).
+
+**The overtime targets' wage groups** (`targets_config`; above, "Overtime" under the targets). The top group, $200,000
+and over, is merged into $100,000 and over (catalog `wage_groups_4`): 10 overtime targets instead of 12, 787 targets in
+all. Targets only; no retrain needed for this piece.
+
+**The QBI items** (Q5; the simple plan, scratch `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, research in `PLAN.md`
+there). Two parts.
+- *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). From the household's actively managed
+  businesses 1 and 2, for each of three kinds by legal form: Schedule C (sole proprietorship, or "not a formal
+  business"), partnership (partnership, or limited partnership, LLP or LLC) and S corporation; other corporations get no
+  item. `biz_industry_<kind>` (a category): the industry group of the household's largest business of the kind, largest
+  by the value of the household's share, the SCF public file's 7 groups, 8 for "no industry code" (the businesses worth
+  $100 million or more), 0 with no such business. `biz_workers_<kind>` (an amount, a count not grown between waves): the
+  owner's share of outside workers, the business's workers less the household members working in it, times the
+  household's ownership share, summed over the kind's businesses. Given, as `owns_business`, to the units holding the
+  household's business equity, the workers in proportion to each unit's equity; 0 on units outside the PEU. Generation
+  draws each kind's workers after its industry group (zero with none) and never draws "none" for the industry group of
+  a record with nonzero income of that kind (its PUF parts: Schedule C; the partnership parts; the S corporation parts).
+- *The rule* (`non_micro_imputations.qbi`, settings `non_micro_imputations.items.qbi`), for each record and kind with
+  positive income of that kind: specified service (`sstb_<kind>`) when the record's keyed draw is below b × c(group),
+  at most 1, with c(group) the plan's fixed chance per SCF group (6: 0.16, 3: 0.09, 5: 0.05, 1: 0.02, the others 0.01;
+  for "no industry code" the average of the seven weighted by the kind's positive income on the file); wage bill
+  (`wagebill_<kind>`) = a × the drawn owner's share of outside workers × the average pay of private employees in the
+  group in the target year (from the CPS ASEC, `build_non_micro_tables.cps_private_pay`, by the SCF codebook's collapse
+  of Census industry codes; "no industry code" takes all private employees), plus, for an S corporation, all the
+  record's wages when it has S corporation income and no Schedule C or partnership income (first version). Farms:
+  never specified service; wage bill = positive farm income. The dials a and b are 1 for now (solved later against
+  Treasury's and SOI's numbers, with the calculator); a, b and c are settings, so changing them needs only a rerun of
+  the tilt stage. No QBI targets.
+
+## The second retrain of 29 October (branch `rebuild-retrain-1029`)
+
+Four changes to the first retrain, set by John on 29 October after the diagnosis in scratch
+`explore/2026-10-29/diagnose/RESULTS.md`. Results in scratch `explore/2026-10-29/retrain2/RESULTS.md`.
+
+**Blindness is a rule, not learned** (`non_micro_imputations.blindness`; `build_non_micro_tables.puf_blind_rates`;
+settings `blindness` and `non_micro_imputations.items.blindness`). The PUF slot learned in pretraining drew 2.95
+million blind primary filers in the 2019 file against Publication 4801's 260 thousand boxes: generation asked the
+network about joint returns and itemizers, where training only ever showed "not known". The slot is gone from the
+training table and the draw from generation. In its place, in the non-microdata step (after generation, before
+reweighting):
+1. The PUF's blind rate by the primary filer's age range, on the 62.5 million 2015 returns where the return shows it
+   (single or head of household, standard deduction, not a dependent filer, an age range; read as before), is a small
+   table, `resources/non_micro/puf_blind_rates.csv`: about 0.10% under 26 up to 0.86% at 65 and over.
+2. Each primary filer, and each spouse on a married-joint return (filing status 2), is blind when a draw keyed by
+   record id and person (stream 6; no other draw moves) falls below the rate for that person's age range times a
+   factor, one for primary filers and one for spouses.
+3. Each factor is set so the file's weighted count of blind filers, at the start's weights (before reweighting),
+   equals Publication 4801's boxes for the target year (2019: 260,291 "you are blind" and 80,564 "spouse is blind").
+   Non-filers are drawn by the same rule and not counted.
+The check (`non_micro_checks.md`) gives the counts before and after reweighting against the boxes.
+
+**The CPS carries no capital gains in training** (settings `translation.table`, `in_training` false on the CPS's four
+capital gains rows; `translate.in_training`). In every CPS year the four pieces and the total are missing on the
+training rows (not shown), and there is no fill-in for them. The rows still give the tax data's non-filers their gains
+(from tax year 2018), so the tax data, and every other survey's translation against it, do not move. The non-filer
+batch, drawn under the CPS label, now gets zero capital gains, as it does for any PUF item the CPS does not measure.
+
+**A total with a missing part stays missing** (`fillin.FillIn.recompute_totals`). The fill-in recomputes the CPS's
+totals from their parts after each draw. A missing part (band -1) was read as the top band of its dollar table (Python
+reads index -1 as the last), which wrote a capital gain at the top band onto every 2015 and 2017 CPS training record
+in the first retrain and raised the held-back CPS loss from 0.37 to 0.45-0.50. Now the total stays missing, no band
+table is read at -1 (also in the fill-in's log), and an assert stops on a negative band where every part is present.
+
+**Two training settings, both off by default** (settings `training`):
+- `scf_one_implicate_per_pass` (from branch `rebuild-implicate1`, b12c683): each pass trains on one of the five
+  implicates of each SCF training household, chosen at random by the seed and the pass, its rows counting 5 times
+  their weight; the learning-rate schedule counts the steps taken.
+- `overfit_log` (from branch `rebuild-overfit-diag`, 448d148): the loss per slot on the held-back records and on a
+  fixed sample of training records each pass (`slot_log.csv`), and the network every 10 passes. Logging only; training
+  is the same either way.
 
 ## How the latest run comes out
 

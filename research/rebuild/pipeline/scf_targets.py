@@ -93,8 +93,9 @@ def frame(wave, year):
     f = growth_factors(wave, year)
     # the ltv is a ratio: the mortgage in dollars moves with the home. The elective deferrals and the spouse's share of
     # them (since 28 October; build_table.SCF_NOT_ASKED) are missing where the SCF does not ask and no SCF target reads
-    # them (their targets are the W-2 statistics'), so they are left out here
-    not_asked = ['elective_deferrals', 'spouse_deferral_share']
+    # them (their targets are the W-2 statistics'), so they are left out here; so is the retirement accounts' stock share
+    # (since 29 October), a share missing outside the PEU that no SCF target reads
+    not_asked = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']
     items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
     cols = list(dict.fromkeys(items + ['w_primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
     t = _table(['household_id', 'implicate', 'weight', 'age_range'] + cols)

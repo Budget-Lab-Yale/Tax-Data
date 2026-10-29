@@ -110,14 +110,22 @@
 #     claims one of its children, to the unit of the SPM unit's reference
 #     person (the householder when in the SPM unit, else its lowest PERNUM).
 #     Each SPM unit's expenses are kept in full.
-#     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); 0 in earlier years, which do not
-#                         ask it (the translation table's row for it says the same, settings "translation")
+#     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); missing (NA) in earlier years, which
+#                         do not ask it (since 29 October; 0 before), so the training table shows it as not asked
+#                         there, as the translation table's row says (first_year, settings "translation")
 #   mars: filing status as step 1's returns carry it, 1 single, 2 joint, 3 separate, 4 head of household
 #   n_ctc, n_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
 #     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_eitc counts them
 #     only when the unit is eligible for the EITC under the year's law (step 1's eitc_eligible), as the PUF's EIC
 #     counts children only on returns that get the credit
 #   eitc_eligible: 1 or 0, step 1's (filing.py)
+#   ssn_status1, ssn_status2 (person 1 and person 2) and dep_ssn_status1..3 (the dependents of dep_age1..3, youngest
+#     first), since 28 October (John, NEXT_STEPS.md item 1, Q4): each person's status, 1 citizen, 2 noncitizen with
+#     a sign of lawful status, 3 noncitizen without one (taken to lack a Social Security number); 0 where there is
+#     no such person. Rule "B2" of scratch explore/2026-10-28/rules_framework/ssn/RESULTS.md, as its size_check.py
+#     codes it (ssn_status() below). Each person's status is set in the CBO-rule unit before step 1 splits couples
+#     into separate returns, so a split spouse keeps the status the couple gave. Per person, every year built, the
+#     items and the status are written to cps_ssn_persons_{year}.csv.gz, for the checks.
 #
 # Paths and years from settings.json ("cps"); the settings file is
 # REBUILD_SETTINGS if set, else the pipeline's own; output to
@@ -338,7 +346,54 @@ sources_rows = list()
 RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOMLOC', 'POPLOC', 'FTYPE', 'FAMID',
              'FAMREL', 'SCHLCOLL', 'ASECWT', 'GQ', 'EDUC', 'RACE', 'HISPAN', 'HIMCAIDLY', 'FOODSTAMP', 'INCWELFR',
              'INCTOT', 'INCSS', ASEC_GROSS_INCOME_ITEMS, 'WKSWORK1', 'UHRSWORKLY', 'SPMFAMUNIT', 'SPMCHXPNS',
-             'SPMWT', 'FILESTAT')
+             'SPMWT', 'FILESTAT', 'CITIZEN', 'INCSSI', 'HIMCARELY', 'HICHAMP', 'VETSTAT', 'CLASSWKR', 'PUBHOUS')
+
+# Social Security number status (since 28 October; John's decision, NEXT_STEPS.md item 1, Q4): rule "B2" of scratch
+# explore/2026-10-28/rules_framework/ssn/RESULTS.md, coded as its size_check.py codes it, so that it gives that
+# check's counts (1.03 million dependents under 17 without a number in 2019). Every person gets one of three values:
+#   1 a citizen (CITIZEN 1-4: born in the US, in outlying areas, abroad to American parents, or naturalized);
+#   2 a noncitizen (CITIZEN 5) with a sign of lawful status;
+#   3 a noncitizen without one, taken to lack a Social Security number.
+# The signs. The unit is the CBO-rule unit (before step 1 splits a couple into separate returns); "parents" are its
+# primary filer and spouse.
+#   An adult's own sign (the primary filer's or the spouse's): Social Security or SSI received, Medicare, military
+#   health cover (TRICARE or CHAMPVA), veteran status, a government or armed forces job (CLASSWKR 24-28),
+#   unemployment insurance received, public housing, or Medicaid (federal Medicaid for adults requires qualified
+#   status); or being married to a citizen (the other adult of the unit is one; Borjas's edit).
+#   A dependent's sign: its own Social Security, SSI, Medicare or military cover (its own Medicaid is not a sign:
+#   several states cover children whatever their status); or a citizen parent in the unit; or a noncitizen parent in
+#   the unit with a sign of their own as above. The same rule for dependents of every age, as in the size check.
+# The rule is fixed: no yearly scaling to a published total (the DHS comparison is reported only).
+SSN_STATUS_ITEMS = c('CITIZEN', 'INCSS', 'INCSSI', 'INCUNEMP', 'HIMCARELY', 'HICHAMP', 'HIMCAIDLY', 'VETSTAT',
+                     'CLASSWKR', 'PUBHOUS')
+ssn_status = function(p) {
+  stopifnot(all(SSN_STATUS_ITEMS %in% names(p)), !anyNA(p[, ..SSN_STATUS_ITEMS]),
+            all(p$CITIZEN %in% 1:5), all(p$HIMCARELY %in% 0:2), all(p$HICHAMP %in% c(1:2, 9)),
+            all(p$HIMCAIDLY %in% c(1:2, 9)), all(p$VETSTAT %in% c(0:2, 9)), all(p$PUBHOUS %in% 0:2),
+            all(p$role %in% c('primary', 'spouse', 'dependent')))
+  # the codes as the DDIs label them (ASECs 2016-2024): 2 yes, 1 no, and not in universe 0 (HIMCARELY, PUBHOUS,
+  # VETSTAT) or 9 (HICHAMP, HIMCAIDLY; VETSTAT 9 is unknown). Only "yes" counts as a sign; the rest are no sign.
+  cat(sprintf('  status items not in universe or unknown (people): HICHAMP %d, HIMCAIDLY %d, HIMCARELY %d, VETSTAT 9 %d, PUBHOUS %d\n',
+              sum(p$HICHAMP == 9), sum(p$HIMCAIDLY == 9), sum(p$HIMCARELY == 0), sum(p$VETSTAT == 9), sum(p$PUBHOUS == 0)))
+  s = p[, .(SERIAL, PERNUM, unit_id, role, AGE, ASECWT, CITIZEN, INCSS, INCSSI, INCUNEMP, HIMCARELY, HICHAMP,
+            HIMCAIDLY, VETSTAT, CLASSWKR, PUBHOUS,
+            citizen = CITIZEN %in% 1:4, noncit = CITIZEN == 5L, medicaid = HIMCAIDLY == 2L,
+            own_cover = INCSS > 0 | INCSSI > 0 | HIMCARELY == 2L | HICHAMP == 2L,
+            adult_sign = INCSS > 0 | INCSSI > 0 | HIMCARELY == 2L | HICHAMP == 2L | VETSTAT == 2L |
+              CLASSWKR %in% 24:28 | INCUNEMP > 0 | PUBHOUS == 2L)]
+  s[, adult := role != 'dependent']   # the unit's primary filer and spouse
+  # the adults: a citizen; a noncitizen with an own sign or Medicaid; a noncitizen married to a citizen
+  s[, n_cit_adults := sum(citizen & adult), by = unit_id]
+  s[, other_adult_citizen := adult & (n_cit_adults - (citizen & adult)) > 0]
+  s[, lawful_adult := adult & (citizen | (noncit & (adult_sign | medicaid)) | (noncit & other_adult_citizen))]
+  s[, `:=`(parent_citizen = any(citizen & adult), parent_lawful = any(lawful_adult)), by = unit_id]
+  s[, ssn_status := fifelse(citizen, 1L, 3L)]
+  s[adult & noncit & lawful_adult, ssn_status := 2L]
+  s[!adult & noncit & (own_cover | parent_citizen | parent_lawful), ssn_status := 2L]
+  stopifnot(!anyNA(s$ssn_status), all(s[noncit == TRUE, ssn_status] %in% 2:3), all(s[citizen == TRUE, ssn_status] == 1L))
+  s[, c('n_cit_adults') := NULL]
+  s[]
+}
 summary_rows = list()
 
 for (yr in YEARS) {
@@ -369,6 +424,7 @@ for (yr in YEARS) {
 
   # Income concepts and the filing model's inputs, cleaned as the pool's driver (01_build_units.R) does
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
+  x[, INCSSI := clean_asec_income(x, ddi, 'INCSSI')]   # for the Social Security number status only (ssn_status)
   x = add_asec_income_concepts(x, ddi)
   # capital gains: asked from tax year 2018 only (the redesigned survey); earlier years do not have the item
   if (yr >= 2018) {
@@ -376,7 +432,7 @@ for (yr in YEARS) {
     x[, capital_gains := clean_asec_income(x, ddi, 'INCCAPG')]
   } else {
     if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
-    x[, capital_gains := 0]   # not asked before tax year 2018: zero, as the translation table's row says
+    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing (29 October; zero before)
   }
   x[, welfare_income   := clean_asec_income(x, ddi, 'INCWELFR')]
   x[, total_income     := clean_asec_income(x, ddi, 'INCTOT')]
@@ -408,9 +464,26 @@ for (yr in YEARS) {
   #-----------------------------------------------------------------------------
   built = cbo_tax_units(x, yr, file.path(STEP1, 'units',
                                          sprintf('roster_%d_%s_nogq.csv.gz', yr, settings$cps$cbo_variant)))
+  # each person's Social Security number status, in the CBO-rule unit (before step 1 splits couples)
+  ssn = ssn_status(built$persons)
   built = step1_returns(built, yr)
   p = built$persons
   u = built$units
+  p[ssn, on = c('SERIAL', 'PERNUM'), ssn_status := i.ssn_status]
+  stopifnot(!anyNA(p$ssn_status), nrow(ssn) == nrow(p))
+  # the per-person file for the checks: the status, its items, and the filing chance of the return the person is on
+  ret = p[, .(SERIAL, PERNUM, return_id = unit_id, return_role = role)]
+  ssn_out = merge(ssn, ret, by = c('SERIAL', 'PERNUM'), all.x = TRUE)
+  ssn_out[u[unit_type == 'nondependent'], on = c(return_id = 'unit_id'), p_file := i.p_file_cal]
+  stopifnot(!anyNA(ssn_out))
+  fwrite(ssn_out, file.path(OUT, sprintf('cps_ssn_persons_%d.csv.gz', yr)))
+  sw = function(m) sum(ssn_out$ASECWT[m]) / 1e6
+  cat(sprintf('  Social Security number status (millions, all units): primary filers and spouses %.2f citizens, %.2f noncitizens with a sign, %.2f without; dependents under 17 %.2f, %.2f, %.2f\n',
+              sw(ssn_out$role != 'dependent' & ssn_out$ssn_status == 1), sw(ssn_out$role != 'dependent' & ssn_out$ssn_status == 2),
+              sw(ssn_out$role != 'dependent' & ssn_out$ssn_status == 3),
+              sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 1),
+              sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 2),
+              sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 3)))
   calibrated = TRUE   # step 1's chances are calibrated (the summary's calibrated_filing_model)
 
   #-----------------------------------------------------------------------------
@@ -426,7 +499,7 @@ for (yr in YEARS) {
   stopifnot(!anyNA(p$ot_asked))
   hs = p[role %in% c('primary', 'spouse'),
          .(unit_id, PERNUM, role, AGE, SEX, INCWAGE, se = INCBUS + INCFARM, weeks = as.numeric(WKSWORK1),
-           hours = usual_hours, ot, ot_asked)]
+           hours = usual_hours, ot, ot_asked, ssn_status)]
   stopifnot(all(hs$SEX %in% 1:2))
   hs[, n_adult := .N, by = unit_id]
   stopifnot(all(hs$n_adult %in% 1:2))
@@ -442,9 +515,10 @@ for (yr in YEARS) {
   hs[, ot_unit_na := anyNA(ot), by = unit_id]
   ot_asked_units = as.integer(unique(hs[ot_asked == TRUE, unit_id]))
   p1 = hs[pos == 1, .(unit_id, age1 = AGE, sex1 = SEX, wages1 = INCWAGE, se1 = se, weeks_worked1 = weeks,
-                      usual_hours1 = hours, ot1 = fifelse(ot_unit_na, NA_real_, ot), ot_unit_na)]
+                      usual_hours1 = hours, ot1 = fifelse(ot_unit_na, NA_real_, ot), ot_unit_na,
+                      ssn_status1 = ssn_status)]
   p2 = hs[pos == 2, .(unit_id, age2 = AGE, sex2 = SEX, wages2 = INCWAGE, se2 = se, weeks_worked2 = weeks,
-                      usual_hours2 = hours, ot2 = fifelse(ot_unit_na, NA_real_, ot))]
+                      usual_hours2 = hours, ot2 = fifelse(ot_unit_na, NA_real_, ot), ssn_status2 = ssn_status)]
 
   #-----------------------------------------------------------------------------
   # Dependents
@@ -455,7 +529,9 @@ for (yr in YEARS) {
   dtab = deps[, .(n_dep_raw = .N, n13 = sum(AGE < 13), n6 = sum(AGE < 6),
                   n_ctc_raw = sum(is_qc & AGE < 17), n_eitc_raw = sum(is_qc),
                   dep_age1 = as.numeric(AGE[1]), dep_age2 = if (.N >= 2) as.numeric(AGE[2]) else -1,
-                  dep_age3 = if (.N >= 3) as.numeric(AGE[3]) else -1), by = unit_id]
+                  dep_age3 = if (.N >= 3) as.numeric(AGE[3]) else -1,
+                  dep_ssn_status1 = ssn_status[1], dep_ssn_status2 = if (.N >= 2) ssn_status[2] else 0L,
+                  dep_ssn_status3 = if (.N >= 3) ssn_status[3] else 0L), by = unit_id]
   cat(sprintf('  dependents: %.2f m weighted (%.2f m aged 18+); units with more than 3: %d\n',
               sum(deps$ASECWT) / 1e6, sum(deps$ASECWT[deps$AGE >= 18]) / 1e6, sum(dtab$n_dep_raw > 3)))
 
@@ -512,9 +588,10 @@ for (yr in YEARS) {
   out[, married := as.integer(filing_status == 'joint')]
   # not in universe: no spouse (person 2 zero, age -1, sex 0); no dependents (0, ages -1); no child care (0)
   out[married == 0, `:=`(age2 = -1, sex2 = 0, wages2 = 0, se2 = 0, weeks_worked2 = 0, usual_hours2 = 0,
-                         ot2 = fifelse(ot_unit_na, NA_real_, 0))]
+                         ot2 = fifelse(ot_unit_na, NA_real_, 0), ssn_status2 = 0L)]
   out[is.na(n_dep_raw), `:=`(n_dep_raw = 0L, n13 = 0L, n6 = 0L, n_ctc_raw = 0L, n_eitc_raw = 0L,
-                             dep_age1 = -1, dep_age2 = -1, dep_age3 = -1)]
+                             dep_age1 = -1, dep_age2 = -1, dep_age3 = -1,
+                             dep_ssn_status1 = 0L, dep_ssn_status2 = 0L, dep_ssn_status3 = 0L)]
   stopifnot(all(out$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
   out[is.na(childcare), childcare := 0]
 
@@ -543,7 +620,9 @@ for (yr in YEARS) {
                 wages, sch_cf_income, interest, dividends, ss_gross, unemployment, retirement_income,
                 rent_royalty_estate, survivor_disability, survdis_pension, survdis_other, other_income, capital_gains,
                 wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare,
-                ot1, ot2)]
+                ot1, ot2, ssn_status1 = as.integer(ssn_status1), ssn_status2 = as.integer(ssn_status2),
+                dep_ssn_status1 = as.integer(dep_ssn_status1), dep_ssn_status2 = as.integer(dep_ssn_status2),
+                dep_ssn_status3 = as.integer(dep_ssn_status3))]
   # overtime: missing on both adults together, never above the person's wages
   stopifnot(identical(is.na(out$ot1), is.na(out$ot2)),
             all(out[!is.na(ot1), ot1 <= wages1 + 1e-6 & ot1 >= 0]),   # the asked units (the rest are NA by design)
@@ -552,9 +631,14 @@ for (yr in YEARS) {
   cat(sprintf('  overtime on units: asked %d of %d units (%.1f%% of the weight); missing on %d units (%d of them asked but with a worker\'s pay missing)\n',
               sum(!is.na(out$ot1)), nrow(out), 100 * sum(out$weight[!is.na(out$ot1)]) / sum(out$weight),
               sum(is.na(out$ot1)), sum(is.na(out$ot1) & out$record_id %in% ot_asked_units)))
-  stopifnot(!anyNA(out[, !c('ot1', 'ot2')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
+  # capital gains: missing exactly in the years not asked (before tax year 2018)
+  stopifnot(if (yr >= 2018) !anyNA(out$capital_gains) else all(is.na(out$capital_gains)))
+  stopifnot(!anyNA(out[, !c('ot1', 'ot2', 'capital_gains')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
             all(out$n_eitc <= out$n_dep), all((out$mars == 2) == (out$married == 1)),
-            all((out$dep_age1 >= 0) == (out$n_dep > 0)))
+            all((out$dep_age1 >= 0) == (out$n_dep > 0)),
+            all(out$ssn_status1 %in% 1:3), all((out$ssn_status2 > 0) == (out$married == 1)),
+            all(out$ssn_status2 %in% 0:3), all((out$dep_ssn_status1 > 0) == (out$dep_age1 >= 0)),
+            all((out$dep_ssn_status2 > 0) == (out$dep_age2 >= 0)), all((out$dep_ssn_status3 > 0) == (out$dep_age3 >= 0)))
   fwrite(out, file.path(OUT, sprintf('cps_units_%d.csv.gz', yr)))
   cat(sprintf('  wrote %s\n', file.path(OUT, sprintf('cps_units_%d.csv.gz', yr))))
 

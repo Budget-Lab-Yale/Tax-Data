@@ -718,7 +718,8 @@ def published_page(p):
 def dollar_items(df):
     """Every dollar item in the file, in the generation order, then the computed totals."""
     skip = set(D.RATIOS) | set(D.AGE_SLOTS) | {'weeks_primary', 'weeks_spouse', 'hours_primary', 'hours_spouse',
-                                              'business_income_drawn', 'other_agi_remainder'}
+                                              'business_income_drawn', 'other_agi_remainder'} | \
+        {v for v in D.ORDER if v.startswith('biz_workers_')}      # the QBI items' outside workers: counts, not dollars
     extra = ['agi', 'capital_gains_line13', 'sch_cf_income', 'sch_e_income', 'wages1', 'wages2', 'se1', 'se2',
              'w_primary_mortgage', 'total_consumption', 'net_worth']
     items = [v for v in dict.fromkeys(D.ORDER + extra) if v in df and v not in skip]

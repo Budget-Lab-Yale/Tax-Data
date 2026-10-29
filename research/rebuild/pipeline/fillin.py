@@ -39,7 +39,8 @@ from those chances. A depends on the type only, so it is computed on one record 
 holder's chance of reporting depends only on its type and true amount, not on anything else on the record.
 
 A row fills in only in the survey years from its first_year on (translate.fills_in): a year the survey does not ask
-the item (the CPS's capital gains before tax year 2018) has no reporters, so its zeros stay zeros there.
+the item (the CPS's capital gains before tax year 2018) has no reporters; since 29 October the item is missing there
+(absent, not shown in training), so there is nothing to fill in.
 
 Writes common.MODEL/fill_log.csv: per pass and row, on the survey's year nearest the target year, the share with none
 as reported, after the fill-in, in the tax data at the survey's types (the mixed share), among filers only and among
@@ -222,7 +223,10 @@ class FillIn:
             yr = self.frame[s]['year'].to_numpy()
             act = np.array([TR.fills_in(ROW[k], int(y)) for y in yr])
             self.active[k] = torch.tensor(act, device=device)
-            assert bool((tr['rep_band'][v][self.recs[s]] >= 0).all()), f'{k}: the item is absent on some {s} records'
+            # the item is present on every record of the years it fills in; absent only in a year the survey does not ask
+            # it (translate.not_asked: the CPS's capital gains before tax year 2018, since 29 October)
+            assert bool(((tr['rep_band'][v][self.recs[s]] >= 0) | ~self.active[k]).all()), \
+                f'{k}: the item is absent on some {s} records of a year it fills in'
             self.zero[k] = self.active[k] & (tr['rep_band'][v][self.recs[s]] == 0)
             z = self.zero[k].nonzero().squeeze(1)
             self.zpos[k] = torch.full((len(self.recs[s]),), -1, dtype=torch.long, device=device)
@@ -279,11 +283,17 @@ class FillIn:
                        f'in the survey year or the PUF (read as zero dollars): {missing}')
 
     def recompute_totals(self, ii, s):
-        """The computed totals of survey s's records ii from their parts' bands (see totals_setup)."""
+        """The computed totals of survey s's records ii from their parts' bands (see totals_setup). A total with a
+        missing part (band -1) stays missing (band -1): the dollar table is never read at band -1, which Python would
+        read as the top band (the bug of 29 October, explore/2026-10-29/diagnose/, section 3)."""
         v = self.tr['values']
         yr = v[ii, 1]
         for t, parts in self.totals[s].items():
-            x = sum(sg * self.dollars[(s, q)][yr, v[ii, C + P.index(q)]] for q, sg in parts.items())
+            pb = {q: v[ii, C + P.index(q)] for q in parts}
+            missing = torch.zeros(len(ii), dtype=torch.bool, device=self.device)
+            for b in pb.values():
+                missing |= b < 0
+            x = sum(sg * self.dollars[(s, q)][yr, pb[q].clamp(min=0)] for q, sg in parts.items())
             band = torch.zeros(len(ii), dtype=torch.long, device=self.device)
             fp = M.BAND_LAYOUT[t]['first_positive']
             for y in torch.unique(yr).tolist():
@@ -296,6 +306,8 @@ class FillIn:
                 if len(pos):
                     bm = torch.where(xm > 0, fp + torch.searchsorted(pos, xm.contiguous(), side='left'), bm)
                 band[m] = bm
+            band = torch.where(missing, torch.full_like(band, -1), band)
+            assert bool((band[~missing] >= 0).all()), f'{s} {t}: a negative band index on a total with every part present'
             v[ii, C + P.index(t)] = band
 
     def puf_data_shares(self, puf, key):
@@ -492,16 +504,21 @@ class FillIn:
                 dist[:, 0] = 1 - hidden[z].sum(1)
                 self.dist[k] = dist.clamp(min=0).float()
                 # the log: the survey's year nearest the target year
-                rep_range = self.band_range[k][self.tr['rep_band'][v][self.recs[s]]]
+                # the reported band's size range; a record whose reported item is missing (a year the row does not
+                # fill in) is never looked up at band -1, and is left out of the log
+                rb = self.tr['rep_band'][v][self.recs[s]]
+                known = rb >= 0
+                assert bool((known | ~self.active[k]).all()), f'{k}: a negative band index in a year the row fills in'
+                rep_range = self.band_range[k][rb.clamp(min=0)]
                 rep_onehot = torch.zeros(len(rep_range), K, dtype=torch.float64, device=self.device)
-                rep_onehot[torch.arange(len(rep_range), device=self.device), rep_range] = 1.0
+                rep_onehot[torch.arange(len(rep_range), device=self.device), rep_range] = known.double()
                 after = torch.where(z[:, None], hidden, rep_onehot)
                 after[:, 0] = torch.where(z, 1 - hidden.sum(1), after[:, 0])
                 years = sorted(set(view.year.tolist()))
                 log_year = min(years, key=lambda y: (abs(y - common.TARGET_YEAR), -y))
                 yr = torch.tensor(self.frame[s]['year'].to_numpy(), device=self.device)
                 wm = lambda x, mm: float((w[mm] * x[mm]).sum() / w[mm].sum()) if bool(mm.any()) else float('nan')
-                m = yr == log_year
+                m = (yr == log_year) & known
                 sh = shares[k]
                 row = {'pass': epoch, 'survey': s, 'item': v, 'year': log_year,
                        'none, reported (%)': 100 * wm((rep_range == 0).double(), m),

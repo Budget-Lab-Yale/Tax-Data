@@ -29,7 +29,9 @@ one change on a branch, a full run, a comparison with the latest run, John's app
      returns show only 0, 2 or 4 boxes in the 2015 PUF (the spouses evened out), so blindness is unknown there, as on
      itemizers, the surveys and the 3% that are not whole numbers. The model learns it by age and draws it for the
      primary filer and the spouse; checked against Pub 4801's blind boxes (scratch
-     `explore/2026-10-28/rules_framework/blind_puf.py`).
+     `explore/2026-10-28/rules_framework/blind_puf.py`). Changed 29 October (John), after the learned slot drew ten
+     times Pub 4801's count: a rule, the PUF's rate by age range times one factor per person type that makes the
+     filers' count equal Pub 4801's boxes (`FEATURES.md`, "The second retrain of 29 October").
    - Q4, dependents' Social Security numbers (John, 28 October): learned from the CPS in pretraining (citizenship,
      birthplace and the parents' items turned into "probably has no number" by a rule), per child, not production's
      flat 1.5%. Research in scratch `explore/2026-10-28/rules_framework/ssn/RESULTS.md` (no Splinter paper estimates
@@ -130,6 +132,15 @@ Left as is (John, 27 October):
   - the QBI items: SCF industry group and outside workers by kind of business, the rule and the two dials (Q5;
     scratch `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`);
   - the SCF overfitting result, if it calls for a change (scratch `explore/2026-10-28/overfit/`).
+  Trained 29 October (scratch `explore/2026-10-29/COMPARISON.md`). Two problems found (scratch
+  `explore/2026-10-29/diagnose/RESULTS.md`) led to a second retrain the same day (John, 29 October), on the same
+  branch, in two versions, with all SCF implicates each pass and with one (`training.scf_one_implicate_per_pass`):
+  - blindness became a rule in the non-microdata step, the PUF's blind rate by age times one factor per person type
+    so the filers' count meets Publication 4801's boxes (the learned slot drew ten times too many);
+  - the CPS no longer carries capital gains in training in any year;
+  - the fill-in's recomputed totals leave a total missing when a part is missing (a band of -1 was read as the top
+    band, writing a large capital gain onto every 2015 and 2017 CPS training record).
+  Results: scratch `explore/2026-10-29/retrain2/RESULTS.md`. Not installed or merged; John chooses.
 - **Later: a removal rule beside the fill-in** (John, 28 October). The fill-in can add holders a survey misses but
   not remove holders a survey has too many of (SCF rental income 9.7% against the tax data's 7.6%); the tilt closes
   the gap for now.
@@ -175,8 +186,8 @@ Left as is (John, 27 October):
 - Left open by the pieces of the big run (not yet put to John):
   - Mappings (`explore/2026-10-28/mappings/RESULTS.md`, section 6): the fill-in can add holders but not remove them,
     so SCF rental income and the rest of Schedule E end above the tax data's share with any (9.7% against 7.6%, and
-    8.4% against 7.3%, after 80 passes of the seed-20261017 model); CPS capital gains before tax year 2018 stay zero (not asked); the fill-in now creates losses on
-    the CPS (capital gains and Schedule C); filled-in CPS and SIPP couples have no recorded spouse's share of wages;
+    8.4% against 7.3%, after 80 passes of the seed-20261017 model); the fill-in now creates losses on
+    the CPS (Schedule C; capital gains until the CPS's gains left training, 29 October); filled-in CPS and SIPP couples have no recorded spouse's share of wages;
     the CPS's "mixed" survivor and disability classes are judgment calls; the SCF's 2013 wave's Social Security
     includes SSI (its public file has no SSI code).
   - Year mix (`explore/2026-10-28/year_mix/RESULTS.md`): the non-filer count and the non-filer people targets are

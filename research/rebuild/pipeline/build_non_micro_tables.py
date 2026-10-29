@@ -11,6 +11,11 @@ says, for every table, where its numbers come from and how they were turned into
     2026 (settings paths.raw.z1);
   - the Census Bureau's population estimates by single year of age and sex (settings paths.raw.census_pep);
   - SOI's Publication 4801 line items (settings paths.raw.soi_mirror, line_items.csv);
+  - the CPS ASEC (settings paths.raw.cps_earnings, the common extract): average pay of private employees by SCF
+    industry group and tax year, for the QBI wage bills (since 29 October);
+  - SOI's Publication 4801 blind boxes, typed in from the pages (since 29 October);
+  - the 2015 PUF: the share of primary filers who are blind, by age range, where the return shows it (since the second
+    retrain of 29 October; the blindness rule in non_micro_imputations reads it);
   - the law: the dependent filing threshold (Form 1040 instructions, Chart B, as production's
     src/nonfilers/asec_tax_units.R has it) and the child tax credit's age limit (IRC section 24(c)).
 """
@@ -212,14 +217,181 @@ def soi_children():
          'claiming the additional child tax credit, so a lower bound on all the credit\'s children')
 
 
-def main():
+# ---- the CPS: average pay of private employees by SCF industry group (29 October, the QBI wage bills) ----------
+# The SCF public file's 7 industry groups (X3107, X3207) as sets of Census industry codes (the SCF codebook's collapse;
+# the same ranges as explore/2026-10-28/qbi_plan/scripts/cps_bridge.py), lower and upper code inclusive. The CPS uses
+# the Census 2012 industry codes to the March 2019 survey and the 2017 codes from March 2020; the ranges hold both (the
+# 2017 codes that split performing arts, 8561-8564, are in group 3 with 8560). A code in no range is counted and left
+# out of the averages.
+SCF_INDUSTRY_RANGES = [(170, 290, 1), (7480, 7480, 1), (7770, 7770, 1), (370, 490, 2), (770, 770, 2), (1070, 3990, 3),
+                       (6470, 6480, 3), (8560, 8564, 3), (4070, 5790, 4), (8680, 8690, 4), (6490, 6490, 5),
+                       (6695, 6695, 5), (6870, 7080, 5), (7190, 7190, 5), (7580, 7590, 5), (7680, 7680, 5),
+                       (8770, 8890, 5), (570, 690, 6), (6070, 6390, 6), (6570, 6692, 6), (6770, 6780, 6), (7170, 7180, 6),
+                       (7270, 7470, 6), (7490, 7570, 6), (7670, 7670, 6), (7690, 7690, 6), (7780, 8470, 6),
+                       (8570, 8670, 6), (8970, 9290, 6), (9370, 9890, 7)]
+PRIVATE_CLASSES = [21, 22, 23]      # IPUMS CLASSWKR: wage and salary, private (for profit, nonprofit)
+
+
+def scf_industry_group(ind):
+    ind = np.asarray(ind, int)
+    g = np.zeros(len(ind), int)
+    for lo, hi, k in SCF_INDUSTRY_RANGES:
+        g[(ind >= lo) & (ind <= hi)] = k
+    return g
+
+
+def cps_private_pay():
+    """Average yearly wages of private employees by SCF industry group and tax year (survey year less one): people 18
+    and over whose class of worker is private wage and salary (CLASSWKR 21-23) with wages above zero (INCWAGE, the
+    previous calendar year's wages from all jobs; the industry is the current or most recent job's, IND), weighted
+    by ASECWT. Group 8 ("no industry code", the SCF's businesses worth $100 million or more) is all private
+    employees together. Nominal dollars of the tax year."""
+    folder = RAW['cps_earnings']
+    V = ['ASECWT', 'AGE', 'IND', 'CLASSWKR', 'INCWAGE']
+    rows = []
+    years = sorted(int(f[3:7]) for f in os.listdir(folder) if f.startswith('cps') and f.endswith('_03s'))
+    for sy in years:
+        sub = os.path.join(folder, f'cps{sy}_03s')
+        dat = os.path.join(sub, f'cps_{sy}_03s.dat.gz')
+        if not os.path.exists(dat):
+            continue
+        vv = pd.read_csv(os.path.join(sub, 'variables.csv')).set_index('var_name')
+        spec = [(int(vv.loc[v, 'start']) - 1, int(vv.loc[v, 'end'])) for v in V]
+        d = pd.read_fwf(dat, colspecs=spec, names=V, compression='gzip', dtype=float)
+        d['ASECWT'] = d['ASECWT'] / 10 ** int(vv.loc['ASECWT', 'imp_decim'])
+        # the universe: private employees of 18 and over with wages; INCWAGE 99999998-99999999 are missing or not in
+        # universe (none expected in this universe, counted)
+        d = d[(d['AGE'] >= 18) & d['CLASSWKR'].isin(PRIVATE_CLASSES) & (d['ASECWT'] > 0)]
+        bad = int((d['INCWAGE'] >= 99999998).sum())
+        d = d[(d['INCWAGE'] > 0) & (d['INCWAGE'] < 99999998)]
+        g = scf_industry_group(d['IND'].to_numpy())
+        w, x = d['ASECWT'].to_numpy(float), d['INCWAGE'].to_numpy(float)
+        unmatched = w[g == 0].sum() / w.sum()
+        common.say(f'CPS {sy} (tax year {sy - 1}): private employees with wages {w.sum() / 1e6:.1f} million; industry '
+                   f'code in no SCF group {100 * unmatched:.2f}% of them (left out); wage codes missing {bad}')
+        every = g > 0
+        mean_all = float((w[every] * x[every]).sum() / w[every].sum())
+        for k in range(1, 9):
+            m = (g == k) if k < 8 else every
+            # group 7, public administration, has no private employees: it takes all private employees' average
+            own = bool(m.any())
+            rows.append({'year': sy - 1, 'scf_industry_group': k, 'employees_millions': w[m].sum() / 1e6,
+                         'sample_people': int(m.sum()),
+                         'average_pay': float((w[m] * x[m]).sum() / w[m].sum()) if own else mean_all,
+                         'pay_of': 'the group' if own else 'all private employees (no private employee in the group)',
+                         'share_left_out_no_group': unmatched})
+    t = pd.DataFrame(rows)
+    write(t, 'cps_private_pay_by_scf_group.csv')
+    common.say('average pay of private employees by SCF industry group:\n'
+               + t.pivot(index='scf_industry_group', columns='year', values='average_pay').round(0).to_string())
+    note('cps_private_pay_by_scf_group.csv', 'CPS ASEC, the common IPUMS extract (settings paths.raw.cps_earnings): '
+         'ASECWT, AGE, IND, CLASSWKR, INCWAGE; the SCF codebook\'s collapse of Census industry codes to its 7 public '
+         'groups (X3107)', 'weighted mean of INCWAGE over private wage and salary workers (CLASSWKR 21-23) 18 and '
+         'over with wages, by SCF industry group of the current or most recent job; group 8 is all of them, and so is group 7 (public '
+         'administration), which has no private employees; tax year = survey year - 1; nominal dollars')
+
+
+def pub4801_blind():
+    """The age and blindness boxes checked on all individual returns, and the returns taking the standard deduction,
+    SOI Publication 4801 (line item estimates), read off the publication's pages (29 October; scratch
+    explore/2026-10-29/retrain/p4801/): 2015 and 2017 the all-forms total of Form 1040 line 39a and Form 1040A line 23a
+    (1040EZ has no boxes); 2018 and 2019 Form 1040 page 1 (the age and blindness boxes) and the summary table's basic
+    standard deduction."""
+    rows = [(2015, 24362239, 256557, 10153231, 81906, 103844288), (2017, 25924675, 260535, 10959898, 83983, 104013115),
+            (2018, 26686849, 269239, 11260158, 75785, 134270136), (2019, 27477794, 260291, 11609322, 80564, 138307604)]
+    write(pd.DataFrame(rows, columns=['year', 'primary_65_or_older', 'primary_blind', 'spouse_65_or_older', 'spouse_blind',
+                                      'standard_deduction_returns']), 'pub4801_blind_boxes.csv')
+    note('pub4801_blind_boxes.csv', 'SOI Publication 4801, line item estimates, all returns: 2015 and 2017 Form 1040 '
+         'line 39a plus Form 1040A line 23a (the printed all-forms total); 2018 and 2019 Form 1040 page 1; the basic '
+         'standard deduction returns from the all-forms page (2015, 2017) or the summary table (2018, 2019)',
+         'typed in from the pages (scratch explore/2026-10-29/retrain/p4801/), 2015 and 2017-2019')
+
+
+def puf_blindness(puf, age_range):
+    """The primary filer's blindness on each PUF record, where the return shows it: 1 blind, 0 not blind, -1 not
+    known (moved here from build_table.py, where it made the training table's blindness slot of 29 October). Shown
+    only on unmarried returns taking the standard deduction (filing status single or head of household, FDED 2), not
+    dependent filers (DSI 1, whose deduction is limited), with an age range: there the deduction above the basic amount,
+    in units of the additional amount (settings blindness: $1,550 in 2015), is the number of extra boxes; the boxes are
+    a whole number on 97% of these returns. Blind = the boxes less one at 65 and over (age range 65+). Not known: joint
+    returns (in the 2015 PUF they show only 0, 2 or 4 boxes, the spouses evened out), separate returns, itemizers,
+    dependent filers, records with no age range, boxes that are not a whole number, and boxes that do not fit the age
+    (none at 65 and over, or two under 65). Prints the counts."""
+    B = common.SETTINGS['blindness']
+    mars, fded, dsi = (puf[c].to_numpy() for c in ('MARS', 'FDED', 'DSI'))
+    ded = puf['P04470'].to_numpy(float)
+    w = puf['S006'].to_numpy(float) / 100
+    basic = np.vectorize(lambda m: float(B['puf_basic_standard_deduction'].get(str(int(m)), np.nan)))(mars)
+    unmarried_std = np.isin(mars, [1, 4]) & (fded == 2) & (dsi == 0)
+    boxes = np.where(unmarried_std, (ded - np.nan_to_num(basic)) / float(B['puf_additional_amount_unmarried']), np.nan)
+    whole = unmarried_std & (np.abs(boxes - np.round(np.nan_to_num(boxes))) <= float(B['whole_tolerance']))
+    has_range = (age_range >= 0) & (age_range < common.ADULT_RANGES)
+    old = age_range == common.ADULT_RANGES - 1
+    blind = np.round(np.nan_to_num(boxes)).astype(np.int64) - old.astype(np.int64)
+    fits = whole & has_range & np.isin(blind, [0, 1])
+    out = np.where(fits, blind, -1).astype(np.int64)
+    n = lambda m: f'{w[m].sum() / 1e6:.2f}m'
+    common.say(f'PUF blindness (weighted returns): unmarried standard-deduction returns other than dependent filers '
+               f'{n(unmarried_std)}; boxes a whole number {n(whole)}; of those with no age range {n(whole & ~has_range)}; '
+               f'boxes that do not fit the age {n(whole & has_range & ~np.isin(blind, [0, 1]))}; shown {n(fits)}, '
+               f'blind {n(out == 1)}')
+    return out
+
+
+def puf_blind_rates():
+    """The PUF's blind rate by the primary filer's age range, on the returns where blindness is shown (puf_blindness),
+    weighted (S006). The blindness rule (non_micro_imputations.blindness) applies these rates, times one factor per
+    person type, to every primary filer and spouse in the file. Age ranges as the training table's (ages.py, observed
+    range only; records with no range are left out of the rates)."""
+    import ages
+    import build_table
+    puf = build_table.read_puf()
+    rng, _ = ages.puf_age_ranges(puf)
+    assert np.array_equal(rng.RECID.to_numpy(), puf.RECID.to_numpy())
+    age_range = rng.age_range.to_numpy()
+    b = puf_blindness(puf, age_range)
+    w = puf['S006'].to_numpy(float) / 100
+    lo = [0, 26, 35, 45, 55, 65]
+    hi = lo[1:] + [None]
+    rows = []
+    for k in range(common.ADULT_RANGES):
+        known = (age_range == k) & (b >= 0)
+        assert known.any(), f'no PUF return shows blindness in age range {common.AGE_LABELS[k]}'
+        rows.append({'puf_year': common.PUF_YEAR, 'age_range': common.AGE_LABELS[k], 'age_from': lo[k],
+                     'age_to': hi[k], 'returns_shown': w[known].sum(), 'blind_returns': w[known & (b == 1)].sum(),
+                     'records_shown': int(known.sum()), 'blind_records': int((known & (b == 1)).sum()),
+                     'blind_rate': w[known & (b == 1)].sum() / w[known].sum()})
+    t = pd.DataFrame(rows)
+    common.say('PUF blind rates by age range:\n' + t.to_string(index=False))
+    write(t, 'puf_blind_rates.csv')
+    note('puf_blind_rates.csv', f'the {common.PUF_YEAR} PUF (settings paths.raw.puf): single and head-of-household '
+         'returns taking the standard deduction, not dependent filers, with an observed age range',
+         'blind = the standard deduction above the basic amount, in units of the additional amount, less one at 65 and '
+         'over (settings blindness); weighted share blind among the returns where it is shown, by the primary '
+         'filer\'s age range (age_to empty: no upper limit)')
+
+
+TABLES = [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates, copies,
+          soi_children, cps_private_pay, pub4801_blind, puf_blind_rates]
+
+
+def main(names=None):
+    """Every table; or, with names (python build_non_micro_tables.py cps_private_pay ...), only those, their rows of
+    sources.csv replaced and the other rows kept."""
     os.makedirs(OUTDIR, exist_ok=True)
-    for f in [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates,
-              copies, soi_children]:
+    run = [f for f in TABLES if not names or f.__name__ in names]
+    assert not names or len(run) == len(names), f'unknown tables in {names}'
+    for f in run:
         f()
-    pd.DataFrame(SOURCES).to_csv(os.path.join(OUTDIR, 'sources.csv'), index=False)
+    src = pd.DataFrame(SOURCES)
+    path = os.path.join(OUTDIR, 'sources.csv')
+    if names and os.path.exists(path):
+        old = pd.read_csv(path)
+        src = pd.concat([old[~old['table'].isin(src['table'])], src], ignore_index=True)
+    src.to_csv(path, index=False)
     common.say(f'wrote {len(SOURCES)} tables and sources.csv to {OUTDIR}')
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    main(sys.argv[1:] or None)

@@ -10,8 +10,15 @@ its chance of not filing.
 
   items             the survey's columns, summed; none (an empty list) is zero:
                     an item the survey does not ask.
+  in_training       false: the row serves the tax data only (its non-filers'
+                    amounts); the survey's training rows have the item
+                    missing in every year (since the second retrain of 29
+                    October: the CPS's capital gains).
   definition fixes  in this order: first_year, the survey asks the item from
-                    this tax year (earlier years read as zero); part, the
+                    this tax year (earlier years are missing, since 29
+                    October: not shown in training, as any item a survey does
+                    not ask; zero before; the tax data's non-filers of those
+                    years still read them as zero, build_table.tax_data); part, the
                     positive part ("positive") or the size of the loss
                     ("loss", stored positive as the PUF's loss fields are);
                     loss_cap, losses read as no more than this (capital losses
@@ -130,8 +137,8 @@ def shared_rows(survey=None):
 
 
 def filled():
-    """The rows with function 2."""
-    return [r for r in TABLE if r.get('fill_in')]
+    """The rows with function 2 (a row kept out of training, in_training false, has none)."""
+    return [r for r in TABLE if r.get('fill_in') and in_training(r)]
 
 
 def fill_type(row):
@@ -155,10 +162,30 @@ def against_name(row):
     return '+'.join(against(row))
 
 
+def not_asked(row, year):
+    """Whether survey year year is before the row's first_year: the survey did not ask the item that year (the CPS's
+    capital gains before tax year 2018). Its amount is then missing (not shown in training), not zero (29 October)."""
+    return row.get('first_year') is not None and year < row['first_year']
+
+
+def in_training(row):
+    """Whether the row's item is shown in training at all (row key in_training, default true). A row with in_training
+    false (the CPS's capital gains, since the second retrain of 29 October: all four pieces) still gives the tax data's
+    non-filers their amounts (build_table.survey_puf_amounts), but the survey's training rows have it missing in every
+    year, with no function 1 and no fill-in."""
+    return bool(row.get('in_training', True))
+
+
+def not_shown(row, year):
+    """Whether the row's item is missing on the survey's training rows of year year: a year the survey does not ask it
+    (not_asked), or a row kept out of training (in_training false)."""
+    return not_asked(row, year) or not in_training(row)
+
+
 def fills_in(row, year):
-    """Whether the row's fill-in runs in survey year year: from its first_year on. A year the survey does not ask the
-    item (the CPS's capital gains before tax year 2018) has no reporters, so its zeros hide no holders."""
-    return bool(row.get('fill_in')) and (row.get('first_year') is None or year >= row['first_year'])
+    """Whether the row's fill-in runs in survey year year: from its first_year on, and only on a row shown in training.
+    A year the survey does not ask the item has no reporters, so its zeros hide no holders."""
+    return bool(row.get('fill_in')) and in_training(row) and (row.get('first_year') is None or year >= row['first_year'])
 
 
 def columns(row):
@@ -182,7 +209,10 @@ def traditional_deferrals(elective, year, married):
 
 
 def reported_amount(d, row, year):
-    """The row's items (d's raw_<item> columns) summed, as the survey reports them; zero with no items."""
+    """The row's items (d's raw_<item> columns) summed, as the survey reports them; zero with no items; missing (NaN)
+    in a year the survey does not ask the item (not_asked)."""
+    if not_asked(row, year):
+        return np.full(len(d), np.nan)
     x = np.zeros(len(d))
     for c in row['items']:
         x = x + d[f'raw_{c}'].to_numpy(float)
@@ -205,7 +235,9 @@ def deferrals_subtracted(d, row, year):
 
 def survey_amount(d, row, year):
     """The row's amount on the survey's records d (one survey year): its items (d's raw_<item> columns) summed, zero
-    with no items, then the definition fixes."""
+    with no items, then the definition fixes; missing (NaN) in a year the survey does not ask the item (not_asked)."""
+    if not_asked(row, year):
+        return np.full(len(d), np.nan)
     x = reported_amount(d, row, year)
     t, _ = deferrals_subtracted(d, row, year)
     if t is not None:
@@ -217,8 +249,8 @@ def survey_amount(d, row, year):
 def definition_fixes(x, row, year):
     """The row's definition fixes applied to the survey's amount (its items summed, less any traditional deferrals) in
     tax year year."""
-    if row.get('first_year') is not None and year < row['first_year']:
-        x = np.zeros(len(x))
+    if not_asked(row, year):
+        return np.full(len(x), np.nan)
     if row.get('part') == 'positive':
         x = np.maximum(x, 0.0)
     elif row.get('part') == 'loss':

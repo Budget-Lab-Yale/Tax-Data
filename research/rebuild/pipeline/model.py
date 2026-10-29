@@ -59,11 +59,18 @@ PUF_LABELS = [v for v in LABELS if META['labels'][v]['source'] == 'puf']   # agi
 assert PUF_LABELS == list(LABELS), 'labels on the PUF only'
 # The SIPP-only categories (whether each adult's tips are mostly from leisure and hospitality): {slot: values}
 SIPP_CATEGORIES = META['sipp_categories']
+# The PUF-only categories: {slot: values}. None since the second retrain of 29 October (the primary filer's blindness,
+# a slot here on 29 October, is now a rule in non_micro_imputations.blindness).
+PUF_CATEGORIES = META.get('puf_categories', {})
+# The SCF-only categories (since 29 October): the industry group of the household's largest business of each kind
+# (Schedule C, partnership, S corporation; 0 none, 1-7 the SCF's public groups, 8 no industry code; build_scf.R).
+# {slot: values}
+SCF_CATEGORIES = META.get('scf_categories', {})
 CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-    + list(LABELS) + list(SIPP_CATEGORIES)
+    + list(LABELS) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
-SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf']
+SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf'] + list(SCF_CATEGORIES)
 NET_WORTH_PARTS = dict(META['net_worth_parts'])
 RATIOS = {k: tuple(v) for k, v in META['ratios'].items()}   # slot: (dollar item, its base)
 # Two slots per translated item with the fill-in: a second slot, on each survey that fills the item in (since 28
@@ -81,7 +88,7 @@ SIPP_SLOTS = list(META['sipp_amounts']) + list(SIPP_CATEGORIES)   # each adult's
 # the credit children, then the amounts. Generation draws a batch's own items in this order (generate.py).
 TYPE_SLOTS = ['married', 'n_dep', 'age_range']
 PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES
-             + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared']
+             + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared'] + list(PUF_CATEGORIES)
              + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS + SIPP_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
@@ -125,7 +132,8 @@ def band_layout():
 
 BAND_LAYOUT = band_layout()
 N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-             **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
+             **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES,
+             **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
 
@@ -145,7 +153,7 @@ MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
                'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-               **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES}
+               **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -201,7 +209,7 @@ def read_table():
         'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
-    for c, n in {**PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES}.items():
+    for c, n in {**PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES}.items():
         assert table[c].between(-1, n - 1).all(), c
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a
