@@ -267,6 +267,11 @@ def start_from_year(spec):
     assert df['weight'].notna().all() and (df['weight'] >= 0).all(), f'{path}: a missing or negative weight'
     w = df['weight'].to_numpy(float)
     df = df.drop(columns=['weight_start']).rename(columns={'weight': f'weight_{s}'})
+    # (30 October) the year-s file carries the non-microdata imputations' columns; they are made again on this start
+    # (impute below refuses a frame that has them), so they are dropped and the written-back columns put back to
+    # their drawn values first (non_micro_imputations.as_drawn)
+    if NMI.S.get('run_in_tilt', False):
+        df = NMI.as_drawn(df)
     common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
     if spec['dollars'] == 'per_return_growth':
         df, growth = grow_dollars(df, s, Y)
