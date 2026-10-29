@@ -1358,6 +1358,43 @@ billionaires included. The AMT rule (`amt_nol_cap`) runs on every record in the 
 returns included: their `amt_nols` was scaled to the aggregate records' dollars, and the rule then holds it to each
 record's loss.
 
+## The names: Tax-Simulator's, everywhere (29-30 October)
+
+John, 29 October: "there is no reason for the names to differ. at all." Every variable of the rebuild that is the same
+item as an input column of tax-simulator-gpu (master 9424483, 156 columns read) carries the calculator's name, in the
+training table, the network's slots, the generated file, the targets configuration, the settings and the reports.
+Where the calculator does not read an item but production Tax-Data's file has a name for it, that name is used
+(`n_dep_ctc`, the consumption categories).
+
+- **The list.** `pipeline/tools/rename_map.csv`, one row per name: `renamed` (50: the same item under the rebuild's
+  old name, for example `mars` to `filing_status`, `interest` to `txbl_int`, `sch_c` to `sole_prop`, the partnership
+  and S corporation `pass`/`nonpass` items to `passive`/`active`, `ss_gross` to `gross_ss`, `childcare` to
+  `care_exp`, the 20 balance-sheet items `w_<item>` to `value.<item>`, `age_primary` to `age1` and `age_dep1` to
+  `dep_age1`), `shared` (the name was already the calculator's or production's), `computed` (a calculator column
+  made from rebuild items: each spouse's Schedule C, farm and partnership self-employment income, `dep_status`,
+  `male1`, gross pensions, other income, `kg_lt` with distributions, the cost bases, the zeros) and `rebuild-only`
+  (no calculator or production name: totals such as `dividends` and `capital_gains`, the survey slots, the shares).
+- **Kept on purpose** (`DECISIONS_FOR_JOHN.md` of 30 October): `record_id` (the bare `id` means other things in the
+  rebuild; the calculator and Tax-Simulator files write it as `id`); `sex_primary`/`sex_spouse` (coded 1 man, 2
+  woman; `male1`/`male2` are computed); the surveys' person slots `tips_primary`, `ot_primary` and the like, because
+  the file has `tips1`, `ot1` made from them. The interest paid deduction (PUF E19200) is `first_mort_int`, the
+  calculator's column, though it also holds investment interest (production's own name for the whole item is
+  `int_exp`).
+- **How it was applied.** `pipeline/tools/apply_rename.py` applies the `renamed` rows to `research/rebuild` (not
+  `HISTORY.md`), and can be run on another branch made before the rename. Names with an underscore are replaced
+  wherever they stand as a whole name, with their band, reported, drawn and `u_` forms; one-word names (`interest`,
+  `unemployment`, `childcare`, `mars`) only where they are plainly names, not in prose. Names built in code from pieces
+  were fixed by hand: the balance sheet's prefix (`value.` for the 20 items in `build_table.py` and `build_scf.R`,
+  `w_kg_` kept for the four unrealized gains), and the surveys' own person-1 and person-2 ages, which inside
+  `build_table.py` are `svy_age1`, `svy_age2`, `svy_dep_age1`-`3` until the primary-filer rule has run (the R survey
+  builders keep `age1`, `age2` for the survey's person 1 and 2).
+- **Networks trained before the rename.** Their slot positions are unchanged; `model.load_model` reads their band
+  layout's names through the map (`model.renamed`), and checks names and order against today's. Networks saved since
+  carry their slot list.
+- **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the training table built after the rename equals the one
+  built before, column for column, apart from the names; a 2019 draw and tilt from the installed networks on the
+  renamed code equal those on the code before.
+
 ## How the latest run comes out
 
 The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder

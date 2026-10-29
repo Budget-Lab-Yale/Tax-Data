@@ -46,6 +46,9 @@ from, so a worktree runs its own):
 | calculator | `calculator.py`, `calculator_run.py`, `report_calculator.py` | an experiment, not in the default stages: each record's federal income tax from the GPU tax calculator (tax-simulator-gpu at the commit in settings `calculator`), the AGI check and the levels against SOI 2019 (`CALCULATOR_CONTRACT.md`) | under a minute on a GPU, a few minutes for the report |
 | taxsim_file | `taxsim_file.py` | not in the default stages (29 October): the year file as Tax-Simulator's `tax_units_<year>.csv`, production's 188 columns in its order and with its conventions for missing values; where each column comes from is `TAXSIM_FILE_COLUMNS.csv` (written beside the output, copied to `research/rebuild/`) | a few minutes on a CPU node |
 
+Names: every variable that Tax-Simulator's calculator reads has the calculator's name (29-30 October); the list is
+`pipeline/tools/rename_map.csv` and `pipeline/tools/apply_rename.py` applies it to a branch made before (`FEATURES.md`).
+
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),
 `fillin.py` (the two-slot fill-in, run by training), `qgroups.py` (grouped
