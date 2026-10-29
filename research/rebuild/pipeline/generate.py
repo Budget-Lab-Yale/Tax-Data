@@ -191,6 +191,9 @@ CPS_OVERTIME = [v for v in CPS_STRUCTURE.get('overtime', []) if v in CPS_SLOTS]
 CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
 CPS_ZERO_WITHOUT = CPS_STRUCTURE.get('zero_without', {})
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
+# (28 October) the dependents' Social Security number status: the k-th present when n_dep >= k, as the ages
+DEP_SSN = [P.index(v) for v in CPS_STRUCTURE.get('dependent_ssn', [])]
+PRIMARY_SSN = [P.index(v) for v in CPS_STRUCTURE.get('primary_ssn', [])]        # the primary filer's: never none
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
 SEX_PRIMARY = P.index('sex_primary')
 # the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
@@ -393,8 +396,9 @@ def cps_structure(values, slot, probs):
     """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married,
     and a married couple's spouse has an age and a sex, the age 18 or over (every record, filers and non-filers;
     ages under 18 get no chance and the other ages are rescaled); the primary filer's sex is a man or a woman, never
-    none (a dependent filer's is set to none after, in structural); the k-th dependent has an age exactly when there
-    are at least k dependents; the primary filer's exact age lies in its age range, and a non-filer unit's head (the
+    none (a dependent filer's is set to none after, in structural); the k-th dependent has an age, and a Social
+    Security number status, exactly when there are at least k dependents (the primary filer always has a status); the
+    primary filer's exact age lies in its age range, and a non-filer unit's head (the
     CPS-label batch, filing flag 0) is 18 or over (a 17-year-old head falls in none of the non-filer people targets'
     bands, adults from 18 and children under 17). Filers keep their PUF ranges: dependent filers can be teenagers."""
     married = values[:, NC + P.index('married')] == 1
@@ -412,9 +416,12 @@ def cps_structure(values, slot, probs):
     adult = torch.zeros(probs.shape[1], device=probs.device)
     adult[ADULT_AGE + 1:M.PERSON_CATEGORIES[P[SPOUSE_AGE]]] = 1.0   # value a + 1 is age a
     probs = only(probs, sel, adult.expand(int(sel.sum()), -1))
-    for k, j in enumerate(DEP_AGES, start=1):
+    for k, j in list(enumerate(DEP_AGES, start=1)) + list(enumerate(DEP_SSN, start=1)):
         probs = only(probs, (slot == j) & (n_dep < k))
         sel = (slot == j) & (n_dep >= k)
+        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    for j in PRIMARY_SSN:
+        sel = slot == j
         probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
     # overtime (28 October): the primary filer's is zero without wages, the spouse's without a spouse's share of the
     # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages less tips in dollars (dollars.py)

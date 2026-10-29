@@ -231,11 +231,18 @@ AGE_SLOTS = ['age_primary', 'age_spouse', 'age_dep1', 'age_dep2', 'age_dep3']   
 # 2024) as one value, 87 or 88; the SCF reports ages to 95.
 EXACT_AGES = TR.EXACT_AGES
 EXACT_AGE_TOP = 80
+# Since 28 October (John, NEXT_STEPS.md item 1, Q4): each person's Social Security number status, CPS only
+# (build_cps.R's ssn_status1-2 and dep_ssn_status1-3, rule "B2"): 0 none, 1 citizen, 2 noncitizen with a sign of
+# lawful status, 3 noncitizen without one (taken to lack a number). The dependents' follow their ages' order. Drawn
+# with the other CPS slots, after the ages (model.py's order); dollars.py turns them into ssn1, ssn2, dep_ssn1-3.
+SSN_STATUS_SLOTS = ['ssn_status_primary', 'ssn_status_spouse', 'ssn_status_dep1', 'ssn_status_dep2', 'ssn_status_dep3']
+DEPENDENT_SSN_SLOTS = ['ssn_status_dep1', 'ssn_status_dep2', 'ssn_status_dep3']   # the k-th: present when n_dep >= k
 CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS if a not in EXACT_AGES},
-                  'sex_primary': 3, 'sex_spouse': 3}   # CPS only; sex: 0 none, 1 man, 2 woman
+                  'sex_primary': 3, 'sex_spouse': 3,   # CPS only; sex: 0 none, 1 man, 2 woman
+                  **{v: 4 for v in SSN_STATUS_SLOTS}}
 PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGORIES}   # every person category
 SPOUSE_SLOTS = ['age_spouse', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse',
-                'ot_spouse']
+                'ot_spouse', 'ssn_status_spouse']
 DEPENDENT_AGE_SLOTS = ['age_dep1', 'age_dep2', 'age_dep3']   # the k-th: present exactly when n_dep >= k
 SHARES = ['spouse_wage_share', 'spouse_se_share']   # only for married couples with some of the item; else absent
 # SIPP only (settings "sipp"): each adult's tips in dollars (zero without wages or without tips), amounts cut into
@@ -626,7 +633,7 @@ def cps_rows():
     person = ['wages1', 'wages2', 'se1', 'se2', 'weeks_worked1', 'weeks_worked2', 'usual_hours1', 'usual_hours2']
     need = sorted({c for r in TR.rows('cps', amounts_only=True) for c in r['items']}) + person + \
         ['married', 'n_dep', 'filer', 'p_file', 'mars', 'n_ctc', 'n_eitc', 'age1', 'age2', 'sex1', 'sex2', 'dep_age1', 'dep_age2', 'dep_age3', 'childcare',
-         'wages', 'sch_cf_income']
+         'wages', 'sch_cf_income', 'ssn_status1', 'ssn_status2', 'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3']
     n_missing = s[need].isna().sum()
     assert not n_missing.any(), f'missing values in the CPS units:\n{n_missing[n_missing > 0]}'
     # overtime (since 28 October): missing exactly on the units not asked the earnings questions, both adults together
@@ -646,6 +653,12 @@ def cps_rows():
     assert (s.loc[~couple, ['wages2', 'se2', 'weeks_worked2', 'usual_hours2']] == 0).all().all()
     for c in ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']:
         assert s[c].between(-1, MAX_AGE).all(), c
+    # Social Security number status: 1-3 for every person present, 0 where there is none
+    assert s['ssn_status1'].isin([1, 2, 3]).all() and s['ssn_status2'].isin([0, 1, 2, 3]).all()
+    assert ((s['ssn_status2'] > 0).to_numpy() == couple).all()
+    for k in (1, 2, 3):
+        assert s[f'dep_ssn_status{k}'].isin([0, 1, 2, 3]).all()
+        assert ((s[f'dep_ssn_status{k}'] > 0) == (s[f'dep_age{k}'] >= 0)).all(), f'dep_ssn_status{k}'
     assert s['p_file'].between(0, 1).all() and s['mars'].isin([1, 2, 3, 4]).all()
     assert ((s['mars'] == 2) == couple).all() and (s['n_eitc'] <= s['n_dep']).all() and (s['n_ctc'] <= s['n_dep']).all()
     assert s['record_id'].max() < 1e9 and s['household_id'].max() < 1e9
@@ -665,7 +678,9 @@ def cps_rows():
                        **{f'p{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2)
                           for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']},
                        **{f'p{k}_ot': s[f'ot{k}'].astype(float) for k in (1, 2)},
+                       **{f'p{k}_ssn_status': s[f'ssn_status{k}'].astype(np.int64) for k in (1, 2)},
                        **{f'dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
+                       **{f'dep_ssn_status{k}': s[f'dep_ssn_status{k}'].astype(np.int64) for k in (1, 2, 3)},
                        'cps_childcare': s['childcare'].astype(float)})
     for v in AMOUNTS:
         if v not in df:
@@ -674,7 +689,8 @@ def cps_rows():
 
 
 PERSON_COLUMNS = [f'p{k}_{c}' for k in (1, 2) for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']] + \
-    ['p1_ot', 'p2_ot', 'dep_age1', 'dep_age2', 'dep_age3', 'cps_childcare']
+    ['p1_ot', 'p2_ot', 'dep_age1', 'dep_age2', 'dep_age3', 'cps_childcare', 'p1_ssn_status', 'p2_ssn_status',
+     'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3']
 
 
 def cps_person_slots(t, primary_is_2):
@@ -698,9 +714,12 @@ def cps_person_slots(t, primary_is_2):
            'hours_primary': pick('usual_hours', 1), 'hours_spouse': pick('usual_hours', 2),
            'childcare': d['cps_childcare'].to_numpy(float),
            # each adult's overtime in dollars, missing where the unit was not asked (build_cps.R)
-           'ot_primary': pick('ot', 1), 'ot_spouse': pick('ot', 2)}
+           'ot_primary': pick('ot', 1), 'ot_spouse': pick('ot', 2),
+           # each person's Social Security number status (0 none, 1 citizen, 2 noncitizen with a sign, 3 without)
+           'ssn_status_primary': pick('ssn_status', 1), 'ssn_status_spouse': pick('ssn_status', 2)}
     for k in (1, 2, 3):
         out[f'age_dep{k}'] = np.where(d[f'dep_age{k}'] >= 0, d[f'dep_age{k}'] + 1, 0)
+        out[f'ssn_status_dep{k}'] = d[f'dep_ssn_status{k}'].to_numpy()
     for share, item in [('spouse_wage_share', 'wages'), ('spouse_se_share', 'se')]:
         total = pick(item, 1) + pick(item, 2)
         x = np.where(total != 0, pick(item, 2) / np.where(total != 0, total, 1.0), 0.0)
@@ -723,6 +742,15 @@ def cps_person_slots(t, primary_is_2):
     assert d.age_primary.between(1, EXACT_AGE_TOP + 1).all() and d.age_spouse.between(0, EXACT_AGE_TOP + 1).all()
     for k in (1, 2, 3):
         assert ((d[f'age_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'age_dep{k} and n_dep disagree'
+        assert ((d[f'ssn_status_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'ssn_status_dep{k} and n_dep disagree'
+    assert d.ssn_status_primary.isin([1, 2, 3]).all() and ((d.ssn_status_spouse > 0).to_numpy() == married).all()
+    for y in sorted(d.year.unique()):
+        dy = d[d.year == y]
+        common.say(f'CPS {y} Social Security number status (millions, weighted; citizen / noncitizen with a sign / '
+                   'without): ' + '; '.join(
+                       f'{lab} ' + ' / '.join(f'{dy.weight[dy[v] == k].sum() / 1e6:.2f}' for k in (1, 2, 3))
+                       for lab, v in [('primary filers', 'ssn_status_primary'), ('spouses', 'ssn_status_spouse')]
+                       + [(f'dependent {k}', f'ssn_status_dep{k}') for k in (1, 2, 3)]))
     for v in SPOUSE_SLOTS:
         if v in CPS_OVERTIME:   # zero unless married where asked; missing where not asked
             assert ((d.loc[~married, v] == 0) | d.loc[~married, v].isna()).all(), v
@@ -1186,6 +1214,9 @@ def table_meta(t, factor):
                               # (28 October) each adult's overtime: drawn after the other CPS slots; the primary
                               # filer's zero without wages, the spouse's without a spouse's share of wages above zero
                               'overtime': CPS_OVERTIME,
+                              # (28 October) the dependents' Social Security number status: the k-th present
+                              # exactly when n_dep >= k, as their ages
+                              'dependent_ssn': DEPENDENT_SSN_SLOTS, 'primary_ssn': ['ssn_status_primary'],
                               'zero_without': {'ot_primary': 'wages', 'ot_spouse': 'spouse_wage_share'}},
             'sipp_amounts': SIPP_AMOUNTS,
             'sipp_categories': SIPP_CATEGORIES,
