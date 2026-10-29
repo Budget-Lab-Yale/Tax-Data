@@ -562,7 +562,7 @@ def qbi_income(df, parts):
     return sum(sg * df[p].to_numpy(float) for p, sg in parts.items())
 
 
-def qbi(df, year, w, ctx):
+def qbi(df, year, w, ctx, a=None, b=None):
     """Q5 (John, 28 October; the simple plan, scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md; built 29 October).
     For each record and kind of business (Schedule C, partnership, S corporation) with positive income of that kind:
       - specified service (sstb_<kind>): 1 when the record's keyed draw (stream 7, person 1-3 by kind) is below
@@ -575,7 +575,8 @@ def qbi(df, year, w, ctx):
         all private employees); for an S corporation plus the owner's own wages: in this first version all of the
         record's wages when it has S corporation income and no Schedule C or partnership income.
     Farms (positive farm income): never specified service; wage bill = the farm income, so the wage limit never binds.
-    Otherwise 0. a and b are settings, 1 for now (two dials, set later against Treasury's and SOI's numbers).
+    Otherwise 0. a and b are settings (1), the values before the taxes stage solves them; taxes.py calls this function
+    again with the solved values (arguments a and b), before the reweighting (SIMPLE_PLAN.md step 4).
     A file from a model before 29 October has no drawn industry: every item 0 (the placeholder of 28 October)."""
     it = ITEMS['qbi']
     writes = it['writes']
@@ -583,7 +584,8 @@ def qbi(df, year, w, ctx):
         ctx['qbi'] = None
         ctx['notes'].append('QBI: the file has no drawn industry groups (a model from before 29 October): all 0')
         return {c: np.zeros(len(df), float if c.startswith('wagebill') else int) for c in writes}
-    a, b = float(it['a']), float(it['b'])
+    a = float(it['a'] if a is None else a)
+    b = float(it['b'] if b is None else b)
     c = {int(g): float(v) for g, v in it['c_by_scf_group'].items()}
     assert sorted(c) == list(range(1, 8)), 'c_by_scf_group: groups 1-7'
     pay = table('cps_private_pay_by_scf_group.csv')

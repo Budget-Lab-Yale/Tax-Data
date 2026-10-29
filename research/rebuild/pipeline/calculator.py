@@ -13,17 +13,18 @@ Three steps, all run by `main` (stage `calculator` of run.sbatch):
    writes them). Each column is the rebuild's own column under the same name, renamed, computed from the rebuild's
    columns, or 0 where the rebuild does not have it yet. CONTRACT below is the list, one row per column; it is
    written beside the outputs as calculator_contract.csv and is the source of research/rebuild/CALCULATOR_CONTRACT.csv.
-3. The run. calculator_run.py, under the calculator's own Python environment (settings calculator.python) with the
-   pinned copy's source first on the path, applies the calculator's own preparation (the wage split and the random
-   draws keyed by record id, as its bridge does), its frame steps under the year's law, and its tax chain, and
-   writes every computed column per record (calculator_<year>.parquet).
+3. The run. Since 30 October tax-simulator-gpu's own batch command (python -m taxmodel.run.batch, its local branch
+   taxdata-batch), called by taxes.run_batch with settings taxes (the pinned commit, the calculator's Python
+   environment), in place of the experiment's own runner (calculator_run.py, removed): the calculator's own
+   preparation (the wage split and the random draws keyed by record id, as its bridge does), its frame steps under
+   the year's law and its tax chain; every computed column per record (calculator_<year>.parquet). The same command
+   computes the taxes inside the tilt (taxes.py).
 
 Paths: input <tilt>/file_<year>.parquet (REBUILD_CALC_INPUT overrides it); outputs <out>/calculator/<run>/
 (REBUILD_CALC_OUT overrides it).
 """
 import json
 import os
-import subprocess
 import sys
 
 import numpy as np
@@ -32,17 +33,14 @@ import pandas as pd
 import common
 
 Y = common.TARGET_YEAR
-S = common.SETTINGS['calculator']
 INPUT = os.environ.get('REBUILD_CALC_INPUT', f'{common.TILT}/file_{Y}.parquet')
 OUT = os.environ.get('REBUILD_CALC_OUT', f'{common.OUT}/calculator/{common.RUN}')
-LIB = f'{common.OUT}/lib/tax-simulator-gpu_{S["commit"][:12]}'
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---- the contract ---------------------------------------------------------------------------------------------
 # One row per column: (Tax-Simulator's name, status, where it comes from, what it is / what would fill it).
 # status: same (the rebuild's column, same name), renamed (the rebuild's column under another name), computed (a
 # formula on the rebuild's columns), zero (0 for now: the rebuild does not have it; the last field says what would
-# fill it). The calculator reads every one of these; calculator_run.py checks that against the pinned code.
+# fill it). The calculator reads every one of these; its batch command checks that against the pinned code.
 SAME, RENAMED, COMPUTED, ZERO = 'same', 'renamed', 'computed', 'zero'
 NO_AGE = 'NaN where the rebuild has -1 (none), as Tax-Data writes it'
 CONTRACT = [
@@ -354,24 +352,10 @@ def rebuild_agi(f):
     return f[['wages', 'interest', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
 
 
-def pin():
-    """The pinned copy of the calculator: written once from the repository with git archive; checked every run."""
-    stamp = f'{LIB}/PINNED_COMMIT'
-    if not os.path.exists(stamp):
-        os.makedirs(LIB, exist_ok=True)
-        archive = subprocess.run(['git', '-C', S['repo'], 'archive', S['commit']], check=True, capture_output=True)
-        subprocess.run(['tar', '-x', '-C', LIB], input=archive.stdout, check=True)
-        with open(stamp, 'w') as fh:
-            fh.write(S['commit'] + '\n')
-    got = open(stamp).read().strip()
-    assert got == S['commit'], f'{LIB} holds commit {got}, settings say {S["commit"]}'
-    return LIB
-
-
 def main():
+    import taxes as TX
     os.makedirs(OUT, exist_ok=True)
-    lib = pin()
-    common.say(f'calculator: tax-simulator-gpu at {S["commit"]}, copy {lib}')
+    common.say(f'calculator: tax-simulator-gpu at {TX.S["commit"]} (settings taxes)')
     common.say(f'input {INPUT}\noutputs {OUT}')
     f = pd.read_parquet(INPUT)
     frame, notes = convert(f)
@@ -383,14 +367,10 @@ def main():
     common.say('conversion:\n  ' + '\n  '.join(notes))
     counts = pd.Series([c[1] for c in CONTRACT]).value_counts()
     common.say('columns by status: ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
-    # The run, in the calculator's own environment: module paths cleared so its GPU libraries are its own.
-    env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
-    env.update(PYTHONPATH=f'{lib}/src', PYTHONUNBUFFERED='1')
-    cmd = [S['python'], f'{HERE}/calculator_run.py', '--input', f'{OUT}/calculator_input_{Y}.parquet',
-           '--out', OUT, '--year', str(S.get('law_year') or Y), '--lib', lib, '--seed', str(S['draw_seed']),
-           '--commit', S['commit']]
-    common.say('running: ' + ' '.join(cmd))
-    subprocess.run(cmd, cwd=lib, env=env, check=True)
+    out, man = TX.run_batch(frame, Y, OUT, 'calculator')
+    out.to_parquet(f'{OUT}/calculator_{Y}.parquet', index=False)
+    with open(f'{OUT}/calculator_manifest.json', 'w') as fh:
+        json.dump(man, fh, indent=1)
 
 
 if __name__ == '__main__':

@@ -464,3 +464,85 @@ targets:
     value: {survey: cps}
     error: {kind: survey_replicate}
     key: {group: 'CPS {year}, {wage_groups_4}', target: '{variable}, average'}
+
+  # Taxes computed inside the model (30 October, piece 3 of the overnight plan; taxes.py). Items the tax calculator
+  # (tax-simulator-gpu under the year's law, settings taxes) computes for every record of the start, after the top of
+  # the file and the non-microdata imputations and before the reweighting, joined by record id; the tilt targets them
+  # like any drawn item. Filers; AGI groups by the file's own AGI, as every IRS target (the calculator's AGI differs
+  # from it on some returns: capital losses past the $3,000 limit, taxable Social Security, half of self-employment
+  # tax, the state tax workaround). Values: SOI Tables 1.4 and 3.3 of the year (targets.T14, T33); errors: their
+  # published CVs. One entry per item, so an item can be dropped alone. To copy to another year: the lines exist in
+  # Tables 1.4 and 3.3 of every year 2015-2023 except the QBI deduction (2018 on; leave calc_qbi out before 2018);
+  # the child credit's line is "child tax credit" before 2018 (targets.T33 would need that name).
+  - id: calc_itemizers
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: itemized_deductions_claimed
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_taxable_income
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: taxable_income
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_tax_before_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: income_tax_before_credits
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_tax_after_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: income_tax_after_credits
+    cells: {calc_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_qbi
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: qbi_deduction
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_child_credit
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: child_tax_credit
+    cells: {credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_eitc
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: eitc
+    cells: {credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_amt
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: alternative_minimum_tax
+    cells: {amt_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}

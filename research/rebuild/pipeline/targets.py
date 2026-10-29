@@ -2,8 +2,8 @@
 cells (settings.json, paths.raw.soi_mirror). Amounts are in dollars (SOI
 publishes thousands).
 
-1. Targets: Publication 1304, Tables 1.4 and 1.2, the PUF year and the target
-   year, all returns, by size of AGI. A cell SOI blanked and merged into its
+1. Targets: Publication 1304, Tables 1.4 and 1.2 (and, since 30 October, Table 3.3's
+   credits and taxes), the PUF year and the target year, all returns, by size of AGI. A cell SOI blanked and merged into its
    neighbour for disclosure stays blank with flag 'combined'; published_cells()
    puts it back together. Table 1.2's separate, head-of-household and single
    returns are added up as 'nonjoint'. Written to common.TARGETS/soi.csv: year,
@@ -62,6 +62,30 @@ T14 = {  # SOI item -> (variable, statistic)
     'taxable income > amount': ('taxable_income', 'amount'),
     'income tax before credits > number of returns': ('income_tax_before_credits', 'count'),
     'income tax before credits > amount': ('income_tax_before_credits', 'amount'),
+    # (30 October, taxes computed inside the model, taxes.py) Table 1.4's other lines the calculator computes
+    'total itemized deductions > number of returns': ('itemized_deductions', 'count'),
+    'total itemized deductions > amount': ('itemized_deductions', 'amount'),
+    'qualified business income deduction > number of returns': ('qbi_deduction', 'count'),
+    'qualified business income deduction > amount': ('qbi_deduction', 'amount'),
+    'alternative minimum tax > number of returns': ('alternative_minimum_tax', 'count'),
+    'alternative minimum tax > amount': ('alternative_minimum_tax', 'amount'),
+}
+# (30 October, taxes.py) Table 3.3, tax liability, tax credits and tax payments by size of AGI: the credits and taxes
+# the calculator computes (SOI item -> (variable, statistic)). The earned income credit is the whole credit (the part
+# used against tax and the refundable part); income tax after credits is income tax before credits less every credit
+# used against it; total income tax adds the net investment income tax and the other income taxes.
+T33 = {
+    'tax credits > child and other dependent tax credit > number of returns': ('ctc_nonrefundable', 'count'),
+    'tax credits > child and other dependent tax credit > amount': ('ctc_nonrefundable', 'amount'),
+    'tax credits > total refundable credits > additional child tax credit > number of returns':
+        ('ctc_refundable', 'count'),
+    'tax credits > total refundable credits > additional child tax credit > amount': ('ctc_refundable', 'amount'),
+    'tax credits > total refundable credits > earned income credit > number of returns': ('eitc', 'count'),
+    'tax credits > total refundable credits > earned income credit > amount': ('eitc', 'amount'),
+    'income tax after credits > number of returns': ('income_tax_after_credits', 'count'),
+    'income tax after credits > amount': ('income_tax_after_credits', 'amount'),
+    'total income tax > number of returns': ('total_income_tax', 'count'),
+    'total income tax > amount': ('total_income_tax', 'amount'),
 }
 for _fam, _f in FAMILIES.items():
     for _side in ('net income', 'net loss'):
@@ -72,7 +96,8 @@ T12_STATUS = {'all returns': 'all',
               'returns of married persons filing separately': 'separate',
               'returns of heads of households': 'head_of_household',
               'returns of single persons': 'single'}
-FILES = {'1.4': 'bysize_income_sources.csv', '1.2': 'bysize_marital_status.csv'}
+FILES = {'1.4': 'bysize_income_sources.csv', '1.2': 'bysize_marital_status.csv', '3.3': 'bysize_tax_liability.csv'}
+TABLE_ITEMS = {'1.4': T14, '1.2': T14, '3.3': T33}   # each table's items (Table 1.2: its returns, by T14's name)
 
 
 # ---- 1. the targets -----------------------------------------------------------------------
@@ -89,12 +114,12 @@ def read(table, years):
             status, item = hit[0]
             if item != 'number of returns':
                 continue
-        if item not in T14:
+        if item not in TABLE_ITEMS[table]:
             continue
         total = r.row_label.endswith('total')
         if total and r.row_label != 'All returns, total':
             continue
-        var, stat = T14[item]
+        var, stat = TABLE_ITEMS[table][item]
         value = np.nan if r.value == '' else float(r.value) * (1000 if stat == 'amount' else 1)
         rows.append({'year': int(r.tax_year), 'table': table, 'filing_status': status,
                      'lo': -np.inf if total or r.row_agi_lo in ('', '-Inf') else float(r.row_agi_lo),
@@ -106,7 +131,7 @@ def read(table, years):
 
 def build():
     years = [common.PUF_YEAR, common.TARGET_YEAR]
-    t = pd.concat([read('1.4', years), read('1.2', years)], ignore_index=True)
+    t = pd.concat([read('1.4', years), read('1.2', years), read('3.3', years)], ignore_index=True)
     blank = t['value'].isna()
     assert (t.loc[blank, 'flag'] == 'combined').all(), t[blank & (t['flag'] != 'combined')]
     nj = t[t['filing_status'].isin(['separate', 'head_of_household', 'single'])]
@@ -128,11 +153,11 @@ def returns(soi, year, table='1.4', status='all'):
     return s['value'].item()
 
 
-def published_cells(soi, year, variable, stat):
-    """An item's Table 1.4 cells by AGI as published, lowest first, as (lo, hi, value).
+def published_cells(soi, year, variable, stat, table='1.4'):
+    """An item's cells by AGI as published in a table (Table 1.4 unless said), lowest first, as (lo, hi, value).
     A non-blank 'combined' cell holds its own bracket and the blank ones after it,
     so it becomes one cell spanning them."""
-    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == '1.4') & (soi['filing_status'] == 'all')
+    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == 'all')
             & (soi['variable'] == variable) & (soi['statistic'] == stat) & (soi['label'] != 'all')]
     out = []
     for r in s.sort_values('lo').itertuples():

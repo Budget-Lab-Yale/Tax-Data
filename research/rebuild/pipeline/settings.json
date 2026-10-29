@@ -1955,12 +1955,52 @@
   "_other": "soi_cv_dir (default <out>/targets/soi_cv), borrow_neighbours (5), full_sample_se (0.01), nonfiler_count_se (0.06), nonfiler_people_population_se (0.005), definition_gap ({}): errors.py's docstring says what each means."
  },
  "_targets_config": "Optional key targets_config: a folder holding a copy of targets_config/ (catalog.yaml and one folder per year, <year>/targets.yaml, prior.yaml and growth.yaml) to read instead of the pipeline's own, for a reweighting variant (target_list.py, growth.py, config_overview.py). Absent: pipeline/targets_config.",
- "calculator": {
-  "_what": "The GPU tax calculator used as a library (calculator.py, calculator_run.py, report_calculator.py; experiment of 28 October, CALCULATOR_CONTRACT.md). commit: the tax-simulator-gpu commit the run uses; the code is read from a copy of the repository at that commit (git archive into <out>/lib/tax-simulator-gpu_<first 12 characters>), so moving to a newer version is this one line. repo: the repository the copy is taken from (read only). python: the calculator's own Python environment (its jax, pandas and GPU libraries). draw_seed: the seed of the calculator's random draws keyed by record id (its default run seed, 76). law_year: the year of the law the taxes are computed under (null: the target year).",
-  "commit": "2f028e85d52219788b5f3122aa57946f6a70cfc9",
+ "taxes": {
+  "_what": "Taxes computed inside the model (taxes.py; piece 3 of the overnight plan of 29-30 October; design: scratch explore/2026-10-22/targets/calculator_api/REPORT.md). Inside the tilt stage, on the start after the top of the file and the non-microdata imputations and before the reweighting, every record's taxes under the target year's law from tax-simulator-gpu's batch command (python -m taxmodel.run.batch, on its local branch taxdata-batch), from a copy of that repository at commit (git archive into <out>/lib/tax-simulator-gpu_<first 12 characters>), run with its own Python environment (python). The computed columns (taxes.OUTPUTS, each the calculator's name with calc_ in front) join the file by record id, and the year's calculator targets (kind calculator in targets_config/) read them. Replaces the calculator experiment's own runner (calculator_run.py, 28 October); the stage calculator now calls the same command.",
+  "enabled": true,
+  "_enabled": "false: no taxes are computed in the tilt, and the year's calculator targets are left out (listed in targets_excluded.csv), as before 30 October.",
+  "target": true,
+  "_target": "true: the year's calculator targets join the reweighting; false: they are only reported (taxes/taxes_fit.csv, before and after a tilt without them).",
+  "commit": "2b3b9070924062397f49dbee68799ea3445a7844",
   "repo": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu",
   "python": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu/.venv/bin/python",
   "draw_seed": 76,
-  "law_year": null
+  "_draw_seed": "The seed of the calculator's random draws keyed by record id (its default run seed, 76): the child care credit's take-up, the state tax workaround's owners and the others.",
+  "law_year": null,
+  "_law_year": "The year of the law the taxes are computed under; null: the target year. tax-simulator-gpu compiles the law of 2014 to 2040 (checked 29 October; 2013 fails).",
+  "law_alternative": null,
+  "_law_alternative": "null: the default law folder (current law as enacted: TCJA, the 2020-21 measures, OBBBA). Else a folder under the calculator's config/scenarios/tax_law/alternatives.",
+  "device": "cpu",
+  "_device": "cpu: the calculator runs on the CPU (JAX_PLATFORMS=cpu; about 25 seconds for 450,000 records), the same on any node; gpu: on the job's GPU, if it has one.",
+  "wage_increment": 100,
+  "_wage_increment": "Dollars added to the primary earner's wages for the marginal rates on wages (calc_mtr_wages_iit, calc_mtr_wages_payroll); 0: not computed.",
+  "qbi_dials": {
+   "solve": true,
+   "_what": "SIMPLE_PLAN.md step 4 (scratch explore/2026-10-28/qbi_plan): the QBI dials a (wage bill) and b (specified service) of non_micro_imputations.items.qbi, solved on the start's weights before the reweighting (taxes.solve_qbi_dials). a: owners of exactly one business (Schedule C, partnership or S corporation, no farm income) that is not a specified service, with taxable income above the top of the phase-in range, keep Treasury's share of 20% of their business income; b: the deduction on returns with AGI of soi_agi_floor or more equals SOI Table 1.4's. Solved in turn, at most rounds times, each by bisection in its range. false: a and b stay at the settings' values (1).",
+   "treasury_share_by_scf_group": {
+    "2": [
+     0.68
+    ],
+    "3": [
+     0.76,
+     0.65
+    ],
+    "4": [
+     0.59,
+     0.84
+    ]
+   },
+   "_treasury_share_by_scf_group": "Goodman, Lim, Sacerdote and Whitten, NBER Working Paper 28680 (revised January 2024), Table A1, column 1: actual 2018-2019 returns, owners of one business with taxable income above the phase-in range, the deduction as a share of 20% of potential QBI, in the industries that are not specified services. By SCF industry group (the Census codes of build_non_micro_tables.SCF_INDUSTRY_RANGES): 2 construction of buildings 0.68; 3 manufacturing 0.76 and publishers 0.65; 4 wholesale 0.59 and restaurants 0.84. A group's value is the average of its industries; the target is the groups' values weighted by the file's business income of those owners in each group. Groups 1, 5, 6, 7 and 8 have no published industry.",
+   "soi_agi_floor": 500000,
+   "a_range": [
+    0.0,
+    20.0
+   ],
+   "b_range": [
+    0.0,
+    60.0
+   ],
+   "rounds": 4
+  }
  }
 }

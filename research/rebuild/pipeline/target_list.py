@@ -388,32 +388,41 @@ def average_condition(member, x, m):
 
 
 # ---- values ---------------------------------------------------------------------------------------------------
-def soi_lines(v, st):
-    """[(soi.csv variable, statistic, sign)] behind statistic st of variable v in Table 1.4."""
+def soi_lines(v, st, table='1.4'):
+    """[(soi.csv variable, statistic, sign)] behind statistic st of variable v in Table 1.4 (or the table named)."""
     if st == 'units':
         return [('returns', 'count', 1)]
-    lines = variable_def(v)['soi 1.4'][st]
+    lines = variable_def(v)[f'soi {table}'][st]
     return [(ln[len('minus '):], st, -1) if ln.startswith('minus ') else (ln, st, 1) for ln in lines]
 
 
-def published_14(soi, year, cells, v, stats):
-    """Rows from Table 1.4 by AGI: our groups summed from the published cells. As-published brackets sum the
-    non-blank cells inside each bracket; edge groups are merged where a published cell crosses an edge, over all the
-    variable's statistics (merge_groups)."""
+def soi_table_lines(v, st):
+    """(table, soi_lines) of a variable published by size of AGI in Table 1.4 or Table 3.3 (the one its catalog entry
+    names), for errors.py."""
+    d = variable_def(v)
+    (table,) = [t for t in ('1.4', '3.3') if f'soi {t}' in d]
+    return table, soi_lines(v, st, table)
+
+
+def published_14(soi, year, cells, v, stats, table='1.4'):
+    """Rows from Table 1.4 (or Table 3.3, table '3.3') by AGI: our groups summed from the published cells.
+    As-published brackets (Table 1.4 only) sum the non-blank cells inside each bracket; edge groups are merged where a
+    published cell crosses an edge, over all the variable's statistics (merge_groups)."""
     (c,) = cells
     rows = []
     if c['agi'] is None:   # cells: all, the all-returns total row
-        assert c['label'] == 'all' and not c['filters'], f'Table 1.4: cells {c["label"]} need an AGI grouping'
-        t = soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.filing_status == 'all') & (soi.label == 'all')]
+        assert c['label'] == 'all' and not c['filters'], f'Table {table}: cells {c["label"]} need an AGI grouping'
+        t = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == 'all') & (soi.label == 'all')]
         s = t.groupby(['variable', 'statistic'])['value'].sum()
         for st in stats:
-            ln = soi_lines(v, st)
+            ln = soi_lines(v, st, table)
             rows.append({'cell': 'all', 'statistic': st, 'value': sum(sg * s[(var, stt)] for var, stt, sg in ln),
-                         'source': f'soi 1.4 {year}, all returns, total: ' + ' | '.join(
+                         'source': f'soi {table} {year}, all returns, total: ' + ' | '.join(
                              f'{"minus " if sg < 0 else ""}{var} {stt}' for var, stt, sg in ln)})
         return rows
     g = CAT['groupings'][c['agi']]
     if 'as_published' in g:
+        assert table == '1.4', f'{c["agi"]}: as-published brackets are those of Table 1.4'
         brackets, t = soi_brackets(soi, year, g['merge_top_until'], g.get('kept_separate', ()))
         # a cell SOI combined with its neighbour must lie inside one of our brackets, or the bracket's sum would hold
         # dollars of the next one (none does in 2019; the top brackets kept separate make it possible)
@@ -432,15 +441,16 @@ def published_14(soi, year, cells, v, stats):
                                                                        for var, stt, sg in ln)})
         return rows
     groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in g['edges']]
-    pc = {st: [(sg, TG.published_cells(soi, year, var, stt)) for var, stt, sg in soi_lines(v, st)] for st in stats}
+    pc = {st: [(sg, TG.published_cells(soi, year, var, stt, table)) for var, stt, sg in soi_lines(v, st, table)]
+          for st in stats}
     if g.get('merge_across_published'):
         groups = merge_groups(groups, [x for st in stats for _, cl in pc[st] for x in cl])
     for lo, hi, lab in groups:
         for st in stats:
             rows.append({'cell': lab, 'agi': (lo, hi), 'statistic': st,
                          'value': sum(sg * sum(val for l_, h_, val in cl if l_ >= lo and h_ <= hi) for sg, cl in pc[st]),
-                         'source': f'soi 1.4 {year}: ' + ' | '.join(f'{"minus " if sg < 0 else ""}{var} {stt}'
-                                                                   for var, stt, sg in soi_lines(v, st))})
+                         'source': f'soi {table} {year}: ' + ' | '.join(f'{"minus " if sg < 0 else ""}{var} {stt}'
+                                                                      for var, stt, sg in soi_lines(v, st, table))})
     return rows
 
 
@@ -1133,9 +1143,9 @@ def expand_entry(e, year, soi):
     reasons = e.get('reason', '')
     out = []
     for v in variable_names(e.get('variable')):
-        if vkind == 'published' and src in ('soi 1.4', 'soi 1.7'):
-            rows = published_14(soi, vyear, cells, v, stats) if src == 'soi 1.4' else \
-                published_17(soi, vyear, cells, stats)
+        if vkind == 'published' and src in ('soi 1.4', 'soi 1.7', 'soi 3.3'):
+            rows = published_17(soi, vyear, cells, stats) if src == 'soi 1.7' else \
+                published_14(soi, vyear, cells, v, stats, table=src.split(' ')[1])
             for r in rows:
                 r['cell_spec'] = {'parts': {}, 'filters': [], 'line': None, 'label': r['cell']}
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'tidy_grid':
@@ -1201,19 +1211,36 @@ def _errors_module():
     return errors
 
 
-def expand(year=common.TARGET_YEAR, start=None):
+CALCULATOR_KIND = 'calculator'   # targets on columns the tax calculator computes (taxes.py), 30 October
+
+
+def expand(year=common.TARGET_YEAR, start=None, which='all'):
     """One row per target for the year (ROW_COLUMNS, then CELL_COLUMNS). A cell published as zero is left out; with
     a starting file (a DataFrame with the file's columns), so is a cell no record can reach. Both are listed in
     LAST['excluded'], and the resolved configuration is LAST['config'] (kept outside the frame, so pandas operations
-    on the rows never carry them)."""
+    on the rows never carry them).
+    which (30 October): 'all', 'without calculator' (every entry but those of kind calculator, whose columns the tilt
+    computes after the non-microdata imputations, taxes.py) or 'calculator' (those alone; LAST['excluded'] then keeps
+    what the call before left out and adds to it). With settings taxes.enabled false the calculator entries are left
+    out of 'all', listed in LAST['excluded']."""
     cfg = resolve(year)
     soi = TG.load()
-    expanded = [r for e in cfg['targets'] for r in expand_entry(e, int(year), soi)]
+    assert which in ('all', 'without calculator', 'calculator'), which
+    taxes_on = bool(common.SETTINGS.get('taxes', {}).get('enabled', False))
+    calc = [e for e in cfg['targets'] if e['kind'] == CALCULATOR_KIND]
+    entries = calc if which == 'calculator' else [e for e in cfg['targets'] if e['kind'] != CALCULATOR_KIND] \
+        if which == 'without calculator' or not taxes_on else cfg['targets']
+    off = pd.DataFrame([{'kind': e['kind'], 'group': '', 'target': e['id'],
+                         'why': 'a calculator entry and settings taxes.enabled is false'} for e in calc]) \
+        if which == 'all' and not taxes_on and calc else pd.DataFrame()
+    expanded = [r for e in entries for r in expand_entry(e, int(year), soi)]
     # Save additional discrete groupings only when a configuration uses them. The default list keeps its schema.
     extra = ['filters'] if any(r.get('filters', '[]') != '[]' for r in expanded) else []
     rows = pd.DataFrame(expanded, columns=ROW_COLUMNS + CELL_COLUMNS + extra)
     zero = (rows['value'] == 0) & rows['statistic'].isin(['count', 'amount', 'units'])
-    excluded = rows[zero].assign(why='published as zero')
+    excluded = pd.concat([rows[zero].assign(why='published as zero'), off], ignore_index=True)
+    if which == 'calculator' and LAST.get('year') == int(year) and LAST.get('excluded') is not None:
+        excluded = pd.concat([LAST['excluded'], excluded], ignore_index=True)
     rows = rows[~zero].reset_index(drop=True)
     must = {(e['id'], str(c)) for e in cfg['targets'] for c in e.get('must_reach', [])}
     is_must = np.array([(en, str(g)) in must for en, g in zip(rows['entry'], rows['group'])], bool)
