@@ -78,6 +78,8 @@
   "_q_groups": "Grouped weighting (qgroups.py, 26 October): each training record counts by its survey weight times q = records / weight within its group, the groups from bands: 12 band-AGI groups on the PUF (agi12), 5 band-income classes per wave on the SCF (income5); q = 1 on the CEX and CPS. null: q = 1 everywhere.",
   "label_always_shown": true,
   "_label_always_shown": "On PUF rows the AGI group label is never hidden in training and never scored (train.py), as generation always presets it (TARGETS.md S8: $10M+ returns 3.3 times the PUF's with the label hidden half the time, 1.2 times with it always shown).",
+  "scf_one_implicate_per_pass": false,
+  "_scf_one_implicate_per_pass": "Experiment (branch rebuild-implicate1, 29 October; not adopted): true trains each pass on one of the five implicates of each SCF training household, chosen at random by the seed and the pass, its rows counting 5 times their weight (train.py). false: all five implicates every pass, as installed.",
   "fillin_puf_side": "data",
   "_fillin_puf_side": "The filers' share in the fill-in's formula (fillin.py): 'data', the PUF training rows' own survey-weighted shares by type (needed with grouped weighting, which tilts the network's answer toward the top AGI groups; the network's answer kept for types with fewer than 30 PUF records); 'model', the network's answer under the PUF label."
  },
