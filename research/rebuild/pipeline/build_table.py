@@ -523,7 +523,9 @@ def survey_puf_amounts(d, survey, year):
     for all its parts, from the parts; k1_owner likewise from the partnership and S corporation parts. An item the
     survey does not ask that year (TR.not_asked: the CPS's capital gains before tax year 2018) is zero here: these
     amounts serve the tax data's non-filers and the CPS's taxable Social Security count, which read it as none, as
-    before 29 October (the training rows have it missing instead, translate_surveys)."""
+    before 29 October (the training rows have it missing instead, translate_surveys). A row kept out of training
+    (in_training false: the CPS's capital gains since the second retrain of 29 October) still gives its amounts here,
+    so the tax data does not move."""
     out = {r['variable']: (np.zeros(len(d)) if TR.not_asked(r, year) else TR.survey_amount(d, r, year))
            for r in TR.rows(survey, amounts_only=True)}
     for v, parts in COMPUTED.items():
@@ -1042,17 +1044,19 @@ def translate_surveys(t, edges, pi):
             done = {}
             for row in TR.rows(src, amounts_only=True):
                 v = row['variable']
-                if TR.not_asked(row, int(y)):
+                if TR.not_shown(row, int(y)):
                     # (29 October) a year the survey does not ask the item (the CPS's capital gains before tax year
-                    # 2018): missing, so not shown in training, as any item a survey does not ask; no function 1, no
-                    # report row, no fill-in (TR.fills_in)
+                    # 2018), or (second retrain of 29 October) a row kept out of training (in_training false: the
+                    # CPS's capital gains in every year): missing, so not shown in training, as any item a survey does
+                    # not ask; no function 1, no report row, no fill-in (TR.fills_in)
                     new = np.full(int(sel.sum()), np.nan)
                     fp, fn = growth(v, y)
                     b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
-                    rec['cut_rule'] = f'not asked in {y}: missing (not shown in training)'
+                    why = f'not asked in {y}' if TR.not_asked(row, int(y)) else 'kept out of training'
+                    rec['cut_rule'] = f'{why}: missing (not shown in training)'
                     t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
                     done[v] = new
-                    notes[f'{src} {y} {v}'] = {'not asked this year': 'missing, not shown in training'}
+                    notes[f'{src} {y} {v}'] = {why: 'missing, not shown in training'}
                     continue
                 reported = TR.reported_amount(d, row, y)       # the items summed, as the survey reports them
                 x = TR.survey_amount(d, row, y)                # the link: after the definition fixes

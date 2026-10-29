@@ -842,6 +842,8 @@
    {
     "survey": "cps",
     "variable": "kg_st",
+    "in_training": false,
+    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -852,6 +854,8 @@
    {
     "survey": "cps",
     "variable": "kg_lt",
+    "in_training": false,
+    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
     "items": [
      "capital_gains"
     ],
@@ -897,6 +901,8 @@
    {
     "survey": "cps",
     "variable": "kg_dist",
+    "in_training": false,
+    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -907,6 +913,8 @@
    {
     "survey": "cps",
     "variable": "kg_other",
+    "in_training": false,
+    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,

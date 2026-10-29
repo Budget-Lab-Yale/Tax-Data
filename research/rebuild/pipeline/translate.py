@@ -10,6 +10,10 @@ its chance of not filing.
 
   items             the survey's columns, summed; none (an empty list) is zero:
                     an item the survey does not ask.
+  in_training       false: the row serves the tax data only (its non-filers'
+                    amounts); the survey's training rows have the item
+                    missing in every year (since the second retrain of 29
+                    October: the CPS's capital gains).
   definition fixes  in this order: first_year, the survey asks the item from
                     this tax year (earlier years are missing, since 29
                     October: not shown in training, as any item a survey does
@@ -133,8 +137,8 @@ def shared_rows(survey=None):
 
 
 def filled():
-    """The rows with function 2."""
-    return [r for r in TABLE if r.get('fill_in')]
+    """The rows with function 2 (a row kept out of training, in_training false, has none)."""
+    return [r for r in TABLE if r.get('fill_in') and in_training(r)]
 
 
 def fill_type(row):
@@ -164,10 +168,24 @@ def not_asked(row, year):
     return row.get('first_year') is not None and year < row['first_year']
 
 
+def in_training(row):
+    """Whether the row's item is shown in training at all (row key in_training, default true). A row with in_training
+    false (the CPS's capital gains, since the second retrain of 29 October: all four pieces) still gives the tax data's
+    non-filers their amounts (build_table.survey_puf_amounts), but the survey's training rows have it missing in every
+    year, with no function 1 and no fill-in."""
+    return bool(row.get('in_training', True))
+
+
+def not_shown(row, year):
+    """Whether the row's item is missing on the survey's training rows of year year: a year the survey does not ask it
+    (not_asked), or a row kept out of training (in_training false)."""
+    return not_asked(row, year) or not in_training(row)
+
+
 def fills_in(row, year):
-    """Whether the row's fill-in runs in survey year year: from its first_year on. A year the survey does not ask the
-    item (the CPS's capital gains before tax year 2018) has no reporters, so its zeros hide no holders."""
-    return bool(row.get('fill_in')) and (row.get('first_year') is None or year >= row['first_year'])
+    """Whether the row's fill-in runs in survey year year: from its first_year on, and only on a row shown in training.
+    A year the survey does not ask the item has no reporters, so its zeros hide no holders."""
+    return bool(row.get('fill_in')) and in_training(row) and (row.get('first_year') is None or year >= row['first_year'])
 
 
 def columns(row):
