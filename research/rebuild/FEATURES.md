@@ -1250,6 +1250,73 @@ table is read at -1 (also in the fill-in's log), and an assert stops on a negati
   fixed sample of training records each pass (`slot_log.csv`), and the network every 10 passes. Logging only; training
   is the same either way.
 
+## The billionaires and one reweighting with them (branch `rebuild-top-billionaires`, 29 October)
+
+Parts B and C of the plan John approved on 29 October (scratch `explore/2026-10-29/top_research/PLAN.md`, steps 10-21).
+Part A, the PUF's hidden top returns, is on its own branch (`rebuild-top-hidden`). Not installed. Results in scratch
+`explore/2026-10-29/top_build/billionaires/RESULTS.md`.
+
+**Where it runs.** `tilt.main()` calls `top_records.prepare_top()` on the start, in target-year dollars, before it
+saves the population masks, builds the target conditions or does the demographic prescaling (settings `tilt.top`;
+`enabled` true). In order: an earlier year's billionaires are removed when the start is an earlier year's file; Part
+A's rebuilt returns are added when `top_hidden.py` is present and `tilt.top.hidden_returns` is true; generated balance
+sheets at $1 billion or more are drawn again; the year's Forbes list is added at weight 1. The ordinary non-microdata
+step then runs on the whole file.
+
+**Above $1 billion the file is the Forbes list alone; below it, the SCF** (John's choice, a labelled assumption).
+1. The SCF targets are on the SCF's units below $1 billion of net worth (catalog population
+   `scf_units_below_a_billion`, net worth in nominal target-year dollars after each wave is grown): every amount, share,
+   grid cell, percentile line and standard error is computed on that domain of each wave (`scf_targets.wave_cell`,
+   inside the full sample, so the replicate weights and implicates are used as they are; the restricted SCF is not
+   scaled back up). The file's side uses the same ceiling (`target_list.population`).
+2. Any generated record whose net worth comes out at $1 billion or more has its whole SCF block drawn again
+   (`top_billionaires.redraw_balance_sheets`): every SCF-only slot, under the SCF label given everything else on the
+   record, as generation drew it (its model, its SCF wave, the consistency rules with that model's offset factors).
+   20 tries per record (`redraw_tries`), drawn as one batch whose random numbers, the stored picks included, come from
+   generators seeded by the record id alone; the first try below $1 billion is kept, else the lowest, flagged
+   `wealth_redraw_fallback`. The file carries `wealth_redrawn`.
+
+**The list** (`resources/top/forbes_billionaires_2019.csv`, built by `build_forbes_2019.py` from Forbes's own data for
+the March 2019 World's Billionaires list, wealth valued 8 February 2019): the 607 US citizens with $3,111.0 billion,
+Forbes's own count and total. Marital status, children and public holdings are not in the 2019 data; they come from
+production's later profiles (Forbes's 2025 data), as the public holdings' share of the person's 2025 net worth times
+the 2019 net worth. Spouses listed separately become one joint return (two couples: the Kroenkes and the Ozmens); a
+family fortune, or a couple or siblings named in one entry, stays one record: 605 tax units.
+
+**Each billionaire record** (`top_billionaires.build_billionaires`; flags `billionaire`, `billionaire_rank`,
+`forbes_uri`; ids from 90,000,000):
+- Rank groups: the top 92 units, the next 276 (BSYZ's "top 100" and "next 300", as tax units), and the rest, which take
+  the next group's figures (an extrapolation).
+- Wealth: Forbes's net worth; public holdings as above, else the rank group's wealth-weighted average share; the rest
+  private: real estate (`w_re_fund`) when Forbes's industry is real estate, otherwise `w_pass_throughs`. No home, no
+  debt. Basis zero for self-made fortunes (Forbes's 2019 flag), equal to value for inherited ones, written as
+  accumulated gains so the non-microdata step's `cost_basis` gives it.
+- Income: each group's dollars of each kind = its Forbes wealth times the IRS study's amount per dollar of wealth
+  (Balkir, Saez, Yagan and Zucman, IRS study Table 1, `resources/top/irs_wealth_groups_2018_2020.csv`: the same as
+  wealth x BSYZ's fiscal-income ratio x BSYZ's shares, on the underlying amounts). Kinds: capital gains and dividends,
+  shared among the group's units by public stock; business profits, and business losses separately, by private
+  holdings; taxable and tax-exempt interest, rental and royalty profits, rental losses, estate income, other income
+  and wages and pensions by total wealth. Net operating losses are left out.
+- Tax items: each kind split as in the item mix group (Part A's rebuilt $100 million-plus returns when present; until
+  then a stand-in, the generated filers with AGI of $100 million or more), except partnership against S corporation
+  profits and losses, from the IRS study. Items beyond the kinds (state income tax, foreign tax credits, business
+  credits, self-employment items, other itemized deductions) at their ratio to AGI in the mix; consumption at its
+  average; Social Security, credits that phase out, and the rest listed in `ZERO_ITEMS` zero.
+- Charity: gifts of 0.7% of wealth in the top group and 0.6% in the rest (BSYZ Table 2), cash and other as in the mix,
+  entered as gifts; the calculator computes the deduction.
+- People: Forbes's 2019 age (held to 80), sex; married from the later profiles (missing: married, production's rule),
+  a spouse of the same age and the other sex (a separately listed spouse keeps their own); dependents by production's
+  rule; all earnings to the primary filer.
+- The non-microdata step places billionaire people at income percentile 100 for the death probabilities.
+
+**One reweighting.** `solver.solve(..., fixed=)` holds the billionaires at weight 1: their contribution is taken off
+each total, an average's fixed members enter as a constant and in the group weight its range is set on, and only the
+other weights are solved for (also in the demographic prescaling; the start's scaling to SOI's returns counts them).
+Before the solve, `solver.fixed_feasibility` checks each target: what the billionaires contribute, what is left, and
+whether the others can reach it (`top_feasibility.csv`). SOI's income targets apply to everyone, the SCF's to the units
+below $1 billion. The tilt folder also gets `billionaire_units.csv`, `billionaire_groups.csv`, `redraw.csv` and
+`top_notes.md` (the item mix used).
+
 ## How the latest run comes out
 
 The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder

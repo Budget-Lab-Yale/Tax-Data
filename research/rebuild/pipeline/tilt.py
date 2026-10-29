@@ -75,15 +75,17 @@ def cost(w0, w1):
 PRESCALE_CELLS = {'filers': ['age'], 'non-filers': ['non-filers', 'non-filer people']}   # target kinds per batch
 
 
-def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married, soi):
+def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married, soi, fixed=None):
     """The starting weights scaled to the year's demographic cells, each batch on its own: filers to SOI Table 1.6's
     returns by primary age range in joint and non-joint returns, keeping the joint and non-joint totals; non-filers
     to the non-filer people targets, keeping their total. Each is the smallest Kullback-Leibler move of that batch's
     weights that meets its cells (solver.solve on the batch alone, with the target rows' own conditions, standard
-    errors and identities; the status totals are identities). Returns the new weights and, per batch, a dict for
+    errors and identities; the status totals are identities). Records in fixed (the billionaires) keep their weights:
+    their part of each cell is a constant (solver.solve's fixed). Returns the new weights and, per batch, a dict for
     the summary: the solve, the batch's effective sample before and after, the factors, and each cell before and
     after."""
     w = w0.copy()
+    fixed = np.zeros(len(w0), bool) if fixed is None else np.asarray(fixed, bool)
     out = []
     for batch, kinds in PRESCALE_CELLS.items():
         rec = filer if batch == 'filers' else ~filer
@@ -104,7 +106,7 @@ def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married,
             seb, idb = np.append(seb, [0.0, 0.0]), np.append(idb, [True, True])
             labels += [lab for _, _, lab in extra]
         wb0 = w[rec]
-        wb1, info = SV.solve(wb0, Fb, Tb, seb, idb, [None] * len(Tb), S)
+        wb1, info = SV.solve(wb0, Fb, Tb, seb, idb, [None] * len(Tb), S, fixed=fixed[rec])
         ess = lambda v: v.sum() ** 2 / (v ** 2).sum()
         f = wb1 / wb0
         out.append({'batch': batch, 'records': int(rec.sum()), 'cell count': len(Tb), 'feasible': info['feasible'],
@@ -336,20 +338,41 @@ def main():
         imp = g19['weight'].to_numpy(float)
     else:
         g19, imp, growth = start_from_year(spec)   # every dollar amount grown to the target year
+        raw = g19
+    # the top of the file (top_records.py, settings tilt.top; 29 October): Part A's rebuilt hidden returns, the
+    # redraw of balance sheets at $1 billion or more, and the Forbes list's billionaires, before any mask, condition or
+    # prescaling. given: records whose starting weight is given (in returns or units); fixed: records held at it
+    top = None
+    given = fixed = np.zeros(len(g19), bool)
+    if S.get('top', {}).get('enabled', False):
+        import top_records as TR
+        g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
+    del raw
     x = g19['net_worth'].to_numpy(float)
     filer = g19['filer'].to_numpy() == 1
 
-    # the start
+    # the start: the generated records scaled so that, with the records whose weight is given, filers add up to SOI's
+    # returns and non-filers to the expected non-filers
     returns = TG.returns(soi, Y)
     n_nonfilers, nf_note = start_nonfilers()
-    w0 = np.where(filer, imp * returns / imp[filer].sum(), imp * n_nonfilers / imp[~filer].sum())
+    w0 = imp.copy()
+    for batch, total in [(filer, returns), (~filer, n_nonfilers)]:
+        g = batch & ~given
+        w0[g] = imp[g] * (total - imp[batch & given].sum()) / imp[g].sum()
+    if given.any():
+        # the records whose weight is given carry, in the weight column, their weight on the generated records'
+        # relative scale, so that anything reading that column (expand's reach check, which ranks Table 4.3's groups
+        # on it) sees them in proportion
+        gen_f = filer & ~given
+        g19.loc[given, 'weight'] = w0[given] * imp[gen_f].sum() / w0[gen_f].sum()
     w_plain = w0.copy()
     prescale = spec['weights']
     assert prescale in ('none', 'filing_status', 'demographic'), f"start_scaling weights {prescale!r}"
     if prescale in ('filing_status', 'demographic'):
         for married, status in [(1, 'joint'), (0, 'nonjoint')]:
-            g = filer & (g19['married'].to_numpy() == married)
-            w0[g] *= TG.returns(soi, Y, '1.2', status) / w0[g].sum()
+            m = filer & (g19['married'].to_numpy() == married)
+            g = m & ~given
+            w0[g] *= (TG.returns(soi, Y, '1.2', status) - w0[m & given].sum()) / w0[g].sum()
 
     # the targets (targets_config/, expanded by target_list.py, errors by errors.py) and the solve (solver.py):
     # every target hit exactly when they can all be hit; otherwise the standard errors decide which give way
@@ -362,7 +385,7 @@ def main():
     prescaled, w_status = [], w0.copy()
     if prescale == 'demographic':
         w0, prescaled = prescale_demographic(w0, F, T, se, identity, averages, rows, filer,
-                                             g19['married'].to_numpy(), soi)
+                                             g19['married'].to_numpy(), soi, fixed)
     # the non-microdata imputations (non_micro_imputations.py; NEXT_STEPS item 1, Q1): on the start, in target-year
     # dollars and with its prescaled weights, before the solve. New columns only; the ranking items rank on w0, and
     # no target reads their columns yet
@@ -396,7 +419,20 @@ def main():
         common.say(f'range in standard errors by kind (default {base:g}): '
                    + '; '.join(f'{q}: {kv[(rows.kind == q).to_numpy()][0]:g} ({int((rows.kind == q).sum())} targets)'
                                for q in rows['kind'].unique()))
-    w1, info = SV.solve(w0, F, T, se, identity, averages, S_main)
+    feas = None
+    if fixed.any():
+        # PLAN.md step 20: before the solve, each target's remainder after the fixed records, and whether the others
+        # alone can reach it (solver.fixed_feasibility); whether they can all be met together is the solve's answer
+        feas = pd.concat([rows[['kind', 'group', 'target', 'value']].reset_index(drop=True),
+                          SV.fixed_feasibility(w0, F, T, se, identity, averages, fixed, S_main).drop(columns='target')],
+                         axis=1)
+        feas.to_csv(f'{common.TILT}/top_feasibility.csv', index=False)
+        common.say(f"feasibility with the fixed records: {int(feas['billionaires alone exceed'].sum())} targets the "
+                   f"fixed records alone exceed, {int((~feas['reachable by the others']).sum())} the others cannot reach")
+    w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
+    assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
+    if top is not None:
+        TR.write_report(top, common.TILT, Y)
     if spec['mode'] == 'from_year':
         start_lines = [f"## The start: the {spec['year']} tilted file (TARGETS.md S7)", '',
                        f"- tilt/{spec['run']}/file_{spec['year']}.parquet: {len(g19):,} records; its tilted weights "
@@ -428,6 +464,22 @@ def main():
                              if u is not None else {}),
                           **({'SCF, the targets\' waves pooled': pooled} if pooled is not None else {}),
                           'before the tilt': (g19, x, w0), 'after the tilt': (g19, x, w1)})
+    top_lines = []
+    if top is not None:
+        bil = g19['billionaire'].to_numpy() == 1
+        top_lines = ['## The top of the file (top_records.py)', ''] + [f'- {n}' for n in top['notes']] + [
+            f'- records held fixed: {int(fixed.sum())} ({w0[fixed].sum():,.0f} units); their weights after the tilt '
+            f'all exactly as before: {bool(np.array_equal(w1[fixed], w0[fixed]))}',
+            f"- free records: effective sample kept {100 * info.get('effective_sample_kept_free', np.nan):.1f}%, "
+            f"Kullback-Leibler move {info.get('kl_move_free', np.nan):.4f} nats",
+            f'- net worth below the ceiling (all records but the list): before the tilt '
+            f'${(w0 * x)[~bil].sum() / 1e12:,.2f} trillion, after ${(w1 * x)[~bil].sum() / 1e12:,.2f} trillion; '
+            f'the list ${(w1 * x)[bil].sum() / 1e12:,.2f} trillion']
+        if feas is not None:
+            top_lines += [f"- targets the fixed records alone exceed: {int(feas['billionaires alone exceed'].sum())}; "
+                          f"targets the others cannot reach on their own: {int((~feas['reachable by the others']).sum())} "
+                          f"(top_feasibility.csv)"]
+        top_lines += ['']
     summary = pd.Series({'targets': len(T), **cost(w0, w1),
                          'KL move from the unscaled start (nats)': cost(w_plain, w1)['KL move (nats)'],
                          **({'effective sample kept from the start before the demographic prescaling (%)':
@@ -437,7 +489,7 @@ def main():
                                       warnings=('flag', lambda f: (f == 'warning').sum()),
                                       stops=('flag', lambda f: (f == 'stop').sum()))
     text = [f'# The {Y} tilt', '', *SV.summary_lines(info, fit), '', summary.to_frame('').to_markdown(floatfmt=',.4f'),
-            '', *start_lines, *prescale_lines(prescaled),
+            '', *top_lines, *start_lines, *prescale_lines(prescaled),
             *(['## The non-microdata imputations (on the start; checks in non_micro_checks.md)', '']
               + [f'- {n}' for n in nmi_ctx['notes']] + [''] if nmi_ctx is not None else []),
             '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',

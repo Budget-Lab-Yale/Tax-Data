@@ -1,0 +1,122 @@
+"""The very top of the file, added after generation and before the reweighting (PLAN.md of
+explore/2026-10-29/top_research, "Where it runs"; John, 29 October 2026). tilt.main() calls prepare_top() on the start,
+in target-year dollars, before it saves the population masks, builds the target conditions or does the demographic
+prescaling; the ordinary non-microdata step then runs on the whole file (it may add no rows and change no column, so
+it must come after).
+
+prepare_top, in order:
+  1. a start from an earlier year's tilted file: its billionaires are removed (the year's own list replaces them;
+     PLAN.md open question 4);
+  2. Part A, the PUF's hidden top returns rebuilt from generated records (top_hidden.rebuild_hidden_returns, built
+     on its own branch), when top_hidden.py is present and settings tilt.top.hidden_returns is true; otherwise skipped,
+     and the summary says so. Its records come with their weight in returns (column weight) and synthetic_top = 1;
+     they are free to move in the tilt;
+  3. the redraw of every generated balance sheet at or above the ceiling (top_billionaires.redraw_balance_sheets;
+     the ceiling is catalog population scf_units_below_a_billion's net_worth_below, $1 billion);
+  4. the year's Forbes list as records of weight 1 (top_billionaires.build_billionaires), held fixed in the tilt.
+Returns the frame, the starting weights (relative importance weights for generated records, as before; the weight in
+returns or units for records whose weight is given), the mask of records whose starting weight is given, the mask of
+records held fixed, and the report (notes and tables, written by write_report).
+"""
+import os
+
+import numpy as np
+import pandas as pd
+
+import common
+import target_list as TLS
+import top_billionaires as TB
+
+S = common.SETTINGS['tilt'].get('top', {})
+POPULATION = 'scf_units_below_a_billion'
+
+
+def _hidden_returns(df, year, notes):
+    """Part A's records (see the top), or None."""
+    if not S.get('hidden_returns', False):
+        notes.append('Part A (the PUF\'s hidden top returns): off (settings tilt.top.hidden_returns)')
+        return None
+    if not os.path.exists(os.path.join(common.HERE, 'top_hidden.py')):
+        notes.append('Part A (the PUF\'s hidden top returns): settings ask for it, but top_hidden.py is not in this '
+                     'pipeline; skipped')
+        return None
+    import top_hidden
+    h = top_hidden.rebuild_hidden_returns(df, year)
+    missing = [c for c in df.columns if c not in h.columns]
+    assert not missing, f'Part A\'s records lack the file\'s columns {missing[:10]}'
+    assert (h['synthetic_top'] == 1).all() and h['weight'].notna().all() and (h['weight'] > 0).all()
+    notes.append(f"Part A: {len(h)} rebuilt hidden returns, {h['weight'].sum():,.1f} returns")
+    return h
+
+
+def prepare_top(g19, raw, imp, year, mode):
+    """See the top. g19: the start (target-year dollars); raw: the same records with their bands and stored picks
+    (the generated stack, or the start file itself); imp: their starting weights; mode: 'generate' or 'from_year'."""
+    notes, rep = [], {}
+    ceiling = TLS.net_worth_ceiling(POPULATION)
+    assert ceiling is not None, f'settings tilt.top.enabled, but population {POPULATION} has no net_worth_below'
+    imp = np.asarray(imp, float).copy()
+    if 'billionaire' in g19:              # 1. an earlier year's billionaires out
+        old = g19['billionaire'].to_numpy() == 1
+        notes.append(f'start: {int(old.sum())} billionaire records of the earlier year removed')
+        g19, raw, imp = g19.loc[~old].reset_index(drop=True), raw.loc[~old].reset_index(drop=True), imp[~old]
+    given = np.zeros(len(g19), bool)
+    h = _hidden_returns(g19, year, notes)  # 2. Part A
+    # 3. the redraw, on the generated records (Part A's own redraw is its step 7)
+    g19, tab = TB.redraw_balance_sheets(g19, raw, year, ceiling, notes, check_same=(mode == 'generate'))
+    rep['redraw'] = tab
+    for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
+        if c not in g19:
+            g19[c] = 0
+    if h is not None:
+        assert not (h['net_worth'] >= ceiling).any(), 'Part A: a rebuilt return at or above the ceiling'
+        for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
+            if c not in h:
+                h[c] = 0
+        g19['synthetic_top'] = g19.get('synthetic_top', 0)
+        g19 = pd.concat([g19, h[g19.columns]], ignore_index=True)
+        imp = np.r_[imp, h['weight'].to_numpy(float)]
+        given = np.r_[given, np.ones(len(h), bool)]
+    # 4. the billionaires
+    lst = TB.read_list(year)
+    g19['billionaire'], g19['billionaire_rank'], g19['forbes_uri'] = 0, -1, ''
+    fixed = np.zeros(len(g19), bool)
+    if lst is None:
+        notes.append(f'WARNING: no Forbes list for {year} (settings tilt.top.billionaire_lists): the file has no units '
+                     f'at or above ${ceiling / 1e9:g} billion, and the SCF targets cover the units below it only')
+    else:
+        b, brep = TB.build_billionaires(lst, g19, imp, year, notes)
+        rep.update(brep)
+        b = b[g19.columns]
+        assert not set(b['record_id']) & set(g19['record_id']), 'a billionaire id already in the file'
+        g19 = pd.concat([g19, b], ignore_index=True)
+        imp = np.r_[imp, np.ones(len(b))]
+        given = np.r_[given, np.ones(len(b), bool)]
+        fixed = np.r_[fixed, np.ones(len(b), bool)]
+    assert g19['record_id'].is_unique, 'a tax unit appears twice'
+    over = (g19['net_worth'].to_numpy(float) >= ceiling) & (g19['billionaire'].to_numpy() != 1)
+    rep['over ceiling, not on the list'] = int(over.sum())
+    if over.any():
+        notes.append(f'{int(over.sum())} records other than the list at or above the ceiling (redraw fallbacks)')
+    rep['notes'] = notes
+    for n in notes:
+        common.say(f'top: {n}')
+    return g19, imp, given, fixed, rep
+
+
+def write_report(rep, folder, year):
+    """The preparation's tables: billionaire_units.csv (one row per tax unit), billionaire_groups.csv, redraw.csv, and
+    top_notes.md (the notes and the item mix)."""
+    if 'units' in rep:
+        u = rep['units'].drop(columns=['uri', 'sp_uri'], errors='ignore')
+        u.to_csv(os.path.join(folder, 'billionaire_units.csv'), index=False)
+        rep['groups'].to_csv(os.path.join(folder, 'billionaire_groups.csv'), index=False)
+    if len(rep.get('redraw', [])):
+        rep['redraw'].to_csv(os.path.join(folder, 'redraw.csv'), index=False)
+    lines = [f'# The top of the {year} file: notes from the preparation (top_records.py)', '']
+    lines += [f'- {n}' for n in rep['notes']] + ['']
+    if 'mix' in rep:
+        lines += ['## The item mix used for the billionaires\' tax items', '', f"Group: {rep['mix group']}", '']
+        for k, v in rep['mix'].items():
+            lines.append(f'- {k}: {v}')
+    open(os.path.join(folder, 'top_notes.md'), 'w').write('\n'.join(lines) + '\n')
