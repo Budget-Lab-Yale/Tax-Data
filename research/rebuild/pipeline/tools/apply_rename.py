@@ -91,6 +91,7 @@ def one_word(old, new, ext):
     # Python and R code: quoted names, attributes (.x, $x), and in R bare column names in code
     attr = re.compile(r'(?<=[.$])' + re.escape(old) + r'(?![A-Za-z0-9_(])')
     bare = re.compile(r'(?<![A-Za-z0-9_.$\'"])' + re.escape(old) + r'(?![A-Za-z0-9_\'"(])')
+    kwarg = re.compile(r'([(,]\s*)' + re.escape(old) + r'(\s*=(?!=))')   # a keyword argument: x.assign(mars=0)
     def code_sub(text):
         out, in_doc = [], False
         for line in text.split('\n'):
@@ -107,7 +108,7 @@ def one_word(old, new, ext):
                 if i % 2:
                     parts[i] = quoted.sub(lambda m: m.group(1) + new + m.group(1), part)
                 else:
-                    parts[i] = attr.sub(new, part)
+                    parts[i] = kwarg.sub(lambda m: m.group(1) + new + m.group(2), attr.sub(new, part))
                     if ext == '.R':
                         parts[i] = bare.sub(new, parts[i])
             code = ''.join(parts)
