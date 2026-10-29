@@ -110,6 +110,21 @@ Left as is (John, 27 October):
 
 ## To do (John, 28 October)
 
+- **The next retrain, one bundle** (John, 28 October). Everything below needs the network retrained; it goes in
+  together, then the usual full run, comparison and approval:
+  - blindness learned from the PUF (Q3);
+  - the retirement accounts' stock share as an SCF item (Q6);
+  - Social Security number status from the CPS (Q4; built on branch `rebuild-ssn`);
+  - the CPS's capital gains shown as not asked (not as zero) in tax years before 2018, so CPS records from those
+    years no longer teach the model that CPS units have no gains;
+  - the primary filer's sex never drawn as none (generation rule; two records in the latest);
+  - the overtime targets' top wage group ($200,000 and over) merged with $100,000-200,000 (targets only);
+  - the QBI items, if their plan is ready (scratch `explore/2026-10-28/qbi_plan/`);
+  - the SCF overfitting result, if it calls for a change (scratch `explore/2026-10-28/overfit/`).
+- **Later: a removal rule beside the fill-in** (John, 28 October). The fill-in can add holders a survey misses but
+  not remove holders a survey has too many of (SCF rental income 9.7% against the tax data's 7.6%); the tilt closes
+  the gap for now.
+
 - **A fill-in on the SIPP's tips.** The SIPP finds about half the W-2's tipped workers: 3.7 million tipped people in
   the 2019 file's SIPP year mix against 6.05 million tipped workers on the W-2 (filers other than dependent filers,
   as targeted). Today the tilt reaches the W-2 count by raising the weight of tipped records. Function 2 on the
