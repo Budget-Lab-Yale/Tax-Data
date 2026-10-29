@@ -1077,7 +1077,7 @@ and never renumbered.
 |---|---|---|---|
 | Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's CPS year, within its PUF dependent-filer age range; 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
 | Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
-| Dependents' Social Security numbers | `dep_ssn1-3` | **placeholder**: every dependent has a number (Q4, being researched) | |
+| Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
 | Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (**placeholder**: production's age rule, 1.10 − age/100 held to 0.20-0.95, until the SCF stock share is learned in pretraining); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
 | Cost basis of each asset | `basis.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund` | production's rule: value − the SCF's unrealized gain (other real estate's gain split by value), the gain first held to no more than the value so a basis is never below 0 (29 October; the gain and the value are drawn separately) | |
@@ -1112,6 +1112,27 @@ dollars:
 
 The business line differs from Z.1 mostly in what is held: the SCF's businesses ($21.6 trillion in the file) include
 S and C corporations the household runs, Z.1's noncorporate equity ($11.4 trillion at the end of 2018) does not.
+
+## The retrain of 29 October (branch `rebuild-retrain-1029`; built and checked at the table stage, not yet trained)
+
+The bundle John set on 28 October (`NEXT_STEPS.md`, "The next retrain, one bundle"), one commit (or a commit and its
+follow-up) per piece, so any piece can be dropped. Everything here changes the training table or generation, so it
+takes effect only with newly trained networks. The table-stage checks are in scratch
+`explore/2026-10-29/retrain/RESULTS.md`.
+
+**Social Security number status** (Q4; branch `rebuild-ssn` merged, 8a4aa2c; scratch
+`explore/2026-10-28/ssn_build/RESULTS.md`). `build_cps.R` gives every person in a CPS tax unit a status: 1 a citizen,
+2 a noncitizen with a sign of lawful status, 3 a noncitizen without one, taken to have no Social Security number (rule
+B2: for a child its own Social Security, SSI, Medicare or military cover, a citizen parent, or a noncitizen parent with
+a sign; for the filer and spouse their own Social Security, SSI, Medicare, Medicaid, military cover, unemployment
+insurance, public housing, a government job, veteran status, or marriage to a citizen). The table has five CPS-only
+slots, `ssn_status_primary`, `ssn_status_spouse`, `ssn_status_dep1-3` (0 none, then the status), in primary-filer
+order; generation draws them with the other CPS items (the k-th dependent's exactly when there are k dependents, the
+primary filer's never none, as the primary filer's sex is never none). `dollars.py` turns them into `ssn1`, `ssn2` and
+`dep_ssn1-3` (1 has a number, 0 none, missing where there is no such person; `ssn1` missing on dependent filers, whose
+survey items are all none). The non-microdata placeholder for dependents' numbers is removed (the two would write the
+same columns). In 2019, 1.03 million dependents under 17 lack a number (DHS: 1.01 million unauthorized children under
+18 in 2020, reported only).
 
 ## How the latest run comes out
 
