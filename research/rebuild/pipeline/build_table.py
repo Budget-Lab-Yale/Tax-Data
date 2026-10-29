@@ -88,8 +88,9 @@ slice is drawn by household id).
 The dollar maps: for each amount and band, every record's value and weight; a
 band with no record gets a fill value.
   PUF side    the PUF year's records; the target year's map grows each value by
-              SOI's growth in dollars per return with the item
-              (growth_factors.csv; targets.py has the SOI lookups);
+              the item's line in the target year's growth.yaml (growth.py:
+              SOI's dollars per return with the item where SOI Table 1.4 has it,
+              else a declared series exogenous to tax policy; growth_factors.csv);
   SCF         the balance sheet, one map per wave from that wave's own records
               (generation draws each record's balance sheet from one wave), for
               the target year only: each item grown per tax unit from its wave to
@@ -98,10 +99,10 @@ band with no record gets a fill value.
               dollars (scf_growth; scf_growth_factors.csv). The mortgage's share
               of the home's value is a ratio and is not grown;
   CEX         the generation year's records; the target year's map grows them by
-              NIPA PCE per return;
+              NIPA PCE per return (growth.yaml);
   CPS         the generation year's records; the target year's map grows childcare
               and overtime by SOI's wages per return, and leaves the shares, weeks
-              and hours.
+              and hours (growth.yaml).
 
 Writes common.TABLE, common.EDGES, common.MAPS/map_puf_{PUF year, target
 year}.parquet, map_scf_wave<wave>_<target year>.parquet, map_cex_ and map_cps_{generation year, target year}.parquet,
@@ -118,6 +119,7 @@ import pandas as pd
 
 import ages
 import common
+import growth as GR
 import targets as TG
 import translate as TR
 from common import PUF_YEAR, TARGET_YEAR
@@ -150,8 +152,6 @@ ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the mode
     'mortgage_interest': (0, False, None), 'real_estate_tax': (0, False, None),
     'ss_gross': (0, True, 'unchanged')}   # gross Social Security, not in AGI; shared with the CEX, the CPS, the SIPP and
 # (since 28 October, in place of Social Security plus pensions) the SCF
-NO_GROWTH = ['mortgage_interest', 'real_estate_tax']   # no SOI 1.4 row: kept in PUF-year dollars in the target map
-# (stage 3's items without a Table 1.4 line are added below, STAGE3_NO_GROWTH)
 PARTS = {  # part: (PUF field, sign in business income); loss fields are stored positive
     'sch_c': ('E00900', 1), 'part_pass_inc': ('E25940', 1), 'part_nonpass_inc': ('E25980', 1),
     'part_pass_loss': ('E25920', -1), 'part_nonpass_loss': ('E25960', -1), 'part_179': ('E26110', -1),
@@ -177,10 +177,10 @@ NEW_ITEMS = {  # item: PUF field (None: derived, as production derives it, in pu
     'res_energy_cred': 'E07260', 'gbc': 'E07400', 'prior_yr_cred': 'E07600', 'other_nonref': 'P08000',
     'net_ptc': 'E11560', 'excess_ptc': 'E85785', 'recapture_tax': 'E09700', 'ira_penalty': 'E09900'}
 STAGE3 = list(DIV_PARTS) + list(ADJ_PARTS) + list(NEW_ITEMS)   # the new slots, in slot order
-# No SOI Table 1.4 line: kept in PUF-year dollars in the target year's map, as mortgage interest and real estate tax
-# (itemized deductions, AMT items, credits and other taxes). Table 1.4 grows the dividend parts, the adjustments,
-# the two capital gain items (with Schedule D net gain) and part_se (with partnership and S corporation income).
-STAGE3_NO_GROWTH = [v for v in NEW_ITEMS if v not in ('kg_1250', 'kg_collect', 'part_se')]
+# How each is grown to another year is its line in the year's growth.yaml (growth.py): Table 1.4 grows the dividend
+# parts, the adjustments, the two capital gain items (with Schedule D net gain) and part_se (with partnership and S
+# corporation income); the items with no Table 1.4 line (itemized deductions, AMT items, credits and other taxes) are
+# grown, since 29 October, by a declared series exogenous to tax policy (until then they stayed in PUF-year dollars).
 SCHE_PARTS = [p for p, (f, _) in PARTS.items() if f and p not in ('sch_c', 'farm')]
 CF_PARTS = ['sch_c', 'farm']                                  # Schedules C and F: the SCF's X5704
 E_PARTS = [p for p in PARTS if p not in CF_PARTS]             # Schedule E (before 28 October the SCF's X5714)
@@ -224,7 +224,6 @@ SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_KINDS]
 SCF_AMOUNTS = SCF_AMOUNTS + SCF_WORKERS
 SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not dollars: not grown either)
 SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_KINDS}
-NO_GROWTH = NO_GROWTH + STAGE3_NO_GROWTH
 PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
@@ -461,26 +460,12 @@ _GROWTH = {}
 
 
 def growth(v, y):
-    """(factor for positive values, for negative values) of PUF amount v: SOI's growth in dollars per return with the
-    item, PUF year to y (targets.py; past the last SOI year, carried forward). Losses on capital assets do not grow
-    (the $3,000 cap is nominal); mortgage interest and real estate tax have no Table 1.4 row and do not grow."""
+    """(factor for positive values, for negative values) of PUF amount v, PUF year to y, by v's line in the target
+    year's growth.yaml (growth.factors). Before 29 October this function held the rule itself: SOI Table 1.4's
+    dollars per return with the item, capital losses not grown, and 26 items with no Table 1.4 line not grown at
+    all; the Table 1.4 lines are now written in growth.yaml as they were."""
     if (v, y) not in _GROWTH:
-        G = lambda item, **k: TG.per_return_growth(item, year=y, **k)
-        if v in ('capital_gains', 'kg_st', 'kg_lt', 'kg_other', 'kg_1250', 'kg_collect'):
-            f = (G('sch_d_net_gain'), 1.0)
-        elif v == 'kg_dist':
-            f = (G('kg_dist'), 1.0)
-        elif v in NO_GROWTH:
-            f = (1.0, 1.0)
-        elif v in TG.PART_GROWTH:
-            pos_rows, neg_rows = TG.PART_GROWTH[v]
-            fp = G('business_income') if pos_rows == 'business_income' else G(None, rows=pos_rows, absolute=True)
-            f = (fp, G(None, rows=neg_rows, absolute=True) if neg_rows else fp)
-        else:
-            assert v in ['wages', 'interest', 'dividends', 'other_agi'] + list(ITEMS) + list(DIV_PARTS) + \
-                list(ADJ_PARTS), v
-            f = (G(v), G(v))
-        _GROWTH[(v, y)] = f
+        _GROWTH[(v, y)] = GR.factors(v, y)
     return _GROWTH[(v, y)]
 
 
@@ -1388,14 +1373,12 @@ def scf_growth(scf, y_from, y_to):
     return out
 
 
-def build_maps(t, edges):
-    os.makedirs(common.MAPS, exist_ok=True)
-    pside = t[t.source == 'puf'].reset_index(drop=True)
-    m_puf = build_map(pside, edges, 'puf', PUF_AMOUNTS)
-    m_puf.to_parquet(f'{common.MAPS}/map_puf_{PUF_YEAR}.parquet', index=False)
-    g = dict(growth_factors(TARGET_YEAR))   # to the target year, per return with the item
+def puf_target_map(m_puf, y=TARGET_YEAR):
+    """The PUF year's map with every value grown to year y by its item's growth line (positive and negative values
+    each by their own factor); and the factors."""
+    g = dict(growth_factors(y))
     bad = {k: f for k, f in g.items() if not all(np.isfinite(x) and x > 0 for x in f)}
-    assert not bad, f'SOI growth factors missing (an SOI line not found?): {bad}'
+    assert not bad, f'growth factors missing or not positive (growth.yaml): {bad}'
     m_target = m_puf.copy()
     for v, (fp, fn) in g.items():
         r = (m_target['variable'] == v).to_numpy()
@@ -1403,6 +1386,16 @@ def build_maps(t, edges):
         x[x > 0] *= fp
         x[x < 0] *= fn
         m_target.loc[r, 'value'] = x
+    return m_target, g
+
+
+def build_maps(t, edges):
+    os.makedirs(common.MAPS, exist_ok=True)
+    GR.check(TARGET_YEAR)   # every dollar item has a growth line (stops otherwise)
+    pside = t[t.source == 'puf'].reset_index(drop=True)
+    m_puf = build_map(pside, edges, 'puf', PUF_AMOUNTS)
+    m_puf.to_parquet(f'{common.MAPS}/map_puf_{PUF_YEAR}.parquet', index=False)
+    m_target, g = puf_target_map(m_puf)   # to the target year, by each item's growth line
     m_target.to_parquet(f'{common.MAPS}/map_puf_{TARGET_YEAR}.parquet', index=False)
     # the balance sheet: one map per wave, from the wave's own records on its own band edges, each item grown per tax
     # unit to the target year's wave (scf_growth). Generation draws each record's balance sheet from one wave
@@ -1428,53 +1421,54 @@ def build_maps(t, edges):
     common.say('SCF balance sheet, growth per tax unit to the target year\'s wave, by wave:\n'
                + pd.DataFrame(rows).pivot(index='variable', columns='wave', values='factor to the target year')
                .to_string(float_format=lambda x: f'{x:.4f}'))
-    # the CEX categories: the generation year's real records, and the same grown to the target year by NIPA PCE per
-    # return (the category's PCE over SOI's return count, target year over the CEX year)
+    # the CEX categories: the generation year's real records, and the same grown to the target year by their growth
+    # lines (NIPA PCE per return: the category's PCE over SOI's return count, target year over the CEX year)
     yc = CX['generation_year']
     mc = build_map(t[(t.source == 'cex') & (t.year == yc)].reset_index(drop=True), edges, 'cex', CEX_AMOUNTS, year=yc)
     mc.to_parquet(f'{common.MAPS}/map_cex_{yc}.parquet', index=False)
-    pce = pd.read_csv(RAW['pce']).set_index('year')
     m_cex_target = mc.copy()
     for v in CEX_AMOUNTS:
-        f = (pce.loc[TARGET_YEAR, v] / TG.all_returns(TARGET_YEAR)) / (pce.loc[yc, v] / TG.all_returns(yc))
+        f = GR.between(v, yc, TARGET_YEAR)
         g[v] = (f, f)
         r = (m_cex_target['variable'] == v).to_numpy()
         m_cex_target.loc[r, 'value'] = m_cex_target.loc[r, 'value'] * f
     m_cex_target.to_parquet(f'{common.MAPS}/map_cex_{TARGET_YEAR}.parquet', index=False)
-    # the CPS-only amounts: the generation year's real records; for the target year, childcare grown by SOI's growth
-    # in wages per return with wages (a placeholder: no series measures childcare spending per unit), the shares,
-    # weeks and hours unchanged
+    # the CPS-only amounts: the generation year's real records; for the target year, by their growth lines (childcare
+    # and overtime by SOI's growth in wages per return with wages, a placeholder: no series measures childcare spending
+    # per unit; the shares, weeks and hours not grown)
     yp = CP['generation_year']
     mp = build_map(t[(t.source == 'cps') & (t.year == yp)].reset_index(drop=True), edges, 'cps', CPS_AMOUNTS, year=yp)
     mp.to_parquet(f'{common.MAPS}/map_cps_{yp}.parquet', index=False)
     m_cps_target = mp.copy()
     for v in CPS_AMOUNTS:
-        f = growth('wages', TARGET_YEAR)[0] / growth('wages', yp)[0] if v in CP['dollar_amounts'] else 1.0
+        f = GR.between(v, yp, TARGET_YEAR)
         g[v] = (f, f)
         r = (m_cps_target['variable'] == v).to_numpy()
         m_cps_target.loc[r, 'value'] = m_cps_target.loc[r, 'value'] * f
     m_cps_target.to_parquet(f'{common.MAPS}/map_cps_{TARGET_YEAR}.parquet', index=False)
-    # the SIPP's tips in dollars: the generation year's real records; for the target year, grown by SOI's growth in
-    # wages per return with wages, as the CPS's childcare (no growth when the generation year is the target year)
+    # the SIPP's tips in dollars: the generation year's real records; for the target year, by their growth lines
+    # (SOI's growth in wages per return with wages, as the CPS's childcare; no growth when the generation year is the
+    # target year)
     ys = SP['generation_year']
     ms = build_map(t[(t.source == 'sipp') & (t.year == ys)].reset_index(drop=True), edges, 'sipp', SIPP_AMOUNTS, year=ys)
     ms.to_parquet(f'{common.MAPS}/map_sipp_{ys}.parquet', index=False)
     m_sipp_target = ms.copy()
-    f = growth('wages', TARGET_YEAR)[0] / growth('wages', ys)[0]
-    m_sipp_target['value'] = m_sipp_target['value'] * f
     for v in SIPP_AMOUNTS:
+        f = GR.between(v, ys, TARGET_YEAR)
+        r = (m_sipp_target['variable'] == v).to_numpy()
+        m_sipp_target.loc[r, 'value'] = m_sipp_target.loc[r, 'value'] * f
         g[v] = (f, f)
     m_sipp_target.to_parquet(f'{common.MAPS}/map_sipp_{TARGET_YEAR}.parquet', index=False)
     pd.DataFrame([{'variable': v, 'factor, positive values': fp, 'factor, negative values': fn}
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
-    build_year_maps(t, edges, pce)
+    build_year_maps(t, edges)
 
 
-def build_year_maps(t, edges, pce):
+def build_year_maps(t, edges):
     """One map per survey year of the CEX, the CPS and the SIPP in the target year's file (TARGETS.md section 7,
     survey_mix.py): that year's own records, every value grown from that year to the target year, by the same rules
-    the single-year maps above use. The CEX's categories: NIPA PCE per return, the category's PCE over SOI's return
-    count, target year over the survey year. The CPS's childcare and the SIPP's tips: SOI's wages per return with
+    the single-year maps above use (each item's growth line, growth.yaml). The CEX's categories: NIPA PCE per return,
+    the category's PCE over SOI's return count, target year over the survey year. The CPS's childcare and the SIPP's tips: SOI's wages per return with
     wages, target year over the survey year (a placeholder: no series measures them per unit); the CPS's shares, weeks
     and hours are not grown. For the target year itself the factor is 1. Files map_<survey>_from<year>_to<target>.parquet;
     the factors are in survey_year_growth_factors.csv."""
@@ -1483,12 +1477,7 @@ def build_year_maps(t, edges, pce):
         for y in mix_years(src):
             m = build_map(t[(t.source == src) & (t.year == y)].reset_index(drop=True), edges, src, amounts, year=y)
             for v in amounts:
-                if src == 'cex':
-                    f = (pce.loc[TARGET_YEAR, v] / TG.all_returns(TARGET_YEAR)) / (pce.loc[y, v] / TG.all_returns(y))
-                elif src == 'cps':
-                    f = growth('wages', TARGET_YEAR)[0] / growth('wages', y)[0] if v in CP['dollar_amounts'] else 1.0
-                else:
-                    f = growth('wages', TARGET_YEAR)[0] / growth('wages', y)[0]
+                f = GR.between(v, y, TARGET_YEAR)   # the item's growth line (growth.yaml)
                 r = (m['variable'] == v).to_numpy()
                 m.loc[r, 'value'] = m.loc[r, 'value'].to_numpy(float) * f
                 rows.append({'survey': src, 'year': y, 'variable': v, 'factor to the target year': f})
