@@ -74,7 +74,9 @@ TOP_KEYS = {'year', 'kind', 'inherits', 'prior', 'targets', 'drop', 'report', 's
             'hold_distribution'}
 YEAR_KEYS = ['year', 'kind', 'prior', 'report', 'start', 'start_scaling', 'hold_distribution']   # a later file replaces
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key',
-              'dependent_filers', 'note', 'override', 'percentiles'}
+              'dependent_filers', 'note', 'override', 'percentiles', 'must_reach'}
+# must_reach (29 October): an entry's cell labels that expand(start=...) must keep; a cell among them that no record
+# can reach is an error, not a quiet drop (Table 4.3's top 0.001%, restored with the rebuilt aggregate records).
 ERROR_KEYS = {'kind', 'relative', 'reason'}
 
 
@@ -1202,6 +1204,9 @@ def expand(year=common.TARGET_YEAR, start=None):
         F, _, _ = conditions(start, rows, None, check=False)
         reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)
+        must = {(e['id'], str(c)) for e in cfg['targets'] for c in e.get('must_reach', [])}
+        dead = rows[~reach & rows.apply(lambda r: (r['entry'], str(r['group'])) in must, axis=1)]
+        assert dead.empty, f'targets that must be kept (must_reach) and no record can reach:\n{dead[["kind", "group", "target"]]}'
         rows = rows[reach].reset_index(drop=True)
     keys = rows[['kind', 'group', 'target']].apply(tuple, axis=1)
     assert keys.is_unique, f'two entries give the same target: {keys[keys.duplicated()].tolist()}'

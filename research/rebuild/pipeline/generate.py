@@ -817,18 +817,27 @@ def label_counts(n, records):
     return base
 
 
-def label_part(model, mod, k, n_models, fac):
+def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     """Model k's (of n_models) filer batch: its share of label_records split across the 12 groups in proportion to the
     PUF's records per group, each record's group preset and everything else drawn given it; weight = the group's
     PUF-year returns / records drawn in it (1 / q). Then each record's band-AGI group from its drawn bands (q_group)
     and label_ok = (q_group == agi_group); every record kept. Returns the part, the check's table and the rule
-    counts."""
+    counts.
+    group_records, seed (29 October, for the rebuilt aggregate records, top_hidden.py): a separate allocation of this model's
+    records across the 12 groups (a group with 0 records is not drawn) and its own generation seed, in place of the
+    proportional split and label_seed. The weight rule is the same, so each drawn group still carries its PUF-year
+    returns. Training is unchanged."""
     rec, ret = np.asarray(LABEL_META['records'], float), np.asarray(LABEL_META['returns'], float)
-    n_k = equal_shares(filer_records(), n_models)[k]
-    n_g = label_counts(n_k, rec)
+    if group_records is None:
+        n_k = equal_shares(filer_records(), n_models)[k]
+        n_g = label_counts(n_k, rec)
+    else:
+        n_g = np.asarray(group_records, dtype=int)
+        assert n_g.shape == rec.shape and (n_g >= 0).all() and n_g.sum() > 0, f'label_part group_records {n_g}'
+        n_k = int(n_g.sum())
     g_of = np.repeat(np.arange(len(rec)), n_g)
-    part, counts = generate(model, n_k, int(G['label_seed']) + mod['seed_shift'], preset={LABEL: torch.tensor(g_of)},
-                            factors=fac)
+    seed = int(G['label_seed']) + mod['seed_shift'] if seed is None else int(seed)
+    part, counts = generate(model, n_k, seed, preset={LABEL: torch.tensor(g_of)}, factors=fac)
     g = part[LABEL].to_numpy()
     assert (g == g_of).all()
     part['weight'] = ret[g] / n_g[g]
