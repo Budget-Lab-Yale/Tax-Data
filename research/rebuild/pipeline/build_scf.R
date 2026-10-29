@@ -94,6 +94,13 @@
 #   owns_other_re: owns any real estate other than the home (X1700 = 1, or the summary file's ORESRE or NNRESRE
 #     nonzero), with or without income;
 #   rents_home_part: collects rent from part of the home or from farm or ranch land (X1224 > 0 or X505 > 0).
+# The retirement accounts' stock share (w_dc_stock_share, since 29 October; John, NEXT_STEPS.md item 1, Q6): the summary
+# file's equity in quasi-liquid retirement assets (RETEQ: IRAs, Keoghs, thrift-type plans and account-type pensions,
+# each counted as all, half or none stocks by the respondent's answer) over those assets (RETQLIQ = IRAKH + THRIFT +
+# FUTPEN + CURRPEN, the rebuild's w_dc plus w_db; RETEQ never exceeds it, while it exceeds IRAKH + THRIFT alone in
+# about 1,300 rows a wave, so the share is taken over all four). A household ratio, the same on each PEU unit; 0 where
+# the unit has no w_dc (the share multiplies w_dc: non_micro_imputations.unrealized_gains); missing (not asked) on
+# units outside the PEU and other units, whose accounts the SCF does not break down.
 # Ages and sexes of the unit's head and spouse (age1, male1; age2, male2 on
 # joint units, else -1; male missing (NA, not observed) where the SCF does not
 # report sex: members other than the respondent and the spouse or partner), for the primary
@@ -244,10 +251,16 @@ for (wave in settings$paths$raw$scf_waves) {
     credit_cards = CCBAL, installment_debt = INSTALL, other_debt = ODEBT, kg_primary_home = KGHOUSE,
     kg_other_re = KGORE, kg_pass_throughs = KGBUS, kg_other = KGSTMF) %>%
     mutate(across(-Y1, ~ .x / asset_factor))
+  # the retirement accounts' stock share (see the top): a ratio, no asset factor
+  ret = scfp %>% transmute(Y1, ret_stock_share = if_else(RETQLIQ > 0, RETEQ / pmax(RETQLIQ, 1e-9), 0))
+  stopifnot(!anyNA(ret$ret_stock_share), all(ret$ret_stock_share >= 0), all(ret$ret_stock_share <= 1 + 1e-9))
+  cat(sprintf('wave %d: retirement accounts\' stock share: weighted RETEQ / RETQLIQ %.3f; households with accounts %.2f m\n',
+              wave, sum(scfp$WGT * scfp$RETEQ) / sum(scfp$WGT * scfp$RETQLIQ), sum(scfp$WGT[scfp$RETQLIQ > 0]) / 1e6 / 5))
   stopifnot(setequal(setdiff(names(peu), 'Y1'), c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)))
   names(peu)[-1] = paste0('w_', names(peu)[-1])
   WCOLS = setdiff(names(peu), 'Y1')
   peu = peu %>% inner_join(hh %>% select(Y1, all_of(unname(INCOME)), auto_int_exp, r_ss, s_ss, rental_hh), by = 'Y1') %>%
+    inner_join(ret, by = 'Y1') %>%
     inner_join(person_incomes(hh), by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh), !anyNA(peu))
 
@@ -356,24 +369,25 @@ for (wave in settings$paths$raw$scf_waves) {
   p$elective2 = case_when(joint_all & p$head_pn == 2 ~ p$r_elective, joint_all ~ p$s_elective, TRUE ~ 0)
   p$elective_deferrals = p$elective1 + p$elective2
   stopifnot(all(p$elective_deferrals <= p$wages * (1 + 1e-9) + 1e-6))
+  p$w_dc_stock_share = if_else(p$w_dc > 0, pmin(p$ret_stock_share, 1), 0)
   p = p %>% mutate(taxunit_code = case_when(peu_dollars == 'all' ~ 0L, peu_dollars == 'r' ~ 1L, TRUE ~ 2L)) %>%
     select(uid, all_of(names(INCOME)), ss_gross, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
-           elective1, elective2, taxunit_code)
+           elective1, elective2, w_dc_stock_share, taxunit_code)
 
   # units outside the PEU: their members' shares of the group; other units: nothing
   npeu = mu %>% filter(source == 'npeu') %>% select(uid) %>% left_join(nd, by = 'uid')
   stopifnot(!anyNA(npeu$wages), 'ss_gross' %in% names(npeu), !anyNA(npeu$ss_gross))
   for (v in setdiff(c(names(INCOME), WCOLS, 'auto_int_exp'), names(npeu))) npeu[[v]] = 0
-  for (v in c('elective_deferrals', 'elective1', 'elective2')) npeu[[v]] = NA_real_   # not asked: missing, not zero
+  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share')) npeu[[v]] = NA_real_   # not asked: missing, not zero
   # the SCF asks the property section of the PEU only: no rental part outside it (the group's real estate income is
   # all in its rent_royalty_estate, so in sche_rest)
   npeu$rental_income = 0
   npeu = npeu %>% mutate(taxunit_code = 9L) %>%
     select(uid, all_of(names(INCOME)), ss_gross, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
-           elective1, elective2, taxunit_code)
+           elective1, elective2, w_dc_stock_share, taxunit_code)
   other = mu %>% filter(source == 'other') %>% select(uid)
   for (v in c(names(INCOME), 'ss_gross', 'rental_income', WCOLS, 'auto_int_exp')) other[[v]] = 0
-  for (v in c('elective_deferrals', 'elective1', 'elective2')) other[[v]] = rep(NA_real_, nrow(other))   # not asked
+  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share')) other[[v]] = rep(NA_real_, nrow(other))   # not asked
   other$taxunit_code = rep(8L, nrow(other))
   dollars = bind_rows(p, npeu, other)
   stopifnot(nrow(dollars) == nrow(mu), !anyDuplicated(dollars$uid))
@@ -417,6 +431,7 @@ for (wave in settings$paths$raw$scf_waves) {
               male2 = if_else(filing_status == 'joint', if_else(spouse_sex == 0, NA_integer_, as.integer(spouse_sex == 1)), -1L),
               taxunit_code, across(all_of(names(INCOME))), ss_gross, rental_income, sche_rest, net_worth,
               asset_factor = asset_factor, across(all_of(WCOLS)), auto_int_exp, elective_deferrals, elective1, elective2,
+              w_dc_stock_share,
               owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part, filing_status, n_child_away,
               group_level = as.integer(group_level), npeu_people,
               any_age_assumed = as.integer(any_age_assumed), any_link_assumed = as.integer(any_link_assumed),
@@ -425,7 +440,9 @@ for (wave in settings$paths$raw$scf_waves) {
               any_claimed_in_group = as.integer(any_claimed_in_group))
   # sex is allowed missing (not observed outside the respondent and the spouse or partner), and elective deferrals
   # (not asked outside the PEU)
-  stopifnot(nrow(units) == nrow(mu), !anyDuplicated(units$record_id), !anyNA(select(units, -male1, -male2, -elective_deferrals, -elective1, -elective2)),
+  stopifnot(nrow(units) == nrow(mu), !anyDuplicated(units$record_id),
+            !anyNA(select(units, -male1, -male2, -elective_deferrals, -elective1, -elective2, -w_dc_stock_share)),
+            all(is.na(units$w_dc_stock_share) == (units$taxunit_code > 2)),
             all(is.na(units$elective_deferrals) == (units$taxunit_code > 2)),
             all(is.na(units$elective2) == (units$taxunit_code > 2)),
             all(units$elective2[units$married == 0 & units$taxunit_code <= 2] == 0),

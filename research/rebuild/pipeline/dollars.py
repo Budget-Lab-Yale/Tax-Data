@@ -114,11 +114,15 @@ LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
 NEWEST = ['elective_deferrals', 'spouse_deferral_share']   # the spouse's share since 28 October, after it
 # Overtime (28 October), the CPS's dollar slots for each adult, at the very end after the elective deferrals
 OVERTIME = list(META['cps_structure'].get('overtime', []))
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST] \
+# The SCF amounts of the retrain of 29 October (the retirement accounts' stock share; the QBI items' outside workers),
+# at the very end after the overtime, so no earlier stream moves
+RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_schc', 'biz_workers_part', 'biz_workers_scorp']
+ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST + RETRAIN_1029] \
     + list(META['cex_amounts']) + ['ss_gross'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
 ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
 ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
+ORDER = ORDER + [v for v in RETRAIN_1029 if v in META['scf_amounts']]
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part

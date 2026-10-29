@@ -289,9 +289,18 @@ def retirement_stock_share_placeholder(age_older):
 def unrealized_gains(df, year, w, ctx):
     it = ITEMS['unrealized_gains']
     rate, src = accrual_rates(year)
-    a1, _ = primary_age_sex(df)
-    older = np.maximum(a1, df['age_spouse'].to_numpy())
-    share = retirement_stock_share_placeholder(older)
+    if 'w_dc_stock_share' in df:     # (29 October, Q6) the SCF's stock share, drawn in generation
+        share = df['w_dc_stock_share'].to_numpy(float)
+        assert np.isfinite(share).all() and (share >= 0).all() and (share <= 1 + 1e-9).all(), 'stock share outside 0-1'
+        dc = df['w_dc'].to_numpy(float)
+        ctx['notes'].append(f'retirement accounts\' stock share: the SCF\'s, drawn; {100 * (w * share * dc).sum() / (w * dc).sum():.1f}% '
+                            'of the dollars in w_dc (start weights)')
+        ctx['stock share'] = 'drawn'
+    else:                            # a file from a model before 29 October: production's age rule
+        a1, _ = primary_age_sex(df)
+        older = np.maximum(a1, df['age_spouse'].to_numpy())
+        share = retirement_stock_share_placeholder(older)
+        ctx['stock share'] = 'age rule'
     out = {f'accruals.{k}': rate[r] * df[col].to_numpy(float) for k, (col, r) in ACCRUAL_ASSETS.items()}
     ts = float(it['trust_stock_share'])
     out['accruals.dc'] = (share * rate['equities'] + (1 - share) * rate['bonds']) * df['w_dc'].to_numpy(float)
@@ -827,8 +836,9 @@ def checks(df, year, w, ctx=None):
     out.append(('Parents\' income rank', [t], ln))
     ph = [{'item': k, 'columns': ', '.join(it['writes']), 'value': PLACEHOLDER_VALUES[k]}
           for k, it in ITEMS.items() if it.get('placeholder')]
-    ph.append({'item': 'unrealized_gains (retirement accounts)', 'columns': 'accruals.dc',
-               'value': 'stock share by production\'s age rule'})
+    if ctx.get('stock share') == 'age rule':
+        ph.append({'item': 'unrealized_gains (retirement accounts)', 'columns': 'accruals.dc',
+                   'value': 'stock share by production\'s age rule (a file from before the SCF item)'})
     out.append(('Placeholders', [pd.DataFrame(ph)], ['Each is replaced by its own item (NEXT_STEPS.md item 1).']))
     return out
 

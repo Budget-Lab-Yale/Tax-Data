@@ -204,8 +204,14 @@ SCF_AMOUNTS = ['w_' + c for c in ASSETS] + ['w_primary_ltv'] + ['w_' + c for c i
 # them, as the CPS's spouse_wage_share is of wages (scf_person_slots); 0 unless married with some deferrals, so
 # generation draws it after them and sets it to 0 there (generate.deferral_structure). Both missing (absent, band
 # -1) on the units the SCF does not ask: units outside the PEU and other units. Not part of net worth.
-SCF_NOT_ASKED = ['elective_deferrals', 'spouse_deferral_share']   # SCF amounts missing where the SCF does not ask
-SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share']           # SCF shares: not grown between waves
+# w_dc_stock_share (since 29 October; John, NEXT_STEPS.md item 1, Q6): the share of the household's retirement accounts
+# held in stocks, RETEQ / RETQLIQ of the summary file (build_scf.R), carried as a share of w_dc (meta ratios: generation
+# draws it after w_dc and sets it to 0 without w_dc; dollars.py makes w_dc_stocks = share x w_dc); missing (absent) on
+# the units outside the PEU and other units, as the elective deferrals. non_micro_imputations.unrealized_gains uses it
+# in place of production's age rule.
+SCF_AMOUNTS = SCF_AMOUNTS + ['w_dc_stock_share']
+SCF_NOT_ASKED = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']   # missing where the SCF does not ask
+SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share', 'w_dc_stock_share']   # SCF shares: not grown between waves
 NO_GROWTH = NO_GROWTH + STAGE3_NO_GROWTH
 PUF_AMOUNTS = ['wages', 'interest', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
@@ -1293,7 +1299,8 @@ def table_meta(t, factor):
             'net_worth_parts': NET_WORTH_PARTS,
             'ratios': {'w_primary_ltv': ['w_primary_mortgage', 'w_primary_home'],
                        'spouse_wage_share': ['wages2', 'wages'], 'spouse_se_share': ['se2', 'sch_cf_income'],
-                       'spouse_deferral_share': ['elective2', 'elective_deferrals']},
+                       'spouse_deferral_share': ['elective2', 'elective_deferrals'],
+                       'w_dc_stock_share': ['w_dc_stocks', 'w_dc']},
             'remainders': {'wages1': ['wages', 'wages2'], 'se1': ['sch_cf_income', 'se2'],
                            'elective1': ['elective_deferrals', 'elective2']},
             # after the remainders: a person's amount in dollars held to at most a remainder (a person's tips, at
