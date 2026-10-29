@@ -1083,7 +1083,7 @@ and never renumbered.
 | Cost basis of each asset | `basis.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund` | production's rule: value − the SCF's unrealized gain (other real estate's gain split by value), the gain first held to no more than the value so a basis is never below 0 (29 October; the gain and the value are drawn separately) | |
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
-| Blindness | `blind1`, `blind2` | **placeholder**: 0 (Q3: learned in pretraining, needs a retrain) | |
+| Blindness | `blind1`, `blind2` | since 29 October (branch `rebuild-retrain-1029`) each person's blindness as generation drew it from the PUF slot learned in pretraining (`blind_drawn1`, `blind_drawn2`; below, "The retrain of 29 October"); 0 for a file from an earlier model | SOI Publication 4801's blind boxes (the check) |
 | QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | **placeholder**: 0, as the calculator experiment sets them (Q5, being researched) | |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
@@ -1133,6 +1133,26 @@ primary filer's never none, as the primary filer's sex is never none). `dollars.
 survey items are all none). The non-microdata placeholder for dependents' numbers is removed (the two would write the
 same columns). In 2019, 1.03 million dependents under 17 lack a number (DHS: 1.01 million unauthorized children under
 18 in 2020, reported only).
+
+**Blindness learned from the PUF** (Q3; `build_table.puf_blindness`, settings `blindness`; generation,
+`generate.Chunk.blind_phase`). A PUF slot `blind` with three values: 0 not known, 1 not blind, 2 blind. It is known only
+on returns that are single or head of household, take the standard deduction, are not dependent filers and have an
+age range: there the deduction above the basic amount ($6,300 single, $9,250 head of household in 2015), divided by
+the additional amount ($1,550), is the number of extra boxes (a whole number on 97% of these returns), and blind =
+the boxes less one at 65 and over. Joint returns (whose boxes are evened out between the spouses on the 2015 PUF),
+separate returns, itemizers, dependent filers, records with no age range and boxes that are not a whole number or do
+not fit the age are "not known". "Not known" is a value rather than a slot left out, so that the slot's presence never
+tells the network anything about the return (a slot present only on single standard-deduction returns would tell every
+other draw that the return is single and does not itemize). The surveys do not have the slot. Generation draws
+blindness last, for the primary filer and the spouse alike: the network under the PUF label, the slot hidden, the
+person's own age range shown (the spouse's from the drawn exact age; a dependent filer's under-18 and 18-25 ranges as
+under 26, its 26-and-over range hidden), married and full filing status hidden on joint and separate returns (the
+network never saw blindness beside them), and only "not blind" and "blind" allowed (the chance of "not known" is set
+aside). Non-filers are seen with the filing flag hidden and their band-AGI group as the AGI group label. The draws have
+a random generator of their own, so no other draw moves. The stack carries `blind_drawn1`, `blind_drawn2` and the
+chances `blind_chance1`, `blind_chance2`; `non_micro_imputations.blindness` writes the file's `blind1`, `blind2`, and
+its check compares blind people by age with Publication 4801's blind boxes (typed in from the publication,
+`resources/non_micro/pub4801_blind_boxes.csv`: 2019, 260,291 primary and 80,564 spouse boxes on all returns).
 
 ## How the latest run comes out
 
