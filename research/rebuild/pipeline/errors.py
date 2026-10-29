@@ -533,8 +533,17 @@ def _ipums_fixed_width(folder, fields):
     out = {}
     for name, (start, width, dcml) in spec.items():
         d = a[:, start:start + width].astype(np.int64) - 48
-        assert ((d >= 0) & (d <= 9)).all(), f'{dat}: {name} holds a character other than a digit'
-        out[name] = (d @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float) / 10 ** dcml
+        ok = ((d >= 0) & (d <= 9)).all(1)
+        val = (np.where(ok[:, None], d, 0) @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float)
+        if not ok.all():
+            # (30 October) a field that is not all digits must still be a whole number written out, a sign and leading
+            # blanks allowed (the March 2016 ASEC's replicate weights have negative values); anything else stops
+            for r in np.where(~ok)[0]:
+                txt = bytes(a[r, start:start + width]).decode('ascii')
+                assert re.fullmatch(r' *-?[0-9]+', txt), f'{dat}: {name} holds {txt!r}, not a number'
+                val[r] = float(int(txt))
+            common.say(f'{dat}: {name}: {int((~ok).sum())} values with a sign or blanks read as numbers')
+        out[name] = val / 10 ** dcml
     return out
 
 
