@@ -449,7 +449,8 @@ def main():
         # the range in standard errors by kind of target (settings tilt.range_in_se_by_kind, {kind: k}); every other
         # kind keeps range_in_se. The demographic prescaling above keeps range_in_se.
         unknown = set(by_kind) - set(rows['kind'])
-        assert not unknown, f'settings tilt.range_in_se_by_kind: kinds with no targets this year {unknown}'
+        if unknown:   # (30 October) a year without those kinds (a projection year has no SCF targets): nothing to set
+            common.say(f'settings tilt.range_in_se_by_kind: no targets of kind {sorted(unknown)} this year')
         base = float(S.get('range_in_se', 1.0))
         kv = rows['kind'].map(lambda q: float(by_kind.get(q, base))).to_numpy(float)
         S_main = {**S, 'range_in_se_by_target': kv}

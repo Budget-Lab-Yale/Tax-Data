@@ -127,6 +127,20 @@ sources:
     what: >-
       every tax unit of the CPS year, filers and non-filers (build_table.cps_person_slots); dependent filers folded
       into the unit that claims them; the overtime statistics over the units asked the earnings questions
+  # Outside series that come only as a change (30 October, years after the data; TARGETS.md section 3): a target is
+  # the start year's own level times the series' growth (target_list.outside_rows); the entry names the line.
+  cbo individual income tax:
+    kind: outside
+    file: research/rebuild/resources/growth/cbo_individual_income_tax.csv
+    what: >-
+      CBO's February 2026 projections of individual income tax items, calendar years 2022-2036 (Revenue Projections
+      by Category, sheet 3); a line is named by the start of its name (outside_line)
+  z1 household net worth:
+    kind: outside
+    file: research/rebuild/resources/growth/z1_household_net_worth.csv
+    what: >-
+      the Federal Reserve's Financial Accounts, households and nonprofit organizations, net worth (S1M.b,
+      FL152090005), fourth quarter; past 2025 held at its 2025 ratio to nominal GDP
   filing_stage:
     kind: pipeline
     built_by: [filing.py, build_cps.R, build_table.py]

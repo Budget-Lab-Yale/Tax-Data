@@ -1,0 +1,168 @@
+# 2026: the targets of the year's file, written out in full (TARGETS.md section 12). Written on 30 October 2026
+# (targets for every year, piece 4 of the overnight plan) by explore/2026-10-30/targets/scripts/make_chain.py; edited
+# by hand from here on.
+#
+# A year after SOI's last tables (2023). The start is the 2025 file (from_year), its weights scaled to 2026's number
+# of returns (SOI 2023's returns times CBO's growth in the number of returns) and non-filers (the 2023 CPS's grown
+# with the Social Security area population), joint and non-joint returns in 2023's proportions, and every record's
+# dollars grown item by item from 2025 to 2026 by growth.yaml (Table 1.4 items past 2023 by CBO's growth per return of
+# the closest line; the balance sheet by household net worth per person, the Financial Accounts, past 2025 at a fixed
+# ratio to GDP; consumption by PCE per return, past 2025 by CBO's personal income per person).
+#
+# The targets: (1) the national totals CBO projects (February 2026, calendar years to 2036), each the 2025 file's own
+# total times CBO's growth of the closest line from 2025 to 2026 (TARGETS.md section 3: outside information that comes
+# only as a change is applied to our own level), a judgment error of 1%; (2) the non-filer count; (3) household net
+# worth, the 2025 file's total times the Financial Accounts' growth; (4) hold_distribution: each item's share of its
+# total in five AGI rank groups held at the start's, a judgment error of 2% of the share. Nothing else of 2025's
+# detail is targeted: the start carries it.
+
+year: 2026
+kind: projection
+start: {from_year: 2025, run: y2025}
+start_scaling: {weights: filing_status, dollars: per_return_growth}
+
+report:
+  - every target with its value, standard error, where the file lands, and the miss in standard errors
+  - the hold_distribution shares at the start and after the tilt
+
+hold_distribution:
+  population: filers
+  ranks: {variable: agi, groups: [[0, 50, p0-50], [50, 90, p50-90], [90, 99, p90-99], [99, 99.9, p99-99.9], [99.9, 100, p99.9+]]}
+  items: [agi, wages, taxable_interest, ordinary_dividends, capital_gain_total, business_income]
+  statistic: share of total
+  error: {kind: judgment, relative: 0.02, reason: 'the distribution of income across AGI rank groups held at the start (TARGETS.md S7); 2% of each share, a judgment'}
+
+targets:
+
+  - id: non_filers
+    kind: non-filers
+    statistic: units
+    population: non_filers
+    cells: all
+    value: {pipeline: filing_stage}
+    error:
+      kind: judgment
+      relative: 0.03
+      reason: >-
+        past the last CPS year (2023) the count is the 2023 filing stage's expected non-filers grown with the
+        Social Security area population (target_list.nonfiler_count); 3% as a judgment
+    key: {group: all, target: non-filers}
+
+  # returns
+  - id: returns_cbo
+    kind: cbo totals
+    statistic: units
+    population: filers
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Number of returns
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'returns'}
+
+  # AGI
+  - id: agi_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: agi
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Adjusted gross income
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'agi amount'}
+
+  # wages
+  - id: wages_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: wages
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Salaries and wages
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'wages amount'}
+
+  # taxable interest (CBO: taxable interest and dividends other than qualified)
+  - id: interest_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: taxable_interest
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Taxable interest and ordinary dividends
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'taxable_interest amount'}
+
+  # ordinary dividends (CBO: qualified dividends)
+  - id: dividends_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: ordinary_dividends
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Qualified dividends
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'ordinary_dividends amount'}
+
+  # capital gains, Form 1040 line 7 (CBO: capital gain or loss, sales of other property included)
+  - id: capital_gains_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: capital_gain_total
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Capital gain or loss
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'capital_gain_total amount'}
+
+  # business income, Schedules C, E and F (CBO: the same, before the excess business loss limit)
+  - id: business_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: business_income
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Net business income
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'business_income amount'}
+
+  # taxable pensions, annuities and IRA distributions
+  - id: pensions_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: ira_pensions_taxable
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Taxable pensions and annuities
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'ira_pensions_taxable amount'}
+
+  # taxable Social Security benefits
+  - id: ss_taxable_cbo
+    kind: cbo totals
+    statistic: amount
+    population: filers
+    variable: ss_taxable
+    cells: all
+    value: {outside: cbo individual income tax}
+    outside_line: Taxable Social Security benefits
+    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
+    key: {group: all, target: 'ss_taxable amount'}
+
+  # household net worth, all units below the Forbes line, the start's own total times the Financial Accounts' growth
+  - id: net_worth_z1
+    kind: z1 wealth
+    statistic: amount
+    population: scf_units_below_a_billion
+    variable: net_worth
+    cells: all
+    value: {outside: z1 household net worth}
+    outside_line: net worth
+    error: {kind: judgment, relative: 0.02, reason: 'Financial Accounts growth applied to our own level (households and nonprofits; past 2025 at a fixed ratio to GDP); 2% as a judgment'}
+    key: {group: all, target: net worth}
