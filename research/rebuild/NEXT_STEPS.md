@@ -140,7 +140,21 @@ Left as is (John, 27 October):
   - the CPS no longer carries capital gains in training in any year;
   - the fill-in's recomputed totals leave a total missing when a part is missing (a band of -1 was read as the top
     band, writing a large capital gain onto every 2015 and 2017 CPS training record).
-  Results: scratch `explore/2026-10-29/retrain2/RESULTS.md`. Not installed or merged; John chooses.
+  Results: scratch `explore/2026-10-29/retrain2/RESULTS.md`. **Installed 29 October** (John): the version with all
+  five SCF implicates each pass (the one-implicate version cut the SCF overfitting to a third but drew net worth of
+  $125 trillion before reweighting against the SCF's $97 trillion). The old run is in scratch
+  `previous_2026-10-29_before_retrain2/`. Left open: the new networks give too many filers dividends, interest and
+  capital gains before reweighting (capital gains 15.3% against the PUF's 13.3%), not yet traced; and non-filers no
+  longer have capital gains ($65 billion on 1.7 million before), which John accepted.
+- **For the next retrain: capital gains drawn before the $3,000 loss limit** (John, 29 October). The limit is
+  computed at tax time; it is not a feature of the data. Today the rebuild draws a third gains piece, `kg_other`, the
+  PUF's Form 1040 line 13 (E01000) less short- and long-term gains, and on returns with net losses that piece is the
+  limit itself, drawn as if it were an item. The calculator applies the limit on its own and ignores `kg_other`, which
+  is why the two disagree on 11.0 million returns (calculator open question 7), and why growing a record to a later
+  year can turn a return held at the limit into one with a gain (found building the PUF's hidden top returns). Draw
+  the full short- and long-term gains and losses from Schedule D, and the loss carryovers if the PUF has them (check
+  which fields it carries); keep only what is left of line 13 that is not the limit as an item, or nothing; let the
+  calculator apply the limit. Needs a retrain.
 - **Later: a removal rule beside the fill-in** (John, 28 October). The fill-in can add holders a survey misses but
   not remove holders a survey has too many of (SCF rental income 9.7% against the tax data's 7.6%); the tilt closes
   the gap for now.
