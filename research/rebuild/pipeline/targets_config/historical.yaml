@@ -274,14 +274,16 @@ targets:
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
   # SOI Table 4.3 (27 October; run G2): returns, AGI, and the number with and the amount of eight income items, in the
-  # top 0.01% (one group, the top 0.001% inside it: John, 26 October, since the file probably lacks those records
-  # until the PUF's aggregate records are unpacked), the top 0.1% and the top 1% of AGI. Returns other than dependent
-  # filers', ranked by AGI on the file's starting weights; the dollar lines are then held fixed through the tilt.
+  # top 0.001%, the top 0.01%, the top 0.1% and the top 1% of AGI. Returns other than dependent filers', ranked by AGI
+  # on the file's starting weights; the dollar lines are then held fixed through the tilt. The top 0.001% was folded
+  # into the top 0.01% from 26 October (John) because the file lacked the PUF's aggregate records; it is restored with
+  # them (29 October, PLAN.md Part A step 9: top_hidden.py rebuilds them), and expand must keep it (must_reach).
   - id: soi_4_3_returns
     kind: soi 4.3
     statistic: units
     population: independent_filers
-    cells: {agi_cumulative: [top 0.01 percent, top 0.1 percent, top 1 percent]}
+    cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
+    must_reach: [top 0.001 percent]
     value: {published: soi 4.3}
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: returns}
@@ -291,7 +293,8 @@ targets:
     statistic: amount
     population: independent_filers
     variable: agi
-    cells: {agi_cumulative: [top 0.01 percent, top 0.1 percent, top 1 percent]}
+    cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
+    must_reach: [top 0.001 percent]
     value: {published: soi 4.3}
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -301,7 +304,8 @@ targets:
     statistic: [count, amount]
     population: independent_filers
     variable: soi_4_3_items
-    cells: {agi_cumulative: [top 0.01 percent, top 0.1 percent, top 1 percent]}
+    cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
+    must_reach: [top 0.001 percent]
     value: {published: soi 4.3}
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
