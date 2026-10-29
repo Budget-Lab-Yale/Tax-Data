@@ -649,8 +649,8 @@ def amt_nol_cap(df, year, w, ctx):
     """The AMT net operating loss adjustment (amt_nols, the PUF's P60100) is held to at most the record's net
     operating loss (nol), so it is 0 on a record with no loss. A negative amt_nols is left as drawn. The drawn value
     is kept as amt_nols_drawn and amt_nols is written back: the one item that changes a drawn column (settings
-    writes_back). amt_nols is in PUF-year dollars (it has no Table 1.4 line), the loss in target-year dollars; they
-    are compared as they are."""
+    writes_back). Both are in target-year dollars: amt_nols grown from the PUF year by its growth line (AGI per
+    return since 29 October; before, it stayed in PUF-year dollars), the loss by other income's."""
     drawn = df['amt_nols'].to_numpy(float)
     assert np.isfinite(drawn).all(), f'amt_nols missing on {int((~np.isfinite(drawn)).sum())} records'
     held = np.minimum(drawn, nol(df))
@@ -1004,7 +1004,7 @@ def check_amt_nol_cap(df, w, ctx):
     return pd.DataFrame(rows), [
         'amt_nols (PUF P60100) held to at most the record\'s net operating loss, the negative part of '
         'other_agi_remainder (other income); 0 where the record has no loss; a negative amt_nols is left as drawn. '
-        'amt_nols is in PUF-year dollars, the loss in target-year dollars. Weights after the tilt; at the start\'s '
+        'Both in target-year dollars (amt_nols grown by AGI per return, growth.yaml). Weights after the tilt; at the start\'s '
         f'weights the rule changed {c["records"]:,} records ({c["units"] / 1e6:.3f} million units) and removed '
         f'${c["removed"] / 1e9:,.1f} billion.']
 
