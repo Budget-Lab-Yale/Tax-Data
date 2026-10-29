@@ -246,6 +246,20 @@ def grow_dollars(df, s, t):
         if v in out:
             f = BT.growth('wages', t)[0] / BT.growth('wages', s)[0]
             grow(v, f, f, 'SOI wages per return with wages')
+    # the allowed capital loss (29 October, from Part A's top_hidden.py, where it was found): the rule grows the
+    # positive "other" gain piece but not losses, so a return held at the allowed loss in year s (a large loss, with
+    # kg_other taking up the cap) would turn into a gain. The cap is nominal: such a return stays at it, and no return
+    # goes below it
+    if all(c in out for c in ['kg_st', 'kg_lt', 'kg_other', 'capital_gains', 'mars']):
+        cap = np.where(df['mars'].to_numpy() == 3, -1500.0, -3000.0)
+        at_cap = df['capital_gains'].to_numpy(float) <= cap + 0.5
+        floor = cap - out['kg_st'].to_numpy(float) - out['kg_lt'].to_numpy(float)
+        before = out['kg_other'].to_numpy(float)
+        out['kg_other'] = np.where(at_cap, floor, np.maximum(before, floor))
+        rows.append({'column': 'kg_other', 'factor, positive values': np.nan, 'factor, negative values': np.nan,
+                     'series': f'then held at the allowed capital loss: {int(at_cap.sum())} records at it in {s} kept at '
+                               f'it, {int((~at_cap & (before < floor)).sum())} others raised to it',
+                     'records with a value': int((before != 0).sum())})
     out, _ = recombine(out, t)
     return out, pd.DataFrame(rows)
 
