@@ -1,0 +1,405 @@
+# 2015: the targets of the year's file, written out in full (TARGETS.md section 12). Nothing is inherited: this
+# file, prior.yaml and growth.yaml in this folder are the whole of the year's configuration, with the catalog
+# (targets_config/catalog.yaml), which says what the words mean. A new year starts as a copy of the nearest year's
+# folder; config_overview.py writes the table of every setting by year (OVERVIEW.md), marking what differs from the
+# neighbouring year. Until 29 October this year was years/2019.yaml on top of historical.yaml and defaults.yaml; this
+# file is what they resolved to, with each entry's comment kept (target_list.resolve checks every entry has a value
+# source the catalog defines, and growth.check every dollar item a growth line, before any run).
+#
+# The 383 targets of the 24 October run (tilt/seed20261016, tilt/seed20261017), Table 1.7 (24 October), the S2 targets
+# at the top (25 October: the five top AGI brackets with their composition, the SCF's 99.9th percentile line and the
+# top net worth by kind of asset), and the later additions dated in their comments. The values are the year's own (below).
+#
+# Each entry is a block of targets: every statistic x every variable x every cell. It states the parts of
+# TARGETS.md section 2 in full words: statistic, population, variable, cells, value (where it comes from) and error
+# (its kind, TARGETS.md section 9). "key" gives the strings that name each target, (kind, group, target), the same
+# strings as the tilt's fit.csv; in a key, {cell} is the cell's label, {<grouping>} the label of that grouping's
+# part of the cell, {variable} the variable's short name, {label} its label, {statistic} the statistic and {year}
+# the year of the value. A value's year is the target year unless the entry says otherwise.
+#
+# reason: why an entry is as it is in this year where it departs from the general rule (it fills targets.csv's reason
+# column; before 29 October, the override reason of the year file).
+#
+# 2015 (30 October 2026, piece 4 of the overnight plan, targets for every year): copied from 2019's folder and edited
+# for 2015. Every value is 2015's, read when the run expands the list: SOI 2015 Tables 1.2, 1.3, 1.4, 1.6, 1.7 and
+# 4.3, the SCF waves, CEX and CPS years of 2015's prior (prior.yaml), and the CPS filing stage's 2015 non-filers.
+# Numbers quoted in the comments below are 2019's, from the folder this one was copied from. What differs from 2019:
+#   - Left out: the W-2 tips and elective deferral targets (tips_w2, tips_w2_workers, tips_w2_spread,
+#     deferrals_w2_joint, deferrals_w2_nonjoint; 46 targets in 2019). SOI publishes its Form W-2 statistics for tax
+#     years before 2019 as one workbook per year in another layout (w2_all_<year>.xls), which the readers
+#     (target_list._w2_table, _w2_by_agi, _w2_percentiles) do not handle. A gap, not a judgment: adding a reader for
+#     the older layout would restore them.
+
+year: 2015
+kind: historical
+
+# What every run reports (TARGETS.md section 14; report_tilt.py writes it).
+report:
+  - every target with its value, standard error, where the file lands, and the miss in standard errors
+  - thin cells, the effective records behind each target and the largest weight factor
+  - published numbers not targeted (SOI Table 1.7, dependent filers, today) and the file's miss on each
+  - untargeted statistics before and after the tilt, largest moves first
+  - each trained model's value on untargeted statistics
+  - the year's resolved configuration and its expanded target list (targets.csv), the code commit, the vintages read
+
+targets:
+
+  # SOI Table 1.4 by AGI bracket: the number of returns, and the number with and the amount of the four income
+  # items. Filers only. The five top brackets are each their own cell (soi_agi_brackets, kept_separate), so these
+  # two entries give the returns and the income composition of each top bracket (TARGETS.md S2).
+  - id: irs_returns
+    kind: IRS
+    statistic: units
+    population: filers
+    cells: {soi_agi_brackets: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: returns}
+
+  - id: irs_income_items
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: income_items
+    cells: {soi_agi_brackets: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Joint returns (married filing jointly and surviving spouses), all AGI, from Table 1.2.
+  - id: joint_returns
+    kind: IRS
+    statistic: units
+    population: filers
+    cells: {joint_or_not: [joint]}
+    value: {published: soi 1.2}
+    error: {kind: soi_borrowed}
+    key: {group: all, target: joint returns}
+
+  # The number of non-filer units, the CPS filing stage's expected non-filers. With the returns it fixes the number
+  # of units in the file, which every share and average condition is written against (target_list.average_condition).
+  - id: non_filers
+    kind: non-filers
+    statistic: units
+    population: non_filers
+    cells: all
+    value: {pipeline: filing_stage}
+    error:
+      kind: identity
+      reason: >-
+        it defines the non-filer population: the file's non-filers are the CPS filing stage's non-filers, and with
+        SOI's returns this count is the number of units every share and average is written against
+    key: {group: all, target: non-filers}
+
+  # The people in non-filer units, counted on the CPS units of the filing stage by the file's own rule (heads and
+  # spouses by their own age, children among the head, spouse and three dependents the file carries). The
+  # calibration's numbers by the head's band (Census adults less the adults on SOI returns less claimed dependents;
+  # Census children under 17 not on returns) are kept as a check, in each target's source.
+  - id: nonfiler_people
+    kind: non-filer people
+    statistic: amount
+    population: non_filers
+    variable: nonfiler_people
+    cells: all
+    value: {pipeline: filing_stage}
+    error:
+      kind: judgment
+      relative: 0.02
+      reason: >-
+        today's fallback tolerance; the true error is likely larger in the youngest band, where the value is a
+        small difference of large numbers (2019, 18-25: 33.8 million adults less 24.7 million on returns less 8.1
+        million claimed dependents)
+    key: {group: 'non-filers, {label}', target: people}
+
+  # SOI Table 1.7: dependent filers' returns by AGI bracket. Dependent filers are real returns, counted in every SOI
+  # table (TARGETS.md section 10), but nothing else fixes how many there are, so the tilt could fill the Table 1.6
+  # age counts with them: in the first run with consumption hit exactly (24 October) they rose from 9.85 to 21.92
+  # million (SOI: 9.55 million). Section 6 had found they need a target of their own.
+  - id: dependent_filer_returns
+    kind: dependent filers
+    statistic: units
+    population: dependent_filers
+    cells: {soi_1_7_agi_brackets: all}
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  # SOI Table 1.6: returns by the primary filer's age range, 26-34 to 65+, in joint and non-joint returns. Under 26
+  # is not a target of its own: the bracket returns and the joint count leave it, and a sixth target would repeat
+  # them. Table 1.6 counts a dependent filer's return under its own age (TARGETS.md section 10).
+  - id: age_returns
+    kind: age
+    statistic: units
+    population: filers
+    cells: {joint_or_not: all, adult_age_ranges: [26-34, 35-44, 45-54, 55-64, 65+]}
+    value: {published: soi 1.6}
+    dependent_filers: >-
+      under 26 in the under-26 range; 26 and over (the file has no exact age for them) spread over the five ranges
+      26 and over in proportion to this entry's own values in their filing status
+    error: {kind: soi_borrowed}
+    key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
+
+  # Business income: each family's net income and net loss, returns and dollars, in six AGI groups (merged where
+  # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
+  # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
+  # In 2019 (since 22 October) estates and trusts are left out: the family list business_other less estate_trust.
+  - id: business
+    kind: business
+    statistic: [count, amount]
+    population: filers
+    variable: [rent_royalty_net_income, rent_royalty_net_loss, farm_net_income, farm_net_loss,
+               farm_rental_net_income, farm_rental_net_loss]
+    cells: {business_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+    reason: >-
+      variable: estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met
+      (with standard errors they could come back, giving way where they conflict)
+
+  # Schedule C and partnership and S corporation income, net income and net loss, returns and dollars: the six
+  # groups of the entry above with "$1m and over" cut into $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over
+  # (TARGETS.md S2: the composition of each top bracket).
+  - id: business_top
+    kind: business
+    statistic: [count, amount]
+    population: filers
+    variable: business_top
+    cells: {business_agi_groups_top: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # The SCF targets' population is the SCF's units below $1 billion of net worth (29 October, PLAN.md step 10 of
+  # explore/2026-10-29/top_research; catalog population scf_units_below_a_billion): amounts, shares, the income x net
+  # worth grid, the percentile lines and their standard errors all on that population, in the SCF and in the file. The
+  # Forbes list supplies the units above (top_billionaires.py). The restricted SCF is not scaled back up to its full count.
+  # Every SCF target (kinds wealth and wealth grid) is computed on the year's mix of SCF waves, the year file's prior
+  # "balance sheet", each wave's balance sheet grown per tax unit to the target year's wave, each wave with its own
+  # lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance (scf_targets.py,
+  # TARGETS.md S9). Their ranges are half a standard error (settings tilt.range_in_se_by_kind).
+  # SCF wealth: the share of units above the SCF's 99.9th, 99th, 90th and 50th
+  # percentile lines and above $1 million, and net worth above each percentile line and in total. Among units other
+  # than dependent filers, who hold no wealth in the file.
+  - id: wealth_shares
+    kind: wealth
+    statistic: share
+    population: scf_units_below_a_billion
+    variable: net_worth
+    cells: {scf_net_worth_lines: all}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: share of units}
+
+  - id: wealth_dollars
+    kind: wealth
+    statistic: amount
+    population: scf_units_below_a_billion
+    variable: net_worth
+    cells: [{scf_net_worth_lines: [above the SCF 99.9th percentile, above the SCF 99th percentile,
+                                   above the SCF 90th percentile, above the SCF 50th percentile]}, all]
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable}'}
+
+  # SCF top wealth by kind of asset (TARGETS.md S2): the dollars of stocks, business equity, real estate and
+  # retirement accounts held by the units above the SCF's 99.9th, 99th and 90th percentile net worth lines (the
+  # lines on net worth, the amounts of the asset). The same columns on both sides (catalog variables).
+  - id: wealth_by_asset
+    kind: wealth
+    statistic: amount
+    population: scf_units_below_a_billion
+    variable: scf_top_assets
+    cells: {scf_net_worth_lines: [above the SCF 99.9th percentile, above the SCF 99th percentile,
+                                  above the SCF 90th percentile]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable}'}
+
+  # The income x net worth grid (26 October; TARGETS.md S9, HISTORY.md). Four income groups
+  # (below p90, p90-99, p99-99.9, p99.9+ of the seven shared income items, each side's own percentiles) by four net worth classes (below the SCF's p90 line,
+  # p90-99, p99-99.9, above p99.9, the SCF's dollar lines). In each cell: the share of the income group's units in
+  # the net worth class (the count of units, stated within the income group, whose size is fixed by rank on both
+  # sides), and the class's net worth in the group (dollars). The share of the lowest class is left out in each
+  # income group: it is one minus the others exactly.
+  # Thin cells merged (a cell resting on fewer than 10 SCF households of the 2019 wave, in any implicate, is merged
+  # into the next richer net worth class of the same income group until it has 10 or more; counted before the waves
+  # were pooled, which roughly triples each cell's households, and kept since):
+  #   income p99-99.9: below p90 (3 households) + p90-99 (132) -> at or below p99 (135);
+  #   income p99.9+: below p90 (0) + p90-99 (7) + p99-99.9 (83) -> at or below p99.9 (86: a household can sit in
+  #   different cells in different implicates, so the merged count is not the sum).
+  - id: wealth_grid_shares
+    kind: wealth grid
+    statistic: share
+    population: scf_units_below_a_billion
+    variable: net_worth
+    cells:
+      - {scf_net_worth_classes: [net worth SCF p90-99, net worth SCF p99-99.9, net worth above SCF p99.9],
+         income_rank_groups: [income below p90, income p90-99]}
+      - {scf_net_worth_classes: [net worth SCF p99-99.9, net worth above SCF p99.9],
+         income_rank_groups: [income p99-99.9]}
+      - {scf_net_worth_classes: [net worth above SCF p99.9], income_rank_groups: [income p99.9+]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{scf_net_worth_classes}, {income_rank_groups}', target: share of the income group's units}
+
+  - id: wealth_grid_dollars
+    kind: wealth grid
+    statistic: amount
+    population: scf_units_below_a_billion
+    variable: net_worth
+    cells:
+      - {scf_net_worth_classes: [net worth below SCF p90, net worth SCF p90-99, net worth SCF p99-99.9,
+                                 net worth above SCF p99.9],
+         income_rank_groups: [income below p90, income p90-99]}
+      - {scf_net_worth_classes: [net worth at or below SCF p99, net worth SCF p99-99.9, net worth above SCF p99.9],
+         income_rank_groups: [income p99-99.9]}
+      - {scf_net_worth_classes: [net worth at or below SCF p99.9, net worth above SCF p99.9],
+         income_rank_groups: [income p99.9+]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{scf_net_worth_classes}, {income_rank_groups}', target: net worth}
+
+  # CEX consumption: each category's average per unit, over all units and in the 12 cells of the primary filer's
+  # adult age range by married or not. The overall averages are kept because the cells do not imply them: the
+  # file's units fall into the cells in other shares than the CEX's.
+  - id: consumption_all
+    kind: consumption
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: consumption
+    cells: all
+    value: {survey: cex}
+    error: {kind: survey_replicate}
+    key: {group: 'CEX {year}, all', target: '{variable}, average'}
+
+  - id: consumption_by_age_and_married
+    kind: consumption
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: consumption
+    cells: {adult_age_ranges: all, married_or_not: all}
+    value: {survey: cex}
+    error: {kind: survey_replicate}
+    key: {group: 'CEX {year}, age {adult_age_ranges}, {married_or_not}', target: '{variable}, average'}
+
+  # SOI Table 1.3 (27 October; run G2 of explore_targets_13_43_RESULTS.md, approved by John): returns, and the
+  # number with and the amount of 22 income items (AGI its amount only), in each of the four filing statuses. Filers
+  # (dependent filers included, as SOI counts them). Errors borrowed from the nearest Table 1.4 cells.
+  - id: soi_1_3_returns
+    kind: soi 1.3
+    statistic: units
+    population: filers
+    cells: {filing_four: all}
+    value: {published: soi 1.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  - id: soi_1_3_agi
+    kind: soi 1.3
+    statistic: amount
+    population: filers
+    variable: agi
+    cells: {filing_four: all}
+    value: {published: soi 1.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: soi_1_3_items
+    kind: soi 1.3
+    statistic: [count, amount]
+    population: filers
+    variable: soi_1_3_items
+    cells: {filing_four: all}
+    value: {published: soi 1.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # SOI Table 4.3 (27 October; run G2): returns, AGI, and the number with and the amount of eight income items, in the
+  # top 0.001%, the top 0.01%, the top 0.1% and the top 1% of AGI. Returns other than dependent filers', ranked by AGI
+  # on the file's starting weights; the dollar lines are then held fixed through the tilt. The top 0.001% was folded
+  # into the top 0.01% from 26 October (John) because the file lacked the PUF's aggregate records; it is restored with
+  # them (29 October, PLAN.md Part A step 9: top_hidden.py rebuilds them), and expand must keep it (must_reach). With
+  # settings tilt.top.enabled false, expand leaves the must_reach cells out, as before 29 October.
+  - id: soi_4_3_returns
+    kind: soi 4.3
+    statistic: units
+    population: independent_filers
+    cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
+    must_reach: [top 0.001 percent]
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  - id: soi_4_3_agi
+    kind: soi 4.3
+    statistic: amount
+    population: independent_filers
+    variable: agi
+    cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
+    must_reach: [top 0.001 percent]
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: soi_4_3_items
+    kind: soi 4.3
+    statistic: [count, amount]
+    population: independent_filers
+    variable: soi_4_3_items
+    cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
+    must_reach: [top 0.001 percent]
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Auto loan interest from the SCF (27 October, candidate): in the four income groups of the wealth grid, the share
+  # of the group's units with any auto loan interest and its dollars per unit, on the year's mix of SCF waves
+  # (scf_targets.py), each wave's amounts grown per tax unit to the target year's wave. Stated per unit, not as
+  # totals: the SCF's units add to 162.76 million in 2019, the file's units other than dependent filers to about
+  # 169.5 million, and the dollars per unit are what carries over (TARGETS.md S9). Half a standard error, as the
+  # other SCF targets (settings tilt.range_in_se_by_kind).
+  - id: auto_loans
+    kind: auto loans
+    statistic: average
+    population: scf_units_below_a_billion
+    variable: auto_loans
+    cells: {income_rank_groups: all}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{income_rank_groups}', target: '{variable}, average'}
+
+  # ---- entries of 2019 alone until 29 October (years/2019.yaml) -------------------------------------------------
+  # (W-2 tips and elective deferral entries left out for this year: see the note at the top.)
+
+  # Overtime pay (28 October; decided by John 27 October, so overtime does not drift): from the CPS's own tax units,
+  # as the CEX consumption targets are. The share of units with any overtime pay and overtime dollars per unit
+  # (the catalog's variable list "overtime": any_ot, ot), over all units and in four groups of the unit's wages
+  # (catalog wage_groups_4, since 29 October: wage_groups_5 with $100,000-200,000 and $200,000 and over merged, John
+  # 28 October): 10 targets. The file's ot is ot1 + ot2, each person's held to their wages less their
+  # tips (dollars.py); the CPS's is Tedeschi's rules per person (overtime_cps.R), held to the person's own wages.
+  # Universe: overtime is known only for the units asked the earnings questions (months 4 and 8 of the main sample;
+  # the rest have it missing), so each average is over the asked units in the cell, with their own weights
+  # (target_list.cps_overtime_units). Population: units other than dependent filers, the rule of every survey target
+  # (the CPS folds dependent filers into the unit that claims them; the file's dependent filers hold no CPS item).
+  # Value: the CPS year mix of the prior's "cps items" (2019 73.11%, 2017 26.89%), the 2017 units' overtime and wages
+  # grown to 2019 by SOI's wages per return (survey_mix.py). Error: the ASEC's 160 replicate weights
+  # (errors.overtime_errors).
+  - id: overtime_all
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: all
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, all', target: '{variable}, average'}
+  - id: overtime_by_wages
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: {wage_groups_4: all}
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, {wage_groups_4}', target: '{variable}, average'}

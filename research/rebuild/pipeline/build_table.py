@@ -1688,5 +1688,19 @@ def main():
     table_summary(t)
 
 
+def maps_only():
+    """The target year's dollar maps alone (30 October, targets for every year), from the table and band edges already
+    built (common.TABLE, common.EDGES): the networks trained on that table stay valid, and each target year gets its
+    maps by the same build_maps the full build runs. `python build_table.py maps`."""
+    t = pd.read_parquet(common.TABLE)
+    edges = json.load(open(common.EDGES))
+    build_maps(t, edges)
+    common.say(f'maps for {TARGET_YEAR} written to {common.MAPS}')
+
+
 if __name__ == '__main__':
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == 'maps':
+        maps_only()
+    else:
+        main()

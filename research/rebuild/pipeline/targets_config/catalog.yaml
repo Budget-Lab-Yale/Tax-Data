@@ -312,6 +312,12 @@ variables:
     short: pensions_taxable
     published:
       soi 1.3: {item: taxable pensions and annuities, count: returns, amount: amount}
+  # (30 October) Table 1.3 for tax year 2018 publishes taxable IRA distributions and taxable pensions as one line
+  ira_pensions_taxable:
+    parts: [ira_taxable, pensions_taxable]
+    short: ira_pensions_taxable
+    published:
+      soi 1.3: {item: 'taxable individual retirement arrangement (ira) distributions, pensions, and annuities', count: returns, amount: amount}
   ss_taxable:
     record: ss_taxable
     short: ss_taxable
@@ -513,7 +519,14 @@ variables:
 # Business families: each gives two variables, <family>_net_income and <family>_net_loss, short name
 # "<family> net_income" / "<family> net_loss", SOI lines <family>_net_income / <family>_net_loss in targets/soi.csv.
 # Their PUF parts and SOI line names are targets.FAMILIES; they are not repeated here.
-families: [sch_c, pship_scorp, rent_royalty, estate_trust, farm, farm_rental]
+# partnership and scorp (30 October): the two halves of pship_scorp, which Table 1.4 publishes separately from tax year
+# 2021 with no combined line (targets.FAMILIES)
+families: [sch_c, pship_scorp, rent_royalty, estate_trust, farm, farm_rental, partnership, scorp]
+
+# Item names a tidy SOI table uses in some years only (30 October, targets for every year): a variable's published
+# item is looked up under its own name first, then under each alias (target_list.published_grid).
+item_aliases:
+  salaries and wages: [total wages]                     # Table 4.3 from tax year 2022
 
 # Named lists of variables, so an entry can say "the income items".
 variable_lists:
@@ -525,6 +538,9 @@ variable_lists:
   # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
   # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.
   business_top: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
+  # from tax year 2021 (30 October): Table 1.4 publishes partnership and S corporation income separately
+  business_top_split: [sch_c_net_income, sch_c_net_loss, partnership_net_income, partnership_net_loss,
+                       scorp_net_income, scorp_net_loss]
   business_other: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
                    farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
   consumption: [c_clothing, c_motor_vehicles, c_durables, c_other_nondurables, c_food_off_premises,
@@ -538,6 +554,11 @@ variable_lists:
                   sch_c_net_income, sch_c_net_loss, capital_gain_positive, capital_gain_loss, other_gains, ira_taxable,
                   pensions_taxable, ss_taxable, unemployment, rent_royalty_net_income, rent_royalty_net_loss,
                   pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
+  # tax year 2018 (30 October): taxable IRA distributions and pensions published as one line
+  soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends, tax_exempt_interest, state_refunds, alimony,
+                       sch_c_net_income, sch_c_net_loss, capital_gain_positive, capital_gain_loss, other_gains,
+                       ira_pensions_taxable, ss_taxable, unemployment, rent_royalty_net_income, rent_royalty_net_loss,
+                       pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
   soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,
                   pship_scorp_net_income, pship_scorp_net_loss]
   # Auto loan interest from the SCF: the share of units with any and the dollars per unit

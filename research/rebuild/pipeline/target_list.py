@@ -499,11 +499,39 @@ def published_status(soi, year, source, cells, stats):
     return rows
 
 
+_CPS_YEARS = None
+
+
+def cps_years():
+    """The tax years with CPS units in the training table (the CPS's years: 2015, 2017, ..., 2023)."""
+    global _CPS_YEARS
+    if _CPS_YEARS is None:
+        t = pd.read_parquet(common.TABLE, columns=['source', 'year'])
+        _CPS_YEARS = sorted(int(y) for y in t.loc[t.source == 'cps', 'year'].unique())
+    return _CPS_YEARS
+
+
+def cps_neighbours(year):
+    """For a year with no CPS units (an even year, 30 October): the nearest CPS years either side, (lo, hi). A year
+    with CPS units, or one outside their range, is an error: the caller handles those."""
+    have = cps_years()
+    lo, hi = max([y for y in have if y < year], default=None), min([y for y in have if y > year], default=None)
+    assert year not in have and lo is not None and hi is not None, \
+        f'{year}: no CPS units and no CPS year on both sides (CPS years {have})'
+    return lo, hi
+
+
 def nonfiler_count(year):
     """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
-    the generated non-filer batch is sized by (generate.cps_expected_nonfilers)."""
+    the generated non-filer batch is sized by (generate.cps_expected_nonfilers). A year with no CPS units (an even
+    year; 30 October) takes the geometric mean of the nearest CPS years either side (cps_neighbours), as the start's
+    scaling does (tilt.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
-    t = t[(t.source == 'cps') & (t.year == year)]
+    t = t[t.source == 'cps']
+    if year not in set(t['year']):
+        lo, hi = cps_neighbours(year)
+        return float(np.sqrt(nonfiler_count(lo) * nonfiler_count(hi)))
+    t = t[t.year == year]
     assert len(t), f'no CPS units for {year}'
     return float((t['weight'] * (1 - t['filer_p'])).sum())
 
@@ -692,6 +720,16 @@ FILE_RANK_LINES = {}   # (variable, population, percentile) -> the file's dollar
 
 def pipeline_rows(year, cells, v, stats):
     assert cells == [group_cells('all')[0]] and stats in (['units'], ['amount'])
+    if year not in cps_years():   # an even year (30 October): the geometric mean of the CPS years either side
+        lo, hi = cps_neighbours(year)
+        if v is None:
+            return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
+                     'source': f'no CPS units for {year}: the geometric mean of the filing stage\'s expected non-filers '
+                               f'in {lo} ({nonfiler_count(lo):,.0f}) and {hi} ({nonfiler_count(hi):,.0f})'}]
+        a, b = cps_nonfiler_people(lo, v), cps_nonfiler_people(hi, v)
+        return [{'cell': 'all', 'statistic': 'amount', 'value': float(np.sqrt(a * b)) if a > 0 and b > 0 else (a + b) / 2,
+                 'source': f'no CPS units for {year}: the geometric mean of the filing stage\'s people among the '
+                           f'expected non-filers in {lo} ({a:,.0f}) and {hi} ({b:,.0f}), counted as the file counts them'}]
     if v is None:
         return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
                  'source': f'filing stage {year}: CPS units of the training table, sum of weight x (1 - filer_p)'}]
@@ -817,7 +855,14 @@ def published_grid(source, year, cells, v, stats):
             if cut.iloc[0].value:
                 cutoff = float(cut.iloc[0].value)
         def value(measure, item=None):
-            z = selected[(selected.item == (item or spec['item'])) & (selected.measure == measure)]
+            # an item SOI names differently in some years (catalog item_aliases: salaries and wages is "total wages"
+            # in Table 4.3 from tax year 2022) is read under the name the year publishes
+            name = item or spec['item']
+            for alt in [name] + list(CAT.get('item_aliases', {}).get(name, [])):
+                if ((selected.item == alt) & (selected.measure == measure)).any():
+                    name = alt
+                    break
+            z = selected[(selected.item == name) & (selected.measure == measure)]
             expected = 1
             for grouping, label in c['parts'].items():
                 expected *= len(CAT['groupings'][grouping]['published_labels'][label])

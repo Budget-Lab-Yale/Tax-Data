@@ -38,12 +38,22 @@ FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (st
     # left out until the targeting overhaul: its tiny cells could not always be met (22 October)
     'estate_trust': {'soi': 'estate and trust', 'income': ['estate_inc'], 'loss': ['estate_loss'], 'target': False},
     'farm': {'soi': 'farm', 'income': ['farm'], 'loss': [], 'target': True},
-    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True}}
+    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True},
+    # From tax year 2021 Table 1.4 publishes partnership and S corporation income separately, with no combined line
+    # (30 October, targets for every year): the two halves of pship_scorp, each netted on its own, for the years that
+    # publish them (targets_config/<year>/targets.yaml names them in business_top from 2021)
+    'partnership': {'soi': 'partnership', 'income': ['part_pass_inc', 'part_nonpass_inc'],
+                    'loss': ['part_pass_loss', 'part_nonpass_loss', 'part_179'], 'target': False},
+    'scorp': {'soi': 's corporation', 'income': ['scorp_pass_inc', 'scorp_nonpass_inc'],
+              'loss': ['scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179'], 'target': False}}
 T14 = {  # SOI item -> (variable, statistic)
     'number of returns': ('returns', 'count'),
     'adjusted gross income less deficit': ('agi', 'amount'),
     'salaries and wages > number of returns': ('wages', 'count'),
     'salaries and wages > amount': ('wages', 'amount'),
+    # SOI's name for the same line (Form 1040 line 1z, total wages) from tax year 2022 (30 October)
+    'total wages > total > number of returns': ('wages', 'count'),
+    'total wages > total > amount': ('wages', 'amount'),
     'taxable interest > number of returns': ('taxable_interest', 'count'),
     'taxable interest > amount': ('taxable_interest', 'amount'),
     'ordinary dividends > number of returns': ('ordinary_dividends', 'count'),
