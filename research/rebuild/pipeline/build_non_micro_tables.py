@@ -267,10 +267,16 @@ def cps_private_pay():
         unmatched = w[g == 0].sum() / w.sum()
         common.say(f'CPS {sy} (tax year {sy - 1}): private employees with wages {w.sum() / 1e6:.1f} million; industry '
                    f'code in no SCF group {100 * unmatched:.2f}% of them (left out); wage codes missing {bad}')
+        every = g > 0
+        mean_all = float((w[every] * x[every]).sum() / w[every].sum())
         for k in range(1, 9):
-            m = (g == k) if k < 8 else (g > 0)
+            m = (g == k) if k < 8 else every
+            # group 7, public administration, has no private employees: it takes all private employees' average
+            own = bool(m.any())
             rows.append({'year': sy - 1, 'scf_industry_group': k, 'employees_millions': w[m].sum() / 1e6,
-                         'sample_people': int(m.sum()), 'average_pay': float((w[m] * x[m]).sum() / w[m].sum()),
+                         'sample_people': int(m.sum()),
+                         'average_pay': float((w[m] * x[m]).sum() / w[m].sum()) if own else mean_all,
+                         'pay_of': 'the group' if own else 'all private employees (no private employee in the group)',
                          'share_left_out_no_group': unmatched})
     t = pd.DataFrame(rows)
     write(t, 'cps_private_pay_by_scf_group.csv')
@@ -279,8 +285,8 @@ def cps_private_pay():
     note('cps_private_pay_by_scf_group.csv', 'CPS ASEC, the common IPUMS extract (settings paths.raw.cps_earnings): '
          'ASECWT, AGE, IND, CLASSWKR, INCWAGE; the SCF codebook\'s collapse of Census industry codes to its 7 public '
          'groups (X3107)', 'weighted mean of INCWAGE over private wage and salary workers (CLASSWKR 21-23) 18 and '
-         'over with wages, by SCF industry group of the current or most recent job; group 8 is all of them; tax year = '
-         'survey year - 1; nominal dollars')
+         'over with wages, by SCF industry group of the current or most recent job; group 8 is all of them, and so is group 7 (public '
+         'administration), which has no private employees; tax year = survey year - 1; nominal dollars')
 
 
 def pub4801_blind():
