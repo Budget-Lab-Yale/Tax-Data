@@ -132,6 +132,10 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
+  # The SCF targets' population is the SCF's units below $1 billion of net worth (29 October, PLAN.md step 10 of
+  # explore/2026-10-29/top_research; catalog population scf_units_below_a_billion): amounts, shares, the income x net
+  # worth grid, the percentile lines and their standard errors all on that population, in the SCF and in the file. The
+  # Forbes list supplies the units above (top_billionaires.py). The restricted SCF is not scaled back up to its full count.
   # Every SCF target (kinds wealth and wealth grid) is computed on the year's mix of SCF waves, the year file's prior
   # "balance sheet", each wave's balance sheet grown per tax unit to the target year's wave, each wave with its own
   # lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance (scf_targets.py,
@@ -142,7 +146,7 @@ targets:
   - id: wealth_shares
     kind: wealth
     statistic: share
-    population: units_other_than_dependent_filers
+    population: scf_units_below_a_billion
     variable: net_worth
     cells: {scf_net_worth_lines: all}
     value: {survey: scf}
@@ -152,7 +156,7 @@ targets:
   - id: wealth_dollars
     kind: wealth
     statistic: amount
-    population: units_other_than_dependent_filers
+    population: scf_units_below_a_billion
     variable: net_worth
     cells: [{scf_net_worth_lines: [above the SCF 99.9th percentile, above the SCF 99th percentile,
                                    above the SCF 90th percentile, above the SCF 50th percentile]}, all]
@@ -166,7 +170,7 @@ targets:
   - id: wealth_by_asset
     kind: wealth
     statistic: amount
-    population: units_other_than_dependent_filers
+    population: scf_units_below_a_billion
     variable: scf_top_assets
     cells: {scf_net_worth_lines: [above the SCF 99.9th percentile, above the SCF 99th percentile,
                                   above the SCF 90th percentile]}
@@ -189,7 +193,7 @@ targets:
   - id: wealth_grid_shares
     kind: wealth grid
     statistic: share
-    population: units_other_than_dependent_filers
+    population: scf_units_below_a_billion
     variable: net_worth
     cells:
       - {scf_net_worth_classes: [net worth SCF p90-99, net worth SCF p99-99.9, net worth above SCF p99.9],
@@ -204,7 +208,7 @@ targets:
   - id: wealth_grid_dollars
     kind: wealth grid
     statistic: amount
-    population: units_other_than_dependent_filers
+    population: scf_units_below_a_billion
     variable: net_worth
     cells:
       - {scf_net_worth_classes: [net worth below SCF p90, net worth SCF p90-99, net worth SCF p99-99.9,
@@ -315,7 +319,7 @@ targets:
   - id: auto_loans
     kind: auto loans
     statistic: average
-    population: units_other_than_dependent_filers
+    population: scf_units_below_a_billion
     variable: auto_loans
     cells: {income_rank_groups: all}
     value: {survey: scf}

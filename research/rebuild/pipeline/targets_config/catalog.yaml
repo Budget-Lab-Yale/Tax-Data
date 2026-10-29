@@ -162,6 +162,12 @@ populations:
   units_other_than_dependent_filers:  {rule: age_range < 6, why: the surveys count dependent filers inside the unit that claims them}
   dependent_filers:                   {rule: filer == 1 and age_range >= 6, why: "the PUF's three dependent age ranges (common.DEPENDENT_RANGES)"}
   independent_filers:                 {rule: filer == 1 and age_range < 6, why: "returns other than dependent filers' (Table 4.3's population; the W-2 tips targets)"}
+  # The SCF targets' population (29 October; PLAN.md of explore/2026-10-29/top_research, step 10, John's choice): above
+  # $1 billion of net worth the file is the Forbes list alone, below it the SCF. Net worth in nominal target-year
+  # dollars, the SCF's after each wave is grown to the target year. The ceiling applies on both sides, the SCF's units
+  # (scf_targets.py, the same lines and percentiles computed among units below it) and the file's records
+  # (target_list.population), while settings tilt.top.enabled is true; with it false the population is the rule alone.
+  scf_units_below_a_billion:          {rule: age_range < 6, net_worth_below: 1000000000, why: "the SCF's units below $1 billion of net worth, dependent filers left out as for every survey target; the Forbes list supplies the units above"}
 
 # ---------------------------------------------------------------------------------------------------------------
 # Statistics. Each is a linear condition on the file's weights.

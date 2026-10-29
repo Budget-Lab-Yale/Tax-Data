@@ -600,12 +600,14 @@ def cps_mix_rows(year, cells, v, stats):
     return rows
 
 
-def survey_rows(source, year, cells, v, stats):
+def survey_rows(source, year, cells, v, stats, population=None):
     """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
-    waves, with their standard errors (scf_targets.py)."""
+    waves, with their standard errors (scf_targets.py), on the population's units (its net worth ceiling, if any)."""
     if source == 'scf':
         import scf_targets
-        return scf_targets.rows(cells, v, stats, year)
+        return scf_targets.rows(cells, v, stats, year, ceiling=net_worth_ceiling(population) if population else None)
+    if population and net_worth_ceiling(population) is not None:
+        raise NotImplementedError(f'{source}: a net worth ceiling on a survey other than the SCF')
     if source == 'cex':
         return cex_mix_rows(year, cells, v, stats)
     if source == 'cps':
@@ -1130,7 +1132,7 @@ def expand_entry(e, year, soi):
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
-            rows = survey_rows(src, vyear, cells, v, stats)
+            rows = survey_rows(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'pipeline':
             rows = pipeline_rows(vyear, cells, v, stats)
             for r in rows:
@@ -1217,9 +1219,25 @@ def expand(year=common.TARGET_YEAR, start=None):
 
 
 # ---- the conditions on the weights ----------------------------------------------------------------------------
+def net_worth_ceiling(name):
+    """A population's net worth ceiling in nominal target-year dollars (catalog net_worth_below; the SCF targets'
+    population, 29 October), or None: none set, or settings tilt.top.enabled false (the population is then its rule
+    alone, as before)."""
+    c = CAT['populations'][name].get('net_worth_below')
+    if c is None or not common.SETTINGS['tilt'].get('top', {}).get('enabled', False):
+        return None
+    return float(c)
+
+
 def population(df, name):
     rule = CAT['populations'][name]['rule']
-    return np.ones(len(df), bool) if rule == 'all' else df.eval(rule).to_numpy()
+    m = np.ones(len(df), bool) if rule == 'all' else df.eval(rule).to_numpy()
+    c = net_worth_ceiling(name)
+    if c is not None:   # units with net worth at or above the ceiling are outside (the Forbes list's range)
+        nw = df['net_worth'].to_numpy(float)
+        assert np.isfinite(nw[m]).all(), f'population {name}: net worth missing on {int((~np.isfinite(nw[m])).sum())} units'
+        m &= nw < c
+    return m
 
 
 def file_units(year):
