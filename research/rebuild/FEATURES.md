@@ -1284,7 +1284,7 @@ the 2019 net worth. Spouses listed separately become one joint return (two coupl
 family fortune, or a couple or siblings named in one entry, stays one record: 605 tax units.
 
 **Each billionaire record** (`top_billionaires.build_billionaires`; flags `billionaire`, `billionaire_rank`,
-`forbes_uri`; ids from 90,000,000):
+`forbes_uri`; ids from 95,000,000, after Part A's block at 90,000,000):
 - Rank groups: the top 92 units, the next 276 (BSYZ's "top 100" and "next 300", as tax units), and the rest, which take
   the next group's figures (an extrapolation).
 - Wealth: Forbes's net worth; public holdings as above, else the rank group's wealth-weighted average share; the rest

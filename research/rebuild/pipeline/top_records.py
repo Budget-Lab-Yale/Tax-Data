@@ -7,10 +7,10 @@ it must come after).
 prepare_top, in order:
   1. a start from an earlier year's tilted file: its billionaires are removed (the year's own list replaces them;
      PLAN.md open question 4);
-  2. Part A, the PUF's hidden top returns rebuilt from generated records (top_hidden.rebuild_hidden_returns, built
-     on its own branch), when top_hidden.py is present and settings tilt.top.hidden_returns is true; otherwise skipped,
-     and the summary says so. Its records come with their weight in returns (column weight) and synthetic_top = 1;
-     they are free to move in the tilt;
+  2. Part A, the PUF's hidden top returns rebuilt from generated records (top_hidden.rebuild_hidden_returns, merged
+     29 October), when settings tilt.top.hidden_returns is true and the start is generated; otherwise skipped, and the
+     summary says so. Its records come in the generated records' weight units, with synthetic_top = 1 and
+     hidden_group; they are scaled with the generated records and free to move in the tilt;
   3. the redraw of every generated balance sheet at or above the ceiling (top_billionaires.redraw_balance_sheets;
      the ceiling is catalog population scf_units_below_a_billion's net_worth_below, $1 billion);
   4. the year's Forbes list as records of weight 1 (top_billionaires.build_billionaires), held fixed in the tilt.
@@ -31,8 +31,12 @@ S = common.SETTINGS['tilt'].get('top', {})
 POPULATION = 'scf_units_below_a_billion'
 
 
-def _hidden_returns(df, year, notes):
-    """Part A's records (see the top), or None."""
+def _hidden_returns(df, year, mode, notes):
+    """Part A's records (see the top), or None. They come in df's units (top_hidden.rebuild_hidden_returns: each
+    rebuilt return's 2015 population weight in the generated filers' own units), so the start's scaling of filers to
+    SOI's returns grows them with the count of returns; they are free in the tilt. Kept with them: hidden_group (0
+    negative AGI, 1 $0-10 million, 2 $10-100 million, 3 over $100 million, in 2015 dollars) and their redraw's fallback
+    flag."""
     if not S.get('hidden_returns', False):
         notes.append('Part A (the PUF\'s hidden top returns): off (settings tilt.top.hidden_returns)')
         return None
@@ -40,12 +44,25 @@ def _hidden_returns(df, year, notes):
         notes.append('Part A (the PUF\'s hidden top returns): settings ask for it, but top_hidden.py is not in this '
                      'pipeline; skipped')
         return None
+    if mode != 'generate':
+        notes.append('WARNING: Part A (the PUF\'s hidden top returns) is built for a generated start only; this start '
+                     'is an earlier year\'s file, so it is skipped')
+        return None
     import top_hidden
-    h = top_hidden.rebuild_hidden_returns(df, year)
-    missing = [c for c in df.columns if c not in h.columns]
-    assert not missing, f'Part A\'s records lack the file\'s columns {missing[:10]}'
+    # a stack drawn before the blindness rule (the retrain of 28 October) carries four blindness columns Part A's rows
+    # do not: they are given the neutral values (not blind; no draw)
+    old = [c for c in ['blind', 'blind_drawn1', 'blind_drawn2', 'blind_chance1', 'blind_chance2'] if c in df]
+    h = top_hidden.rebuild_hidden_returns(df.drop(columns=old), year, details=True)
+    neutral = {'blind': 1, 'blind_drawn1': 0, 'blind_drawn2': 0, 'blind_chance1': 0.0}
+    for c in old:
+        h[c] = np.where(h['married'] == 1, 0.0, -1.0) if c == 'blind_chance2' else neutral[c]
+        h[c] = h[c].astype(df[c].dtype)
     assert (h['synthetic_top'] == 1).all() and h['weight'].notna().all() and (h['weight'] > 0).all()
-    notes.append(f"Part A: {len(h)} rebuilt hidden returns, {h['weight'].sum():,.1f} returns")
+    h = h.drop(columns=['weight_2015', 'donor_record_id']).rename(columns={'hidden_wealth_fallback': 'wealth_redraw_fallback'})
+    h['wealth_redrawn'] = 1
+    notes.append(f"Part A: {len(h)} rebuilt hidden returns ({', '.join(f'group {g}: {n}' for g, n in h['hidden_group'].value_counts().sort_index().items())}); "
+                 f"their balance sheets drawn again below the ceiling by the same function (redraw_record), "
+                 f"{int(h['wealth_redraw_fallback'].sum())} fallbacks")
     return h
 
 
@@ -61,22 +78,21 @@ def prepare_top(g19, raw, imp, year, mode):
         notes.append(f'start: {int(old.sum())} billionaire records of the earlier year removed')
         g19, raw, imp = g19.loc[~old].reset_index(drop=True), raw.loc[~old].reset_index(drop=True), imp[~old]
     given = np.zeros(len(g19), bool)
-    h = _hidden_returns(g19, year, notes)  # 2. Part A
-    # 3. the redraw, on the generated records (Part A's own redraw is its step 7)
+    h = _hidden_returns(g19, year, mode, notes)  # 2. Part A
+    # 3. the redraw, on the generated records (Part A's records were drawn again in its own build, by redraw_record)
     g19, tab = TB.redraw_balance_sheets(g19, raw, year, ceiling, notes, check_same=(mode == 'generate'))
     rep['redraw'] = tab
     for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
         if c not in g19:
             g19[c] = 0
+    g19['synthetic_top'], g19['hidden_group'] = 0, -1
     if h is not None:
         assert not (h['net_worth'] >= ceiling).any(), 'Part A: a rebuilt return at or above the ceiling'
-        for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
-            if c not in h:
-                h[c] = 0
-        g19['synthetic_top'] = g19.get('synthetic_top', 0)
+        assert not set(h['record_id']) & set(g19['record_id'])
         g19 = pd.concat([g19, h[g19.columns]], ignore_index=True)
-        imp = np.r_[imp, h['weight'].to_numpy(float)]
-        given = np.r_[given, np.ones(len(h), bool)]
+        imp = np.r_[imp, h['weight'].to_numpy(float)]   # in the generated records' units: scaled with them
+        given = np.r_[given, np.zeros(len(h), bool)]
+        rep['hidden'] = h
     # 4. the billionaires
     lst = TB.read_list(year)
     g19['billionaire'], g19['billionaire_rank'], g19['forbes_uri'] = 0, -1, ''

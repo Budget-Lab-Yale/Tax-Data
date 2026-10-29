@@ -54,13 +54,13 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      is a check only.
   7. Wealth drawn again after the scaling (redraw_wealth): every rebuilt return's whole balance sheet (every SCF slot:
      assets, debts, the mortgage share, accumulated gains, ownership flags, deferrals, auto loan interest, the QBI
-     items) is drawn again under the SCF label given its final income items (bands on the 2015 cut points), up to
-     settings wealth_tries times until net worth in target-year dollars is below settings wealth_cap ($1 billion; Part B,
-     step 10). Each try has its own network draws and its own dollar picks keyed by record id. A record whose every try
-     lands at or above the cap keeps its lowest try and is flagged (hidden_wealth_fallback = 1). This is an
-     extrapolation: the network has never seen incomes this large (they sit in the top bands either way).
-     The other agent's general redraw below $1 billion for the generated file (rebuild-top-billionaires) does the same
-     job for the generated records; the two should be unified at the merge.
+     items) is drawn again under the SCF label given its final income items (bands on the 2015 cut points):
+     settings wealth_tries tries, drawn as one batch from generators seeded by wealth_seed and the record id, each try's
+     dollar picks keyed by record id; the first try with net worth in target-year dollars below settings wealth_cap
+     ($1 billion; Part B, step 10) is kept. A record whose every try lands at or above the cap keeps its lowest try and
+     is flagged (hidden_wealth_fallback = 1). Since the merge with Part B (29 October) this is one function for both
+     parts, top_billionaires.redraw_record. This is an extrapolation: the network has never seen incomes this large
+     (they sit in the top bands either way).
   8. Into the file (rebuild_hidden_returns): each record's PUF amounts grown from 2015 to the target year by the file's
      per-return growth (tilt.grow_dollars, build_table.growth), every total recomputed (tilt.recombine), the balance
      sheet from step 7, every other survey item (ages, consumption, the CPS's and SIPP's items) the donor's own, flagged
@@ -643,93 +643,47 @@ def reband(frame2015):
 
 
 def scf_dollars(rows, maps, salt):
-    """The balance sheet in target-year dollars from rows' SCF bands, each amount from the row's own wave's map with
-    a pick keyed by record id (ages.uniform_by_id, salt + the amount's position); the items made from a share and net
-    worth. Returns a frame of the SCF amounts, the share items and net_worth."""
-    import ages
-    import model as M
-    out = pd.DataFrame(index=rows.index)
-    for i, v in enumerate(M.META['scf_amounts']):
-        u = ages.uniform_by_id(rows['record_id'].to_numpy(), salt + i)
-        out[v] = D.draw_by_wave(rows, v, maps, None, u)
-    for slot, (item, base) in D.RATIOS.items():
-        if slot in out and base in out:
-            out[item] = out[slot] * out[base]
-    out['net_worth'] = out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
-    return out
+    """The balance sheet in target-year dollars from rows' SCF bands (top_billionaires.balance_sheet_dollars: each
+    amount from the row's own wave's map with a pick keyed by record id and salt + the amount's position; the items
+    made from a share and net worth)."""
+    import top_billionaires as TB
+    return TB.balance_sheet_dollars(rows, maps, salt)
 
 
 def redraw_wealth(rows, models, factors, maps):
-    """Step 7 (see the top). rows: the rebuilt returns in the stack's own coding (generate.to_table: bands, categories,
-    ages as value 0 none and a + 1 for age a), PUF bands from their final 2015 dollars, record ids final. Returns the
-    new SCF slot values (stack columns), the balance-sheet dollars of the try kept, per record the try accepted (-1:
-    every try at or above the cap, the lowest kept), the net worth of every try, and the try kept."""
-    import torch
+    """Step 7 (see the top), by the one redraw function the generated file's records use too
+    (top_billionaires.redraw_record, merged 29 October): for each rebuilt return, wealth_tries tries of its whole SCF
+    block drawn as one batch from generators seeded by wealth_seed and its record id, try t's dollars from picks keyed
+    by its id and wealth_salt + 100 t; the first try below wealth_cap is kept, else the lowest. rows: the rebuilt
+    returns in the stack's own coding (generate.to_table: bands, categories, ages as value 0 none and a + 1 for age a),
+    PUF bands from their final 2015 dollars, record ids final. Returns the new SCF slot values (stack columns), the
+    balance-sheet dollars of the try kept, per record the try accepted (-1: every try at or above the cap, the lowest
+    kept), the net worth of every try, and the try kept."""
     import generate as G
     import model as M
-    NC = len(M.CONTEXT)
+    import top_billionaires as TB
     P = M.PREDICTED
     scf_cols = [M.column(v) for v in G.SCF_SLOTS]
     cap, tries = float(S['wealth_cap']), int(S['wealth_tries'])
     device = next(models[0]['network'].parameters()).device
+    by_seed = {m['seed']: m for m in models}
     new = rows[scf_cols].copy()
-    dol, accepted, tried = None, np.full(len(rows), -2), np.full((len(rows), tries), np.nan)
-    best = np.full(len(rows), np.inf)
-    for mod in models:
-        sel = np.flatnonzero(rows['model'].to_numpy() == mod['seed'])
-        if not len(sel):
-            continue
-        r = rows.iloc[sel]
-        vals = torch.zeros(len(r), len(M.SLOTS), dtype=torch.long)
-        vals[:, 0] = M.SOURCES.index('puf')
-        vals[:, 1] = M.YEARS.index(PY)
-        for j, v in enumerate(P):
-            c = M.column(v)
-            vals[:, NC + j] = torch.as_tensor(r[c].to_numpy().astype(np.int64)) if c in r else 0
-        scf_year = torch.as_tensor(np.array([M.YEARS.index(int(y)) for y in r['scf_year']]))
-        pending = np.ones(len(r), bool)
-        for t in range(tries):
-            idx = np.flatnonzero(pending)
-            if not len(idx):
-                break
-            n = len(idx)
-            gen = torch.Generator(device=device).manual_seed(int(S['wealth_seed']) + 1000 * t + mod['seed_shift'])
-            cpu_gen = torch.Generator().manual_seed(int(S['wealth_seed']) + 1000 * t + mod['seed_shift'])
-            order = torch.arange(len(P)).expand(n, -1).to(device)
-            svy = {src: torch.zeros(n, dtype=torch.long) for src in G.SURVEY_YEARS}
-            d = G.Chunk(mod['network'], n, order, {}, 0, factors[mod['run']], gen, scf_year[idx], svy)
-            d.values = vals[idx].to(device).clone()
-            d.filled = torch.ones(n, len(P), dtype=torch.bool, device=device)
-            ages_before = {a: d.values[:, NC + P.index(a)].clone() for a in G.AGE_SLOTS}
-            d.after_totals()                             # the rules each record triggers; survey slots present
-            for a, v in ages_before.items():            # the exact ages are drawn before the SCF phase: kept
-                d.values[:, NC + P.index(a)] = v
-            for v in G.SCF_SLOTS + list(M.REPORTED):
-                d.filled[:, P.index(v)] = False         # hidden until drawn (the reported slots never drawn)
-            perm = G.scf_order(n, cpu_gen).to(device)
-            with torch.no_grad():
-                for s in range(perm.shape[1]):
-                    d.survey_step(perm[:, s], 'scf', d.scf_year)
-            got = pd.DataFrame({M.column(v): d.values[:, NC + P.index(v)].cpu().numpy() for v in G.SCF_SLOTS},
-                               index=r.index[idx])
-            frame = pd.concat([got, r.loc[r.index[idx], ['record_id', 'scf_wave']]], axis=1)
-            dd = scf_dollars(frame, maps, int(S['wealth_salt']) + 100 * t)
-            nw = dd['net_worth'].to_numpy(float)
-            pos = sel[idx]
-            tried[pos, t] = nw
-            better = nw < best[pos]
-            take = pos[better]
-            new.iloc[take] = got.iloc[np.flatnonzero(better)].to_numpy()
-            if dol is None:
-                dol = pd.DataFrame(np.nan, index=rows.index, columns=dd.columns)
-            dol.iloc[take] = dd.iloc[np.flatnonzero(better)].to_numpy()
-            best[take] = nw[better]
-            ok = nw < cap
-            accepted[pos[ok]] = t
-            pending[idx[ok]] = False
-        accepted[sel[pending]] = -1
-    assert (accepted >= -1).all() and not dol.isna().any().any(), 'a record with no balance sheet drawn'
-    kept = np.where(accepted >= 0, accepted, np.nanargmin(np.where(np.isnan(tried), np.inf, tried), axis=1))
+    dol, accepted = [], np.full(len(rows), -1)
+    tried, kept = np.full((len(rows), tries), np.nan), np.zeros(len(rows), int)
+    for i in range(len(rows)):
+        r = rows.iloc[i]
+        mod = by_seed[int(r['model'])]
+        coded = [int(r[M.column(v)]) if M.column(v) in rows else 0 for v in P]
+        slots, dd, nw, k, ok = TB.redraw_record(mod['network'], factors[mod['run']], coded, 'puf', M.YEARS.index(PY),
+                                                M.YEARS.index(int(r['scf_year'])), int(r['scf_wave']),
+                                                int(r['record_id']), maps, cap, tries, int(S['wealth_seed']),
+                                                int(S['wealth_salt']), device)
+        new.iloc[i] = [slots[c] for c in scf_cols]
+        dol.append(dd)
+        tried[i], kept[i] = nw, k
+        accepted[i] = k if ok else -1
+    dol = pd.DataFrame(dol, index=rows.index)
+    assert not dol.isna().any().any(), 'a record with no balance sheet drawn'
     return new, dol, accepted, tried, kept
 
 

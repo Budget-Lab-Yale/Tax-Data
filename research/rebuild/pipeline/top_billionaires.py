@@ -48,7 +48,7 @@ choice: Forbes covers the people above $1 billion better than a handful of heavi
      rule (only under 45, at most three, ages 12, 9, 6, from the later profiles' children). Earnings all to the primary
      filer. Items beyond the kinds (state income tax, foreign tax credits, business credits, self-employment items,
      the other itemized deductions in RATIO_ITEMS) at their ratio to AGI in the mix; consumption at the mix's average;
-     everything else zero, listed in ZERO_ITEMS. Ids from 90,000,000 (ID_BASE) up, by rank.
+     everything else zero, listed in ZERO_ITEMS. Ids from 95,000,000 (ID_BASE) up, by rank (Part A's from 90,000,000).
 """
 import contextlib
 import io
@@ -62,7 +62,7 @@ import dollars as D
 
 S = common.SETTINGS['tilt'].get('top', {})
 RES = os.path.abspath(os.path.join(common.HERE, '..', 'resources', 'top'))
-ID_BASE = 90_000_000
+ID_BASE = 95_000_000             # Part A's rebuilt returns take 90,000,000 up (top_hidden id_block)
 TOP_AGE = 80                      # the file's top age (age_primary, age_spouse): 80 means 80 and over
 GROUPS = [('top', 92), ('next', 276)]   # BSYZ's top 0.00005% and next 0.00015% of tax units (IRS study units)
 SCF_SET = list(D.META['scf_amounts'])
@@ -175,8 +175,9 @@ def item_mix(df, w, notes):
     bil = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
     line = float(S.get('stand_in_agi', 1e8))
     if hidden.any() and S.get('mix_from_hidden', True):
-        g = hidden & (agi >= line)
-        what = f"Part A's rebuilt returns with AGI of ${line / 1e6:,.0f} million or more ({int(g.sum())} records)"
+        g = hidden & (df['hidden_group'].to_numpy() == 3)
+        what = (f"Part A's rebuilt returns of the over-$100-million aggregate record (hidden_group 3; {int(g.sum())} "
+                f"records, in target-year dollars, weighted by their starting weights)")
     else:
         g = filer & ~bil & ~hidden & (agi >= line)
         what = (f"STAND-IN: the generated filers with AGI of ${line / 1e6:,.0f} million or more in target-year dollars "
@@ -454,7 +455,7 @@ def build_billionaires(lst, df, w, year, notes):
                  'bsyz': groups}
 
 
-# ---- the redraw of generated balance sheets at $1 billion or more (step 10) ----------------------------------
+# ---- the redraw of balance sheets at $1 billion or more (step 10; one function for Part A and Part B) ---------
 def _factors(models):
     """Each model's consistency offset factors as generation last used them (gen/consistency.csv, the last run's
     'factor used'); {} with a note when the file is missing."""
@@ -467,14 +468,88 @@ def _factors(models):
             for m in models}, f'offset factors from {path}, run {int(c.run.max())}'
 
 
+def balance_sheet_dollars(rows, maps, salt):
+    """The balance sheet in target-year dollars from rows' SCF bands (columns <amount>_band, scf_wave, record_id): each
+    amount from the row's own wave's map, with a pick keyed by record id (ages.uniform_by_id(record_id, salt + the
+    amount's position in the table's SCF amounts); salt may be one number per row); the items made from a share; net
+    worth. Returns a frame of the SCF amounts, the share items and net_worth."""
+    import ages
+    out = pd.DataFrame(index=rows.index)
+    salt = np.asarray(salt, dtype=np.uint64) if np.ndim(salt) else int(salt)
+    for i, v in enumerate(D.META['scf_amounts']):
+        u = ages.uniform_by_id(rows['record_id'].to_numpy(), salt + np.uint64(i) if np.ndim(salt) else salt + i)
+        out[v] = D.draw_by_wave(rows, v, maps, None, u)
+    for slot, (item, base) in D.RATIOS.items():
+        if slot in out and base in out:
+            out[item] = out[slot] * out[base]
+    out['net_worth'] = out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
+    return out
+
+
+def redraw_record(network, factors, coded, label, year_idx, scf_year_idx, wave, rid, maps, ceiling, tries, seed, salt,
+                  device):
+    """One record's balance sheet drawn again (step 10; Part A's step 7 calls it too): every SCF-only slot, under the
+    SCF label at the record's SCF wave, given everything else on the record, as generation draws it (generate.Chunk:
+    the record's own coded values, after_totals for the consistency rules each record triggers, the exact ages put
+    back, the SCF slots in scf_order, the model's offset factors). tries rows drawn as one batch from generators seeded
+    by (seed, rid) alone; try t's dollars from picks keyed by rid and salt + 100 t (balance_sheet_dollars). coded: the
+    record's slot values in the stack's coding, len(model.PREDICTED). The first try below the ceiling is kept, else the
+    lowest. Returns (the kept try's SCF slot values as {column: value}, its dollars as a Series, every try's net worth,
+    the try kept, whether one was below the ceiling)."""
+    import torch
+    import generate as G
+    import model as M
+    P, NC = M.PREDICTED, len(M.CONTEXT)
+    gen_seed = int(np.random.default_rng([int(seed), int(rid)]).integers(2 ** 62))
+    cpu_gen = torch.Generator().manual_seed(gen_seed)
+    dev_gen = torch.Generator(device=device).manual_seed(gen_seed + 1)
+    v = torch.full((tries, len(M.SLOTS)), -1, dtype=torch.long)
+    v[:, 0], v[:, 1] = M.SOURCES.index(label), year_idx
+    v[:, NC:] = torch.as_tensor(np.asarray(coded, dtype=np.int64))[None, :]
+    v = v.to(device)
+    order = G.scf_order(tries, cpu_gen).to(device)
+    scf_year = torch.full((tries,), int(scf_year_idx), dtype=torch.long)
+    syear = {src: torch.zeros(tries, dtype=torch.long) for src in G.SURVEY_YEARS}   # not used by the SCF phase
+    d = G.Chunk(network, tries, order, {}, 0, factors, dev_gen, scf_year, syear, label,
+                None if label == 'puf' else M.YEARS[year_idx])
+    d.values = v.clone()
+    d.filled = torch.ones(tries, len(P), dtype=torch.bool, device=device)
+    for j in G.SURVEY_ONLY.tolist() + G.REP_SLOTS.tolist():
+        d.filled[:, j] = False                      # hidden until drawn (the reported slots never drawn)
+    d.after_totals()                                # the rules each record triggers; every survey slot present
+    for a in G.AGE_SLOTS:                           # the exact ages are drawn before the SCF phase: kept
+        d.values[:, NC + P.index(a)] = v[:, NC + P.index(a)]
+        d.filled[:, P.index(a)] = True
+    with torch.no_grad():
+        for step in range(order.shape[1]):
+            d.survey_step(order[:, step], 'scf', d.scf_year)
+    vals = d.values.cpu().numpy()
+    got = pd.DataFrame({M.column(x): vals[:, NC + P.index(x)] for x in G.SCF_SLOTS})
+    got['record_id'], got['scf_wave'] = int(rid), int(wave)
+    dd = balance_sheet_dollars(got, maps, int(salt) + 100 * np.arange(tries))
+    nw = dd['net_worth'].to_numpy(float)
+    ok = np.flatnonzero(nw < ceiling)
+    k = int(ok[0]) if len(ok) else int(np.argmin(nw))
+    return got.drop(columns=['record_id', 'scf_wave']).iloc[k].to_dict(), dd.iloc[k], nw, k, bool(len(ok))
+
+
+def kept_picks(rid, k, salt):
+    """The stored picks (u_<amount>) of try k: the same keyed numbers balance_sheet_dollars used."""
+    import ages
+    return {f'u_{v}': float(ages.uniform_by_id(np.array([rid]), int(salt) + 100 * int(k) + i)[0])
+            for i, v in enumerate(D.META['scf_amounts'])}
+
+
 SCF_MADE = ['net_worth', 'w_primary_mortgage', 'w_dc_stocks', 'elective1', 'elective2', 'trad_contr_er1',
             'trad_contr_er2', 'trad_deferrals', 'medicare_wages']   # made from the SCF amounts (draw_dollars)
 
 
 def redraw_balance_sheets(df, raw, year, ceiling, notes, check_same=True):
-    """Step 10, see the module docstring. df: the start in target-year dollars; raw: the same records with their
-    bands and stored picks (the generated stack, in df's order, or the start file itself). Returns the new frame and a
-    table, one row per record redrawn: its id, net worth before, the try kept, its net worth, whether every try failed."""
+    """Step 10 on the generated records, see the module docstring. df: the start in target-year dollars; raw: the same
+    records with their bands and stored picks (the generated stack, in df's order, or the start file itself). Each
+    record at or above the ceiling: redraw_record, then the record's dollars made again from the kept try's bands and
+    picks (dollars.draw_dollars on the one record), of which the SCF amounts and the items made from them are kept.
+    Returns the new frame and a table, one row per record redrawn."""
     import torch
     import generate as G
     import model as M
@@ -486,72 +561,44 @@ def redraw_balance_sheets(df, raw, year, ceiling, notes, check_same=True):
         notes.append('redraw: no generated record at or above the ceiling')
         return df, pd.DataFrame()
     assert np.array_equal(raw['record_id'].to_numpy()[todo], df['record_id'].to_numpy()[todo]), 'raw and df out of order'
-    tries = int(S.get('redraw_tries', 20))
-    seed = int(S.get('redraw_seed', 20261029))
+    tries, seed = int(S.get('redraw_tries', 20)), int(S.get('redraw_seed', 20261029))
+    salt = int(S.get('redraw_salt', 2026102901))
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     models = {m['seed']: m for m in G.load_models(device)}
     factors, fnote = _factors(list(models.values()))
     maps = D.load_maps(year)
-    P, NC = G.P, len(M.CONTEXT)
-    scf_slots = [P.index(v) for v in G.SCF_SLOTS]
-    scf_cols = [M.column(P[j]) for j in scf_slots]
-    scf_dollars = [v for v in D.ORDER if v in D.SCF_SET and f'{v}_band' in raw]
+    P = M.PREDICTED
+    scf_cols = [M.column(x) for x in G.SCF_SLOTS]
     out = df.copy()
     rows = []
     for i in todo:
-        r = raw.iloc[[i]]
+        r = raw.iloc[[i]].copy()
         rid = int(r['record_id'].iloc[0])
         mod = models[int(r['model'].iloc[0])]
-        label = r['source'].iloc[0]
-        key = np.random.default_rng([seed, rid])
-        gen_seed = int(key.integers(2 ** 62))
-        cpu_gen = torch.Generator().manual_seed(gen_seed)
-        dev_gen = torch.Generator(device=device).manual_seed(gen_seed + 1)
-        v = torch.full((tries, len(M.SLOTS)), -1, dtype=torch.long)
-        v[:, 0] = M.SOURCES.index(label)
-        v[:, 1] = M.YEARS.index(int(r['year'].iloc[0]))
-        for j, var in enumerate(P):
-            v[:, NC + j] = int(r[M.column(var)].iloc[0])
-        v = v.to(device)
-        order = G.scf_order(tries, cpu_gen).to(device)
-        wave_idx = torch.full((tries,), M.YEARS.index(int(r['scf_year'].iloc[0])), dtype=torch.long)
-        syear = {src: torch.full((tries,), M.YEARS.index(int(r[f'{src}_year'].iloc[0])), dtype=torch.long)
-                 for src in G.SURVEY_YEARS}
-        d = G.Chunk(mod['network'], tries, order, {}, 0, factors[mod['seed']], dev_gen, wave_idx, syear, label,
-                    None if label == 'puf' else int(r['year'].iloc[0]))
-        # the state after the batch's own items, the totals and the exact ages, as in generation
-        d.values = v.clone()
-        d.filled = torch.ones(tries, len(P), dtype=torch.bool, device=device)
-        for s in G.SURVEY_ONLY.tolist() + G.REP_SLOTS.tolist():
-            d.filled[:, s] = False
-        d.after_totals()
-        for a in G.AGE_SLOTS:
-            d.values[:, NC + P.index(a)] = v[:, NC + P.index(a)]
-            d.filled[:, P.index(a)] = True
-        for step in range(order.shape[1]):
-            d.survey_step(order[:, step], 'scf', d.scf_year)
-        new = r.loc[r.index.repeat(tries)].reset_index(drop=True)
-        vals = d.values.cpu().numpy()
-        for j, c in zip(scf_slots, scf_cols):
-            new[c] = vals[:, NC + j]
-        for k, a in enumerate(scf_dollars):   # fresh stored picks for the balance sheet, keyed by the record
-            new[f'u_{a}'] = np.random.default_rng([seed, rid, 7, k]).random(tries, dtype=np.float32)
+        coded = [int(r[M.column(x)].iloc[0]) for x in P]
+        slots, _, x, k, ok = redraw_record(mod['network'], factors[mod['seed']], coded, r['source'].iloc[0],
+                                           M.YEARS.index(int(r['year'].iloc[0])), M.YEARS.index(int(r['scf_year'].iloc[0])),
+                                           int(r['scf_wave'].iloc[0]), rid, maps, ceiling, tries, seed, salt, device)
+        for c, val in slots.items():
+            r[c] = val
+        for c, val in kept_picks(rid, k, salt).items():
+            if c in r:
+                r[c] = np.float64(val)
         with contextlib.redirect_stdout(io.StringIO()):   # draw_dollars' own report, once per record: not needed
-            dd = D.draw_dollars(new, maps, year)
-        x = dd['net_worth'].to_numpy(float)
-        ok = np.flatnonzero(x < ceiling)
-        k = int(ok[0]) if len(ok) else int(np.argmin(x))
-        keep = list(dict.fromkeys(SCF_SET + [c for c in SCF_MADE if c in dd] + scf_cols
-                                  + [f'u_{a}' for a in scf_dollars]))
-        keep = [c for c in keep if c in out]
+            dd = D.draw_dollars(r, maps, year)
+        assert np.isclose(dd['net_worth'].iloc[0], x[k], rtol=1e-9, atol=1e-3), f'record {rid}: kept try differs'
+        keep = [c for c in dict.fromkeys(list(D.META['scf_amounts']) + SCF_MADE + scf_cols) if c in out and c in dd]
         for c in keep:
-            out.iat[i, out.columns.get_loc(c)] = dd[c].iloc[k]
-        same = [c for c in D.ORDER if c in dd and c not in D.SCF_SET and c in df and c not in SCF_MADE]
+            out.iat[i, out.columns.get_loc(c)] = dd[c].iloc[0]
+        for c in kept_picks(rid, k, salt):
+            if c in out:
+                out.iat[i, out.columns.get_loc(c)] = r[c].iloc[0]
         if check_same:   # a generated stack (not a grown start): the redraw's other dollars are the record's own
-            moved = [c for c in same if not np.isclose(dd[c].iloc[k], df[c].iloc[i], rtol=1e-9, atol=1e-6)]
+            same = [c for c in D.ORDER if c in dd and c not in D.SCF_SET and c in df and c not in SCF_MADE]
+            moved = [c for c in same if not np.isclose(dd[c].iloc[0], df[c].iloc[i], rtol=1e-9, atol=1e-6)]
             assert not moved, f'record {rid}: the redraw moved {moved}'
-        rows.append({'record_id': rid, 'net worth before': nw[i], 'tries below the ceiling': len(ok),
-                     'try kept': k + 1, 'net worth after': x[k], 'fallback': not len(ok)})
+        rows.append({'record_id': rid, 'net worth before': nw[i], 'tries below the ceiling': int((x < ceiling).sum()),
+                     'try kept': k + 1, 'net worth after': x[k], 'fallback': not ok})
     tab = pd.DataFrame(rows)
     out['wealth_redraw_fallback'] = 0
     out.loc[out['record_id'].isin(tab.loc[tab.fallback, 'record_id']), 'wealth_redraw_fallback'] = 1
