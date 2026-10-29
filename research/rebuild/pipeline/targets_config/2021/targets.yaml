@@ -29,6 +29,8 @@
 #     no longer the two together, so the entry targets the two halves (catalog list business_top_split, families
 #     partnership and scorp), each netted on its own record by record; six variables in place of four, so 20 more
 #     targets than 2019's 100 in this entry.
+#   - deferrals_w2_joint and deferrals_w2_nonjoint: Table 2.D's AGI rows from 2021 cross $75,000 and $500,000, so
+#     the eight AGI groups are those of catalog w2_agi_groups_2021 ($50k-80k, $80k-100k, $200k-400k, $400k-1m).
 
 year: 2021
 kind: historical
@@ -426,7 +428,7 @@ targets:
     statistic: amount
     population: independent_filers
     variable: w2_elective_deferrals
-    cells: {w2_agi_groups: all, joint_or_not: [joint]}
+    cells: {w2_agi_groups_2021: all, joint_or_not: [joint]}
     value: {published: soi w2 2.d}
     error: {kind: soi_borrowed}
     key: {group: '{cell} returns', target: '{variable} {statistic}'}
@@ -435,7 +437,7 @@ targets:
     statistic: [count, amount]
     population: independent_filers
     variable: w2_elective_deferrals
-    cells: {w2_agi_groups: all, joint_or_not: [non-joint]}
+    cells: {w2_agi_groups_2021: all, joint_or_not: [non-joint]}
     value: {published: soi w2 2.d}
     error: {kind: soi_borrowed}
     key: {group: '{cell} returns', target: '{variable} {statistic}'}

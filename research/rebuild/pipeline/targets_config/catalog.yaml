@@ -677,6 +677,19 @@ groupings:
       - [200000, 500000, $200k-500k]
       - [500000, 1000000, $500k-1m]
       - [1000000, null, $1m and over]
+  # From tax year 2021 Table 2.D has finer AGI rows that cross $75,000 and $500,000 ($70,000-80,000, $400,000-1
+  # million), so its eight groups move those two edges (30 October)
+  w2_agi_groups_2021:
+    variable: agi
+    edges:
+      - [null, 25000, under $25k]
+      - [25000, 50000, $25k-50k]
+      - [50000, 80000, $50k-80k]
+      - [80000, 100000, $80k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 400000, $200k-400k]
+      - [400000, 1000000, $400k-1m]
+      - [1000000, null, $1m and over]
   joint_or_not:
     variable: married
     values: [[1, joint], [0, non-joint]]
