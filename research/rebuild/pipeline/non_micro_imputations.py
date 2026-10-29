@@ -535,6 +535,19 @@ def blindness(df, year, w, ctx):
     return {'blind1': out['blind1'], 'blind2': out['blind2']}
 
 
+QBI_KINDS = {  # file kind: (industry slot, workers slot, the PUF parts whose signed sum is the kind's income, person)
+    'sole_prop': ('biz_industry_schc', 'biz_workers_schc', {'sch_c': 1}, 1),
+    'part': ('biz_industry_part', 'biz_workers_part', {'part_pass_inc': 1, 'part_nonpass_inc': 1, 'part_pass_loss': -1,
+                                                       'part_nonpass_loss': -1, 'part_179': -1}, 2),
+    'scorp': ('biz_industry_scorp', 'biz_workers_scorp', {'scorp_pass_inc': 1, 'scorp_nonpass_inc': 1,
+                                                          'scorp_pass_loss': -1, 'scorp_nonpass_loss': -1,
+                                                          'scorp_179': -1}, 3)}
+
+
+def qbi_income(df, parts):
+    return sum(sg * df[p].to_numpy(float) for p, sg in parts.items())
+
+
 def qbi(df, year, w, ctx):
     """Q5 (John, 28 October; the simple plan, scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md; built 29 October).
     For each record and kind of business (Schedule C, partnership, S corporation) with positive income of that kind:
