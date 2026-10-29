@@ -40,7 +40,8 @@ from, so a worktree runs its own):
 | table | `build_table.py` | the training table (every source, the PUF with all its items) with the AGI group label, its bands, and the dollar maps (one per SCF wave for the balance sheet, other debt held to each wave's 99.9th percentile among holders; one per survey year for the CEX, CPS and SIPP) | about 3 minutes |
 | train | `train.py` (and `fillin.py`, `qgroups.py`) | the model, with grouped weighting and the two-slot fill-in on every survey; train each pooled model with REBUILD_RUN set to its name in `generation.models` (`label_seed20261017`, `label_seed20261018`, `label_seed20261019`) and REBUILD_SEED to its seed | about 95-105 minutes on an H100 (batches of 512) |
 | generate | `generate.py` | 400,000 filer records drawn AGI group by AGI group, and the non-filer batch, a third from each of three trained models, each record's balance sheet from one SCF wave and its CEX, CPS and SIPP items from one survey year | about 16 minutes |
-| tilt | `tilt.py`, then `report_tilt.py` | the year's 789 targets (`targets_config/`, `target_list.py`, `errors.py`), the target year's weights (`solver.py`) and file, and the run report | about 15 minutes (26 on a CPU node) |
+| tilt | `tilt.py`, then `report_tilt.py` | the year's 789 targets (`targets_config/`, `target_list.py`, `errors.py`), the non-microdata imputations on the start (`non_micro_imputations.py`; new columns only, no effect on the weights), the target year's weights (`solver.py`) and file, and the run report | about 15 minutes (26 on a CPU node) |
+| non_micro_tables | `build_non_micro_tables.py` | the published tables the non-microdata imputations read, into `research/rebuild/resources/non_micro/` (committed; not in the default list, run only when a source changes) | a minute |
 | report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and overtime, and tips in the file against the target year's CEX, CPS and SIPP year mix; the translation report | seconds |
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
@@ -50,7 +51,8 @@ weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (
 `tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
 targets from `targets_config/`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
 mix of SCF waves), `survey_mix.py` (the CEX, CPS and SIPP year mix), `errors.py` (their standard errors),
-`solver.py` (the reweighting).
+`solver.py` (the reweighting), `non_micro_imputations.py` (the non-microdata imputations: items set from the drawn
+items and a published table, and their checks).
 Every setting is in one settings file: `settings.json`, or the file named by
 `REBUILD_SETTINGS` (every stage, R and Python, reads it; a variant run is a
 copy). The PUF year (2015) and the target year (2019) are its "years". The

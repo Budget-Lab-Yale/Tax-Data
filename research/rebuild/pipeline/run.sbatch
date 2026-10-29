@@ -12,6 +12,7 @@
 # Stages, in order: scf, cex, filing, cps (the surveys' tax units: the shared rules in Python, then R; filing is the
 # CPS's units and their calibrated filing chances, which cps reads), sipp (the SIPP's tax units, in Python), targets (SOI), errors (SOI's CVs), table, train,
 # generate, tilt (the year's targets, the reweighting and the run report), report (the CEX, CPS and translation reports).
+# non_micro_tables (not in the default list) rebuilds research/rebuild/resources/non_micro/ from its sources (build_non_micro_tables.py).
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:
 #   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf cex filing cps sipp targets table
 # H100 and H200 only: one stack from a B200 drew fewer rare business items (PRECISION.md); until that is
@@ -47,6 +48,7 @@ for s in $STAGES; do
     sipp)     python $P/roster_sipp.py ;;   # the SIPP's units by the shared rules, with each adult's wages and tips
     table)    python $P/build_table.py ;;
     targets)  python $P/targets.py ;;
+    non_micro_tables) python $P/build_non_micro_tables.py ;;   # the non-microdata imputations' published tables (committed; run when a source changes)
     errors)   python $P/errors.py soi_cv ;;   # SOI's published CVs, parsed from the workbooks in <out>/targets/soi_cv/raw
     train)    python $P/train.py ;;
     generate) python $P/generate.py ;;

@@ -14,6 +14,7 @@ Writes, in the same folder or --out (REBUILD_REPORT_OUT):
   report_moves.csv           4. the standard statistics before and after the tilt
   report_models.csv          5. each trained model's value on the standard statistics, after the tilt
   report_overall.csv         6. effective sample kept, KL move, settings, code commit, vintages
+  (section 6 of report.md is tilt.py's non_micro_checks.md: the non-microdata imputations' published checks)
 
 A piece the run did not write (no standard errors, no model column, no solver metrics) is said on the page; it
 is never filled in with a made-up number. When the fit table lacks the solver's thin-cell metrics, they are
@@ -897,6 +898,16 @@ def overall(df, t, th, w0, w1, run, tl):
 
 
 # ---- the page --------------------------------------------------------------------------------------------------
+def non_micro_page(run):
+    """Section 6: the non-microdata imputations' checks, as tilt.py wrote them (non_micro_checks.md and its CSVs, on
+    the weights after the tilt; non_micro_imputations.py)."""
+    path = f'{run}/non_micro_checks.md'
+    if not os.path.exists(path):
+        return ['The run wrote no non-microdata imputations (settings non_micro_imputations.run_in_tilt).']
+    lines = open(path).read().split('\n')[2:]               # the page less its title
+    return [('#' + x) if x.startswith('## ') else x for x in lines]
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--run', default=common.TILT, help='the tilt run folder (default common.TILT)')
@@ -931,7 +942,8 @@ def main(argv=None):
             '## 1. Targets', ''] + target_page(t, n1) + ['', '## 2. Thin cells', ''] + thin_page(th) + notes(n2) + \
         ['', '## 3. Published numbers not targeted', ''] + published_page(p) + notes(n3) + \
         ['', '## 4. What the tilt moved', ''] + moves_page(mv) + \
-        ['', '## 5. Model disagreement', ''] + models_page(mt, n5) + ['']
+        ['', '## 5. Model disagreement', ''] + models_page(mt, n5) + \
+        ['', '## 6. Non-microdata imputations: published checks (reported only)', ''] + non_micro_page(a.run) + ['']
     open(f'{out}/report.md', 'w').write('\n'.join(text))
     common.say('\n'.join(text))
 

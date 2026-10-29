@@ -33,7 +33,11 @@
    "eap_codes": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Reports/2024/Overtime/resources/eap_codes.dta",
    "_eap_codes": "DOL's 2016 table of white-collar duties classes by occupation (Census 2002/2010 codes), from Tedeschi's overtime report (The Budget Lab, September 2024).",
    "cps_repwt": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CPS-ASEC/cps_asec_common_repwt",
-   "_cps_repwt": "The CPS ASEC's replicate weights (the shared IPUMS layer of 4 September 2026, one folder per March sample cpsYYYY_03s: SERIAL, PERNUM, ASECWT and the 160 person replicate weights REPWTP1-REPWTP160, Census's successive difference replication). errors.py reads them for the standard errors of the CPS overtime targets (28 October)."
+   "_cps_repwt": "The CPS ASEC's replicate weights (the shared IPUMS layer of 4 September 2026, one folder per March sample cpsYYYY_03s: SERIAL, PERNUM, ASECWT and the 160 person replicate weights REPWTP1-REPWTP160, Census's successive difference replication). errors.py reads them for the standard errors of the CPS overtime targets (28 October).",
+   "z1": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-28/nonmicro/z1_download/z1_csv_files.zip",
+   "_z1": "The Federal Reserve's Financial Accounts of the United States (Z.1), the CSV files of the release of 10 September 2026 (data to 2026Q2), downloaded 28 October 2026 from https://www.federalreserve.gov/releases/z1/current/z1_csv_files.zip. build_non_micro_tables.py reads table S1M.i.a for the yearly revaluation rates. Kept in scratch for now; to move to raw_data.",
+   "census_pep": "/nfs/roberts/project/pi_nrs36/shared/raw_data/Census-PEP",
+   "_census_pep": "Census Bureau population estimates by state, sex, race, Hispanic origin and single year of age (sc-est2020int-alldata6.csv, sc-est2024-alldata6.csv). build_non_micro_tables.py sums them to national counts for the death probabilities' check."
   }
  },
  "tax_units": {
@@ -1771,6 +1775,96 @@
   "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before. Auto loan interest (kind auto loans, 27 October, candidate) is an SCF target on the same pooled waves, so it takes the SCF targets' half standard error.",
   "scf_target_waves": "prior",
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks."
+ },
+ "non_micro_imputations": {
+  "_what": "The non-microdata imputations (non_micro_imputations.py; NEXT_STEPS.md item 1, John's decisions Q1-Q9 of 28 October; FEATURES.md): items set from what the model has drawn plus a published table, no new microdata. Each item: the columns it reads, the published tables it reads (research/rebuild/resources/non_micro/, built by build_non_micro_tables.py; sources.csv there), the columns it writes and its random stream. They run inside the tilt stage on the start (target-year dollars, prescaled weights), before the solve; the two ranking items rank on the start's weights. Each item writes new columns only and never changes a drawn item or a weight. Their published checks are reported only (Q9), in report.md section 6 and non_micro_checks.md.",
+  "run_in_tilt": true,
+  "_run_in_tilt": "false: tilt.py leaves the file without these columns (the file as before 28 October).",
+  "salt_base": 2026102800,
+  "_salt_base": "Every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person), person 0 for the unit, 1 and 2 for the primary filer and the spouse, 3 to 5 for dependents 1 to 3: a fixed function of the record, the stream and the person, so it never moves when other code or other records change. Streams are numbered once in the items below and never renumbered.",
+  "items": {
+   "dependent_filer_age_sex": {
+    "reads": ["record_id", "age_range", "cps_year"],
+    "tables": ["dependent_filing_threshold.csv", "the filing stage's persons: <data>/filing/returns/persons_<cps year>.parquet"],
+    "writes": ["dep_filer_age", "dep_filer_sex"],
+    "stream": 1,
+    "pool": "earnings above the threshold",
+    "min_pool_records": 30,
+    "fallback_pool": "files by the filing stage's rule",
+    "top_age": 80,
+    "_why": "Q2 (John, 28 October): each dependent filer (the PUF's three dependent-filer age ranges) gets an exact age and a sex drawn from the CPS's dependents who would file, those with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's own CPS year, within the record's age range; the draw keyed by record id. A range whose pool has fewer than min_pool_records sample people (26 and over: the CPS has no dependent of that age earning above the threshold) takes the dependents the filing stage counts as filing their own return (required to, or with any wages). Ages above top_age are put at top_age (80 means 80 and over, as for the primary filer). dep_filer_age is -1 and dep_filer_sex 0 on every other record."
+   },
+   "child_credit": {
+    "reads": ["age_dep1", "age_dep2", "age_dep3", "n_ctc"],
+    "tables": ["ctc_age_limit.csv"],
+    "writes": ["dep_ctc1", "dep_ctc2", "dep_ctc3"],
+    "stream": 2,
+    "_why": "Production's rule (src/imputations/ages.R): dependent k (youngest first) passes every child credit test except age and Social Security number when it is under 17 and the record's n_ctc (the PUF's count of child credit children, 2015 law) is at least k; dependents from 17 to the year's law age less one (17 alone in every year but 2021) pass by chance, 1 - the share of units with dependents under 17 whose count of them exceeds n_ctc (start weights), as production. 1 passes, 0 not, -1 no such dependent. Tax-Simulator applies the age limit of the law it simulates."
+   },
+   "dependent_ssn": {
+    "reads": ["age_dep1", "age_dep2", "age_dep3"],
+    "tables": [],
+    "writes": ["dep_ssn1", "dep_ssn2", "dep_ssn3"],
+    "stream": 3,
+    "placeholder": true,
+    "_why": "PLACEHOLDER (Q4 is being researched): every dependent has a Social Security number (1; -1 no such dependent). Replaced by the SSN item."
+   },
+   "death_probabilities": {
+    "reads": ["age_primary", "age_spouse", "sex_primary", "sex_spouse", "married", "dep_filer_age", "dep_filer_sex", "the broad income items"],
+    "tables": ["ssa_period_life_table.csv", "chetty_mortality_ratio.csv", "johnson_marital_factor.csv"],
+    "writes": ["q_death1", "q_death2"],
+    "stream": 8,
+    "top_age": 80,
+    "_why": "Production's three layers (src/mortality_ledger.R), no draw: the SSA period life table for the year, age and sex (80 means 80 and over: the average of q over ages 80-119 weighted by the table's L); times Chetty et al.'s mortality ratio at the person's percentile of broad income within sex and single age (start weights); times, for men only, Johnson et al.'s married or unmarried factor, rescaled to average 1 on the file within under 65 and 65 and over. Dependent filers use their ages and sex from dependent_filer_age_sex. q_death2 is -1 without a spouse. Stream 8 only for primary filers whom generation gave an age but no sex (2 records on 28 October): a sex with even chances, used for this item and not written."
+   },
+   "unrealized_gains": {
+    "reads": ["w_equities", "w_pass_throughs", "w_primary_home", "w_other_home", "w_re_fund", "w_dc", "w_trusts", "age_primary", "age_spouse", "dep_filer_age"],
+    "tables": ["z1_revaluation_rates.csv", "accrual_long_run_rates.csv"],
+    "writes": ["accruals.equities", "accruals.pass_throughs", "accruals.primary_home", "accruals.other_home", "accruals.re_fund", "accruals.dc", "accruals.trusts"],
+    "stream": null,
+    "trust_stock_share": 0.6,
+    "retirement_stock_share_rule": {"intercept": 1.10, "per_year_of_age": -0.01, "lowest": 0.20, "highest": 0.95},
+    "_why": "Q6 (John, 28 October): one column per asset, value x the year's Z.1 revaluation rate (households and nonprofits): stocks at the corporate equities rate, businesses at noncorporate business equity's, the three kinds of real estate at real estate's, trusts at 60% stocks and 40% bonds (debt securities), retirement accounts at a stock share x the stocks rate + the rest x the bonds rate. Years with no full year of Z.1 data take production's long-run rates (bonds 0). PLACEHOLDER: the retirement accounts' stock share is production's age rule, 1.10 - age of the older adult / 100 held to 0.20-0.95, until the SCF stock share is learned in pretraining (Q6, needs a retrain)."
+   },
+   "cost_basis": {
+    "reads": ["w_equities", "w_pass_throughs", "w_primary_home", "w_other_home", "w_re_fund", "w_kg_other", "w_kg_pass_throughs", "w_kg_primary_home", "w_kg_other_re"],
+    "tables": [],
+    "writes": ["basis.equities", "basis.pass_throughs", "basis.primary_home", "basis.other_home", "basis.re_fund"],
+    "stream": null,
+    "_why": "Production's rule (src/imputations/wealth.R, to_output_schema): basis = value - the SCF's unrealized gain; the gain on other real estate is split between other homes and other real estate by value (half each when both are zero)."
+   },
+   "gains_holding_period": {
+    "reads": ["kg_lt"],
+    "tables": ["soca_gain_holding_shares.csv", "soca_loss_holding_shares.csv", "soca_basis_sales.csv", "sp500_total_return_index.csv"],
+    "writes": ["kg_lt_years_held", "kg_lt_basis"],
+    "stream": 4,
+    "weibull": {"shape": 0.7711, "scale": 9.1458},
+    "_why": "Q7 (John, 28 October): production's method (src/imputations/capital_gains.R). A holding-period group drawn with SOCA's share of long-term gain dollars (loss dollars for losses), an exact period in the group from a Weibull shape (an exponential tail above 20 years); basis from production's regression on SOCA's panel, log(basis/sales) = a constant per group + b x years x log(1 + trailing S&P 500 return), evaluated at the target year's trailing returns (past the index's last year, the index grows at its 1926-last geometric mean). Person 1 picks the group, person 2 the period. kg_lt_years_held is -1 and kg_lt_basis 0 where kg_lt is 0."
+   },
+   "parents_rank": {
+    "reads": ["the income items of production's measure", "the start's weights"],
+    "tables": ["mobility_matrix.csv"],
+    "writes": ["parent_rank"],
+    "stream": 5,
+    "_why": "Q8 (John, 28 October): production's method (src/imputations/mobility.R): each unit's income ranked among all units in percentiles (start weights), the bottom 10 merged into rank 10, then a parent rank drawn from Chetty et al.'s matrix. Production's code sends the bottom 9% to rank 100 (cut() gives them no group, replace_na(100)); the rebuild follows the code's stated intent (rank 10)."
+   },
+   "blindness": {
+    "reads": [],
+    "tables": [],
+    "writes": ["blind1", "blind2"],
+    "stream": 6,
+    "placeholder": true,
+    "_why": "PLACEHOLDER: 0 for everyone. Q3 (John, 28 October): blindness is read from the PUF and learned in pretraining, which needs a retrain."
+   },
+   "qbi": {
+    "reads": [],
+    "tables": [],
+    "writes": ["sstb_sole_prop", "sstb_part", "sstb_scorp", "sstb_farm", "wagebill_sole_prop", "wagebill_part", "wagebill_scorp", "wagebill_farm"],
+    "stream": 7,
+    "placeholder": true,
+    "_why": "PLACEHOLDER: 0, as the calculator experiment sets them (CALCULATOR_CONTRACT.md on branch rebuild-calculator): no business is a specified service business and none pays wages, so the QBI deduction is 0 above the taxable income threshold. Q5 is being researched."
+   }
+  }
  },
  "errors": {
   "_what": "Standard errors (errors.py, TARGETS.md section 9). Every setting here is optional, with the default given; none is set today.",

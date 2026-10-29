@@ -22,6 +22,13 @@ becomes targets too (target_list.hold_rows), built after the scaling from the sc
 The targets. The year's list from targets_config/ (target_list.expand), each with a value and a standard error
 (errors.py); target_list.conditions writes each as a linear condition on the weights.
 
+The non-microdata imputations (non_micro_imputations.py, settings non_micro_imputations; NEXT_STEPS item 1, Q1): run
+on the start after the prescaling, before the solve, they add new columns only (dependent filers' ages and sex, child
+credit flags, death probabilities, yearly unrealized gains, cost basis, the holding period and basis of long-term
+gains, parents' rank, and the placeholders); the ranking items rank on the prescaled start's weights. No target reads
+them yet, so the weights do not depend on them. Their checks, on the weights after the tilt, go to
+non_micro_checks.md and non_micro_check_*.csv.
+
 The tilt. solver.solve: the smallest move of the weights, in Kullback-Leibler divergence, that puts every target
 inside its range of settings tilt.range_in_se standard errors, or of range_in_se_by_kind's number for its kind
 (identities exactly); where the ranges cannot all be met, the standard errors decide which give way (TARGETS.md S6,
@@ -41,6 +48,7 @@ import pandas as pd
 
 import common
 import dollars as D
+import non_micro_imputations as NMI
 import solver as SV
 import target_list as TLS
 import targets as TG
@@ -355,6 +363,12 @@ def main():
     if prescale == 'demographic':
         w0, prescaled = prescale_demographic(w0, F, T, se, identity, averages, rows, filer,
                                              g19['married'].to_numpy(), soi)
+    # the non-microdata imputations (non_micro_imputations.py; NEXT_STEPS item 1, Q1): on the start, in target-year
+    # dollars and with its prescaled weights, before the solve. New columns only; the ranking items rank on w0, and
+    # no target reads their columns yet
+    nmi_ctx = None
+    if NMI.S.get('run_in_tilt', False):
+        g19, nmi_ctx = NMI.impute(g19, Y, w0)
     # hold_distribution: built from the start as scaled, so its rank groups and shares are the scaled start's
     hold = TLS.hold_rows(Y, g19, w0)
     # income rank groups (the income x net worth grid) are set on the file's starting weights, so their conditions
@@ -402,6 +416,8 @@ def main():
     fit = SV.fit_table(w0, w1, F, T, se, averages, rows, S_main, identity)
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    if nmi_ctx is not None:   # their published checks, on the weights after the tilt (Q9: reported only)
+        NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
     import scf_targets
     if scf_targets.RESULTS:   # the SCF targets by wave (scf_targets.py), for the record
         scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
@@ -421,7 +437,10 @@ def main():
                                       warnings=('flag', lambda f: (f == 'warning').sum()),
                                       stops=('flag', lambda f: (f == 'stop').sum()))
     text = [f'# The {Y} tilt', '', *SV.summary_lines(info, fit), '', summary.to_frame('').to_markdown(floatfmt=',.4f'),
-            '', *start_lines, *prescale_lines(prescaled), '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',
+            '', *start_lines, *prescale_lines(prescaled),
+            *(['## The non-microdata imputations (on the start; checks in non_micro_checks.md)', '']
+              + [f'- {n}' for n in nmi_ctx['notes']] + [''] if nmi_ctx is not None else []),
+            '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',
             f'## Net worth (nominal {Y} dollars)', '', nw.to_markdown(floatfmt=',.1f'), '']
     if pooled is not None:
         text += ['The pooled SCF is the SCF targets\' waves and shares (scf_targets.py), each wave grown per tax unit to '
