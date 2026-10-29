@@ -122,7 +122,13 @@ def one_word(old, new, ext):
     return code_sub
 
 
+# Names built in code from a stem and a number (f'age_dep{k}'), which the whole-name rule cannot see
+STEMS = [(r"(?<![A-Za-z0-9_])age_dep\{", 'dep_age{')]
+
+
 def rename_text(new, pairs, ext, path):
+    for pat, rep in STEMS:
+        new = re.sub(pat, rep, new)
     keep = KEEP_ONE_WORD.get(os.path.basename(path), set())
     for old, nm in pairs:
         if old in keep:

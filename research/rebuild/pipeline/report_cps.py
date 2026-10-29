@@ -141,7 +141,7 @@ def main():
     src = {'file': f, f'CPS mix': c}
     for d in src.values():
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
-        d['n_young'] = sum(((d[f'age_dep{k}'] >= 0) & (d[f'age_dep{k}'] < 13)).astype(int) for k in (1, 2, 3))
+        d['n_young'] = sum(((d[f'dep_age{k}'] >= 0) & (d[f'dep_age{k}'] < 13)).astype(int) for k in (1, 2, 3))
         d['woman'] = (d['sex_primary'] == 2).astype(float)
     out = [f'# The CPS-only items in the {Y} file against the CPS year mix', '',
            f'CPS: tax year {Y}, every tax unit (filers and non-filers), weighted. File: after the tilt, dependent filers '
@@ -165,7 +165,7 @@ def main():
                                     'p90': wq(m.age2 - m.age1, m.w, 0.9)}), '']
 
     def dep_ages(m):
-        x = np.concatenate([m[f'age_dep{k}'].to_numpy(float) for k in (1, 2, 3)])
+        x = np.concatenate([m[f'dep_age{k}'].to_numpy(float) for k in (1, 2, 3)])
         w = np.concatenate([m.w.to_numpy(float)] * 3)
         x, w = x[x >= 0], w[x >= 0]
         g = groups_by(x, DEP_AGE_GROUPS)

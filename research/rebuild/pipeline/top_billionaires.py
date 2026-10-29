@@ -358,7 +358,7 @@ def build_billionaires(lst, df, w, year, notes):
     put('sex_primary', u['sex'].to_numpy()); put('sex_spouse', u['sex_spouse'].to_numpy())
     for k, a in enumerate([12, 9, 6], start=1):
         has = u['n_dep'].to_numpy() >= k
-        put(f'age_dep{k}', np.where(has, a, -1))
+        put(f'dep_age{k}', np.where(has, a, -1))
         put(f'ssn_status_dep{k}', np.where(has, 1, 0))
         if f'dep_ssn{k}' in df:
             put(f'dep_ssn{k}', np.where(has, 1.0, np.nan))

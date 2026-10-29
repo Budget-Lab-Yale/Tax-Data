@@ -746,7 +746,7 @@ def cps_person_slots(t, primary_is_2):
            # each person's Social Security number status (0 none, 1 citizen, 2 noncitizen with a sign, 3 without)
            'ssn_status_primary': pick('ssn_status', 1), 'ssn_status_spouse': pick('ssn_status', 2)}
     for k in (1, 2, 3):
-        out[f'age_dep{k}'] = np.where(d[f'svy_dep_age{k}'] >= 0, d[f'svy_dep_age{k}'] + 1, 0)
+        out[f'dep_age{k}'] = np.where(d[f'svy_dep_age{k}'] >= 0, d[f'svy_dep_age{k}'] + 1, 0)
         out[f'ssn_status_dep{k}'] = d[f'dep_ssn_status{k}'].to_numpy()
     for share, item in [('spouse_wage_share', 'wages'), ('spouse_se_share', 'se')]:
         total = pick(item, 1) + pick(item, 2)
@@ -769,7 +769,7 @@ def cps_person_slots(t, primary_is_2):
     assert (ages.adult_range(d.age1 - 1) == d.age_range).all(), 'the primary filer\'s age is not in its range'
     assert d.age1.between(1, EXACT_AGE_TOP + 1).all() and d.age2.between(0, EXACT_AGE_TOP + 1).all()
     for k in (1, 2, 3):
-        assert ((d[f'age_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'age_dep{k} and n_dep disagree'
+        assert ((d[f'dep_age{k}'] > 0) == (d.n_dep >= k)).all(), f'dep_age{k} and n_dep disagree'
         assert ((d[f'ssn_status_dep{k}'] > 0) == (d.n_dep >= k)).all(), f'ssn_status_dep{k} and n_dep disagree'
     assert d.ssn_status_primary.isin([1, 2, 3]).all() and ((d.ssn_status_spouse > 0).to_numpy() == married).all()
     for y in sorted(d.year.unique()):
