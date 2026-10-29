@@ -59,8 +59,8 @@ PUF_LABELS = [v for v in LABELS if META['labels'][v]['source'] == 'puf']   # agi
 assert PUF_LABELS == list(LABELS), 'labels on the PUF only'
 # The SIPP-only categories (whether each adult's tips are mostly from leisure and hospitality): {slot: values}
 SIPP_CATEGORIES = META['sipp_categories']
-# The PUF-only categories (since 29 October): the primary filer's blindness (0 not known, 1 not blind, 2 blind;
-# build_table.puf_blindness), present on every PUF row. {slot: values}
+# The PUF-only categories: {slot: values}. None since the second retrain of 29 October (the primary filer's blindness,
+# a slot here on 29 October, is now a rule in non_micro_imputations.blindness).
 PUF_CATEGORIES = META.get('puf_categories', {})
 # The SCF-only categories (since 29 October): the industry group of the household's largest business of each kind
 # (Schedule C, partnership, S corporation; 0 none, 1-7 the SCF's public groups, 8 no industry code; build_scf.R).

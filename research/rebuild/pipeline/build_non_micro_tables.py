@@ -14,6 +14,8 @@ says, for every table, where its numbers come from and how they were turned into
   - the CPS ASEC (settings paths.raw.cps_earnings, the common extract): average pay of private employees by SCF
     industry group and tax year, for the QBI wage bills (since 29 October);
   - SOI's Publication 4801 blind boxes, typed in from the pages (since 29 October);
+  - the 2015 PUF: the share of primary filers who are blind, by age range, where the return shows it (since the second
+    retrain of 29 October; the blindness rule in non_micro_imputations reads it);
   - the law: the dependent filing threshold (Form 1040 instructions, Chart B, as production's
     src/nonfilers/asec_tax_units.R has it) and the child tax credit's age limit (IRC section 24(c)).
 """
@@ -305,8 +307,72 @@ def pub4801_blind():
          'typed in from the pages (scratch explore/2026-10-29/retrain/p4801/), 2015 and 2017-2019')
 
 
+def puf_blindness(puf, age_range):
+    """The primary filer's blindness on each PUF record, where the return shows it: 1 blind, 0 not blind, -1 not
+    known (moved here from build_table.py, where it made the training table's blindness slot of 29 October). Shown
+    only on unmarried returns taking the standard deduction (filing status single or head of household, FDED 2), not
+    dependent filers (DSI 1, whose deduction is limited), with an age range: there the deduction above the basic amount,
+    in units of the additional amount (settings blindness: $1,550 in 2015), is the number of extra boxes; the boxes are
+    a whole number on 97% of these returns. Blind = the boxes less one at 65 and over (age range 65+). Not known: joint
+    returns (in the 2015 PUF they show only 0, 2 or 4 boxes, the spouses evened out), separate returns, itemizers,
+    dependent filers, records with no age range, boxes that are not a whole number, and boxes that do not fit the age
+    (none at 65 and over, or two under 65). Prints the counts."""
+    B = common.SETTINGS['blindness']
+    mars, fded, dsi = (puf[c].to_numpy() for c in ('MARS', 'FDED', 'DSI'))
+    ded = puf['P04470'].to_numpy(float)
+    w = puf['S006'].to_numpy(float) / 100
+    basic = np.vectorize(lambda m: float(B['puf_basic_standard_deduction'].get(str(int(m)), np.nan)))(mars)
+    unmarried_std = np.isin(mars, [1, 4]) & (fded == 2) & (dsi == 0)
+    boxes = np.where(unmarried_std, (ded - np.nan_to_num(basic)) / float(B['puf_additional_amount_unmarried']), np.nan)
+    whole = unmarried_std & (np.abs(boxes - np.round(np.nan_to_num(boxes))) <= float(B['whole_tolerance']))
+    has_range = (age_range >= 0) & (age_range < common.ADULT_RANGES)
+    old = age_range == common.ADULT_RANGES - 1
+    blind = np.round(np.nan_to_num(boxes)).astype(np.int64) - old.astype(np.int64)
+    fits = whole & has_range & np.isin(blind, [0, 1])
+    out = np.where(fits, blind, -1).astype(np.int64)
+    n = lambda m: f'{w[m].sum() / 1e6:.2f}m'
+    common.say(f'PUF blindness (weighted returns): unmarried standard-deduction returns other than dependent filers '
+               f'{n(unmarried_std)}; boxes a whole number {n(whole)}; of those with no age range {n(whole & ~has_range)}; '
+               f'boxes that do not fit the age {n(whole & has_range & ~np.isin(blind, [0, 1]))}; shown {n(fits)}, '
+               f'blind {n(out == 1)}')
+    return out
+
+
+def puf_blind_rates():
+    """The PUF's blind rate by the primary filer's age range, on the returns where blindness is shown (puf_blindness),
+    weighted (S006). The blindness rule (non_micro_imputations.blindness) applies these rates, times one factor per
+    person type, to every primary filer and spouse in the file. Age ranges as the training table's (ages.py, observed
+    range only; records with no range are left out of the rates)."""
+    import ages
+    import build_table
+    puf = build_table.read_puf()
+    rng, _ = ages.puf_age_ranges(puf)
+    assert np.array_equal(rng.RECID.to_numpy(), puf.RECID.to_numpy())
+    age_range = rng.age_range.to_numpy()
+    b = puf_blindness(puf, age_range)
+    w = puf['S006'].to_numpy(float) / 100
+    lo = [0, 26, 35, 45, 55, 65]
+    hi = lo[1:] + [None]
+    rows = []
+    for k in range(common.ADULT_RANGES):
+        known = (age_range == k) & (b >= 0)
+        assert known.any(), f'no PUF return shows blindness in age range {common.AGE_LABELS[k]}'
+        rows.append({'puf_year': common.PUF_YEAR, 'age_range': common.AGE_LABELS[k], 'age_from': lo[k],
+                     'age_to': hi[k], 'returns_shown': w[known].sum(), 'blind_returns': w[known & (b == 1)].sum(),
+                     'records_shown': int(known.sum()), 'blind_records': int((known & (b == 1)).sum()),
+                     'blind_rate': w[known & (b == 1)].sum() / w[known].sum()})
+    t = pd.DataFrame(rows)
+    common.say('PUF blind rates by age range:\n' + t.to_string(index=False))
+    write(t, 'puf_blind_rates.csv')
+    note('puf_blind_rates.csv', f'the {common.PUF_YEAR} PUF (settings paths.raw.puf): single and head-of-household '
+         'returns taking the standard deduction, not dependent filers, with an observed age range',
+         'blind = the standard deduction above the basic amount, in units of the additional amount, less one at 65 and '
+         'over (settings blindness); weighted share blind among the returns where it is shown, by the primary '
+         'filer\'s age range (age_to empty: no upper limit)')
+
+
 TABLES = [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates, copies,
-          soi_children, cps_private_pay, pub4801_blind]
+          soi_children, cps_private_pay, pub4801_blind, puf_blind_rates]
 
 
 def main(names=None):

@@ -2,8 +2,9 @@
 
 Items set from what the model has already drawn plus a published table, with no new microdata: dependent filers' exact
 age and sex, child tax credit eligibility for each dependent, death probabilities, yearly unrealized gains on each
-asset and the cost basis of each asset, the holding period and basis of long-term gains, and parents' income rank;
-and blindness and the QBI service flags and wage bills from the items the model draws for them (since 29 October;
+asset and the cost basis of each asset, the holding period and basis of long-term gains, parents' income rank, and
+blindness (since the second retrain of 29 October: the PUF's blind rate by age times a factor that meets Publication
+4801's blind boxes); and the QBI service flags and wage bills from the items the model draws for them (since 29 October;
 dependents' Social Security numbers come from the model's own draws, dollars.py, ssn1, ssn2, dep_ssn1-3) (settings non_micro_imputations, which also says why each item is what it is).
 
 How every item works (the settings section registers each one):
@@ -479,35 +480,59 @@ def parents_rank(df, year, w, ctx):
 
 
 # ---- placeholders -------------------------------------------------------------------------------------------------
+def blind_factor(key, filer, w, target):
+    """The factor for one person type: each person is blind when key = u / rate is below the factor (u the person's
+    keyed uniform number), so the chance is rate x factor. The factor is set so the filers' weighted count of blind
+    people comes nearest the target (the drawn count, not only its expectation). Returns the factor and that count."""
+    k, ww = key[filer], w[filer]
+    o = np.argsort(k, kind='stable')
+    cum = np.cumsum(ww[o])
+    i = int(np.argmin(np.abs(cum - target)))
+    lo = k[o][i]
+    hi = k[o][i + 1] if i + 1 < len(o) else lo * (1 + 1e-9) + 1e-12
+    return (lo + hi) / 2, float(cum[i])
+
+
 def blindness(df, year, w, ctx):
-    """Q3 (John, 28 October; built 29 October): each person's blindness as generation drew it from the PUF's learned
-    slot (generate.py, Chunk.blind_phase: blind_drawn1 the primary filer's, blind_drawn2 the spouse's, 0 without a
-    spouse). 1 blind, 0 not. A file made before the slot existed has no draws: nobody is blind there (the placeholder of
-    28 October), and the notes say so."""
-    if 'blind_drawn1' not in df:
-        ctx['blind'] = None
-        ctx['notes'].append('blindness: the file has no drawn blindness (a model from before 29 October): nobody blind')
-        return {'blind1': np.zeros(len(df), int), 'blind2': np.zeros(len(df), int)}
-    b1, b2 = df['blind_drawn1'].to_numpy(), df['blind_drawn2'].to_numpy()
-    assert np.isin(b1, [0, 1]).all() and np.isin(b2, [0, 1]).all(), 'blindness drawn outside 0-1'
-    assert not (b2[~has_spouse(df)] == 1).any(), 'a blind spouse on a record with no spouse'
-    ctx['blind'] = True
-    ctx['notes'].append(f'blindness: drawn in generation; blind primary filers {w[b1 == 1].sum() / 1e6:.3f} million, '
-                        f'spouses {w[b2 == 1].sum() / 1e6:.3f} million (start weights)')
-    return {'blind1': b1.astype(int), 'blind2': b2.astype(int)}
-
-
-QBI_KINDS = {  # file kind: (industry slot, workers slot, the PUF parts whose signed sum is the kind's income, person)
-    'sole_prop': ('biz_industry_schc', 'biz_workers_schc', {'sch_c': 1}, 1),
-    'part': ('biz_industry_part', 'biz_workers_part', {'part_pass_inc': 1, 'part_nonpass_inc': 1, 'part_pass_loss': -1,
-                                                       'part_nonpass_loss': -1, 'part_179': -1}, 2),
-    'scorp': ('biz_industry_scorp', 'biz_workers_scorp', {'scorp_pass_inc': 1, 'scorp_nonpass_inc': 1,
-                                                          'scorp_pass_loss': -1, 'scorp_nonpass_loss': -1,
-                                                          'scorp_179': -1}, 3)}
-
-
-def qbi_income(df, parts):
-    return sum(sg * df[p].to_numpy(float) for p, sg in parts.items())
+    """Q3, as a rule (John, second retrain of 29 October; it replaces the PUF slot learned in pretraining). For each
+    primary filer, and each spouse on a married-joint record (mars 2), a draw keyed by record id and person (stream 6,
+    persons 1 and 2), blind with chance = the PUF's blind rate for the person's age range (puf_blind_rates.csv: the 2015
+    PUF where the return shows blindness) times one factor per person type. Each factor makes the file's weighted count
+    of blind people among filers, at the weights given (the start's, before reweighting), equal Publication 4801's blind
+    boxes for the target year (pub4801_blind_boxes.csv: 'you are blind' for primary filers, 'spouse is blind' for
+    spouses). Non-filers are drawn by the same rule and not counted. 1 blind, 0 not."""
+    rates = table('puf_blind_rates.csv').sort_values('age_from')
+    cuts = rates['age_from'].to_numpy(float)
+    rate = rates['blind_rate'].to_numpy(float)
+    assert len(rate) == common.ADULT_RANGES and (rate > 0).all() and (rate < 1).all()
+    a1, _ = primary_age_sex(df)
+    joint = (df['mars'].to_numpy() == 2) & has_spouse(df)
+    a2 = df['age_spouse'].to_numpy()
+    assert (a2[joint] >= 0).all()
+    r1 = rate[np.searchsorted(cuts, a1, side='right') - 1]
+    r2 = np.where(joint, rate[np.searchsorted(cuts, np.maximum(a2, 0), side='right') - 1], 0.0)
+    filer = df['filer'].to_numpy() == 1
+    p = table('pub4801_blind_boxes.csv')
+    py = year_used(p['year'], year)
+    box = p[p.year == py].iloc[0]
+    out, info = {}, {'pub4801 year': py}
+    for person, r, who, target, m in [(1, r1, 'primary', float(box.primary_blind), np.ones(len(df), bool)),
+                                      (2, r2, 'spouse', float(box.spouse_blind), joint)]:
+        u = uniform(df, 'blindness', person)
+        key = np.where(m, u / np.where(m, r, 1.0), np.inf)
+        f, drawn = blind_factor(key, filer & m, w, target)
+        b = (key < f).astype(int)
+        assert (r * f <= 1).all(), f'blindness: a {who} chance above 1 (factor {f:.3f})'
+        expected = (w * r * f)[filer & m].sum()
+        out[f'blind{person}'] = b
+        info[who] = {'factor': f, 'target': target, 'drawn, filers': float(w[filer & (b == 1)].sum()),
+                     'expected, filers': expected, 'drawn, non-filers': float(w[~filer & (b == 1)].sum())}
+    ctx['blind'] = info
+    ctx['notes'].append('blindness: PUF rate by age x factor (primary {:.3f}, spouse {:.3f}); blind filers at the start\'s '
+                        'weights {:,.0f} primary and {:,.0f} spouses against Publication 4801 {} ({:,.0f}, {:,.0f})'.format(
+                            info['primary']['factor'], info['spouse']['factor'], info['primary']['drawn, filers'],
+                            info['spouse']['drawn, filers'], py, info['primary']['target'], info['spouse']['target']))
+    return {'blind1': out['blind1'], 'blind2': out['blind2']}
 
 
 def qbi(df, year, w, ctx):
@@ -834,9 +859,8 @@ def check_holding(df, w, ctx):
 
 def check_blindness(df, w, ctx):
     """Blind people in the file by age, filers and all units, against SOI Publication 4801's blind boxes on all returns
-    (pub4801_blind_boxes.csv; the nearest earlier year the table has)."""
-    if ctx.get('blind') is None:
-        return pd.DataFrame(), ['The file has no drawn blindness (a model from before 29 October): nobody is blind.']
+    (pub4801_blind_boxes.csv; the nearest earlier year the table has), before reweighting (the rule's own count, at
+    the start's weights) and after (weights w)."""
     filer = df['filer'].to_numpy() == 1
     a1, _ = primary_age_sex(df)
     a2 = df['age_spouse'].to_numpy()
@@ -856,11 +880,15 @@ def check_blindness(df, w, ctx):
     p = table('pub4801_blind_boxes.csv')
     py = year_used(p['year'], ctx['year'])
     r = p[p.year == py].iloc[0]
+    info = ctx['blind']
     lines = [f'SOI Publication 4801, {py}, all returns: {r.primary_blind / 1e3:,.1f} thousand "you are blind" boxes and '
-             f'{r.spouse_blind / 1e3:,.1f} thousand "spouse is blind" boxes; the file\'s filers: '
-             f'{w[filer & b1].sum() / 1e3:,.1f} thousand and {w[filer & b2].sum() / 1e3:,.1f} thousand. A blind box is '
-             'checked only where it changes the standard deduction, so itemizers may leave it blank: the file counts '
-             'every blind person, the publication the boxes checked.']
+             f'{r.spouse_blind / 1e3:,.1f} thousand "spouse is blind" boxes. The file\'s blind filers before reweighting '
+             f'(the start\'s weights, which the rule\'s factors are set on): {info["primary"]["drawn, filers"] / 1e3:,.1f} '
+             f'thousand primary filers and {info["spouse"]["drawn, filers"] / 1e3:,.1f} thousand spouses; after: '
+             f'{w[filer & b1].sum() / 1e3:,.1f} thousand and {w[filer & b2].sum() / 1e3:,.1f} thousand.',
+             f'The rule: the 2015 PUF\'s blind rate by age range (puf_blind_rates.csv) times a factor of '
+             f'{info["primary"]["factor"]:.3f} for primary filers and {info["spouse"]["factor"]:.3f} for spouses on '
+             'married-joint returns; non-filers drawn by the same rule and not counted against the boxes.']
     return t, lines
 
 

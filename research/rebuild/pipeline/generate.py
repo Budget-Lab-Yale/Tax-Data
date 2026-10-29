@@ -69,12 +69,9 @@ One record is drawn slot by slot:
      items are zero unless married; the primary filer's tips are zero
      without wages, the spouse's without a spouse's share of wages above zero;
      a flag is 0 where its tips are zero. Each person's tips are then held to
-     at most that person's wages when bands become dollars (dollars.py);
-  8. (since 29 October) blindness, for the primary filer and the spouse (Chunk.blind_phase): the PUF's slot, learned on
-     single and head-of-household returns taking the standard deduction, drawn for every record under the PUF label
-     with the person's own age range shown, among 'not blind' and 'blind' (settings blindness). The stack carries
-     blind_drawn1, blind_drawn2 and the chances blind_chance1, blind_chance2; non_micro_imputations.blindness makes the
-     file's blind1 and blind2 from them.
+     at most that person's wages when bands become dollars (dollars.py).
+Blindness is not drawn here: since the second retrain of 29 October it is a rule in the non-microdata step
+(non_micro_imputations.blindness).
 Each step runs the network only on the slots present in its phase and
 computes only the output layers it needs.
 
@@ -180,12 +177,6 @@ P = M.PREDICTED
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
-# (29 October) the PUF-only categories, the primary filer's blindness: never drawn in a batch's own phase; drawn last for
-# the primary filer and the spouse (Chunk.blind_phase). Present and hidden meanwhile on the filer batch, as on a PUF row.
-PUF_LATE = [v for v in M.PUF_CATEGORIES]
-PUF_DRAWN = [v for v in PUF_SLOTS if v not in PUF_LATE]
-BLIND = P.index('blind') if 'blind' in P else None
-BLIND_SETTINGS = common.SETTINGS.get('blindness', {})
 # (29 October) the QBI items under the SCF label (build_table, meta scf_structure): each kind's outside workers drawn
 # after its industry group and zero with none; the industry group never none on a record with any of the kind's PUF
 # parts nonzero
@@ -213,7 +204,6 @@ DEP_SSN = [P.index(v) for v in CPS_STRUCTURE.get('dependent_ssn', [])]
 PRIMARY_SSN = [P.index(v) for v in CPS_STRUCTURE.get('primary_ssn', [])]        # the primary filer's: never none
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
 SEX_PRIMARY = P.index('sex_primary')
-FILER_SLOT = P.index('filer')
 # the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
 # over (John, 26 October; cps_structure)
 SPOUSE_AGE = P.index(next(v for v in CPS_STRUCTURE['spouse'] if v in CPS_STRUCTURE['ages']))
@@ -570,9 +560,6 @@ class Chunk:
         self.values[:, 0] = M.SOURCES.index(label)
         self.values[:, 1] = M.YEARS.index(common.PUF_YEAR if year is None else year)
         self.values[self.rows[:, None], NC + order] = 0              # present, not yet drawn
-        if label == 'puf':                                           # present and hidden, as on a PUF row (drawn last)
-            for v in PUF_LATE:
-                self.values[:, NC + P.index(v)] = 0
         for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS:
             self.values[:, NC + P.index(v)] = -1                      # absent until their turn
         if label == 'cps':        # the CPS's own slots: present and hidden from the start, as on a CPS training row
@@ -708,60 +695,6 @@ class Chunk:
         for j, m in self.not_asked.items():
             self.values[m, NC + j] = -1
 
-    def blind_phase(self, gen):
-        """(29 October; John, NEXT_STEPS.md item 1, Q3) Each record's blindness for the primary filer and the spouse, after
-        every other slot: the network under the PUF label at the PUF year (the PUF's view: every slot the PUF lacks left
-        out), the blindness slot hidden, the chance of 'blind' among 'not blind' and 'blind' (the chance of 'not known'
-        set aside), one draw per person from gen. Shown: the record's drawn slots, with the person's own age range (the
-        primary filer's drawn range, a dependent filer's under-18 and 18-25 ranges as under 26 and its 26-and-over range
-        hidden; the spouse's range from the drawn exact age); hidden: on a joint or separate return, married and full
-        filing status (the PUF shows blindness on single and head-of-household returns only); on a non-filer, the filing
-        flag (the PUF has filers only), and its AGI group label is its band-AGI group (always shown on PUF rows).
-        Returns [records, 4]: blind_drawn1, blind_drawn2 (0 or 1; the spouse's 0 without a spouse), and the two chances
-        (the spouse's -1 without a spouse)."""
-        n, dev = len(self.values), self.values.device
-        v = self.values.clone()
-        v[:, 0], v[:, 1] = M.SOURCES.index('puf'), M.YEARS.index(common.PUF_YEAR)
-        for k, name in enumerate(P):
-            if 'puf' not in M.PRESENT_ON[name]:
-                v[:, NC + k] = -1
-        hidden = torch.zeros(n, len(P), dtype=torch.bool, device=dev)
-        v[:, NC + BLIND], hidden[:, BLIND] = 0, True
-        nonfiler = v[:, NC + FILER_SLOT] == 0
-        hidden[:, FILER_SLOT] = nonfiler
-        lab = P.index(LABEL)
-        if bool(nonfiler.any()):
-            part = to_table(v[nonfiler].cpu())
-            g = Q.puf_group(Q.band_agi(part), Q.puf_groups()['cuts'])
-            v[nonfiler, NC + lab] = torch.as_tensor(g, dtype=torch.long, device=dev)
-        assert bool((v[:, NC + lab] >= 0).all()), 'a record with no AGI group label in the blindness phase'
-        couple_return = torch.isin(v[:, NC + MARS], torch.tensor([2, 3], device=dev))
-        hidden[couple_return, MARRIED] = True
-        hidden[couple_return, MARS] = True
-        ar = self.values[:, NC + AGE_RANGE]
-        sp = self.values[:, NC + SPOUSE_AGE]
-        spouse = (self.values[:, NC + MARRIED] == 1) & (sp > 0)
-        rng_of = RANGE_OF_AGE_VALUE.to(dev)
-        ranges = {1: (torch.where((ar == 6) | (ar == 7), torch.zeros_like(ar), ar), ar == 8),
-                  2: (rng_of[sp.clamp(min=0)].clamp(min=0), ~spouse)}
-        out = torch.zeros(n, 4, dtype=torch.float64, device=dev)
-        slots = M.SOURCE_SLOTS['puf']
-        col = self.column['puf'][NC + BLIND]
-        for person in (1, 2):
-            r, hide_r = ranges[person]
-            vv, hh = v.clone(), hidden.clone()
-            vv[:, NC + AGE_RANGE] = r
-            hh[:, AGE_RANGE] = hide_r
-            h = self.last_layer(vv, hh, 'puf')
-            probs = self.model.slot_probs(h[:, col], torch.full((n,), BLIND, dtype=torch.long, device=dev)).double()
-            p = probs[:, 2] / (probs[:, 1] + probs[:, 2]).clamp_min(1e-30)
-            draw = (torch.rand(n, generator=gen, device=dev, dtype=torch.float64) < p).double()
-            if person == 2:
-                draw, p = torch.where(spouse, draw, 0.0), torch.where(spouse, p, -1.0)
-            out[:, person - 1], out[:, person + 1] = draw, p
-        self.values[:, NC + BLIND] = 1 + out[:, 0].long()          # the slot: the primary filer's, 1 not blind, 2 blind
-        return out
-
     def finish(self):
         """The CPS shares not asked of a record: zero (no spouse, or none of the item, or a dependent filer). Called
         after the SIPP phase, which sees them absent where not asked, as on the SIPP's rows."""
@@ -784,7 +717,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     if label != 'puf':
         # a PUF amount the batch's source does not measure (John, 23 October: interest on the CPS) is zero on every
         # record of the batch, nothing drawn for it; a category must be there
-        lacking = [v for v in PUF_DRAWN if label not in M.PRESENT_ON[v] and v not in preset and v not in M.PUF_LABELS]
+        lacking = [v for v in PUF_SLOTS if label not in M.PRESENT_ON[v] and v not in preset and v not in M.PUF_LABELS]
         assert all(v in M.AMOUNTS for v in lacking), f'the {label} label lacks PUF categories: {lacking}'
         for v in lacking:
             preset[v] = torch.zeros(n, dtype=torch.long)
@@ -793,16 +726,13 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     device = next(model.parameters()).device
     cpu_gen = torch.Generator().manual_seed(seed)                  # the orders
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
-    # the blindness draws (29 October): a generator of their own, so no other draw moves
-    blind_gen = torch.Generator(device=device).manual_seed(
-        int(np.random.default_rng([int(BLIND_SETTINGS.get('generation_seed', 0)), int(seed)]).integers(2 ** 62)))
     wave_k = assign_waves(n, seed)                                 # each record's SCF wave (see the top)
     scf_year = torch.as_tensor(SCF_YEAR_INDEX[wave_k])
     svy_k = {src: assign_years(src, n, seed) for src in SURVEY_YEARS}      # each record's CEX, CPS and SIPP year
     svy_year = {src: torch.as_tensor(SURVEY_YEAR_INDEX[src][k]) for src, k in svy_k.items()}
     first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
     then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
-    rest = torch.tensor([P.index(v) for v in PUF_DRAWN if v not in preset and v not in TYPE_SLOTS
+    rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
                          and v not in STATUS_SLOTS and v not in M.PUF_LABELS], dtype=torch.long)
     own = torch.cat([first, then, rest])
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
@@ -844,8 +774,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
         for step in range(k, order.shape[1]):
             d.survey_step(order[:, step], 'sipp', d.survey_year['sipp'])
         d.finish()
-        blind = d.blind_phase(blind_gen).cpu() if BLIND is not None else None
-        return d.values.cpu(), d.own_chance.cpu(), d.forced.cpu(), blind
+        return d.values.cpu(), d.own_chance.cpu(), d.forced.cpu()
 
     parts = []
     for start in range(0, n, chunk):           # steps 1 to 6, chunk by chunk
@@ -862,10 +791,6 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     oc, fc = torch.cat([p[1] for p in parts]).numpy(), torch.cat([p[2] for p in parts]).numpy()
     for i, v in enumerate(RULED):
         table[f'_own_{v}'], table[f'_forced_{v}'] = oc[:, i], fc[:, i]
-    if BLIND is not None:     # each person's blindness (non_micro_imputations.blindness makes blind1, blind2 from them)
-        b = torch.cat([p[3] for p in parts]).numpy()
-        table['blind_drawn1'], table['blind_drawn2'] = b[:, 0].astype(np.int64), b[:, 1].astype(np.int64)
-        table['blind_chance1'], table['blind_chance2'] = b[:, 2], b[:, 3]
     table['scf_wave'] = np.array([w for w, _, _ in SCF_WAVES])[wave_k]
     table['scf_year'] = np.array([y for _, y, _ in SCF_WAVES])[wave_k]
     for src, k in svy_k.items():       # the year each record's CEX, CPS and SIPP phases ran at (the tax year)

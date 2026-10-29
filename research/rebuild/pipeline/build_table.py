@@ -282,12 +282,10 @@ CATEGORIES = {'k1_owner': 'shared', 'owns_business': 'scf'}   # yes/no items bey
 # Categories on the PUF and the CPS (-1 on the SCF and CEX): {slot: number of values}. mars 1-4 (0 unused); n_ctc,
 # n_eitc 0-3.
 TAX_CATEGORIES = {'mars': 5, 'n_ctc': 4, 'n_eitc': 4}
-# PUF only (since 29 October; John, NEXT_STEPS.md item 1, Q3): the primary filer's blindness, read from the standard
-# deduction (puf_blindness): 0 not known, 1 not blind, 2 blind. Present on every PUF row (0 where the return does not
-# show it), absent (-1) on the surveys. "Not known" is a value, not an absent slot, so that the slot's presence tells the
-# network nothing about the return (an absent slot on joint returns and itemizers would say "joint or itemizer" to
-# every other draw). Generation draws it for the primary filer and the spouse among values 1 and 2 (generate.py).
-PUF_CATEGORIES = {'blind': 3}
+# PUF-only categories: {slot: number of values}. None since the second retrain of 29 October: the primary filer's
+# blindness was one (29 October), and is now a rule in the non-microdata step (non_micro_imputations.blindness), with
+# the PUF's blind rates by age range read by build_non_micro_tables.puf_blind_rates.
+PUF_CATEGORIES = {}
 
 
 # ---- banding -----------------------------------------------------------------------
@@ -430,7 +428,6 @@ def puf_rows(puf):
     df['age_range'] = rng.age_range.to_numpy()
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]
-    df['blind'] = puf_blindness(puf, df['age_range'].to_numpy())
     # other_item_exp, production's other itemized deductions (src/process_puf.R): on itemizers (FDED 1), total
     # itemized deductions before the overall limitation (P04470 + E21040) less deductible medical expenses, the two
     # taxes, interest paid, charity, casualty losses and net limited miscellaneous deductions; zero otherwise. The
@@ -443,39 +440,6 @@ def puf_rows(puf):
     df['other_item_exp'] = np.where(I['FDED'] == 1, I['P04470'] + I['E21040'] - medical - I['E18400'] - I['E18500']
                                     - I['E19200'] - I['E19700'] - I['E20500'] - I['E20800'], 0.0)
     return df
-
-
-def puf_blindness(puf, age_range):
-    """The primary filer's blindness on each PUF record (PUF_CATEGORIES: 0 not known, 1 not blind, 2 blind; John, 28
-    October, NEXT_STEPS.md item 1, Q3). Shown only on unmarried returns taking the standard deduction (filing status
-    single or head of household, FDED 2), not dependent filers (DSI 1, whose deduction is limited), with an age range:
-    there the deduction above the basic amount, in units of the additional amount (settings blindness: $1,550 in
-    2015), is the number of extra boxes; the boxes are a whole number on 97% of these returns. Blind = the boxes less
-    one at 65 and over (age range 65+). Not known (0): joint returns (in the 2015 PUF they show only 0, 2 or 4 boxes,
-    the spouses evened out), separate returns, itemizers, dependent filers, records with no age range, boxes that are
-    not a whole number, and boxes that do not fit the age (none at 65 and over, or two under 65). Prints the counts."""
-    B = common.SETTINGS['blindness']
-    mars, fded, dsi = (puf[c].to_numpy() for c in ('MARS', 'FDED', 'DSI'))
-    ded = puf['P04470'].to_numpy(float)
-    w = puf['S006'].to_numpy(float) / 100
-    basic = np.vectorize(lambda m: float(B['puf_basic_standard_deduction'].get(str(int(m)), np.nan)))(mars)
-    unmarried_std = np.isin(mars, [1, 4]) & (fded == 2) & (dsi == 0)
-    boxes = np.where(unmarried_std, (ded - np.nan_to_num(basic)) / float(B['puf_additional_amount_unmarried']), np.nan)
-    whole = unmarried_std & (np.abs(boxes - np.round(np.nan_to_num(boxes))) <= float(B['whole_tolerance']))
-    has_range = (age_range >= 0) & (age_range < common.ADULT_RANGES)
-    old = age_range == common.ADULT_RANGES - 1
-    blind = np.round(np.nan_to_num(boxes)).astype(np.int64) - old.astype(np.int64)
-    fits = whole & has_range & np.isin(blind, [0, 1])
-    out = np.where(fits, 1 + blind, 0).astype(np.int64)
-    n = lambda m: f'{w[m].sum() / 1e6:.2f}m'
-    common.say(f'PUF blindness (weighted returns): unmarried standard-deduction returns other than dependent filers '
-               f'{n(unmarried_std)}; boxes a whole number {n(whole)}; of those with no age range {n(whole & ~has_range)}; '
-               f'boxes that do not fit the age {n(whole & has_range & ~np.isin(blind, [0, 1]))}; shown {n(fits)}, '
-               f'blind {n(out == 2)} ({100 * w[out == 2].sum() / w[fits].sum():.2f}% of those shown); by age range, '
-               'blind % of those shown: ' + ', '.join(
-                   f'{common.AGE_LABELS[k]} {100 * w[(out == 2) & (age_range == k)].sum() / max(w[fits & (age_range == k)].sum(), 1):.2f}% '
-                   f'of {w[fits & (age_range == k)].sum() / 1e6:.2f}m' for k in range(common.ADULT_RANGES)))
-    return out
 
 
 COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES},
