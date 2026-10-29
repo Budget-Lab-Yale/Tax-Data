@@ -992,7 +992,11 @@ def agi_group_label(t, edges):
     edges['meta']['labels'] (the groups' names, lines, records and returns) and present_on. Then a check: band-AGI
     recomputed from the rows' bands gives every PUF row's label back."""
     common._EDGES = None              # qgroups and dollars read the band edges just written
+    import importlib
+    import sys
     import qgroups as Q
+    if 'dollars' in sys.modules:      # imported earlier in this run (survey_mix, through target_list), with the
+        importlib.reload(sys.modules['dollars'])   # meta of the edges on disk before this run: read them again
     ref = Q.puf_groups(t)
     label = pd.Series(np.int64(-1), index=t.index)
     label[ref['group'].index] = ref['group'].to_numpy().astype(np.int64)
