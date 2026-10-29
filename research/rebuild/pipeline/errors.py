@@ -577,7 +577,12 @@ def cps_replicates(year, units):
                f'ASECWT on all but {int(off.sum()):,}'
                + (f' (ratio {ratio[off].min():.4f}-{ratio[off].max():.4f} there)' if off.any() else '')
                + f'; each replicate\'s total over the main weight\'s: {tot.min():.3f}-{tot.max():.3f}')
-    assert (W >= 0).all() and (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
+    # (30 October) the March 2016 ASEC (tax year 2015) has a few negative person replicate weights, which successive
+    # difference replication allows; they are kept and counted, and only the replicates' totals are checked
+    if (W < 0).any():
+        common.say(f'CPS {year}: {int((W < 0).any(1).sum())} units with a negative replicate weight in some replicate '
+                   f'({int((W < 0).sum())} unit-replicate cells), kept')
+    assert (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
     return W
 
 
