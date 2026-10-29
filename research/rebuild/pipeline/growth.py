@@ -294,7 +294,9 @@ def check(year=common.TARGET_YEAR):
             f = factors(v, year, year)
             if not all(np.isfinite(x) and x > 0 for x in f):
                 bad.append(f'PUF item {v}: factor {f} to {year} is not positive')
-        except (KeyError, AssertionError, ValueError) as e:
-            bad.append(f'PUF item {v}: no factor to {year} ({e})')
+        except (KeyError, AssertionError, ValueError, ArithmeticError) as e:
+            # ArithmeticError: an SOI line with no amount in the year (the domestic production activities deduction
+            # from 2020, the tuition deduction from 2021, after their repeal) gives 0 / 0
+            bad.append(f'PUF item {v}: no factor to {year} ({type(e).__name__}: {e})')
     assert not bad, f'{path(year)}: the growth configuration is not complete:\n  ' + '\n  '.join(bad)
     _CHECKED.add(year)
