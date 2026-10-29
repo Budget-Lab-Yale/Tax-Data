@@ -1252,14 +1252,18 @@ table is read at -1 (also in the fill-in's log), and an assert stops on a negati
 
 ## The billionaires and one reweighting with them (branch `rebuild-top-billionaires`, 29 October)
 
-Parts B and C of the plan John approved on 29 October (scratch `explore/2026-10-29/top_research/PLAN.md`, steps 10-21).
-Part A, the PUF's hidden top returns, is on its own branch (`rebuild-top-hidden`). Not installed. Results in scratch
+Parts B and C of the plan John approved on 29 October (scratch `explore/2026-10-29/top_research/PLAN.md`, steps 10-21),
+with Part A merged in from `rebuild-top-hidden` (the PUF's four aggregate records rebuilt from generated records,
+`pipeline/top_hidden.py`, and Table 4.3's top 0.001% restored as a target; its own record is scratch
+`explore/2026-10-29/top_build/hidden/RESULTS.md`). Not installed. Results in scratch
 `explore/2026-10-29/top_build/billionaires/RESULTS.md`.
 
 **Where it runs.** `tilt.main()` calls `top_records.prepare_top()` on the start, in target-year dollars, before it
 saves the population masks, builds the target conditions or does the demographic prescaling (settings `tilt.top`;
 `enabled` true). In order: an earlier year's billionaires are removed when the start is an earlier year's file; Part
-A's rebuilt returns are added when `top_hidden.py` is present and `tilt.top.hidden_returns` is true; generated balance
+A's rebuilt returns are added (`tilt.top.hidden_returns`, generated starts only; in the generated records' weight units,
+so the start's scaling grows them with the count of returns; free in the tilt; `synthetic_top` and `hidden_group` mark
+them; the build is cached in `REBUILD_HIDDEN_DIR`, `top_hidden.folder` or `<gen>/hidden`); generated balance
 sheets at $1 billion or more are drawn again; the year's Forbes list is added at weight 1. The ordinary non-microdata
 step then runs on the whole file.
 
@@ -1272,9 +1276,10 @@ step then runs on the whole file.
 2. Any generated record whose net worth comes out at $1 billion or more has its whole SCF block drawn again
    (`top_billionaires.redraw_balance_sheets`): every SCF-only slot, under the SCF label given everything else on the
    record, as generation drew it (its model, its SCF wave, the consistency rules with that model's offset factors).
-   20 tries per record (`redraw_tries`), drawn as one batch whose random numbers, the stored picks included, come from
-   generators seeded by the record id alone; the first try below $1 billion is kept, else the lowest, flagged
-   `wealth_redraw_fallback`. The file carries `wealth_redrawn`.
+   20 tries per record (`redraw_tries`), drawn as one batch from generators seeded by the record id alone, each try's
+   dollar picks keyed by the record id; the first try below $1 billion is kept, else the lowest, flagged
+   `wealth_redraw_fallback`. The file carries `wealth_redrawn`. One function, `top_billionaires.redraw_record`, does
+   this for the generated records and for Part A's rebuilt returns (its step 7, with settings `top_hidden.wealth_*`).
 
 **The list** (`resources/top/forbes_billionaires_2019.csv`, built by `build_forbes_2019.py` from Forbes's own data for
 the March 2019 World's Billionaires list, wealth valued 8 February 2019): the 607 US citizens with $3,111.0 billion,
@@ -1297,8 +1302,9 @@ family fortune, or a couple or siblings named in one entry, stays one record: 60
   shared among the group's units by public stock; business profits, and business losses separately, by private
   holdings; taxable and tax-exempt interest, rental and royalty profits, rental losses, estate income, other income
   and wages and pensions by total wealth. Net operating losses are left out.
-- Tax items: each kind split as in the item mix group (Part A's rebuilt $100 million-plus returns when present; until
-  then a stand-in, the generated filers with AGI of $100 million or more), except partnership against S corporation
+- Tax items: each kind split as in the item mix group (Part A's rebuilt returns of the over-$100-million aggregate
+  record, `hidden_group` 3, in target-year dollars; without Part A a stand-in, the generated filers with AGI of $100
+  million or more), except partnership against S corporation
   profits and losses, from the IRS study. Items beyond the kinds (state income tax, foreign tax credits, business
   credits, self-employment items, other itemized deductions) at their ratio to AGI in the mix; consumption at its
   average; Social Security, credits that phase out, and the rest listed in `ZERO_ITEMS` zero.
@@ -1316,6 +1322,10 @@ Before the solve, `solver.fixed_feasibility` checks each target: what the billio
 whether the others can reach it (`top_feasibility.csv`). SOI's income targets apply to everyone, the SCF's to the units
 below $1 billion. The tilt folder also gets `billionaire_units.csv`, `billionaire_groups.csv`, `redraw.csv` and
 `top_notes.md` (the item mix used).
+
+**Growth and the allowed capital loss** (`tilt.grow_dollars`, found by Part A): a return held at the allowed loss
+($3,000; $1,500 married filing separately) stays at it after growth. The rule grows the positive "other" gain piece but
+not losses, so such a return used to turn into a gain.
 
 ## How the latest run comes out
 

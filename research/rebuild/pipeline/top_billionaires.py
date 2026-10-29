@@ -214,6 +214,11 @@ def item_mix(df, w, notes):
             'sch_c': neg('sch_c'), 'farm': neg('farm')}
     m['schedule C and farm share of profits'] = _share(prof['sch_c'] + prof['farm'], sum(prof.values()), 0.0)
     m['schedule C and farm share of losses'] = _share(loss['sch_c'] + loss['farm'], sum(loss.values()), 0.0)
+    # the share of the group's returns with a Schedule C or farm profit, and with a loss (weighted): only that share of
+    # the billionaires holds one (build_billionaires)
+    cf = x['sch_c'].to_numpy(float) + x['farm'].to_numpy(float)
+    m['holders of schedule C and farm profits'] = float(ww[cf > 0].sum() / ww.sum())
+    m['holders of schedule C and farm losses'] = float(ww[cf < 0].sum() / ww.sum())
     part = lambda d, keys, first: {k: _share(d[k], sum(d[q] for q in keys), 1.0 if k == first else 0.0) for k in keys}
     m['partnership profits'] = part(prof, ['part_pass_inc', 'part_nonpass_inc'], 'part_nonpass_inc')
     m['scorp profits'] = part(prof, ['scorp_pass_inc', 'scorp_nonpass_inc'], 'scorp_nonpass_inc')
@@ -392,8 +397,29 @@ def build_billionaires(lst, df, w, year, notes):
         put(c, ls * (1 - cf_l) * part_l * s)
     for c, s in mix['scorp losses'].items():
         put(c, ls * (1 - cf_l) * (1 - part_l) * s)
+    # Schedule C and farm (29 October, after the first full run): every unit with private holdings would otherwise hold
+    # a small Schedule C profit and loss, and the list alone then exceeded Table 4.3's count of top-0.001% returns with
+    # a Schedule C or F profit (255 against 243). So, in each rank group, the group's Schedule C and farm profits go to
+    # the mix group's share of units holding them (units chosen by a draw keyed by record id), shared among those by
+    # private holdings; losses the same, with their own share and draw. Group dollars are unchanged.
+    import ages
+    rid = ID_BASE + u['unit_rank'].to_numpy()
+    privk = u['private'].to_numpy(float)
+    cf_amount = {}
+    for side, total, share_key, salt in [('profits', pr * cf_p, 'holders of schedule C and farm profits', 811),
+                                         ('losses', ls * cf_l, 'holders of schedule C and farm losses', 812)]:
+        hold = ages.uniform_by_id(rid, salt) < mix[share_key]
+        amt = np.zeros(len(u))
+        for gname in np.unique(grp):
+            m_ = grp == gname
+            h_ = m_ & hold & (privk > 0)
+            if not h_.any():   # none drawn: the unit with the largest private holdings
+                h_ = m_ & (privk == privk[m_].max())
+            amt[h_] = total[m_].sum() * privk[h_] / privk[h_].sum()
+        cf_amount[side] = amt
     for c in ['sch_c', 'farm']:
-        put(c, pr * cf_p * mix['schedule C and farm profits'][c] - ls * cf_l * mix['schedule C and farm losses'][c])
+        put(c, cf_amount['profits'] * mix['schedule C and farm profits'][c]
+            - cf_amount['losses'] * mix['schedule C and farm losses'][c])
     put('rent_inc', kinds['rent profits']); put('rent_loss', -kinds['rent losses'])
     put('estate_inc', np.maximum(kinds['estate'], 0)); put('estate_loss', np.maximum(-kinds['estate'], 0))
     for c, s in mix['other income'].items():
