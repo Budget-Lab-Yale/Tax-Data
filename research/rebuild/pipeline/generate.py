@@ -84,7 +84,7 @@ that year, and dollars.py turns its bands into dollars with that year's own map,
 carries cex_year, cps_year and sipp_year. The non-filer batch's own items stay under the CPS label at the target year.
 
 The SCF waves (TARGETS.md section 7). The balance sheet is drawn from a mix of SCF waves: the target year's
-configuration file gives each wave's share (targets_config/years/<target year>.yaml, prior, "balance sheet"; for 2019
+configuration file gives each wave's share (targets_config/<target year>/prior.yaml, "balance sheet"; for 2019
 the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%, by the rule of 24 October). Each record, filers and
 non-filers alike, is given one wave at random with those shares, by a random generator of its own (seeded by settings
 generation.scf_wave_seed and the batch's generation seed), so no other draw moves. Its SCF phase runs under the SCF
@@ -264,7 +264,7 @@ def scf_waves():
     [(wave survey year, income year, share)], by survey year."""
     import target_list as TLS
     prior = TLS.resolve(common.TARGET_YEAR)['prior']['balance sheet']
-    where = f'targets_config/years/{common.TARGET_YEAR}.yaml, prior "balance sheet"'
+    where = f'targets_config/{common.TARGET_YEAR}/prior.yaml, prior "balance sheet"'
     out = []
     for key, share in prior.items():
         src, wave = str(key).split()

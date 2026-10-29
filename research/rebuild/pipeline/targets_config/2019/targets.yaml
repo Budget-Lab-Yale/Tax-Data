@@ -1,4 +1,17 @@
-# Historical years: what every year with published SOI tables gets, on top of defaults.yaml.
+# 2019: the targets of the year's file, written out in full (TARGETS.md section 12). Nothing is inherited: this
+# file, prior.yaml and growth.yaml in this folder are the whole of the year's configuration, with the catalog
+# (targets_config/catalog.yaml), which says what the words mean. A new year starts as a copy of the nearest year's
+# folder; config_overview.py writes the table of every setting by year (OVERVIEW.md), marking what differs from the
+# neighbouring year. Until 29 October this year was years/2019.yaml on top of historical.yaml and defaults.yaml; this
+# file is what they resolved to, with each entry's comment kept (target_list.resolve checks every entry has a value
+# source the catalog defines, and growth.check every dollar item a growth line, before any run).
+#
+# The 383 targets of the 24 October run (tilt/seed20261016, tilt/seed20261017), Table 1.7 (24 October), the S2 targets
+# at the top (25 October: the five top AGI brackets with their composition, the SCF's 99.9th percentile line and the
+# top net worth by kind of asset), and the later additions dated in their comments. Every target's value is 2019's:
+# SOI 2019 Tables 1.2, 1.3, 1.4, 1.6, 1.7 and 4.3 and the W-2 statistics, the SCF waves of the prior (prior.yaml; the
+# 2019 wave, income of 2018, wealth at interview, pooled with the 2022 and 2016 waves grown to it per tax unit;
+# scf_targets.py), the CEX and CPS years of the prior, and the CPS filing stage's 2019 non-filers.
 #
 # Each entry is a block of targets: every statistic x every variable x every cell. It states the parts of
 # TARGETS.md section 2 in full words: statistic, population, variable, cells, value (where it comes from) and error
@@ -6,8 +19,21 @@
 # strings as the tilt's fit.csv; in a key, {cell} is the cell's label, {<grouping>} the label of that grouping's
 # part of the cell, {variable} the variable's short name, {label} its label, {statistic} the statistic and {year}
 # the year of the value. A value's year is the target year unless the entry says otherwise.
+#
+# reason: why an entry is as it is in this year where it departs from the general rule (it fills targets.csv's reason
+# column; before 29 October, the override reason of the year file).
 
-inherits: defaults
+year: 2019
+kind: historical
+
+# What every run reports (TARGETS.md section 14; report_tilt.py writes it).
+report:
+  - every target with its value, standard error, where the file lands, and the miss in standard errors
+  - thin cells, the effective records behind each target and the largest weight factor
+  - published numbers not targeted (SOI Table 1.7, dependent filers, today) and the file's miss on each
+  - untargeted statistics before and after the tilt, largest moves first
+  - each trained model's value on untargeted statistics
+  - the year's resolved configuration and its expanded target list (targets.csv), the code commit, the vintages read
 
 targets:
 
@@ -109,15 +135,20 @@ targets:
   # Business income: each family's net income and net loss, returns and dollars, in six AGI groups (merged where
   # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
   # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
+  # In 2019 (since 22 October) estates and trusts are left out: the family list business_other less estate_trust.
   - id: business
     kind: business
     statistic: [count, amount]
     population: filers
-    variable: business_other
+    variable: [rent_royalty_net_income, rent_royalty_net_loss, farm_net_income, farm_net_loss,
+               farm_rental_net_income, farm_rental_net_loss]
     cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+    reason: >-
+      variable: estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met
+      (with standard errors they could come back, giving way where they conflict)
 
   # Schedule C and partnership and S corporation income, net income and net loss, returns and dollars: the six
   # groups of the entry above with "$1m and over" cut into $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over
@@ -330,3 +361,106 @@ targets:
     value: {survey: scf}
     error: {kind: survey_replicate}
     key: {group: '{income_rank_groups}', target: '{variable}, average'}
+
+  # ---- entries of 2019 alone until 29 October (years/2019.yaml) -------------------------------------------------
+  # Tips (27 October, candidate): SOI's Form W-2 statistics for 2019, Table 4.B, box 7 (Social Security tips),
+  # returns with any and the amount, in joint and non-joint returns. SOI publishes no tips by size of wages. The
+  # file's tips are measured as box 7 has them (catalog ss_tips: held to the Social Security wage base). Returns other
+  # than dependent filers': the non-joint value is SOI's less the SIPP 2019's share of dependents among non-joint
+  # tipped people (count) or tips (amount), and half that reduction is added to the error (catalog source soi w2).
+  # Only 2019 and 2020 have this layout of the W-2 tables (settings paths.raw.soi_w2), so the entry is the year's own.
+  - id: tips_w2
+    kind: tips
+    statistic: [count, amount]
+    population: independent_filers
+    variable: ss_tips
+    cells: {joint_or_not: all}
+    value: {published: soi w2}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+
+  # Tips spread (28 October, candidate, run S3). The tips targets above count units with tips; the file has too few
+  # small tippers against the W-2 statistics. Two additions, both worker level (the primary and spouse slots, box 7
+  # measure, filers other than dependent filers):
+  # the number of tipped workers on joint returns (Table 4.B, taxpayers; a joint return has up to two). On non-joint
+  # returns a return is one worker, so the workers there are the returns with tips of the entry above and are not
+  # repeated.
+  - id: tips_w2_workers
+    kind: tips
+    statistic: workers
+    population: independent_filers
+    variable: ss_tips
+    cells: {joint_or_not: [joint]}
+    value: {published: soi w2}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+  # and the share of tipped workers above each Table 4.C percentile line (the 10th to the 99th: 90, 75, 50, 25, 10 and
+  # 1% of workers above $121, $537, $2,444, $8,409, $18,281, $44,054).
+  - id: tips_w2_spread
+    kind: tips
+    statistic: worker share
+    population: independent_filers
+    variable: ss_tips
+    cells: all
+    percentiles: [10, 25, 50, 75, 90, 99]
+    value: {published: soi w2 pctiles}
+    error: {kind: soi_borrowed}
+    key: {group: tipped workers, target: '{variable} workers above ${line:,.0f}'}
+
+  # Elective deferrals (28 October; decided by John 27 October): SOI's Form W-2 statistics for 2019, Table 2.D,
+  # contributions (traditional plus Roth) by AGI, in eight AGI groups (catalog w2_agi_groups): on joint returns the
+  # dollars only (Table 2.D counts taxpayers, up to two on a joint return, and the file's counts are of returns); on
+  # non-joint returns the returns with any and the dollars. The file's deferrals are each person's after the legal
+  # limit and their own wages (catalog w2_elective_deferrals). Returns other than dependent filers': the non-joint
+  # values are reduced by the SIPP's dependent share and half the reduction is added to the error (catalog source
+  # soi w2 2.d). Only 2019 and 2020 have this layout of the W-2 tables, so the entries are the year's own.
+  - id: deferrals_w2_joint
+    kind: deferrals
+    statistic: amount
+    population: independent_filers
+    variable: w2_elective_deferrals
+    cells: {w2_agi_groups: all, joint_or_not: [joint]}
+    value: {published: soi w2 2.d}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+  - id: deferrals_w2_nonjoint
+    kind: deferrals
+    statistic: [count, amount]
+    population: independent_filers
+    variable: w2_elective_deferrals
+    cells: {w2_agi_groups: all, joint_or_not: [non-joint]}
+    value: {published: soi w2 2.d}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell} returns', target: '{variable} {statistic}'}
+
+  # Overtime pay (28 October; decided by John 27 October, so overtime does not drift): from the CPS's own tax units,
+  # as the CEX consumption targets are. The share of units with any overtime pay and overtime dollars per unit
+  # (the catalog's variable list "overtime": any_ot, ot), over all units and in four groups of the unit's wages
+  # (catalog wage_groups_4, since 29 October: wage_groups_5 with $100,000-200,000 and $200,000 and over merged, John
+  # 28 October): 10 targets. The file's ot is ot1 + ot2, each person's held to their wages less their
+  # tips (dollars.py); the CPS's is Tedeschi's rules per person (overtime_cps.R), held to the person's own wages.
+  # Universe: overtime is known only for the units asked the earnings questions (months 4 and 8 of the main sample;
+  # the rest have it missing), so each average is over the asked units in the cell, with their own weights
+  # (target_list.cps_overtime_units). Population: units other than dependent filers, the rule of every survey target
+  # (the CPS folds dependent filers into the unit that claims them; the file's dependent filers hold no CPS item).
+  # Value: the CPS year mix of the prior's "cps items" (2019 73.11%, 2017 26.89%), the 2017 units' overtime and wages
+  # grown to 2019 by SOI's wages per return (survey_mix.py). Error: the ASEC's 160 replicate weights
+  # (errors.overtime_errors).
+  - id: overtime_all
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: all
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, all', target: '{variable}, average'}
+  - id: overtime_by_wages
+    kind: overtime
+    statistic: average
+    population: units_other_than_dependent_filers
+    variable: overtime
+    cells: {wage_groups_4: all}
+    value: {survey: cps}
+    error: {kind: survey_replicate}
+    key: {group: 'CPS {year}, {wage_groups_4}', target: '{variable}, average'}

@@ -2,7 +2,7 @@
 
 One algorithm every year (TARGETS.md S7): build the start, build the targets, tilt.
 
-The start. The year file (targets_config/years/<year>.yaml, read by target_list.start_spec) says which:
+The start. The year's targets.yaml (targets_config/<year>/targets.yaml, read by target_list.start_spec) says which:
   - start: generate (the default): the run's generated stack, its dollars drawn from the year's maps, each record
     carrying its importance weight from generation;
   - start: {from_year: s, run: <name>}: year s's tilted file, <out>/tilt/<name>/file_<s>.parquet, its tilted
@@ -181,19 +181,21 @@ def recombine(df, year):
 
 def grow_dollars(df, s, t):
     """Each record's amounts grown item by item from year s to year t (TARGETS.md S7, per-return growth), by the
-    series the dollar maps are grown by (build_table.build_maps), as a ratio of year t's factor to year s's:
-      - PUF amounts: SOI Table 1.4's dollars per return with the item (build_table.growth: positive and negative
-        values separately; capital losses, mortgage interest and real estate tax not grown);
+    series the dollar maps are grown by (build_table.build_maps), each item's line in the target year's growth.yaml
+    (growth.py), as a ratio of year t's factor to year s's:
+      - PUF amounts: SOI Table 1.4's dollars per return with the item where Table 1.4 has it, else the item's declared
+        series (build_table.growth: positive and negative values separately; capital losses not grown);
       - the balance sheet: growth per tax unit, item by item, the mean per unit of the wave of income year t - 1
         over that of s - 1 (build_table.scf_growth, the maps' rule); not grown when either wave is missing, or for
         an item whose mean per unit is not positive in both;
       - consumption: NIPA PCE per return, by category;
-      - the CPS-only dollars (childcare, overtime) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks and hours
-        not grown.
+      - the CPS-only dollars (childcare, overtime) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks
+        and hours not grown.
     Then every computed column is computed again from the grown parts (recombine; checked first to reproduce the
     file's own columns). Ages and every category are left as they are. Returns the grown frame and a table of the
     factors, one row per column."""
     import build_table as BT
+    import growth as GR
     same, done = recombine(df, s)
     for c in done:
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
@@ -214,9 +216,7 @@ def grow_dollars(df, s, t):
         if col not in out:
             continue
         gs, gt = BT.growth(v, s), BT.growth(v, t)
-        series = 'none: no SOI line' if v in BT.NO_GROWTH else \
-            'SOI 1.4 per return with the item' + ('; losses not grown' if v.startswith('kg_') or v == 'capital_gains' else '')
-        grow(col, gt[0] / gs[0], gt[1] / gs[1], series)
+        grow(col, gt[0] / gs[0], gt[1] / gs[1], GR.describe(v))
     # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
     scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
     scf = scf[scf.source == 'scf']
@@ -232,20 +232,10 @@ def grow_dollars(df, s, t):
                 grow(v, 1.0, 1.0, f'NOT GROWN: a mean per unit not positive in the wave of {s - 1} or {t - 1}')
             else:
                 grow(v, f_scf[v], f_scf[v], f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
-    pce = pd.read_csv(common.RAW['pce']).set_index('year')
-    for v in BT.CEX_AMOUNTS:
+    for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS:
         if v in out:
-            f = (pce.loc[t, v] / TG.all_returns(t)) / (pce.loc[s, v] / TG.all_returns(s))
-            grow(v, f, f, 'NIPA PCE per return (SOI returns)')
-    for v in BT.CPS_AMOUNTS:
-        if v in out:
-            dollars_ = v in common.SETTINGS['cps']['dollar_amounts']
-            f = BT.growth('wages', t)[0] / BT.growth('wages', s)[0] if dollars_ else 1.0
-            grow(v, f, f, 'SOI wages per return with wages (a placeholder)' if dollars_ else 'not dollars, not grown')
-    for v in BT.SIPP_AMOUNTS:
-        if v in out:
-            f = BT.growth('wages', t)[0] / BT.growth('wages', s)[0]
-            grow(v, f, f, 'SOI wages per return with wages')
+            f = GR.between(v, s, t)
+            grow(v, f, f, GR.describe(v))
     # the allowed capital loss (29 October, from Part A's top_hidden.py, where it was found): the rule grows the
     # positive "other" gain piece but not losses, so a return held at the allowed loss in year s (a large loss, with
     # kg_other taking up the cap) would turn into a gain. The cap is nominal: such a return stays at it, and no return

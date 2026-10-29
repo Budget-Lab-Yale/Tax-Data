@@ -66,9 +66,9 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      sheet from step 7, every other survey item (ages, consumption, the CPS's and SIPP's items) the donor's own, flagged
      synthetic_top = 1, record ids from settings id_block. Its weight is its share of the 2015 PUF's returns in the
      generated file's own units, so the tilt's scaling of filers to SOI's returns grows it with the count of returns.
-     The growth rule leaves the PUF items with no Table 1.4 line in 2015 dollars (build_table.NO_GROWTH: mortgage
-     interest, real estate tax, the itemized deduction items including both kinds of charitable gifts, the AMT items,
-     the credits and the other taxes) and does not grow capital losses; written to growth_<year>.csv.
+     Each item is grown by its line in the target year's growth.yaml (growth.py; since 29 October the items with no
+     Table 1.4 line, which until then stayed in 2015 dollars, by their declared series); capital losses are not grown;
+     written to growth_<year>.csv.
 
 Writes, in the folder (settings top_hidden.folder, else <out>/gen/<run>/hidden; REBUILD_HIDDEN_DIR overrides):
 candidates.parquet (the pool, bands and 2015 dollars), hidden_2015.parquet (the rebuilt returns in 2015 dollars, with
