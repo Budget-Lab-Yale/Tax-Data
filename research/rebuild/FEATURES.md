@@ -947,7 +947,7 @@ variance; the file's net worth lines are the share-weighted average of the waves
 0.65 of one wave's. The replicate weights of each wave sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to
 fetch them). `tilt/<run>/scf_targets_by_wave.csv` has each target's value, error, lines and SCF households by wave.
 
-The 2019 targets (789):
+The 2019 targets (789 on 28 October; 787 from the next run, with the overtime groups merged):
 
 | Targets | Number |
 |---|---:|
@@ -964,7 +964,7 @@ The 2019 targets (789):
 | SCF income x net worth grid, the same waves pooled (below): in 4 income groups, the share of the group's units in each net worth class and each class's net worth | 22 |
 | SCF auto loan interest, the same waves pooled: the share of units with any and dollars per unit in the grid's 4 income groups | 8 |
 | CEX consumption, the 2019 and 2017 surveys pooled (73.11% and 26.89%): 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
-| CPS overtime, the 2019 and 2017 surveys pooled: the share of units with any and overtime per unit, over all units and in 5 groups of the unit's wages | 12 |
+| CPS overtime, the 2019 and 2017 surveys pooled: the share of units with any and overtime per unit, over all units and in 4 groups of the unit's wages (since 29 October; 5 groups and 12 targets before) | 10 |
 
 **Tables 1.3 and 4.3** (since 27 October; `historical.yaml`, read from the local IRS-Ind store's tidy files, settings
 `paths.raw.soi_tables`). Errors are borrowed from the nearest Table 1.4 cells. Table 1.3's capital loss is measured
@@ -1016,6 +1016,10 @@ differences), pooled over the two years as for the CEX.
 | $50,000-100,000 | 13.94% (0.65) | $3,065 ($187) |
 | $100,000-200,000 | 12.76% (0.80) | $4,256 ($355) |
 | $200,000 and over | 7.45% (1.19) | $2,808 ($537) |
+
+Since 29 October (John, 28 October; branch `rebuild-retrain-1029`) the top two groups are one, $100,000 and over
+(catalog `wage_groups_4`): the $200,000-and-over group rested on about 430 asked CPS units a year. The table above
+is the five-group version of 28 October; the merged group's values come with the next run's target list.
 
 **Consumption over the year mix** (since 28 October). Each CEX year's spending is put in 2019 dollars by NIPA
 consumption per return, category by category; the target is 73.11% of the 2019 average plus 26.89% of the grown 2017
