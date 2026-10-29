@@ -110,8 +110,9 @@
 #     claims one of its children, to the unit of the SPM unit's reference
 #     person (the householder when in the SPM unit, else its lowest PERNUM).
 #     Each SPM unit's expenses are kept in full.
-#     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); 0 in earlier years, which do not
-#                         ask it (the translation table's row for it says the same, settings "translation")
+#     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); missing (NA) in earlier years, which
+#                         do not ask it (since 29 October; 0 before), so the training table shows it as not asked
+#                         there, as the translation table's row says (first_year, settings "translation")
 #   mars: filing status as step 1's returns carry it, 1 single, 2 joint, 3 separate, 4 head of household
 #   n_ctc, n_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
 #     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_eitc counts them
@@ -431,7 +432,7 @@ for (yr in YEARS) {
     x[, capital_gains := clean_asec_income(x, ddi, 'INCCAPG')]
   } else {
     if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
-    x[, capital_gains := 0]   # not asked before tax year 2018: zero, as the translation table's row says
+    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing (29 October; zero before)
   }
   x[, welfare_income   := clean_asec_income(x, ddi, 'INCWELFR')]
   x[, total_income     := clean_asec_income(x, ddi, 'INCTOT')]
@@ -630,7 +631,9 @@ for (yr in YEARS) {
   cat(sprintf('  overtime on units: asked %d of %d units (%.1f%% of the weight); missing on %d units (%d of them asked but with a worker\'s pay missing)\n',
               sum(!is.na(out$ot1)), nrow(out), 100 * sum(out$weight[!is.na(out$ot1)]) / sum(out$weight),
               sum(is.na(out$ot1)), sum(is.na(out$ot1) & out$record_id %in% ot_asked_units)))
-  stopifnot(!anyNA(out[, !c('ot1', 'ot2')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
+  # capital gains: missing exactly in the years not asked (before tax year 2018)
+  stopifnot(if (yr >= 2018) !anyNA(out$capital_gains) else all(is.na(out$capital_gains)))
+  stopifnot(!anyNA(out[, !c('ot1', 'ot2', 'capital_gains')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
             all(out$n_eitc <= out$n_dep), all((out$mars == 2) == (out$married == 1)),
             all((out$dep_age1 >= 0) == (out$n_dep > 0)),
             all(out$ssn_status1 %in% 1:3), all((out$ssn_status2 > 0) == (out$married == 1)),

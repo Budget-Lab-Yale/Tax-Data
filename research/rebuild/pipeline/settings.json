@@ -891,7 +891,7 @@
     },
     "type_for_fill_in": false,
     "first_year": 2018,
-    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (agreed 23 October). Since 28 October: function 2 fills in the missing holders in the years asked (6.1% against 10.4% with any), losses included, then amounts by percentile among holders (the CPS's amounts fall short more the larger they are: median $2,000 against $4,800; AUDIT.md)",
+    "reason": "the CPS's capital gains (INCCAPG) as long-term gains, losses read as zero, asked from tax year 2018 only: zero in 2015 and 2017 (agreed 23 October), missing there since 29 October (not shown in training, as any item a survey does not ask; John, 28 October), so the CPS of those years no longer teaches the model that CPS units have no gains. Since 28 October: function 2 fills in the missing holders in the years asked (6.1% against 10.4% with any), losses included, then amounts by percentile among holders (the CPS's amounts fall short more the larger they are: median $2,000 against $4,800; AUDIT.md)",
     "match": "percentile"
    },
    {

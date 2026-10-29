@@ -39,7 +39,8 @@ from those chances. A depends on the type only, so it is computed on one record 
 holder's chance of reporting depends only on its type and true amount, not on anything else on the record.
 
 A row fills in only in the survey years from its first_year on (translate.fills_in): a year the survey does not ask
-the item (the CPS's capital gains before tax year 2018) has no reporters, so its zeros stay zeros there.
+the item (the CPS's capital gains before tax year 2018) has no reporters; since 29 October the item is missing there
+(absent, not shown in training), so there is nothing to fill in.
 
 Writes common.MODEL/fill_log.csv: per pass and row, on the survey's year nearest the target year, the share with none
 as reported, after the fill-in, in the tax data at the survey's types (the mixed share), among filers only and among
@@ -222,7 +223,10 @@ class FillIn:
             yr = self.frame[s]['year'].to_numpy()
             act = np.array([TR.fills_in(ROW[k], int(y)) for y in yr])
             self.active[k] = torch.tensor(act, device=device)
-            assert bool((tr['rep_band'][v][self.recs[s]] >= 0).all()), f'{k}: the item is absent on some {s} records'
+            # the item is present on every record of the years it fills in; absent only in a year the survey does not ask
+            # it (translate.not_asked: the CPS's capital gains before tax year 2018, since 29 October)
+            assert bool(((tr['rep_band'][v][self.recs[s]] >= 0) | ~self.active[k]).all()), \
+                f'{k}: the item is absent on some {s} records of a year it fills in'
             self.zero[k] = self.active[k] & (tr['rep_band'][v][self.recs[s]] == 0)
             z = self.zero[k].nonzero().squeeze(1)
             self.zpos[k] = torch.full((len(self.recs[s]),), -1, dtype=torch.long, device=device)
