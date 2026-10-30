@@ -33,6 +33,10 @@
 #   - non_filers and nonfiler_people: 2016 has no CPS year of its own, so both take the geometric mean of 2015 and
 #     2017 (target_list.pipeline_rows), and the non-filer count is a target with a 2% judgment error rather than an
 #     identity; the non-filer batch is drawn half at each CPS year (generate.nonfiler_years).
+#   - Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2016): 770 targets after
+#     expansion; 27 outside their ranges by at most 1.6 standard errors (Table 4.3's top 1% returns, wages, interest
+#     and dividend counts against Table 1.4's returns and wages from $500,000 up); effective sample kept 95.2%. No
+#     block dropped: the drop test on CPU did not finish (DECISIONS_FOR_JOHN.md 20).
 
 year: 2016
 kind: historical

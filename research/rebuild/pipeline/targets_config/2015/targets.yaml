@@ -29,6 +29,10 @@
 #     years before 2019 as one workbook per year in another layout (w2_all_<year>.xls), which the readers
 #     (target_list._w2_table, _w2_by_agi, _w2_percentiles) do not handle. A gap, not a judgment: adding a reader for
 #     the older layout would restore them.
+#   - Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2015): 774 targets after
+#     expansion; 27 outside their ranges by at most 1.1 standard errors (Table 4.3's top 1% returns, wages, interest
+#     and dividend counts against Table 1.4's returns and wages from $500,000 up); effective sample kept 95.4%. No
+#     block dropped: the drop test on CPU did not finish (DECISIONS_FOR_JOHN.md 20).
 
 year: 2015
 kind: historical
