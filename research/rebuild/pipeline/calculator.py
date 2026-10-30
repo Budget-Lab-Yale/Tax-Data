@@ -52,10 +52,11 @@ CONTRACT = [
     ('filing_status', SAME, 'filing_status', '1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household'),
     ('dep_status', COMPUTED, 'age_range in 6, 7, 8 (the PUF\'s three dependent-filer ranges)',
      '1 if the return is filed by someone claimed as a dependent'),
-    ('age1', SAME, f'age1; {NO_AGE} (the dependent filers, about 6% of filers)',
+    ('age1', SAME, f'age1; dependent filers (age1 -1) dep_filer_age, drawn by the non-microdata imputations, where '
+     f'the file has it (as taxsim_file); else {NO_AGE}',
      'age of the primary filer, 80 for 80 and over'),
     ('age2', SAME, f'age2; {NO_AGE}', 'age of the spouse'),
-    ('male1', COMPUTED, 'sex_primary == 1 (0 also where the rebuild has no sex: the dependent filers)',
+    ('male1', COMPUTED, 'sex_primary == 1; dependent filers dep_filer_sex == 1 where the file has it (else 0)',
      'primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain'),
     ('blind1', ZERO, '0', 'primary filer is blind: the blindness rule (NEXT_STEPS step 1)'),
     ('blind2', ZERO, '0', 'spouse is blind: the blindness rule (NEXT_STEPS step 1)'),
@@ -298,6 +299,17 @@ def convert(f):
     notes.append(f'spouse\'s Schedule C plus F against the file\'s se2: largest gap ${np.abs(se2 - x("se2")).max():,.4f}')
     out['dep_status'] = (x('age_range') >= common.ADULT_RANGES).astype(float)
     out['male1'] = (x('sex_primary') == 1).astype(float)
+    # Dependent filers have no drawn age or sex (age1 -1); since 29 October the non-microdata imputations draw them
+    # (dep_filer_age, dep_filer_sex) and the file Tax-Simulator reads carries them (taxsim_file.build). The taxes
+    # computed inside the tilt take the same values, so they are the taxes of the published file (review of
+    # rebuild-taxes-in-model, 30 October; until then age1 was missing here, which drops the 65-and-over standard
+    # deduction of an older dependent filer).
+    if 'dep_filer_age' in f.columns and 'dep_filer_sex' in f.columns:
+        dep = (x('age_range') >= common.ADULT_RANGES) & np.isnan(out['age1']) & (x('dep_filer_age') >= 0)
+        out['age1'] = np.where(dep, x('dep_filer_age'), out['age1'])
+        out['male1'] = np.where(dep, (x('dep_filer_sex') == 1).astype(float), out['male1'])
+        notes.append(f'dependent filers given dep_filer_age and dep_filer_sex: {dep.sum():,} records; primary age '
+                     f'still missing on {np.isnan(out["age1"]).sum():,} records')
     out['divorce_year'] = np.zeros(len(f))
     out['gross_pens_dist'] = x('retirement_gross') - x('gross_ss')
     neg = out['gross_pens_dist'] < 0
