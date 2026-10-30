@@ -1604,3 +1604,10 @@ unless said. "Run before" is the latest of 27 October (`previous_2026-10-28_befo
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (up to commit bc72cc7).
 
 Known gaps are listed at the end of `ROADMAP.md`.
+
+**Phase 2 work in progress (30 October).** Historical year configurations now include calculator targets with the
+2019 QBI omission, the 2020–2021 after-credits omission, and the 2021 child-credit omission. Non-filer count errors
+use the year configuration's tolerance. From 2021, the partnership and S corporation growth calculation uses the
+combined Table 4.3 count for both comparison years, avoiding the double count in Table 1.4's split lines; Table 4.3
+excludes dependent filers, while the Table 1.4 amounts include them. Full historical fits, Table 2.1 targets, and the
+new projection method remain unfinished; these changes do not constitute a completed phase 2 run.

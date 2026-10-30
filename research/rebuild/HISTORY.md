@@ -963,3 +963,11 @@ from the installed networks were checked equal before and after, apart from the 
 | Choosing networks by their held-back loss | Differences in the third or fourth decimal place, not in the order of the networks' wealth fit. The income-item check against the PUF does pick out the bad network |
 | A network saved at pass 20, 40 or 60 of the 80-pass run | Worse on every check than at pass 80 (seed 20261017's net worth before reweighting $226, $141, $126 and $105 trillion) |
 | 8 layers in place of 4 (28 October) | Moved both seeds toward the SCF a little but did not fix the bad seed; 45% more time a pass. Not adopted on two seeds |
+
+### Phase 2 work in progress, 30 October
+
+Added the 2019 calculator target families to the other historical years, omitting after-credits tax in 2020 and
+2021 and the child credit in 2021 because SOI's concepts differ. Kept QBI by AGI out as in 2019. The non-filer
+count error now follows the year file. For partnership and S corporation growth from 2021, Table 4.3's combined
+counts replace sums of the overlapping Table 1.4 counts, in both the 2015 base and the target year; Table 4.3
+excludes dependent filers. These changes have not yet been validated in full-year tilts.
