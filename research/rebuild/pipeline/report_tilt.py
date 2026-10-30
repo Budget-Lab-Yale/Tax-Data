@@ -536,6 +536,8 @@ def series(cells):
     """The published cells in series along AGI: (the series' AGI classes, lowest first, as indices into cells; the
     indices of its all-AGI total). Tables 1.4 and 1.7: one series per line and statistic; Table 1.6: per filing
     status and age."""
+    if not cells:   # (30 October) a year with no published SOI cells (a projection year): no series
+        return []
     df = pd.DataFrame([{k: c[k] for k in ('table', 'panel', 'row', 'line', 'statistic', 'lo', 'total')} for c in cells])
     out = []
     for tab, part in df.groupby('table', sort=False):
@@ -676,6 +678,10 @@ def published(df, t, w0, w1, notes):
     cells = file_values(cells + c17 + c16, df, weights)
     cells = merge_combined(relation_to_targets(cells, is_target), weights, is_target)
     cells = errors_for(cells, year, notes)
+    cols = ['table', 'panel', 'row', 'col', 'line', 'statistic', 'published', 'se', 'error source', 'before', 'after',
+            'miss', 'miss (%)', 'miss_in_se', 'records', 'merged', 'relation', 'note']
+    if not cells:   # (30 October) a year with no published SOI cells (a projection year)
+        return pd.DataFrame(columns=cols)
     p = pd.DataFrame(cells)
     p['miss'] = p['after'] - p['published']
     with np.errstate(divide='ignore', invalid='ignore'):

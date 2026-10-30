@@ -49,6 +49,7 @@ for s in $STAGES; do
               R_LIBS=$HOME/R/4.4.1-foss-2022b Rscript $P/build_cps.R; module purge ;;
     sipp)     python $P/roster_sipp.py ;;   # the SIPP's units by the shared rules, with each adult's wages and tips
     table)    python $P/build_table.py ;;
+    maps)     python $P/build_table.py maps ;;   # the target year's dollar maps alone, from the table already built (not in the default list)
     targets)  python $P/targets.py ;;
     non_micro_tables) python $P/build_non_micro_tables.py ;;   # the non-microdata imputations' published tables (committed; run when a source changes)
     errors)   python $P/errors.py soi_cv ;;   # SOI's published CVs, parsed from the workbooks in <out>/targets/soi_cv/raw

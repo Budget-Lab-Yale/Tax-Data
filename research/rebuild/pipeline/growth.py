@@ -12,14 +12,14 @@ The series (SERIES below; their data in research/rebuild/resources/growth/, wher
 from):
   soi 1.4           SOI Table 1.4, all returns: dollars per return with the item, the item given by `item` (a key of
                     targets.SOI_ITEMS) or by `rows` (SOI lines, with `absolute`), PUF year to y; past SOI's last
-                    year, carried forward (targets.carried). This is the series every PUF item used before 29 October.
+                    year, grown by CBO's closest line per return (targets.carried). This is the series every PUF item used before 29 October.
   agi per return    SOI's total AGI over all returns (Table 1.1; the same totals as Table 1.4's all-returns line, read
                     from the mirror); past SOI's last year, extended by BEA personal income per capita (NIPA Table
                     7.1 line 3: Table 2.1's personal income over population), and past BEA's last year by the growth
                     of CBO's projected personal income per person (TARGETS.md section 3's rule for a change).
   bea mortgage interest per mortgaged owner, acs real estate tax per paying owner, state and local income tax per
   return, meps out-of-pocket per person with any, cpi tax preparation fees, college board tuition and fees: a level
-                    per year from the resources folder; past its last year the pipeline stops (no extension is written).
+                    per year from the resources folder; past its last year grown by personal income per person (BEA, then CBO; level()).
   nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns (the CEX's rule since 22 October).
   scf mean per unit between waves   the SCF's own weighted mean per tax unit, one wave over another
                     (build_table.scf_growth computes it from the table; nothing here).
@@ -168,6 +168,20 @@ def _soi_per_capita_extension(y, last):
         * _at(cbo, y, 'CBO personal income per capita') / _at(cbo, b_last, 'CBO personal income per capita')
 
 
+def population(y):
+    """The Social Security area population in year y (resources/growth/ss_area_population.csv: Macro-Projections, CBO's
+    January 2026 demographic projections; build_projection_series.py)."""
+    return _at(_csv('ss_area_population.csv'), y, 'Social Security area population')
+
+
+def scf_extension(a, b):
+    """The SCF balance sheet's growth per person from stock year a to b after the last wave (30 October): household
+    net worth (Z.1 S1M.b, FL152090005, fourth quarter; past 2025 held at its 2025 ratio to nominal GDP) over the
+    Social Security area population. One factor for every balance-sheet item (build_table.scf_mean)."""
+    nw = _csv('z1_household_net_worth.csv')
+    return (_at(nw, b, 'Z.1 household net worth') / population(b)) / (_at(nw, a, 'Z.1 household net worth') / population(a))
+
+
 def agi_per_return(y):
     tot = TG.totals()
     years = TG.total_years()
@@ -179,8 +193,33 @@ def agi_per_return(y):
     return lev(last) * _soi_per_capita_extension(y, last)
 
 
+def income_per_person_growth(a, b):
+    """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3) while BEA has both years,
+    then CBO's projection (cbo_personal_income_population.csv, its growth only)."""
+    bea = _csv('bea_personal_income_per_capita.csv')
+    b_last = int(bea.index.max())
+    if b <= b_last:
+        return _at(bea, b, 'BEA personal income per capita') / _at(bea, a, 'BEA personal income per capita')
+    cbo = _csv('cbo_personal_income_population.csv')
+    mid = max(a, b_last)
+    head = _at(bea, mid, 'BEA') / _at(bea, a, 'BEA') if mid > a else 1.0
+    return head * _at(cbo, b, 'CBO personal income per capita') / _at(cbo, mid, 'CBO personal income per capita')
+
+
 def level(spec, y):
-    """The series' level in year y (a series given as a level; not SOI 1.4, which is a ratio between years)."""
+    """The series' level in year y (a series given as a level; not SOI 1.4, which is a ratio between years). Past the
+    last year its files cover (30 October, years after the data): the last year's level grown with personal income
+    per person (BEA, then CBO's projection; income_per_person_growth), a placeholder recorded in the year's growth
+    report."""
+    files = SERIES[spec['series']][1]
+    if files:
+        last = min(int(_csv(f).index.max()) for f in files)
+        if y > last:
+            return _level(spec, last) * income_per_person_growth(last, y)
+    return _level(spec, y)
+
+
+def _level(spec, y):
     s = spec['series']
     if s == 'agi per return':
         return agi_per_return(y)
@@ -190,8 +229,18 @@ def level(spec, y):
         return _at(_csv('census_sl_income_tax.csv'), y, s) / TG.all_returns(y)
     if s == 'nipa pce per return':
         if 'pce' not in _CSV:
-            _CSV['pce'] = pd.read_csv(common.RAW['pce']).set_index('year')
-        return _CSV['pce'].loc[y, spec['category']] / TG.all_returns(y)
+            f = common.RAW['pce'] if os.path.isabs(common.RAW['pce']) else os.path.join(RESOURCES, common.RAW['pce'])
+            _CSV['pce'] = pd.read_csv(f).set_index('year')
+        p = _CSV['pce']
+        if y in p.index:
+            return p.loc[y, spec['category']] / TG.all_returns(y)
+        # past the PCE file's last year (30 October, years after the surveys): the last year's level per return grown
+        # by CBO's personal income per person (the extension agi per return uses past BEA's last year), a placeholder
+        last = int(p.index.max())
+        assert y > last, f'PCE: no {y}'
+        cbo = _csv('cbo_personal_income_population.csv')
+        return p.loc[last, spec['category']] / TG.all_returns(last) * _at(cbo, y, 'CBO personal income per capita') \
+            / _at(cbo, last, 'CBO personal income per capita')
     if s in ('acs real estate tax per paying owner', 'meps out-of-pocket per person with any',
              'cpi tax preparation fees', 'college board tuition and fees'):
         return _at(_csv(SERIES[s][1][0]), y, s)

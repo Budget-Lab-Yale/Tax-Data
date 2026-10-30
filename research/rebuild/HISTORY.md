@@ -880,6 +880,15 @@ holding period and basis of long-term gains, parents' rank; placeholders for dep
 blindness and the QBI items. On the latest run's stack the tilt gives the installed weights exactly and meets all 789
 targets; the checks are reported in `report.md` section 6.
 
+### 29–30 October: targets for every year (overnight, piece 4)
+
+Year folders 2015-2035 built and run on the installed networks (branch `rebuild-targets-all-years`; scratch
+`explore/2026-10-30/targets/RESULTS.md`). 2017-2023 met every target, with 95-48% of the effective sample kept
+(lowest in 2020 and 2023, where Table 1.3's taxable state refunds start 9-12 times SOI's after the 2017 law); 2015
+and 2016 met all but 27 targets, a conflict between Table 4.3's top 1% count and Table 1.4's top brackets. 2024-2035
+chained from 2023 by CBO's growth, every target met. Found on the way: Table 4.3 prints some net losses as negative
+numbers (a negative target made the 2020 tilt diverge); the March 2016 ASEC has negative replicate weights.
+
 ### 30 October (overnight): taxes computed inside the model
 
 **Built on branch `rebuild-taxes-in-model`** (not installed; scratch `explore/2026-10-30/taxes/RESULTS.md`). Piece 3 of

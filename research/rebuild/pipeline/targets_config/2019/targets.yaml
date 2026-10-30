@@ -23,6 +23,8 @@
 # reason: why an entry is as it is in this year where it departs from the general rule (it fills targets.csv's reason
 # column; before 29 October, the override reason of the year file).
 
+#
+# Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2019): 805 targets after expansion, every one inside its range; effective sample kept 80.0%. No block dropped.
 year: 2019
 kind: historical
 

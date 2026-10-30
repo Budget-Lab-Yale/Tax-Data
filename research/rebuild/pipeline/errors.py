@@ -541,8 +541,17 @@ def _ipums_fixed_width(folder, fields):
     out = {}
     for name, (start, width, dcml) in spec.items():
         d = a[:, start:start + width].astype(np.int64) - 48
-        assert ((d >= 0) & (d <= 9)).all(), f'{dat}: {name} holds a character other than a digit'
-        out[name] = (d @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float) / 10 ** dcml
+        ok = ((d >= 0) & (d <= 9)).all(1)
+        val = (np.where(ok[:, None], d, 0) @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float)
+        if not ok.all():
+            # (30 October) a field that is not all digits must still be a whole number written out, a sign and leading
+            # blanks allowed (the March 2016 ASEC's replicate weights have negative values); anything else stops
+            for r in np.where(~ok)[0]:
+                txt = bytes(a[r, start:start + width]).decode('ascii')
+                assert re.fullmatch(r' *-?[0-9]+', txt), f'{dat}: {name} holds {txt!r}, not a number'
+                val[r] = float(int(txt))
+            common.say(f'{dat}: {name}: {int((~ok).sum())} values with a sign or blanks read as numbers')
+        out[name] = val / 10 ** dcml
     return out
 
 
@@ -576,7 +585,12 @@ def cps_replicates(year, units):
                f'ASECWT on all but {int(off.sum()):,}'
                + (f' (ratio {ratio[off].min():.4f}-{ratio[off].max():.4f} there)' if off.any() else '')
                + f'; each replicate\'s total over the main weight\'s: {tot.min():.3f}-{tot.max():.3f}')
-    assert (W >= 0).all() and (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
+    # (30 October) the March 2016 ASEC (tax year 2015) has a few negative person replicate weights, which successive
+    # difference replication allows; they are kept and counted, and only the replicates' totals are checked
+    if (W < 0).any():
+        common.say(f'CPS {year}: {int((W < 0).any(1).sum())} units with a negative replicate weight in some replicate '
+                   f'({int((W < 0).sum())} unit-replicate cells), kept')
+    assert (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
     return W
 
 
@@ -628,7 +642,22 @@ def overtime_errors(rows, year):
 # ---- 4. Judgment -----------------------------------------------------------------------------------
 def nonfiler_errors(rows, year):
     """The non-filer count and the people in non-filer units (the filing stage's calibration targets)."""
-    t = pd.read_csv(f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{year}_nonfilers_vs_targets.csv").set_index('band')
+    def census(y):
+        """The filing stage's population by band in year y; a year with no CPS year of its own (30 October): the
+        geometric mean of the CPS years either side, or past the last CPS year the last one grown with the
+        population."""
+        p = f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{y}_nonfilers_vs_targets.csv"
+        if os.path.exists(p):
+            return pd.read_csv(p).set_index('band')['census_adults']
+        import growth as GR
+        import target_list as TLS
+        have = TLS.cps_years()
+        if y > max(have):
+            return census(max(have)) * GR.population(y) / GR.population(max(have))
+        lo, hi = TLS.cps_neighbours(y)
+        return np.sqrt(census(lo) * census(hi))
+    need = rows.kind.eq('non-filer people').any()
+    t = census(year).to_frame('census_adults') if need else None
     out = []
     for r in rows.itertuples():
         if r.kind == 'non-filers':

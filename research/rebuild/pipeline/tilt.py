@@ -229,16 +229,12 @@ def grow_dollars(df, s, t):
     # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
     scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
     scf = scf[scf.source == 'scf']
-    have = set(scf['year'].unique())
-    # (30 October, review of rebuild-year-config) every dollar item grown, or the run stops: until then a missing wave,
-    # or a mean per unit at or below zero, left the balance sheet in year-s dollars with a factor of 1, noted only in
-    # the growth table
+    # (30 October, review of rebuild-year-config) every dollar item grown, or the run stops. (30 October, targets for
+    # every year) a year with no wave of its own is interpolated between waves, or after the last wave grown by Z.1
+    # household net worth per person (build_table.scf_mean), so every year has a factor
     grown_scf = [v for v in BT.SCF_AMOUNTS if v in out and v not in BT.SCF_RATIOS]
+    f_scf = BT.scf_growth(scf, s - 1, t - 1)
     if grown_scf:
-        assert {s - 1, t - 1} <= have, \
-            f'the balance sheet cannot be grown from {s} to {t}: its series (the SCF mean per tax unit between waves) ' \
-            f'needs waves of income years {s - 1} and {t - 1}; the table has {sorted(int(y) for y in have)}'
-        f_scf = BT.scf_growth(scf, s - 1, t - 1)
         none = [v for v in grown_scf if not np.isfinite(f_scf[v])]
         assert not none, f'no growth factor {s} to {t} (a mean per unit at or below zero in the wave of {s - 1} or ' \
                          f'{t - 1}): {none}'
@@ -269,6 +265,11 @@ def start_from_year(spec):
     assert df['weight'].notna().all() and (df['weight'] >= 0).all(), f'{path}: a missing or negative weight'
     w = df['weight'].to_numpy(float)
     df = df.drop(columns=['weight_start']).rename(columns={'weight': f'weight_{s}'})
+    # (30 October) the year-s file carries the non-microdata imputations' columns; they are made again on this start
+    # (impute below refuses a frame that has them), so they are dropped and the written-back columns put back to
+    # their drawn values first (non_micro_imputations.as_drawn)
+    if NMI.S.get('run_in_tilt', False):
+        df = NMI.as_drawn(df)
     common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
     if spec['dollars'] == 'per_return_growth':
         df, growth = grow_dollars(df, s, Y)
@@ -306,6 +307,9 @@ def start_nonfilers():
     count = lambda y: float((t.loc[t.year == y, 'weight'] * (1 - t.loc[t.year == y, 'filer_p'])).sum())
     if Y in have:
         return TLS.nonfiler_count(Y), ''
+    if Y > max(have):   # past the last CPS year (30 October): the last year's count grown with the population
+        n = TLS.nonfiler_count(Y)
+        return n, f'past the last CPS year ({max(have)}): its expected non-filers grown with the Social Security area population'
     lo, hi = max([y for y in have if y < Y], default=None), min([y for y in have if y > Y], default=None)
     assert lo is not None and hi is not None, f'no CPS units for {Y}, and no CPS year on both sides'
     n = float(np.sqrt(count(lo) * count(hi)))
@@ -473,7 +477,8 @@ def main():
         # the range in standard errors by kind of target (settings tilt.range_in_se_by_kind, {kind: k}); every other
         # kind keeps range_in_se. The demographic prescaling above keeps range_in_se.
         unknown = set(by_kind) - set(rows['kind'])
-        assert not unknown, f'settings tilt.range_in_se_by_kind: kinds with no targets this year {unknown}'
+        if unknown:   # (30 October) a year without those kinds (a projection year has no SCF targets): nothing to set
+            common.say(f'settings tilt.range_in_se_by_kind: no targets of kind {sorted(unknown)} this year')
         base = float(S.get('range_in_se', 1.0))
         kv = rows['kind'].map(lambda q: float(by_kind.get(q, base))).to_numpy(float)
         S_main = {**S, 'range_in_se_by_target': kv}

@@ -207,6 +207,8 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
     best, stuck = np.inf, 0
     for _ in range(max_steps):
         g = gradient(lam, e)
+        if g.size == 0:   # (30 October) no condition left to hold (every range met at the start): the start stands
+            return lam, e, 'converged'
         size_g = np.abs(g).max()
         if size_g < tol:
             return lam, e, 'converged'

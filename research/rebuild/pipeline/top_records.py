@@ -80,8 +80,15 @@ def prepare_top(g19, raw, imp, year, mode):
     given = np.zeros(len(g19), bool)
     h = _hidden_returns(g19, year, mode, notes)  # 2. Part A
     # 3. the redraw, on the generated records (Part A's records were drawn again in its own build, by redraw_record)
-    g19, tab = TB.redraw_balance_sheets(g19, raw, year, ceiling, notes, check_same=(mode == 'generate'))
-    rep['redraw'] = tab
+    if mode == 'generate':
+        g19, tab = TB.redraw_balance_sheets(g19, raw, year, ceiling, notes, check_same=True)
+        rep['redraw'] = tab
+    else:
+        # (30 October) a start from an earlier year's file: its records were redrawn below the ceiling in the year they
+        # were generated; the redraw needs the network and slots the finished file does not keep, so it is not run
+        # again. A record that growth carries to the ceiling stays as it is and is counted below
+        notes.append('start from an earlier year\'s file: the redraw at the ceiling is not run again (done in the '
+                     'year the records were generated)')
     for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
         if c not in g19:
             g19[c] = 0

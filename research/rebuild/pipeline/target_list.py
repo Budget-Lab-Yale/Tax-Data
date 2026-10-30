@@ -77,7 +77,7 @@ CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'li
 # growth.yaml the year and its growth lines (growth.py reads and checks those).
 TARGETS_KEYS = {'year', 'kind', 'targets', 'report', 'start', 'start_scaling', 'hold_distribution'}
 PRIOR_KEYS = {'year', 'prior'}
-ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key',
+ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key', 'outside_line',
               'dependent_filers', 'note', 'reason', 'percentiles', 'must_reach'}
 # reason: why the entry is as it is in this year where it departs from the general rule or from other years (before
 # 29 October, the override reason of a year file); it fills targets.csv's reason column.
@@ -85,7 +85,7 @@ ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'val
 # can reach is an error, not a quiet drop (Table 4.3's top 0.001%, restored with the rebuilt aggregate records). These
 # cells belong to the top of the file: with settings tilt.top.enabled false, expand leaves them out, as before 29
 # October, so the pipeline with the top step off is unchanged.
-VALUE_KINDS = {'published', 'survey', 'pipeline'}
+VALUE_KINDS = {'published', 'survey', 'pipeline', 'outside'}
 ERROR_KEYS = {'kind', 'relative', 'reason'}
 
 
@@ -518,11 +518,43 @@ def published_status(soi, year, source, cells, stats):
     return rows
 
 
+_CPS_YEARS = None
+
+
+def cps_years():
+    """The tax years with CPS units in the training table (the CPS's years: 2015, 2017, ..., 2023)."""
+    global _CPS_YEARS
+    if _CPS_YEARS is None:
+        t = pd.read_parquet(common.TABLE, columns=['source', 'year'])
+        _CPS_YEARS = sorted(int(y) for y in t.loc[t.source == 'cps', 'year'].unique())
+    return _CPS_YEARS
+
+
+def cps_neighbours(year):
+    """For a year with no CPS units (an even year, 30 October): the nearest CPS years either side, (lo, hi). A year
+    with CPS units, or one outside their range, is an error: the caller handles those."""
+    have = cps_years()
+    lo, hi = max([y for y in have if y < year], default=None), min([y for y in have if y > year], default=None)
+    assert year not in have and lo is not None and hi is not None, \
+        f'{year}: no CPS units and no CPS year on both sides (CPS years {have})'
+    return lo, hi
+
+
 def nonfiler_count(year):
     """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
-    the generated non-filer batch is sized by (generate.cps_expected_nonfilers)."""
+    the generated non-filer batch is sized by (generate.cps_expected_nonfilers). A year with no CPS units (an even
+    year; 30 October) takes the geometric mean of the nearest CPS years either side (cps_neighbours), as the start's
+    scaling does (tilt.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
-    t = t[(t.source == 'cps') & (t.year == year)]
+    t = t[t.source == 'cps']
+    if year > max(cps_years()):   # past the last CPS year (30 October): grown with the population
+        import growth as GR
+        last = max(cps_years())
+        return nonfiler_count(last) * GR.population(year) / GR.population(last)
+    if year not in set(t['year']):
+        lo, hi = cps_neighbours(year)
+        return float(np.sqrt(nonfiler_count(lo) * nonfiler_count(hi)))
+    t = t[t.year == year]
     assert len(t), f'no CPS units for {year}'
     return float((t['weight'] * (1 - t['filer_p'])).sum())
 
@@ -711,6 +743,28 @@ FILE_RANK_LINES = {}   # (variable, population, percentile) -> the file's dollar
 
 def pipeline_rows(year, cells, v, stats):
     assert cells == [group_cells('all')[0]] and stats in (['units'], ['amount'])
+    if year > max(cps_years()):   # past the last CPS year (30 October): the last year's grown with the population
+        import growth as GR
+        last = max(cps_years())
+        f = GR.population(year) / GR.population(last)
+        if v is None:
+            return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
+                     'source': f'past the last CPS year: the filing stage\'s expected non-filers in {last} times the '
+                               f'growth of the Social Security area population, {f:.4f}'}]
+        return [{'cell': 'all', 'statistic': 'amount', 'value': cps_nonfiler_people(last, v) * f,
+                 'source': f'past the last CPS year: the filing stage\'s people among the expected non-filers in {last}, '
+                           f'counted as the file counts them, times the growth of the Social Security area population, '
+                           f'{f:.4f}'}]
+    if year not in cps_years():   # an even year (30 October): the geometric mean of the CPS years either side
+        lo, hi = cps_neighbours(year)
+        if v is None:
+            return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
+                     'source': f'no CPS units for {year}: the geometric mean of the filing stage\'s expected non-filers '
+                               f'in {lo} ({nonfiler_count(lo):,.0f}) and {hi} ({nonfiler_count(hi):,.0f})'}]
+        a, b = cps_nonfiler_people(lo, v), cps_nonfiler_people(hi, v)
+        return [{'cell': 'all', 'statistic': 'amount', 'value': float(np.sqrt(a * b)) if a > 0 and b > 0 else (a + b) / 2,
+                 'source': f'no CPS units for {year}: the geometric mean of the filing stage\'s people among the '
+                           f'expected non-filers in {lo} ({a:,.0f}) and {hi} ({b:,.0f}), counted as the file counts them'}]
     if v is None:
         return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
                  'source': f'filing stage {year}: CPS units of the training table, sum of weight x (1 - filer_p)'}]
@@ -722,6 +776,41 @@ def pipeline_rows(year, cells, v, stats):
                        f'people counted as the file counts them (record_value); the calibration\'s own number, by the '
                        f'head\'s band and every child, {1e6 * t[band]:,.0f} ({os.path.relpath(path, common.OUT)}, band '
                        f'{band})'}]
+
+
+def outside_level(src, line, a, b):
+    """An outside series' ratio from year a to year b (catalog sources of kind outside): CBO's individual income tax
+    projections (a line by the start of its name; targets.cbo_level), or Z.1 household net worth (growth.py)."""
+    if src == 'cbo individual income tax':
+        return TG.cbo_level(line, b) / TG.cbo_level(line, a)
+    if src == 'z1 household net worth':
+        import growth as GR
+        nw = GR._csv('z1_household_net_worth.csv')
+        return float(nw.loc[b]) / float(nw.loc[a])
+    raise KeyError(f'outside source {src}')
+
+
+def outside_rows(src, year, cells, v, stats, e):
+    """A target from outside information that comes only as a change (TARGETS.md section 3, 30 October): the start
+    year's own file's total (its final weights, its dollars of that year) times the outside series' growth from that
+    year to this one. Only for a year whose start is an earlier year's file (from_year); cells all."""
+    assert cells == [group_cells('all')[0]], f'entry {e["id"]}: an outside target has cells all'
+    spec = start_spec(year)
+    assert spec['mode'] == 'from_year', f'entry {e["id"]}: an outside target needs a start from an earlier year\'s file'
+    s = spec['year']
+    path = f"{common.OUT}/tilt/{spec['run']}/file_{s}.parquet"
+    df = pd.read_parquet(path)
+    w = df['weight'].to_numpy(float)
+    pop = population(df, e['population'])
+    f = outside_level(src, e['outside_line'], s, year)
+    out = []
+    for st in stats:
+        assert st in ('units', 'amount'), f'entry {e["id"]}: outside targets are units or amounts'
+        lev = float(w[pop].sum()) if st == 'units' else float((w[pop] * record_value(df, v)[pop]).sum())
+        out.append({'cell': 'all', 'statistic': st, 'value': lev * f,
+                    'source': f'{src}: {e["outside_line"]!r}, {s} to {year}, growth {f:.4f}, on the {s} file\'s own level '
+                              f'{lev:,.0f} ({os.path.relpath(path, common.OUT)})'})
+    return out
 
 
 _CPS_AGES = {}
@@ -836,7 +925,14 @@ def published_grid(source, year, cells, v, stats):
             if cut.iloc[0].value:
                 cutoff = float(cut.iloc[0].value)
         def value(measure, item=None):
-            z = selected[(selected.item == (item or spec['item'])) & (selected.measure == measure)]
+            # an item SOI names differently in some years (catalog item_aliases: salaries and wages is "total wages"
+            # in Table 4.3 from tax year 2022) is read under the name the year publishes
+            name = item or spec['item']
+            for alt in [name] + list(CAT.get('item_aliases', {}).get(name, [])):
+                if ((selected.item == alt) & (selected.measure == measure)).any():
+                    name = alt
+                    break
+            z = selected[(selected.item == name) & (selected.measure == measure)]
             expected = 1
             for grouping, label in c['parts'].items():
                 expected *= len(CAT['groupings'][grouping]['published_labels'][label])
@@ -844,7 +940,13 @@ def published_grid(source, year, cells, v, stats):
             assert z.value.ne('').all(), f'{source} {c["label"]} {spec["item"]}: {int(z.value.eq("").sum())} missing values: {z.flag.tolist()}'
             scales = z.unit.map({'returns': 1, '$ thousands': 1000, 'whole dollars': 1})
             assert scales.notna().all(), f'{source}: unknown units {z.unit.tolist()}'
-            return float((pd.to_numeric(z.value) * scales).sum())
+            x = pd.to_numeric(z.value) * scales
+            if 'net loss' in name and measure != spec.get('count', 'returns'):
+                # (30 October) Table 4.3 prints a net loss's amount as a negative number in some years (partnership
+                # and S corporation losses in 2020 and 2023, Schedules C and F losses in 2023) and as a positive one in
+                # others; the file's loss variables are sizes, so the published amount is read as its size
+                x = x.abs()
+            return float(x.sum())
         for st in stats:
             val = value(spec[st])
             count = value(spec.get('count', spec.get('units', 'returns')), spec.get('returns_item'))
@@ -1173,6 +1275,10 @@ def expand_entry(e, year, soi):
             rows = pipeline_rows(vyear, cells, v, stats)
             for r in rows:
                 r['cell_spec'] = cells[0]
+        elif vkind == 'outside':
+            rows = outside_rows(src, vyear, cells, v, stats, e)
+            for r in rows:
+                r['cell_spec'] = cells[0]
         else:
             raise NotImplementedError(vkind)
         for r in rows:
@@ -1258,7 +1364,7 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
         excluded = pd.concat([excluded, rows[is_must].assign(why='restored with the top of the file, which is off '
                                                                  '(settings tilt.top.enabled)')], ignore_index=True)
         rows, is_must = rows[~is_must].reset_index(drop=True), np.zeros((~is_must).sum(), bool)
-    if start is not None:
+    if start is not None and len(rows):   # (review, 30 October) a year with no calculator entries has nothing to reach
         F, _, _ = conditions(start, rows, None, check=False)
         reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)
