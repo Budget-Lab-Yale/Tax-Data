@@ -1365,7 +1365,7 @@ def expand_entry(e, year, soi):
         elif vkind == 'outside':
             rows = outside_rows(src, vyear, cells, v, stats, e)
             for r in rows:
-                r['cell_spec'] = cells[0]
+                r.setdefault('cell_spec', cells[0])   # the demographic cells carry their own
         else:
             raise NotImplementedError(vkind)
         for r in rows:

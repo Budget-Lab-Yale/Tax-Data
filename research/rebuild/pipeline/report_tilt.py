@@ -181,7 +181,13 @@ def read_run(run, year):
         assert c in df, f'file_{year}.parquet has no {c} column'
         w = df[c].to_numpy(float)
         assert np.isfinite(w).all() and (w >= 0).all(), f'{c}: {(~np.isfinite(w)).sum()} records not finite or negative'
-    assert (df['weight_start'] > 0).all(), 'a record with no starting weight: its weight factor is undefined'
+    # a start from an earlier year's file carries the records that year's tilt gave no weight (weight 0, they stay 0): the
+    # weight factor is undefined for them and they add nothing to a weighted figure, so the report leaves them out
+    none = df['weight_start'].to_numpy(float) == 0
+    if none.any():
+        print(f'report: {int(none.sum()):,} of {len(df):,} records have no starting weight (zero in the previous year\'s file); left out of the report')
+        assert (df.loc[none, 'weight'] == 0).all(), 'a record with no starting weight has a weight after the tilt'
+        df = df.loc[~none].reset_index(drop=True)
     df = df.assign(agi=D.agi(df))
     return df, fit, tl
 

@@ -37,15 +37,20 @@ def population_cells(previous, year):
     if d.record_id.isna().any() or not d.record_id.is_unique:
         raise ValueError('previous file has missing or duplicate record IDs')
     w = d.weight.to_numpy(float)
-    if not np.all(np.isfinite(w) & (w > 0)):
-        raise ValueError(f'previous file has {int((~(np.isfinite(w) & (w > 0))).sum())} nonpositive or missing weights')
+    # a tilted file keeps every record, a weight of exactly zero for those the reweighting dropped; those stay at zero
+    if not np.all(np.isfinite(w) & (w >= 0)):
+        raise ValueError(f'previous file has {int((~(np.isfinite(w) & (w >= 0))).sum())} negative or missing weights')
+    if not (w > 0).any():
+        raise ValueError('previous file has no positive weight')
     valid = (d.filer.isin([0, 1]) & d.married.isin([0, 1]) & d.filing_status.isin([1, 2, 3, 4]) &
              (d.married == (d.filing_status == 2).astype(int)) & d.age_range.isin(range(9)))
     age = d.age1
-    bounds = [(18, 26), (26, 35), (35, 45), (45, 55), (55, 65), (65, 101), (0, 18), (18, 26), (26, 101)]
+    # the primary's age band: under 26 holds every primary below 26 (the file has 151 aged 15 to 17); a dependent filer's
+    # primary age is not kept (age1 is -1), its band is the age_range itself, so no age check for bands 6 to 8
+    bounds = [(0, 26), (26, 35), (35, 45), (45, 55), (55, 65), (65, 101), (-1, 0), (-1, 0), (-1, 0)]
     age_ok = pd.Series(False, index=d.index)
     for i, (lo, hi) in enumerate(bounds):
-        age_ok |= (d.age_range == i) & (age >= lo) & (age < hi)
+        age_ok |= (d.age_range == i) & (((age >= lo) & (age < hi)) if i < 6 else True)
     valid &= age_ok & ((d.filer == 1) | (d.age_range < 6))
     if not valid.all():
         raise ValueError(f'previous file has {int((~valid).sum())} records with missing or inconsistent filer, status, age or age band')
