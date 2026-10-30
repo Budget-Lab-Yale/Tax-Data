@@ -241,7 +241,8 @@ def grow_dollars(df, s, t):
     for v in BT.SCF_AMOUNTS:
         if v in out:
             if v in BT.SCF_RATIOS:
-                grow(v, 1.0, 1.0, 'a ratio, not grown')
+                factor = f_scf[v]
+                grow(v, factor, factor, 'ratio adjusted for the mortgage and home growth series' if v == 'w_primary_ltv' else 'a ratio, not grown')
             else:
                 grow(v, f_scf[v], f_scf[v], f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
     for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS:

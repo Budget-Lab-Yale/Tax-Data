@@ -4,6 +4,10 @@ The full record, with every script, report and decision, is in
 `research/archive/rebuild_2026-10/`, also committed as `b3b3a2f`. Start
 there at `README.md` and `design/plan.md`. This is the short version.
 
+**30 October: balance-sheet categories.** Added dollars and holder counts by nine asset and debt categories and
+two net worth classes, and used category-specific Financial Accounts growth after the last SCF wave. See the
+wealth-category results in the 30 October scratch work for the checks and reruns.
+
 ## The path
 
 **6–7 October: background.** The problem was stated, and twelve

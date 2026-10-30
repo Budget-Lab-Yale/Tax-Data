@@ -1374,8 +1374,12 @@ def scf_growth(scf, y_from, y_to):
     deferrals, not asked outside the PEU): the mean over the units asked."""
     out = {}
     for v in SCF_AMOUNTS:
-        if v in SCF_RATIOS:      # a share: the mortgage's of the home, the spouse's of the unit's deferrals
-            out[v] = 1.0
+        if v in SCF_RATIOS:
+            # The mortgage share changes after the final wave so that the home and mortgage each follow their own Z.1 series.
+            last = max(int(y) for y in scf['year'].unique()) + 1
+            a, b = max(last, y_from + 1), max(last, y_to + 1)
+            out[v] = (GR.scf_extension(a, b, 'value.primary_mortgage') /
+                      GR.scf_extension(a, b, 'value.primary_home')) if v == 'w_primary_ltv' else 1.0
             continue
         mean = {y: scf_mean(scf, v, y) for y in (y_from, y_to)}
         # a mean at or below zero (possible for the unrealized gains) makes the ratio meaningless: no factor
@@ -1406,7 +1410,7 @@ def scf_mean(scf, v, y):
     lo, hi = max([w for w in have if w < y], default=None), min([w for w in have if w > y], default=None)
     assert lo is not None, f'SCF: income year {y} is before the first wave ({have[0]})'
     if hi is None:
-        return _wave_mean(scf, v, lo) * GR.scf_extension(lo + 1, y + 1)
+        return _wave_mean(scf, v, lo) * GR.scf_extension(lo + 1, y + 1, v)
     a, b, lam = _wave_mean(scf, v, lo), _wave_mean(scf, v, hi), (y - lo) / (hi - lo)
     return a ** (1 - lam) * b ** lam if a > 0 and b > 0 else a + lam * (b - a)
 
