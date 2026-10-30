@@ -365,8 +365,26 @@ def main():
     top = None
     given = fixed = np.zeros(len(g19), bool)
     if S.get('top', {}).get('enabled', False):
-        import top_records as TR
-        g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
+        # (30 October) The top step draws from the network (Part A's hidden returns, the redraw of balance sheets at $1
+        # billion or more, Part B's billionaires), which wants a GPU, while the rest of the tilt wants none. With
+        # REBUILD_TOP_CACHE set, a run with REBUILD_TOP_ONLY=1 (on a GPU) does the top step, writes its result to that
+        # file and stops; a later run (on a CPU partition) reads it in place of the step.
+        import pickle
+        cache = os.environ.get('REBUILD_TOP_CACHE')
+        if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
+            with open(cache, 'rb') as fh:
+                g19, imp, given, fixed, top = pickle.load(fh)
+            common.say(f'the top step read from {cache}')
+        else:
+            import top_records as TR
+            g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
+            if cache:
+                with open(cache + '.part', 'wb') as fh:
+                    pickle.dump((g19, imp, given, fixed, top), fh, protocol=4)
+                os.replace(cache + '.part', cache)
+                common.say(f'the top step written to {cache}')
+        if os.environ.get('REBUILD_TOP_ONLY'):
+            return
     del raw
     # the fixed columns after the top of the file: their file must hold a value for every record, the rebuilt hidden
     # returns and the billionaires included (add_fixed_columns stops otherwise)
