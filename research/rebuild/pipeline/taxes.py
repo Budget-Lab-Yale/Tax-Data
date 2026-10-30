@@ -236,17 +236,39 @@ def bisect(f, lo, hi, rising, iterations=50):
     return 0.5 * (lo + hi), 'solved'
 
 
+def soi_qbi_cells(year):
+    """SOI Table 1.4's QBI deduction amounts by AGI for the year (targets/soi.csv); empty for a year SOI has not
+    published (2024 on)."""
+    import targets as TG
+    soi = TG.load()
+    return soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.variable == 'qbi_deduction')
+               & (soi.statistic == 'amount') & (soi.label != 'all')]
+
+
+def carried_dials(year):
+    """(a, b, where they come from) for a year with no SOI QBI line: the last round of the dials of the file the start
+    comes from (<out>/tilt/<run>/taxes/qbi_dials.csv, the path tilt.start_from_year reads the file from), else the
+    settings' values."""
+    import non_micro_imputations as NMI
+    import target_list as TLS
+    spec = TLS.start_spec(year)
+    if spec['mode'] == 'from_year':
+        path = f"{common.OUT}/tilt/{spec['run']}/taxes/qbi_dials.csv"
+        if os.path.exists(path):
+            r = pd.read_csv(path).iloc[-1]
+            return float(r['a']), float(r['b']), f"carried from the {spec['year']} file ({path})"
+    return (float(NMI.ITEMS['qbi']['a']), float(NMI.ITEMS['qbi']['b']),
+            'the settings\' values (non_micro_imputations.items.qbi): no dials of an earlier year to carry')
+
+
 def solve_qbi_dials(df, inp, out, w, year, nmi_ctx):
     """The two QBI dials (module docstring, step 2). Returns (a, b, the table of rounds, the check by SCF group, notes)."""
     import non_micro_imputations as NMI
-    import targets as TG
     Q = S['qbi_dials']
     p = qbi_parts(inp, out)
     filer = df['filer'].to_numpy() == 1
     agi = D.agi(df)
-    soi = TG.load()
-    s = soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.variable == 'qbi_deduction')
-            & (soi.statistic == 'amount') & (soi.label != 'all')]
+    s = soi_qbi_cells(year)
     floor = float(Q['soi_agi_floor'])
     assert len(s), f'SOI Table 1.4 {year}: no QBI deduction line in targets/soi.csv'
     # a cell SOI combined with the one below the floor would carry dollars across it
@@ -342,6 +364,28 @@ def compute(df, year, w, nmi_ctx, folder):
         else:
             gap = check_formula(p, df, out, 'first run')
             ctx['notes'].append(f'QBI formula against the calculator, first run: largest gap ${gap:.6f}')
+    if solve and not len(soi_qbi_cells(year)):
+        # no SOI Table 1.4 for the year (2024 on): nothing to solve against, so the dials of the year the start comes
+        # from are carried, and with them the specified-service flags (the draw is keyed by record id), as a chained
+        # year holds the distribution; settings' values when there are none to carry (review of 30 October: the solve
+        # stopped on its assertion; decision in DECISIONS_FOR_JOHN.md)
+        a, b, how = carried_dials(year)
+        cols = NMI.qbi(df, year, w, nmi_ctx, a=a, b=b)
+        df = df.copy()
+        for c, v in cols.items():
+            df[c] = v
+        inp, notes = C.convert(df)
+        out, man = run_batch(inp, year, folder, 'final', law_sections=[QBI_LAW],
+                             wage_increment=float(S.get('wage_increment', 0)))
+        ctx['runs']['final'] = man
+        gap = check_formula(qbi_parts(inp, out), df, out, 'final run')
+        pd.DataFrame([{'round': 0, 'a': a, 'a solved': how, 'b': b, 'b solved': how}]).to_csv(
+            f'{folder}/qbi_dials.csv', index=False)
+        ctx.update(a=a, b=b)
+        ctx['notes'].append(f'QBI dials not solved (no SOI Table 1.4 QBI deduction for {year}): a = {a:.4f}, '
+                            f'b = {b:.4f}, {how}; QBI formula against the calculator, final run: largest gap '
+                            f'${gap:.6f}')
+        solve = False
     if solve:
         a, b, rounds, by_group = solve_qbi_dials(df, inp, out, w, year, nmi_ctx)
         cols = NMI.qbi(df, year, w, nmi_ctx, a=a, b=b)   # nmi_ctx['qbi'] now describes the solved columns
