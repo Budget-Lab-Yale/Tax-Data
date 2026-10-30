@@ -222,11 +222,13 @@ def check_formula(p, df, out, tag):
 
 def bisect(f, lo, hi, rising, iterations=50):
     """x in [lo, hi] with f(x) = 0 for f monotone (rising or falling); an end when the root lies outside."""
+    if lo == hi:   # a range of one value (settings taxes.qbi_dials.a_range [1, 1] since 30 October): held, not solved
+        return lo, 'held at this value (its range in the settings is this one value)'
     flo, fhi = f(lo), f(hi)
     if (flo >= 0) == rising:
-        return lo, 'at the lower end of its range: the target is reached or passed there'
+        return lo, 'at the lower end of its range: the target lies beyond that end'
     if (fhi <= 0) == rising:
-        return hi, 'at the upper end of its range: the target is not reached there'
+        return hi, 'at the upper end of its range: the target lies beyond that end'
     for _ in range(iterations):
         mid = 0.5 * (lo + hi)
         if (f(mid) < 0) == rising:
