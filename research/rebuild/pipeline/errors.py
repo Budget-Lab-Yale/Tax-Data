@@ -259,18 +259,19 @@ def build_soi_cv():
 _CV = None
 
 
-def soi_cells(year):
-    """Table 1.4's all-returns cells of one year with their CVs, in targets.py's terms: lo, hi, variable, statistic
-    (for the items targets.py names, else the mirror's item), value (dollars for amounts), cv_pct, se. A year with no
-    CV workbook (a projection year) takes the CVs of the latest year that has one, said in the reason."""
+def soi_cells(year, table='1.4'):
+    """Table 1.4's (or the table named: '3.3' since 30 October) all-returns cells of one year with their CVs, in
+    targets.py's terms: lo, hi, variable, statistic (for the items targets.py names, else the mirror's item), value
+    (dollars for amounts), cv_pct, se. A year with no CV workbook (a projection year) takes the CVs of the latest year
+    that has one, said in the reason."""
     global _CV
     if _CV is None:
         _CV = pd.read_csv(f'{CV_DIR}/soi_cv.csv', keep_default_na=False, na_values=[''], low_memory=False)
-    c = _CV[(_CV.table.astype(str) == '1.4') & (_CV.panel == 'All returns')]
+    c = _CV[(_CV.table.astype(str) == table) & (_CV.panel == 'All returns')]
     have = sorted(c.tax_year.unique())
     use = year if year in have else max(y for y in have if y <= year) if any(y <= year for y in have) else min(have)
     c = c[c.tax_year == use].copy()
-    known = c['item'].replace(RENAMED).map(TG.T14)
+    known = c['item'].replace(RENAMED).map(TG.TABLE_ITEMS[table])
     c['variable'] = [k[0] if isinstance(k, tuple) else i for k, i in zip(known, c['item'])]
     c['value'] = c['value'] * np.where(c['statistic'] == 'amount', 1000.0, 1.0)   # SOI publishes thousands
     c['se'] = c['value'] * c['cv_pct'] / 100
@@ -370,14 +371,21 @@ def soi_errors(rows, year):
                         f'Table {table} count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells closest in '
                         f'returns{yr}: {what}'))
             continue
+        use, table = cells, '1.4'
         if r.kind == 'IRS':
             parts = IRS_PARTS[r.target]
+        elif r.kind == 'calculator':
+            # (30 October) a column the tax calculator computes (taxes.py), against its line in Table 1.4 or 3.3
+            import target_list as TLS
+            table, parts = TLS.soi_table_lines(r.variable, r.statistic)
+            if table != '1.4':
+                use, _ = soi_cells(year, table)
         else:   # business: '<family> <net_income|net_loss> <count|amount>'
             fam_side, st = r.target.rsplit(' ', 1)
             fam, side = fam_side.split(' ')
             parts = [(f'{fam}_{side}', st, 1)]
         lo, hi = group_range(r.kind, r.group, getattr(r, 'agi_lo', np.nan), getattr(r, 'agi_hi', np.nan))
-        se, total, n, note = sum_error(cells, parts, lo, hi)
+        se, total, n, note = sum_error(use, parts, lo, hi)
         if abs(total - r.value) > 1e-6 * max(abs(r.value), 1):
             note = (note + '; ' if note else '') + f'cells add to {total:,.0f}, not the target {r.value:,.0f}'
         how = 'one published cell' if n == 1 else f'sum of {n} published cells, taken as independent'
@@ -389,7 +397,7 @@ def soi_errors(rows, year):
                         'for the gap between the file\'s definitions and SOI\'s (the next bracket down, $5M-10M, has '
                         'CVs of 0.6-2.9% on these items in 2019)'))
             continue
-        out.append((r.Index, se, 'soi_cv', f'Table 1.4 CV, {how}{yr}' + (f'; {note}' if note else '')))
+        out.append((r.Index, se, 'soi_cv', f'Table {table} CV, {how}{yr}' + (f'; {note}' if note else '')))
     return out
 
 
@@ -687,7 +695,7 @@ def standard_errors(rows, year=Y):
     for a share). A kind this module does not know gets no error (error_kind 'none') and is listed in the summary."""
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']),
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']),
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime'}
     for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),

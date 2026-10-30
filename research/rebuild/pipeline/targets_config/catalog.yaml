@@ -29,6 +29,11 @@ sources:
   soi 1.2:
     kind: published
     what: SOI Publication 1304, Table 1.2, all returns by size of AGI and filing status
+  # (30 October, taxes computed inside the model) Table 3.3, read like Table 1.4 into the run's targets/soi.csv
+  # (targets.T33): the credits and the tax after credits, by size of AGI
+  soi 3.3:
+    kind: published
+    what: SOI Publication 1304, Table 3.3, all returns by size of AGI, tax liability, tax credits and tax payments
   soi 1.7:
     kind: published
     file: bysize_dependent_returns.csv
@@ -530,6 +535,54 @@ variables:
     label: children under 17
     filing_band: children under 17
 
+  # Columns the tax calculator computes (30 October, piece 3 of the overnight plan; taxes.py): each record's value from
+  # tax-simulator-gpu under the target year's law, computed on the start and joined by record id before the
+  # reweighting (the tilt moves weights only, so the values stay right). A count is the returns with a value other
+  # than zero. Each names its line in Table 1.4 or 3.3 (the run's targets/soi.csv, targets.T14 and T33).
+  itemized_deductions_claimed:
+    record: calc_item_ded_claimed
+    short: itemized deductions
+    what: itemized deductions after the law's limits, on returns that itemize (the count is the itemizers)
+    soi 1.4: {count: [itemized_deductions], amount: [itemized_deductions]}
+  qbi_deduction:
+    record: calc_qbi_ded
+    short: QBI deduction
+    what: the qualified business income deduction (section 199A), from tax year 2018
+    soi 1.4: {count: [qbi_deduction], amount: [qbi_deduction]}
+  taxable_income:
+    record: calc_txbl_inc
+    short: taxable income
+    soi 1.4: {count: [taxable_income], amount: [taxable_income]}
+  income_tax_before_credits:
+    record: calc_liab_bc
+    short: income tax before credits
+    what: regular tax, alternative minimum tax and excess advance premium tax credit repaid
+    soi 1.4: {count: [income_tax_before_credits], amount: [income_tax_before_credits]}
+  alternative_minimum_tax:
+    record: calc_liab_amt
+    short: AMT
+    soi 1.4: {count: [alternative_minimum_tax], amount: [alternative_minimum_tax]}
+  ctc_nonrefundable:
+    record: calc_ctc_nonref
+    short: child and other dependent credit
+    what: the child tax credit and the credit for other dependents, the part used against tax
+    soi 3.3: {count: [ctc_nonrefundable], amount: [ctc_nonrefundable]}
+  ctc_refundable:
+    record: calc_ctc_ref
+    short: additional child tax credit
+    what: the refundable part of the child tax credit
+    soi 3.3: {count: [ctc_refundable], amount: [ctc_refundable]}
+  eitc:
+    record: calc_eitc
+    short: EITC
+    what: the earned income tax credit, all of it (the part used against tax and the part refunded)
+    soi 3.3: {count: [eitc], amount: [eitc]}
+  income_tax_after_credits:
+    record: calc_liab_after_credits
+    short: income tax after credits
+    what: income tax before credits less the nonrefundable credits and the refundable credits used against tax
+    soi 3.3: {count: [income_tax_after_credits], amount: [income_tax_after_credits]}
+
 # Business families: each gives two variables, <family>_net_income and <family>_net_loss, short name
 # "<family> net_income" / "<family> net_loss", SOI lines <family>_net_income / <family>_net_loss in targets/soi.csv.
 # Their PUF parts and SOI line names are targets.FAMILIES; they are not repeated here.
@@ -579,6 +632,8 @@ variable_lists:
   auto_loans: [any_auto_loan_interest, auto_loan_interest]
   # Overtime pay from the CPS (28 October): the share of units with any and the dollars per unit
   overtime: [any_ot, ot]
+  # The child tax credit's two parts (30 October, taxes.py)
+  child_tax_credit: [ctc_nonrefundable, ctc_refundable]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Groupings: named ways of cutting units into cells. An entry's cells are "all", one grouping (all its cells or a
@@ -643,6 +698,50 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
+  # The calculator targets' AGI groups (30 October, taxes.py): the file's AGI, as every IRS target, in groups whose
+  # edges are Table 1.4's and 3.3's bracket edges, so a group sums whole published cells; merged where a published
+  # cell SOI combined crosses an edge. The five top brackets are four groups ($1m-2m joins two).
+  calc_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 25000, under $25k]
+      - [25000, 50000, $25k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 500000, $200k-500k]
+      - [500000, 1000000, $500k-1m]
+      - [1000000, 2000000, $1m-2m]
+      - [2000000, 5000000, $2m-5m]
+      - [5000000, 10000000, $5m-10m]
+      - [10000000, null, $10m and over]
+  # The credits' AGI groups (30 October): finer below $50,000, where most of the EITC and the refundable child credit
+  # go (cells published as zero, the EITC above about $60,000, are left out)
+  credit_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 10000, under $10k]
+      - [10000, 20000, $10k-20k]
+      - [20000, 30000, $20k-30k]
+      - [30000, 40000, $30k-40k]
+      - [40000, 50000, $40k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, null, $200k and over]
+  # The AMT's AGI groups (30 October): four, since few returns below $200,000 owe it
+  amt_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 200000, under $200k]
+      - [200000, 500000, $200k-500k]
+      - [500000, 1000000, $500k-1m]
+      - [1000000, null, $1m and over]
   # The unit's wages in five groups (28 October, the CPS overtime targets; decided by John 27 October): the file's
   # wages (the PUF's, Form W-2 box 1, primary filer plus spouse) and, on the CPS's units, their wages after function
   # 1 (the tax data's wages at the same percentile among earners), so a group holds the same ranks on both sides.

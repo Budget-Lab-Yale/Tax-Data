@@ -91,6 +91,9 @@ one change on a branch, a full run, a comparison with the latest run, John's app
 4. **The calculator in post-training.** Each record's taxes computed once, then targets on computed values:
    itemizers, taxable income, the child tax credit, liability by AGI. Itemized deductions, the foreign tax credit,
    the AMT items and the 13% fall in itemizers after the tilt are revisited here.
+   **Built 30 October (overnight) on branch `rebuild-taxes-in-model`, not merged** (`taxes.py`, FEATURES.md "Taxes
+   computed inside the model"; scratch `explore/2026-10-30/taxes/RESULTS.md`): 154 calculator targets met in 2019 at
+   78.0% kept; the QBI deduction by AGI left out (the costliest block); the QBI dials solved but implausible (a = 3.00).
 
 ## After the calculator
 

@@ -4,9 +4,9 @@ weight,same,weight (after the tilt); weight_start is the weight before it,tax un
 filer,same,filer,"1 files a return, 0 a non-filer"
 filing_status,renamed,filing_status,"1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household"
 dep_status,computed,"age_range in 6, 7, 8 (the PUF's three dependent-filer ranges)",1 if the return is filed by someone claimed as a dependent
-age1,renamed,"age1; NaN where the rebuild has -1 (none), as Tax-Data writes it (the dependent filers, about 6% of filers)","age of the primary filer, 80 for 80 and over"
+age1,renamed,"age1; dependent filers (age1 -1) dep_filer_age, drawn by the non-microdata imputations, where the file has it (as taxsim_file); else NaN where the rebuild has -1","age of the primary filer, 80 for 80 and over"
 age2,renamed,"age2; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the spouse
-male1,computed,sex_primary == 1 (0 also where the rebuild has no sex: the dependent filers),"primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain"
+male1,computed,sex_primary == 1; dependent filers dep_filer_sex == 1 where the file has it (else 0),"primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain"
 blind1,zero,0,primary filer is blind: the blindness rule (NEXT_STEPS step 1)
 blind2,zero,0,spouse is blind: the blindness rule (NEXT_STEPS step 1)
 n_dep,same,n_dep (the rebuild caps it at 3),number of dependents
