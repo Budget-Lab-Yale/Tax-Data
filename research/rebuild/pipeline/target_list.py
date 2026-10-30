@@ -1364,7 +1364,7 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
         excluded = pd.concat([excluded, rows[is_must].assign(why='restored with the top of the file, which is off '
                                                                  '(settings tilt.top.enabled)')], ignore_index=True)
         rows, is_must = rows[~is_must].reset_index(drop=True), np.zeros((~is_must).sum(), bool)
-    if start is not None:
+    if start is not None and len(rows):   # (review, 30 October) a year with no calculator entries has nothing to reach
         F, _, _ = conditions(start, rows, None, check=False)
         reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)

@@ -453,6 +453,8 @@ def evaluate(df, rows, w0, w1):
     """The calculator targets' rows evaluated on the file at weights w0 and w1 (solver.fit_table's columns)."""
     import solver as SV
     import target_list as TLS
+    if not len(rows):   # (review, 30 October) a year with no calculator entries (every year but 2019 for now)
+        return pd.DataFrame(columns=['group', 'target', 'value', 'kind', 'before', 'after', 'se', 'miss_in_se'])
     F, T, averages = TLS.conditions(df, rows, w0, average_form=common.SETTINGS['tilt'].get('average_form', 'zero'))
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     return SV.fit_table(w0, w1, F, T, se, averages, rows, common.SETTINGS['tilt'], identity)
