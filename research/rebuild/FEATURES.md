@@ -1390,6 +1390,37 @@ billionaires included. The AMT rule (`amt_nol_cap`) runs on every record in the 
 returns included: their `amt_nols` was scaled to the aggregate records' dollars, and the rule then holds it to each
 record's loss.
 
+## Every year, 2015-2035 (branch `rebuild-targets-all-years`, 30 October)
+
+**Historical years 2015-2023**, each with its own folder in `targets_config/`, a copy of 2019's edited for the
+year (what differs is written at the top of each `targets.yaml`): a fresh draw with the year's survey mix (section
+7's rule computed for the year in `prior.yaml`), the year's own SOI, SCF, CEX, CPS and W-2 numbers, then the tilt.
+What the code does for a year other than 2019:
+- the target year's dollar maps from the table already built (`build_table.py maps`, stage `maps`), so the installed
+  networks stay valid;
+- the SCF at an income year with no wave: each item's mean per tax unit interpolated geometrically between the waves
+  either side; after the last wave grown with household net worth per person, Financial Accounts S1M.b over the
+  Social Security area population, at a fixed ratio to GDP after 2025 (`build_table.scf_mean`, `scf_units_at`);
+- even years (no CPS year): the non-filer count and people the geometric mean of the CPS years either side, the batch
+  drawn half at each (`target_list.nonfiler_count`, `generate.nonfiler_years`);
+- Table 1.4's lines under their later names (wages from 2022; partnership and S corporation separately from 2021,
+  families `partnership` and `scorp`); Table 4.3's items under a year's own name (catalog `item_aliases`); 2018's
+  Table 1.3 with IRA distributions and pensions as one line; published net loss amounts read as sizes (Table 4.3
+  prints some as negative numbers); W-2 Table 2.D's AGI groups moved to its finer rows from 2021;
+- growth: repealed deductions not grown past their last published year; direct series past their end by personal
+  income per person; NIPA PCE by the CEX's categories from 2010 (`resources/growth/nipa_pce_categories.csv`).
+No W-2 targets before 2019 (older workbook layout); no Forbes list outside 2019.
+
+**Years after the data, 2024-2035** (`kind: projection`): each starts from the year before (`from_year`), its
+weights scaled to CBO's growth in returns and the non-filers to the population, each record's dollars grown (Table
+1.4 items past 2023 by CBO's February 2026 growth per return of the closest line, `targets.carried`, `cbo_growth`).
+Targets: the non-filer count; nine national totals, each the start year's own total times CBO's growth of the
+closest line (value kind `outside`, `target_list.outside_rows`); household net worth by the Financial Accounts'
+growth; and `hold_distribution` over five AGI rank groups. A start from an earlier year's file drops and remakes the
+non-microdata imputations and does not redraw balance sheets at the ceiling.
+
+Results: scratch `explore/2026-10-30/targets/RESULTS.md`.
+
 ## How the latest run comes out
 
 The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder
