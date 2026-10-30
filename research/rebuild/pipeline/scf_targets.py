@@ -193,6 +193,10 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
         assert lo is not None or hi is not None, f'SCF cell {c["label"]}: a share needs a line'
         stat = lambda cc, mm, yy, ww: (ww * cc).sum(-1) / (ww * mm).sum(-1)
         sc = 1.0
+    elif st == 'count':
+        assert v, f'SCF cell {c["label"]}: a count needs a variable'
+        stat = lambda cc, mm, yy, ww: (ww * cc * (yy != 0)).sum(-1)
+        sc = 5.0
     elif st == 'amount':
         stat = lambda cc, mm, yy, ww: (ww * cc * yy).sum(-1)
         sc = 5.0

@@ -1502,7 +1502,7 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
         elif r.statistic == 'count':
             count_var = variable_def(r.variable).get('count_variable')
             xc = record_value(df, count_var) if count_var else x
-            F[:, j] = cell * (xc != 0)
+            F[:, j] = cell * (xc != 0) * (1.0 if line is None else line)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
         elif r.statistic == 'workers':
