@@ -319,9 +319,15 @@ def compute(df, year, w, nmi_ctx, folder):
     imputations; w: the start's weights (for the dials). Returns the frame with OUTPUTS and a context for the summary."""
     import calculator as C
     import non_micro_imputations as NMI
-    clash = [c for c in OUTPUTS if c in df]
-    assert not clash, f'computed columns already in the file: {clash}'
     ctx = {'notes': [], 'runs': {}}
+    # A start from an earlier year's tilted file (targets.yaml start: from_year) carries that year's computed columns,
+    # computed under that year's law on that year's dollars. They are dropped and computed again here. Until the
+    # review of 30 October an assertion stood here, which stopped every chained year (2024 on).
+    stale = [c for c in OUTPUTS if c in df]
+    if stale:
+        df = df.drop(columns=stale)
+        ctx['notes'].append(f'the start\'s computed columns (from its own year) dropped and computed again under '
+                            f'{law_year(year)} law: {len(stale)} columns')
     inp, notes = C.convert(df)
     ctx['conversion'] = notes
     solve = bool(S.get('qbi_dials', {}).get('solve')) and nmi_ctx is not None and nmi_ctx.get('qbi') is not None
