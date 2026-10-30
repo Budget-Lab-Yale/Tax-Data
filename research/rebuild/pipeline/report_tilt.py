@@ -535,6 +535,8 @@ def series(cells):
     """The published cells in series along AGI: (the series' AGI classes, lowest first, as indices into cells; the
     indices of its all-AGI total). Tables 1.4 and 1.7: one series per line and statistic; Table 1.6: per filing
     status and age."""
+    if not cells:   # (30 October) a year with no published SOI cells (a projection year): no series
+        return []
     df = pd.DataFrame([{k: c[k] for k in ('table', 'panel', 'row', 'line', 'statistic', 'lo', 'total')} for c in cells])
     out = []
     for tab, part in df.groupby('table', sort=False):
