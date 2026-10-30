@@ -44,29 +44,24 @@ items:
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
   capital_gains:
     source: {series: soi 1.4, item: sch_d_net_gain}
-    negative: 'none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed)'
+    negative: same
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown (as before 29 October)'
+    reason: 'gains and, since 29-30 October, losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit (John, 29 October), which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator. Until 29-30 October losses were held near the limit and not grown'
   kg_st:
     source: {series: soi 1.4, item: sch_d_net_gain}
-    negative: 'none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed)'
+    negative: same
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown (as before 29 October)'
+    reason: 'gains and, since 29-30 October, losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit (John, 29 October), which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator. Until 29-30 October losses were held near the limit and not grown'
   kg_lt:
     source: {series: soi 1.4, item: sch_d_net_gain}
-    negative: 'none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed)'
+    negative: same
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown (as before 29 October)'
+    reason: 'gains and, since 29-30 October, losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit (John, 29 October), which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator. Until 29-30 October losses were held near the limit and not grown'
   kg_dist:
     source: {series: soi 1.4, item: kg_dist}
     negative: 'none: capital gain distributions are not negative (as before 29 October)'
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  kg_other:
-    source: {series: soi 1.4, item: sch_d_net_gain}
-    negative: 'none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed)'
-    measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown (as before 29 October)'
   business_income:
     source: {series: soi 1.4, item: business_income}
     negative: same
