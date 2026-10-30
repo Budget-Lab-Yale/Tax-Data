@@ -359,6 +359,12 @@ def compute(df, year, w, nmi_ctx, folder):
         ctx['notes'].append(f'QBI dials solved: a = {a:.4f}, b = {b:.4f} (settings a = {NMI.ITEMS["qbi"]["a"]}, '
                             f'b = {NMI.ITEMS["qbi"]["b"]}); QBI formula against the calculator, final run: largest gap '
                             f'${gap:.6f}')
+    elif 'mtr_wages_iit' not in out and float(S.get('wage_increment', 0)) > 0:
+        # the first run left out the marginal rates because the dials were to be solved, and they were not (a year
+        # whose law has no QBI deduction, 2015-2017): one more run for them, or those years' files would lack the
+        # calc_mtr_* columns (review of rebuild-taxes-in-model, 30 October)
+        out, man = run_batch(inp, year, folder, 'final', wage_increment=float(S['wage_increment']))
+        ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
     cols.index = df.index
