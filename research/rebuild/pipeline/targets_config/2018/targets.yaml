@@ -36,6 +36,8 @@
 #   - non_filers and nonfiler_people: 2018 has no CPS year of its own, so both take the geometric mean of 2017 and
 #     2019 (target_list.pipeline_rows), and the non-filer count is a target with a 2% judgment error rather than an
 #     identity; the non-filer batch is drawn half at each CPS year (generate.nonfiler_years).
+#   - Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2018): 760 targets after
+#     expansion, every one inside its range; effective sample kept 94.1%. No block dropped.
 
 year: 2018
 kind: historical

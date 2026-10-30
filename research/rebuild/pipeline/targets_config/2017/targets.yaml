@@ -29,6 +29,8 @@
 #     years before 2019 as one workbook per year in another layout (w2_all_<year>.xls), which the readers
 #     (target_list._w2_table, _w2_by_agi, _w2_percentiles) do not handle. A gap, not a judgment: adding a reader for
 #     the older layout would restore them.
+#   - Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2017): 774 targets after
+#     expansion, every one inside its range; effective sample kept 95.3%. No block dropped.
 
 year: 2017
 kind: historical

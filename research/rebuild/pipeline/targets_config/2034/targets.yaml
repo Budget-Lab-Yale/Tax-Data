@@ -15,6 +15,9 @@
 # worth, the 2033 file's total times the Financial Accounts' growth; (4) hold_distribution: each item's share of its
 # total in five AGI rank groups held at the start's, a judgment error of 2% of the share. Nothing else of 2033's
 # detail is targeted: the start carries it.
+#
+# Run of 30 October (scratch explore/2026-10-30/targets/run/2034): 41 targets, every one inside its range; effective
+# sample kept 100.0% (the start is grown by the same rates the targets use).
 
 year: 2034
 kind: projection

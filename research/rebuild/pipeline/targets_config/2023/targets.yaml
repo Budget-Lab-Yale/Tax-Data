@@ -31,6 +31,8 @@
 #     targets than 2019's 100 in this entry.
 #   - deferrals_w2_joint and deferrals_w2_nonjoint: Table 2.D's AGI rows from 2021 cross $75,000 and $500,000, so
 #     the eight AGI groups are those of catalog w2_agi_groups_2021 ($50k-80k, $80k-100k, $200k-400k, $400k-1m).
+#   - Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2023): 844 targets after
+#     expansion, every one inside its range; effective sample kept 48.4%. No block dropped.
 
 year: 2023
 kind: historical
