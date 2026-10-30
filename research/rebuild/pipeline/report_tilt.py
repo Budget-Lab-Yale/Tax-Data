@@ -677,6 +677,10 @@ def published(df, t, w0, w1, notes):
     cells = file_values(cells + c17 + c16, df, weights)
     cells = merge_combined(relation_to_targets(cells, is_target), weights, is_target)
     cells = errors_for(cells, year, notes)
+    cols = ['table', 'panel', 'row', 'col', 'line', 'statistic', 'published', 'se', 'error source', 'before', 'after',
+            'miss', 'miss (%)', 'miss_in_se', 'records', 'merged', 'relation', 'note']
+    if not cells:   # (30 October) a year with no published SOI cells (a projection year)
+        return pd.DataFrame(columns=cols)
     p = pd.DataFrame(cells)
     p['miss'] = p['after'] - p['published']
     with np.errstate(divide='ignore', invalid='ignore'):
