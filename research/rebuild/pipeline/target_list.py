@@ -410,14 +410,14 @@ def published_14(soi, year, cells, v, stats, table='1.4'):
     published cell crosses an edge, over all the variable's statistics (merge_groups)."""
     (c,) = cells
     rows = []
-    # (30 October, review of rebuild-names-gains) every Table 1.4 line the variable names must be in the year's table.
-    # A line not found used to give zero in every AGI group, and a cell published as zero is left out (expand), so a
-    # name that did not match (the Schedule C family after the rename) silently dropped all its targets.
-    t14 = soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.filing_status == 'all')]
+    # (30 October, review of rebuild-names-gains) every line the variable names must be in the year's table (Table
+    # 1.4, or 3.3). A line not found used to give zero in every AGI group, and a cell published as zero is left out
+    # (expand), so a name that did not match (the Schedule C family after the rename) silently dropped all its targets.
+    t14 = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == 'all')]
     have = set(zip(t14['variable'], t14['statistic']))
     for st in stats:
-        missing = [(var, stt) for var, stt, _ in soi_lines(v, st) if (var, stt) not in have]
-        assert not missing, f'Table 1.4 {year}, variable {v}: no line {missing} in the SOI table (targets/soi.csv); ' \
+        missing = [(var, stt) for var, stt, _ in soi_lines(v, st, table) if (var, stt) not in have]
+        assert not missing, f'Table {table} {year}, variable {v}: no line {missing} in the SOI table (targets/soi.csv); ' \
                             'a misnamed variable or family, or a line SOI does not publish that year'
     if c['agi'] is None:   # cells: all, the all-returns total row
         assert c['label'] == 'all' and not c['filters'], f'Table {table}: cells {c["label"]} need an AGI grouping'
