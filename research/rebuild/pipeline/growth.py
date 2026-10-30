@@ -12,14 +12,14 @@ The series (SERIES below; their data in research/rebuild/resources/growth/, wher
 from):
   soi 1.4           SOI Table 1.4, all returns: dollars per return with the item, the item given by `item` (a key of
                     targets.SOI_ITEMS) or by `rows` (SOI lines, with `absolute`), PUF year to y; past SOI's last
-                    year, carried forward (targets.carried). This is the series every PUF item used before 29 October.
+                    year, grown by CBO's closest line per return (targets.carried). This is the series every PUF item used before 29 October.
   agi per return    SOI's total AGI over all returns (Table 1.1; the same totals as Table 1.4's all-returns line, read
                     from the mirror); past SOI's last year, extended by BEA personal income per capita (NIPA Table
                     7.1 line 3: Table 2.1's personal income over population), and past BEA's last year by the growth
                     of CBO's projected personal income per person (TARGETS.md section 3's rule for a change).
   bea mortgage interest per mortgaged owner, acs real estate tax per paying owner, state and local income tax per
   return, meps out-of-pocket per person with any, cpi tax preparation fees, college board tuition and fees: a level
-                    per year from the resources folder; past its last year the pipeline stops (no extension is written).
+                    per year from the resources folder; past its last year grown by personal income per person (BEA, then CBO; level()).
   nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns (the CEX's rule since 22 October).
   scf mean per unit between waves   the SCF's own weighted mean per tax unit, one wave over another
                     (build_table.scf_growth computes it from the table; nothing here).
