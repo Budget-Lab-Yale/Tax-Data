@@ -880,6 +880,15 @@ holding period and basis of long-term gains, parents' rank; placeholders for dep
 blindness and the QBI items. On the latest run's stack the tilt gives the installed weights exactly and meets all 789
 targets; the checks are reported in `report.md` section 6.
 
+### 30 October (overnight): taxes computed inside the model
+
+**Built on branch `rebuild-taxes-in-model`** (not installed; scratch `explore/2026-10-30/taxes/RESULTS.md`). Piece 3 of
+the overnight plan John approved on 29 October. Every record's taxes from tax-simulator-gpu's new batch command (its
+local branch `taxdata-batch`) inside the tilt, before the reweighting; the QBI dials solved first (a = 3.00, b = 3.66:
+implausible wage bills, flagged); 176 calculator targets from SOI Tables 1.4 and 3.3. With all of them the 2019
+targets could not all be met (58.4% kept); leaving out the QBI deduction by AGI, the costliest block, every target is
+met at 78.0% (80.0% without calculator targets). Decisions 20-25 of `explore/2026-10-30/DECISIONS_FOR_JOHN.md`.
+
 ### 29-30 October: Tax-Simulator's names everywhere
 
 John (29 October): "there is no reason for the names to differ. at all." The rebuild's variables took the input names of

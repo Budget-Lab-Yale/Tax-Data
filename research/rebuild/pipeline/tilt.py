@@ -29,6 +29,11 @@ gains, parents' rank, and the placeholders); the ranking items rank on the presc
 them yet, so the weights do not depend on them. Their checks, on the weights after the tilt, go to
 non_micro_checks.md and non_micro_check_*.csv.
 
+The taxes (taxes.py, settings taxes; 30 October): after the non-microdata imputations, every record's taxes under the
+year's law from tax-simulator-gpu's batch command, the QBI dials solved first, joined by record id (columns calc_*);
+then the year's calculator targets (kind calculator) are expanded on them and, with settings taxes.target, join the
+solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes_summary.md the totals and the dials.
+
 The tilt. solver.solve: the smallest move of the weights, in Kullback-Leibler divergence, that puts every target
 inside its range of settings tilt.range_in_se standard errors, or of range_in_se_by_kind's number for its kind
 (identities exactly); where the ranges cannot all be met, the standard errors decide which give way (TARGETS.md S6,
@@ -52,6 +57,7 @@ import non_micro_imputations as NMI
 import solver as SV
 import target_list as TLS
 import targets as TG
+import taxes as TX
 from common import TARGET_YEAR as Y, wquantile
 
 S = common.SETTINGS['tilt']
@@ -418,7 +424,8 @@ def main():
 
     # the targets (targets_config/, expanded by target_list.py, errors by errors.py) and the solve (solver.py):
     # every target hit exactly when they can all be hit; otherwise the standard errors decide which give way
-    rows = TLS.expand(Y, start=g19)
+    # the calculator targets wait for the taxes, computed after the non-microdata imputations (below)
+    rows = TLS.expand(Y, start=g19, which='without calculator' if TX.S.get('enabled', False) else 'all')
     TLS.check_nonfiler_bands(g19, rows)   # every non-filer head and spouse in exactly one non-filer people band
     F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
@@ -435,12 +442,23 @@ def main():
     nmi_ctx = None
     if NMI.S.get('run_in_tilt', False):
         g19, nmi_ctx = NMI.impute(g19, Y, w0)
+    # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start, the QBI
+    # dials solved first on the start's weights; then the calculator targets, on the computed columns
+    tax_ctx, calc_rows = None, pd.DataFrame()
+    if TX.S.get('enabled', False):
+        g19, tax_ctx = TX.compute(g19, Y, w0, nmi_ctx, f'{common.TILT}/taxes')
+        calc_rows = TLS.expand(Y, start=g19, which='calculator')
+        common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
+                                                              ' (reported only: settings taxes.target is false)'))
+    targeted_calc = calc_rows if TX.S.get('target', True) else pd.DataFrame()
     # hold_distribution: built from the start as scaled, so its rank groups and shares are the scaled start's
     hold = TLS.hold_rows(Y, g19, w0)
     # income rank groups (the income x net worth grid) are set on the file's starting weights, so their conditions
     # are written again after the prescaling (a list without them is unchanged)
     ranked = 'rank_variable' in rows and rows['rank_variable'].fillna('').astype(str).ne('').any()
-    if len(hold) or ranked:
+    if len(hold) or ranked or len(targeted_calc):
+        if len(targeted_calc):
+            rows = pd.concat([rows, targeted_calc], ignore_index=True)
         if len(hold):
             rows = pd.concat([rows, hold], ignore_index=True)
         F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
@@ -497,6 +515,12 @@ def main():
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
     if nmi_ctx is not None:   # their published checks, on the weights after the tilt (Q9: reported only)
         NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
+    tax_lines = []
+    if tax_ctx is not None:   # the calculator targets before and after (targeted or not), the totals and the dials
+        tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(targeted_calc) else TX.evaluate(g19, calc_rows, w0, w1)
+        tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
+        tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
+        open(f'{common.TILT}/taxes/taxes_summary.md', 'w').write('\n'.join(tax_lines))
     import scf_targets
     if scf_targets.RESULTS:   # the SCF targets by wave (scf_targets.py), for the record
         scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
@@ -532,7 +556,7 @@ def main():
                                       warnings=('flag', lambda f: (f == 'warning').sum()),
                                       stops=('flag', lambda f: (f == 'stop').sum()))
     text = [f'# The {Y} tilt', '', *SV.summary_lines(info, fit), '', summary.to_frame('').to_markdown(floatfmt=',.4f'),
-            '', *top_lines, *start_lines, *prescale_lines(prescaled),
+            '', *top_lines, *start_lines, *prescale_lines(prescaled), *tax_lines,
             *(['## The non-microdata imputations (on the start; checks in non_micro_checks.md)', '']
               + [f'- {n}' for n in nmi_ctx['notes']] + [''] if nmi_ctx is not None else []),
             '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',

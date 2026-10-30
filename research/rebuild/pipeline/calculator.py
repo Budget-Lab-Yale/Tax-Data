@@ -13,17 +13,18 @@ Three steps, all run by `main` (stage `calculator` of run.sbatch):
    writes them). Each column is the rebuild's own column under the same name, renamed, computed from the rebuild's
    columns, or 0 where the rebuild does not have it yet. CONTRACT below is the list, one row per column; it is
    written beside the outputs as calculator_contract.csv and is the source of research/rebuild/CALCULATOR_CONTRACT.csv.
-3. The run. calculator_run.py, under the calculator's own Python environment (settings calculator.python) with the
-   pinned copy's source first on the path, applies the calculator's own preparation (the wage split and the random
-   draws keyed by record id, as its bridge does), its frame steps under the year's law, and its tax chain, and
-   writes every computed column per record (calculator_<year>.parquet).
+3. The run. Since 30 October tax-simulator-gpu's own batch command (python -m taxmodel.run.batch, its local branch
+   taxdata-batch), called by taxes.run_batch with settings taxes (the pinned commit, the calculator's Python
+   environment), in place of the experiment's own runner (calculator_run.py, removed): the calculator's own
+   preparation (the wage split and the random draws keyed by record id, as its bridge does), its frame steps under
+   the year's law and its tax chain; every computed column per record (calculator_<year>.parquet). The same command
+   computes the taxes inside the tilt (taxes.py).
 
 Paths: input <tilt>/file_<year>.parquet (REBUILD_CALC_INPUT overrides it); outputs <out>/calculator/<run>/
 (REBUILD_CALC_OUT overrides it).
 """
 import json
 import os
-import subprocess
 import sys
 
 import numpy as np
@@ -32,18 +33,15 @@ import pandas as pd
 import common
 
 Y = common.TARGET_YEAR
-S = common.SETTINGS['calculator']
 INPUT = os.environ.get('REBUILD_CALC_INPUT', f'{common.TILT}/file_{Y}.parquet')
 OUT = os.environ.get('REBUILD_CALC_OUT', f'{common.OUT}/calculator/{common.RUN}')
-LIB = f'{common.OUT}/lib/tax-simulator-gpu_{S["commit"][:12]}'
-HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---- the contract ---------------------------------------------------------------------------------------------
 # One row per column: (Tax-Simulator's name, status, where it comes from, what it is / what would fill it).
 # status: same (the rebuild's column, same name; since the rename of 29-30 October, tools/rename_map.csv, every column
 # that is the same item has the same name), renamed (the rebuild's column under another name: only id), computed (a
 # formula on the rebuild's columns), zero (0 for now: the rebuild does not have it; the last field says what would
-# fill it). The calculator reads every one of these; calculator_run.py checks that against the pinned code.
+# fill it). The calculator reads every one of these; its batch command checks that against the pinned code.
 SAME, RENAMED, COMPUTED, ZERO = 'same', 'renamed', 'computed', 'zero'
 NO_AGE = 'NaN where the rebuild has -1 (none), as Tax-Data writes it'
 CONTRACT = [
@@ -54,10 +52,11 @@ CONTRACT = [
     ('filing_status', SAME, 'filing_status', '1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household'),
     ('dep_status', COMPUTED, 'age_range in 6, 7, 8 (the PUF\'s three dependent-filer ranges)',
      '1 if the return is filed by someone claimed as a dependent'),
-    ('age1', SAME, f'age1; {NO_AGE} (the dependent filers, about 6% of filers)',
+    ('age1', SAME, f'age1; dependent filers (age1 -1) dep_filer_age, drawn by the non-microdata imputations, where '
+     f'the file has it (as taxsim_file); else {NO_AGE}',
      'age of the primary filer, 80 for 80 and over'),
     ('age2', SAME, f'age2; {NO_AGE}', 'age of the spouse'),
-    ('male1', COMPUTED, 'sex_primary == 1 (0 also where the rebuild has no sex: the dependent filers)',
+    ('male1', COMPUTED, 'sex_primary == 1; dependent filers dep_filer_sex == 1 where the file has it (else 0)',
      'primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain'),
     ('blind1', ZERO, '0', 'primary filer is blind: the blindness rule (NEXT_STEPS step 1)'),
     ('blind2', ZERO, '0', 'spouse is blind: the blindness rule (NEXT_STEPS step 1)'),
@@ -300,6 +299,17 @@ def convert(f):
     notes.append(f'spouse\'s Schedule C plus F against the file\'s se2: largest gap ${np.abs(se2 - x("se2")).max():,.4f}')
     out['dep_status'] = (x('age_range') >= common.ADULT_RANGES).astype(float)
     out['male1'] = (x('sex_primary') == 1).astype(float)
+    # Dependent filers have no drawn age or sex (age1 -1); since 29 October the non-microdata imputations draw them
+    # (dep_filer_age, dep_filer_sex) and the file Tax-Simulator reads carries them (taxsim_file.build). The taxes
+    # computed inside the tilt take the same values, so they are the taxes of the published file (review of
+    # rebuild-taxes-in-model, 30 October; until then age1 was missing here, which drops the 65-and-over standard
+    # deduction of an older dependent filer).
+    if 'dep_filer_age' in f.columns and 'dep_filer_sex' in f.columns:
+        dep = (x('age_range') >= common.ADULT_RANGES) & np.isnan(out['age1']) & (x('dep_filer_age') >= 0)
+        out['age1'] = np.where(dep, x('dep_filer_age'), out['age1'])
+        out['male1'] = np.where(dep, (x('dep_filer_sex') == 1).astype(float), out['male1'])
+        notes.append(f'dependent filers given dep_filer_age and dep_filer_sex: {dep.sum():,} records; primary age '
+                     f'still missing on {np.isnan(out["age1"]).sum():,} records')
     out['divorce_year'] = np.zeros(len(f))
     out['gross_pens_dist'] = x('retirement_gross') - x('gross_ss')
     neg = out['gross_pens_dist'] < 0
@@ -355,24 +365,10 @@ def rebuild_agi(f):
     return f[['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
 
 
-def pin():
-    """The pinned copy of the calculator: written once from the repository with git archive; checked every run."""
-    stamp = f'{LIB}/PINNED_COMMIT'
-    if not os.path.exists(stamp):
-        os.makedirs(LIB, exist_ok=True)
-        archive = subprocess.run(['git', '-C', S['repo'], 'archive', S['commit']], check=True, capture_output=True)
-        subprocess.run(['tar', '-x', '-C', LIB], input=archive.stdout, check=True)
-        with open(stamp, 'w') as fh:
-            fh.write(S['commit'] + '\n')
-    got = open(stamp).read().strip()
-    assert got == S['commit'], f'{LIB} holds commit {got}, settings say {S["commit"]}'
-    return LIB
-
-
 def main():
+    import taxes as TX
     os.makedirs(OUT, exist_ok=True)
-    lib = pin()
-    common.say(f'calculator: tax-simulator-gpu at {S["commit"]}, copy {lib}')
+    common.say(f'calculator: tax-simulator-gpu at {TX.S["commit"]} (settings taxes)')
     common.say(f'input {INPUT}\noutputs {OUT}')
     f = pd.read_parquet(INPUT)
     frame, notes = convert(f)
@@ -384,14 +380,10 @@ def main():
     common.say('conversion:\n  ' + '\n  '.join(notes))
     counts = pd.Series([c[1] for c in CONTRACT]).value_counts()
     common.say('columns by status: ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
-    # The run, in the calculator's own environment: module paths cleared so its GPU libraries are its own.
-    env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
-    env.update(PYTHONPATH=f'{lib}/src', PYTHONUNBUFFERED='1')
-    cmd = [S['python'], f'{HERE}/calculator_run.py', '--input', f'{OUT}/calculator_input_{Y}.parquet',
-           '--out', OUT, '--year', str(S.get('law_year') or Y), '--lib', lib, '--seed', str(S['draw_seed']),
-           '--commit', S['commit']]
-    common.say('running: ' + ' '.join(cmd))
-    subprocess.run(cmd, cwd=lib, env=env, check=True)
+    out, man = TX.run_batch(frame, Y, OUT, 'calculator')
+    out.to_parquet(f'{OUT}/calculator_{Y}.parquet', index=False)
+    with open(f'{OUT}/calculator_manifest.json', 'w') as fh:
+        json.dump(man, fh, indent=1)
 
 
 if __name__ == '__main__':
