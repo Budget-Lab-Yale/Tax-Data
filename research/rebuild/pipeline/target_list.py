@@ -78,7 +78,7 @@ CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'li
 TARGETS_KEYS = {'year', 'kind', 'targets', 'report', 'start', 'start_scaling', 'hold_distribution'}
 PRIOR_KEYS = {'year', 'prior'}
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key', 'outside_line',
-              'dependent_filers', 'note', 'reason', 'percentiles', 'must_reach'}
+              'dependent_filers', 'note', 'reason', 'percentiles', 'must_reach', 'needs_calculator'}
 # reason: why the entry is as it is in this year where it departs from the general rule or from other years (before
 # 29 October, the override reason of a year file); it fills targets.csv's reason column.
 # must_reach (29 October): an entry's cell labels that expand(start=...) must keep; a cell among them that no record
@@ -794,6 +794,10 @@ def outside_rows(src, year, cells, v, stats, e):
     """A target from outside information that comes only as a change (TARGETS.md section 3, 30 October): the start
     year's own file's total (its final weights, its dollars of that year) times the outside series' growth from that
     year to this one. Only for a year whose start is an earlier year's file (from_year); cells all."""
+    if src == 'population cells':
+        return population_cell_rows(year, e)
+    if src == 'cbo counts':
+        return cbo_count_rows(year, v, stats, e)
     assert cells == [group_cells('all')[0]], f'entry {e["id"]}: an outside target has cells all'
     spec = start_spec(year)
     assert spec['mode'] == 'from_year', f'entry {e["id"]}: an outside target needs a start from an earlier year\'s file'
@@ -811,6 +815,44 @@ def outside_rows(src, year, cells, v, stats, e):
                     'source': f'{src}: {e["outside_line"]!r}, {s} to {year}, growth {f:.4f}, on the {s} file\'s own level '
                               f'{lev:,.0f} ({os.path.relpath(path, common.OUT)})'})
     return out
+
+
+def population_cell_rows(year, e):
+    """(30 October, projection years) The demographic cells as identity targets: the previous year's final weighted
+    count of the cell's units times its population growth (projection_demographics.population_cells; filers by joint
+    status x the primary's age band, non-filers likewise, both joint statuses growing alike). Built from the unscaled
+    previous file. A cell with no units in the previous file is zero (left out and listed by expand)."""
+    import projection_demographics as PD
+    spec = start_spec(year)
+    assert spec['mode'] == 'from_year' and spec['weights'] == 'population_cells', \
+        f'entry {e["id"]}: population cells need a from_year start scaled by population_cells'
+    path = f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet"
+    prev = pd.read_parquet(path, columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
+    _, table = PD.population_cells(prev, year)
+    want = 1 if e['population'] == 'filers' else 0
+    out = []
+    for r in table[table.filer == want].itertuples():
+        label = f"{'married' if r.married else 'not married'}, {common.AGE_LABELS[int(r.age_range)]}"
+        out.append({'cell': label, 'statistic': 'units', 'value': float(r.target),
+                    'source': f'{spec["year"]} file\'s {r.previous_weight:,.0f} units in the cell times the growth of its '
+                              f'population, {r.target / r.previous_weight if r.previous_weight else float("nan"):.5f}',
+                    'cell_spec': {'parts': {}, 'filters': [('married', int(r.married)), ('age_range', int(r.age_range))],
+                                  'label': label, 'agi': None, 'line': None}})
+    return out
+
+
+def cbo_count_rows(year, v, stats, e):
+    """(30 October, projection years) CBO's published counts of returns (all returns, itemizers, returns affected by
+    the AMT; February 2026, to 2036) as the level itself, in returns. After 2036 CBO publishes none: no row (the
+    entry is then left out and the file's count follows from the demographic cells)."""
+    import projection_demographics as PD
+    series = e['outside_line']
+    if year > 2036:
+        return []
+    assert len(stats) == 1
+    return [{'cell': 'all', 'statistic': stats[0], 'value': PD.cbo_count(year, series),
+             'source': f'CBO February 2026 individual income tax projections, {series}, {year}: the published count',
+             'cell_spec': {'parts': {}, 'filters': [], 'label': 'all', 'agi': None, 'line': None}}]
 
 
 _CPS_AGES = {}
@@ -1387,8 +1429,9 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
     soi = TG.load()
     assert which in ('all', 'without calculator', 'calculator'), which
     taxes_on = bool(common.SETTINGS.get('taxes', {}).get('enabled', False))
-    calc = [e for e in cfg['targets'] if e['kind'] == CALCULATOR_KIND]
-    entries = calc if which == 'calculator' else [e for e in cfg['targets'] if e['kind'] != CALCULATOR_KIND] \
+    is_calc = lambda e: e['kind'] == CALCULATOR_KIND or bool(e.get('needs_calculator'))   # needs_calculator: a CBO count of the calculator's itemizers or AMT
+    calc = [e for e in cfg['targets'] if is_calc(e)]
+    entries = calc if which == 'calculator' else [e for e in cfg['targets'] if not is_calc(e)] \
         if which == 'without calculator' or not taxes_on else cfg['targets']
     off = pd.DataFrame([{'kind': e['kind'], 'group': '', 'target': e['id'],
                          'why': 'a calculator entry and settings taxes.enabled is false'} for e in calc]) \
@@ -1608,7 +1651,8 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
 
 
 # ---- the start and the targets built from it (TARGETS.md S7) ----------------------------------------------------
-START_SCALING = {'weights': ('none', 'filing_status', 'demographic'), 'dollars': ('per_return_growth', 'none')}
+START_SCALING = {'weights': ('none', 'filing_status', 'demographic', 'population_cells'),
+                 'dollars': ('per_return_growth', 'cbo_per_return', 'none')}
 
 
 def start_spec(year):

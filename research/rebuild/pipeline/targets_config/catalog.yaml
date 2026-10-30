@@ -143,6 +143,18 @@ sources:
     what: >-
       CBO's February 2026 projections of individual income tax items, calendar years 2022-2036 (Revenue Projections
       by Category, sheet 3); a line is named by the start of its name (outside_line)
+  # Projection years chained from the previous year's file (30 October; explore/2026-10-30/demog/DESIGN.md)
+  population cells:
+    kind: outside
+    file: research/rebuild/resources/population_factors.csv
+    what: >-
+      the previous year's final weighted units in each cell (filer or not, joint or not, the primary's age band) times
+      the cell's population growth (Macro-Projections demographics; resources/population_factors.csv and
+      nonfiler_factors.csv); target_list.population_cell_rows
+  cbo counts:
+    kind: outside
+    file: research/rebuild/resources/cbo_counts.csv
+    what: CBO's February 2026 published counts of returns, itemizers and returns affected by the AMT, to 2036, as levels (outside_line names the series)
   z1 household net worth:
     kind: outside
     file: research/rebuild/resources/growth/z1_household_net_worth.csv

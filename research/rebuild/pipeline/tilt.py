@@ -187,7 +187,11 @@ def recombine(df, year):
     return out, done
 
 
-def grow_dollars(df, s, t):
+def inverse_name(col, drawn_as):
+    return {b: a for a, b in drawn_as.items()}.get(col, col)
+
+
+def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
     """Each record's amounts grown item by item from year s to year t (TARGETS.md S7, per-return growth), by the
     series the dollar maps are grown by (build_table.build_maps), each item's line in the target year's growth.yaml
     (growth.py), as a ratio of year t's factor to year s's:
@@ -210,44 +214,76 @@ def grow_dollars(df, s, t):
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
             f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
     out, rows = df.copy(), []
+    cbo_mode = mode == 'cbo_per_return'
+    drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
+    puf_cols = [drawn_as.get(v, v) for v in BT.PUF_AMOUNTS
+                if not (v == 'capital_gains' or (v in D.META['computed_totals'] and v != 'business_income'))
+                and drawn_as.get(v, v) in out]
+    scf_cols = [v for v in BT.SCF_AMOUNTS if v in out]
+    other_cols = [v for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS if v in out]
+    plan, fallback = {}, {}
+    if cbo_mode:
+        # (30 October, projection years as production builds them, DESIGN.md of explore/2026-10-30/demog) one year at a
+        # time, from the previous year's file: each amount grown by its source's growth from s to t divided by CBO's
+        # growth in the number of returns (projection_growth.plan_factors; from 2037, by the demographic cells' growth
+        # in returns, return_growth). An item with no rule there (the mortgage interest, real estate tax, medical
+        # expenses and other itemized items, some balance sheet items, the shares, weeks and hours) keeps the rule of
+        # the year file's growth.yaml, as before, and is listed in the factors table as "fallback"; settings
+        # tilt.projection_strict makes the run stop on such an item instead (decision 40)
+        import projection_growth as PG
+        assert t == s + 1, f'a projection start grows one year at a time, not {s} to {t}'
+        inverse = {v: k for k, v in drawn_as.items()}
+        names = {c: inverse.get(c, c) for c in puf_cols + [v for v in scf_cols if v not in BT.SCF_RATIOS] + other_cols}
+        got, problems = PG.plan_factors(list(dict.fromkeys(names.values())), t, return_growth, strict=False)
+        assert not (problems and S.get('projection_strict', False)), \
+            f'{len(problems)} dollar items with no projection rule:\n  ' + '\n  '.join(problems)
+        by_name = got.set_index('column')
+        plan = {c: (float(by_name.loc[n, 'factor']), by_name.loc[n, 'source']) for c, n in names.items() if n in by_name.index}
+        fallback = {c: next(q.split(': ', 1)[1] for q in problems if q.split(': ', 1)[0] == n) for c, n in names.items()
+                    if n not in by_name.index}
+        common.say(f'projection growth {s} to {t}: {len(plan)} amounts by the CBO or macro series per return, '
+                   f'{len(fallback)} by the growth.yaml rule (fallback)')
 
-    def grow(col, fp, fn, series):
+    def grow(col, thunk, series):
+        if col in plan:
+            fp = fn = plan[col][0]
+            series = plan[col][1]
+        else:
+            fp, fn = thunk()
+            if cbo_mode:
+                series = f'fallback (no projection rule: {fallback.get(col, "a ratio")[:80]}); {series}'
         x = out[col].to_numpy(float)
         assert np.isfinite(fp) and fp > 0 and np.isfinite(fn) and fn > 0, f'{col}: growth factor {fp}, {fn}'
         out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
         rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn, 'series': series,
                      'records with a value': int((x != 0).sum())})
-    drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
-    for v in BT.PUF_AMOUNTS:
-        if v == 'capital_gains' or (v in D.META['computed_totals'] and v != 'business_income'):
-            continue                                  # computed from their parts (recombine)
-        col = drawn_as.get(v, v)
-        if col not in out:
-            continue
-        gs, gt = BT.growth(v, s), BT.growth(v, t)
-        grow(col, gt[0] / gs[0], gt[1] / gs[1], GR.describe(v))
+    for col in puf_cols:
+        v = inverse_name(col, drawn_as)
+        grow(col, lambda v=v: (lambda gs, gt: (gt[0] / gs[0], gt[1] / gs[1]))(BT.growth(v, s), BT.growth(v, t)),
+             GR.describe(v))
     # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
     scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
     scf = scf[scf.source == 'scf']
-    # (30 October, review of rebuild-year-config) every dollar item grown, or the run stops. (30 October, targets for
-    # every year) a year with no wave of its own is interpolated between waves, or after the last wave grown by Z.1
-    # household net worth per person (build_table.scf_mean), so every year has a factor
-    grown_scf = [v for v in BT.SCF_AMOUNTS if v in out and v not in BT.SCF_RATIOS]
-    f_scf = BT.scf_growth(scf, s - 1, t - 1)
-    if grown_scf:
-        none = [v for v in grown_scf if not np.isfinite(f_scf[v])]
-        assert not none, f'no growth factor {s} to {t} (a mean per unit at or below zero in the wave of {s - 1} or ' \
-                         f'{t - 1}): {none}'
-    for v in BT.SCF_AMOUNTS:
-        if v in out:
-            if v in BT.SCF_RATIOS:
-                grow(v, 1.0, 1.0, 'a ratio, not grown')
-            else:
-                grow(v, f_scf[v], f_scf[v], f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
-    for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS:
-        if v in out:
-            f = GR.between(v, s, t)
-            grow(v, f, f, GR.describe(v))
+    # (30 October) every dollar item grown, or the run stops. (30 October, targets for every year) a year with no wave
+    # of its own is interpolated between waves, or after the last wave grown by Z.1 household net worth per person
+    # (build_table.scf_mean), so every year has a factor
+    grown_scf = [v for v in scf_cols if v not in BT.SCF_RATIOS]
+    cache = {}
+
+    def f_scf_of(v):
+        if 'f' not in cache:
+            cache['f'] = BT.scf_growth(scf, s - 1, t - 1)
+            none = [u for u in grown_scf if not np.isfinite(cache['f'][u])]
+            assert not none, f'no growth factor {s} to {t} (a mean per unit at or below zero in the wave of {s - 1} or ' \
+                             f'{t - 1}): {none}'
+        return cache['f'][v]
+    for v in scf_cols:
+        if v in BT.SCF_RATIOS:
+            grow(v, lambda: (1.0, 1.0), 'a ratio, not grown')
+        else:
+            grow(v, lambda v=v: (f_scf_of(v),) * 2, f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
+    for v in other_cols:
+        grow(v, lambda v=v: (GR.between(v, s, t),) * 2, GR.describe(v))
     # the allowed capital loss: since 29-30 October the short and long term pieces are the gains and losses before the
     # $3,000 limit, grown like any amount, and recombine() applies the nominal limit again in year t (before, a piece
     # kg_other held the limit and needed a rule here)
@@ -273,6 +309,16 @@ def start_from_year(spec):
     common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
     if spec['dollars'] == 'per_return_growth':
         df, growth = grow_dollars(df, s, Y)
+    elif spec['dollars'] == 'cbo_per_return':
+        rg = None
+        if Y > 2036:   # CBO's returns end in 2036: the growth in returns is the demographic cells' own (DESIGN.md)
+            import projection_demographics as PD
+            cols = ['record_id', 'filer', 'married', 'filing_status', 'age_range', 'age1']
+            scaled, _ = PD.population_cells(df[cols].assign(weight=w), Y)
+            f = df['filer'].to_numpy() == 1
+            rg = float(scaled[f].sum() / w[f].sum())
+            common.say(f'returns grow {rg:.5f} from {s} to {Y}: the previous file\'s filer cells grown by population')
+        df, growth = grow_dollars(df, s, Y, 'cbo_per_return', rg)
     else:
         growth = None
     df['weight'] = w
@@ -408,9 +454,28 @@ def main():
     returns = TG.returns(soi, Y)
     n_nonfilers, nf_note = start_nonfilers()
     w0 = imp.copy()
-    for batch, total in [(filer, returns), (~filer, n_nonfilers)]:
-        g = batch & ~given
-        w0[g] = imp[g] * (total - imp[batch & given].sum()) / imp[g].sum()
+    if spec['weights'] == 'population_cells':
+        # (30 October, projection years as production builds them) each record's previous weight times the population
+        # growth of its cell (filers: joint status x the primary's age band, from the married or unmarried population;
+        # non-filers: the age band), no scaling to SOI's or CBO's returns; the cells are identity targets (target_list)
+        import projection_demographics as PD
+        path = f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet"
+        prev = pd.read_parquet(path, columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
+        scaled, cell_table = PD.population_cells(prev, Y)
+        by_id = pd.Series(scaled, index=prev['record_id'].to_numpy())
+        take = ~given
+        ids = g19['record_id'].to_numpy()[take]
+        assert pd.Index(ids).isin(by_id.index).all(), 'a record of the start is not in the previous year\'s file'
+        w0[take] = by_id.loc[ids].to_numpy()
+        common.say(f'population cells {spec["year"]} to {Y}: filers {w0[filer].sum() / 1e6:,.2f} million (previous '
+                   f'{prev.weight[prev.filer == 1].sum() / 1e6:,.2f}), non-filers {w0[~filer].sum() / 1e6:,.2f} million '
+                   f'(previous {prev.weight[prev.filer == 0].sum() / 1e6:,.2f}); zero cells: '
+                   f'{int((cell_table.previous_weight == 0).sum())}')
+        cell_table.to_csv(f'{common.TILT}/population_cells_{Y}.csv', index=False)
+    else:
+        for batch, total in [(filer, returns), (~filer, n_nonfilers)]:
+            g = batch & ~given
+            w0[g] = imp[g] * (total - imp[batch & given].sum()) / imp[g].sum()
     if given.any():
         # the records whose weight is given carry, in the weight column, their weight on the generated records'
         # relative scale, so that anything reading that column (expand's reach check, which ranks Table 4.3's groups
@@ -419,7 +484,7 @@ def main():
         g19.loc[given, 'weight'] = w0[given] * imp[gen_f].sum() / w0[gen_f].sum()
     w_plain = w0.copy()
     prescale = spec['weights']
-    assert prescale in ('none', 'filing_status', 'demographic'), f"start_scaling weights {prescale!r}"
+    assert prescale in ('none', 'filing_status', 'demographic', 'population_cells'), f"start_scaling weights {prescale!r}"
     if prescale in ('filing_status', 'demographic'):
         for married, status in [(1, 'joint'), (0, 'nonjoint')]:
             m = filer & (g19['married'].to_numpy() == married)

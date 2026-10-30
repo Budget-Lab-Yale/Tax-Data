@@ -18,11 +18,17 @@
 #
 # Run of 30 October (scratch explore/2026-10-30/targets/run/2024): 41 targets, every one inside its range; effective
 # sample kept 100.0% (the start is grown by the same rates the targets use).
+#
+# Phase 2 (30 October, evening): weights and dollars as production grows them (explore/2026-10-30/demog/DESIGN.md): the
+# start's weights times the population growth of each unit's age x joint cell (filers) or age band (non-filers), no
+# scaling to SOI's or CBO's returns; dollars grown per return from CBO's lines (cbo_per_return; an item with no rule
+# there keeps growth.yaml's, listed in the run's growth table); targets: the cells exactly, CBO's returns, itemizers and
+# AMT counts within 1%, the dollar totals below as before. The earlier 41-target run line above is superseded.
 
 year: 2024
 kind: projection
 start: {from_year: 2023, run: y2023}
-start_scaling: {weights: filing_status, dollars: per_return_growth}
+start_scaling: {weights: population_cells, dollars: cbo_per_return}
 
 report:
   - every target with its value, standard error, where the file lands, and the miss in standard errors
@@ -37,30 +43,64 @@ hold_distribution:
 
 targets:
 
-  - id: non_filers
-    kind: non-filers
-    statistic: units
-    population: non_filers
-    cells: all
-    value: {pipeline: filing_stage}
-    error:
-      kind: judgment
-      relative: 0.03
-      reason: >-
-        past the last CPS year (2023) the count is the 2023 filing stage's expected non-filers grown with the
-        Social Security area population (target_list.nonfiler_count); 3% as a judgment
-    key: {group: all, target: non-filers}
-
-  # returns
-  - id: returns_cbo
-    kind: cbo totals
+  # Demographic cells (30 October, phase 2): the previous year's final weighted units in each cell times the cell's
+  # population growth, exact (identities); filers by joint status x the primary's age band (nine bands, the three
+  # dependent-filer bands included), non-filers by the same bands (the head's age; both joint statuses grow alike).
+  - id: population_filers
+    kind: demographic filers
     statistic: units
     population: filers
     cells: all
-    value: {outside: cbo individual income tax}
-    outside_line: Number of returns
-    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
-    key: {group: all, target: 'returns'}
+    value: {outside: population cells}
+    error: {kind: identity}
+    key: {group: '{cell}', target: units}
+
+  - id: population_non_filers
+    kind: demographic non-filers
+    statistic: units
+    population: non_filers
+    cells: all
+    value: {outside: population cells}
+    error: {kind: identity}
+    key: {group: '{cell}', target: units}
+
+  # CBO's published counts (February 2026, to 2036), as levels: all returns, itemizers and returns affected by the AMT,
+  # within 1% (a judgment; CBO publishes no error). The cells above need not add to CBO's returns; the miss shows in the
+  # fit. The itemizer and AMT counts are the calculator's (itemized deductions claimed; positive AMT), so they join the
+  # calculator targets; CBO's AMT count includes some returns whose AMT only limits credits.
+  - id: returns_cbo
+    kind: cbo counts
+    statistic: units
+    population: filers
+    cells: all
+    value: {outside: cbo counts}
+    outside_line: rev_iit_returns_total
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; its count is independent of the demographic cells; 1% as a judgment'}
+    key: {group: all, target: returns}
+
+  - id: itemizers_cbo
+    kind: cbo counts
+    statistic: count
+    population: filers
+    variable: itemized_deductions_claimed
+    cells: all
+    needs_calculator: true
+    value: {outside: cbo counts}
+    outside_line: rev_iit_returns_itemized
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; 1% as a judgment'}
+    key: {group: all, target: itemizers}
+
+  - id: amt_cbo
+    kind: cbo counts
+    statistic: count
+    population: filers
+    variable: alternative_minimum_tax
+    cells: all
+    needs_calculator: true
+    value: {outside: cbo counts}
+    outside_line: rev_iit_returns_amt
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; its count includes returns whose AMT only limits credits; 1% as a judgment'}
+    key: {group: all, target: amt returns}
 
   # AGI
   - id: agi_cbo

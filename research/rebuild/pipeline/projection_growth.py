@@ -95,7 +95,7 @@ def macro_per_return(item, year, return_growth):
     return float((b / a) / return_growth), f'{series} macro growth / demographic return growth, {year - 1} to {year}'
 
 
-def plan_factors(items, year, return_growth=None):
+def plan_factors(items, year, return_growth=None, strict=True):
     """Resolve all requested names or report every missing/ambiguous rule before growth.
 
     This preflight currently supports only direct CBO aggregates and the mapped
@@ -119,6 +119,9 @@ def plan_factors(items, year, return_growth=None):
                     factor, source = consumption_per_return(key, year)
                 elif 'Federal Reserve Z.1 and CBO' in sources:
                     factor, source = financial_accounts_per_return(key, year)
+                elif key in ('elective_deferrals', 'tips_primary', 'tips_spouse'):
+                    factor, source = cbo_per_return('wages', year)
+                    source = f'{key}: CBO wages proxy after the 2023 W-2 observation; {source}'
                 else:
                     factor, source = cbo_per_return(key, year)
             else:
@@ -126,9 +129,10 @@ def plan_factors(items, year, return_growth=None):
             planned.append({'column': item, 'mapping_key': key, 'factor': factor, 'source': source})
         except (ValueError, KeyError, FileNotFoundError) as exc:
             problems.append(f'{item}: {exc}')
-    if problems:
+    if strict and problems:
         raise ValueError(f'projection growth has {len(problems)} unresolved item(s):\n  ' + '\n  '.join(problems))
-    return pd.DataFrame(planned)
+    # not strict: the resolved items, and the list of unresolved ones (item, reason) for the caller to deal with openly
+    return pd.DataFrame(planned) if strict else (pd.DataFrame(planned, columns=['column', 'mapping_key', 'factor', 'source']), problems)
 
 
 def consumption_per_return(item, year):
