@@ -58,14 +58,14 @@ elective deferrals in years the release does not ask them:
   person 1 the man in a mixed-sex couple, the older in a same-sex one, as tax_units.primary_and_spouse; no spouse:
   age2 -1, sex2 0, male2 -1), wages1, wages2, wages (= wages1 + wages2), tips1, tips2, tips_lh1, tips_lh2 (0 or 1;
   0 without tips), elective1, elective2, elective_deferrals (= elective1 + elective2; since 28 October): each adult's
-  elective deferrals, missing on every unit in a year the release does not ask them (2015-2019); dividends, ss_gross,
+  elective deferrals, missing on every unit in a year the release does not ask them (2015-2019); dividends, gross_ss,
   pensions (since 28 October): the primary filer's plus the spouse's (below).
 
 The shared non-wage items (since 28 October; shared_items), per person, then the primary filer's plus the spouse's on
 the unit, as wages (a dependent's own amounts go nowhere; a separate return carries its one person's):
   - dividends: income from stocks and mutual funds (TINC_STMF), a yearly amount repeated in every month row, read
     once (checked: the run stops if more than 1% of the people with any have different values in different months);
-  - ss_gross: Social Security received for oneself (TSSSAMT), monthly, before Medicare premiums, summed over the 12
+  - gross_ss: Social Security received for oneself (TSSSAMT), monthly, before Medicare premiums, summed over the 12
     months; benefits received on behalf of children (TSSCAMT) are left out. The same dollars as the person's ssb;
   - pensions: retirement income items 1-8 (TRET1AMT-TRET8AMT: company or union, federal, state, local, military,
     railroad, reserve and other retirement income), monthly, summed over the months and the items. No IRA or 401(k)
@@ -99,7 +99,7 @@ LH = [tuple(r) for r in S['lh_industries']]
 WAGE_CLASSES = [1, 2, 3, 4, 5, 6]              # class of worker: for an employer (7, 8 self-employed)
 BLOOD = [7, 8, 9, 10, 13, 14]                  # the householder's relatives by blood (in-laws 11, 12 are not)
 RELATIVES = [3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
-SHARED_ITEMS = ['dividends', 'ss_gross', 'pensions']   # the units file's shared non-wage items (shared_items)
+SHARED_ITEMS = ['dividends', 'gross_ss', 'pensions']   # the units file's shared non-wage items (shared_items)
 # Items a release publishes as a wholly blank column although some people say they received them: their amounts are
 # unknown and read as zero, counted in the log (28 October). Reference year 2021 (the 2022 release): National Guard or
 # reserve retirement, TRET7AMT, blank for all; 3 people (36 person-months, about 20,000 people weighted) say received.
@@ -161,7 +161,7 @@ def shared_items(d, year):
     nun = d.groupby(key, sort=False)['TINC_STMF'].nunique(dropna=True)
     mixed = d.TINC_STMF.isna().groupby(key, sort=False).agg(lambda s: 0 < s.sum() < len(s))
     y = pd.DataFrame({'own_dividends': div.groupby(key, sort=False).max(),
-                      'own_ss_gross': pd.Series(ss, index=d.index).groupby(key, sort=False).sum(),
+                      'own_gross_ss': pd.Series(ss, index=d.index).groupby(key, sort=False).sum(),
                       'own_pensions': pd.Series(ret, index=d.index).groupby(key, sort=False).sum()})
     holders = y.own_dividends > 0
     varies = float((nun.reindex(y.index) > 1)[holders].mean()) if holders.any() else 0.0
@@ -199,7 +199,7 @@ def person_year(d, year):
     y = x.groupby(['SSUID', 'PNUM'], sort=False).sum()
     y['selfemp'] = y.earn - y.wage
     y = y.join(shared_items(d, year))
-    assert np.abs(y.own_ss_gross - y.ssb).max() < 0.005, 'gross Social Security differs from ssb'
+    assert np.abs(y.own_gross_ss - y.ssb).max() < 0.005, 'gross Social Security differs from ssb'
     item = common.SETTINGS['deferrals']['sipp_item']
     if item in d:   # elective deferrals (28 October): a yearly amount, repeated by month
         g = d.groupby(['SSUID', 'PNUM'], sort=False)[item]
@@ -401,7 +401,7 @@ def read_roster(year):
         r['elective_reported'] = 0.0
     r['elective_asked'] = asked
     # passthrough: the shared items (since 28 October; shared_items)
-    for c in ['own_dividends', 'own_ss_gross', 'own_pensions']:
+    for c in ['own_dividends', 'own_gross_ss', 'own_pensions']:
         r[c] = P[c].to_numpy(float)
     r['SSUID'] = P.SSUID.to_numpy(); r['PNUM'] = P.PNUM.astype(int).to_numpy()
     assert not r.isna().any().any(), r.isna().sum()[r.isna().sum() > 0]

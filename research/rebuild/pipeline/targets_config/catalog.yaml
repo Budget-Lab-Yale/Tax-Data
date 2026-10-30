@@ -205,7 +205,7 @@ error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
 #   family:      a business family's net income (its net where positive) or net loss (minus its net where
 #                negative); the net is the signed sum of the family's PUF parts (targets.FAMILIES)
 #   people:      the number of people in the unit, among the given members, whose exact age is in [from, to);
-#                members: head, spouse, dep1-dep3 (columns age_primary, age_spouse, age_dep1-3; -1 for none)
+#                members: head, spouse, dep1-dep3 (columns age1, age2, dep_age1-3; -1 for none)
 #   family with side net: the family's signed net (income less loss)
 #   base + transform: another variable's value, transformed: positive (its positive part), loss (minus its negative
 #                part), loss_allowed (the loss allowed on Form 1040: at most $3,000, $1,500 if married filing
@@ -226,8 +226,8 @@ variables:
       soi 1.3: {item: salaries and wages, count: returns, amount: amount}
       soi 4.3: {item: salaries and wages, count: returns, amount: amount}
   taxable_interest:
-    record: interest
-    short: interest
+    record: txbl_int
+    short: txbl_int
     soi 1.4: {count: [taxable_interest], amount: [taxable_interest]}
     published:
       soi 1.3: {item: taxable interest, count: returns, amount: amount}
@@ -240,7 +240,7 @@ variables:
       soi 1.3: {item: ordinary dividends, count: returns, amount: amount}
       soi 4.3: {item: ordinary dividends, count: returns, amount: amount}
   sch_d_net_capital_gain:
-    record: capital_gains               # the Schedule D net: short term + long term + other (dollars.py)
+    record: capital_gains               # the Schedule D net in AGI: short + long term, a loss held to $3,000 (dollars.py)
     short: capital_gains
     what: returns with a Schedule D net gain or net loss, and the net gain less the net loss
     soi 1.4: {count: [sch_d_net_gain, sch_d_net_loss], amount: [sch_d_net_gain, minus sch_d_net_loss]}
@@ -248,7 +248,7 @@ variables:
   # wages + interest + dividends + Schedule D net capital gain + the rest (dollars.AGI_PARTS); business income the
   # signed sum of its eighteen parts (Schedules C, E and F).
   agi:
-    parts: [wages, interest, dividends, capital_gains, other_agi]
+    parts: [wages, txbl_int, dividends, capital_gains, other_agi]
     short: agi
     published:
       soi 1.3: {item: adjusted gross income less deficit, count: returns, amount: amount}
@@ -260,18 +260,18 @@ variables:
   # SOI's loss is the allowed loss). Table 4.3's capital gains amount is the net gain less the loss, its count the
   # returns with a gain. Its business item is Schedules C and F together.
   total_income:
-    parts: [wages, interest, dividends, capital_gains, other_agi, adjustments]
+    parts: [wages, txbl_int, dividends, capital_gains, other_agi, adjustments]
     short: total_income
     published:
       soi 1.3: {item: total income, count: returns, amount: amount}
-  tax_exempt_interest:
-    record: tax_exempt_interest
-    short: tax_exempt_interest
+  exempt_int:
+    record: exempt_int
+    short: exempt_int
     published:
       soi 1.3: {item: tax exempt interest, count: returns, amount: amount}
-  state_refunds:
-    record: state_refunds
-    short: state_refunds
+  state_ref:
+    record: state_ref
+    short: state_ref
     published:
       soi 1.3: {item: state income tax refunds, count: returns, amount: amount}
   alimony:
@@ -302,14 +302,14 @@ variables:
     short: other_gains
     published:
       soi 1.3: {item: 'sales of property other than capital assets, net gain less loss', count: returns, amount: amount}
-  ira_taxable:
-    record: ira_taxable
-    short: ira_taxable
+  txbl_ira_dist:
+    record: txbl_ira_dist
+    short: txbl_ira_dist
     published:
       soi 1.3: {item: taxable individual retirement arrangement (ira) distributions, count: returns, amount: amount}
-  pensions_taxable:
-    record: pensions_taxable
-    short: pensions_taxable
+  txbl_pens_dist:
+    record: txbl_pens_dist
+    short: txbl_pens_dist
     published:
       soi 1.3: {item: taxable pensions and annuities, count: returns, amount: amount}
   ss_taxable:
@@ -317,23 +317,23 @@ variables:
     short: ss_taxable
     published:
       soi 1.3: {item: taxable social security benefits, count: returns, amount: amount}
-  unemployment:
-    record: unemployment
-    short: unemployment
+  ui:
+    record: ui
+    short: ui
     published:
       soi 1.3: {item: unemployment compensation, count: returns, amount: amount}
-  sch_c_net_income:
-    family: sch_c
+  sole_prop_net_income:
+    family: sole_prop
     side: net_income
-    short: sch_c net_income
-    soi 1.4: {count: [sch_c_net_income], amount: [sch_c_net_income]}
+    short: sole_prop net_income
+    soi 1.4: {count: [sole_prop_net_income], amount: [sole_prop_net_income]}
     published:
       soi 1.3: {item: business or profession net income, count: returns, amount: amount}
-  sch_c_net_loss:
-    family: sch_c
+  sole_prop_net_loss:
+    family: sole_prop
     side: net_loss
-    short: sch_c net_loss
-    soi 1.4: {count: [sch_c_net_loss], amount: [sch_c_net_loss]}
+    short: sole_prop net_loss
+    soi 1.4: {count: [sole_prop_net_loss], amount: [sole_prop_net_loss]}
     published:
       soi 1.3: {item: business or profession net loss, count: returns, amount: amount}
   rent_royalty_net_income:
@@ -444,21 +444,21 @@ variables:
   # the SCF summary extract) and on the generated file (dollars.py draws each from the SCF's map). Gross values:
   # the debts against them (mortgages) are not taken off.
   stocks:
-    parts: [w_equities]
+    parts: [value.equities]
     short: stocks
     what: stocks held directly plus stock and combination mutual funds (SCF STOCKS + STMUTF + COMUTF)
   business_equity:
-    parts: [w_pass_throughs]
+    parts: [value.pass_throughs]
     short: business equity
     what: the value of privately held businesses, actively and not actively managed (SCF BUS)
   real_estate:
-    parts: [w_primary_home, w_other_home, w_re_fund]
+    parts: [value.primary_home, value.other_home, value.re_fund]
     short: real estate
     what: >-
       the primary residence, other residential real estate and net equity in nonresidential real estate (SCF
       HOUSES + ORESRE + NNRESRE), before mortgages on them
   retirement_accounts:
-    parts: [w_dc, w_db]
+    parts: [value.dc, value.db]
     short: retirement accounts
     what: >-
       IRAs and Keoghs, account-type plans at current jobs, and account-type plans from past jobs or now paying out
@@ -471,8 +471,8 @@ variables:
   # Schedule E as its two shared parts (rental and the rest), as the translation table now shares them: the SCF no
   # longer carries the old two items.
   income_7_items:
-    parts: [wages, interest, dividends, capital_gains_line13, ss_gross, sch_cf_income, sch_e_income]
-    survey_parts: [wages, interest, dividends, capital_gains, ss_gross, sch_cf_income, sche_rent, sche_rest]
+    parts: [wages, txbl_int, dividends, capital_gains_line13, gross_ss, sch_cf_income, sch_e_income]
+    survey_parts: [wages, txbl_int, dividends, capital_gains, gross_ss, sch_cf_income, sche_rent, sche_rest]
     short: income
   c_clothing:              {record: c_clothing, short: c_clothing}
   c_motor_vehicles:        {record: c_motor_vehicles, short: c_motor_vehicles}
@@ -513,18 +513,18 @@ variables:
 # Business families: each gives two variables, <family>_net_income and <family>_net_loss, short name
 # "<family> net_income" / "<family> net_loss", SOI lines <family>_net_income / <family>_net_loss in targets/soi.csv.
 # Their PUF parts and SOI line names are targets.FAMILIES; they are not repeated here.
-families: [sch_c, pship_scorp, rent_royalty, estate_trust, farm, farm_rental]
+families: [sole_prop, pship_scorp, rent_royalty, estate_trust, farm, farm_rental]
 
 # Named lists of variables, so an entry can say "the income items".
 variable_lists:
   income_items: [wages, taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
-  business: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
+  business: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
              rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
              farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
   # The business families targeted in the five top AGI brackets (TARGETS.md S2), and the rest, which keep one
   # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
   # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.
-  business_top: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
+  business_top: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
   business_other: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
                    farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
   consumption: [c_clothing, c_motor_vehicles, c_durables, c_other_nondurables, c_food_off_premises,
@@ -534,9 +534,9 @@ variable_lists:
   # The SCF's balance sheet by kind of asset, for the top net worth lines (TARGETS.md S2)
   scf_top_assets: [stocks, business_equity, real_estate, retirement_accounts]
   # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
-  soi_1_3_items: [wages, taxable_interest, ordinary_dividends, tax_exempt_interest, state_refunds, alimony,
-                  sch_c_net_income, sch_c_net_loss, capital_gain_positive, capital_gain_loss, other_gains, ira_taxable,
-                  pensions_taxable, ss_taxable, unemployment, rent_royalty_net_income, rent_royalty_net_loss,
+  soi_1_3_items: [wages, taxable_interest, ordinary_dividends, exempt_int, state_ref, alimony,
+                  sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, other_gains, txbl_ira_dist,
+                  txbl_pens_dist, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
                   pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
   soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,
                   pship_scorp_net_income, pship_scorp_net_loss]
@@ -652,7 +652,7 @@ groupings:
     in soi w2 2.d: {joint: 'Joint returns, total', non-joint: 'Nonjoint returns, wage earner'}   # Table 2.D's column groups
   # The four filing statuses of Table 1.3 (the file's mars; surviving spouses are in joint returns, as in SOI)
   filing_four:
-    variable: mars
+    variable: filing_status
     values: [[1, single], [2, joint], [3, separate], [4, head of household]]
     published_column: panel
     published_labels:

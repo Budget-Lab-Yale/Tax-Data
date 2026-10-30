@@ -29,14 +29,14 @@ import common
 
 MIRROR = common.RAW['soi_mirror']
 FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (stored positive), targeted by the tilt
-    'sch_c': {'soi': 'business or profession', 'income': ['sch_c'], 'loss': [], 'target': True},
+    'sole_prop': {'soi': 'business or profession', 'income': ['sole_prop'], 'loss': [], 'target': True},
     'pship_scorp': {'soi': 'partnership and s corporation',
-                    'income': ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc'],
-                    'loss': ['part_pass_loss', 'part_nonpass_loss', 'part_179', 'scorp_pass_loss', 'scorp_nonpass_loss',
+                    'income': ['part_passive', 'part_active', 'scorp_passive', 'scorp_active'],
+                    'loss': ['part_passive_loss', 'part_active_loss', 'part_179', 'scorp_passive_loss', 'scorp_active_loss',
                              'scorp_179'], 'target': True},
-    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent_inc'], 'loss': ['rent_loss'], 'target': True},
+    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent'], 'loss': ['rent_loss'], 'target': True},
     # left out until the targeting overhaul: its tiny cells could not always be met (22 October)
-    'estate_trust': {'soi': 'estate and trust', 'income': ['estate_inc'], 'loss': ['estate_loss'], 'target': False},
+    'estate_trust': {'soi': 'estate and trust', 'income': ['estate'], 'loss': ['estate_loss'], 'target': False},
     'farm': {'soi': 'farm', 'income': ['farm'], 'loss': [], 'target': True},
     'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True}}
 T14 = {  # SOI item -> (variable, statistic)
@@ -148,7 +148,7 @@ def published_cells(soi, year, variable, stat):
 NET = lambda name: [(name + ' > net income', 1), (name + r' > net loss.*', -1)]
 SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'wages': [('(salaries and wages|total wages > total)', 1)],   # SOI's name from tax year 2022
-    'interest': [('taxable interest', 1)],
+    'txbl_int': [('taxable interest', 1)],
     'dividends': [('ordinary dividends', 1)],
     'sch_d_net_gain': [('sales of capital assets reported on form 1040, schedule d > taxable net gain', 1)],
     'kg_dist': [('capital gain distributions reported on form 1040', 1)],
@@ -162,15 +162,15 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     + NET('rent') + NET('royalty') + NET('estate and trust') + NET('farm rental'),
     'other_gains': [('sales of property other than capital assets > net gain', 1),
                     ('sales of property other than capital assets > net loss', -1)],
-    'ira_taxable': [(r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions'
+    'txbl_ira_dist': [(r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions'
                      r'|individual retirement arrangement.*taxable.*)', 1)],
-    'pensions_taxable': [('pensions and annuities > taxable', 1)],
-    'ss_taxable': [('social security benefits > taxable', 1)], 'unemployment': [('unemployment compensation', 1)],
-    'alimony': [('alimony received', 1)], 'state_refunds': [('state income tax refunds', 1)],
+    'txbl_pens_dist': [('pensions and annuities > taxable', 1)],
+    'ss_taxable': [('social security benefits > taxable', 1)], 'ui': [('unemployment compensation', 1)],
+    'alimony': [('alimony received', 1)], 'state_ref': [('state income tax refunds', 1)],
     'adjustments': [('statutory adjustments > total', 1)],
     'retirement_gross': [('social security benefits > total', 1), ('pensions and annuities > total', 1)],
-    'ss_gross': [('social security benefits > total', 1)],
-    'tax_exempt_interest': [('tax exempt interest', 1)], 'other_agi': NET('other income'),
+    'gross_ss': [('social security benefits > total', 1)],
+    'exempt_int': [('tax exempt interest', 1)], 'other_agi': NET('other income'),
     # stage 3 (27 October): the two parts of ordinary dividends and the eleven statutory adjustments, each by its own
     # Table 1.4 line (the part "ordinary less qualified" has no line of its own: ordinary dividends')
     'div_pref': [('qualified dividends', 1)], 'div_ord': [('ordinary dividends', 1)],
@@ -178,7 +178,7 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
         'trad_contr_ira': 'ira payments', 'sl_int_ded': 'student loan interest deduction',
         'ed_exp': 'educator expenses deduction', 'tuition_ded': 'tuition and fees deduction',
         'dpad': 'domestic production activities deduction', 'se_tax_ded': 'deductible part of self employment tax',
-        'se_health': 'self employed health insurance deduction', 'hsa_ded': 'health savings account deduction',
+        'se_health': 'self employed health insurance deduction', 'hsa_contr': 'health savings account deduction',
         'keogh_contr': 'payments to a keogh plan', 'early_penalty': 'penalty on early withdrawal of savings',
         'alimony_exp': 'alimony paid'}.items()}}
 NI, NL = ' > net income', r' > net loss.*'
@@ -186,15 +186,15 @@ NI, NL = ' > net income', r' > net loss.*'
 # positive rows). The section 179 deductions grow with partnership and S corporation net income, as the tables of
 # record were built; sche_other with business income as a whole.
 PART_GROWTH = {
-    'sch_c': (['business or profession' + NI], ['business or profession' + NL]),
+    'sole_prop': (['business or profession' + NI], ['business or profession' + NL]),
     'farm': (['farm' + NI], ['farm' + NL]),
-    'rent_inc': (['total rental and royalty' + NI], None), 'rent_loss': (['total rental and royalty' + NL], None),
-    'estate_inc': (['estate and trust' + NI], None), 'estate_loss': (['estate and trust' + NL], None),
+    'rent': (['total rental and royalty' + NI], None), 'rent_loss': (['total rental and royalty' + NL], None),
+    'estate': (['estate and trust' + NI], None), 'estate_loss': (['estate and trust' + NL], None),
     'farm_rent': (['farm rental' + NI], ['farm rental' + NL]),
     **{p: (['partnership and s corporation' + NI], None)
-       for p in ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc', 'part_179', 'scorp_179']},
+       for p in ['part_passive', 'part_active', 'scorp_passive', 'scorp_active', 'part_179', 'scorp_179']},
     **{p: (['partnership and s corporation' + NL], None)
-       for p in ['part_pass_loss', 'part_nonpass_loss', 'scorp_pass_loss', 'scorp_nonpass_loss']},
+       for p in ['part_passive_loss', 'part_active_loss', 'scorp_passive_loss', 'scorp_active_loss']},
     'sche_other': ('business_income', None),
     # stage 3: partnership income subject to self-employment tax (production's part_se), with partnership and
     # S corporation net income and net loss

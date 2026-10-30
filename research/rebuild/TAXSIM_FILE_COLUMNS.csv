@@ -3,26 +3,26 @@ id,renamed,record_id,"record id, unique in the file",yes
 weight,same,weight (after the tilt); weight_start is the weight before it,tax units the record stands for,yes
 filer,same,filer,"1 files a return, 0 a non-filer",yes
 dep_status,computed,"age_range in 6, 7, 8 (the PUF's three dependent-filer ranges)",1 if the return is filed by someone claimed as a dependent,yes
-filing_status,renamed,mars,"1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household",yes
+filing_status,renamed,filing_status,"1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household",yes
 male1,computed,sex_primary == 1; for dependent filers dep_filer_sex == 1,"primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain",yes
 male2,computed,"sex_spouse == 1 (1 man, 0 woman); missing without a spouse, as production",,yes
-age1,renamed,"age_primary; for dependent filers (age_primary -1) dep_filer_age, drawn by the non-microdata imputations (production gives every record an age)","age of the primary filer, 80 for 80 and over",yes
-age2,renamed,"age_spouse; missing without a spouse [converter: age_spouse; NaN where the rebuild has -1 (none), as Tax-Data writes it]",age of the spouse,yes
+age1,renamed,"age1; for dependent filers (age1 -1) dep_filer_age, drawn by the non-microdata imputations (production gives every record an age)","age of the primary filer, 80 for 80 and over",yes
+age2,renamed,"age2; missing without a spouse [converter: age2; NaN where the rebuild has -1 (none), as Tax-Data writes it]",age of the spouse,yes
 blind1,same,"blind1 (made in the file since 29 October: blindness rule, non-microdata imputations)",primary filer is blind: the blindness rule (NEXT_STEPS step 1),yes
 blind2,same,"blind2; missing without a spouse, as production [converter: blind2 (made in the file since 29 October: blindness rule, non-microdata imputations)]",spouse is blind: the blindness rule (NEXT_STEPS step 1),yes
 parent_rank,same,"parent_rank (non-microdata imputations, production's method)",,no
 n_dep,same,n_dep (the rebuild caps it at 3),number of dependents,yes
-dep_age1,renamed,"age_dep1; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the first dependent,yes
-dep_age2,renamed,"age_dep2; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the second dependent,yes
-dep_age3,renamed,"age_dep3; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the third dependent,yes
+dep_age1,renamed,"dep_age1; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the first dependent,yes
+dep_age2,renamed,"dep_age2; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the second dependent,yes
+dep_age3,renamed,"dep_age3; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the third dependent,yes
 dep_ssn1,same,"dep_ssn1 (dollars.py, from the drawn CPS status); missing where dep_age1 is missing, as production [converter: dep_ssn1 (made in the file since 29 October: the drawn CPS status, dollars.py)]",dependent 1 has a Social Security number: the dependents' SSN rule (NEXT_STEPS step 1),yes
 dep_ssn2,same,"as dep_ssn1 [converter: dep_ssn2 (made in the file since 29 October: the drawn CPS status, dollars.py)]",dependent 2 has a Social Security number: as dep_ssn1,yes
 dep_ssn3,same,"as dep_ssn1 [converter: dep_ssn3 (made in the file since 29 October: the drawn CPS status, dollars.py)]",dependent 3 has a Social Security number: as dep_ssn1,yes
-n_dep_ctc,renamed,"n_ctc (the PUF's child credit children, N24, held to 3)",,yes
+n_dep_ctc,renamed,"n_dep_ctc (the PUF's child credit children, N24, held to 3)",,yes
 dep_ctc1,same,"dep_ctc1 (non-microdata imputations); missing where dep_age1 is missing, as production [converter: dep_ctc1 (made in the file since 29 October: child credit eligibility, non-microdata imputations)]",dependent 1 qualifies for the child tax credit apart from age and SSN: the child credit eligibility rule (NEXT_STEPS step 1),yes
 dep_ctc2,same,"as dep_ctc1 [converter: dep_ctc2 (made in the file since 29 October: child credit eligibility, non-microdata imputations)]",dependent 2 qualifies for the child tax credit: as dep_ctc1,yes
 dep_ctc3,same,"as dep_ctc1 [converter: dep_ctc3 (made in the file since 29 October: child credit eligibility, non-microdata imputations)]",dependent 3 qualifies for the child tax credit: as dep_ctc1,yes
-n_dep_eitc,renamed,"n_eitc (PUF EIC, capped at 3)",number of EITC qualifying children,yes
+n_dep_eitc,renamed,"n_dep_eitc (PUF EIC, capped at 3)",number of EITC qualifying children,yes
 wages,same,wages,"W-2 wages of the unit, box 1 (tips and overtime included)",yes
 wages1,same,wages1,primary filer's wages; wages1 + wages2 = wages,yes
 wages2,same,wages2,spouse's wages,yes
@@ -37,16 +37,16 @@ tips_lh2,same,tips_lh2,spouse's tips are from leisure and hospitality,yes
 ei_prior_yr,zero,"0, as production writes it",earned income last year (child credit look-back; off under 2019 law): no source planned,yes
 trad_contr_er1,same,trad_contr_er1,primary filer's traditional elective deferrals (outside box 1),yes
 trad_contr_er2,same,trad_contr_er2,spouse's traditional elective deferrals,yes
-txbl_int,renamed,interest,taxable interest,yes
-exempt_int,renamed,tax_exempt_interest,tax-exempt interest,yes
+txbl_int,renamed,txbl_int,taxable interest,yes
+exempt_int,renamed,exempt_int,tax-exempt interest,yes
 div_ord,same,div_ord,ordinary dividends that are not qualified,yes
 div_pref,same,div_pref,qualified dividends,yes
-state_ref,renamed,state_refunds,taxable state income tax refunds,yes
+state_ref,renamed,state_ref,taxable state income tax refunds,yes
 alimony,same,alimony,alimony received,yes
 divorce_year,computed,"0 where alimony is received or paid, else missing (production's rule). Tax-Simulator counts alimony only with a divorce year before 2019",year of divorce; before 2019 alimony counts in AGI. 0 and missing differ only in the capital gains module's chance of being a surviving spouse,yes
-sole_prop,renamed,sch_c,Schedule C net income of the unit,yes
-sole_prop1,computed,sch_c - sole_prop2,primary filer's Schedule C income,yes
-sole_prop2,computed,sch_c x spouse_se_share (production splits by one self-employment share too),spouse's Schedule C income,yes
+sole_prop,renamed,sole_prop,Schedule C net income of the unit,yes
+sole_prop1,computed,sole_prop - sole_prop2,primary filer's Schedule C income,yes
+sole_prop2,computed,sole_prop x spouse_se_share (production splits by one self-employment share too),spouse's Schedule C income,yes
 wagebill_sole_prop,same,"wagebill_sole_prop (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule (NEXT_STEPS step 1),yes
 sstb_sole_prop,same,"sstb_sole_prop (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the sole proprietorship is a specified service business (QBI): the QBI specified-service rule (NEXT_STEPS step 1),yes
 kg_st,same,kg_st,short-term gain or loss (PUF P22250),yes
@@ -56,41 +56,41 @@ kg_lt_basis,same,"kg_lt_basis; missing where kg_lt is 0; 0 where the holding per
 kg_1250,same,kg_1250,unrecaptured section 1250 gain,yes
 kg_collect,same,kg_collect,28 percent rate (collectibles) gain,yes
 other_gains,same,other_gains,Form 4797 gains and losses,yes
-txbl_ira_dist,renamed,ira_taxable,taxable IRA distributions,yes
-gross_pens_dist,computed,retirement_gross - ss_gross (retirement_gross is the PUF's E02400 + E01500),gross pensions and annuities,yes
-txbl_pens_dist,renamed,pensions_taxable,taxable pensions and annuities,yes
-part_active,renamed,part_nonpass_inc,nonpassive partnership income,yes
-part_active_loss,renamed,part_nonpass_loss,"nonpassive partnership loss, stored positive",yes
-part_passive,renamed,part_pass_inc,passive partnership income,yes
-part_passive_loss,renamed,part_pass_loss,"passive partnership loss, stored positive",yes
+txbl_ira_dist,renamed,txbl_ira_dist,taxable IRA distributions,yes
+gross_pens_dist,computed,retirement_gross - gross_ss (retirement_gross is the PUF's E02400 + E01500),gross pensions and annuities,yes
+txbl_pens_dist,renamed,txbl_pens_dist,taxable pensions and annuities,yes
+part_active,renamed,part_active,nonpassive partnership income,yes
+part_active_loss,renamed,part_active_loss,"nonpassive partnership loss, stored positive",yes
+part_passive,renamed,part_passive,passive partnership income,yes
+part_passive_loss,renamed,part_passive_loss,"passive partnership loss, stored positive",yes
 part_179,same,part_179,partnership section 179 deduction,yes
 part_se,same,part_se (production's formula on the PUF),,no
 part_se1,computed,part_se - part_se2,primary filer's partnership income subject to self-employment tax,yes
 part_se2,computed,part_se x spouse_se_share,spouse's partnership income subject to self-employment tax,yes
 wagebill_part,same,"wagebill_part (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the partnership (QBI): as wagebill_sole_prop,yes
 sstb_part,same,"sstb_part (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the partnership is a specified service business: as sstb_sole_prop,yes
-scorp_active,renamed,scorp_nonpass_inc,nonpassive S corporation income,yes
-scorp_active_loss,renamed,scorp_nonpass_loss,"nonpassive S corporation loss, stored positive",yes
-scorp_passive,renamed,scorp_pass_inc,passive S corporation income,yes
-scorp_passive_loss,renamed,scorp_pass_loss,"passive S corporation loss, stored positive",yes
+scorp_active,renamed,scorp_active,nonpassive S corporation income,yes
+scorp_active_loss,renamed,scorp_active_loss,"nonpassive S corporation loss, stored positive",yes
+scorp_passive,renamed,scorp_passive,passive S corporation income,yes
+scorp_passive_loss,renamed,scorp_passive_loss,"passive S corporation loss, stored positive",yes
 scorp_179,same,scorp_179,S corporation section 179 deduction,yes
 wagebill_scorp,same,"wagebill_scorp (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the S corporation (QBI): as wagebill_sole_prop,yes
 sstb_scorp,same,"sstb_scorp (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the S corporation is a specified service business: as sstb_sole_prop,yes
-rent,renamed,rent_inc,"rents and royalties, net income",yes
+rent,renamed,rent,"rents and royalties, net income",yes
 rent_loss,same,rent_loss,"rents and royalties, net loss, stored positive",yes
-estate,renamed,estate_inc,estate and trust net income,yes
+estate,renamed,estate,estate and trust net income,yes
 estate_loss,same,estate_loss,"estate and trust net loss, stored positive",yes
 farm,same,farm,Schedule F net farm income of the unit,yes
 farm1,computed,farm - farm2,primary filer's farm income,yes
 farm2,computed,farm x spouse_se_share,spouse's farm income,yes
 wagebill_farm,same,"wagebill_farm (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the farm (QBI): as wagebill_sole_prop,yes
 sstb_farm,same,"sstb_farm (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the farm is a specified service business: as sstb_sole_prop,yes
-ui,renamed,unemployment,unemployment compensation,yes
-gross_ss,renamed,ss_gross,gross Social Security benefits (the calculator computes the taxable part),yes
+ui,renamed,ui,unemployment compensation,yes
+gross_ss,renamed,gross_ss,gross Social Security benefits (the calculator computes the taxable part),yes
 nols,zero,"0, as production writes it (no source in either)",,no
 other_inc,computed,other_agi_remainder + farm_rent + sche_other,other income in AGI: AGI less every item the calculator gets in another column. The rebuild's remainder does not hold the adjustments (production's does); farm rental and the unnamed rest of Schedule E have no column of their own in the calculator,yes
 ed_exp,same,ed_exp,educator expenses,yes
-hsa_contr,renamed,hsa_ded,HSA deduction,yes
+hsa_contr,renamed,hsa_contr,HSA deduction,yes
 trad_contr_ira,same,trad_contr_ira,deductible IRA contributions,yes
 sl_int_ded,same,sl_int_ded,student loan interest deduction,yes
 keogh_contr,same,keogh_contr,"Keogh, SEP and SIMPLE contributions",yes
@@ -105,15 +105,15 @@ other_above_ded,zero,"0, as production writes it",other adjustments: none planne
 auto_int_exp,same,auto_int_exp,auto loan interest (deductible only from 2025),yes
 med_exp,same,med_exp,medical expenses before the AGI floor,yes
 salt_inc_sales,same,salt_inc_sales,state and local income or sales tax,yes
-salt_prop,renamed,real_estate_tax,real estate tax,yes
+salt_prop,renamed,salt_prop,real estate tax,yes
 salt_pers,zero,"0, as production writes it",personal property tax: none planned,yes
-first_mort_bal,zero,"0, as production writes it","first mortgage balance (the $750,000 limit): the balance sheet's w_primary_mortgage could fill it (a decision)",yes
+first_mort_bal,zero,"0, as production writes it","first mortgage balance (the $750,000 limit): the balance sheet's value.primary_mortgage could fill it (a decision)",yes
 second_mort_bal,zero,"0, as production writes it",second mortgage balance: as first_mort_bal,yes
 first_mort_year,zero,"0, as production writes it",year the first mortgage was taken out; the calculator overrides it,yes
 second_mort_year,zero,"0, as production writes it",as first_mort_year,yes
-first_mort_int,renamed,"mortgage_interest (PUF E19200, all deductible interest, as production)",mortgage interest paid,yes
+first_mort_int,renamed,"first_mort_int (PUF E19200, all deductible interest, as production)",mortgage interest paid,yes
 second_mort_int,zero,"0, as production writes it",interest on a second mortgage: inside first_mort_int,yes
-prim_mort_share,computed,"w_primary_mortgage / (w_primary_mortgage + w_other_mortgage) from the drawn balance sheet, each balance read as at least 0; 1 where there is no mortgage (production's default); production imputes it from the SCF by a forest. Tax-Simulator does not read it",,no
+prim_mort_share,computed,"value.primary_mortgage / (value.primary_mortgage + value.other_mortgage) from the drawn balance sheet, each balance read as at least 0; 1 where there is no mortgage (production's default); production imputes it from the SCF by a forest. Tax-Simulator does not read it",,no
 inv_int_exp,zero,"0, as production writes it",investment interest: inside first_mort_int,yes
 casualty_exp,same,casualty_exp,casualty and theft losses,yes
 job_exp,same,job_exp,unreimbursed employee expenses,yes
@@ -144,26 +144,26 @@ c_food_off_premises,same,"c_food_off_premises (consumption, CEX)",,no
 c_gasoline,same,"c_gasoline (consumption, CEX)",,no
 c_housing_utilities,same,"c_housing_utilities (consumption, CEX)",,no
 c_other_services_health,same,"c_other_services_health (consumption, CEX)",,no
-value.cash,renamed,w_cash,balance sheet: cash,no
-value.equities,renamed,w_equities,balance sheet: equities,no
-value.bonds,renamed,w_bonds,balance sheet: bonds,no
-value.dc,renamed,w_dc,balance sheet: dc,no
-value.db,renamed,w_db,balance sheet: db,no
-value.life_ins,renamed,w_life_ins,balance sheet: life ins,no
-value.annuities,renamed,w_annuities,balance sheet: annuities,no
-value.trusts,renamed,w_trusts,balance sheet: trusts,no
-value.other_fin,renamed,w_other_fin,balance sheet: other fin,no
-value.pass_throughs,renamed,w_pass_throughs,balance sheet: pass throughs,no
-value.primary_home,renamed,w_primary_home,balance sheet: primary home,no
-value.other_home,renamed,w_other_home,balance sheet: other home,no
-value.re_fund,renamed,w_re_fund,balance sheet: re fund,no
-value.other_nonfin,renamed,w_other_nonfin,balance sheet: other nonfin,no
-value.primary_mortgage,renamed,w_primary_mortgage,balance sheet: primary mortgage,no
-value.other_mortgage,renamed,w_other_mortgage,balance sheet: other mortgage,no
-value.credit_lines,renamed,w_credit_lines,balance sheet: credit lines,no
-value.credit_cards,renamed,w_credit_cards,balance sheet: credit cards,no
-value.installment_debt,renamed,w_installment_debt,balance sheet: installment debt,no
-value.other_debt,renamed,w_other_debt,balance sheet: other debt,no
+value.cash,renamed,value.cash,balance sheet: cash,no
+value.equities,renamed,value.equities,balance sheet: equities,no
+value.bonds,renamed,value.bonds,balance sheet: bonds,no
+value.dc,renamed,value.dc,balance sheet: dc,no
+value.db,renamed,value.db,balance sheet: db,no
+value.life_ins,renamed,value.life_ins,balance sheet: life ins,no
+value.annuities,renamed,value.annuities,balance sheet: annuities,no
+value.trusts,renamed,value.trusts,balance sheet: trusts,no
+value.other_fin,renamed,value.other_fin,balance sheet: other fin,no
+value.pass_throughs,renamed,value.pass_throughs,balance sheet: pass throughs,no
+value.primary_home,renamed,value.primary_home,balance sheet: primary home,no
+value.other_home,renamed,value.other_home,balance sheet: other home,no
+value.re_fund,renamed,value.re_fund,balance sheet: re fund,no
+value.other_nonfin,renamed,value.other_nonfin,balance sheet: other nonfin,no
+value.primary_mortgage,renamed,value.primary_mortgage,balance sheet: primary mortgage,no
+value.other_mortgage,renamed,value.other_mortgage,balance sheet: other mortgage,no
+value.credit_lines,renamed,value.credit_lines,balance sheet: credit lines,no
+value.credit_cards,renamed,value.credit_cards,balance sheet: credit cards,no
+value.installment_debt,renamed,value.installment_debt,balance sheet: installment debt,no
+value.other_debt,renamed,value.other_debt,balance sheet: other debt,no
 basis.primary_home,same,"basis.primary_home (non-microdata imputations: value less the SCF's unrealized gain, the gain first held to the value; the calculator converter's formula does not hold it)",cost basis of the home,no
 basis.other_home,same,"basis.other_home (non-microdata imputations: value less the SCF's unrealized gain, the gain first held to the value; the calculator converter's formula does not hold it)","cost basis of other homes (the other real estate gain split by value, as production)",no
 basis.re_fund,same,"basis.re_fund (non-microdata imputations: value less the SCF's unrealized gain, the gain first held to the value; the calculator converter's formula does not hold it)",cost basis of other real estate,no

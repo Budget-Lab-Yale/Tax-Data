@@ -92,10 +92,10 @@ INTEGERS = ['id', 'filer', 'dep_status', 'filing_status', 'male1', 'age1', 'pare
 EXTRA = {
     'male2': ('computed', 'sex_spouse == 1 (1 man, 0 woman); missing without a spouse, as production'),
     'parent_rank': ('same', 'parent_rank (non-microdata imputations, production\'s method)'),
-    'n_dep_ctc': ('renamed', 'n_ctc (the PUF\'s child credit children, N24, held to 3)'),
+    'n_dep_ctc': ('same', 'n_dep_ctc (the PUF\'s child credit children, N24, held to 3)'),
     'part_se': ('same', 'part_se (production\'s formula on the PUF)'),
     'nols': ('zero', '0, as production writes it (no source in either)'),
-    'prim_mort_share': ('computed', 'w_primary_mortgage / (w_primary_mortgage + w_other_mortgage) from the drawn '
+    'prim_mort_share': ('computed', 'value.primary_mortgage / (value.primary_mortgage + value.other_mortgage) from the drawn '
                         'balance sheet, each balance read as at least 0; 1 where there is no mortgage (production\'s default); production imputes '
                         'it from the SCF by a forest. Tax-Simulator does not read it'),
     **{c: ('same', f'{c} (consumption, CEX)') for c in CONSUMPTION},
@@ -104,10 +104,10 @@ EXTRA = {
        for c in FORBES_DEFAULTS},
 }
 RULES = {
-    'age1': 'age_primary; for dependent filers (age_primary -1) dep_filer_age, drawn by the non-microdata imputations '
+    'age1': 'age1; for dependent filers (age1 -1) dep_filer_age, drawn by the non-microdata imputations '
             '(production gives every record an age)',
     'male1': 'sex_primary == 1; for dependent filers dep_filer_sex == 1',
-    'age2': 'age_spouse; missing without a spouse',
+    'age2': 'age2; missing without a spouse',
     'blind2': 'blind2; missing without a spouse, as production',
     'q_death2': 'q_death2; missing without a spouse (the file\'s -1), as production',
     'dep_ssn1': 'dep_ssn1 (dollars.py, from the drawn CPS status); missing where dep_age1 is missing, as production',
@@ -144,8 +144,8 @@ def build(f):
 
     # the primary filer: an age and a sex on every record
     dep = x('age_range') >= common.ADULT_RANGES
-    assert (dep == (x('age_primary') == -1)).all(), 'age_primary is -1 exactly on the dependent filers: not so'
-    a1 = np.where(dep, x('dep_filer_age'), x('age_primary'))
+    assert (dep == (x('age1') == -1)).all(), 'age1 is -1 exactly on the dependent filers: not so'
+    a1 = np.where(dep, x('dep_filer_age'), x('age1'))
     assert (a1 >= 0).all(), f'records with no primary age after the dependent filers\' ages: {(a1 < 0).sum()}'
     out['age1'] = a1
     s1 = np.where(dep, x('dep_filer_sex'), x('sex_primary'))
@@ -155,8 +155,8 @@ def build(f):
                  f'{a1[dep].max():.0f}')
 
     # the spouse
-    spouse = x('age_spouse') >= 0
-    joint = x('mars') == 2
+    spouse = x('age2') >= 0
+    joint = x('filing_status') == 2
     notes.append(f'joint returns with no spouse age: {wm(joint & ~spouse)} (age2, male2, blind2, q_death2 missing '
                  'there; Tax-Simulator reads a missing age2 as under 65); spouse age on a return that is not joint: '
                  f'{wm(~joint & spouse)}')
@@ -187,7 +187,7 @@ def build(f):
             out[c] = np.where(has, v, np.nan)
         notes.append(f'n_dep >= {k} but no dep_age{k}: {wm((nd >= k) & ~has)}; dep_age{k} but n_dep < {k}: '
                      f'{wm((nd < k) & has)} (left as in the file)')
-    out['n_dep_ctc'] = x('n_ctc')
+    out['n_dep_ctc'] = x('n_dep_ctc')
     for c in ('n_dep_ctc', 'n_dep_eitc'):   # the PUF allows more EITC (or credit) children than dependents: kept
         notes.append(f'{c} above n_dep (left as drawn): {wm(out[c] > nd)}')
 
@@ -217,10 +217,10 @@ def build(f):
     assert ((out['parent_rank'] >= 1) & (out['parent_rank'] <= 100)).all()
     out['part_se'] = x('part_se')
     out['nols'] = np.zeros(n)
-    pm, om = np.maximum(x('w_primary_mortgage'), 0), np.maximum(x('w_other_mortgage'), 0)   # a few drawn balances are just below 0
+    pm, om = np.maximum(x('value.primary_mortgage'), 0), np.maximum(x('value.other_mortgage'), 0)   # a few drawn balances are just below 0
     tot = pm + om
     out['prim_mort_share'] = np.where(tot > 0, np.divide(pm, tot, out=np.ones(n), where=tot > 0), 1.0)
-    notes.append(f'mortgage balances below 0 (read as 0 for prim_mort_share): {wm((x("w_primary_mortgage") < 0) | (x("w_other_mortgage") < 0))}')
+    notes.append(f'mortgage balances below 0 (read as 0 for prim_mort_share): {wm((x("value.primary_mortgage") < 0) | (x("value.other_mortgage") < 0))}')
     for c in CONSUMPTION:
         out[c] = x(c)
     for c, v in FORBES_DEFAULTS.items():

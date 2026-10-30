@@ -880,6 +880,14 @@ holding period and basis of long-term gains, parents' rank; placeholders for dep
 blindness and the QBI items. On the latest run's stack the tilt gives the installed weights exactly and meets all 789
 targets; the checks are reported in `report.md` section 6.
 
+### 29-30 October: Tax-Simulator's names everywhere
+
+John (29 October): "there is no reason for the names to differ. at all." The rebuild's variables took the input names of
+tax-simulator-gpu (50 renamed, for example `mars` to `filing_status`, `interest` to `txbl_int`, `w_cash` to
+`value.cash`), by a script from one table (`pipeline/tools/rename_map.csv`, `apply_rename.py`), on branch
+`rebuild-names-gains`. This file keeps the old names in the entries above. The training table and a 2019 draw and tilt
+from the installed networks were checked equal before and after, apart from the names (`FEATURES.md`, "The names").
+
 ## Paths tried and not taken
 
 | What | Why not |

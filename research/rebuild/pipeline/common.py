@@ -48,6 +48,21 @@ WAGE_GROUPS = [(-np.inf, 1, 'none'), (1, 25e3, '$1-25k'), (25e3, 50e3, '$25k-50k
                (100e3, 200e3, '$100k-200k'), (200e3, np.inf, '$200k+')]
 
 
+# The capital loss limit (section 1211(b)): a net capital loss counts in AGI up to $3,000, $1,500 on a separate return
+# (filing status 3); nominal, not indexed. Since 29-30 October the file draws the Schedule D gains and losses before
+# the limit (kg_st, kg_lt) and the limit is applied here, where AGI is made, and by the calculator (John, 29 October).
+CAPITAL_LOSS_LIMIT, CAPITAL_LOSS_LIMIT_SEPARATE = 3000.0, 1500.0
+
+
+def allowed_capital_gain(sched_d, filing_status=None):
+    """The Schedule D net gain as it enters AGI: the net (short term plus long term, before the limit), a loss held to
+    the limit. filing_status None: every return held to $3,000."""
+    sched_d = np.asarray(sched_d, float)
+    limit = CAPITAL_LOSS_LIMIT if filing_status is None else \
+        np.where(np.asarray(filing_status) == 3, CAPITAL_LOSS_LIMIT_SEPARATE, CAPITAL_LOSS_LIMIT)
+    return np.maximum(sched_d, -limit)
+
+
 def groups_by(x, lines):
     """Labels of dollar ranges: lines = [(lo, hi, label)], lo inclusive."""
     out = np.full(len(x), '', dtype=object)

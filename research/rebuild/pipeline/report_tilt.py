@@ -56,45 +56,46 @@ AGI_GROUPS = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab)
 # ---- plain names -------------------------------------------------------------------------------------------
 LABELS = {
     'agi': 'adjusted gross income', 'wages': 'salaries and wages', 'wages1': "primary filer's wages",
-    'wages2': "spouse's wages", 'interest': 'taxable interest', 'tax_exempt_interest': 'tax-exempt interest',
+    'wages2': "spouse's wages", 'txbl_int': 'taxable interest', 'exempt_int': 'tax-exempt interest',
     'dividends': 'ordinary dividends', 'capital_gains': 'Schedule D net capital gain or loss',
     'capital_gains_line13': 'capital gain or loss with distributions (Form 1040 line 13)',
-    'kg_st': 'short-term capital gain or loss', 'kg_lt': 'long-term capital gain or loss',
-    'kg_dist': 'capital gain distributions on Form 1040', 'kg_other': 'other Schedule D gain or loss',
+    'kg_st': 'short-term capital gain or loss, before the $3,000 loss limit',
+    'kg_lt': 'long-term capital gain or loss, before the $3,000 loss limit',
+    'kg_dist': 'capital gain distributions on Form 1040',
     'other_agi': 'all other income in AGI', 'business_income': 'business income (Schedules C, E and F)',
     'sch_cf_income': 'Schedule C and F net income', 'sch_e_income': 'Schedule E net income',
-    'retirement_gross': 'Social Security and pensions, gross', 'ss_gross': 'Social Security benefits, total',
-    'ss_taxable': 'Social Security benefits, taxable', 'pensions_taxable': 'pensions and annuities, taxable',
-    'ira_taxable': 'taxable IRA distributions', 'other_gains': 'sales of property other than capital assets',
-    'unemployment': 'unemployment compensation', 'alimony': 'alimony received',
-    'state_refunds': 'state income tax refunds', 'adjustments': 'statutory adjustments',
-    'sch_c': 'business or profession (Schedule C)', 'farm': 'farm (Schedule F)',
-    'part_pass_inc': 'partnership passive income', 'part_nonpass_inc': 'partnership nonpassive income',
-    'part_pass_loss': 'partnership passive loss', 'part_nonpass_loss': 'partnership nonpassive loss',
-    'part_179': 'partnership section 179 deduction', 'scorp_pass_inc': 'S corporation passive income',
-    'scorp_nonpass_inc': 'S corporation nonpassive income', 'scorp_pass_loss': 'S corporation passive loss',
-    'scorp_nonpass_loss': 'S corporation nonpassive loss', 'scorp_179': 'S corporation section 179 deduction',
-    'rent_inc': 'rent and royalty income', 'rent_loss': 'rent and royalty loss', 'estate_inc': 'estate and trust income',
+    'retirement_gross': 'Social Security and pensions, gross', 'gross_ss': 'Social Security benefits, total',
+    'ss_taxable': 'Social Security benefits, taxable', 'txbl_pens_dist': 'pensions and annuities, taxable',
+    'txbl_ira_dist': 'taxable IRA distributions', 'other_gains': 'sales of property other than capital assets',
+    'ui': 'unemployment compensation', 'alimony': 'alimony received',
+    'state_ref': 'state income tax refunds', 'adjustments': 'statutory adjustments',
+    'sole_prop': 'business or profession (Schedule C)', 'farm': 'farm (Schedule F)',
+    'part_passive': 'partnership passive income', 'part_active': 'partnership nonpassive income',
+    'part_passive_loss': 'partnership passive loss', 'part_active_loss': 'partnership nonpassive loss',
+    'part_179': 'partnership section 179 deduction', 'scorp_passive': 'S corporation passive income',
+    'scorp_active': 'S corporation nonpassive income', 'scorp_passive_loss': 'S corporation passive loss',
+    'scorp_active_loss': 'S corporation nonpassive loss', 'scorp_179': 'S corporation section 179 deduction',
+    'rent': 'rent and royalty income', 'rent_loss': 'rent and royalty loss', 'estate': 'estate and trust income',
     'estate_loss': 'estate and trust loss', 'farm_rent': 'farm rental income', 'sche_other': 'other Schedule E items',
     'se1': "primary filer's self-employment income", 'se2': "spouse's self-employment income",
-    'mortgage_interest': 'home mortgage interest deduction', 'real_estate_tax': 'real estate tax deduction',
-    'childcare': 'child care expenses', 'net_worth': 'net worth', 'total_consumption': 'total consumption',
-    'w_cash': 'cash and transaction accounts', 'w_equities': 'stocks and stock funds', 'w_bonds': 'bonds and bond funds',
-    'w_dc': 'IRAs and defined-contribution accounts', 'w_db': 'defined-benefit pensions',
-    'w_life_ins': 'cash value of life insurance', 'w_annuities': 'annuities', 'w_trusts': 'trusts and managed accounts',
-    'w_other_fin': 'other financial assets', 'w_pass_throughs': 'privately held businesses',
-    'w_primary_home': 'primary home', 'w_other_home': 'other residential real estate',
-    'w_re_fund': 'nonresidential real estate', 'w_other_nonfin': 'vehicles and other nonfinancial assets',
-    'w_primary_mortgage': 'mortgage on the primary home', 'w_other_mortgage': 'other residential debt',
-    'w_credit_lines': 'other lines of credit', 'w_credit_cards': 'credit card balances',
-    'w_installment_debt': 'installment debt', 'w_other_debt': 'other debt',
+    'first_mort_int': 'home mortgage interest deduction', 'salt_prop': 'real estate tax deduction',
+    'care_exp': 'child care expenses', 'net_worth': 'net worth', 'total_consumption': 'total consumption',
+    'value.cash': 'cash and transaction accounts', 'value.equities': 'stocks and stock funds', 'value.bonds': 'bonds and bond funds',
+    'value.dc': 'IRAs and defined-contribution accounts', 'value.db': 'defined-benefit pensions',
+    'value.life_ins': 'cash value of life insurance', 'value.annuities': 'annuities', 'value.trusts': 'trusts and managed accounts',
+    'value.other_fin': 'other financial assets', 'value.pass_throughs': 'privately held businesses',
+    'value.primary_home': 'primary home', 'value.other_home': 'other residential real estate',
+    'value.re_fund': 'nonresidential real estate', 'value.other_nonfin': 'vehicles and other nonfinancial assets',
+    'value.primary_mortgage': 'mortgage on the primary home', 'value.other_mortgage': 'other residential debt',
+    'value.credit_lines': 'other lines of credit', 'value.credit_cards': 'credit card balances',
+    'value.installment_debt': 'installment debt', 'value.other_debt': 'other debt',
     'w_kg_primary_home': 'unrealized gain on the primary home', 'w_kg_other_re': 'unrealized gain on other real estate',
     'w_kg_pass_throughs': 'unrealized gain on businesses', 'w_kg_other': 'unrealized gain on stocks and funds',
     'c_clothing': 'clothing and footwear', 'c_motor_vehicles': 'motor vehicles and parts',
     'c_durables': 'other durable goods', 'c_other_nondurables': 'other nondurable goods',
     'c_food_off_premises': 'food and beverages at home', 'c_gasoline': 'gasoline and other energy goods',
     'c_housing_utilities': 'housing and utilities', 'c_other_services_health': 'health care and other services'}
-IRS_ITEM_LABELS = {'wages': 'salaries and wages', 'interest': 'taxable interest', 'dividends': 'ordinary dividends',
+IRS_ITEM_LABELS = {'wages': 'salaries and wages', 'txbl_int': 'taxable interest', 'dividends': 'ordinary dividends',
                    'capital_gains': 'Schedule D net gain less net loss'}
 FAMILY_LABELS = {f: v['soi'] for f, v in TG.FAMILIES.items()}
 AGE_PLAIN = dict(zip(common.AGE_LABELS, ['primary filer under 26', 'primary filer 26-34', 'primary filer 35-44',
@@ -366,13 +367,13 @@ LINES = [
     ('number of returns', lambda d: np.ones(len(d)), ['count'], ''),
     ('adjusted gross income less deficit', lambda d: d['agi'].to_numpy(float), ['amount'], ''),
     ('salaries and wages', lambda d: d['wages'].to_numpy(float), ['count', 'amount'], ''),
-    ('taxable interest', lambda d: d['interest'].to_numpy(float), ['count', 'amount'], ''),
-    ('tax exempt interest', lambda d: d['tax_exempt_interest'].to_numpy(float), ['count', 'amount'], ''),
+    ('taxable interest', lambda d: d['txbl_int'].to_numpy(float), ['count', 'amount'], ''),
+    ('tax exempt interest', lambda d: d['exempt_int'].to_numpy(float), ['count', 'amount'], ''),
     ('ordinary dividends', lambda d: d['dividends'].to_numpy(float), ['count', 'amount'], ''),
-    ('state income tax refunds', lambda d: d['state_refunds'].to_numpy(float), ['count', 'amount'], ''),
+    ('state income tax refunds', lambda d: d['state_ref'].to_numpy(float), ['count', 'amount'], ''),
     ('alimony received', lambda d: d['alimony'].to_numpy(float), ['count', 'amount'], ''),
-    ('business or profession > net income', lambda d: pos(family_net(d, 'sch_c')), ['count', 'amount'], ''),
-    ('business or profession > net loss', lambda d: neg(family_net(d, 'sch_c')), ['count', 'amount'], ''),
+    ('business or profession > net income', lambda d: pos(family_net(d, 'sole_prop')), ['count', 'amount'], ''),
+    ('business or profession > net loss', lambda d: neg(family_net(d, 'sole_prop')), ['count', 'amount'], ''),
     ('capital gain distributions( reported on form 1040)?', lambda d: d['kg_dist'].to_numpy(float), ['count', 'amount'],
      'distributions reported directly on Form 1040, without Schedule D'),
     ('sales of capital assets( reported on form 1040, schedule d)? > taxable net gain',
@@ -386,10 +387,10 @@ LINES = [
     ('sales of property other than capital assets > net loss', lambda d: neg(d['other_gains'].to_numpy(float)),
      ['count', 'amount'], ''),
     (r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions)',
-     lambda d: d['ira_taxable'].to_numpy(float), ['count', 'amount'], ''),
-    ('pensions and annuities > total', lambda d: (d['retirement_gross'] - d['ss_gross']).to_numpy(float),
+     lambda d: d['txbl_ira_dist'].to_numpy(float), ['count', 'amount'], ''),
+    ('pensions and annuities > total', lambda d: (d['retirement_gross'] - d['gross_ss']).to_numpy(float),
      ['count', 'amount'], 'the file carries pensions as gross retirement income less Social Security'),
-    ('pensions and annuities > taxable', lambda d: d['pensions_taxable'].to_numpy(float), ['count', 'amount'], ''),
+    ('pensions and annuities > taxable', lambda d: d['txbl_pens_dist'].to_numpy(float), ['count', 'amount'], ''),
     ('total rental and royalty > net income', lambda d: pos(family_net(d, 'rent_royalty')), ['count', 'amount'], ''),
     (r'total rental and royalty > net loss.*', lambda d: neg(family_net(d, 'rent_royalty')), ['count', 'amount'], ''),
     ('partnership and s corporation > net income', lambda d: pos(family_net(d, 'pship_scorp')), ['count', 'amount'], ''),
@@ -400,8 +401,8 @@ LINES = [
     ('farm > net loss', lambda d: neg(family_net(d, 'farm')), ['count', 'amount'], ''),
     ('farm rental > net income', lambda d: pos(family_net(d, 'farm_rental')), ['count', 'amount'], ''),
     ('farm rental > net loss', lambda d: neg(family_net(d, 'farm_rental')), ['count', 'amount'], ''),
-    ('unemployment compensation', lambda d: d['unemployment'].to_numpy(float), ['count', 'amount'], ''),
-    ('social security benefits > total', lambda d: d['ss_gross'].to_numpy(float), ['count', 'amount'], ''),
+    ('unemployment compensation', lambda d: d['ui'].to_numpy(float), ['count', 'amount'], ''),
+    ('social security benefits > total', lambda d: d['gross_ss'].to_numpy(float), ['count', 'amount'], ''),
     ('social security benefits > taxable', lambda d: d['ss_taxable'].to_numpy(float), ['count', 'amount'], ''),
     ('(statutory adjustments > total|total statutory adjustments)', lambda d: d['adjustments'].to_numpy(float),
      ['count', 'amount'], '')]
@@ -476,7 +477,7 @@ def file_values(cells, df, weights):
     filer = df['filer'].to_numpy() == 1
     dep = filer & (df['age_range'].to_numpy() >= common.ADULT_RANGES)
     a = df['agi'].to_numpy(float)
-    rng, mars = df['age_range'].to_numpy(), df['mars'].to_numpy()
+    rng, mars = df['age_range'].to_numpy(), df['filing_status'].to_numpy()
     fn_cache, bracket = {}, {}
     t16 = pd.DataFrame([c for c in cells if c['table'] == '1.6'])
     for c in cells:
@@ -721,7 +722,7 @@ def dollar_items(df):
                                               'business_income_drawn', 'other_agi_remainder'} | \
         {v for v in D.ORDER if v.startswith('biz_workers_')}      # the QBI items' outside workers: counts, not dollars
     extra = ['agi', 'capital_gains_line13', 'sch_cf_income', 'sch_e_income', 'wages1', 'wages2', 'se1', 'se2',
-             'w_primary_mortgage', 'total_consumption', 'net_worth']
+             'value.primary_mortgage', 'total_consumption', 'net_worth']
     items = [v for v in dict.fromkeys(D.ORDER + extra) if v in df and v not in skip]
     bad = {v: int(df[v].isna().sum()) for v in items if df[v].isna().any()}
     assert not bad, f'missing dollar values in the file: {bad}'
