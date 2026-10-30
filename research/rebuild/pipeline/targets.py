@@ -327,14 +327,14 @@ def soi_item(y, item, base=None, rows=None, absolute=False, combined_counts=Fals
 def carried(f, y, concept=None):
     """f(y) for a year in Table 1.4; past its last year, f(last) times CBO's growth of the concept per return (CBO's
     February 2026 individual income tax projections, cbo_growth; 30 October, TARGETS.md section 3: our own last level
-    times an outside change). concept None (a count or a ratio with no CBO line): the last year's value times its last
-    growth for each year beyond, the placeholder of before 30 October."""
+    times an outside change). A concept with no projection series stops instead of repeating a past growth rate."""
     last = total_years()[-1]
     if y <= last:
         return f(y)
     if concept is not None:
         return f(last) * cbo_growth(concept, last, y)
-    return f(last) * (f(last) / f(last - 1)) ** (y - last)
+    raise ValueError(f'No projection series for {y}: SOI ends in {last}; '
+                     'repeating the final observed growth rate is not permitted')
 
 
 # ---- CBO's projections, past SOI's last year (30 October) -------------------------------------------------------
