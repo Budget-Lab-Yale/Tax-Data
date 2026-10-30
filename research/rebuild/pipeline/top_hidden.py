@@ -1023,7 +1023,8 @@ def target_year_rows(h15, donors, models, factors, out):
     rows['hidden_wealth_fallback'] = (accepted == -1).astype(np.int64)
     # 8. the PUF items grown from 2015 (tilt.grow_dollars on the PUF block alone), then every total recomputed
     puf15 = h15[PRIMITIVES + ['capital_gains_line13', 'capital_gains', 'business_income', 'business_income_drawn',
-                             'other_agi'] + [k for k in D.META['computed_totals'] if k != 'business_income']].copy()
+                             'other_agi', 'filing_status']   # the filing status: the capital loss limit
+              + [k for k in D.META['computed_totals'] if k != 'business_income']].copy()
     puf15 = puf15.loc[:, ~puf15.columns.duplicated()]
     grown, growth = TL.grow_dollars(puf15, PY, Y)
     # since 29-30 October the short and long term pieces are the gains and losses before the loss limit, grown like any
