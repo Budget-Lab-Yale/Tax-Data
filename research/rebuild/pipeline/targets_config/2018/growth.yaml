@@ -32,8 +32,8 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  interest:
-    source: {series: soi 1.4, item: interest}
+  txbl_int:
+    source: {series: soi 1.4, item: txbl_int}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
@@ -97,13 +97,13 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  ira_taxable:
-    source: {series: soi 1.4, item: ira_taxable}
+  txbl_ira_dist:
+    source: {series: soi 1.4, item: txbl_ira_dist}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  pensions_taxable:
-    source: {series: soi 1.4, item: pensions_taxable}
+  txbl_pens_dist:
+    source: {series: soi 1.4, item: txbl_pens_dist}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
@@ -112,8 +112,8 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  unemployment:
-    source: {series: soi 1.4, item: unemployment}
+  ui:
+    source: {series: soi 1.4, item: ui}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
@@ -122,8 +122,8 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  state_refunds:
-    source: {series: soi 1.4, item: state_refunds}
+  state_ref:
+    source: {series: soi 1.4, item: state_ref}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
@@ -137,47 +137,47 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  tax_exempt_interest:
-    source: {series: soi 1.4, item: tax_exempt_interest}
+  exempt_int:
+    source: {series: soi 1.4, item: exempt_int}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  mortgage_interest:
+  first_mort_int:
     source: {series: bea mortgage interest per mortgaged owner}
     negative: same
     measure: 'dollars per owner-occupied home with a mortgage'
     reason: 'the mortgage interest owner-occupants pay, measured apart from who itemizes (John, 29 October)'
-  real_estate_tax:
+  salt_prop:
     source: {series: acs real estate tax per paying owner}
     negative: same
     measure: 'dollars per owner-occupied home paying real estate tax'
     reason: 'the tax owners pay on their homes, measured apart from who itemizes (John, 29 October)'
-  ss_gross:
-    source: {series: soi 1.4, item: ss_gross}
+  gross_ss:
+    source: {series: soi 1.4, item: gross_ss}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  sch_c:
+  sole_prop:
     source: {series: soi 1.4, rows: ['business or profession > net income'], absolute: true}
     negative: {series: soi 1.4, rows: ['business or profession > net loss.*'], absolute: true}
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values, net loss for negative values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  part_pass_inc:
+  part_passive:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  part_nonpass_inc:
+  part_active:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  part_pass_loss:
+  part_passive_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  part_nonpass_loss:
+  part_active_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
@@ -187,22 +187,22 @@ items:
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  scorp_pass_inc:
+  scorp_passive:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  scorp_nonpass_inc:
+  scorp_active:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  scorp_pass_loss:
+  scorp_passive_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  scorp_nonpass_loss:
+  scorp_active_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
@@ -212,7 +212,7 @@ items:
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  rent_inc:
+  rent:
     source: {series: soi 1.4, rows: ['total rental and royalty > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
@@ -222,7 +222,7 @@ items:
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
     reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
-  estate_inc:
+  estate:
     source: {series: soi 1.4, rows: ['estate and trust > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
@@ -292,8 +292,8 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  hsa_ded:
-    source: {series: soi 1.4, item: hsa_ded}
+  hsa_contr:
+    source: {series: soi 1.4, item: hsa_contr}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
@@ -454,72 +454,72 @@ items:
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
 
   # ---- SCF balance sheet and SCF-only items (build_table.SCF_AMOUNTS): each wave's map grown to the target year's wave
-  w_cash:
+  value.cash:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_equities:
+  value.equities:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_bonds:
+  value.bonds:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_dc:
+  value.dc:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_db:
+  value.db:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_life_ins:
+  value.life_ins:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_annuities:
+  value.annuities:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_trusts:
+  value.trusts:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_other_fin:
+  value.other_fin:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_pass_throughs:
+  value.pass_throughs:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_primary_home:
+  value.primary_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_other_home:
+  value.other_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_re_fund:
+  value.re_fund:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_other_nonfin:
+  value.other_nonfin:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
@@ -529,27 +529,27 @@ items:
     negative: same
     measure: 'a share'
     reason: 'a share is not grown between waves (as before)'
-  w_other_mortgage:
+  value.other_mortgage:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_credit_lines:
+  value.credit_lines:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_credit_cards:
+  value.credit_cards:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_installment_debt:
+  value.installment_debt:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
     reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
-  w_other_debt:
+  value.other_debt:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
@@ -683,7 +683,7 @@ items:
     negative: same
     measure: 'hours'
     reason: 'hours not grown (as before)'
-  childcare:
+  care_exp:
     source: {series: soi 1.4, item: wages}
     negative: same
     measure: 'dollars per return with wages (SOI Table 1.4)'

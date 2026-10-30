@@ -42,10 +42,10 @@ FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (st
     # From tax year 2021 Table 1.4 publishes partnership and S corporation income separately, with no combined line
     # (30 October, targets for every year): the two halves of pship_scorp, each netted on its own, for the years that
     # publish them (targets_config/<year>/targets.yaml names them in business_top from 2021)
-    'partnership': {'soi': 'partnership', 'income': ['part_pass_inc', 'part_nonpass_inc'],
-                    'loss': ['part_pass_loss', 'part_nonpass_loss', 'part_179'], 'target': False},
-    'scorp': {'soi': 's corporation', 'income': ['scorp_pass_inc', 'scorp_nonpass_inc'],
-              'loss': ['scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179'], 'target': False}}
+    'partnership': {'soi': 'partnership', 'income': ['part_passive', 'part_active'],
+                    'loss': ['part_passive_loss', 'part_active_loss', 'part_179'], 'target': False},
+    'scorp': {'soi': 's corporation', 'income': ['scorp_passive', 'scorp_active'],
+              'loss': ['scorp_passive_loss', 'scorp_active_loss', 'scorp_179'], 'target': False}}
 T14 = {  # SOI item -> (variable, statistic)
     'number of returns': ('returns', 'count'),
     'adjusted gross income less deficit': ('agi', 'amount'),
@@ -291,13 +291,13 @@ def carried(f, y, concept=None):
 # research/rebuild/resources/growth/cbo_individual_income_tax.csv). Each SOI item grows past SOI's last year with the
 # CBO line closest to it, per return (CBO's amount over CBO's number of returns): CBO publishes no number with each item.
 CBO_CONCEPT = {
-    'wages': 'Salaries and wages', 'interest': 'Taxable interest and ordinary dividends',
+    'wages': 'Salaries and wages', 'txbl_int': 'Taxable interest and ordinary dividends',
     'div_ord': 'Taxable interest and ordinary dividends', 'dividends': 'Qualified dividends',
     'div_pref': 'Qualified dividends', 'sch_d_net_gain': 'Capital gain or loss', 'kg_dist': 'Capital gain or loss',
     'business_income': 'Net business income', 'sch_cf_income': 'Net business income', 'sch_e_income': 'Net business income',
     'sche_rent': 'Net business income', 'sche_rest': 'Net business income',
-    'pensions_taxable': 'Taxable pensions and annuities', 'ira_taxable': 'Taxable pensions and annuities',
-    'ss_taxable': 'Taxable Social Security benefits', 'ss_gross': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
+    'txbl_pens_dist': 'Taxable pensions and annuities', 'txbl_ira_dist': 'Taxable pensions and annuities',
+    'ss_taxable': 'Taxable Social Security benefits', 'gross_ss': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
     'returns': 'Number of returns', 'agi': 'Adjusted gross income'}
 _CBO = None
 

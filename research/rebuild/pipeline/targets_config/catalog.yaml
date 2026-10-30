@@ -328,7 +328,7 @@ variables:
       soi 1.3: {item: taxable pensions and annuities, count: returns, amount: amount}
   # (30 October) Table 1.3 for tax year 2018 publishes taxable IRA distributions and taxable pensions as one line
   ira_pensions_taxable:
-    parts: [ira_taxable, pensions_taxable]
+    parts: [txbl_ira_dist, txbl_pens_dist]
     short: ira_pensions_taxable
     published:
       soi 1.3: {item: 'taxable individual retirement arrangement (ira) distributions, pensions, and annuities', count: returns, amount: amount}
@@ -569,9 +569,9 @@ variable_lists:
                   txbl_pens_dist, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
                   pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
   # tax year 2018 (30 October): taxable IRA distributions and pensions published as one line
-  soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends, tax_exempt_interest, state_refunds, alimony,
-                       sch_c_net_income, sch_c_net_loss, capital_gain_positive, capital_gain_loss, other_gains,
-                       ira_pensions_taxable, ss_taxable, unemployment, rent_royalty_net_income, rent_royalty_net_loss,
+  soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends, exempt_int, state_ref, alimony,
+                       sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, other_gains,
+                       ira_pensions_taxable, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
                        pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
   soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,
                   pship_scorp_net_income, pship_scorp_net_loss]
