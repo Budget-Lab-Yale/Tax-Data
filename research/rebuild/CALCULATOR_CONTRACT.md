@@ -1,13 +1,15 @@
 # The calculator contract
 
-The columns the GPU tax calculator (tax-simulator-gpu, the commit in `pipeline/settings.json`, calculator.commit)
+The columns the GPU tax calculator (tax-simulator-gpu, the commit in `pipeline/settings.json`, taxes.commit)
 reads for each record, and where each comes from in the rebuild's year file. This is the list of what the rebuild
 still has to supply before Tax-Simulator can run on it. An experiment of 28 October (John), on branch
 `rebuild-calculator`; not part of the pipeline's default stages.
 
 The list of record is `CONTRACT` in `pipeline/calculator.py`; `CALCULATOR_CONTRACT.csv` beside this file is written
-from it. `pipeline/calculator_run.py` checks at every run that every column the pinned calculator reads is in the list
-(and names the listed columns it does not read), so the list cannot fall out of date when the commit moves.
+from it. The calculator's batch command (`python -m taxmodel.run.batch`, called by `pipeline/taxes.py`; until 30 October
+`pipeline/calculator_run.py`) checks at every run that every column the pinned calculator reads is in the frame (and names
+the supplied columns it does not read), so the list cannot fall out of date when the commit moves. Since 30 October the
+same contract feeds the taxes computed inside the tilt (`taxes.py`, FEATURES.md).
 
 ## Counts
 

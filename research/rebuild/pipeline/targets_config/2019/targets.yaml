@@ -473,7 +473,7 @@ targets:
   # tax, the state tax workaround). Values: SOI Tables 1.4 and 3.3 of the year (targets.T14, T33); errors: their
   # published CVs. One entry per item, so an item can be dropped alone. To copy to another year: the lines exist in
   # Tables 1.4 and 3.3 of every year 2015-2023 except the QBI deduction (2018 on; leave calc_qbi out before 2018);
-  # the child credit's line is "child tax credit" before 2018 (targets.T33 would need that name).
+  # the child credit's lines have other names in 2015-2017 and from 2021, which targets.T33 reads too.
   - id: calc_itemizers
     kind: calculator
     statistic: [count, amount]
@@ -510,15 +510,21 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
-  - id: calc_qbi
-    kind: calculator
-    statistic: [count, amount]
-    population: filers
-    variable: qbi_deduction
-    cells: {calc_agi_groups: all}
-    value: {published: soi 1.4}
-    error: {kind: soi_cv}
-    key: {group: '{cell}', target: '{variable} {statistic}'}
+  # The QBI deduction by AGI (entry calc_qbi, 22 targets) is left out of 2019 (overnight rule of 30 October: with every
+  # calculator entry the targets could not all be met, effective sample kept 58.4%; leaving out calc_qbi alone made
+  # them feasible, 78.0%, the largest gain of any one entry; scratch explore/2026-10-30/taxes/RESULTS.md). Its counts
+  # are the conflict: SOI counts returns whose deduction comes from REIT dividends and publicly traded partnerships,
+  # which the file does not carry (22.2 million returns against 17.6 million at the start). The dial b still sets
+  # the deduction from AGI $500,000 up to SOI's (taxes.py). To restore it, uncomment:
+  # - id: calc_qbi
+  #   kind: calculator
+  #   statistic: [count, amount]
+  #   population: filers
+  #   variable: qbi_deduction
+  #   cells: {calc_agi_groups: all}
+  #   value: {published: soi 1.4}
+  #   error: {kind: soi_cv}
+  #   key: {group: '{cell}', target: '{variable} {statistic}'}
   - id: calc_child_credit
     kind: calculator
     statistic: [count, amount]

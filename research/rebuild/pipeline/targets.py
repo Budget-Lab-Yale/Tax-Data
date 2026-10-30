@@ -80,6 +80,14 @@ T33 = {
     'tax credits > total refundable credits > additional child tax credit > number of returns':
         ('ctc_refundable', 'count'),
     'tax credits > total refundable credits > additional child tax credit > amount': ('ctc_refundable', 'amount'),
+    # the same two lines under their names in other years: "child tax credit" in 2015-2017; from 2021 the refundable
+    # part is "refundable child tax credit or additional child tax credit"
+    'tax credits > child tax credit > number of returns': ('ctc_nonrefundable', 'count'),
+    'tax credits > child tax credit > amount': ('ctc_nonrefundable', 'amount'),
+    'tax credits > total refundable credits > refundable child tax credit or additional child tax credit > number of '
+    'returns': ('ctc_refundable', 'count'),
+    'tax credits > total refundable credits > refundable child tax credit or additional child tax credit > amount':
+        ('ctc_refundable', 'amount'),
     'tax credits > total refundable credits > earned income credit > number of returns': ('eitc', 'count'),
     'tax credits > total refundable credits > earned income credit > amount': ('eitc', 'amount'),
     'income tax after credits > number of returns': ('income_tax_after_credits', 'count'),

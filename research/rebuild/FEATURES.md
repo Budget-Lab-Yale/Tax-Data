@@ -1358,6 +1358,43 @@ billionaires included. The AMT rule (`amt_nol_cap`) runs on every record in the 
 returns included: their `amt_nols` was scaled to the aggregate records' dollars, and the rule then holds it to each
 record's loss.
 
+## Taxes computed inside the model (branch `rebuild-taxes-in-model`, 30 October)
+
+Piece 3 of the overnight plan of 29-30 October (scratch `explore/2026-10-30/taxes/RESULTS.md`; design of 22 October,
+`explore/2026-10-22/targets/calculator_api/REPORT.md`). Inside the tilt stage, after the top of the file and the
+non-microdata imputations and before the reweighting, every record's federal income and payroll taxes under the
+target year's law are computed by tax-simulator-gpu (`pipeline/taxes.py`, settings `taxes`):
+
+1. The file becomes the calculator's input frame (`calculator.convert`, the contract of `CALCULATOR_CONTRACT.md`),
+   written as a parquet file keyed by record id.
+2. tax-simulator-gpu's batch command, `python -m taxmodel.run.batch` (a module on its local branch `taxdata-batch`,
+   commit 2b3b907, not pushed), runs it on the CPU in the calculator's own Python environment, from a copy of that
+   repository at the pinned commit; it writes one row per record with every computed column, and a manifest. About 20
+   seconds for 457,000 records. It compiles the law of 2014 to 2040.
+3. The QBI dials of the non-microdata imputations (`a` for the wage bill, `b` for specified services; scratch
+   `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, step 4) are solved on the start's weights from the first run's
+   taxable income before the deduction, with the calculator's own QBI formula (checked against the calculator on every
+   record: equal to the cent): `a` so that owners of one non-specified business above the phase-in keep Treasury's
+   share of 20% of their income, then `b` so that the deduction from AGI $500,000 up equals SOI's; in turn until they
+   settle. The QBI columns are imputed again with them and the calculator runs a second time. In 2019, a = 3.00 and
+   b = 3.66, which make pass-through wage bills far larger than the economy's private wages: flagged for John.
+4. The second run's columns join the file by record id, each the calculator's name with `calc_` in front
+   (`taxes.OUTPUTS`): AGI, itemizing and itemized deductions claimed, the standard deduction, the QBI deduction,
+   taxable income, income tax before credits, the AMT, the child credit's two parts, the EITC, nonrefundable and
+   refundable credits, income tax after credits, the net investment income tax, total income tax, income tax net of
+   refundable credits, self-employment and payroll tax, and the marginal rates of income tax and payroll tax on the
+   primary earner's wages ($100 more).
+
+The tilt moves weights only, so the computed taxes stay right after it. The calculator targets (kind `calculator`,
+`targets_config/2019/targets.yaml`, entries `calc_*`) are SOI Tables 1.4 and 3.3 by the file's AGI, with SOI's CVs
+(`targets.T14`, `targets.T33`; `errors.soi_errors`): itemizers and itemized deductions claimed, taxable income, income tax
+before and after credits, the child credit's two parts, the EITC and the AMT, 154 targets in 2019. The QBI deduction
+by AGI (22 more) is left out of 2019: with it the targets could not all be met (the overnight rule; RESULTS.md).
+`target_list.expand` builds them after the taxes (`which`); with settings `taxes.target` false they are only reported.
+Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`, `qbi_dials.csv`,
+`taxes_summary.md`). `python taxes.py report <file> <folder>` computes the taxes on a finished file and evaluates the
+year's calculator targets on it.
+
 ## How the latest run comes out
 
 The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder
