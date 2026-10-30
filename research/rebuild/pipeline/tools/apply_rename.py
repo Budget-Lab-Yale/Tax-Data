@@ -125,7 +125,9 @@ def one_word(old, new, ext):
 # Names built in code from a stem and a number (f'age_dep{k}'), which the whole-name rule cannot see
 STEMS = [(r"(?<![A-Za-z0-9_])age_dep\{", 'dep_age{'),
          # target names built from the catalog's short label: errors.IRS_PARTS
-         (r"'interest (count|amount)'", r"'txbl_int \1'")]
+         (r"'interest (count|amount)'", r"'txbl_int \1'"),
+         # the business family's SOI lines, named <family>_net_income (targets.FAMILIES, catalog.yaml)
+         (r"(?<![A-Za-z0-9_])sch_c_net_(income|loss)(?![A-Za-z0-9_])", r"sole_prop_net_\1")]
 
 
 def rename_text(new, pairs, ext, path):

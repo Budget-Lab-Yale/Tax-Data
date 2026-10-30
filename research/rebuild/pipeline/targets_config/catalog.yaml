@@ -322,18 +322,18 @@ variables:
     short: ui
     published:
       soi 1.3: {item: unemployment compensation, count: returns, amount: amount}
-  sch_c_net_income:
+  sole_prop_net_income:
     family: sole_prop
     side: net_income
     short: sole_prop net_income
-    soi 1.4: {count: [sch_c_net_income], amount: [sch_c_net_income]}
+    soi 1.4: {count: [sole_prop_net_income], amount: [sole_prop_net_income]}
     published:
       soi 1.3: {item: business or profession net income, count: returns, amount: amount}
-  sch_c_net_loss:
+  sole_prop_net_loss:
     family: sole_prop
     side: net_loss
     short: sole_prop net_loss
-    soi 1.4: {count: [sch_c_net_loss], amount: [sch_c_net_loss]}
+    soi 1.4: {count: [sole_prop_net_loss], amount: [sole_prop_net_loss]}
     published:
       soi 1.3: {item: business or profession net loss, count: returns, amount: amount}
   rent_royalty_net_income:
@@ -518,13 +518,13 @@ families: [sole_prop, pship_scorp, rent_royalty, estate_trust, farm, farm_rental
 # Named lists of variables, so an entry can say "the income items".
 variable_lists:
   income_items: [wages, taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
-  business: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
+  business: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
              rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
              farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
   # The business families targeted in the five top AGI brackets (TARGETS.md S2), and the rest, which keep one
   # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
   # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.
-  business_top: [sch_c_net_income, sch_c_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
+  business_top: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
   business_other: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
                    farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
   consumption: [c_clothing, c_motor_vehicles, c_durables, c_other_nondurables, c_food_off_premises,
@@ -535,7 +535,7 @@ variable_lists:
   scf_top_assets: [stocks, business_equity, real_estate, retirement_accounts]
   # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
   soi_1_3_items: [wages, taxable_interest, ordinary_dividends, exempt_int, state_ref, alimony,
-                  sch_c_net_income, sch_c_net_loss, capital_gain_positive, capital_gain_loss, other_gains, txbl_ira_dist,
+                  sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, other_gains, txbl_ira_dist,
                   txbl_pens_dist, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
                   pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
   soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,

@@ -622,8 +622,8 @@ def puf_maps(year):
 def dollars_2015(stack):
     """The PUF items of stack in 2015 dollars (the 2015 map, the stored picks), as dollars.draw_dollars puts them."""
     maps = puf_maps(PY)
-    cols = [c for v in D.ORDER if v in maps for c in (f'{v}_band', f'u_{v}') if c in stack]
-    d = D.draw_dollars(stack[cols].reset_index(drop=True), maps)
+    cols = [c for v in D.ORDER if v in maps for c in (f'{v}_band', f'u_{v}') if c in stack] + ['filing_status']
+    d = D.draw_dollars(stack[cols].reset_index(drop=True), maps)   # the filing status: the capital loss limit
     missing = [v for v in PRIMITIVES if v not in d]
     assert not missing, f'parts with no 2015 dollars: {missing}'
     out = d[PRIMITIVES].copy()
