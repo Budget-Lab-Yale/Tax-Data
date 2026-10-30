@@ -370,13 +370,13 @@ def main():
         # REBUILD_TOP_CACHE set, a run with REBUILD_TOP_ONLY=1 (on a GPU) does the top step, writes its result to that
         # file and stops; a later run (on a CPU partition) reads it in place of the step.
         import pickle
+        import top_records as TR
         cache = os.environ.get('REBUILD_TOP_CACHE')
         if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
             with open(cache, 'rb') as fh:
                 g19, imp, given, fixed, top = pickle.load(fh)
             common.say(f'the top step read from {cache}')
         else:
-            import top_records as TR
             g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
             if cache:
                 with open(cache + '.part', 'wb') as fh:
