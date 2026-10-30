@@ -889,6 +889,14 @@ and 2016 met all but 27 targets, a conflict between Table 4.3's top 1% count and
 chained from 2023 by CBO's growth, every target met. Found on the way: Table 4.3 prints some net losses as negative
 numbers (a negative target made the 2020 tilt diverge); the March 2016 ASEC has negative replicate weights.
 
+### 29-30 October: Tax-Simulator's names everywhere
+
+John (29 October): "there is no reason for the names to differ. at all." The rebuild's variables took the input names of
+tax-simulator-gpu (50 renamed, for example `mars` to `filing_status`, `interest` to `txbl_int`, `w_cash` to
+`value.cash`), by a script from one table (`pipeline/tools/rename_map.csv`, `apply_rename.py`), on branch
+`rebuild-names-gains`. This file keeps the old names in the entries above. The training table and a 2019 draw and tilt
+from the installed networks were checked equal before and after, apart from the names (`FEATURES.md`, "The names").
+
 ## Paths tried and not taken
 
 | What | Why not |

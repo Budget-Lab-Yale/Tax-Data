@@ -1,0 +1,256 @@
+old_name,new_name,kind,note
+mars,filing_status,renamed,"1 single, 2 joint, 3 separate, 4 head of household"
+n_eitc,n_dep_eitc,renamed,"EITC qualifying children (PUF EIC), 0-3"
+n_ctc,n_dep_ctc,renamed,"child credit children (PUF N24), 0-3; production Tax-Data's name (the calculator does not read it)"
+age_primary,age1,renamed,"age of the primary filer. Coding unchanged: in the training table 0 none, else age + 1; in the file -1 none; the calculator and Tax-Simulator files write NaN for none and give dependent filers dep_filer_age"
+age_spouse,age2,renamed,age of the spouse; coding as age1
+age_dep1,dep_age1,renamed,age of dependent 1; coding as age1
+age_dep2,dep_age2,renamed,age of dependent 2; coding as age1
+age_dep3,dep_age3,renamed,age of dependent 3; coding as age1
+interest,txbl_int,renamed,"taxable interest, PUF E00300"
+tax_exempt_interest,exempt_int,renamed,"tax-exempt interest, PUF E00400"
+state_refunds,state_ref,renamed,"taxable state income tax refunds, PUF E00700"
+ira_taxable,txbl_ira_dist,renamed,"taxable IRA distributions, PUF E01400"
+pensions_taxable,txbl_pens_dist,renamed,"taxable pensions and annuities, PUF E01700"
+unemployment,ui,renamed,"unemployment compensation, PUF E02300"
+ss_gross,gross_ss,renamed,"gross Social Security benefits, PUF E02400"
+sch_c,sole_prop,renamed,"Schedule C net income, PUF E00900"
+part_pass_inc,part_passive,renamed,"passive partnership income, PUF E25940"
+part_nonpass_inc,part_active,renamed,"nonpassive partnership income, PUF E25980"
+part_pass_loss,part_passive_loss,renamed,"passive partnership loss, stored positive, PUF E25920"
+part_nonpass_loss,part_active_loss,renamed,"nonpassive partnership loss, stored positive, PUF E25960"
+scorp_pass_inc,scorp_passive,renamed,"passive S corporation income, PUF E26170"
+scorp_nonpass_inc,scorp_active,renamed,"nonpassive S corporation income, PUF E26190"
+scorp_pass_loss,scorp_passive_loss,renamed,"passive S corporation loss, stored positive, PUF E26160"
+scorp_nonpass_loss,scorp_active_loss,renamed,"nonpassive S corporation loss, stored positive, PUF E26180"
+rent_inc,rent,renamed,"rents and royalties, net income, PUF E25850"
+estate_inc,estate,renamed,"estate and trust net income, PUF E26390"
+hsa_ded,hsa_contr,renamed,"HSA deduction, PUF E03290"
+real_estate_tax,salt_prop,renamed,"real estate tax deducted, PUF E18500"
+mortgage_interest,first_mort_int,renamed,"interest paid deduction, PUF E19200 (all deductible interest, investment interest and second mortgages included, as production passes it to the calculator; production's own name for the whole item is int_exp)"
+childcare,care_exp,renamed,child and dependent care spending (CPS); the calculator applies the law's caps
+w_cash,value.cash,renamed,balance sheet (SCF)
+w_equities,value.equities,renamed,balance sheet (SCF)
+w_bonds,value.bonds,renamed,balance sheet (SCF)
+w_dc,value.dc,renamed,balance sheet (SCF)
+w_db,value.db,renamed,balance sheet (SCF)
+w_life_ins,value.life_ins,renamed,balance sheet (SCF)
+w_annuities,value.annuities,renamed,balance sheet (SCF)
+w_trusts,value.trusts,renamed,balance sheet (SCF)
+w_other_fin,value.other_fin,renamed,balance sheet (SCF)
+w_pass_throughs,value.pass_throughs,renamed,balance sheet (SCF)
+w_primary_home,value.primary_home,renamed,balance sheet (SCF)
+w_other_home,value.other_home,renamed,balance sheet (SCF)
+w_re_fund,value.re_fund,renamed,balance sheet (SCF)
+w_other_nonfin,value.other_nonfin,renamed,balance sheet (SCF)
+w_primary_mortgage,value.primary_mortgage,renamed,"balance sheet (SCF); in the file only, computed from w_primary_ltv x the home (the slot is the share)"
+w_other_mortgage,value.other_mortgage,renamed,balance sheet (SCF)
+w_credit_lines,value.credit_lines,renamed,balance sheet (SCF)
+w_credit_cards,value.credit_cards,renamed,balance sheet (SCF)
+w_installment_debt,value.installment_debt,renamed,balance sheet (SCF)
+w_other_debt,value.other_debt,renamed,balance sheet (SCF)
+record_id,id,computed,"kept as record_id in the rebuild: the bare name id already means other things there (each target entry's id in targets_config, the surveys' own unit ids in the R builders); the calculator and Tax-Simulator files write it as id (DECISIONS_FOR_JOHN.md)"
+age_range,dep_status,computed,"dep_status = age_range in 6, 7, 8 (the PUF's dependent-filer ranges)"
+sex_primary,male1,computed,"male1 = sex_primary == 1 (1 man, 2 woman in the rebuild); dependent filers from dep_filer_sex"
+sex_spouse,male2,computed,male2 = sex_spouse == 1; missing without a spouse (Tax-Simulator file only; the calculator does not read it)
+alimony alimony_exp,divorce_year,computed,"0 where alimony is received or paid, else missing (production's rule)"
+sole_prop spouse_se_share,sole_prop1 sole_prop2,computed,"sole_prop2 = sole_prop x spouse_se_share, sole_prop1 = the rest"
+farm spouse_se_share,farm1 farm2,computed,"as sole_prop1, sole_prop2"
+part_se spouse_se_share,part_se1 part_se2,computed,"as sole_prop1, sole_prop2"
+retirement_gross gross_ss,gross_pens_dist,computed,gross pensions = retirement_gross (PUF E02400 + E01500) - gross_ss
+other_agi_remainder farm_rent sche_other,other_inc,computed,other income in AGI: the remainder plus farm rental and the unnamed rest of Schedule E
+kg_lt kg_dist,kg_lt,computed,"the calculator's kg_lt is the rebuild's kg_lt (Schedule D long term, PUF P23250, production's kg_lt) plus capital gain distributions on Form 1040 (kg_dist, PUF E01100), which are long-term gains"
+value.equities w_kg_other,basis.equities,computed,"made in the file by the non-microdata imputations (value less unrealized gain, the gain first held to the value)"
+value.pass_throughs w_kg_pass_throughs,basis.pass_throughs,computed,as basis.equities
+value.primary_home w_kg_primary_home,basis.primary_home,computed,as basis.equities
+value.other_home value.re_fund w_kg_other_re,basis.other_home basis.re_fund,computed,as basis.equities; the other real estate gain split by value
+,ei_prior_yr,computed,"0, as production writes it (no source in the rebuild)"
+,other_above_ded,computed,"0, as production writes it (no source in the rebuild)"
+,salt_pers,computed,"0, as production writes it (no source in the rebuild)"
+,first_mort_bal,computed,"0, as production writes it (no source in the rebuild)"
+,second_mort_bal,computed,"0, as production writes it (no source in the rebuild)"
+,second_mort_int,computed,"0, as production writes it (no source in the rebuild)"
+,inv_int_exp,computed,"0, as production writes it (no source in the rebuild)"
+,first_mort_year,computed,"0, as production writes it (no source in the rebuild)"
+,second_mort_year,computed,"0, as production writes it (no source in the rebuild)"
+,nols,computed,"0, as production writes it (no source in the rebuild)"
+weight,weight,shared,name already the calculator's
+filer,filer,shared,name already the calculator's
+n_dep,n_dep,shared,name already the calculator's
+wages,wages,shared,name already the calculator's
+wages1,wages1,shared,name already the calculator's
+wages2,wages2,shared,name already the calculator's
+tips,tips,shared,name already the calculator's
+tips1,tips1,shared,name already the calculator's
+tips2,tips2,shared,name already the calculator's
+tips_lh1,tips_lh1,shared,name already the calculator's
+tips_lh2,tips_lh2,shared,name already the calculator's
+ot,ot,shared,name already the calculator's
+ot1,ot1,shared,name already the calculator's
+ot2,ot2,shared,name already the calculator's
+trad_contr_er1,trad_contr_er1,shared,name already the calculator's
+trad_contr_er2,trad_contr_er2,shared,name already the calculator's
+farm,farm,shared,name already the calculator's
+part_se,part_se,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+part_179,part_179,shared,name already the calculator's
+scorp_179,scorp_179,shared,name already the calculator's
+rent_loss,rent_loss,shared,name already the calculator's
+estate_loss,estate_loss,shared,name already the calculator's
+div_ord,div_ord,shared,name already the calculator's
+div_pref,div_pref,shared,name already the calculator's
+alimony,alimony,shared,name already the calculator's
+other_gains,other_gains,shared,name already the calculator's
+kg_st,kg_st,shared,"Schedule D short-term gain, PUF P22250; name already the calculator's"
+kg_lt,kg_lt,shared,"Schedule D long-term gain, PUF P23250; the calculator's kg_lt adds kg_dist (computed row); name already the calculator's"
+kg_1250,kg_1250,shared,name already the calculator's
+kg_collect,kg_collect,shared,name already the calculator's
+ed_exp,ed_exp,shared,name already the calculator's
+trad_contr_ira,trad_contr_ira,shared,name already the calculator's
+keogh_contr,keogh_contr,shared,name already the calculator's
+se_health,se_health,shared,name already the calculator's
+early_penalty,early_penalty,shared,name already the calculator's
+alimony_exp,alimony_exp,shared,name already the calculator's
+tuition_ded,tuition_ded,shared,name already the calculator's
+dpad,dpad,shared,name already the calculator's
+sl_int_ded,sl_int_ded,shared,name already the calculator's
+auto_int_exp,auto_int_exp,shared,name already the calculator's
+med_exp,med_exp,shared,name already the calculator's
+salt_inc_sales,salt_inc_sales,shared,name already the calculator's
+casualty_exp,casualty_exp,shared,name already the calculator's
+job_exp,job_exp,shared,name already the calculator's
+tax_prep_exp,tax_prep_exp,shared,name already the calculator's
+other_misc_exp,other_misc_exp,shared,name already the calculator's
+other_item_exp,other_item_exp,shared,name already the calculator's
+char_cash,char_cash,shared,name already the calculator's
+char_noncash,char_noncash,shared,name already the calculator's
+ftc,ftc,shared,name already the calculator's
+amt_ftc,amt_ftc,shared,name already the calculator's
+amt_nols,amt_nols,shared,name already the calculator's
+excess_ptc,excess_ptc,shared,name already the calculator's
+net_ptc,net_ptc,shared,name already the calculator's
+aoc_exp,aoc_exp,shared,name already the calculator's
+llc_exp,llc_exp,shared,name already the calculator's
+savers_cred,savers_cred,shared,name already the calculator's
+old_cred,old_cred,shared,name already the calculator's
+res_energy_cred,res_energy_cred,shared,name already the calculator's
+gbc,gbc,shared,name already the calculator's
+prior_yr_cred,prior_yr_cred,shared,name already the calculator's
+other_nonref,other_nonref,shared,name already the calculator's
+recapture_tax,recapture_tax,shared,name already the calculator's
+ira_penalty,ira_penalty,shared,name already the calculator's
+blind1,blind1,shared,name already the calculator's
+blind2,blind2,shared,name already the calculator's
+dep_ssn1,dep_ssn1,shared,name already the calculator's
+dep_ssn2,dep_ssn2,shared,name already the calculator's
+dep_ssn3,dep_ssn3,shared,name already the calculator's
+dep_ctc1,dep_ctc1,shared,name already the calculator's
+dep_ctc2,dep_ctc2,shared,name already the calculator's
+dep_ctc3,dep_ctc3,shared,name already the calculator's
+q_death1,q_death1,shared,name already the calculator's
+q_death2,q_death2,shared,name already the calculator's
+kg_lt_basis,kg_lt_basis,shared,name already the calculator's
+kg_lt_years_held,kg_lt_years_held,shared,name already the calculator's
+wagebill_sole_prop,wagebill_sole_prop,shared,name already the calculator's
+wagebill_part,wagebill_part,shared,name already the calculator's
+wagebill_scorp,wagebill_scorp,shared,name already the calculator's
+wagebill_farm,wagebill_farm,shared,name already the calculator's
+sstb_sole_prop,sstb_sole_prop,shared,name already the calculator's
+sstb_part,sstb_part,shared,name already the calculator's
+sstb_scorp,sstb_scorp,shared,name already the calculator's
+sstb_farm,sstb_farm,shared,name already the calculator's
+parent_rank,parent_rank,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_clothing,c_clothing,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_motor_vehicles,c_motor_vehicles,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_durables,c_durables,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_other_nondurables,c_other_nondurables,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_food_off_premises,c_food_off_premises,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_gasoline,c_gasoline,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_housing_utilities,c_housing_utilities,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+c_other_services_health,c_other_services_health,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.equities,accruals.equities,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.pass_throughs,accruals.pass_throughs,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.primary_home,accruals.primary_home,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.other_home,accruals.other_home,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.re_fund,accruals.re_fund,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.dc,accruals.dc,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+accruals.trusts,accruals.trusts,shared,name already the production Tax-Data's file (the calculator does not read it)'s
+basis.equities,basis.equities,shared,name already the calculator's
+basis.pass_throughs,basis.pass_throughs,shared,name already the calculator's
+basis.primary_home,basis.primary_home,shared,name already the calculator's
+basis.other_home,basis.other_home,shared,name already the calculator's
+basis.re_fund,basis.re_fund,shared,name already the calculator's
+married,married,rebuild-only,filing jointly (the calculator reads filing_status)
+age_range,age_range,rebuild-only,primary filer's age range
+agi_group,agi_group,rebuild-only,AGI group label
+dividends,dividends,rebuild-only,"ordinary dividends, the total of div_ord and div_pref"
+capital_gains,capital_gains,rebuild-only,Schedule D net gain total of the pieces
+kg_dist,kg_dist,rebuild-only,"capital gain distributions on Form 1040, PUF E01100 (inside the calculator's kg_lt)"
+kg_other,kg_other,rebuild-only,Form 1040 line 13 less short and long term (the loss limit); dropped in piece 2
+business_income,business_income,rebuild-only,business income total
+sch_cf_income,sch_cf_income,rebuild-only,Schedules C and F
+sch_e_income,sch_e_income,rebuild-only,Schedule E
+sche_rent,sche_rent,rebuild-only,Schedule E rents and royalties net
+sche_rest,sche_rest,rebuild-only,the rest of Schedule E
+farm_rent,farm_rent,rebuild-only,"farm rental, PUF E27200"
+sche_other,sche_other,rebuild-only,unnamed rest of Schedule E
+ss_taxable,ss_taxable,rebuild-only,taxable Social Security (the calculator computes its own)
+adjustments,adjustments,rebuild-only,total of the adjustments
+retirement_gross,retirement_gross,rebuild-only,gross Social Security plus total pensions
+se_tax_ded,se_tax_ded,rebuild-only,deduction for half of self-employment tax (the calculator computes its own)
+other_agi,other_agi,rebuild-only,AGI less every item
+other_agi_remainder,other_agi_remainder,rebuild-only,file: AGI remainder
+k1_owner,k1_owner,rebuild-only,partnership or S corporation owner flag
+owns_business,owns_business,rebuild-only,SCF business owner flag
+w_primary_ltv,w_primary_ltv,rebuild-only,home mortgage as a share of the home's value (SCF slot)
+w_kg_primary_home,w_kg_primary_home,rebuild-only,SCF unrealized gain on the home
+w_kg_other_re,w_kg_other_re,rebuild-only,SCF unrealized gain on other real estate
+w_kg_pass_throughs,w_kg_pass_throughs,rebuild-only,SCF unrealized gain on businesses
+w_kg_other,w_kg_other,rebuild-only,SCF unrealized gain on stocks and funds
+elective_deferrals,elective_deferrals,rebuild-only,elective deferrals of the unit (SCF)
+spouse_deferral_share,spouse_deferral_share,rebuild-only,spouse's share of them
+w_dc_stock_share,w_dc_stock_share,rebuild-only,stock share of retirement accounts (SCF)
+w_dc_stocks,w_dc_stocks,rebuild-only,file: w_dc_stock_share x value.dc
+net_worth,net_worth,rebuild-only,net worth (the calculator computes its own)
+total_consumption,total_consumption,rebuild-only,file: sum of the c_ items
+spouse_wage_share,spouse_wage_share,rebuild-only,"spouse's share of wages (CPS, SIPP)"
+spouse_se_share,spouse_se_share,rebuild-only,spouse's share of self-employment income
+weeks_primary,weeks_primary,rebuild-only,weeks worked (CPS)
+weeks_spouse,weeks_spouse,rebuild-only,weeks worked (CPS)
+hours_primary,hours_primary,rebuild-only,usual hours (CPS)
+hours_spouse,hours_spouse,rebuild-only,usual hours (CPS)
+ot_primary,ot_primary,rebuild-only,overtime slot (CPS); the file's ot1 is made from it
+ot_spouse,ot_spouse,rebuild-only,overtime slot (CPS); the file's ot2 is made from it
+tips_primary,tips_primary,rebuild-only,tips slot (SIPP); the file's tips1 is made from it
+tips_spouse,tips_spouse,rebuild-only,tips slot (SIPP); the file's tips2 is made from it
+tips_lh_primary,tips_lh_primary,rebuild-only,leisure and hospitality slot (SIPP); file tips_lh1 made from it
+tips_lh_spouse,tips_lh_spouse,rebuild-only,as tips_lh_primary; file tips_lh2
+sex_primary,sex_primary,rebuild-only,"sex, 1 man 2 woman (male1 computed)"
+sex_spouse,sex_spouse,rebuild-only,as sex_primary (male2 computed)
+ssn_status_primary,ssn_status_primary,rebuild-only,CPS Social Security number status (ssn1 made from it)
+ssn_status_spouse,ssn_status_spouse,rebuild-only,as ssn_status_primary (ssn2)
+ssn_status_dep1,ssn_status_dep1,rebuild-only,dep_ssn1 made from it
+ssn_status_dep2,ssn_status_dep2,rebuild-only,dep_ssn2 made from it
+ssn_status_dep3,ssn_status_dep3,rebuild-only,dep_ssn3 made from it
+ssn1,ssn1,rebuild-only,file: primary filer has a number
+ssn2,ssn2,rebuild-only,file: spouse has a number
+biz_workers_schc,biz_workers_schc,rebuild-only,"SCF outside workers, Schedule C"
+biz_workers_part,biz_workers_part,rebuild-only,"SCF outside workers, partnership"
+biz_workers_scorp,biz_workers_scorp,rebuild-only,"SCF outside workers, S corporation"
+biz_industry_schc,biz_industry_schc,rebuild-only,SCF industry group
+biz_industry_part,biz_industry_part,rebuild-only,SCF industry group
+biz_industry_scorp,biz_industry_scorp,rebuild-only,SCF industry group
+record_id,record_id,rebuild-only,record id (written as id for the calculator and Tax-Simulator)
+household_id,household_id,rebuild-only,household id
+capital_gains_line13,capital_gains_line13,rebuild-only,file: Form 1040 line 13
+business_income_drawn,business_income_drawn,rebuild-only,file
+se1,se1,rebuild-only,file: primary filer's self-employment income
+se2,se2,rebuild-only,file: spouse's
+elective1,elective1,rebuild-only,file
+elective2,elective2,rebuild-only,file
+trad_deferrals,trad_deferrals,rebuild-only,file
+medicare_wages,medicare_wages,rebuild-only,file
+dep_filer_age,dep_filer_age,rebuild-only,file: dependent filer's age (age1 in the Tax-Simulator file)
+dep_filer_sex,dep_filer_sex,rebuild-only,file
+amt_nols_drawn,amt_nols_drawn,rebuild-only,file
+weight_start,weight_start,rebuild-only,file: weight before the tilt
+filer_p,filer_p,rebuild-only,CPS filing chance

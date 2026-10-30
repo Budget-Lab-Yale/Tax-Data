@@ -68,7 +68,7 @@
 # (elective1) and the spouse's (elective2, joint units only); units outside the PEU and other units are not asked:
 # missing (NA), not zero. Each person's amounts before and after the limit and the wage cap are also written to
 # scf_deferral_persons_{wave}.csv.gz (for the checks against SOI's W-2 tables).
-# Gross Social Security alone (ss_gross, since 28 October; decided by John 27 October): the current benefits section,
+# Gross Social Security alone (gross_ss, since 28 October; decided by John 27 October): the current benefits section,
 # not the income section's X5722 (which adds pensions). The respondent's monthly, quarterly, yearly or two-monthly
 # amount X5306 (period X5307) and the spouse's or partner's X5311 (period X5312), before the Medicare premium, put on a
 # yearly basis; counted when the household says it receives benefits (X5301 = 1) and the kind (X5304, X5309) is not
@@ -111,9 +111,9 @@
 # The retirement accounts' stock share (w_dc_stock_share, since 29 October; John, NEXT_STEPS.md item 1, Q6): the summary
 # file's equity in quasi-liquid retirement assets (RETEQ: IRAs, Keoghs, thrift-type plans and account-type pensions,
 # each counted as all, half or none stocks by the respondent's answer) over those assets (RETQLIQ = IRAKH + THRIFT +
-# FUTPEN + CURRPEN, the rebuild's w_dc plus w_db; RETEQ never exceeds it, while it exceeds IRAKH + THRIFT alone in
+# FUTPEN + CURRPEN, the rebuild's value.dc plus value.db; RETEQ never exceeds it, while it exceeds IRAKH + THRIFT alone in
 # about 1,300 rows a wave, so the share is taken over all four). A household ratio, the same on each PEU unit; 0 where
-# the unit has no w_dc (the share multiplies w_dc: non_micro_imputations.unrealized_gains); missing (not asked) on
+# the unit has no value.dc (the share multiplies value.dc: non_micro_imputations.unrealized_gains); missing (not asked) on
 # units outside the PEU and other units, whose accounts the SCF does not break down.
 # Ages and sexes of the unit's head and spouse (age1, male1; age2, male2 on
 # joint units, else -1; male missing (NA, not observed) where the SCF does not
@@ -146,9 +146,9 @@ BUSINESS_ITEMS = c('x3103', 'x3401', 'x3119', 'x3219', 'x3407', 'x3411', 'x3451'
 QBI_ITEMS = unlist(lapply(c('31', '32'), function(b) paste0('x', b, c('07', '11', '13', '14', '15', '16', '17', '28', '29'))))
 QBI_KINDS = list(schc = c(2, 40), part = c(1, 11, 12), scorp = 3)
 K1_FORMS = c(1, 3, 11, 12)
-INCOME = c(wages = 'X5702', interest = 'X5708', dividends = 'X5710', capital_gains = 'X5712',
+INCOME = c(wages = 'X5702', txbl_int = 'X5708', dividends = 'X5710', capital_gains = 'X5712',
            business_income = 'X5704', rent_royalty_estate = 'X5714', retirement_gross = 'X5722',
-           tax_exempt_interest = 'X5706')
+           exempt_int = 'X5706')
 # Items for the respondent's and the spouse's or partner's own incomes (Moore's code, as production's builder)
 PERSON_ITEMS = c('X4112', 'X4113', 'X4712', 'X4713', 'X4131', 'X4132', 'X4731', 'X4732',
                  'X5315', 'X5317', 'X5318', 'X5319', 'X5323', 'X5325', 'X5326', 'X5327',
@@ -275,7 +275,8 @@ for (wave in settings$paths$raw$scf_waves) {
   cat(sprintf('wave %d: retirement accounts\' stock share: weighted RETEQ / RETQLIQ %.3f; share of rows with accounts %.3f\n',
               wave, sum(scfp$WGT * scfp$RETEQ) / sum(scfp$WGT * scfp$RETQLIQ), mean(scfp$RETQLIQ > 0)))
   stopifnot(setequal(setdiff(names(peu), 'Y1'), c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)))
-  names(peu)[-1] = paste0('w_', names(peu)[-1])
+  # the balance sheet under Tax-Simulator's names (value.<item>; 29-30 October), the unrealized gains as w_kg_<item>
+  names(peu)[-1] = if_else(names(peu)[-1] %in% wealth_kg_vars, paste0('w_', names(peu)[-1]), paste0('value.', names(peu)[-1]))
   WCOLS = setdiff(names(peu), 'Y1')
   peu = peu %>% inner_join(hh %>% select(Y1, all_of(unname(INCOME)), auto_int_exp, r_ss, s_ss, rental_hh), by = 'Y1') %>%
     inner_join(ret, by = 'Y1') %>%
@@ -352,17 +353,17 @@ for (wave in settings$paths$raw$scf_waves) {
   for (v in names(INCOME)) {
     p[[v]] = p[[INCOME[[v]]]] * (if (v == 'wages') p$sh_lab else if (v == 'business_income') p$sh_bus else p$sh_earn)
   }
-  for (v in WCOLS) p[[v]] = p[[v]] * (if (sub('^w_', '', v) %in% HOUSING) p$sh_house else p$sh_earn)
-  p$auto_int_exp = p$auto_int_exp * p$sh_earn     # as installment debt (w_installment_debt)
+  for (v in WCOLS) p[[v]] = p[[v]] * (if (sub('^(w_|value[.])', '', v) %in% HOUSING) p$sh_house else p$sh_earn)
+  p$auto_int_exp = p$auto_int_exp * p$sh_earn     # as installment debt (value.installment_debt)
   # rental income by X5714's shares; Social Security by person, as elective deferrals below
   p$rental_income = p$rental_hh * p$sh_earn
-  p$ss_gross = case_when(p$peu_dollars == 'all' ~ p$r_ss + p$s_ss, p$peu_dollars == 'r' ~ p$r_ss, TRUE ~ p$s_ss)
+  p$gross_ss = case_when(p$peu_dollars == 'all' ~ p$r_ss + p$s_ss, p$peu_dollars == 'r' ~ p$r_ss, TRUE ~ p$s_ss)
   # check: the prototype's rule for a split PEU (components.py: the unit's share of X5714, else of liquid accounts,
   # interest, dividends, pensions, else a half) gives sh_earn where X5714 is nonzero, and where it is not, count the
   # households with rental income whose prototype share would differ (the half fallback)
   spl = p$peu_dollars != 'all'
   csh = rep(0.5, nrow(p)); done = rep(FALSE, nrow(p))
-  for (v in c('rent_royalty_estate', 'w_cash', 'interest', 'dividends', 'retirement_gross')) {
+  for (v in c('rent_royalty_estate', 'value.cash', 'txbl_int', 'dividends', 'retirement_gross')) {
     tot = ave(p[[v]], p$hh, FUN = sum)
     use = spl & !done & tot != 0
     csh[use] = p[[v]][use] / tot[use]
@@ -387,30 +388,30 @@ for (wave in settings$paths$raw$scf_waves) {
   p$elective2 = case_when(joint_all & p$head_pn == 2 ~ p$r_elective, joint_all ~ p$s_elective, TRUE ~ 0)
   p$elective_deferrals = p$elective1 + p$elective2
   stopifnot(all(p$elective_deferrals <= p$wages * (1 + 1e-9) + 1e-6))
-  p$w_dc_stock_share = if_else(p$w_dc > 0, pmin(p$ret_stock_share, 1), 0)
+  p$w_dc_stock_share = if_else(p$value.dc > 0, pmin(p$ret_stock_share, 1), 0)
   p = p %>% mutate(taxunit_code = case_when(peu_dollars == 'all' ~ 0L, peu_dollars == 'r' ~ 1L, TRUE ~ 2L)) %>%
-    select(uid, all_of(names(INCOME)), ss_gross, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
+    select(uid, all_of(names(INCOME)), gross_ss, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
            elective1, elective2, w_dc_stock_share, taxunit_code)
 
   # units outside the PEU: their members' shares of the group; other units: nothing
   npeu = mu %>% filter(source == 'npeu') %>% select(uid) %>% left_join(nd, by = 'uid')
-  stopifnot(!anyNA(npeu$wages), 'ss_gross' %in% names(npeu), !anyNA(npeu$ss_gross))
+  stopifnot(!anyNA(npeu$wages), 'gross_ss' %in% names(npeu), !anyNA(npeu$gross_ss))
   for (v in setdiff(c(names(INCOME), WCOLS, 'auto_int_exp'), names(npeu))) npeu[[v]] = 0
   for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share')) npeu[[v]] = NA_real_   # not asked: missing, not zero
   # the SCF asks the property section of the PEU only: no rental part outside it (the group's real estate income is
   # all in its rent_royalty_estate, so in sche_rest)
   npeu$rental_income = 0
   npeu = npeu %>% mutate(taxunit_code = 9L) %>%
-    select(uid, all_of(names(INCOME)), ss_gross, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
+    select(uid, all_of(names(INCOME)), gross_ss, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
            elective1, elective2, w_dc_stock_share, taxunit_code)
   other = mu %>% filter(source == 'other') %>% select(uid)
-  for (v in c(names(INCOME), 'ss_gross', 'rental_income', WCOLS, 'auto_int_exp')) other[[v]] = 0
+  for (v in c(names(INCOME), 'gross_ss', 'rental_income', WCOLS, 'auto_int_exp')) other[[v]] = 0
   for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share')) other[[v]] = rep(NA_real_, nrow(other))   # not asked
   other$taxunit_code = rep(8L, nrow(other))
   dollars = bind_rows(p, npeu, other)
   stopifnot(nrow(dollars) == nrow(mu), !anyDuplicated(dollars$uid))
-  dollars$net_worth = rowSums(as.matrix(dollars[, paste0('w_', wealth_asset_vars)])) -
-    rowSums(as.matrix(dollars[, paste0('w_', wealth_debt_vars)]))
+  dollars$net_worth = rowSums(as.matrix(dollars[, paste0('value.', wealth_asset_vars)])) -
+    rowSums(as.matrix(dollars[, paste0('value.', wealth_debt_vars)]))
   # the rest of Schedule E: X5714 less the rental part, held at 0 from below
   dollars$sche_rest = pmax(dollars$rent_royalty_estate - dollars$rental_income, 0)
 
@@ -420,9 +421,9 @@ for (wave in settings$paths$raw$scf_waves) {
                            X3451 == 1 | X3415 == 1)
   stopifnot(all(biz$owns | !biz$k1))
   ub = mu %>% filter(source == 'peu') %>% select(uid, hh, peu_dollars) %>%
-    inner_join(dollars %>% select(uid, w_pass_throughs), by = 'uid') %>%
+    inner_join(dollars %>% select(uid, value.pass_throughs), by = 'uid') %>%
     left_join(biz, by = 'hh') %>% group_by(hh) %>%
-    mutate(holder = if (any(w_pass_throughs > 0)) w_pass_throughs > 0 else peu_dollars %in% c('all', 'r')) %>%
+    mutate(holder = if (any(value.pass_throughs > 0)) value.pass_throughs > 0 else peu_dollars %in% c('all', 'r')) %>%
     ungroup()
   stopifnot(!anyNA(ub$owns), all((ub %>% group_by(hh) %>% summarise(n = sum(holder)))$n >= 1))
   # Real estate flags (reports only): to the units carrying the household's X5714 share, else the respondent's unit
@@ -453,8 +454,8 @@ for (wave in settings$paths$raw$scf_waves) {
     qb[[paste0('biz_workers_', k)]] = wk
   }
   stopifnot(!anyNA(qb))
-  ub = ub %>% group_by(hh) %>% mutate(eq_share = if (any(holder & w_pass_throughs > 0))
-    if_else(holder, pmax(w_pass_throughs, 0) / sum(pmax(w_pass_throughs, 0)[holder]), 0) else as.numeric(holder) / sum(holder)) %>%
+  ub = ub %>% group_by(hh) %>% mutate(eq_share = if (any(holder & value.pass_throughs > 0))
+    if_else(holder, pmax(value.pass_throughs, 0) / sum(pmax(value.pass_throughs, 0)[holder]), 0) else as.numeric(holder) / sum(holder)) %>%
     ungroup()
   uq = ub %>% select(uid, hh, holder, eq_share) %>% left_join(qb, by = 'hh')
   for (k in names(QBI_KINDS)) {
@@ -486,7 +487,7 @@ for (wave in settings$paths$raw$scf_waves) {
               age2 = as.integer(if_else(filing_status == 'joint', spouse_age, -1L)),
               male1 = if_else(head_sex == 0, NA_integer_, as.integer(head_sex == 1)),
               male2 = if_else(filing_status == 'joint', if_else(spouse_sex == 0, NA_integer_, as.integer(spouse_sex == 1)), -1L),
-              taxunit_code, across(all_of(names(INCOME))), ss_gross, rental_income, sche_rest, net_worth,
+              taxunit_code, across(all_of(names(INCOME))), gross_ss, rental_income, sche_rest, net_worth,
               asset_factor = asset_factor, across(all_of(WCOLS)), auto_int_exp, elective_deferrals, elective1, elective2,
               w_dc_stock_share, across(all_of(QBI_COLS)),
               owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part, filing_status, n_child_away,
@@ -512,8 +513,8 @@ for (wave in settings$paths$raw$scf_waves) {
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
     stopifnot(abs(z - a) <= 1e-6 * max(1, abs(a)))
   }
-  for (v in c('ss_gross', 'rental_income')) {
-    a = sum(hh$X42001 / 5 * (if (v == 'ss_gross') hh$r_ss + hh$s_ss else hh$rental_hh))
+  for (v in c('gross_ss', 'rental_income')) {
+    a = sum(hh$X42001 / 5 * (if (v == 'gross_ss') hh$r_ss + hh$s_ss else hh$rental_hh))
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
     stopifnot(abs(z - a) <= 1e-6 * max(1, abs(a)))
   }
@@ -525,12 +526,12 @@ for (wave in settings$paths$raw$scf_waves) {
                        income_pct = 100 * sum(units$weight[x > 0]) / W,
                        loss_m = sum(units$weight[x < 0]) / 1e6, loss_pct = 100 * sum(units$weight[x < 0]) / W)
   cat(sprintf('wave %d: new columns, all %.2f m units ($ billion, millions of units, %% of units)\n', wave, W / 1e6))
-  print(round(t(sapply(c('ss_gross', 'rental_income', 'sche_rest', 'rent_royalty_estate'),
+  print(round(t(sapply(c('gross_ss', 'rental_income', 'sche_rest', 'rent_royalty_estate'),
                        function(v) summ(units[[v]]))), 3))
   cat(sprintf('wave %d: Social Security by kind of unit ($ billion): %s\n', wave,
               paste(sprintf('%d: %.1f', sort(unique(units$taxunit_code)),
                             sapply(sort(unique(units$taxunit_code)), function(k)
-                              sum((units$weight * units$ss_gross)[units$taxunit_code == k]) / 1e9)), collapse = ', ')))
+                              sum((units$weight * units$gross_ss)[units$taxunit_code == k]) / 1e9)), collapse = ', ')))
   bind = units$rental_income > units$rent_royalty_estate
   cat(sprintf(paste0('wave %d: sche_rest held at 0 (rental above X5714): %d rows, %.3f m units, $%.2f billion dropped ',
                      '(of which X5714 itself a loss: %.3f m units, $%.2f billion; rental above a nonnegative X5714: ',

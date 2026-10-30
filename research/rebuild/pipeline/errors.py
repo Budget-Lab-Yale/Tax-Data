@@ -108,8 +108,8 @@ RENAMED = {'total wages > total > number of returns': 'salaries and wages > numb
            'total wages > total > amount': 'salaries and wages > amount'}
 IRS_PARTS = {'returns': [('returns', 'count', 1)],
              'wages count': [('wages', 'count', 1)], 'wages amount': [('wages', 'amount', 1)],
-             'interest count': [('taxable_interest', 'count', 1)],
-             'interest amount': [('taxable_interest', 'amount', 1)],
+             'txbl_int count': [('taxable_interest', 'count', 1)],
+             'txbl_int amount': [('taxable_interest', 'amount', 1)],
              'dividends count': [('ordinary_dividends', 'count', 1)],
              'dividends amount': [('ordinary_dividends', 'amount', 1)],
              'capital_gains count': [('sch_d_net_gain', 'count', 1), ('sch_d_net_loss', 'count', 1)],

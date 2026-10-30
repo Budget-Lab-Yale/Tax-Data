@@ -147,8 +147,10 @@ def recombine(df, year):
     def put(col, values):
         out[col] = values
         done.append(col)
-    put('capital_gains_line13', out[D.KG_PIECES].sum(axis=1))
-    put('capital_gains', out['kg_st'] + out['kg_lt'] + out['kg_other'])
+    # the Schedule D gains and losses before the loss limit; AGI's capital gain applies it (as dollars.draw_dollars)
+    put('capital_gains', common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
+                                                     out['filing_status'] if 'filing_status' in out else None))
+    put('capital_gains_line13', out['capital_gains'] + out['kg_dist'])
     parts = D.META['computed_totals']['business_income']
     put('business_income', out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float))
     for sub in [k for k in D.META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
@@ -184,7 +186,8 @@ def grow_dollars(df, s, t):
     series the dollar maps are grown by (build_table.build_maps), each item's line in the target year's growth.yaml
     (growth.py), as a ratio of year t's factor to year s's:
       - PUF amounts: SOI Table 1.4's dollars per return with the item where Table 1.4 has it, else the item's declared
-        series (build_table.growth: positive and negative values separately; capital losses not grown);
+        series (build_table.growth: positive and negative values separately; since 29-30 October capital
+        losses grown with the gains, the loss limit applied again by recombine where AGI is made);
       - the balance sheet: growth per tax unit, item by item, the mean per unit of the wave of income year t - 1
         over that of s - 1 (build_table.scf_growth, the maps' rule); when either wave is missing, or an item's mean
         per unit is not positive in both, the run stops (until 30 October those were left ungrown);
@@ -239,20 +242,9 @@ def grow_dollars(df, s, t):
         if v in out:
             f = GR.between(v, s, t)
             grow(v, f, f, GR.describe(v))
-    # the allowed capital loss (29 October, from Part A's top_hidden.py, where it was found): the rule grows the
-    # positive "other" gain piece but not losses, so a return held at the allowed loss in year s (a large loss, with
-    # kg_other taking up the cap) would turn into a gain. The cap is nominal: such a return stays at it, and no return
-    # goes below it
-    if all(c in out for c in ['kg_st', 'kg_lt', 'kg_other', 'capital_gains', 'mars']):
-        cap = np.where(df['mars'].to_numpy() == 3, -1500.0, -3000.0)
-        at_cap = df['capital_gains'].to_numpy(float) <= cap + 0.5
-        floor = cap - out['kg_st'].to_numpy(float) - out['kg_lt'].to_numpy(float)
-        before = out['kg_other'].to_numpy(float)
-        out['kg_other'] = np.where(at_cap, floor, np.maximum(before, floor))
-        rows.append({'column': 'kg_other', 'factor, positive values': np.nan, 'factor, negative values': np.nan,
-                     'series': f'then held at the allowed capital loss: {int(at_cap.sum())} records at it in {s} kept at '
-                               f'it, {int((~at_cap & (before < floor)).sum())} others raised to it',
-                     'records with a value': int((before != 0).sum())})
+    # the allowed capital loss: since 29-30 October the short and long term pieces are the gains and losses before the
+    # $3,000 limit, grown like any amount, and recombine() applies the nominal limit again in year t (before, a piece
+    # kg_other held the limit and needed a rule here)
     out, _ = recombine(out, t)
     return out, pd.DataFrame(rows)
 
@@ -377,8 +369,26 @@ def main():
     top = None
     given = fixed = np.zeros(len(g19), bool)
     if S.get('top', {}).get('enabled', False):
+        # (30 October) The top step draws from the network (Part A's hidden returns, the redraw of balance sheets at $1
+        # billion or more, Part B's billionaires), which wants a GPU, while the rest of the tilt wants none. With
+        # REBUILD_TOP_CACHE set, a run with REBUILD_TOP_ONLY=1 (on a GPU) does the top step, writes its result to that
+        # file and stops; a later run (on a CPU partition) reads it in place of the step.
+        import pickle
         import top_records as TR
-        g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
+        cache = os.environ.get('REBUILD_TOP_CACHE')
+        if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
+            with open(cache, 'rb') as fh:
+                g19, imp, given, fixed, top = pickle.load(fh)
+            common.say(f'the top step read from {cache}')
+        else:
+            g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
+            if cache:
+                with open(cache + '.part', 'wb') as fh:
+                    pickle.dump((g19, imp, given, fixed, top), fh, protocol=4)
+                os.replace(cache + '.part', cache)
+                common.say(f'the top step written to {cache}')
+        if os.environ.get('REBUILD_TOP_ONLY'):
+            return
     del raw
     # the fixed columns after the top of the file: their file must hold a value for every record, the rebuilt hidden
     # returns and the billionaires included (add_fixed_columns stops otherwise)

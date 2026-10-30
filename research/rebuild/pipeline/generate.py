@@ -22,7 +22,8 @@ One record is drawn slot by slot:
      nothing drawn for it, and every slot the CPS has is present and hidden
      until its turn, except the CPS's two shares, absent
      until married and the share's base are drawn (model.gate_shares);
-  2. the computed totals: line-13 capital gains from its four pieces,
+  2. the computed totals: capital gains from its three pieces (short and long term before the loss limit,
+     distributions; since 29-30 October),
      business income and its two subtotals (Schedules C and F, Schedule E)
      from its eighteen parts, and (since 27 October) ordinary dividends from
      qualified and other dividends and the adjustments from their eleven parts. Each part gets a dollar value inside its band
@@ -230,8 +231,8 @@ DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
 SURVEY_ONLY = torch.tensor([P.index(v) for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS])
 POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
-STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_ctc, n_eitc)
-MARS, MARRIED, AGE_RANGE = P.index('mars'), P.index('married'), P.index('age_range')
+STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_dep_ctc, n_dep_eitc)
+MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index('age_range')
 # The trained models pooled (see the top): each a run under OUT/model and the shift added to its generation seeds.
 # null: the run's own model (common.MODEL) alone, with today's seeds.
 MODELS = G.get('models', [{'run': 'seed20261016', 'seed_shift': 0}, {'run': 'seed20261017', 'seed_shift': 1000}])
