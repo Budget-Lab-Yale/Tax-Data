@@ -1444,12 +1444,19 @@ gains, which on a return with a net loss is the part of the loss the limit holds
   loss held to $3,000 ($1,500 on a separate return), nominal and not indexed. The file's `capital_gains` (Schedule D
   net in AGI, SOI Table 1.4's line) and `capital_gains_line13` (with distributions) apply it in `dollars.py`, in the
   tilt's recombination of a grown file, in the top step's rebuilt hidden returns and in the band AGI that sets the AGI
-  group label. The calculator applies the same limit itself to `kg_st` and `kg_lt`.
+  group label. The calculator applies the same limit itself to `kg_st` and `kg_lt`; its `kg_lt` includes `kg_dist`
+  (taxsim_file and calculator.convert add them), so the limit falls on short term plus long term plus distributions
+  there, and on short plus long term alone in the file. The two differ only on a record with distributions and a net
+  loss past the limit: 1 record of the 2019 pooled file of 30 October, $71 (the PUF has no such return).
 - **Line 13 on the PUF.** On 6.2 million 2015 returns ($52 billion) line 13 (E01000) is below the allowed Schedule D
-  net of the two pieces: 3.4 million returns ($35 billion) show the full allowed loss on line 13 while their pieces do
-  not reach it, 1.6 million differ by rounding, 1.2 million ($16 billion) by more (the PUF perturbs each field on its
-  own). That shortfall is put on the short-term piece, so the return's allowed net is its line 13 again and it keeps
-  its loss (SOI counts it among the returns with a net loss). What is left the other way ($0.1 billion on 1.7 million
+  net of the two pieces. By what the pieces show (review of 30 October): on 3.63 million the pieces net a gain (on 1.98
+  million line 13 is a smaller gain, on 1.66 million a loss, 1.43 million of them the full allowed loss); on 2.02
+  million the pieces are zero and line 13 is a loss (1.63 million the full allowed loss); on 0.55 million the pieces
+  net a loss smaller than line 13's. The booklet calls P22250 and P23250 gains less losses net of carryover, so a
+  carryover does not explain it. The gaps are not small: half are $3,000 or more, a tenth $100,000 or more. That
+  shortfall is put on the short-term piece, so the return's allowed net is its line 13 again and it keeps its loss
+  (SOI counts it among the returns with a net loss); about 3.7 million returns whose pieces show no net loss become
+  loss returns, and short-term gains on returns that keep a gain are cut. What is left the other way ($0.1 billion on 1.7 million
   returns) stays in other AGI, so each PUF record's AGI is still exactly the PUF's.
 - **Growth.** The pieces' losses grow with the gains (Schedule D net gain per return with one, `growth.yaml`); until
   now losses were not grown because they sat at the nominal limit.
