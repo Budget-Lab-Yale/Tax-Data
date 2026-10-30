@@ -1,0 +1,46 @@
+year,series,description,count_millions,estimate_type,source
+2022,rev_iit_returns_amt,returns affected by alternative minimum tax,0.33832799999999996,actual,CBO February 2026 individual income tax projections
+2022,rev_iit_returns_itemized,returns with itemized deductions,15.0,actual,CBO February 2026 individual income tax projections
+2022,rev_iit_returns_total,all returns,161.3,actual,CBO February 2026 individual income tax projections
+2023,rev_iit_returns_amt,returns affected by alternative minimum tax,0.302688,projected,CBO February 2026 individual income tax projections
+2023,rev_iit_returns_itemized,returns with itemized deductions,15.1,projected,CBO February 2026 individual income tax projections
+2023,rev_iit_returns_total,all returns,164.7,projected,CBO February 2026 individual income tax projections
+2024,rev_iit_returns_amt,returns affected by alternative minimum tax,0.313993,projected,CBO February 2026 individual income tax projections
+2024,rev_iit_returns_itemized,returns with itemized deductions,15.6,projected,CBO February 2026 individual income tax projections
+2024,rev_iit_returns_total,all returns,167.1,projected,CBO February 2026 individual income tax projections
+2025,rev_iit_returns_amt,returns affected by alternative minimum tax,0.505474,projected,CBO February 2026 individual income tax projections
+2025,rev_iit_returns_itemized,returns with itemized deductions,20.9,projected,CBO February 2026 individual income tax projections
+2025,rev_iit_returns_total,all returns,168.0,projected,CBO February 2026 individual income tax projections
+2026,rev_iit_returns_amt,returns affected by alternative minimum tax,0.578376,projected,CBO February 2026 individual income tax projections
+2026,rev_iit_returns_itemized,returns with itemized deductions,21.9,projected,CBO February 2026 individual income tax projections
+2026,rev_iit_returns_total,all returns,169.5,projected,CBO February 2026 individual income tax projections
+2027,rev_iit_returns_amt,returns affected by alternative minimum tax,0.557867,projected,CBO February 2026 individual income tax projections
+2027,rev_iit_returns_itemized,returns with itemized deductions,23.9,projected,CBO February 2026 individual income tax projections
+2027,rev_iit_returns_total,all returns,170.8,projected,CBO February 2026 individual income tax projections
+2028,rev_iit_returns_amt,returns affected by alternative minimum tax,0.539353,projected,CBO February 2026 individual income tax projections
+2028,rev_iit_returns_itemized,returns with itemized deductions,26.0,projected,CBO February 2026 individual income tax projections
+2028,rev_iit_returns_total,all returns,172.1,projected,CBO February 2026 individual income tax projections
+2029,rev_iit_returns_amt,returns affected by alternative minimum tax,0.442204,projected,CBO February 2026 individual income tax projections
+2029,rev_iit_returns_itemized,returns with itemized deductions,27.9,projected,CBO February 2026 individual income tax projections
+2029,rev_iit_returns_total,all returns,173.2,projected,CBO February 2026 individual income tax projections
+2030,rev_iit_returns_amt,returns affected by alternative minimum tax,0.38158800000000004,projected,CBO February 2026 individual income tax projections
+2030,rev_iit_returns_itemized,returns with itemized deductions,22.6,projected,CBO February 2026 individual income tax projections
+2030,rev_iit_returns_total,all returns,174.3,projected,CBO February 2026 individual income tax projections
+2031,rev_iit_returns_amt,returns affected by alternative minimum tax,0.389609,projected,CBO February 2026 individual income tax projections
+2031,rev_iit_returns_itemized,returns with itemized deductions,23.9,projected,CBO February 2026 individual income tax projections
+2031,rev_iit_returns_total,all returns,175.8,projected,CBO February 2026 individual income tax projections
+2032,rev_iit_returns_amt,returns affected by alternative minimum tax,0.39187299999999997,projected,CBO February 2026 individual income tax projections
+2032,rev_iit_returns_itemized,returns with itemized deductions,25.2,projected,CBO February 2026 individual income tax projections
+2032,rev_iit_returns_total,all returns,176.9,projected,CBO February 2026 individual income tax projections
+2033,rev_iit_returns_amt,returns affected by alternative minimum tax,0.395249,projected,CBO February 2026 individual income tax projections
+2033,rev_iit_returns_itemized,returns with itemized deductions,26.3,projected,CBO February 2026 individual income tax projections
+2033,rev_iit_returns_total,all returns,177.9,projected,CBO February 2026 individual income tax projections
+2034,rev_iit_returns_amt,returns affected by alternative minimum tax,0.400377,projected,CBO February 2026 individual income tax projections
+2034,rev_iit_returns_itemized,returns with itemized deductions,27.2,projected,CBO February 2026 individual income tax projections
+2034,rev_iit_returns_total,all returns,178.8,projected,CBO February 2026 individual income tax projections
+2035,rev_iit_returns_amt,returns affected by alternative minimum tax,0.40296699999999996,projected,CBO February 2026 individual income tax projections
+2035,rev_iit_returns_itemized,returns with itemized deductions,28.0,projected,CBO February 2026 individual income tax projections
+2035,rev_iit_returns_total,all returns,179.7,projected,CBO February 2026 individual income tax projections
+2036,rev_iit_returns_amt,returns affected by alternative minimum tax,0.402909,projected,CBO February 2026 individual income tax projections
+2036,rev_iit_returns_itemized,returns with itemized deductions,28.6,projected,CBO February 2026 individual income tax projections
+2036,rev_iit_returns_total,all returns,180.5,projected,CBO February 2026 individual income tax projections
