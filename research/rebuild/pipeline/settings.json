@@ -1983,9 +1983,10 @@
    "_treasury_share_by_scf_group": "Goodman, Lim, Sacerdote and Whitten, NBER Working Paper 28680 (revised January 2024), Table A1, column 1: actual 2018-2019 returns, owners of one business with taxable income above the phase-in range, the deduction as a share of 20% of potential QBI, in the industries that are not specified services. By SCF industry group (the Census codes of build_non_micro_tables.SCF_INDUSTRY_RANGES): 2 construction of buildings 0.68; 3 manufacturing 0.76 and publishers 0.65; 4 wholesale 0.59 and restaurants 0.84. A group's value is the average of its industries; the target is the groups' values weighted by the file's business income of those owners in each group. Groups 1, 5, 6, 7 and 8 have no published industry.",
    "soi_agi_floor": 500000,
    "a_range": [
-    0.0,
-    20.0
+    1.0,
+    1.0
    ],
+   "_a_range": "The range the wage dial a is searched in. Held at 1 since 30 October (the overnight run, decision 30 of explore/2026-10-30/DECISIONS_FOR_JOHN.md): on the installed networks the solve gave a = 3.00, wage bills nearly twice the economy's private wages; on the new networks it ran to the top of [0, 20] without reaching Treasury's share (0.66 against 0.70) and made wage bills of $84 trillion. The cause: most high-income owners of one business have no outside workers drawn, so no a gives them a wage bill. [0, 20] restores the solve; b is still solved.",
    "b_range": [
     0.0,
     60.0

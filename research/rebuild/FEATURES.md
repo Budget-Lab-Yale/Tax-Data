@@ -1409,8 +1409,10 @@ target year's law are computed by tax-simulator-gpu (`pipeline/taxes.py`, settin
    taxable income before the deduction, with the calculator's own QBI formula (checked against the calculator on every
    record: equal to the cent): `a` so that owners of one non-specified business above the phase-in keep Treasury's
    share of 20% of their income, then `b` so that the deduction from AGI $500,000 up equals SOI's; in turn until they
-   settle. The QBI columns are imputed again with them and the calculator runs a second time. In 2019, a = 3.00 and
-   b = 3.66, which make pass-through wage bills far larger than the economy's private wages: flagged for John.
+   settle. The QBI columns are imputed again with them and the calculator runs a second time. Since 30 October `a` is
+   held at 1 (settings `taxes.qbi_dials.a_range`) and only `b` is solved: the solve of `a` gave 3.00 on the installed
+   networks and ran to its limit, 20, on the new ones, with wage bills many times the economy's private wages, because
+   most high-income owners of one business have no outside workers drawn. On the new networks b = 0.33.
 4. The second run's columns join the file by record id, each the calculator's name with `calc_` in front
    (`taxes.OUTPUTS`): AGI, itemizing and itemized deductions claimed, the standard deduction, the QBI deduction,
    taxable income, income tax before credits, the AMT, the child credit's two parts, the EITC, nonrefundable and
@@ -1422,7 +1424,9 @@ The tilt moves weights only, so the computed taxes stay right after it. The calc
 `targets_config/2019/targets.yaml`, entries `calc_*`) are SOI Tables 1.4 and 3.3 by the file's AGI, with SOI's CVs
 (`targets.T14`, `targets.T33`; `errors.soi_errors`): itemizers and itemized deductions claimed, taxable income, income tax
 before and after credits, the child credit's two parts, the EITC and the AMT, 154 targets in 2019. The QBI deduction
-by AGI (22 more) is left out of 2019: with it the targets could not all be met (the overnight rule; RESULTS.md).
+by AGI (22 more) is left out of 2019: with it the targets could not all be met (the overnight rule; RESULTS.md). On the
+new networks (pieces 1-2) the 2019 file meets all 959 targets and keeps 79.1% of the effective sample (80.7% with the
+805 targets before the calculator targets).
 `target_list.expand` builds them after the taxes (`which`); with settings `taxes.target` false they are only reported.
 Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`, `qbi_dials.csv`,
 `taxes_summary.md`). `python taxes.py report <file> <folder>` computes the taxes on a finished file and evaluates the
