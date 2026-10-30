@@ -661,11 +661,15 @@ def nonfiler_errors(rows, year):
     out = []
     for r in rows.itertuples():
         if r.kind == 'non-filers':
-            s = JUDGMENT['nonfiler_count']
-            out.append((r.Index, s * r.value, 'judgment',
-                        f'{100 * s:.0f}% of the count (settings errors.nonfiler_count_se): the non-filer units hold '
-                        'the residual adults, about 253 million CPS adults less 209 million on returns and 17 million '
-                        'dependents (2019); half a percent of the adults, 1.3 million, is about 6% of the count'))
+            # expand_entry has already applied the year's configured judgment error. Preserve it, including its
+            # reason, rather than replacing every year's tolerance with the settings fallback.
+            if hasattr(r, 'se') and pd.notna(r.se):
+                out.append((r.Index, r.se, 'judgment',
+                            f"Year configuration: {getattr(r, 'error_reason', '')}"))
+            else:
+                s = JUDGMENT['nonfiler_count']
+                out.append((r.Index, s * abs(r.value), 'judgment',
+                            f'{100 * s:g}% of the count (settings errors.nonfiler_count_se fallback)'))
             continue
         band = 'children under 17' if r.group == 'non-filers, children under 17' else \
             r.group.replace('non-filers, heads and spouses aged ', '')

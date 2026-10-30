@@ -475,3 +475,59 @@ targets:
     value: {survey: cps}
     error: {kind: survey_replicate}
     key: {group: 'CPS {year}, {wage_groups_4}', target: '{variable}, average'}
+
+  # Calculator targets; QBI by AGI is omitted as in 2019.
+  - id: calc_itemizers
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: itemized_deductions_claimed
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_taxable_income
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: taxable_income
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_tax_before_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: income_tax_before_credits
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_child_credit
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: child_tax_credit
+    cells: {credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_eitc
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: eitc
+    cells: {credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_amt
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: alternative_minimum_tax
+    cells: {amt_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}

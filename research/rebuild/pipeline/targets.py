@@ -21,6 +21,7 @@ publishes thousands).
 """
 import os
 import re
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -291,7 +292,19 @@ def soi_get(y, pattern, stat):
     return val[(y, hit[0])] * (1000.0 if stat == 'amount' else 1.0)
 
 
-def soi_item(y, item, base=None, rows=None, absolute=False):
+@lru_cache(maxsize=None)
+def combined_partnership_count(y, side):
+    """Table 4.3's combined count, excluding dependent filers, without counting a return twice."""
+    path = os.path.join(common.SETTINGS['paths']['raw']['soi_tables'], 'pctile_top_items.csv')
+    t = pd.read_csv(path)
+    m = ((t.tax_year == y) & (t.pctile_group == 'all returns') &
+         (t.item == 'partnership and s corporation > ' + side) & (t.measure == 'returns'))
+    values = t.loc[m, 'value']
+    assert len(values) == 1 and pd.notna(values.iloc[0]), f'{path}: missing combined {side} count for {y}'
+    return float(values.iloc[0])
+
+
+def soi_item(y, item, base=None, rows=None, absolute=False, combined_counts=False):
     """Amount and returns of an item in year y, summed over its SOI rows; with
     base, only the rows published in both years (so a ratio compares like with like)."""
     amt = cnt = 0.0
@@ -302,6 +315,11 @@ def soi_item(y, item, base=None, rows=None, absolute=False):
                 soi_get(base, p, 'amount')
         except KeyError:
             continue
+        if combined_counts and p.startswith('partnership and s corporation > net '):
+            # Table 1.4 splits these lines from 2021; adding the two counts double-counts returns with both.
+            # Table 4.3 publishes the combined line for all independent filers in both the base and target years.
+            side = 'net loss' if 'net loss' in p else 'net income'
+            c = combined_partnership_count(y, side)
         amt, cnt = amt + (abs(a) if absolute else s * a), cnt + c
     return amt, cnt
 
@@ -358,7 +376,9 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
     a = common.PUF_YEAR
 
     def g(b):
-        (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
+        combined = b >= 2021
+        (a0, c0), (a1, c1) = (soi_item(a, item, b, rows, absolute, combined),
+                              soi_item(b, item, a, rows, absolute, combined))
         if not (c1 > 0 and a1 != 0):
             # (30 October) a line SOI stopped publishing after the law repealed the item (the domestic production
             # activities deduction from 2018-2020, the tuition and fees deduction from 2021): not grown past the last
