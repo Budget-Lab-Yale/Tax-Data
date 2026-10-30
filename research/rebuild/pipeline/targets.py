@@ -235,6 +235,7 @@ def total_years():
 # without the combined line adds the pieces up; its return count then counts a return with both twice.
 SPLIT = {'partnership and s corporation': ['partnership', 's corporation']}
 _GAPS = set()
+_HELD = set()   # (line, year) pairs per_return_growth held at an earlier year, each said once
 
 
 def soi_get(y, pattern, stat):
@@ -331,6 +332,12 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
             # year it was published; the calculator applies the year's law (the item is zero under it)
             prev = [y for y in total_years() if a < y < b and soi_item(y, item, a, rows, absolute)[1] > 0]
             assert prev, f'{item or rows}: no SOI amount in {b} and none between {a} and {b}'
+            # (review, 30 October) said in the log once per line and year: this path takes any line with no amount
+            # in year b, not only the two repealed deductions it was written for, so it must not pass unseen
+            if (str(item or rows), b) not in _HELD:
+                _HELD.add((str(item or rows), b))
+                common.say(f'SOI {b}: no amount for {item or rows}; held at its growth to {prev[-1]}, the last year '
+                           f'it was published (a repealed item, zero under the year\'s law)')
             return g(prev[-1])
         return (a1 / c1) / (a0 / c0)
     concept = CBO_CONCEPT.get(item, 'Net business income' if rows is not None and any(
