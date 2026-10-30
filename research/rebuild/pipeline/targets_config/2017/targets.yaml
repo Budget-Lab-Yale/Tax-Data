@@ -470,3 +470,43 @@ targets:
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: calc_itemized_medical
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: itemized_medical
+    cells: {itemized_agi_groups: all}
+    value: {published: soi 2.1}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: calc_itemized_taxes
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: itemized_taxes
+    cells: {itemized_agi_groups: all}
+    value: {published: soi 2.1}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: calc_itemized_interest
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: itemized_interest
+    cells: {itemized_agi_groups: all}
+    value: {published: soi 2.1}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: calc_itemized_charity
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: itemized_charity
+    cells: {itemized_agi_groups: all}
+    value: {published: soi 2.1}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}

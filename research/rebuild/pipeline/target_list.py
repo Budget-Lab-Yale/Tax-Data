@@ -1245,6 +1245,47 @@ def _fill(template, cell, v, st, year, line=None):
                            year=year, line=line, **parts)
 
 
+def published_21(year, cells, v, stats):
+    """Table 2.1's already combined groups; do not infer errors for its residual."""
+    (cell,) = cells
+    assert cell['agi'] == 'itemized_agi_groups'
+    path = os.path.join(HERE, '..', 'resources', 'table21_2015_2023.csv')
+    data = pd.read_csv(path)
+    category = v.removeprefix('itemized_')
+    source_category = 'other_residual' if category == 'other' else category
+    source = data[(data.year == year) & (data.category == source_category)]
+    groups = CAT['groupings']['itemized_agi_groups']['edges']
+    labels = ['under $25,000', '$25,000–$50,000', '$50,000–$75,000',
+              '$75,000–$100,000', '$100,000–$200,000', '$200,000–$500,000', '$500,000 and over']
+    rows = []
+    for (lo, hi, label), published_label in zip(groups, labels):
+        matches = source[source.agi_group == published_label]
+        assert len(matches) == 1, (year, category, published_label, len(matches))
+        record = matches.iloc[0]
+        for st in stats:
+            value = float(record[st])
+            assert np.isfinite(value), (year, category, published_label, st, 'missing value')
+            cv = record[st + '_cv']
+            if category == 'other':
+                assert st == 'amount' and year >= 2018
+                cv, reason = .10, '10% judgment: residual CV and covariance are unavailable'
+            elif pd.isna(cv):
+                donors = data[(data.category == category) & (data.agi_group == published_label) & data[st + '_cv'].notna()].copy()
+                assert len(donors), (category, published_label, st, 'no CV donor')
+                donors['distance'] = abs(donors.year - year)
+                donor = donors.sort_values(['distance', 'year']).iloc[0]
+                cv = float(donor[st + '_cv'])
+                reason = f'missing grouped CV: borrowed same category and AGI group from {int(donor.year)}'
+            else:
+                reason = 'Table 2.1 grouped CV; combined source cells treated as independent'
+            assert np.isfinite(cv) and cv >= 0
+            rows.append({'cell': label, 'agi': (-np.inf if lo is None else lo, np.inf if hi is None else hi),
+                         'statistic': st, 'value': value, 'se': abs(value) * cv,
+                         'error_kind': 'table21', 'se_reason': reason,
+                         'source': f'SOI Table 2.1 {year}: {category}, {published_label}; {record.source_file}, {record.source_rows}'})
+    return rows
+
+
 def expand_entry(e, year, soi):
     stats = _as_list(e['statistic'])
     cells = group_cells(e['cells'])
@@ -1254,7 +1295,11 @@ def expand_entry(e, year, soi):
     reasons = e.get('reason', '')
     out = []
     for v in variable_names(e.get('variable')):
-        if vkind == 'published' and src in ('soi 1.4', 'soi 1.7', 'soi 3.3'):
+        if vkind == 'published' and src == 'soi 2.1':
+            rows = published_21(vyear, cells, v, stats)
+            for r in rows:
+                r['cell_spec'] = {'parts': {}, 'filters': [], 'line': None, 'label': r['cell']}
+        elif vkind == 'published' and src in ('soi 1.4', 'soi 1.7', 'soi 3.3'):
             rows = published_17(soi, vyear, cells, stats) if src == 'soi 1.7' else \
                 published_14(soi, vyear, cells, v, stats, table=src.split(' ')[1])
             for r in rows:
@@ -1502,7 +1547,10 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
         elif r.statistic == 'count':
             count_var = variable_def(r.variable).get('count_variable')
             xc = record_value(df, count_var) if count_var else x
-            F[:, j] = cell * (xc != 0)
+            # SOI Table 2.1 counts returns claiming a positive category amount.
+            F[:, j] = cell * ((xc > 0) if r.variable in
+                              ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity')
+                              else (xc != 0))
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
         elif r.statistic == 'workers':

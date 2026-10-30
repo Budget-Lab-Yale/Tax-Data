@@ -1965,7 +1965,7 @@
   "_enabled": "false: no taxes are computed in the tilt, and the year's calculator targets are left out (listed in targets_excluded.csv), as before 30 October.",
   "target": true,
   "_target": "true: the year's calculator targets join the reweighting; false: they are only reported (taxes/taxes_fit.csv, before and after a tilt without them).",
-  "commit": "2b3b9070924062397f49dbee68799ea3445a7844",
+  "commit": "0bc55a18de873fba5a3ca952c2da2d409acc08d3",
   "repo": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu",
   "python": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu/.venv/bin/python",
   "draw_seed": 76,

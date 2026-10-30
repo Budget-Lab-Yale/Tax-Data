@@ -23,6 +23,9 @@
 #              (TARGETS.md section 13, item 1)
 # ---------------------------------------------------------------------------------------------------------------
 sources:
+  soi 2.1:
+    kind: published
+    what: SOI Table 2.1 itemized deductions by AGI
   soi 1.4:
     kind: published
     what: SOI Publication 1304, Table 1.4, all returns by size of AGI, sources of income
@@ -237,6 +240,21 @@ error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
 # The SOI lines are the variable names of the run's targets/soi.csv (targets.T14).
 # ---------------------------------------------------------------------------------------------------------------
 variables:
+  itemized_medical:
+    record: calc_claimed_medical
+    short: medical deductions
+  itemized_taxes:
+    record: calc_claimed_taxes
+    short: taxes paid deductions
+  itemized_interest:
+    record: calc_claimed_interest
+    short: interest deductions
+  itemized_charity:
+    record: calc_claimed_charity
+    short: charitable deductions
+  itemized_other:
+    record: calc_itemized_total_minus_four
+    short: other itemized deductions residual
   wages:
     record: wages
     short: wages
@@ -655,6 +673,16 @@ variable_lists:
 #   - a cell no record of the starting file can reach is left out, never forced.
 # ---------------------------------------------------------------------------------------------------------------
 groupings:
+  itemized_agi_groups:
+    variable: agi
+    edges:
+      - [null, 25000, under $25k]
+      - [25000, 50000, $25k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 500000, $200k-500k]
+      - [500000, null, $500k and over]
   soi_agi_brackets:
     variable: agi
     as_published: soi 1.4

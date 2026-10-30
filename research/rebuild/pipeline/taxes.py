@@ -57,6 +57,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # The columns joined to the file: file column -> (the calculator's column, or a formula on its columns, and meaning).
 # Each is the calculator's own name with calc_ in front, so a computed item is never mistaken for a drawn one.
 OUTPUTS = {
+    'calc_claimed_medical': ('claimed_medical', 'medical deductions on itemizers'),
+    'calc_claimed_taxes': ('claimed_taxes', 'taxes paid deductions on itemizers'),
+    'calc_claimed_interest': ('claimed_interest', 'interest deductions on itemizers'),
+    'calc_claimed_charity': ('claimed_charity', 'charitable deductions on itemizers'),
+    'calc_itemized_total_minus_four': ('itemized_total_minus_four', 'itemized deductions less the four named categories'),
     'calc_agi': ('agi', 'adjusted gross income as the calculator computes it'),
     'calc_itemizing': ('itemizing', '1 if the return itemizes (itemized deductions above the standard deduction)'),
     'calc_item_ded': ('item_ded', 'itemized deductions after the law\'s limits, whether or not the return itemizes'),

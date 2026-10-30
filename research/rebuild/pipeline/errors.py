@@ -699,7 +699,8 @@ def standard_errors(rows, year=Y):
     for a share). A kind this module does not know gets no error (error_kind 'none') and is listed in the summary."""
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']),
+    table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime'}
     for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
@@ -711,6 +712,9 @@ def standard_errors(rows, year=Y):
     out['se'] = [res.get(i, (np.nan,))[0] for i in out.index]
     out['error_kind'] = [res.get(i, (None, 'none'))[1] for i in out.index]
     out['se_reason'] = [res.get(i, (None, None, 'no error source'))[2] for i in out.index]
+    out.loc[table21, 'se'] = rows.loc[table21, 'se']
+    out.loc[table21, 'error_kind'] = 'table21'
+    out.loc[table21, 'se_reason'] = rows.loc[table21, 'error_reason']
     for k, gap in DEFINITION_GAP.items():   # a definition gap: square root of the sum of squares
         m = out.kind == k
         out.loc[m, 'se'] = np.sqrt(out.loc[m, 'se'] ** 2 + (gap * rows.loc[m, 'value']) ** 2)
