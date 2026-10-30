@@ -97,7 +97,7 @@ def frame(wave, year):
     # (since 29 October), a share missing outside the PEU that no SCF target reads
     not_asked = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']
     items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
-    cols = list(dict.fromkeys(items + ['w_primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
+    cols = list(dict.fromkeys(items + ['value.primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
     t = _table(['household_id', 'implicate', 'weight', 'age_range'] + cols)
     u = t[t.year == wave - 1].reset_index(drop=True)
     assert len(u), f'SCF wave {wave}: no rows in the training table'
@@ -108,7 +108,7 @@ def frame(wave, year):
     assert (u['age_range'] < common.ADULT_RANGES).all(), f'SCF wave {wave}: a dependent filer among the units'
     for v in items:
         u[v] = u[v].to_numpy(float) * f[v]
-    u['w_primary_mortgage'] = u['w_primary_mortgage'].to_numpy(float) * f['w_primary_home']
+    u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home']
     u['net_worth'] = u[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
     ref = t.loc[t.year == year - 1, 'weight']
     assert len(ref), f'no SCF wave of {year} in the table: the waves are scaled to its number of units'

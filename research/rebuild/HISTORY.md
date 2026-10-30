@@ -889,6 +889,14 @@ implausible wage bills, flagged); 176 calculator targets from SOI Tables 1.4 and
 targets could not all be met (58.4% kept); leaving out the QBI deduction by AGI, the costliest block, every target is
 met at 78.0% (80.0% without calculator targets). Decisions 20-25 of `explore/2026-10-30/DECISIONS_FOR_JOHN.md`.
 
+### 29-30 October: Tax-Simulator's names everywhere
+
+John (29 October): "there is no reason for the names to differ. at all." The rebuild's variables took the input names of
+tax-simulator-gpu (50 renamed, for example `mars` to `filing_status`, `interest` to `txbl_int`, `w_cash` to
+`value.cash`), by a script from one table (`pipeline/tools/rename_map.csv`, `apply_rename.py`), on branch
+`rebuild-names-gains`. This file keeps the old names in the entries above. The training table and a 2019 draw and tilt
+from the installed networks were checked equal before and after, apart from the names (`FEATURES.md`, "The names").
+
 ## Paths tried and not taken
 
 | What | Why not |

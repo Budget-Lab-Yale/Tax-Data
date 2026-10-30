@@ -337,11 +337,11 @@ def reassign(r, tax_year):
     grp = lambda v: pd.Series(v).groupby([g, r.ffpos.to_numpy()])
     # Routine 1: a related subfamily whose head qualifies as a dependent joins the primary unit
     sf_has_ref = grp((r.ftype == 3) & r.in_pf_ref).transform('max').to_numpy()
-    n_eitc = pd.Series((r.tu_rel == 3).astype(int)).groupby([g, r.tu_id.to_numpy()]).transform('sum').to_numpy()
+    n_dep_eitc = pd.Series((r.tu_rel == 3).astype(int)).groupby([g, r.tu_id.to_numpy()]).transform('sum').to_numpy()
     is_fh = (r.fheadidx == r.pn).to_numpy()
     earn = (r.wage + r.selfemp).to_numpy()
     pqc = sf_has_ref & is_fh & r.perrp.isin([48, 49, 51, 52]).to_numpy() & r.QC.to_numpy()
-    pqc &= ~((earn > dep_cut) & (n_eitc > 0)); pqc &= ~((earn > mfs_sd) & (n_eitc == 0))
+    pqc &= ~((earn > dep_cut) & (n_dep_eitc > 0)); pqc &= ~((earn > mfs_sd) & (n_dep_eitc == 0))
     pqr = sf_has_ref & is_fh & ~pqc & r.QR.to_numpy(); pqr &= ~(earn > dep_cut)
     PQC = grp(pqc).transform('max').to_numpy().astype(bool); PQR = grp(pqr).transform('max').to_numpy().astype(bool)
     flag = PQC | PQR
@@ -483,7 +483,7 @@ def collapse_units(r, away=None):
     u['selfemp_hd'] = head.selfemp.reindex(u.index); u['selfemp_sp'] = spd.selfemp.reindex(u.index).fillna(0)
     # counts as CBO defines them (uncapped)
     d = deps.assign(ctc=(deps.tu_rel == 3) & (deps.age < 17), eitc=(deps.tu_rel == 3) & (deps.dep_type != 'child_away'))
-    for c, v in [('n_ctc', 'ctc'), ('n_eitc', 'eitc')]:
+    for c, v in [('n_dep_ctc', 'ctc'), ('n_dep_eitc', 'eitc')]:
         u[c] = d.groupby('uid')[v].sum().reindex(u.index, fill_value=0).astype(int)
     for t in DEP_TYPES:
         u[f'n_{t}'] = (d.dep_type == t).groupby(d.uid).sum().reindex(u.index, fill_value=0).astype(int)
@@ -507,8 +507,8 @@ def collapse_units(r, away=None):
     for k in range(3):
         t = kept[kept.k2 == k].set_index('uid')
         u[f'dep_age{k + 1}'] = t.age.reindex(u.index).fillna(-1).astype(int)
-    u['n24'] = u.n_ctc
-    u['eic'] = np.minimum(u.n_eitc, 3)
+    u['n24'] = u.n_dep_ctc
+    u['eic'] = np.minimum(u.n_dep_eitc, 3)
     u['dep_return'] = False
     u['claimant_uid'] = -1
     u = u.reset_index()
@@ -619,7 +619,7 @@ def mfs_split(units, persons, filer, target_returns, dep_rule='primary', salt=20
         r['dep_age1'] = kept.set_index('uid').age.reindex(chosen).fillna(-1).astype(int).to_numpy()
         r['dep_age2'] = -1; r['dep_age3'] = -1
         r['n24'] = ((d.tu_rel == 3) & (d.age < 17)).groupby(d.uid).sum().reindex(chosen, fill_value=0).to_numpy()
-        r['n_eitc'] = (d.tu_rel == 3).groupby(d.uid).sum().reindex(chosen, fill_value=0).to_numpy()
+        r['n_dep_eitc'] = (d.tu_rel == 3).groupby(d.uid).sum().reindex(chosen, fill_value=0).to_numpy()
         r['eic'] = 0                     # married filing separately cannot claim the EITC (2015 law)
         if chance is not None:
             r['p_file'] = pd.Series(chance[is_joint], index=j.uid.to_numpy()).reindex(chosen).to_numpy()

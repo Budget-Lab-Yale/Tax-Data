@@ -24,8 +24,10 @@ pools them half and half (section 8).
 - *generate*: draw a fresh sample from the two models, with year t's mix of survey years (section 7; built for the
   SCF's waves). The AGI group is drawn first: a set number of records in each of 12 AGI groups, more at the top,
   each weighted by its group's returns over the records drawn in it, which undoes q exactly (S8). Its dollars come
-  from year t's rank-to-dollar maps (the PUF's amounts grown to year t per return, the balance sheet grown per tax
-  unit from its wave to year t's wave), and its weights are scaled to year t's demographic cells (section 4).
+  from year t's rank-to-dollar maps (each PUF amount grown to year t by its line in the year's growth.yaml: per
+  return with the item where SOI Table 1.4 has it, else a declared series exogenous to tax policy, section 12; the
+  balance sheet grown per tax unit from its wave to year t's wave), and its weights are scaled to year t's
+  demographic cells (section 4).
   Historical years use this.
 - *from_year s*: take year s's finished file, scale its weights to year t's demographic cells and grow each
   record's amounts to year t. Future years use this, from the last historical year, so they carry its
@@ -338,7 +340,42 @@ what the code already does.
 Each year gets one file. We do not build several versions per year with target values drawn from their errors to
 show a range from data uncertainty, and the code does not need to support it.
 
-## 12. How a year's targets are written down (agreed 24 October)
+## 12. How a year's targets are written down (agreed 24 October; one folder per year since 29 October)
+
+**Since 29 October (John)** each year has a folder of its own, `pipeline/targets_config/<year>/`, with three files
+written out in full; nothing is inherited at run time:
+
+| File | Holds |
+|---|---|
+| `<year>/targets.yaml` | every target entry of the year (statistic, population, variable, cells, value source, error, key), the year's start settings and what the run reports |
+| `<year>/prior.yaml` | the year's prior: the shares of the SCF waves and of the CEX, CPS and SIPP years (section 7) |
+| `<year>/growth.yaml` | one line for every dollar item the pipeline grows: its source series, the measure (per return with the item, per holder, per household, a price), how negative values are grown, and a one-line reason |
+| `catalog.yaml` (shared) | the dictionary: sources, populations, variables and their lines in each published table, groupings, kinds of error. It is not a layer of defaults |
+| `OVERVIEW.md`, `OVERVIEW.csv` (generated) | one table: every setting (each target with its value source and definition, each growth line, each prior share) by year, a cell that differs from the year before marked. Regenerate with `python research/rebuild/pipeline/config_overview.py` |
+
+A new year starts as a copy of the nearest year's folder, then is edited. Before any run (`target_list.resolve`,
+which every stage that reads the configuration calls) the pipeline checks that every entry has a value source the
+catalog defines and that every dollar item has a growth line with a positive factor to the year (`growth.check`);
+otherwise it stops and lists what is missing. 2019 is the only year with a folder; its files were written from the
+layers below and expand to the same targets with the same values (proof: scratch
+`explore/2026-10-29/yearcfg/RESULTS.md`).
+
+**Growth sources (John, 29 October).** Every dollar item needs a growth source in every year. The source must be
+exogenous to tax policy, so SOI's itemized deduction tables (Table 2.1) are ruled out: the 2017 law's collapse in
+itemizers moves their totals and means. A series on the underlying spending or tax is used, per holder where a
+clean one exists, else per household when the share of holders is steady, else AGI per return as a rough prior.
+SOI Table 1.4's lines (dollars per return with the item) stay as they were for the items Table 1.4 publishes. For
+the 26 items with no Table 1.4 line, which until 29 October were not grown at all: mortgage interest by BEA's
+mortgage interest of owner-occupants per ACS home with a mortgage; real estate tax by the ACS's real estate taxes
+per owner-occupied home paying them; state and local income or sales tax by Census state and local income tax
+revenue per return; medical expenses by MEPS out-of-pocket spending per person with any; tax preparation fees by
+the CPI's price of tax preparation; the two education credits' expenses by the College Board's published tuition
+and fees; everything else by AGI per return (SOI Table 1.1), extended past SOI's last year by BEA personal income
+per capita and CBO's projection of it. The capital loss allowed on a return ($3,000) is a statutory nominal amount
+and is not grown. The series and where each came from are in `research/rebuild/resources/growth/` (`sources.csv`).
+
+**Until 29 October** the layout was the overnight prototype's (`explore/2026-10-22/targets/config_format/`), which
+reproduced the 317 targets of 22 October exactly:
 
 The layout is the overnight prototype's (`explore/2026-10-22/targets/config_format/`), which reproduced the 317
 targets of 22 October exactly:
@@ -357,6 +394,9 @@ value comes from, and its error. Two additions to the prototype:
 2. Each year's expanded list of targets, one row per target with value and error, is saved with the run.
 
 The prototype has to be brought up to the 383 targets of 24 October before anything is built on it.
+
+The defaults, historical and projection layers and the year files under `years/` were removed on 29 October, when
+the one folder per year replaced them (git history keeps them).
 
 ## 13. Values that come from other models (agreed 24 October)
 
@@ -501,7 +541,7 @@ configuration file says how each is built.
    Historical years normally use `generate`; future years `from_year` the last historical year. The start from a
    tilted file carries the latest distribution of income, which cannot be written down cleanly as aggregate
    targets; with demographics and nominal levels rescaled, the tilt has little left to do.
-2. **The targets:** the hand-written entries (catalog, defaults, historical or projection, the year's own file):
+2. **The targets:** the hand-written entries (since 29 October the year's own `targets.yaml`, with the catalog):
    SOI detail in historical years, macro totals and population by age in future ones. Plus, optionally,
    `hold_distribution`: targets built automatically from the start file, each item's share of its total in AGI
    rank groups (e.g. p0-50, p50-90, p90-99, p99-99.9, p99.9+), with a judgment error. Stated by rank, so nominal

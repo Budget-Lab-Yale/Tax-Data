@@ -217,8 +217,8 @@ def variable_def(v):
     raise KeyError(f'no variable {v} in the catalog')
 
 
-AGE_COLUMNS = {'head': 'age_primary', 'spouse': 'age_spouse', 'dep1': 'age_dep1', 'dep2': 'age_dep2',
-               'dep3': 'age_dep3'}
+AGE_COLUMNS = {'head': 'age1', 'spouse': 'age2', 'dep1': 'dep_age1', 'dep2': 'dep_age2',
+               'dep3': 'dep_age3'}
 
 
 def person_values(df, v):
@@ -256,7 +256,7 @@ def record_value(df, v):
             return (x != 0).astype(float)
         if d['transform'] == 'loss_allowed':
             # The loss allowed on the return: $3,000, or $1,500 if married filing separately (mars 3).
-            return np.minimum(np.maximum(-x, 0), np.where(df['mars'].to_numpy() == 3, 1500.0, 3000.0))
+            return np.minimum(np.maximum(-x, 0), np.where(df['filing_status'].to_numpy() == 3, 1500.0, 3000.0))
         return np.maximum(x, 0) if d['transform'] == 'positive' else np.maximum(-x, 0)
     if 'ss_tips' in d:
         return person_values(df, v).sum(1)
@@ -410,6 +410,15 @@ def published_14(soi, year, cells, v, stats, table='1.4'):
     published cell crosses an edge, over all the variable's statistics (merge_groups)."""
     (c,) = cells
     rows = []
+    # (30 October, review of rebuild-names-gains) every Table 1.4 line the variable names must be in the year's table.
+    # A line not found used to give zero in every AGI group, and a cell published as zero is left out (expand), so a
+    # name that did not match (the Schedule C family after the rename) silently dropped all its targets.
+    t14 = soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.filing_status == 'all')]
+    have = set(zip(t14['variable'], t14['statistic']))
+    for st in stats:
+        missing = [(var, stt) for var, stt, _ in soi_lines(v, st) if (var, stt) not in have]
+        assert not missing, f'Table 1.4 {year}, variable {v}: no line {missing} in the SOI table (targets/soi.csv); ' \
+                            'a misnamed variable or family, or a line SOI does not publish that year'
     if c['agi'] is None:   # cells: all, the all-returns total row
         assert c['label'] == 'all' and not c['filters'], f'Table {table}: cells {c["label"]} need an AGI grouping'
         t = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == 'all') & (soi.label == 'all')]

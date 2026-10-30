@@ -4,7 +4,8 @@
    of its AGI parts, dollars.agi). The gap per record is split into the steps where the calculator computes
    something the rebuild draws or takes as given:
      capital gains        the calculator's net gain on the return (short- plus long-term, a net loss held to
-                          $3,000) against the rebuild's line 13 (kg_st + kg_lt + kg_dist + kg_other);
+                          $3,000) against the rebuild's line 13 (capital_gains_line13: since 29-30 October the
+                          rebuild applies the same limit to kg_st + kg_lt, then adds kg_dist);
      taxable Social Security  computed from gross benefits, against the rebuild's drawn ss_taxable;
      self-employment tax deduction  half the computed self-employment tax, against the drawn se_tax_ded;
      state tax workaround the calculator's frame step moves part of some owners' state income tax into the
@@ -103,7 +104,7 @@ def agi_check(f, c, inp):
     """Per-record gap between the calculator's AGI and the rebuild's, split by step (module docstring)."""
     x = lambda d, k: d[k].to_numpy(float)
     rebuild = C.rebuild_agi(f)
-    line13 = x(f, 'kg_st') + x(f, 'kg_lt') + x(f, 'kg_dist') + x(f, 'kg_other')
+    line13 = x(f, 'capital_gains_line13')
     p0 = (x(inp, 'part_active') + x(inp, 'part_passive') - x(inp, 'part_active_loss') - x(inp, 'part_passive_loss')
           - x(inp, 'part_179') + x(inp, 'scorp_active') + x(inp, 'scorp_passive') - x(inp, 'scorp_active_loss')
           - x(inp, 'scorp_passive_loss') - x(inp, 'scorp_179'))

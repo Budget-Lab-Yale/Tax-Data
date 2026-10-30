@@ -170,6 +170,14 @@ Left as is (John, 27 October):
     `prior.yaml`), fully written out, no inheritance; a new year starts as a copy of the nearest year's folder; a
     check before every run (a growth line for every dollar item, a value source for every target); and one overview
     table, settings by years, marking what differs from the neighbouring year, in place of the defaults layers.
+  **Built 29 October on branch `rebuild-year-config`** (not merged; results in scratch
+  `explore/2026-10-29/yearcfg/RESULTS.md`). The 2019 folder expands to the same 787 targets with identical values; the
+  26 items are grown by John's sources (2015 to 2019: mortgage interest 1.089, real estate tax 1.138, state and local
+  income tax 1.148, medical 1.356, tax preparation 1.168, tuition 1.126, the other 19 by AGI per return 1.118). On
+  tax-simulator-gpu (master) itemizers go from 13.9 to 17.5 million (SOI 17.35) and itemized deductions from $493 to
+  $637 billion (SOI $645 billion); income tax before credits is 0.4% above SOI (1.2% before). Open: MEPS's 2018
+  redesign may break the medical series (medical deductions now 36% above SOI); the CPS's mortgage interest and real
+  estate tax cut points move at the next table build and retrain.
 - **For the next retrain: capital gains drawn before the $3,000 loss limit** (John, 29 October). The limit is
   computed at tax time; it is not a feature of the data. Today the rebuild draws a third gains piece, `kg_other`, the
   PUF's Form 1040 line 13 (E01000) less short- and long-term gains, and on returns with net losses that piece is the
@@ -179,6 +187,11 @@ Left as is (John, 27 October):
   the full short- and long-term gains and losses from Schedule D, and the loss carryovers if the PUF has them (check
   which fields it carries); keep only what is left of line 13 that is not the limit as an item, or nothing; let the
   calculator apply the limit. Needs a retrain.
+  **Built 29-30 October on branch `rebuild-names-gains`** (`FEATURES.md`, "Capital gains before the loss limit"):
+  `kg_other` dropped, the limit applied where AGI is made. Loss carryovers: P22250 and P23250 are Schedule D's net
+  lines, which take the carryovers in already; the PUF's other Schedule D fields (E22320, E22370) were not examined and
+  are not drawn. Retrained overnight (scratch
+  `explore/2026-10-30/train/RESULTS.md`).
 - **Later: a removal rule beside the fill-in** (John, 28 October). The fill-in can add holders a survey misses but
   not remove holders a survey has too many of (SCF rental income 9.7% against the tax data's 7.6%); the tilt closes
   the gap for now.

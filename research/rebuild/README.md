@@ -46,12 +46,17 @@ from, so a worktree runs its own):
 | calculator | `calculator.py`, `report_calculator.py` | not in the default stages: each record of a finished file through the GPU tax calculator (tax-simulator-gpu's batch command at the commit in settings `taxes`), the AGI check and the levels against SOI 2019 (`CALCULATOR_CONTRACT.md`). Since 30 October the tilt computes the taxes itself (`taxes.py`) | under a minute, a few minutes for the report |
 | taxsim_file | `taxsim_file.py` | not in the default stages (29 October): the year file as Tax-Simulator's `tax_units_<year>.csv`, production's 188 columns in its order and with its conventions for missing values; where each column comes from is `TAXSIM_FILE_COLUMNS.csv` (written beside the output, copied to `research/rebuild/`) | a few minutes on a CPU node |
 
+Names: every variable that Tax-Simulator's calculator reads has the calculator's name (29-30 October); the list is
+`pipeline/tools/rename_map.csv` and `pipeline/tools/apply_rename.py` applies it to a branch made before (`FEATURES.md`).
+
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),
 `fillin.py` (the two-slot fill-in, run by training), `qgroups.py` (grouped
 weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (the primary filer's age range, used by the table),
 `tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
-targets from `targets_config/`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
+targets from `targets_config/<year>/`, checked before every run), `growth.py` (how every dollar item is grown between
+years, from `targets_config/<year>/growth.yaml` and the series in `resources/growth/`), `config_overview.py` (the
+table of every setting by year, `targets_config/OVERVIEW.md`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
 mix of SCF waves), `survey_mix.py` (the CEX, CPS and SIPP year mix), `errors.py` (their standard errors),
 `solver.py` (the reweighting), `non_micro_imputations.py` (the non-microdata imputations: items set from the drawn
 items and a published table, and their checks).
@@ -70,7 +75,7 @@ Outputs, under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/`:
 | `targets/` | the published SOI numbers |
 | `model/<run>/` | the trained model and its training log (`<run>` is `REBUILD_RUN`, default `seed<n>`; the default training seed is 20261017, so the default run name, `seed20261017`, is the installed latest's) |
 | `gen/<run>/` | the generated stack |
-| `tilt/<run>/` | the final file (`file_2019.parquet`, dollar columns in nominal 2019 dollars except the PUF items with no SOI Table 1.4 line to grow them, which stay in 2015 dollars: `FEATURES.md`), the target list (`targets.csv`), every target before and after (`fit.csv`), a summary (`summary.md`), the run report (`report.md` and `report_*.csv`), and the consumption, CPS and SIPP reports |
+| `tilt/<run>/` | the final file (`file_2019.parquet`, every dollar column in nominal 2019 dollars, each grown by its line in `targets_config/2019/growth.yaml` since 29 October; until then the PUF items with no SOI Table 1.4 line stayed in 2015 dollars: `FEATURES.md`), the target list (`targets.csv`), every target before and after (`fit.csv`), a summary (`summary.md`), the run report (`report.md` and `report_*.csv`), and the consumption, CPS and SIPP reports |
 
 ## Working rules
 

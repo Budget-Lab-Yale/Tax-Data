@@ -60,7 +60,7 @@ def main():
     c = survey_mix.mixed_units('cex')
     f['w'], f['total'] = f['weight'], f['total_consumption']
     c['w'], c['total'] = c['weight'], c[CATS].sum(1)
-    c['ss_gross'], c['income'] = c['social_security'], c[CEX_INCOME].sum(1)
+    c['gross_ss'], c['income'] = c['social_security'], c[CEX_INCOME].sum(1)
     f['agi'] = D.agi(f)
     one = c[c['one_tu'] == 1]
     src = {'file': f, f'CEX mix': c, f'CEX mix, one-unit': one}
@@ -69,7 +69,7 @@ def main():
         d['hh'] = np.char.add(np.where(d['married'] == 1, 'married', 'not married'),
                               np.where(d['n_dep'] > 0, ', with dependents', ', no dependents'))
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
-        d['ssg'] = groups_by(d['ss_gross'].to_numpy(float), SS)
+        d['ssg'] = groups_by(d['gross_ss'].to_numpy(float), SS)
     adult = lambda d: d[d['age'] != 'dependent filer']
     f_ad, c_ad, o_ad = adult(f), adult(c), adult(one)
     f_ad = f_ad.assign(dec=deciles(f_ad['agi'].to_numpy(float), f_ad.w.to_numpy(float)))

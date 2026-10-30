@@ -38,7 +38,8 @@ OUT = os.environ.get('REBUILD_CALC_OUT', f'{common.OUT}/calculator/{common.RUN}'
 
 # ---- the contract ---------------------------------------------------------------------------------------------
 # One row per column: (Tax-Simulator's name, status, where it comes from, what it is / what would fill it).
-# status: same (the rebuild's column, same name), renamed (the rebuild's column under another name), computed (a
+# status: same (the rebuild's column, same name; since the rename of 29-30 October, tools/rename_map.csv, every column
+# that is the same item has the same name), renamed (the rebuild's column under another name: only id), computed (a
 # formula on the rebuild's columns), zero (0 for now: the rebuild does not have it; the last field says what would
 # fill it). The calculator reads every one of these; its batch command checks that against the pinned code.
 SAME, RENAMED, COMPUTED, ZERO = 'same', 'renamed', 'computed', 'zero'
@@ -48,21 +49,21 @@ CONTRACT = [
     ('id', RENAMED, 'record_id', 'record id, unique in the file'),
     ('weight', SAME, 'weight (after the tilt); weight_start is the weight before it', 'tax units the record stands for'),
     ('filer', SAME, 'filer', '1 files a return, 0 a non-filer'),
-    ('filing_status', RENAMED, 'mars', '1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household'),
+    ('filing_status', SAME, 'filing_status', '1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household'),
     ('dep_status', COMPUTED, 'age_range in 6, 7, 8 (the PUF\'s three dependent-filer ranges)',
      '1 if the return is filed by someone claimed as a dependent'),
-    ('age1', RENAMED, f'age_primary; {NO_AGE} (the dependent filers, about 6% of filers)',
+    ('age1', SAME, f'age1; {NO_AGE} (the dependent filers, about 6% of filers)',
      'age of the primary filer, 80 for 80 and over'),
-    ('age2', RENAMED, f'age_spouse; {NO_AGE}', 'age of the spouse'),
+    ('age2', SAME, f'age2; {NO_AGE}', 'age of the spouse'),
     ('male1', COMPUTED, 'sex_primary == 1 (0 also where the rebuild has no sex: the dependent filers)',
      'primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain'),
     ('blind1', ZERO, '0', 'primary filer is blind: the blindness rule (NEXT_STEPS step 1)'),
     ('blind2', ZERO, '0', 'spouse is blind: the blindness rule (NEXT_STEPS step 1)'),
     ('n_dep', SAME, 'n_dep (the rebuild caps it at 3)', 'number of dependents'),
-    ('n_dep_eitc', RENAMED, 'n_eitc (PUF EIC, capped at 3)', 'number of EITC qualifying children'),
-    ('dep_age1', RENAMED, f'age_dep1; {NO_AGE}', 'age of the first dependent'),
-    ('dep_age2', RENAMED, f'age_dep2; {NO_AGE}', 'age of the second dependent'),
-    ('dep_age3', RENAMED, f'age_dep3; {NO_AGE}', 'age of the third dependent'),
+    ('n_dep_eitc', SAME, 'n_dep_eitc (PUF EIC, capped at 3)', 'number of EITC qualifying children'),
+    ('dep_age1', SAME, f'dep_age1; {NO_AGE}', 'age of the first dependent'),
+    ('dep_age2', SAME, f'dep_age2; {NO_AGE}', 'age of the second dependent'),
+    ('dep_age3', SAME, f'dep_age3; {NO_AGE}', 'age of the third dependent'),
     ('dep_ssn1', ZERO, '0', 'dependent 1 has a Social Security number: the dependents\' SSN rule (NEXT_STEPS step 1)'),
     ('dep_ssn2', ZERO, '0', 'dependent 2 has a Social Security number: as dep_ssn1'),
     ('dep_ssn3', ZERO, '0', 'dependent 3 has a Social Security number: as dep_ssn1'),
@@ -87,9 +88,9 @@ CONTRACT = [
     ('ot2', SAME, 'ot2 where the file has it; else 0', 'spouse\'s overtime pay, inside wages2'),
     ('trad_contr_er1', SAME, 'trad_contr_er1', 'primary filer\'s traditional elective deferrals (outside box 1)'),
     ('trad_contr_er2', SAME, 'trad_contr_er2', 'spouse\'s traditional elective deferrals'),
-    ('sole_prop', RENAMED, 'sch_c', 'Schedule C net income of the unit'),
-    ('sole_prop1', COMPUTED, 'sch_c - sole_prop2', 'primary filer\'s Schedule C income'),
-    ('sole_prop2', COMPUTED, 'sch_c x spouse_se_share (production splits by one self-employment share too)',
+    ('sole_prop', SAME, 'sole_prop', 'Schedule C net income of the unit'),
+    ('sole_prop1', COMPUTED, 'sole_prop - sole_prop2', 'primary filer\'s Schedule C income'),
+    ('sole_prop2', COMPUTED, 'sole_prop x spouse_se_share (production splits by one self-employment share too)',
      'spouse\'s Schedule C income'),
     ('farm', SAME, 'farm', 'Schedule F net farm income of the unit'),
     ('farm1', COMPUTED, 'farm - farm2', 'primary filer\'s farm income'),
@@ -99,19 +100,19 @@ CONTRACT = [
     ('ei_prior_yr', ZERO, '0 (production writes 0 too)', 'earned income last year (child credit look-back; off under '
      '2019 law): no source planned'),
     # Schedule E
-    ('part_active', RENAMED, 'part_nonpass_inc', 'nonpassive partnership income'),
-    ('part_active_loss', RENAMED, 'part_nonpass_loss', 'nonpassive partnership loss, stored positive'),
-    ('part_passive', RENAMED, 'part_pass_inc', 'passive partnership income'),
-    ('part_passive_loss', RENAMED, 'part_pass_loss', 'passive partnership loss, stored positive'),
+    ('part_active', SAME, 'part_active', 'nonpassive partnership income'),
+    ('part_active_loss', SAME, 'part_active_loss', 'nonpassive partnership loss, stored positive'),
+    ('part_passive', SAME, 'part_passive', 'passive partnership income'),
+    ('part_passive_loss', SAME, 'part_passive_loss', 'passive partnership loss, stored positive'),
     ('part_179', SAME, 'part_179', 'partnership section 179 deduction'),
-    ('scorp_active', RENAMED, 'scorp_nonpass_inc', 'nonpassive S corporation income'),
-    ('scorp_active_loss', RENAMED, 'scorp_nonpass_loss', 'nonpassive S corporation loss, stored positive'),
-    ('scorp_passive', RENAMED, 'scorp_pass_inc', 'passive S corporation income'),
-    ('scorp_passive_loss', RENAMED, 'scorp_pass_loss', 'passive S corporation loss, stored positive'),
+    ('scorp_active', SAME, 'scorp_active', 'nonpassive S corporation income'),
+    ('scorp_active_loss', SAME, 'scorp_active_loss', 'nonpassive S corporation loss, stored positive'),
+    ('scorp_passive', SAME, 'scorp_passive', 'passive S corporation income'),
+    ('scorp_passive_loss', SAME, 'scorp_passive_loss', 'passive S corporation loss, stored positive'),
     ('scorp_179', SAME, 'scorp_179', 'S corporation section 179 deduction'),
-    ('rent', RENAMED, 'rent_inc', 'rents and royalties, net income'),
+    ('rent', SAME, 'rent', 'rents and royalties, net income'),
     ('rent_loss', SAME, 'rent_loss', 'rents and royalties, net loss, stored positive'),
-    ('estate', RENAMED, 'estate_inc', 'estate and trust net income'),
+    ('estate', SAME, 'estate', 'estate and trust net income'),
     ('estate_loss', SAME, 'estate_loss', 'estate and trust net loss, stored positive'),
     ('wagebill_sole_prop', ZERO, '0', 'W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule '
      '(NEXT_STEPS step 1)'),
@@ -124,17 +125,17 @@ CONTRACT = [
     ('sstb_scorp', ZERO, '0', 'the S corporation is a specified service business: as sstb_sole_prop'),
     ('sstb_farm', ZERO, '0', 'the farm is a specified service business: as sstb_sole_prop'),
     # other income
-    ('txbl_int', RENAMED, 'interest', 'taxable interest'),
-    ('exempt_int', RENAMED, 'tax_exempt_interest', 'tax-exempt interest'),
+    ('txbl_int', SAME, 'txbl_int', 'taxable interest'),
+    ('exempt_int', SAME, 'exempt_int', 'tax-exempt interest'),
     ('div_ord', SAME, 'div_ord', 'ordinary dividends that are not qualified'),
     ('div_pref', SAME, 'div_pref', 'qualified dividends'),
-    ('state_ref', RENAMED, 'state_refunds', 'taxable state income tax refunds'),
-    ('txbl_ira_dist', RENAMED, 'ira_taxable', 'taxable IRA distributions'),
-    ('txbl_pens_dist', RENAMED, 'pensions_taxable', 'taxable pensions and annuities'),
-    ('gross_pens_dist', COMPUTED, 'retirement_gross - ss_gross (retirement_gross is the PUF\'s E02400 + E01500)',
+    ('state_ref', SAME, 'state_ref', 'taxable state income tax refunds'),
+    ('txbl_ira_dist', SAME, 'txbl_ira_dist', 'taxable IRA distributions'),
+    ('txbl_pens_dist', SAME, 'txbl_pens_dist', 'taxable pensions and annuities'),
+    ('gross_pens_dist', COMPUTED, 'retirement_gross - gross_ss (retirement_gross is the PUF\'s E02400 + E01500)',
      'gross pensions and annuities'),
-    ('gross_ss', RENAMED, 'ss_gross', 'gross Social Security benefits (the calculator computes the taxable part)'),
-    ('ui', RENAMED, 'unemployment', 'unemployment compensation'),
+    ('gross_ss', SAME, 'gross_ss', 'gross Social Security benefits (the calculator computes the taxable part)'),
+    ('ui', SAME, 'ui', 'unemployment compensation'),
     ('alimony', SAME, 'alimony', 'alimony received'),
     ('other_inc', COMPUTED, 'other_agi_remainder + farm_rent + sche_other',
      'other income in AGI: AGI less every item the calculator gets in another column. The rebuild\'s remainder '
@@ -152,7 +153,7 @@ CONTRACT = [
     ('kg_lt_years_held', ZERO, '0', 'holding period of long-term gains (indexing reforms only): as kg_lt_basis'),
     # above-the-line deductions
     ('ed_exp', SAME, 'ed_exp', 'educator expenses'),
-    ('hsa_contr', RENAMED, 'hsa_ded', 'HSA deduction'),
+    ('hsa_contr', SAME, 'hsa_contr', 'HSA deduction'),
     ('trad_contr_ira', SAME, 'trad_contr_ira', 'deductible IRA contributions'),
     ('keogh_contr', SAME, 'keogh_contr', 'Keogh, SEP and SIMPLE contributions'),
     ('se_health', SAME, 'se_health', 'self-employed health insurance deduction'),
@@ -166,15 +167,15 @@ CONTRACT = [
     # Schedule A
     ('med_exp', SAME, 'med_exp', 'medical expenses before the AGI floor'),
     ('salt_inc_sales', SAME, 'salt_inc_sales', 'state and local income or sales tax'),
-    ('salt_prop', RENAMED, 'real_estate_tax', 'real estate tax'),
+    ('salt_prop', SAME, 'salt_prop', 'real estate tax'),
     ('salt_pers', ZERO, '0 (production writes 0 too)', 'personal property tax: none planned'),
     ('first_mort_bal', ZERO, '0 (production writes 0 too)', 'first mortgage balance (the $750,000 limit): the '
-     'balance sheet\'s w_primary_mortgage could fill it (a decision)'),
+     'balance sheet\'s value.primary_mortgage could fill it (a decision)'),
     ('second_mort_bal', ZERO, '0 (production writes 0 too)', 'second mortgage balance: as first_mort_bal'),
     ('first_mort_year', ZERO, '0 (production writes 0 too)', 'year the first mortgage was taken out; the '
      'calculator overrides it'),
     ('second_mort_year', ZERO, '0 (production writes 0 too)', 'as first_mort_year'),
-    ('first_mort_int', RENAMED, 'mortgage_interest (PUF E19200, all deductible interest, as production)',
+    ('first_mort_int', SAME, 'first_mort_int (PUF E19200, all deductible interest, as production)',
      'mortgage interest paid'),
     ('second_mort_int', ZERO, '0 (production writes 0 too)', 'interest on a second mortgage: inside first_mort_int'),
     ('inv_int_exp', ZERO, '0 (production writes 0 too)', 'investment interest: inside first_mort_int'),
@@ -191,7 +192,7 @@ CONTRACT = [
     ('amt_nols', SAME, 'amt_nols', 'AMT net operating loss and other adjustments'),
     ('excess_ptc', SAME, 'excess_ptc', 'excess advance premium tax credit repaid'),
     ('net_ptc', SAME, 'net_ptc', 'net premium tax credit'),
-    ('care_exp', RENAMED, 'childcare (the CPS\'s childcare spending; the calculator applies the law\'s caps)',
+    ('care_exp', SAME, 'care_exp (the CPS\'s childcare spending; the calculator applies the law\'s caps)',
      'child and dependent care expenses'),
     ('aoc_exp', SAME, 'aoc_exp', 'American opportunity credit expenses'),
     ('llc_exp', SAME, 'llc_exp', 'lifetime learning credit expenses'),
@@ -207,17 +208,17 @@ CONTRACT = [
     # not by the income tax)
     ('q_death1', ZERO, '0', 'chance the primary filer dies this year: the death probabilities rule (NEXT_STEPS 1)'),
     ('q_death2', ZERO, '0', 'chance the spouse dies this year: as q_death1'),
-    *[(f'value.{c}', RENAMED, f'w_{c}', f'balance sheet: {c.replace("_", " ")}')
+    *[(f'value.{c}', SAME, f'value.{c}', f'balance sheet: {c.replace("_", " ")}')
       for c in ['cash', 'equities', 'bonds', 'dc', 'db', 'life_ins', 'annuities', 'trusts', 'other_fin',
                 'pass_throughs', 'primary_home', 'other_home', 're_fund', 'other_nonfin', 'primary_mortgage',
                 'other_mortgage', 'credit_lines', 'credit_cards', 'installment_debt', 'other_debt']],
-    ('basis.equities', COMPUTED, 'w_equities - w_kg_other (the SCF\'s unrealized gain on stocks and funds)',
+    ('basis.equities', COMPUTED, 'value.equities - w_kg_other (the SCF\'s unrealized gain on stocks and funds)',
      'cost basis of equities'),
-    ('basis.pass_throughs', COMPUTED, 'w_pass_throughs - w_kg_pass_throughs', 'cost basis of businesses'),
-    ('basis.primary_home', COMPUTED, 'w_primary_home - w_kg_primary_home', 'cost basis of the home'),
-    ('basis.other_home', COMPUTED, 'w_other_home - w_kg_other_re x w_other_home / (w_other_home + w_re_fund)',
+    ('basis.pass_throughs', COMPUTED, 'value.pass_throughs - w_kg_pass_throughs', 'cost basis of businesses'),
+    ('basis.primary_home', COMPUTED, 'value.primary_home - w_kg_primary_home', 'cost basis of the home'),
+    ('basis.other_home', COMPUTED, 'value.other_home - w_kg_other_re x value.other_home / (value.other_home + value.re_fund)',
      'cost basis of other homes (the other real estate gain split by value, as production)'),
-    ('basis.re_fund', COMPUTED, 'w_re_fund - w_kg_other_re x w_re_fund / (w_other_home + w_re_fund)',
+    ('basis.re_fund', COMPUTED, 'value.re_fund - w_kg_other_re x value.re_fund / (value.other_home + value.re_fund)',
      'cost basis of other real estate'),
     *[(f'accruals.{c}', ZERO, '0', f'yearly unrealized gain on {c.replace("_", " ")} (reporting only): the '
        'yearly unrealized gains rule (NEXT_STEPS step 1)')
@@ -225,8 +226,8 @@ CONTRACT = [
 ]
 COLUMNS = [c[0] for c in CONTRACT]
 assert len(COLUMNS) == len(set(COLUMNS)), 'a column twice in CONTRACT'
-NO_AGE_COLUMNS = {'age1': 'age_primary', 'age2': 'age_spouse', 'dep_age1': 'age_dep1', 'dep_age2': 'age_dep2',
-                  'dep_age3': 'age_dep3'}
+NO_AGE_COLUMNS = {'age1': 'age1', 'age2': 'age2', 'dep_age1': 'dep_age1', 'dep_age2': 'dep_age2',
+                  'dep_age3': 'dep_age3'}
 
 
 def convert(f):
@@ -238,10 +239,10 @@ def convert(f):
     # (the survey items' amounts, which are missing where not in their universe, and ssn1 on dependent filers). The
     # check is kept for every column the converter reads; the others' missing values are counted in the notes.
     reads = {s.split(' ')[0].rstrip(';') for n, st, s, _ in CONTRACT if st in (SAME, RENAMED)} | set(NO_AGE_COLUMNS.values()) \
-        | {'filer', 'age_range', 'mars', 'n_dep', 'spouse_se_share', 'married', 'sch_c', 'farm', 'part_se', 'se2',
-           'sex_primary', 'retirement_gross', 'ss_gross', 'other_agi_remainder', 'farm_rent', 'sche_other', 'kg_lt',
-           'kg_dist', 'w_other_home', 'w_re_fund', 'w_kg_other_re', 'w_equities', 'w_kg_other', 'w_pass_throughs',
-           'w_kg_pass_throughs', 'w_primary_home', 'w_kg_primary_home', 'weight', 'ot', 'ot1', 'ot2'} \
+        | {'filer', 'age_range', 'filing_status', 'n_dep', 'spouse_se_share', 'married', 'sole_prop', 'farm', 'part_se', 'se2',
+           'sex_primary', 'retirement_gross', 'gross_ss', 'other_agi_remainder', 'farm_rent', 'sche_other', 'kg_lt',
+           'kg_dist', 'value.other_home', 'value.re_fund', 'w_kg_other_re', 'value.equities', 'w_kg_other', 'value.pass_throughs',
+           'w_kg_pass_throughs', 'value.primary_home', 'w_kg_primary_home', 'weight', 'ot', 'ot1', 'ot2'} \
         | {n for n, st, _, _ in CONTRACT if st == ZERO and n in f.columns}
     # dep_ssn1-3 in the retrained file are missing where the record has no k-th dependent (and on a few records
     # whose dependent count and dependent ages disagree): set to 0 here, as the contract's earlier default, and counted.
@@ -269,11 +270,11 @@ def convert(f):
         assert ((a == -1) | (a >= 0)).all(), f'{col}: a value below -1'
         out[name] = np.where(a == -1, np.nan, a)
     filer = x('filer') == 1
-    notes.append(f'age1 missing (age_primary -1): {(np.isnan(out["age1"]) & filer).sum():,} filer records, '
+    notes.append(f'age1 missing (age1 -1): {(np.isnan(out["age1"]) & filer).sum():,} filer records, '
                  f'{(np.isnan(out["age1"]) & ~filer).sum():,} non-filer records; of the filer records '
                  f'{(np.isnan(out["age1"]) & filer & (x("age_range") >= 6)).sum():,} are dependent filers')
-    joint = x('mars') == 2
-    notes.append(f'joint returns with no spouse age (age_spouse -1): {(joint & np.isnan(out["age2"])).sum():,} '
+    joint = x('filing_status') == 2
+    notes.append(f'joint returns with no spouse age (age2 -1): {(joint & np.isnan(out["age2"])).sum():,} '
                  f'records; spouse age on a return that is not joint: {(~joint & ~np.isnan(out["age2"])).sum():,}')
     nd = x('n_dep')
     for k in (1, 2, 3):
@@ -286,9 +287,9 @@ def convert(f):
     assert ((share >= 0) & (share <= 1)).all(), 'spouse_se_share outside [0, 1]'
     married = x('married') == 1
     notes.append(f'spouse_se_share above 0 on a unit that is not married: {(~married & (share > 0)).sum():,} records')
-    sch_c, farm, part_se = x('sch_c'), x('farm'), x('part_se')
-    out['sole_prop2'] = sch_c * share
-    out['sole_prop1'] = sch_c - out['sole_prop2']
+    sole_prop, farm, part_se = x('sole_prop'), x('farm'), x('part_se')
+    out['sole_prop2'] = sole_prop * share
+    out['sole_prop1'] = sole_prop - out['sole_prop2']
     out['farm2'] = farm * share
     out['farm1'] = farm - out['farm2']
     out['part_se2'] = part_se * share
@@ -298,10 +299,10 @@ def convert(f):
     out['dep_status'] = (x('age_range') >= common.ADULT_RANGES).astype(float)
     out['male1'] = (x('sex_primary') == 1).astype(float)
     out['divorce_year'] = np.zeros(len(f))
-    out['gross_pens_dist'] = x('retirement_gross') - x('ss_gross')
+    out['gross_pens_dist'] = x('retirement_gross') - x('gross_ss')
     neg = out['gross_pens_dist'] < 0
     w = x('weight')
-    notes.append(f'gross pensions negative (retirement_gross below ss_gross): {neg.sum():,} records, '
+    notes.append(f'gross pensions negative (retirement_gross below gross_ss): {neg.sum():,} records, '
                  f'{w[neg].sum() / 1e6:,.3f} million units, ${(w * out["gross_pens_dist"])[neg].sum() / 1e9:,.2f} billion '
                  '(passed as they are; the calculator reads gross pensions only for expanded income and the SALT '
                  'workaround\'s income shares)')
@@ -309,17 +310,17 @@ def convert(f):
     notes.append(f'taxable pensions above gross pensions: {over.sum():,} records, {w[over].sum() / 1e6:,.3f} million units')
     out['other_inc'] = x('other_agi_remainder') + x('farm_rent') + x('sche_other')
     out['kg_lt'] = x('kg_lt') + x('kg_dist')
-    other_re = x('w_other_home') + x('w_re_fund')
-    part_home = np.divide(x('w_other_home'), other_re, out=np.zeros(len(f)), where=other_re != 0)
+    other_re = x('value.other_home') + x('value.re_fund')
+    part_home = np.divide(x('value.other_home'), other_re, out=np.zeros(len(f)), where=other_re != 0)
     nowhere = (other_re == 0) & (x('w_kg_other_re') != 0)
     notes.append(f'other real estate gain with no other real estate to hold it: {nowhere.sum():,} records '
                  '(basis.other_home takes all of it)')
     part_home = np.where(nowhere, 1.0, part_home)
-    out['basis.equities'] = x('w_equities') - x('w_kg_other')
-    out['basis.pass_throughs'] = x('w_pass_throughs') - x('w_kg_pass_throughs')
-    out['basis.primary_home'] = x('w_primary_home') - x('w_kg_primary_home')
-    out['basis.other_home'] = x('w_other_home') - x('w_kg_other_re') * part_home
-    out['basis.re_fund'] = x('w_re_fund') - x('w_kg_other_re') * (1 - part_home)
+    out['basis.equities'] = x('value.equities') - x('w_kg_other')
+    out['basis.pass_throughs'] = x('value.pass_throughs') - x('w_kg_pass_throughs')
+    out['basis.primary_home'] = x('value.primary_home') - x('w_kg_primary_home')
+    out['basis.other_home'] = x('value.other_home') - x('w_kg_other_re') * part_home
+    out['basis.re_fund'] = x('value.re_fund') - x('w_kg_other_re') * (1 - part_home)
     # 29 October work copy: a column the contract sets to 0 is taken from the file when the file now has it (the
     # retrain's non-microdata imputations: blindness, the child credit's eligibility, dependents' SSNs, the QBI wage
     # bills and specified-service flags, death chances, gains' basis and holding period, yearly unrealized gains).
@@ -349,7 +350,7 @@ def convert(f):
 
 def rebuild_agi(f):
     """The rebuild's own AGI per record (dollars.agi: wages, interest, dividends, Schedule D net gain, other AGI)."""
-    return f[['wages', 'interest', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
+    return f[['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
 
 
 def main():

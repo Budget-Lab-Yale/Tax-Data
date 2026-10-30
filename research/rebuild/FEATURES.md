@@ -66,8 +66,9 @@ held-back rows included.
 - marital status (joint or not), dependents (0–3), and the filing flag;
 - the primary filer's age range (below);
 - wages, taxable interest, ordinary dividends (computed: qualified plus
-  other), and capital gains in four pieces (short term, long term,
-  distributions, other);
+  other), and capital gains in three pieces (short-term and long-term gains
+  and losses from Schedule D before the $3,000 loss limit, and capital gain
+  distributions; since 29-30 October, below);
 - more AGI items: other gains, taxable IRA distributions, taxable
   pensions, taxable Social Security, unemployment, alimony, state refunds,
   the statutory adjustments (computed from their eleven parts), and the rest
@@ -84,8 +85,10 @@ held-back rows included.
   miscellaneous, other itemized), two AMT items, eleven credits and two other
   taxes (below, "The other PUF items");
 - two itemized deductions (PUF only, itemizers only): mortgage interest
-  paid and real estate tax. They are kept in 2015 dollars in the 2019 file
-  (SOI Table 1.4 has no row to grow them by);
+  paid and real estate tax. SOI Table 1.4 has no row to grow them by; since
+  29 October they are grown by BEA mortgage interest per mortgaged home and
+  ACS real estate taxes per home paying them (`targets_config/2019/growth.yaml`;
+  until then they stayed in 2015 dollars);
 - business income in its 18 PUF parts: Schedule C; partnership and
   S corporation income, losses and section 179, passive and nonpassive;
   rents, royalties, estates and trusts; farm rental; farm. Business income
@@ -314,7 +317,7 @@ net worth. Targeted by income group (post-training, below).
 **The other PUF items** (since 27 October; `build_table.py`, STAGE3). Every PUF item production's variable guide
 takes from the PUF that the model did not draw before, with production's names and definitions
 (`config/variable_guide/baseline.csv`, `src/process_puf.R`), plus two adjustments the file's total already held and
-production does not carry (se_tax_ded, E03260, and hsa_ded, E03290). All are PUF-only: absent on the SCF, the CEX
+production does not carry (se_tax_ded, E03260, and hsa_contr, E03290). All are PUF-only: absent on the SCF, the CEX
 and the SIPP, not measured by the CPS, so a non-filer has none.
 - Ordinary dividends = div_pref (E00650) + div_ord (E00600 - E00650), and the adjustments = their eleven parts, are
   computed from the parts at generation and in the dollars, so they add up exactly. The CPS's one dividend amount goes
@@ -327,8 +330,9 @@ and the SIPP, not measured by the CPS, so a non-filer has none.
   returns, mostly by under $500; it is kept as the PUF has it (John, 27 October).
 - Growth to the target year: per return with the item by its own SOI Table 1.4 line (qualified dividends; ordinary
   dividends for div_ord; each adjustment; Schedule D gains for the two gains; partnership and S corporation income
-  for part_se). The itemized deduction items, AMT items, credits and other taxes have no Table 1.4 line and stay in
-  PUF-year dollars, as mortgage interest and real estate tax do.
+  for part_se). The itemized deduction items, AMT items, credits and other taxes have no Table 1.4 line; until 29
+  October they stayed in PUF-year dollars. Since then each is grown by the series its line in
+  `targets_config/<year>/growth.yaml` names (below, "Growth of every dollar item").
 - No itemizer flag is drawn (Tax-Simulator chooses between the standard and itemized deductions), and no
   consistency rules among the new items. The AGI group label is unchanged.
 
@@ -848,7 +852,7 @@ weighting exactly. Every drawn record is kept.
 
 **The SCF waves** (TARGETS.md section 7; since 26 October). Each record,
 filers and non-filers alike, is given one SCF wave at random with the shares in the year's configuration
-(`targets_config/years/2019.yaml`, prior, "balance sheet": the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016
+(`targets_config/2019/prior.yaml`, "balance sheet": the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016
 wave 12.20%, by the rule of 24 October), by a random generator of its own (`generation.scf_wave_seed`), so no other
 draw moves. Its SCF phase runs at that wave's income year, and its balance sheet becomes dollars through that wave's
 own map (below). The stack carries scf_wave and scf_year.
@@ -876,8 +880,10 @@ bad network but does not remove it (above, "Seeds").
 ## Post-training: the 2019 file
 
 **Dollars.** Every dollar amount is put in 2019 dollars before the tilt, item
-by item. The PUF's: each band's real 2015 values, grown to 2019 by SOI's growth
-in dollars per return holding each item. The balance sheet (since 26 October):
+by item, by its line in `targets_config/2019/growth.yaml` (below, "Growth of
+every dollar item"). The PUF's: each band's real 2015 values, grown to 2019 by
+SOI's growth in dollars per return holding each item where Table 1.4 has the
+item, else by the item's declared series. The balance sheet (since 26 October):
 each band's real values from the
 record's own SCF wave, grown per tax unit to the 2019 wave item by item: the
 2019 wave's weighted mean of the item per unit over the drawing wave's, each in
@@ -897,9 +903,8 @@ tax unit with the SCF wave, like the balance sheet (deferrals by the mean per un
 over the units asked); then each person's deferrals are held to the target year's
 legal limit for their age ($19,000, or $25,000 from 50, in 2019) and to their own
 wages. Every dollar column of the file is in nominal
-2019 dollars except the PUF items SOI Table 1.4 has no line for (mortgage
-interest, real estate tax, the other itemized deduction items, the AMT items,
-credits and other taxes), which stay in 2015 dollars. `tilt/<run>/cps_report.md`
+2019 dollars (until 29 October the PUF items SOI Table 1.4 has no line for
+stayed in 2015 dollars). `tilt/<run>/cps_report.md`
 compares the file with the CPS year mix (only overtime is targeted from the CPS);
 `sipp_report.md` the file's tips with the SIPP year mix.
 
@@ -919,8 +924,36 @@ person's traditional part, elective x (1 - the W-2 Roth share for joint or non-j
 sum) and medicare_wages (wages plus both); elective_deferrals keeps the drawn total. Each sum adds up to its parts
 exactly.
 
-**The year's configuration** (`pipeline/targets_config/`; TARGETS.md section 12 and S7): a catalog of
-definitions, defaults, historical and projection files, and one file per year. `target_list.py` expands it into
+**Growth of every dollar item** (since 29 October; John; TARGETS.md section 12; `growth.py`,
+`targets_config/<year>/growth.yaml`, the series in `research/rebuild/resources/growth/` with `sources.csv`). Every
+dollar item the pipeline grows between years has one line: its source series, the measure, how negative values are
+grown, and a reason; the pipeline stops if an item has none. The source must be exogenous to tax policy (SOI's
+itemized deduction tables are ruled out). The Table 1.4 lines are as before. The 26 PUF items with no Table 1.4 line,
+which until then were not grown, and their factors from 2015 to 2019:
+
+| Item | Series | Measure | 2015 to 2019 |
+|---|---|---|---:|
+| mortgage interest | BEA NIPA Table 7.11 line 16 over ACS homes with a mortgage (B25081; 2020 interpolated) | per mortgaged owner-occupied home | 1.089 |
+| real estate tax | ACS aggregate real estate taxes (B25090) over owner homes paying any (B25102; 2020 interpolated) | per owner home paying the tax | 1.138 |
+| state and local income or sales tax | Census state and local individual income tax revenue (QTAX), calendar years, over SOI's returns | per return | 1.148 |
+| medical expenses | MEPS out-of-pocket spending (TOTSLF) | per person with any | 1.356 |
+| tax preparation fees | BLS CPI-U, tax return preparation and other accounting fees | a price | 1.168 |
+| education credit expenses (American opportunity, lifetime learning) | College Board published tuition and fees, fixed sector weights, tax year = average of two academic years | per full-time undergraduate | 1.126 |
+| the other 19 (charity cash and noncash, casualty, job expenses, other miscellaneous, other itemized, two AMT items, the foreign tax credit, eight other credits, two other taxes) | SOI AGI over all returns (Table 1.1), past SOI's last year BEA personal income per capita, past BEA's last year CBO's | per return | 1.118 |
+
+Capital losses are not grown (the $3,000 limit is a statutory nominal amount). The CEX categories (NIPA PCE per
+return), the CPS's childcare and overtime and the SIPP's tips (SOI wages per return with wages) and the SCF balance
+sheet (its own mean per tax unit between waves) have lines too, with the series they had. Known weak points: MEPS's
+redesigned interview from 2018 may break its series (the value per person rises 20% from 2017 to 2018, against 4-5%
+in other years); the College Board weights are fall 2019 enrollment (no 2015 split is published in the workbook); the
+CPI for tax preparation is the mean of the months BLS published (all twelve in 2015 and 2019). The CPS's mortgage
+interest and real estate tax are translated against the tax data with these factors, so their cut points move at the
+next table build and retrain; until then only the dollar maps changed.
+
+**The year's configuration** (`pipeline/targets_config/`; TARGETS.md section 12 and S7; one folder per year since 29
+October): the catalog of definitions (shared) and, for each year, `<year>/targets.yaml`, `prior.yaml` and
+`growth.yaml`, written out in full with no inheritance; `config_overview.py` writes `OVERVIEW.md`, every setting by
+year. `target_list.py` checks the folder before every run and expands it into
 one row per target (`tilt/<run>/targets.csv`), with each target's standard error from `errors.py` (SOI's published
 coefficients of variation for Tables 1.4, 2.1 and 3.3; borrowed ones for Tables 1.2, 1.6 and 1.7; CEX and SCF
 replicate weights; a judgment number with a reason otherwise; TARGETS.md section 9).
@@ -971,14 +1004,14 @@ The 2019 targets (789 on 28 October; 787 from the next run, with the overtime gr
 | CEX consumption, the 2019 and 2017 surveys pooled (73.11% and 26.89%): 8 categories' averages per unit, over all units and in 12 age x married cells | 104 |
 | CPS overtime, the 2019 and 2017 surveys pooled: the share of units with any and overtime per unit, over all units and in 4 groups of the unit's wages (since 29 October; 5 groups and 12 targets before) | 10 |
 
-**Tables 1.3 and 4.3** (since 27 October; `historical.yaml`, read from the local IRS-Ind store's tidy files, settings
+**Tables 1.3 and 4.3** (since 27 October; `targets_config/2019/targets.yaml`, read from the local IRS-Ind store's tidy files, settings
 `paths.raw.soi_tables`). Errors are borrowed from the nearest Table 1.4 cells. Table 1.3's capital loss is measured
 on the file as the loss allowed on the return (at most $3,000, $1,500 if married filing separately; catalog
 transform `loss_allowed`), which is what SOI publishes. Table 4.3's groups are set by AGI rank on the file's
 starting weights and held fixed in dollars through the tilt. Its top 0.001% is not a group of its own: the file
 probably lacks those records until the PUF's aggregate records are unpacked (John, 26 October).
 
-**Tips** (since 27 October; `years/2019.yaml`, settings `paths.raw.soi_w2`; the W-2 reader handles the 2019 and 2020
+**Tips** (since 27 October; `targets_config/2019/targets.yaml`, settings `paths.raw.soi_w2`; the W-2 reader handles the 2019 and 2020
 layout only). The file's tips are measured as box 7 holds them: each person's tips at most the Social Security wage
 base ($132,900 in 2019) less that person's other wages (catalog `ss_tips`). The W-2 counts include dependent filers,
 who hold no tips in the file, so the non-joint values are reduced by the SIPP's share of dependents among non-joint
@@ -993,9 +1026,9 @@ than dependent filers. A non-joint return has one worker, so the non-joint worke
 already a target. Table 4.C includes dependent filers, who hold no tips in the file, so each share's error carries half the most that
 removing them could move it (4.2 points at the $121 line, 0.13 at the $44,054 line). Code: `person_values`, the statistics `workers` and
 `worker share` and `published_w2_shares` in `pipeline/target_list.py`; configuration in `catalog.yaml` (source `soi w2 pctiles`) and
-`years/2019.yaml` (`tips_w2_workers`, `tips_w2_spread`).
+`targets_config/2019/targets.yaml` (`tips_w2_workers`, `tips_w2_spread`).
 
-**Elective deferrals** (since 28 October; `years/2019.yaml`, reader `target_list._w2_by_agi`, catalog source `soi w2
+**Elective deferrals** (since 28 October; `targets_config/2019/targets.yaml`, reader `target_list._w2_by_agi`, catalog source `soi w2
 2.d`). SOI's W-2 Table 2.D, its 19 AGI rows summed into eight groups (under $25,000, $25,000-50,000,
 $50,000-75,000, $75,000-100,000, $100,000-200,000, $200,000-500,000, $500,000-1 million, $1 million and over). The
 file's measure is elective1 + elective2 over filers other than dependent filers. Table 2.D counts people, up to two
@@ -1004,7 +1037,7 @@ by the SIPP's share of dependents among non-joint people with deferrals (SIPP 20
 of people, 0.1% of dollars), half of that reduction added to the error; errors are borrowed from the nearest Table
 1.4 cells. 2019 targets: $243.6 billion on joint returns; 27.7 million non-joint returns with $109.1 billion.
 
-**Overtime** (since 28 October; `years/2019.yaml` entries `overtime_all` and `overtime_by_wages`; catalog source
+**Overtime** (since 28 October; `targets_config/2019/targets.yaml` entries `overtime_all` and `overtime_by_wages`; catalog source
 `cps`; `target_list.cps_mix_rows`, `errors.overtime_errors`). Built as the CEX consumption targets are: from the CPS's
 own units (the shared tax-unit rules), units other than dependent filers, filers and non-filers. Only units asked the
 earnings questions have overtime; each target is an average over the asked units in the cell with their own weights.
@@ -1032,10 +1065,10 @@ consumption per return, category by category; the target is 73.11% of the 2019 a
 average, and its standard error combines each year's own (from its 44 replicate weights) as independent samples.
 Pooling lowered the standard errors by 22% at the median. The target labels still say "CEX 2019".
 
-**Auto loan interest** (since 27 October; `historical.yaml`). Per unit rather than totals, because the SCF's units
+**Auto loan interest** (since 27 October; `targets_config/2019/targets.yaml`). Per unit rather than totals, because the SCF's units
 (162.8 million) are fewer than the file's units other than dependent filers (about 169.5 million).
 
-**The income x net worth grid** (since 26 October, approved with run P3; historical.yaml, wealth_grid_shares and wealth_grid_dollars; scf_targets.py). Four income groups by the seven income items the SCF and the file share (wages, interest,
+**The income x net worth grid** (since 26 October, approved with run P3; targets_config/2019/targets.yaml, wealth_grid_shares and wealth_grid_dollars; scf_targets.py). Four income groups by the seven income items the SCF and the file share (wages, interest,
 dividends, capital gains, gross Social Security, Schedules C and F, Schedule E; on the SCF Schedule E is its two parts;
 since 28 October gross Social Security replaces gross retirement income on both sides, which moves some units between
 income groups): below p90, p90-99, p99-99.9 and
@@ -1082,7 +1115,7 @@ and never renumbered.
 | Item | Columns | Method | Published table |
 |---|---|---|---|
 | Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's CPS year, within its PUF dependent-filer age range; 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
-| Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
+| Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_dep_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
 | Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
 | Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (since 29 October the SCF's, `w_dc_stock_share`, learned in pretraining and drawn with the balance sheet; before, and for a file from an earlier model, production's age rule, 1.10 − age/100 held to 0.20-0.95); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
@@ -1090,7 +1123,7 @@ and never renumbered.
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
 | Blindness | `blind1`, `blind2` | since the second retrain of 29 October (branch `rebuild-retrain-1029`) a rule: each primary filer, and each spouse on a married-joint return, blind with chance = the 2015 PUF's blind rate for the person's age range × one factor per person type, the factor set so blind filers at the start's weights equal Publication 4801's boxes for the target year (below, "The second retrain of 29 October"); before, a PUF slot learned in pretraining | the PUF's blind rates by age range (`puf_blind_rates.csv`); SOI Publication 4801's blind boxes (`pub4801_blind_boxes.csv`) |
-| AMT net operating loss adjustment held to the loss | `amt_nols` (changed), `amt_nols_drawn` (the drawn value) | since 29 October (branch `rebuild-amt-rule`; John): `amt_nols` (the PUF's P60100) is held to at most the record's net operating loss, the negative part of `other_agi_remainder` (the PUF has no field of its own for the loss; a net operating loss deduction is a negative amount in other income, Form 1040 line 21, which sits in the AGI remainder), so it is 0 on a record with no loss; a negative `amt_nols` is left as drawn. `amt_nols` is in 2015 dollars (no Table 1.4 line), the loss in target-year dollars; they are compared as they are. No target reads `amt_nols`, so the weights do not move. Below, "The AMT rule of 29 October" | |
+| AMT net operating loss adjustment held to the loss | `amt_nols` (changed), `amt_nols_drawn` (the drawn value) | since 29 October (branch `rebuild-amt-rule`; John): `amt_nols` (the PUF's P60100) is held to at most the record's net operating loss, the negative part of `other_agi_remainder` (the PUF has no field of its own for the loss; a net operating loss deduction is a negative amount in other income, Form 1040 line 21, which sits in the AGI remainder), so it is 0 on a record with no loss; a negative `amt_nols` is left as drawn. `amt_nols` is grown from 2015 by AGI per return since 29 October (before, it stayed in 2015 dollars), the loss is in target-year dollars. No target reads `amt_nols`, so the weights do not move. Below, "The AMT rule of 29 October" | |
 | QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 29 October (branch `rebuild-retrain-1029`) the simple plan's rule on the SCF items the model draws (below, "The retrain of 29 October"); 0 for a file from an earlier model | the CPS's average pay of private employees by SCF industry group (`cps_private_pay_by_scf_group.csv`) |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
@@ -1163,13 +1196,13 @@ its check compares blind people by age with Publication 4801's blind boxes (type
 
 **The retirement accounts' stock share as an SCF item** (Q6; `build_scf.R`, `build_table.py`). The SCF summary file's
 equity in quasi-liquid retirement assets over those assets, RETEQ / RETQLIQ (RETQLIQ = IRAKH + THRIFT + FUTPEN +
-CURRPEN, the rebuild's `w_dc` plus `w_db`; RETEQ never exceeds it, but it exceeds IRAKH + THRIFT alone in about 1,300
-rows a wave, so the share is taken over all four and applied to `w_dc`). RETEQ counts each account as all, half or
+CURRPEN, the rebuild's `value.dc` plus `value.db`; RETEQ never exceeds it, but it exceeds IRAKH + THRIFT alone in about 1,300
+rows a wave, so the share is taken over all four and applied to `value.dc`). RETEQ counts each account as all, half or
 none in stocks by the respondent's answer. A household ratio, the same on each of the household's PEU units; 0 where
-the unit has no `w_dc`; missing (not shown in training) on units outside the PEU and other units, as their elective
-deferrals. In the table it is the SCF slot `w_dc_stock_share`, a share of `w_dc` (meta `ratios`: generation draws it
-after `w_dc` and sets it to 0 without `w_dc`; it is not grown between waves; `dollars.py` also makes `w_dc_stocks` =
-share × `w_dc`). The weighted share is 0.53-0.55 in every wave. `non_micro_imputations` uses the drawn share for
+the unit has no `value.dc`; missing (not shown in training) on units outside the PEU and other units, as their elective
+deferrals. In the table it is the SCF slot `w_dc_stock_share`, a share of `value.dc` (meta `ratios`: generation draws it
+after `value.dc` and sets it to 0 without `value.dc`; it is not grown between waves; `dollars.py` also makes `w_dc_stocks` =
+share × `value.dc`). The weighted share is 0.53-0.55 in every wave. `non_micro_imputations` uses the drawn share for
 `accruals.dc` in place of production's age rule.
 
 **CPS capital gains not shown before tax year 2018** (`build_cps.R`, `translate.not_asked`, `build_table.py`; since the
@@ -1315,7 +1348,7 @@ family fortune, or a couple or siblings named in one entry, stays one record: 60
 - Rank groups: the top 92 units, the next 276 (BSYZ's "top 100" and "next 300", as tax units), and the rest, which take
   the next group's figures (an extrapolation).
 - Wealth: Forbes's net worth; public holdings as above, else the rank group's wealth-weighted average share; the rest
-  private: real estate (`w_re_fund`) when Forbes's industry is real estate, otherwise `w_pass_throughs`. No home, no
+  private: real estate (`value.re_fund`) when Forbes's industry is real estate, otherwise `value.pass_throughs`. No home, no
   debt. Basis zero for self-made fortunes (Forbes's 2019 flag), equal to value for inherited ones, written as
   accumulated gains so the non-microdata step's `cost_basis` gives it.
 - Income: each group's dollars of each kind = its Forbes wealth times the IRS study's amount per dollar of wealth
@@ -1394,6 +1427,79 @@ by AGI (22 more) is left out of 2019: with it the targets could not all be met (
 Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`, `qbi_dials.csv`,
 `taxes_summary.md`). `python taxes.py report <file> <folder>` computes the taxes on a finished file and evaluates the
 year's calculator targets on it.
+## The names: Tax-Simulator's, everywhere (29-30 October)
+<!-- old names -->
+
+John, 29 October: "there is no reason for the names to differ. at all." Every variable of the rebuild that is the same
+item as an input column of tax-simulator-gpu (master 9424483, 156 columns read) carries the calculator's name, in the
+training table, the network's slots, the generated file, the targets configuration, the settings and the reports.
+Where the calculator does not read an item but production Tax-Data's file has a name for it, that name is used
+(`n_dep_ctc`, the consumption categories).
+
+- **The list.** `pipeline/tools/rename_map.csv`, one row per name: `renamed` (50: the same item under the rebuild's
+  old name, for example `mars` to `filing_status`, `interest` to `txbl_int`, `sch_c` to `sole_prop`, the partnership
+  and S corporation `pass`/`nonpass` items to `passive`/`active`, `ss_gross` to `gross_ss`, `childcare` to
+  `care_exp`, the 20 balance-sheet items `w_<item>` to `value.<item>`, `age_primary` to `age1` and `age_dep1` to
+  `dep_age1`), `shared` (the name was already the calculator's or production's), `computed` (a calculator column
+  made from rebuild items: each spouse's Schedule C, farm and partnership self-employment income, `dep_status`,
+  `male1`, gross pensions, other income, `kg_lt` with distributions, the cost bases, the zeros) and `rebuild-only`
+  (no calculator or production name: totals such as `dividends` and `capital_gains`, the survey slots, the shares).
+- **Kept on purpose** (`DECISIONS_FOR_JOHN.md` of 30 October): `record_id` (the bare `id` means other things in the
+  rebuild; the calculator and Tax-Simulator files write it as `id`); `sex_primary`/`sex_spouse` (coded 1 man, 2
+  woman; `male1`/`male2` are computed); the surveys' person slots `tips_primary`, `ot_primary` and the like, because
+  the file has `tips1`, `ot1` made from them. The interest paid deduction (PUF E19200) is `first_mort_int`, the
+  calculator's column, though it also holds investment interest (production's own name for the whole item is
+  `int_exp`).
+- **How it was applied.** `pipeline/tools/apply_rename.py` applies the `renamed` rows to `research/rebuild` (not
+  `HISTORY.md`), and can be run on another branch made before the rename. Names with an underscore are replaced
+  wherever they stand as a whole name, with their band, reported, drawn and `u_` forms; one-word names (`interest`,
+  `unemployment`, `childcare`, `mars`) only where they are plainly names, not in prose. Names built in code from pieces
+  were fixed by hand: the balance sheet's prefix (`value.` for the 20 items in `build_table.py` and `build_scf.R`,
+  `w_kg_` kept for the four unrealized gains), and the surveys' own person-1 and person-2 ages, which inside
+  `build_table.py` are `svy_age1`, `svy_age2`, `svy_dep_age1`-`3` until the primary-filer rule has run (the R survey
+  builders keep `age1`, `age2` for the survey's person 1 and 2).
+- **Networks trained before the rename.** Their slot positions are unchanged; `model.load_model` reads their band
+  layout's names through the map (`model.renamed`), and checks names and order against today's. Networks saved since
+  carry their slot list.
+- **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the training table built after the rename equals the one
+  built before, column for column, apart from the names; a 2019 draw and tilt from the installed networks on the
+  renamed code equal those on the code before.
+
+<!-- /old names -->
+
+## Capital gains before the loss limit (29-30 October)
+
+John, 29 October: the $3,000 limit on a net capital loss is computed at tax time; it is not a feature of the data.
+Until then the rebuild drew a third gains piece, `kg_other`, Form 1040 line 13 (PUF E01000) less short- and long-term
+gains, which on a return with a net loss is the part of the loss the limit holds back, drawn as if it were an item.
+
+- **The pieces.** The training table carries `kg_st` (PUF P22250) and `kg_lt` (P23250), the full Schedule D gains and
+  losses, and `kg_dist` (E01100, distributions reported on Form 1040). `kg_other` is gone. The table's total
+  `capital_gains` is the sum of the three, before the limit.
+- **The limit, where AGI is made.** `common.allowed_capital_gain`: the Schedule D net (short plus long term) with a net
+  loss held to $3,000 ($1,500 on a separate return), nominal and not indexed. The file's `capital_gains` (Schedule D
+  net in AGI, SOI Table 1.4's line) and `capital_gains_line13` (with distributions) apply it in `dollars.py`, in the
+  tilt's recombination of a grown file, in the top step's rebuilt hidden returns and in the band AGI that sets the AGI
+  group label. The calculator applies the same limit itself to `kg_st` and `kg_lt`; its `kg_lt` includes `kg_dist`
+  (taxsim_file and calculator.convert add them), so the limit falls on short term plus long term plus distributions
+  there, and on short plus long term alone in the file. The two differ only on a record with distributions and a net
+  loss past the limit: 1 record of the 2019 pooled file of 30 October, $71 (the PUF has no such return).
+- **Line 13 on the PUF.** On 6.2 million 2015 returns ($52 billion) line 13 (E01000) is below the allowed Schedule D
+  net of the two pieces. By what the pieces show (review of 30 October): on 3.63 million the pieces net a gain (on 1.98
+  million line 13 is a smaller gain, on 1.66 million a loss, 1.43 million of them the full allowed loss); on 2.02
+  million the pieces are zero and line 13 is a loss (1.63 million the full allowed loss); on 0.55 million the pieces
+  net a loss smaller than line 13's. The booklet calls P22250 and P23250 gains less losses net of carryover, so a
+  carryover does not explain it. The gaps are not small: half are $3,000 or more, a tenth $100,000 or more. That
+  shortfall is put on the short-term piece, so the return's allowed net is its line 13 again and it keeps its loss
+  (SOI counts it among the returns with a net loss); about 3.7 million returns whose pieces show no net loss become
+  loss returns, and short-term gains on returns that keep a gain are cut. What is left the other way ($0.1 billion on 1.7 million
+  returns) stays in other AGI, so each PUF record's AGI is still exactly the PUF's.
+- **Growth.** The pieces' losses grow with the gains (Schedule D net gain per return with one, `growth.yaml`); until
+  now losses were not grown because they sat at the nominal limit.
+- **The SCF.** It asks the amount on the return, where a loss stops at $3,000. Its losses are read as at most $3,000,
+  and those held at the limit are put on the tax data's losses past $3,000 by the row's percentile match (the new
+  `loss_line` setting, $2,999); smaller losses and gains as before. The CPS carries no capital gains in training.
+- **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the table before and after, gains by source.
 
 ## How the latest run comes out
 
