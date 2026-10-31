@@ -1591,9 +1591,8 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             count_var = variable_def(r.variable).get('count_variable')
             xc = record_value(df, count_var) if count_var else x
             # SOI Table 2.1 counts returns claiming a positive category amount.
-            F[:, j] = cell * ((xc > 0) if r.variable in
-                              ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity')
-                              else (xc != 0))
+            pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity')
+            F[:, j] = cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
         elif r.statistic == 'workers':

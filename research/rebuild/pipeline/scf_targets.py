@@ -91,7 +91,7 @@ def frame(wave, year):
         return _FRAMES[key]
     import errors as E
     f = growth_factors(wave, year)
-    # the ltv is a ratio: the mortgage in dollars moves with the home. The elective deferrals and the spouse's share of
+    # The mortgage is the home times the ltv; the ltv reflects their different growth after 2022. The elective deferrals and the spouse's share of
     # them (since 28 October; build_table.SCF_NOT_ASKED) are missing where the SCF does not ask and no SCF target reads
     # them (their targets are the W-2 statistics'), so they are left out here; so is the retirement accounts' stock share
     # (since 29 October), a share missing outside the PEU that no SCF target reads
@@ -108,7 +108,7 @@ def frame(wave, year):
     assert (u['age_range'] < common.ADULT_RANGES).all(), f'SCF wave {wave}: a dependent filer among the units'
     for v in items:
         u[v] = u[v].to_numpy(float) * f[v]
-    u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home']
+    u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home'] * f['w_primary_ltv']
     u['net_worth'] = u[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
     # the target year's wave's number of units; a year with no wave of its own (30 October): interpolated between the
     # waves either side, or after the last wave grown with the population (build_table.scf_units_at)
@@ -193,6 +193,10 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
         assert lo is not None or hi is not None, f'SCF cell {c["label"]}: a share needs a line'
         stat = lambda cc, mm, yy, ww: (ww * cc).sum(-1) / (ww * mm).sum(-1)
         sc = 1.0
+    elif st == 'count':
+        assert v, f'SCF cell {c["label"]}: a count needs a variable'
+        stat = lambda cc, mm, yy, ww: (ww * cc * (yy != 0)).sum(-1)
+        sc = 5.0
     elif st == 'amount':
         stat = lambda cc, mm, yy, ww: (ww * cc * yy).sum(-1)
         sc = 5.0

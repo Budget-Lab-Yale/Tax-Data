@@ -279,7 +279,10 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         return cache['f'][v]
     for v in scf_cols:
         if v in BT.SCF_RATIOS:
-            grow(v, lambda: (1.0, 1.0), 'a ratio, not grown')
+            # a share; the mortgage share changes after the last wave so that the home and the mortgage each follow
+            # their own Z.1 series (rebuild-wealth-cats); every other ratio has factor 1
+            grow(v, lambda v=v: (f_scf_of(v),) * 2,
+                 'ratio adjusted for the mortgage and home growth series' if v == 'w_primary_ltv' else 'a ratio, not grown')
         else:
             grow(v, lambda v=v: (f_scf_of(v),) * 2, f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
     for v in other_cols:

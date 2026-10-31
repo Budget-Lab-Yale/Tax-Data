@@ -596,3 +596,14 @@ targets:
     value: {published: soi 2.1}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Balance-sheet category dollars and holders within each SCF net worth class.
+  - id: wealth_categories
+    kind: wealth
+    statistic: [count, amount]
+    population: scf_units_below_a_billion
+    variable: scf_wealth_categories
+    cells: {scf_net_worth_classes: [net worth below SCF p90, net worth above SCF p90]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable} {statistic}'}

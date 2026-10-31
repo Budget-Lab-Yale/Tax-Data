@@ -1,5 +1,12 @@
 # What the pipeline does now
 
+The year configurations include SCF targets for dollars and holders in nine broad balance-sheet categories, separately
+below and above the SCF's 90th percentile of net worth among units below $1 billion. Each wave contributes its own
+replicate and imputation errors to the year's survey mix. After the 2022 wave, each category grows with a matching
+Financial Accounts series per person; after 2025 the series is projected at its 2025 ratio to nominal GDP. The
+Financial Accounts categories are proxies and include nonprofits. The definitions and line mapping are in
+`pipeline/targets_config/catalog.yaml` and `resources/growth/build_z1_scf_categories.py`.
+
 The current run ("latest") produces a 2019 file of tax units: every PUF
 item production carries; from the SCF the household balance sheet (20 items,
 with net worth computed from them), elective deferrals to 401(k)-type plans and

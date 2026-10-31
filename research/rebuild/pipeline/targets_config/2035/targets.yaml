@@ -209,3 +209,14 @@ targets:
     outside_line: net worth
     error: {kind: judgment, relative: 0.02, reason: 'Financial Accounts growth applied to our own level (households and nonprofits; past 2025 at a fixed ratio to GDP); 2% as a judgment'}
     key: {group: all, target: net worth}
+
+  # Balance-sheet category dollars and holders within each SCF net worth class.
+  - id: wealth_categories
+    kind: wealth
+    statistic: [count, amount]
+    population: scf_units_below_a_billion
+    variable: scf_wealth_categories
+    cells: {scf_net_worth_classes: [net worth below SCF p90, net worth above SCF p90]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable} {statistic}'}

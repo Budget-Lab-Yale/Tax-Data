@@ -495,6 +495,15 @@ variables:
   net_worth:
     record: net_worth                   # the 14 assets less the 6 debts (dollars.py), in the wave's dollars
     short: net worth
+  wealth_deposits_bonds: {parts: [value.cash, value.bonds], short: deposits and bonds}
+  wealth_stocks_funds: {parts: [value.equities], short: stocks and funds}
+  wealth_retirement: {parts: [value.dc, value.db], short: retirement accounts and pensions}
+  wealth_business: {parts: [value.pass_throughs], short: business equity category}
+  wealth_primary_home: {parts: [value.primary_home], short: primary home}
+  wealth_other_real_estate: {parts: [value.other_home, value.re_fund], short: other real estate}
+  wealth_other_assets: {parts: [value.life_ins, value.annuities, value.trusts, value.other_fin, value.other_nonfin], short: other assets}
+  wealth_mortgages: {parts: [value.primary_mortgage, value.other_mortgage], short: mortgages}
+  wealth_other_debt: {parts: [value.credit_lines, value.credit_cards, value.installment_debt, value.other_debt], short: other debt}
   # Four kinds of asset on the balance sheet (TARGETS.md S2), the same columns on the SCF's units (build_scf.R, from
   # the SCF summary extract) and on the generated file (dollars.py draws each from the SCF's map). Gross values:
   # the debts against them (mortgages) are not taken off.
@@ -646,6 +655,9 @@ variable_lists:
                     heads_spouses_55_64, heads_spouses_65_74, heads_spouses_75_up, children_under_17]
   # The SCF's balance sheet by kind of asset, for the top net worth lines (TARGETS.md S2)
   scf_top_assets: [stocks, business_equity, real_estate, retirement_accounts]
+  scf_wealth_categories: [wealth_deposits_bonds, wealth_stocks_funds, wealth_retirement, wealth_business,
+                          wealth_primary_home, wealth_other_real_estate, wealth_other_assets, wealth_mortgages,
+                          wealth_other_debt]
   # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
   soi_1_3_items: [wages, taxable_interest, ordinary_dividends, exempt_int, state_ref, alimony,
                   sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, other_gains, txbl_ira_dist,
@@ -900,6 +912,7 @@ groupings:
     variable: net_worth
     bands:
       - [null, [percentile, 90], net worth below SCF p90]
+      - [[percentile, 90], null, net worth above SCF p90]
       - [[percentile, 90], [percentile, 99], net worth SCF p90-99]
       - [[percentile, 99], [percentile, 99.9], net worth SCF p99-99.9]
       - [[percentile, 99.9], null, net worth above SCF p99.9]

@@ -174,12 +174,29 @@ def population(y):
     return _at(_csv('ss_area_population.csv'), y, 'Social Security area population')
 
 
-def scf_extension(a, b):
-    """The SCF balance sheet's growth per person from stock year a to b after the last wave (30 October): household
-    net worth (Z.1 S1M.b, FL152090005, fourth quarter; past 2025 held at its 2025 ratio to nominal GDP) over the
-    Social Security area population. One factor for every balance-sheet item (build_table.scf_mean)."""
-    nw = _csv('z1_household_net_worth.csv')
-    return (_at(nw, b, 'Z.1 household net worth') / population(b)) / (_at(nw, a, 'Z.1 household net worth') / population(a))
+SCF_Z1_CATEGORIES = {
+    **{f'value.{x}': 'deposits_bonds' for x in ('cash', 'bonds')},
+    'value.equities': 'stocks_funds',
+    **{f'value.{x}': 'retirement' for x in ('dc', 'db')},
+    'value.pass_throughs': 'business',
+    'value.primary_home': 'primary_home',
+    **{f'value.{x}': 'other_real_estate' for x in ('other_home', 're_fund')},
+    **{f'value.{x}': 'other_assets' for x in ('life_ins', 'annuities', 'trusts', 'other_fin', 'other_nonfin')},
+    **{f'value.{x}': 'mortgages' for x in ('primary_mortgage', 'other_mortgage')},
+    **{f'value.{x}': 'other_debt' for x in ('credit_lines', 'credit_cards', 'installment_debt', 'other_debt')},
+}
+
+
+def scf_extension(a, b, item=None):
+    """Growth per person after the last SCF wave, by the item's Z.1 category where available.
+
+    Q4 levels through 2025; thereafter each category's 2025 ratio to nominal GDP is held fixed.
+    Items outside the nine balance-sheet categories use household net worth as before.
+    """
+    category = SCF_Z1_CATEGORIES.get(item)
+    name = f'z1_scf_{category}.csv' if category else 'z1_household_net_worth.csv'
+    series = _csv(name)
+    return (_at(series, b, name) / population(b)) / (_at(series, a, name) / population(a))
 
 
 def agi_per_return(y):
@@ -325,6 +342,13 @@ def check(year=common.TARGET_YEAR):
     every = [v for vs in groups.values() for v in vs]
     bad = [f'{g} item {v}: no growth line' for g, vs in groups.items() for v in vs if v not in items]
     bad += [f'{v}: a growth line for an item the pipeline does not have' for v in items if v not in every]
+    if year > 2022:
+        for v in SCF_Z1_CATEGORIES:
+            try:
+                factor = scf_extension(2022, year, v)
+                assert np.isfinite(factor) and factor > 0
+            except (OSError, KeyError, AssertionError, ValueError) as exc:
+                bad.append(f'{v}: missing or invalid Financial Accounts category growth to {year}: {exc}')
     allowed = {'SCF': {'scf mean per unit between waves'}, 'CEX': {'nipa pce per return'},
                'CPS': {'soi 1.4'}, 'SIPP': {'soi 1.4'}}
     for g, ok in allowed.items():
