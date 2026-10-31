@@ -1297,34 +1297,50 @@ def published_21(year, cells, v, stats):
     source_category = 'other_residual' if category == 'other' else category
     source = data[(data.year == year) & (data.category == source_category)]
     groups = CAT['groupings']['itemized_agi_groups']['edges']
-    labels = ['under $25,000', '$25,000–$50,000', '$50,000–$75,000',
-              '$75,000–$100,000', '$100,000–$200,000', '$200,000–$500,000', '$500,000 and over']
-    rows = []
-    for (lo, hi, label), published_label in zip(groups, labels):
-        matches = source[source.agi_group == published_label]
-        assert len(matches) == 1, (year, category, published_label, len(matches))
-        record = matches.iloc[0]
+    # Table 2.1's published groups, with their lower and upper edges. Since 30 October (decision 48) a group of ours
+    # can hold several published groups (under $25,000 and $25,000-$50,000 are one group, under $50,000): their
+    # counts and amounts add, and their standard errors add in quadrature (the published groups are treated as
+    # independent, as the combined source cells already were).
+    published = [('under $25,000', -np.inf, 25000), ('$25,000–$50,000', 25000, 50000), ('$50,000–$75,000', 50000, 75000),
+                 ('$75,000–$100,000', 75000, 100000), ('$100,000–$200,000', 100000, 200000),
+                 ('$200,000–$500,000', 200000, 500000), ('$500,000 and over', 500000, np.inf)]
+    rows, used = [], []
+    for lo, hi, label in groups:
+        glo, ghi = (-np.inf if lo is None else lo), (np.inf if hi is None else hi)
+        inside = [p for p in published if p[1] >= glo and p[2] <= ghi]
+        assert inside, (label, 'no published group of Table 2.1 inside')
+        used += [p[0] for p in inside]
         for st in stats:
-            value = float(record[st])
-            assert np.isfinite(value), (year, category, published_label, st, 'missing value')
-            cv = record[st + '_cv']
-            if category == 'other':
-                assert st == 'amount' and year >= 2018
-                cv, reason = .10, '10% judgment: residual CV and covariance are unavailable'
-            elif pd.isna(cv):
-                donors = data[(data.category == category) & (data.agi_group == published_label) & data[st + '_cv'].notna()].copy()
-                assert len(donors), (category, published_label, st, 'no CV donor')
-                donors['distance'] = abs(donors.year - year)
-                donor = donors.sort_values(['distance', 'year']).iloc[0]
-                cv = float(donor[st + '_cv'])
-                reason = f'missing grouped CV: borrowed same category and AGI group from {int(donor.year)}'
-            else:
-                reason = 'Table 2.1 grouped CV; combined source cells treated as independent'
-            assert np.isfinite(cv) and cv >= 0
-            rows.append({'cell': label, 'agi': (-np.inf if lo is None else lo, np.inf if hi is None else hi),
-                         'statistic': st, 'value': value, 'se': abs(value) * cv,
-                         'error_kind': 'table21', 'se_reason': reason,
-                         'source': f'SOI Table 2.1 {year}: {category}, {published_label}; {record.source_file}, {record.source_rows}'})
+            value, var, reasons, srcs = 0.0, 0.0, [], []
+            for published_label, _, _ in inside:
+                matches = source[source.agi_group == published_label]
+                assert len(matches) == 1, (year, category, published_label, len(matches))
+                record = matches.iloc[0]
+                v_ = float(record[st])
+                assert np.isfinite(v_), (year, category, published_label, st, 'missing value')
+                cv = record[st + '_cv']
+                if category == 'other':
+                    assert st == 'amount' and year >= 2018
+                    cv, reason = .10, '10% judgment: residual CV and covariance are unavailable'
+                elif pd.isna(cv):
+                    donors = data[(data.category == category) & (data.agi_group == published_label) & data[st + '_cv'].notna()].copy()
+                    assert len(donors), (category, published_label, st, 'no CV donor')
+                    donors['distance'] = abs(donors.year - year)
+                    donor = donors.sort_values(['distance', 'year']).iloc[0]
+                    cv = float(donor[st + '_cv'])
+                    reason = f'missing grouped CV: borrowed same category and AGI group from {int(donor.year)}'
+                else:
+                    reason = 'Table 2.1 grouped CV; combined source cells treated as independent'
+                assert np.isfinite(cv) and cv >= 0
+                value += v_
+                var += (abs(v_) * cv) ** 2
+                reasons.append(reason)
+                srcs.append(f'SOI Table 2.1 {year}: {category}, {published_label}; {record.source_file}, {record.source_rows}')
+            rows.append({'cell': label, 'agi': (glo, ghi), 'statistic': st, 'value': value, 'se': float(np.sqrt(var)),
+                         'error_kind': 'table21', 'se_reason': '; '.join(dict.fromkeys(reasons))
+                         + ('; groups added, errors in quadrature' if len(inside) > 1 else ''),
+                         'source': ' + '.join(srcs)})
+    assert sorted(used) == sorted(p[0] for p in published), 'our groups do not cover Table 2.1\'s exactly once'
     return rows
 
 

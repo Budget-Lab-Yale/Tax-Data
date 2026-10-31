@@ -700,8 +700,7 @@ groupings:
   itemized_agi_groups:
     variable: agi
     edges:
-      - [null, 25000, under $25k]
-      - [25000, 50000, $25k-50k]
+      - [null, 50000, $0-50k]
       - [50000, 75000, $50k-75k]
       - [75000, 100000, $75k-100k]
       - [100000, 200000, $100k-200k]
@@ -750,6 +749,7 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
+  # (30 October, decision 48: under $25k and $25k-50k are one group, $1-50k, 'no AGI' staying its own)
   # The calculator targets' AGI groups (30 October, taxes.py): the file's AGI, as every IRS target, in groups whose
   # edges are Table 1.4's and 3.3's bracket edges, so a group sums whole published cells; merged where a published
   # cell SOI combined crosses an edge. The five top brackets are four groups ($1m-2m joins two).
@@ -758,8 +758,7 @@ groupings:
     merge_across_published: true
     edges:
       - [null, 1, no AGI]
-      - [1, 25000, under $25k]
-      - [25000, 50000, $25k-50k]
+      - [1, 50000, $1-50k]
       - [50000, 75000, $50k-75k]
       - [75000, 100000, $75k-100k]
       - [100000, 200000, $100k-200k]

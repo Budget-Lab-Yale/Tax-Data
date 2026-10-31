@@ -1978,7 +1978,16 @@
   "_device": "cpu: the calculator runs on the CPU (JAX_PLATFORMS=cpu; about 25 seconds for 450,000 records), the same on any node; gpu: on the job's GPU, if it has one.",
   "wage_increment": 100,
   "_wage_increment": "Dollars added to the primary earner's wages for the marginal rates on wages (calc_mtr_wages_iit, calc_mtr_wages_payroll); 0: not computed.",
-  "qbi_dials": {
+  "refund_rule": true,
+ "_refund_rule": "Decision 47 (John, 30 October): after the draw, a record the calculator says does not itemize under the year's law (one calculator run on the grown start, the flag itemizing) has its taxable state income tax refund (state_ref) set to zero. It stands in for 'did not itemize last year'. A rule like the AMT rule: the draw carries 2015's roughly 21 million refund returns into every year, and SOI has 4.3 million in 2019 and 3.1 million in 2023. false: the draw's refunds stay.",
+ "greedy_schedule_a": {
+  "enabled": true,
+  "passes": 3,
+  "max_move": 0.2,
+  "_what": "Decision 49 (John, 30 October; design ALGO_GROWTH_SEARCH.md, the simple version): in a year with a Table 2.1 (2015-2023), after the growth by the declared priors and the refund rule, each category's input factor s (medical: med_exp; taxes paid: salt_inc_sales and salt_prop; interest: first_mort_int; charity: char_cash and char_noncash) is set so that the start's dollars per claiming return (the calculator's claimed amount over the filer returns claiming it, at the start's weights, all AGI) match Table 2.1's (its amounts over its counts, all AGI groups). passes: calculator runs, each followed by a multiplicative update of s; max_move: s stays within one plus or minus this of the prior (s = 1). Other itemized deductions keep the prior (Table 2.1 has no count for the residual). Years without a Table 2.1 (the chained years from 2024) keep the priors.",
+  "table21": "../resources/table21_2015_2023.csv"
+ },
+ "qbi_dials": {
    "solve": true,
    "_what": "SIMPLE_PLAN.md step 4 (scratch explore/2026-10-28/qbi_plan): the QBI dials a (wage bill) and b (specified service) of non_micro_imputations.items.qbi, solved on the start's weights before the reweighting (taxes.solve_qbi_dials). a: owners of exactly one business (Schedule C, partnership or S corporation, no farm income) that is not a specified service, with taxable income above the top of the phase-in range, keep Treasury's share of 20% of their business income; b: the deduction on returns with AGI of soi_agi_floor or more equals SOI Table 1.4's. Solved in turn, at most rounds times, each by bisection in its range. false: a and b stay at the settings' values (1).",
    "treasury_share_by_scf_group": {

@@ -350,6 +350,126 @@ def solve_qbi_dials(df, inp, out, w, year, nmi_ctx):
     return a, b, pd.DataFrame(rounds), pd.DataFrame(by_group)
 
 
+# ---- the refund rule and the greedy Schedule A step (30 October, decisions 47 and 49) ----------------------------
+SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculator's claimed column)
+    'medical': (['med_exp'], 'claimed_medical'),
+    'taxes': (['salt_inc_sales', 'salt_prop'], 'claimed_taxes'),
+    'interest': (['first_mort_int'], 'claimed_interest'),
+    'charity': (['char_cash', 'char_noncash'], 'claimed_charity'),
+}
+
+
+def apply_refund_rule(df, year, w, folder, ctx, C):
+    """Decision 47: taxable state refunds set to zero on records the calculator says do not itemize under the year's
+    law. One calculator run on the grown start gives the flag. Returns the frame; the counts go to ctx['refund']."""
+    inp, _ = C.convert(df)
+    out, man = run_batch(inp, year, folder, 'refund', wage_increment=0.0)
+    assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
+    item = out['itemizing'].to_numpy(float) > 0
+    ref = df['state_ref'].to_numpy(float)
+    assert np.isfinite(ref).all() and (ref >= 0).all(), 'state_ref: a missing or negative value'
+    filer = df['filer'].to_numpy() == 1
+    zero = ~item & (ref > 0)
+    row = {'returns with a refund before (millions)': w[filer & (ref > 0)].sum() / 1e6,
+           'dollars before ($ billion)': (w * ref)[filer].sum() / 1e9,
+           'records zeroed (unweighted)': int(zero.sum()),
+           'itemizing filers (millions)': w[filer & item].sum() / 1e6}
+    df = df.copy()
+    df['state_ref'] = np.where(item, ref, 0.0)
+    ref2 = df['state_ref'].to_numpy(float)
+    row.update({'returns with a refund after (millions)': w[filer & (ref2 > 0)].sum() / 1e6,
+                'dollars after ($ billion)': (w * ref2)[filer].sum() / 1e9,
+                'non-filer dollars before ($ billion)': (w * ref)[~filer].sum() / 1e9})
+    ctx['refund'] = row
+    ctx['notes'].append(
+        f"refund rule (decision 47): taxable state refunds zeroed on records that do not itemize: filer returns with "
+        f"a refund {row['returns with a refund before (millions)']:.2f} million -> "
+        f"{row['returns with a refund after (millions)']:.2f} million, dollars ${row['dollars before ($ billion)']:.1f} "
+        f"billion -> ${row['dollars after ($ billion)']:.1f} billion (start weights)")
+    return df
+
+
+def table21_averages(year):
+    """Table 2.1's dollars per claiming return, all AGI groups, by category: sum of amounts over sum of counts."""
+    path = os.path.join(HERE, S['greedy_schedule_a']['table21'])
+    t = pd.read_csv(path)
+    t = t[t.year == year]
+    if not len(t):
+        return None
+    assert t[['count', 'amount']].notna().all().all(), f'Table 2.1 {year}: a missing count or amount'
+    return {c: (float(g['amount'].sum()), float(g['count'].sum())) for c, g in t.groupby('category') if c in SCHEDULE_A}
+
+
+def prior_factor(col, year):
+    """The declared growth of a PUF amount from the PUF's year to the target year (growth.yaml), for the report; NaN with a
+    reason where the series cannot be read."""
+    import growth as GR
+    try:
+        spec = GR.line(col, year)['source']
+        t, s0 = year, common.PUF_YEAR
+        f = GR._factor(spec, t) / GR._factor(spec, s0) if spec['series'] == 'soi 1.4' else GR.level(spec, t) / GR.level(spec, s0)
+        return float(f), GR.describe(col, year)
+    except Exception as e:   # reported in the table, not hidden
+        return float('nan'), f'not read: {type(e).__name__}: {str(e)[:80]}'
+
+
+def greedy_schedule_a(df, year, w, folder, ctx, C):
+    """Decision 49, the greedy version of ALGO_GROWTH_SEARCH.md: each category's input factor s is scaled by the ratio
+    of Table 2.1's dollars per claiming return to the start's, passes times through the calculator, s kept within one
+    plus or minus max_move of the prior (s = 1). Returns the frame with the inputs multiplied, or the frame unchanged
+    where the year has no Table 2.1."""
+    G = S['greedy_schedule_a']
+    target = table21_averages(year)
+    if target is None:
+        ctx['notes'].append(f'greedy Schedule A step (decision 49): no Table 2.1 for {year}; the declared priors stand')
+        return df
+    assert set(target) == set(SCHEDULE_A), f'Table 2.1 {year} categories {sorted(target)}'
+    filer = df['filer'].to_numpy() == 1
+    base = df.copy()
+    s = {c: 1.0 for c in SCHEDULE_A}
+    lo, hi = 1.0 - G['max_move'], 1.0 + G['max_move']
+    rows = []
+    for p in range(int(G['passes'])):
+        cur = base.copy()
+        for c, (cols, _) in SCHEDULE_A.items():
+            for col in cols:
+                assert col in cur and np.isfinite(cur[col].to_numpy(float)).all(), f'{col}: missing from the file or missing values'
+                cur[col] = base[col].to_numpy(float) * s[c]
+        inp, _ = C.convert(cur)
+        out, man = run_batch(inp, year, folder, f'greedy{p + 1}', wage_increment=0.0)
+        assert (inp['id'].to_numpy() == cur['record_id'].to_numpy()).all(), 'record order'
+        for c, (cols, claimed) in SCHEDULE_A.items():
+            x = out[claimed].to_numpy(float)
+            claim = filer & (x > 0)
+            avg = float((w * x)[claim].sum() / w[claim].sum())
+            soi_avg = target[c][0] / target[c][1]
+            new = float(np.clip(s[c] * soi_avg / avg, lo, hi))
+            rows.append({'pass': p + 1, 'category': c, 'factor used (s)': s[c], 'start $ per claiming return': avg,
+                         'Table 2.1 $ per claiming return': soi_avg, 'claiming returns, start (millions)': w[claim].sum() / 1e6,
+                         'Table 2.1 returns (millions)': target[c][1] / 1e6, 'next factor': new,
+                         'held at the limit': bool(new in (lo, hi))})
+            s[c] = new
+    tab = pd.DataFrame(rows)
+    pri = []
+    for c, (cols, _) in SCHEDULE_A.items():
+        f, src = prior_factor(cols[0], year)
+        pri.append({'category': c, 'input columns': ', '.join(cols), 'declared growth from the PUF year (prior)': f,
+                    'prior series': src, 'multiplier s on the prior': s[c],
+                    'factor used, prior x s': f * s[c] if np.isfinite(f) else float('nan')})
+    pri = pd.DataFrame(pri)
+    tab.to_csv(f'{folder}/schedule_a_passes.csv', index=False)
+    pri.to_csv(f'{folder}/schedule_a_factors.csv', index=False)
+    ctx['greedy'] = pri
+    ctx['greedy_passes'] = tab
+    ctx['notes'].append('greedy Schedule A step (decision 49): multipliers on the priors ' +
+                        ', '.join(f'{c} {v:.3f}' for c, v in s.items()))
+    out_df = df.copy()
+    for c, (cols, _) in SCHEDULE_A.items():
+        for col in cols:
+            out_df[col] = base[col].to_numpy(float) * s[c]
+    return out_df
+
+
 # ---- the stage inside the tilt ---------------------------------------------------------------------------------
 def compute(df, year, w, nmi_ctx, folder):
     """Every record's computed taxes joined to the file (module docstring). df: the start, after the non-microdata
@@ -365,6 +485,10 @@ def compute(df, year, w, nmi_ctx, folder):
         df = df.drop(columns=stale)
         ctx['notes'].append(f'the start\'s computed columns (from its own year) dropped and computed again under '
                             f'{law_year(year)} law: {len(stale)} columns')
+    if S.get('refund_rule', False):
+        df = apply_refund_rule(df, year, w, folder, ctx, C)
+    if S.get('greedy_schedule_a', {}).get('enabled', False):
+        df = greedy_schedule_a(df, year, w, folder, ctx, C)
     inp, notes = C.convert(df)
     ctx['conversion'] = notes
     solve = bool(S.get('qbi_dials', {}).get('solve')) and nmi_ctx is not None and nmi_ctx.get('qbi') is not None
@@ -453,6 +577,14 @@ def summary_lines(ctx, df, w0, w1):
                     'after ($ billion)': (w1 * x)[filer].sum() / 1e9,
                     'non-filers, after ($ billion)': (w1 * x)[~filer].sum() / 1e9})
     lines += [pd.DataFrame(tab).to_markdown(index=False, floatfmt=',.2f'), '']
+    if 'refund' in ctx:
+        lines += ['Taxable state refunds after the rule (decision 47), start weights:', '',
+                  pd.Series(ctx['refund']).to_frame('').to_markdown(floatfmt=',.3f'), '']
+    if 'greedy' in ctx:
+        lines += ['Schedule A factors (decision 49), each against its declared prior:', '',
+                  ctx['greedy'].to_markdown(index=False, floatfmt=',.4f'), '',
+                  'The passes (dollars per claiming return, start against Table 2.1):', '',
+                  ctx['greedy_passes'].to_markdown(index=False, floatfmt=',.4f'), '']
     if 'rounds' in ctx:
         lines += ['QBI dials, round by round:', '', ctx['rounds'].to_markdown(index=False, floatfmt=',.4f'), '',
                   'The share of 20% of business income kept by owners of one business that is not a specified service, '
