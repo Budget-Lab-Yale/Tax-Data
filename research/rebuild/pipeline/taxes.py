@@ -393,7 +393,7 @@ def table21_averages(year):
     """Table 2.1's dollars per claiming return, all AGI groups, by category: sum of amounts over sum of counts."""
     path = os.path.join(HERE, S['greedy_schedule_a']['table21'])
     t = pd.read_csv(path)
-    t = t[t.year == year]
+    t = t[(t.year == year) & t.category.isin(list(SCHEDULE_A))]   # the other residual has an amount only
     if not len(t):
         return None
     assert t[['count', 'amount']].notna().all().all(), f'Table 2.1 {year}: a missing count or amount'
