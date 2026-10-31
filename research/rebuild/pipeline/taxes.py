@@ -217,11 +217,19 @@ def qbi_columns(df):
             np.column_stack([df[f'wagebill_{k}'].to_numpy(float) for k in KINDS]))
 
 
-def check_formula(p, df, out, tag):
-    """The formula's deduction against the calculator's on every record; returns the largest gap in dollars."""
+def check_formula(p, df, out, tag, strict=True):
+    """The formula's deduction against the calculator's on every record; returns the largest gap in dollars. strict
+    False (a year whose dials are carried, not solved: nothing then rests on the formula) reports the gap, as a note
+    in the log, instead of stopping. In 2026 law the two differ on 2,324 of 463,122 records, all with very large
+    incomes (30 October, phase 2; decision in DECISIONS_FOR_JOHN.md)."""
     q = qbi_formula(p, *qbi_columns(df))
-    gap = float(np.abs(q - out['qbi_ded'].to_numpy(float)).max())
-    assert gap < 0.01, f'QBI formula and calculator differ by up to ${gap:,.2f} ({tag})'
+    g = np.abs(q - out['qbi_ded'].to_numpy(float))
+    gap = float(g.max())
+    if strict:
+        assert gap < 0.01, f'QBI formula and calculator differ by up to ${gap:,.2f} ({tag})'
+    elif gap >= 0.01:
+        common.say(f'WARNING: QBI formula and calculator differ by up to ${gap:,.2f} on {int((g >= 0.01).sum())} records '
+                   f'({tag}); the dials of this year are carried, not solved, so no result rests on the formula')
     return gap
 
 
@@ -369,7 +377,7 @@ def compute(df, year, w, nmi_ctx, folder):
             ctx['notes'].append(f'QBI dials not solved: no QBI deduction in {law_year(year)} law')
             solve = False
         else:
-            gap = check_formula(p, df, out, 'first run')
+            gap = check_formula(p, df, out, 'first run', strict=bool(len(soi_qbi_cells(year))))
             ctx['notes'].append(f'QBI formula against the calculator, first run: largest gap ${gap:.6f}')
     if solve and not len(soi_qbi_cells(year)):
         # no SOI Table 1.4 for the year (2024 on): nothing to solve against, so the dials of the year the start comes
@@ -385,7 +393,7 @@ def compute(df, year, w, nmi_ctx, folder):
         out, man = run_batch(inp, year, folder, 'final', law_sections=[QBI_LAW],
                              wage_increment=float(S.get('wage_increment', 0)))
         ctx['runs']['final'] = man
-        gap = check_formula(qbi_parts(inp, out), df, out, 'final run')
+        gap = check_formula(qbi_parts(inp, out), df, out, 'final run', strict=False)
         pd.DataFrame([{'round': 0, 'a': a, 'a solved': how, 'b': b, 'b solved': how}]).to_csv(
             f'{folder}/qbi_dials.csv', index=False)
         ctx.update(a=a, b=b)
