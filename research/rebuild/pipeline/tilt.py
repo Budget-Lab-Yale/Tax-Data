@@ -255,6 +255,16 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
     import growth as GR
     same, done = recombine(df, s)
     for c in done:
+        if c == 'other_agi':
+            # (1 November, dry run) The refund rule (taxes.apply_refund_rule) sets state_ref, one of the items folded into
+            # other_agi, to zero on records that do not itemize, and leaves the file's other_agi as it was. The year-s
+            # file's other_agi is therefore its parts' sum plus the refunds the rule removed: never below it.
+            gap = df[c].to_numpy(float) - same[c].to_numpy(float)
+            assert np.isfinite(gap).all() and (gap >= -1e-6).all(), \
+                f'{c}: the year-{s} file\'s column is below what its parts give on {int((gap < -1e-6).sum())} records'
+            common.say(f'other_agi of the year-{s} file is above its parts\' sum on {int((gap > 1e-6).sum()):,} records '
+                       f'(the taxable state refunds the refund rule removed afterwards); it is recomputed from the parts')
+            continue
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
             f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
     out, rows = df.copy(), []
