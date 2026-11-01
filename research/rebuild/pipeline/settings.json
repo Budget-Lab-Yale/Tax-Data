@@ -1845,6 +1845,13 @@
    "auto loans": 0.5
   },
   "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before. Auto loan interest (kind auto loans, 27 October, candidate) is an SCF target on the same pooled waves, so it takes the SCF targets' half standard error.",
+  "precheck": {
+   "enabled": true,
+   "min_relative_se": 0.001,
+   "max_start_gap_se": 300,
+   "min_excess_se": 1.0
+  },
+  "_precheck": "precheck.py (1 November 2026): a check before the reweighting that only reports (precheck_flags.csv, precheck.md, the summary): a target is flagged when the average its count and amount require is outside the records' range by more than min_excess_se standard errors (rule 1), its relative standard error is below min_relative_se (rule 2), or the start is more than max_start_gap_se standard errors from it (rule 3). Nothing is dropped.",
   "scf_target_waves": "prior",
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks.",
   "top": {
@@ -1956,7 +1963,7 @@
  "errors": {
   "_what": "Standard errors (errors.py, TARGETS.md section 9). Every setting here is optional, with the default given; none is set today.",
   "_scf_replicate_dir": "The folder of each SCF wave's replicate weights (p<yy>_rw1.dta, from the Federal Reserve; errors.py says how to fetch them), with {wave} in the path for the wave. Default: <out>/data/scf_rw/{wave}, which holds the 2016, 2019 and 2022 waves' files. Every wave in a year's mix needs its folder (scf_targets.py).",
-  "_other": "soi_cv_dir (default <out>/targets/soi_cv), borrow_neighbours (5), full_sample_se (0.01), nonfiler_count_se (0.06), nonfiler_people_population_se (0.005), definition_gap ({}): errors.py's docstring says what each means."
+  "_other": "soi_cv_dir (default <out>/targets/soi_cv), borrow_neighbours (5), full_sample_se (0.01), full_sample_cv_below_pct (0.1: a published CV below this many percent is treated like the printed 0.00, sampled in full, decision 55), nonfiler_count_se (0.06), nonfiler_people_population_se (0.005), definition_gap ({}): errors.py's docstring says what each means."
  },
  "_targets_config": "Optional key targets_config: a folder holding a copy of targets_config/ (catalog.yaml and one folder per year, <year>/targets.yaml, prior.yaml and growth.yaml) to read instead of the pipeline's own, for a reweighting variant (target_list.py, growth.py, config_overview.py). Absent: pipeline/targets_config.",
  "taxes": {

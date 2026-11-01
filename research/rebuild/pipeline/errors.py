@@ -99,6 +99,11 @@ DEFINITION_GAP = S.get('definition_gap', {})        # kind -> share of the value
 # A Table 1.4 target resting only on cells SOI samples in full (the $10,000,000-or-more bracket, CV 0): a judgment
 # share of the value, since a target with no error cannot give way (TARGETS.md section 9, "everything else").
 FULL_SAMPLE_SE = float(S.get('full_sample_se', 0.01))
+# (1 November, decision 55) A published CV below this many percent is treated like the printed 0.00: SOI samples every
+# return in the cell, so there is no sampling error to give a standard error from. SOI printed 0.01 for the
+# $10,000,000-or-more cells of 2022 and 0.00 in the other years; taken literally, 0.01% of the value was about 3 returns
+# on 30,108, and no weights could meet it. 0 or less turns the rule off.
+FULL_SAMPLE_CV_BELOW = float(S.get('full_sample_cv_below_pct', 0.1))
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 INF = np.inf
 
@@ -274,6 +279,9 @@ def soi_cells(year, table='1.4'):
     known = c['item'].replace(RENAMED).map(TG.TABLE_ITEMS[table])
     c['variable'] = [k[0] if isinstance(k, tuple) else i for k, i in zip(known, c['item'])]
     c['value'] = c['value'] * np.where(c['statistic'] == 'amount', 1000.0, 1.0)   # SOI publishes thousands
+    # a published CV below the line is the same as 0.00 (FULL_SAMPLE_CV_BELOW); the published figure is kept in cv_pct_published
+    c['cv_pct_published'] = c['cv_pct']
+    c['cv_pct'] = c['cv_pct'].mask((c['cv_pct'] > 0) & (c['cv_pct'] < FULL_SAMPLE_CV_BELOW), 0.0)
     c['se'] = c['value'] * c['cv_pct'] / 100
     c['total_row'] = ~np.isfinite(c['lo']) & ~np.isfinite(c['hi'])
     return c, use
@@ -298,6 +306,8 @@ def sum_error(cells, parts, lo, hi):
         n += len(s)
         if (s.cv_pct == 0).any() and (s.value != 0).any():
             notes.append('includes cells SOI samples in full (CV 0)')
+        if ((s.cv_pct_published > 0) & (s.cv_pct == 0) & (s.value != 0)).any():
+            notes.append(f'includes cells with a published CV below {FULL_SAMPLE_CV_BELOW:g}%, treated as 0')
     return np.sqrt(var), total, n, '; '.join(sorted(set(notes)))
 
 
@@ -393,7 +403,7 @@ def soi_errors(rows, year):
             # only cells SOI samples in full ($10,000,000 or more): no sampling error, so a judgment number
             out.append((r.Index, FULL_SAMPLE_SE * abs(r.value), 'judgment',
                         f'{100 * FULL_SAMPLE_SE:.1f}% of the value (settings errors.full_sample_se): SOI samples every '
-                        f'return here (published CV 0, {how}{yr}), so there is no sampling error; the number stands '
+                        f'return here (published CV 0 or below {FULL_SAMPLE_CV_BELOW:g}%, {how}{yr}), so there is no sampling error; the number stands '
                         'for the gap between the file\'s definitions and SOI\'s (the next bracket down, $5M-10M, has '
                         'CVs of 0.6-2.9% on these items in 2019)'))
             continue

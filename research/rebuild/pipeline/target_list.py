@@ -1294,7 +1294,9 @@ def published_21(year, cells, v, stats):
     path = os.path.join(HERE, '..', 'resources', 'table21_2015_2023.csv')
     data = pd.read_csv(path)
     category = v.removeprefix('itemized_')
-    source_category = 'other_residual' if category == 'other' else category
+    # (1 November, decision 54) the taxes line is Table 2.1's state and local taxes (limited, 2018 on), not the taxes paid
+    # total, which adds other taxes the calculator does not compute (resources/build_table21_state_local.py)
+    source_category = {'other': 'other_residual', 'taxes': 'taxes_state_local'}.get(category, category)
     source = data[(data.year == year) & (data.category == source_category)]
     groups = CAT['groupings']['itemized_agi_groups']['edges']
     # Table 2.1's published groups, with their lower and upper edges. Since 30 October (decision 48) a group of ours

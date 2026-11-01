@@ -393,6 +393,8 @@ def table21_averages(year):
     """Table 2.1's dollars per claiming return, all AGI groups, by category: sum of amounts over sum of counts."""
     path = os.path.join(HERE, S['greedy_schedule_a']['table21'])
     t = pd.read_csv(path)
+    # (1 November, decision 54) taxes paid is Table 2.1's state and local line (category taxes_state_local), as the targets use
+    t = t.assign(category=t.category.replace({'taxes_state_local': 'taxes'}))[t.category != 'taxes']
     t = t[(t.year == year) & t.category.isin(list(SCHEDULE_A))]   # the other residual has an amount only
     if not len(t):
         return None

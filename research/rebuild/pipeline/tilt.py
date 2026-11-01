@@ -563,6 +563,14 @@ def main():
         feas.to_csv(f'{common.TILT}/top_feasibility.csv', index=False)
         common.say(f"feasibility with the fixed records: {int(feas['billionaires alone exceed'].sum())} targets the "
                    f"fixed records alone exceed, {int((~feas['reachable by the others']).sum())} the others cannot reach")
+    # (1 November) the check before the reweighting: flags only, nothing dropped (precheck.py; settings tilt.precheck)
+    precheck_lines = []
+    if S.get('precheck', {}).get('enabled', False):
+        import errors as ERR
+        import precheck as PRE
+        _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
+                                    common.TILT, S['precheck'])
+        common.say('\n'.join(precheck_lines))
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
     if top is not None:
@@ -629,7 +637,7 @@ def main():
                                       warnings=('flag', lambda f: (f == 'warning').sum()),
                                       stops=('flag', lambda f: (f == 'stop').sum()))
     text = [f'# The {Y} tilt', '', *SV.summary_lines(info, fit), '', summary.to_frame('').to_markdown(floatfmt=',.4f'),
-            '', *top_lines, *start_lines, *prescale_lines(prescaled), *tax_lines,
+            '', *precheck_lines, *top_lines, *start_lines, *prescale_lines(prescaled), *tax_lines,
             *(['## The non-microdata imputations (on the start; checks in non_micro_checks.md)', '']
               + [f'- {n}' for n in nmi_ctx['notes']] + [''] if nmi_ctx is not None else []),
             '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',
