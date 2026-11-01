@@ -8,7 +8,7 @@ It flags a target when any of three things holds, each found without a solve:
      average is above the largest or below the smallest by more than one standard error (the cell's two relative
      standard errors in quadrature), no weights can meet both. Both targets of the cell are flagged.
   2. The target's relative standard error (standard error over value) is below precheck_min_relative_se (0.1%), for a
-     target that is not an identity: a range so narrow that no solve in a few hundred steps can reach it.
+     target that is not an identity: a standard error so narrow that the cost's pull on it is enormous and no solve in a few hundred steps can reach it.
   3. The start is more than precheck_max_start_gap_se (300) standard errors from the target, for a target that is not
      an identity.
 Settings tilt.precheck: {enabled, min_relative_se, max_start_gap_se, min_excess_se}. Returns the flags table (one row per

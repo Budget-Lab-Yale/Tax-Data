@@ -46,11 +46,9 @@ A family of targets is kept only if it bears on an output, its source matches th
 miss it without it (S5). The SCF targets are computed on the same mix of SCF waves the start draws its balance
 sheet from (S9).
 
-**4. Each year t: the tilt.** The weights move as little as possible (smallest Kullback-Leibler move) so that every
-target lands within its value ± k standard errors (S6): k = 0.5 for the SCF targets (auto loans included) and 1 for every other kind,
-a setting by kind of target (S9). Identities are exact. If the
-ranges cannot all be met, misses beyond them are weighed by their standard errors. Cells resting on too few
-records are flagged, with a stop for the worst (section 5).
+**4. Each year t: the tilt.** One cost (S11, since 1 November): the weights minimize the sum over targets of
+0.5 x importance x (miss ÷ standard error)² plus tau x the Kullback-Leibler move from the start. Identities are exact; no target has a range
+and none is dropped; tau is 1,000. Cells resting on too few records are flagged, with a stop for the worst (section 5).
 
 **5. Each year t: the report** (section 14): every target and where it landed, the thin cells, published numbers
 not targeted, what the tilt moved, and how far the two models disagree.
@@ -164,16 +162,15 @@ across all years. John judged it a solution in search of a problem.
 Targets are what we trust. The prior is not a competing estimate; it is a crude first approximation whose job is
 to supply realistic records (who has what along with what).
 
-- **When every target can be hit, every target is hit exactly.** Among the reweightings that do so, the one that
-  moves the prior least is chosen. The prior only breaks ties; it is never weighed against a target.
-- **When the targets cannot all be hit, each target's standard error decides who gives way.** A miss costs
-  (miss ÷ standard error)², so noisy targets give way and precise ones hold. Example, with made-up numbers: one
-  table puts a group at 27.60 million (standard error 0.28 million), another implies 28.00 million (standard error
-  0.07 million). The file lands at 27.98 million, near the precise one.
+- **Since 1 November (S11) every target is weighed against the move of the weights, in one cost.** A miss costs
+  0.5 x importance x (miss ÷ standard error)², so noisy targets give way and precise ones hold. Example, with made-up
+  numbers: one table puts a group at 27.60 million (standard error 0.28 million), another implies 28.00 million
+  (standard error 0.07 million). The file lands near the precise one, 27.98 million. The move of the weights costs
+  tau times its Kullback-Leibler divergence, so the prior is weighed against the targets, with the weight tau says.
 - Exact, with no error, only for identities.
 
-This is what the current solver does with its default setting. The 22 October plan's extra weight on the prior,
-which would let standard errors loosen targets that can be hit, is dropped.
+(What this section said on 24 October, that every target is hit exactly when all can be, and that standard errors
+decide only when they cannot, was replaced by ranges on 25 October (S6) and by the one cost on 1 November (S11).)
 
 **A target that can be hit only by stretching a few records far is flagged, not silently hit.** The metric is the
 effective number of records behind each target cell after the reweighting: how many records the cell's total
@@ -413,7 +410,7 @@ in `resources/`.
 ## 14. What every run reports (agreed 24 October)
 
 One short summary page per year, with one table behind each item:
-1. **Every target:** value, error, where the file lands, and the miss in errors; targets that gave way first.
+1. **Every target:** value, error, where the file lands, and the miss in errors; targets more than one standard error from their value first.
 2. **Thin cells:** effective records behind each target and the largest weight factor, with section 5's warnings
    and stops.
 3. **Published numbers not targeted:** the file's value and the miss in errors (Table 1.7 today).
@@ -508,10 +505,12 @@ A family is kept only if:
 3. **it is needed:** without it the file would miss the published number by more than its error. This is a
    judgment, informed by the run report's comparisons of numbers not targeted, not a formal test.
 
-The 104 CEX consumption cells (13 cells x 8 categories) are kept for now (25 October): with ranges (S6) they no
+The 104 CEX consumption cells (13 cells x 8 categories) are kept for now (25 October): with ranges (S6, since replaced by S11) they no
 longer conflict with the non-filer people targets.
 
-### S6. Targets are ranges of one standard error (agreed 25 October; replaces section 5's "hit exactly")
+### S6. Targets are ranges of one standard error (agreed 25 October; replaces section 5's "hit exactly"; replaced by S11, 1 November)
+
+*Superseded: the range solver is removed; this section is the record of the rule that ran from 25 October to 1 November.*
 
 Each target is met anywhere within its value ± 1 standard error, at no cost inside the range; the prior decides
 where inside it (the smallest move). Identities stay exact. If the ranges cannot all be met, a miss beyond a range
@@ -547,7 +546,7 @@ configuration file says how each is built.
    rank groups (e.g. p0-50, p50-90, p90-99, p99-99.9, p99.9+), with a judgment error. Stated by rank, so nominal
    growth does not disturb them. They make "the distribution does not drift from what we agreed" a target that is
    checked and reported.
-3. **The tilt**, with ranges (S6).
+3. **The tilt**, one cost (S11).
 
 Projected totals in future years may be identities, so the file matches the baseline it is scored against.
 
@@ -573,7 +572,7 @@ the middle.
 
 **Training settings with it:** batches of 512 records, 80 passes, bfloat16, a network of width 128 and 4 layers.
 
-### S9. SCF targets from the year's mix of waves, held to half a standard error (agreed 26 October)
+### S9. SCF targets from the year's mix of waves, held to half a standard error (agreed 26 October; the half-standard-error ranges ended 1 November, S11)
 
 Tested 26 October (run P3, approved by John; `HISTORY.md`); in the pipeline since 26 October
 (`pipeline/scf_targets.py`, commit 5441ad6).
@@ -661,3 +660,20 @@ the latest run meets every one with 87.2% of the effective sample kept, against 
    top 0.01% as a whole, with the 0.1% and 1% below it, until the aggregate records are in. Table 1.3's capital loss
    is measured as the loss allowed on the return (at most $3,000), as SOI publishes it; generated records that carry
    a net loss past the cap are left as drawn (John, 27 October: the item is definitional).
+
+
+### S11. The reweighting is one cost and no other rule (John, 1 November 2026; decisions 57, 62-65 and 68)
+
+The range solver (S6), the smoothing sequence, the finish step, the penalty sequence, the rule that dropped the costliest
+block of calculator targets in historical years, the limit on each weight's factor and the hard cap on weights are removed;
+none is kept as an option. The weights minimize
+
+    sum over targets of 0.5 x importance x (miss ÷ standard error)²  +  tau x (Kullback-Leibler move of the weights),
+
+with identities exact. Importance is 1 for the published figures of the IRS (kinds IRS, business, soi 1.3, soi 4.3, age,
+dependent filers, tips, deferrals) and for the calculator's columns against them, and 1/1.5 for the survey and pipeline kinds
+(wealth, wealth grid, consumption, auto loans, overtime, non-filers). tau is 1,000 (settings `tilt.reweighting`). Each
+record's weight also pays a soft cap: 0.5 x beta x ((w - U) / U)² above U = 10 x the median starting weight of its AGI group
+(settings `tilt.soft_cap`; beta 1 as the mild strength). The demographic prescaling uses the same cost. At most 100 Newton
+steps in all, never raised. The SCF targets are no longer held to half a standard error: their standard errors enter the cost
+like the others' (S9's value and error are unchanged; its half-standard-error ranges are not).

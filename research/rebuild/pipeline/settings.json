@@ -1837,14 +1837,6 @@
   "_nonfiler_targets_dir": "Inside the run's data folder: the filing stage's checks (filing.py), <year>_nonfilers_vs_targets.csv, column target_heads_spouses.",
   "prescale": "demographic",
   "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
-  "range_in_se": 1.0,
-  "_range_in_se": "TARGETS.md S6: each non-identity target is met anywhere within its value plus or minus this many standard errors, at no cost inside the range (solver.py). 0 hits every target exactly. The number for every kind of target not in range_in_se_by_kind, and for the demographic prescaling. Half a standard error for every target was tested on 26 October (TARGETS.md S6): 23 targets (non-filer people bands against CEX food and health averages) could not all be met and the effective sample kept fell to 31%.",
-  "range_in_se_by_kind": {
-   "wealth": 0.5,
-   "wealth grid": 0.5,
-   "auto loans": 0.5
-  },
-  "_range_in_se_by_kind": "TARGETS.md S9 (approved by John, 26 October): the range in standard errors by kind of target ({kind: k}, the kinds of targets_config/), so the SCF targets are held to half a standard error and every other kind to range_in_se. tilt.py turns it into one number per target for the solver; a kind named here with no targets in the year's list is an error. Empty ({}) or absent: range_in_se for every target, as before. Auto loan interest (kind auto loans, 27 October, candidate) is an SCF target on the same pooled waves, so it takes the SCF targets' half standard error.",
   "precheck": {
    "enabled": true,
    "min_relative_se": 0.001,
@@ -1852,21 +1844,17 @@
    "min_excess_se": 1.0
   },
   "_precheck": "precheck.py (1 November 2026): a check before the reweighting that only reports (precheck_flags.csv, precheck.md, the summary): a target is flagged when the average its count and amount require is outside the records' range by more than min_excess_se standard errors (rule 1), its relative standard error is below min_relative_se (rule 2), or the start is more than max_start_gap_se standard errors from it (rule 3). Nothing is dropped.",
-  "weight_cap_k": null,
-  "_weight_cap_k": "Option B (1 November 2026, off by default): null, or a number k. No record's final weight may exceed k times the median starting weight of its group: eight groups of the calculator's AGI ($0 or less, 0-50k, 50-100k, 100-200k, 200-500k, 500k-1m, 1-10m, 10m and over) for filers, non-filers their own; a per-record upper bound in the solver (solver_weight_upper), no lower bound beyond the solver's own. solver_weight_factor_limit (null by default) keeps every weight between 1/L and L times its start.",
-  "solver_weight_factor_limit": null,
-  "single_cost": {
-   "enabled": false,
-   "tau": 1.0,
+  "reweighting": {
+   "tau": 1000.0,
    "newton_budget": 100,
    "gradient_tolerance": 1e-8,
    "average_weight_change": 0.001,
    "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "dependent filers", "tips", "deferrals", "calculator"],
    "other_importance_divisor": 1.5
   },
-  "soft_cap": {"k": null, "beta": 1.0},
-  "_soft_cap": "A soft cap on each record's final weight (1 November 2026, John; single cost only; off while k is null). U_i is k times the median starting weight of the record's AGI group (nine groups, non-filers their own), and the cost gains 0.5 x beta x ((w_i - U_i)+ / U_i)^2 per record: no cost below U_i, quadratic above it. beta = x^2 makes a record at twice its cap cost as much as an x standard-error miss on a target of importance 1.",
-  "_single_cost": "The reweighting as one cost (1 November 2026, decision 57; off by default, the range solver is the default). The file minimizes the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move of the weights from the start (in nats, on weights divided by the sum of the starting weights); identities are met exactly; there are no ranges, no penalty sequence and no dropping of targets (solver._solve_single). tau: the weight of the move against the misses. newton_budget: the most Newton steps in all (100); never raised. gradient_tolerance: the solver's stopping size for the gradient of the dual, on the solver's scale (a miss as a share of the target's size). average_weight_change: an average's standard error is solved again at the first answer's group weight if a group moved by more than this share. importance_one_kinds: the target kinds with importance 1 (SOI's published tables, W-2 statistics, and the calculator's columns against SOI's); every other kind has importance 1 / other_importance_divisor.",
+  "_reweighting": "The reweighting is one cost and no other rule (1 November 2026, decisions 57, 63, 64 and 68; solver.py). The file minimizes the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move of the weights from the start (in nats, on weights divided by the sum of the starting weights); identities are met exactly; no target has a range and none is dropped. The demographic prescaling uses the same rule on its cells. tau (1,000): the weight of the move against the misses; chosen in decision 63 (median miss 0.04 standard errors, 7 targets above 2 in 2022 on the new targets; the effective sample kept 62.5%). newton_budget: the most Newton steps in all (100); never raised. gradient_tolerance: the solver's stopping size for the gradient of the dual, on the solver's scale (a miss as a share of the target's size). average_weight_change: an average's standard error is solved again at the first answer's group weight if a group moved by more than this share. importance_one_kinds: the target kinds with importance 1 (SOI's published tables, W-2 statistics, and the calculator's columns against SOI's); every other kind has importance 1 / other_importance_divisor.",
+  "soft_cap": {"k": 10, "beta": 1.0},
+  "_soft_cap": "A soft cap on each record's final weight (1 November 2026, decision 62, John). U_i is k times the median starting weight of the record's AGI group (nine groups, non-filers their own), and the cost gains 0.5 x beta x ((w_i - U_i)+ / U_i)^2 per record: no cost below U_i, quadratic above it. beta = x^2 makes a record at twice its cap cost as much as an x standard-error miss on a target of importance 1. beta = 1 is the mild strength (decision 68); beta = 100 held every record within 1.06 U in 2022 (decision 65). k null: no cap.",
   "scf_target_waves": "prior",
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks.",
   "top": {
@@ -2005,7 +1993,7 @@
  "greedy_schedule_a": {
   "enabled": true,
   "passes": 3,
-  "max_move": 0.2,
+  "max_move": 0.25,
   "_what": "Decision 49 (John, 30 October; design ALGO_GROWTH_SEARCH.md, the simple version): in a year with a Table 2.1 (2015-2023), after the growth by the declared priors and the refund rule, each category's input factor s (medical: med_exp; taxes paid: salt_inc_sales and salt_prop; interest: first_mort_int; charity: char_cash and char_noncash) is set so that the start's dollars per claiming return (the calculator's claimed amount over the filer returns claiming it, at the start's weights, all AGI) match Table 2.1's (its amounts over its counts, all AGI groups). passes: calculator runs, each followed by a multiplicative update of s; max_move: s stays within one plus or minus this of the prior (s = 1). Other itemized deductions keep the prior (Table 2.1 has no count for the residual). Years without a Table 2.1 (the chained years from 2024) keep the priors.",
   "table21": "../resources/table21_2015_2023.csv"
  },

@@ -4,7 +4,7 @@ Reads, in the tilt run's folder (common.TILT, or --run):
   file_<year>.parquet  every record, with weight_start (the weight before the tilt), weight (after) and, when the
                        prior pools several trained models, model (the training seed of the network that drew it)
   fit.csv              one row per target, keyed by (kind, group, target): value, before, after, and from the
-                       solver se, miss_in_se, gave_way, effective_records, largest_weight_factor and flag
+                       solver se, miss_in_se, over_1_se, effective_records, largest_weight_factor and flag
   targets.csv          the year's expanded target list (statistic, se, error_kind, source, ...), when it exists
 Writes, in the same folder or --out (REBUILD_REPORT_OUT):
   report.md                  the summary page
@@ -44,7 +44,7 @@ import targets as TG
 R = common.SETTINGS.get('report', {})
 TOP = R.get('rows_on_page', 8)                            # rows of each table shown on the summary page
 MIN_RECORDS = R.get('min_records', 200)                   # records holding the item, for a statistic to be listed
-HIT = R.get('hit_tolerance', 1e-6)                        # a target missed by more than this share gave way
+HIT = R.get('hit_tolerance', 1e-6)                        # a target missed by more than this share is counted as missed
 THIN = {'warning': (R.get('thin_warning_records', 30), R.get('thin_warning_factor', 10)),
         'stop': (R.get('thin_stop_records', 10), R.get('thin_stop_factor', 100))}   # section 5's placeholders
 SOI_CV = R.get('soi_cv', '/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/targets/irs_data/soi_cv.csv')
@@ -222,38 +222,38 @@ def target_table(fit, tl, notes):
     if 'miss_in_se' not in t:
         with np.errstate(divide='ignore', invalid='ignore'):
             t['miss_in_se'] = np.where(t['se'] > 0, t['miss'] / t['se'], np.nan)
-    if 'gave_way' in t:
-        t['gave_way'] = as_bool(t['gave_way'])
+    if 'over_1_se' in t:
+        t['over_1_se'] = as_bool(t['over_1_se'])
     else:
-        t['gave_way'] = (t['miss (%)'].abs() > 100 * HIT).to_numpy()
-        notes.append(f'The fit table has no gave_way column: a target is counted as having given way when the file '
+        t['over_1_se'] = (t['miss (%)'].abs() > 100 * HIT).to_numpy()
+        notes.append(f'The fit table has no over_1_se column: a target is counted as missed when the file '
                      f'misses it by more than {HIT:g} of its value.')
     plain = [describe(k, g, x) for k, g, x in zip(t['kind'], t['group'], t['target'])]
     t['what'], t['cell'] = [p[0] for p in plain], [p[1] for p in plain]
     t['fit_row'] = np.arange(len(t))   # the row's place in fit.csv, the order the conditions come in
     t = t.assign(_z=t['miss_in_se'].abs(), _p=t['miss (%)'].abs())
-    t = t.sort_values(['gave_way', '_z', '_p', 'fit_row'], ascending=[False, False, False, True], na_position='last')
+    t = t.sort_values(['over_1_se', '_z', '_p', 'fit_row'], ascending=[False, False, False, True], na_position='last')
     first = ['kind', 'group', 'target', 'what', 'cell', 'statistic', 'value', 'se', 'before', 'after', 'miss',
-             'miss (%)', 'miss_in_se', 'gave_way']
+             'miss (%)', 'miss_in_se', 'over_1_se']
     return t[first + [c for c in t.columns if c not in first and not c.startswith('_')]]
 
 
 def target_page(t, notes):
-    by = t.groupby('kind', sort=False).agg(targets=('value', 'size'), gave_way=('gave_way', 'sum'),
+    by = t.groupby('kind', sort=False).agg(targets=('value', 'size'), over_1_se=('over_1_se', 'sum'),
                                            largest_miss_pct=('miss (%)', lambda s: s.abs().max()),
                                            largest_miss_se=('miss_in_se', lambda s: s.abs().max()))
-    by = by.reset_index().rename(columns={'kind': 'kind of target', 'gave_way': 'gave way',
+    by = by.reset_index().rename(columns={'kind': 'kind of target', 'over_1_se': 'miss over 1 se',
                                           'largest_miss_pct': 'largest miss (%)',
                                           'largest_miss_se': 'largest miss (standard errors)'})
-    gave = t[t['gave_way']].head(TOP)
+    gave = t[t['over_1_se']].head(TOP)
     shown = pd.DataFrame({'target': gave['what'], 'cell': gave['cell'],
                           'value': [show(v, s) for v, s in zip(gave['value'], gave['statistic'])],
                           'standard error': [show(v, s) for v, s in zip(gave['se'], gave['statistic'])],
                           'file': [show(v, s) for v, s in zip(gave['after'], gave['statistic'])],
                           'miss (%)': gave['miss (%)'].round(2), 'miss (standard errors)': gave['miss_in_se'].round(2)})
-    out = [f"{len(t)} targets; {int(t['gave_way'].sum())} gave way.", '', table(by, ',.3g'), '']
+    out = [f"{len(t)} targets; {int(t['over_1_se'].sum())} are more than one standard error from their value (an identity: missed at all).", '', table(by, ',.3g'), '']
     if len(gave):
-        out += [f'The {len(gave)} that gave way most:', '', table(shown), '']
+        out += [f'The {len(gave)} with the largest misses:', '', table(shown), '']
     return out + [f'- {n}' for n in notes] + ['', 'Full table: report_targets.csv.']
 
 
@@ -894,7 +894,7 @@ def overall(df, t, th, w0, w1, run, tl):
     n = th['flag'].value_counts() if len(th) else pd.Series(dtype=int)
     rows = [('records', f'{len(df):,}'),
             ('units, after the tilt (millions)', f'{w1.sum() / 1e6:,.2f}'),
-            ('targets', f'{len(t)}'), ('targets that gave way', f"{int(t['gave_way'].sum())}"),
+            ('targets', f'{len(t)}'), ('targets more than 1 se from their value', f"{int(t['over_1_se'].sum())}"),
             ('thin cells: stops, warnings', f"{n.get('stop', 0)}, {n.get('warning', 0)}"),
             ('effective sample kept (%)', f'{100 * ess(w1) / ess(w0):.2f}'),
             ('KL move (nats)', f'{float(np.sum(p1[keep] * np.log(p1[keep] / p0[keep]))):.4f}'),

@@ -35,9 +35,9 @@ targets for 2019.
   2022 wave, 12% the 2016 wave for 2019); the CEX, CPS and SIPP items each from a
   mix of two survey years (73% 2019, 27% 2017). Every dollar amount is in 2019
   dollars before the tilt. The 2019 targets come from `pipeline/targets_config/`,
-  each with a standard error, and are met within ranges: half a standard error
-  for the SCF targets, which come from the same mix of waves as the balance
-  sheet, and one for the rest (`TARGETS.md` S9).
+  each with a standard error, and enter the reweighting's one cost
+  (`TARGETS.md` S11); the SCF targets come from the same mix of waves as the balance
+  sheet (S9).
 - **Non-microdata imputations** (built 28 October on branch `rebuild-nonmicro`; not in the installed latest's file).
   Items set inside the tilt stage from what the model drew plus a published table: dependent filers' exact age and
   sex, child credit eligibility, death probabilities, yearly unrealized gains and cost basis of each asset, the
@@ -970,13 +970,17 @@ dollars grown item by item to year t). Weights are scaled to SOI's return count 
 and non-joint returns, then (`tilt.prescale` "demographic") to Table 1.6's returns by age x joint and to the
 non-filer people by age (section 4).
 
-**The tilt** (`solver.py`; TARGETS.md S6, S9): the smallest reweighting, by Kullback-Leibler divergence, that puts
-every target within its value ± k standard errors; identities exact. k is set by kind of target: 0.5 for the SCF
-targets (`tilt.range_in_se_by_kind`: wealth, wealth grid and auto loans) and 1 for every other kind (`tilt.range_in_se`). If the
-ranges cannot all be met, a miss beyond a range costs (miss ÷ standard error)². A range on an average is measured on
-the average itself, with the cell's weight after the tilt. Cells resting on too few effective records, or on a
-record moved too far, are flagged as warnings or stops (section 5).
-- **Why half a standard error only for the SCF.** At 0.5 for every target (run P1, `HISTORY.md` 25–26 October)
+**The tilt** (`solver.py`; TARGETS.md S11): the one-cost reweighting, the only rule. The weights minimize the sum over
+targets of 0.5 x importance x (miss ÷ standard error)² plus tau x the Kullback-Leibler move from the start; identities
+exact; no target has a range and none is dropped. tau is 1,000 and the budget 100 Newton steps in all (settings
+`tilt.reweighting`); importance is 1 for the IRS's published figures and the calculator's columns, 1/1.5 for the survey and
+pipeline kinds. A soft cap on each weight (`tilt.soft_cap`: 0.5 x beta x ((w - U) ÷ U)² above U = 10 x the median starting
+weight of the record's AGI group, beta 1) replaces the earlier hard caps and factor limits. An average's standard error is on the average itself, with the cell's weight after
+the reweighting. The demographic prescaling uses the same cost. Cells resting on too few effective records, or on a
+record moved too far, are flagged as warnings or stops (section 5). Every run's summary carries the check before the
+reweighting and the table of weight factors (final over starting weight) by AGI group. Schedule A's growth adjustment
+(decision 49) is limited to ±25% of the declared factor.
+- **History: why half a standard error only for the SCF (the range rule of 26 October, ended 1 November).** At 0.5 for every target (run P1, `HISTORY.md` 25–26 October)
   23 targets could not be met, the non-filer people bands against the CEX food and health averages, and the
   effective sample kept fell to 31%. At 0.5 for the SCF targets alone (run P3, approved by John) every target is met
   and 97.75% is kept; the file keeps more net worth at the top of income than with every range at 1 ($9.91

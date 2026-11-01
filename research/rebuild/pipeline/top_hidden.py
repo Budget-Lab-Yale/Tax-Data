@@ -31,10 +31,10 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
   4. Starting weights: each group's population count from the raw record (S006 / 100, unrounded), divided equally.
   5. Counts. SOI's booklet table for the aggregate records (2015 Public Use File booklet, printed pp. 32-36,
      resources/top_hidden/soi_2015_aggregate_booklet.csv) gives, for all four records together, the returns with a
-     positive and with a negative amount of each field. The weights move as little as possible (solver.solve, the
-     Kullback-Leibler move) so that the combined positive and negative counts of every field the rebuild carries
-     (COUNT_FIELDS) come within the larger of 2 returns and 2% (settings count_tolerance); each group's total count is
-     an identity. Counts that cannot be met give way and are reported.
+     positive and with a negative amount of each field. The weights are found by the one-cost reweighting (solver.solve,
+     tau 1: each count is pulled to the booklet's with the larger of 2 returns and 2% (settings count_tolerance) as its
+     standard error, against the Kullback-Leibler move of the weights); each group's total count is an identity. The
+     table of counts reports, for each, whether it is within its tolerance.
   6. Dollars. Each group's net amount of each field the rebuild draws (a "part": PRIMITIVES) is the raw record's mean
      times its unrounded weight, through the same translation from PUF fields as build_table.puf_rows (puf_items).
      Positive and negative amounts of a part are scaled by one factor each per group (never the totals), so that every
@@ -557,7 +557,7 @@ def match_counts(frame, grp, n_ret, book):
     T = np.array(list(n_ret) + [c[2] for c in cts])
     se = np.array([0.0] * N_G + [c[3] for c in cts])
     ident = np.array([True] * N_G + [False] * len(cts))
-    w1, info = SV.solve(w0, F, T, se, ident, [None] * len(T), {'range_in_se': 1.0})
+    w1, info = SV.solve(w0, F, T, se, ident, [None] * len(T), {'reweighting': {'tau': 1.0, 'newton_budget': 100}})
     tab = pd.DataFrame({'count': [f'returns, {g}' for g in GROUPS] + [c[0] for c in cts], 'booklet': T,
                         'tolerance': se, 'equal weights': F.T @ w0, 'after matching': F.T @ w1})
     tab['met'] = np.abs(tab['after matching'] - tab['booklet']) <= tab['tolerance'] * 1.001 + 1e-6   # solver rounding
@@ -900,7 +900,7 @@ def build():
     pd.DataFrame(zeroed).to_csv(f'{out}/check_zeroed.csv', index=False)
     pd.Series({'selected candidates': len(chosen), 'selected, population weight': w[chosen].sum(),
                'candidates': len(cand), 'kept records': len(h15), 'count solve': info['how'],
-               'count solve feasible': info['feasible'], 'effective sample kept by the count matching (%)': 100 * info['effective_sample_kept'],
+               'count solve converged': info['converged'], 'effective sample kept by the count matching (%)': 100 * info['effective_sample_kept'],
                'largest weight factor of the count matching': info['largest_weight_factor_overall'],
                'smallest weight factor of the count matching': info['smallest_weight_factor']}
               ).to_csv(f'{out}/check_selection.csv', header=['value'])
