@@ -112,7 +112,7 @@ def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married,
             seb, idb = np.append(seb, [0.0, 0.0]), np.append(idb, [True, True])
             labels += [lab for _, _, lab in extra]
         wb0 = w[rec]
-        wb1, info = SV.solve(wb0, Fb, Tb, seb, idb, [None] * len(Tb), S, fixed=fixed[rec])
+        wb1, info = SV.solve(wb0, Fb, Tb, seb, idb, [None] * len(Tb), {**S, 'solver_weight_factor_limit': None}, fixed=fixed[rec])
         ess = lambda v: v.sum() ** 2 / (v ** 2).sum()
         f = wb1 / wb0
         out.append({'batch': batch, 'records': int(rec.sum()), 'cell count': len(Tb), 'feasible': info['feasible'],
@@ -571,7 +571,13 @@ def main():
         _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
                                     common.TILT, S['precheck'])
         common.say('\n'.join(precheck_lines))
+    import time
+    t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
+    info['solve_seconds'] = time.time() - t_solve
+    common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
+               f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended at the cap of "
+               f"{S_main.get('solver_max_newton_steps', 200)} steps)")
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
     if top is not None:
         TR.write_report(top, common.TILT, Y)

@@ -77,6 +77,13 @@ import numpy as np
 import pandas as pd
 
 
+# What Newton's method did in the last solve, and the limit on each weight's move (1 November 2026). 'steps': Newton
+# steps taken over every call of _newton in the solve (each call has its own cap, solver_max_newton_steps); 'calls': the
+# number of calls; 'limit': None, or (lowest, highest) factor of final over starting weight (settings
+# solver_weight_factor_limit L gives (1/L, L)). Set by _solve.
+NEWTON = {'steps': 0, 'calls': 0, 'limit': None, 'capped_calls': 0}
+
+
 def _get(settings, name, default):
     return default if settings is None else settings.get(name, default)
 
@@ -173,12 +180,26 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
         r = np.sqrt(lam ** 2 + eps ** 2)
         return r, lam / r, eps ** 2 / r ** 3
 
+    lim = NEWTON['limit']
+    if lim is not None:
+        # Bounded weights: the factor of the weight over its start is exp(z) clipped to [lo, hi]. The dual's integrand
+        # is exp(z) inside the bounds and, beyond one, the straight line of the same value and slope there
+        # (hi (z - ln hi + 1) above, lo (z - ln lo + 1) below), so the dual is convex and its slope is continuous; its
+        # curvature is exp(z) inside the bounds and zero beyond them.
+        lo_f, hi_f = lim
+        ln_lo, ln_hi = np.log(lo_f), np.log(hi_f)
+
     def dual(lam):
         a = kink(lam)[0]
         with np.errstate(over='ignore', invalid='ignore'):
             z = X @ lam if kc is None else X @ lam + Kv @ a[kc]
-            e = p * np.exp(z)
-            return e.sum() - lam @ t + 0.5 * (s2 * lam ** 2).sum() + (b * a).sum(), e
+            if lim is None:
+                e = p * np.exp(z)
+                return e.sum() - lam @ t + 0.5 * (s2 * lam ** 2).sum() + (b * a).sum(), e
+            f = np.clip(np.exp(np.minimum(z, ln_hi + 1.0)), lo_f, hi_f)
+            psi = np.where(z > ln_hi, hi_f * (z - ln_hi + 1.0), np.where(z < ln_lo, lo_f * (z - ln_lo + 1.0), np.exp(np.minimum(z, ln_hi))))
+            e = p * f
+            return (p * psi).sum() - lam @ t + 0.5 * (s2 * lam ** 2).sum() + (b * a).sum(), e
 
     def gradient(lam, e):
         slope = kink(lam)[1]
@@ -189,6 +210,10 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
 
     def hessian(lam, e):
         _, slope, curve = kink(lam)
+        e1 = e                       # the slope of the integrand (the weights), for the kink's curvature term
+        if lim is not None:          # the integrand's curvature: the weights where inside the bounds, else zero
+            f = e / p
+            e = np.where((f > lo_f * (1 + 1e-12)) & (f < hi_f * (1 - 1e-12)), e, 0.0)
         Xe = X * e[:, None]
         H = X.T @ Xe + np.diag(s2 + b * curve)
         if kc is not None:
@@ -197,7 +222,7 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
             A = (X.T @ Ke) * slope[kc][None, :]
             H[:, kc] += A
             H[kc, :] += A.T
-            H[np.ix_(kc, kc)] += (Kv.T @ Ke) * np.outer(slope[kc], slope[kc]) + np.diag((Kv.T @ e) * curve[kc])
+            H[np.ix_(kc, kc)] += (Kv.T @ Ke) * np.outer(slope[kc], slope[kc]) + np.diag((Kv.T @ e1) * curve[kc])
         return H
 
     D, e = dual(lam)
@@ -205,6 +230,7 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
         lam = np.zeros_like(lam)
         D, e = dual(lam)
     best, stuck = np.inf, 0
+    NEWTON['calls'] += 1
     for _ in range(max_steps):
         g = gradient(lam, e)
         if g.size == 0:   # (30 October) no condition left to hold (every range met at the start): the start stands
@@ -222,6 +248,7 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
         best = min(best, size_g)
         if stuck >= 5 and size_g < 1e-7:
             return lam, e, 'converged'
+        NEWTON['steps'] += 1
         H = hessian(lam, e)
         d = np.sqrt(np.diag(H)) + 1e-300      # each multiplier on its own scale before solving
         step = np.linalg.solve(H / d[:, None] / d[None, :] + 1e-12 * np.eye(len(t)), -g / d) / d
@@ -241,6 +268,8 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
                 return lam, e, 'converged' if np.abs(g).max() < 100 * tol else 'stalled'
         lam, D, e = lam + a * step, D_new, e_new
     g = gradient(lam, e)
+    if np.abs(g).max() >= tol:
+        NEWTON['capped_calls'] += 1
     return lam, e, 'converged' if np.abs(g).max() < tol else 'out of steps'
 
 
@@ -323,6 +352,9 @@ def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=N
     smoothing = list(_get(settings, 'solver_range_smoothing', [1e-2, 1e-4, 1e-6, 1e-8]))
     finish_rounds = _get(settings, 'solver_finish_rounds', 10)
 
+    limit = _get(settings, 'solver_weight_factor_limit', None)   # off by default
+    assert limit is None or limit > 1, 'solver_weight_factor_limit: None, or a number above 1'
+    NEWTON.update({'steps': 0, 'calls': 0, 'capped_calls': 0, 'limit': None if limit is None else (1.0 / limit, float(limit))})
     G, Tl, size, member = _conditions(w0, F, T, averages, offset, extra, size_of)
     W = w0.sum()
     p = w0 / W
@@ -432,6 +464,8 @@ def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=N
                 lam, e = lam_f, e_f
     w1 = W * e
     return w1, {'feasible': bool(feasible), 'converged': bool(converged), 'how': '; '.join(how), 'range_in_se': k,
+                'newton_steps': NEWTON['steps'], 'newton_calls': NEWTON['calls'],
+                'newton_capped_calls': NEWTON['capped_calls'], 'weight_factor_limit': limit,
                 'continuation': pd.DataFrame(steps), 'multipliers': lam}
 
 
@@ -697,5 +731,9 @@ def summary_lines(info, fit):
               f"{int(fit['at_range_edge'].sum()) if 'at_range_edge' in fit else 'n/a'}; thin-cell warnings "
               f"{info['warnings']}, stops {info['stops']}.",
               f"- Kullback-Leibler move {info['kl_move']:.4f} nats; effective sample kept "
-              f"{100 * info['effective_sample_kept']:.1f}%."]
+              f"{100 * info['effective_sample_kept']:.1f}%.",
+              f"- Newton steps: {info.get('newton_steps', 'n/a')} in {info.get('newton_calls', 'n/a')} calls "
+              f"(each call capped at solver_max_newton_steps; {info.get('newton_capped_calls', 'n/a')} ended at the cap)."
+              + ('' if info.get('weight_factor_limit') is None else
+                 f" Each weight limited to 1/{info['weight_factor_limit']:g} to {info['weight_factor_limit']:g} times its start.")]
     return lines
