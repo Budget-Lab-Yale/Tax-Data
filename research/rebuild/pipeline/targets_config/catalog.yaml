@@ -637,6 +637,10 @@ item_aliases:
 # Named lists of variables, so an entry can say "the income items".
 variable_lists:
   income_items: [wages, taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
+  # (1 November, decision 57 d) Table 1.4's wages on the standard AGI grid, its interest, dividends and capital gains
+  # on the broad one
+  income_items_standard: [wages]
+  income_items_broad: [taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
   business: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
              rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
              farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
@@ -659,15 +663,18 @@ variable_lists:
                           wealth_primary_home, wealth_other_real_estate, wealth_other_assets, wealth_mortgages,
                           wealth_other_debt]
   # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
-  soi_1_3_items: [wages, taxable_interest, ordinary_dividends, exempt_int, state_ref, alimony,
-                  sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, other_gains, txbl_ira_dist,
+  # (1 November, decision 57 d, John) eight of Table 1.3's items are no longer targeted: total income, other gains,
+  # tax-exempt interest, state refunds, estate and trust net, farm net, farm rental net and alimony (64 targets a year);
+  # the variables stay defined above
+  soi_1_3_items: [wages, taxable_interest, ordinary_dividends,
+                  sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, txbl_ira_dist,
                   txbl_pens_dist, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
-                  pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
+                  pship_scorp_net]
   # tax year 2018 (30 October): taxable IRA distributions and pensions published as one line
-  soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends, exempt_int, state_ref, alimony,
-                       sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, other_gains,
+  soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends,
+                       sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss,
                        ira_pensions_taxable, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
-                       pship_scorp_net, estate_trust_net, farm_net, farm_rental_net, total_income]
+                       pship_scorp_net]
   soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,
                   pship_scorp_net_income, pship_scorp_net_loss]
   # Auto loan interest from the SCF: the share of units with any and the dollars per unit
@@ -840,6 +847,43 @@ groupings:
       - [200000, 400000, $200k-400k]
       - [400000, 1000000, $400k-1m]
       - [1000000, null, $1m and over]
+  # (1 November, decision 57 d, John) The standard AGI grid: Table 1.4 returns and wages, the calculator's taxable income,
+  # tax before and after credits, itemizers, EITC and the child credit. Sixteen groups; every edge is an edge of
+  # Table 1.4's own brackets, so a group sums whole published cells ($1-10k is $1-5k and $5-10k; $20-30k is
+  # $20-25k and $25-30k; the standard error of a group is the cells' errors added in quadrature). Where a table's own
+  # brackets cross an edge (Table 3.3 joins $1m-2m, for example) the two groups are merged for that variable
+  # (merge_across_published) and the group's label says so.
+  standard_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 10000, $1-10k]
+      - [10000, 20000, $10k-20k]
+      - [20000, 30000, $20k-30k]
+      - [30000, 40000, $30k-40k]
+      - [40000, 50000, $40k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 500000, $200k-500k]
+      - [500000, 1000000, $500k-1m]
+      - [1000000, 1500000, $1m-1.5m]
+      - [1500000, 2000000, $1.5m-2m]
+      - [2000000, 5000000, $2m-5m]
+      - [5000000, 10000000, $5m-10m]
+      - [10000000, null, $10m and over]
+  # (1 November, decision 57 d) The broad AGI grid is business_agi_groups above (no AGI, under $50k, $50k-100k,
+  # $100k-200k, $200k-1m, $1m and over): Table 1.4 interest, dividends and capital gains and the whole business block.
+  # Dependent filers (Table 1.7): the low part of the standard grid, then one group.
+  dependent_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 10000, $1-10k]
+      - [10000, 20000, $10k-20k]
+      - [20000, null, $20k and over]
   joint_or_not:
     variable: married
     values: [[1, joint], [0, non-joint]]

@@ -321,6 +321,29 @@ def _finish(X, t, p, s2, b, K, lam, free, s, eps, max_steps, tol, rounds):
 
 
 # ---- the solver --------------------------------------------------------------------------
+def _weight_bounds(settings, w0):
+    """The limits on each weight's factor (final over start): (limit, upper, lim). limit: settings
+    solver_weight_factor_limit (None, or a number above 1: every factor between 1/limit and limit). upper: (1 November,
+    option B) settings solver_weight_upper, None or each record's highest final weight (one per record of this call); it
+    bounds the factor above by upper / start weight, record by record, with no lower bound beyond the solver's own
+    (zero) unless the factor limit is also set. lim: None, or (lowest, highest) factor for each record, as _newton
+    reads it."""
+    n = len(w0)
+    limit = _get(settings, 'solver_weight_factor_limit', None)   # off by default
+    assert limit is None or limit > 1, 'solver_weight_factor_limit: None, or a number above 1'
+    upper = _get(settings, 'solver_weight_upper', None)
+    if limit is None and upper is None:
+        return limit, upper, None
+    lo_b = np.full(n, 0.0 if limit is None else 1.0 / limit)
+    hi_b = np.full(n, np.inf if limit is None else float(limit))
+    if upper is not None:
+        upper = np.asarray(upper, float)
+        assert upper.shape == (n,) and (upper > 0).all(), 'solver_weight_upper: one positive weight per record'
+        hi_b = np.minimum(hi_b, upper / np.where(w0 > 0, w0, 1.0))
+    hi_b = np.minimum(hi_b, 1e12)      # a finite ceiling (a record with no upper bound)
+    return limit, upper, (lo_b, hi_b)
+
+
 def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=None, size_of=None):
     """The section S6 rule on the records given (solve without fixed records, or the free records of solve with
     them: offset, extra and size_of as in _conditions). Returns the new weights and the solve's own dict (feasible,
@@ -353,23 +376,7 @@ def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=N
     smoothing = list(_get(settings, 'solver_range_smoothing', [1e-2, 1e-4, 1e-6, 1e-8]))
     finish_rounds = _get(settings, 'solver_finish_rounds', 10)
 
-    limit = _get(settings, 'solver_weight_factor_limit', None)   # off by default
-    assert limit is None or limit > 1, 'solver_weight_factor_limit: None, or a number above 1'
-    # (1 November, option B) solver_weight_upper: None, or each record's highest final weight (array, one per record of
-    # this call). It bounds the factor above by upper / start weight, record by record; no lower bound beyond the
-    # solver's own (zero), unless solver_weight_factor_limit is also set.
-    upper = _get(settings, 'solver_weight_upper', None)
-    if limit is None and upper is None:
-        lim = None
-    else:
-        lo_b = np.full(n, 0.0 if limit is None else 1.0 / limit)
-        hi_b = np.full(n, np.inf if limit is None else float(limit))
-        if upper is not None:
-            upper = np.asarray(upper, float)
-            assert upper.shape == (n,) and (upper > 0).all(), 'solver_weight_upper: one positive weight per record'
-            hi_b = np.minimum(hi_b, upper / np.where(w0 > 0, w0, 1.0))
-        hi_b = np.minimum(hi_b, 1e12)      # a finite ceiling (a record with no upper bound)
-        lim = (lo_b, hi_b)
+    limit, upper, lim = _weight_bounds(settings, w0)
     NEWTON.update({'steps': 0, 'calls': 0, 'capped_calls': 0, 'limit': lim})
     G, Tl, size, member = _conditions(w0, F, T, averages, offset, extra, size_of)
     W = w0.sum()
@@ -485,6 +492,89 @@ def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=N
                 'continuation': pd.DataFrame(steps), 'multipliers': lam}
 
 
+def _solve_single(w0, F, T, se, identity, averages, settings=None, offset=None, extra=None, size_of=None):
+    """The reweighting as one cost (1 November 2026, decision 57; settings solver_single_cost, tilt.single_cost). With
+    m_j the miss of target j (where the file lands less its value), s_j its standard error and rho_j its importance:
+
+        minimize   sum_j 0.5 rho_j (m_j / s_j)^2  +  tau x D(w),    identities exact,
+        D(w) = sum_i [w_i log(w_i / w0_i) - w_i + w0_i]   on weights divided by sum(w0), so D is in nats.
+
+    The answer is w_i = w0_i exp((X lambda)_i), with lambda the minimizer of the smooth, strictly convex function
+        phi(lambda) = sum_i p_i exp((X lambda)_i) - t . lambda + (1/2) sum_j (tau s_j^2 / rho_j) lambda_j^2,
+    whose gradient X'w - t + tau (s^2 / rho) lambda is zero when m_j = - tau s_j^2 lambda_j / rho_j (X, t and p are the
+    conditions and weights on the solver's scale, as in _newton). An identity has s = 0, so its penalty term vanishes
+    and the condition is met exactly. This is _newton with no ranges, the penalty variance tau s^2 / rho, and one
+    solve: no ranges, no smoothing sequence, no finish, no penalty sequence, no dropping of targets. An optional cap
+    on each weight (solver_weight_upper) enters as in _solve (the record term of phi is linear beyond the cap).
+    An average's standard error is on the average itself, so its penalty carries the group's weight after the tilt;
+    it is taken at the start's group weight, then once more at the first answer's if that moved any group by more than
+    solver_single_cost['average_weight_change'] (and steps are left).
+    The budget (solver_single_cost['newton_budget'], 100) is the number of Newton steps in all, over every call."""
+    cfg = _get(settings, 'solver_single_cost', {})
+    tau = float(cfg['tau'])
+    assert tau > 0, 'single cost: tau above 0'
+    budget = int(cfg.get('newton_budget', 100))
+    tol = float(cfg.get('gradient_tolerance', 1e-8))
+    avg_change = float(cfg.get('average_weight_change', 1e-3))
+    w0 = np.asarray(w0, float)
+    F = np.asarray(F, float)
+    T = np.asarray(T, float)
+    se = np.asarray(se, float)
+    identity = np.asarray(identity, bool)
+    n, m = F.shape
+    averages = list(averages) if averages is not None else [None] * m
+    assert w0.shape == (n,) and T.shape == se.shape == identity.shape == (m,) and len(averages) == m
+    assert np.isfinite(w0).all() and (w0 >= 0).all() and w0.sum() > 0, 'starting weights must be finite and >= 0'
+    assert np.isfinite(F).all() and np.isfinite(T).all(), 'a missing value in F or T'
+    bad = ~identity & ~(np.isfinite(se) & (se > 0))
+    assert not bad.any(), f'targets {np.flatnonzero(bad).tolist()}: not identities, but no positive standard error'
+    rho = _get(settings, 'solver_importance', None)
+    rho = np.ones(m) if rho is None else np.asarray(rho, float)
+    assert rho.shape == (m,) and np.isfinite(rho).all() and (rho > 0).all(), 'solver_importance: m positive numbers'
+    limit, upper, lim = _weight_bounds(settings, w0)
+    NEWTON.update({'steps': 0, 'calls': 0, 'capped_calls': 0, 'limit': lim})
+    G, Tl, size, member = _conditions(w0, F, T, averages, offset, extra, size_of)
+    W = w0.sum()
+    p = w0 / W
+    X = G * (W / size)
+    t = Tl / size
+    is_avg = np.array([mm is not None for mm in member])
+    free = ~identity
+
+    def scaled_se(w):
+        return np.where(is_avg, se * np.nan_to_num(_group_weight(w, member, extra)), se) / size * free
+
+    def penalty_variance(s):
+        return tau * s ** 2 / rho * free
+
+    lam = np.zeros(m)
+    s = scaled_se(w0)
+    group0 = _group_weight(w0, member, extra)
+    rounds, notes, status = 0, [], 'converged'
+    while True:
+        rounds += 1
+        left = budget - NEWTON['steps']
+        lam, e, status = _newton(X, t, p, penalty_variance(s), lam, max(left, 0), tol)
+        if status != 'converged' or not is_avg[free].any() or rounds >= 3:
+            break
+        group = _group_weight(W * e, member, extra)
+        change = float(np.nanmax(np.abs(group / group0 - 1)))
+        notes.append(f'average groups moved by up to {100 * change:.2f}% (round {rounds})')
+        if change < avg_change or NEWTON['steps'] >= budget:
+            break
+        s, group0 = scaled_se(W * e), group
+    converged = status == 'converged'
+    w1 = W * e
+    g = X.T @ e - t + penalty_variance(s) * lam
+    how = (f'one cost, tau = {tau:g}: {status} in {NEWTON["steps"]} Newton steps of a budget of {budget} '
+           f'({rounds} round(s)); largest gradient {np.abs(g).max():.2e}' + ('; ' + '; '.join(notes) if notes else ''))
+    return w1, {'feasible': bool(converged), 'converged': bool(converged), 'how': how, 'range_in_se': _range_k(settings, m),
+                'newton_steps': NEWTON['steps'], 'newton_calls': NEWTON['calls'], 'newton_capped_calls': NEWTON['capped_calls'],
+                'weight_factor_limit': limit, 'weight_upper': upper is not None, 'continuation': pd.DataFrame(),
+                'multipliers': lam, 'single_cost': True, 'tau': tau, 'newton_budget': budget, 'status': status,
+                'largest_gradient': float(np.abs(g).max()), 'rho': rho}
+
+
 def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
     """The section S6 rule. w0: starting weights (records). F: records x targets, so that target j is met when
     F[:, j] @ w == T[j]. se: each target's standard error in the published statistic's units (on the average itself
@@ -507,8 +597,9 @@ def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
     T = np.asarray(T, float)
     m = len(T)
     averages = list(averages) if averages is not None else [None] * m
+    one = _solve_single if _get(settings, 'solver_single_cost', None) else _solve   # 1 November: the single cost, if set
     if fixed is None or not np.asarray(fixed, bool).any():
-        w1, info = _solve(w0, F, T, se, identity, averages, settings)
+        w1, info = one(w0, F, T, se, identity, averages, settings)
         fixed = np.zeros(len(w0), bool)
     else:
         fixed = np.asarray(fixed, bool)
@@ -531,7 +622,7 @@ def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
         size_of = np.abs(T).astype(float)
         up = _get(settings, 'solver_weight_upper', None)
         settings_free = settings if up is None else {**settings, 'solver_weight_upper': np.asarray(up, float)[free_]}
-        w1f, info = _solve(w0[free_], F[free_], T_free, se, identity, av_free, settings_free, offset, extra, size_of)
+        w1f, info = one(w0[free_], F[free_], T_free, se, identity, av_free, settings_free, offset, extra, size_of)
         w1 = w0.copy()
         w1[free_] = w1f
         mv = move(w0[free_], w1f)
@@ -740,6 +831,19 @@ def summary_lines(info, fit):
     if info['stop']:
         lines += [f"**STOP: {info['stops']} target(s) rest on too few records or too large a weight factor "
                   f"(see the thin cells table).**", '']
+    if info.get('single_cost'):
+        # one cost, no ranges (1 November): the misses are in standard errors, each target's own
+        miss = np.abs(np.nan_to_num(np.asarray(fit['miss_in_se'], float)))
+        lines += [f"- One cost, tau = {info['tau']:g}: {'converged' if info['converged'] else 'NOT converged'} ({info['how']}).",
+                  f"- Largest miss {miss.max():.2f} standard errors; targets more than 0.1 se from their value: {int((miss > 0.1).sum())}, "
+                  f"more than 1 se: {int((miss > 1).sum())}; thin-cell warnings {info['warnings']}, stops {info['stops']}.",
+                  f"- Kullback-Leibler move {info['kl_move']:.4f} nats; effective sample kept "
+                  f"{100 * info['effective_sample_kept']:.1f}%.",
+                  f"- Newton steps: {info['newton_steps']} in {info['newton_calls']} calls, budget {info['newton_budget']}."
+                  + ('' if info.get('weight_factor_limit') is None else
+                     f" Each weight limited to 1/{info['weight_factor_limit']:g} to {info['weight_factor_limit']:g} times its start.")
+                  + (' Each weight capped (solver_weight_upper).' if info.get('weight_upper') else '')]
+        return lines
     k = info.get('range_in_se', 1.0)
     within = f'inside its range of {_range_name(k)} standard error(s)' if np.any(np.asarray(k) > 0) else 'hit exactly'
     lines += [f"- Every non-identity target {within}: {'yes' if info['feasible'] else 'no'}"

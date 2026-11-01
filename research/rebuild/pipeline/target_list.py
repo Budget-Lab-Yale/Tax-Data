@@ -484,6 +484,17 @@ def published_17(soi, year, cells, stats):
     cell = pd.DataFrame({'lo': [-np.inf if a == '-Inf' else float(a) for a in t['row_agi_lo']],
                          'hi': [np.inf if a == 'Inf' else float(a) for a in t['row_agi_hi']],
                          'label': t['row_label'].to_numpy(), 'value': t['value'].astype(float).to_numpy()}).sort_values('lo')
+    if 'edges' in g:
+        # (1 November, decision 57 d) our own AGI groups (dependent_agi_groups): each sums the published brackets inside
+        # it, merged where a published bracket crosses an edge (merge_groups), as Table 1.4's groups are
+        groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in g['edges']]
+        if g.get('merge_across_published'):
+            groups = merge_groups(groups, list(cell[['lo', 'hi', 'label']].itertuples(index=False, name=None)))
+        covered = sum(int(((cell.lo >= lo) & (cell.hi <= hi)).sum()) for lo, hi, _ in groups)
+        assert covered == len(cell), f'Table 1.7 {year}: a published bracket in none of the groups of {c["agi"]}'
+        return [{'cell': lab, 'agi': (lo, hi), 'statistic': 'units',
+                 'value': float(cell.loc[(cell.lo >= lo) & (cell.hi <= hi), 'value'].sum()),
+                 'source': f'soi 1.7 {year}: dependent filers, number of returns'} for lo, hi, lab in groups]
     rule, total = g['merge_top_until'], TG.returns(soi, year)
     out = list(cell[['lo', 'hi', 'label']].itertuples(index=False, name=None))
     count = dict(zip(cell['lo'], cell['value']))

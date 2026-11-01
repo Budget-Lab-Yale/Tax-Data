@@ -118,7 +118,7 @@ def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married,
         out.append({'batch': batch, 'records': int(rec.sum()), 'cell count': len(Tb), 'feasible': info['feasible'],
                     'how': info['how'], 'effective records before': ess(wb0), 'effective records after': ess(wb1),
                     'effective sample kept (%)': 100 * ess(wb1) / ess(wb0), 'KL move (nats)': info['kl_move'],
-                    'largest factor': f.max(), 'smallest factor': f.min(),
+                    'largest factor': f.max(), 'smallest factor': f.min(), 'Newton steps': info.get('newton_steps'),
                     'records moved more than twofold': int(((f > 2) | (f < 0.5)).sum()),
                     'cells': pd.DataFrame({'cell': labels, 'target': Tb, 'before': Fb.T @ wb0, 'after': Fb.T @ wb1})})
         common.say(f"prescaling {batch}: {info['how']}; effective sample kept {out[-1]['effective sample kept (%)']:.1f}%, "
@@ -407,6 +407,9 @@ def net_worth_table(files):
 
 
 def main():
+    import time
+    global T_MAIN
+    T_MAIN = time.time()
     os.makedirs(common.TILT, exist_ok=True)
     soi = TG.load()
     spec = TLS.start_spec(Y)   # the year file's start and start_scaling (TARGETS.md S7)
@@ -595,10 +598,25 @@ def main():
         np.save(f'{common.TILT}/weight_cap_upper.npy', upper)
         common.say(f'weight cap k = {k_cap:g}:\n' + pd.DataFrame(tab).to_string(index=False))
         S_main = {**S_main, 'solver_weight_upper': upper}
+    # (1 November, decision 57) settings tilt.single_cost: the reweighting as one cost, sum over targets of 0.5 rho (miss /
+    # se)^2 + tau x KL move, identities exact (solver._solve_single). rho (the target's importance) is 1 for the kinds
+    # listed in importance_one_kinds (SOI's published figures and the calculator's columns against them), and
+    # 1 / other_importance_divisor for every other kind. The demographic prescaling above keeps the old solver.
+    sc = S.get('single_cost') or {}
+    if sc.get('enabled'):
+        one_kinds = set(sc['importance_one_kinds'])
+        rho = np.where(rows['kind'].isin(one_kinds).to_numpy(), 1.0, 1.0 / float(sc['other_importance_divisor']))
+        S_main = {**S_main, 'solver_single_cost': sc, 'solver_importance': rho}
+        pd.DataFrame({'kind': rows['kind'], 'group': rows['group'], 'target': rows['target'], 'importance': rho}).to_csv(
+            f'{common.TILT}/importance.csv', index=False)
+        common.say(f"single cost: tau {sc['tau']:g}, importance 1 for kinds {sorted(one_kinds)} ({int((rho == 1).sum())} targets), "
+                   f"{1 / float(sc['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
+                   f"{sc.get('newton_budget', 100)} Newton steps")
     import time
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
+    common.say(f"the whole tilt before the solve: {(t_solve - T_MAIN) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
     common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
                f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended at the cap of "
                f"{S_main.get('solver_max_newton_steps', 200)} steps)")

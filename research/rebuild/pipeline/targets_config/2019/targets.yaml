@@ -46,17 +46,27 @@ targets:
     kind: IRS
     statistic: units
     population: filers
-    cells: {soi_agi_brackets: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: returns}
 
-  - id: irs_income_items
+  - id: irs_wages
     kind: IRS
     statistic: [count, amount]
     population: filers
-    variable: income_items
-    cells: {soi_agi_brackets: all}
+    variable: income_items_standard
+    cells: {standard_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  - id: irs_income_items_broad
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: income_items_broad
+    cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -114,7 +124,7 @@ targets:
     kind: dependent filers
     statistic: units
     population: dependent_filers
-    cells: {soi_1_7_agi_brackets: all}
+    cells: {dependent_agi_groups: all}
     value: {published: soi 1.7}
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: returns}
@@ -160,7 +170,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: business_top
-    cells: {business_agi_groups_top: all}
+    cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -481,7 +491,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: itemized_deductions_claimed
-    cells: {calc_agi_groups: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -490,7 +500,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: taxable_income
-    cells: {calc_agi_groups: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -499,7 +509,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: income_tax_before_credits
-    cells: {calc_agi_groups: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -508,7 +518,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: income_tax_after_credits
-    cells: {calc_agi_groups: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -532,7 +542,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: child_tax_credit
-    cells: {credit_agi_groups: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -541,7 +551,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: eitc
-    cells: {credit_agi_groups: all}
+    cells: {standard_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}

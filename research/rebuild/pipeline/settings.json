@@ -1855,6 +1855,16 @@
   "weight_cap_k": null,
   "_weight_cap_k": "Option B (1 November 2026, off by default): null, or a number k. No record's final weight may exceed k times the median starting weight of its group: eight groups of the calculator's AGI ($0 or less, 0-50k, 50-100k, 100-200k, 200-500k, 500k-1m, 1-10m, 10m and over) for filers, non-filers their own; a per-record upper bound in the solver (solver_weight_upper), no lower bound beyond the solver's own. solver_weight_factor_limit (null by default) keeps every weight between 1/L and L times its start.",
   "solver_weight_factor_limit": null,
+  "single_cost": {
+   "enabled": false,
+   "tau": 1.0,
+   "newton_budget": 100,
+   "gradient_tolerance": 1e-8,
+   "average_weight_change": 0.001,
+   "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "dependent filers", "tips", "deferrals", "calculator"],
+   "other_importance_divisor": 1.5
+  },
+  "_single_cost": "The reweighting as one cost (1 November 2026, decision 57; off by default, the range solver is the default). The file minimizes the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move of the weights from the start (in nats, on weights divided by the sum of the starting weights); identities are met exactly; there are no ranges, no penalty sequence and no dropping of targets (solver._solve_single). tau: the weight of the move against the misses. newton_budget: the most Newton steps in all (100); never raised. gradient_tolerance: the solver's stopping size for the gradient of the dual, on the solver's scale (a miss as a share of the target's size). average_weight_change: an average's standard error is solved again at the first answer's group weight if a group moved by more than this share. importance_one_kinds: the target kinds with importance 1 (SOI's published tables, W-2 statistics, and the calculator's columns against SOI's); every other kind has importance 1 / other_importance_divisor.",
   "scf_target_waves": "prior",
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks.",
   "top": {
