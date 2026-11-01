@@ -157,8 +157,42 @@ def _group_weight(w, member, extra=None):
     return g if extra is None else g + extra
 
 
+# ---- the soft cap's record term (1 November, John) -----------------------------------------
+def _soft_weights(z, p, c, U):
+    """For each record the weight share e that solves log(e / p) + c (e - U)+ = z (c = beta / (tau U^2), U the cap in shares of
+    the starting total). Below the cap it is p exp(z); above it the equation is w + log w = L with w = c e and
+    L = log c + z + log p + c U, solved by Newton's method on w (increasing and concave in log w, so it converges from
+    any start above the root's lower bound). Records with p = 0 get e = 0."""
+    e = np.zeros_like(z)
+    pos = p > 0
+    zz = np.minimum(z, 700.0)
+    e[pos] = p[pos] * np.exp(zz[pos])
+    over = pos & (e > U)
+    if over.any():
+        L = np.log(c[over]) + z[over] + np.log(p[over]) + c[over] * U[over]
+        w = np.maximum(L - np.log(np.maximum(L, 1.0)), 1e-300)      # a start close to the root for large L
+        w = np.where(L < 1.0, np.exp(L) / (1.0 + np.exp(L)), w)
+        for _ in range(60):
+            f = w + np.log(w) - L
+            step = f / (1.0 + 1.0 / w)
+            w = np.maximum(w - step, 1e-300)
+            if np.abs(step / w).max() < 1e-15:
+                break
+        e[over] = np.maximum(w / c[over], U[over])
+        # a record whose unconstrained weight is above the cap and whose root is not (rounding at the kink): keep it at the cap
+    return e
+
+
+def _soft_value(z, e, p, c, U):
+    """The conjugate g(z) = z e - h(e), h(e) = e log(e / p) - e + p + (c / 2) ((e - U)+)^2, summed over records with p > 0."""
+    pos = p > 0
+    ee, pp = e[pos], p[pos]
+    h = ee * np.log(ee / pp) - ee + pp + 0.5 * c[pos] * np.maximum(ee - U[pos], 0.0) ** 2
+    return float((z[pos] * ee - h).sum())
+
+
 # ---- Newton's method on the dual ---------------------------------------------------------
-def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0.0):
+def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0.0, soft=None):
     """Minimize the dual sum(p exp(X lam + K |lam|)) - lam . t + sum(s2 lam^2) / 2 + sum(b |lam|) from lam, with
     |lam| smoothed as sqrt(lam^2 + eps^2). s2 per condition: 0 exact, else the penalty's variance (the condition's
     miss beyond its range costs miss^2 / (2 s2)). b per condition: the half-width of a total's range on the solver's
@@ -190,10 +224,17 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
         with np.errstate(divide='ignore'):
             ln_lo, ln_hi = np.log(lo_f), np.log(hi_f)
 
+    if soft is not None:
+        assert lim is None and kc is None and not ranged, 'the soft cap is for the single-cost solve alone'
+        c_soft, U_soft = soft
+
     def dual(lam):
         a = kink(lam)[0]
         with np.errstate(over='ignore', invalid='ignore'):
             z = X @ lam if kc is None else X @ lam + Kv @ a[kc]
+            if soft is not None:
+                e = _soft_weights(z, p, c_soft, U_soft)
+                return _soft_value(z, e, p, c_soft, U_soft) - lam @ t + 0.5 * (s2 * lam ** 2).sum(), e
             if lim is None:
                 e = p * np.exp(z)
                 return e.sum() - lam @ t + 0.5 * (s2 * lam ** 2).sum() + (b * a).sum(), e
@@ -212,6 +253,8 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
     def hessian(lam, e):
         _, slope, curve = kink(lam)
         e1 = e                       # the slope of the integrand (the weights), for the kink's curvature term
+        if soft is not None:         # the record term's curvature is e / (1 + c e) above the cap, e below it
+            e = np.where(e > U_soft, e / (1.0 + c_soft * e), e)
         if lim is not None:          # the integrand's curvature: the weights where inside the bounds, else zero
             f = e / p
             e = np.where((f > lo_f * (1 + 1e-12)) & (f < hi_f * (1 - 1e-12)), e, 0.0)
@@ -540,6 +583,19 @@ def _solve_single(w0, F, T, se, identity, averages, settings=None, offset=None, 
     t = Tl / size
     is_avg = np.array([mm is not None for mm in member])
     free = ~identity
+    # (1 November, John) the soft cap: settings solver_soft_upper (each record's cap U_i, a weight; one per record of this call)
+    # and solver_soft_beta. The cost gains 0.5 beta ((w_i - U_i)+ / U_i)^2 for each record; below its cap a record costs
+    # nothing. In the dual the record term is the conjugate of h(e) = e log(e/p) - e + p + (c/2)((e - U)+)^2 with
+    # c = beta / (tau U^2) (shares of the starting total), solved record by record (_soft_weights).
+    soft = None
+    soft_u = _get(settings, 'solver_soft_upper', None)
+    if soft_u is not None:
+        assert lim is None, 'a soft cap and a hard limit together'
+        soft_u = np.asarray(soft_u, float)
+        beta = float(_get(settings, 'solver_soft_beta', 1.0))
+        assert soft_u.shape == (n,) and (soft_u > 0).all() and beta > 0, 'solver_soft_upper: one positive weight per record; beta > 0'
+        U_s = soft_u / W
+        soft = (beta / (tau * U_s ** 2), U_s)
 
     def scaled_se(w):
         return np.where(is_avg, se * np.nan_to_num(_group_weight(w, member, extra)), se) / size * free
@@ -554,7 +610,7 @@ def _solve_single(w0, F, T, se, identity, averages, settings=None, offset=None, 
     while True:
         rounds += 1
         left = budget - NEWTON['steps']
-        lam, e, status = _newton(X, t, p, penalty_variance(s), lam, max(left, 0), tol)
+        lam, e, status = _newton(X, t, p, penalty_variance(s), lam, max(left, 0), tol, soft=soft)
         if status != 'converged' or not is_avg[free].any() or rounds >= 3:
             break
         group = _group_weight(W * e, member, extra)
@@ -571,7 +627,7 @@ def _solve_single(w0, F, T, se, identity, averages, settings=None, offset=None, 
     return w1, {'feasible': bool(converged), 'converged': bool(converged), 'how': how, 'range_in_se': _range_k(settings, m),
                 'newton_steps': NEWTON['steps'], 'newton_calls': NEWTON['calls'], 'newton_capped_calls': NEWTON['capped_calls'],
                 'weight_factor_limit': limit, 'weight_upper': upper is not None, 'continuation': pd.DataFrame(),
-                'multipliers': lam, 'single_cost': True, 'tau': tau, 'newton_budget': budget, 'status': status,
+                'multipliers': lam, 'single_cost': True, 'soft_cap': soft is not None, 'tau': tau, 'newton_budget': budget, 'status': status,
                 'largest_gradient': float(np.abs(g).max()), 'rho': rho}
 
 
@@ -622,6 +678,9 @@ def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
         size_of = np.abs(T).astype(float)
         up = _get(settings, 'solver_weight_upper', None)
         settings_free = settings if up is None else {**settings, 'solver_weight_upper': np.asarray(up, float)[free_]}
+        sup = _get(settings, 'solver_soft_upper', None)
+        if sup is not None:
+            settings_free = {**settings_free, 'solver_soft_upper': np.asarray(sup, float)[free_]}
         w1f, info = one(w0[free_], F[free_], T_free, se, identity, av_free, settings_free, offset, extra, size_of)
         w1 = w0.copy()
         w1[free_] = w1f

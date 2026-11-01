@@ -598,6 +598,31 @@ def main():
         np.save(f'{common.TILT}/weight_cap_upper.npy', upper)
         common.say(f'weight cap k = {k_cap:g}:\n' + pd.DataFrame(tab).to_string(index=False))
         S_main = {**S_main, 'solver_weight_upper': upper}
+    # (1 November, John) settings tilt.soft_cap {k, beta} (single cost only): each record's cap U_i is k times the median STARTING
+    # weight of its AGI group (the same nine groups as weight_cap_k; held records left out of the median), and the cost gains
+    # 0.5 beta ((w_i - U_i)+ / U_i)^2 per record: nothing below the cap, quadratic above it (solver._solve_single)
+    soft = S.get('soft_cap') or {}
+    if soft.get('k'):
+        assert (S.get('single_cost') or {}).get('enabled'), 'soft_cap needs the single cost'
+        agi_c = g19['calc_agi'].to_numpy(float)
+        assert np.isfinite(agi_c).all(), 'soft_cap: a missing calculator AGI'
+        edges = [0.0, 50e3, 100e3, 200e3, 500e3, 1e6, 10e6]
+        names = ['$0 or less', '$0-50k', '$50-100k', '$100-200k', '$200-500k', '$500k-1m', '$1-10m', '$10m and over', 'non-filers']
+        grp = np.where(agi_c <= 0, 0, 1 + np.searchsorted(edges[1:], agi_c, side='right'))
+        grp = np.where(filer, grp, 8)
+        upper = np.full(len(w0), np.nan)
+        tab = []
+        for gi, nm in enumerate(names):
+            m_ = (grp == gi) & (w0 > 0) & ~fixed
+            med = float(np.median(w0[m_]))
+            upper[grp == gi] = float(soft['k']) * med
+            tab.append({'group': nm, 'records': int(m_.sum()), 'median starting weight': med, 'cap U (k x median)': float(soft['k']) * med,
+                        'records starting above U': int((w0[m_] > float(soft['k']) * med).sum())})
+        assert np.isfinite(upper).all()
+        pd.DataFrame(tab).to_csv(f'{common.TILT}/soft_cap_groups.csv', index=False)
+        np.save(f'{common.TILT}/soft_cap_upper.npy', upper)
+        common.say(f"soft cap k = {soft['k']:g}, beta = {soft['beta']:g}:\n" + pd.DataFrame(tab).to_string(index=False))
+        S_main = {**S_main, 'solver_soft_upper': upper, 'solver_soft_beta': float(soft['beta'])}
     # (1 November, decision 57) settings tilt.single_cost: the reweighting as one cost, sum over targets of 0.5 rho (miss /
     # se)^2 + tau x KL move, identities exact (solver._solve_single). rho (the target's importance) is 1 for the kinds
     # listed in importance_one_kinds (SOI's published figures and the calculator's columns against them), and
