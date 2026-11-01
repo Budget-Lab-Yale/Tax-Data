@@ -73,6 +73,7 @@ sits in, though none of them rests on it). A warning below 30 effective records
 or above a factor of 10; a stop below 10 or above 100 (placeholders, settings thin_*). A stop does not stop the
 run: the solver returns it and the summary says STOP at the top.
 """
+import os
 import numpy as np
 import pandas as pd
 
@@ -187,7 +188,7 @@ def _soft_value(z, e, p, c, U):
     """The conjugate g(z) = z e - h(e), h(e) = e log(e / p) - e + p + (c / 2) ((e - U)+)^2, summed over records with p > 0."""
     pos = p > 0
     ee, pp = e[pos], p[pos]
-    h = ee * np.log(ee / pp) - ee + pp + 0.5 * c[pos] * np.maximum(ee - U[pos], 0.0) ** 2
+    h = ee * np.log(np.where(ee > 0, ee / pp, 1.0)) - ee + pp + 0.5 * c[pos] * np.maximum(ee - U[pos], 0.0) ** 2   # 0 log 0 = 0
     return float((z[pos] * ee - h).sum())
 
 
@@ -307,6 +308,13 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
                     np.abs(gradient(lam + a * step, e_new)).max() < size_g:
                 break
             a /= 2
+            if a < 1e-12 and soft is not None and os.environ.get('SOLVER_DEBUG'):
+                zc = X @ lam
+                ec = _soft_weights(zc, p, c_soft, U_soft)
+                hh = 1e-7 / max(np.abs(step).max(), 1e-300)
+                dn = (dual(lam + hh * step)[0] - dual(lam - hh * step)[0]) / (2 * hh)
+                print('SOFT DEBUG: g.step', g @ step, 'numerical', dn, 'D', D, 'max|z|', np.abs(zc).max(), 'over', int((ec > U_soft).sum()),
+                      'c range', c_soft.min(), c_soft.max(), 'max e/U', (ec / U_soft).max(), 'size_g', size_g, flush=True)
             if a < 1e-12:
                 # rounding can stop the line search right at the answer; say converged if the gradient is tiny
                 return lam, e, 'converged' if np.abs(g).max() < 100 * tol else 'stalled'
