@@ -171,7 +171,7 @@ def _soft_weights(z, p, c, U):
     if over.any():
         L = np.log(c[over]) + z[over] + np.log(p[over]) + c[over] * U[over]
         w = np.maximum(L - np.log(np.maximum(L, 1.0)), 1e-300)      # a start close to the root for large L
-        w = np.where(L < 1.0, np.exp(L) / (1.0 + np.exp(L)), w)
+        w = np.where(L < 1.0, np.exp(np.minimum(L, 50.0)) / (1.0 + np.exp(np.minimum(L, 50.0))), w)
         for _ in range(60):
             f = w + np.log(w) - L
             step = f / (1.0 + 1.0 / w)
