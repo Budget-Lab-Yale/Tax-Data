@@ -187,7 +187,8 @@ def _newton(X, t, p, s2, lam, max_steps, tol, max_kl=None, b=None, K=None, eps=0
         # (hi (z - ln hi + 1) above, lo (z - ln lo + 1) below), so the dual is convex and its slope is continuous; its
         # curvature is exp(z) inside the bounds and zero beyond them.
         lo_f, hi_f = lim
-        ln_lo, ln_hi = np.log(lo_f), np.log(hi_f)
+        with np.errstate(divide='ignore'):
+            ln_lo, ln_hi = np.log(lo_f), np.log(hi_f)
 
     def dual(lam):
         a = kink(lam)[0]
@@ -354,7 +355,22 @@ def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=N
 
     limit = _get(settings, 'solver_weight_factor_limit', None)   # off by default
     assert limit is None or limit > 1, 'solver_weight_factor_limit: None, or a number above 1'
-    NEWTON.update({'steps': 0, 'calls': 0, 'capped_calls': 0, 'limit': None if limit is None else (1.0 / limit, float(limit))})
+    # (1 November, option B) solver_weight_upper: None, or each record's highest final weight (array, one per record of
+    # this call). It bounds the factor above by upper / start weight, record by record; no lower bound beyond the
+    # solver's own (zero), unless solver_weight_factor_limit is also set.
+    upper = _get(settings, 'solver_weight_upper', None)
+    if limit is None and upper is None:
+        lim = None
+    else:
+        lo_b = np.full(n, 0.0 if limit is None else 1.0 / limit)
+        hi_b = np.full(n, np.inf if limit is None else float(limit))
+        if upper is not None:
+            upper = np.asarray(upper, float)
+            assert upper.shape == (n,) and (upper > 0).all(), 'solver_weight_upper: one positive weight per record'
+            hi_b = np.minimum(hi_b, upper / np.where(w0 > 0, w0, 1.0))
+        hi_b = np.minimum(hi_b, 1e12)      # a finite ceiling (a record with no upper bound)
+        lim = (lo_b, hi_b)
+    NEWTON.update({'steps': 0, 'calls': 0, 'capped_calls': 0, 'limit': lim})
     G, Tl, size, member = _conditions(w0, F, T, averages, offset, extra, size_of)
     W = w0.sum()
     p = w0 / W
@@ -465,7 +481,7 @@ def _solve(w0, F, T, se, identity, averages, settings=None, offset=None, extra=N
     w1 = W * e
     return w1, {'feasible': bool(feasible), 'converged': bool(converged), 'how': '; '.join(how), 'range_in_se': k,
                 'newton_steps': NEWTON['steps'], 'newton_calls': NEWTON['calls'],
-                'newton_capped_calls': NEWTON['capped_calls'], 'weight_factor_limit': limit,
+                'newton_capped_calls': NEWTON['capped_calls'], 'weight_factor_limit': limit, 'weight_upper': upper is not None,
                 'continuation': pd.DataFrame(steps), 'multipliers': lam}
 
 
@@ -513,7 +529,9 @@ def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
             assert mem[free_].any(), f'target {j}: an average whose group has only fixed records'
             av_free[j] = (mem[free_], v[free_], mm)
         size_of = np.abs(T).astype(float)
-        w1f, info = _solve(w0[free_], F[free_], T_free, se, identity, av_free, settings, offset, extra, size_of)
+        up = _get(settings, 'solver_weight_upper', None)
+        settings_free = settings if up is None else {**settings, 'solver_weight_upper': np.asarray(up, float)[free_]}
+        w1f, info = _solve(w0[free_], F[free_], T_free, se, identity, av_free, settings_free, offset, extra, size_of)
         w1 = w0.copy()
         w1[free_] = w1f
         mv = move(w0[free_], w1f)
@@ -735,5 +753,6 @@ def summary_lines(info, fit):
               f"- Newton steps: {info.get('newton_steps', 'n/a')} in {info.get('newton_calls', 'n/a')} calls "
               f"(each call capped at solver_max_newton_steps; {info.get('newton_capped_calls', 'n/a')} ended at the cap)."
               + ('' if info.get('weight_factor_limit') is None else
-                 f" Each weight limited to 1/{info['weight_factor_limit']:g} to {info['weight_factor_limit']:g} times its start.")]
+                 f" Each weight limited to 1/{info['weight_factor_limit']:g} to {info['weight_factor_limit']:g} times its start.")
+              + (' Each weight capped (solver_weight_upper).' if info.get('weight_upper') else '')]
     return lines

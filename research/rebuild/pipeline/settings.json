@@ -1852,6 +1852,9 @@
    "min_excess_se": 1.0
   },
   "_precheck": "precheck.py (1 November 2026): a check before the reweighting that only reports (precheck_flags.csv, precheck.md, the summary): a target is flagged when the average its count and amount require is outside the records' range by more than min_excess_se standard errors (rule 1), its relative standard error is below min_relative_se (rule 2), or the start is more than max_start_gap_se standard errors from it (rule 3). Nothing is dropped.",
+  "weight_cap_k": null,
+  "_weight_cap_k": "Option B (1 November 2026, off by default): null, or a number k. No record's final weight may exceed k times the median starting weight of its group: eight groups of the calculator's AGI ($0 or less, 0-50k, 50-100k, 100-200k, 200-500k, 500k-1m, 1-10m, 10m and over) for filers, non-filers their own; a per-record upper bound in the solver (solver_weight_upper), no lower bound beyond the solver's own. solver_weight_factor_limit (null by default) keeps every weight between 1/L and L times its start.",
+  "solver_weight_factor_limit": null,
   "scf_target_waves": "prior",
   "_scf_target_waves": "TARGETS.md S9: which SCF waves the SCF targets (kinds wealth and wealth grid) are computed on (scf_targets.py). 'prior': the year's mix, the year file's prior \"balance sheet\", the same waves and shares generation draws the balance sheet from (2019: the 2019 wave 54.65%, 2022 33.15%, 2016 12.20%); each wave's balance sheet grown per tax unit to the target year's wave as the maps are, its own lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance. 'target year': the target year's wave alone, for checks.",
   "top": {

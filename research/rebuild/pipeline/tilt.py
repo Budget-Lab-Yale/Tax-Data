@@ -571,6 +571,30 @@ def main():
         _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
                                     common.TILT, S['precheck'])
         common.say('\n'.join(precheck_lines))
+    # (1 November, option B) settings tilt.weight_cap_k (off by default): no record's final weight above k times the median
+    # starting weight of its group: eight groups of the calculator's AGI ($0 or less, 0-50k, 50-100k, 100-200k, 200-500k,
+    # 500k-1m, 1-10m, 10m and over) for filers, non-filers their own group. Held (fixed) records are left out.
+    if S.get('weight_cap_k'):
+        agi_c = g19['calc_agi'].to_numpy(float)
+        assert np.isfinite(agi_c).all(), 'weight_cap_k: a missing calculator AGI'
+        edges = [0.0, 50e3, 100e3, 200e3, 500e3, 1e6, 10e6]
+        names = ['$0 or less', '$0-50k', '$50-100k', '$100-200k', '$200-500k', '$500k-1m', '$1-10m', '$10m and over', 'non-filers']
+        grp = np.where(agi_c <= 0, 0, 1 + np.searchsorted(edges[1:], agi_c, side='right'))
+        grp = np.where(filer, grp, 8)
+        k_cap = float(S['weight_cap_k'])
+        upper = np.full(len(w0), np.inf)
+        tab = []
+        for gi, nm in enumerate(names):
+            m_ = (grp == gi) & (w0 > 0) & ~fixed
+            med = float(np.median(w0[m_])) if m_.any() else np.nan
+            upper[(grp == gi)] = k_cap * med if m_.any() else np.inf
+            tab.append({'group': nm, 'records': int(m_.sum()), 'median starting weight': med, 'cap (k x median)': k_cap * med,
+                        'records starting above the cap': int((w0[m_] > k_cap * med).sum())})
+        upper = np.where(np.isfinite(upper), upper, 1e12)
+        pd.DataFrame(tab).to_csv(f'{common.TILT}/weight_cap_groups.csv', index=False)
+        np.save(f'{common.TILT}/weight_cap_upper.npy', upper)
+        common.say(f'weight cap k = {k_cap:g}:\n' + pd.DataFrame(tab).to_string(index=False))
+        S_main = {**S_main, 'solver_weight_upper': upper}
     import time
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
