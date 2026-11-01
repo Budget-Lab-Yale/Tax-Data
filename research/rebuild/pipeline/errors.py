@@ -316,6 +316,10 @@ def borrow_cv(cells, count=None, amount=None, returns=None):
     closest count cells in log number of returns (a count), or the closest amount cells in log amount and log number
     of returns of the same item (an amount; without returns, in amount alone). Cells with a CV of 0 or none are not
     lent. Returns (cv_pct, description of the donors)."""
+    # lending uses the published CVs, as before decision 55: the rule that a CV below the line counts as 0 is for the
+    # standard error of a target resting on such cells, not for which cells are lent (soi_cells keeps both)
+    if 'cv_pct_published' in cells:
+        cells = cells.assign(cv_pct=cells['cv_pct_published'])
     d = cells[(cells.cv_pct > 0) & (cells.value > 0)]
     if count is not None:
         d = d[d.statistic == 'count']
