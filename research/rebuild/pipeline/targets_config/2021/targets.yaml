@@ -641,3 +641,46 @@ targets:
     value: {survey: scf}
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (2 November 2026, John; explore/2026-11-02/age_targets/) The SCF's balance sheet and unrealized gains by the primary
+  # filer's age. Before these, no wealth target had an age in it, and the reweighting took net worth from units aged
+  # 65-79 rather than from the young (2022, the run of 1 November: net worth under 55 $48.8 trillion against the SCF
+  # tax units' $38.9 trillion; 65-79 $42.9 trillion against $49.7 trillion; 80 and over $9.3 trillion against $13.3
+  # trillion). Same form, population and standard errors as wealth_categories above (the year's SCF wave mix, the
+  # replicate weights and the five implicates, scf_targets.py): holders and dollars of the nine categories in four
+  # groups of the primary's age (under 55, 55-64, 65-79, 80 and over).
+  - id: wealth_categories_by_age
+    kind: wealth
+    statistic: [count, amount]
+    population: scf_units_below_a_billion
+    variable: scf_wealth_categories
+    cells: {scf_age_groups: all}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # Unrealized capital gains by kind (stocks and funds, businesses, the primary home, other real estate) in the same
+  # age groups, each gain held to its asset's value and never below zero, as tax-simulator-gpu has them (catalog
+  # kg_*): the holders (units with a gain above zero) and the dollars.
+  - id: unrealized_gains_by_age
+    kind: wealth
+    statistic: [count, amount]
+    population: scf_units_below_a_billion
+    variable: scf_unrealized_gains
+    cells: {scf_age_groups: all}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # The number of tax units, filers and non-filers, whose primary filer is 65-69, 70-74, 75-79 and 80 and over, from
+  # the CPS's tax units over the year's CPS year mix (a large sample with ages measured well; SOI's Table 1.6 stops at
+  # 65 and over), standard errors from the ASEC's replicate weights (errors.cps_age_errors). Units other than
+  # dependent filers, as the CPS's units fold them into the unit that claims them.
+  - id: units_by_older_age
+    kind: older ages
+    statistic: units
+    population: units_other_than_dependent_filers
+    cells: {older_age_groups: all}
+    value: {survey: cps units}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: units}
