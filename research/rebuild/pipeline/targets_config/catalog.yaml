@@ -137,6 +137,18 @@ sources:
     what: >-
       every tax unit of the CPS year, filers and non-filers (build_table.cps_person_slots); dependent filers folded
       into the unit that claims them; the overtime statistics over the units asked the earnings questions
+  # (2 November 2026, John) The CPS's tax units as the training table holds them (filers and non-filers; dependent filers
+  # folded into the unit that claims them), for the number of units by the primary's age within 65 and over: a large
+  # sample with ages measured well. Over the year's CPS year mix (prior "cps items"), standard errors from the ASEC's
+  # replicate weights (target_list.cps_age_rows, errors.cps_age_errors). SOI's Table 1.6 stops at "65 and over".
+  cps units:
+    kind: survey
+    file: data/table.parquet
+    built_by: [filing.py, build_cps.R, build_table.py]
+    tax_unit_rules: shared_cbo
+    what: >-
+      every tax unit of the CPS year in the training table, filers and non-filers, with the primary filer's exact age
+      (the table's age plus 1, less 1)
   # Outside series that come only as a change (30 October, years after the data; TARGETS.md section 3): a target is
   # the start year's own level times the series' growth (target_list.outside_rows); the entry names the line.
   cbo individual income tax:
@@ -187,6 +199,7 @@ tax_unit_rules:
       scf: [tax_units.reassign, tax_units.npeu_split]
       cex: [tax_units.reassign]
       cps: [cps.cbo_variant, filing.mfs_salt]
+      cps units: [cps.cbo_variant, filing.mfs_salt]
       filing_stage: [cps.cbo_variant, filing.mfs_salt]
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -252,6 +265,8 @@ error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
 #   count_variable: the variable whose nonzero values the count statistic counts, where a published count and
 #                amount have different definitions (Table 4.3's capital gains: returns with a gain, net gain less loss)
 #   published:   the variable's item and measures in a tidy published table (sources soi 1.3, soi 4.3)
+#   gain_held_to_value: {gain: column, value: [columns]}: the gain held to the value and never below zero,
+#                max(0, min(gain, sum of the value columns)) (2 November 2026, the unrealized gains by kind)
 # The SOI lines are the variable names of the run's targets/soi.csv (targets.T14).
 # ---------------------------------------------------------------------------------------------------------------
 variables:
@@ -517,6 +532,23 @@ variables:
   wealth_other_assets: {parts: [value.life_ins, value.annuities, value.trusts, value.other_fin, value.other_nonfin], short: other assets}
   wealth_mortgages: {parts: [value.primary_mortgage, value.other_mortgage], short: mortgages}
   wealth_other_debt: {parts: [value.credit_lines, value.credit_cards, value.installment_debt, value.other_debt], short: other debt}
+  # (2 November 2026, John) The primary filer's exact age in years, for the targets by age group. On the file, age1 in
+  # years (ages 80 and over held at 80; -1 for none: dependent filers, outside every population that uses it). On a
+  # survey's units the same: the training table stores age plus 1 (build_table.AGE_SLOTS), so scf_targets.frame and
+  # target_list.cps_age_units take 1 off; every survey holds ages 80 and over at 80 too (build_table.EXACT_AGE_TOP).
+  primary_age:
+    record: age1
+    short: primary's age
+  # (2 November 2026, John) Unrealized capital gains by kind, in tax-simulator-gpu's concept: each class's gain held to
+  # the class's value and never below zero, max(0, min(gain, value)), as non_micro_imputations.cost_basis gives the
+  # simulator the basis (value less the held gain) and explore/2026-11-02/kg_split/c1_tables.py measures it. Other real
+  # estate has one gain on other homes and real estate funds together, held to their combined value. The same columns
+  # on the SCF's units (each wave's gain and value grown to the target year by their own factors, scf_targets.frame) and
+  # on the file.
+  kg_stocks_funds: {gain_held_to_value: {gain: w_kg_other, value: [value.equities]}, short: unrealized gain on stocks and funds}
+  kg_business: {gain_held_to_value: {gain: w_kg_pass_throughs, value: [value.pass_throughs]}, short: unrealized gain on businesses}
+  kg_primary_home: {gain_held_to_value: {gain: w_kg_primary_home, value: [value.primary_home]}, short: unrealized gain on the primary home}
+  kg_other_real_estate: {gain_held_to_value: {gain: w_kg_other_re, value: [value.other_home, value.re_fund]}, short: unrealized gain on other real estate}
   # Four kinds of asset on the balance sheet (TARGETS.md S2), the same columns on the SCF's units (build_scf.R, from
   # the SCF summary extract) and on the generated file (dollars.py draws each from the SCF's map). Gross values:
   # the debts against them (mortgages) are not taken off.
@@ -675,6 +707,8 @@ variable_lists:
   scf_wealth_categories: [wealth_deposits_bonds, wealth_stocks_funds, wealth_retirement, wealth_business,
                           wealth_primary_home, wealth_other_real_estate, wealth_other_assets, wealth_mortgages,
                           wealth_other_debt]
+  # (2 November 2026, John) Unrealized capital gains by kind, each held to its value (variables above)
+  scf_unrealized_gains: [kg_stocks_funds, kg_business, kg_primary_home, kg_other_real_estate]
   # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
   # (1 November, decision 57 d, John) eight of Table 1.3's items are no longer targeted: total income, other gains,
   # tax-exempt interest, state refunds, estate and trust net, farm net, farm rental net and alimony (64 targets a year);
@@ -998,6 +1032,23 @@ groupings:
   adult_age_ranges:
     variable: age_range
     values: [[0, under 26], [1, 26-34], [2, 35-44], [3, 45-54], [4, 55-64], [5, 65+]]
+  # (2 November 2026, John) The primary filer's age in four groups, for the SCF targets by age (balance sheet
+  # categories and unrealized gains), on the SCF's units and the file's alike (variable primary_age)
+  scf_age_groups:
+    variable: primary_age
+    edges:
+      - [null, 55, primary under 55]
+      - [55, 65, primary 55-64]
+      - [65, 80, primary 65-79]
+      - [80, null, primary 80 and over]
+  # (2 November 2026, John) Within 65 and over, five-year groups and 80 and over, for the counts of units from the CPS
+  older_age_groups:
+    variable: primary_age
+    edges:
+      - [65, 70, primary 65-69]
+      - [70, 75, primary 70-74]
+      - [75, 80, primary 75-79]
+      - [80, null, primary 80 and over]
   scf_net_worth_lines:
     variable: net_worth
     lines:

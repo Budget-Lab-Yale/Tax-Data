@@ -159,14 +159,18 @@ def frame(wave, year):
     not_asked = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']
     items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
     cols = list(dict.fromkeys(items + ['value.primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
-    t = _table(['household_id', 'implicate', 'weight', 'age_range'] + cols)
+    t = _table(['household_id', 'implicate', 'weight', 'age_range', 'age1'] + cols)
     u = t[t.year == wave - 1].reset_index(drop=True)
     assert len(u), f'SCF wave {wave}: no rows in the training table'
-    na = u[cols + ['weight', 'household_id', 'implicate']].isna().sum()
+    na = u[cols + ['weight', 'household_id', 'implicate', 'age1']].isna().sum()
     assert na.sum() == 0, f'SCF wave {wave}: missing values\n{na[na > 0]}'
     assert (u['weight'] > 0).all(), f'SCF wave {wave}: a unit with no positive weight'
     assert set(u['implicate']) == {1, 2, 3, 4, 5}, f'SCF wave {wave}: implicates {sorted(set(u.implicate))}'
     assert (u['age_range'] < common.ADULT_RANGES).all(), f'SCF wave {wave}: a dependent filer among the units'
+    # (2 November 2026) the primary filer's age in years, as the file holds it (catalog primary_age): the table stores
+    # age plus 1, 0 for none (build_table.AGE_SLOTS); every SCF unit has a primary filer
+    assert (u['age1'] > 0).all(), f'SCF wave {wave}: {int((u["age1"] <= 0).sum())} units with no primary filer age'
+    u['age1'] = u['age1'].to_numpy(float) - 1
     for v in items:
         u[v] = u[v].to_numpy(float) * f[v]
     u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home'] * f['w_primary_ltv']
@@ -248,6 +252,17 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
     hh = u['household_id'].to_numpy()
     assert not c['filters'], f'SCF targets: a cell with a filter {c["filters"]}'
     m = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
+    if c.get('range'):
+        # (2 November 2026) a range of a variable other than AGI, low inclusive (the primary's age group): the cell is
+        # the units in the range, a domain of the full sample, so the replicate weights and implicates are used as
+        # they are. Applied before any income rank or net worth line, so lines would be the range's own (no entry
+        # crosses a range with a line today)
+        rv, rlo, rhi = c['range']
+        xg = TLS.record_value(u, rv)
+        assert np.isfinite(xg).all(), f'SCF wave {wave}: {rv} missing on {int((~np.isfinite(xg)).sum())} units'
+        m &= (xg >= rlo) & (xg < rhi)
+        assert c.get('rank') is None and c.get('band') is None and c['line'] is None, \
+            f'SCF cell {c["label"]}: a range crossed with an income rank or a net worth line is not built'
     rl = (np.nan, np.nan)
     if rank is not None:
         inc = rank_income(wave, year, TLS.variable_def(rank[0])['survey_parts'])

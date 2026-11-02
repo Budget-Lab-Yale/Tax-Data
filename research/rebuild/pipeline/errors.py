@@ -675,6 +675,42 @@ def overtime_errors(rows, year):
     return out
 
 
+def cps_age_errors(rows, year):
+    """(2 November 2026) The counts of units by the primary's age from the CPS (kind 'older ages', target_list.cps_age_rows):
+    each CPS year's standard error from the ASEC's 160 person replicate weights (the unit head's, cps_replicates), by
+    successive difference replication, variance = 4 / 160 x the sum over the replicates of (replicate count - full-sample
+    count)^2; the years are independent samples, so the pooled variance is the sum over years of share^2 x the year's."""
+    import survey_mix
+    import target_list as TLS
+    parts = []
+    for y, share in survey_mix.mix('cps', year):
+        u = TLS.cps_age_units(y)
+        parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
+    by_label = {lab: (g['variable'], -np.inf if lo is None else lo, np.inf if hi is None else hi)
+                for g in TLS.CAT['groupings'].values() if 'edges' in g and g['variable'] != 'agi'
+                for lo, hi, lab in g['edges']}
+    out = []
+    for r in rows.itertuples():
+        rv = getattr(r, 'range_variable', '')
+        rng = (rv, r.range_lo, r.range_hi) if isinstance(rv, str) and rv else by_label.get(r.group)
+        assert rng, f'older ages target {r.group}: no age range'
+        var, value, notes = 0.0, 0.0, []
+        for y, share, u, w, rep in parts:
+            xg = TLS.record_value(u, rng[0])
+            mu = (xg >= rng[1]) & (xg < rng[2])
+            full = w[mu].sum()
+            reps = rep[mu].sum(0)
+            var += share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum()
+            value += share * full
+            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} sample units, se {np.sqrt(4 / CPS_REPLICATES * ((reps - full) ** 2).sum()):,.0f}')
+        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
+                    'CPS year mix, the ASEC\'s 160 person replicate weights (the unit head\'s), successive difference '
+                    'replication (variance = 4/160 x sum of squared deviations) year by year, variance = sum of '
+                    f'share^2 x the year\'s; {"; ".join(notes)}{note}'))
+    return out
+
+
 # ---- 4. Judgment -----------------------------------------------------------------------------------
 def nonfiler_errors(rows, year):
     """The non-filer count and the people in non-filer units (the filing stage's calibration targets)."""
@@ -738,9 +774,10 @@ def standard_errors(rows, year=Y):
     table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
     by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
-          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime'}
+          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
+          'older ages': rows.kind == 'older ages'}
     for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
-                    ('nonfiler', nonfiler_errors), ('overtime', overtime_errors)]:
+                    ('nonfiler', nonfiler_errors), ('overtime', overtime_errors), ('older ages', cps_age_errors)]:
         if by[name].any():
             for i, se, kind, why in f(rows[by[name]], year):
                 res[i] = (se, kind, why)

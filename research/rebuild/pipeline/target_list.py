@@ -268,6 +268,13 @@ def record_value(df, v):
             a = df[AGE_COLUMNS[m]].to_numpy(float)          # -1 for no such member
             n += (a >= p['from']) & (a < hi)
         return n
+    if 'gain_held_to_value' in d:
+        # (2 November 2026) an unrealized gain held to its asset's value and never below zero, as the simulator has it
+        g = df[d['gain_held_to_value']['gain']].to_numpy(float)
+        val = df[d['gain_held_to_value']['value']].to_numpy(float).sum(1)
+        assert np.isfinite(g).all() and np.isfinite(val).all(), \
+            f'{v}: the gain or a value missing on {int((~np.isfinite(g) | ~np.isfinite(val)).sum())} records'
+        return np.clip(np.minimum(g, val), 0, None)
     if 'parts' in d:
         x = df[d['parts']].to_numpy(float)
         assert not np.isnan(x).any(), f'{v}: a part missing on {int(np.isnan(x).any(1).sum())} records'
@@ -725,6 +732,57 @@ def cps_mix_rows(year, cells, v, stats):
     return rows
 
 
+_CPS_AGE = {}
+
+
+def cps_age_units(y):
+    """(2 November 2026) The CPS year y's tax units of the training table, filers and non-filers, for the counts of units by
+    the primary's age (catalog source cps units): record_id, weight, age_range and age1, the primary filer's age in years
+    (the table stores age plus 1; ages 80 and over held at 80, as on the file). Dependent filers are folded into the
+    unit that claims them, as in every survey, so the count matches the file's units other than dependent filers."""
+    if y not in _CPS_AGE:
+        t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'record_id', 'weight', 'age_range', 'age1'])
+        u = t[(t.source == 'cps') & (t.year == y)].reset_index(drop=True)
+        assert len(u), f'no CPS units for {y} in the training table'
+        na = u.isna().sum()
+        assert na.sum() == 0, f'CPS {y}: missing values\n{na[na > 0]}'
+        assert (u['weight'] > 0).all(), f'CPS {y}: a unit with no positive weight'
+        assert (u['age_range'] < common.ADULT_RANGES).all(), f'CPS {y}: a dependent filer among the units'
+        assert (u['age1'] > 0).all(), f'CPS {y}: {int((u["age1"] <= 0).sum())} units with no primary filer age'
+        u['age1'] = u['age1'].to_numpy(float) - 1
+        _CPS_AGE[y] = u
+    return _CPS_AGE[y]
+
+
+def cps_age_rows(year, cells, v, stats):
+    """(2 November 2026, John) The number of tax units, filers and non-filers, in each cell of the primary's age, from the CPS's
+    units over the year's CPS year mix (prior "cps items"; 2022: 2021 and 2023, half each): value = sum over years of
+    share x the year's count. The standard error is pooled in errors.cps_age_errors from the CPS's replicate weights."""
+    import survey_mix
+    assert stats == ['units'] and v is None, f'CPS units {year}: counts of units only, not {stats} of {v}'
+    rows = []
+    mix = survey_mix.mix('cps', year)
+    for c in cells:
+        assert not c['filters'] and c.get('rank') is None and c.get('band') is None and c['line'] is None and c['agi'] is None, \
+            f'CPS units {year}, cell {c["label"]}: only ranges of the primary\'s age are built'
+        per = []
+        for y, share in mix:
+            u = cps_age_units(y)
+            m = np.ones(len(u), bool)
+            if c.get('range'):
+                rv, lo, hi = c['range']
+                xg = record_value(u, rv)
+                m &= (xg >= lo) & (xg < hi)
+            assert m.any(), f'CPS {y}, cell {c["label"]}: no units'
+            per.append((y, share, float(u['weight'].to_numpy(float)[m].sum()), int(m.sum())))
+        rows.append({'cell': c['label'], 'cell_spec': c, 'statistic': 'units', 'value': sum(s * n for _, s, n, _ in per),
+                     'line': None, 'line_variable': '', 'rank_lines': (np.nan, np.nan), 'line_hi': None,
+                     'source': 'CPS tax units of the training table, filers and non-filers, over the year mix '
+                               + ', '.join(f'{y} {100 * s:.2f}%: {n:,.0f} units ({k:,} sample units)' for y, s, n, k in per)
+                               + '; pooled: sum of share x the year\'s count'})
+    return rows
+
+
 def survey_rows(source, year, cells, v, stats, population=None):
     """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
     waves, with their standard errors (scf_targets.py), on the population's units (its net worth ceiling, if any)."""
@@ -737,6 +795,8 @@ def survey_rows(source, year, cells, v, stats, population=None):
         return cex_mix_rows(year, cells, v, stats)
     if source == 'cps':
         return cps_mix_rows(year, cells, v, stats)
+    if source == 'cps units':
+        return cps_age_rows(year, cells, v, stats)
     u, path = survey_frame(source, year)
     return _survey_rows_one(source, year, cells, v, stats, u, path)
 
