@@ -90,6 +90,23 @@ def growth_factors(wave, year):
 
 
 _EXT = {}
+_UG = {}
+
+
+def unit_growth(year):
+    """The growth of the file's number of units from the start's year to a projection year: the start's own units over
+    their weighted count in the start year, as population_cells scales them (the start's weights; tilt.py)."""
+    import target_list as TLS
+    import projection_demographics as PD
+    spec = TLS.start_spec(year)
+    assert spec['mode'] == 'from_year' and spec['weights'] == 'population_cells', f'{year}: unit growth needs population_cells'
+    if year not in _UG:
+        prev = pd.read_parquet(f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet",
+                               columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
+        scaled, _ = PD.population_cells(prev, year, from_year=spec['year'])
+        _UG[year] = float(np.asarray(scaled).sum() / prev['weight'].sum())
+        common.say(f'the file\'s units grow {_UG[year]:.5f} from {spec["year"]} to {year} (the SCF targets\' units follow)')
+    return _UG[year]
 
 
 def projection_extension(year, items):
@@ -157,7 +174,18 @@ def frame(wave, year):
     # the target year's wave's number of units; a year with no wave of its own (30 October): interpolated between the
     # waves either side, or after the last wave grown with the population (build_table.scf_units_at)
     import build_table as BT
-    scale = BT.scf_units_at(_table(['weight']), year - 1) / float(u['weight'].sum())
+    import target_list as TLS
+    # A projection year (1 November, decision 76): the units of the start's own year (2023's wave) times the growth of the
+    # file's units from that year (the start's weights are the file's weights times the population cells' growth,
+    # projection_demographics.population_cells), not the Social Security area population: the file's units grow by cells
+    # (age and joint status; 2023 to 2030 +6.5% against the population's +3.3%), and the start's dollars per unit are grown
+    # on that basis, so targets that scaled units by the population stood 4% too low in total by 2030.
+    spec = TLS.start_spec(year)
+    if spec['mode'] == 'from_year':
+        units = BT.scf_units_at(_table(['weight']), spec['year'] - 1) * unit_growth(year)
+    else:
+        units = BT.scf_units_at(_table(['weight']), year - 1)
+    scale = units / float(u['weight'].sum())
     u['weight'] = u['weight'].to_numpy(float) * scale
     u = u.sort_values(['implicate', 'record_id'], kind='stable').reset_index(drop=True)
     u1, rep = E.scf_replicates(wave, u)   # settings errors.scf_replicate_dir, one folder per wave
