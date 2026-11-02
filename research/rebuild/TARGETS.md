@@ -684,3 +684,20 @@ record's weight also pays a soft cap: 0.5 x beta x ((w - U) / U)² above U = 10 
 (settings `tilt.soft_cap`; beta 1 as the mild strength). The demographic prescaling uses the same cost. At most 100 Newton
 steps in all, never raised. The SCF targets are no longer held to half a standard error: their standard errors enter the cost
 like the others' (S9's value and error are unchanged; its half-standard-error ranges are not).
+
+### S12. Target consolidation (John, 1 November 2026; decisions 71 and 72)
+
+Counts under 250,000 returns (scratch `explore/2026-11-01/dryrun/out/tiny_count_cells.csv`) are folded into their
+neighbours, every historical year 2015-2023 (the projection years do not carry these targets):
+
+1. Means-tested credit cells where few qualify are folded, each inside its own SOI line. Nonrefundable child credit
+   (child and other dependent credit): no AGI, $1-10k and $10-20k are one group, under $20k. Additional child tax credit:
+   $100k and over is one group. AMT: under $200k and $200k-500k are one group, under $500k. EITC: $40k-50k, $50k-75k and
+   above are one group, $40k and over. (Groupings `nonref_credit_agi_groups`, `ref_credit_agi_groups`,
+   `amt_agi_groups`, `eitc_agi_groups` in the catalog.)
+2. Farm and farm rental: one overall target each for net income and net loss, count and amount (entry `business_farm`, no AGI groups).
+3. Table 1.3, married filing separately: returns and AGI only (the income items are targeted for single, joint and head of household).
+4. AGI groups $1m-1.5m and $1.5m-2m are one group, $1m-2m, in Table 1.4's grid and the business grid and in the calculator targets.
+5. The calculator's income tax after credits targets are dropped.
+A merged group sums the published cells and combines their errors as before. Table 4.3's top groups, dependent filers
+and the deferrals are unchanged.

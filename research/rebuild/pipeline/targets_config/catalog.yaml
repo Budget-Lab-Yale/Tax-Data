@@ -752,8 +752,7 @@ groupings:
       - [50000, 100000, $50k-100k]
       - [100000, 200000, $100k-200k]
       - [200000, 1000000, $200k-1m]
-      - [1000000, 1500000, $1m-1.5m]
-      - [1500000, 2000000, $1.5m-2m]
+      - [1000000, 2000000, $1m-2m]
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
@@ -792,13 +791,60 @@ groupings:
       - [75000, 100000, $75k-100k]
       - [100000, 200000, $100k-200k]
       - [200000, null, $200k and over]
-  # The AMT's AGI groups (30 October): four, since few returns below $200,000 owe it
+  # (1 November, decisions 71 and 72) The credits' AGI groups, each as fine as its credit's counts allow. They start from the
+  # standard grid with $1m-1.5m and $1.5m-2m merged into $1m-2m (decision 72 a).
+  # The nonrefundable child credit (child and other dependent credit): no AGI, $1-10k and $10-20k are one group, under
+  # $20k, whose cells are tiny (2,000 to 7,000 returns); the folding stays inside this SOI line.
+  nonref_credit_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 20000, under $20k]
+      - [20000, 30000, $20k-30k]
+      - [30000, 40000, $30k-40k]
+      - [40000, 50000, $40k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, 200000, $100k-200k]
+      - [200000, 500000, $200k-500k]
+      - [500000, 1000000, $500k-1m]
+      - [1000000, 2000000, $1m-2m]
+      - [2000000, 5000000, $2m-5m]
+      - [5000000, 10000000, $5m-10m]
+      - [10000000, null, $10m and over]
+  # The additional child tax credit (the refundable part): from $100,000 up, where few qualify (8 to 125,000 returns a
+  # cell), one group, $100k and over
+  ref_credit_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 10000, $1-10k]
+      - [10000, 20000, $10k-20k]
+      - [20000, 30000, $20k-30k]
+      - [30000, 40000, $30k-40k]
+      - [40000, 50000, $40k-50k]
+      - [50000, 75000, $50k-75k]
+      - [75000, 100000, $75k-100k]
+      - [100000, null, $100k and over]
+  # The EITC: $50k-75k (few qualify) joins $40k-50k and everything above, which becomes $40k and over, the EITC's top group
+  eitc_agi_groups:
+    variable: agi
+    merge_across_published: true
+    edges:
+      - [null, 1, no AGI]
+      - [1, 10000, $1-10k]
+      - [10000, 20000, $10k-20k]
+      - [20000, 30000, $20k-30k]
+      - [30000, 40000, $30k-40k]
+      - [40000, null, $40k and over]
+  # The AMT's AGI groups (30 October): few returns below $200,000 owe it, so since 1 November (decision 71) under $200k and
+  # $200k-500k are one group, under $500k
   amt_agi_groups:
     variable: agi
     merge_across_published: true
     edges:
-      - [null, 200000, under $200k]
-      - [200000, 500000, $200k-500k]
+      - [null, 500000, under $500k]
       - [500000, 1000000, $500k-1m]
       - [1000000, null, $1m and over]
   # The unit's wages in five groups (28 October, the CPS overtime targets; decided by John 27 October): the file's
@@ -869,8 +915,7 @@ groupings:
       - [100000, 200000, $100k-200k]
       - [200000, 500000, $200k-500k]
       - [500000, 1000000, $500k-1m]
-      - [1000000, 1500000, $1m-1.5m]
-      - [1500000, 2000000, $1.5m-2m]
+      - [1000000, 2000000, $1m-2m]
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]

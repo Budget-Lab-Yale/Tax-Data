@@ -1433,7 +1433,7 @@ non-microdata imputations and does not redraw balance sheets at the ceiling.
 Since 1 November the counts of all returns, itemizers and AMT returns are also anchored to the file: the previous
 year's file count times CBO's growth in that count (`target_list.cbo_count_rows`), not CBO's level.
 
-**The refund rule recomputes the totals built from the refund (1 November, decision 71).** `taxes.apply_refund_rule`
+**The refund rule recomputes the totals built from the refund (1 November, decision 74).** `taxes.apply_refund_rule`
 sets taxable state refunds to zero on records that do not itemize and lowers `other_agi`, which holds the refund, by
 the same dollars, so every total equals the sum of its parts on every record (before this, 38,777 records and $15.9
 billion in 2023 did not). The chained start's check is strict again (the dry run's workaround, commit ffcee11, is removed).
@@ -1629,3 +1629,5 @@ use the year configuration's tolerance. From 2021, the partnership and S corpora
 combined Table 4.3 count for both comparison years, avoiding the double count in Table 1.4's split lines; Table 4.3
 excludes dependent filers, while the Table 1.4 amounts include them. Full historical fits, Table 2.1 targets, and the
 new projection method remain unfinished; these changes do not constitute a completed phase 2 run.
+
+**Target consolidation (1 November, decisions 71 and 72).** Small count cells are folded into neighbours in every historical year (credits within each SOI line, farm overall, Table 1.3 separate returns and AGI only, $1m-2m, no income tax after credits targets); the list is in TARGETS.md S12. Targets per year fell from 852-919 to 737-804.

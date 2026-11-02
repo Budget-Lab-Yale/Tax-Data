@@ -167,8 +167,7 @@ targets:
     kind: business
     statistic: [count, amount]
     population: filers
-    variable: [rent_royalty_net_income, rent_royalty_net_loss, farm_net_income, farm_net_loss,
-               farm_rental_net_income, farm_rental_net_loss]
+    variable: [rent_royalty_net_income, rent_royalty_net_loss]
     cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
@@ -176,6 +175,18 @@ targets:
     reason: >-
       variable: estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met
       (with standard errors they could come back, giving way where they conflict)
+
+  # Farm and farm rental income (1 November, decision 71): one overall target each, net income and net loss, returns and
+  # dollars, no AGI groups; the cells by AGI group held 1,200 to 140,000 returns.
+  - id: business_farm
+    kind: business
+    statistic: [count, amount]
+    population: filers
+    variable: [farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
+    cells: all
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: all, target: '{variable} {statistic}'}
 
   # Schedule C and partnership and S corporation income, net income and net loss, returns and dollars: the six
   # groups of the entry above with "$1m and over" cut into $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over
@@ -330,7 +341,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: soi_1_3_items
-    cells: {filing_four: all}
+    cells: {filing_four: [single, joint, head of household]}
     value: {published: soi 1.3}
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -520,21 +531,21 @@ targets:
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
-  - id: calc_tax_after_credits
-    kind: calculator
-    statistic: [count, amount]
-    population: filers
-    variable: income_tax_after_credits
-    cells: {standard_agi_groups: all}
-    value: {published: soi 3.3}
-    error: {kind: soi_cv}
-    key: {group: '{cell}', target: '{variable} {statistic}'}
   - id: calc_child_credit
     kind: calculator
     statistic: [count, amount]
     population: filers
-    variable: child_tax_credit
-    cells: {standard_agi_groups: all}
+    variable: ctc_nonrefundable
+    cells: {nonref_credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  - id: calc_child_credit_refundable
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: ctc_refundable
+    cells: {ref_credit_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
@@ -543,7 +554,7 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: eitc
-    cells: {standard_agi_groups: all}
+    cells: {eitc_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}

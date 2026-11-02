@@ -378,7 +378,7 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
     df = df.copy()
     df['state_ref'] = np.where(item, ref, 0.0)
     ref2 = df['state_ref'].to_numpy(float)
-    # (1 November, decision 71) every total built from the refund is recomputed with it: other_agi holds the refund
+    # (1 November, decision 74) every total built from the refund is recomputed with it: other_agi holds the refund
     # (dollars.FOLD, sign +1), so it falls by what the rule removed. Without this the file's other_agi (and AGI, which
     # adds it) stayed above its parts' sum on every record the rule zeroed.
     assert (ref2 <= ref + 1e-9).all(), 'the refund rule only removes refunds'
