@@ -605,8 +605,8 @@ def main():
         _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
                                     common.TILT, S['precheck'])
         common.say('\n'.join(precheck_lines))
-    # (1 November, John) settings tilt.soft_cap {k, beta}: each record's cap U_i is k times the median STARTING weight of
-    # its AGI group (agi_groups; held records left out of the median), and the cost gains 0.5 beta ((w_i - U_i)+ / U_i)^2
+    # (1 November, John) settings tilt.soft_cap {k, beta}: each record's cap U_i is k times the MEAN STARTING weight of
+    # its AGI group (agi_groups; records with a positive starting weight, held records left out; decision 73, John, 1 November: it was the median), and the cost gains 0.5 beta ((w_i - U_i)+ / U_i)^2
     # per record: nothing below the cap, quadratic above it (solver._solve)
     agi_c = g19['calc_agi'].to_numpy(float)
     grp = agi_groups(agi_c, filer)
@@ -616,10 +616,10 @@ def main():
         tab = []
         for gi, nm in enumerate(AGI_GROUP_NAMES):
             m_ = (grp == gi) & (w0 > 0) & ~fixed
-            med = float(np.median(w0[m_]))
-            upper[grp == gi] = float(soft['k']) * med
-            tab.append({'group': nm, 'records': int(m_.sum()), 'median starting weight': med, 'cap U (k x median)': float(soft['k']) * med,
-                        'records starting above U': int((w0[m_] > float(soft['k']) * med).sum())})
+            mean_w = float(np.mean(w0[m_]))
+            upper[grp == gi] = float(soft["k"]) * mean_w
+            tab.append({'group': nm, 'records': int(m_.sum()), 'mean starting weight': mean_w, 'cap U (k x mean)': float(soft["k"]) * mean_w,
+                        'records starting above U': int((w0[m_] > float(soft["k"]) * mean_w).sum())})
         assert np.isfinite(upper).all()
         pd.DataFrame(tab).to_csv(f'{common.TILT}/soft_cap_groups.csv', index=False)
         np.save(f'{common.TILT}/soft_cap_upper.npy', upper)

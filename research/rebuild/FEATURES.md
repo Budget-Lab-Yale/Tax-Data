@@ -974,8 +974,8 @@ non-filer people by age (section 4).
 targets of 0.5 x importance x (miss ÷ standard error)² plus tau x the Kullback-Leibler move from the start; identities
 exact; no target has a range and none is dropped. tau is 1,000 and the budget 100 Newton steps in all (settings
 `tilt.reweighting`); importance is 1 for the IRS's published figures and the calculator's columns, 1/1.5 for the survey and
-pipeline kinds. A soft cap on each weight (`tilt.soft_cap`: 0.5 x beta x ((w - U) ÷ U)² above U = 10 x the median starting
-weight of the record's AGI group, beta 1) replaces the earlier hard caps and factor limits. An average's standard error is on the average itself, with the cell's weight after
+pipeline kinds. A soft cap on each weight (`tilt.soft_cap`: 0.5 x beta x ((w - U) ÷ U)² above U = 10 x the mean starting
+weight of the record's AGI group (decision 73; before it was the median), beta 1) replaces the earlier hard caps and factor limits. An average's standard error is on the average itself, with the cell's weight after
 the reweighting. The demographic prescaling uses the same cost. Cells resting on too few effective records, or on a
 record moved too far, are flagged as warnings or stops (section 5). Every run's summary carries the check before the
 reweighting and the table of weight factors (final over starting weight) by AGI group. Schedule A's growth adjustment
