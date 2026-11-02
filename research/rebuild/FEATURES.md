@@ -1557,6 +1557,32 @@ gains, which on a return with a net loss is the part of the loss the limit holds
   `loss_line` setting, $2,999); smaller losses and gains as before. The CPS carries no capital gains in training.
 - **Checked** (scratch `explore/2026-10-30/train/RESULTS.md`): the table before and after, gains by source.
 
+## Wealth and gains by age, and units by age within 65 and over (branch `rebuild-age-targets`, 2 November)
+
+Before this branch no wealth target had an age in it, and the reweighting took net worth from units aged 65-79 rather
+than from the young (2022: under 55 $48.8 trillion against the SCF tax units' $38.9 trillion; 80 and over $9.3
+trillion against $13.3 trillion). Three entries, in every historical year 2015-2023, each on its year's SCF wave mix and CPS year mix (John, 2
+November; projection years untouched):
+
+- `wealth_categories_by_age`: the holders and dollars of the nine SCF balance sheet categories in four groups of the
+  primary filer's age (under 55, 55-64, 65-79, 80 and over; catalog grouping `scf_age_groups`), the same form,
+  population, wave mix and errors as `wealth_categories` (72 targets).
+- `unrealized_gains_by_age`: the holders and dollars of the unrealized gain on stocks and funds, businesses, the primary
+  home and other real estate in the same groups, each gain held to its asset's value and never below zero, as
+  tax-simulator-gpu has it (catalog variables `kg_*`, definition `gain_held_to_value`; 32 targets).
+- `units_by_older_age`: the number of units, filers and non-filers, whose primary is 65-69, 70-74, 75-79 and 80 and over
+  (grouping `older_age_groups`), from the CPS's tax units in the training table over the year's CPS mix, standard errors
+  from the ASEC's 160 replicate weights (source `cps units`, `target_list.cps_age_rows`, `errors.cps_age_errors`; new
+  kind `older ages`, importance 2/3). SOI's Table 1.6 stops at 65 and over.
+
+The primary's age is `age1` on the file (years, 80 and over held at 80) and the training table's `age1` less 1 on the
+SCF's and CPS's units (`scf_targets.frame`, catalog variable `primary_age`). An age group is a domain of the SCF's full
+sample, so each wave's replicate weights and implicates are used as they are (`scf_targets.wave_cell`). 108 targets a year in
+all. Every existing target keeps its value and standard error. The runs of every historical year, on the draw of the
+dependent filers fix, are in scratch `explore/2026-11-02/age_targets/RESULTS.md` (2022: net worth under 55 $40.2
+trillion against the SCF's $39.8 trillion, $48.9 trillion without these targets; 80 and over $11.7 trillion against
+$11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective sample kept against 65.8% without).
+
 ## How the latest run comes out
 
 The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder
