@@ -171,10 +171,10 @@ def puf_totals(df):
                                                        out['filing_status'] if 'filing_status' in out else None)
     out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
     for tot, parts in D.META['computed_totals'].items():
-        out[tot] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
+        out[tot] = D.signed_sum(out, parts)
     out['business_income_drawn'] = out['business_income']
     out['other_agi'] = out['other_agi_remainder'] + out['kg_dist'] \
-        + out[list(D.FOLD)].to_numpy(float) @ np.array(list(D.FOLD.values()), float)
+        + D.signed_sum(out, D.FOLD)
     out['agi'] = D.agi(out)
     return out
 

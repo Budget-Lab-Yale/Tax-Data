@@ -404,16 +404,25 @@ def fixed_feasibility(w0, F, T, se, identity, averages, fixed):
     return pd.DataFrame(rows)
 
 
+def effective_sample(w):
+    """The effective number of records behind weights w: (sum of w)^2 / (sum of w^2)."""
+    return w.sum() ** 2 / (w ** 2).sum()
+
+
+def kl_move(w0, w1):
+    """The Kullback-Leibler divergence, in nats, of the shares of weights w1 from the shares of w0."""
+    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
+    pos = p1 > 0
+    return float(np.sum(p1[pos] * np.log(p1[pos] / p0[pos])))
+
+
 def move(w0, w1):
     """How far the tilt moved the weights: Kullback-Leibler divergence of the new weights' shares from the starting
     shares, the share of the effective sample kept, and the smallest and largest weight factors."""
-    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
-    pos = p1 > 0
-    ess = lambda w: w.sum() ** 2 / (w ** 2).sum()
     on = w0 > 0
     f = w1[on] / w0[on]
-    return {'kl_move': float(np.sum(p1[pos] * np.log(p1[pos] / p0[pos]))),
-            'effective_sample_kept': float(ess(w1) / ess(w0)),
+    return {'kl_move': kl_move(w0, w1),
+            'effective_sample_kept': float(effective_sample(w1) / effective_sample(w0)),
             'smallest_weight_factor': float(f.min()), 'largest_weight_factor_overall': float(f.max())}
 
 

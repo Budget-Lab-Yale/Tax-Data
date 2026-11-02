@@ -145,6 +145,12 @@ def agi(df):
     return df[AGI_PARTS].to_numpy(float).sum(1)
 
 
+def signed_sum(df, parts):
+    """The total made from its parts: parts is {column: sign} (business income's eighteen parts, net worth's assets
+    and debts, the AGI items folded into other_agi), summed with their signs."""
+    return df[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
+
+
 SCF_SET = set(META['scf_amounts'])
 WAVE_MAPS = 'scf waves'                           # load_maps' key for {wave: {variable: map rows}}
 YEAR_MAPS = 'survey years'                        # load_maps' key for {survey: {tax year: {variable: map rows}}}
@@ -186,34 +192,32 @@ def draw_one(bands, vmap, rng, u=None):
     return values
 
 
+def _draw_by_group(df, v, column, maps_by_group, rng, u, what):
+    """One amount, each record from the map of its own group (an SCF wave or a survey year, in column), maps_by_group
+    {group: {variable: map rows}}; what names the group in the messages."""
+    bands, group = df[f'{v}_band'].to_numpy(), df[column].to_numpy()
+    assert not pd.isna(group).any(), f'{int(pd.isna(group).sum())} records with no {what}'
+    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
+    values = np.full(len(bands), np.nan)
+    for g in np.unique(group):
+        assert int(g) in maps_by_group and v in maps_by_group[int(g)], f'no dollar map for {v} in {what} {int(g)}'
+        idx = np.flatnonzero(group == g)
+        values[idx] = draw_one(bands[idx], maps_by_group[int(g)][v], None, u[idx])
+    return values
+
+
 def draw_by_wave(df, v, maps, rng, u):
     """One balance-sheet amount, each record from its own SCF wave's map (column scf_wave)."""
     assert WAVE_MAPS in maps, 'no SCF wave maps loaded'
     assert 'scf_wave' in df, f'{v}: the frame says nothing of which SCF wave each record was drawn from (scf_wave)'
-    bands, wave = df[f'{v}_band'].to_numpy(), df['scf_wave'].to_numpy()
-    assert not pd.isna(wave).any(), f'{int(pd.isna(wave).sum())} records with no SCF wave'
-    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
-    values = np.full(len(bands), np.nan)
-    for w in np.unique(wave):
-        assert int(w) in maps[WAVE_MAPS] and v in maps[WAVE_MAPS][int(w)], f'no dollar map for {v} in the {int(w)} wave'
-        idx = np.flatnonzero(wave == w)
-        values[idx] = draw_one(bands[idx], maps[WAVE_MAPS][int(w)][v], None, u[idx])
-    return values
+    return _draw_by_group(df, v, 'scf_wave', maps[WAVE_MAPS], rng, u, 'SCF wave')
 
 
 def draw_by_year(df, v, maps, rng, u):
     """One CEX, CPS or SIPP amount, each record from the map of its own year of that survey (column <survey>_year)."""
     src = SURVEY_OF[v]
     assert YEAR_MAPS in maps and src in maps[YEAR_MAPS], f'no {src} maps by year loaded'
-    bands, year = df[f'{v}_band'].to_numpy(), df[f'{src}_year'].to_numpy()
-    assert not pd.isna(year).any(), f'{int(pd.isna(year).sum())} records with no {src} year'
-    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
-    values = np.full(len(bands), np.nan)
-    for y in np.unique(year):
-        assert int(y) in maps[YEAR_MAPS][src] and v in maps[YEAR_MAPS][src][int(y)], f'no dollar map for {v} in {src} {int(y)}'
-        idx = np.flatnonzero(year == y)
-        values[idx] = draw_one(bands[idx], maps[YEAR_MAPS][src][int(y)][v], None, u[idx])
-    return values
+    return _draw_by_group(df, v, f'{src}_year', maps[YEAR_MAPS][src], rng, u, f'{src} year')
 
 
 def person_cap(x, cap, less=None):
@@ -383,7 +387,7 @@ def draw_dollars(df, maps, year=None):
     out['other_agi'] = out['other_agi'] + out['kg_dist']
     parts = META['computed_totals']['business_income']
     out['business_income_drawn'] = out['business_income']
-    out['business_income'] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
+    out['business_income'] = signed_sum(out, parts)
     for sub in [k for k in META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
         sp = META['computed_totals'][sub]
         if sub in ('dividends', 'adjustments') and not all(f'{p}_band' in df for p in sp):
@@ -391,9 +395,9 @@ def draw_dollars(df, maps, year=None):
             # two totals' bands, as before stage 3) keeps the total's own dollars
             assert f'{sub}_band' in df, f'{sub}: neither its band nor its parts\' bands'
             continue
-        out[sub] = out[list(sp)].to_numpy(float) @ np.array(list(sp.values()), float)
+        out[sub] = signed_sum(out, sp)
     out['other_agi_remainder'] = remainder
-    out['other_agi'] = out['other_agi'] + out[list(FOLD)].to_numpy(float) @ np.array(list(FOLD.values()), float)
+    out['other_agi'] = out['other_agi'] + signed_sum(out, FOLD)
     assert not out[list(FOLD) + KG_PIECES].isna().any().any(), 'a part is missing on a record'
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
@@ -413,6 +417,6 @@ def draw_dollars(df, maps, year=None):
     deferral_items(out, year)                      # after the ages: the legal limit depends on each person's
     if all(f'{c}_band' in df for c in META['scf_amounts']):
         assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
-        out['net_worth'] = out[list(NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(NET_WORTH_PARTS.values()), float)
+        out['net_worth'] = signed_sum(out, NET_WORTH_PARTS)
     return out
 

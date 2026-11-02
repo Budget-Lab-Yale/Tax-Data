@@ -170,7 +170,7 @@ def frame(wave, year):
     for v in items:
         u[v] = u[v].to_numpy(float) * f[v]
     u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home'] * f['w_primary_ltv']
-    u['net_worth'] = u[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
+    u['net_worth'] = D.signed_sum(u, D.NET_WORTH_PARTS)
     # the target year's wave's number of units; a year with no wave of its own (30 October): interpolated between the
     # waves either side, or after the last wave grown with the population (build_table.scf_units_at)
     import build_table as BT

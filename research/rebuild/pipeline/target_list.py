@@ -1584,6 +1584,13 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     F = np.zeros((len(df), len(rows)))
     T = rows['value'].to_numpy(float).copy()
     averages = [None] * len(rows)
+
+    def put_average(j, member, v, m):
+        # 'the average of v over member is m', in the form average_form names (the module docstring)
+        F[:, j] = average_condition(member, v, m) if average_form == 'units' else member * (v / m - 1.0)
+        T[j] = units if average_form == 'units' else 0.0
+        averages[j] = (member, v, m)
+
     for j, r in enumerate(rows.itertuples(index=False)):
         cell = pops[r.population].copy()
         extra = getattr(r, 'filters', '')
@@ -1663,9 +1670,7 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             assert member.any(), f'{r.group} {r.target}: no workers'
             k = ws[member].sum() / (ws * n_w * cell).sum()
             v = r.value + (n_above - r.value * n_w) * k
-            F[:, j] = average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
-            T[j] = units if average_form == 'units' else 0.0
-            averages[j] = (member, v, r.value)
+            put_average(j, member, v, r.value)
         elif r.statistic == 'share of total':
             # a hold_distribution target (hold_rows): the item's share of its total in an AGI rank group, s =
             # sum over the group of w x / sum over the population of w x, written sum over the population of
@@ -1681,15 +1686,11 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             xbar = (w_avg[member] * x[member]).sum() / w_avg[member].sum()
             assert member.any() and xbar != 0, f'{r.group} {r.target}: no holders, or the item averages zero'
             v = r.value + x * (cell.astype(float) - r.value) / xbar
-            F[:, j] = average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
-            T[j] = units if average_form == 'units' else 0.0
-            averages[j] = (member, v, r.value)
+            put_average(j, member, v, r.value)
         elif r.statistic in ('average', 'share'):
             v = line if r.statistic == 'share' else x
             assert v is not None, f'{r.group} {r.target}: a share needs a line'
-            F[:, j] = average_condition(cell, v, r.value) if average_form == 'units' else cell * (v / r.value - 1.0)
-            T[j] = units if average_form == 'units' else 0.0
-            averages[j] = (cell, v, r.value)
+            put_average(j, cell, v, r.value)
         else:
             raise NotImplementedError(r.statistic)
     if check:
