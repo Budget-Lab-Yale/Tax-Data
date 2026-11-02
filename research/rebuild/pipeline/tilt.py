@@ -472,25 +472,29 @@ def main():
     given = fixed = np.zeros(len(g19), bool)
     if S.get('top', {}).get('enabled', False):
         # (30 October) The top step draws from the network (Part A's hidden returns, the redraw of balance sheets at $1
-        # billion or more, Part B's billionaires), which wants a GPU, while the rest of the tilt wants none. With
-        # REBUILD_TOP_CACHE set, a run with REBUILD_TOP_ONLY=1 (on a GPU) does the top step, writes its result to that
-        # file and stops; a later run (on a CPU partition) reads it in place of the step.
+        # billion or more), which wants a GPU, while the rest of the tilt wants none. With REBUILD_TOP_CACHE set, a run
+        # with REBUILD_TOP_ONLY=1 (on a GPU) does that part (top_records.network_part), writes its result to that file
+        # and stops; a later run (on a CPU partition) reads it in place of the step. (2 November) The billionaires
+        # (top_records.add_list) need no network and are built on every run, after the cache; a cache written before
+        # 2 November that holds them has them removed first (top_records.strip_list).
         import pickle
         import top_records as TR
         cache = os.environ.get('REBUILD_TOP_CACHE')
         if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
             with open(cache, 'rb') as fh:
-                g19, imp, given, fixed, top = pickle.load(fh)
+                base = TR.strip_list(*pickle.load(fh))
             common.say(f'the top step read from {cache}')
         else:
-            g19, imp, given, fixed, top = TR.prepare_top(g19, raw, imp, Y, spec['mode'])
+            base = TR.network_part(g19, raw, imp, Y, spec['mode'])
             if cache:
                 with open(cache + '.part', 'wb') as fh:
-                    pickle.dump((g19, imp, given, fixed, top), fh, protocol=4)
+                    pickle.dump(base, fh, protocol=4)
                 os.replace(cache + '.part', cache)
                 common.say(f'the top step written to {cache}')
         if os.environ.get('REBUILD_TOP_ONLY'):
             return
+        g19, imp, given, fixed, top = TR.add_list(*base, Y)
+        del base
     del raw
     # the fixed columns after the top of the file: their file must hold a value for every record, the rebuilt hidden
     # returns and the billionaires included (add_fixed_columns stops otherwise)
@@ -690,6 +694,11 @@ def main():
         top_lines = ['## The top of the file (top_records.py)', ''] + [f'- {n}' for n in top['notes']] + [
             f'- records held fixed: {int(fixed.sum())} ({w0[fixed].sum():,.0f} units); their weights after the tilt '
             f'all exactly as before: {bool(np.array_equal(w1[fixed], w0[fixed]))}',
+            *([f'- the list\'s records, free in the reweighting (a year after the last list): {int(bil.sum())}; '
+               f'weights before the tilt {w0[bil].sum():,.1f} in all ({w0[bil].min():.4f} to {w0[bil].max():.4f}), '
+               f'after {w1[bil].sum():,.1f} ({w1[bil].min():.4f} to {w1[bil].max():.4f}); factor (after over before) '
+               f'{np.min(w1[bil] / w0[bil]):.4f} to {np.max(w1[bil] / w0[bil]):.4f}, median '
+               f'{np.median(w1[bil] / w0[bil]):.4f}'] if (bil & ~fixed).any() else []),
             f"- free records: effective sample kept {100 * info.get('effective_sample_kept_free', np.nan):.1f}%, "
             f"Kullback-Leibler move {info.get('kl_move_free', np.nan):.4f} nats",
             f'- net worth below the ceiling (all records but the list): before the tilt '

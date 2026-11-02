@@ -17,9 +17,9 @@ How each column is made:
    parent_rank, part_se and the eight consumption categories come from the file; nols is 0 as production writes it;
    prim_mort_share is computed from the drawn balance sheet. The nine forbes_* columns take production's default for
    an ordinary record (forbes_flag 0, the rest missing). The Forbes list's records (billionaire = 1, built by
-   top_billionaires.py only in a year with a Forbes list in settings tilt.top.billionaire_lists; today 2019 alone,
-   so the 2024-2035 files have none) are marked as production marks its Forbes records: forbes_flag 1,
-   forbes_source_year the list's year, forbes_rank the unit's rank on the list, forbes_name the list's identifier of
+   top_billionaires.py in a year with a Forbes list in settings tilt.top.billionaire_lists, 2015-2026, and from the last
+   list grown in the years after it) are marked as production marks its Forbes records: forbes_flag 1,
+   forbes_source_year the list's year (after the last list, that list's year), forbes_rank the unit's rank on the list, forbes_name the list's identifier of
    the unit (forbes_uri), forbes_net_worth the unit's net worth; forbes_source_category, forbes_rank_group,
    forbes_donor_id and forbes_fiscal_income missing (the rebuild does not keep them).
 3. Production's conventions for missing values (checked on its 2019 file): the spouse's age, sex, blindness and death
@@ -93,7 +93,8 @@ FORBES_DEFAULTS = {'forbes_flag': 0, 'forbes_source_year': np.nan, 'forbes_rank'
                    'forbes_source_category': np.nan, 'forbes_rank_group': np.nan, 'forbes_donor_id': np.nan,
                    'forbes_net_worth': np.nan, 'forbes_fiscal_income': np.nan}
 # The forbes_* columns on the Forbes list's records (billionaire = 1), as production fills them on its Forbes records.
-FORBES_ON_LIST = {'forbes_flag': '1', 'forbes_source_year': 'the list\'s year (settings tilt.top.billionaire_lists)',
+FORBES_ON_LIST = {'forbes_flag': '1', 'forbes_source_year': 'the list\'s year (settings tilt.top.billionaire_lists; '
+                                                            'after the last list, the last list\'s year)',
                   'forbes_rank': 'billionaire_rank, the unit\'s rank on the list',
                   'forbes_name': 'forbes_uri, the list\'s identifier of the unit', 'forbes_net_worth': 'net_worth'}
 FLAGS = ['blind1', 'blind2', 'dep_ssn1', 'dep_ssn2', 'dep_ssn3', 'dep_ctc1', 'dep_ctc2', 'dep_ctc3',
@@ -242,7 +243,9 @@ def build(f):
     bil = (x('billionaire') == 1) if 'billionaire' in f else np.zeros(n, bool)
     if bil.any():
         lists = common.SETTINGS['tilt'].get('top', {}).get('billionaire_lists') or {}
-        list_year = float(Y) if str(Y) in lists else np.nan
+        # the list's year: the year's own list, or (a year after the last list, 2 November 2026) the last list, grown
+        last = max((int(y) for y in lists), default=None)
+        list_year = float(Y) if str(Y) in lists else (float(last) if last is not None and Y > last else np.nan)
         out['forbes_flag'] = np.where(bil, 1.0, 0.0)
         out['forbes_source_year'] = np.where(bil, list_year, np.nan)
         out['forbes_rank'] = np.where(bil, x('billionaire_rank'), np.nan)
