@@ -361,7 +361,8 @@ SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculat
 
 def apply_refund_rule(df, year, w, folder, ctx, C):
     """Decision 47: taxable state refunds set to zero on records the calculator says do not itemize under the year's
-    law. One calculator run on the grown start gives the flag. Returns the frame; the counts go to ctx['refund']."""
+    law, and the total built from them (other_agi) lowered by the same dollars. One calculator run on the grown start gives
+    the flag. Returns the frame; the counts go to ctx['refund']."""
     inp, _ = C.convert(df)
     out, man = run_batch(inp, year, folder, 'refund', wage_increment=0.0)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
@@ -377,6 +378,12 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
     df = df.copy()
     df['state_ref'] = np.where(item, ref, 0.0)
     ref2 = df['state_ref'].to_numpy(float)
+    # (1 November, decision 71) every total built from the refund is recomputed with it: other_agi holds the refund
+    # (dollars.FOLD, sign +1), so it falls by what the rule removed. Without this the file's other_agi (and AGI, which
+    # adds it) stayed above its parts' sum on every record the rule zeroed.
+    assert (ref2 <= ref + 1e-9).all(), 'the refund rule only removes refunds'
+    assert D.FOLD['state_ref'] == 1, 'other_agi is built from state_ref with sign +1 (dollars.FOLD)'
+    df['other_agi'] = df['other_agi'].to_numpy(float) + D.FOLD['state_ref'] * (ref2 - ref)
     row.update({'returns with a refund after (millions)': w[filer & (ref2 > 0)].sum() / 1e6,
                 'dollars after ($ billion)': (w * ref2)[filer].sum() / 1e9,
                 'non-filer dollars before ($ billion)': (w * ref)[~filer].sum() / 1e9})

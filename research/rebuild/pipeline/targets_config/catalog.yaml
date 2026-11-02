@@ -154,7 +154,8 @@ sources:
   cbo counts:
     kind: outside
     file: research/rebuild/resources/cbo_counts.csv
-    what: CBO's February 2026 published counts of returns, itemizers and returns affected by the AMT, to 2036, as levels (outside_line names the series)
+    what: >-
+      CBO's February 2026 published counts of returns, itemizers and returns affected by the AMT, to 2036 (outside_line names the series); the target is the previous year's file count times CBO's growth in the count, not the level (target_list.cbo_count_rows)
   z1 household net worth:
     kind: outside
     file: research/rebuild/resources/growth/z1_household_net_worth.csv

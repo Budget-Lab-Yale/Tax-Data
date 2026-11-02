@@ -129,6 +129,13 @@ A value therefore comes from one of three places:
 Historical years and projection years are one case. They differ only in which of the three is available for each
 statistic.
 
+**CBO's counts of returns follow the same rule (1 November 2026).** In the projection years 2024-2035 the number of
+all returns, of itemizers and of returns affected by the AMT are each the previous year's file count times CBO's growth
+in that count from the previous year to this one, with the error of 1% as a judgment. Until 31 October they were CBO's
+published levels, which count a return differently from the file (CBO's 2024 count of all returns, 167.1 million, was 2.4%
+above the file's). `target_list.cbo_count_rows` reads the previous year's file. The population cells (previous count
+times CBO's population growth) and the dollar totals (previous total times CBO's growth) were already of this form.
+
 ## 4. What the prior for year t contains before any target (agreed 24 October)
 
 The prior is our best guess for year t, with every change we can explain from outside facts already applied. The

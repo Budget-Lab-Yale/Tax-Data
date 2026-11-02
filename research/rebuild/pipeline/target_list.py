@@ -853,16 +853,38 @@ def population_cell_rows(year, e):
 
 
 def cbo_count_rows(year, v, stats, e):
-    """(30 October, projection years) CBO's published counts of returns (all returns, itemizers, returns affected by
-    the AMT; February 2026, to 2036) as the level itself, in returns. After 2036 CBO publishes none: no row (the
-    entry is then left out and the file's count follows from the demographic cells)."""
+    """(1 November, projection years) CBO's published counts of returns (all returns, itemizers, returns affected by
+    the AMT; February 2026, to 2036), anchored to our own level like every other projection target: the previous
+    year's file's count (its final weights; the count as the targets count it: filers, and for itemizers and AMT
+    returns the filers with a nonzero calculator value) times CBO's growth in that count from the previous year to
+    this one. Until 31 October the target was CBO's level itself, which differs from the file's by the definition of a
+    return. After 2036 CBO publishes none: no row (the entry is then left out and the file's count follows from the
+    demographic cells). The standard error is the entry's, as before."""
     import projection_demographics as PD
     series = e['outside_line']
     if year > 2036:
         return []
     assert len(stats) == 1
-    return [{'cell': 'all', 'statistic': stats[0], 'value': PD.cbo_count(year, series),
-             'source': f'CBO February 2026 individual income tax projections, {series}, {year}: the published count',
+    spec = start_spec(year)
+    assert spec['mode'] == 'from_year', f'entry {e["id"]}: a CBO count target needs a start from an earlier year\'s file'
+    s = spec['year']
+    path = f"{common.OUT}/tilt/{spec['run']}/file_{s}.parquet"
+    df = pd.read_parquet(path)
+    w = df['weight'].to_numpy(float)
+    pop = population(df, e['population'])
+    if v is None:
+        member = pop
+    else:
+        d = variable_def(v)
+        xc = record_value(df, d.get('count_variable') or v)
+        assert np.isfinite(xc).all(), f'entry {e["id"]}: {v} missing on {int((~np.isfinite(xc)).sum())} records of the {s} file'
+        member = pop & (xc != 0)
+    lev = float(w[member].sum())
+    a, b = PD.cbo_count(s, series), PD.cbo_count(year, series)
+    return [{'cell': 'all', 'statistic': stats[0], 'value': lev * b / a,
+             'source': f'CBO February 2026 individual income tax projections, {series}: the {s} file\'s own count {lev:,.0f} '
+                       f'({os.path.relpath(path, common.OUT)}) times CBO\'s growth of the count from {s} to {year}, '
+                       f'{b / 1e6:.3f} / {a / 1e6:.3f} million = {b / a:.5f} (CBO\'s level in {year}: {b:,.0f})',
              'cell_spec': {'parts': {}, 'filters': [], 'label': 'all', 'agi': None, 'line': None}}]
 
 

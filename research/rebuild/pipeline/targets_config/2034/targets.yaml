@@ -24,6 +24,9 @@
 # scaling to SOI's or CBO's returns; dollars grown per return from CBO's lines (cbo_per_return; an item with no rule
 # there keeps growth.yaml's, listed in the run's growth table); targets: the cells exactly, CBO's returns, itemizers and
 # AMT counts within 1%, the dollar totals below as before. The earlier 41-target run line above is superseded.
+#
+# Phase 3 (1 November): CBO's counts of returns, itemizers and AMT returns are no longer CBO's levels: each is the
+# previous year's file count times CBO's growth in that count, as the dollar totals already were. Error as before.
 
 year: 2034
 kind: projection
@@ -64,10 +67,13 @@ targets:
     error: {kind: identity}
     key: {group: '{cell}', target: units}
 
-  # CBO's published counts (February 2026, to 2036), as levels: all returns, itemizers and returns affected by the AMT,
-  # within 1% (a judgment; CBO publishes no error). The cells above need not add to CBO's returns; the miss shows in the
-  # fit. The itemizer and AMT counts are the calculator's (itemized deductions claimed; positive AMT), so they join the
-  # calculator targets; CBO's AMT count includes some returns whose AMT only limits credits.
+  # CBO's published counts (February 2026, to 2036) of all returns, itemizers and returns affected by the AMT, anchored to
+  # our own level like the totals below (1 November 2026): the previous year's file's count times CBO's growth in that
+  # count from the previous year to this one (target_list.cbo_count_rows), within 1% (a judgment; CBO publishes no
+  # error). Until 31 October these were CBO's levels, which differ from the file's counts by what a return is (CBO's
+  # 2024 count of all returns, 167.1 million, was 2.4% above the file's). The cells above need not add to the count; the
+  # miss shows in the fit. The itemizer and AMT counts are the calculator's (itemized deductions claimed; positive AMT),
+  # so they join the calculator targets; CBO's AMT count includes some returns whose AMT only limits credits.
   - id: returns_cbo
     kind: cbo counts
     statistic: units
@@ -75,7 +81,7 @@ targets:
     cells: all
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_total
-    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; its count is independent of the demographic cells; 1% as a judgment'}
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the previous file count times CBO growth in the count; 1% as a judgment'}
     key: {group: all, target: returns}
 
   - id: itemizers_cbo
@@ -87,7 +93,7 @@ targets:
     needs_calculator: true
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_itemized
-    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; 1% as a judgment'}
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the previous file count times CBO growth in the count; 1% as a judgment'}
     key: {group: all, target: itemizers}
 
   - id: amt_cbo
@@ -99,7 +105,7 @@ targets:
     needs_calculator: true
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_amt
-    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; its count includes returns whose AMT only limits credits; 1% as a judgment'}
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the previous file count times CBO growth in the count (CBO count includes returns whose AMT only limits credits); 1% as a judgment'}
     key: {group: all, target: amt returns}
 
   # AGI

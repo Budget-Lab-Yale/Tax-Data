@@ -1430,6 +1430,13 @@ Targets: the non-filer count; nine national totals, each the start year's own to
 closest line (value kind `outside`, `target_list.outside_rows`); household net worth by the Financial Accounts'
 growth; and `hold_distribution` over five AGI rank groups. A start from an earlier year's file drops and remakes the
 non-microdata imputations and does not redraw balance sheets at the ceiling.
+Since 1 November the counts of all returns, itemizers and AMT returns are also anchored to the file: the previous
+year's file count times CBO's growth in that count (`target_list.cbo_count_rows`), not CBO's level.
+
+**The refund rule recomputes the totals built from the refund (1 November, decision 71).** `taxes.apply_refund_rule`
+sets taxable state refunds to zero on records that do not itemize and lowers `other_agi`, which holds the refund, by
+the same dollars, so every total equals the sum of its parts on every record (before this, 38,777 records and $15.9
+billion in 2023 did not). The chained start's check is strict again (the dry run's workaround, commit ffcee11, is removed).
 
 Results: scratch `explore/2026-10-30/targets/RESULTS.md`.
 
