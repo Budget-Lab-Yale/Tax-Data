@@ -373,12 +373,33 @@ def group_range(kind, group, lo=np.nan, hi=np.nan):
     return r
 
 
+def dependent_filer_item_returns(year, variable, lo, hi):
+    """Table 1.7's number of returns with an item (the variable's 'soi 1.7' count) in the AGI range [lo, hi), the
+    all-AGI row when lo and hi are NaN: the count an amount's borrowed CV is matched on."""
+    import target_list as TLS
+    t = TLS.table_17(year)
+    t = t[t['item'] == TLS.table_17_item(variable, 'count')]
+    x = t[t['lo'].isna()] if np.isnan(lo) else t[t['lo'].notna() & (t['lo'] >= lo) & (t['hi'] <= hi)]
+    assert len(x) and (x['value'] != '').all(), f'Table 1.7 {year}: no count of returns for {variable} in [{lo}, {hi})'
+    return float(x['value'].astype(float).sum())
+
+
 def soi_errors(rows, year):
     """Table 1.4 targets (published CVs) and the counts of other SOI tables (borrowed CVs)."""
     cells, cv_year = soi_cells(year)
     yr = '' if cv_year == year else f' (the {cv_year} CVs: no CV workbook for {year})'
     out = []
     for r in rows.itertuples():
+        if r.kind == 'dependent filers' and r.statistic == 'amount':
+            # (2 November 2026) a Table 1.7 amount (dependent filers' net capital gain): the median CV of the Table
+            # 1.4 amount cells closest in amount and in their number of returns, the cell's own count of returns
+            # with the item (Table 1.7 publishes it beside the amount)
+            n = dependent_filer_item_returns(year, r.variable, getattr(r, 'agi_lo', np.nan), getattr(r, 'agi_hi', np.nan))
+            cv, what = borrow_cv(cells, amount=r.value, returns=n)
+            out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
+                        f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
+                        f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
+            continue
         if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'dependent filers'):
             cv, what = borrow_cv(cells, count=r.value)
             table = {'IRS': '1.2', 'age': '1.6', 'dependent filers': '1.7'}[r.kind]

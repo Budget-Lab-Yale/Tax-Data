@@ -138,6 +138,43 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: returns}
 
+  # (2 November 2026, John; explore/2026-11-02/dependent_filers/RESULTS.md) More of Table 1.7: dependent filers' net
+  # capital gain (Table 1.7's "sales of capital assets, taxable net gain", Form 1040's capital gain line where
+  # positive, as for Table 1.3's net gain), all AGI; and their returns and net capital gain in Table 1.7's two top
+  # brackets, $50,000 under $200,000 and $200,000 or more. Dependent filers are outside Table 4.3 and the SCF targets,
+  # and the one returns cell above $20,000 did not limit how far the reweighting raised those with large AGI: in the
+  # run of 1 November 2026 the 2023 file had $10.7 billion of their net gain against SOI's $1.7 billion. Errors are
+  # borrowed from Table 1.4 as for the returns above: a count by its number of returns, an amount by its amount and
+  # its number of returns with a gain (errors.py).
+  - id: dependent_filer_gains
+    kind: dependent filers
+    statistic: amount
+    population: dependent_filers
+    variable: capital_gain_positive
+    cells: all
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: all, target: net capital gain}
+
+  - id: dependent_filer_returns_top
+    kind: dependent filers
+    statistic: units
+    population: dependent_filers
+    cells: {dependent_agi_top_groups: all}
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  - id: dependent_filer_gains_top
+    kind: dependent filers
+    statistic: amount
+    population: dependent_filers
+    variable: capital_gain_positive
+    cells: {dependent_agi_top_groups: all}
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: net capital gain}
+
   # SOI Table 1.6: returns by the primary filer's age range, 26-34 to 65+, in joint and non-joint returns. Under 26
   # is not a target of its own: the bracket returns and the joint count leave it, and a sixth target would repeat
   # them. Table 1.6 counts a dependent filer's return under its own age (TARGETS.md section 10).

@@ -40,7 +40,9 @@ sources:
   soi 1.7:
     kind: published
     file: bysize_dependent_returns.csv
-    what: SOI Publication 1304, Table 1.7, returns of dependents (dependent filers) by size of AGI, read from the mirror
+    what: >-
+      SOI Publication 1304, Table 1.7, returns of dependents (dependent filers) by size of AGI, read from the mirror:
+      the number of returns, and (2 November 2026) the items a variable names under "soi 1.7" (the net capital gain)
   soi 1.6:
     kind: published
     what: SOI Publication 1304, Table 1.6, returns by filing status and age of the primary taxpayer, all AGI
@@ -341,6 +343,11 @@ variables:
     short: capital_gain_positive
     published:
       soi 1.3: {item: sales of capital assets net gain, count: returns, amount: amount}
+    # (2 November 2026, John) Table 1.7's "sales of capital assets, taxable net gain" for dependent filers: the same
+    # line as Table 1.3's net gain (Form 1040 line 7, line 13 in the file's terms, where positive). The mirror's items.
+    soi 1.7:
+      count: sales of capital assets > taxable net gain > number of returns
+      amount: sales of capital assets > taxable net gain > amount
   capital_gain_loss:
     base: capital_gain_total
     transform: loss_allowed
@@ -935,6 +942,15 @@ groupings:
       - [1, 10000, $1-10k]
       - [10000, 20000, $10k-20k]
       - [20000, null, $20k and over]
+  # (2 November 2026, John) Table 1.7's two top brackets, as published every year 2012-2023: the dependent filers'
+  # returns and net capital gain there (the $20k-and-over cell above keeps the returns from $20,000 up).
+  dependent_agi_top_groups:
+    variable: agi
+    merge_across_published: true
+    covers_part: true
+    edges:
+      - [50000, 200000, $50k-200k]
+      - [200000, null, $200k and over]
   joint_or_not:
     variable: married
     values: [[1, joint], [0, non-joint]]

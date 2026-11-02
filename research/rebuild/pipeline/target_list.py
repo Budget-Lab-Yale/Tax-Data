@@ -463,50 +463,96 @@ def published_14(soi, year, cells, v, stats, table='1.4'):
     return rows
 
 
-def published_17(soi, year, cells, stats):
-    """Table 1.7, dependent filers' returns by AGI, read from the SOI mirror (targets/soi.csv has Tables 1.4 and 1.2
-    only). Its brackets, the top ones merged until each would hold enough records in a file of filers: a bracket's
-    expected records are its returns as a share of all Table 1.4 returns, times the file size (the IRS brackets'
-    rule). A blank cell would need joining to its neighbour; none is blank in the years seen, so one is an error."""
-    (c,) = cells
-    assert stats == ['units'], 'Table 1.7: returns only'
+def table_17(year):
+    """Table 1.7 of a year from the SOI mirror, all returns, by AGI bracket: one row per published cell, with lo, hi
+    (the bracket; -inf and inf at the ends, NaN for the all-AGI row), label, item, value (as published: amounts in
+    thousands) and flag."""
     t = pd.read_csv(os.path.join(TG.MIRROR, CAT['sources']['soi 1.7']['file']), dtype=str, keep_default_na=False)
-    t = t[(t['tax_year'] == str(year)) & (t['table'] == '1.7') & (t['panel'] == 'All returns')
-          & (t['item'] == 'number of returns')]
-    if c['agi'] is None:   # cells: all, the all-AGI total
-        (v,) = t.loc[t['row_agi_lo'] == '', 'value'].astype(float)
-        return [{'cell': 'all', 'statistic': 'units', 'value': v,
-                 'source': f'soi 1.7 {year}: dependent filers, number of returns, all AGI'}]
-    g = CAT['groupings'][c['agi']]
-    t = t[t['row_agi_lo'] != '']
+    t = t[(t['tax_year'] == str(year)) & (t['table'] == '1.7') & (t['panel'] == 'All returns')]
     assert len(t), f'Table 1.7 {year}: not in the SOI mirror'
-    assert (t['value'] != '').all(), f'Table 1.7 {year}: a blank returns cell'
-    cell = pd.DataFrame({'lo': [-np.inf if a == '-Inf' else float(a) for a in t['row_agi_lo']],
-                         'hi': [np.inf if a == 'Inf' else float(a) for a in t['row_agi_hi']],
-                         'label': t['row_label'].to_numpy(), 'value': t['value'].astype(float).to_numpy()}).sort_values('lo')
-    if 'edges' in g:
-        # (1 November, decision 57 d) our own AGI groups (dependent_agi_groups): each sums the published brackets inside
-        # it, merged where a published bracket crosses an edge (merge_groups), as Table 1.4's groups are
-        groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in g['edges']]
-        if g.get('merge_across_published'):
-            groups = merge_groups(groups, list(cell[['lo', 'hi', 'label']].itertuples(index=False, name=None)))
-        covered = sum(int(((cell.lo >= lo) & (cell.hi <= hi)).sum()) for lo, hi, _ in groups)
-        assert covered == len(cell), f'Table 1.7 {year}: a published bracket in none of the groups of {c["agi"]}'
-        return [{'cell': lab, 'agi': (lo, hi), 'statistic': 'units',
+    edge = lambda a, inf: np.nan if a == '' else inf if a in ('-Inf', 'Inf') else float(a)
+    return pd.DataFrame({'lo': [edge(a, -np.inf) for a in t['row_agi_lo']],
+                         'hi': [edge(a, np.inf) for a in t['row_agi_hi']],
+                         'label': t['row_label'].to_numpy(), 'item': t['item'].to_numpy(),
+                         'value': t['value'].to_numpy(), 'flag': t['flag'].to_numpy()})
+
+
+def table_17_item(v, st):
+    """The Table 1.7 mirror item behind statistic st of variable v: the number of returns for 'units', else the
+    item the variable's catalog entry names under 'soi 1.7' (2 November 2026: the net capital gain's count and amount)."""
+    if st == 'units':
+        return 'number of returns'
+    items = variable_def(v).get('soi 1.7')
+    assert items and st in items, f'Table 1.7: no item for {v} {st} in the catalog'
+    return items[st]
+
+
+def published_17(soi, year, cells, v, stats):
+    """Table 1.7, dependent filers by AGI, read from the SOI mirror (targets/soi.csv has Tables 1.4 and 1.2 only):
+    the number of returns (statistic units) and, from 2 November 2026, the amount (and count) of an item the variable
+    names under "soi 1.7" in the catalog (the net capital gain). Amounts are published in thousands and returned in
+    dollars. Its brackets, the top ones merged until each would hold enough records in a file of filers: a bracket's
+    expected records are its returns as a share of all Table 1.4 returns, times the file size (the IRS brackets'
+    rule). A blank or flagged cell would need joining to its neighbour; none is blank among the cells targeted in the
+    years seen, so one is an error."""
+    (c,) = cells
+    t = table_17(year)
+    out = []
+    for st in stats:
+        item = table_17_item(v, st)
+        scale = 1000.0 if st == 'amount' else 1.0
+        what = 'number of returns' if st == 'units' else item
+        ti = t[t['item'] == item]
+        assert len(ti), f'Table 1.7 {year}: no item {item!r}'
+        if c['agi'] is None:   # cells: all, the all-AGI total
+            (val,) = ti.loc[ti['lo'].isna(), 'value']
+            assert val != '', f'Table 1.7 {year}: a blank all-AGI cell for {item}'
+            out.append({'cell': 'all', 'statistic': st, 'value': float(val) * scale,
+                        'source': f'soi 1.7 {year}: dependent filers, {what}, all AGI'})
+            continue
+        g = CAT['groupings'][c['agi']]
+        cell = ti[ti['lo'].notna()].sort_values('lo')
+        if 'edges' in g:
+            # (1 November, decision 57 d) our own AGI groups (dependent_agi_groups): each sums the published brackets
+            # inside it, merged where a published bracket crosses an edge (merge_groups), as Table 1.4's groups are.
+            # A grouping that covers part of the AGI range (covers_part: dependent_agi_top_groups, 2 November) uses
+            # the published brackets inside its span, which must each lie in one group.
+            groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in g['edges']]
+            span = (groups[0][0], groups[-1][1])
+            inside = cell[(cell.lo >= span[0]) & (cell.hi <= span[1])]
+            assert not ((cell.lo < span[0]) & (cell.hi > span[0])).any() and \
+                not ((cell.lo < span[1]) & (cell.hi > span[1])).any(), \
+                f'Table 1.7 {year}: a published bracket crosses the ends of {c["agi"]}'
+            assert g.get('covers_part') or len(inside) == len(cell), \
+                f'Table 1.7 {year}: published brackets outside {c["agi"]}'
+            if g.get('merge_across_published'):
+                groups = merge_groups(groups, list(inside[['lo', 'hi', 'label']].itertuples(index=False, name=None)))
+            covered = sum(int(((inside.lo >= lo) & (inside.hi <= hi)).sum()) for lo, hi, _ in groups)
+            assert covered == len(inside), f'Table 1.7 {year}: a published bracket in none of the groups of {c["agi"]}'
+            for lo, hi, lab in groups:
+                x = inside[(inside.lo >= lo) & (inside.hi <= hi)]
+                assert len(x) and (x['value'] != '').all() and (x['flag'] == '').all(), \
+                    f'Table 1.7 {year}, {lab}: {item} blank or flagged ({list(x["flag"])}); it would need joining'
+                out.append({'cell': lab, 'agi': (lo, hi), 'statistic': st,
+                            'value': float(x['value'].astype(float).sum()) * scale,
+                            'source': f'soi 1.7 {year}: dependent filers, {what}'})
+            continue
+        assert st == 'units', 'Table 1.7 by its own merged brackets: returns only'
+        assert (cell['value'] != '').all(), f'Table 1.7 {year}: a blank returns cell'
+        cell = cell.assign(value=cell['value'].astype(float))
+        rule, total = g['merge_top_until'], TG.returns(soi, year)
+        br = list(cell[['lo', 'hi', 'label']].itertuples(index=False, name=None))
+        count = dict(zip(cell['lo'], cell['value']))
+        while len(br) > 1:
+            lo, hi, label = br[-1]
+            if sum(v_ for l_, v_ in count.items() if l_ >= lo) / total * rule['in_a_file_of'] >= rule['records']:
+                break
+            lo2, _, label2 = br[-2]
+            br = br[:-2] + [(lo2, hi, f'{label2.split(" under")[0]} or more')]
+        out += [{'cell': lab, 'agi': (lo, hi), 'statistic': 'units',
                  'value': float(cell.loc[(cell.lo >= lo) & (cell.hi <= hi), 'value'].sum()),
-                 'source': f'soi 1.7 {year}: dependent filers, number of returns'} for lo, hi, lab in groups]
-    rule, total = g['merge_top_until'], TG.returns(soi, year)
-    out = list(cell[['lo', 'hi', 'label']].itertuples(index=False, name=None))
-    count = dict(zip(cell['lo'], cell['value']))
-    while len(out) > 1:
-        lo, hi, label = out[-1]
-        if sum(v for l_, v in count.items() if l_ >= lo) / total * rule['in_a_file_of'] >= rule['records']:
-            break
-        lo2, _, label2 = out[-2]
-        out = out[:-2] + [(lo2, hi, f'{label2.split(" under")[0]} or more')]
-    return [{'cell': lab, 'agi': (lo, hi), 'statistic': 'units',
-             'value': float(cell.loc[(cell.lo >= lo) & (cell.hi <= hi), 'value'].sum()),
-             'source': f'soi 1.7 {year}: dependent filers, number of returns'} for lo, hi, lab in out]
+                 'source': f'soi 1.7 {year}: dependent filers, number of returns'} for lo, hi, lab in br]
+    return out
 
 
 def published_status(soi, year, source, cells, stats):
@@ -1393,7 +1439,7 @@ def expand_entry(e, year, soi):
             for r in rows:
                 r['cell_spec'] = {'parts': {}, 'filters': [], 'line': None, 'label': r['cell']}
         elif vkind == 'published' and src in ('soi 1.4', 'soi 1.7', 'soi 3.3'):
-            rows = published_17(soi, vyear, cells, stats) if src == 'soi 1.7' else \
+            rows = published_17(soi, vyear, cells, v, stats) if src == 'soi 1.7' else \
                 published_14(soi, vyear, cells, v, stats, table=src.split(' ')[1])
             for r in rows:
                 r['cell_spec'] = {'parts': {}, 'filters': [], 'line': None, 'label': r['cell']}
