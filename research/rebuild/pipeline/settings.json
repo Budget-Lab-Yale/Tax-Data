@@ -1884,11 +1884,11 @@
     "tables": ["dependent_filing_threshold.csv", "the filing stage's persons: <data>/filing/returns/persons_<cps year>.parquet"],
     "writes": ["dep_filer_age", "dep_filer_sex"],
     "stream": 1,
-    "pool": "earnings above the threshold",
+    "pool": "files by the filing stage's rule",
     "min_pool_records": 30,
-    "fallback_pool": "files by the filing stage's rule",
+    "fallback_pool": null,
     "top_age": 80,
-    "_why": "Q2 (John, 28 October): each dependent filer (the PUF's three dependent-filer age ranges) gets an exact age and a sex drawn from the CPS's dependents who would file, those with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's own CPS year, within the record's age range; the draw keyed by record id. A range whose pool has fewer than min_pool_records sample people (26 and over: the CPS has no dependent of that age earning above the threshold) takes the dependents the filing stage counts as filing their own return (required to, or with any wages). Ages above top_age are put at top_age (80 means 80 and over, as for the primary filer). dep_filer_age is -1 and dep_filer_sex 0 on every other record."
+    "_why": "Q2 (John, 28 October): each dependent filer (the PUF's three dependent-filer age ranges) gets an exact age and a sex drawn from the CPS's dependents who would file, those with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's own CPS year, within the record's age range; the draw keyed by record id. A range whose pool has fewer than min_pool_records sample people (26 and over: the CPS has no dependent of that age earning above the threshold) takes the dependents the filing stage counts as filing their own return (required to, or with any wages). From 2 November 2026 (John; explore/2026-11-02/dependent_filers/RESULTS.md): the pool is the CPS dependents the filing stage counts as filing their own return (p_own_return 1), in every range, with no fallback (fallback_pool null; min_pool_records applies only with a fallback). The earnings pool was 64-83% age 18 within 18-25, because under the CPS tax-unit rule few dependents aged 19-23 earn above the threshold; the filing pool is 37-46% age 18. The old rule is pool 'earnings above the threshold' with fallback_pool 'files by the filing stage's rule' (POOL_RULES in non_micro_imputations.py). Ages above top_age are put at top_age (80 means 80 and over, as for the primary filer). dep_filer_age is -1 and dep_filer_sex 0 on every other record."
    },
    "child_credit": {
     "reads": ["dep_age1", "dep_age2", "dep_age3", "n_dep_ctc"],

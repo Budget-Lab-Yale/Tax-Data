@@ -123,8 +123,21 @@ def cps_dependents(year):
     p = pd.read_parquet(PERSONS.format(year=year), columns=['age', 'sex', 'weight', 'dep_type', 'p_own_return', 'wage',
                                                            'selfemp', 'farm_selfemp'])
     p = p[p['dep_type'].fillna('').astype(str) != ''].copy()
+    for c in ('age', 'sex', 'weight', 'p_own_return', 'wage', 'selfemp', 'farm_selfemp'):
+        n = int(p[c].isna().sum())
+        assert n == 0, f'CPS {year}: {n} dependents with no {c}'
     p['earnings'] = p['wage'] + p['selfemp'] + p['farm_selfemp']
     return p
+
+
+# The pools a dependent filer's age and sex can be drawn from (settings dependent_filer_age_sex: pool, fallback_pool):
+# CPS dependents with earnings above the year's dependent filing threshold (until 2 November 2026), or the CPS
+# dependents the filing stage counts as filing their own return (p_own_return: required to file, or with any wages;
+# from 2 November 2026, John).
+POOL_RULES = {
+    'earnings above the threshold': lambda p, threshold: p['earnings'] > threshold,
+    "files by the filing stage's rule": lambda p, threshold: p['p_own_return'] == 1,
+}
 
 
 def dependent_filer_age_sex(df, year, w, ctx):
@@ -140,10 +153,10 @@ def dependent_filer_age_sex(df, year, w, ctx):
         ty = year_used(thr.index, int(y))
         for r, (lo, hi) in RANGE_AGES.items():
             inr = (p['age'] >= lo) & (p['age'] < hi)
-            pool, used = inr & (p['earnings'] > thr[ty]), it['pool']
+            pool, used = inr & POOL_RULES[it['pool']](p, thr[ty]), it['pool']
             first = int(pool.sum())
-            if first < it['min_pool_records']:
-                pool, used = inr & (p['p_own_return'] == 1), it['fallback_pool']
+            if first < it['min_pool_records'] and it.get('fallback_pool'):
+                pool, used = inr & POOL_RULES[it['fallback_pool']](p, thr[ty]), it['fallback_pool']
             assert pool.sum() > 0, f'no CPS dependents to draw from: CPS year {y}, range {common.AGE_LABELS[r]}'
             q = p[pool].assign(age=lambda d: np.minimum(d['age'], it['top_age']))
             cells = q.groupby(['age', 'sex'], as_index=False)['weight'].sum().sort_values(['age', 'sex'])
@@ -153,7 +166,7 @@ def dependent_filer_age_sex(df, year, w, ctx):
             age[m], sex[m] = cells['age'].to_numpy()[k], cells['sex'].to_numpy()[k]
             pools.append({'CPS year': int(y), 'range': common.AGE_LABELS[r], 'threshold year': ty,
                           'earnings threshold': float(thr[ty]),
-                          'sample people earning above it': first, 'pool used': used,
+                          'sample people in the first pool': first, 'pool used': used,
                           'sample people in the pool': int(pool.sum()),
                           'pool (millions, CPS weights)': p.loc[pool, 'weight'].sum() / 1e6,
                           'file records drawn': int(m.sum())})
