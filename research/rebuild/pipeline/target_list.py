@@ -839,7 +839,7 @@ def population_cell_rows(year, e):
         f'entry {e["id"]}: population cells need a from_year start scaled by population_cells'
     path = f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet"
     prev = pd.read_parquet(path, columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
-    _, table = PD.population_cells(prev, year)
+    _, table = PD.population_cells(prev, year, from_year=spec['year'])
     want = 1 if e['population'] == 'filers' else 0
     out = []
     for r in table[table.filer == want].itertuples():
@@ -854,8 +854,8 @@ def population_cell_rows(year, e):
 
 def cbo_count_rows(year, v, stats, e):
     """(1 November, projection years) CBO's published counts of returns (all returns, itemizers, returns affected by
-    the AMT; February 2026, to 2036), anchored to our own level like every other projection target: the previous
-    year's file's count (its final weights; the count as the targets count it: filers, and for itemizers and AMT
+    the AMT; February 2026, to 2036), anchored to our own level like every other projection target: the start file's
+    (since 1 November, decision 74, always the 2023 file) count (its final weights; the count as the targets count it: filers, and for itemizers and AMT
     returns the filers with a nonzero calculator value) times CBO's growth in that count from the previous year to
     this one. Until 31 October the target was CBO's level itself, which differs from the file's by the definition of a
     return. After 2036 CBO publishes none: no row (the entry is then left out and the file's count follows from the

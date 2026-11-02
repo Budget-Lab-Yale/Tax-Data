@@ -2,18 +2,18 @@
 # (targets for every year, piece 4 of the overnight plan) by explore/2026-10-30/targets/scripts/make_chain.py; edited
 # by hand from here on.
 #
-# A year after SOI's last tables (2023). The start is the 2030 file (from_year), its weights scaled to 2031's number
+# A year after SOI's last tables (2023). The start is the 2023 file (from_year), its weights scaled to 2031's number
 # of returns (SOI 2023's returns times CBO's growth in the number of returns) and non-filers (the 2023 CPS's grown
 # with the Social Security area population), joint and non-joint returns in 2023's proportions, and every record's
-# dollars grown item by item from 2030 to 2031 by growth.yaml (Table 1.4 items past 2023 by CBO's growth per return of
+# dollars grown item by item from 2023 to 2031 by growth.yaml (Table 1.4 items past 2023 by CBO's growth per return of
 # the closest line; the balance sheet by household net worth per person, the Financial Accounts, past 2025 at a fixed
 # ratio to GDP; consumption by PCE per return, past 2025 by CBO's personal income per person).
 #
-# The targets: (1) the national totals CBO projects (February 2026, calendar years to 2036), each the 2030 file's own
-# total times CBO's growth of the closest line from 2030 to 2031 (TARGETS.md section 3: outside information that comes
+# The targets: (1) the national totals CBO projects (February 2026, calendar years to 2036), each the 2023 file's own
+# total times CBO's growth of the closest line from 2023 to 2031 (TARGETS.md section 3: outside information that comes
 # only as a change is applied to our own level), a judgment error of 1%; (2) the non-filer count; (3) household net
-# worth, the 2030 file's total times the Financial Accounts' growth; (4) hold_distribution: each item's share of its
-# total in five AGI rank groups held at the start's, a judgment error of 2% of the share. Nothing else of 2030's
+# worth, the 2023 file's total times the Financial Accounts' growth; (4) hold_distribution: each item's share of its
+# total in five AGI rank groups held at the start's, a judgment error of 2% of the share. Nothing else of 2023's
 # detail is targeted: the start carries it.
 #
 # Run of 30 October (scratch explore/2026-10-30/targets/run/2031): 41 targets, every one inside its range; effective
@@ -27,10 +27,15 @@
 #
 # Phase 3 (1 November): CBO's counts of returns, itemizers and AMT returns are no longer CBO's levels: each is the
 # previous year's file count times CBO's growth in that count, as the dollar totals already were. Error as before.
+#
+# Phase 4 (1 November, decision 74): the years are no longer chained. Every projection year starts from the 2023 file
+# (from_year 2023), its weights times the population growth from 2023 to the year, its dollars grown per return from 2023 to
+# the year by CBO's and the macro series compounded over the years; every target below is the 2023 file's level times the
+# cumulative growth from 2023 to the year (the cells exactly; CBO's totals and counts with a judgment error of 1%).
 
 year: 2031
 kind: projection
-start: {from_year: 2030, run: y2030}
+start: {from_year: 2023, run: y2023}
 start_scaling: {weights: population_cells, dollars: cbo_per_return}
 
 report:
@@ -46,7 +51,7 @@ hold_distribution:
 
 targets:
 
-  # Demographic cells (30 October, phase 2): the previous year's final weighted units in each cell times the cell's
+  # Demographic cells (30 October, phase 2; from 2023 since 1 November): the 2023 file's final weighted units in each cell times the cell's
   # population growth, exact (identities); filers by joint status x the primary's age band (nine bands, the three
   # dependent-filer bands included), non-filers by the same bands (the head's age; both joint statuses grow alike).
   - id: population_filers
@@ -68,8 +73,8 @@ targets:
     key: {group: '{cell}', target: units}
 
   # CBO's published counts (February 2026, to 2036) of all returns, itemizers and returns affected by the AMT, anchored to
-  # our own level like the totals below (1 November 2026): the previous year's file's count times CBO's growth in that
-  # count from the previous year to this one (target_list.cbo_count_rows), within 1% (a judgment; CBO publishes no
+  # our own level like the totals below (1 November 2026): the 2023 file's count times CBO's growth in that
+  # count from 2023 to the year (target_list.cbo_count_rows), within 1% (a judgment; CBO publishes no
   # error). Until 31 October these were CBO's levels, which differ from the file's counts by what a return is (CBO's
   # 2024 count of all returns, 167.1 million, was 2.4% above the file's). The cells above need not add to the count; the
   # miss shows in the fit. The itemizer and AMT counts are the calculator's (itemized deductions claimed; positive AMT),
@@ -81,7 +86,7 @@ targets:
     cells: all
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_total
-    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the previous file count times CBO growth in the count; 1% as a judgment'}
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the 2023 file count times CBO growth in the count from 2023; 1% as a judgment'}
     key: {group: all, target: returns}
 
   - id: itemizers_cbo
@@ -93,7 +98,7 @@ targets:
     needs_calculator: true
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_itemized
-    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the previous file count times CBO growth in the count; 1% as a judgment'}
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the 2023 file count times CBO growth in the count from 2023; 1% as a judgment'}
     key: {group: all, target: itemizers}
 
   - id: amt_cbo
@@ -105,7 +110,7 @@ targets:
     needs_calculator: true
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_amt
-    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the previous file count times CBO growth in the count (CBO count includes returns whose AMT only limits credits); 1% as a judgment'}
+    error: {kind: judgment, relative: 0.01, reason: 'CBO publishes no error; the 2023 file count times CBO growth in the count from 2023 (CBO count includes returns whose AMT only limits credits); 1% as a judgment'}
     key: {group: all, target: amt returns}
 
   # AGI

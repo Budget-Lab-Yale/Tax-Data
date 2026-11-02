@@ -1423,7 +1423,9 @@ What the code does for a year other than 2019:
   income per person; NIPA PCE by the CEX's categories from 2010 (`resources/growth/nipa_pce_categories.csv`).
 No W-2 targets before 2019 (older workbook layout); no Forbes list outside 2019.
 
-**Years after the data, 2024-2035** (`kind: projection`): each starts from the year before (`from_year`), its
+**Years after the data, 2024-2035** (`kind: projection`): since 1 November (decision 74) each year starts from the 2023 file
+(`from_year: 2023`, not chained; the text below describes one step, which is now the growth from 2023 to the year, CBO's and
+the macro series compounded, population cells from 2023 to the year, targets the 2023 level times the cumulative growth). Each starts from the year before (`from_year`), its
 weights scaled to CBO's growth in returns and the non-filers to the population, each record's dollars grown (Table
 1.4 items past 2023 by CBO's February 2026 growth per return of the closest line, `targets.carried`, `cbo_growth`).
 Targets: the non-filer count; nine national totals, each the start year's own total times CBO's growth of the
@@ -1433,7 +1435,7 @@ non-microdata imputations and does not redraw balance sheets at the ceiling.
 Since 1 November the counts of all returns, itemizers and AMT returns are also anchored to the file: the previous
 year's file count times CBO's growth in that count (`target_list.cbo_count_rows`), not CBO's level.
 
-**The refund rule recomputes the totals built from the refund (1 November, decision 74).** `taxes.apply_refund_rule`
+**The refund rule recomputes the totals built from the refund (1 November, decision 75).** `taxes.apply_refund_rule`
 sets taxable state refunds to zero on records that do not itemize and lowers `other_agi`, which holds the refund, by
 the same dollars, so every total equals the sum of its parts on every record (before this, 38,777 records and $15.9
 billion in 2023 did not). The chained start's check is strict again (the dry run's workaround, commit ffcee11, is removed).

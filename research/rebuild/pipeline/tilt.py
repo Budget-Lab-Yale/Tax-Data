@@ -275,10 +275,10 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         # the year file's growth.yaml, as before, and is listed in the factors table as "fallback"; settings
         # tilt.projection_strict makes the run stop on such an item instead (decision 40)
         import projection_growth as PG
-        assert t == s + 1, f'a projection start grows one year at a time, not {s} to {t}'
+        assert t > s, f'a projection start grows forward, not {s} to {t}'
         inverse = {v: k for k, v in drawn_as.items()}
         names = {c: inverse.get(c, c) for c in puf_cols + [v for v in scf_cols if v not in BT.SCF_RATIOS] + other_cols}
-        got, problems = PG.plan_factors(list(dict.fromkeys(names.values())), t, return_growth, strict=False)
+        got, problems = PG.plan_factors(list(dict.fromkeys(names.values())), t, return_growth, strict=False, from_year=s)
         assert not (problems and S.get('projection_strict', False)), \
             f'{len(problems)} dollar items with no projection rule:\n  ' + '\n  '.join(problems)
         by_name = got.set_index('column')
@@ -511,7 +511,7 @@ def main():
         import projection_demographics as PD
         path = f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet"
         prev = pd.read_parquet(path, columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
-        scaled, cell_table = PD.population_cells(prev, Y)
+        scaled, cell_table = PD.population_cells(prev, Y, from_year=spec['year'])
         by_id = pd.Series(scaled, index=prev['record_id'].to_numpy())
         take = ~given
         ids = g19['record_id'].to_numpy()[take]

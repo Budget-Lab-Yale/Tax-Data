@@ -26,9 +26,12 @@ def cbo_count(year, series):
     return float(selected.count_millions.iloc[0]) * 1_000_000
 
 
-def population_cells(previous, year):
-    """Return scaled weights and independently constructed age/status targets."""
+def population_cells(previous, year, from_year=None):
+    """Return scaled weights and independently constructed age/status targets. The previous file is the file of from_year
+    (default: the year before; since 1 November, decision 74, every projection year starts from the 2023 file and the
+    growth is the population's from from_year to year)."""
     year = int(year)
+    base = year - 1 if from_year is None else int(from_year)
     required = ['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1']
     missing_columns = [c for c in required if c not in previous]
     if missing_columns:
@@ -62,10 +65,10 @@ def population_cells(previous, year):
         if table.duplicated(keys).any() or not np.all(np.isfinite(table.factor) & (table.factor > 0)):
             raise ValueError(f'{label}: duplicate cells or invalid population factors')
     def ratios(table, keys):
-        a = table[table.year == year - 1].set_index(keys).factor
+        a = table[table.year == base].set_index(keys).factor
         b = table[table.year == year].set_index(keys).factor
         if a.empty or b.empty or not a.index.equals(b.index):
-            raise ValueError(f'population factors do not cover the same cells in {year - 1} and {year}')
+            raise ValueError(f'population factors do not cover the same cells in {base} and {year}')
         return b / a
     fr = ratios(filer, ['married', 'age_band'])
     nr = ratios(nonfiler, ['age_band'])

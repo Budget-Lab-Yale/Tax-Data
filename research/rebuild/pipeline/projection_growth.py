@@ -95,7 +95,7 @@ def macro_per_return(item, year, return_growth):
     return float((b / a) / return_growth), f'{series} macro growth / demographic return growth, {year - 1} to {year}'
 
 
-def plan_factors(items, year, return_growth=None, strict=True):
+def _plan_one_year(items, year, return_growth=None, strict=True):
     """Resolve all requested names or report every missing/ambiguous rule before growth.
 
     This preflight currently supports only direct CBO aggregates and the mapped
@@ -133,6 +133,34 @@ def plan_factors(items, year, return_growth=None, strict=True):
         raise ValueError(f'projection growth has {len(problems)} unresolved item(s):\n  ' + '\n  '.join(problems))
     # not strict: the resolved items, and the list of unresolved ones (item, reason) for the caller to deal with openly
     return pd.DataFrame(planned) if strict else (pd.DataFrame(planned, columns=['column', 'mapping_key', 'factor', 'source']), problems)
+
+
+def plan_factors(items, year, return_growth=None, strict=True, from_year=None):
+    """Growth factors per return from from_year to year (default: the year before). Since 1 November (decision 74) the
+    projection years start from the 2023 file: each year's factor from CBO's and the macro series is the product of the
+    adjacent-year factors, each already net of CBO's growth in the number of returns that year, so the compounded factor is
+    the series' growth from from_year to year over CBO's growth in returns over the same years. An item with no rule in
+    any one of the years is unresolved (listed in the problems)."""
+    s = year - 1 if from_year is None else int(from_year)
+    if s == year - 1:
+        return _plan_one_year(items, year, return_growth, strict)
+    items = list(items)
+    total, problems, sources = None, {}, {}
+    for y in range(s + 1, year + 1):
+        got, probs = _plan_one_year(items, y, return_growth, strict=False)
+        for q in probs:
+            problems.setdefault(q.split(': ', 1)[0], q)
+        g = got.set_index('column')
+        total = g[['mapping_key', 'factor']].copy() if total is None else total.join(g[['factor']], how='inner', rsuffix='_y').assign(
+            factor=lambda d: d['factor'] * d['factor_y']).drop(columns='factor_y')
+        sources = g['source'].to_dict()
+    bad = {k: v for k, v in problems.items()}
+    keep = total.drop(index=[k for k in bad if k in total.index])
+    planned = pd.DataFrame({'column': keep.index, 'mapping_key': keep['mapping_key'].to_numpy(), 'factor': keep['factor'].to_numpy(),
+                            'source': [f'{sources[c]} (compounded year by year, {s} to {year}; last year shown)' for c in keep.index]})
+    if strict and bad:
+        raise ValueError(f'projection growth has {len(bad)} unresolved item(s):\n  ' + '\n  '.join(bad.values()))
+    return planned if strict else (planned, list(bad.values()))
 
 
 def consumption_per_return(item, year):

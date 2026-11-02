@@ -701,3 +701,13 @@ neighbours, every historical year 2015-2023 (the projection years do not carry t
 5. The calculator's income tax after credits targets are dropped.
 A merged group sums the published cells and combines their errors as before. Table 4.3's top groups, dependent filers
 and the deferrals are unchanged.
+
+### S13. Projection years start from the 2023 file, not from each other (John, 1 November 2026; decision 74)
+
+Every year 2024-2035 starts from the same base, the 2023 reweighted file (`start: {from_year: 2023}`), grown directly to
+the year: weights times the population growth from 2023 to the year (age x joint cells for filers, age bands for
+non-filers), dollars grown per return from 2023 to the year by CBO's and the macro series compounded over the years
+(`projection_growth.plan_factors` with `from_year`), and targets the 2023 file's level times the cumulative growth from
+2023 to the year (population cells exact; CBO totals and the counts of returns, itemizers and AMT returns with the error of
+1% as before). The prior in the cost is the 2023 file prescaled to the year. The years are independent and run in parallel;
+no year inherits another's misses or moves.
