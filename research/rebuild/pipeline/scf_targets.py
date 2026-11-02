@@ -247,7 +247,8 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
     imp = u['implicate'].to_numpy()
     hh = u['household_id'].to_numpy()
     assert not c['filters'], f'SCF targets: a cell with a filter {c["filters"]}'
-    m = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
+    below = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
+    m = below.copy()
     rl = (np.nan, np.nan)
     if rank is not None:
         inc = rank_income(wave, year, TLS.variable_def(rank[0])['survey_parts'])
@@ -257,8 +258,7 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
     cell = m
     if line_var:
         xl = TLS.record_value(u, line_var)
-        dom = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
-        lo, hi = _dollar_line(xl[dom], w[dom], lo_spec), _dollar_line(xl[dom], w[dom], hi_spec)
+        lo, hi = _dollar_line(xl[below], w[below], lo_spec), _dollar_line(xl[below], w[below], hi_spec)
         cell = m & ((xl > lo) if lo is not None else True) & ((xl <= hi) if hi is not None else True)
     y = TLS.record_value(u, v) if v else np.zeros(len(u))
     if st == 'share':

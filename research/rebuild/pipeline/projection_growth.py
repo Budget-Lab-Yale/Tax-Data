@@ -14,6 +14,11 @@ from projection_demographics import cbo_count
 RESOURCES = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources')
 
 
+def cbo_return_growth(year):
+    """CBO's growth in the total number of individual income tax returns from year - 1 to year."""
+    return cbo_count(year, 'rev_iit_returns_total') / cbo_count(year - 1, 'rev_iit_returns_total')
+
+
 def cbo_per_return(item, year):
     """Return the adjacent-year factor and its source for an explicit CBO mapping."""
     year = int(year)
@@ -48,7 +53,7 @@ def cbo_per_return(item, year):
     a, b = float(values[f'{prefix}{year - 1}']), float(values[f'{prefix}{year}'])
     if not np.isfinite(a) or not np.isfinite(b) or a <= 0 or b <= 0:
         raise ValueError(f'{item}: {series} has a missing or nonpositive level ({a}, {b})')
-    factor = (b / a) / (cbo_count(year, 'rev_iit_returns_total') / cbo_count(year - 1, 'rev_iit_returns_total'))
+    factor = (b / a) / cbo_return_growth(year)
     return factor, f'{series} {"fiscal-year proxy" if prefix == "FY" else "calendar-year"} aggregate growth / CBO total return growth, {year - 1} to {year}'
 
 
@@ -151,16 +156,19 @@ def plan_factors(items, year, return_growth=None, strict=True, from_year=None):
         for q in probs:
             problems.setdefault(q.split(': ', 1)[0], q)
         g = got.set_index('column')
-        total = g[['mapping_key', 'factor']].copy() if total is None else total.join(g[['factor']], how='inner', rsuffix='_y').assign(
-            factor=lambda d: d['factor'] * d['factor_y']).drop(columns='factor_y')
+        if total is None:
+            total = g[['mapping_key', 'factor']].copy()
+        else:   # this year's factor times the product so far, for the items resolved in every year so far
+            total = total.join(g[['factor']], how='inner', rsuffix='_y')
+            total['factor'] = total['factor'] * total['factor_y']
+            total = total.drop(columns='factor_y')
         sources = g['source'].to_dict()
-    bad = {k: v for k, v in problems.items()}
-    keep = total.drop(index=[k for k in bad if k in total.index])
+    keep = total.drop(index=[k for k in problems if k in total.index])
     planned = pd.DataFrame({'column': keep.index, 'mapping_key': keep['mapping_key'].to_numpy(), 'factor': keep['factor'].to_numpy(),
                             'source': [f'{sources[c]} (compounded year by year, {s} to {year}; last year shown)' for c in keep.index]})
-    if strict and bad:
-        raise ValueError(f'projection growth has {len(bad)} unresolved item(s):\n  ' + '\n  '.join(bad.values()))
-    return planned if strict else (planned, list(bad.values()))
+    if strict and problems:
+        raise ValueError(f'projection growth has {len(problems)} unresolved item(s):\n  ' + '\n  '.join(problems.values()))
+    return planned if strict else (planned, list(problems.values()))
 
 
 def consumption_per_return(item, year):
@@ -184,8 +192,7 @@ def consumption_per_return(item, year):
     a, b = float(obs.loc[year - 1]), float(obs.loc[year])
     if not np.isfinite(a) or not np.isfinite(b) or a <= 0 or b <= 0:
         raise ValueError(f'{item}: {source} has invalid levels ({a}, {b})')
-    denominator = cbo_count(year, 'rev_iit_returns_total') / cbo_count(year - 1, 'rev_iit_returns_total')
-    return (b / a) / denominator, f'{source} / CBO total return growth, {year - 1} to {year}'
+    return (b / a) / cbo_return_growth(year), f'{source} / CBO total return growth, {year - 1} to {year}'
 
 
 def financial_accounts_per_return(item, year):
@@ -235,5 +242,4 @@ def financial_accounts_per_return(item, year):
         source = 'CBO GDP proxy after the 2025 Financial Accounts observation'
     if not np.isfinite(a) or not np.isfinite(b) or a <= 0 or b <= 0:
         raise ValueError(f'{item}: {source} has missing or nonpositive levels ({a}, {b})')
-    denominator = cbo_count(year, 'rev_iit_returns_total') / cbo_count(year - 1, 'rev_iit_returns_total')
-    return (b / a) / denominator, f'{source} / CBO total return growth, {year - 1} to {year}'
+    return (b / a) / cbo_return_growth(year), f'{source} / CBO total return growth, {year - 1} to {year}'
