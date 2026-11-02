@@ -80,7 +80,51 @@ def growth_factors(wave, year):
     assert f, f'SCF wave {wave}: no growth factors in {common.MAPS}/scf_growth_factors.csv'
     bad = [v for v, x in f.items() if not np.isfinite(x)]
     assert not bad, f'SCF wave {wave}: no growth factor for {bad} (no dollar map either), so it cannot be in the mix'
+    # (1 November, decision 76) a projection year's file is its start grown from the 2023 file by the CBO and macro series
+    # per return (tilt.grow_dollars, projection_growth.plan_factors), but the maps hold the factors to 2023 only, so the
+    # SCF targets stayed at 2023's dollars. They are grown on from 2023 to the year by the factors the start's records get.
+    ext = projection_extension(year, list(f))
+    for v, x in ext.items():
+        f[v] = f[v] * x
     return f
+
+
+_EXT = {}
+
+
+def projection_extension(year, items):
+    """{item: factor} from the start file's year (2023) to a projection year, for the SCF items, exactly the factors
+    tilt.grow_dollars gives the same columns of the start: CBO's and the macro series per return (the Financial Accounts'
+    category per return for the balance sheet), and for an item with no such rule the SCF's own growth per tax unit
+    (build_table.scf_growth, as grow_dollars's fallback). Empty for a year whose start is generated.
+    The mortgage's share of the home (w_primary_ltv) takes the ratio of the mortgage's factor to the home's, so the
+    target frame's mortgage (home times share) moves by the mortgage's own factor."""
+    import target_list as TLS
+    spec = TLS.start_spec(year)
+    if spec['mode'] != 'from_year':
+        return {}
+    assert spec['dollars'] == 'cbo_per_return', f'{year}: the SCF targets are grown for the cbo_per_return start only, not {spec["dollars"]!r}'
+    assert year <= 2036, f'{year}: CBO per-return growth ends in 2036; the SCF targets past it need the demographic return growth'
+    s = spec['year']
+    if (s, year) not in _EXT:
+        import build_table as BT
+        import projection_growth as PG
+        names = [v for v in BT.SCF_AMOUNTS if v not in BT.SCF_RATIOS]
+        got, problems = PG.plan_factors(names, year, None, strict=False, from_year=s)
+        out = dict(zip(got['column'], got['factor'].astype(float)))
+        late = [v for v in names if v not in out]
+        if late:
+            t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
+            fb = BT.scf_growth(t[t.source == 'scf'], s - 1, year - 1)
+            for v in late:
+                out[v] = float(fb[v])
+        bad = [v for v, x in out.items() if not (np.isfinite(x) and x > 0)]
+        assert not bad, f'SCF targets {s} to {year}: no growth factor for {bad}'
+        out['w_primary_ltv'] = out['value.primary_mortgage'] / out['value.primary_home']
+        _EXT[(s, year)] = out
+        common.say(f'SCF targets grown on from {s} to {year} as the start is: {len(names) - len(late)} items by the projection '
+                   f'series per return, {len(late)} by the SCF growth per tax unit ({", ".join(late)})')
+    return {v: _EXT[(s, year)][v] for v in items if v in _EXT[(s, year)]}
 
 
 def frame(wave, year):
