@@ -14,9 +14,35 @@ from projection_demographics import cbo_count
 RESOURCES = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources')
 
 
+def ssa_per_return(item, year):
+    """Gross Social Security benefits, 2024 and 2025 (John, 2 November 2026): SSA's calendar-year OASDI benefits paid
+    (resources/ssa_oasdi_benefits.csv: the Annual Statistical Supplement Table 4.A4 and the Trustees Report Table III.A5)
+    over CBO's growth in the number of returns, year - 1 to year. CBO's fiscal-year outlays, the rule from 2026,
+    cannot be used here: the repository's CBO file starts at FY2025."""
+    year = int(year)
+    d = pd.read_csv(os.path.join(RESOURCES, 'ssa_oasdi_benefits.csv')).set_index('year')['oasdi_benefits_paid_millions']
+    if year not in d.index or year - 1 not in d.index:
+        raise ValueError(f'{item}: no SSA OASDI benefits paid for {year - 1} and {year} in ssa_oasdi_benefits.csv')
+    a, b = float(d.loc[year - 1]), float(d.loc[year])
+    factor = (b / a) / (cbo_count(year, 'rev_iit_returns_total') / cbo_count(year - 1, 'rev_iit_returns_total'))
+    return factor, f'SSA OASDI benefits paid in the calendar year / CBO total return growth, {year - 1} to {year}'
+
+
+def gross_ss_between(a, b):
+    """Growth in gross Social Security benefits per return from year a to year b (a < b, both after SOI's last year or
+    equal to it): the product of the adjacent years' factors, SSA through 2025 and CBO's outlays from 2026. A year
+    with no source stops the run."""
+    f = 1.0
+    for y in range(int(a) + 1, int(b) + 1):
+        f *= cbo_per_return('ss_gross', y)[0]
+    return f
+
+
 def cbo_per_return(item, year):
     """Return the adjacent-year factor and its source for an explicit CBO mapping."""
     year = int(year)
+    if item == 'ss_gross' and year <= 2025:
+        return ssa_per_return(item, year)
     if not 2024 <= year <= 2036:
         raise ValueError(f'{item}: CBO-series growth is unavailable for {year - 1} to {year}')
     mapping = pd.read_csv(os.path.join(RESOURCES, 'projection_growth_mapping.csv'))

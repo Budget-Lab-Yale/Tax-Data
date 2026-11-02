@@ -282,6 +282,11 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         assert not (problems and S.get('projection_strict', False)), \
             f'{len(problems)} dollar items with no projection rule:\n  ' + '\n  '.join(problems)
         by_name = got.set_index('column')
+        # (2 November) gross Social Security has no fallback: the growth.yaml rule is SOI's per return, carried by
+        # nothing past 2023, so a missing rule here must stop the run, not pass as the taxable-benefit growth
+        for need in ('gross_ss',):
+            assert need not in names.values() or need in by_name.index, \
+                f'{need}: no projection rule for {t}: ' + '; '.join(q for q in problems if q.startswith(need))
         plan = {c: (float(by_name.loc[n, 'factor']), by_name.loc[n, 'source']) for c, n in names.items() if n in by_name.index}
         fallback = {c: next(q.split(': ', 1)[1] for q in problems if q.split(': ', 1)[0] == n) for c, n in names.items()
                     if n not in by_name.index}

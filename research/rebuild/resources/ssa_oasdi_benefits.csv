@@ -1,0 +1,12 @@
+year,oasdi_benefits_paid_millions,oasi_millions,di_millions,source
+2015,886221,742939,143282,SSA Annual Statistical Supplement 2025 Table 4.A4 (cash benefits paid in the calendar year; OASI plus DI); file shared/raw_data/SSA-Supplement/supplement25.xlsx
+2016,911336,768633,142703,same
+2017,941462,798722,142740,same
+2018,988580,844924,143656,same
+2019,1047882,902833,145049,same
+2020,1095875,952388,143487,same
+2021,1133163,993167,139996,same
+2022,1231645,1088170,143475,same
+2023,1379234,1227389,151845,same
+2024,1471407,1316424,154983,same (the 2026 Trustees Report Table III.A5 gives 1471406: rounding)
+2025,1596582,1438544,158038,SSA 2026 OASDI Trustees Report Table III.A5 (calendar-year benefit payments; its total 1596581). Read from the report as quoted in web search results on 2 November 2026 because ssa.gov refused direct fetches from the cluster; to be checked against the report by hand

@@ -368,6 +368,11 @@ variables:
     short: ira_pensions_taxable
     published:
       soi 1.3: {item: 'taxable individual retirement arrangement (ira) distributions, pensions, and annuities', count: returns, amount: amount}
+  # (2 November, John) gross Social Security benefits, Table 1.4 on the same grid as interest and dividends
+  gross_ss:
+    record: gross_ss
+    short: gross_ss
+    soi 1.4: {count: [gross_ss], amount: [gross_ss]}
   ss_taxable:
     record: ss_taxable
     short: ss_taxable
@@ -641,7 +646,7 @@ variable_lists:
   # (1 November, decision 57 d) Table 1.4's wages on the standard AGI grid, its interest, dividends and capital gains
   # on the broad one
   income_items_standard: [wages]
-  income_items_broad: [taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
+  income_items_broad: [taxable_interest, ordinary_dividends, sch_d_net_capital_gain, gross_ss]
   business: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
              rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
              farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]

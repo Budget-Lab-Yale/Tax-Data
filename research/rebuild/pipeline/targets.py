@@ -49,6 +49,8 @@ FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (st
               'loss': ['scorp_passive_loss', 'scorp_active_loss', 'scorp_179'], 'target': False}}
 T14 = {  # SOI item -> (variable, statistic)
     'number of returns': ('returns', 'count'),
+    'social security benefits > total > number of returns': ('gross_ss', 'count'),
+    'social security benefits > total > amount': ('gross_ss', 'amount'),
     'adjusted gross income less deficit': ('agi', 'amount'),
     'salaries and wages > number of returns': ('wages', 'count'),
     'salaries and wages > amount': ('wages', 'amount'),
@@ -348,7 +350,7 @@ CBO_CONCEPT = {
     'business_income': 'Net business income', 'sch_cf_income': 'Net business income', 'sch_e_income': 'Net business income',
     'sche_rent': 'Net business income', 'sche_rest': 'Net business income',
     'txbl_pens_dist': 'Taxable pensions and annuities', 'txbl_ira_dist': 'Taxable pensions and annuities',
-    'ss_taxable': 'Taxable Social Security benefits', 'gross_ss': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
+    'ss_taxable': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
     'returns': 'Number of returns', 'agi': 'Adjusted gross income'}
 _CBO = None
 
@@ -393,6 +395,14 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
                            f'it was published (a repealed item, zero under the year\'s law)')
             return g(prev[-1])
         return (a1 / c1) / (a0 / c0)
+    if item == 'gross_ss':
+        # (2 November) gross benefits past SOI's last year grow with SSA's and CBO's benefits paid, not CBO's taxable
+        # benefits (taxable grows faster: the thresholds are not indexed); projection_growth.gross_ss_between stops the
+        # run if a year has no source
+        import projection_growth as PG
+        last = total_years()[-1]
+        y = common.TARGET_YEAR if year is None else year
+        return g(y) if y <= last else g(last) * PG.gross_ss_between(last, y)
     concept = CBO_CONCEPT.get(item, 'Net business income' if rows is not None and any(
         k in r for r in rows for k in ('partnership', 'business', 'farm', 'rent', 'royalty', 'estate')) else
         'Adjusted gross income')
