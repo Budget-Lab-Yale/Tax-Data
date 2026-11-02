@@ -46,7 +46,6 @@ it sits in, though none of them rests on it). A warning below 30 effective recor
 or above a factor of 10; a stop below 10 or above 100 (placeholders, settings thin_*). A stop does not stop the
 run: the solver returns it and the summary says STOP at the top.
 """
-import os
 import numpy as np
 import pandas as pd
 
@@ -108,8 +107,6 @@ def _group_weight(w, member, extra=None):
     return g if extra is None else g + extra
 
 
-
-
 # ---- the soft cap's record term (1 November, John) -----------------------------------------
 def _soft_weights(z, p, c, U):
     """For each record the weight share e that solves log(e / p) + c (e - U)+ = z (c = beta / (tau U^2), U the cap in shares of
@@ -142,7 +139,6 @@ def _soft_value(z, e, p, c, U):
     ee, pp = e[pos], p[pos]
     h = ee * np.log(np.where(ee > 0, ee / pp, 1.0)) - ee + pp + 0.5 * c[pos] * np.maximum(ee - U[pos], 0.0) ** 2   # 0 log 0 = 0
     return float((z[pos] * ee - h).sum())
-
 
 
 # ---- Newton's method on the dual ---------------------------------------------------------

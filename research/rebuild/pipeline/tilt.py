@@ -48,6 +48,7 @@ and sample households in each wave of the pool, scf_targets.py), summary.md. rep
 from them.
 """
 import os
+import time
 
 import numpy as np
 import pandas as pd
@@ -451,9 +452,7 @@ def net_worth_table(files):
 
 
 def main():
-    import time
-    global T_MAIN
-    T_MAIN = time.time()
+    t_start = time.time()
     os.makedirs(common.TILT, exist_ok=True)
     soi = TG.load()
     spec = TLS.start_spec(Y)   # the year file's start and start_scaling (TARGETS.md S7)
@@ -635,11 +634,10 @@ def main():
     common.say(f"one cost: tau {cfg['tau']:g}, importance 1 for kinds {sorted(cfg['importance_one_kinds'])} ({int((rho == 1).sum())} targets), "
                f"{1 / float(cfg['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
                f"{cfg.get('newton_budget', 100)} Newton steps")
-    import time
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
-    common.say(f"the whole tilt before the solve: {(t_solve - T_MAIN) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
+    common.say(f"the whole tilt before the solve: {(t_solve - t_start) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
     common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
                f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended without meeting the stopping size)")
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'

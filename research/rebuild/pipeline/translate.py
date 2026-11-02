@@ -70,7 +70,6 @@ report_translation.py adds the stage after function 2 from a trained run and
 writes all stages to model/<run>/translation_report.md.
 """
 import numpy as np
-import pandas as pd
 
 import common
 

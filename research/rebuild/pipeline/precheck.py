@@ -81,7 +81,7 @@ def run(rows, F, w0, averages, value, se, identity, folder, settings=None):
     flagged = t[t[rules].any(axis=1)].copy()
     flagged.to_csv(f'{folder}/precheck_flags.csv', index=False)
     cells.to_csv(f'{folder}/precheck_cells.csv', index=False)
-    lines = [f'## Check before the reweighting (precheck.py; reports only, nothing dropped)', '',
+    lines = ['## Check before the reweighting (precheck.py; reports only, nothing dropped)', '',
              f'- {len(t)} targets ({int(free.sum())} not identities); {len(cells)} count-and-amount cells checked.',
              f'- Rule 1, required average outside the records by more than {cfg["min_excess_se"]:g} se: '
              f'{int(t[rules[0]].sum())} targets.',

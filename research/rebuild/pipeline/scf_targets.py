@@ -311,7 +311,7 @@ def rows(cells, v, stats, year, ceiling=None):
                              + ('' if p['line'] is None else f", line {p['line']:,.0f}")
                              + ('' if p['line_hi'] is None else f", upper line {p['line_hi']:,.0f}")
                              + f", {p['households_any_implicate']} households" for p in per)
-            why = (f'SCF waves pooled, independent samples: variance = sum of share^2 x the wave\'s variance; each wave '
+            why = ('SCF waves pooled, independent samples: variance = sum of share^2 x the wave\'s variance; each wave '
                    'from its 999 replicate weights (first implicate) and its five implicates: '
                    + '; '.join(f"wave {p['wave']} se {p['se']:,.4g} (sampling {p['se_sampling']:,.4g}, imputation "
                                f"{p['se_imputation']:,.4g})" for p in per))
@@ -334,26 +334,6 @@ def details():
                         'pooled_se': d['se'], 'pooled_line': d['line'], 'pooled_line_hi': d['line_hi'],
                         'share': d['shares'][p['wave']], **{k: x for k, x in p.items() if k != 'var'}})
     return pd.DataFrame(out)
-
-
-def above_ceiling(year, ceiling):
-    """The SCF's units at or above a net worth ceiling (the units the SCF targets leave out, 29 October): per wave of the
-    year's mix and pooled with its shares, the units (weighted, at the wave's weights as scaled in frame, which add up
-    over the five implicates to the wave's units), the net worth, the households in any implicate, and the unit rows. Returns a frame."""
-    out = []
-    for wave, share in mix(year):
-        u = frame(wave, year)[0]
-        nw, w = u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)
-        m = nw >= ceiling
-        out.append({'wave': wave, 'share in the mix': share, 'units (weighted)': w[m].sum(),
-                    'net worth ($ billion)': (w * nw)[m].sum() / 1e9, 'households (any implicate)': u.loc[m, 'household_id'].nunique(),
-                    'unit rows (all implicates)': int(m.sum()), 'all units (weighted)': w.sum(),
-                    'all net worth ($ billion)': (w * nw).sum() / 1e9})
-    d = pd.DataFrame(out)
-    pooled = {'wave': 'pooled', 'share in the mix': d['share in the mix'].sum()}
-    for k in ['units (weighted)', 'net worth ($ billion)', 'all units (weighted)', 'all net worth ($ billion)']:
-        pooled[k] = float((d['share in the mix'] * d[k]).sum())
-    return pd.concat([d, pd.DataFrame([pooled])], ignore_index=True)
 
 
 def reference(year):

@@ -335,7 +335,6 @@ def build_billionaires(lst, df, w, year, notes):
             out[c] = 0
         else:
             out[c] = ''
-    n = len(u)
     put = lambda c, v: out.__setitem__(c, v)
     put('source', 'puf'); put('year', common.PUF_YEAR); put('filer', 1); put('stratifier', 'forbes'); put('model', 0)
     put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)

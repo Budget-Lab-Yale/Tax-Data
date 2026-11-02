@@ -317,7 +317,6 @@ def read_roster(year):
     unrelated_sf = in_sf & ~related_sf
     # "with relatives" for nonrelatives: linked by a spouse, parent or child pointer to someone else in the household
     linked = (sp > 0) | (m1 > 0) | (m2 > 0) | (n_kids > 0)
-    same_sex = r.sex.to_numpy() == pd.Series(np.where(pn == 1, r.sex, 0)).groupby(hh).transform('max').to_numpy()
     family = pd.Series(relative).groupby(hh).transform('any').to_numpy()
     perrp = np.select(
         [pn == 1, rel == 3, rel == 5, rel == 4, rel == 6, rel == 7, rel == 8, rel == 9, rel == 10,

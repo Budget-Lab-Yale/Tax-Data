@@ -138,7 +138,6 @@ def build(f):
     x = lambda c: f[c].to_numpy(float)
     n = len(f)
     out = {c: frame[c].to_numpy() for c in frame.columns}
-    filer = x('filer') == 1
     w = x('weight')
     wm = lambda m: f'{int(m.sum()):,} records, {w[m].sum() / 1e6:,.3f} million units'
 

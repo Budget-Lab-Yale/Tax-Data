@@ -1074,7 +1074,7 @@ def w2_dependent_share(source, year):
     import survey_mix
     parts = [(y, s, w2_dependent_share_one(source, y)) for y, s in survey_mix.mix('sipp', year)]
     return (sum(s * r[0] for _, s, r in parts), sum(s * r[1] for _, s, r in parts),
-            f'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
+            'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
                 f'{100 * s:.2f}% x [{r[2]}]' for _, s, r in parts))
 
 
@@ -1709,11 +1709,13 @@ def start_spec(year):
     """How the year's start is built, from the year file (TARGETS.md S7):
       start: generate                      the run's generated stack (the default)
       start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet
-    and start_scaling: {weights: none | filing_status | demographic, dollars: per_return_growth | none}. weights:
-    how the start's weights are scaled to year t before the tilt (tilt.py: filers to SOI's returns and non-filers to
-    the year's non-filer count, then joint and non-joint returns to Table 1.2, then the demographic cells); its
-    default is settings tilt.prescale. dollars (from_year only): each record's amounts grown item by
-    item from s to t by SOI's growth per return with the item (tilt.grow_dollars)."""
+    and start_scaling: {weights: none | filing_status | demographic | population_cells, dollars: per_return_growth |
+    cbo_per_return | none} (START_SCALING). weights: how the start's weights are scaled to year t before the tilt
+    (tilt.py: filers to SOI's returns and non-filers to the year's non-filer count, then joint and non-joint returns
+    to Table 1.2, then the demographic cells; population_cells, for a projection year: each record's previous weight
+    times its population cell's growth); its default is settings tilt.prescale. dollars (from_year only): each
+    record's amounts grown item by item from s to t (tilt.grow_dollars), by SOI's growth per return with the item
+    (per_return_growth) or by CBO's and the macro series per return (cbo_per_return)."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')
     if st == 'generate':

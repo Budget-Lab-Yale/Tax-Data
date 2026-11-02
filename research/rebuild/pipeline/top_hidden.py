@@ -80,7 +80,6 @@ Entry point for tilt.main: rebuild_hidden_returns(g19) -> the rows to append (se
 Run: python top_hidden.py build    (the whole build; a GPU node; the candidate pool is reused if it is already there)
      python top_hidden.py check    (the Table 4.3 checks for 2015 and the target year, on the run's generated stack)
 """
-import json
 import os
 import sys
 
@@ -649,14 +648,6 @@ def reband(frame2015):
         assert not np.isnan(x).any(), f'{v}: missing 2015 dollars'
         out[f'{v}_band'], _ = BT.band_variable(x, np.ones(len(x)), fixed=common.edges()[f'puf/{PY}/{v}'])
     return pd.DataFrame(out)
-
-
-def scf_dollars(rows, maps, salt):
-    """The balance sheet in target-year dollars from rows' SCF bands (top_billionaires.balance_sheet_dollars: each
-    amount from the row's own wave's map with a pick keyed by record id and salt + the amount's position; the items
-    made from a share and net worth)."""
-    import top_billionaires as TB
-    return TB.balance_sheet_dollars(rows, maps, salt)
 
 
 def redraw_wealth(rows, models, factors, maps):
