@@ -15,8 +15,13 @@ How each column is made:
    made by the non-microdata imputations and by dollars.py; the converter takes them from the file.
 2. The other 23 columns of production's file: male2 (the spouse's sex), n_dep_ctc (the PUF's child credit count),
    parent_rank, part_se and the eight consumption categories come from the file; nols is 0 as production writes it;
-   prim_mort_share is computed from the drawn balance sheet; the nine forbes_* columns take production's default for
-   an ordinary record (forbes_flag 0, the rest missing), since the billionaire records are not in this file.
+   prim_mort_share is computed from the drawn balance sheet. The nine forbes_* columns take production's default for
+   an ordinary record (forbes_flag 0, the rest missing). The Forbes list's records (billionaire = 1, built by
+   top_billionaires.py only in a year with a Forbes list in settings tilt.top.billionaire_lists; today 2019 alone,
+   so the 2024-2035 files have none) are marked as production marks its Forbes records: forbes_flag 1,
+   forbes_source_year the list's year, forbes_rank the unit's rank on the list, forbes_name the list's identifier of
+   the unit (forbes_uri), forbes_net_worth the unit's net worth; forbes_source_category, forbes_rank_group,
+   forbes_donor_id and forbes_fiscal_income missing (the rebuild does not keep them).
 3. Production's conventions for missing values (checked on its 2019 file): the spouse's age, sex, blindness and death
    probability are missing (NA) without a spouse; a dependent's age, Social Security number and child credit flag
    are missing where there is no such dependent; divorce_year is 0 where alimony is paid or received and missing
@@ -24,6 +29,10 @@ How each column is made:
    filer always has an age: dependent filers take the age and sex the non-microdata imputations drew for them.
    Flags are written TRUE/FALSE where production writes them so (blindness, the dependents' flags, the specified-
    service flags). Missing values are written NA, as production writes them.
+
+Records with a weight of 0 or less are left out of the file, as production's file holds only records with a weight
+above 0 (its emit rule, live records only). In the 2024-2029 files these are 17 to 24 of the rebuilt hidden top
+returns (synthetic_top = 1) that the reweighting gave no weight; their count and AGI are in taxsim_file_notes.txt.
 
 Every rule that departs from production, and every column set to a constant, is in COLUMNS with its reason, and the
 counts each rule touched are written to taxsim_file_notes.txt.
@@ -83,6 +92,10 @@ CONSUMPTION = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurab
 FORBES_DEFAULTS = {'forbes_flag': 0, 'forbes_source_year': np.nan, 'forbes_rank': np.nan, 'forbes_name': np.nan,
                    'forbes_source_category': np.nan, 'forbes_rank_group': np.nan, 'forbes_donor_id': np.nan,
                    'forbes_net_worth': np.nan, 'forbes_fiscal_income': np.nan}
+# The forbes_* columns on the Forbes list's records (billionaire = 1), as production fills them on its Forbes records.
+FORBES_ON_LIST = {'forbes_flag': '1', 'forbes_source_year': 'the list\'s year (settings tilt.top.billionaire_lists)',
+                  'forbes_rank': 'billionaire_rank, the unit\'s rank on the list',
+                  'forbes_name': 'forbes_uri, the list\'s identifier of the unit', 'forbes_net_worth': 'net_worth'}
 FLAGS = ['blind1', 'blind2', 'dep_ssn1', 'dep_ssn2', 'dep_ssn3', 'dep_ctc1', 'dep_ctc2', 'dep_ctc3',
          'sstb_sole_prop', 'sstb_part', 'sstb_scorp', 'sstb_farm']   # written TRUE/FALSE, as production writes them
 INTEGERS = ['id', 'filer', 'dep_status', 'filing_status', 'male1', 'age1', 'parent_rank', 'n_dep', 'n_dep_ctc',
@@ -100,7 +113,8 @@ EXTRA = {
                         'it from the SCF by a forest. Tax-Simulator does not read it'),
     **{c: ('same', f'{c} (consumption, CEX)') for c in CONSUMPTION},
     **{c: ('default', 'production\'s value for an ordinary record (' + ('0' if c == 'forbes_flag' else 'missing') +
-           '); the Forbes 400 records are on another branch, not in this file. Tax-Simulator does not read it')
+           '); on the Forbes list\'s records (billionaire = 1, only in a year with a list) '
+           + FORBES_ON_LIST.get(c, 'missing') + '. Tax-Simulator does not read it')
        for c in FORBES_DEFAULTS},
 }
 RULES = {
@@ -225,6 +239,16 @@ def build(f):
         out[c] = x(c)
     for c, v in FORBES_DEFAULTS.items():
         out[c] = np.full(n, v, dtype=float)
+    bil = (x('billionaire') == 1) if 'billionaire' in f else np.zeros(n, bool)
+    if bil.any():
+        lists = common.SETTINGS['tilt'].get('top', {}).get('billionaire_lists') or {}
+        list_year = float(Y) if str(Y) in lists else np.nan
+        out['forbes_flag'] = np.where(bil, 1.0, 0.0)
+        out['forbes_source_year'] = np.where(bil, list_year, np.nan)
+        out['forbes_rank'] = np.where(bil, x('billionaire_rank'), np.nan)
+        out['forbes_name'] = np.where(bil, f['forbes_uri'].astype(str).to_numpy(), None).astype(object)
+        out['forbes_net_worth'] = np.where(bil, x('net_worth'), np.nan)
+    notes.append(f'Forbes list records (billionaire = 1), forbes_* columns filled: {wm(bil)}')
 
     # cost bases: the file's own (non-microdata imputations), which hold each drawn gain to the asset's value first
     for c in BASIS_FROM_FILE:
@@ -323,7 +347,17 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     common.say(f'taxsim file: input {INPUT}\noutput {OUT}')
     f = pd.read_parquet(INPUT)
+    w = f['weight'].to_numpy(float)
+    assert not np.isnan(w).any(), f'missing weights: {int(np.isnan(w).sum())}'
+    dropped = w <= 0
+    head = [f'records with a weight of 0 or less, left out (production writes live records only): {int(dropped.sum()):,}'
+            + (f'; of them synthetic_top = 1: {int((f.loc[dropped, "synthetic_top"] == 1).sum()):,}'
+               if 'synthetic_top' in f else '')
+            + (f'; their AGI (calc_agi) from ${f.loc[dropped, "calc_agi"].min() / 1e6:,.1f} million to '
+               f'${f.loc[dropped, "calc_agi"].max() / 1e6:,.1f} million' if dropped.any() and 'calc_agi' in f else '')]
+    f = f.loc[~dropped].reset_index(drop=True)
     g, notes = build(f)
+    notes = head + notes
     notes += check(g)
     table = column_table()
     table.to_csv(f'{OUT}/TAXSIM_FILE_COLUMNS.csv', index=False)
