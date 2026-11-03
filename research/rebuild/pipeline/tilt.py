@@ -645,7 +645,7 @@ def main():
                         hold_table(rows, g19, w0, w1).to_markdown(index=False, floatfmt='.3f'), '']
 
     # outputs
-    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, S_main, identity)
+    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
     factors = weight_factor_table(w0, w1, grp, fixed)
     factors.to_csv(f'{common.TILT}/weight_factors.csv', index=False)

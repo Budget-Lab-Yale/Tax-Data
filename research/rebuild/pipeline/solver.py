@@ -41,10 +41,10 @@ Thin cells (section 5). For each target, after the reweighting: the effective nu
 (sum_i w_i |f_i|)^2 / sum_i (w_i f_i)^2 over the records with f_i != 0, where f_i is the record's contribution (its
 column of F; for an average, the record's v within the group, which is what the group's total of v rests on); and
 the largest weight factor, final over starting weight, among those records that hold at least 1% of the cell's
-weighted total after the reweighting (thin_factor_min_share; without it, one record moved far flags every large cell
-it sits in, though none of them rests on it). A warning below 30 effective records
-or above a factor of 10; a stop below 10 or above 100 (placeholders, settings thin_*). A stop does not stop the
-run: the solver returns it and the summary says STOP at the top.
+weighted total after the reweighting (THIN_FACTOR_MIN_SHARE; without it, one record moved far flags every large cell
+it sits in, though none of them rests on it). A warning below 30 effective records or above a factor of 10; a stop
+below 10 or above 100 (placeholders, THIN_WARNING and THIN_STOP). A stop does not stop the run: the solver returns it
+and the summary says STOP at the top.
 """
 import numpy as np
 import pandas as pd
@@ -358,7 +358,7 @@ def solve(w0, F, T, se, identity, averages, settings=None, fixed=None):
                      'fixed_records': int(fixed.sum()), 'fixed_weight': float(wf.sum())})
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
     info.update(move(w0, w1))
-    table = _per_target(w0, w1, F, T, se, identity, averages, settings)
+    table = _per_target(w0, w1, F, T, se, identity, averages)
     info.update({k_: table[k_].to_numpy() for k_ in table.columns})
     info['stop'] = bool((table['flag'] == 'stop').any())
     info['warnings'] = int((table['flag'] == 'warning').sum())
@@ -427,9 +427,17 @@ def move(w0, w1):
 
 
 # ---- per-target measures and the fit table -----------------------------------------------------
-def thin_cells(w0, w1, C, settings=None):
+# Thin cells (thin_cells): a cell is flagged 'warning' with fewer than THIN_WARNING[0] effective records or a weight
+# factor above THIN_WARNING[1] among its material records, 'stop' with fewer than THIN_STOP[0] or above THIN_STOP[1];
+# a record is material when it holds at least THIN_FACTOR_MIN_SHARE of the cell's weighted total after the tilt.
+THIN_WARNING = (30, 10)
+THIN_STOP = (10, 100)
+THIN_FACTOR_MIN_SHARE = 0.01
+
+
+def thin_cells(w0, w1, C):
     """Per target: the effective records behind it after the tilt; the largest weight factor among the records that
-    hold at least thin_factor_min_share (1%) of the cell's weighted total after the tilt (one record moved far that
+    hold at least THIN_FACTOR_MIN_SHARE (1%) of the cell's weighted total after the tilt (one record moved far that
     holds a sliver of a large cell does not make the cell thin; its factor is still in the run's overall measures);
     the number of records behind it (contribution C != 0); the flag; and which test tripped it ('effective records',
     'weight factor', 'both', or 'no records')."""
@@ -440,14 +448,14 @@ def thin_cells(w0, w1, C, settings=None):
     den = (w1 ** 2) @ (C ** 2)
     eff = np.where(den > 0, num / np.where(den > 0, den, 1.0), 0.0)
     factor = np.where(w0 > 0, w1 / np.where(w0 > 0, w0, 1.0), 0.0)
-    material = (w1[:, None] * A) >= _get(settings, 'thin_factor_min_share', 0.01) * wa[None, :]
+    material = (w1[:, None] * A) >= THIN_FACTOR_MIN_SHARE * wa[None, :]
     material &= on
     largest = np.where(material.any(0), (material * factor[:, None]).max(0), np.nan)
     records = on.sum(0)
-    few_w = eff < _get(settings, 'thin_warning_effective_records', 30)
-    few_s = eff < _get(settings, 'thin_stop_effective_records', 10)
-    far_w = np.nan_to_num(largest) > _get(settings, 'thin_warning_weight_factor', 10)
-    far_s = np.nan_to_num(largest) > _get(settings, 'thin_stop_weight_factor', 100)
+    few_w = eff < THIN_WARNING[0]
+    few_s = eff < THIN_STOP[0]
+    far_w = np.nan_to_num(largest) > THIN_WARNING[1]
+    far_s = np.nan_to_num(largest) > THIN_STOP[1]
     none = records == 0
     flag = np.full(C.shape[1], '', dtype=object)
     flag[few_w | far_w] = 'warning'
@@ -460,7 +468,7 @@ def thin_cells(w0, w1, C, settings=None):
     return eff, largest, records, flag, reason
 
 
-def _per_target(w0, w1, F, T, se, identity, averages, settings=None):
+def _per_target(w0, w1, F, T, se, identity, averages):
     """Per target: where the file lands before and after (the average itself for an average), the miss, the miss in
     standard errors (empty for an identity), over_1_se (the miss is more than one standard error; for an identity, it is
     missed at all, which means the solver failed), and the thin-cell measures."""
@@ -482,7 +490,7 @@ def _per_target(w0, w1, F, T, se, identity, averages, settings=None):
         miss_in_se = np.where(exact, np.nan, miss / se)
     over = np.where(exact, np.abs(landed - Tl) / size > 1e-6,      # an identity missed: the solver failed
                     np.abs(np.nan_to_num(miss_in_se)) > 1.0)
-    eff, largest, records, flag, reason = thin_cells(w0, w1, contributions(F, averages), settings)
+    eff, largest, records, flag, reason = thin_cells(w0, w1, contributions(F, averages))
     return pd.DataFrame({'achieved': after, 'value_used': value, 'before_used': before, 'miss': miss,
                          'miss_in_se': miss_in_se, 'over_1_se': over, 'effective_records': eff,
                          'largest_weight_factor': largest, 'records': records, 'flag': flag, 'flag_reason': reason})
@@ -515,7 +523,7 @@ def suggest_merges(cells, eff, flag):
     return out
 
 
-def fit_table(w0, w1, F, T, se, averages, cells, settings=None, identity=None):
+def fit_table(w0, w1, F, T, se, averages, cells, identity=None):
     """Today's fit.csv (group, target, value, kind, average, before, after, after / target; for a share or an average
     the value, before and after are the share or average itself) plus: se (in the published statistic's units),
     miss_in_se (empty for identities), over_1_se (the miss is more than one standard error), effective_records,
@@ -526,7 +534,7 @@ def fit_table(w0, w1, F, T, se, averages, cells, settings=None, identity=None):
     w0, w1, F, T, se = (np.asarray(a, float) for a in (w0, w1, F, T, se))
     averages = list(averages) if averages is not None else [None] * len(T)
     identity = ~(se > 0) if identity is None else np.asarray(identity, bool)
-    per = _per_target(w0, w1, F, T, se, identity, averages, settings)
+    per = _per_target(w0, w1, F, T, se, identity, averages)
     cells = cells.reset_index(drop=True)
     fit = pd.DataFrame({'group': cells['group'], 'target': cells['target'], 'value': per['value_used'],
                         'kind': cells['kind'],
@@ -536,7 +544,7 @@ def fit_table(w0, w1, F, T, se, averages, cells, settings=None, identity=None):
     fit['se'] = np.where(identity, 0.0, se)
     for k in ('miss_in_se', 'over_1_se', 'effective_records', 'largest_weight_factor', 'flag', 'flag_reason', 'records'):
         fit[k] = per[k].to_numpy()
-    fit['effective_records_before'] = thin_cells(w0, w0, contributions(F, averages), settings)[0]   # the prior's own
+    fit['effective_records_before'] = thin_cells(w0, w0, contributions(F, averages))[0]   # the prior's own
     fit['suggested_merge'] = suggest_merges(cells, fit['effective_records'].to_numpy(), fit['flag'].to_numpy())
     return fit
 

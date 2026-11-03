@@ -610,7 +610,7 @@ def evaluate(df, rows, w0, w1):
         return pd.DataFrame(columns=['group', 'target', 'value', 'kind', 'before', 'after', 'se', 'miss_in_se'])
     F, T, averages = TLS.conditions(df, rows, w0, average_form=common.SETTINGS['tilt'].get('average_form', 'zero'))
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
-    return SV.fit_table(w0, w1, F, T, se, averages, rows, common.SETTINGS['tilt'], identity)
+    return SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
 
 
 def report(path, folder):
