@@ -48,6 +48,7 @@ and sample households in each wave of the pool, scf_targets.py), summary.md. rep
 from them.
 """
 import os
+import time
 
 import numpy as np
 import pandas as pd
@@ -67,11 +68,9 @@ S = common.SETTINGS['tilt']
 # ---- how far the weights moved -------------------------------------------------------------------------------
 def cost(w0, w1):
     """How far the weights moved from w0 to w1: summary.md's measures."""
-    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
-    ess = lambda w: w.sum() ** 2 / (w ** 2).sum()
+    ess = SV.effective_sample
     f = w1 / w0
-    pos = p1 > 0
-    return {'KL move (nats)': float(np.sum(p1[pos] * np.log(p1[pos] / p0[pos]))),
+    return {'KL move (nats)': SV.kl_move(w0, w1),
             'effective sample kept (%)': 100 * ess(w1) / ess(w0),
             'weight factor, 1st percentile': np.quantile(f, 0.01), 'weight factor, 99th percentile': np.quantile(f, 0.99),
             'records moved more than tenfold up': int((f > 10).sum()),
@@ -157,7 +156,7 @@ def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married,
             rho = np.append(rho, [1.0, 1.0])
         wb0 = w[rec]
         wb1, info = SV.solve(wb0, Fb, Tb, seb, idb, [None] * len(Tb), {**S, 'solver_importance': rho}, fixed=fixed[rec])
-        ess = lambda v: v.sum() ** 2 / (v ** 2).sum()
+        ess = SV.effective_sample
         f = wb1 / wb0
         out.append({'batch': batch, 'records': int(rec.sum()), 'cell count': len(Tb), 'converged': info['converged'],
                     'how': info['how'], 'effective records before': ess(wb0), 'effective records after': ess(wb1),
@@ -201,13 +200,11 @@ def recombine(df, year):
     put('capital_gains', common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
                                                      out['filing_status'] if 'filing_status' in out else None))
     put('capital_gains_line13', out['capital_gains'] + out['kg_dist'])
-    parts = D.META['computed_totals']['business_income']
-    put('business_income', out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float))
-    for sub in [k for k in D.META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
-        sp = D.META['computed_totals'][sub]
-        put(sub, out[list(sp)].to_numpy(float) @ np.array(list(sp.values()), float))
+    totals = D.META['computed_totals']
+    for total in ['business_income'] + [k for k in totals if k != 'business_income']:   # then the schedules, dividends, adjustments
+        put(total, D.signed_sum(out, totals[total]))
     put('other_agi', out['other_agi_remainder'] + out['kg_dist']
-        + out[list(D.FOLD)].to_numpy(float) @ np.array(list(D.FOLD.values()), float))
+        + D.signed_sum(out, D.FOLD))
     cats = list(D.META['cex_amounts'])
     if all(c in out for c in cats):
         put('total_consumption', out[cats].to_numpy(float).sum(1))
@@ -224,15 +221,11 @@ def recombine(df, year):
         done += sorted(made) + [k for k, parts in D.SUMS.items() if all(p in made for p in parts)] + \
             [k for k, (_, amount) in D.FLAGS_WITH.items() if amount in made]
     if all(c in out for c in D.NET_WORTH_PARTS):
-        put('net_worth', out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float))
+        put('net_worth', D.signed_sum(out, D.NET_WORTH_PARTS))
     if 'elective_deferrals' in out:                       # the traditional deferrals and Medicare wages (28 October)
         D.deferral_items(out, year)
         done += ['elective1', 'elective2', 'trad_contr_er1', 'trad_contr_er2', 'trad_deferrals', 'medicare_wages']
     return out, done
-
-
-def inverse_name(col, drawn_as):
-    return {b: a for a, b in drawn_as.items()}.get(col, col)
 
 
 def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
@@ -260,6 +253,7 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
     out, rows = df.copy(), []
     cbo_mode = mode == 'cbo_per_return'
     drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
+    item_of = {v: k for k, v in drawn_as.items()}   # a drawn column's item: other_agi_remainder is other_agi's
     puf_cols = [drawn_as.get(v, v) for v in BT.PUF_AMOUNTS
                 if not (v == 'capital_gains' or (v in D.META['computed_totals'] and v != 'business_income'))
                 and drawn_as.get(v, v) in out]
@@ -267,17 +261,16 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
     other_cols = [v for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS if v in out]
     plan, fallback = {}, {}
     if cbo_mode:
-        # (30 October, projection years as production builds them, DESIGN.md of explore/2026-10-30/demog) one year at a
-        # time, from the previous year's file: each amount grown by its source's growth from s to t divided by CBO's
-        # growth in the number of returns (projection_growth.plan_factors; from 2037, by the demographic cells' growth
-        # in returns, return_growth). An item with no rule there (the mortgage interest, real estate tax, medical
+        # (30 October, projection years as production builds them, DESIGN.md of explore/2026-10-30/demog; since decision
+        # 74 every projection year starts from the 2023 file, s = 2023): each amount grown by its source's growth from s
+        # to t divided by CBO's growth in the number of returns (projection_growth.plan_factors; from 2037, by the
+        # demographic cells' growth in returns, return_growth). An item with no rule there (the mortgage interest, real estate tax, medical
         # expenses and other itemized items, some balance sheet items, the shares, weeks and hours) keeps the rule of
         # the year file's growth.yaml, as before, and is listed in the factors table as "fallback"; settings
         # tilt.projection_strict makes the run stop on such an item instead (decision 40)
         import projection_growth as PG
         assert t > s, f'a projection start grows forward, not {s} to {t}'
-        inverse = {v: k for k, v in drawn_as.items()}
-        names = {c: inverse.get(c, c) for c in puf_cols + [v for v in scf_cols if v not in BT.SCF_RATIOS] + other_cols}
+        names = {c: item_of.get(c, c) for c in puf_cols + [v for v in scf_cols if v not in BT.SCF_RATIOS] + other_cols}
         got, problems = PG.plan_factors(list(dict.fromkeys(names.values())), t, return_growth, strict=False, from_year=s)
         assert not (problems and S.get('projection_strict', False)), \
             f'{len(problems)} dollar items with no projection rule:\n  ' + '\n  '.join(problems)
@@ -306,10 +299,14 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
         rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn, 'series': series,
                      'records with a value': int((x != 0).sum())})
+
+    def puf_factors(v):
+        # (positive values, negative values): year t's growth over year s's (build_table.growth)
+        gs, gt = BT.growth(v, s), BT.growth(v, t)
+        return gt[0] / gs[0], gt[1] / gs[1]
     for col in puf_cols:
-        v = inverse_name(col, drawn_as)
-        grow(col, lambda v=v: (lambda gs, gt: (gt[0] / gs[0], gt[1] / gs[1]))(BT.growth(v, s), BT.growth(v, t)),
-             GR.describe(v))
+        v = item_of.get(col, col)
+        grow(col, lambda v=v: puf_factors(v), GR.describe(v))
     # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
     scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
     scf = scf[scf.source == 'scf']
@@ -456,9 +453,7 @@ def net_worth_table(files):
 
 
 def main():
-    import time
-    global T_MAIN
-    T_MAIN = time.time()
+    t_start = time.time()
     os.makedirs(common.TILT, exist_ok=True)
     soi = TG.load()
     spec = TLS.start_spec(Y)   # the year file's start and start_scaling (TARGETS.md S7)
@@ -621,18 +616,20 @@ def main():
     grp = agi_groups(agi_c, filer)
     soft = S.get('soft_cap') or {}
     if soft.get('k'):
+        k = float(soft['k'])
         upper = np.full(len(w0), np.nan)
         tab = []
         for gi, nm in enumerate(AGI_GROUP_NAMES):
             m_ = (grp == gi) & (w0 > 0) & ~fixed
             mean_w = float(np.mean(w0[m_]))
-            upper[grp == gi] = float(soft["k"]) * mean_w
-            tab.append({'group': nm, 'records': int(m_.sum()), 'mean starting weight': mean_w, 'cap U (k x mean)': float(soft["k"]) * mean_w,
-                        'records starting above U': int((w0[m_] > float(soft["k"]) * mean_w).sum())})
+            upper[grp == gi] = k * mean_w
+            tab.append({'group': nm, 'records': int(m_.sum()), 'mean starting weight': mean_w, 'cap U (k x mean)': k * mean_w,
+                        'records starting above U': int((w0[m_] > k * mean_w).sum())})
         assert np.isfinite(upper).all()
-        pd.DataFrame(tab).to_csv(f'{common.TILT}/soft_cap_groups.csv', index=False)
+        tab = pd.DataFrame(tab)
+        tab.to_csv(f'{common.TILT}/soft_cap_groups.csv', index=False)
         np.save(f'{common.TILT}/soft_cap_upper.npy', upper)
-        common.say(f"soft cap k = {soft['k']:g}, beta = {soft['beta']:g}:\n" + pd.DataFrame(tab).to_string(index=False))
+        common.say(f"soft cap k = {soft['k']:g}, beta = {soft['beta']:g}:\n" + tab.to_string(index=False))
         S_main = {**S_main, 'solver_soft_upper': upper, 'solver_soft_beta': float(soft['beta'])}
     # settings tilt.reweighting: the one cost (solver._solve). Each target's importance rho is 1 for the kinds listed in
     # importance_one_kinds and 1 / other_importance_divisor for every other kind (importance())
@@ -644,11 +641,10 @@ def main():
     common.say(f"one cost: tau {cfg['tau']:g}, importance 1 for kinds {sorted(cfg['importance_one_kinds'])} ({int((rho == 1).sum())} targets), "
                f"{1 / float(cfg['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
                f"{cfg.get('newton_budget', 100)} Newton steps")
-    import time
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
-    common.say(f"the whole tilt before the solve: {(t_solve - T_MAIN) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
+    common.say(f"the whole tilt before the solve: {(t_solve - t_start) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
     common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
                f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended without meeting the stopping size)")
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'

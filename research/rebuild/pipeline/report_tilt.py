@@ -39,6 +39,7 @@ import pandas as pd
 
 import common
 import dollars as D
+import solver as SV
 import targets as TG
 
 R = common.SETTINGS.get('report', {})
@@ -880,10 +881,8 @@ def git(*args):
 
 
 def overall(df, t, th, w0, w1, run, tl):
-    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
-    ess = lambda w: w.sum() ** 2 / (w ** 2).sum()
+    ess = SV.effective_sample
     f = w1 / w0
-    keep = p1 > 0
     commit = git('rev-parse', 'HEAD')
     dirty = git('status', '--porcelain', '--', '.')
     vint = 'not recorded in the target list'
@@ -897,7 +896,7 @@ def overall(df, t, th, w0, w1, run, tl):
             ('targets', f'{len(t)}'), ('targets more than 1 se from their value', f"{int(t['over_1_se'].sum())}"),
             ('thin cells: stops, warnings', f"{n.get('stop', 0)}, {n.get('warning', 0)}"),
             ('effective sample kept (%)', f'{100 * ess(w1) / ess(w0):.2f}'),
-            ('KL move (nats)', f'{float(np.sum(p1[keep] * np.log(p1[keep] / p0[keep]))):.4f}'),
+            ('KL move (nats)', f'{SV.kl_move(w0, w1):.4f}'),
             ('weight factor, 1st and 99th percentiles', f'{np.quantile(f, 0.01):.3f}, {np.quantile(f, 0.99):.3f}'),
             ('records moved more than tenfold up, down', f'{int((f > 10).sum())}, {int((f < 0.1).sum())}'),
             ('settings file', os.environ.get('REBUILD_SETTINGS', os.path.join(common.HERE, 'settings.json'))),

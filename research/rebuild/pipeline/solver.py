@@ -46,7 +46,6 @@ it sits in, though none of them rests on it). A warning below 30 effective recor
 or above a factor of 10; a stop below 10 or above 100 (placeholders, settings thin_*). A stop does not stop the
 run: the solver returns it and the summary says STOP at the top.
 """
-import os
 import numpy as np
 import pandas as pd
 
@@ -108,8 +107,6 @@ def _group_weight(w, member, extra=None):
     return g if extra is None else g + extra
 
 
-
-
 # ---- the soft cap's record term (1 November, John) -----------------------------------------
 def _soft_weights(z, p, c, U):
     """For each record the weight share e that solves log(e / p) + c (e - U)+ = z (c = beta / (tau U^2), U the cap in shares of
@@ -142,7 +139,6 @@ def _soft_value(z, e, p, c, U):
     ee, pp = e[pos], p[pos]
     h = ee * np.log(np.where(ee > 0, ee / pp, 1.0)) - ee + pp + 0.5 * c[pos] * np.maximum(ee - U[pos], 0.0) ** 2   # 0 log 0 = 0
     return float((z[pos] * ee - h).sum())
-
 
 
 # ---- Newton's method on the dual ---------------------------------------------------------
@@ -408,16 +404,25 @@ def fixed_feasibility(w0, F, T, se, identity, averages, fixed):
     return pd.DataFrame(rows)
 
 
+def effective_sample(w):
+    """The effective number of records behind weights w: (sum of w)^2 / (sum of w^2)."""
+    return w.sum() ** 2 / (w ** 2).sum()
+
+
+def kl_move(w0, w1):
+    """The Kullback-Leibler divergence, in nats, of the shares of weights w1 from the shares of w0."""
+    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
+    pos = p1 > 0
+    return float(np.sum(p1[pos] * np.log(p1[pos] / p0[pos])))
+
+
 def move(w0, w1):
     """How far the tilt moved the weights: Kullback-Leibler divergence of the new weights' shares from the starting
     shares, the share of the effective sample kept, and the smallest and largest weight factors."""
-    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
-    pos = p1 > 0
-    ess = lambda w: w.sum() ** 2 / (w ** 2).sum()
     on = w0 > 0
     f = w1[on] / w0[on]
-    return {'kl_move': float(np.sum(p1[pos] * np.log(p1[pos] / p0[pos]))),
-            'effective_sample_kept': float(ess(w1) / ess(w0)),
+    return {'kl_move': kl_move(w0, w1),
+            'effective_sample_kept': float(effective_sample(w1) / effective_sample(w0)),
             'smallest_weight_factor': float(f.min()), 'largest_weight_factor_overall': float(f.max())}
 
 

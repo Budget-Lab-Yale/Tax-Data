@@ -1180,7 +1180,7 @@ def w2_dependent_share(source, year):
     import survey_mix
     parts = [(y, s, w2_dependent_share_one(source, y)) for y, s in survey_mix.mix('sipp', year)]
     return (sum(s * r[0] for _, s, r in parts), sum(s * r[1] for _, s, r in parts),
-            f'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
+            'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
                 f'{100 * s:.2f}% x [{r[2]}]' for _, s, r in parts))
 
 
@@ -1690,6 +1690,13 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
     F = np.zeros((len(df), len(rows)))
     T = rows['value'].to_numpy(float).copy()
     averages = [None] * len(rows)
+
+    def put_average(j, member, v, m):
+        # 'the average of v over member is m', in the form average_form names (the module docstring)
+        F[:, j] = average_condition(member, v, m) if average_form == 'units' else member * (v / m - 1.0)
+        T[j] = units if average_form == 'units' else 0.0
+        averages[j] = (member, v, m)
+
     for j, r in enumerate(rows.itertuples(index=False)):
         cell = pops[r.population].copy()
         extra = getattr(r, 'filters', '')
@@ -1769,9 +1776,7 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             assert member.any(), f'{r.group} {r.target}: no workers'
             k = ws[member].sum() / (ws * n_w * cell).sum()
             v = r.value + (n_above - r.value * n_w) * k
-            F[:, j] = average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
-            T[j] = units if average_form == 'units' else 0.0
-            averages[j] = (member, v, r.value)
+            put_average(j, member, v, r.value)
         elif r.statistic == 'share of total':
             # a hold_distribution target (hold_rows): the item's share of its total in an AGI rank group, s =
             # sum over the group of w x / sum over the population of w x, written sum over the population of
@@ -1787,15 +1792,11 @@ def conditions(df, rows, w_start, units=None, average_form='units', check=True):
             xbar = (w_avg[member] * x[member]).sum() / w_avg[member].sum()
             assert member.any() and xbar != 0, f'{r.group} {r.target}: no holders, or the item averages zero'
             v = r.value + x * (cell.astype(float) - r.value) / xbar
-            F[:, j] = average_condition(member, v, r.value) if average_form == 'units' else member * (v / r.value - 1.0)
-            T[j] = units if average_form == 'units' else 0.0
-            averages[j] = (member, v, r.value)
+            put_average(j, member, v, r.value)
         elif r.statistic in ('average', 'share'):
             v = line if r.statistic == 'share' else x
             assert v is not None, f'{r.group} {r.target}: a share needs a line'
-            F[:, j] = average_condition(cell, v, r.value) if average_form == 'units' else cell * (v / r.value - 1.0)
-            T[j] = units if average_form == 'units' else 0.0
-            averages[j] = (cell, v, r.value)
+            put_average(j, cell, v, r.value)
         else:
             raise NotImplementedError(r.statistic)
     if check:
@@ -1815,11 +1816,13 @@ def start_spec(year):
     """How the year's start is built, from the year file (TARGETS.md S7):
       start: generate                      the run's generated stack (the default)
       start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet
-    and start_scaling: {weights: none | filing_status | demographic, dollars: per_return_growth | none}. weights:
-    how the start's weights are scaled to year t before the tilt (tilt.py: filers to SOI's returns and non-filers to
-    the year's non-filer count, then joint and non-joint returns to Table 1.2, then the demographic cells); its
-    default is settings tilt.prescale. dollars (from_year only): each record's amounts grown item by
-    item from s to t by SOI's growth per return with the item (tilt.grow_dollars)."""
+    and start_scaling: {weights: none | filing_status | demographic | population_cells, dollars: per_return_growth |
+    cbo_per_return | none} (START_SCALING). weights: how the start's weights are scaled to year t before the tilt
+    (tilt.py: filers to SOI's returns and non-filers to the year's non-filer count, then joint and non-joint returns
+    to Table 1.2, then the demographic cells; population_cells, for a projection year: each record's previous weight
+    times its population cell's growth); its default is settings tilt.prescale. dollars (from_year only): each
+    record's amounts grown item by item from s to t (tilt.grow_dollars), by SOI's growth per return with the item
+    (per_return_growth) or by CBO's and the macro series per return (cbo_per_return)."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')
     if st == 'generate':

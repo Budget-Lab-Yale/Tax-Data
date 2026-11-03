@@ -500,6 +500,19 @@ def compute(df, year, w, nmi_ctx, folder):
         df = greedy_schedule_a(df, year, w, folder, ctx, C)
     inp, notes = C.convert(df)
     ctx['conversion'] = notes
+
+    def final_run(df, a, b):
+        # the QBI columns at dials a and b, and the calculator run on them whose output the file keeps
+        cols = NMI.qbi(df, year, w, nmi_ctx, a=a, b=b)
+        df = df.copy()
+        for c, v in cols.items():
+            df[c] = v
+        inp, notes = C.convert(df)
+        out, man = run_batch(inp, year, folder, 'final', law_sections=[QBI_LAW],
+                             wage_increment=float(S.get('wage_increment', 0)))
+        ctx['runs']['final'] = man
+        return df, inp, notes, out, man
+
     solve = bool(S.get('qbi_dials', {}).get('solve')) and nmi_ctx is not None and nmi_ctx.get('qbi') is not None
     out, man = run_batch(inp, year, folder, 'first', law_sections=[QBI_LAW] if solve else [],
                          wage_increment=0.0 if solve else float(S.get('wage_increment', 0)))
@@ -518,14 +531,7 @@ def compute(df, year, w, nmi_ctx, folder):
         # year holds the distribution; settings' values when there are none to carry (review of 30 October: the solve
         # stopped on its assertion; decision in DECISIONS_FOR_JOHN.md)
         a, b, how = carried_dials(year)
-        cols = NMI.qbi(df, year, w, nmi_ctx, a=a, b=b)
-        df = df.copy()
-        for c, v in cols.items():
-            df[c] = v
-        inp, notes = C.convert(df)
-        out, man = run_batch(inp, year, folder, 'final', law_sections=[QBI_LAW],
-                             wage_increment=float(S.get('wage_increment', 0)))
-        ctx['runs']['final'] = man
+        df, inp, notes, out, man = final_run(df, a, b)
         gap = check_formula(qbi_parts(inp, out), df, out, 'final run', strict=False)
         pd.DataFrame([{'round': 0, 'a': a, 'a solved': how, 'b': b, 'b solved': how}]).to_csv(
             f'{folder}/qbi_dials.csv', index=False)
@@ -536,14 +542,7 @@ def compute(df, year, w, nmi_ctx, folder):
         solve = False
     if solve:
         a, b, rounds, by_group = solve_qbi_dials(df, inp, out, w, year, nmi_ctx)
-        cols = NMI.qbi(df, year, w, nmi_ctx, a=a, b=b)   # nmi_ctx['qbi'] now describes the solved columns
-        df = df.copy()
-        for c, v in cols.items():
-            df[c] = v
-        inp, notes = C.convert(df)
-        out, man = run_batch(inp, year, folder, 'final', law_sections=[QBI_LAW],
-                             wage_increment=float(S.get('wage_increment', 0)))
-        ctx['runs']['final'] = man
+        df, inp, notes, out, man = final_run(df, a, b)   # nmi_ctx['qbi'] now describes the solved columns
         gap = check_formula(qbi_parts(inp, out), df, out, 'final run')
         ctx.update(a=a, b=b, rounds=rounds, by_group=by_group)
         rounds.to_csv(f'{folder}/qbi_dials.csv', index=False)

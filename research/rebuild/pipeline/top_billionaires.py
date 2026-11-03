@@ -421,7 +421,6 @@ def build_billionaires(lst, df, w, year, notes):
             out[c] = 0
         else:
             out[c] = ''
-    n = len(u)
     put = lambda c, v: out.__setitem__(c, v)
     put('source', 'puf'); put('year', common.PUF_YEAR); put('filer', 1); put('stratifier', 'forbes'); put('model', 0)
     put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)
@@ -515,7 +514,7 @@ def build_billionaires(lst, df, w, year, notes):
     assert (out['rent_loss'] >= 0).all()
     # the computed business total, as drawn (no draw here)
     parts = D.META['computed_totals']['business_income']
-    put('business_income_drawn', out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float))
+    put('business_income_drawn', D.signed_sum(out, parts))
     # charity (step 16)
     rate = np.where(grp == 'top', float(S.get('gift_rate_top', 0.007)), float(S.get('gift_rate_rest', 0.006)))
     gifts = rate * u['net_worth'].to_numpy(float)
@@ -596,7 +595,7 @@ def balance_sheet_dollars(rows, maps, salt):
     for slot, (item, base) in D.RATIOS.items():
         if slot in out and base in out:
             out[item] = out[slot] * out[base]
-    out['net_worth'] = out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
+    out['net_worth'] = D.signed_sum(out, D.NET_WORTH_PARTS)
     return out
 
 

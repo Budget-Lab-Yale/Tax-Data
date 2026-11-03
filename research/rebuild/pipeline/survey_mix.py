@@ -38,7 +38,6 @@ def years(source, year=None):
 
 
 # ---- the surveys' units in the year mix (targets and reports) ----------------------------------------------------
-import numpy as np
 import pandas as pd
 
 

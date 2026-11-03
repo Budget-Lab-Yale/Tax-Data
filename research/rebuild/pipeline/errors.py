@@ -747,7 +747,7 @@ def nonfiler_errors(rows, year):
             r.group.replace('non-filers, heads and spouses aged ', '')
         pop = 1e6 * t.loc[band, 'census_adults']
         s = JUDGMENT['nonfiler_people']
-        who = 'CPS children under 17' if band == 'children under 17' else f"the band's CPS adults"
+        who = 'CPS children under 17' if band == 'children under 17' else "the band's CPS adults"
         out.append((r.Index, s * pop, 'judgment',
                     f'{100 * s:.1f}% of {who} ({pop / 1e6:.1f} m; settings errors.nonfiler_people_population_se): '
                     'the target is that population less the people on returns, each known to about half a percent, '

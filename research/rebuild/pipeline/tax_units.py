@@ -251,7 +251,6 @@ def assign_units(r):
         assigned = assignee & ~np.isnan(ptr) & (tu_id == 999)
         tu_id[assigned] = ptr[assigned].astype(np.int64)
         # an assignee who is the parent of the person they were given to is a qualifying relative, or their own unit
-        selp = pd.Series(ptr).notna()
         tgt = pd.DataFrame({'hh': r.hh, 'pn': pn, 'mom': mom, 'pop': pop})
         par_of = tgt.set_index(['hh', 'pn'])
         key = pd.MultiIndex.from_arrays([r.hh, np.nan_to_num(ptr, nan=-1).astype(int)])

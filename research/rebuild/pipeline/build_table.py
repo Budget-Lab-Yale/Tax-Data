@@ -896,7 +896,6 @@ def sipp_person_slots(t, primary_is_2):
     d = t[c]
     married = (d.married == 1).to_numpy()
     assert (d.loc[~married, SIPP_SPOUSE_SLOTS] == 0).all().all() and d.loc[~married, 'spouse_wage_share'].isna().all()
-    w = d.weight.to_numpy(float)
     common.say(f'SIPP spouse_wage_share: recorded on {int(d.spouse_wage_share.notna().sum()):,} rows (married couples '
                f'with some wages); tips above wages: none (checked)')
     keep = ['year', 'record_id', 'household_id', 'weight', 'married', 'n_dep', 'age_range', 'spouse_wage_share'] + \

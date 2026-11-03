@@ -307,11 +307,6 @@ def between(v, s, t, year=common.TARGET_YEAR):
     return f
 
 
-def grown_by(v, year=common.TARGET_YEAR):
-    """True when the item is grown at all (its source is not "none")."""
-    return not _is_none(line(v, year)['source'])
-
-
 def describe(v, year=common.TARGET_YEAR):
     ln = line(v, year)
     src = ln['source']

@@ -347,7 +347,7 @@ def cost_basis(df, year, w, ctx):
     # other real estate: one gain on the two holdings together, held to their combined value (each share of it is then
     # at most that holding's value, because the split is by value)
     gain['other_re'], value['other_re'] = df['w_kg_other_re'].to_numpy(float), tot
-    out, cut = {}, []
+    cut = []
     for k in gain:     # hold each gain to its value: basis = value - min(gain, value), never below 0 (John, 28 October)
         g = np.minimum(gain[k], value[k])
         cut.append({'asset': 'other_homes and other real estate (one gain)' if k == 'other_re' else k,

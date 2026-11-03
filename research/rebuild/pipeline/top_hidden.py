@@ -80,7 +80,6 @@ Entry point for tilt.main: rebuild_hidden_returns(g19) -> the rows to append (se
 Run: python top_hidden.py build    (the whole build; a GPU node; the candidate pool is reused if it is already there)
      python top_hidden.py check    (the Table 4.3 checks for 2015 and the target year, on the run's generated stack)
 """
-import json
 import os
 import sys
 
@@ -172,10 +171,10 @@ def puf_totals(df):
                                                        out['filing_status'] if 'filing_status' in out else None)
     out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
     for tot, parts in D.META['computed_totals'].items():
-        out[tot] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
+        out[tot] = D.signed_sum(out, parts)
     out['business_income_drawn'] = out['business_income']
     out['other_agi'] = out['other_agi_remainder'] + out['kg_dist'] \
-        + out[list(D.FOLD)].to_numpy(float) @ np.array(list(D.FOLD.values()), float)
+        + D.signed_sum(out, D.FOLD)
     out['agi'] = D.agi(out)
     return out
 
@@ -649,14 +648,6 @@ def reband(frame2015):
         assert not np.isnan(x).any(), f'{v}: missing 2015 dollars'
         out[f'{v}_band'], _ = BT.band_variable(x, np.ones(len(x)), fixed=common.edges()[f'puf/{PY}/{v}'])
     return pd.DataFrame(out)
-
-
-def scf_dollars(rows, maps, salt):
-    """The balance sheet in target-year dollars from rows' SCF bands (top_billionaires.balance_sheet_dollars: each
-    amount from the row's own wave's map with a pick keyed by record id and salt + the amount's position; the items
-    made from a share and net worth)."""
-    import top_billionaires as TB
-    return TB.balance_sheet_dollars(rows, maps, salt)
 
 
 def redraw_wealth(rows, models, factors, maps):

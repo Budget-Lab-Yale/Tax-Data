@@ -42,7 +42,6 @@ import pandas as pd
 
 import common
 import tax_units as T
-from tax_units import ASSUMED_FLAGS
 
 CEX_RAW = common.RAW['cex']
 MEMBER_COLS = ['NEWID', 'MEMBNO', 'AGE', 'SEX', 'CU_CODE', 'MARITAL', 'IN_COLL', 'TAX_UNIT', 'TU_CODE', 'TU_DPNDT',

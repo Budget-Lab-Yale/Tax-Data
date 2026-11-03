@@ -138,7 +138,7 @@ def main():
     c['wages2'] = c['wages_spouse_reported']        # the spouse's share uses the CPS's own amounts
     c['sch_cf_income'] = c['se_primary_reported'] + c['se_spouse_reported']
     c['se2'] = c['se_spouse_reported']
-    src = {'file': f, f'CPS mix': c}
+    src = {'file': f, 'CPS mix': c}
     for d in src.values():
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
         d['n_young'] = sum(((d[f'dep_age{k}'] >= 0) & (d[f'dep_age{k}'] < 13)).astype(int) for k in (1, 2, 3))
