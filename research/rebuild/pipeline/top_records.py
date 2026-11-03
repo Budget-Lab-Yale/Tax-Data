@@ -18,8 +18,9 @@ prepare_top, in order:
      (2027-2035; John, 2 November 2026: "their weights grow just like any other person's"), the last list grown to the
      year (top_billionaires.grow_list), its records starting at weight 1 times the population growth of their
      demographic cell from the list's year to the year (projection_demographics.population_cells, the start scaling
-     every other record of a projection year gets from 2023), given but not fixed: the solver moves them like any
-     other record, under the same soft cap.
+     every other record of a projection year gets from 2023). Since 2 November 2026 they are held fixed at that
+     starting weight (settings tilt.top.after_last_list.fixed true), a placeholder until the projection years are
+     redesigned: left free (false), the solver cut the richest to weights near zero.
 Returns the frame, the starting weights (relative importance weights for generated records, as before; the weight in
 returns or units for records whose weight is given), the mask of records whose starting weight is given, the mask of
 records held fixed, and the report (notes and tables, written by write_report).
@@ -170,10 +171,17 @@ def add_list(g19, imp, given, fixed, rep, year):
             # the year, as every projection-year record's weight is grown from 2023 (tilt.main, population_cells)
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
-            fix_b = np.zeros(len(b), bool)
+            # (2 November 2026, a placeholder until the projection years are redesigned) settings
+            # tilt.top.after_last_list.fixed: true holds them at that starting weight in the solver, as the list years
+            # hold theirs at 1; false leaves them free (the 2 November run: the solver then cut the richest to ~0)
+            hold = S['after_last_list']['fixed']
+            assert isinstance(hold, bool), f'settings tilt.top.after_last_list.fixed must be true or false, not {hold!r}'
+            fix_b = np.full(len(b), hold)
             notes.append(f'billionaires: starting weights 1 x the population growth of their cell from {list_year} to '
-                         f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); free in '
-                         f'the reweighting, under the soft cap')
+                         f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); '
+                         + ('held fixed at them in the reweighting (settings tilt.top.after_last_list.fixed, a '
+                            'placeholder until the projection years are redesigned)' if hold else
+                            'free in the reweighting, under the soft cap'))
         g19 = pd.concat([g19, b], ignore_index=True)
         imp = np.r_[imp, w_b]
         given = np.r_[given, np.ones(len(b), bool)]

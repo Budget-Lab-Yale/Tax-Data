@@ -119,8 +119,8 @@ def list_for_year(year):
     """The billionaires' list for tax year year and how it is used: ('list', the year's own list, year) when settings
     tilt.top.billionaire_lists has one (the records then have weight 1, held fixed); ('grown', the last list grown to
     the year by grow_list, the last list's year) for a year after the last list when settings tilt.top.after_last_list
-    .grow is true (John, 2 November 2026: the records then start at weight 1 and are free in the reweighting like any
-    other record); (None, None, None) otherwise."""
+    .grow is true (John, 2 November 2026: the records then start at weight 1 times their cell's population growth;
+    whether they are then held fixed is after_last_list.fixed, top_records.add_list); (None, None, None) otherwise."""
     lst = read_list(year)
     if lst is not None:
         return 'list', lst, year
