@@ -3,61 +3,80 @@
 This tool lets you check the posttrained file of one year (2015 for now) against the data it was built from. You pick
 an item Y and a variable X, and the tool shows Y by X in two tables side by side: one from the item's source data and
 one from the posttrained file. Each table shows, for each X group, the share of units with a nonzero Y, the weighted
-total and the mean per unit of Y, and each group's share of the total. The page runs in your web browser; the
-numbers are computed by a small server that runs in a Slurm job on Bouchet. The server sends tables only, never
-records.
+total and the mean per unit of Y, and each group's share of the total. (On the screen the two tables are one wide
+table: the source's columns on the left, the file's on the right, one row per X group, so the rows line up.)
+
+The tool is a Jupyter notebook, `check_tool.ipynb`, that you open in Open OnDemand's Jupyter app. The notebook runs in
+your own Jupyter session on Bouchet and reads the tool's tables there; nothing else needs to be started, and no
+address, port or password has to be typed.
 
 ## Starting it, step by step
 
 You need a Bouchet account, the PUF license, and read access to the group folder `pi_nrs36` (the tool's data sit in
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/check_tool_cache/`, readable by the group only). If a step below says
-"permission denied", ask John to check that your account is in the group.
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/check_tool_cache/`, readable by the group only). If the notebook says
+"permission denied", ask John to check that your account is in the group. From off campus, connect to the Yale VPN
+first.
 
-1. Log in to Bouchet: in Open OnDemand (https://ood-bouchet.ycrc.yale.edu), choose Clusters, then Bouchet Shell
-   Access; or by SSH from your own computer, `ssh <your NetID>@bouchet.ycrc.yale.edu`.
-2. Go to your home folder (`cd ~`) and submit the server's job:
+1. Open https://ood-bouchet.ycrc.yale.edu in your web browser and log in with your NetID and Duo.
+2. In the menu at the top, choose **Interactive Apps**, then **Jupyter**. A form opens.
+3. Fill in the form:
+   - The environment drop-down (YCRC's documentation calls it the version or the Conda environment): leave it at
+     `ycrc_default`. The notebook does not use this environment's packages, but the form needs one. If you have
+     never used the Jupyter app before, the portal builds `ycrc_default` for you the first time, which can take a
+     few minutes; this is the portal's own standard setup, not something you install.
+   - **Additional modules** (the field for modules to load with Jupyter): type exactly
 
-       sbatch /nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data-tabtool/research/rebuild/tools/check_tool/start.sbatch
+         Jupyter-bundle/20250530-GCCcore-13.3.0 Arrow/17.0.0-gfbf-2024a
 
-   Slurm answers `Submitted batch job <job id>`.
-3. Wait until the job runs: `squeue --me` shows `R` in the state column. This usually takes under a minute, but can
-   take longer when the cluster is busy. The server then needs a few seconds to read its tables.
-4. Read the job's output: `cat check_tool_<job id>.out`. It shows the node the server runs on, its port, the token
-   (a random string made anew each time the server starts) and the three addresses below with these filled in. The
-   file is readable by you alone; do not share the token.
-5. Open the page by one of the three ways in the next section.
-6. When you are done, stop the server: `scancel <job id>`. If you forget, it stops by itself after 8 hours.
+     These are two of YCRC's own software modules: Jupyter with its interactive controls, and the library that reads
+     the tool's tables. They are what the notebook runs on.
+   - **Partition:** `devel`.
+   - **Number of CPU cores:** 2.
+   - **Memory:** 8 GiB. (The notebook uses about 3 GiB.)
+   - **Number of hours:** 2, or up to 6, the most `devel` allows.
+   - **Start JupyterLab:** either way works.
+   - Leave every other field as it is.
+4. Click **Launch**. The page shows the session as queued, then as running, usually within a minute. Then click
+   **Connect to Jupyter**. Jupyter opens in a new tab, showing the files in your home folder.
+5. Open the notebook: click your way through the folders `project_pi_nrs36`, `jar335`, `Repositories`,
+   `Tax-Data-tabtool`, `research`, `rebuild`, `tools`, `check_tool`, and open `check_tool.ipynb`.
+6. Run it: in the **Run** menu, choose **Run All Cells**. After about five seconds the controls appear under the code
+   cell, with a first table (wages by AGI) below them.
+7. Change any control and the table is made again, in under a second. After typing in a box (percentiles, cutoffs,
+   a filter's number), press Enter.
+8. When you are done, close the tab, go back to Open OnDemand, choose **My Interactive Sessions** and click
+   **Delete** on the Jupyter session. (Closing the tab alone leaves the session running until its hours run out.)
 
-The page must be opened with the address that ends in `?token=...`. Without the token the server refuses every
-request, including the page itself.
+The notebook saves your last table into the file when Jupyter saves it. That does no harm; the next Run All starts
+afresh.
 
-## Opening the page
+### If the controls do not appear
 
-**1. Open OnDemand's Remote Desktop.** In Open OnDemand choose Interactive Apps, then Remote Desktop, and start a
-session (one core and a few gigabytes of memory are enough). In the desktop, open the web browser and paste the first
-address from the job's output, `http://<node>:<port>/?token=<token>`. This uses only YCRC's documented apps and keeps
-the page inside the cluster.
+- If the notebook prints "This notebook cannot start: Python cannot find ...", the Additional modules field was
+  empty or mistyped. Delete the session (step 8) and start a new one with the field filled in exactly as in step 3.
+- If the cell shows a line of text such as `VBox(children=...)` or "Loading widget..." instead of the controls, the
+  Jupyter app started its Jupyter from the environment instead of from the modules, and that Jupyter cannot draw the
+  controls. Use the Remote Desktop way below instead, and tell John, so he can ask YCRC about the Jupyter app.
 
-**2. Open OnDemand's node proxy.** Open OnDemand can pass a web page from a compute node through the portal, at
-`https://ood-bouchet.ycrc.yale.edu/rnode/<node>/<port>/?token=<token>` (the second address in the output). YCRC's
-documentation does not say whether this is switched on for Bouchet's compute nodes; it was not tested, because it
-needs a browser signed in to the portal. If the address gives an error page from the portal, use the first or the
-third way. The tool works under the proxy's address if the proxy is on: the page uses only relative links.
+**The Remote Desktop way.** In Open OnDemand choose Interactive Apps, then **Remote Desktop**, with the same partition,
+cores, memory and hours as above, and click Launch, then Launch Remote Desktop. In the desktop, open a terminal (from the
+desktop's menu) and type these two lines:
 
-**3. An SSH tunnel from your own computer.** This is YCRC's documented way to reach a server in a job (their guide
-for Jupyter over SSH). On your own computer, in a terminal, run the command from the output:
+    module load Jupyter-bundle/20250530-GCCcore-13.3.0 Arrow/17.0.0-gfbf-2024a
+    jupyter lab ~/project_pi_nrs36/jar335/Repositories/Tax-Data-tabtool/research/rebuild/tools/check_tool/check_tool.ipynb
 
-    ssh -N -L <port>:<node>:<port> <your NetID>@bouchet.ycrc.yale.edu
-
-It asks for your password and Duo and then shows nothing; leave it running. Then open
-`http://localhost:<port>/?token=<token>` in your browser. Close the tunnel with Ctrl-C when you are done.
+JupyterLab opens in the desktop's web browser with the notebook. Continue from step 6. If no browser opens, the
+terminal shows an address starting with `http://localhost:8888/lab?token=`; open the desktop's web browser from its
+menu and paste that address. When you are done, close the browser, press Ctrl-C twice in the terminal, and delete the
+desktop session in My Interactive Sessions.
 
 ## What each control means
 
 The controls are applied the same way to both tables: the source's and the file's.
 
-**Y, the item tabulated.** Every item the tool can compare, grouped by its source. The box under the choice says
-which source the table uses and how its sample records are counted.
+**Y, the item tabulated.** Every item the tool can compare. Each item's name starts with its source (for example
+"SCF: net_worth: net worth"), and the list runs through the PUF items first, then the SCF, CEX, CPS and SIPP items.
+The box under the choice says which source the table uses and how its sample records are counted.
 - PUF items (wages, interest, capital gains, business income, deductions, credits and the rest) are compared with
   the PUF source (below, "The sources").
 - Items that only a survey has are compared with that survey: the balance sheet, unrealized gains, auto loan interest
@@ -73,7 +92,7 @@ which source the table uses and how its sample records are counted.
 - *All units:* every record.
 - *All units except dependent filers:* returns filed by someone claimed as a dependent are left out of the file
   (and of the PUF source). The surveys count a dependent inside the unit that claims them, so this is the choice to
-  use with survey items, and the page makes it the default for them.
+  use with survey items, and the tool makes it the default for them.
 - *Filers only* and *non-filers only:* offered only where the source says who files: the PUF source (its PUF
   returns are the filers, its CPS units the non-filers) and the CPS (its filing flag). Use *filers only* to compare
   the PUF's own returns alone.
@@ -113,8 +132,9 @@ number (dollars, years, weeks) cut into groups in one of two ways:
 
 Units whose X is missing get a row of their own at the bottom, never dropped.
 
-**Make the table.** Sends the choices to the server and shows the table. The status line says how long it took;
-the server takes a tenth to a third of a second.
+**The table is made again after every change.** The line above the table says how long it took: a tenth to a third
+of a second. If a choice cannot be tabulated (a percentile of 0 or 100, a filter with no number yet), that line says
+why in red and no table is shown until the choice is fixed.
 
 ## Reading the table
 
@@ -184,16 +204,89 @@ After a change to `year`, `runs` or `puf_source`, or a new file, rebuild the too
 `prepare.py` runs the pipeline's own code (with the pipeline's modules, a few minutes) and writes the tables to
 `<cache>/<year>_<puf_source>/`, with `checks.md` (the checks it ran: the tax data's filers against the PUF's returns
 row for row, AGI against E00100, the weights) and `catalog.json` (the variables, their plain names, which source each
-item uses and which variables each source may be cut by). The server (`server.py`) needs only the Python/3.12.3 and
-Arrow/17.0.0 modules and reads those tables at start, in about a second.
+item uses and which variables each source may be cut by). The notebook and the web server read those tables at start, in about a
+second, and need no pipeline modules.
+
+The files:
+- `check_tool.ipynb`: the notebook the RA opens. One code cell; it calls `check_notebook.show()`.
+- `check_notebook.py`: the notebook's controls (ipywidgets) and the drawing of the table. It turns the controls into
+  a request and the answer into a table; it does no tabulation of its own.
+- `check_tables.py`: the tabulation, used by both the notebook and the web server.
+- `server.py`, `index.html` and `start.sbatch`: the web page, the earlier way of using the tool (below).
+- `prepare.py`, `prepare.sbatch` and `settings.json`: the tables and the settings.
+
+What was tested and what was not (3 November): in a Slurm job with only the two modules above, the notebook ran
+headless (`jupyter nbconvert --execute`) and drew its controls and first table; the tabulation gave the same tables as
+the server's test for its nine cases, cell for cell against a separate pandas tabulation and field for field against
+the server; and the controls, set one at a time as the RA would, made the same requests and tables. The Jupyter app's
+form was not tried: its field names above come from YCRC's documentation (the Jupyter page and the Ollama page's
+"additional modules for Jupyter"), and whether the app runs Jupyter from the modules rather than from the
+environment is not documented. The first time someone uses it, check that the controls appear.
+
+The notebook finds `check_notebook.py` next to itself; a copy of the notebook opened elsewhere finds it at the
+worktree path written in its code cell, which needs changing if the tool moves.
 
 A 2019 view against SOI's published tables is not built. It would be one more source in `prepare.py` (the published
-cells as a table) and one more kind of item on the page.
+cells as a table) and one more kind of item in the tool.
 
 ## Security
 
-The data are licensed PUF microdata, and other Bouchet users share the nodes and could reach the server's port.
-So every request must carry the token, compared in constant time; a request without it, or with a wrong one, is
-refused (tested). The token is new at every start, printed only in the job's output, which is made readable by you
-alone, and never written to the server's log. The server answers with tables of weighted sums, means, shares and
-record counts, never with records. The page loads nothing from the internet.
+The data are licensed PUF microdata. The notebook runs inside the RA's own Jupyter session, which Open OnDemand
+starts as her own Slurm job and reaches only through the portal after her NetID and Duo login; the notebook starts no
+server and opens no port of its own. It shows tables of weighted sums, means, shares and record counts, never
+records. The tables it reads are readable by the `pi_nrs36` group only.
+
+## The web page (the earlier way)
+
+Before the notebook, the tool was a web page served by `server.py` from a Slurm job. It gives the same tables (the
+two share `check_tables.py`; tested), but it has to be reached through the Remote Desktop's browser, Open OnDemand's
+node proxy or an SSH tunnel, which did not work for everyone. The files are kept; these were its steps.
+
+### Starting the web page
+
+You need a Bouchet account, the PUF license, and read access to the group folder `pi_nrs36` (the tool's data sit in
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/check_tool_cache/`, readable by the group only). If a step below says
+"permission denied", ask John to check that your account is in the group.
+
+1. Log in to Bouchet: in Open OnDemand (https://ood-bouchet.ycrc.yale.edu), choose Clusters, then Bouchet Shell
+   Access; or by SSH from your own computer, `ssh <your NetID>@bouchet.ycrc.yale.edu`.
+2. Go to your home folder (`cd ~`) and submit the server's job:
+
+       sbatch /nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data-tabtool/research/rebuild/tools/check_tool/start.sbatch
+
+   Slurm answers `Submitted batch job <job id>`.
+3. Wait until the job runs: `squeue --me` shows `R` in the state column. This usually takes under a minute, but can
+   take longer when the cluster is busy. The server then needs a few seconds to read its tables.
+4. Read the job's output: `cat check_tool_<job id>.out`. It shows the node the server runs on, its port, the token
+   (a random string made anew each time the server starts) and the three addresses below with these filled in. The
+   file is readable by you alone; do not share the token.
+5. Open the page by one of the three ways in the next section.
+6. When you are done, stop the server: `scancel <job id>`. If you forget, it stops by itself after 8 hours.
+
+The page must be opened with the address that ends in `?token=...`. Without the token the server refuses every
+request, including the page itself.
+
+### Opening the page
+
+**1. Open OnDemand's Remote Desktop.** In Open OnDemand choose Interactive Apps, then Remote Desktop, and start a
+session (one core and a few gigabytes of memory are enough). In the desktop, open the web browser and paste the first
+address from the job's output, `http://<node>:<port>/?token=<token>`. This uses only YCRC's documented apps and keeps
+the page inside the cluster.
+
+**2. Open OnDemand's node proxy.** Open OnDemand can pass a web page from a compute node through the portal, at
+`https://ood-bouchet.ycrc.yale.edu/rnode/<node>/<port>/?token=<token>` (the second address in the output). YCRC's
+documentation does not say whether this is switched on for Bouchet's compute nodes; it was not tested, because it
+needs a browser signed in to the portal. If the address gives an error page from the portal, use the first or the
+third way. The tool works under the proxy's address if the proxy is on: the page uses only relative links.
+
+**3. An SSH tunnel from your own computer.** This is YCRC's documented way to reach a server in a job (their guide
+for Jupyter over SSH). On your own computer, in a terminal, run the command from the output:
+
+    ssh -N -L <port>:<node>:<port> <your NetID>@bouchet.ycrc.yale.edu
+
+It asks for your password and Duo and then shows nothing; leave it running. Then open
+`http://localhost:<port>/?token=<token>` in your browser. Close the tunnel with Ctrl-C when you are done.
+
+Every request to the server must carry the token printed at start, compared in constant time; a request without it,
+or with a wrong one, is refused (tested). The token is new at every start, printed only in the job's output, which is
+made readable by you alone, and never written to the server's log. The page loads nothing from the internet.
