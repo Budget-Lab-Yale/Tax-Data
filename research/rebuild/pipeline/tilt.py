@@ -229,6 +229,9 @@ def recombine(df, year):
 
 
 def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
+    # (3 November, agent A) mode 'item_factor': today's rule for each column (as cbo_per_return) handed to
+    # projection_steps.step2_factor, which applies the items table's series and makes each 'total' item's start total
+    # grow exactly at its series on the step 1 weights (projection_steps.STATE, set by step1 before this call)
     """Each record's amounts grown item by item from year s to year t (TARGETS.md S7, per-return growth), by the
     series the dollar maps are grown by (build_table.build_maps), each item's line in the target year's growth.yaml
     (growth.py), as a ratio of year t's factor to year s's:
@@ -251,7 +254,13 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
             f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
     out, rows = df.copy(), []
-    cbo_mode = mode == 'cbo_per_return'
+    cbo_mode = mode in ('cbo_per_return', 'item_factor')
+    item_mode = mode == 'item_factor'
+    if item_mode:
+        import projection_growth as PG0
+        import projection_steps as PS
+        R_total = float(np.prod([PG0.cbo_return_growth(y_) for y_ in range(s + 1, t + 1)]))
+        deferred = []
     drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
     item_of = {v: k for k, v in drawn_as.items()}   # a drawn column's item: other_agi_remainder is other_agi's
     puf_cols = [drawn_as.get(v, v) for v in BT.PUF_AMOUNTS
@@ -287,14 +296,21 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
                    f'{len(fallback)} by the growth.yaml rule (fallback)')
 
     def grow(col, thunk, series):
+        if item_mode and PS.same_as(col):
+            deferred.append(col)   # the factors of another column, applied after every other column
+            return
         if col in plan:
             fp = fn = plan[col][0]
             series = plan[col][1]
+            kind = 'total'
         else:
             fp, fn = thunk()
+            kind = 'per_unit'
             if cbo_mode:
                 series = f'fallback (no projection rule: {fallback.get(col, "a ratio")[:80]}); {series}'
         x = out[col].to_numpy(float)
+        if item_mode:
+            fp, fn, series = PS.step2_factor(col, x, fp, fn, kind, series, s, t, R_total)
         assert np.isfinite(fp) and fp > 0 and np.isfinite(fn) and fn > 0, f'{col}: growth factor {fp}, {fn}'
         out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
         rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn, 'series': series,
@@ -333,6 +349,17 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
             grow(v, lambda v=v: (f_scf_of(v),) * 2, f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
     for v in other_cols:
         grow(v, lambda v=v: (GR.between(v, s, t),) * 2, GR.describe(v))
+    if item_mode:
+        for col in deferred:
+            other = PS.same_as(col)
+            r = next((q for q in rows if q['column'] == other), None)
+            assert r is not None, f'{col}: same_as {other}, which is not grown'
+            x = out[col].to_numpy(float)
+            fp, fn = r['factor, positive values'], r['factor, negative values']
+            out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
+            PS.record_same_as(col, other, x)
+            rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn,
+                         'series': f'same as {other}', 'records with a value': int((x != 0).sum())})
     # the allowed capital loss: since 29-30 October the short and long term pieces are the gains and losses before the
     # $3,000 limit, grown like any amount, and recombine() applies the nominal limit again in year t (before, a piece
     # kg_other held the limit and needed a rule here)
@@ -355,7 +382,16 @@ def start_from_year(spec):
     # their drawn values first (non_micro_imputations.as_drawn)
     df = NMI.as_drawn(df)
     common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
-    if spec['dollars'] == 'per_return_growth':
+    if spec['weights'] == 'persons':
+        # (3 November, agent A; projection_steps.py) step 1, the calibration to people by age and marital status, then
+        # step 2's dollar factors on its weights; the start's weights are step 1's
+        import projection_steps as PS
+        assert spec['dollars'] == 'item_factor', 'start_scaling weights persons goes with dollars item_factor'
+        w, _ = PS.step1(df, w, Y, s)
+    if spec['dollars'] == 'item_factor':
+        assert spec['weights'] == 'persons', 'dollars item_factor needs the step 1 weights (weights persons)'
+        df, growth = grow_dollars(df, s, Y, 'item_factor')
+    elif spec['dollars'] == 'per_return_growth':
         df, growth = grow_dollars(df, s, Y)
     elif spec['dollars'] == 'cbo_per_return':
         rg = None
@@ -504,6 +540,12 @@ def main():
                    f'(previous {prev.weight[prev.filer == 0].sum() / 1e6:,.2f}); zero cells: '
                    f'{int((cell_table.previous_weight == 0).sum())}')
         cell_table.to_csv(f'{common.TILT}/population_cells_{Y}.csv', index=False)
+    elif spec['weights'] == 'persons':
+        # (3 November, agent A) the step 1 weights as they are (start_from_year); the list's own weights are given
+        import projection_steps as PS
+        assert np.isfinite(w0).all() and (w0 >= 0).all()
+        common.say(f'projection start (step 1 weights): filers {w0[filer & ~given].sum() / 1e6:,.2f} million, '
+                   f'non-filers {w0[~filer & ~given].sum() / 1e6:,.2f} million, the list {w0[given].sum():,.1f} units')
     else:
         for batch, total in [(filer, returns), (~filer, n_nonfilers)]:
             g = batch & ~given
@@ -516,7 +558,7 @@ def main():
         g19.loc[given, 'weight'] = w0[given] * imp[gen_f].sum() / w0[gen_f].sum()
     w_plain = w0.copy()
     prescale = spec['weights']
-    assert prescale in ('none', 'filing_status', 'demographic', 'population_cells'), f"start_scaling weights {prescale!r}"
+    assert prescale in ('none', 'filing_status', 'demographic', 'population_cells', 'persons'), f"start_scaling weights {prescale!r}"
     if prescale in ('filing_status', 'demographic'):
         for married, status in [(1, 'joint'), (0, 'nonjoint')]:
             m = filer & (g19['married'].to_numpy() == married)
@@ -526,6 +568,8 @@ def main():
     # the targets (targets_config/, expanded by target_list.py, errors by errors.py) and the solve (solver.py):
     # every target hit exactly when they can all be hit; otherwise the standard errors decide which give way
     # the calculator targets wait for the taxes, computed after the non-microdata imputations (below)
+    if prescale == 'persons':
+        PS.STATE['start'] = (g19, w0, fixed)   # the projection targets (projection_steps.outside_rows) read it
     rows = TLS.expand(Y, start=g19, which='without calculator')
     TLS.check_nonfiler_bands(g19, rows)   # every non-filer head and spouse in exactly one non-filer people band
     F, T, averages = TLS.conditions(g19, rows, w0)
@@ -635,6 +679,8 @@ def main():
                             growth.to_markdown(index=False, floatfmt='.4f'), '']
     elif nf_note:
         start_lines = [f'- non-filers scaled to {n_nonfilers / 1e6:.2f} million ({nf_note}).', '']
+    if prescale == 'persons':
+        start_lines += PS.write(common.TILT)
     if len(hold):
         start_lines += ['## Held distribution (hold_distribution targets): shares of each total by AGI rank group', '',
                         hold_table(rows, g19, w0, w1).to_markdown(index=False, floatfmt='.3f'), '']

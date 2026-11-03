@@ -84,6 +84,9 @@ def unit_growth(year):
     import target_list as TLS
     import projection_demographics as PD
     spec = TLS.start_spec(year)
+    if spec['weights'] == 'persons':   # (3 November, agent A) the units after step 1 (projection_steps)
+        import projection_steps as PS
+        return PS.unit_growth()
     assert spec['mode'] == 'from_year' and spec['weights'] == 'population_cells', f'{year}: unit growth needs population_cells'
     if year not in _UG:
         prev = pd.read_parquet(f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet",
@@ -105,6 +108,14 @@ def projection_extension(year, items):
     spec = TLS.start_spec(year)
     if spec['mode'] != 'from_year':
         return {}
+    if spec['dollars'] == 'item_factor':
+        # (3 November, agent A) the start's step 2 factors (projection_steps.scf_factor: a 'total' item's growth in total
+        # over the units' growth, as the SCF units grow with the file's; a 'per_unit' item's own factor); the mortgage's
+        # share as the start's
+        import projection_steps as PS
+        out = {v: PS.scf_factor(v) for v in items if v in PS.STATE['items']}
+        common.say(f'SCF targets grown on from {spec["year"]} to {year} by the start\'s step 2 factors: {len(out)} items')
+        return out
     assert spec['dollars'] == 'cbo_per_return', f'{year}: the SCF targets are grown for the cbo_per_return start only, not {spec["dollars"]!r}'
     assert year <= 2036, f'{year}: CBO per-return growth ends in 2036; the SCF targets past it need the demographic return growth'
     s = spec['year']

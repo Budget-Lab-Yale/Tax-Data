@@ -165,6 +165,27 @@ sources:
       the previous year's final weighted units in each cell (filer or not, joint or not, the primary's age band) times
       the cell's population growth (Macro-Projections demographics; resources/population_factors.csv and
       nonfiler_factors.csv); target_list.population_cell_rows
+  # (3 November, agent A) the projection years' three steps (projection_steps.py; explore/2026-11-02/projection_design/DESIGN.md)
+  projection persons:
+    kind: outside
+    file: Macro-Projections v3 2026022522 baseline, historical.csv and projections.csv (married_<age>, unmarried_<age>)
+    what: >-
+      people by marital status and single year of age (0-79, 80 and over) as the step 1 calibration made them exact:
+      the 2023 file's own count (Forbes list left out) times CBO's growth of the same people, plus the year's list;
+      projection_steps.outside_rows
+  projection returns:
+    kind: outside
+    file: the 2023 file
+    what: >-
+      filers in each group of the primary filer's age band and marital status (dependent filers by age range): the 2023
+      file's share of the group's units that file, times the group's units after step 1, plus the year's list;
+      projection_steps.outside_rows
+  projection items:
+    kind: outside
+    file: the items table (settings tilt.projection.items_table)
+    what: >-
+      each targeted dollar item's total (gains and losses separately) on the start after step 2, which grows the item's
+      2023 total by its series; projection_steps.outside_rows
   cbo counts:
     kind: outside
     file: research/rebuild/resources/cbo_counts.csv
