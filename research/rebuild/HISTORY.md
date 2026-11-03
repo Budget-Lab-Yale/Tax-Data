@@ -4,10 +4,6 @@ The full record, with every script, report and decision, is in
 `research/archive/rebuild_2026-10/`, also committed as `b3b3a2f`. Start
 there at `README.md` and `design/plan.md`. This is the short version.
 
-**30 October: balance-sheet categories.** Added dollars and holder counts by nine asset and debt categories and
-two net worth classes, and used category-specific Financial Accounts growth after the last SCF wave. See the
-wealth-category results in the 30 October scratch work for the checks and reruns.
-
 ## The path
 
 **6–7 October: background.** The problem was stated, and twelve
@@ -910,6 +906,64 @@ tax-simulator-gpu (50 renamed, for example `mars` to `filing_status`, `interest`
 `rebuild-names-gains`. This file keeps the old names in the entries above. The training table and a 2019 draw and tilt
 from the installed networks were checked equal before and after, apart from the names (`FEATURES.md`, "The names").
 
+### 30 October - 1 November: every year from one branch, and one cost for the reweighting
+
+Decisions 40-76 of scratch `explore/2026-10-30/DECISIONS_FOR_JOHN.md`; the running log is `explore/2026-10-30/STATUS.md`.
+- 30 October: SCF targets for nine balance sheet categories and two net worth classes, with each category grown by its
+  Financial Accounts series after the last wave (`explore/2026-10-30/wealthcat/`); calculator and Table 2.1 targets
+  in every past year; projection years wired to population cells and CBO growth per return; the refund rule, the
+  merged groups under $50,000 and the greedy Schedule A step (decisions 47-49).
+- 1 November, the reweighting redesigned (John; decisions 57, 62, 68, 73): one cost minimized in one Newton solve,
+  no ranges and no target dropped, tau 1,000, importance 1 for IRS figures and 2/3 for the rest, a soft cap on each
+  weight at 10 times the mean starting weight of its AGI group, at most 100 Newton steps (never raised; a slow solve
+  means a wrong target). The range solver, the hard caps and the factor limits were removed
+  (`explore/2026-11-01/single_cost/`, `only_solver/`).
+- 1 November: the dry run of all 21 years (`explore/2026-11-01/dryrun/RESULTS.md`), then the fixes it called for
+  (`fixes/RESULTS.md`): the refund rule keeps totals equal to their parts, CBO's counts anchored to the file, target
+  consolidation (852-919 targets a past year down to 737-804), and every projection year started from the 2023 file
+  rather than chained (decision 74). Then the projection years' SCF targets grown from 2023 like the start (decision
+  76; `networth/RESULTS.md`): net worth misses fell from up to 15 standard errors to 0.5-1.0.
+- Night of 1-2 November: tax expenditures 2025-2029 on the rebuild's and production's files against JCT and OTA
+  (`explore/2026-11-01/tax_expenditures/report/REPORT.md`); the real-PUF start (`puf_start/`, branch
+  `rebuild-puf-start`, not merged); behaviour-identical simplifications (`simplify/`).
+
+### 2 November: findings, fixes and one integration branch
+
+Each folder is under scratch `explore/2026-11-02/` and has a RESULTS.md.
+- `social_security/`: after 2023 gross Social Security had grown with CBO's taxable benefits. Fixed: SSA's benefits
+  paid for 2024 and 2025, CBO's Social Security outlays from 2026; gross benefits targeted in SOI years. The 2025 file's
+  gross benefits fell 14%.
+- `dependent_filers/`, `dependent_filers_fix/`: dependent filers' ages came from the CPS dependents earning above the
+  filing threshold, 64-83% aged 18. Now drawn from the CPS dependents who file their own return (18 is 37-46% of the
+  18-25 range); five more Table 1.7 cells targeted (dependent filers' net capital gain, returns and gains at AGI
+  $50k-200k and $200k and over), which removed most of the dependent filers' gains above $10 million of AGI.
+- `dep_std_deduction/`: the dependent standard deduction in tax-simulator-gpu is right; its personal exemption is given
+  to dependent filers, against the law. Fix approved for simulator master.
+- `stepup/`: step-up at death on the rebuild, once dependent filers were left out of the gains model's age cells
+  (simulator branch `te-stepup`): fiscal 2026 $26.0 billion, production $33.0 billion, OTA $40.3 billion, JCT $72.5
+  billion.
+- `kg_scf_2022/`, `kg_old/`, `kg_split/`, `ages_cps_scf/`, `young_split/`: the rebuild's units 80 and over held $3.2
+  trillion of unrealized gains in 2022 against the SCF's $5.5 trillion, and units under 55 about $10 trillion more net
+  worth than the SCF. About 60% of the 80+ shortfall came before the reweighting (the network's gain share is too flat
+  by age; exact ages drawn under the CPS label) and about 40% in it, mostly business wealth on low-income records,
+  which the wealth grid removes. The excess under 55 is all before the reweighting. No wealth target had an age.
+- `age_targets/`: SCF categories and unrealized gains by the primary's age, and the CPS's units by age within 65 and
+  over, as targets in every past year (John approved counts over shares). 2022: net worth under 55 $40.2 trillion
+  (SCF $39.8), 80 and over $11.7 trillion (SCF $11.7); gains at 80+ $4.47 trillion (SCF $4.53); 3-7 points of
+  effective sample.
+- `billionaires/`: Forbes's lists for every year 2015-2026, the 2026 list grown after 2026. Left free after 2026, the
+  solver cut the ten richest to weights near zero; held at their starting weight since, as a placeholder.
+- `estate_heirs/`: Tax-Simulator's heir data is joined by production's record ids, so on the rebuild's files it belongs
+  to unrelated households; tax expenditures run without it. Inheritances are to be drawn by the network later.
+- `projection_design/`: John called the projection-year targeting a disaster; the first pieces of a design without a
+  solver are agreed (`NEXT_STEPS.md`, item 1).
+- `integration/`: the day's branches merged as `rebuild-integration-1102` (rebuild-ss-fix, rebuild-dep-filers,
+  rebuild-age-targets, rebuild-billionaires-all-years with rebuild-te-files, rebuild-simplify), the unused setting
+  `tilt.fixed_columns` removed, the post-2026 billionaires held, and all 21 years rerun on the existing draws.
+  `rebuild-puf-start` left out (John has not decided). Past years reproduce `rebuild-age-targets` apart from the
+  lists (2019, same list, identical to the last digit); every year converged within 100 steps, but 2023 took 99 and
+  ran out of steps on a second node, so the merge waits for John (`NEXT_STEPS.md`).
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -967,11 +1021,3 @@ from the installed networks were checked equal before and after, apart from the 
 | Choosing networks by their held-back loss | Differences in the third or fourth decimal place, not in the order of the networks' wealth fit. The income-item check against the PUF does pick out the bad network |
 | A network saved at pass 20, 40 or 60 of the 80-pass run | Worse on every check than at pass 80 (seed 20261017's net worth before reweighting $226, $141, $126 and $105 trillion) |
 | 8 layers in place of 4 (28 October) | Moved both seeds toward the SCF a little but did not fix the bad seed; 45% more time a pass. Not adopted on two seeds |
-
-### Phase 2 work in progress, 30 October
-
-Added the 2019 calculator target families to the other historical years, omitting after-credits tax in 2020 and
-2021 and the child credit in 2021 because SOI's concepts differ. Kept QBI by AGI out as in 2019. The non-filer
-count error now follows the year file. For partnership and S corporation growth from 2021, Table 4.3's combined
-counts replace sums of the overlapping Table 1.4 counts, in both the 2015 base and the target year; Table 4.3
-excludes dependent filers. These changes have not yet been validated in full-year tilts.

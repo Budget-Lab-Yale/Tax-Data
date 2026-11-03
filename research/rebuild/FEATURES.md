@@ -1,58 +1,44 @@
 # What the pipeline does now
 
-The year configurations include SCF targets for dollars and holders in nine broad balance-sheet categories, separately
-below and above the SCF's 90th percentile of net worth among units below $1 billion. Each wave contributes its own
-replicate and imputation errors to the year's survey mix. After the 2022 wave, each category grows with a matching
-Financial Accounts series per person; after 2025 the series is projected at its 2025 ratio to nominal GDP. The
-Financial Accounts categories are proxies and include nonprofits. The definitions and line mapping are in
-`pipeline/targets_config/catalog.yaml` and `resources/growth/build_z1_scf_categories.py`.
+As of 2 November 2026 (branch `rebuild-integration-1102`). The pipeline makes a file of tax units for each year
+2015-2035 in two stages: networks trained on the PUF and four surveys draw records, then a reweighting moves the
+records' weights so the file meets the year's published totals. The code is in `pipeline/`; every setting is in
+`pipeline/settings.json`; each year's targets, growth rules and survey mix are in `pipeline/targets_config/<year>/`.
+How the latest runs came out is at the end of this file.
 
-The current run ("latest") produces a 2019 file of tax units: every PUF
-item production carries; from the SCF the household balance sheet (20 items,
-with net worth computed from them), elective deferrals to 401(k)-type plans and
-auto loan interest; spending in 8 categories from the CEX; from the CPS ASEC
-each person's age and sex, dependents' ages, the split of a couple's wages and
-self-employment income between the spouses, weeks and hours worked, childcare
-and overtime pay; and each adult's tips from the SIPP. It is weighted to 789
-targets for 2019.
-- **Filers and non-filers.** Filers come from the PUF label and non-filers
-  from the CPS label. The CPS's filing chances come from a calibrated rule
-  (v4) with no outside model in it.
-- **Tax units.** The CPS, SCF, CEX and SIPP all build their tax units with
-  one module of CBO's rules (`TAX_UNITS.md`).
-- **Translation.** Each survey's shared items are put on the PUF's terms by two
-  standard functions and one table (below): a dollar mapping, and a fill-in during
-  training of the holders a survey misses. Since 28 October the fill-in runs on
-  every survey, wages included.
-- **Training.** Each record counts by its survey weight times q, which makes
-  the few records at the top of the PUF and the SCF count as much as the many
-  in the middle (grouped weighting, below). The PUF record's AGI group is a
-  label the network always sees.
-- **Generation and targets.** Filers are drawn AGI group by AGI group, the
-  group set first and everything else drawn given it, pooled from three trained
-  models (seeds 20261017, 20261018 and 20261019, a third of the records each).
-  The balance sheet is drawn from a mix of SCF waves (55% the 2019 wave, 33% the
-  2022 wave, 12% the 2016 wave for 2019); the CEX, CPS and SIPP items each from a
-  mix of two survey years (73% 2019, 27% 2017). Every dollar amount is in 2019
-  dollars before the tilt. The 2019 targets come from `pipeline/targets_config/`,
-  each with a standard error, and enter the reweighting's one cost
-  (`TARGETS.md` S11); the SCF targets come from the same mix of waves as the balance
-  sheet (S9).
-- **Non-microdata imputations** (built 28 October on branch `rebuild-nonmicro`; not in the installed latest's file).
-  Items set inside the tilt stage from what the model drew plus a published table: dependent filers' exact age and
-  sex, child credit eligibility, death probabilities, yearly unrealized gains and cost basis of each asset, the
-  holding period and basis of long-term gains, parents' income rank; placeholders for dependents' Social Security
-  numbers, blindness and the QBI items (below, "The non-microdata imputations"). Since 29 October (branch
-  `rebuild-amt-rule`) also a rule that holds the AMT net operating loss adjustment to the record's net operating loss.
-- **Since when.** This is latest since 28 October (merge d9bd762 of
-  `rebuild-ot3`, and d56c75d): wages net of deferrals and the SCF's deferrals
-  with the W-2 deferral targets, the shared-variable mappings with the fill-in
-  on every survey, the survey year mix, tips drawn in dollars, overtime with its
-  CPS targets, three seeds and the cap on SCF other debt (`HISTORY.md`, 27–28
-  October). The run before (27 October) is in
-  `previous_2026-10-28_before_bigrun/` of the output folder, and earlier ones in
-  the other `previous_*` folders. The code is in `pipeline/`; every setting is in
-  `pipeline/settings.json`.
+- **What a record carries.** Every PUF item production carries; from the SCF the household balance sheet (20 items,
+  net worth computed from them), elective deferrals and auto loan interest; spending in 8 categories from the CEX; from
+  the CPS each person's age and sex, dependents' ages, the split of a couple's wages and self-employment income,
+  weeks and hours worked, childcare and overtime pay; each adult's tips from the SIPP; and the non-microdata
+  imputations (below): dependent filers' ages, child credit eligibility, blindness, death probabilities, unrealized
+  gains and basis, parents' income rank, the AMT loss rule. Names are Tax-Simulator's.
+- **Filers and non-filers.** Filers are drawn under the PUF label, non-filers under the CPS label; the CPS's filing
+  chances come from a calibrated rule (v4). The CPS, SCF, CEX and SIPP build tax units with one module of CBO's rules
+  (`TAX_UNITS.md`).
+- **Translation.** Each survey's shared items are put on the PUF's terms by two standard functions and one table: a
+  dollar mapping, and a fill-in during training of the holders a survey misses (every survey since 28 October).
+- **Training and generation.** Each record counts by its survey weight times q (grouped weighting), and the PUF
+  record's AGI group is a label the network always sees. Filers are drawn AGI group by AGI group from three trained
+  networks (seeds 20261017-19, trained 29-30 October), a third of the records each. The balance sheet is drawn from
+  the year's mix of SCF waves, the CEX, CPS and SIPP items from the year's mix of survey years.
+- **The top of the file.** The PUF's four aggregate records are rebuilt from generated records; any generated balance
+  sheet at $1 billion or more is drawn again; Forbes's list for the year (2015-2026) is added at weight 1, held fixed;
+  after 2026 the 2026 list is grown and, as a placeholder, held at its starting weight. Below $1 billion the SCF
+  targets apply.
+- **Taxes.** Every record's taxes come from tax-simulator-gpu inside the reweighting stage, so calculator columns
+  (itemizers, taxable income, credits, AMT) can be targets.
+- **The reweighting.** One cost minimized in one Newton solve: the squared misses in standard errors, weighted by
+  importance (1 for IRS figures, 2/3 for the rest), plus 1,000 times how far the weights move (Kullback-Leibler),
+  plus a soft cap on each weight at 10 times the mean starting weight of its AGI group; at most 100 Newton steps.
+  Past years have 862-929 targets: SOI's tables, the calculator against SOI, SCF wealth (also by the primary's
+  age), CEX consumption, CPS overtime and older ages, W-2 tips and deferrals, dependent filers (Table 1.7), non-filers.
+- **Projection years (2024-2035)** start from the 2023 file grown to the year, with 108 targets anchored to the
+  2023 file times CBO's and the macro series' growth. This part is to be redesigned (`NEXT_STEPS.md`, item 1).
+- **Output.** `taxsim_file.py` writes each year as Tax-Simulator's `tax_units_<year>.csv` (production's 188
+  columns).
+
+The sections below follow the pipeline's order (data, translation, the model, generation, post-training), then the
+pieces added since 28 October, each under the date and branch it was built on.
 
 ## Data
 
@@ -1099,8 +1085,8 @@ Counts by kind as in `tilt/<run>/targets.csv`.
 
 ## The non-microdata imputations
 
-Built 28 October on branch `rebuild-nonmicro` (`NEXT_STEPS.md` item 1, John's decisions Q1-Q9 of 28 October); the
-installed latest's file was made before them. These are items set from what the model has already drawn plus a
+Built 28 October on branch `rebuild-nonmicro` (John's decisions Q1-Q9 of 28 October; scratch
+`explore/2026-10-28/rules_framework/PROPOSAL.md`). These are items set from what the model has already drawn plus a
 published table, with no new microdata. Code: `pipeline/non_micro_imputations.py`, one function per item; settings
 `non_micro_imputations`, which registers each item: the columns it reads, the published tables it reads, the columns it
 writes, its random stream and the reason for each choice. The tables are CSVs in `research/rebuild/resources/non_micro/`
@@ -1125,7 +1111,7 @@ and never renumbered.
 
 | Item | Columns | Method | Published table |
 |---|---|---|---|
-| Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents with earnings (wages and self-employment) above the year's dependent filing threshold, in the record's CPS year, within its PUF dependent-filer age range; 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
+| Dependent filers' exact age and sex (Q2) | `dep_filer_age`, `dep_filer_sex` | each dependent filer gets an age and a sex drawn from the CPS's dependents whom the filing stage counts as filing their own return, in the record's CPS year, within its PUF dependent-filer age range (since 2 November 2026; before, the dependents with earnings above the dependent filing threshold, which put 66-79% of the 18-25 range at 18); 80 means 80 and over | Form 1040 Chart B thresholds; the filing stage's persons (`data/filing/returns/persons_<year>.parquet`) |
 | Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_dep_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
 | Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
@@ -1164,7 +1150,7 @@ dollars:
 The business line differs from Z.1 mostly in what is held: the SCF's businesses ($21.6 trillion in the file) include
 S and C corporations the household runs, Z.1's noncorporate equity ($11.4 trillion at the end of 2018) does not.
 
-## The retrain of 29 October (branch `rebuild-retrain-1029`; built and checked at the table stage, not yet trained)
+## The retrain of 29 October (branch `rebuild-retrain-1029`)
 
 The bundle John set on 28 October (`NEXT_STEPS.md`, "The next retrain, one bundle"), one commit (or a commit and its
 follow-up) per piece, so any piece can be dropped. Everything here changes the training table or generation, so it
@@ -1319,7 +1305,7 @@ reproduces every other column exactly. No target reads `amt_nols`, so the tilt's
 Parts B and C of the plan John approved on 29 October (scratch `explore/2026-10-29/top_research/PLAN.md`, steps 10-21),
 with Part A merged in from `rebuild-top-hidden` (the PUF's four aggregate records rebuilt from generated records,
 `pipeline/top_hidden.py`, and Table 4.3's top 0.001% restored as a target; its own record is scratch
-`explore/2026-10-29/top_build/hidden/RESULTS.md`). Not installed. Results in scratch
+`explore/2026-10-29/top_build/hidden/RESULTS.md`). Results in scratch
 `explore/2026-10-29/top_build/billionaires/RESULTS.md`.
 
 **Where it runs.** `tilt.main()` calls `top_records.prepare_top()` on the start, in target-year dollars, before it
@@ -1365,11 +1351,13 @@ start uses for the matching balance sheet item (`value.equities` and `value.pass
 CBO's GDP, per return; `value.re_fund`: no projection rule, so growth.yaml's SCF rule, as `tilt.grow_dollars`), ages
 raised; income then computed from the IRS study's ratios as in a list year. **Their weights grow like any other
 person's**: each starts at 1 times its demographic cell's population growth from 2026 to the year (the start scaling
-every projection-year record gets from 2023) and is free in the solver, under the same soft cap; no count target for
-them. The network part of the top step (Part A, the redraw) is cached (`REBUILD_TOP_CACHE`) and the list is built on
-every run (`top_records.network_part`, `add_list`). Run of 2 November (scratch `explore/2026-11-02/billionaires/`): free,
-the solver takes the ten richest to weights near zero in every year 2027-2035 and the list's net worth falls from $8.4
-trillion (2026) to $3.9 trillion (2027); an open question for John there (DECISIONS.md 9).
+every projection-year record gets from 2023); no count target for them. **Placeholder (2 November 2026, until the
+projection years are redesigned; `NEXT_STEPS.md`, item 1):** they are held fixed at that starting weight in the solver,
+as the list years hold theirs at 1 (settings `tilt.top.after_last_list.fixed` true; `top_records.add_list`). Left free
+(`fixed` false), the solver took the ten richest to weights near zero in every year 2027-2035 and the list's net worth
+fell from $8.4 trillion (2026) to $3.9 trillion (2027) (scratch `explore/2026-11-02/billionaires/RESULTS.md`). The
+network part of the top step (Part A, the redraw) is cached (`REBUILD_TOP_CACHE`) and the list is built on every run
+(`top_records.network_part`, `add_list`).
 
 **Each billionaire record** (`top_billionaires.build_billionaires`; flags `billionaire`, `billionaire_rank`,
 `forbes_uri`; ids from 95,000,000, after Part A's block at 90,000,000):
@@ -1438,17 +1426,24 @@ What the code does for a year other than 2019:
   income per person; NIPA PCE by the CEX's categories from 2010 (`resources/growth/nipa_pce_categories.csv`).
 No W-2 targets before 2019 (older workbook layout). Forbes lists for every year 2015-2026 since 2 November (above).
 
-**Years after the data, 2024-2035** (`kind: projection`): since 1 November (decision 74) each year starts from the 2023 file
-(`from_year: 2023`, not chained; the text below describes one step, which is now the growth from 2023 to the year, CBO's and
-the macro series compounded, population cells from 2023 to the year, targets the 2023 level times the cumulative growth). Each starts from the year before (`from_year`), its
-weights scaled to CBO's growth in returns and the non-filers to the population, each record's dollars grown (Table
-1.4 items past 2023 by CBO's February 2026 growth per return of the closest line, `targets.carried`, `cbo_growth`).
-Targets: the non-filer count; nine national totals, each the start year's own total times CBO's growth of the
-closest line (value kind `outside`, `target_list.outside_rows`); household net worth by the Financial Accounts'
-growth; and `hold_distribution` over five AGI rank groups. A start from an earlier year's file drops and remakes the
+**Years after the data, 2024-2035** (`kind: projection`; to be redesigned, `NEXT_STEPS.md` item 1). Since 1 November
+(decision 74) every projection year starts from the 2023 file (`from_year: 2023`), not from the year before, so the
+years can run in parallel. The start: each record's weight grown by its demographic cell's population growth from 2023
+to the year (`projection_demographics.population_cells`), each record's dollars grown by its item's source compounded
+from 2023 to the year and divided by CBO's growth in returns (`projection_growth.plan_factors`; Table 1.4 items by CBO's
+February 2026 growth per return of the closest line; gross Social Security, since 2 November, by SSA's benefits paid in
+2024 and 2025 and CBO's Social Security outlays from 2026, not CBO's taxable benefits). The targets, each the 2023
+file's own level times the cumulative growth to the year: the non-filer count; nine national totals (value kind
+`outside`, `target_list.outside_rows`); the counts of all returns, itemizers and AMT returns (CBO's growth in the count,
+`target_list.cbo_count_rows`); household net worth by the Financial Accounts' growth; the SCF categories, grown from 2023
+by the factors the start's records get, on the SCF's units grown with the file's units (decision 76); and
+`hold_distribution` over five AGI rank groups. A start from an earlier year's file drops and remakes the
 non-microdata imputations and does not redraw balance sheets at the ceiling.
-Since 1 November the counts of all returns, itemizers and AMT returns are also anchored to the file: the previous
-year's file count times CBO's growth in that count (`target_list.cbo_count_rows`), not CBO's level.
+
+**Target consolidation (1 November, decisions 71 and 72).** Small count cells are folded into neighbours in every
+historical year (credits within each SOI line, farm overall, Table 1.3 separate returns and AGI only, $1m-2m, no
+income tax after credits targets; TARGETS.md S12). Targets per past year fell from 852-919 to 737-804; the 2 November
+additions (Table 1.7 and the age entries) bring them to 862-929.
 
 **The refund rule recomputes the totals built from the refund (1 November, decision 75).** `taxes.apply_refund_rule`
 sets taxable state refunds to zero on records that do not itemize and lowers `other_agi`, which holds the refund, by
@@ -1598,79 +1593,36 @@ dependent filers fix, are in scratch `explore/2026-11-02/age_targets/RESULTS.md`
 trillion against the SCF's $39.8 trillion, $48.9 trillion without these targets; 80 and over $11.7 trillion against
 $11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective sample kept against 65.8% without).
 
-## How the latest run comes out
+## How the latest runs come out (2 November 2026)
 
-The 2019 run of 28 October, from the pipeline as it now stands, in the default output folder
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` at the default settings: models `model/label_seed20261017`,
-`model/label_seed20261018` and `model/label_seed20261019` (each trained in 94 to 103 minutes on an H100); the stack
-`gen/seed20261017` (400,000 filer records and 54,379 non-filer records, a third from each model, drawn in about 16
-minutes); the file `tilt/seed20261017` (the tilt and its reports about 22 minutes). It was built in
-`explore/2026-10-28/bigrun_ot3cap/` (run name `seeds17_18_19`) and moved into place. Its `summary.md`, `report.md`,
-`cps_report.md`, `cex_report.md` and `sipp_report.md` have the full tables. Counts in millions, nominal 2019 dollars
-unless said. "Run before" is the latest of 27 October (`previous_2026-10-28_before_bigrun/`).
+All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
+`RESULTS.md` there; run folders `run/<year>/`). Past years: Newton steps out of the budget of 100, share of the
+effective sample kept, largest miss in standard errors, the Forbes list in the file, and net worth of units whose
+primary is 80 and over (units below $1 billion) against the SCF tax units on the year's wave mix. Projection years
+have no age targets; their SCF figure is the wave mix grown to the year.
 
-| | File | Reference |
-|---|---:|---:|
-| targets inside their ranges (SCF 0.5, the rest 1 standard error) | 789 of 789 (548 at an edge) | run before: 753 of 753 (502 at an edge) |
-| effective sample kept, from the prescaled start | 81.3% | run before: 87.2% |
-| effective sample kept, from the start before the prescaling | 81.0% | run before: 86.8% |
-| KL move (nats) | 0.131 | run before: 0.098 |
-| weight factor, 1st and 99th percentiles | 0.039, 3.94 | run before: 0.047, 3.24 |
-| thin cells: warnings, stops | 121, 75 | run before: 108, 54 |
-| filer records whose drawn parts add up to another AGI group than their label | 14.1% | run before: 14.1% |
-| median miss before the tilt: IRS Table 1.4, Table 1.3, business, SCF wealth | 7.2%, 12.8%, 16.2%, 9.0% | run before: 9.0%, 13.8%, 20.7%, 14.3% |
-| wages, all units | $8,596 billion | run before: $8,597 billion |
-| elective deferrals: total, units with any | $387 billion, 54.1 | W-2 Table 2.D targets (filers other than dependent filers): $352.7 billion; the file on the same measure $349.7 billion |
-| traditional deferrals; Medicare wages | $328 billion; $8,924 billion | |
-| net worth, total, before and after the tilt | $105.6 and $97.3 trillion | SCF pooled: $97.1 trillion |
-| median net worth, all 179.3 million units | $53,540 | SCF pooled, 162.8 million units: $66,590 |
-| top 1% share of net worth | 41.0% | SCF pooled: 39.6% |
-| other debt, before and after the tilt | $135 and $140 billion | run before: $292 and $298 billion |
-| tips: total, units with any | $42.5 billion, 6.00 | W-2 2019 (filers): $42.4 billion, 6.51 million returns; SIPP year mix: $32.8 billion, 3.70 |
-| overtime: total, share of units with any, per unit (dependent filers left out) | $242.5 billion, 7.8%, $1,431 | CPS year mix: $246.9 billion, 7.6%, $1,469 |
-| auto loan interest: total, units with any | $44.9 billion, 49.6 | SCF pooled (162.8 million units): $43.2 billion, 47.3 |
-| consumption, total | $6,914 billion | CEX year mix (161.8 million units): $6,673 billion |
-| returns with any of nine itemized deduction items, before and after the tilt | 47.2, 40.8 | run before, measured the same way: 46.4, 40.5 |
+| Year | Steps | Effective sample kept | Largest miss (se) | Billionaires: units, net worth | Net worth 80+, file / SCF ($ billion) |
+|---|---:|---:|---:|---|---|
+| 2015 | 71 | 59.5% | 9.27 | 534, $2,564bn | 7,000 / 6,991 |
+| 2016 | 63 | 60.7% | 10.12 | 540, $2,400bn | 7,068 / 7,039 |
+| 2017 | 54 | 58.1% | 8.33 | 564, $2,756bn | 6,806 / 6,792 |
+| 2018 | 45 | 74.6% | 3.13 | 584, $3,099bn | 6,602 / 6,595 |
+| 2019 | 73 | 67.3% | 3.67 | 605, $3,111bn | 7,559 / 7,563 |
+| 2020 | 63 | 42.8% | 5.29 | 612, $2,949bn | 9,078 / 9,079 |
+| 2021 | 58 | 43.8% | 5.52 | 720, $4,398bn | 10,737 / 10,746 |
+| 2022 | 66 | 59.1% | 5.04 | 730, $4,701bn | 11,675 / 11,690 |
+| 2023 | 99 | 56.1% | 5.19 | 726, $4,489bn | 12,519 / 12,522 |
+| 2024 | 8 | 96.2% | 1.56 | 804, $5,701bn | 13,767 / 13,393 |
+| 2026 | 10 | 96.6% | 1.62 | 982, $8,431bn | 15,788 / 15,248 |
+| 2027 | 9 | 96.8% | 1.67 | 997 (held), $8,830bn | 16,539 / 15,890 |
+| 2030 | 16 | 97.3% | 1.79 | 1,040 (held), $10,080bn | 18,880 / 17,815 |
+| 2035 | 13 | 96.5% | 1.93 | 1,097 (held), $12,356bn | 23,230 / 21,254 |
 
-- **Not targeted.** Of 1,381 published SOI cells the file is not targeted on, the median miss is 2.0 standard
-  errors in Table 1.4, 1.7 in Table 1.6 and 2.3 in Table 1.7 (run before: 2.1, 1.6, 2.3).
-- **The models differ.** The three models' records, each scaled to the file's weight, differ by a median 14.6% on
-  statistics with at least 200 records in each model (`report_models.csv`); the largest gaps are on dependent filers'
-  rare items.
-- **Net worth.** The file's units include its dependent filers, who hold no wealth; the SCF's units do not, so
-  the two medians are not on the same base. Before the tilt net worth is 9% above the SCF's ($105.6 against $97.1
-  trillion; run before $110.8 trillion).
-- **Deferrals.** All 24 W-2 targets are met. Before the tilt the file's deferrals on joint returns were short at the
-  top (AGI $500,000-1 million: $9.6 billion against $17.6 billion; $1 million and over: $4.0 billion against $7.1
-  billion) and long on non-joint returns under $25,000 ($6.8 billion against $3.7 billion); the tilt closes both.
-- **Tips.** The file's total includes non-filers' tips and tips above the box 7 limit, which the W-2 targets do not
-  count. Before the tilt the file has $28.9 billion of tips on 3.51 million units, about the SIPP's; the tilt meets
-  the W-2 counts by raising the weight of tipped records. Units with $200,000 or more of wages hold $1.0 billion
-  (SIPP year mix: $0.8 billion; $5.9 billion in the run of 27 October, when tips were a share of wages). Tipped
-  workers: 5.74 million against a target of 6.05 million, inside its range. Share of tipped workers (filers, box 7
-  measure) above Table 4.C's percentile lines:
+**2023 is at the edge of the step budget.** With the 2023 Forbes list the solve took 99 of 100 Newton steps, against
+58 without it; run again on a node with more processors, the same inputs ran out of steps at 100. No target is beyond
+reach; the solver's step is cut short for about 60 steps while it works on the wealth grid cell "net worth above the
+SCF's 99.9th percentile, income below its 90th" and Table 1.4's capital gains with no AGI. The list holds 360 of Table
+4.3's 1,531 top 0.001% returns in 2023 and half their dividends. An open question for John (`NEXT_STEPS.md`).
 
-  | Line | $121 | $537 | $2,444 | $8,409 | $18,281 | $44,054 |
-  |---|---:|---:|---:|---:|---:|---:|
-  | W-2 2019 (the target) | 90% | 75% | 50% | 25% | 10% | 1% |
-  | file before the tilt | 93.5% | 81.3% | 60.2% | 31.2% | 13.2% | 1.9% |
-  | file after the tilt | 92.3% | 78.2% | 52.4% | 26.3% | 10.6% | 1.1% |
-
-- **Overtime.** Before the tilt the file has $271.7 billion on 14.96 million units; after, $242.5 billion. Holding
-  each person's overtime to their wages took $13.3 billion of the $256.5 billion drawn (1.03 million people, file
-  weights), and subtracting tips $0.7 billion more (0.09 million people).
-- **Itemizers** fall in the tilt because Table 1.3's state income tax refund targets (2019: $5.6 billion, few
-  taxable refunds after the 2017 law) cut the weight of itemizers with a refund to about a fifth.
-
-Earlier runs' figures are in `HISTORY.md` and in this file's git history (up to commit bc72cc7).
-
-Known gaps are listed at the end of `ROADMAP.md`.
-
-**Phase 2 work in progress (30 October).** Historical year configurations now include calculator targets with the
-2019 QBI omission, the 2020–2021 after-credits omission, and the 2021 child-credit omission. Non-filer count errors
-use the year configuration's tolerance. From 2021, the partnership and S corporation growth calculation uses the
-combined Table 4.3 count for both comparison years, avoiding the double count in Table 1.4's split lines; Table 4.3
-excludes dependent filers, while the Table 1.4 amounts include them. Full historical fits, Table 2.1 targets, and the
-new projection method remain unfinished; these changes do not constitute a completed phase 2 run.
-
-**Target consolidation (1 November, decisions 71 and 72).** Small count cells are folded into neighbours in every historical year (credits within each SOI line, farm overall, Table 1.3 separate returns and AGI only, $1m-2m, no income tax after credits targets); the list is in TARGETS.md S12. Targets per year fell from 852-919 to 737-804.
+Earlier runs' figures are in `HISTORY.md` and in this file's git history (the 2019 run of 28 October, up to commit
+4c2c518). Known gaps are listed in `ROADMAP.md` and `NEXT_STEPS.md`.
