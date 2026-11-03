@@ -11,19 +11,17 @@ read_roster(tax_year)  the member list for one tax year (the ASEC of March tax_y
                        family position pointers) from IPUMS's RELATE, FTYPE, FAMREL, FAMID and the spouse and parent
                        pointers. Incomes follow 3a_compute_incomes.do as far as IPUMS carries the source codes.
 """
-import os
 import re
 
 import numpy as np
 import pandas as pd
 
-from tax_units import ASSUMED_FLAGS
+from tax_units import ASSUMED_FLAGS, taxable_social_security
 
 RAW = '/nfs/roberts/project/pi_nrs36/shared/raw_data/CPS-ASEC/cps_asec_common'
 
-def _read_fixed_width(survey_year, cache=None):
-    if cache and os.path.exists(cache):
-        return pd.read_parquet(cache)
+def _read_fixed_width(survey_year):
+    """The IPUMS CPS ASEC extract of March survey_year, every variable as a number."""
     d = f'{RAW}/cps{survey_year}_03s'
     v = pd.read_csv(f'{d}/variables.csv')
     colspecs = [(int(s) - 1, int(e)) for s, e in zip(v.start, v.end)]
@@ -32,8 +30,6 @@ def _read_fixed_width(survey_year, cache=None):
     for n, dec in zip(v.var_name, v.imp_decim):
         x = pd.to_numeric(df[n], errors='raise')
         df[n] = x / 10 ** int(dec) if int(dec) else x
-    if cache:
-        df.to_parquet(cache)
     return df
 
 
@@ -49,16 +45,14 @@ def _clean_income(z):
     return z
 
 
-def read_roster(tax_year, student_rule='nilf_enrolled', cache_dir=None):
+def read_roster(tax_year):
     """The standard person roster for one tax year (the ASEC of March tax_year + 1).
 
     Columns: hh, pn (person number, the pointers' key), age, sex, weight (ASECWT), gq, relate, ftype, famrel, famid,
     sp_pn, mom_pn, pop_pn, marst; CBO's codes hhdfmx, perrp, fheadidx (person number of the family's reference
     person), ffpos (= FAMID); student and disability flags; CBO's income items and gross income gi.
     """
-    sy = tax_year + 1
-    cache = f'{cache_dir}/ipums_{sy}.parquet' if cache_dir else None
-    x = _read_fixed_width(sy, cache)
+    x = _read_fixed_width(tax_year + 1)
     r = pd.DataFrame({'hh': x.SERIAL.astype(np.int64), 'pn': x.PERNUM.astype(int), 'age': x.AGE.astype(int),
                       'sex': x.SEX.astype(int), 'weight': x.ASECWT.astype(float), 'gq': (x.GQ == 2),
                       'relate': x.RELATE.astype(int), 'ftype': x.FTYPE.astype(int), 'famrel': x.FAMREL.astype(int),
@@ -126,15 +120,9 @@ def read_roster(tax_year, student_rule='nilf_enrolled', cache_dir=None):
     r['married_absent'] = r.marst == 2
 
     # --- school and disability (4a) ----------------------------------------------------------------------------
-    schl = x.SCHLCOLL.astype(int)
-    if student_rule == 'enrolled':
-        in_school = schl.isin([1, 2, 3, 4])
-    elif student_rule == 'fulltime':
-        in_school = schl.isin([1, 3])
-    elif student_rule == 'nilf_enrolled':        # nearest to PRNLFSCH (asked of people not in the labor force)
-        in_school = schl.isin([1, 2, 3, 4]) & (x.LABFORCE.astype(int) == 1)
-    else:
-        raise ValueError(student_rule)
+    # in school: enrolled in high school or college and not in the labor force, nearest to Census's PRNLFSCH (asked of
+    # people not in the labor force)
+    in_school = x.SCHLCOLL.astype(int).isin([1, 2, 3, 4]) & (x.LABFORCE.astype(int) == 1)
     r['in_school'] = in_school.to_numpy()
     r['nilf_school'] = (x.WHYNWLY.astype(int) == 4).to_numpy()      # RSNNOTW 4
     r['ill_disabled'] = (x.WHYNWLY.astype(int) == 2).to_numpy()     # RSNNOTW 1
@@ -173,16 +161,7 @@ def read_roster(tax_year, student_rule='nilf_enrolled', cache_dir=None):
     wc = z('INCWKCOM') + by(disa, [1, 7, 8]) + by(surv, [6, 7])
     gi0 = wage + selfemp + interest + dividends + rents + est_trust + pension + uc
     ss_rr = ssb + rr_pension
-    combined = np.maximum(gi0 + 0.5 * ss_rr, 0)
-    married_any = r.marst.to_numpy() == 1
-    t1 = np.where(married_any, 32000, 25000); t2 = np.where(married_any, 44000, 34000)
-    taxable = np.zeros(len(r))
-    mid = (combined > t1) & (combined <= t2)
-    taxable[mid] = np.minimum(0.5 * ss_rr, 0.5 * (combined - t1))[mid]
-    tier1 = np.minimum(0.5 * ss_rr, 0.5 * (t2 - t1))
-    hi = combined > t2
-    taxable[hi] = np.minimum(0.85 * ss_rr, 0.85 * (combined - t2) + tier1)[hi]
-    taxable = np.maximum(taxable, 0)
+    taxable = taxable_social_security(gi0, ss_rr, r.marst.to_numpy() == 1)
     for k, v in dict(wage=wage, selfemp=selfemp, farm_selfemp=farm, interest=interest, dividends=dividends,
                      rents=rents, est_trust=est_trust, pension=pension, uc=uc, ssb=ssb, rr_pension=rr_pension,
                      ssi=ssi, va_benefits=vet, wc=wc, other_income=z('INCOTHER')).items():
@@ -204,6 +183,3 @@ def read_roster(tax_year, student_rule='nilf_enrolled', cache_dir=None):
         r[c] = False
     assert not r.isna().any().any(), r.isna().sum()[r.isna().sum() > 0]
     return r.reset_index(drop=True)
-
-
-read_ipums_roster = read_roster      # the name step 1's scripts use
