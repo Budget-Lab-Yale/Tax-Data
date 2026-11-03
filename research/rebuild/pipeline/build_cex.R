@@ -94,15 +94,12 @@ year_files = function(prefix, year) {
 }
 
 # Reads a year's files. `need` columns must be in every file; `optional` ones are read where
-# present. A missing file stops the run, unless optional_files, where it is reported.
-read_year = function(prefix, year, need, optional = character(0), optional_files = FALSE, ...) {
+# present. A missing file stops the run.
+read_year = function(prefix, year, need, optional = character(0), ...) {
   paths = file.path(CEX_RAW, year_files(prefix, year))
   have = file.exists(paths)
-  if (!all(have)) {
-    msg = sprintf('%s %d: missing file(s) %s', prefix, year, paste(paths[!have], collapse = ', '))
-    if (!optional_files) stop(msg)
-    cat('  ', msg, '\n')
-  }
+  if (!all(have))
+    stop(sprintf('%s %d: missing file(s) %s', prefix, year, paste(paths[!have], collapse = ', ')))
   map_dfr(paths[have], function(p) {
     h = toupper(names(fread(p, nrows = 0)))
     miss = setdiff(need, h)
