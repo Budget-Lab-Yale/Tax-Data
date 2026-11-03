@@ -7,12 +7,13 @@ It flags a target when any of three things holds, each found without a solve:
      the cell (those counted by the count's column) have a smallest and a largest amount per return. If the required
      average is above the largest or below the smallest by more than one standard error (the cell's two relative
      standard errors in quadrature), no weights can meet both. Both targets of the cell are flagged.
-  2. The target's relative standard error (standard error over value) is below precheck_min_relative_se (0.1%), for a
+  2. The target's relative standard error (standard error over value) is below min_relative_se (0.1% today), for a
      target that is not an identity: a standard error so narrow that the cost's pull on it is enormous and no solve in a few hundred steps can reach it.
-  3. The start is more than precheck_max_start_gap_se (300) standard errors from the target, for a target that is not
+  3. The start is more than max_start_gap_se (300 today) standard errors from the target, for a target that is not
      an identity.
-Settings tilt.precheck: {enabled, min_relative_se, max_start_gap_se, min_excess_se}. Returns the flags table (one row per
-flagged target, with the reason) and the summary lines; writes precheck_flags.csv and precheck.md to the folder.
+The three numbers are settings tilt.precheck (min_relative_se, max_start_gap_se and min_excess_se, the line of rule 1 in
+standard errors; 1 today), passed to run() as cfg. Returns the flags table (one row per flagged target, with the reason)
+and the summary lines; writes precheck_flags.csv and precheck.md to the folder.
 """
 import numpy as np
 import pandas as pd
@@ -30,8 +31,7 @@ def _start_values(F, w0, averages):
     return before
 
 
-def run(rows, F, w0, averages, value, se, identity, folder, settings=None):
-    cfg = {'min_relative_se': 0.001, 'max_start_gap_se': 300.0, 'min_excess_se': 1.0, **(settings or {})}
+def run(rows, F, w0, averages, value, se, identity, folder, cfg):
     rows = rows.reset_index(drop=True)
     value, se, identity = (np.asarray(a) for a in (value, se, identity))
     value, se = value.astype(float), se.astype(float)
