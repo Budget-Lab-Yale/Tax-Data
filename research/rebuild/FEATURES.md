@@ -1595,6 +1595,34 @@ dependent filers fix, are in scratch `explore/2026-11-02/age_targets/RESULTS.md`
 trillion against the SCF's $39.8 trillion, $48.9 trillion without these targets; 80 and over $11.7 trillion against
 $11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective sample kept against 65.8% without).
 
+## The projection years in three steps (branch `rebuild-proj-a`, 3 November; an experiment, not merged)
+
+John's design of 3 November (scratch `explore/2026-11-02/projection_design/DESIGN.md`, "Agreed on 3 November";
+`pipeline/projection_steps.py`; results in scratch `explore/2026-11-03/proj_A/RESULTS.md`). Every projection year
+2024-2035 starts from the 2023 file and does not depend on any other projection year. A year's targets.yaml switches it
+on with `start_scaling: {weights: persons, dollars: item_factor}`.
+
+1. **Step 1, people.** The 2023 weights are calibrated (the smallest Kullback-Leibler move, every count exact) to
+   people by marital status and single year of age, 0 to 79 and 80 and over: the primary, a joint return's spouse
+   and every dependent with an age, each carrying the unit's weight; a dependent filer's own record counts only its
+   dependents; a married person under 16 counts as unmarried. Each count is the 2023 file's count times CBO's growth
+   of the same people (Macro-Projections population, settings `tilt.projection.population_dir`). The dependent
+   filers' six cells (age range by marital status) are exact too, at their population growth as before.
+2. **Step 2, one factor per dollar item.** Each grown column has a row in `targets_config/projection_items.csv`
+   (settings `tilt.projection.items_table`): its series (`current`: today's rule; `file:<csv>:<column>`;
+   `same_as:<column>`; `none`), kind (`total`: the series is the growth of the item's total, and the factor makes the
+   start's total equal the 2023 total times it on the step 1 weights, gains and losses each on their own; `per_unit`:
+   the series multiplies each record), whether its total is targeted, and its error.
+3. **Step 3, the reweighting.** Targets: the step 1 people (exact; kind `projection persons`); returns in each group
+   of the primary's age band (settings `tilt.projection.return_age_edges`) and marital status, and of the dependent
+   filers' age ranges, at the 2023 file's filing share times the group's units after step 1 (exact; `projection
+   returns`; CBO's count of returns is not used); every targeted item's total on the start, gains and losses
+   separately where each has at least 500 records and $0.5 billion in 2023 (judgment, the table's error, 1% for now;
+   `projection items`); itemizers and AMT payers at the 2023 file's count times CBO's growth in the count, 5%; household
+   net worth and the SCF categories as before, the SCF targets grown by step 2's factors (`scf_targets.
+   projection_extension`). No `hold_distribution`. The 2023 Forbes list's records are outside steps 1 and 2; the
+   year's list adds its own fixed contribution to every target.
+
 ## How the latest runs come out (2 November 2026)
 
 All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
