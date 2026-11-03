@@ -40,8 +40,9 @@ def wq(x, w, p):
     return float(common.wquantile(np.asarray(x, float), np.asarray(w, float), [p])[0]) if len(x) else np.nan
 
 
-def side_by_side(sources, rows, stat):
-    """One row per (label, selector); for each source, stat(frame) -> dict of columns."""
+def side_by_side(sources, rows, stat, floatfmt=',.1f'):
+    """One row per (label, selector); for each source, stat(frame) -> dict of columns. A markdown table (report_sipp.py
+    uses it too)."""
     out = []
     for lab, sel in rows:
         r = {'group': lab}
@@ -50,7 +51,7 @@ def side_by_side(sources, rows, stat):
             for k, v in stat(m).items():
                 r[f'{name}: {k}'] = v
         out.append(r)
-    return pd.DataFrame(out).set_index('group').to_markdown(floatfmt=',.1f')
+    return pd.DataFrame(out).set_index('group').to_markdown(floatfmt=floatfmt)
 
 
 def shares(d, col, bands):
