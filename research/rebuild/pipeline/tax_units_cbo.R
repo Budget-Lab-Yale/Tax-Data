@@ -1,6 +1,7 @@
 #-------------------------------------------------------------------------------
-# tax_units_cbo.R: the CBO-rule tax units (pipeline/tax_units.py) in the form production's builder returns, so the
-# filing model (src/nonfilers/filing_model.R) and the pool's calibration score them unchanged.
+# tax_units_cbo.R: the CBO-rule tax units (pipeline/tax_units.py) in the form production's builder returns, so
+# production's code reads them unchanged: the statutory filing requirement (filing_requirement.R) and build_cps.R's
+# unit table.
 #
 # cbo_tax_units(x, yr, roster_path) takes the cleaned ASEC person table x (as build_cps.R prepares it, group
 # quarters already left out) and the roster tax_units.py wrote (roster_<year>_<variant>_nogq.csv.gz: one row per

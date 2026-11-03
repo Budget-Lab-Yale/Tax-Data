@@ -35,7 +35,7 @@ the start after the top of the file and the non-microdata imputations.
 
 Writes in <tilt>/taxes/: the calculator's input and output files of each run with their manifests, the conversion
 notes, qbi_dials.csv and taxes_summary.md.
-The stage `taxes` (python taxes.py report <file> <folder>) computes the taxes on a finished file with its own columns,
+The command `python taxes.py report <file> <folder>` (run by hand; not a stage of run.sbatch) computes the taxes on a finished file with its own columns,
 with no dials solved, and evaluates the year's calculator targets on its weights before and after the tilt
 (report()); it is how a file made before this stage is compared.
 """

@@ -1,7 +1,9 @@
 """The rebuild's year file as the input of the GPU tax calculator, and the calculator run on every record.
 
 An experiment (John, 28 October): every record's federal income tax under the target year's law, from the GPU tax
-calculator (repository tax-simulator-gpu) used as a library. Nothing here changes the file or feeds the tilt.
+calculator (repository tax-simulator-gpu) used as a library. The stage changes no file and feeds nothing into the tilt;
+since 30 October taxes.py, inside the tilt, uses this file's conversion (convert) for every record, as does
+taxsim_file.py.
 
 Three steps, all run by `main` (stage `calculator` of run.sbatch):
 

@@ -34,8 +34,9 @@ that a miss of one standard error costs exactly 0.5. That weight is not known in
 start's group weight and, if any group moved by more than the settings' average_weight_change, once more at the first
 answer's.
 The solver writes average conditions this way itself, from averages[j] = (member, v, m), in place of F[:, j] and
-T[j]: target_list's 'units' form (average_condition, units + sum over the group of w (v / m - 1) = units) holds
-only when the total number of units is exact, and with standard errors on the IRS and non-filer counts it is not.
+T[j]. (target_list once had a 'units' form as well, units + sum over the group of w (v / m - 1) = units; it holds
+only when the total number of units is exact, which with standard errors on the IRS and non-filer counts it is not,
+and it was removed on 3 November 2026.)
 
 Thin cells (section 5). For each target, after the reweighting: the effective number of records behind it,
 (sum_i w_i |f_i|)^2 / sum_i (w_i f_i)^2 over the records with f_i != 0, where f_i is the record's contribution (its
