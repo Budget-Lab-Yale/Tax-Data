@@ -295,8 +295,11 @@ def same_as(col):
 def record_same_as(col, other, x):
     r = dict(STATE['items'][other])
     keep, w0 = STATE['keep'], STATE['w_base']
-    r.update(column=col, series=f'same_as:{other}', target=int(items_table().loc[col, 'target']),
-             error=items_table().loc[col, 'error'])
+    # the other column's factors record by record: on this column's records that is a growth per record (kind
+    # per_unit), whatever the other column's kind
+    r.update(column=col, series=f'same_as:{other}', kind='per_unit', target=int(items_table().loc[col, 'target']),
+             error=items_table().loc[col, 'error'], source=f"the factors of {other} record by record ({r['source'][:120]})",
+             **{'growth positive': r['factor positive'], 'growth negative': r['factor negative']})
     for sign, nm in ((1, 'positive'), (-1, 'negative')):
         m = keep & (sign * x > 0)
         r[f'2023 total {nm}'], r[f'records {nm}'] = float(w0[m] @ x[m]), int(m.sum())
