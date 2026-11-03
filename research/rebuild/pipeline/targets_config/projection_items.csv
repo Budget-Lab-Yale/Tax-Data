@@ -1,81 +1,81 @@
 column,series,kind,target,error,note
 wages,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $10,484.0bn gains, $0.0bn losses"
-txbl_int,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $304.8bn gains, $0.0bn losses"
-kg_st,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $37.5bn gains, $224.3bn losses"
-kg_lt,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $972.4bn gains, $117.4bn losses"
-kg_dist,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $11.5bn gains, $0.0bn losses"
-business_income_drawn,current,auto,0,,"today: CBO or macro series (total); 2023 total $1,965.3bn gains, $293.9bn losses; the drawn business total, kept for checks; business income is the sum of its 18 parts"
-other_gains,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $109.5bn gains, $50.7bn losses"
-txbl_ira_dist,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $440.0bn gains, $0.0bn losses"
-txbl_pens_dist,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $1,012.9bn gains, $0.0bn losses"
-ss_taxable,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $521.6bn gains, $0.0bn losses"
-ui,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $35.5bn gains, $0.0bn losses"
-alimony,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $16.1bn gains, $0.0bn losses"
-state_ref,current,auto,0,,"today: CBO or macro series (total); 2023 total $13.3bn gains, $0.0bn losses; set to zero on non-itemizers each year by the refund rule (taxes.apply_refund_rule)"
-retirement_gross,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $2,902.2bn gains, $0.0bn losses"
-exempt_int,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $70.7bn gains, $0.0bn losses"
-first_mort_int,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $333.2bn gains, $0.0bn losses"
-salt_prop,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $247.6bn gains, $0.0bn losses"
-gross_ss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $1,184.8bn gains, $0.0bn losses"
-sole_prop,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $673.9bn gains, $181.6bn losses"
-part_passive,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $109.1bn gains, $0.0bn losses"
-part_active,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $424.0bn gains, $0.0bn losses"
-part_passive_loss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $50.1bn gains, $0.0bn losses"
-part_active_loss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $178.3bn gains, $0.0bn losses"
-part_179,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $10.7bn gains, $0.0bn losses"
-scorp_passive,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $68.7bn gains, $0.0bn losses"
-scorp_active,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $794.6bn gains, $0.0bn losses"
-scorp_passive_loss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $9.2bn gains, $0.0bn losses"
-scorp_active_loss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $101.0bn gains, $0.0bn losses"
-scorp_179,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $53.8bn gains, $0.0bn losses"
-rent,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $174.6bn gains, $0.0bn losses"
-rent_loss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $72.2bn gains, $0.0bn losses"
-estate,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $91.4bn gains, $0.0bn losses"
-estate_loss,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $5.9bn gains, $0.0bn losses"
-farm_rent,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $6.8bn gains, $0.5bn losses"
-sche_other,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $0.1bn gains, $0.2bn losses"
-farm,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $17.7bn gains, $45.4bn losses"
-div_pref,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $405.2bn gains, $0.0bn losses"
-div_ord,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $115.5bn gains, $0.0bn losses"
-trad_contr_ira,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $16.5bn gains, $0.0bn losses"
-sl_int_ded,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $10.3bn gains, $0.0bn losses"
-ed_exp,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $1.1bn gains, $0.0bn losses"
-tuition_ded,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $4.2bn gains, $0.0bn losses"
-dpad,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $4.1bn gains, $0.0bn losses"
-se_tax_ded,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $39.7bn gains, $0.0bn losses"
-se_health,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $36.0bn gains, $0.0bn losses"
-hsa_contr,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $4.3bn gains, $0.0bn losses"
-keogh_contr,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $29.3bn gains, $0.0bn losses"
-early_penalty,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $0.8bn gains, $0.0bn losses"
-alimony_exp,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $10.8bn gains, $0.0bn losses"
-kg_1250,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $34.0bn gains, $0.0bn losses"
-kg_collect,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $16.1bn gains, $0.0bn losses"
-part_se,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $134.5bn gains, $74.9bn losses"
-med_exp,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $163.3bn gains, $0.0bn losses"
-salt_inc_sales,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $463.3bn gains, $0.0bn losses"
-char_cash,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $222.1bn gains, $0.0bn losses"
-char_noncash,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $96.2bn gains, $0.0bn losses"
-casualty_exp,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $2.1bn gains, $0.0bn losses"
-job_exp,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $128.6bn gains, $0.0bn losses"
-tax_prep_exp,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $11.9bn gains, $0.0bn losses"
-other_misc_exp,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $222.6bn gains, $0.0bn losses"
-other_item_exp,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $73.9bn gains, $9.4bn losses"
-amt_nols,current,auto,0,,"today: CBO or macro series (total); 2023 total $23.5bn gains, $9.2bn losses; held to the record's net operating loss each year (non-microdata imputations)"
-amt_ftc,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $44.5bn gains, $0.0bn losses"
-ftc,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $52.9bn gains, $0.0bn losses"
-aoc_exp,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $39.4bn gains, $0.0bn losses"
-llc_exp,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $24.5bn gains, $0.0bn losses"
-old_cred,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $0.0bn gains, $0.0bn losses"
-savers_cred,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $2.1bn gains, $0.0bn losses"
-res_energy_cred,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $3.1bn gains, $0.0bn losses"
-gbc,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $6.9bn gains, $0.0bn losses"
-prior_yr_cred,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $1.6bn gains, $0.0bn losses"
-other_nonref,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $1.0bn gains, $0.0bn losses"
-net_ptc,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $2.2bn gains, $0.0bn losses"
-excess_ptc,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $4.8bn gains, $0.0bn losses"
-recapture_tax,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $0.0bn gains, $0.0bn losses"
-ira_penalty,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $7.8bn gains, $0.0bn losses"
-other_agi_remainder,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $186.4bn gains, $240.4bn losses"
+txbl_int,file:projection_series_b.csv:int_remainder,total,1,0.01,B: what is left of CBO's combined interest and non-qualified dividend line
+kg_st,file:projection_series_b.csv:cg_before_limit,total,1,0.01,B: growth before the loss limit that puts line 13 on CBO's line
+kg_lt,file:projection_series_b.csv:cg_before_limit,total,1,0.01,B: as kg_st
+kg_dist,file:projection_series_b.csv:cg_before_limit,total,1,0.01,B: as kg_st
+business_income_drawn,file:projection_series_b.csv:rev_iit_business_income,total,0,,"B: CBO business line (checks only); today: CBO or macro series (total); 2023 total $1,965.3bn gains, $293.9bn losses; the drawn business total, kept for checks; business income is the sum of its 18 parts"
+other_gains,file:projection_series_b.csv:rev_iit_capital_gain_loss,total,1,0.01,B: CBO capital gain line (Form 4797 is in it; no loss limit)
+txbl_ira_dist,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,B: CBO pensions line
+txbl_pens_dist,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,B: CBO pensions line
+ss_taxable,file:projection_series_b.csv:rev_iit_ss_benefits,total,1,0.01,B: CBO taxable Social Security line
+ui,file:projection_series_b.csv:ui_outlays,total,1,0.01,"B: CBO unemployment outlays, calendar years"
+alimony,file:projection_series_b.csv:alimony_fade,total,1,0.01,"B: SOI 2019-2023 decline, 0.886820 a year (John, decision 2)"
+state_ref,file:projection_series_b.csv:sl_income_tax,total,0,,"B: as state and local income tax; today: CBO or macro series (total); 2023 total $13.3bn gains, $0.0bn losses; set to zero on non-itemizers each year by the refund rule (taxes.apply_refund_rule)"
+retirement_gross,file:projection_series_b.csv:retirement_gross,total,1,0.01,B: gross pensions on CBO pensions line plus gross_ss on its series
+exempt_int,file:projection_series_b.csv:int_remainder,total,1,0.01,B: as taxable interest
+first_mort_int,file:projection_series_b.csv:mortgage_interest_b,total,1,0.01,"B: balance times average rate, rule (b) (John, decision 1)"
+salt_prop,file:projection_series_b.csv:re_tax,total,1,0.01,"B: ACS to 2024, then FHFA x households"
+gross_ss,file:projection_series_b.csv:gross_ss_series,total,1,0.01,"B: SSA to 2025, then CBO outlays in calendar years"
+sole_prop,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+part_passive,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+part_active,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+part_passive_loss,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+part_active_loss,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+part_179,file:projection_series_b.csv:nonres_fixed_invest,total,1,0.01,B: CBO nonresidential investment
+scorp_passive,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+scorp_active,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+scorp_passive_loss,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+scorp_active_loss,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+scorp_179,file:projection_series_b.csv:nonres_fixed_invest,total,1,0.01,B: CBO nonresidential investment
+rent,file:projection_series_b.csv:rental_inc_adj,total,1,0.01,B: CBO rental income
+rent_loss,file:projection_series_b.csv:rental_inc_adj,total,1,0.01,B: CBO rental income
+estate,file:projection_series_b.csv:cbo_int_div_all,total,1,0.01,B: CBO interest and dividend lines
+estate_loss,file:projection_series_b.csv:cbo_int_div_all,total,1,0.01,B: CBO interest and dividend lines
+farm_rent,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+sche_other,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+farm,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+div_pref,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,B: CBO qualified dividends line
+div_ord,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,"B: CBO qualified dividends line (John, decision 5)"
+trad_contr_ira,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+sl_int_ded,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+ed_exp,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+tuition_ded,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+dpad,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+se_tax_ded,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+se_health,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+hsa_contr,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+keogh_contr,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+early_penalty,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
+alimony_exp,file:projection_series_b.csv:alimony_fade,total,1,0.01,B: as alimony received
+kg_1250,same_as:kg_lt,auto,1,0.01,B: with long-term gain
+kg_collect,same_as:kg_lt,auto,1,0.01,B: with long-term gain
+part_se,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
+med_exp,file:projection_series_b.csv:med_per_person,per_unit,1,0.01,"B: MEPS to 2024, then CBO CPI medical"
+salt_inc_sales,file:projection_series_b.csv:sl_income_tax,total,1,0.01,"B: QTAX to 2025, then CBO AGI"
+char_cash,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+char_noncash,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+casualty_exp,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+job_exp,file:projection_series_b.csv:rev_iit_wages,total,1,0.01,B: CBO wages line
+tax_prep_exp,file:projection_series_b.csv:tax_prep_price,per_unit,1,0.01,"B: BLS to 2025, then CBO CPI-U"
+other_misc_exp,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+other_item_exp,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+amt_nols,file:projection_series_b.csv:agi_per_return,per_unit,0,,"B: AGI per return; today: CBO or macro series (total); 2023 total $23.5bn gains, $9.2bn losses; held to the record's net operating loss each year (non-microdata imputations)"
+amt_ftc,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,B: as ftc
+ftc,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,B: CBO qualified dividends line
+aoc_exp,file:projection_series_b.csv:tuition_price,per_unit,1,0.01,"B: College Board to 2025, then CBO CPI-U"
+llc_exp,file:projection_series_b.csv:tuition_price,per_unit,1,0.01,B: as aoc_exp
+old_cred,none,per_unit,1,0.01,B: not grown (amounts fixed in law)
+savers_cred,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+res_energy_cred,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+gbc,file:projection_series_b.csv:rev_iit_business_income,total,1,0.01,B: CBO business line
+prior_yr_cred,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+other_nonref,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+net_ptc,file:projection_series_b.csv:ptc_outlays,total,1,0.01,"B: CBO premium tax credit outlays, calendar"
+excess_ptc,file:projection_series_b.csv:ptc_outlays,total,1,0.01,"B: as net_ptc (John, decision 7)"
+recapture_tax,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
+ira_penalty,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,B: CBO pensions line
+other_agi_remainder,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
 value.cash,current,auto,0,,"today: CBO or macro series (total); 2023 total $9,395.5bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.equities,current,auto,0,,"today: CBO or macro series (total); 2023 total $23,948.8bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.bonds,current,auto,0,,"today: CBO or macro series (total); 2023 total $4,815.8bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
@@ -86,21 +86,21 @@ value.annuities,current,auto,0,,"today: CBO or macro series (total); 2023 total 
 value.trusts,current,auto,0,,"today: CBO or macro series (total); 2023 total $3,123.9bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.other_fin,current,auto,0,,"today: CBO or macro series (total); 2023 total $2,070.9bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.pass_throughs,current,auto,0,,"today: CBO or macro series (total); 2023 total $29,605.2bn gains, $0.2bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-value.primary_home,current,auto,0,,"today: CBO or macro series (total); 2023 total $44,258.6bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-value.other_home,current,auto,0,,"today: CBO or macro series (total); 2023 total $7,952.6bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-value.re_fund,current,auto,0,,"today: growth.yaml per-return rule (per unit); 2023 total $3,905.2bn gains, $7.5bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+value.primary_home,file:projection_series_b.csv:homes_z1_hpi,total,0,,"B: Z.1 to 2025, then FHFA x households; today: CBO or macro series (total); 2023 total $44,258.6bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+value.other_home,file:projection_series_b.csv:homes_z1_hpi,total,0,,"B: as the primary home; today: CBO or macro series (total); 2023 total $7,952.6bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+value.re_fund,file:projection_series_b.csv:homes_z1_hpi,total,0,,"B: as the primary home; today: growth.yaml per-return rule (per unit); 2023 total $3,905.2bn gains, $7.5bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.other_nonfin,current,auto,0,,"today: CBO or macro series (total); 2023 total $6,391.5bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 w_primary_ltv,current,auto,0,,"today: a ratio; 2023 total $0.0bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
-value.other_mortgage,current,auto,0,,"today: CBO or macro series (total); 2023 total $1,349.8bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+value.other_mortgage,file:projection_series_b.csv:mortgages_z1_hpi,total,0,,"B: Z.1 mortgages to 2025, then FHFA x households; today: CBO or macro series (total); 2023 total $1,349.8bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.credit_lines,current,auto,0,,"today: CBO or macro series (total); 2023 total $372.2bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-value.credit_cards,current,auto,0,,"today: growth.yaml per-return rule (per unit); 2023 total $372.0bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-value.installment_debt,current,auto,0,,"today: CBO or macro series (total); 2023 total $2,745.7bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+value.credit_cards,file:projection_series_b.csv:credit_cards_z1_pce,total,0,,"B: Z.1 revolving credit to 2025, then CBO PCE; today: growth.yaml per-return rule (per unit); 2023 total $372.0bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+value.installment_debt,file:projection_series_b.csv:installment_z1_pce,total,0,,"B: Z.1 to 2025, then CBO PCE; today: CBO or macro series (total); 2023 total $2,745.7bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 value.other_debt,current,auto,0,,"today: CBO or macro series (total); 2023 total $180.9bn gains, $0.0bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-w_kg_primary_home,current,auto,0,,"today: CBO or macro series (total); 2023 total $17,660.3bn gains, $478.3bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-w_kg_other_re,current,auto,0,,"today: CBO or macro series (total); 2023 total $7,497.0bn gains, $41.3bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+w_kg_primary_home,same_as:value.primary_home,auto,0,,"B: with its asset; today: CBO or macro series (total); 2023 total $17,660.3bn gains, $478.3bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
+w_kg_other_re,same_as:value.other_home,auto,0,,"B: with its asset; today: CBO or macro series (total); 2023 total $7,497.0bn gains, $41.3bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 w_kg_pass_throughs,current,auto,0,,"today: CBO or macro series (total); 2023 total $23,590.1bn gains, $285.9bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
 w_kg_other,current,auto,0,,"today: CBO or macro series (total); 2023 total $8,692.2bn gains, $956.1bn losses; balance sheet: held by the wealth targets as today (SCF categories, Z.1 net worth), not by its own total"
-auto_int_exp,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $54.3bn gains, $0.0bn losses"
+auto_int_exp,file:projection_series_b.csv:auto_loans,total,1,0.01,"B: Z.1 auto loans to 2025, then CBO PCE"
 elective_deferrals,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $518.4bn gains, $0.0bn losses"
 spouse_deferral_share,current,auto,0,,"today: a ratio; 2023 total $0.0bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
 w_dc_stock_share,current,auto,0,,"today: a ratio; 2023 total $0.0bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
@@ -121,7 +121,7 @@ weeks_primary,current,auto,0,,"today: growth.yaml per-return rule (per unit); 20
 weeks_spouse,current,auto,0,,"today: growth.yaml per-return rule (per unit); 2023 total $1.8bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
 hours_primary,current,auto,0,,"today: growth.yaml per-return rule (per unit); 2023 total $5.2bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
 hours_spouse,current,auto,0,,"today: growth.yaml per-return rule (per unit); 2023 total $1.4bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
-care_exp,current,auto,1,0.01,"today: growth.yaml per-return rule (per unit); 2023 total $72.5bn gains, $0.0bn losses"
+care_exp,file:projection_series_b.csv:pce_per_person,per_unit,1,0.01,B: CBO PCE per person
 ot_primary,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $213.2bn gains, $0.0bn losses"
 ot_spouse,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $41.9bn gains, $0.0bn losses"
 tips_primary,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $51.2bn gains, $0.0bn losses"
