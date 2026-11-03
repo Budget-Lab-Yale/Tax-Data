@@ -220,18 +220,10 @@ def read_roster(year):
     wage = x.SALARYXM.to_numpy(float); se = x.SEMPFRMM.to_numpy(float); ssb = x.SOCRRXM.to_numpy(float)
     ssi = x.SSIXM.to_numpy(float)
     gi0 = wage + se
-    combined = np.maximum(gi0 + 0.5 * ssb, 0)
-    t1 = np.where(marst == 1, 32000, 25000); t2 = np.where(marst == 1, 44000, 34000)
-    taxable = np.zeros(len(r))
-    mid = (combined > t1) & (combined <= t2)
-    taxable[mid] = np.minimum(0.5 * ssb, 0.5 * (combined - t1))[mid]
-    tier1 = np.minimum(0.5 * ssb, 0.5 * (t2 - t1))
-    hi = combined > t2
-    taxable[hi] = np.minimum(0.85 * ssb, 0.85 * (combined - t2) + tier1)[hi]
     for c in T.INCOME_ITEMS:
         r[c] = 0.0
     r['wage'] = wage; r['selfemp'] = se; r['ssb'] = ssb; r['ssi'] = ssi
-    r['gi'] = gi0 + np.maximum(taxable, 0)
+    r['gi'] = gi0 + T.taxable_social_security(gi0, ssb, marst == 1)
     r['support'] = -1
     r['gi_obs'] = True
 
@@ -280,7 +272,7 @@ def build(year):
     # keyed draw until their weight reaches half of SOI Table 1.6's separate returns
     target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
     mu = units[main].reset_index(drop=True)
-    chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, dep_rule='primary', salt=MFS_SALT)
+    chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, salt=MFS_SALT)
     print(f'{year}: SOI Table 1.6 separate returns {target / 1e6:.3f} m; {len(chosen)} CEX couples split '
           f'({share:.4f} of joint couples by weight)')
     units['mfs_split'] = units.uid.isin(chosen)

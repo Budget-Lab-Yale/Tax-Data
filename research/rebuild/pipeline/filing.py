@@ -141,7 +141,7 @@ def build_units(year):
     """Step 1 of the stage: the CPS's units by the shared rules, group quarters left out."""
     if CPS['cbo_variant'] not in ('cbo', 'strict'):
         raise ValueError(CPS['cbo_variant'])
-    persons, units = T.build(year, reassign_pass=CPS['cbo_variant'] == 'cbo', keep_gq=False)
+    persons, units = T.build(year, reassign_pass=CPS['cbo_variant'] == 'cbo')
     T.save_cps(persons, units, UNITS, tag(year))
 
 
@@ -314,7 +314,7 @@ def calibrate(year):
     M['has_kid_target_age'] = has_kid
     # ---- married filing separately ---------------------------------------------------------------------------
     mfs_target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
-    chosen, share, R = T.mfs_split(M, P, None, mfs_target, dep_rule='primary', salt=S['mfs_salt'], chance=p_cal)
+    chosen, share, R = T.mfs_split(M, P, None, mfs_target, salt=S['mfs_salt'], chance=p_cal)
     say(f'MFS: SOI Table 1.6 {mfs_target / 1e6:.3f} m separate returns; {len(chosen)} sample couples '
         f'({share:.4f} of joint couples by weight x chance); expected separate returns '
         f'{(R.weight * R.p_file).sum() / 1e6:.3f} m')
@@ -326,7 +326,6 @@ def calibrate(year):
     for c in ['spouse_pn', 'spouse_age']:
         R[c] = -1
     R['spouse_sex'] = 0
-    R['n_dep_ctc'] = R.n24
     R['puf_child_away'] = 0
     R['has_kid_target_age'] = cu.has_kid_target_age.reindex(R.couple_uid).to_numpy()
     R['reason'] = cu.reason.reindex(R.couple_uid).to_numpy()

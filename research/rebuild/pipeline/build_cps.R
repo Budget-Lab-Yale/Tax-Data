@@ -267,12 +267,8 @@ SURVDIS_ITEMS = c('SRCSURV1', 'SRCSURV2', 'INCSURV1', 'INCSURV2', 'SRCDISA1', 'S
 # survdis_other to x (per person; their sum is INCSURV + INCDISAB exactly) and returns the table by source of the
 # people in x (people with an amount from that source, weighted by ASECWT; their dollars; and the dollars of people
 # aged under 62, the earliest age most pension plans pay without a disability, as a rough guide to the disability
-# pensions reported with wages).
+# pensions reported with wages). The caller has checked that x has every item SURVDIS_ITEMS names.
 split_survivor_disability = function(x, ddi, yr) {
-  miss = setdiff(SURVDIS_ITEMS, names(x))
-  if (length(miss))
-    stop(sprintf('tax year %d (ASEC %d) lacks the survivor and disability source items %s: cannot split survivor_disability into pensions and the rest',
-                 yr, yr + 1, paste(miss, collapse = ', ')))
   stopifnot(!anyNA(x[, ..SURVDIS_ITEMS]))
   for (v in c('INCSURV1', 'INCSURV2', 'INCDISA1', 'INCDISA2')) set(x, j = v, value = clean_asec_income(x, ddi, v))
   # the DDI's labels must be the ones classified above
@@ -434,10 +430,6 @@ for (yr in YEARS) {
     if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
     x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing (29 October; zero before)
   }
-  x[, welfare_income   := clean_asec_income(x, ddi, 'INCWELFR')]
-  x[, total_income     := clean_asec_income(x, ddi, 'INCTOT')]
-  x[, foodstamp_amount := as.numeric(FOODSTAMP)]
-  x[, on_medicaid      := HIMCAIDLY == 2L]
   # Work: weeks 0-52 (0 did not work); usual hours, 999 not in universe (did not work) -> 0
   stopifnot(all(x$WKSWORK1 >= 0 & x$WKSWORK1 <= 52), all(x$UHRSWORKLY %in% c(0:99, 999)))
   cat(sprintf('  usual hours not in universe (999) but weeks worked > 0: %d people; weeks 0 but hours given: %d\n',

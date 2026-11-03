@@ -130,7 +130,6 @@ from common import PUF_YEAR, TARGET_YEAR
 
 RAW = common.RAW
 # ---- constants -------------------------------------------------------------------
-assert PUF_YEAR == 2015, 'ages.py carries 2015 constants'
 WAVE_2013_ID_OFFSET = 2.013e12
 # band layout: 0 zero; 1-10 losses (shares of loss weight from the least negative); 11-83 positives
 N_NEG, NEG0, POS0 = 10, 1, 11
@@ -461,13 +460,6 @@ COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES},
             'sche_rent': {p: PARTS[p][1] for p in RENT_PARTS}, 'sche_rest': {p: PARTS[p][1] for p in REST_PARTS}}
 
 
-def computed_totals(df):
-    """The computed totals from their parts."""
-    for v, parts in COMPUTED.items():
-        df[v] = sum(s * df[p] for p, s in parts.items())
-    return df
-
-
 _GROWTH = {}
 
 
@@ -479,11 +471,6 @@ def growth(v, y):
     if (v, y) not in _GROWTH:
         _GROWTH[(v, y)] = GR.factors(v, y)
     return _GROWTH[(v, y)]
-
-
-def growth_factors(y):
-    """growth() of every PUF amount."""
-    return {v: growth(v, y) for v in PUF_AMOUNTS}
 
 
 def grown(df, y, base=PUF_YEAR, columns=None):
@@ -536,7 +523,7 @@ def survey_puf_amounts(d, survey, year):
 TAX_DATA_CATEGORIES = ['filer', 'married', 'n_dep', 'k1_owner'] + list(TAX_CATEGORIES)
 
 
-def tax_data(t, y, pi=None):
+def tax_data(t, y):
     """The tax data for year y:
       filers      the PUF filers other than dependent filers, each weight times the year-y over PUF-year returns of
                   SOI Table 1.6 in its filing status and age range (a record with no range: averaged over step 0's
@@ -548,8 +535,8 @@ def tax_data(t, y, pi=None):
                   SOI's total returns (year y over the CPS year) and the dollars grown per return as the PUF's are
                   (a placeholder until the CPS covers every year).
     t needs the CPS rows' raw_<item> columns and age ranges (the table stage's frame, after primary_age_range).
-    pi is not used (kept for the signature). Columns: weight, the categories, age_p0-5 (the age range as
-    probabilities), the amounts shared by the surveys of year y."""
+    Columns: weight, the categories, age_p0-5 (the age range as probabilities), the amounts shared by the surveys of
+    year y."""
     puf = t[(t.source == 'puf') & (t.dep_filer == 0)]
     assert (puf.filer == 1).all(), 'the PUF holds filers only'
     P = np.column_stack([(puf.age_range == k).to_numpy(float) + puf[f'age_p{k}'].to_numpy(float)
@@ -1025,7 +1012,7 @@ def agi_group_label(t, edges):
 
 
 # ---- bands --------------------------------------------------------------------------------
-def translate_surveys(t, edges, pi):
+def translate_surveys(t, edges):
     """The shared amounts of every survey year from the translation table (translate.py): the definition fixes,
     function 1 against the tax data for the year, the PUF's cut points grown to the year; then the computed totals
     (and k1_owner) a survey has rows for all the parts of, from the translated parts; then the categories. The
@@ -1033,10 +1020,17 @@ def translate_surveys(t, edges, pi):
     data. Each year's tax data is written to data/tax_data_<year>.parquet."""
     w = t['weight'].to_numpy(float)
     report, notes, tax, shortfall = [], {}, {}, []
+
+    def put(sel, src, y, v, new, fp, fn, rule):
+        """The survey year's amount new on its rows sel, banded on the PUF's cut points grown to the year."""
+        b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
+        rec['cut_rule'] = rule
+        t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
+
     for src in ('scf', 'cex', 'cps', 'sipp'):
         for y in sorted(t.loc[t.source == src, 'year'].unique()):
             if y not in tax:
-                tax[y] = tax_data(t, y, pi)
+                tax[y] = tax_data(t, y)
                 tax[y].to_parquet(f'{common.DATA}/tax_data_{y}.parquet', index=False)
             T = tax[y]
             tw = T['weight'].to_numpy(float)
@@ -1051,11 +1045,8 @@ def translate_surveys(t, edges, pi):
                     # CPS's capital gains in every year): missing, so not shown in training, as any item a survey does
                     # not ask; no function 1, no report row, no fill-in (TR.fills_in)
                     new = np.full(int(sel.sum()), np.nan)
-                    fp, fn = growth(v, y)
-                    b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
                     why = f'not asked in {y}' if TR.not_asked(row, int(y)) else 'kept out of training'
-                    rec['cut_rule'] = f'{why}: missing (not shown in training)'
-                    t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
+                    put(sel, src, y, v, new, *growth(v, y), f'{why}: missing (not shown in training)')
                     done[v] = new
                     notes[f'{src} {y} {v}'] = {why: 'missing, not shown in training'}
                     continue
@@ -1068,10 +1059,8 @@ def translate_surveys(t, edges, pi):
                 against = TR.against_name(row)
                 new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line, match, row.get('loss_line'))
                 done[v] = new
-                b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
-                rec['cut_rule'] = (f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} positive, '
-                                   f'{fn:.4f} losses); dollar line {line}, match {match}')
-                t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
+                put(sel, src, y, v, new, fp, fn, f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} '
+                                                 f'positive, {fn:.4f} losses); dollar line {line}, match {match}')
                 notes[f'{src} {y} {v}'] = {'dollar line (survey-year dollars)': line, 'match': match,
                                            'units past the tax data\'s last holder (millions)': beyond / 1e6}
                 link = TR.describe(x, w[sel])
@@ -1100,10 +1089,8 @@ def translate_surveys(t, edges, pi):
                     continue
                 new = sum(sg * done[p] for p, sg in parts.items())
                 fp, fn = growth(v, y)
-                b, rec = band_variable(new, w[sel], grown_edge(edges[f'puf/{PUF_YEAR}/{v}'], fp, fn))
-                rec['cut_rule'] = (f'computed from its translated parts; PUF {PUF_YEAR} cut points x per-return growth '
-                                   f'to {y} ({fp:.4f} positive, {fn:.4f} losses)')
-                t.loc[sel, v], t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = new, b, rec
+                put(sel, src, y, v, new, fp, fn, f'computed from its translated parts; PUF {PUF_YEAR} cut points x '
+                                                 f'per-return growth to {y} ({fp:.4f} positive, {fn:.4f} losses)')
                 done[v] = new
             if set(K1_PARTS) <= set(done):    # the partnership flag from its parts, as on the PUF
                 t.loc[sel, 'k1_owner'] = np.column_stack([done[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)
@@ -1185,7 +1172,7 @@ def cps_ss_taxable_check(t):
     common.say('CPS, taxable Social Security by the formula (kept at zero on the CPS):\n' + out.round(3).T.to_string())
 
 
-def band_table(t, pi):
+def band_table(t):
     filers = ((t.source == 'puf') & (t.filer == 1)).to_numpy()
     pside = (t.source == 'puf').to_numpy()
     w = t['weight'].to_numpy(float)
@@ -1195,7 +1182,7 @@ def band_table(t, pi):
         b, rec = band_variable(t.loc[filers, v].to_numpy(float), w[filers])
         edges[f'puf/{PUF_YEAR}/{v}'] = rec
         t.loc[pside, f'{v}_band'] = band_variable(t.loc[pside, v].to_numpy(float), w[pside], grown_edge(rec, 1.0, 1.0))[0]
-    t, factors = translate_surveys(t, edges, pi)
+    t, factors = translate_surveys(t, edges)
     for src, own, rule in [('scf', SCF_AMOUNTS, 'within the wave'), ('cex', CEX_AMOUNTS, 'within the year'),
                            ('cps', CPS_AMOUNTS, 'within the year'), ('sipp', SIPP_AMOUNTS, 'within the year')]:
         for y in sorted(t.loc[t.source == src, 'year'].unique()):
@@ -1247,12 +1234,8 @@ def table_meta(t, factor):
     flags, the surveys' own slots, the AGI signs, net worth's parts."""
     item_order = list(ITEMS) + list(PARTS) + STAGE3
     return {'items': {v: ('shared' if v in ITEMS and ITEMS[v][1] else 'puf') for v in item_order},
-            'computed_totals': {'dividends': COMPUTED['dividends'], 'adjustments': COMPUTED['adjustments'],
-                                'business_income': {p: s for p, (_, s) in PARTS.items()},
-                                    'sch_cf_income': {p: PARTS[p][1] for p in CF_PARTS},
-                                    'sch_e_income': {p: PARTS[p][1] for p in E_PARTS},
-                                    'sche_rent': {p: PARTS[p][1] for p in RENT_PARTS},
-                                    'sche_rest': {p: PARTS[p][1] for p in REST_PARTS}},
+            'computed_totals': {k: COMPUTED[k] for k in ['dividends', 'adjustments', 'business_income', 'sch_cf_income',
+                                                         'sch_e_income', 'sche_rent', 'sche_rest']},
             'categories': CATEGORIES,
             'tax_categories': TAX_CATEGORIES,
             'puf_categories': PUF_CATEGORIES,
@@ -1433,7 +1416,7 @@ def scf_units_at(scf, y):
 def puf_target_map(m_puf, y=TARGET_YEAR):
     """The PUF year's map with every value grown to year y by its item's growth line (positive and negative values
     each by their own factor); and the factors."""
-    g = dict(growth_factors(y))
+    g = {v: growth(v, y) for v in PUF_AMOUNTS}
     bad = {k: f for k, f in g.items() if not all(np.isfinite(x) and x > 0 for x in f)}
     assert not bad, f'growth factors missing or not positive (growth.yaml): {bad}'
     m_target = m_puf.copy()
@@ -1478,44 +1461,21 @@ def build_maps(t, edges):
     common.say('SCF balance sheet, growth per tax unit to the target year\'s wave, by wave:\n'
                + pd.DataFrame(rows).pivot(index='variable', columns='wave', values='factor to the target year')
                .to_string(float_format=lambda x: f'{x:.4f}'))
-    # the CEX categories: the generation year's real records, and the same grown to the target year by their growth
-    # lines (NIPA PCE per return: the category's PCE over SOI's return count, target year over the CEX year)
-    yc = CX['generation_year']
-    mc = build_map(t[(t.source == 'cex') & (t.year == yc)].reset_index(drop=True), edges, 'cex', CEX_AMOUNTS, year=yc)
-    mc.to_parquet(f'{common.MAPS}/map_cex_{yc}.parquet', index=False)
-    m_cex_target = mc.copy()
-    for v in CEX_AMOUNTS:
-        f = GR.between(v, yc, TARGET_YEAR)
-        g[v] = (f, f)
-        r = (m_cex_target['variable'] == v).to_numpy()
-        m_cex_target.loc[r, 'value'] = m_cex_target.loc[r, 'value'] * f
-    m_cex_target.to_parquet(f'{common.MAPS}/map_cex_{TARGET_YEAR}.parquet', index=False)
-    # the CPS-only amounts: the generation year's real records; for the target year, by their growth lines (childcare
-    # and overtime by SOI's growth in wages per return with wages, a placeholder: no series measures childcare spending
-    # per unit; the shares, weeks and hours not grown)
-    yp = CP['generation_year']
-    mp = build_map(t[(t.source == 'cps') & (t.year == yp)].reset_index(drop=True), edges, 'cps', CPS_AMOUNTS, year=yp)
-    mp.to_parquet(f'{common.MAPS}/map_cps_{yp}.parquet', index=False)
-    m_cps_target = mp.copy()
-    for v in CPS_AMOUNTS:
-        f = GR.between(v, yp, TARGET_YEAR)
-        g[v] = (f, f)
-        r = (m_cps_target['variable'] == v).to_numpy()
-        m_cps_target.loc[r, 'value'] = m_cps_target.loc[r, 'value'] * f
-    m_cps_target.to_parquet(f'{common.MAPS}/map_cps_{TARGET_YEAR}.parquet', index=False)
-    # the SIPP's tips in dollars: the generation year's real records; for the target year, by their growth lines
-    # (SOI's growth in wages per return with wages, as the CPS's childcare; no growth when the generation year is the
-    # target year)
-    ys = SP['generation_year']
-    ms = build_map(t[(t.source == 'sipp') & (t.year == ys)].reset_index(drop=True), edges, 'sipp', SIPP_AMOUNTS, year=ys)
-    ms.to_parquet(f'{common.MAPS}/map_sipp_{ys}.parquet', index=False)
-    m_sipp_target = ms.copy()
-    for v in SIPP_AMOUNTS:
-        f = GR.between(v, ys, TARGET_YEAR)
-        r = (m_sipp_target['variable'] == v).to_numpy()
-        m_sipp_target.loc[r, 'value'] = m_sipp_target.loc[r, 'value'] * f
-        g[v] = (f, f)
-    m_sipp_target.to_parquet(f'{common.MAPS}/map_sipp_{TARGET_YEAR}.parquet', index=False)
+    # the CEX's categories, the CPS-only amounts and the SIPP's tips: the generation year's real records, and the same
+    # grown to the target year by their growth lines (the CEX's by NIPA PCE per return, the category's PCE over SOI's
+    # return count; the CPS's childcare and overtime and the SIPP's tips by SOI's growth in wages per return with wages,
+    # a placeholder: no series measures them per unit; the CPS's shares, weeks and hours not grown; no growth when the
+    # generation year is the target year)
+    for src, sec, amounts in [('cex', CX, CEX_AMOUNTS), ('cps', CP, CPS_AMOUNTS), ('sipp', SP, SIPP_AMOUNTS)]:
+        yg = sec['generation_year']
+        m = build_map(t[(t.source == src) & (t.year == yg)].reset_index(drop=True), edges, src, amounts, year=yg)
+        m.to_parquet(f'{common.MAPS}/map_{src}_{yg}.parquet', index=False)
+        for v in amounts:
+            f = GR.between(v, yg, TARGET_YEAR)
+            g[v] = (f, f)
+            r = (m['variable'] == v).to_numpy()
+            m.loc[r, 'value'] = m.loc[r, 'value'] * f
+        m.to_parquet(f'{common.MAPS}/map_{src}_{TARGET_YEAR}.parquet', index=False)
     pd.DataFrame([{'variable': v, 'factor, positive values': fp, 'factor, negative values': fn}
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
     build_year_maps(t, edges)
@@ -1570,22 +1530,18 @@ def cex_target_units(pi):
     the rule the training rows use, for each year of the CEX's mix in the target year's file. For the tilt's consumption
     targets and the report: data/cex_units_<year>_all.parquet."""
     for y in mix_years('cex'):
-        cex_year_units(pi, y)
-
-
-def cex_year_units(pi, y):
-    """One year's CEX tax units (cex_target_units)."""
-    s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
-    couple = (s['married'] == 1).to_numpy()
-    assert not s.loc[couple, ['age2', 'male2']].isna().any().any() and not s[['age1', 'male1']].isna().any().any()
-    age, _ = ages.primary_age(s.age1.to_numpy(float), s.age2.fillna(0).to_numpy(float), s.male1.to_numpy(float),
-                              s.male2.fillna(1).to_numpy(float), couple, s['household_id'].astype(float).to_numpy(), pi)
-    assert (s['dep_filer'] == 0).all()
-    s['age_range'] = ages.adult_range(age)
-    s.to_parquet(f'{common.DATA}/cex_units_{y}_all.parquet', index=False)
-    w = s['weight']
-    common.say(f'CEX {y}, all tax units: {w.sum() / 1e6:.1f} million; '
-               'spending ($bn): ' + ', '.join(f'{c} {(s[c] * w).sum() / 1e9:,.0f}' for c in CEX_CATS))
+        s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
+        couple = (s['married'] == 1).to_numpy()
+        assert not s.loc[couple, ['age2', 'male2']].isna().any().any() and not s[['age1', 'male1']].isna().any().any()
+        age, _ = ages.primary_age(s.age1.to_numpy(float), s.age2.fillna(0).to_numpy(float), s.male1.to_numpy(float),
+                                  s.male2.fillna(1).to_numpy(float), couple, s['household_id'].astype(float).to_numpy(),
+                                  pi)
+        assert (s['dep_filer'] == 0).all()
+        s['age_range'] = ages.adult_range(age)
+        s.to_parquet(f'{common.DATA}/cex_units_{y}_all.parquet', index=False)
+        w = s['weight']
+        common.say(f'CEX {y}, all tax units: {w.sum() / 1e6:.1f} million; '
+                   'spending ($bn): ' + ', '.join(f'{c} {(s[c] * w).sum() / 1e9:,.0f}' for c in CEX_CATS))
 
 
 def primary_age_range(t, puf):
@@ -1696,7 +1652,7 @@ def main():
     t = pd.concat([puf_rows(puf), scf_rows(), cex_rows(), cps_rows(), sipp_rows()], ignore_index=True)
     assert not t.duplicated(['source', 'record_id']).any()
     t, pi = primary_age_range(t, puf)
-    t, edges = band_table(t, pi)
+    t, edges = band_table(t)
     cps_ss_taxable_check(t)
     # the report's CPS and SIPP units also carry their wages after function 1 (the CPS's: the tax data's wages at the
     # same percentile among earners since 28 October), so the report's wage groups mean the same on both sides
