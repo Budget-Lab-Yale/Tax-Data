@@ -47,7 +47,7 @@ Outputs, under the run's data folder (common.DATA) / settings cps.step1_dir ("fi
                 eligible, or a refundable child credit), the income items, eitc_eligible, year;
                 persons_<year>.parquet, one row per person, with return_uid and p_own_return (a dependent's own
                 return: 1 files, 0 not, -1 no such return)
-  checks/       per year (target_list.py and errors.py read <year>_nonfilers_vs_targets.csv, settings tilt.nonfiler_targets_dir):
+  checks/       per year (target_list.py and errors.py read <year>_nonfilers_vs_targets.csv):
                 fit (each target and the miss), shifts (the 11 settings and the median used for z), feasibility,
                 groups_vs_targets, nonfilers_vs_targets, persons_once, people_by_age, filers_nonfilers (against SOI;
                 the PUF in 2015), pub5785_wages, pub5785_required, nonfilers_by_wages, required_by_income,

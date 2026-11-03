@@ -183,8 +183,8 @@ sources:
     what: >-
       The CPS filing stage. The non-filer count is the sum over the CPS units of the training table of weight times
       one minus the chance of filing (the count the generated non-filer batch is sized by). The non-filer people are
-      the numbers the stage's calibration hit, read from settings tilt.nonfiler_targets_dir inside the run's data
-      folder, file <year>_nonfilers_vs_targets.csv, column target_heads_spouses (millions of people).
+      the numbers the stage's calibration hit, read from filing/checks inside the run's data folder, file
+      <year>_nonfilers_vs_targets.csv, column target_heads_spouses (millions of people).
 
 # ---------------------------------------------------------------------------------------------------------------
 # The tax-unit rules a survey's units are built with. Moving the SCF to the shared rules changed its median net
