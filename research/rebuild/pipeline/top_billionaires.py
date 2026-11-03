@@ -408,6 +408,13 @@ def build_billionaires(lst, df, w, year, notes):
                            'fiscal income ($ billion)': Wg * prm['fiscal'] / prm['wealth'] / 1e9,
                            'ratio of fiscal income to wealth (%)': 100 * prm['fiscal'] / prm['wealth']})
     mix, what = item_mix(df, w, notes)
+    # the columns set below exist on every file since 29 October (Part A's group label, the surveys' years, the
+    # identification numbers); a stack drawn before the blindness rule (28 October) is not supported
+    need = ['hidden_group', 'cex_year', 'cps_year', 'sipp_year', 'ssn1', 'ssn2', 'dep_ssn1', 'dep_ssn2', 'dep_ssn3']
+    missing = [c for c in need if c not in df]
+    assert not missing, f'billionaires: the file has no {missing} (a stack drawn before 29 October)'
+    old = [c for c in ['blind', 'blind_chance2'] if c in df]
+    assert not old, f'billionaires: the file has the blindness columns {old} (a stack drawn before 28 October)'
     out = pd.DataFrame(index=range(len(u)))
     # every column of the file, at a default: band -1, stored pick missing, numbers 0
     for c in df.columns:
@@ -426,11 +433,9 @@ def build_billionaires(lst, df, w, year, notes):
     put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)
     put('record_id', ID_BASE + u['unit_rank'].to_numpy())
     put('scf_wave', year); put('scf_year', year - 1)
-    if 'hidden_group' in df:          # Part A's group label: none (-1) on every record not rebuilt by Part A
-        put('hidden_group', -1)
+    put('hidden_group', -1)           # Part A's group label: none (-1) on every record not rebuilt by Part A
     for src in ['cex', 'cps', 'sipp']:
-        if f'{src}_year' in df:
-            put(f'{src}_year', year)
+        put(f'{src}_year', year)
     # people
     put('married', u['married'].to_numpy())
     put('n_dep', u['n_dep'].to_numpy())
@@ -445,17 +450,10 @@ def build_billionaires(lst, df, w, year, notes):
         has = u['n_dep'].to_numpy() >= k
         put(f'dep_age{k}', np.where(has, a, -1))
         put(f'ssn_status_dep{k}', np.where(has, 1, 0))
-        if f'dep_ssn{k}' in df:
-            put(f'dep_ssn{k}', np.where(has, 1.0, np.nan))
+        put(f'dep_ssn{k}', np.where(has, 1.0, np.nan))
     put('ssn_status_primary', 1); put('ssn_status_spouse', np.where(u['married'] == 1, 1, 0))
-    if 'ssn1' in df:
-        put('ssn1', 1.0)
-    if 'ssn2' in df:
-        put('ssn2', np.where(u['married'] == 1, 1.0, np.nan))
-    if 'blind' in df:                 # a stack from before the blindness rule (the retrain of 28 October): not blind
-        put('blind', 1)
-    if 'blind_chance2' in df:
-        put('blind_chance2', np.where(u['married'] == 1, 0.0, -1.0))
+    put('ssn1', 1.0)
+    put('ssn2', np.where(u['married'] == 1, 1.0, np.nan))
     # income items
     g = mix['gains']
     for c in D.KG_PIECES:
