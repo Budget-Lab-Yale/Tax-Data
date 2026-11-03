@@ -109,8 +109,10 @@ def has_spouse(df):
 def broad_income(df):
     """Production's broad income (src/imputations/helpers.R, compute_broad_income), on the rebuild's items: wages,
     Schedules C, E and F (business_income), taxable and tax-exempt interest, dividends, long- and short-term gains,
-    gross Social Security, gross pensions and IRA distributions, unemployment compensation."""
-    cols = ['wages', 'business_income', 'txbl_int', 'exempt_int', 'dividends', 'kg_lt', 'kg_st', 'gross_ss',
+    gross Social Security plus gross pensions (retirement_gross, the PUF's E02400 + E01500: production's gross_ss +
+    gross_pens_dist), unemployment compensation. gross_ss is not added separately: retirement_gross already holds it
+    (until 3 November 2026 it was added twice)."""
+    cols = ['wages', 'business_income', 'txbl_int', 'exempt_int', 'dividends', 'kg_lt', 'kg_st',
             'retirement_gross', 'ui']
     x = df[cols].to_numpy(float).sum(1)
     assert np.isfinite(x).all(), 'broad income: a missing item'
