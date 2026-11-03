@@ -1,0 +1,616 @@
+forbes_rank,uri,name,net_worth,age,birth_date,gender,self_made,category,industries,source,residence_country,residence_state,family_entry,couple_entry,joint_with,profile_matched,marital_status_later,children_later,public_share_later,public_share_later_year
+1,jeff-bezos,Jeff Bezos,113000000000,56,1964-01-12,M,True,Technology,Technology,Amazon,United States,Washington,False,False,,True,Engaged,4,0.9652155709256639,2025
+2,bill-gates,Bill Gates,98000000000,64,1955-10-28,M,True,Technology,Technology,Microsoft,United States,Washington,False,False,,True,Divorced,3,0.09238225656347226,2025
+4,warren-buffett,Warren Buffett,67500000000,89,1930-08-30,M,True,Finance & Investments,Finance & Investments,Berkshire Hathaway,United States,Nebraska,False,False,,True,"Widowed, Remarried",3,0.9550547457919212,2025
+5,larry-ellison,Larry Ellison,59000000000,75,1944-08-17,M,True,Technology,Technology,software,United States,California,False,False,,True,In Relationship,4,0.8444115545612001,2025
+7,mark-zuckerberg,Mark Zuckerberg,54700000000,35,1984-05-14,M,True,Technology,Technology,Facebook,United States,California,False,False,,True,Married,3,0.9173125568847117,2025
+8,jim-walton,Jim Walton,54600000000,71,1948-06-07,M,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Arkansas,False,False,,True,Married,4,0.8459358415441123,2025
+9,alice-walton,Alice Walton,54400000000,70,1949-10-07,F,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Texas,False,False,,True,Divorced,0,0.8875468929355401,2025
+10,rob-walton,Rob Walton,54100000000,75,1944-10-27,M,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Arkansas,False,False,,True,Married,3,0.8304424761005729,2025
+11,steve-ballmer,Steve Ballmer,52700000000,64,1956-03-24,M,True,Technology,Technology,Microsoft,United States,Washington,False,False,,True,Married,3,0.7144148697749738,2025
+13,larry-page,Larry Page,50900000000,47,1973-03-26,M,True,Technology,Technology,Google,United States,California,False,False,,True,Married,1,0.586446883986795,2025
+14,sergey-brin,Sergey Brin,49100000000,46,1973-08-21,M,True,Technology,Technology,Google,United States,California,False,False,,True,Separated,3,0.583946946057819,2025
+16,michael-bloomberg,Michael Bloomberg,48000000000,78,1942-02-14,M,True,Media & Entertainment,Media & Entertainment,Bloomberg LP,United States,New York,False,False,,True,In Relationship,2,,
+18,charles-koch,Charles Koch,38200000000,84,1935-11-01,M,False,Diversified,Diversified,Koch Industries,United States,Kansas,False,False,,True,Married,2,,
+18,julia-koch,Julia Koch & family,38200000000,57,1962-04-12,F,False,Diversified,Diversified,Koch Industries,United States,New York,True,False,,True,Widowed,3,,
+22,mackenzie-scott,MacKenzie Scott,36000000000,50,1970-04-07,F,False,Technology,Technology,Amazon.com,United States,Washington,False,False,,True,Divorced,4,0.7108392967205565,2025
+25,phil-knight,Phil Knight & family,29500000000,82,1938-02-24,M,True,Fashion & Retail,Fashion & Retail,Nike,United States,Oregon,True,False,,True,Married,3,0.4336787487402491,2025
+28,sheldon-adelson,Sheldon Adelson,26800000000,86,1933-08-04,M,True,Gambling & Casinos,Gambling & Casinos,casinos,United States,Nevada,False,False,,False,,,,
+29,jacqueline-mars,Jacqueline Mars,24700000000,80,1939-10-10,F,False,Food & Beverage,Food & Beverage,"candy, pet food",United States,Virginia,False,False,,True,Divorced,3,,
+29,john-mars,John Mars,24700000000,84,1935-10-15,M,False,Food & Beverage,Food & Beverage,"candy, pet food",United States,Wyoming,False,False,,True,Married,3,,
+31,elon-musk,Elon Musk,24600000000,48,1971-06-28,M,True,Automotive,Automotive,"Tesla, SpaceX",United States,California,False,False,,True,Divorced,11,0.24661959898693772,2025
+33,michael-dell,Michael Dell,22900000000,55,1965-02-23,M,True,Technology,Technology,Dell computers,United States,Texas,False,False,,True,Married,4,1.0,2025
+36,jim-simons,Jim Simons,21600000000,81,1938-04-25,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,,3,,
+44,lukas-walton,Lukas Walton,18400000000,33,1986-09-19,M,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Wyoming,False,False,,True,Married,0,0.8087358365262366,2025
+46,ray-dalio,Ray Dalio,18000000000,70,1949-08-08,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Connecticut,False,False,,True,Married,4,,
+51,len-blavatnik,Len Blavatnik,17000000000,62,1957-06-01,M,True,Diversified,Diversified,diversified,United Kingdom,,False,False,,True,Married,0,0.771831774798513,2025
+59,laurene-powell-jobs,Laurene Powell Jobs & family,16400000000,56,1963-11-06,F,False,Technology,Technology,"Apple, Disney",United States,California,True,False,,True,Widowed,3,0.03949763837500055,2025
+63,donald-bren,Donald Bren,15500000000,87,1932-05-11,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,True,Married,7,,
+64,stephen-schwarzman,Stephen Schwarzman,15400000000,73,1947-02-14,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,3,0.5907248245045434,2025
+68,rupert-murdoch,Rupert Murdoch & family,14900000000,89,1931-03-11,M,False,Media & Entertainment,Media & Entertainment,"newspapers, TV network",United States,New York,True,False,,True,Married,6,0.5421219710711813,2025
+70,leonard-lauder,Leonard Lauder,14600000000,83,1937-03-19,M,False,Fashion & Retail,Fashion & Retail,Estee Lauder,United States,New York,False,False,,True,,2,0.47747277734268906,2024
+73,thomas-peterffy,Thomas Peterffy,14300000000,75,1944-09-30,M,True,Finance & Investments,Finance & Investments,discount brokerage,United States,Florida,False,False,,True,Divorced,3,1.0,2025
+77,steve-cohen,Steve Cohen,13900000000,63,1956-06-11,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Connecticut,False,False,,True,Married,7,0.001143748949139422,2025
+78,carl-icahn,Carl Icahn,13800000000,84,1936-02-16,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,2,0.8909989676836839,2025
+84,eric-schmidt,Eric Schmidt,13200000000,64,1955-04-27,M,True,Technology,Technology,Google,United States,California,False,False,,True,Married,2,0.43377522028728466,2025
+100,ken-griffin,Ken Griffin,12100000000,51,1968-10-15,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Illinois,False,False,,True,Divorced,3,,
+101,david-tepper,David Tepper,12000000000,62,1957-09-11,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Florida,False,False,,True,Married,3,,
+110,john-menard-jr,"John Menard, Jr.",11500000000,80,1940-01-22,M,True,Fashion & Retail,Fashion & Retail,home improvement stores,United States,Wisconsin,False,False,,True,Married,6,9.020114862992767e-05,2025
+118,philip-anschutz,Philip Anschutz,11000000000,80,1939-12-28,M,False,Finance & Investments,Finance & Investments,investments,United States,Colorado,False,False,,True,Married,3,,
+118,pierre-omidyar,Pierre Omidyar,11000000000,52,1967-06-21,M,True,Technology,Technology,"eBay, PayPal",United States,Hawaii,False,False,,True,Married,3,0.31231720454527706,2025
+124,abigail-johnson,Abigail Johnson,10800000000,58,1961-12-19,F,False,Finance & Investments,Finance & Investments,money management,United States,Massachusetts,False,False,,True,Married,2,,
+124,donald-newhouse,Donald Newhouse,10800000000,90,1929-08-05,M,False,Media & Entertainment,Media & Entertainment,media,United States,New York,False,False,,True,Widowed,3,0.33810361319813886,2025
+133,hank-doug-meijer,Hank & Doug Meijer,10200000000,,,M,False,Fashion & Retail,Fashion & Retail,supermarkets,United States,Michigan,True,False,,True,,0,,
+135,stanley-kroenke,Stanley Kroenke,10000000000,72,1947-07-29,M,True,Sports,Sports,"sports, real estate",United States,Texas,False,False,ann-walton-kroenke,True,Married,2,,
+138,gordon-moore,Gordon Moore,9800000000,91,1929-01-03,M,True,Technology,Technology,Intel,United States,California,False,False,,True,,2,0.8809178545594313,2022
+139,jan-koum,Jan Koum,9700000000,44,1976-02-24,M,True,Technology,Technology,WhatsApp,United States,California,False,False,,True,Single,0,0.1327075338600547,2025
+146,dustin-moskovitz,Dustin Moskovitz,9300000000,35,1984-05-22,M,True,Technology,Technology,Facebook,United States,California,False,False,,True,Married,0,0.5603223763796563,2025
+147,sun-hongbin,Sun Hongbin,9200000000,57,1963-01-01,M,True,Real Estate,Real Estate,real estate,China,,False,False,,True,,0,0.5130393615454735,2024
+153,stewart-and-lynda-resnick,Stewart and Lynda Resnick,9000000000,,,,True,Food & Beverage,Food & Beverage,"agriculture, water",United States,California,False,True,,False,,,,
+155,christy-walton,Christy Walton,8900000000,71,1949-02-08,F,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Wyoming,False,False,,True,Widowed,1,0.8009700427901016,2025
+162,george-soros,George Soros,8300000000,89,1930-08-12,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,5,,
+169,carl-cook,Carl Cook,8000000000,57,1962-08-19,M,False,Healthcare,Healthcare,medical devices,United States,Indiana,False,False,,True,Married,0,,
+169,jerry-jones,Jerry Jones,8000000000,77,1942-10-13,M,True,Sports,Sports,Dallas Cowboys,United States,Texas,False,False,,True,Married,3,0.13045818766387193,2025
+179,andrew-beal,Andrew Beal,7900000000,67,1952-11-29,M,True,Finance & Investments,Finance & Investments,"banks, real estate",United States,Texas,False,False,,True,Divorced,6,,
+179,ann-walton-kroenke,Ann Walton Kroenke,7900000000,71,1948-12-18,F,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Texas,False,False,stanley-kroenke,True,Married,2,0.5224374858343558,2025
+183,shahid-khan,Shahid Khan,7800000000,69,1950-07-18,M,True,Automotive,Automotive,auto parts,United States,Florida,False,False,,True,Married,2,,
+185,blair-parry-okeden,Blair Parry-Okeden,7600000000,69,1950-05-21,F,False,Media & Entertainment,Media & Entertainment,"media, automotive",Australia,,False,False,,True,Divorced,2,,
+185,david-geffen,David Geffen,7600000000,77,1943-02-21,M,True,Media & Entertainment,Media & Entertainment,"movies, record labels",United States,California,False,False,,True,Separated,0,0.14132263491652647,2025
+185,jim-kennedy,Jim Kennedy,7600000000,72,1947-11-29,M,False,Media & Entertainment,Media & Entertainment,"media, automotive",United States,Georgia,False,False,,True,Married,3,,
+185,stephen-ross,Stephen Ross,7600000000,79,1940-05-10,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,4,,
+193,david-duffield,David Duffield,7500000000,79,1940-09-21,M,True,Technology,Technology,business software,United States,Nevada,False,False,,True,Married,10,0.4292422152844768,2025
+193,thomas-frist-jr,"Thomas Frist, Jr. & family",7500000000,81,1938-08-12,M,True,Healthcare,Healthcare,hospitals,United States,Tennessee,True,False,,True,Married,3,0.7398862177983773,2025
+200,david-shaw,David Shaw,7300000000,69,1951-03-29,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,,
+200,john-doerr,John Doerr,7300000000,68,1951-06-29,M,True,Technology,Technology,venture capital,United States,California,False,False,,True,Married,2,1.0,2025
+206,nancy-walton-laurie,Nancy Walton Laurie,7100000000,68,1951-05-15,F,False,Fashion & Retail,Fashion & Retail,Walmart,United States,Nevada,False,False,,True,Married,1,0.9549159680092342,2025
+208,robert-pera,Robert Pera,7000000000,42,1978-03-10,M,True,Technology,Technology,wireless networking gear,United States,California,False,False,,True,Single,0,,
+211,diane-hendricks,Diane Hendricks,6900000000,73,1947-03-02,F,True,Construction & Engineering,Construction & Engineering,roofing,United States,Wisconsin,False,False,,True,Widowed,7,,
+211,robert-kraft,Robert Kraft,6900000000,78,1941-06-05,M,True,Sports,Sports,New England Patriots,United States,Massachusetts,False,False,,True,"Widowed, Remarried",4,,
+211,ronald-perelman,Ronald Perelman,6900000000,77,1943-01-01,M,True,Finance & Investments,Finance & Investments,leveraged buyouts,United States,New York,False,False,,True,Married,8,0.10049325768008688,2025
+216,eli-broad,Eli Broad,6800000000,86,1933-06-06,M,True,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,False,,,,
+216,j-christopher-reyes,J. Christopher Reyes,6800000000,66,1953-12-29,M,True,Food & Beverage,Food & Beverage,food distribution,United States,Florida,False,False,,True,Married,4,,
+216,jude-reyes,Jude Reyes,6800000000,64,1955-09-16,M,True,Food & Beverage,Food & Beverage,food distribution,United States,Florida,False,False,,True,Married,3,,
+221,charles-schwab,Charles Schwab,6700000000,82,1937-07-29,M,True,Finance & Investments,Finance & Investments,discount brokerage,United States,California,False,False,,True,Married,5,0.6468394445712038,2025
+224,israel-englander,Israel Englander,6600000000,71,1948-09-30,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,,
+224,leon-black,Leon Black,6600000000,68,1951-07-31,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,4,0.47939371663715324,2025
+230,daniel-gilbert,Daniel Gilbert,6500000000,58,1962-01-17,M,True,Finance & Investments,Finance & Investments,Quicken Loans,United States,Michigan,False,False,,True,Married,5,0.5600126593851102,2025
+230,judy-love,Judy Love & family,6500000000,82,,,True,Fashion & Retail,Fashion & Retail,retail & gas stations,United States,Oklahoma,True,False,,True,,4,,
+237,patrick-soon-shiong,Patrick Soon-Shiong,6400000000,67,1952-07-29,M,True,Healthcare,Healthcare,pharmaceuticals,United States,California,False,False,,True,Married,2,1.0,2025
+241,david-green,David Green & family,6300000000,78,1941-11-13,M,True,Fashion & Retail,Fashion & Retail,retail,United States,Oklahoma,True,False,,True,Married,3,,
+248,marijke-mars,Marijke Mars,6200000000,55,1964-07-28,F,False,Food & Beverage,Food & Beverage,"candy, pet food",United States,California,False,False,,True,Divorced,0,,
+248,pamela-mars,Pamela Mars,6200000000,59,1960-08-01,F,False,Food & Beverage,Food & Beverage,"candy, pet food",United States,Virginia,False,False,,True,Married,3,,
+248,valerie-mars,Valerie Mars,6200000000,61,1959-01-26,F,False,Food & Beverage,Food & Beverage,"candy, pet food",United States,New York,False,False,,True,Married,2,,
+248,victoria-mars,Victoria Mars,6200000000,63,1956-12-15,F,False,Food & Beverage,Food & Beverage,"candy, pet food",United States,Pennsylvania,False,False,,True,Married,4,,
+253,david-siegel-1,David Siegel,6100000000,58,1961-07-15,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,0,,
+253,james-goodnight,James Goodnight,6100000000,77,1943-01-06,M,True,Technology,Technology,software,United States,North Carolina,False,False,,True,Married,3,,
+253,john-overdeck,John Overdeck,6100000000,50,1969-12-21,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New Jersey,False,False,,True,Separated,3,,
+268,herbert-kohler-jr,"Herbert Kohler, Jr. & family",5900000000,81,1939-02-20,M,False,Manufacturing,Manufacturing,plumbing fixtures,United States,Wisconsin,True,False,,False,,,,
+274,john-malone,John Malone,5800000000,79,1941-03-07,M,True,Media & Entertainment,Media & Entertainment,cable television,United States,Colorado,False,False,,True,Married,2,0.23527311142867582,2025
+274,marc-benioff,Marc Benioff,5800000000,55,1964-09-25,M,True,Technology,Technology,business software,United States,California,False,False,,True,Married,2,0.43672738275572537,2025
+274,steven-rales,Steven Rales,5800000000,69,1951-03-31,M,True,Manufacturing,Manufacturing,manufacturing,United States,California,False,False,,True,Married,3,0.5273071052681461,2025
+280,ralph-lauren,Ralph Lauren,5700000000,80,1939-10-14,M,True,Fashion & Retail,Fashion & Retail,apparel,United States,New York,False,False,,True,Married,3,0.6053057598428169,2024
+280,tom-gores,Tom Gores,5700000000,55,1964-07-31,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,3,,
+286,george-kaiser,George Kaiser,5600000000,77,1942-07-29,M,False,Energy,Energy,"oil & gas, banking",United States,Oklahoma,False,False,,True,Married,3,0.5723966870876049,2025
+293,dennis-washington,Dennis Washington,5500000000,85,1934-07-27,M,True,Logistics,Logistics,"construction, mining",United States,Montana,False,False,,True,Married,2,,
+293,eric-yuan,Eric Yuan & family,5500000000,50,1970-02-20,M,True,Technology,Technology,video conferencing,United States,California,True,False,,True,Married,3,0.7208214648263352,2025
+304,charles-ergen,Charles Ergen,5400000000,67,1953-03-01,M,True,Media & Entertainment,Media & Entertainment,satellite TV,United States,Colorado,False,False,,True,Married,5,1.0,2025
+304,edward-johnson-iii,"Edward Johnson, III.",5400000000,89,1930-06-29,M,False,Finance & Investments,Finance & Investments,money management,United States,Massachusetts,False,False,,False,,,,
+308,bruce-kovner,Bruce Kovner,5300000000,75,1945-02-25,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,,
+308,george-roberts,George Roberts,5300000000,76,1943-09-14,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,"Widowed, Remarried",3,0.5023492891996332,2025
+308,reinhold-schmieding,Reinhold Schmieding,5300000000,65,1955-01-03,M,True,Healthcare,Healthcare,medical devices,United States,Florida,False,False,,True,Married,2,,
+315,henry-kravis,Henry Kravis,5200000000,76,1944-01-06,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,2,0.5029296673515306,2025
+315,richard-kinder,Richard Kinder,5200000000,75,1944-10-19,M,True,Energy,Energy,pipelines,United States,Texas,False,False,,True,Married,1,0.7454709875699176,2025
+320,james-chambers,James Chambers,5100000000,62,1957-04-12,M,False,Media & Entertainment,Media & Entertainment,"media, automotive",United States,New York,False,False,,True,Married,2,,
+320,katharine-rayner,Katharine Rayner,5100000000,75,1945-01-12,F,False,Media & Entertainment,Media & Entertainment,"media, automotive",United States,New York,False,False,,True,Widowed,0,,
+320,margaretta-taylor,Margaretta Taylor,5100000000,77,1942-04-15,F,False,Media & Entertainment,Media & Entertainment,"media, automotive",United States,New York,False,False,,True,,2,,
+320,micky-arison,Micky Arison,5100000000,70,1949-06-29,M,False,Service,Service,Carnival Cruises,United States,Florida,False,False,,True,Married,2,0.22364994984294892,2025
+320,paul-tudor-jones-ii,"Paul Tudor Jones, II.",5100000000,65,1954-09-28,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Florida,False,False,,True,Married,4,,
+330,daniel-ziff,Daniel Ziff,5000000000,48,1971-11-02,M,False,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,4,,
+330,dirk-ziff,Dirk Ziff,5000000000,56,1964-04-01,M,False,Finance & Investments,Finance & Investments,investments,United States,Florida,False,False,,True,Married,2,,
+330,li-ge,Li Ge,5000000000,53,1967-01-01,M,True,Healthcare,Healthcare,biotech,China,,False,False,,True,Widowed,0,0.6115587825050106,2025
+330,robert-f-smith,Robert F. Smith,5000000000,57,1962-12-01,M,True,Finance & Investments,Finance & Investments,private equity,United States,Texas,False,False,,True,Married,7,,
+330,robert-ziff,Robert Ziff,5000000000,53,1966-08-12,M,False,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,2,,
+330,terrence-pegula,Terrence Pegula,5000000000,69,1951-03-27,M,True,Energy,Energy,natural gas,United States,Florida,False,False,,True,Married,5,0.013530583626283408,2025
+345,karen-pritzker,Karen Pritzker,4900000000,62,1958-01-07,F,False,Service,Service,"hotels, investments",United States,Connecticut,False,False,,True,Widowed,4,0.6146465133007236,2025
+349,pauline-macmillan-keinath,Pauline MacMillan Keinath,4800000000,86,1934-01-01,F,False,Food & Beverage,Food & Beverage,Cargill,United States,Missouri,False,False,,True,Married,4,,
+349,sam-zell,Sam Zell,4800000000,78,1941-09-28,M,True,Real Estate,Real Estate,"real estate, private equity",United States,Illinois,False,False,,True,,3,0.25125422994723967,2022
+361,jensen-huang,Jensen Huang,4700000000,57,1963-02-17,M,True,Technology,Technology,semiconductors,United States,California,False,False,,True,Married,0,1.0,2025
+361,jim-davis,Jim Davis & family,4700000000,76,1943-05-17,M,True,Manufacturing,Manufacturing,New Balance,United States,Massachusetts,True,False,,True,Married,2,,
+361,stanley-druckenmiller,Stanley Druckenmiller,4700000000,66,1953-06-14,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,0,,
+375,arthur-blank,Arthur Blank,4600000000,77,1942-09-27,M,True,Sports,Sports,Home Depot,United States,Georgia,False,False,,True,Divorced,6,0.37991720725627925,2025
+375,bernard-marcus,Bernard Marcus,4600000000,90,1929-05-12,M,True,Fashion & Retail,Fashion & Retail,Home Depot,United States,Georgia,False,False,,True,,3,1.0,2023
+375,charles-dolan,Charles Dolan & family,4600000000,93,1926-10-16,M,True,Media & Entertainment,Media & Entertainment,cable television,United States,New York,True,False,,True,,6,0.38699803112522746,2023
+375,george-lucas,George Lucas,4600000000,75,1944-05-14,M,True,Media & Entertainment,Media & Entertainment,Star Wars,United States,California,False,False,,True,Married,4,0.32129655387658335,2025
+375,jeff-skoll,Jeff Skoll,4600000000,55,1965-01-16,M,True,Technology,Technology,eBay,United States,California,False,False,,True,Single,0,0.22562557476704398,2025
+383,chase-coleman-iii,"Chase Coleman, III.",4500000000,44,1975-06-21,M,True,Finance & Investments,Finance & Investments,hedge fund,United States,New York,False,False,,True,Married,0,,
+383,leonard-stern,Leonard Stern,4500000000,82,1938-03-28,M,False,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,3,,
+383,robert-bass,Robert Bass,4500000000,72,1948-03-19,M,False,Energy,Energy,"oil, investments",United States,Texas,False,False,,True,Married,4,0.13949666811101472,2025
+383,rocco-commisso,Rocco Commisso,4500000000,70,1949-11-25,M,True,Telecom,Telecom,telecom,United States,New Jersey,False,False,,True,Married,2,,
+383,tamara-gustavson,Tamara Gustavson,4500000000,58,1961-11-16,F,False,Service,Service,self storage,United States,Kentucky,False,False,,True,Married,2,0.7591483481588567,2025
+383,tim-sweeney,Tim Sweeney,4500000000,49,1970-12-13,M,True,Media & Entertainment,Media & Entertainment,video games,United States,North Carolina,False,False,,True,,0,,
+401,julian-robertson-jr,"Julian Robertson, Jr.",4400000000,87,1932-06-25,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,False,,,,
+401,martha-ingram,Martha Ingram & family,4400000000,84,1935-08-20,F,False,Media & Entertainment,Media & Entertainment,"book distribution, transportation",United States,Tennessee,True,False,,True,Widowed,4,,
+401,ray-lee-hunt,Ray Lee Hunt,4400000000,77,1943-04-06,M,False,Energy,Energy,"oil, real estate",United States,Texas,False,False,,True,Married,5,,
+401,robert-rich-jr,"Robert Rich, Jr.",4400000000,79,1941-01-25,M,False,Food & Beverage,Food & Beverage,frozen foods,United States,Florida,False,False,,True,Married,4,,
+401,walter-scott-jr,"Walter Scott, Jr. & family",4400000000,88,1931-05-21,M,True,Energy,Energy,"utilities, telecom",United States,Nebraska,True,False,,False,,,,
+414,john-a-sobrato,John A. Sobrato & family,4300000000,80,1939-05-23,M,True,Real Estate,Real Estate,real estate,United States,California,True,False,,True,Married,3,,
+414,mark-cuban,Mark Cuban,4300000000,61,1958-07-31,M,True,Media & Entertainment,Media & Entertainment,online media,United States,Texas,False,False,,True,Married,3,2.9967704522294195e-05,2025
+414,ronda-stryker,Ronda Stryker,4300000000,65,1954-05-01,F,False,Healthcare,Healthcare,medical equipment,United States,Michigan,False,False,,True,Married,3,0.6757211038404896,2025
+414,tilman-fertitta,Tilman Fertitta,4300000000,62,1957-06-25,M,True,Food & Beverage,Food & Beverage,"Houston Rockets, entertainment",United States,Texas,False,False,,True,Married,4,0.14875944277883432,2025
+426,charles-b-johnson,Charles B. Johnson,4200000000,87,1933-01-06,M,False,Finance & Investments,Finance & Investments,money management,United States,Florida,False,False,,True,Married,6,0.5511595184747039,2025
+426,david-sun,David Sun,4200000000,68,1951-10-12,M,True,Technology,Technology,computer hardware,United States,California,False,False,,True,Married,2,,
+426,john-paulson,John Paulson,4200000000,64,1955-12-14,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Separated,2,,
+426,john-tu,John Tu,4200000000,78,1941-08-12,M,True,Technology,Technology,computer hardware,United States,California,False,False,,True,Married,2,,
+426,sheldon-solow,Sheldon Solow,4200000000,91,1928-07-20,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,False,,,,
+426,stephen-bisciotti,Stephen Bisciotti,4200000000,59,1960-04-10,M,True,Sports,Sports,"staffing, Baltimore Ravens",United States,Maryland,False,False,,True,Married,2,,
+437,brian-chesky,Brian Chesky,4100000000,38,1981-08-29,M,True,Technology,Technology,Airbnb,United States,California,False,False,,True,Single,0,0.9281622384412253,2025
+437,joe-gebbia,Joe Gebbia,4100000000,38,1981-08-21,M,True,Technology,Technology,Airbnb,United States,California,False,False,,True,In Relationship,0,0.6468278847854916,2025
+437,nathan-blecharczyk,Nathan Blecharczyk,4100000000,36,1983-06-11,M,True,Technology,Technology,Airbnb,United States,California,False,False,,True,Married,2,0.9132995779181188,2025
+437,neal-blue,Neal Blue & family,4100000000,85,1935-04-04,M,True,Manufacturing,Manufacturing,defense,United States,California,True,False,,True,Widowed,4,,
+451,jack-dangermond,Jack Dangermond,4000000000,74,1945-07-23,M,True,Technology,Technology,mapping software,United States,California,False,False,,True,Married,0,,
+451,janice-mcnair,Janice McNair,4000000000,83,1936-09-30,F,False,Sports,Sports,"energy, sports",United States,Texas,False,False,,True,Widowed,4,,
+451,jerry-speyer,Jerry Speyer,4000000000,79,1940-06-23,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,4,,
+451,josh-harris,Joshua Harris,4000000000,55,1964-12-29,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,5,0.39322008177379447,2025
+451,les-wexner,Les Wexner & family,4000000000,82,1937-09-08,M,True,Fashion & Retail,Fashion & Retail,retail,United States,Ohio,True,False,,True,Married,4,0.23631235380743254,2025
+451,margot-birmingham-perot,Margot Birmingham Perot,4000000000,86,1933-11-15,F,False,Technology,Technology,"computer services, real estate",United States,Texas,False,False,,True,Widowed,5,,
+451,ronald-lauder,Ronald Lauder,4000000000,76,1944-02-26,M,False,Fashion & Retail,Fashion & Retail,Estee Lauder,United States,New York,False,False,,True,Married,2,0.04256804415118964,2025
+451,russell-savage,Russ Weiner,4000000000,49,1970-05-05,M,True,Food & Beverage,Food & Beverage,energy drinks,United States,Florida,False,False,,True,,,,
+451,sami-mnaymneh,Sami Mnaymneh,4000000000,58,1961-07-13,M,True,Finance & Investments,Finance & Investments,private equity,United States,Florida,False,False,,True,,0,,
+451,tony-tamer,Tony Tamer,4000000000,62,1957-10-12,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,4,,
+468,igor-olenicoff,Igor Olenicoff,3900000000,77,1942-09-20,M,True,Real Estate,Real Estate,real estate,United States,Florida,False,False,,True,Married,2,,
+468,isaac-perlmutter,Isaac Perlmutter,3900000000,77,1942-12-01,M,True,Media & Entertainment,Media & Entertainment,Marvel comics,United States,Florida,False,False,,True,Married,0,,
+468,ken-fisher,Ken Fisher,3900000000,69,1950-11-29,M,True,Finance & Investments,Finance & Investments,money management,United States,Washington,False,False,,True,Married,3,,
+468,steven-udvar-hazy,Steven Udvar-Hazy,3900000000,74,1946-02-23,M,True,Service,Service,aircraft leasing,United States,California,False,False,,True,Married,4,0.3567225561217554,2025
+484,harry-stine,Harry Stine,3800000000,78,1941-11-30,M,True,Food & Beverage,Food & Beverage,agriculture,United States,Iowa,False,False,,True,Married,4,,
+484,jeff-sutton,Jeff Sutton,3800000000,60,1960-01-17,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,5,,
+484,marian-ilitch,Marian Ilitch,3800000000,87,1933-01-07,F,True,Food & Beverage,Food & Beverage,Little Caesars,United States,Michigan,False,False,,True,Widowed,7,,
+484,mary-alice-dorrance-malone,Mary Alice Dorrance Malone,3800000000,70,1950-02-03,F,False,Food & Beverage,Food & Beverage,Campbell Soup,United States,Pennsylvania,False,False,,True,,2,0.4370619344533979,2024
+494,david-bonderman,David Bonderman,3700000000,77,1942-11-27,M,True,Finance & Investments,Finance & Investments,private equity,United States,Texas,False,False,,True,,5,0.4118622719833126,2023
+494,jeff-greene,Jeff Greene,3700000000,65,1954-12-10,M,True,Real Estate,Real Estate,"real estate, investments",United States,Florida,False,False,,True,Married,3,,
+494,michael-milken,Michael Milken,3700000000,73,1946-07-04,M,True,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,True,Married,3,,
+494,mitchell-rales,Mitchell Rales,3700000000,63,1956-08-21,M,True,Manufacturing,Manufacturing,"manufacturing, investments",United States,Maryland,False,False,,True,Married,2,0.7005201627525768,2025
+494,neil-bluhm,Neil Bluhm,3700000000,82,1938-01-12,M,True,Real Estate,Real Estate,real estate,United States,Illinois,False,False,,True,Divorced,3,0.3447022567837271,2025
+494,reed-hastings,Reed Hastings,3700000000,59,1960-10-08,M,True,Media & Entertainment,Media & Entertainment,Netflix,United States,California,False,False,,True,Married,2,0.706263308480192,2025
+494,ted-lerner,Ted Lerner & family,3700000000,94,1925-10-15,M,True,Real Estate,Real Estate,real estate,United States,Maryland,True,False,,True,,3,,
+494,trevor-rees-jones,Trevor Rees-Jones,3700000000,68,1951-08-12,M,True,Energy,Energy,oil & gas,United States,Texas,False,False,,True,Married,2,0.09524871658257854,2025
+514,dagmar-dolby,Dagmar Dolby & family,3600000000,78,1941-06-28,F,False,Technology,Technology,Dolby Laboratories,United States,California,True,False,,True,Widowed,2,0.40993720455582927,2025
+514,dannine-avara,Dannine Avara,3600000000,56,1964-03-09,F,False,Energy,Energy,pipelines,United States,Texas,False,False,,True,Married,0,0.7065081439589607,2025
+514,donald-sterling,Donald Sterling,3600000000,85,1934-04-26,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,True,Married,3,,
+514,gary-rollins,Gary Rollins,3600000000,75,1944-08-30,M,False,Service,Service,pest control,United States,Georgia,False,False,,True,Divorced,4,0.7155306808839156,2025
+514,lynsi-snyder,Lynsi Snyder,3600000000,37,1982-05-05,F,False,Food & Beverage,Food & Beverage,In-N-Out Burger,United States,California,False,False,,True,Married,0,,
+514,milane-frantz,Milane Frantz,3600000000,50,1969-08-12,F,False,Energy,Energy,pipelines,United States,Texas,False,False,,True,Married,0,0.7074964817904452,2025
+514,randa-duncan-williams,Randa Duncan Williams,3600000000,58,1961-08-28,F,False,Energy,Energy,pipelines,United States,Texas,False,False,,True,Married,1,0.7069907545953888,2025
+514,rodger-riney,Rodger Riney & family,3600000000,74,1946-01-01,M,True,Finance & Investments,Finance & Investments,discount brokerage,United States,Missouri,True,False,,True,Married,3,,
+514,scott-duncan,Scott Duncan,3600000000,37,1982-11-01,M,False,Energy,Energy,pipelines,United States,Texas,False,False,,True,Single,0,0.6970038707398473,2025
+514,steven-spielberg,Steven Spielberg,3600000000,73,1946-12-18,M,True,Media & Entertainment,Media & Entertainment,movies,United States,California,False,False,,True,Married,7,,
+514,thomas-siebel,Thomas Siebel,3600000000,67,1952-11-22,M,True,Technology,Technology,business software,United States,California,False,False,,True,Married,4,0.0600811311232589,2025
+514,wang-roger,Wang Roger,3600000000,71,1949-01-01,M,True,Fashion & Retail,Fashion & Retail,retail,China,,False,False,,False,,,,
+538,amos-hostetter-jr,"Amos Hostetter, Jr.",3500000000,83,1937-01-12,M,True,Media & Entertainment,Media & Entertainment,cable television,United States,Massachusetts,False,False,,True,Married,3,0.04523798717404981,2025
+538,anthony-pritzker,Anthony Pritzker,3500000000,59,1961-01-07,M,False,Service,Service,"hotels, investments",United States,California,False,False,,True,Divorced,6,,
+538,ben-ashkenazy,Ben Ashkenazy,3500000000,50,1969-09-23,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,3,,
+538,charles-simonyi,Charles Simonyi,3500000000,71,1948-09-10,M,True,Technology,Technology,Microsoft,United States,Washington,False,False,,True,Married,2,0.5077239925847478,2025
+538,david-steward,David Steward,3500000000,68,1951-07-02,M,True,Technology,Technology,IT provider,United States,Missouri,False,False,,True,Married,0,,
+538,douglas-leone,Douglas Leone,3500000000,62,1957-07-04,M,True,Finance & Investments,Finance & Investments,venture capital,United States,California,False,False,,True,Married,4,0.82597142083731,2025
+538,frank-vandersloot,Frank VanderSloot,3500000000,71,1948-08-14,M,True,Fashion & Retail,Fashion & Retail,"nutrition, wellness products",United States,Idaho,False,False,,True,Married,14,,
+538,gabe-newell,Gabe Newell,3500000000,57,1962-11-03,M,True,Gambling & Casinos,Gambling & Casinos,videogames,United States,Washington,False,False,,True,Divorced,2,,
+538,henry-samueli,Henry Samueli,3500000000,65,1954-09-20,M,True,Technology,Technology,semiconductors,United States,California,False,False,,True,Married,3,1.0,2025
+538,lin-bin,Lin Bin,3500000000,52,1968-02-01,M,True,Technology,Technology,smartphones,China,,False,False,,True,Married,0,0.6824880690237705,2025
+538,min-kao,Min Kao & family,3500000000,71,1949-01-10,M,True,Technology,Technology,navigation equipment,United States,Kansas,True,False,,True,Married,2,0.6378076129586935,2025
+538,paul-singer,Paul Singer,3500000000,75,1944-08-22,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,In Relationship,2,,
+538,randall-rollins,Randall Rollins,3500000000,88,1931-11-05,M,False,Service,Service,pest control,United States,Georgia,False,False,,False,,,,
+565,bubba-cathy,Bubba Cathy,3400000000,65,1954-04-22,M,False,Food & Beverage,Food & Beverage,Chick-fil-A,United States,Georgia,False,False,,True,Married,6,,
+565,dan-cathy,Dan Cathy,3400000000,67,1953-03-01,M,False,Food & Beverage,Food & Beverage,Chick-fil-A,United States,Georgia,False,False,,True,Married,2,,
+565,jb-pritzker,J.B. Pritzker,3400000000,55,1965-01-19,M,False,Finance & Investments,Finance & Investments,"hotels, investments",United States,Illinois,False,False,,True,Married,2,,
+565,lynn-schusterman,Lynn Schusterman,3400000000,81,1939-01-21,F,False,Energy,Energy,"oil & gas, investments",United States,Oklahoma,False,False,,True,Widowed,3,,
+565,michael-moritz,Michael Moritz,3400000000,65,1954-09-12,M,True,Technology,Technology,venture capital,United States,California,False,False,,True,Married,2,0.8468225090399093,2025
+565,richard-schulze,Richard Schulze,3400000000,79,1941-01-02,M,True,Fashion & Retail,Fashion & Retail,Best Buy,United States,Florida,False,False,,True,"Widowed, Remarried",10,0.22265042377332153,2025
+565,rick-caruso,Rick Caruso,3400000000,61,1959-01-07,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,True,Married,4,,
+565,romesh-t-wadhwani,Romesh T. Wadhwani,3400000000,72,1947-08-25,M,True,Technology,Technology,software,United States,California,False,False,,True,Married,1,,
+590,arturo-moreno,Arturo Moreno,3300000000,73,1946-08-14,M,True,Sports,Sports,"billboards, Anaheim Angels",United States,Arizona,False,False,,True,Married,3,0.12479931567066842,2025
+590,dan-friedkin,Dan Friedkin,3300000000,55,1965-02-27,M,False,Automotive,Automotive,Toyota dealerships,United States,Texas,False,False,,True,Married,4,,
+590,h-fisk-johnson,H. Fisk Johnson,3300000000,61,1958-05-19,M,False,Manufacturing,Manufacturing,cleaning products,United States,Wisconsin,False,False,,True,Divorced,1,0.026876539704486474,2025
+590,helen-johnson-leipold,Helen Johnson-Leipold,3300000000,63,1956-12-30,F,False,Manufacturing,Manufacturing,cleaning products,United States,Wisconsin,False,False,,True,Married,5,0.04491817652648317,2025
+590,jane-lauder,Jane Lauder,3300000000,47,1973-01-01,F,False,Fashion & Retail,Fashion & Retail,Estée Lauder,United States,New York,False,False,,True,Married,0,0.703156429860263,2025
+590,john-arnold,John Arnold,3300000000,46,1974-03-09,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Texas,False,False,,True,Married,2,,
+590,john-catsimatidis,John Catsimatidis,3300000000,71,1948-09-07,M,True,Energy,Energy,"oil, real estate",United States,New York,False,False,,True,Married,2,,
+590,john-middleton,John Middleton,3300000000,65,1955-03-02,M,False,Food & Beverage,Food & Beverage,tobacco,United States,Pennsylvania,False,False,,True,Married,2,,
+590,meg-whitman,Meg Whitman,3300000000,63,1956-08-04,F,True,Technology,Technology,eBay,United States,California,False,False,,True,Married,2,0.4910321018595586,2025
+590,s-curtis-johnson,S. Curtis Johnson,3300000000,64,1955-05-05,M,False,Manufacturing,Manufacturing,cleaning products,United States,Wisconsin,False,False,,True,Married,4,0.01922616136247479,2025
+590,winifred-j-marquart,Winifred J. Marquart,3300000000,61,1959-04-06,F,False,Manufacturing,Manufacturing,cleaning products,United States,Virginia,False,False,,True,Married,4,0.02390152853287191,2025
+616,bert-beveridge,Bert Beveridge,3200000000,58,1962-01-01,M,True,Food & Beverage,Food & Beverage,vodka,United States,Texas,False,False,,True,Married,3,,
+616,charles-cohen,Charles Cohen,3200000000,68,1952-02-08,M,False,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,4,,
+616,denise-york,Denise York & family,3200000000,69,1950-10-21,F,False,Sports,Sports,San Francisco 49ers,United States,Ohio,True,False,,True,Married,4,,
+616,gayle-benson,Gayle Benson,3200000000,73,1947-01-26,F,False,Sports,Sports,pro sports teams,United States,Louisiana,False,False,,True,Widowed,0,,
+616,james-leprino,James Leprino,3200000000,82,1937-11-22,M,False,Food & Beverage,Food & Beverage,cheese,United States,Colorado,False,False,,True,,2,,
+616,jeremy-jacobs-sr,"Jeremy Jacobs, Sr. & family",3200000000,80,1940-01-21,M,False,Service,Service,food service,United States,New York,True,False,,True,Married,6,,
+616,john-morris,John Morris,3200000000,72,1948-03-19,M,True,Fashion & Retail,Fashion & Retail,sporting goods retail,United States,Missouri,False,False,,True,Married,4,,
+616,jonathan-gray,Jonathan Gray,3200000000,50,1970-02-04,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,0,0.5436142605486012,2025
+616,ken-langone,Ken Langone,3200000000,84,1935-09-16,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,3,0.8225874524927811,2025
+616,leon-g-cooperman,Leon G. Cooperman,3200000000,76,1943-04-25,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Florida,False,False,,True,Married,2,,
+616,marc-rowan,Marc Rowan,3200000000,57,1962-08-19,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Separated,0,0.543572516517413,2025
+616,rupert-johnson-jr,"Rupert Johnson, Jr.",3200000000,79,1940-08-10,M,False,Finance & Investments,Finance & Investments,money management,United States,California,False,False,,True,Married,0,0.7393849974083311,2025
+616,tom-golisano,Tom Golisano,3200000000,78,1941-11-14,M,True,Service,Service,payroll services,United States,Florida,False,False,,True,Married,2,0.600534944006018,2025
+648,allan-goldman,Allan Goldman,3100000000,77,1943-03-06,M,False,Real Estate,Real Estate,real estate,United States,New York,False,False,,False,,,,
+648,amy-goldman-fowler,Amy Goldman Fowler,3100000000,65,1954-04-19,F,False,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,0,,
+648,daniel-och,Daniel Och,3100000000,59,1961-01-27,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,,
+648,diane-kemper,Diane Kemper,3100000000,74,1945-07-21,F,False,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Widowed,0,,
+648,don-hankey,Don Hankey,3100000000,76,1943-06-13,M,True,Finance & Investments,Finance & Investments,auto loans,United States,California,False,False,,True,Married,4,,
+648,edward-roski-jr,"Edward Roski, Jr.",3100000000,81,1938-12-25,M,False,Real Estate,Real Estate,real estate,United States,California,False,False,,True,Widowed,3,,
+648,jane-goldman,Jane Goldman,3100000000,64,1955-07-29,F,False,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,2,,
+648,john-paul-dejoria,John Paul DeJoria,3100000000,75,1944-04-13,M,True,Fashion & Retail,Fashion & Retail,"hair products, tequila",United States,Texas,False,False,,True,Married,6,0.04114424329575741,2025
+648,john-sall,John Sall,3100000000,72,1948-04-04,M,True,Technology,Technology,software,United States,North Carolina,False,False,,True,Married,4,,
+648,steve-wynn,Steve Wynn,3100000000,78,1942-01-27,M,True,Gambling & Casinos,Gambling & Casinos,"casinos, hotels",United States,Nevada,False,False,,True,Married,2,,
+648,thomas-hagen,Thomas Hagen,3100000000,84,1936-01-01,M,False,Finance & Investments,Finance & Investments,insurance,United States,Pennsylvania,False,False,,True,Widowed,2,0.6901615915302264,2025
+648,thomas-pritzker,Thomas Pritzker,3100000000,69,1950-06-06,M,False,Finance & Investments,Finance & Investments,"hotels, investments",United States,Illinois,False,False,,True,Married,3,0.7024407068342163,2025
+680,barry-diller,Barry Diller,3000000000,78,1942-02-02,M,True,Media & Entertainment,Media & Entertainment,online media,United States,New York,False,False,,True,Married,0,0.3445367401623308,2025
+680,barry-sternlicht,Barry Sternlicht,3000000000,59,1960-11-27,M,True,Finance & Investments,Finance & Investments,private equity,United States,Florida,False,False,,True,Divorced,3,0.11972617310187035,2025
+680,bennett-dorrance,Bennett Dorrance,3000000000,74,1946-02-09,M,False,Food & Beverage,Food & Beverage,Campbell Soup,United States,Arizona,False,False,,True,Married,2,0.32663503651743825,2025
+680,eric-smidt,Eric Smidt,3000000000,60,1960-01-01,M,True,Fashion & Retail,Fashion & Retail,hardware stores,United States,California,False,False,,True,Married,0,,
+680,gwendolyn-sontheim-meyer,Gwendolyn Sontheim Meyer,3000000000,58,1961-10-27,F,False,Food & Beverage,Food & Beverage,Cargill,United States,California,False,False,,True,Divorced,2,,
+680,howard-schultz,Howard Schultz,3000000000,66,1953-07-19,M,True,Food & Beverage,Food & Beverage,Starbucks,United States,Washington,False,False,,True,Married,2,0.4546513272308625,2025
+680,ira-rennert,Ira Rennert,3000000000,85,1934-05-31,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,3,,
+680,james-irsay,James Irsay,3000000000,60,1959-06-13,M,False,Sports,Sports,Indianapolis Colts,United States,Indiana,False,False,,True,,3,,
+680,john-brown,John Brown,3000000000,85,1934-09-15,M,True,Healthcare,Healthcare,medical equipment,United States,Georgia,False,False,,True,Married,2,0.8127898275129125,2025
+680,joseph-liemandt,Joseph Liemandt,3000000000,51,1968-08-05,M,True,Technology,Technology,software,United States,Texas,False,False,,True,Single,0,,
+680,orlando-bravo,Orlando Bravo,3000000000,49,1970-09-23,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,4,,
+680,thai-lee,Thai Lee,3000000000,61,1958-11-27,F,True,Technology,Technology,IT provider,United States,Texas,False,False,,True,Divorced,2,,
+680,thomas-secunda,Thomas Secunda,3000000000,65,1954-06-23,M,True,Media & Entertainment,Media & Entertainment,Bloomberg LP,United States,New York,False,False,,True,Married,2,,
+680,william-wrigley-jr,"William Wrigley, Jr.",3000000000,56,1963-11-01,M,False,Food & Beverage,Food & Beverage,chewing gum,United States,Florida,False,False,,True,Divorced,4,,
+712,bernard-saul-ii,"Bernard Saul, II.",2900000000,87,1932-04-15,M,False,Finance & Investments,Finance & Investments,"banking, real estate",United States,Maryland,False,False,,True,Married,5,0.14900694887660046,2025
+712,daniel-daniello,Daniel D'Aniello,2900000000,73,1946-09-14,M,True,Finance & Investments,Finance & Investments,private equity,United States,Virginia,False,False,,True,Married,2,0.2897082821624724,2025
+712,glen-taylor,Glen Taylor,2900000000,78,1941-04-20,M,True,Service,Service,printing,United States,Minnesota,False,False,,True,Married,5,,
+712,mark-shoen,Mark Shoen,2900000000,69,1950-11-20,M,False,Automotive,Automotive,U-Haul,United States,Arizona,False,False,,True,Married,1,0.5258427672524123,2025
+712,michael-rubin,Michael Rubin,2900000000,47,1972-07-21,M,True,Fashion & Retail,Fashion & Retail,online retail,United States,Pennsylvania,False,False,,True,Divorced,3,,
+712,patrick-ryan,Patrick Ryan,2900000000,82,1937-05-15,M,True,Finance & Investments,Finance & Investments,insurance,United States,Illinois,False,False,,True,Married,3,0.437409260567018,2025
+712,scott-cook,Scott Cook,2900000000,67,1952-07-26,M,True,Technology,Technology,software,United States,California,False,False,,True,Married,3,0.36481763753186075,2025
+712,steven-klinsky,Steven Klinsky,2900000000,63,1956-05-30,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,,0,,
+743,daniel-loeb,Daniel Loeb,2800000000,58,1961-12-18,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,0,0.040100377174084365,2025
+743,david-rubenstein,David Rubenstein,2800000000,70,1949-08-11,M,True,Finance & Investments,Finance & Investments,private equity,United States,Maryland,False,False,,True,Divorced,3,0.28030342309174616,2025
+743,james-jannard,James Jannard,2800000000,70,1949-06-08,M,True,Fashion & Retail,Fashion & Retail,sunglasses,United States,Washington,False,False,,True,Married,4,,
+743,jay-chaudhry,Jay Chaudhry,2800000000,60,1959-08-26,M,True,Technology,Technology,security software,United States,California,False,False,,True,Married,3,0.8087283744404768,2025
+743,joe-mansueto,Joe Mansueto,2800000000,63,1956-09-03,M,True,Finance & Investments,Finance & Investments,investment research,United States,Illinois,False,False,,True,Married,3,0.4982508537036845,2025
+743,richard-lefrak,Richard LeFrak & family,2800000000,74,1945-08-29,M,False,Real Estate,Real Estate,real estate,United States,New York,True,False,,True,Married,2,0.0038698530541841753,2025
+743,stephen-mandel-jr,"Stephen Mandel, Jr.",2800000000,64,1956-03-12,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Connecticut,False,False,,True,Married,3,,
+764,antony-ressler,Antony Ressler,2700000000,58,1962-01-01,M,True,Finance & Investments,Finance & Investments,finance,United States,California,False,False,,True,Married,3,0.5754415522417196,2025
+764,austen-cargill-ii,"Austen Cargill, II.",2700000000,69,1951-03-09,M,False,Food & Beverage,Food & Beverage,Cargill,United States,Montana,False,False,,True,Divorced,2,,
+764,bob-parsons,Bob Parsons,2700000000,69,1950-11-27,M,True,Technology,Technology,web hosting,United States,Arizona,False,False,,True,Married,0,,
+764,don-vultaggio,Don Vultaggio & family,2700000000,68,1952-02-26,M,True,Food & Beverage,Food & Beverage,beverages,United States,New York,True,False,,True,Married,2,,
+764,drayton-mclane-jr,"Drayton McLane, Jr.",2700000000,83,1936-07-22,M,False,Fashion & Retail,Fashion & Retail,"Walmart, logistics",United States,Texas,False,False,,True,Married,2,0.4864927266570696,2025
+764,eric-lefkofsky,Eric Lefkofsky,2700000000,50,1969-09-02,M,True,Technology,Technology,Groupon,United States,Illinois,False,False,,True,Married,3,0.3997476954548554,2025
+764,fred-smith-1,Fred Smith,2700000000,75,1944-08-11,M,True,Logistics,Logistics,FedEx,United States,Tennessee,False,False,,True,,10,0.7147380017384501,2024
+764,haim-saban,Haim Saban,2700000000,75,1944-10-15,M,True,Media & Entertainment,Media & Entertainment,"TV network, investments",United States,California,False,False,,True,Married,4,,
+764,henry-nicholas-iii,"Henry Nicholas, III.",2700000000,60,1959-10-08,M,True,Technology,Technology,semiconductors,United States,California,False,False,,True,Divorced,3,0.8830908175380716,2025
+764,james-cargill-ii,"James Cargill, II.",2700000000,71,1949-04-07,M,False,Food & Beverage,Food & Beverage,Cargill,United States,Wisconsin,False,False,,True,Married,2,,
+764,jeffrey-lurie,Jeffrey Lurie,2700000000,68,1951-09-08,M,False,Sports,Sports,Philadelphia Eagles,United States,Pennsylvania,False,False,,True,Married,2,,
+764,jimmy-haslam,Jimmy Haslam,2700000000,66,1954-03-09,M,False,Fashion & Retail,Fashion & Retail,"gas stations, retail",United States,Tennessee,False,False,,True,Married,3,,
+764,jon-stryker,Jon Stryker,2700000000,61,1958-05-03,M,False,Healthcare,Healthcare,medical equipment,United States,New York,False,False,,True,Married,2,0.5412822484520117,2025
+764,marianne-liebmann,Marianne Liebmann,2700000000,66,1953-07-11,F,False,Food & Beverage,Food & Beverage,Cargill,United States,Montana,False,False,,True,Married,2,,
+764,mark-walter,Mark Walter,2700000000,59,1960-05-22,M,True,Finance & Investments,Finance & Investments,finance,United States,Illinois,False,False,,True,Married,1,,
+764,peter-kellogg,Peter Kellogg,2700000000,77,1942-09-01,M,False,Finance & Investments,Finance & Investments,investments,United States,New Jersey,False,False,,True,Married,3,0.4120162282211238,2025
+764,sean-parker,Sean Parker,2700000000,40,1979-12-03,M,True,Technology,Technology,Facebook,United States,California,False,False,,True,Married,2,0.004021957415225362,2025
+764,william-conway-jr,"William Conway, Jr.",2700000000,70,1949-08-27,M,True,Finance & Investments,Finance & Investments,private equity,United States,Virginia,False,False,,True,Married,1,0.30793346931277166,2025
+804,b-wayne-hughes,B. Wayne Hughes,2600000000,86,1933-09-28,M,True,Service,Service,self storage,United States,Kentucky,False,False,,False,,,,
+804,chris-larsen,Chris Larsen,2600000000,59,1960-06-15,M,True,Finance & Investments,Finance & Investments,cryptocurrency,United States,California,False,False,,True,Married,2,0.3336187744458931,2025
+804,clifford-asness,Clifford Asness,2600000000,53,1966-10-17,M,True,Finance & Investments,Finance & Investments,money management,United States,Connecticut,False,False,,True,Married,4,,
+804,dan-snyder,Dan Snyder,2600000000,55,1964-11-23,M,True,Sports,Sports,Washington Redskins,United States,Maryland,False,False,,True,Married,3,,
+804,jack-dorsey,Jack Dorsey,2600000000,43,1976-11-19,M,True,Technology,Technology,"Twitter, Square",United States,California,False,False,,True,Single,0,0.6888994946430202,2025
+804,jim-coulter,Jim Coulter,2600000000,60,1959-12-01,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,3,0.33437888551434825,2025
+804,jim-davis-1,Jim Davis,2600000000,60,1960-03-13,M,True,Service,Service,staffing & recruiting,United States,Maryland,False,False,,True,Married,2,,
+804,john-henry,John Henry,2600000000,70,1949-09-13,M,True,Sports,Sports,sports,United States,Florida,False,False,,True,Married,2,,
+804,john-pritzker,John Pritzker,2600000000,66,1953-08-10,M,False,Finance & Investments,Finance & Investments,"hotels, investments",United States,California,False,False,,True,Married,3,,
+804,noam-gottesman,Noam Gottesman,2600000000,58,1961-05-24,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,4,0.047253369868749825,2025
+804,sumner-redstone,Sumner Redstone,2600000000,96,1923-05-27,M,False,Media & Entertainment,Media & Entertainment,media,United States,California,False,False,,False,,,,
+804,travis-kalanick,Travis Kalanick,2600000000,43,1976-08-06,M,True,Technology,Technology,Uber,United States,California,False,False,,True,Single,0,,
+804,ty-warner,Ty Warner,2600000000,75,1944-09-03,M,True,Real Estate,Real Estate,"real estate, plush toys",United States,Illinois,False,False,,True,Single,0,0.894800395261885,2025
+804,william-berkley,William Berkley,2600000000,73,1946-09-01,M,True,Finance & Investments,Finance & Investments,insurance,United States,Florida,False,False,,True,Married,3,0.8587688645057626,2025
+836,alan-trefler,Alan Trefler,2500000000,64,1956-03-10,M,True,Technology,Technology,software,United States,Massachusetts,False,False,,True,Married,0,0.5810331471067496,2025
+836,archie-aldis-emmerson,Archie Aldis Emmerson & family,2500000000,90,1929-04-10,M,True,Manufacturing,Manufacturing,"timberland, lumber mills",United States,California,True,False,,True,Married,3,,
+836,brian-acton,Brian Acton,2500000000,48,1972-02-17,M,True,Technology,Technology,WhatsApp,United States,California,False,False,,True,Married,1,,
+836,herb-simon,Herb Simon,2500000000,85,1934-10-23,M,True,Real Estate,Real Estate,real estate,United States,Indiana,False,False,,True,Married,8,0.2946691004111216,2025
+836,johnelle-hunt,Johnelle Hunt,2500000000,88,1932-01-04,F,True,Logistics,Logistics,trucking,United States,Arkansas,False,False,,True,Widowed,2,0.9841701583734241,2025
+836,judy-faulkner,Judy Faulkner,2500000000,76,1943-08-11,F,True,Technology,Technology,health IT,United States,Wisconsin,False,False,,True,Married,3,,
+836,mark-stevens,Mark Stevens,2500000000,60,1960-02-17,M,True,Finance & Investments,Finance & Investments,venture capital,United States,California,False,False,,True,Married,3,0.7074112441096952,2025
+836,mortimer-zuckerman,Mortimer Zuckerman,2500000000,82,1937-06-04,M,True,Real Estate,Real Estate,"real estate, media",United States,New York,False,False,,True,Divorced,2,0.17546327731914066,2025
+836,oprah-winfrey,Oprah Winfrey,2500000000,66,1954-01-29,F,True,Media & Entertainment,Media & Entertainment,TV shows,United States,California,False,False,,True,In Relationship,0,0.0037520856791123133,2025
+836,penny-pritzker,Penny Pritzker,2500000000,60,1959-05-02,F,False,Finance & Investments,Finance & Investments,"hotels, investments",United States,Illinois,False,False,,True,Married,2,0.2787146298627844,2025
+836,peter-gassner,Peter Gassner,2500000000,55,1965-02-26,M,True,Technology,Technology,software,United States,California,False,False,,True,Married,2,0.6511019340487323,2025
+836,phil-ruffin,Phil Ruffin,2500000000,85,1935-03-17,M,True,Diversified,Diversified,"casinos, real estate",United States,Nevada,False,False,,True,Married,5,,
+836,robert-rowling,Robert Rowling,2500000000,66,1953-09-26,M,False,Service,Service,"hotels, investments",United States,Texas,False,False,,True,Married,2,,
+875,brad-kelley,Brad Kelley,2400000000,63,1956-12-23,M,True,Real Estate,Real Estate,tobacco,United States,Tennessee,False,False,,True,Married,3,0.0002254704020643879,2025
+875,c-dean-metropoulos,C. Dean Metropoulos,2400000000,73,1946-05-05,M,True,Food & Beverage,Food & Beverage,investments,United States,Florida,False,False,,True,Married,2,0.0009657199250324719,2025
+875,e-joe-shoen,E. Joe Shoen,2400000000,70,1949-10-28,M,False,Automotive,Automotive,U-Haul,United States,Arizona,False,False,,True,Married,0,0.6116457502274112,2025
+875,edward-johnson-iv,"Edward Johnson, IV.",2400000000,55,1964-11-18,M,False,Finance & Investments,Finance & Investments,money management,United States,Massachusetts,False,False,,True,,0,,
+875,elizabeth-johnson,Elizabeth Johnson,2400000000,56,1963-05-07,F,False,Finance & Investments,Finance & Investments,money management,United States,Massachusetts,False,False,,True,,0,,
+875,ernest-garcia-ii,"Ernest Garcia, II.",2400000000,62,1957-05-21,M,True,Automotive,Automotive,used cars,United States,Arizona,False,False,,True,Married,0,0.6060883836607388,2025
+875,george-bishop,George Bishop,2400000000,82,1937-10-06,M,True,Energy,Energy,oil & gas,United States,Texas,False,False,,True,Married,0,,
+875,harold-hamm,Harold Hamm & family,2400000000,74,1945-12-11,M,True,Energy,Energy,oil & gas,United States,Oklahoma,True,False,,True,Divorced,5,,
+875,herbert-wertheim,Herbert Wertheim,2400000000,80,1939-05-23,M,True,Finance & Investments,Finance & Investments,investments,United States,Florida,False,False,,True,Divorced,2,1.0,2025
+875,jeff-rothschild,Jeff Rothschild,2400000000,65,1955-01-02,M,True,Technology,Technology,Facebook,United States,California,False,False,,True,Married,3,0.002258099257260711,2025
+875,jerry-yang,Jerry Yang,2400000000,51,1968-11-06,M,True,Technology,Technology,Yahoo,United States,California,False,False,,True,Married,2,0.07732057752528544,2025
+875,norman-braman,Norman Braman,2400000000,87,1932-08-22,M,True,Automotive,Automotive,"art, car dealerships",United States,Florida,False,False,,True,Married,2,,
+875,rakesh-gangwal,Rakesh Gangwal,2400000000,66,1953-07-25,M,True,Service,Service,airline,United States,Florida,False,False,,True,Married,1,0.27559301862672725,2025
+875,richard-peery,Richard Peery,2400000000,81,1938-10-01,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,True,Married,4,,
+908,andrew-peggy-cherng,Andrew & Peggy Cherng,2300000000,,,,True,Food & Beverage,Food & Beverage,restaurants,United States,Nevada,False,True,,True,Married,0,0.01760636512416565,2022
+908,clayton-mathile,Clayton Mathile,2300000000,79,1941-01-11,M,True,Food & Beverage,Food & Beverage,pet food,United States,Ohio,False,False,,True,,5,,
+908,daniel-pritzker,Daniel Pritzker,2300000000,60,1959-09-15,M,False,Service,Service,"hotels, investments",United States,California,False,False,,True,Married,5,0.00012494310328267958,2025
+908,david-walentas,David Walentas,2300000000,81,1938-08-07,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Widowed,1,,
+908,jean-gigi-pritzker,Jean (Gigi) Pritzker,2300000000,57,1962-07-01,F,False,Service,Service,"hotels, investments",United States,California,False,False,,True,Married,3,0.5847415055004412,2025
+908,jim-breyer,Jim Breyer,2300000000,58,1961-07-26,M,True,Technology,Technology,venture capital,United States,California,False,False,,True,Widowed,4,0.2539818632554815,2025
+908,peter-thiel,Peter Thiel,2300000000,52,1967-10-11,M,True,Finance & Investments,Finance & Investments,"Facebook, Palantir",United States,California,False,False,,True,Married,1,0.514658099717343,2025
+908,richard-sands,Richard Sands,2300000000,69,1951-03-03,M,False,Food & Beverage,Food & Beverage,liquor,United States,Florida,False,False,,True,,0,0.28203828288586635,2025
+908,ron-baron,Ron Baron,2300000000,76,1943-05-23,M,True,Finance & Investments,Finance & Investments,money management,United States,New York,False,False,,True,Married,2,,
+908,stewart-rahr,Stewart Rahr,2300000000,74,1946-02-18,M,False,Healthcare,Healthcare,drug distribution,United States,New York,False,False,,True,Divorced,2,,
+908,warren-stephens,Warren Stephens,2300000000,63,1957-02-18,M,False,Finance & Investments,Finance & Investments,investment banking,United States,Arkansas,False,False,,True,Married,3,0.009409308459941371,2025
+945,ben-chestnut,Ben Chestnut,2200000000,45,1974-06-15,M,True,Technology,Technology,email marketing,United States,Georgia,False,False,,True,Married,2,0.1501805000154987,2025
+945,brian-sheth,Brian Sheth,2200000000,44,1975-11-26,M,True,Finance & Investments,Finance & Investments,investments,United States,Texas,False,False,,False,,,,
+945,bruce-karsh,Bruce Karsh,2200000000,64,1955-10-10,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,3,,
+945,dan-kurzius,Dan Kurzius,2200000000,48,1971-12-01,M,True,Technology,Technology,email marketing,United States,Georgia,False,False,,True,Married,2,0.1580561692126127,2025
+945,doris-fisher,Doris Fisher,2200000000,88,1931-08-23,F,True,Fashion & Retail,Fashion & Retail,Gap,United States,California,False,False,,True,Widowed,3,0.2301995292331628,2025
+945,howard-marks,Howard Marks,2200000000,73,1946-04-23,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,2,0.011763309915785905,2025
+945,james-clark,James Clark,2200000000,76,1944-03-23,M,True,Technology,Technology,"Netscape, investments",United States,Florida,False,False,,True,Married,4,0.6678558893619548,2025
+945,james-dinan,James Dinan,2200000000,60,1959-05-22,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,,
+945,jeffery-hildebrand,Jeffery Hildebrand,2200000000,61,1959-03-05,M,True,Energy,Energy,oil,United States,Texas,False,False,,True,Married,3,,
+945,jim-kavanaugh,Jim Kavanaugh,2200000000,57,1962-10-17,M,True,Technology,Technology,IT provider,United States,Missouri,False,False,,True,,0,,
+945,jon-yarbrough,Jon Yarbrough,2200000000,62,1957-05-10,M,True,Gambling & Casinos,Gambling & Casinos,video games,United States,Tennessee,False,False,,True,Married,2,,
+945,joseph-grendys,Joseph Grendys,2200000000,58,1961-12-01,M,True,Food & Beverage,Food & Beverage,poultry processing,United States,Illinois,False,False,,True,Single,0,,
+945,kavitark-ram-shriram,Kavitark Ram Shriram,2200000000,63,1957-01-21,M,True,Technology,Technology,"venture capital, Google",United States,California,False,False,,True,Married,2,0.5023060705206037,2025
+945,kelcy-warren,Kelcy Warren,2200000000,64,1955-11-09,M,True,Energy,Energy,pipelines,United States,Texas,False,False,,True,Married,1,0.832324012059793,2025
+945,todd-christopher,Todd Christopher,2200000000,57,1962-10-08,M,True,Fashion & Retail,Fashion & Retail,hair care products,United States,Florida,False,False,,True,Married,0,,
+945,william-lauder,William Lauder,2200000000,59,1960-04-11,M,False,Fashion & Retail,Fashion & Retail,Estee Lauder,United States,New York,False,False,,True,Divorced,0,0.6255583785601352,2025
+1001,aerin-lauder,Aerin Lauder,2100000000,49,1970-04-23,F,False,Fashion & Retail,Fashion & Retail,cosmetics,United States,New York,False,False,,True,Married,2,0.6029300426763263,2025
+1001,alejandro-santo-domingo,Alejandro Santo Domingo,2100000000,43,1977-02-13,M,False,Food & Beverage,Food & Beverage,beer,United States,New York,False,False,,True,Married,0,0.9292014863692358,2025
+1001,andres-santo-domingo,Andres Santo Domingo,2100000000,41,1978-06-01,M,False,Food & Beverage,Food & Beverage,beer,United States,New York,False,False,,True,Married,2,0.74813376463608,2025
+1001,bill-austin,Bill Austin,2100000000,78,1942-02-25,M,True,Manufacturing,Manufacturing,hearing aids,United States,Texas,False,False,,True,Married,3,,
+1001,charles-zegar,Charles Zegar,2100000000,72,1948-02-29,M,True,Media & Entertainment,Media & Entertainment,Bloomberg LP,United States,New York,False,False,,True,Married,0,,
+1001,david-filo,David Filo,2100000000,53,1966-04-15,M,True,Technology,Technology,Yahoo,United States,California,False,False,,True,Married,1,,
+1001,donald-trump,Donald Trump,2100000000,73,1946-06-14,M,False,Real Estate,Real Estate,real estate,United States,District of Columbia,False,False,,True,Married,5,0.14455285270254026,2025
+1001,gerald-ford,Gerald Ford,2100000000,75,1944-08-04,M,True,Finance & Investments,Finance & Investments,banking,United States,Texas,False,False,,True,Married,6,0.3492219652271077,2025
+1001,gordon-getty,Gordon Getty,2100000000,86,1933-12-20,M,False,Energy,Energy,Getty Oil,United States,California,False,False,,True,Widowed,7,,
+1001,henry-laufer,Henry Laufer,2100000000,74,1945-08-13,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,Florida,False,False,,True,Married,0,,
+1001,jay-paul,Jay Paul,2100000000,72,1947-07-08,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,True,Married,0,,
+1001,jeffrey-gundlach,Jeffrey Gundlach,2100000000,61,1959-01-01,M,True,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,True,Divorced,0,,
+1001,john-arrillaga,John Arrillaga,2100000000,83,1937-04-03,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,False,,,,
+1001,john-fisher,John Fisher,2100000000,58,1961-06-01,M,False,Fashion & Retail,Fashion & Retail,Gap,United States,California,False,False,,True,Married,4,0.2602011478968923,2025
+1001,jose-e-feliciano,Jose E. Feliciano,2100000000,46,1973-05-29,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,0,,
+1001,leonard-schleifer,Leonard Schleifer,2100000000,67,1952-07-07,M,True,Healthcare,Healthcare,pharmaceuticals,United States,New York,False,False,,True,Married,3,0.668129007164168,2025
+1001,michael-jordan,Michael Jordan,2100000000,57,1963-02-17,M,True,Sports,Sports,"Charlotte Hornets, endorsements",United States,Florida,False,False,,True,Married,5,,
+1001,ted-turner,Ted Turner,2100000000,81,1938-11-19,M,False,Media & Entertainment,Media & Entertainment,cable television,United States,Georgia,False,False,,True,Divorced,5,,
+1001,william-young,William Young,2100000000,79,1941-01-01,M,True,Manufacturing,Manufacturing,plastics,United States,Michigan,False,False,,True,Married,4,,
+1063,alec-gores,Alec Gores,2000000000,67,1953-03-18,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,6,0.08433163552625374,2025
+1063,amy-wyss,Amy Wyss,2000000000,49,1971-01-01,F,False,Healthcare,Healthcare,medical equipment,United States,Wyoming,False,False,,True,,0,,
+1063,behdad-eghbali,Behdad Eghbali,2000000000,43,1976-05-06,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,0,,
+1063,carol-jenkins-barnett,Carol Jenkins Barnett,2000000000,63,1956-09-30,F,False,Food & Beverage,Food & Beverage,Publix supermarkets,United States,Florida,False,False,,False,,,,
+1063,david-gottesman,David Gottesman,2000000000,93,1926-04-26,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,False,,,,
+1063,david-murdock,David Murdock,2000000000,96,1923-04-10,M,True,Food & Beverage,Food & Beverage,"Dole, real estate",United States,California,False,False,,True,,3,0.04465562037930497,2024
+1063,glenn-dubin,Glenn Dubin,2000000000,62,1957-04-13,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,,
+1063,h-ross-perot-jr,"H. Ross Perot, Jr.",2000000000,61,1958-11-07,M,False,Real Estate,Real Estate,real estate,United States,Texas,False,False,,True,Married,4,,
+1063,kenneth-feld,Kenneth Feld & family,2000000000,71,1948-10-31,M,False,Media & Entertainment,Media & Entertainment,live entertainment,United States,Florida,True,False,,True,Separated,3,,
+1063,linda-pritzker,Linda Pritzker,2000000000,66,1953-09-14,F,False,Service,Service,"hotels, investments",United States,Montana,False,False,,True,Divorced,3,,
+1063,pat-stryker,Pat Stryker,2000000000,64,1956-04-06,F,False,Healthcare,Healthcare,medical equipment,United States,Colorado,False,False,,True,Divorced,3,0.5377593007153114,2025
+1063,rodney-sacks,Rodney Sacks,2000000000,70,1949-12-24,M,True,Food & Beverage,Food & Beverage,energy drinks,United States,California,False,False,,True,,0,0.7737163117589394,2025
+1063,ronald-wanek,Ronald Wanek,2000000000,78,1941-05-19,M,True,Manufacturing,Manufacturing,furniture,United States,Florida,False,False,,True,Married,3,,
+1063,s-daniel-abraham,S. Daniel Abraham,2000000000,95,1924-08-15,M,True,Food & Beverage,Food & Beverage,Slim-Fast,United States,Florida,False,False,,True,Married,6,,
+1063,stanley-hubbard,Stanley Hubbard,2000000000,86,1933-05-28,M,False,Media & Entertainment,Media & Entertainment,DirecTV,United States,Minnesota,False,False,,True,Married,5,0.23377032107753276,2025
+1063,t-denny-sanford,T. Denny Sanford,2000000000,84,1935-12-23,M,True,Finance & Investments,Finance & Investments,"banking, credit cards",United States,South Dakota,False,False,,True,Divorced,2,,
+1063,thomas-lee,Thomas Lee,2000000000,76,1944-03-27,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,,5,,
+1063,vincent-viola,Vincent Viola,2000000000,64,1956-02-12,M,True,Finance & Investments,Finance & Investments,electronic trading,United States,New York,False,False,,True,Married,3,0.6253539704087384,2025
+1063,vinod-khosla,Vinod Khosla,2000000000,65,1955-01-28,M,True,Technology,Technology,venture capital,United States,California,False,False,,True,Married,4,1.0,2025
+1135,bobby-murphy,Bobby Murphy,1900000000,31,1988-07-19,M,True,Technology,Technology,Snapchat,United States,California,False,False,,True,Single,0,0.4783513413540559,2025
+1135,evan-spiegel,Evan Spiegel,1900000000,29,1990-06-04,M,True,Technology,Technology,Snapchat,United States,California,False,False,,True,Married,3,0.3451135807470922,2025
+1135,george-argyros,George Argyros & family,1900000000,83,1937-02-04,M,True,Real Estate,Real Estate,"real estate, investments",United States,California,True,False,,True,Married,3,0.040209113238709945,2025
+1135,hao-hong,Hao Hong,1900000000,64,1956-01-01,M,True,Healthcare,Healthcare,pharmaceuticals,China,,False,False,,True,Married,0,1.0,2025
+1135,j-joe-ricketts,J. Joe Ricketts & family,1900000000,78,1941-07-16,M,True,Finance & Investments,Finance & Investments,TD Ameritrade,United States,Wyoming,True,False,,True,Married,4,0.34649340171992826,2025
+1135,jennifer-pritzker,Jennifer Pritzker,1900000000,69,1950-08-13,F,False,Service,Service,"hotels, investments",United States,Illinois,False,False,,True,Divorced,3,0.1118191161356629,2025
+1135,jorge-perez,Jorge Perez,1900000000,70,1949-10-17,M,True,Real Estate,Real Estate,real estate,United States,Florida,False,False,,True,Married,4,,
+1135,larry-robbins,Larry Robbins,1900000000,50,1969-10-21,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New Jersey,False,False,,True,Married,4,,
+1135,nicholas-pritzker,Nicholas Pritzker,1900000000,76,1944-01-01,M,False,Service,Service,"hotels, investments",United States,California,False,False,,True,Married,4,0.045462712394068114,2025
+1135,nick-caporella,Nick Caporella,1900000000,84,1936-01-15,M,True,Food & Beverage,Food & Beverage,beverages,United States,Florida,False,False,,True,Married,4,0.715818991023093,2025
+1135,randal-j-kirk,Randal J. Kirk,1900000000,66,1954-03-01,M,True,Healthcare,Healthcare,pharmaceuticals,United States,Florida,False,False,,True,Married,3,0.30076939146086706,2025
+1135,riley-bechtel,Riley Bechtel & family,1900000000,68,1952-03-25,M,False,Construction & Engineering,Construction & Engineering,"engineering, construction",United States,California,True,False,,True,Married,3,,
+1135,sid-bass,Sid Bass,1900000000,77,1942-04-09,M,False,Energy,Energy,"oil, investments",United States,Texas,False,False,,True,Divorced,2,0.4966841874871075,2025
+1135,stephen-bechtel-jr,"Stephen Bechtel, Jr.",1900000000,94,1925-05-10,M,False,Construction & Engineering,Construction & Engineering,"engineering, construction",United States,California,False,False,,False,,,,
+1196,craig-mccaw,Craig McCaw,1800000000,70,1949-08-11,M,False,Telecom,Telecom,telecom,United States,Washington,False,False,,True,Married,3,0.04637035104977942,2025
+1196,edward-bass,Edward Bass,1800000000,74,1945-09-10,M,False,Energy,Energy,"oil, investments",United States,Texas,False,False,,True,Married,1,0.27326282079979186,2025
+1196,evan-williams,Evan Williams,1800000000,48,1972-03-31,M,True,Technology,Technology,Twitter,United States,California,False,False,,True,Married,2,,
+1196,henry-swieca,Henry Swieca,1800000000,62,1957-05-09,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,4,,
+1196,james-france,James France,1800000000,75,1944-10-24,M,False,Sports,Sports,"Nascar, racing",United States,Florida,False,False,,True,Married,3,0.1579970622819927,2025
+1196,jonathan-nelson,Jonathan Nelson,1800000000,63,1956-05-18,M,True,Finance & Investments,Finance & Investments,private equity,United States,Rhode Island,False,False,,True,"Widowed, Remarried",3,,
+1196,lee-bass,Lee Bass,1800000000,63,1956-05-24,M,False,Energy,Energy,"oil, investments",United States,Texas,False,False,,True,Married,0,0.32134480699531637,2025
+1196,marc-lasry,Marc Lasry,1800000000,59,1960-09-23,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,5,,
+1196,reid-hoffman,Reid Hoffman,1800000000,52,1967-08-05,M,True,Technology,Technology,LinkedIn,United States,California,False,False,,True,Married,0,0.09214012790645672,2025
+1196,robert-duggan,Robert Duggan,1800000000,75,1944-04-28,M,True,Healthcare,Healthcare,pharmaceuticals,United States,Florida,False,False,,True,Married,8,1.0,2025
+1196,robert-sands,Robert Sands,1800000000,61,1958-06-10,M,False,Food & Beverage,Food & Beverage,liquor,United States,New York,False,False,,True,Married,0,0.395321934141193,2025
+1196,todd-wagner,Todd Wagner,1800000000,59,1960-08-02,M,True,Media & Entertainment,Media & Entertainment,online media,United States,Texas,False,False,,True,Married,1,,
+1196,vincent-mcmahon,Vincent McMahon,1800000000,74,1945-08-24,M,True,Sports,Sports,entertainment,United States,Connecticut,False,False,,True,Married,2,0.3431568417873404,2025
+1267,aneel-bhusri,Aneel Bhusri,1700000000,54,1966-02-04,M,True,Technology,Technology,business software,United States,California,False,False,,True,Married,2,0.3658813381992103,2025
+1267,brian-roberts,Brian Roberts,1700000000,60,1959-06-28,M,False,Service,Service,Comcast,United States,Pennsylvania,False,False,,True,Married,3,0.6075852724637378,2025
+1267,charlotte-colket-weber,Charlotte Colket Weber,1700000000,77,1942-11-19,F,False,Food & Beverage,Food & Beverage,Campbell Soup,United States,Florida,False,False,,True,Divorced,4,0.09656489275641757,2025
+1267,christopher-goldsbury,Christopher Goldsbury,1700000000,77,1943-01-01,M,False,Food & Beverage,Food & Beverage,salsa,United States,Texas,False,False,,True,Married,1,,
+1267,david-lichtenstein,David Lichtenstein,1700000000,58,1961-11-21,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,0,,
+1267,gail-miller,Gail Miller,1700000000,76,1943-10-14,F,True,Automotive,Automotive,car dealerships,United States,Utah,False,False,,True,"Widowed, Remarried",5,,
+1267,gary-michelson,Gary Michelson,1700000000,71,1949-01-14,M,True,Healthcare,Healthcare,medical patents,United States,California,False,False,,True,Married,1,,
+1267,jeffrey-talpins,Jeffrey Talpins,1700000000,45,1975-03-06,M,True,Finance & Investments,Finance & Investments,hedge fund,United States,New York,False,False,,True,Married,0,,
+1267,jimmy-john-liautaud,Jimmy John Liautaud,1700000000,56,1964-01-12,M,True,Food & Beverage,Food & Beverage,sandwich chain,United States,Florida,False,False,,True,Married,3,,
+1267,leslie-alexander,Leslie Alexander,1700000000,76,1943-06-30,M,True,Sports,Sports,sports team,United States,Texas,False,False,,True,Divorced,1,,
+1267,paul-lee-1,Lee Paul & family,1700000000,62,1958-01-01,M,True,Manufacturing,Manufacturing,packaging,China,,True,False,,True,Married,0,1.0,2025
+1267,phillip-t-terry-ragon,Phillip T. (Terry) Ragon,1700000000,70,1949-06-01,M,True,Technology,Technology,health IT,United States,Massachusetts,False,False,,True,Married,0,,
+1267,ray-davis,Ray Davis,1700000000,78,1941-12-18,M,True,Energy,Energy,pipelines,United States,Texas,False,False,,True,Married,3,0.3781823444826676,2025
+1267,timothy-boyle,Timothy Boyle,1700000000,70,1949-09-07,M,True,Fashion & Retail,Fashion & Retail,Columbia Sportswear,United States,Oregon,False,False,,True,Married,2,0.9257217898923868,2025
+1335,anthony-wood,Anthony Wood,1600000000,54,1965-12-04,M,True,Technology,Technology,Roku,United States,California,False,False,,True,Married,3,0.8764463589089677,2025
+1335,bill-haslam,Bill Haslam,1600000000,61,1958-08-23,M,False,Fashion & Retail,Fashion & Retail,gas stations,United States,Tennessee,False,False,,True,Married,3,0.0002598101299561569,2025
+1335,brian-higgins,Brian Higgins,1600000000,55,1965-02-08,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,,0,,
+1335,catherine-lozick,Catherine Lozick,1600000000,74,1945-05-01,F,False,Manufacturing,Manufacturing,valve manufacturing,United States,Florida,False,False,,True,,3,,
+1335,chad-richison,Chad Richison,1600000000,49,1970-10-10,M,True,Technology,Technology,payroll processing,United States,Oklahoma,False,False,,True,Married,4,0.6112989931563392,2025
+1335,charles-munger,Charles Munger,1600000000,96,1924-01-01,M,True,Finance & Investments,Finance & Investments,Berkshire Hathaway,United States,California,False,False,,True,,8,1.0,2022
+1335,chuck-bundrant,Chuck Bundrant,1600000000,78,1942-01-31,M,True,Food & Beverage,Food & Beverage,fishing,United States,Washington,False,False,,False,,,,
+1335,edward-debartolo-jr,"Edward DeBartolo, Jr.",1600000000,73,1946-11-06,M,False,Real Estate,Real Estate,shopping centers,United States,Florida,False,False,,True,Married,3,0.4330000933730993,2025
+1335,evgeny-eugene-shvidler,Evgeny (Eugene) Shvidler,1600000000,56,1964-03-23,M,True,Energy,Energy,"oil & gas, investments",United Kingdom,,False,False,,True,Married,5,,
+1335,herb-chambers,Herb Chambers,1600000000,78,1942-01-01,M,True,Automotive,Automotive,car dealerships,United States,Massachusetts,False,False,,True,Single,0,,
+1335,j-hyatt-brown,J. Hyatt Brown,1600000000,82,1937-07-12,M,False,Finance & Investments,Finance & Investments,insurance,United States,Florida,False,False,,True,Married,0,0.6571294744856662,2025
+1335,j-tomilson-hill,J. Tomilson Hill,1600000000,71,1948-05-24,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,2,0.3149064238445907,2025
+1335,martin-selig,Martin Selig,1600000000,82,1937-12-31,M,True,Real Estate,Real Estate,real estate,United States,Washington,False,False,,True,Married,3,,
+1335,nelson-peltz,Nelson Peltz,1600000000,77,1942-06-01,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,10,0.048288607445458036,2025
+1335,o-francis-biondi,O. Francis Biondi,1600000000,55,1964-07-04,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,0,,
+1335,thomas-steyer,Thomas Steyer,1600000000,62,1957-06-27,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,California,False,False,,True,Separated,4,,
+1335,valentin-gapontsev,Valentin Gapontsev & family,1600000000,81,1939-02-23,M,True,Manufacturing,Manufacturing,lasers,United States,Massachusetts,True,False,,False,,,,
+1415,alan-gerry,Alan Gerry,1500000000,91,1928-12-25,M,True,Media & Entertainment,Media & Entertainment,cable television,United States,New York,False,False,,True,Married,3,,
+1415,alice-schwartz,Alice Schwartz,1500000000,93,1926-07-02,F,True,Healthcare,Healthcare,biotech,United States,California,False,False,,True,Widowed,2,0.9424093490432626,2024
+1415,bill-gross,Bill Gross,1500000000,75,1944-04-13,M,True,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,True,Divorced,3,,
+1415,brad-jacobs,Bradley Jacobs,1500000000,63,1956-07-01,M,True,Logistics,Logistics,logistics,United States,Connecticut,False,False,,True,Married,4,0.49479683698563676,2025
+1415,duke-reyes,Duke Reyes,1500000000,63,1957-03-23,M,False,Food & Beverage,Food & Beverage,beer distribution,United States,Florida,False,False,,True,Married,0,,
+1415,frank-fertitta-iii,"Frank Fertitta, III.",1500000000,58,1962-02-24,M,False,Sports,Sports,"casinos, mixed martial arts",United States,Nevada,False,False,,True,Married,3,0.4156064339873774,2025
+1415,james-leininger,James Leininger,1500000000,75,1945-03-30,M,True,Healthcare,Healthcare,medical products,United States,Texas,False,False,,True,Married,4,,
+1415,jerry-reinsdorf,Jerry Reinsdorf,1500000000,84,1936-02-25,M,True,Sports,Sports,sports teams,United States,Illinois,False,False,,True,Married,4,,
+1415,john-tyson,John Tyson,1500000000,66,1953-09-05,M,False,Food & Beverage,Food & Beverage,food processing,United States,Arkansas,False,False,,True,Single,2,0.9921103680078526,2025
+1415,kenny-troutt,Kenny Troutt,1500000000,72,1948-01-08,M,True,Telecom,Telecom,telecom,United States,Texas,False,False,,True,Married,3,,
+1415,lorenzo-fertitta,Lorenzo Fertitta,1500000000,51,1969-01-03,M,False,Sports,Sports,"casinos, mixed martial arts",United States,Nevada,False,False,,True,Married,3,0.41384343305505944,2025
+1415,louis-bacon,Louis Bacon,1500000000,63,1956-07-25,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Divorced,7,,
+1415,manuel-moroun,Manuel Moroun & family,1500000000,92,1927-06-01,M,True,Logistics,Logistics,transportation,United States,Michigan,True,False,,False,,,,
+1415,mario-gabelli,Mario Gabelli,1500000000,78,1942-03-31,M,True,Finance & Investments,Finance & Investments,money management,United States,Connecticut,False,False,,True,Married,4,0.44627072775662635,2025
+1415,nicolas-berggruen,Nicolas Berggruen,1500000000,58,1961-08-10,M,False,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,True,Single,0,,
+1415,orion-hindawi,Orion Hindawi,1500000000,40,1980-01-10,M,True,Technology,Technology,software,United States,California,False,False,,True,Married,2,,
+1415,peter-sperling,Peter Sperling,1500000000,60,1959-11-22,M,False,Service,Service,education,United States,Arizona,False,False,,True,Married,2,,
+1415,phillip-frost,Phillip Frost,1500000000,83,1936-11-11,M,True,Healthcare,Healthcare,pharmaceuticals,United States,Florida,False,False,,True,Married,0,0.32473800040924355,2025
+1415,seth-klarman,Seth Klarman,1500000000,62,1957-05-01,M,True,Finance & Investments,Finance & Investments,investments,United States,Massachusetts,False,False,,True,Married,0,,
+1415,sheryl-sandberg,Sheryl Sandberg,1500000000,50,1969-08-28,F,True,Technology,Technology,Facebook,United States,California,False,False,,True,"Widowed, Remarried",5,0.3305486539879022,2025
+1415,stephen-feinberg,Stephen Feinberg,1500000000,60,1960-03-29,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,3,,
+1415,stewart-horejsi,Stewart Horejsi & family,1500000000,82,1937-09-19,M,True,Finance & Investments,Finance & Investments,Berkshire Hathaway,United States,Arizona,True,False,,True,Divorced,2,0.8709328363378374,2025
+1415,william-koch,William Koch,1500000000,79,1940-05-03,M,False,Energy,Energy,"oil, investments",United States,Florida,False,False,,True,Married,6,,
+1513,bharat-desai,Bharat Desai,1400000000,67,1952-11-20,M,True,Technology,Technology,IT consulting,United States,Florida,False,False,neerja-sethi,True,Married,2,,
+1513,bill-alfond,Bill Alfond,1400000000,71,1948-05-16,M,False,Fashion & Retail,Fashion & Retail,shoes,United States,Massachusetts,False,False,,True,Married,3,0.643752212179227,2025
+1513,billy-joe-red-mccombs,Billy Joe (Red) McCombs,1400000000,92,1927-10-19,M,True,Diversified,Diversified,"real estate, oil, cars, sports",United States,Texas,False,False,,True,,3,,
+1513,chris-wanstrath,Chris Wanstrath,1400000000,35,1985-03-18,M,True,Technology,Technology,software,United States,California,False,False,,False,,,,
+1513,david-booth,David Booth,1400000000,74,1946-01-01,M,True,Finance & Investments,Finance & Investments,mutual funds,United States,Texas,False,False,,True,Married,0,,
+1513,david-hindawi,David Hindawi,1400000000,75,1944-12-08,M,True,Technology,Technology,software,United States,California,False,False,,True,Married,2,,
+1513,david-zalik,David Zalik,1400000000,46,1974-02-02,M,True,Technology,Technology,financial technology,United States,Georgia,False,False,,True,Married,3,0.6946575327303776,2025
+1513,elaine-wynn,Elaine Wynn,1400000000,77,1942-04-28,F,True,Gambling & Casinos,Gambling & Casinos,"casinos, hotels",United States,Nevada,False,False,,True,,2,0.3480680151259025,2024
+1513,eren-ozmen,Eren Ozmen,1400000000,61,1958-09-03,F,True,Manufacturing,Manufacturing,aerospace,United States,Nevada,False,False,fatih-ozmen,True,Married,2,,
+1513,fatih-ozmen,Fatih Ozmen,1400000000,62,1958-02-02,M,True,Manufacturing,Manufacturing,aerospace,United States,Nevada,False,False,eren-ozmen,True,Married,0,,
+1513,felix-baker,Felix Baker,1400000000,51,1969-03-29,M,True,Finance & Investments,Finance & Investments,biotech investing,United States,New York,False,False,,True,,0,,
+1513,george-joseph,George Joseph,1400000000,98,1921-09-11,M,True,Finance & Investments,Finance & Investments,insurance,United States,California,False,False,,True,Married,5,0.7492089094107366,2025
+1513,hamilton-james,Hamilton James,1400000000,68,1951-08-03,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,3,0.3243185207099849,2025
+1513,herbert-allen-jr,"Herbert Allen, Jr. & family",1400000000,80,1940-03-05,M,False,Finance & Investments,Finance & Investments,investment banking,United States,New York,True,False,,True,Divorced,4,0.5482941773124934,2025
+1513,james-duff,James Duff,1400000000,59,1961-03-07,M,True,Diversified,Diversified,"tires, diversified",United States,Mississippi,False,False,,True,Married,2,,
+1513,john-bicket,John Bicket,1400000000,40,1980-03-20,M,True,Technology,Technology,sensor systems,United States,California,False,False,,True,Married,2,0.791278759138084,2025
+1513,jonathan-tisch,Jonathan Tisch,1400000000,66,1953-12-07,M,False,Diversified,Diversified,"insurance, NFL team",United States,New York,False,False,,True,Married,2,0.3783872111071914,2025
+1513,julian-baker,Julian Baker,1400000000,53,1966-05-21,M,True,Finance & Investments,Finance & Investments,investing,United States,New York,False,False,,True,,0,,
+1513,kathy-fields,Kathy Fields,1400000000,61,1958-05-14,F,True,Fashion & Retail,Fashion & Retail,skin care,United States,California,False,False,,False,,,,
+1513,katie-rodan,Katie Rodan,1400000000,64,1955-06-19,F,True,Fashion & Retail,Fashion & Retail,skin care,United States,California,False,False,,False,,,,
+1513,leo-koguan,Leo Koguan,1400000000,65,1955-02-15,M,True,Technology,Technology,IT provider,United States,Texas,False,False,,True,Divorced,1,0.3308874580730966,2025
+1513,maggie-hardy,Maggie Hardy Knox,1400000000,54,1965-12-07,F,False,Service,Service,building materials,United States,Pennsylvania,False,False,,True,Married,1,,
+1513,osman-kibar,Osman Kibar,1400000000,49,1971-04-01,M,True,Healthcare,Healthcare,biotech,United States,California,False,False,,True,Married,4,,
+1513,paul-foster,Paul Foster,1400000000,62,1957-10-08,M,True,Energy,Energy,oil refining,United States,Texas,False,False,,True,Married,2,0.34175284806447864,2025
+1513,peter-buck,Peter Buck,1400000000,89,1930-12-19,M,True,Food & Beverage,Food & Beverage,Subway sandwich shops,United States,Connecticut,False,False,,False,,,,
+1513,philippe-laffont,Philippe Laffont,1400000000,52,1967-09-16,M,True,Finance & Investments,Finance & Investments,hedge fund,United States,New York,False,False,,True,Married,0,,
+1513,ron-burkle,Ron Burkle,1400000000,67,1952-11-12,M,True,Finance & Investments,Finance & Investments,"supermarkets, investments",United Kingdom,,False,False,,True,Divorced,3,0.0013444670892135775,2025
+1513,sanjit-biswas,Sanjit Biswas,1400000000,38,1982-01-12,M,True,Technology,Technology,sensor systems,United States,California,False,False,,True,Married,3,0.7972483400253839,2025
+1513,scott-kapnick,Scott Kapnick,1400000000,61,1959-02-09,M,True,Finance & Investments,Finance & Investments,private equity,United States,Florida,False,False,,True,,0,0.6722336220273532,2025
+1513,stephen-winn,Stephen Winn,1400000000,73,1946-09-12,M,True,Real Estate,Real Estate,real estate services,United States,Texas,False,False,,True,Married,0,,
+1513,steve-case,Steve Case,1400000000,61,1958-08-21,M,True,Technology,Technology,AOL,United States,Virginia,False,False,,True,Married,5,0.043751643817891414,2025
+1513,sue-gross,Sue Gross,1400000000,70,1950-02-17,F,False,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,True,Divorced,1,,
+1513,susan-alfond,Susan Alfond,1400000000,74,1945-07-19,F,False,Fashion & Retail,Fashion & Retail,shoes,United States,Maine,False,False,,True,,3,0.6437394729209178,2025
+1513,ted-alfond,Ted Alfond,1400000000,75,1944-08-19,M,False,Fashion & Retail,Fashion & Retail,shoes,United States,Massachusetts,False,False,,True,Married,3,0.6437394729209178,2025
+1513,theodore-leonsis,Theodore Leonsis,1400000000,64,1956-01-08,M,True,Sports,Sports,sports teams,United States,Maryland,False,False,,True,Married,2,0.004505223008884249,2025
+1513,thomas-duff,Thomas Duff,1400000000,63,1956-12-31,M,True,Diversified,Diversified,"tires, diversified",United States,Mississippi,False,False,,True,Divorced,2,,
+1513,w-herbert-hunt,W. Herbert Hunt,1400000000,91,1929-03-06,M,False,Energy,Energy,oil,United States,Texas,False,False,,True,,5,,
+1513,william-ackman,William Ackman,1400000000,53,1966-05-11,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,3,0.29587391760051773,2025
+1613,alexander-karp,Alexander Karp,1300000000,52,1967-10-01,M,True,Technology,Technology,software firm,United States,California,False,False,,True,Single,0,0.6957271897289409,2025
+1613,alexander-rovt,Alexander Rovt,1300000000,67,1952-07-23,M,True,Manufacturing,Manufacturing,"fertilizer, real estate",United States,New York,False,False,,False,,,,
+1613,alexandra-daitch,Alexandra Daitch,1300000000,57,1963-01-01,F,False,Food & Beverage,Food & Beverage,Cargill,United States,Connecticut,False,False,,True,Married,1,,
+1613,anita-zucker,Anita Zucker,1300000000,68,1952-01-19,F,False,Manufacturing,Manufacturing,chemicals,United States,South Carolina,False,False,,True,Widowed,3,0.03858725286242999,2025
+1613,b-wayne-hughes-jr,"B. Wayne Hughes, Jr.",1300000000,59,1961-01-01,M,False,Real Estate,Real Estate,storage facilities,United States,California,False,False,,True,Married,0,0.8144959405672855,2025
+1613,craig-newmark,Craig Newmark,1300000000,67,1952-12-06,M,True,Technology,Technology,Craigslist,United States,California,False,False,,False,,,,
+1613,darwin-deason,Darwin Deason,1300000000,79,1940-05-14,M,True,Service,Service,Xerox,United States,Texas,False,False,,True,Divorced,3,,
+1613,deng-hui,Deng Hui & family,1300000000,57,1962-05-01,M,True,Technology,Technology,software,China,,True,False,,False,,,,
+1613,drew-houston,Drew Houston,1300000000,37,1983-03-04,M,True,Technology,Technology,cloud storage service,United States,California,False,False,,True,Single,0,0.8587394472316292,2025
+1613,duncan-macmillan,Duncan MacMillan,1300000000,82,1937-12-17,M,True,Finance & Investments,Finance & Investments,Bloomberg LP,United States,New Jersey,False,False,,True,Married,2,,
+1613,frank-laukien,Frank Laukien,1300000000,60,1960-02-04,M,False,Manufacturing,Manufacturing,scientific equipment,United States,Massachusetts,False,False,,True,Married,0,0.9647446765357254,2025
+1613,jim-crane,Jim Crane,1300000000,66,1954-01-17,M,True,Sports,Sports,"logistics, baseball",United States,Texas,False,False,,True,Married,3,,
+1613,jim-koch,Jim Koch,1300000000,70,1949-05-27,M,True,Food & Beverage,Food & Beverage,beer,United States,Massachusetts,False,False,,True,Married,4,0.32455040133882396,2025
+1613,john-martin,John Martin,1300000000,68,1951-05-07,M,True,Healthcare,Healthcare,pharmaceuticals,United States,California,False,False,,False,,,,
+1613,ken-xie,Ken Xie,1300000000,57,1963-01-26,M,True,Technology,Technology,cybersecurity,United States,California,False,False,,True,Married,0,1.0,2025
+1613,kenneth-tuchman,Kenneth Tuchman,1300000000,60,1959-10-23,M,True,Service,Service,outsourcing,United States,Colorado,False,False,,True,Married,2,0.104813836317692,2023
+1613,kevin-systrom,Kevin Systrom,1300000000,36,1983-12-30,M,True,Technology,Technology,Instagram,United States,California,False,False,,True,Married,1,0.22975357074485617,2025
+1613,lucy-stitzer,Lucy Stitzer,1300000000,60,1960-01-01,F,False,Food & Beverage,Food & Beverage,Cargill,United States,Connecticut,False,False,,True,Married,3,,
+1613,michael-krasny,Michael Krasny,1300000000,66,1953-08-08,M,True,Technology,Technology,retail,United States,Illinois,False,False,,True,Married,1,,
+1613,ryan-smith,Ryan Smith,1300000000,41,1978-06-28,M,True,Technology,Technology,cloud computing,United States,Utah,False,False,,True,Married,5,,
+1613,sarah-macmillan,Sarah MacMillan,1300000000,66,1954-01-01,F,False,Food & Beverage,Food & Beverage,Cargill,United States,California,False,False,,True,Divorced,3,,
+1613,sidney-kimmel,Sidney Kimmel,1300000000,92,1928-01-16,M,True,Fashion & Retail,Fashion & Retail,retail,United States,New York,False,False,,True,Married,0,,
+1613,steven-sarowitz,Steven Sarowitz,1300000000,54,1965-11-07,M,True,Technology,Technology,payroll software,United States,Illinois,False,False,,True,Married,0,0.44960172498629697,2025
+1613,vlad-shmunis,Vlad Shmunis,1300000000,59,1960-10-20,M,True,Technology,Technology,cloud technology,United States,California,False,False,,False,,,,
+1613,william-stone,William Stone,1300000000,64,1955-04-09,M,True,Technology,Technology,software,United States,Florida,False,False,,True,Married,3,0.6486545167713406,2025
+1730,daniel-lubetzky,Daniel Lubetzky,1200000000,51,1968-09-28,M,True,Food & Beverage,Food & Beverage,snack bars,United States,New York,False,False,,True,Married,4,,
+1730,egon-durban,Egon Durban,1200000000,46,1973-08-23,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,Married,3,,
+1730,farris-wilks,Farris Wilks,1200000000,68,1952-02-09,M,True,Energy,Energy,natural gas,United States,Texas,False,False,,True,Married,11,0.3880433947889454,2025
+1730,forrest-preston,Forrest Preston,1200000000,87,1933-03-22,M,True,Healthcare,Healthcare,health care,United States,Tennessee,False,False,,True,Married,4,,
+1730,george-marcus,George Marcus,1200000000,78,1941-08-15,M,True,Real Estate,Real Estate,real estate,United States,California,False,False,,True,,4,0.6225737855501128,2025
+1730,greg-mondre,Greg Mondre,1200000000,45,1974-05-20,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,Married,0,,
+1730,henry-engelhardt,Henry Engelhardt,1200000000,62,1958-01-17,M,True,Finance & Investments,Finance & Investments,insurance,United Kingdom,,False,False,,True,Married,4,0.5818354172669026,2025
+1730,j-christopher-flowers,J. Christopher Flowers,1200000000,62,1957-10-27,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,2,0.0609965936973063,2025
+1730,jamie-dimon,Jamie Dimon,1200000000,64,1956-03-13,M,True,Finance & Investments,Finance & Investments,banking,United States,New York,False,False,,True,Married,3,0.6405685744870663,2025
+1730,jared-smith-1,Jared Smith,1200000000,45,1974-10-02,M,True,Technology,Technology,cloud computing,United States,Utah,False,False,,True,Married,0,,
+1730,jerry-moyes,Jerry Moyes,1200000000,76,1944-01-15,M,True,Logistics,Logistics,transportation,United States,Arizona,False,False,,True,Married,10,0.23085704164544915,2025
+1730,jim-justice-ii,"Jim Justice, II.",1200000000,68,1951-04-27,M,False,Energy,Energy,coal,United States,West Virginia,False,False,,False,,,,
+1730,jim-thompson,Jim Thompson,1200000000,80,1940-01-14,M,True,Logistics,Logistics,logistics,Hong Kong,,False,False,,True,Married,2,,
+1730,joe-lacob,Joe Lacob,1200000000,64,1956-01-10,M,True,Sports,Sports,Golden State Warriors,United States,California,False,False,,True,Married,4,,
+1730,john-farber,John Farber,1200000000,94,1925-08-23,M,True,Manufacturing,Manufacturing,chemicals,United States,New York,False,False,,True,,1,0.1379091079884436,2023
+1730,joseph-edelman,Joseph Edelman,1200000000,64,1955-06-10,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,0,,
+1730,kenneth-hao,Kenneth Hao,1200000000,51,1968-09-11,M,True,Finance & Investments,Finance & Investments,private equity,United States,California,False,False,,True,,0,,
+1730,lawrence-golub,Lawrence Golub,1200000000,60,1959-10-03,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,,0,,
+1730,marc-andreessen,Marc Andreessen,1200000000,48,1971-07-09,M,True,Finance & Investments,Finance & Investments,venture capital investing,United States,California,False,False,,True,Married,1,0.40427180132939056,2025
+1730,mark-pincus,Mark Pincus,1200000000,54,1966-02-13,M,True,Technology,Technology,online games,United States,California,False,False,,True,Divorced,3,0.10747044028097892,2025
+1730,mike-bingle,Mike Bingle,1200000000,47,1972-04-14,M,True,Finance & Investments,Finance & Investments,private equity,United States,Connecticut,False,False,,False,,,,
+1730,thomas-bailey,Thomas Bailey,1200000000,83,1937-01-01,M,True,Finance & Investments,Finance & Investments,money management,United States,Colorado,False,False,,True,Divorced,2,,
+1730,thomas-tull,Thomas Tull,1200000000,49,1970-06-11,M,True,Media & Entertainment,Media & Entertainment,"movies, investments",United States,Pennsylvania,False,False,,True,Married,0,,
+1730,timothy-headington,Timothy Headington,1200000000,69,1950-04-24,M,False,Energy,Energy,"oil & gas, investments",United States,Texas,False,False,,True,Single,0,,
+1730,tom-preston-werner,Tom Preston-Werner,1200000000,40,1979-10-28,M,True,Technology,Technology,collaborative software,United States,California,False,False,,True,Married,0,,
+1730,wilma-tisch,Wilma Tisch,1200000000,92,1927-06-25,F,False,Finance & Investments,Finance & Investments,diversified,United States,New York,False,False,,True,Widowed,4,0.6022569324801634,2025
+1730,yvon-chouinard,Yvon Chouinard,1200000000,81,1938-11-09,M,True,Fashion & Retail,Fashion & Retail,Patagonia,United States,California,False,False,,False,,,,
+1851,dan-wilks,Dan Wilks,1100000000,63,1956-05-30,M,True,Energy,Energy,natural gas,United States,Texas,False,False,,True,Married,6,0.7374548188990468,2025
+1851,david-golub,David Golub,1100000000,57,1962-04-16,M,True,Finance & Investments,Finance & Investments,private equity,United States,New York,False,False,,True,,0,,
+1851,donald-foss,Donald Foss,1100000000,75,1944-06-18,M,True,Automotive,Automotive,auto loans,United States,Michigan,False,False,,False,,,,
+1851,donald-friese,Donald Friese,1100000000,79,1940-10-03,M,True,Manufacturing,Manufacturing,manufacturing,United States,California,False,False,,True,Married,0,,
+1851,fayez-sarofim,Fayez Sarofim,1100000000,91,1928-11-19,M,False,Finance & Investments,Finance & Investments,money management,United States,Texas,False,False,,False,,,,
+1851,frederic-luddy,Frederic Luddy,1100000000,65,1954-11-24,M,True,Technology,Technology,software,United States,California,False,False,,True,Single,1,0.05943584582485417,2025
+1851,gary-magness,Gary Magness,1100000000,66,1954-02-26,M,False,Media & Entertainment,Media & Entertainment,"cable TV, investments",United States,Colorado,False,False,,True,Married,3,0.4025032625208928,2025
+1851,george-yancopoulos,George Yancopoulos,1100000000,60,1959-09-10,M,True,Healthcare,Healthcare,pharmaceuticals,United States,New York,False,False,,True,Divorced,2,0.6379541047474149,2025
+1851,henry-davis,Henry Davis,1100000000,69,1951-02-16,M,False,Food & Beverage,Food & Beverage,beef processing,United States,Nebraska,False,False,,True,Divorced,0,,
+1851,kevin-plank,Kevin Plank,1100000000,47,1972-08-13,M,True,Fashion & Retail,Fashion & Retail,Under Armour,United States,Maryland,False,False,,True,Married,2,0.18758706544242715,2024
+1851,michael-price,Michael Price,1100000000,67,1952-07-03,M,False,Finance & Investments,Finance & Investments,investments,United States,New Jersey,False,False,,False,,,,
+1851,michael-steinhardt,Michael Steinhardt,1100000000,79,1940-12-07,M,True,Finance & Investments,Finance & Investments,hedge funds,United States,New York,False,False,,True,Married,0,,
+1851,nancy-lerner,Nancy Lerner,1100000000,59,1960-05-11,F,False,Finance & Investments,Finance & Investments,"banking, credit cards",United States,Ohio,False,False,,True,Married,5,,
+1851,norma-lerner,Norma Lerner,1100000000,84,1936-03-28,F,False,Finance & Investments,Finance & Investments,banking,United States,Ohio,False,False,,True,Widowed,2,,
+1851,patrick-hanrahan,Patrick Hanrahan,1100000000,64,1955-05-08,M,True,Technology,Technology,software,United States,California,False,False,,True,,0,0.594915644282377,2025
+1851,paul-fireman,Paul Fireman,1100000000,76,1944-02-14,M,True,Fashion & Retail,Fashion & Retail,Reebok,United States,Massachusetts,False,False,,True,Married,3,,
+1851,randolph-lerner,Randolph Lerner,1100000000,58,1962-02-21,M,False,Finance & Investments,Finance & Investments,"banking, credit cards",United States,Ohio,False,False,,True,Married,4,,
+1851,richard-kayne,Richard Kayne,1100000000,74,1946-01-01,M,True,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,True,Married,3,,
+1851,richard-yuengling-jr,"Richard Yuengling, Jr.",1100000000,77,1943-03-10,M,False,Food & Beverage,Food & Beverage,beer,United States,Pennsylvania,False,False,,True,Divorced,4,,
+1851,roger-penske,Roger Penske,1100000000,83,1937-02-20,M,True,Automotive,Automotive,cars,United States,Michigan,False,False,,True,Married,5,0.31680350909644506,2025
+1851,thomas-james,Thomas James,1100000000,77,1942-05-10,M,False,Finance & Investments,Finance & Investments,finance,United States,Florida,False,False,,True,Married,2,0.8220545036227307,2025
+1851,todd-wanek,Todd Wanek,1100000000,56,1964-03-16,M,False,Manufacturing,Manufacturing,furniture,United States,Florida,False,False,,True,Married,2,,
+1851,tor-peterson,Tor Peterson,1100000000,55,1964-08-07,M,True,Metals & Mining,Metals & Mining,commodities,Switzerland,,False,False,,True,Single,0,0.8098344991849983,2025
+1851,trevor-milton,Trevor Milton,1100000000,38,1982-04-06,M,True,Automotive,Automotive,electric vehicles,United States,Arizona,False,False,,False,,,,
+1990,axel-stawski,Axel Stawski,1000000000,69,1950-11-14,M,True,Real Estate,Real Estate,real estate,United States,New York,False,False,,True,Married,0,,
+1990,bom-kim,Bom Kim,1000000000,41,1978-10-01,M,True,Technology,Technology,online retailing,South Korea,,False,False,,True,Married,1,0.6259710773904629,2025
+1990,brian-armstrong,Brian Armstrong,1000000000,37,1983-01-25,M,True,Finance & Investments,Finance & Investments,cryptocurrency,United States,California,False,False,,True,,0,0.7431771929239686,2025
+1990,carl-thoma,Carl Thoma,1000000000,71,1948-10-12,M,True,Finance & Investments,Finance & Investments,investments,United States,Illinois,False,False,,True,Married,2,,
+1990,david-hall,David Hall,1000000000,68,1951-08-10,M,True,Automotive,Automotive,automotive technology,United States,California,False,False,,False,,,,
+1990,david-kabiller,David Kabiller,1000000000,56,1963-07-02,M,True,Finance & Investments,Finance & Investments,investment management,United States,Connecticut,False,False,,True,Single,0,,
+1990,david-paul,David Paul,1000000000,53,1966-12-25,M,True,Healthcare,Healthcare,medical devices,United States,Pennsylvania,False,False,,True,Married,0,0.8935350427908946,2025
+1990,edmund-ansin,Edmund Ansin,1000000000,84,1936-03-09,M,False,Media & Entertainment,Media & Entertainment,television,United States,Florida,False,False,,False,,,,
+1990,gt-dave,GT Dave,1000000000,43,1977-01-01,M,True,Food & Beverage,Food & Beverage,kombucha,United States,California,False,False,,False,,,,
+1990,jay-z,Jay-Z,1000000000,50,1969-12-04,M,True,Media & Entertainment,Media & Entertainment,diversified,United States,New York,False,False,,True,Married,3,0.034385863444035186,2025
+1990,jayshree-ullal,Jayshree Ullal,1000000000,59,1961-03-27,F,True,Technology,Technology,computer networking,United States,California,False,False,,True,Married,2,0.8209204595500545,2025
+1990,jeff-green,Jeff Green,1000000000,43,1977-03-30,M,True,Media & Entertainment,Media & Entertainment,digital advertising,United States,California,False,False,,False,,,,
+1990,john-liew,John Liew,1000000000,52,1967-08-20,M,True,Finance & Investments,Finance & Investments,investment management,United States,Connecticut,False,False,,True,Married,2,,
+1990,julio-mario-santo-domingo-iii,"Julio Mario Santo Domingo, III.",1000000000,34,1985-05-02,M,False,Food & Beverage,Food & Beverage,beer,United States,New York,False,False,,False,,,,
+1990,kylie-jenner,Kylie Jenner,1000000000,22,1997-08-10,F,True,Fashion & Retail,Fashion & Retail,cosmetics,United States,California,False,False,,False,,,,
+1990,laurie-tisch,Laurie Tisch,1000000000,69,1951-02-19,F,False,Diversified,Diversified,"insurance, NFL team",United States,New York,False,False,,True,Divorced,2,0.08235141738449492,2025
+1990,linden-blue,Linden Blue,1000000000,83,1936-06-14,M,True,Manufacturing,Manufacturing,defense,United States,California,False,False,,False,,,,
+1990,lowell-milken,Lowell Milken,1000000000,71,1949-01-01,M,True,Finance & Investments,Finance & Investments,investments,United States,California,False,False,,False,,,,
+1990,neerja-sethi,Neerja Sethi,1000000000,65,1955-01-16,F,True,Technology,Technology,"IT consulting, outsourcing",United States,Florida,False,False,bharat-desai,True,Married,2,,
+1990,rj-scaringe,RJ Scaringe,1000000000,37,1983-01-19,M,True,Automotive,Automotive,electric vehicles,United States,California,False,False,,False,,,,
+1990,sandy-weill,Sandy Weill,1000000000,87,1933-03-16,M,True,Finance & Investments,Finance & Investments,Citigroup,United States,California,False,False,,False,,,,
+1990,scott-smith-1,Scott Smith,1000000000,70,1949-04-12,M,True,Technology,Technology,cloud computing,United States,Utah,False,False,,True,Married,9,,
+1990,steven-tisch,Steven Tisch,1000000000,71,1949-02-14,M,False,Diversified,Diversified,insurance,United States,California,False,False,,True,,5,0.08235141738449492,2025
+1990,wesley-edens,Wesley Edens,1000000000,58,1961-10-31,M,True,Finance & Investments,Finance & Investments,investments,United States,New York,False,False,,True,Married,4,0.024871646234230535,2025

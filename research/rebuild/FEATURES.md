@@ -1347,12 +1347,29 @@ are left out and the pipeline runs as before 29 October.
    `wealth_redraw_fallback`. The file carries `wealth_redrawn`. One function, `top_billionaires.redraw_record`, does
    this for the generated records and for Part A's rebuilt returns (its step 7, with settings `top_hidden.wealth_*`).
 
-**The list** (`resources/top/forbes_billionaires_2019.csv`, built by `build_forbes_2019.py` from Forbes's own data for
-the March 2019 World's Billionaires list, wealth valued 8 February 2019): the 607 US citizens with $3,111.0 billion,
-Forbes's own count and total. Marital status, children and public holdings are not in the 2019 data; they come from
-production's later profiles (Forbes's 2025 data), as the public holdings' share of the person's 2025 net worth times
-the 2019 net worth. Spouses listed separately become one joint return (two couples: the Kroenkes and the Ozmens); a
-family fortune, or a couple or siblings named in one entry, stays one record: 605 tax units.
+**The lists** (`resources/top/forbes_billionaires_<year>.csv`, 2015-2026, built by `build_forbes.py` from Forbes's own
+data for each year's World's Billionaires list; 2 November 2026, before then 2019 only): tax year t takes the March or
+April list of year t. US citizens with $1 billion or more: 535 (2015) to 991 (2026), within two of Forbes's published
+counts (2019: 607, $3,111.0 billion, as before). Marital status, children and public holdings are not in the lists'
+data; they come from production's later profiles (Forbes's 2025 data), as the public holdings' share of the person's
+2025 net worth times the list's net worth. Spouses listed separately become one joint return (the search redone for
+every year: same-surname groups, biographies naming a US billionaire spouse, and entries sharing one fortune; from 2023
+Forbes lists a couple's shared fortune as two entries of half each): 1 to 9 couples a year, `SPOUSE_PAIRS` in the
+builder; ex-spouses and couples whose divorce was filed before the list are separate. A family fortune, or a couple or
+siblings named in one entry, stays one record. In a list year the records have weight 1 and are held fixed.
+
+**After the last list (2027-2035; John, 2 November 2026)**: the 2026 list grown to the year (settings
+`tilt.top.after_last_list.grow`; `top_billionaires.grow_list`): each person's fortune split as `build_billionaires`
+splits it (public stock, private business, private real estate), each part grown from 2026 by the rule the projection
+start uses for the matching balance sheet item (`value.equities` and `value.pass_throughs`: Financial Accounts, then
+CBO's GDP, per return; `value.re_fund`: no projection rule, so growth.yaml's SCF rule, as `tilt.grow_dollars`), ages
+raised; income then computed from the IRS study's ratios as in a list year. **Their weights grow like any other
+person's**: each starts at 1 times its demographic cell's population growth from 2026 to the year (the start scaling
+every projection-year record gets from 2023) and is free in the solver, under the same soft cap; no count target for
+them. The network part of the top step (Part A, the redraw) is cached (`REBUILD_TOP_CACHE`) and the list is built on
+every run (`top_records.network_part`, `add_list`). Run of 2 November (scratch `explore/2026-11-02/billionaires/`): free,
+the solver takes the ten richest to weights near zero in every year 2027-2035 and the list's net worth falls from $8.4
+trillion (2026) to $3.9 trillion (2027); an open question for John there (DECISIONS.md 9).
 
 **Each billionaire record** (`top_billionaires.build_billionaires`; flags `billionaire`, `billionaire_rank`,
 `forbes_uri`; ids from 95,000,000, after Part A's block at 90,000,000):
@@ -1384,7 +1401,7 @@ family fortune, or a couple or siblings named in one entry, stays one record: 60
   rule; all earnings to the primary filer.
 - The non-microdata step places billionaire people at income percentile 100 for the death probabilities.
 
-**One reweighting.** `solver.solve(..., fixed=)` holds the billionaires at weight 1: their contribution is taken off
+**One reweighting.** In a list year `solver.solve(..., fixed=)` holds the billionaires at weight 1: their contribution is taken off
 each total, an average's fixed members enter as a constant and in the group weight its range is set on, and only the
 other weights are solved for (also in the demographic prescaling; the start's scaling to SOI's returns counts them).
 Before the solve, `solver.fixed_feasibility` checks each target: what the billionaires contribute, what is left, and
@@ -1421,7 +1438,7 @@ What the code does for a year other than 2019:
   prints some as negative numbers); W-2 Table 2.D's AGI groups moved to its finer rows from 2021;
 - growth: repealed deductions not grown past their last published year; direct series past their end by personal
   income per person; NIPA PCE by the CEX's categories from 2010 (`resources/growth/nipa_pce_categories.csv`).
-No W-2 targets before 2019 (older workbook layout); no Forbes list outside 2019.
+No W-2 targets before 2019 (older workbook layout). Forbes lists for every year 2015-2026 since 2 November (above).
 
 **Years after the data, 2024-2035** (`kind: projection`): since 1 November (decision 74) each year starts from the 2023 file
 (`from_year: 2023`, not chained; the text below describes one step, which is now the growth from 2023 to the year, CBO's and

@@ -90,6 +90,101 @@ ZERO_ITEMS = {
 
 
 # ---- the list as tax units ------------------------------------------------------------------------------------
+def wealth_parts(p):
+    """Each person's net worth in three parts (module docstring, step 12): public holdings = the public share (known,
+    else the rank group's wealth-weighted average among people with a known share) x net worth; the rest private, real
+    estate (private_re) when Forbes's industry is real estate, else a private business (private_pt). p: the people
+    table with group, net_worth, public_share and real_estate. Returns p with public_share_used, public, private,
+    private_re, private_pt, and the mask of people whose share is known."""
+    p = p.copy()
+    known = p['public_share'].notna()
+    avg = (p[known].assign(x=lambda d: d.public_share * d.net_worth).groupby('group')['x'].sum()
+           / p[known].groupby('group')['net_worth'].sum())
+    p['public_share_used'] = p['public_share'].fillna(p['group'].map(avg))
+    assert p['public_share_used'].notna().all(), 'a rank group with no known public share'
+    p['public'] = p['public_share_used'] * p['net_worth']
+    p['private'] = p['net_worth'] - p['public']
+    p['private_re'] = np.where(p['real_estate'], p['private'], 0.0)
+    p['private_pt'] = p['private'] - p['private_re']
+    return p, known
+
+
+def last_list_year():
+    """The latest year with a Forbes list in settings tilt.top.billionaire_lists, or None."""
+    years = [int(y) for y in (S.get('billionaire_lists') or {})]
+    return max(years) if years else None
+
+
+def list_for_year(year):
+    """The billionaires' list for tax year year and how it is used: ('list', the year's own list, year) when settings
+    tilt.top.billionaire_lists has one (the records then have weight 1, held fixed); ('grown', the last list grown to
+    the year by grow_list, the last list's year) for a year after the last list when settings tilt.top.after_last_list
+    .grow is true (John, 2 November 2026: the records then start at weight 1 and are free in the reweighting like any
+    other record); (None, None, None) otherwise."""
+    lst = read_list(year)
+    if lst is not None:
+        return 'list', lst, year
+    last = last_list_year()
+    if last is not None and year > last and (S.get('after_last_list') or {}).get('grow', False):
+        return 'grown', grow_list(read_list(last), last, year), last
+    return None, None, None
+
+
+def growth_factors(s, t):
+    """The growth per return from s to t of the three kinds of holding the billionaires have, by the rule the
+    projection years' start grows each item with (tilt.grow_dollars, cbo_per_return): public stock as value.equities
+    and a private business as value.pass_throughs (projection_growth.plan_factors: the Financial Accounts series per
+    return through 2025, then CBO's GDP per return), private real estate as value.re_fund, which has no projection
+    rule and so, as in grow_dollars, keeps growth.yaml's (the SCF's mean per tax unit, wave of income year t - 1 over
+    that of s - 1, after the last wave by the Financial Accounts per person: build_table.scf_growth). Returns
+    {part: (factor, source)}."""
+    import build_table as BT
+    import projection_growth as PG
+    assert 2024 <= s < t <= 2036, f'billionaires grown from {s} to {t}: projection growth covers 2024-2036 only'
+    cols = {'public': 'value.equities', 'private_pt': 'value.pass_throughs', 'private_re': 'value.re_fund'}
+    got, problems = PG.plan_factors(list(cols.values()), t, None, strict=False, from_year=s)
+    got = got.set_index('column')
+    out, scf = {}, None
+    for k, c in cols.items():
+        if c in got.index:
+            out[k] = (float(got.loc[c, 'factor']), f'{c}: {got.loc[c, "source"]}')
+            continue
+        if scf is None:   # as grow_dollars: the SCF rows of the training table
+            scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
+            scf = scf[scf.source == 'scf']
+        f = BT.scf_growth(scf, s - 1, t - 1)[c]
+        assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
+        out[k] = (float(f), f'{c}: no projection rule ({next(q for q in problems if q.startswith(c))[:60]}...); '
+                            f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
+    return out
+
+
+def grow_list(lst, s, t):
+    """The year-s list carried to year t (a year after the last list; John, 2 November 2026): each person's net worth
+    split into public stock, private business and private real estate as build_billionaires splits it (wealth_parts,
+    on the year-s ranking), each part grown by growth_factors(s, t), net worth their sum, and the public share made
+    the grown public part over the grown net worth (so build_billionaires splits the grown fortune into the same
+    grown parts); ages raised by t - s (a missing age stays missing). Spouses, couples, families and every other column
+    stay as on the year-s list. Income is not carried: build_billionaires computes it from the grown wealth by the IRS
+    study's ratios, as in a list year."""
+    units, people = tax_units(lst)
+    p = _people_attributes(people)
+    p, _ = wealth_parts(p)
+    f = growth_factors(s, t)
+    grown = {k: p[k].to_numpy(float) * f[k][0] for k in f}
+    nw = grown['public'] + grown['private_pt'] + grown['private_re']
+    by_uri = pd.DataFrame({'uri': p['uri'].to_numpy(), 'nw': nw, 'share': grown['public'] / nw}).set_index('uri')
+    out = lst.copy()
+    assert out['uri'].isin(by_uri.index).all()
+    out['net_worth_list'] = out['net_worth']
+    out['net_worth'] = np.round(out['uri'].map(by_uri['nw']).to_numpy(float))
+    out['public_share_later'] = out['uri'].map(by_uri['share']).to_numpy(float)
+    age = pd.to_numeric(out['age'], errors='coerce')
+    out['age'] = (age + (t - s)).astype('Int64')
+    out.attrs['growth'] = {k: v for k, v in f.items()}
+    return out
+
+
 def read_list(year):
     """The year's Forbes list (settings tilt.top.billionaire_lists: {year: file in resources/top}), or None."""
     name = (S.get('billionaire_lists') or {}).get(str(year))
@@ -274,16 +369,7 @@ def build_billionaires(lst, df, w, year, notes):
     units, people = tax_units(lst)
     p = _people_attributes(people)
     groups = bsyz_groups()
-    # wealth: public share known, else the rank group's wealth-weighted average among people with a known share
-    known = p['public_share'].notna()
-    avg = (p[known].assign(x=lambda d: d.public_share * d.net_worth).groupby('group')['x'].sum()
-           / p[known].groupby('group')['net_worth'].sum())
-    p['public_share_used'] = p['public_share'].fillna(p['group'].map(avg))
-    assert p['public_share_used'].notna().all(), 'a rank group with no known public share'
-    p['public'] = p['public_share_used'] * p['net_worth']
-    p['private'] = p['net_worth'] - p['public']
-    p['private_re'] = np.where(p['real_estate'], p['private'], 0.0)
-    p['private_pt'] = p['private'] - p['private_re']
+    p, known = wealth_parts(p)
     for c in ['public', 'private_re', 'private_pt']:
         p[f'gain_{c}'] = np.where(p['founder'], p[c], 0.0)
     agg = p.groupby('unit_uri').agg(public=('public', 'sum'), private=('private', 'sum'), private_re=('private_re', 'sum'),
