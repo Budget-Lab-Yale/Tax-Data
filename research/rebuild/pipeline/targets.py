@@ -15,9 +15,8 @@ publishes thousands).
    pattern, so a line SOI renamed (wages in tax year 2022) is still found.
 3. Table 1.6: returns by filing status and the primary filer's age, all AGI,
    every year (table_1_6), for the tax data (translate.py).
-4. FAMILIES: the business families, each with its SOI line, its PUF parts and
-   whether the tilt targets it. PART_GROWTH: which SOI line grows each part's
-   dollars.
+4. FAMILIES: the business families, each with its SOI line and its PUF parts
+   (which families the tilt targets is set in targets_config/catalog.yaml).
 """
 import os
 import re
@@ -29,24 +28,23 @@ import pandas as pd
 import common
 
 MIRROR = common.RAW['soi_mirror']
-FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (stored positive), targeted by the tilt
-    'sole_prop': {'soi': 'business or profession', 'income': ['sole_prop'], 'loss': [], 'target': True},
+FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (stored positive)
+    'sole_prop': {'soi': 'business or profession', 'income': ['sole_prop'], 'loss': []},
     'pship_scorp': {'soi': 'partnership and s corporation',
                     'income': ['part_passive', 'part_active', 'scorp_passive', 'scorp_active'],
                     'loss': ['part_passive_loss', 'part_active_loss', 'part_179', 'scorp_passive_loss', 'scorp_active_loss',
-                             'scorp_179'], 'target': True},
-    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent'], 'loss': ['rent_loss'], 'target': True},
-    # left out until the targeting overhaul: its tiny cells could not always be met (22 October)
-    'estate_trust': {'soi': 'estate and trust', 'income': ['estate'], 'loss': ['estate_loss'], 'target': False},
-    'farm': {'soi': 'farm', 'income': ['farm'], 'loss': [], 'target': True},
-    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True},
+                             'scorp_179']},
+    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent'], 'loss': ['rent_loss']},
+    'estate_trust': {'soi': 'estate and trust', 'income': ['estate'], 'loss': ['estate_loss']},
+    'farm': {'soi': 'farm', 'income': ['farm'], 'loss': []},
+    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': []},
     # From tax year 2021 Table 1.4 publishes partnership and S corporation income separately, with no combined line
     # (30 October, targets for every year): the two halves of pship_scorp, each netted on its own, for the years that
     # publish them (targets_config/<year>/targets.yaml names them in business_top from 2021)
     'partnership': {'soi': 'partnership', 'income': ['part_passive', 'part_active'],
-                    'loss': ['part_passive_loss', 'part_active_loss', 'part_179'], 'target': False},
+                    'loss': ['part_passive_loss', 'part_active_loss', 'part_179']},
     'scorp': {'soi': 's corporation', 'income': ['scorp_passive', 'scorp_active'],
-              'loss': ['scorp_passive_loss', 'scorp_active_loss', 'scorp_179'], 'target': False}}
+              'loss': ['scorp_passive_loss', 'scorp_active_loss', 'scorp_179']}}
 T14 = {  # SOI item -> (variable, statistic)
     'number of returns': ('returns', 'count'),
     'social security benefits > total > number of returns': ('gross_ss', 'count'),
@@ -232,24 +230,6 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
         'se_health': 'self employed health insurance deduction', 'hsa_contr': 'health savings account deduction',
         'keogh_contr': 'payments to a keogh plan', 'early_penalty': 'penalty on early withdrawal of savings',
         'alimony_exp': 'alimony paid'}.items()}}
-NI, NL = ' > net income', r' > net loss.*'
-# The SOI rows that grow each business part's dollars: (rows for positive values, for negative values; None: the
-# positive rows). The section 179 deductions grow with partnership and S corporation net income, as the tables of
-# record were built; sche_other with business income as a whole.
-PART_GROWTH = {
-    'sole_prop': (['business or profession' + NI], ['business or profession' + NL]),
-    'farm': (['farm' + NI], ['farm' + NL]),
-    'rent': (['total rental and royalty' + NI], None), 'rent_loss': (['total rental and royalty' + NL], None),
-    'estate': (['estate and trust' + NI], None), 'estate_loss': (['estate and trust' + NL], None),
-    'farm_rent': (['farm rental' + NI], ['farm rental' + NL]),
-    **{p: (['partnership and s corporation' + NI], None)
-       for p in ['part_passive', 'part_active', 'scorp_passive', 'scorp_active', 'part_179', 'scorp_179']},
-    **{p: (['partnership and s corporation' + NL], None)
-       for p in ['part_passive_loss', 'part_active_loss', 'scorp_passive_loss', 'scorp_active_loss']},
-    'sche_other': ('business_income', None),
-    # stage 3: partnership income subject to self-employment tax (production's part_se), with partnership and
-    # S corporation net income and net loss
-    'part_se': (['partnership and s corporation' + NI], ['partnership and s corporation' + NL])}
 _TOTALS = None
 
 
@@ -350,8 +330,7 @@ CBO_CONCEPT = {
     'business_income': 'Net business income', 'sch_cf_income': 'Net business income', 'sch_e_income': 'Net business income',
     'sche_rent': 'Net business income', 'sche_rest': 'Net business income',
     'txbl_pens_dist': 'Taxable pensions and annuities', 'txbl_ira_dist': 'Taxable pensions and annuities',
-    'ss_taxable': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
-    'returns': 'Number of returns', 'agi': 'Adjusted gross income'}
+    'ss_taxable': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments'}
 _CBO = None
 
 
