@@ -567,9 +567,10 @@ def build_billionaires(lst, df, w, year, notes):
 
 
 # ---- the redraw of balance sheets at $1 billion or more (step 10; one function for Part A and Part B) ---------
-def _factors(models):
+def offset_factors(models):
     """Each model's consistency offset factors as generation last used them (gen/consistency.csv, the last run's
-    'factor used'); {} with a note when the file is missing."""
+    'factor used'), by the model's training seed, and a note; {} (no factors) for every model when the file is
+    missing. Part A's build (top_hidden.build) reads them too."""
     path = os.path.join(common.GEN, 'consistency.csv')
     if not os.path.exists(path):
         return {m['seed']: {} for m in models}, f'{path} missing: no offset factors in the redraw'
@@ -676,7 +677,7 @@ def redraw_balance_sheets(df, raw, year, ceiling, notes, check_same=True):
     salt = int(S.get('redraw_salt', 2026102901))
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     models = {m['seed']: m for m in G.load_models(device)}
-    factors, fnote = _factors(list(models.values()))
+    factors, fnote = offset_factors(list(models.values()))
     maps = D.load_maps(year)
     P = M.PREDICTED
     scf_cols = [M.column(x) for x in G.SCF_SLOTS]

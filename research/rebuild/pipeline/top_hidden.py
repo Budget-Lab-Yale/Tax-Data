@@ -71,7 +71,7 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      Table 1.4 line, which until then stayed in 2015 dollars, by their declared series); capital losses are not grown;
      written to growth_<year>.csv.
 
-Writes, in the folder (settings top_hidden.folder, else <out>/gen/<run>/hidden; REBUILD_HIDDEN_DIR overrides):
+Writes, in the folder <out>/gen/<run>/hidden:
 candidates.parquet (the pool, bands and 2015 dollars), hidden_2015.parquet (the rebuilt returns in 2015 dollars, with
 their group, weight, the rules that chose them and the donor's record id), hidden_<year>.parquet (the rows in the
 generated file's schema, target-year dollars), and the check tables (check_*.csv).
@@ -565,33 +565,9 @@ def match_counts(frame, grp, n_ret, book):
 
 # ---- the candidates ----------------------------------------------------------------------------------------------
 def folder():
-    f = os.environ.get('REBUILD_HIDDEN_DIR') or S.get('folder') or f'{common.GEN}/hidden'
+    f = f'{common.GEN}/hidden'
     os.makedirs(f, exist_ok=True)
     return f
-
-
-def offset_factors(models):
-    """Each model's consistency-rule factors as the run's own generation last used them (<gen>/consistency.csv, the
-    last run's 'factor used'); none (1) if the file is missing."""
-    path = f'{common.GEN}/consistency.csv'
-    out = {m['run']: {} for m in models}
-    if not os.path.exists(path):
-        common.say(f'no {path}: candidates drawn with no offset factors')
-        return out
-    c = pd.read_csv(path)
-    c = c[c['run'] == c['run'].max()]
-    for m in models:
-        r = c[c['model'] == m['seed']]
-        out[m['run']] = dict(zip(r['holding'], r['factor used'].astype(float)))
-    return out
-
-
-def store_picks(s, k):
-    """Each candidate's stored dollar picks (as generate.store_picks), on a stream of their own (4343)."""
-    seed = int(common.SETTINGS['dollars']['seed'])
-    cols = {f'u_{v}': np.random.default_rng([seed, 4343, k, i]).random(len(s), dtype=np.float32)
-            for i, v in enumerate(D.ORDER) if f'{v}_band' in s}
-    return pd.concat([s, pd.DataFrame(cols, index=s.index)], axis=1)
 
 
 def draw_candidates(models, factors):
@@ -608,7 +584,7 @@ def draw_candidates(models, factors):
         part['stratifier'] = 'label'
         part['model'] = mod['seed']
         part['record_id'] = k * G.ID_BLOCK + np.arange(len(part))
-        parts.append(store_picks(part, k))
+        parts.append(G.store_picks(part, k, stream=4343))   # the candidates' picks: a stream of their own
         common.say(f"{mod['run']}: {len(part):,} candidates")
     return pd.concat(parts, ignore_index=True)
 
@@ -695,7 +671,10 @@ def build():
     out = folder()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     models = G.load_models(device)
-    factors = offset_factors(models)
+    import top_billionaires as TB
+    by_seed, note = TB.offset_factors(models)
+    common.say(note)
+    factors = {m['run']: by_seed[m['seed']] for m in models}
     agg, ordinary = read_raw()
     common.say('translation check against build_table.puf_rows:\n' + check_translation(ordinary).to_string(index=False))
     n_ret, means, nets = raw_targets(agg)
@@ -1081,7 +1060,7 @@ def item_mix(h15, out):
 def rebuild_hidden_returns(g19=None, year=Y, path=None, details=False):
     """The rebuilt aggregate records as rows to append to the generated file (see the top). g19: the generated file
     as tilt.main has it after dollars.draw_dollars (target-year dollars, importance weights in column weight). Reads
-    hidden_<year>.parquet from the folder (top_hidden.folder; built by `python top_hidden.py build`, which needs the
+    hidden_<year>.parquet from the folder (folder(); built by `python top_hidden.py build`, which needs the
     trained networks and is best run on a GPU node); builds it first if it is not there.
     Returns a frame with exactly g19's columns plus synthetic_top (1), in target-year dollars, its weight in g19's
     units: each rebuilt return's 2015 population weight times g19's total filer weight over the 2015 PUF's retained

@@ -868,13 +868,14 @@ def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     return part, check, counts
 
 
-def store_picks(s, k):
+def store_picks(s, k, stream=4242):
     """The stored picks (see the top): for each record and each amount with a band column, one uniform number in
-    [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the model's position k and the variable's
-    position in dollars.ORDER, so the same in every offset run."""
+    [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the stream (4242 for the stack, 4343 for
+    Part A's candidates, top_hidden.py), the model's position k and the variable's position in dollars.ORDER, so the
+    same in every offset run."""
     import dollars as D
     seed = int(common.SETTINGS['dollars']['seed'])
-    cols = {f'u_{v}': np.random.default_rng([seed, 4242, k, i]).random(len(s), dtype=np.float32)
+    cols = {f'u_{v}': np.random.default_rng([seed, stream, k, i]).random(len(s), dtype=np.float32)
             for i, v in enumerate(D.ORDER) if f'{v}_band' in s}
     return pd.concat([s, pd.DataFrame(cols, index=s.index)], axis=1)
 
