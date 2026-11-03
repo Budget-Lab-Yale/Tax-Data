@@ -128,10 +128,7 @@ def run_batch(frame, year, folder, tag, wage_increment=0.0, law_sections=()):
     frame.to_parquet(src, index=False)
     env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
     env.update(PYTHONPATH=f'{path}/src', PYTHONUNBUFFERED='1')
-    if S.get('device', 'cpu') == 'cpu':
-        env['JAX_PLATFORMS'] = 'cpu'
-    else:
-        env['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+    env['JAX_PLATFORMS'] = 'cpu'   # the calculator runs on the CPU, as the whole tilt does
     cmd = [S['python'], '-m', 'taxmodel.run.batch', '--records', src, '--year', str(law_year(year)), '--out', dst,
            '--seed', str(S['draw_seed']), '--commit', S['commit'], '--wage-increment', str(float(wage_increment))]
     if S.get('law_alternative'):
