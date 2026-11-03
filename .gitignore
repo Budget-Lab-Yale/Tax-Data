@@ -37,3 +37,4 @@ research/**/*.docx
 
 # Local copy of shared input data (SOI tables from our IRS-Ind fork); large, rebuildable from that repo
 inputs/
+__pycache__/
