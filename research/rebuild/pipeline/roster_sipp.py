@@ -360,15 +360,7 @@ def read_roster(year):
     r['pension'] = P.other.to_numpy()
     gi0 = r.wage + r.selfemp + r.interest + r.uc + r.pension
     ssb = r.ssb.to_numpy()
-    combined = np.maximum(gi0 + 0.5 * ssb, 0)
-    t1 = np.where(marst == 1, 32000, 25000); t2 = np.where(marst == 1, 44000, 34000)
-    taxable = np.zeros(len(r))
-    mid = (combined > t1) & (combined <= t2)
-    taxable[mid] = np.minimum(0.5 * ssb, 0.5 * (combined - t1))[mid]
-    tier1 = np.minimum(0.5 * ssb, 0.5 * (t2 - t1))
-    hi = combined > t2
-    taxable[hi] = np.minimum(0.85 * ssb, 0.85 * (combined - t2) + tier1)[hi]
-    r['gi'] = gi0 + np.maximum(taxable, 0)
+    r['gi'] = gi0 + T.taxable_social_security(gi0, ssb, marst == 1)
     r['support'] = -1
     r['gi_obs'] = True
     for c in T.ASSUMED_FLAGS:
@@ -474,8 +466,7 @@ def build(year):
     persons, units = T.build_units(r, year, reassign_pass=REASSIGN)
     target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
     mu = units[~units.dep_return].reset_index(drop=True)
-    chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, dep_rule='primary',
-                                     salt=int(S['mfs_salt']))
+    chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, salt=int(S['mfs_salt']))
     common.say(f'SIPP {year}: SOI Table 1.6 separate returns {target / 1e6:.3f} m; {len(chosen)} couples split '
                f'({share:.4f} of joint couples by weight)')
     units['mfs_split'] = units.uid.isin(chosen)

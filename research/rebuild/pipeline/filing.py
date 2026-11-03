@@ -47,7 +47,7 @@ Outputs, under the run's data folder (common.DATA) / settings cps.step1_dir ("fi
                 eligible, or a refundable child credit), the income items, eitc_eligible, year;
                 persons_<year>.parquet, one row per person, with return_uid and p_own_return (a dependent's own
                 return: 1 files, 0 not, -1 no such return)
-  checks/       per year (target_list.py and errors.py read <year>_nonfilers_vs_targets.csv, settings tilt.nonfiler_targets_dir):
+  checks/       per year (target_list.py and errors.py read <year>_nonfilers_vs_targets.csv):
                 fit (each target and the miss), shifts (the 11 settings and the median used for z), feasibility,
                 groups_vs_targets, nonfilers_vs_targets, persons_once, people_by_age, filers_nonfilers (against SOI;
                 the PUF in 2015), pub5785_wages, pub5785_required, nonfilers_by_wages, required_by_income,
@@ -141,7 +141,7 @@ def build_units(year):
     """Step 1 of the stage: the CPS's units by the shared rules, group quarters left out."""
     if CPS['cbo_variant'] not in ('cbo', 'strict'):
         raise ValueError(CPS['cbo_variant'])
-    persons, units = T.build(year, reassign_pass=CPS['cbo_variant'] == 'cbo', keep_gq=False)
+    persons, units = T.build(year, reassign_pass=CPS['cbo_variant'] == 'cbo')
     T.save_cps(persons, units, UNITS, tag(year))
 
 
@@ -314,7 +314,7 @@ def calibrate(year):
     M['has_kid_target_age'] = has_kid
     # ---- married filing separately ---------------------------------------------------------------------------
     mfs_target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
-    chosen, share, R = T.mfs_split(M, P, None, mfs_target, dep_rule='primary', salt=S['mfs_salt'], chance=p_cal)
+    chosen, share, R = T.mfs_split(M, P, None, mfs_target, salt=S['mfs_salt'], chance=p_cal)
     say(f'MFS: SOI Table 1.6 {mfs_target / 1e6:.3f} m separate returns; {len(chosen)} sample couples '
         f'({share:.4f} of joint couples by weight x chance); expected separate returns '
         f'{(R.weight * R.p_file).sum() / 1e6:.3f} m')
@@ -326,7 +326,6 @@ def calibrate(year):
     for c in ['spouse_pn', 'spouse_age']:
         R[c] = -1
     R['spouse_sex'] = 0
-    R['n_dep_ctc'] = R.n24
     R['puf_child_away'] = 0
     R['has_kid_target_age'] = cu.has_kid_target_age.reindex(R.couple_uid).to_numpy()
     R['reason'] = cu.reason.reindex(R.couple_uid).to_numpy()

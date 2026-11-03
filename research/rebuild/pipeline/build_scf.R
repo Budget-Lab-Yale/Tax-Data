@@ -358,24 +358,6 @@ for (wave in settings$paths$raw$scf_waves) {
   # rental income by X5714's shares; Social Security by person, as elective deferrals below
   p$rental_income = p$rental_hh * p$sh_earn
   p$gross_ss = case_when(p$peu_dollars == 'all' ~ p$r_ss + p$s_ss, p$peu_dollars == 'r' ~ p$r_ss, TRUE ~ p$s_ss)
-  # check: the prototype's rule for a split PEU (components.py: the unit's share of X5714, else of liquid accounts,
-  # interest, dividends, pensions, else a half) gives sh_earn where X5714 is nonzero, and where it is not, count the
-  # households with rental income whose prototype share would differ (the half fallback)
-  spl = p$peu_dollars != 'all'
-  csh = rep(0.5, nrow(p)); done = rep(FALSE, nrow(p))
-  for (v in c('rent_royalty_estate', 'value.cash', 'txbl_int', 'dividends', 'retirement_gross')) {
-    tot = ave(p[[v]], p$hh, FUN = sum)
-    use = spl & !done & tot != 0
-    csh[use] = p[[v]][use] / tot[use]
-    done = done | use
-  }
-  gap_x = if (any(spl & p$X5714 != 0)) max(abs(csh - p$sh_earn)[spl & p$X5714 != 0]) else 0
-  off = spl & abs(csh - p$sh_earn) > 1e-9 & p$rental_hh != 0
-  cat(sprintf(paste0('wave %d: rental shares in split PEUs: largest gap from X5714\'s own share where X5714 is nonzero %.2e; ',
-                     'units with rental income where the prototype would use a half instead: %d rows, %.3f m units, ',
-                     '$%.3f billion moved between the two\n'), wave, gap_x, sum(off), sum(p$weight[off]) / 1e6,
-              sum((p$weight * abs(csh - p$sh_earn) * abs(p$rental_hh))[off]) / 2 / 1e9))
-  stopifnot(gap_x < 1e-9)
   # elective deferrals, the unit's head's (elective1) and spouse's (elective2; 0 without a spouse): on a joint unit
   # holding the whole PEU, each person's own by who heads it; on any other unit holding the whole PEU, both people's
   # to the head (a partner it claims has no slot of its own); on a split unit, that person's own. Each person's are

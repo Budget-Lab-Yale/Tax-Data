@@ -40,12 +40,12 @@ joint filer couples, chosen in the order of a draw keyed by unit id, become two 
 separate returns equals SOI's (Table 1.6), as nonfiler_pool/07_mfs_split.R does with weights. The SCF instead splits
 the couples that say they file separately (roster_scf.py).
 
-Variants: reassign=True is CBO's default ("cbo"); reassign=False applies the first pass only ("strict rules").
+Variants: build_units(reassign_pass=True) is CBO's default ("cbo"); False applies the first pass only ("strict rules";
+settings cps.cbo_variant for the CPS).
 
 Inputs IPUMS lacks, and what roster_cps.py uses instead (listed in full in the 2023 reproduction report):
   - PRNLFSCH (in school, asked of people not in the labor force): SCHLCOLL 1-4 (enrolled in high school or college)
-    and LABFORCE 1 (not in the labor force), setting student_rule ('nilf_enrolled', the default; 'enrolled' and
-    'fulltime' drop the labor-force condition). Measured on March 2024: 95% of PRNLFSCH = 1 match. PYRSN (reason for
+    and LABFORCE 1 (not in the labor force). Measured on March 2024: 95% of PRNLFSCH = 1 match. PYRSN (reason for
     not working the rest of the year = school): not in the extract, dropped.
   - VET_TYP1 (veterans' disability compensation): not in the extract; dropped from the disability-income test.
   - PERRP's "with relatives" split for unmarried partners, housemates, roomers and other nonrelatives: a person has
@@ -58,12 +58,10 @@ Inputs IPUMS lacks, and what roster_cps.py uses instead (listed in full in the 2
   - Pointers: IPUMS's MOMLOC/POPLOC agree with Census's PEPAR1/PEPAR2 as sets for 98% of people in 2024.
 Ages are as the ASEC reports them (at the March interview), as in CBO's code.
 
-Usage (through Slurm): python tax_units.py <tax_year> [--strict] [--drop-gq] [--out DIR]   (the CPS)
-Writes persons_<year>_<variant>.parquet (one row per person: unit, role, dependent type),
-units_<year>_<variant>.parquet (one row per unit, dependents' own returns flagged and linked) and
-roster_<year>_<variant>.csv.gz (save_cps; the pipeline's filing stage writes the same files through filing.py).
+The CPS's units are built by the pipeline's filing stage (filing.py units: build, then save_cps), which writes
+persons_<tag>.parquet (one row per person: unit, role, dependent type), units_<tag>.parquet (one row per unit,
+dependents' own returns flagged and linked) and roster_<tag>.csv.gz (the roster the R steps read).
 """
-import argparse
 import os
 
 import numpy as np
@@ -440,6 +438,10 @@ def dependent_types(r):
     return np.where(~dep, '', np.where(is_par, 'parent', np.where(r.tu_rel.to_numpy() == 3, 'child_home', 'other')))
 
 
+INCOME_ITEMS = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'interest', 'dividends', 'rents', 'est_trust', 'pension',
+                'uc', 'ssb', 'rr_pension', 'ssi', 'va_benefits', 'wc', 'other_income']   # a unit's income items
+
+
 def collapse_units(r, away=None):
     """One row per unit (head and spouse incomes summed, as 4e does), plus dependents' own returns.
     away: optional children living elsewhere whom a unit claims (columns uid, age): dependents of type child_away,
@@ -455,9 +457,7 @@ def collapse_units(r, away=None):
     head = r[r.tu_rel == 1].set_index('uid')
     assert head.index.is_unique, 'two heads in one unit'
     assert set(r.uid) == set(head.index), 'a unit without a head'
-    inc_cols = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'interest', 'dividends', 'rents', 'est_trust', 'pension',
-                'uc', 'ssb', 'rr_pension', 'ssi', 'va_benefits', 'wc', 'other_income']
-    u = hs.groupby('uid')[inc_cols].sum()
+    u = hs.groupby('uid')[INCOME_ITEMS].sum()
     sp = r[r.tu_rel == 2].groupby('uid')
     assert sp.size().max() <= 1 if len(sp) else True
     u['has_spouse'] = u.index.isin(sp.size().index)
@@ -513,18 +513,18 @@ def collapse_units(r, away=None):
     u = u.reset_index()
     # dependents' own returns: every dependent with gross income, wages or self-employment income (4e)
     dr = deps_own[(deps_own.gi != 0) | (deps_own.wage != 0) | (deps_own.selfemp != 0)].copy()
-    dr_u = pd.DataFrame({'uid': dr.hh * 100 + dr.pn + 10 ** 9 * 0, 'hh': dr.hh, 'head_pn': dr.pn,
+    # their ids in a block of their own, disjoint from the units'
+    dr_u = pd.DataFrame({'uid': dr.hh * 100 + dr.pn + 10 ** 12, 'hh': dr.hh, 'head_pn': dr.pn,
                          'head_age': dr.age, 'head_sex': dr.sex, 'weight': dr.weight, 'fam_weight': dr.fam_weight,
                          'gq': dr.gq, 'spouse_pn': -1, 'spouse_age': -1, 'spouse_sex': 0,
                          'filing_status': np.where(dr.age < 14, 'dependent_under14', 'single'),
                          'dep_return': True, 'claimant_uid': dr.uid})
-    for c in inc_cols:
+    for c in INCOME_ITEMS:
         dr_u[c] = dr[c].to_numpy()
     dr_u['wage_hd'] = dr.wage.to_numpy(); dr_u['selfemp_hd'] = dr.selfemp.to_numpy()
-    dr_u['uid'] = dr.hh.to_numpy() * 100 + dr.pn.to_numpy() + 10 ** 12     # own id block, disjoint from units
     u = pd.concat([u, dr_u], ignore_index=True)
     fill0 = [c for c in u.columns if c.startswith(('n_', 'puf_', 'n24', 'eic', 'wage_sp', 'selfemp_sp'))]
-    u[fill0] = u[fill0].fillna(0).astype(int if True else float)
+    u[fill0] = u[fill0].fillna(0).astype(int)
     for c in ['cbo_age_1', 'cbo_age_2', 'cbo_age_3', 'dep_age1', 'dep_age2', 'dep_age3']:
         u[c] = u[c].fillna(-1).astype(int)
     u['has_spouse'] = u.has_spouse.fillna(False).astype(bool)
@@ -535,8 +535,21 @@ def collapse_units(r, away=None):
 # ---------------------------------------------------------------------------------------------------------------
 # Married filing separately: a post-filing step (filing.py calls it)
 # ---------------------------------------------------------------------------------------------------------------
-INCOME_ITEMS = ['gi', 'wage', 'selfemp', 'farm_selfemp', 'interest', 'dividends', 'rents', 'est_trust', 'pension',
-                'uc', 'ssb', 'rr_pension', 'ssi', 'va_benefits', 'wc', 'other_income']
+def taxable_social_security(other_income, benefits, married):
+    """The taxable part of Social Security benefits by the Form 1040 worksheet, as CBO's 3a computes it (every
+    survey reader's gross income uses it). Combined income is the other income plus half the benefits, at least zero.
+    Above $25,000 ($32,000 married) half of the combined income over that line is taxable, at most half the benefits;
+    above $34,000 ($44,000 married), 85% of the combined income over the second line plus the first tier, at most 85%
+    of the benefits. married: an array of True or False."""
+    combined = np.maximum(other_income + 0.5 * benefits, 0)
+    t1 = np.where(married, 32000, 25000); t2 = np.where(married, 44000, 34000)
+    taxable = np.zeros(len(combined))
+    mid = (combined > t1) & (combined <= t2)
+    taxable[mid] = np.minimum(0.5 * benefits, 0.5 * (combined - t1))[mid]
+    tier1 = np.minimum(0.5 * benefits, 0.5 * (t2 - t1))
+    hi = combined > t2
+    taxable[hi] = np.minimum(0.85 * benefits, 0.85 * (combined - t2) + tier1)[hi]
+    return np.maximum(taxable, 0)
 
 
 def keyed_uniform(ids, salt):
@@ -562,7 +575,7 @@ def primary_and_spouse(persons, uids):
     return hs[hs.pos == 1].set_index('uid'), hs[hs.pos == 2].set_index('uid')
 
 
-def mfs_split(units, persons, filer, target_returns, dep_rule='primary', salt=20261023, chance=None):
+def mfs_split(units, persons, filer, target_returns, salt=20261023, chance=None):
     """Split joint filer couples into two married-filing-separately returns each.
 
     The couples are chosen by a uniform draw keyed by the unit id: couples are taken in order of their draw until
@@ -571,10 +584,9 @@ def mfs_split(units, persons, filer, target_returns, dep_rule='primary', salt=20
     With chance (an array of filing chances aligned with units; step 1, 23 October evening), every joint couple is
     a candidate, filer is ignored, and couples are taken until weight x filing chance reaches target_returns / 2;
     each separate return then carries the couple's chance (column p_file). Each couple becomes a
-    return for person 1 and one for person 2, each with that person's own income items. Dependents:
-      dep_rule 'primary': all on person 1's return;
-      dep_rule 'even':    divided as evenly as possible, youngest first, alternating person 1, person 2, ...
-    The PUF's cap for separate returns (1 dependent shown, type order, then youngest) is applied to each return.
+    return for person 1 and one for person 2, each with that person's own income items. Every dependent goes on
+    person 1's return. The PUF's cap for separate returns (1 dependent shown, type order, then youngest) is applied
+    to each return.
     Non-filers are untouched: a non-filing couple has no filing status.
     units: main units (one row per uid, filing_status, weight); filer: boolean array aligned with units.
     Returns (chosen uids, the share of joint filer couples chosen, the new returns)."""
@@ -594,10 +606,7 @@ def mfs_split(units, persons, filer, target_returns, dep_rule='primary', salt=20
     share = cw[n - 1] / mass.sum()
     p1, p2 = primary_and_spouse(persons, chosen)
     deps = persons[persons.uid.isin(chosen) & persons.tu_rel.isin([3, 4])].sort_values(['uid', 'age', 'pn']).copy()
-    deps['k'] = deps.groupby('uid').cumcount()
-    deps['to'] = 1 if dep_rule == 'primary' else np.where(deps.k % 2 == 0, 1, 2)
-    if dep_rule not in ('primary', 'even'):
-        raise ValueError(dep_rule)
+    deps['to'] = 1                           # every dependent on person 1's return
     rows = []
     for who, pp in [(1, p1), (2, p2)]:
         r = pd.DataFrame({'uid': chosen * 10 + who, 'couple_uid': chosen, 'person': who, 'hh': pp.hh.reindex(chosen).to_numpy(),
@@ -679,18 +688,17 @@ def build_units(r, tax_year, reassign_pass=True, away=None):
     return persons, units
 
 
-def build(tax_year, reassign_pass=True, student_rule='nilf_enrolled', keep_gq=True, cache_dir=None):
-    """The CPS: the member list from roster_cps.py, then the rules."""
+def build(tax_year, reassign_pass=True):
+    """The CPS: the member list from roster_cps.py, group quarters left out, then the rules."""
     import roster_cps
-    r = roster_cps.read_roster(tax_year, student_rule=student_rule, cache_dir=cache_dir)
-    if not keep_gq:
-        r = r[~r.gq].reset_index(drop=True)
+    r = roster_cps.read_roster(tax_year)
+    r = r[~r.gq].reset_index(drop=True)
     return build_units(r, tax_year, reassign_pass=reassign_pass)
 
 
 def save_cps(persons, units, out, tag):
-    """Write one CPS year's units (tax_units.py as a script, and filing.py's units step): the persons and units
-    tables, and the roster the R steps read (one row per person; tax_units_cbo.R)."""
+    """Write one CPS year's units (filing.py's units step): the persons and units tables, and the roster the R steps
+    read (one row per person; tax_units_cbo.R)."""
     os.makedirs(out, exist_ok=True)
     keep = ['year', 'hh', 'pn', 'hseq', 'lineno', 'age', 'sex', 'weight', 'gq', 'relate', 'perrp', 'hhdfmx', 'ftype',
             'famrel', 'fheadidx', 'QC', 'QR', 'is_disabled', 'tu_id', 'tu_rel', 'uid', 'dep_type', 'assignments',
@@ -709,22 +717,3 @@ def save_cps(persons, units, out, tag):
     print(f'dependents {(w * m.n_dep).sum():.2f} m; under the PUF caps {(w * m.puf_n_dep).sum():.2f} m; '
           f'child credit children {(w * m.n24).sum():.2f} m; reassignment codes '
           f'{persons.assignments.value_counts().to_dict()}')
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('tax_year', type=int)
-    ap.add_argument('--strict', action='store_true', help='no reassignment pass')
-    ap.add_argument('--drop-gq', action='store_true', help='leave out group quarters (the filing step does)')
-    ap.add_argument('--student-rule', default='nilf_enrolled')
-    ap.add_argument('--out', required=True)
-    ap.add_argument('--cache', default=None)
-    a = ap.parse_args()
-    variant = 'strict' if a.strict else 'cbo'
-    persons, units = build(a.tax_year, reassign_pass=not a.strict, student_rule=a.student_rule,
-                           keep_gq=not a.drop_gq, cache_dir=a.cache)
-    save_cps(persons, units, a.out, f'{a.tax_year}_{variant}' + ('_nogq' if a.drop_gq else ''))
-
-
-if __name__ == '__main__':
-    main()

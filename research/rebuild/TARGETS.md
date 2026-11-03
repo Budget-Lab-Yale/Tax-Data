@@ -612,7 +612,8 @@ with every range at 1. The pipeline's own test (the latest run, other trained mo
 target met, 98.0% kept, $10.15 trillion at p99.9+ of income, 3.5% of the top 0.1% by wealth with income below p90
 (pooled SCF: 2.8%).
 
-**Settings:** `tilt.scf_target_waves` "prior" (the year's mix; "target year" gives the single-wave targets of
+**Settings** (as of 26 October; none of the three is left: the ranges went with the one-cost solve of 1 November,
+and `tilt.scf_target_waves` on 3 November, leaving the year's mix as the only rule): `tilt.scf_target_waves` "prior" (the year's mix; "target year" gives the single-wave targets of
 before, for checks), `tilt.range_in_se_by_kind` {wealth: 0.5, wealth grid: 0.5}, `tilt.range_in_se` 1. The
 replicate weights of every wave in the mix sit in `<out>/data/scf_rw/<wave>/` (errors.py says how to fetch them).
 

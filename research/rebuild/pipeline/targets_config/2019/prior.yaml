@@ -5,8 +5,7 @@
 # The prior the generated file is drawn under (TARGETS.md section 7). Generation reads the "balance sheet" entry
 # (generate.py, scf_waves): each record is given one SCF wave at random with these shares, its balance sheet drawn
 # under the SCF label at that wave's income year, its dollars from that wave's own records grown per tax unit to the
-# 2019 wave. The SCF targets are computed on the same waves with the same shares (scf_targets.py, settings
-# tilt.scf_target_waves). Since 28 October the "consumption", "cps items" and "sipp tips" entries are read the same
+# 2019 wave. The SCF targets are computed on the same waves with the same shares (scf_targets.py). Since 28 October the "consumption", "cps items" and "sipp tips" entries are read the same
 # way (generate.py, survey_mix.py): each record is given one CEX year, one CPS year and one SIPP year, each at random
 # with these shares and by a generator of its own, and its CEX, CPS and SIPP phases run under that survey's label at
 # that year, its dollars from that year's own records grown to 2019 (build_table.build_maps). The CEX consumption

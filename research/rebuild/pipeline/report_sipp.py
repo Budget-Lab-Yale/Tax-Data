@@ -15,6 +15,7 @@ import pandas as pd
 
 import common
 import survey_mix
+from report_cps import side_by_side
 
 Y = common.TARGET_YEAR
 WAGES = common.WAGE_GROUPS
@@ -33,14 +34,7 @@ def stat(m):
 
 
 def table(src, rows):
-    out = []
-    for lab, sel in rows:
-        r = {'group': lab}
-        for name, d in src.items():
-            for k, v in stat(d[sel(d)]).items():
-                r[f'{name}: {k}'] = v
-        out.append(r)
-    return pd.DataFrame(out).set_index('group').to_markdown(floatfmt=',.2f')
+    return side_by_side(src, rows, stat, ',.2f')
 
 
 def main():

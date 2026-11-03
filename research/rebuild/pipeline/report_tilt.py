@@ -5,7 +5,7 @@ Reads, in the tilt run's folder (common.TILT, or --run):
                        prior pools several trained models, model (the training seed of the network that drew it)
   fit.csv              one row per target, keyed by (kind, group, target): value, before, after, and from the
                        solver se, miss_in_se, over_1_se, effective_records, largest_weight_factor and flag
-  targets.csv          the year's expanded target list (statistic, se, error_kind, source, ...), when it exists
+  targets.csv          the year's expanded target list (statistic, variable, error_kind, source, ...)
 Writes, in the same folder or --out (REBUILD_REPORT_OUT):
   report.md                  the summary page
   report_targets.csv         1. every target: value, error, where the file lands, the miss in standard errors
@@ -16,14 +16,13 @@ Writes, in the same folder or --out (REBUILD_REPORT_OUT):
   report_overall.csv         6. effective sample kept, KL move, settings, code commit, vintages
   (section 6 of report.md is tilt.py's non_micro_checks.md: the non-microdata imputations' published checks)
 
-A piece the run did not write (no standard errors, no model column, no solver metrics) is said on the page; it
-is never filled in with a made-up number. When the fit table lacks the solver's thin-cell metrics, they are
-computed here from the targets' linear conditions (target_list.conditions on targets.csv).
+A piece the run did not write (a target without a standard error, no model column) is said on the page; it is never
+filled in with a made-up number. The thin-cell measures are the solver's own (fit.csv).
 
 The standard statistics (sections 4 and 5): for every dollar item in the file, the number of units holding it
 (nonzero) and its total, over all units, filers, non-filers, seven AGI groups and the primary filer's age ranges;
-and net worth and total consumption by wage group. A statistic is listed only if at least report.min_records
-records hold the item in the cell. Moves and gaps are ranked as a share of the cell's gross (the total of the
+and net worth and total consumption by wage group. A statistic is listed only if at least MIN_RECORDS records hold
+the item in the cell. Moves and gaps are ranked as a share of the cell's gross (the total of the
 item's absolute values), so that a signed item whose total is near zero does not rank first on a small move.
 
 Run: python report_tilt.py [--run DIR] [--out DIR] [--year YEAR]   (in a Slurm job, as every stage)
@@ -42,17 +41,15 @@ import dollars as D
 import solver as SV
 import targets as TG
 
-R = common.SETTINGS.get('report', {})
-TOP = R.get('rows_on_page', 8)                            # rows of each table shown on the summary page
-MIN_RECORDS = R.get('min_records', 200)                   # records holding the item, for a statistic to be listed
-HIT = R.get('hit_tolerance', 1e-6)                        # a target missed by more than this share is counted as missed
-THIN = {'warning': (R.get('thin_warning_records', 30), R.get('thin_warning_factor', 10)),
-        'stop': (R.get('thin_stop_records', 10), R.get('thin_stop_factor', 100))}   # section 5's placeholders
-SOI_CV = R.get('soi_cv', '/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/targets/irs_data/soi_cv.csv')
-AGI_GROUPS = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in R.get(
-    'agi_groups', [[None, 1, 'AGI below $1'], [1, 25e3, 'AGI $1-25k'], [25e3, 50e3, 'AGI $25k-50k'],
-                   [50e3, 100e3, 'AGI $50k-100k'], [100e3, 200e3, 'AGI $100k-200k'], [200e3, 1e6, 'AGI $200k-1m'],
-                   [1e6, None, 'AGI $1m and over']])]
+TOP = 8                 # rows of each table shown on the summary page
+MIN_RECORDS = 200       # records holding the item, for a statistic to be listed
+# the solver's thin-cell thresholds (solver.THIN_WARNING, THIN_STOP: effective records, weight factor), as the page
+# states them
+THIN = {'warning': SV.THIN_WARNING, 'stop': SV.THIN_STOP}
+SOI_CV = '/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/targets/irs_data/soi_cv.csv'
+AGI_GROUPS = [(-np.inf, 1, 'AGI below $1'), (1, 25e3, 'AGI $1-25k'), (25e3, 50e3, 'AGI $25k-50k'),
+              (50e3, 100e3, 'AGI $50k-100k'), (100e3, 200e3, 'AGI $100k-200k'), (200e3, 1e6, 'AGI $200k-1m'),
+              (1e6, np.inf, 'AGI $1m and over')]
 
 # ---- plain names -------------------------------------------------------------------------------------------
 LABELS = {
@@ -146,17 +143,6 @@ def describe(kind, group, target):
     return what, cell
 
 
-def statistic_of(kind, target):
-    """The statistic a target fixes, when the target list does not say."""
-    if 'average' in target:
-        return 'average'
-    if 'share' in target:
-        return 'share'
-    if target.endswith('amount') or target == 'net worth':
-        return 'amount'
-    return 'count'
-
-
 def show(v, stat):
     """A number as the page prints it."""
     if v is None or not np.isfinite(v):
@@ -177,7 +163,7 @@ def table(df, floatfmt=',.2f'):
 def read_run(run, year):
     df = pd.read_parquet(f'{run}/file_{year}.parquet')
     fit = pd.read_csv(f'{run}/fit.csv')
-    tl = pd.read_csv(f'{run}/targets.csv') if os.path.exists(f'{run}/targets.csv') else None
+    tl = pd.read_csv(f'{run}/targets.csv')
     for c in ('weight_start', 'weight'):
         assert c in df, f'file_{year}.parquet has no {c} column'
         w = df[c].to_numpy(float)
@@ -199,36 +185,20 @@ def as_bool(s):
 
 # ---- 1. every target -----------------------------------------------------------------------------------------
 def target_table(fit, tl, notes):
+    """Every target: the solver's fit table (its se, miss_in_se, over_1_se and thin-cell columns) joined to the
+    expanded target list's other columns (statistic, variable, source and the rest); the solver's columns win."""
     t = fit.copy()
     key = ['kind', 'group', 'target']
-    if tl is not None:   # the solver's own columns (its se among them) win over the list's
-        extra = [c for c in tl.columns if c not in key and c not in t.columns]
-        t = t.merge(tl[key + extra], on=key, how='left', validate='one_to_one', indicator=True)
-        missing = int((t.pop('_merge') == 'left_only').sum())
-        if missing:
-            notes.append(f'{missing} targets in fit.csv are not in targets.csv.')
-    else:
-        notes.append('The run has no targets.csv (the expanded target list): statistics are inferred from the '
-                     'target names, and no source or vintage is shown.')
-    if 'statistic' not in t:
-        t['statistic'] = [statistic_of(k, g) for k, g in zip(t['kind'], t['target'])]
-    if 'se' not in t:
-        t['se'] = np.nan
-        notes.append('No standard errors in the fit table or the target list: the miss in standard errors is not '
-                     'available (shown blank).')
-    elif t['se'].isna().any():
+    extra = [c for c in tl.columns if c not in key and c not in t.columns]
+    t = t.merge(tl[key + extra], on=key, how='left', validate='one_to_one', indicator=True)
+    missing = int((t.pop('_merge') == 'left_only').sum())
+    if missing:
+        notes.append(f'{missing} targets in fit.csv are not in targets.csv.')
+    if t['se'].isna().any():
         notes.append(f"{t['se'].isna().sum()} targets have no standard error (shown blank).")
     t['miss'] = t['after'] - t['value']
     t['miss (%)'] = 100 * (t['after'] / t['value'] - 1)
-    if 'miss_in_se' not in t:
-        with np.errstate(divide='ignore', invalid='ignore'):
-            t['miss_in_se'] = np.where(t['se'] > 0, t['miss'] / t['se'], np.nan)
-    if 'over_1_se' in t:
-        t['over_1_se'] = as_bool(t['over_1_se'])
-    else:
-        t['over_1_se'] = (t['miss (%)'].abs() > 100 * HIT).to_numpy()
-        notes.append(f'The fit table has no over_1_se column: a target is counted as missed when the file '
-                     f'misses it by more than {HIT:g} of its value.')
+    t['over_1_se'] = as_bool(t['over_1_se'])
     plain = [describe(k, g, x) for k, g, x in zip(t['kind'], t['group'], t['target'])]
     t['what'], t['cell'] = [p[0] for p in plain], [p[1] for p in plain]
     t['fit_row'] = np.arange(len(t))   # the row's place in fit.csv, the order the conditions come in
@@ -259,79 +229,13 @@ def target_page(t, notes):
 
 
 # ---- 2. thin cells -------------------------------------------------------------------------------------------
-def list_conditions(df, tl, w0):
-    """Per target, its key (kind, group, target) and each record's contribution (records x targets), from the expanded
-    target list (target_list.conditions). For an average or a share the contribution is the group's records times the
-    averaged variable, the total its average rests on."""
-    import target_list
-    F, T, averages = target_list.conditions(df, tl, w0)
-    F = np.asarray(F.todense() if hasattr(F, 'todense') else F)
-    a = np.column_stack([np.abs(F[:, j]) if m is None else m[0] * np.abs(m[1]) for j, m in enumerate(averages)])
-    return tl[['kind', 'group', 'target']], a
-
-
-def cell_metrics(a, w0, w1):
-    """Per target: the records in its cell, the effective number of records its total rests on after the tilt
-    ((sum of w a)^2 / sum of (w a)^2, a the record's contribution), and the largest weight factor in the cell."""
-    f = w1 / w0
-    out = []
-    for j0 in range(0, a.shape[1], 50):
-        b = a[:, j0:j0 + 50]
-        wa = b * w1[:, None]
-        with np.errstate(invalid='ignore', divide='ignore'):
-            eff = wa.sum(0) ** 2 / (wa ** 2).sum(0)
-        out.append(np.column_stack([(b > 0).sum(0), eff, np.where(b > 0, f[:, None], 0).max(0)]))
-    return np.vstack(out)
-
-
-def flag_of(eff, factor):
-    """Section 5's flag and what tripped it."""
-    for flag in ('stop', 'warning'):
-        n, f = THIN[flag]
-        why = ([f'fewer than {n} effective records'] if eff < n else []) + \
-            ([f'a weight factor above {f}'] if factor > f else [])
-        if why:
-            return flag, ' and '.join(why)
-    return '', ''
-
-
-def thin_cells(t, df, tl, w0, w1, notes):
-    cols = ['effective_records', 'largest_weight_factor', 'flag']
-    if all(c in t for c in cols):
-        th = t.copy()
-        th['flag'] = th['flag'].fillna('').astype(str)
-        if 'records' not in th:
-            th['records'] = np.nan
-    else:
-        a = None
-        in_order = t.sort_values('fit_row')
-        for how, build in [('the expanded target list', lambda: list_conditions(df, tl, w0) if tl is not None else None)]:
-            try:
-                got = build()
-            except Exception as e:   # said on the page; the next way is tried
-                notes.append(f'Thin cells: could not rebuild the conditions from {how} ({type(e).__name__}: {e}).')
-                continue
-            if got is None:
-                continue
-            k, a_ = got
-            if len(k) == len(t) and (k.reset_index(drop=True).astype(str) ==
-                                     in_order[['kind', 'group', 'target']].reset_index(drop=True).astype(str)).all().all():
-                a = a_
-                notes.append(f'The fit table has no thin-cell metrics; they are computed here from {how}: effective '
-                             f'records = (sum of weight x contribution)^2 / sum of (weight x contribution)^2, after '
-                             f'the tilt; for an average or share, the contribution is the averaged variable.')
-                break
-            notes.append(f'Thin cells: the targets rebuilt from {how} do not match fit.csv row for row; not used.')
-        if a is None:
-            notes.append('Thin cells: no metrics in the fit table and no way to rebuild them; section left empty.')
-            return t.iloc[:0].assign(records=[], effective_records=[], largest_weight_factor=[], flag=[], why=[])
-        m = cell_metrics(a, w0, w1)
-        th = in_order.copy()
-        th['records'], th['effective_records'], th['largest_weight_factor'] = m[:, 0], m[:, 1], m[:, 2]
-        got = [flag_of(e, f) for e, f in zip(th['effective_records'], th['largest_weight_factor'])]
-        th['flag'], th['why'] = [g[0] for g in got], [g[1] for g in got]
-    if 'why' not in th:
-        th['why'] = ''
+def thin_cells(t):
+    """Section 2: the solver's thin-cell measures (fit.csv), stops first, then warnings, each thinnest first."""
+    th = t.copy()
+    th['flag'] = th['flag'].fillna('').astype(str)
+    # the solver names the test behind a flag in flag_reason; this table's own column for it, why, has stayed blank
+    # since the measures moved into the solver (left as it is: filling it would change report_thin_cells.csv)
+    th['why'] = ''
     rank = th['flag'].map({'stop': 0, 'warning': 1}).fillna(2)
     th = th.assign(_r=rank).sort_values(['_r', 'effective_records'])
     return th[['kind', 'group', 'target', 'what', 'cell', 'records', 'effective_records', 'largest_weight_factor',
@@ -782,23 +686,10 @@ def standard_stats(df, weights):
     return pd.DataFrame(rows)
 
 
-def targeted_variables(t):
-    """The file's variables some target constrains, from the target list's variable column, else from the names."""
-    if 'variable' in t and t['variable'].notna().any():
-        return set(t['variable'].dropna().astype(str))
-    out = set()
-    for kind, target in zip(t['kind'], t['target']):
-        first = target.split(' ')[0].rstrip(',')
-        if kind == 'IRS':
-            out |= {'agi'} if first in ('returns', 'joint') else {first}
-        elif kind == 'business' and first in TG.FAMILIES:
-            f = TG.FAMILIES[first]
-            out |= set(f['income']) | set(f['loss'])
-        elif kind == 'wealth':
-            out.add('net_worth')
-        elif kind == 'consumption':
-            out.add(first)
-    return out
+def targeted_variables(tl):
+    """The file's variables some target constrains: the target list's variable column (rows with none, such as counts
+    of returns, name no variable)."""
+    return set(tl['variable'].dropna().astype(str))
 
 
 def moves(st, tv):
@@ -886,10 +777,9 @@ def overall(df, t, th, w0, w1, run, tl):
     commit = git('rev-parse', 'HEAD')
     dirty = git('status', '--porcelain', '--', '.')
     vint = 'not recorded in the target list'
-    if tl is not None:
-        for c in ('vintage', 'vintages'):
-            if c in tl and tl[c].notna().any():
-                vint = '; '.join(sorted(tl[c].dropna().astype(str).unique()))
+    for c in ('vintage', 'vintages'):
+        if c in tl and tl[c].notna().any():
+            vint = '; '.join(sorted(tl[c].dropna().astype(str).unique()))
     n = th['flag'].value_counts() if len(th) else pd.Series(dtype=int)
     rows = [('records', f'{len(df):,}'),
             ('units, after the tilt (millions)', f'{w1.sum() / 1e6:,.2f}'),
@@ -902,7 +792,7 @@ def overall(df, t, th, w0, w1, run, tl):
             ('settings file', os.environ.get('REBUILD_SETTINGS', os.path.join(common.HERE, 'settings.json'))),
             ('target configuration', str(common.SETTINGS.get('targets_config', common.SETTINGS.get('tilt', {})
                                                              .get('targets_config', 'not named in the settings')))),
-            ('expanded target list', f'{run}/targets.csv' if tl is not None else 'none written by this run'),
+            ('expanded target list', f'{run}/targets.csv'),
             ('code commit', (commit or 'unknown') + (' (with uncommitted changes in the pipeline)' if dirty else '')),
             ('vintages read', vint), ('run folder', run)]
     if 'model' in df:
@@ -914,10 +804,7 @@ def overall(df, t, th, w0, w1, run, tl):
 def non_micro_page(run):
     """Section 6: the non-microdata imputations' checks, as tilt.py wrote them (non_micro_checks.md and its CSVs, on
     the weights after the tilt; non_micro_imputations.py)."""
-    path = f'{run}/non_micro_checks.md'
-    if not os.path.exists(path):
-        return ['The run wrote no non-microdata imputations (settings non_micro_imputations.run_in_tilt).']
-    lines = open(path).read().split('\n')[2:]               # the page less its title
+    lines = open(f'{run}/non_micro_checks.md').read().split('\n')[2:]   # the page less its title
     return [('#' + x) if x.startswith('## ') else x for x in lines]
 
 
@@ -932,11 +819,11 @@ def main(argv=None):
     df, fit, tl = read_run(a.run, a.year)
     w0, w1 = df['weight_start'].to_numpy(float), df['weight'].to_numpy(float)
 
-    n1, n2, n3, n5 = [], [], [], []
+    n1, n3, n5 = [], [], []
     t = target_table(fit, tl, n1)
-    th = thin_cells(t, df, tl, w0, w1, n2)
+    th = thin_cells(t)
     p = published(df, t, w0, w1, n3)
-    tv = targeted_variables(tl if tl is not None and 'variable' in tl else t)
+    tv = targeted_variables(tl)
     mv = moves(standard_stats(df, {'before': w0, 'after': w1}), tv)
     mt = model_table(df, w1, tv, n5)
     ov = overall(df, t, th, w0, w1, a.run, tl)
@@ -952,7 +839,7 @@ def main(argv=None):
     text = [f'# The {a.year} run', '', f'Written {datetime.date.today()} from {a.run}. Dollars are nominal {a.year} '
             f'dollars. Each section has a full table beside this page.', '',
             '## Overall', '', ov.to_markdown(index=False), '',
-            '## 1. Targets', ''] + target_page(t, n1) + ['', '## 2. Thin cells', ''] + thin_page(th) + notes(n2) + \
+            '## 1. Targets', ''] + target_page(t, n1) + ['', '## 2. Thin cells', ''] + thin_page(th) + \
         ['', '## 3. Published numbers not targeted', ''] + published_page(p) + notes(n3) + \
         ['', '## 4. What the tilt moved', ''] + moves_page(mv) + \
         ['', '## 5. Model disagreement', ''] + models_page(mt, n5) + \

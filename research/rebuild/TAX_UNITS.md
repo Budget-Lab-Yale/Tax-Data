@@ -211,7 +211,7 @@ the SCF.
 
 | File | What it does |
 |---|---|
-| `pipeline/tax_units.py` | the rules only: `flag_dependents`, `assign_units`, `claim_within_group` (new), `reassign`, `collapse_units`, `mfs_split`, and `build_units(member list)`; the fallback table `FALLBACKS` and the assumed-input flags `ASSUMED_FLAGS`. Run as a script it still builds the CPS. |
+| `pipeline/tax_units.py` | the rules only: `flag_dependents`, `assign_units`, `claim_within_group` (new), `reassign`, `collapse_units`, `mfs_split`, and `build_units(member list)`; the fallback table `FALLBACKS` and the assumed-input flags `ASSUMED_FLAGS`. Its script mode was taken out on 3 November; `filing.py units` builds the CPS's units with it. |
 | `pipeline/roster_cps.py` | the CPS reader, moved out of `tax_units.py` unchanged. Step 1's units for 2015-2023 come out identical, unit for unit. |
 | `pipeline/roster_scf.py` | the SCF reader and the SCF's units, with separate returns from the couple's own answer |
 | `pipeline/roster_cex.py` | the CEX reader and the CEX's units, with separate returns by step 1's draw to SOI's count |

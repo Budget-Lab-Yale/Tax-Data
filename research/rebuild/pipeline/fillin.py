@@ -19,12 +19,11 @@ from the reporting-rate formula, row by row (survey s, item v):
                            and the non-filers' share (the law of total probability),
                              A_k = (N_f A_k(filers) + N_n A_k(non-filers)) / (N_f + N_n),
                            N_f and N_n the filers and non-filers of the type in the tax data for the survey year
-                           (build_table.py, tax_data; data/tax_data_<year>.parquet). Filers: with settings
-                           training.fillin_puf_side "data", the PUF training rows' own survey-weighted shares by type
-                           (dependent filers out, a record with no age range at its step 0 chance of an adult range);
-                           the network's answer (PUF label, the PUF year, the type shown, mixed over the six adult age
-                           ranges by the network's chance of each) for a type with fewer than 30 PUF records, or with
-                           "model" everywhere. The amount compared is translate.against(row): the row's own variable,
+                           (build_table.py, tax_data; data/tax_data_<year>.parquet). Filers: the PUF training rows'
+                           own survey-weighted shares by type (dependent filers out, a record with no age range at its
+                           step 0 chance of an adult range); the network's answer (PUF label, the PUF year, the type
+                           shown, mixed over the six adult age ranges by the network's chance of each) for a type with
+                           fewer than 30 PUF records. The amount compared is translate.against(row): the row's own variable,
                            or its rank_against total (the CPS's dividends against ordinary dividends; its pensions
                            against taxable pensions plus taxable IRA distributions), each on the slot's PUF-year cut
                            points (the network's answer is the slot's own variable: an approximation, counted in the
@@ -200,8 +199,6 @@ class FillIn:
         self.reported_slot = {v: P.index(v + '_reported') for v in MAPPED}
         self.band_range = {k: torch.tensor(range_of_band(k), device=device) for k in KEYS}
         self.n_ranges = {k: len(RANGES[k]) + 2 for k in KEYS}
-        self.puf_side = common.SETTINGS['training'].get('fillin_puf_side') or 'model'
-        assert self.puf_side in ('model', 'data'), self.puf_side
         self.recs, self.weight, self.frame, self.cps_year = {}, {}, {}, {}
         self.position = torch.full((len(tr['values']),), -1, dtype=torch.long, device=device)   # row -> survey position
         for s in SURVEYS:
@@ -231,11 +228,11 @@ class FillIn:
             z = self.zero[k].nonzero().squeeze(1)
             self.zpos[k] = torch.full((len(self.recs[s]),), -1, dtype=torch.long, device=device)
             self.zpos[k][z] = torch.arange(len(z), device=device)
-        if self.puf_side == 'data':
-            self.data_a, self.data_ok = {}, {}
-            puf = train_rows[(train_rows['source'] == 'puf').to_numpy()]
-            for k in KEYS:
-                self.data_a[k], self.data_ok[k] = self.puf_data_shares(puf, k)
+        # the filers' shares from the PUF's training rows (the network's answer only for types with few PUF records)
+        self.data_a, self.data_ok = {}, {}
+        puf = train_rows[(train_rows['source'] == 'puf').to_numpy()]
+        for k in KEYS:
+            self.data_a[k], self.data_ok[k] = self.puf_data_shares(puf, k)
         self.totals_setup(train_rows)
         self.chunk = M.safe_chunk(len(M.SLOTS))   # the full width: safe for the source widths too
         self.dist, self.log, self.range_log = {}, [], []
@@ -311,7 +308,7 @@ class FillIn:
             v[ii, C + P.index(t)] = band
 
     def puf_data_shares(self, puf, key):
-        """The filers' share by band from the PUF's training rows directly (settings training.fillin_puf_side "data"):
+        """The filers' share by band from the PUF's training rows directly:
         survey weights, dependent filers out (a record with no age range counts with its step 0 chance of an adult
         range), by the row's type (as the network's PUF view reads the survey row's bands), of the row's tax-data total
         (against_bands). Per type of the row's view: the shares [types, bands], and whether the type has at least
@@ -448,14 +445,11 @@ class FillIn:
             vals = self.reported_values(reps[sl])
             cy = torch.tensor([M.YEARS.index(nearest_cps_year(int(y))) for y in view.year[sl]], device=self.device)
             nf = self.nonfiler_probs_by_band(vals, cy, view.type_vars, items)
-            need = self.puf_side == 'model' or any(not bool(self.data_ok[k][sl].all()) for k in rows)
+            need = any(not bool(self.data_ok[k][sl].all()) for k in rows)   # a type with few PUF records
             pf = self.puf_probs_by_band(vals, view.type_vars, items) if need else None
             for k in rows:
-                if self.puf_side == 'data':
-                    ok = self.data_ok[k][sl][:, None]
-                    f = self.data_a[k][sl] if pf is None else torch.where(ok, self.data_a[k][sl], pf[k[1]])
-                else:
-                    f = pf[k[1]]
+                ok = self.data_ok[k][sl][:, None]
+                f = self.data_a[k][sl] if pf is None else torch.where(ok, self.data_a[k][sl], pf[k[1]])
                 filers[k].append(f)
                 non[k].append(nf[k[1]])
         nf_, nn_ = (torch.tensor(x, dtype=torch.float64, device=self.device) for x in (view.n_filer, view.n_nonfiler))
@@ -466,8 +460,7 @@ class FillIn:
             f, n = torch.cat(filers[k]), torch.cat(non[k])
             out[k] = {'filers': f, 'nonfilers': n, 'mixed': share_f[:, None] * f + (1 - share_f[:, None]) * n,
                       'share_f': share_f, 'none_in_tax_data': none_in_tax_data,
-                      'network': (~self.data_ok[k]) if self.puf_side == 'data'
-                      else torch.ones(view.n_types, dtype=torch.bool, device=self.device)}
+                      'network': ~self.data_ok[k]}
         return out
 
     @torch.no_grad()

@@ -55,7 +55,8 @@ for one year, `seq_devel.sbatch` for all 21 in one job). The GPU is used only to
 | taxsim_file | `taxsim_file.py` | not in the default stages (29 October): the year file as Tax-Simulator's `tax_units_<year>.csv`, production's 188 columns in its order and with its conventions for missing values; where each column comes from is `TAXSIM_FILE_COLUMNS.csv` (written beside the output, copied to `research/rebuild/`) | a few minutes on a CPU node |
 
 Names: every variable that Tax-Simulator's calculator reads has the calculator's name (29-30 October); the list is
-`pipeline/tools/rename_map.csv` and `pipeline/tools/apply_rename.py` applies it to a branch made before (`FEATURES.md`).
+`pipeline/tools/rename_map.csv`, and `research/archive/rebuild_2026-10/tools/apply_rename.py` (archived 3 November)
+applies it to a branch made before (`FEATURES.md`).
 
 Shared code: `common.py` (paths, settings, the PUF year and target year,
 age ranges, wage groups), `model.py` (the network, and every call of it),

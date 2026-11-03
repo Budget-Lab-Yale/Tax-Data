@@ -156,18 +156,6 @@ def _at(s, y, name):
     return float(s.loc[y])
 
 
-def _soi_per_capita_extension(y, last):
-    """Growth of personal income per capita from SOI's last year to y: BEA's (NIPA Table 7.1 line 3) while BEA has the
-    year, then CBO's projection."""
-    bea = _csv('bea_personal_income_per_capita.csv')
-    b_last = int(bea.index.max())
-    if y <= b_last:
-        return _at(bea, y, 'BEA personal income per capita') / _at(bea, last, 'BEA personal income per capita')
-    cbo = _csv('cbo_personal_income_population.csv')   # CBO's level uses the Social Security area population: its growth only
-    return (_at(bea, b_last, 'BEA personal income per capita') / _at(bea, last, 'BEA personal income per capita')) \
-        * _at(cbo, y, 'CBO personal income per capita') / _at(cbo, b_last, 'CBO personal income per capita')
-
-
 def population(y):
     """The Social Security area population in year y (resources/growth/ss_area_population.csv: Macro-Projections, CBO's
     January 2026 demographic projections; build_projection_series.py)."""
@@ -207,7 +195,7 @@ def agi_per_return(y):
     if y <= last:
         assert y in years, f'SOI: no totals for {y}'
         return lev(y)
-    return lev(last) * _soi_per_capita_extension(y, last)
+    return lev(last) * income_per_person_growth(last, y)   # past SOI's last year
 
 
 def income_per_person_growth(a, b):

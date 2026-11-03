@@ -202,8 +202,7 @@ the same results). Three steps, every CPS year:
 Outputs in `data/filing/`: the units (`units/`), the requirement
 (`requirement/`), the returns build_cps.R reads (`returns/`), and checks
 per year (`checks/`), among them `<year>_nonfilers_vs_targets.csv`, whose
-targets the tilt reads for non-filers by age (settings
-tilt.nonfiler_targets_dir).
+targets the tilt reads for non-filers by age.
 - **Primary filer first.** Person items are the primary filer's and the
   spouse's, the primary chosen by the rule the age range uses (ages.py,
   keyed by household); the builder's person 1 is the man, so where the
@@ -672,11 +671,12 @@ Two standard functions and one table (`settings.json`, "translation";
   mixed batch (`explore/2026-10-22/perf/packing/PACKING.md`).
 - **Output layers** are computed in one batched multiplication, only the
   batch's own source's (the same answers, 10% faster a pass).
-- **Precision** (settings "training", "precision"): bfloat16 for the
+- **Precision**: bfloat16 for the
   training steps since 26 October (37% faster a pass than standard 32-bit,
   with results within the difference between two seeds;
-  `explore/2026-10-22/perf/precision/PRECISION.md`). The fill-in, the
-  held-back loss and the logs run in 32-bit.
+  `explore/2026-10-22/perf/precision/PRECISION.md`). The 32-bit options
+  were a setting until 3 November. The fill-in, the held-back loss and the
+  logs run in 32-bit.
 - **What it learns.** It is trained to fill in any hidden subset of a
   record's variables from the rest. So one network answers every question
   of the form "this variable, given those".
@@ -705,11 +705,11 @@ Two standard functions and one table (`settings.json`, "translation";
   - Averages meant to describe the population use the survey weights
     without q: the fill-in's averages over a type and the per-variable log.
     The fill-in's PUF side (the filers' share by type) is read from the PUF's
-    own training rows (settings training.fillin_puf_side "data"), because the
+    own training rows (since 3 November the only way; it was a setting), because the
     network's answer given the type alone leans toward the top AGI groups
     under q; for types with fewer than 30 PUF records (0.7% of SCF weight)
     the network's answer is kept.
-- **The AGI group label** (settings training.label_always_shown). Each PUF
+- **The AGI group label** (always shown since 3 November; it was a setting). Each PUF
   record carries its band-AGI group as a category. In training the label is
   never hidden on PUF rows and never scored, because generation always sets
   it (TARGETS.md S8: with the
@@ -831,7 +831,7 @@ no rule touches are scaled down. The last run is kept; `gen/<run>/
 consistency.csv` reports, per run and holding, the model's own expected
 holders, the holders with the rules, and the factors.
 
-**The filer batch: the AGI group first** (settings `generation.design` "label"; since 26 October, TARGETS.md
+**The filer batch: the AGI group first** (since 26 October, TARGETS.md
 S8). 400,000 filer records (`label_records`) are split across the 12
 band-AGI groups in proportion to the PUF's records per group: about 18,400 at p99.99 and over, 30,500 at
 p99.9-99.99, 102,000 below p50. Each record starts with its group set; everything else is drawn given it. Its weight
@@ -974,7 +974,7 @@ reweighting and the table of weight factors (final over starting weight) by AGI 
 
 **The SCF targets** (`scf_targets.py`; TARGETS.md S9; since 26 October) are computed on the same SCF waves, with
 the same shares, as the file's balance sheet: the year file's prior "balance sheet" (2019: the 2019 wave 54.65%,
-2022 33.15%, 2016 12.20%; settings `tilt.scf_target_waves` "prior"). Each wave's balance sheet is grown per tax unit
+2022 33.15%, 2016 12.20%). Each wave's balance sheet is grown per tax unit
 to the target year's wave by the maps' factors, its weights scaled to the target year's wave's 162.76 million units;
 each wave keeps its own income ranks and net worth lines, and its value and variance in each cell come from its own
 999 replicate weights and five implicates. Value = Σ share × the wave's value; variance = Σ share² × the wave's
@@ -1115,7 +1115,7 @@ and never renumbered.
 | Child tax credit eligibility | `dep_ctc1-3` | production's rule (`src/imputations/ages.R`): dependent k (youngest first) passes every test but age and Social Security number when under 17 and `n_dep_ctc` is at least k; 17-year-olds pass with production's chance; dependents from 17 to the year's law age less one by chance | the credit's age limit by year (IRC 24(c); under 18 in 2021) |
 | Dependents' Social Security numbers | `dep_ssn1-3` | since 29 October (branch `rebuild-retrain-1029`) not a non-microdata item: `dollars.py` makes `ssn1`, `ssn2` and `dep_ssn1-3` from the model's drawn status (below, "The retrain of 29 October"); before, a placeholder (every dependent has a number) | |
 | Death probabilities | `q_death1`, `q_death2` | production's three layers (`src/mortality_ledger.R`), no draw: SSA life table × Chetty income ratio (percentile within sex and single age, start weights) × Johnson marital factor for men; dependent filers use their drawn age and sex | SSA period life tables (2024 Trustees Report), Chetty et al. (2016) Table 15, Johnson et al. (2000) |
-| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (since 29 October the SCF's, `w_dc_stock_share`, learned in pretraining and drawn with the balance sheet; before, and for a file from an earlier model, production's age rule, 1.10 − age/100 held to 0.20-0.95); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
+| Yearly unrealized gains (Q6) | `accruals.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund`, `.dc`, `.trusts` | value × the year's Z.1 revaluation rate (households and nonprofits): stocks at corporate equities', businesses at noncorporate equity's, real estate at real estate's, trusts at 60% stocks and 40% bonds; retirement accounts at a stock share (since 29 October the SCF's, `w_dc_stock_share`, learned in pretraining and drawn with the balance sheet; before, and for a file from an earlier model, production's age rule, 1.10 − age/100 held to 0.20-0.95, which the code dropped on 3 November: a file without the drawn share now stops the stage); years without a full year of Z.1 data take production's long-run rates | Z.1 table S1M.i.a, release of 10 September 2026, 1990-2025 |
 | Cost basis of each asset | `basis.equities`, `.pass_throughs`, `.primary_home`, `.other_home`, `.re_fund` | production's rule: value − the SCF's unrealized gain (other real estate's gain split by value), the gain first held to no more than the value so a basis is never below 0 (29 October; the gain and the value are drawn separately) | |
 | Holding period and basis of long-term gains (Q7) | `kg_lt_years_held`, `kg_lt_basis` | production's method (`src/imputations/capital_gains.R`): holding group drawn with SOCA's gain (or loss) dollar shares, period within the group from a Weibull shape (exponential above 20 years), then held to at most the older adult's age less 18 and at least 1 year (29 October); basis from production's SOCA regression evaluated at the target year's trailing S&P 500 returns at the held period | SOCA panel and shares, S&P 500 total return index |
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
@@ -1274,11 +1274,12 @@ reads index -1 as the last), which wrote a capital gain at the top band onto eve
 in the first retrain and raised the held-back CPS loss from 0.37 to 0.45-0.50. Now the total stays missing, no band
 table is read at -1 (also in the fill-in's log), and an assert stops on a negative band where every part is present.
 
-**Two training settings, both off by default** (settings `training`):
+**Two training options, both off:**
 - `scf_one_implicate_per_pass` (from branch `rebuild-implicate1`, b12c683): each pass trains on one of the five
   implicates of each SCF training household, chosen at random by the seed and the pass, its rows counting 5 times
-  their weight; the learning-rate schedule counts the steps taken.
-- `overfit_log` (from branch `rebuild-overfit-diag`, 448d148): the loss per slot on the held-back records and on a
+  their weight; the learning-rate schedule counts the steps taken. Not adopted; the setting and its code were taken
+  out on 3 November.
+- `overfit_log` (settings `training`; from branch `rebuild-overfit-diag`, 448d148): the loss per slot on the held-back records and on a
   fixed sample of training records each pass (`slot_log.csv`), and the network every 10 passes. Logging only; training
   is the same either way.
 
@@ -1308,12 +1309,12 @@ with Part A merged in from `rebuild-top-hidden` (the PUF's four aggregate record
 `explore/2026-10-29/top_build/hidden/RESULTS.md`). Results in scratch
 `explore/2026-10-29/top_build/billionaires/RESULTS.md`.
 
-**Where it runs.** `tilt.main()` calls `top_records.prepare_top()` on the start, in target-year dollars, before it
+**Where it runs.** `tilt.main()` runs the steps of `top_records.py` on the start, in target-year dollars, before it
 saves the population masks, builds the target conditions or does the demographic prescaling (settings `tilt.top`;
 `enabled` true). In order: an earlier year's billionaires are removed when the start is an earlier year's file; Part
 A's rebuilt returns are added (`tilt.top.hidden_returns`, generated starts only; in the generated records' weight units,
 so the start's scaling grows them with the count of returns; free in the tilt; `synthetic_top` and `hidden_group` mark
-them; the build is cached in `REBUILD_HIDDEN_DIR`, `top_hidden.folder` or `<gen>/hidden`); generated balance
+them; the build is cached in `<gen>/hidden`); generated balance
 sheets at $1 billion or more are drawn again; the year's Forbes list is added at weight 1. The ordinary non-microdata
 step then runs on the whole file. Table 4.3's top 0.001% (returns, AGI and the eight items) is a target again while
 `tilt.top.enabled` is true (its entries' `must_reach` cells, which `target_list.expand` must keep); with it false they
@@ -1516,7 +1517,8 @@ Where the calculator does not read an item but production Tax-Data's file has a 
   the file has `tips1`, `ot1` made from them. The interest paid deduction (PUF E19200) is `first_mort_int`, the
   calculator's column, though it also holds investment interest (production's own name for the whole item is
   `int_exp`).
-- **How it was applied.** `pipeline/tools/apply_rename.py` applies the `renamed` rows to `research/rebuild` (not
+- **How it was applied.** `apply_rename.py` (in `pipeline/tools/` until 3 November, now in
+  `research/archive/rebuild_2026-10/tools/`) applies the `renamed` rows to `research/rebuild` (not
   `HISTORY.md`), and can be run on another branch made before the rename. Names with an underscore are replaced
   wherever they stand as a whole name, with their band, reported, drawn and `u_` forms; one-word names (`interest`,
   `unemployment`, `childcare`, `mars`) only where they are plainly names, not in prose. Names built in code from pieces

@@ -119,25 +119,19 @@ def broad_income(df):
 
 # ---- 1. dependent filers' exact age and sex (Q2) ------------------------------------------------------------------
 def cps_dependents(year):
-    """The filing stage's persons of a CPS year who are someone's dependent, with their earnings."""
-    p = pd.read_parquet(PERSONS.format(year=year), columns=['age', 'sex', 'weight', 'dep_type', 'p_own_return', 'wage',
-                                                           'selfemp', 'farm_selfemp'])
+    """The filing stage's persons of a CPS year who are someone's dependent."""
+    p = pd.read_parquet(PERSONS.format(year=year), columns=['age', 'sex', 'weight', 'dep_type', 'p_own_return'])
     p = p[p['dep_type'].fillna('').astype(str) != ''].copy()
-    for c in ('age', 'sex', 'weight', 'p_own_return', 'wage', 'selfemp', 'farm_selfemp'):
+    for c in ('age', 'sex', 'weight', 'p_own_return'):
         n = int(p[c].isna().sum())
         assert n == 0, f'CPS {year}: {n} dependents with no {c}'
-    p['earnings'] = p['wage'] + p['selfemp'] + p['farm_selfemp']
     return p
 
 
-# The pools a dependent filer's age and sex can be drawn from (settings dependent_filer_age_sex: pool, fallback_pool):
-# CPS dependents with earnings above the year's dependent filing threshold (until 2 November 2026), or the CPS
-# dependents the filing stage counts as filing their own return (p_own_return: required to file, or with any wages;
-# from 2 November 2026, John).
-POOL_RULES = {
-    'earnings above the threshold': lambda p, threshold: p['earnings'] > threshold,
-    "files by the filing stage's rule": lambda p, threshold: p['p_own_return'] == 1,
-}
+# The pool a dependent filer's age and sex are drawn from (John, 2 November 2026): the CPS dependents the filing stage
+# counts as filing their own return (p_own_return: required to file, or with any wages). Until then it was the CPS
+# dependents with earnings above the year's dependent filing threshold, which the pools table still shows.
+POOL = "files by the filing stage's rule"
 
 
 def dependent_filer_age_sex(df, year, w, ctx):
@@ -152,11 +146,7 @@ def dependent_filer_age_sex(df, year, w, ctx):
         p = cps_dependents(int(y))
         ty = year_used(thr.index, int(y))
         for r, (lo, hi) in RANGE_AGES.items():
-            inr = (p['age'] >= lo) & (p['age'] < hi)
-            pool, used = inr & POOL_RULES[it['pool']](p, thr[ty]), it['pool']
-            first = int(pool.sum())
-            if first < it['min_pool_records'] and it.get('fallback_pool'):
-                pool, used = inr & POOL_RULES[it['fallback_pool']](p, thr[ty]), it['fallback_pool']
+            pool = (p['age'] >= lo) & (p['age'] < hi) & (p['p_own_return'] == 1)
             assert pool.sum() > 0, f'no CPS dependents to draw from: CPS year {y}, range {common.AGE_LABELS[r]}'
             q = p[pool].assign(age=lambda d: np.minimum(d['age'], it['top_age']))
             cells = q.groupby(['age', 'sex'], as_index=False)['weight'].sum().sort_values(['age', 'sex'])
@@ -164,9 +154,10 @@ def dependent_filer_age_sex(df, year, w, ctx):
             m = dep & (rng == r) & (cy == y)
             k = np.minimum(np.searchsorted(cdf, u[m], side='right'), len(cells) - 1)
             age[m], sex[m] = cells['age'].to_numpy()[k], cells['sex'].to_numpy()[k]
+            # the pools table keeps its columns: the old rule's threshold, and the first pool (the only one now)
             pools.append({'CPS year': int(y), 'range': common.AGE_LABELS[r], 'threshold year': ty,
                           'earnings threshold': float(thr[ty]),
-                          'sample people in the first pool': first, 'pool used': used,
+                          'sample people in the first pool': int(pool.sum()), 'pool used': POOL,
                           'sample people in the pool': int(pool.sum()),
                           'pool (millions, CPS weights)': p.loc[pool, 'weight'].sum() / 1e6,
                           'file records drawn': int(m.sum())})
@@ -301,28 +292,17 @@ def accrual_rates(year):
     return {a: float(lr[a]) for a in need}, 'production\'s long-run rates (no full year of Z.1 data)'
 
 
-def retirement_stock_share_placeholder(age_older):
-    """PLACEHOLDER (Q6): the retirement accounts' stock share by production's age rule, 1.10 - age / 100 held to
-    0.20-0.95, until the SCF's stock share is learned in pretraining."""
-    r = ITEMS['unrealized_gains']['retirement_stock_share_rule']
-    return np.clip(r['intercept'] + r['per_year_of_age'] * age_older, r['lowest'], r['highest'])
-
-
 def unrealized_gains(df, year, w, ctx):
     it = ITEMS['unrealized_gains']
     rate, src = accrual_rates(year)
-    if 'w_dc_stock_share' in df:     # (29 October, Q6) the SCF's stock share, drawn in generation
-        share = df['w_dc_stock_share'].to_numpy(float)
-        assert np.isfinite(share).all() and (share >= 0).all() and (share <= 1 + 1e-9).all(), 'stock share outside 0-1'
-        dc = df['value.dc'].to_numpy(float)
-        ctx['notes'].append(f'retirement accounts\' stock share: the SCF\'s, drawn; {100 * (w * share * dc).sum() / (w * dc).sum():.1f}% '
-                            'of the dollars in value.dc (start weights)')
-        ctx['stock share'] = 'drawn'
-    else:                            # a file from a model before 29 October: production's age rule
-        a1, _ = primary_age_sex(df)
-        older = np.maximum(a1, df['age2'].to_numpy())
-        share = retirement_stock_share_placeholder(older)
-        ctx['stock share'] = 'age rule'
+    # (29 October, Q6) the retirement accounts' stock share: the SCF's, drawn in generation (every network since then
+    # draws it; a file from an earlier model has none and stops here)
+    assert 'w_dc_stock_share' in df, 'the file has no w_dc_stock_share (a model from before 29 October)'
+    share = df['w_dc_stock_share'].to_numpy(float)
+    assert np.isfinite(share).all() and (share >= 0).all() and (share <= 1 + 1e-9).all(), 'stock share outside 0-1'
+    dc = df['value.dc'].to_numpy(float)
+    ctx['notes'].append(f'retirement accounts\' stock share: the SCF\'s, drawn; {100 * (w * share * dc).sum() / (w * dc).sum():.1f}% '
+                        'of the dollars in value.dc (start weights)')
     out = {f'accruals.{k}': rate[r] * df[col].to_numpy(float) for k, (col, r) in ACCRUAL_ASSETS.items()}
     ts = float(it['trust_stock_share'])
     out['accruals.dc'] = (share * rate['equities'] + (1 - share) * rate['bonds']) * df['value.dc'].to_numpy(float)
@@ -590,13 +570,11 @@ def qbi(df, year, w, ctx, a=None, b=None):
     Farms (positive farm income): never specified service; wage bill = the farm income, so the wage limit never binds.
     Otherwise 0. a and b are settings (1), the values before the taxes stage solves them; taxes.py calls this function
     again with the solved values (arguments a and b), before the reweighting (SIMPLE_PLAN.md step 4).
-    A file from a model before 29 October has no drawn industry: every item 0 (the placeholder of 28 October)."""
+    A file from a model before 29 October has no drawn industry and stops here."""
     it = ITEMS['qbi']
     writes = it['writes']
-    if not all(QBI_KINDS[k][0] in df for k in QBI_KINDS):
-        ctx['qbi'] = None
-        ctx['notes'].append('QBI: the file has no drawn industry groups (a model from before 29 October): all 0')
-        return {c: np.zeros(len(df), float if c.startswith('wagebill') else int) for c in writes}
+    missing = [QBI_KINDS[k][0] for k in QBI_KINDS if QBI_KINDS[k][0] not in df]
+    assert not missing, f'QBI: the file has no drawn industry groups {missing} (a model from before 29 October)'
     a = float(it['a'] if a is None else a)
     b = float(it['b'] if b is None else b)
     c = {int(g): float(v) for g, v in it['c_by_scf_group'].items()}
@@ -683,9 +661,6 @@ def amt_nol_cap(df, year, w, ctx):
     return {'amt_nols_drawn': drawn, 'amt_nols': held}
 
 
-PLACEHOLDER_VALUES = {'dependent_ssn': 'every dependent has a number (1)', 'blindness': 'nobody is blind (0)',
-                      'qbi': 'no specified service business (0), no wages paid (0)'}
-
 FUNCTIONS = {'dependent_filer_age_sex': dependent_filer_age_sex, 'child_credit': child_credit,
              'death_probabilities': death_probabilities,
              'unrealized_gains': unrealized_gains, 'cost_basis': cost_basis,
@@ -743,10 +718,6 @@ def impute(df, year, w):
 
 
 # ---- checks (Q9: reported only) -----------------------------------------------------------------------------------
-def _bn(x):
-    return x / 1e9
-
-
 def check_dependent_filers(df, w, ctx):
     dep = np.isin(df['age_range'].to_numpy(), common.DEPENDENT_RANGES)
     a, s = df['dep_filer_age'].to_numpy(), df['dep_filer_sex'].to_numpy()
@@ -872,8 +843,8 @@ def check_accruals(df, w, ctx):
     for k, col in [('equities', 'value.equities'), ('pass_throughs', 'value.pass_throughs'), ('primary_home', 'value.primary_home'),
                    ('other_home', 'value.other_home'), ('re_fund', 'value.re_fund'), ('dc', 'value.dc'), ('trusts', 'value.trusts')]:
         v, a = (w * df[col].to_numpy(float)).sum(), (w * df[f'accruals.{k}'].to_numpy(float)).sum()
-        rows.append({'asset': k, 'file value ($ billion)': _bn(v), 'rate (%)': 100 * a / v if v else np.nan,
-                     'file yearly gain ($ billion)': _bn(a)})
+        rows.append({'asset': k, 'file value ($ billion)': v / 1e9, 'rate (%)': 100 * a / v if v else np.nan,
+                     'file yearly gain ($ billion)': a / 1e9})
     t = pd.DataFrame(rows)
     z = table('z1_revaluation_rates.csv')
     z = z[z.year == y].set_index('asset')
@@ -908,8 +879,8 @@ def check_basis(df, w, ctx):
                     ('re_fund', 'value.re_fund', None)]:
         b = df[f'basis.{k}'].to_numpy(float)
         val = df[v].to_numpy(float)
-        rows.append({'asset': k, 'value ($ billion)': _bn((w * val).sum()),
-                     'unrealized gain ($ billion)': _bn((w * (val - b)).sum()), 'basis ($ billion)': _bn((w * b).sum()),
+        rows.append({'asset': k, 'value ($ billion)': (w * val).sum() / 1e9,
+                     'unrealized gain ($ billion)': (w * (val - b)).sum() / 1e9, 'basis ($ billion)': (w * b).sum() / 1e9,
                      'units with a negative basis (millions, should be 0)': w[b < 0].sum() / 1e6})
     return [pd.DataFrame(rows), ctx['basis capped']], [
         'basis = value - the SCF\'s unrealized gain (the gain on other real estate split by value), the gain first held '
@@ -932,15 +903,15 @@ def check_holding(df, w, ctx):
         sales = (w * (b + kg))[mg].sum()
         rows.append({'holding period': lab, 'SOCA share of gain dollars (%)': 100 * M['pi_g'][j],
                      'file share of gain dollars (%)': 100 * (w * kg)[mg].sum() / G,
-                     'file gains ($ billion)': _bn((w * kg)[mg].sum()),
+                     'file gains ($ billion)': (w * kg)[mg].sum() / 1e9,
                      'file mean years held': (w * h)[mg].sum() / w[mg].sum() if w[mg].sum() else np.nan,
                      'basis / sales at the group\'s length (regression)': M['pred'][j],
                      'file basis / sales': (w * b)[mg].sum() / sales if sales else np.nan,
                      'SOCA share of loss dollars (%)': 100 * M['pi_l'][j],
                      'file share of loss dollars (%)': 100 * -(w * kg)[ml].sum() / L})
-    lines = [f'Long-term gains: {w[gain].sum() / 1e6:.2f} million units, ${_bn(G):,.1f} billion, basis '
-             f'${_bn((w * b)[gain].sum()):,.1f} billion; losses: {w[loss].sum() / 1e6:.2f} million units, '
-             f'${_bn(L):,.1f} billion, basis ${_bn((w * b)[loss].sum()):,.1f} billion. The group is drawn unconditionally '
+    lines = [f'Long-term gains: {w[gain].sum() / 1e6:.2f} million units, ${G / 1e9:,.1f} billion, basis '
+             f'${(w * b)[gain].sum() / 1e9:,.1f} billion; losses: {w[loss].sum() / 1e6:.2f} million units, '
+             f'${L / 1e9:,.1f} billion, basis ${(w * b)[loss].sum() / 1e9:,.1f} billion. The group is drawn unconditionally '
              'with SOCA\'s shares, so the file\'s shares differ only by chance and by the tilt.']
     c = ctx['holding capped']
     lines.append(f'Each period is held to at most the older adult\'s age less 18 (at least 1 year): {c["records"]:,} of '
@@ -1012,9 +983,9 @@ def check_amt_nol_cap(df, w, ctx):
                      'units changed (millions)': w[cut & m].sum() / 1e6,
                      'units with amt_nols above 0, drawn (millions)': w[m & (drawn > 0)].sum() / 1e6,
                      'units with amt_nols above 0, held (millions)': w[m & (held > 0)].sum() / 1e6,
-                     'amt_nols drawn ($ billion)': _bn((w * drawn)[m].sum()),
-                     'amt_nols held ($ billion)': _bn((w * held)[m].sum()),
-                     'removed ($ billion)': _bn((w * (drawn - held))[m].sum())})
+                     'amt_nols drawn ($ billion)': (w * drawn)[m].sum() / 1e9,
+                     'amt_nols held ($ billion)': (w * held)[m].sum() / 1e9,
+                     'removed ($ billion)': (w * (drawn - held))[m].sum() / 1e9})
     c = ctx['amt cap']
     return pd.DataFrame(rows), [
         'amt_nols (PUF P60100) held to at most the record\'s net operating loss, the negative part of '
@@ -1051,23 +1022,19 @@ def checks(df, year, w, ctx=None):
     out.append(('Holding period and basis of long-term gains against SOCA', [t], ln))
     t, ln = check_blindness(df, w, ctx)
     out.append(('Blindness against Publication 4801\'s blind boxes', [t], ln))
-    if ctx.get('qbi'):
-        q = ctx['qbi']
-        out.append(('QBI service status and wage bill (first version, no QBI targets)', [q['table']],
-                    [f'Dials a = {q["a"]:g} (wage bill) and b = {q["b"]:g} (specified service chance), set later; the chance for '
-                     f'"no industry code" is {q["c_other"]:.4f}; average pay of private employees from the CPS of {q["pay_year"]}. '
-                     'Start weights (before the tilt). The deduction itself needs the calculator (roadmap step 4).']))
+    q = ctx['qbi']
+    out.append(('QBI service status and wage bill (first version, no QBI targets)', [q['table']],
+                [f'Dials a = {q["a"]:g} (wage bill) and b = {q["b"]:g} (specified service chance), set later; the chance for '
+                 f'"no industry code" is {q["c_other"]:.4f}; average pay of private employees from the CPS of {q["pay_year"]}. '
+                 'Start weights (before the tilt). The deduction itself needs the calculator (roadmap step 4).']))
     t, ln = check_parents(df, w, ctx)
     out.append(('Parents\' income rank', [t], ln))
     if 'amt_nols_drawn' in df:
         t, ln = check_amt_nol_cap(df, w, ctx)
         out.append(('AMT net operating loss adjustment held to the loss', [t], ln))
-    ph = [{'item': k, 'columns': ', '.join(it['writes']), 'value': PLACEHOLDER_VALUES[k]}
-          for k, it in ITEMS.items() if it.get('placeholder')]
-    if ctx.get('stock share') == 'age rule':
-        ph.append({'item': 'unrealized_gains (retirement accounts)', 'columns': 'accruals.dc',
-                   'value': 'stock share by production\'s age rule (a file from before the SCF item)'})
-    out.append(('Placeholders', [pd.DataFrame(ph)], ['Each is replaced by its own item (NEXT_STEPS.md item 1).']))
+    # no item is a placeholder any more (each has been replaced by its own item); the empty section is kept so that
+    # non_micro_checks.md and its numbered tables stay as they are
+    out.append(('Placeholders', [pd.DataFrame([])], ['Each is replaced by its own item (NEXT_STEPS.md item 1).']))
     return out
 
 

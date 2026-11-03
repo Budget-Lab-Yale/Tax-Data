@@ -54,15 +54,14 @@ Usage (through Slurm; run.sbatch's scf stage runs it before build_scf.R): python
 DIR/scf_units_module_<wave>.parquet and DIR/scf_npeu_dollars_<wave>.parquet.
 """
 import argparse
-import json
 import os
 
 import numpy as np
 import pandas as pd
 
+import common
 import tax_units as T
 
-SETTINGS = os.environ.get('REBUILD_SETTINGS', os.path.join(os.path.dirname(__file__), 'settings.json'))
 SALT_AGE = 20261024
 SALT_AWAY = 20261025
 
@@ -102,8 +101,7 @@ def bracket(code):
 
 
 def read_raw(wave):
-    s = json.load(open(SETTINGS))
-    path = os.path.join(s['paths']['raw']['scf'].replace('{wave}', str(wave)), f'p{wave % 100:02d}i6.dta')
+    path = os.path.join(common.RAW['scf'].replace('{wave}', str(wave)), f'p{wave % 100:02d}i6.dta')
     want = [c.lower() for c in HH + sum(POS.values(), [])]
     with pd.read_stata(path, iterator=True) as rd:
         have = list(rd.variable_labels().keys())
@@ -149,7 +147,7 @@ def read_roster(wave, npeu_split='equal'):
     O = pd.concat(rows, ignore_index=True)
     member = ~((O.lw == 5) & (O.fd == 5))           # neither usually lives here nor depends on the PEU: not a member
     print(f'wave {wave}: listed people who neither live there nor depend on the PEU, left out: '
-          f'{(O.w if "w" in O else O.hh.map(d.set_index("hh").w))[~member].sum() / 1e6:.2f} m')
+          f'{O.hh.map(d.set_index("hh").w)[~member].sum() / 1e6:.2f} m')
     O = O[member].copy()
     in_peu = (O.fd == 1) | (O.age <= 17)
     lo, hi = bracket(O.age.to_numpy())
@@ -352,14 +350,14 @@ def units(wave, npeu_split='equal', reassign_pass=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('waves', type=int, nargs='*', help="default: the settings' SCF waves")
-    ap.add_argument('--out', help='default: {REBUILD_OUT or paths.out}/data, where build_scf.R reads')
+    ap.add_argument('--out', default=common.DATA,
+                    help='default: {REBUILD_OUT or paths.out}/data (common.DATA), where build_scf.R reads')
     a = ap.parse_args()
-    s = json.load(open(SETTINGS))
-    out = a.out or os.path.join(os.environ.get('REBUILD_OUT', s['paths']['out']), 'data')
+    out = a.out
     os.makedirs(out, exist_ok=True)
-    tu = s.get('tax_units', {})
+    tu = common.SETTINGS.get('tax_units', {})
     split = tu.get('npeu_split', 'equal')
-    for wave in a.waves or s['paths']['raw']['scf_waves']:
+    for wave in a.waves or common.RAW['scf_waves']:
         persons, U, nd = units(wave, split, reassign_pass=tu.get('reassign', True))
         persons.to_parquet(f'{out}/scf_persons_{wave}.parquet')
         U.to_parquet(f'{out}/scf_units_module_{wave}.parquet')
