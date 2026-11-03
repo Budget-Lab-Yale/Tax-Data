@@ -137,14 +137,6 @@ N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TA
 MAX_CHOICES = max(N_CHOICES.values())
 
 
-def positive_bands(var, low, high):
-    """The positive bands of var between two cumulative shares of the positive weight."""
-    lay = BAND_LAYOUT[var]
-    lower = np.array([0.0] + lay['positive_top'][:-1])
-    inside = (lower >= low - 1e-9) & (lower < high - 1e-9)
-    return lay['first_positive'] + np.flatnonzero(inside)
-
-
 # One token table for all slots; index 0 is the mask token. The amounts share
 # one block of band tokens lined up by meaning: zero shares a token, the k-th
 # most negative band shares one, the k-th positive band shares one.
