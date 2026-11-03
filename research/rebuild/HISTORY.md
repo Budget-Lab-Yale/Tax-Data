@@ -964,6 +964,15 @@ Each folder is under scratch `explore/2026-11-02/` and has a RESULTS.md.
   lists (2019, same list, identical to the last digit); every year converged within 100 steps, but 2023 took 99 and
   ran out of steps on a second node, so the merge waits for John (`NEXT_STEPS.md`).
 
+### 3 November (overnight): the 2025 SCF wave and inheritances received this year
+
+Scratch `explore/2026-11-03/scf2025/` (RESULTS.md, DECISIONS.md), branch `rebuild-scf2025`. The 2025 SCF (released
+October 2026) is added as a fifth wave; inheritances received this year become an SCF-only slot, each reported
+inheritance counted with the chance its rounded year code carries (Gale and Sabelhaus's rule; 0.5 for the 2025
+wave's code 2025). The three networks were retrained on the new table and 2019, 2022 and 2023 drawn and reweighted.
+The 2025 wave shows twice the inheritances of the earlier waves ($1.09 trillion in 2024 against $0.55-0.59 trillion
+in 2018 and 2021), mostly from about a dozen households reporting $1-6 million.
+
 ## Paths tried and not taken
 
 | What | Why not |

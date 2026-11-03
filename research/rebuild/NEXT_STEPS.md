@@ -59,7 +59,9 @@ touches, a comparison with the run before it, and John's approval.
   bequests (`explore/2026-11-02/inheritances/RESULTS.md`). Open for John: the SCF's thin top (about 4 households a
   wave above $5 million). Until then the rebuild's runs go without heir data: its record ids do not match the heir
   file's (`explore/2026-11-02/estate_heirs/RESULTS.md`).
-- **The 2025 SCF:** check whether it is out; if so, add it as a wave at the next retrain.
+- **The 2025 SCF and inheritances** (built 3 November on `rebuild-scf2025`, not merged; scratch
+  `explore/2026-11-03/scf2025/RESULTS.md`): open are the 2025 wave's doubled inheritances, the top of the item, the
+  simulator's columns for it, and moving the 2025 files to the shared raw-data folder.
 - **Slimming the pipeline** (after the simplification agents).
 - **Not to be merged:** `rebuild-puf-start` (John, 2 November).
 
