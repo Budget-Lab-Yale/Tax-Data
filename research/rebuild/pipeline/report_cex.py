@@ -60,16 +60,16 @@ def main():
     c = survey_mix.mixed_units('cex')
     f['w'], f['total'] = f['weight'], f['total_consumption']
     c['w'], c['total'] = c['weight'], c[CATS].sum(1)
-    c['ss_gross'], c['income'] = c['social_security'], c[CEX_INCOME].sum(1)
+    c['gross_ss'], c['income'] = c['social_security'], c[CEX_INCOME].sum(1)
     f['agi'] = D.agi(f)
     one = c[c['one_tu'] == 1]
-    src = {'file': f, f'CEX mix': c, f'CEX mix, one-unit': one}
+    src = {'file': f, 'CEX mix': c, 'CEX mix, one-unit': one}
     for d in src.values():
         d['age'] = d['age_range'].map(AGES)
         d['hh'] = np.char.add(np.where(d['married'] == 1, 'married', 'not married'),
                               np.where(d['n_dep'] > 0, ', with dependents', ', no dependents'))
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
-        d['ssg'] = groups_by(d['ss_gross'].to_numpy(float), SS)
+        d['ssg'] = groups_by(d['gross_ss'].to_numpy(float), SS)
     adult = lambda d: d[d['age'] != 'dependent filer']
     f_ad, c_ad, o_ad = adult(f), adult(c), adult(one)
     f_ad = f_ad.assign(dec=deciles(f_ad['agi'].to_numpy(float), f_ad.w.to_numpy(float)))
@@ -82,7 +82,7 @@ def main():
            'average per unit, overall and by the adult age ranges by married, within a 5% band; nothing else here is targeted.', '']
 
     tot = pd.DataFrame({'file ($bn)': [(f[v] * f.w).sum() / 1e9 for v in CATS],
-                        f'CEX mix ($bn)': [(c[v] * c.w).sum() / 1e9 for v in CATS]}, index=[NAMES[v] for v in CATS])
+                        'CEX mix ($bn)': [(c[v] * c.w).sum() / 1e9 for v in CATS]}, index=[NAMES[v] for v in CATS])
     tot.loc['total'] = tot.sum()
     tot['file / CEX'] = tot.iloc[:, 0] / tot.iloc[:, 1]
     out += ['## Totals (not targeted: the targets are averages, and the file counts more units)', '',
@@ -95,13 +95,13 @@ def main():
             '## By wages', '', compare(src, 'wg', [l for _, _, l in WAGES]), '',
             '## By income decile, each source\'s own (file: AGI; CEX: income before taxes summed from its items); '
             'adults, dependent filers left out', '',
-            compare({'file': f_ad, f'CEX mix': c_ad, f'CEX mix, one-unit': o_ad}, 'dec', list(range(1, 11))), '',
+            compare({'file': f_ad, 'CEX mix': c_ad, 'CEX mix, one-unit': o_ad}, 'dec', list(range(1, 11))), '',
             '## By married and dependents', '', compare(src, 'hh', sorted(set(c['hh']))), '',
             '## 65+, by gross Social Security', '',
             compare({k: d[d['age'] == '65+'] for k, d in src.items()}, 'ssg', [l for _, _, l in SS]), '']
 
     rows = []
-    for lab, d in [('file', f), (f'CEX mix', c)]:
+    for lab, d in [('file', f), ('CEX mix', c)]:
         for g in [l for _, _, l in WAGES]:
             m = d[d['wg'] == g]
             tt = (m.total * m.w).sum()
@@ -109,8 +109,8 @@ def main():
     out += ['## Category shares of consumption by wages (%)', '',
             pd.DataFrame(rows).set_index(['wages', 'source']).to_markdown(floatfmt='.1f'), '']
     z = pd.DataFrame({'file (%)': [100 * f.w[f[v] == 0].sum() / f.w.sum() for v in CATS],
-                      f'CEX mix (%)': [100 * c.w[c[v] == 0].sum() / c.w.sum() for v in CATS],
-                      f'CEX mix, one-unit (%)': [100 * one.w[one[v] == 0].sum() / one.w.sum() for v in CATS]},
+                      'CEX mix (%)': [100 * c.w[c[v] == 0].sum() / c.w.sum() for v in CATS],
+                      'CEX mix, one-unit (%)': [100 * one.w[one[v] == 0].sum() / one.w.sum() for v in CATS]},
                      index=[NAMES[v] for v in CATS])
     out += ['## Units with none of the category', '',
             'Head-count splitting gives every tax unit in a spending household some of each category, so the all-units CEX '

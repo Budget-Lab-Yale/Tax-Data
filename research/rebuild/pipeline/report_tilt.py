@@ -4,7 +4,7 @@ Reads, in the tilt run's folder (common.TILT, or --run):
   file_<year>.parquet  every record, with weight_start (the weight before the tilt), weight (after) and, when the
                        prior pools several trained models, model (the training seed of the network that drew it)
   fit.csv              one row per target, keyed by (kind, group, target): value, before, after, and from the
-                       solver se, miss_in_se, gave_way, effective_records, largest_weight_factor and flag
+                       solver se, miss_in_se, over_1_se, effective_records, largest_weight_factor and flag
   targets.csv          the year's expanded target list (statistic, se, error_kind, source, ...), when it exists
 Writes, in the same folder or --out (REBUILD_REPORT_OUT):
   report.md                  the summary page
@@ -39,12 +39,13 @@ import pandas as pd
 
 import common
 import dollars as D
+import solver as SV
 import targets as TG
 
 R = common.SETTINGS.get('report', {})
 TOP = R.get('rows_on_page', 8)                            # rows of each table shown on the summary page
 MIN_RECORDS = R.get('min_records', 200)                   # records holding the item, for a statistic to be listed
-HIT = R.get('hit_tolerance', 1e-6)                        # a target missed by more than this share gave way
+HIT = R.get('hit_tolerance', 1e-6)                        # a target missed by more than this share is counted as missed
 THIN = {'warning': (R.get('thin_warning_records', 30), R.get('thin_warning_factor', 10)),
         'stop': (R.get('thin_stop_records', 10), R.get('thin_stop_factor', 100))}   # section 5's placeholders
 SOI_CV = R.get('soi_cv', '/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/targets/irs_data/soi_cv.csv')
@@ -56,45 +57,46 @@ AGI_GROUPS = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab)
 # ---- plain names -------------------------------------------------------------------------------------------
 LABELS = {
     'agi': 'adjusted gross income', 'wages': 'salaries and wages', 'wages1': "primary filer's wages",
-    'wages2': "spouse's wages", 'interest': 'taxable interest', 'tax_exempt_interest': 'tax-exempt interest',
+    'wages2': "spouse's wages", 'txbl_int': 'taxable interest', 'exempt_int': 'tax-exempt interest',
     'dividends': 'ordinary dividends', 'capital_gains': 'Schedule D net capital gain or loss',
     'capital_gains_line13': 'capital gain or loss with distributions (Form 1040 line 13)',
-    'kg_st': 'short-term capital gain or loss', 'kg_lt': 'long-term capital gain or loss',
-    'kg_dist': 'capital gain distributions on Form 1040', 'kg_other': 'other Schedule D gain or loss',
+    'kg_st': 'short-term capital gain or loss, before the $3,000 loss limit',
+    'kg_lt': 'long-term capital gain or loss, before the $3,000 loss limit',
+    'kg_dist': 'capital gain distributions on Form 1040',
     'other_agi': 'all other income in AGI', 'business_income': 'business income (Schedules C, E and F)',
     'sch_cf_income': 'Schedule C and F net income', 'sch_e_income': 'Schedule E net income',
-    'retirement_gross': 'Social Security and pensions, gross', 'ss_gross': 'Social Security benefits, total',
-    'ss_taxable': 'Social Security benefits, taxable', 'pensions_taxable': 'pensions and annuities, taxable',
-    'ira_taxable': 'taxable IRA distributions', 'other_gains': 'sales of property other than capital assets',
-    'unemployment': 'unemployment compensation', 'alimony': 'alimony received',
-    'state_refunds': 'state income tax refunds', 'adjustments': 'statutory adjustments',
-    'sch_c': 'business or profession (Schedule C)', 'farm': 'farm (Schedule F)',
-    'part_pass_inc': 'partnership passive income', 'part_nonpass_inc': 'partnership nonpassive income',
-    'part_pass_loss': 'partnership passive loss', 'part_nonpass_loss': 'partnership nonpassive loss',
-    'part_179': 'partnership section 179 deduction', 'scorp_pass_inc': 'S corporation passive income',
-    'scorp_nonpass_inc': 'S corporation nonpassive income', 'scorp_pass_loss': 'S corporation passive loss',
-    'scorp_nonpass_loss': 'S corporation nonpassive loss', 'scorp_179': 'S corporation section 179 deduction',
-    'rent_inc': 'rent and royalty income', 'rent_loss': 'rent and royalty loss', 'estate_inc': 'estate and trust income',
+    'retirement_gross': 'Social Security and pensions, gross', 'gross_ss': 'Social Security benefits, total',
+    'ss_taxable': 'Social Security benefits, taxable', 'txbl_pens_dist': 'pensions and annuities, taxable',
+    'txbl_ira_dist': 'taxable IRA distributions', 'other_gains': 'sales of property other than capital assets',
+    'ui': 'unemployment compensation', 'alimony': 'alimony received',
+    'state_ref': 'state income tax refunds', 'adjustments': 'statutory adjustments',
+    'sole_prop': 'business or profession (Schedule C)', 'farm': 'farm (Schedule F)',
+    'part_passive': 'partnership passive income', 'part_active': 'partnership nonpassive income',
+    'part_passive_loss': 'partnership passive loss', 'part_active_loss': 'partnership nonpassive loss',
+    'part_179': 'partnership section 179 deduction', 'scorp_passive': 'S corporation passive income',
+    'scorp_active': 'S corporation nonpassive income', 'scorp_passive_loss': 'S corporation passive loss',
+    'scorp_active_loss': 'S corporation nonpassive loss', 'scorp_179': 'S corporation section 179 deduction',
+    'rent': 'rent and royalty income', 'rent_loss': 'rent and royalty loss', 'estate': 'estate and trust income',
     'estate_loss': 'estate and trust loss', 'farm_rent': 'farm rental income', 'sche_other': 'other Schedule E items',
     'se1': "primary filer's self-employment income", 'se2': "spouse's self-employment income",
-    'mortgage_interest': 'home mortgage interest deduction', 'real_estate_tax': 'real estate tax deduction',
-    'childcare': 'child care expenses', 'net_worth': 'net worth', 'total_consumption': 'total consumption',
-    'w_cash': 'cash and transaction accounts', 'w_equities': 'stocks and stock funds', 'w_bonds': 'bonds and bond funds',
-    'w_dc': 'IRAs and defined-contribution accounts', 'w_db': 'defined-benefit pensions',
-    'w_life_ins': 'cash value of life insurance', 'w_annuities': 'annuities', 'w_trusts': 'trusts and managed accounts',
-    'w_other_fin': 'other financial assets', 'w_pass_throughs': 'privately held businesses',
-    'w_primary_home': 'primary home', 'w_other_home': 'other residential real estate',
-    'w_re_fund': 'nonresidential real estate', 'w_other_nonfin': 'vehicles and other nonfinancial assets',
-    'w_primary_mortgage': 'mortgage on the primary home', 'w_other_mortgage': 'other residential debt',
-    'w_credit_lines': 'other lines of credit', 'w_credit_cards': 'credit card balances',
-    'w_installment_debt': 'installment debt', 'w_other_debt': 'other debt',
+    'first_mort_int': 'home mortgage interest deduction', 'salt_prop': 'real estate tax deduction',
+    'care_exp': 'child care expenses', 'net_worth': 'net worth', 'total_consumption': 'total consumption',
+    'value.cash': 'cash and transaction accounts', 'value.equities': 'stocks and stock funds', 'value.bonds': 'bonds and bond funds',
+    'value.dc': 'IRAs and defined-contribution accounts', 'value.db': 'defined-benefit pensions',
+    'value.life_ins': 'cash value of life insurance', 'value.annuities': 'annuities', 'value.trusts': 'trusts and managed accounts',
+    'value.other_fin': 'other financial assets', 'value.pass_throughs': 'privately held businesses',
+    'value.primary_home': 'primary home', 'value.other_home': 'other residential real estate',
+    'value.re_fund': 'nonresidential real estate', 'value.other_nonfin': 'vehicles and other nonfinancial assets',
+    'value.primary_mortgage': 'mortgage on the primary home', 'value.other_mortgage': 'other residential debt',
+    'value.credit_lines': 'other lines of credit', 'value.credit_cards': 'credit card balances',
+    'value.installment_debt': 'installment debt', 'value.other_debt': 'other debt',
     'w_kg_primary_home': 'unrealized gain on the primary home', 'w_kg_other_re': 'unrealized gain on other real estate',
     'w_kg_pass_throughs': 'unrealized gain on businesses', 'w_kg_other': 'unrealized gain on stocks and funds',
     'c_clothing': 'clothing and footwear', 'c_motor_vehicles': 'motor vehicles and parts',
     'c_durables': 'other durable goods', 'c_other_nondurables': 'other nondurable goods',
     'c_food_off_premises': 'food and beverages at home', 'c_gasoline': 'gasoline and other energy goods',
     'c_housing_utilities': 'housing and utilities', 'c_other_services_health': 'health care and other services'}
-IRS_ITEM_LABELS = {'wages': 'salaries and wages', 'interest': 'taxable interest', 'dividends': 'ordinary dividends',
+IRS_ITEM_LABELS = {'wages': 'salaries and wages', 'txbl_int': 'taxable interest', 'dividends': 'ordinary dividends',
                    'capital_gains': 'Schedule D net gain less net loss'}
 FAMILY_LABELS = {f: v['soi'] for f, v in TG.FAMILIES.items()}
 AGE_PLAIN = dict(zip(common.AGE_LABELS, ['primary filer under 26', 'primary filer 26-34', 'primary filer 35-44',
@@ -180,7 +182,13 @@ def read_run(run, year):
         assert c in df, f'file_{year}.parquet has no {c} column'
         w = df[c].to_numpy(float)
         assert np.isfinite(w).all() and (w >= 0).all(), f'{c}: {(~np.isfinite(w)).sum()} records not finite or negative'
-    assert (df['weight_start'] > 0).all(), 'a record with no starting weight: its weight factor is undefined'
+    # a start from an earlier year's file carries the records that year's tilt gave no weight (weight 0, they stay 0): the
+    # weight factor is undefined for them and they add nothing to a weighted figure, so the report leaves them out
+    none = df['weight_start'].to_numpy(float) == 0
+    if none.any():
+        print(f'report: {int(none.sum()):,} of {len(df):,} records have no starting weight (zero in the previous year\'s file); left out of the report')
+        assert (df.loc[none, 'weight'] == 0).all(), 'a record with no starting weight has a weight after the tilt'
+        df = df.loc[~none].reset_index(drop=True)
     df = df.assign(agi=D.agi(df))
     return df, fit, tl
 
@@ -215,38 +223,38 @@ def target_table(fit, tl, notes):
     if 'miss_in_se' not in t:
         with np.errstate(divide='ignore', invalid='ignore'):
             t['miss_in_se'] = np.where(t['se'] > 0, t['miss'] / t['se'], np.nan)
-    if 'gave_way' in t:
-        t['gave_way'] = as_bool(t['gave_way'])
+    if 'over_1_se' in t:
+        t['over_1_se'] = as_bool(t['over_1_se'])
     else:
-        t['gave_way'] = (t['miss (%)'].abs() > 100 * HIT).to_numpy()
-        notes.append(f'The fit table has no gave_way column: a target is counted as having given way when the file '
+        t['over_1_se'] = (t['miss (%)'].abs() > 100 * HIT).to_numpy()
+        notes.append(f'The fit table has no over_1_se column: a target is counted as missed when the file '
                      f'misses it by more than {HIT:g} of its value.')
     plain = [describe(k, g, x) for k, g, x in zip(t['kind'], t['group'], t['target'])]
     t['what'], t['cell'] = [p[0] for p in plain], [p[1] for p in plain]
     t['fit_row'] = np.arange(len(t))   # the row's place in fit.csv, the order the conditions come in
     t = t.assign(_z=t['miss_in_se'].abs(), _p=t['miss (%)'].abs())
-    t = t.sort_values(['gave_way', '_z', '_p', 'fit_row'], ascending=[False, False, False, True], na_position='last')
+    t = t.sort_values(['over_1_se', '_z', '_p', 'fit_row'], ascending=[False, False, False, True], na_position='last')
     first = ['kind', 'group', 'target', 'what', 'cell', 'statistic', 'value', 'se', 'before', 'after', 'miss',
-             'miss (%)', 'miss_in_se', 'gave_way']
+             'miss (%)', 'miss_in_se', 'over_1_se']
     return t[first + [c for c in t.columns if c not in first and not c.startswith('_')]]
 
 
 def target_page(t, notes):
-    by = t.groupby('kind', sort=False).agg(targets=('value', 'size'), gave_way=('gave_way', 'sum'),
+    by = t.groupby('kind', sort=False).agg(targets=('value', 'size'), over_1_se=('over_1_se', 'sum'),
                                            largest_miss_pct=('miss (%)', lambda s: s.abs().max()),
                                            largest_miss_se=('miss_in_se', lambda s: s.abs().max()))
-    by = by.reset_index().rename(columns={'kind': 'kind of target', 'gave_way': 'gave way',
+    by = by.reset_index().rename(columns={'kind': 'kind of target', 'over_1_se': 'miss over 1 se',
                                           'largest_miss_pct': 'largest miss (%)',
                                           'largest_miss_se': 'largest miss (standard errors)'})
-    gave = t[t['gave_way']].head(TOP)
+    gave = t[t['over_1_se']].head(TOP)
     shown = pd.DataFrame({'target': gave['what'], 'cell': gave['cell'],
                           'value': [show(v, s) for v, s in zip(gave['value'], gave['statistic'])],
                           'standard error': [show(v, s) for v, s in zip(gave['se'], gave['statistic'])],
                           'file': [show(v, s) for v, s in zip(gave['after'], gave['statistic'])],
                           'miss (%)': gave['miss (%)'].round(2), 'miss (standard errors)': gave['miss_in_se'].round(2)})
-    out = [f"{len(t)} targets; {int(t['gave_way'].sum())} gave way.", '', table(by, ',.3g'), '']
+    out = [f"{len(t)} targets; {int(t['over_1_se'].sum())} are more than one standard error from their value (an identity: missed at all).", '', table(by, ',.3g'), '']
     if len(gave):
-        out += [f'The {len(gave)} that gave way most:', '', table(shown), '']
+        out += [f'The {len(gave)} with the largest misses:', '', table(shown), '']
     return out + [f'- {n}' for n in notes] + ['', 'Full table: report_targets.csv.']
 
 
@@ -366,13 +374,13 @@ LINES = [
     ('number of returns', lambda d: np.ones(len(d)), ['count'], ''),
     ('adjusted gross income less deficit', lambda d: d['agi'].to_numpy(float), ['amount'], ''),
     ('salaries and wages', lambda d: d['wages'].to_numpy(float), ['count', 'amount'], ''),
-    ('taxable interest', lambda d: d['interest'].to_numpy(float), ['count', 'amount'], ''),
-    ('tax exempt interest', lambda d: d['tax_exempt_interest'].to_numpy(float), ['count', 'amount'], ''),
+    ('taxable interest', lambda d: d['txbl_int'].to_numpy(float), ['count', 'amount'], ''),
+    ('tax exempt interest', lambda d: d['exempt_int'].to_numpy(float), ['count', 'amount'], ''),
     ('ordinary dividends', lambda d: d['dividends'].to_numpy(float), ['count', 'amount'], ''),
-    ('state income tax refunds', lambda d: d['state_refunds'].to_numpy(float), ['count', 'amount'], ''),
+    ('state income tax refunds', lambda d: d['state_ref'].to_numpy(float), ['count', 'amount'], ''),
     ('alimony received', lambda d: d['alimony'].to_numpy(float), ['count', 'amount'], ''),
-    ('business or profession > net income', lambda d: pos(family_net(d, 'sch_c')), ['count', 'amount'], ''),
-    ('business or profession > net loss', lambda d: neg(family_net(d, 'sch_c')), ['count', 'amount'], ''),
+    ('business or profession > net income', lambda d: pos(family_net(d, 'sole_prop')), ['count', 'amount'], ''),
+    ('business or profession > net loss', lambda d: neg(family_net(d, 'sole_prop')), ['count', 'amount'], ''),
     ('capital gain distributions( reported on form 1040)?', lambda d: d['kg_dist'].to_numpy(float), ['count', 'amount'],
      'distributions reported directly on Form 1040, without Schedule D'),
     ('sales of capital assets( reported on form 1040, schedule d)? > taxable net gain',
@@ -386,10 +394,10 @@ LINES = [
     ('sales of property other than capital assets > net loss', lambda d: neg(d['other_gains'].to_numpy(float)),
      ['count', 'amount'], ''),
     (r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions)',
-     lambda d: d['ira_taxable'].to_numpy(float), ['count', 'amount'], ''),
-    ('pensions and annuities > total', lambda d: (d['retirement_gross'] - d['ss_gross']).to_numpy(float),
+     lambda d: d['txbl_ira_dist'].to_numpy(float), ['count', 'amount'], ''),
+    ('pensions and annuities > total', lambda d: (d['retirement_gross'] - d['gross_ss']).to_numpy(float),
      ['count', 'amount'], 'the file carries pensions as gross retirement income less Social Security'),
-    ('pensions and annuities > taxable', lambda d: d['pensions_taxable'].to_numpy(float), ['count', 'amount'], ''),
+    ('pensions and annuities > taxable', lambda d: d['txbl_pens_dist'].to_numpy(float), ['count', 'amount'], ''),
     ('total rental and royalty > net income', lambda d: pos(family_net(d, 'rent_royalty')), ['count', 'amount'], ''),
     (r'total rental and royalty > net loss.*', lambda d: neg(family_net(d, 'rent_royalty')), ['count', 'amount'], ''),
     ('partnership and s corporation > net income', lambda d: pos(family_net(d, 'pship_scorp')), ['count', 'amount'], ''),
@@ -400,8 +408,8 @@ LINES = [
     ('farm > net loss', lambda d: neg(family_net(d, 'farm')), ['count', 'amount'], ''),
     ('farm rental > net income', lambda d: pos(family_net(d, 'farm_rental')), ['count', 'amount'], ''),
     ('farm rental > net loss', lambda d: neg(family_net(d, 'farm_rental')), ['count', 'amount'], ''),
-    ('unemployment compensation', lambda d: d['unemployment'].to_numpy(float), ['count', 'amount'], ''),
-    ('social security benefits > total', lambda d: d['ss_gross'].to_numpy(float), ['count', 'amount'], ''),
+    ('unemployment compensation', lambda d: d['ui'].to_numpy(float), ['count', 'amount'], ''),
+    ('social security benefits > total', lambda d: d['gross_ss'].to_numpy(float), ['count', 'amount'], ''),
     ('social security benefits > taxable', lambda d: d['ss_taxable'].to_numpy(float), ['count', 'amount'], ''),
     ('(statutory adjustments > total|total statutory adjustments)', lambda d: d['adjustments'].to_numpy(float),
      ['count', 'amount'], '')]
@@ -476,7 +484,7 @@ def file_values(cells, df, weights):
     filer = df['filer'].to_numpy() == 1
     dep = filer & (df['age_range'].to_numpy() >= common.ADULT_RANGES)
     a = df['agi'].to_numpy(float)
-    rng, mars = df['age_range'].to_numpy(), df['mars'].to_numpy()
+    rng, mars = df['age_range'].to_numpy(), df['filing_status'].to_numpy()
     fn_cache, bracket = {}, {}
     t16 = pd.DataFrame([c for c in cells if c['table'] == '1.6'])
     for c in cells:
@@ -535,6 +543,8 @@ def series(cells):
     """The published cells in series along AGI: (the series' AGI classes, lowest first, as indices into cells; the
     indices of its all-AGI total). Tables 1.4 and 1.7: one series per line and statistic; Table 1.6: per filing
     status and age."""
+    if not cells:   # (30 October) a year with no published SOI cells (a projection year): no series
+        return []
     df = pd.DataFrame([{k: c[k] for k in ('table', 'panel', 'row', 'line', 'statistic', 'lo', 'total')} for c in cells])
     out = []
     for tab, part in df.groupby('table', sort=False):
@@ -675,6 +685,10 @@ def published(df, t, w0, w1, notes):
     cells = file_values(cells + c17 + c16, df, weights)
     cells = merge_combined(relation_to_targets(cells, is_target), weights, is_target)
     cells = errors_for(cells, year, notes)
+    cols = ['table', 'panel', 'row', 'col', 'line', 'statistic', 'published', 'se', 'error source', 'before', 'after',
+            'miss', 'miss (%)', 'miss_in_se', 'records', 'merged', 'relation', 'note']
+    if not cells:   # (30 October) a year with no published SOI cells (a projection year)
+        return pd.DataFrame(columns=cols)
     p = pd.DataFrame(cells)
     p['miss'] = p['after'] - p['published']
     with np.errstate(divide='ignore', invalid='ignore'):
@@ -721,7 +735,7 @@ def dollar_items(df):
                                               'business_income_drawn', 'other_agi_remainder'} | \
         {v for v in D.ORDER if v.startswith('biz_workers_')}      # the QBI items' outside workers: counts, not dollars
     extra = ['agi', 'capital_gains_line13', 'sch_cf_income', 'sch_e_income', 'wages1', 'wages2', 'se1', 'se2',
-             'w_primary_mortgage', 'total_consumption', 'net_worth']
+             'value.primary_mortgage', 'total_consumption', 'net_worth']
     items = [v for v in dict.fromkeys(D.ORDER + extra) if v in df and v not in skip]
     bad = {v: int(df[v].isna().sum()) for v in items if df[v].isna().any()}
     assert not bad, f'missing dollar values in the file: {bad}'
@@ -867,10 +881,8 @@ def git(*args):
 
 
 def overall(df, t, th, w0, w1, run, tl):
-    p0, p1 = w0 / w0.sum(), w1 / w1.sum()
-    ess = lambda w: w.sum() ** 2 / (w ** 2).sum()
+    ess = SV.effective_sample
     f = w1 / w0
-    keep = p1 > 0
     commit = git('rev-parse', 'HEAD')
     dirty = git('status', '--porcelain', '--', '.')
     vint = 'not recorded in the target list'
@@ -881,10 +893,10 @@ def overall(df, t, th, w0, w1, run, tl):
     n = th['flag'].value_counts() if len(th) else pd.Series(dtype=int)
     rows = [('records', f'{len(df):,}'),
             ('units, after the tilt (millions)', f'{w1.sum() / 1e6:,.2f}'),
-            ('targets', f'{len(t)}'), ('targets that gave way', f"{int(t['gave_way'].sum())}"),
+            ('targets', f'{len(t)}'), ('targets more than 1 se from their value', f"{int(t['over_1_se'].sum())}"),
             ('thin cells: stops, warnings', f"{n.get('stop', 0)}, {n.get('warning', 0)}"),
             ('effective sample kept (%)', f'{100 * ess(w1) / ess(w0):.2f}'),
-            ('KL move (nats)', f'{float(np.sum(p1[keep] * np.log(p1[keep] / p0[keep]))):.4f}'),
+            ('KL move (nats)', f'{SV.kl_move(w0, w1):.4f}'),
             ('weight factor, 1st and 99th percentiles', f'{np.quantile(f, 0.01):.3f}, {np.quantile(f, 0.99):.3f}'),
             ('records moved more than tenfold up, down', f'{int((f > 10).sum())}, {int((f < 0.1).sum())}'),
             ('settings file', os.environ.get('REBUILD_SETTINGS', os.path.join(common.HERE, 'settings.json'))),

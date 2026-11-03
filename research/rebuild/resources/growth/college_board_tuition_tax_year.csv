@@ -1,0 +1,13 @@
+year,value,academic_years,note
+2014,12581.56,2013-14 and 2014-15,tax year t = average of academic years (t-1)-t and t-(t+1)
+2015,12996.38,2014-15 and 2015-16,tax year t = average of academic years (t-1)-t and t-(t+1)
+2016,13402.15,2015-16 and 2016-17,tax year t = average of academic years (t-1)-t and t-(t+1)
+2017,13835.49,2016-17 and 2017-18,tax year t = average of academic years (t-1)-t and t-(t+1)
+2018,14248.11,2017-18 and 2018-19,tax year t = average of academic years (t-1)-t and t-(t+1)
+2019,14637.56,2018-19 and 2019-20,tax year t = average of academic years (t-1)-t and t-(t+1)
+2020,14929.22,2019-20 and 2020-21,tax year t = average of academic years (t-1)-t and t-(t+1)
+2021,15159.31,2020-21 and 2021-22,tax year t = average of academic years (t-1)-t and t-(t+1)
+2022,15593.5,2021-22 and 2022-23,tax year t = average of academic years (t-1)-t and t-(t+1)
+2023,16180.5,2022-23 and 2023-24,tax year t = average of academic years (t-1)-t and t-(t+1)
+2024,16741.58,2023-24 and 2024-25,tax year t = average of academic years (t-1)-t and t-(t+1)
+2025,17308.35,2024-25 and 2025-26,tax year t = average of academic years (t-1)-t and t-(t+1)

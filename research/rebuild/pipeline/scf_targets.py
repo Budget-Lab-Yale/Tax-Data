@@ -50,7 +50,7 @@ def mix(year):
     assert how == 'prior', f'settings tilt.scf_target_waves: {how!r} (prior or target year)'
     import target_list as TLS
     prior = TLS.resolve(year).get('prior', {}).get('balance sheet')
-    where = f'targets_config/years/{year}.yaml, prior "balance sheet"'
+    where = f'targets_config/{year}/prior.yaml, prior "balance sheet"'
     assert prior, f'{where}: missing; the SCF targets are pooled over its waves (or set tilt.scf_target_waves)'
     out = []
     for key, share in prior.items():
@@ -80,7 +80,68 @@ def growth_factors(wave, year):
     assert f, f'SCF wave {wave}: no growth factors in {common.MAPS}/scf_growth_factors.csv'
     bad = [v for v, x in f.items() if not np.isfinite(x)]
     assert not bad, f'SCF wave {wave}: no growth factor for {bad} (no dollar map either), so it cannot be in the mix'
+    # (1 November, decision 76) a projection year's file is its start grown from the 2023 file by the CBO and macro series
+    # per return (tilt.grow_dollars, projection_growth.plan_factors), but the maps hold the factors to 2023 only, so the
+    # SCF targets stayed at 2023's dollars. They are grown on from 2023 to the year by the factors the start's records get.
+    ext = projection_extension(year, list(f))
+    for v, x in ext.items():
+        f[v] = f[v] * x
     return f
+
+
+_EXT = {}
+_UG = {}
+
+
+def unit_growth(year):
+    """The growth of the file's number of units from the start's year to a projection year: the start's own units over
+    their weighted count in the start year, as population_cells scales them (the start's weights; tilt.py)."""
+    import target_list as TLS
+    import projection_demographics as PD
+    spec = TLS.start_spec(year)
+    assert spec['mode'] == 'from_year' and spec['weights'] == 'population_cells', f'{year}: unit growth needs population_cells'
+    if year not in _UG:
+        prev = pd.read_parquet(f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet",
+                               columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
+        scaled, _ = PD.population_cells(prev, year, from_year=spec['year'])
+        _UG[year] = float(np.asarray(scaled).sum() / prev['weight'].sum())
+        common.say(f'the file\'s units grow {_UG[year]:.5f} from {spec["year"]} to {year} (the SCF targets\' units follow)')
+    return _UG[year]
+
+
+def projection_extension(year, items):
+    """{item: factor} from the start file's year (2023) to a projection year, for the SCF items, exactly the factors
+    tilt.grow_dollars gives the same columns of the start: CBO's and the macro series per return (the Financial Accounts'
+    category per return for the balance sheet), and for an item with no such rule the SCF's own growth per tax unit
+    (build_table.scf_growth, as grow_dollars's fallback). Empty for a year whose start is generated.
+    The mortgage's share of the home (w_primary_ltv) takes the factor the start's share gets (the mortgage's Financial
+    Accounts series over the home's), so the target frame's mortgage (home times share) moves as the start's does."""
+    import target_list as TLS
+    spec = TLS.start_spec(year)
+    if spec['mode'] != 'from_year':
+        return {}
+    assert spec['dollars'] == 'cbo_per_return', f'{year}: the SCF targets are grown for the cbo_per_return start only, not {spec["dollars"]!r}'
+    assert year <= 2036, f'{year}: CBO per-return growth ends in 2036; the SCF targets past it need the demographic return growth'
+    s = spec['year']
+    if (s, year) not in _EXT:
+        import build_table as BT
+        import projection_growth as PG
+        names = [v for v in BT.SCF_AMOUNTS if v not in BT.SCF_RATIOS]
+        got, problems = PG.plan_factors(names, year, None, strict=False, from_year=s)
+        out = dict(zip(got['column'], got['factor'].astype(float)))
+        late = [v for v in names if v not in out]
+        t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
+        fb = BT.scf_growth(t[t.source == 'scf'], s - 1, year - 1)
+        for v in late:
+            out[v] = float(fb[v])
+        bad = [v for v, x in out.items() if not (np.isfinite(x) and x > 0)]
+        assert not bad, f'SCF targets {s} to {year}: no growth factor for {bad}'
+        # the file's mortgage is its home times the share, grown by the SCF extension's ratio (grow_dollars, SCF_RATIOS)
+        out['w_primary_ltv'] = float(fb['w_primary_ltv'])
+        _EXT[(s, year)] = out
+        common.say(f'SCF targets grown on from {s} to {year} as the start is: {len(names) - len(late)} items by the projection '
+                   f'series per return, {len(late)} by the SCF growth per tax unit ({", ".join(late)})')
+    return {v: _EXT[(s, year)][v] for v in items if v in _EXT[(s, year)]}
 
 
 def frame(wave, year):
@@ -91,28 +152,44 @@ def frame(wave, year):
         return _FRAMES[key]
     import errors as E
     f = growth_factors(wave, year)
-    # the ltv is a ratio: the mortgage in dollars moves with the home. The elective deferrals and the spouse's share of
+    # The mortgage is the home times the ltv; the ltv reflects their different growth after 2022. The elective deferrals and the spouse's share of
     # them (since 28 October; build_table.SCF_NOT_ASKED) are missing where the SCF does not ask and no SCF target reads
     # them (their targets are the W-2 statistics'), so they are left out here; so is the retirement accounts' stock share
     # (since 29 October), a share missing outside the PEU that no SCF target reads
     not_asked = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']
     items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
-    cols = list(dict.fromkeys(items + ['w_primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
-    t = _table(['household_id', 'implicate', 'weight', 'age_range'] + cols)
+    cols = list(dict.fromkeys(items + ['value.primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
+    t = _table(['household_id', 'implicate', 'weight', 'age_range', 'age1'] + cols)
     u = t[t.year == wave - 1].reset_index(drop=True)
     assert len(u), f'SCF wave {wave}: no rows in the training table'
-    na = u[cols + ['weight', 'household_id', 'implicate']].isna().sum()
+    na = u[cols + ['weight', 'household_id', 'implicate', 'age1']].isna().sum()
     assert na.sum() == 0, f'SCF wave {wave}: missing values\n{na[na > 0]}'
     assert (u['weight'] > 0).all(), f'SCF wave {wave}: a unit with no positive weight'
     assert set(u['implicate']) == {1, 2, 3, 4, 5}, f'SCF wave {wave}: implicates {sorted(set(u.implicate))}'
     assert (u['age_range'] < common.ADULT_RANGES).all(), f'SCF wave {wave}: a dependent filer among the units'
+    # (2 November 2026) the primary filer's age in years, as the file holds it (catalog primary_age): the table stores
+    # age plus 1, 0 for none (build_table.AGE_SLOTS); every SCF unit has a primary filer
+    assert (u['age1'] > 0).all(), f'SCF wave {wave}: {int((u["age1"] <= 0).sum())} units with no primary filer age'
+    u['age1'] = u['age1'].to_numpy(float) - 1
     for v in items:
         u[v] = u[v].to_numpy(float) * f[v]
-    u['w_primary_mortgage'] = u['w_primary_mortgage'].to_numpy(float) * f['w_primary_home']
-    u['net_worth'] = u[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
-    ref = t.loc[t.year == year - 1, 'weight']
-    assert len(ref), f'no SCF wave of {year} in the table: the waves are scaled to its number of units'
-    scale = float(ref.sum()) / float(u['weight'].sum())
+    u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home'] * f['w_primary_ltv']
+    u['net_worth'] = D.signed_sum(u, D.NET_WORTH_PARTS)
+    # the target year's wave's number of units; a year with no wave of its own (30 October): interpolated between the
+    # waves either side, or after the last wave grown with the population (build_table.scf_units_at)
+    import build_table as BT
+    import target_list as TLS
+    # A projection year (1 November, decision 76): the units of the start's own year (2023's wave) times the growth of the
+    # file's units from that year (the start's weights are the file's weights times the population cells' growth,
+    # projection_demographics.population_cells), not the Social Security area population: the file's units grow by cells
+    # (age and joint status; 2023 to 2030 +6.5% against the population's +3.3%), and the start's dollars per unit are grown
+    # on that basis, so targets that scaled units by the population stood 4% too low in total by 2030.
+    spec = TLS.start_spec(year)
+    if spec['mode'] == 'from_year':
+        units = BT.scf_units_at(_table(['weight']), spec['year'] - 1) * unit_growth(year)
+    else:
+        units = BT.scf_units_at(_table(['weight']), year - 1)
+    scale = units / float(u['weight'].sum())
     u['weight'] = u['weight'].to_numpy(float) * scale
     u = u.sort_values(['implicate', 'record_id'], kind='stable').reset_index(drop=True)
     u1, rep = E.scf_replicates(wave, u)   # settings errors.scf_replicate_dir, one folder per wave
@@ -174,7 +251,19 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
     imp = u['implicate'].to_numpy()
     hh = u['household_id'].to_numpy()
     assert not c['filters'], f'SCF targets: a cell with a filter {c["filters"]}'
-    m = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
+    below = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
+    m = below.copy()
+    if c.get('range'):
+        # (2 November 2026) a range of a variable other than AGI, low inclusive (the primary's age group): the cell is
+        # the units in the range, a domain of the full sample, so the replicate weights and implicates are used as
+        # they are. Applied before any income rank or net worth line, so lines would be the range's own (no entry
+        # crosses a range with a line today)
+        rv, rlo, rhi = c['range']
+        xg = TLS.record_value(u, rv)
+        assert np.isfinite(xg).all(), f'SCF wave {wave}: {rv} missing on {int((~np.isfinite(xg)).sum())} units'
+        m &= (xg >= rlo) & (xg < rhi)
+        assert c.get('rank') is None and c.get('band') is None and c['line'] is None, \
+            f'SCF cell {c["label"]}: a range crossed with an income rank or a net worth line is not built'
     rl = (np.nan, np.nan)
     if rank is not None:
         inc = rank_income(wave, year, TLS.variable_def(rank[0])['survey_parts'])
@@ -184,14 +273,17 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
     cell = m
     if line_var:
         xl = TLS.record_value(u, line_var)
-        dom = np.ones(len(u), bool) if ceiling is None else u['net_worth'].to_numpy(float) < ceiling
-        lo, hi = _dollar_line(xl[dom], w[dom], lo_spec), _dollar_line(xl[dom], w[dom], hi_spec)
+        lo, hi = _dollar_line(xl[below], w[below], lo_spec), _dollar_line(xl[below], w[below], hi_spec)
         cell = m & ((xl > lo) if lo is not None else True) & ((xl <= hi) if hi is not None else True)
     y = TLS.record_value(u, v) if v else np.zeros(len(u))
     if st == 'share':
         assert lo is not None or hi is not None, f'SCF cell {c["label"]}: a share needs a line'
         stat = lambda cc, mm, yy, ww: (ww * cc).sum(-1) / (ww * mm).sum(-1)
         sc = 1.0
+    elif st == 'count':
+        assert v, f'SCF cell {c["label"]}: a count needs a variable'
+        stat = lambda cc, mm, yy, ww: (ww * cc * (yy != 0)).sum(-1)
+        sc = 5.0
     elif st == 'amount':
         stat = lambda cc, mm, yy, ww: (ww * cc * yy).sum(-1)
         sc = 5.0
@@ -234,7 +326,7 @@ def rows(cells, v, stats, year, ceiling=None):
                              + ('' if p['line'] is None else f", line {p['line']:,.0f}")
                              + ('' if p['line_hi'] is None else f", upper line {p['line_hi']:,.0f}")
                              + f", {p['households_any_implicate']} households" for p in per)
-            why = (f'SCF waves pooled, independent samples: variance = sum of share^2 x the wave\'s variance; each wave '
+            why = ('SCF waves pooled, independent samples: variance = sum of share^2 x the wave\'s variance; each wave '
                    'from its 999 replicate weights (first implicate) and its five implicates: '
                    + '; '.join(f"wave {p['wave']} se {p['se']:,.4g} (sampling {p['se_sampling']:,.4g}, imputation "
                                f"{p['se_imputation']:,.4g})" for p in per))
@@ -257,26 +349,6 @@ def details():
                         'pooled_se': d['se'], 'pooled_line': d['line'], 'pooled_line_hi': d['line_hi'],
                         'share': d['shares'][p['wave']], **{k: x for k, x in p.items() if k != 'var'}})
     return pd.DataFrame(out)
-
-
-def above_ceiling(year, ceiling):
-    """The SCF's units at or above a net worth ceiling (the units the SCF targets leave out, 29 October): per wave of the
-    year's mix and pooled with its shares, the units (weighted, at the wave's weights as scaled in frame, which add up
-    over the five implicates to the wave's units), the net worth, the households in any implicate, and the unit rows. Returns a frame."""
-    out = []
-    for wave, share in mix(year):
-        u = frame(wave, year)[0]
-        nw, w = u['net_worth'].to_numpy(float), u['weight'].to_numpy(float)
-        m = nw >= ceiling
-        out.append({'wave': wave, 'share in the mix': share, 'units (weighted)': w[m].sum(),
-                    'net worth ($ billion)': (w * nw)[m].sum() / 1e9, 'households (any implicate)': u.loc[m, 'household_id'].nunique(),
-                    'unit rows (all implicates)': int(m.sum()), 'all units (weighted)': w.sum(),
-                    'all net worth ($ billion)': (w * nw).sum() / 1e9})
-    d = pd.DataFrame(out)
-    pooled = {'wave': 'pooled', 'share in the mix': d['share in the mix'].sum()}
-    for k in ['units (weighted)', 'net worth ($ billion)', 'all units (weighted)', 'all net worth ($ billion)']:
-        pooled[k] = float((d['share in the mix'] * d[k]).sum())
-    return pd.concat([d, pd.DataFrame([pooled])], ignore_index=True)
 
 
 def reference(year):

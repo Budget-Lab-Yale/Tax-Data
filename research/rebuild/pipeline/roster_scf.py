@@ -248,7 +248,7 @@ def npeu_shares(P, d, how):
     h = d.set_index('hh').loc[g.hh]
     n = g.groupby('hh').pn.transform('size').to_numpy()
     pos = lambda c: np.maximum(h[c].to_numpy(), 0)
-    kinds = {'retirement_gross': ['X6406', 'X6407', 'X6408'], 'interest': ['X6410'], 'dividends': ['X6411'],
+    kinds = {'retirement_gross': ['X6406', 'X6407', 'X6408'], 'txbl_int': ['X6410'], 'dividends': ['X6411'],
              'business_income': ['X6412'], 'rent_royalty_estate': ['X6413'], 'other_income': ['X6409', 'X6414']}
     flags = {k: sum(((h[c].to_numpy() == 1) if c != 'X6414' else (h[c].to_numpy() > 5)) for c in v)
              for k, v in kinds.items()}
@@ -270,20 +270,20 @@ def npeu_shares(P, d, how):
     out['wages'] = pos('X6403') * w_wage
     for k, f in flags.items():
         out[k] = other * f * (w_ret if k == 'retirement_gross' else eq)
-    # gross Social Security alone (build_scf.R's ss_gross): the Social Security kind's (X6406) part of the group's
+    # gross Social Security alone (build_scf.R's gross_ss): the Social Security kind's (X6406) part of the group's
     # retirement income, divided as retirement income is; kept apart from retirement_gross, which also holds
     # pensions (X6407) and disability (X6408). Not added to gi below: retirement_gross already holds it.
-    out['ss_gross'] = other * (h['X6406'].to_numpy() == 1) * w_ret
+    out['gross_ss'] = other * (h['X6406'].to_numpy() == 1) * w_ret
     # the balance sheet, always equally; the home share is the group's share of R's home, with its mortgage
     home = np.minimum(pos('X6432'), pos('X6436') * pos('X6435') / 10000)
-    out['w_cash'] = pos('X6421') * eq
-    out['w_other_nonfin'] = pos('X6418') * eq
-    out['w_primary_home'] = home * eq
-    out['w_other_fin'] = (pos('X6432') - home) * eq
-    out['w_primary_mortgage'] = pos('X6437') * pos('X6435') / 10000 * eq
-    out['w_other_debt'] = pos('X6439') * eq
+    out['value.cash'] = pos('X6421') * eq
+    out['value.other_nonfin'] = pos('X6418') * eq
+    out['value.primary_home'] = home * eq
+    out['value.other_fin'] = (pos('X6432') - home) * eq
+    out['value.primary_mortgage'] = pos('X6437') * pos('X6435') / 10000 * eq
+    out['value.other_debt'] = pos('X6439') * eq
     # gross income for the income test (CBO's 3a items, Social Security counted as received, a fallback)
-    out['gi'] = out[['wages', 'retirement_gross', 'interest', 'dividends', 'business_income',
+    out['gi'] = out[['wages', 'retirement_gross', 'txbl_int', 'dividends', 'business_income',
                      'rent_royalty_estate', 'other_income']].sum(axis=1)
     return out
 
@@ -368,7 +368,7 @@ def main():
         # dollars
         keep = ['uid', 'hh', 'head_pn', 'spouse_pn', 'head_age', 'head_sex', 'spouse_age', 'spouse_sex', 'weight',
                 'filing_status', 'separate', 'n_dep', 'n_child_home', 'n_child_away', 'n_other', 'n_parent',
-                'puf_n_dep', 'dep_age1', 'dep_age2', 'dep_age3', 'n24', 'n_eitc', 'source', 'peu_dollars',
+                'puf_n_dep', 'dep_age1', 'dep_age2', 'dep_age3', 'n24', 'n_dep_eitc', 'source', 'peu_dollars',
                 'group_level', 'npeu_people', 'any_age_assumed', 'any_link_assumed', 'any_income_assumed',
                 'any_dep_by_support', 'any_claimed_in_group']
         U.loc[~U.dep_return, keep].to_csv(f'{out}/scf_units_module_{wave}.csv.gz', index=False)

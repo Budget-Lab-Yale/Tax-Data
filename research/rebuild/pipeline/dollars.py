@@ -31,8 +31,11 @@ file's prior); its bands become dollars from that year's map. A frame without th
 map (map_<survey>_<target year>), as before.
 
 After the draws, the pieces are put on the definitions the IRS targets use:
-  capital_gains   the Schedule D net, kg_st + kg_lt + kg_other (the line-13
-                  total, with kg_dist, is kept as capital_gains_line13)
+  capital_gains   the Schedule D net as it enters AGI: kg_st + kg_lt, the
+                  gains and losses before the $3,000 limit (since 29-30
+                  October), a net loss held to the limit ($1,500 on a
+                  separate return; common.allowed_capital_gain); with kg_dist
+                  it is Form 1040 line 13, capital_gains_line13
   business_income the exact signed sum of its eighteen parts
   dividends       qualified plus other dividends (div_pref + div_ord), exactly
   adjustments     the exact sum of its eleven parts (since 27 October)
@@ -73,7 +76,7 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   x (1 - the year's Roth share for joint or non-joint returns,
                   settings deferrals); trad_deferrals their sum; medicare_wages
                   wages (box 1, which holds the Roth part) plus trad_deferrals
-  CPS ages        age_primary, age_spouse, age_dep1-3 in years, -1 for none
+  CPS ages        age1, age2, dep_age1-3 in years, -1 for none
   ssn1, ssn2, dep_ssn1-3  (since 28 October; John, NEXT_STEPS.md item 1, Q4)
                   whether each person has a Social Security number, 1 or 0,
                   from the drawn CPS status (ssn_status_primary, _spouse,
@@ -96,14 +99,15 @@ import pandas as pd
 
 import common
 
-# The order fixes each amount's random stream; it must not change.
-ORDER = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
+# The order fixes each amount's random stream; it must not change. (kg_other, dropped on 29-30 October, keeps its
+# place so the streams after it do not move; a frame without its band skips it.)
+ORDER = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
          'kg_st', 'kg_lt', 'kg_dist', 'kg_other',
-         'business_income', 'retirement_gross', 'tax_exempt_interest', 'other_gains', 'ira_taxable',
-         'pensions_taxable', 'ss_taxable', 'unemployment', 'alimony', 'state_refunds', 'adjustments',
-         'sch_c', 'part_pass_inc', 'part_nonpass_inc', 'part_pass_loss', 'part_nonpass_loss', 'part_179',
-         'scorp_pass_inc', 'scorp_nonpass_inc', 'scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179',
-         'rent_inc', 'rent_loss', 'estate_inc', 'estate_loss', 'farm_rent', 'sche_other', 'farm']
+         'business_income', 'retirement_gross', 'exempt_int', 'other_gains', 'txbl_ira_dist',
+         'txbl_pens_dist', 'ss_taxable', 'ui', 'alimony', 'state_ref', 'adjustments',
+         'sole_prop', 'part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
+         'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179',
+         'rent', 'rent_loss', 'estate', 'estate_loss', 'farm_rent', 'sche_other', 'farm']
 # Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
 # itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
 META = common.meta()
@@ -117,8 +121,8 @@ OVERTIME = list(META['cps_structure'].get('overtime', []))
 # The SCF amounts of the retrain of 29 October (the retirement accounts' stock share; the QBI items' outside workers),
 # at the very end after the overtime, so no earlier stream moves
 RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_schc', 'biz_workers_part', 'biz_workers_scorp']
-ORDER = ORDER + ['mortgage_interest', 'real_estate_tax'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST + RETRAIN_1029] \
-    + list(META['cex_amounts']) + ['ss_gross'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
+ORDER = ORDER + ['first_mort_int', 'salt_prop'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST + RETRAIN_1029] \
+    + list(META['cex_amounts']) + ['gross_ss'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
 ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
 ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
@@ -133,12 +137,18 @@ FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amou
 AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
 KG_PIECES = META['kg_pieces']
 FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
-AGI_PARTS = ['wages', 'interest', 'dividends', 'capital_gains', 'other_agi']
+AGI_PARTS = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']
 
 
 def agi(df):
     """AGI of records whose dollars draw_dollars has put on the IRS targets' definitions."""
     return df[AGI_PARTS].to_numpy(float).sum(1)
+
+
+def signed_sum(df, parts):
+    """The total made from its parts: parts is {column: sign} (business income's eighteen parts, net worth's assets
+    and debts, the AGI items folded into other_agi), summed with their signs."""
+    return df[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
 
 
 SCF_SET = set(META['scf_amounts'])
@@ -182,34 +192,32 @@ def draw_one(bands, vmap, rng, u=None):
     return values
 
 
+def _draw_by_group(df, v, column, maps_by_group, rng, u, what):
+    """One amount, each record from the map of its own group (an SCF wave or a survey year, in column), maps_by_group
+    {group: {variable: map rows}}; what names the group in the messages."""
+    bands, group = df[f'{v}_band'].to_numpy(), df[column].to_numpy()
+    assert not pd.isna(group).any(), f'{int(pd.isna(group).sum())} records with no {what}'
+    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
+    values = np.full(len(bands), np.nan)
+    for g in np.unique(group):
+        assert int(g) in maps_by_group and v in maps_by_group[int(g)], f'no dollar map for {v} in {what} {int(g)}'
+        idx = np.flatnonzero(group == g)
+        values[idx] = draw_one(bands[idx], maps_by_group[int(g)][v], None, u[idx])
+    return values
+
+
 def draw_by_wave(df, v, maps, rng, u):
     """One balance-sheet amount, each record from its own SCF wave's map (column scf_wave)."""
     assert WAVE_MAPS in maps, 'no SCF wave maps loaded'
     assert 'scf_wave' in df, f'{v}: the frame says nothing of which SCF wave each record was drawn from (scf_wave)'
-    bands, wave = df[f'{v}_band'].to_numpy(), df['scf_wave'].to_numpy()
-    assert not pd.isna(wave).any(), f'{int(pd.isna(wave).sum())} records with no SCF wave'
-    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
-    values = np.full(len(bands), np.nan)
-    for w in np.unique(wave):
-        assert int(w) in maps[WAVE_MAPS] and v in maps[WAVE_MAPS][int(w)], f'no dollar map for {v} in the {int(w)} wave'
-        idx = np.flatnonzero(wave == w)
-        values[idx] = draw_one(bands[idx], maps[WAVE_MAPS][int(w)][v], None, u[idx])
-    return values
+    return _draw_by_group(df, v, 'scf_wave', maps[WAVE_MAPS], rng, u, 'SCF wave')
 
 
 def draw_by_year(df, v, maps, rng, u):
     """One CEX, CPS or SIPP amount, each record from the map of its own year of that survey (column <survey>_year)."""
     src = SURVEY_OF[v]
     assert YEAR_MAPS in maps and src in maps[YEAR_MAPS], f'no {src} maps by year loaded'
-    bands, year = df[f'{v}_band'].to_numpy(), df[f'{src}_year'].to_numpy()
-    assert not pd.isna(year).any(), f'{int(pd.isna(year).sum())} records with no {src} year'
-    u = rng.random(len(bands)) if u is None else np.asarray(u, float)
-    values = np.full(len(bands), np.nan)
-    for y in np.unique(year):
-        assert int(y) in maps[YEAR_MAPS][src] and v in maps[YEAR_MAPS][src][int(y)], f'no dollar map for {v} in {src} {int(y)}'
-        idx = np.flatnonzero(year == y)
-        values[idx] = draw_one(bands[idx], maps[YEAR_MAPS][src][int(y)][v], None, u[idx])
-    return values
+    return _draw_by_group(df, v, f'{src}_year', maps[YEAR_MAPS][src], rng, u, f'{src} year')
 
 
 def person_cap(x, cap, less=None):
@@ -286,7 +294,7 @@ def deferral_items(out, year):
     """In place (since 28 October; the person rules decided 27 October), after the ages are in years: each person's
     elective deferrals, the drawn unit total split by the drawn spouse's share (elective2 = share x total, elective1 the
     rest; all to the primary filer when the frame has no share), each held to the year's legal limit for that
-    person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age_primary and age_spouse) and to
+    person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age1 and age2) and to
     that person's own wages (wages1, wages2: none without wages, as for tips); elective1 and elective2 are the held
     amounts. Then each person's traditional part (Tax-Simulator's trad_contr_er1, trad_contr_er2: elective x (1 - the
     year's Roth share for joint or non-joint returns), translate.traditional_deferrals), their sum trad_deferrals, and
@@ -310,7 +318,7 @@ def deferral_items(out, year):
     w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
     lines = []
     trad = np.zeros(len(e))
-    for k, age_col in [(1, 'age_primary'), (2, 'age_spouse')]:
+    for k, age_col in [(1, 'age1'), (2, 'age2')]:
         assert age_col in out and f'wages{k}' in out, f'deferral_items needs {age_col} and wages{k}'
         age = out[age_col].to_numpy(float)
         limit = np.where(age >= D['catch_up_age'], lim[1], lim[0])
@@ -372,12 +380,14 @@ def draw_dollars(df, maps, year=None):
                 assert v in maps, f'no dollar map for {v}'
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
     remainder = out['other_agi'].to_numpy(float).copy()
-    out['capital_gains_line13'] = out[KG_PIECES].sum(axis=1)
-    out['capital_gains'] = out['kg_st'] + out['kg_lt'] + out['kg_other']
+    # the Schedule D gains and losses are drawn before the loss limit; AGI's capital gain applies it (29-30 October)
+    out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
+                                                       out['filing_status'] if 'filing_status' in out else None)
+    out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
     out['other_agi'] = out['other_agi'] + out['kg_dist']
     parts = META['computed_totals']['business_income']
     out['business_income_drawn'] = out['business_income']
-    out['business_income'] = out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
+    out['business_income'] = signed_sum(out, parts)
     for sub in [k for k in META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
         sp = META['computed_totals'][sub]
         if sub in ('dividends', 'adjustments') and not all(f'{p}_band' in df for p in sp):
@@ -385,9 +395,9 @@ def draw_dollars(df, maps, year=None):
             # two totals' bands, as before stage 3) keeps the total's own dollars
             assert f'{sub}_band' in df, f'{sub}: neither its band nor its parts\' bands'
             continue
-        out[sub] = out[list(sp)].to_numpy(float) @ np.array(list(sp.values()), float)
+        out[sub] = signed_sum(out, sp)
     out['other_agi_remainder'] = remainder
-    out['other_agi'] = out['other_agi'] + out[list(FOLD)].to_numpy(float) @ np.array(list(FOLD.values()), float)
+    out['other_agi'] = out['other_agi'] + signed_sum(out, FOLD)
     assert not out[list(FOLD) + KG_PIECES].isna().any().any(), 'a part is missing on a record'
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
@@ -407,6 +417,6 @@ def draw_dollars(df, maps, year=None):
     deferral_items(out, year)                      # after the ages: the legal limit depends on each person's
     if all(f'{c}_band' in df for c in META['scf_amounts']):
         assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
-        out['net_worth'] = out[list(NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(NET_WORTH_PARTS.values()), float)
+        out['net_worth'] = signed_sum(out, NET_WORTH_PARTS)
     return out
 

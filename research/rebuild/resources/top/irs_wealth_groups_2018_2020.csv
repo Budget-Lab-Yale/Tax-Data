@@ -8,8 +8,8 @@ wages_and_pensions,9405,12068,16694
 realized_capital_gains,114923,161524,223886
 capital_income,63670,95986,148044
 dividends,41704,67966,102995
-interest,15592,22929,34966
-tax_exempt_interest,2260,2674,4226
+txbl_int,15592,22929,34966
+exempt_int,2260,2674,4226
 rental_income,-89,-433,-728
 positive_rental_income,944,1317,2537
 negative_rental_income,-1028,-1730,-3228

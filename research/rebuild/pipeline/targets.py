@@ -2,8 +2,8 @@
 cells (settings.json, paths.raw.soi_mirror). Amounts are in dollars (SOI
 publishes thousands).
 
-1. Targets: Publication 1304, Tables 1.4 and 1.2, the PUF year and the target
-   year, all returns, by size of AGI. A cell SOI blanked and merged into its
+1. Targets: Publication 1304, Tables 1.4 and 1.2 (and, since 30 October, Table 3.3's
+   credits and taxes), the PUF year and the target year, all returns, by size of AGI. A cell SOI blanked and merged into its
    neighbour for disclosure stays blank with flag 'combined'; published_cells()
    puts it back together. Table 1.2's separate, head-of-household and single
    returns are added up as 'nonjoint'. Written to common.TARGETS/soi.csv: year,
@@ -21,6 +21,7 @@ publishes thousands).
 """
 import os
 import re
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -29,21 +30,33 @@ import common
 
 MIRROR = common.RAW['soi_mirror']
 FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (stored positive), targeted by the tilt
-    'sch_c': {'soi': 'business or profession', 'income': ['sch_c'], 'loss': [], 'target': True},
+    'sole_prop': {'soi': 'business or profession', 'income': ['sole_prop'], 'loss': [], 'target': True},
     'pship_scorp': {'soi': 'partnership and s corporation',
-                    'income': ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc'],
-                    'loss': ['part_pass_loss', 'part_nonpass_loss', 'part_179', 'scorp_pass_loss', 'scorp_nonpass_loss',
+                    'income': ['part_passive', 'part_active', 'scorp_passive', 'scorp_active'],
+                    'loss': ['part_passive_loss', 'part_active_loss', 'part_179', 'scorp_passive_loss', 'scorp_active_loss',
                              'scorp_179'], 'target': True},
-    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent_inc'], 'loss': ['rent_loss'], 'target': True},
+    'rent_royalty': {'soi': 'total rental and royalty', 'income': ['rent'], 'loss': ['rent_loss'], 'target': True},
     # left out until the targeting overhaul: its tiny cells could not always be met (22 October)
-    'estate_trust': {'soi': 'estate and trust', 'income': ['estate_inc'], 'loss': ['estate_loss'], 'target': False},
+    'estate_trust': {'soi': 'estate and trust', 'income': ['estate'], 'loss': ['estate_loss'], 'target': False},
     'farm': {'soi': 'farm', 'income': ['farm'], 'loss': [], 'target': True},
-    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True}}
+    'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': [], 'target': True},
+    # From tax year 2021 Table 1.4 publishes partnership and S corporation income separately, with no combined line
+    # (30 October, targets for every year): the two halves of pship_scorp, each netted on its own, for the years that
+    # publish them (targets_config/<year>/targets.yaml names them in business_top from 2021)
+    'partnership': {'soi': 'partnership', 'income': ['part_passive', 'part_active'],
+                    'loss': ['part_passive_loss', 'part_active_loss', 'part_179'], 'target': False},
+    'scorp': {'soi': 's corporation', 'income': ['scorp_passive', 'scorp_active'],
+              'loss': ['scorp_passive_loss', 'scorp_active_loss', 'scorp_179'], 'target': False}}
 T14 = {  # SOI item -> (variable, statistic)
     'number of returns': ('returns', 'count'),
+    'social security benefits > total > number of returns': ('gross_ss', 'count'),
+    'social security benefits > total > amount': ('gross_ss', 'amount'),
     'adjusted gross income less deficit': ('agi', 'amount'),
     'salaries and wages > number of returns': ('wages', 'count'),
     'salaries and wages > amount': ('wages', 'amount'),
+    # SOI's name for the same line (Form 1040 line 1z, total wages) from tax year 2022 (30 October)
+    'total wages > total > number of returns': ('wages', 'count'),
+    'total wages > total > amount': ('wages', 'amount'),
     'taxable interest > number of returns': ('taxable_interest', 'count'),
     'taxable interest > amount': ('taxable_interest', 'amount'),
     'ordinary dividends > number of returns': ('ordinary_dividends', 'count'),
@@ -62,6 +75,38 @@ T14 = {  # SOI item -> (variable, statistic)
     'taxable income > amount': ('taxable_income', 'amount'),
     'income tax before credits > number of returns': ('income_tax_before_credits', 'count'),
     'income tax before credits > amount': ('income_tax_before_credits', 'amount'),
+    # (30 October, taxes computed inside the model, taxes.py) Table 1.4's other lines the calculator computes
+    'total itemized deductions > number of returns': ('itemized_deductions', 'count'),
+    'total itemized deductions > amount': ('itemized_deductions', 'amount'),
+    'qualified business income deduction > number of returns': ('qbi_deduction', 'count'),
+    'qualified business income deduction > amount': ('qbi_deduction', 'amount'),
+    'alternative minimum tax > number of returns': ('alternative_minimum_tax', 'count'),
+    'alternative minimum tax > amount': ('alternative_minimum_tax', 'amount'),
+}
+# (30 October, taxes.py) Table 3.3, tax liability, tax credits and tax payments by size of AGI: the credits and taxes
+# the calculator computes (SOI item -> (variable, statistic)). The earned income credit is the whole credit (the part
+# used against tax and the refundable part); income tax after credits is income tax before credits less every credit
+# used against it; total income tax adds the net investment income tax and the other income taxes.
+T33 = {
+    'tax credits > child and other dependent tax credit > number of returns': ('ctc_nonrefundable', 'count'),
+    'tax credits > child and other dependent tax credit > amount': ('ctc_nonrefundable', 'amount'),
+    'tax credits > total refundable credits > additional child tax credit > number of returns':
+        ('ctc_refundable', 'count'),
+    'tax credits > total refundable credits > additional child tax credit > amount': ('ctc_refundable', 'amount'),
+    # the same two lines under their names in other years: "child tax credit" in 2015-2017; from 2021 the refundable
+    # part is "refundable child tax credit or additional child tax credit"
+    'tax credits > child tax credit > number of returns': ('ctc_nonrefundable', 'count'),
+    'tax credits > child tax credit > amount': ('ctc_nonrefundable', 'amount'),
+    'tax credits > total refundable credits > refundable child tax credit or additional child tax credit > number of '
+    'returns': ('ctc_refundable', 'count'),
+    'tax credits > total refundable credits > refundable child tax credit or additional child tax credit > amount':
+        ('ctc_refundable', 'amount'),
+    'tax credits > total refundable credits > earned income credit > number of returns': ('eitc', 'count'),
+    'tax credits > total refundable credits > earned income credit > amount': ('eitc', 'amount'),
+    'income tax after credits > number of returns': ('income_tax_after_credits', 'count'),
+    'income tax after credits > amount': ('income_tax_after_credits', 'amount'),
+    'total income tax > number of returns': ('total_income_tax', 'count'),
+    'total income tax > amount': ('total_income_tax', 'amount'),
 }
 for _fam, _f in FAMILIES.items():
     for _side in ('net income', 'net loss'):
@@ -72,7 +117,8 @@ T12_STATUS = {'all returns': 'all',
               'returns of married persons filing separately': 'separate',
               'returns of heads of households': 'head_of_household',
               'returns of single persons': 'single'}
-FILES = {'1.4': 'bysize_income_sources.csv', '1.2': 'bysize_marital_status.csv'}
+FILES = {'1.4': 'bysize_income_sources.csv', '1.2': 'bysize_marital_status.csv', '3.3': 'bysize_tax_liability.csv'}
+TABLE_ITEMS = {'1.4': T14, '1.2': T14, '3.3': T33}   # each table's items (Table 1.2: its returns, by T14's name)
 
 
 # ---- 1. the targets -----------------------------------------------------------------------
@@ -89,12 +135,12 @@ def read(table, years):
             status, item = hit[0]
             if item != 'number of returns':
                 continue
-        if item not in T14:
+        if item not in TABLE_ITEMS[table]:
             continue
         total = r.row_label.endswith('total')
         if total and r.row_label != 'All returns, total':
             continue
-        var, stat = T14[item]
+        var, stat = TABLE_ITEMS[table][item]
         value = np.nan if r.value == '' else float(r.value) * (1000 if stat == 'amount' else 1)
         rows.append({'year': int(r.tax_year), 'table': table, 'filing_status': status,
                      'lo': -np.inf if total or r.row_agi_lo in ('', '-Inf') else float(r.row_agi_lo),
@@ -105,8 +151,9 @@ def read(table, years):
 
 
 def build():
-    years = [common.PUF_YEAR, common.TARGET_YEAR]
-    t = pd.concat([read('1.4', years), read('1.2', years)], ignore_index=True)
+    # past SOI's last year (30 October), the last year is read too: returns() carries it forward
+    years = sorted({common.PUF_YEAR, common.TARGET_YEAR, min(common.TARGET_YEAR, total_years()[-1])})
+    t = pd.concat([read('1.4', years), read('1.2', years), read('3.3', years)], ignore_index=True)
     blank = t['value'].isna()
     assert (t.loc[blank, 'flag'] == 'combined').all(), t[blank & (t['flag'] != 'combined')]
     nj = t[t['filing_status'].isin(['separate', 'head_of_household', 'single'])]
@@ -122,17 +169,21 @@ def load():
 
 
 def returns(soi, year, table='1.4', status='all'):
-    """The number of returns, all AGI, in one table and filing status."""
+    """The number of returns, all AGI, in one table and filing status. Past SOI's last year (30 October): the last
+    year's count times CBO's growth in the number of returns (all_returns), the mix of filing statuses kept."""
+    last = total_years()[-1]
+    if year > last:
+        return returns(soi, last, table, status) * all_returns(year) / all_returns(last)
     s = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == status)
             & (soi.label == 'all') & (soi.variable == 'returns')]
     return s['value'].item()
 
 
-def published_cells(soi, year, variable, stat):
-    """An item's Table 1.4 cells by AGI as published, lowest first, as (lo, hi, value).
+def published_cells(soi, year, variable, stat, table='1.4'):
+    """An item's cells by AGI as published in a table (Table 1.4 unless said), lowest first, as (lo, hi, value).
     A non-blank 'combined' cell holds its own bracket and the blank ones after it,
     so it becomes one cell spanning them."""
-    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == '1.4') & (soi['filing_status'] == 'all')
+    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == 'all')
             & (soi['variable'] == variable) & (soi['statistic'] == stat) & (soi['label'] != 'all')]
     out = []
     for r in s.sort_values('lo').itertuples():
@@ -148,7 +199,7 @@ def published_cells(soi, year, variable, stat):
 NET = lambda name: [(name + ' > net income', 1), (name + r' > net loss.*', -1)]
 SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'wages': [('(salaries and wages|total wages > total)', 1)],   # SOI's name from tax year 2022
-    'interest': [('taxable interest', 1)],
+    'txbl_int': [('taxable interest', 1)],
     'dividends': [('ordinary dividends', 1)],
     'sch_d_net_gain': [('sales of capital assets reported on form 1040, schedule d > taxable net gain', 1)],
     'kg_dist': [('capital gain distributions reported on form 1040', 1)],
@@ -162,15 +213,15 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     + NET('rent') + NET('royalty') + NET('estate and trust') + NET('farm rental'),
     'other_gains': [('sales of property other than capital assets > net gain', 1),
                     ('sales of property other than capital assets > net loss', -1)],
-    'ira_taxable': [(r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions'
+    'txbl_ira_dist': [(r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions'
                      r'|individual retirement arrangement.*taxable.*)', 1)],
-    'pensions_taxable': [('pensions and annuities > taxable', 1)],
-    'ss_taxable': [('social security benefits > taxable', 1)], 'unemployment': [('unemployment compensation', 1)],
-    'alimony': [('alimony received', 1)], 'state_refunds': [('state income tax refunds', 1)],
+    'txbl_pens_dist': [('pensions and annuities > taxable', 1)],
+    'ss_taxable': [('social security benefits > taxable', 1)], 'ui': [('unemployment compensation', 1)],
+    'alimony': [('alimony received', 1)], 'state_ref': [('state income tax refunds', 1)],
     'adjustments': [('statutory adjustments > total', 1)],
     'retirement_gross': [('social security benefits > total', 1), ('pensions and annuities > total', 1)],
-    'ss_gross': [('social security benefits > total', 1)],
-    'tax_exempt_interest': [('tax exempt interest', 1)], 'other_agi': NET('other income'),
+    'gross_ss': [('social security benefits > total', 1)],
+    'exempt_int': [('tax exempt interest', 1)], 'other_agi': NET('other income'),
     # stage 3 (27 October): the two parts of ordinary dividends and the eleven statutory adjustments, each by its own
     # Table 1.4 line (the part "ordinary less qualified" has no line of its own: ordinary dividends')
     'div_pref': [('qualified dividends', 1)], 'div_ord': [('ordinary dividends', 1)],
@@ -178,7 +229,7 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
         'trad_contr_ira': 'ira payments', 'sl_int_ded': 'student loan interest deduction',
         'ed_exp': 'educator expenses deduction', 'tuition_ded': 'tuition and fees deduction',
         'dpad': 'domestic production activities deduction', 'se_tax_ded': 'deductible part of self employment tax',
-        'se_health': 'self employed health insurance deduction', 'hsa_ded': 'health savings account deduction',
+        'se_health': 'self employed health insurance deduction', 'hsa_contr': 'health savings account deduction',
         'keogh_contr': 'payments to a keogh plan', 'early_penalty': 'penalty on early withdrawal of savings',
         'alimony_exp': 'alimony paid'}.items()}}
 NI, NL = ' > net income', r' > net loss.*'
@@ -186,15 +237,15 @@ NI, NL = ' > net income', r' > net loss.*'
 # positive rows). The section 179 deductions grow with partnership and S corporation net income, as the tables of
 # record were built; sche_other with business income as a whole.
 PART_GROWTH = {
-    'sch_c': (['business or profession' + NI], ['business or profession' + NL]),
+    'sole_prop': (['business or profession' + NI], ['business or profession' + NL]),
     'farm': (['farm' + NI], ['farm' + NL]),
-    'rent_inc': (['total rental and royalty' + NI], None), 'rent_loss': (['total rental and royalty' + NL], None),
-    'estate_inc': (['estate and trust' + NI], None), 'estate_loss': (['estate and trust' + NL], None),
+    'rent': (['total rental and royalty' + NI], None), 'rent_loss': (['total rental and royalty' + NL], None),
+    'estate': (['estate and trust' + NI], None), 'estate_loss': (['estate and trust' + NL], None),
     'farm_rent': (['farm rental' + NI], ['farm rental' + NL]),
     **{p: (['partnership and s corporation' + NI], None)
-       for p in ['part_pass_inc', 'part_nonpass_inc', 'scorp_pass_inc', 'scorp_nonpass_inc', 'part_179', 'scorp_179']},
+       for p in ['part_passive', 'part_active', 'scorp_passive', 'scorp_active', 'part_179', 'scorp_179']},
     **{p: (['partnership and s corporation' + NL], None)
-       for p in ['part_pass_loss', 'part_nonpass_loss', 'scorp_pass_loss', 'scorp_nonpass_loss']},
+       for p in ['part_passive_loss', 'part_active_loss', 'scorp_passive_loss', 'scorp_active_loss']},
     'sche_other': ('business_income', None),
     # stage 3: partnership income subject to self-employment tax (production's part_se), with partnership and
     # S corporation net income and net loss
@@ -220,6 +271,7 @@ def total_years():
 # without the combined line adds the pieces up; its return count then counts a return with both twice.
 SPLIT = {'partnership and s corporation': ['partnership', 's corporation']}
 _GAPS = set()
+_HELD = set()   # (line, year) pairs per_return_growth held at an earlier year, each said once
 
 
 def soi_get(y, pattern, stat):
@@ -242,7 +294,19 @@ def soi_get(y, pattern, stat):
     return val[(y, hit[0])] * (1000.0 if stat == 'amount' else 1.0)
 
 
-def soi_item(y, item, base=None, rows=None, absolute=False):
+@lru_cache(maxsize=None)
+def combined_partnership_count(y, side):
+    """Table 4.3's combined count, excluding dependent filers, without counting a return twice."""
+    path = os.path.join(common.SETTINGS['paths']['raw']['soi_tables'], 'pctile_top_items.csv')
+    t = pd.read_csv(path)
+    m = ((t.tax_year == y) & (t.pctile_group == 'all returns') &
+         (t.item == 'partnership and s corporation > ' + side) & (t.measure == 'returns'))
+    values = t.loc[m, 'value']
+    assert len(values) == 1 and pd.notna(values.iloc[0]), f'{path}: missing combined {side} count for {y}'
+    return float(values.iloc[0])
+
+
+def soi_item(y, item, base=None, rows=None, absolute=False, combined_counts=False):
     """Amount and returns of an item in year y, summed over its SOI rows; with
     base, only the rows published in both years (so a ratio compares like with like)."""
     amt = cnt = 0.0
@@ -253,17 +317,60 @@ def soi_item(y, item, base=None, rows=None, absolute=False):
                 soi_get(base, p, 'amount')
         except KeyError:
             continue
+        if combined_counts and p.startswith('partnership and s corporation > net '):
+            # Table 1.4 splits these lines from 2021; adding the two counts double-counts returns with both.
+            # Table 4.3 publishes the combined line for all independent filers in both the base and target years.
+            side = 'net loss' if 'net loss' in p else 'net income'
+            c = combined_partnership_count(y, side)
         amt, cnt = amt + (abs(a) if absolute else s * a), cnt + c
     return amt, cnt
 
 
-def carried(f, y):
-    """f(y) for a year in Table 1.4; past its last year, the last year's value times its last growth for each year
-    beyond (a placeholder until the targeting framework supplies a rule for borrowing from other years)."""
+def carried(f, y, concept=None):
+    """f(y) for a year in Table 1.4; past its last year, f(last) times CBO's growth of the concept per return (CBO's
+    February 2026 individual income tax projections, cbo_growth; 30 October, TARGETS.md section 3: our own last level
+    times an outside change). A concept with no projection series stops instead of repeating a past growth rate."""
     last = total_years()[-1]
     if y <= last:
         return f(y)
-    return f(last) * (f(last) / f(last - 1)) ** (y - last)
+    if concept is not None:
+        return f(last) * cbo_growth(concept, last, y)
+    raise ValueError(f'No projection series for {y}: SOI ends in {last}; '
+                     'repeating the final observed growth rate is not permitted')
+
+
+# ---- CBO's projections, past SOI's last year (30 October) -------------------------------------------------------
+# CBO's February 2026 individual income tax details (Revenue Projections by Category, sheet 3; calendar years 2022-2036;
+# research/rebuild/resources/growth/cbo_individual_income_tax.csv). Each SOI item grows past SOI's last year with the
+# CBO line closest to it, per return (CBO's amount over CBO's number of returns): CBO publishes no number with each item.
+CBO_CONCEPT = {
+    'wages': 'Salaries and wages', 'txbl_int': 'Taxable interest and ordinary dividends',
+    'div_ord': 'Taxable interest and ordinary dividends', 'dividends': 'Qualified dividends',
+    'div_pref': 'Qualified dividends', 'sch_d_net_gain': 'Capital gain or loss', 'kg_dist': 'Capital gain or loss',
+    'business_income': 'Net business income', 'sch_cf_income': 'Net business income', 'sch_e_income': 'Net business income',
+    'sche_rent': 'Net business income', 'sche_rest': 'Net business income',
+    'txbl_pens_dist': 'Taxable pensions and annuities', 'txbl_ira_dist': 'Taxable pensions and annuities',
+    'ss_taxable': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments',
+    'returns': 'Number of returns', 'agi': 'Adjusted gross income'}
+_CBO = None
+
+
+def cbo_level(concept, y):
+    """CBO's projected level of a concept (its line's name starts with concept) in calendar year y."""
+    global _CBO
+    if _CBO is None:
+        _CBO = pd.read_csv(os.path.join(os.path.dirname(common.HERE), 'resources', 'growth', 'cbo_individual_income_tax.csv'))
+    d = _CBO[_CBO['concept'].str.startswith(concept) & (_CBO['year'] == y)]
+    assert len(d) == 1, f'CBO line {concept!r} in {y}: {len(d)} rows (CBO publishes 2022-2036)'
+    return float(d['value'].iloc[0])
+
+
+def cbo_growth(concept, a, b):
+    """CBO's growth of a concept per return from year a to b (a count, 'Number of returns', as itself)."""
+    if concept == 'Number of returns':
+        return cbo_level(concept, b) / cbo_level(concept, a)
+    per = lambda y: cbo_level(concept, y) / cbo_level('Number of returns', y)
+    return per(b) / per(a)
 
 
 def per_return_growth(item, rows=None, absolute=False, year=None):
@@ -271,14 +378,40 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
     a = common.PUF_YEAR
 
     def g(b):
-        (a0, c0), (a1, c1) = soi_item(a, item, b, rows, absolute), soi_item(b, item, a, rows, absolute)
+        combined = b >= 2021
+        (a0, c0), (a1, c1) = (soi_item(a, item, b, rows, absolute, combined),
+                              soi_item(b, item, a, rows, absolute, combined))
+        if not (c1 > 0 and a1 != 0):
+            # (30 October) a line SOI stopped publishing after the law repealed the item (the domestic production
+            # activities deduction from 2018-2020, the tuition and fees deduction from 2021): not grown past the last
+            # year it was published; the calculator applies the year's law (the item is zero under it)
+            prev = [y for y in total_years() if a < y < b and soi_item(y, item, a, rows, absolute)[1] > 0]
+            assert prev, f'{item or rows}: no SOI amount in {b} and none between {a} and {b}'
+            # (review, 30 October) said in the log once per line and year: this path takes any line with no amount
+            # in year b, not only the two repealed deductions it was written for, so it must not pass unseen
+            if (str(item or rows), b) not in _HELD:
+                _HELD.add((str(item or rows), b))
+                common.say(f'SOI {b}: no amount for {item or rows}; held at its growth to {prev[-1]}, the last year '
+                           f'it was published (a repealed item, zero under the year\'s law)')
+            return g(prev[-1])
         return (a1 / c1) / (a0 / c0)
-    return carried(g, common.TARGET_YEAR if year is None else year)
+    if item == 'gross_ss':
+        # (2 November) gross benefits past SOI's last year grow with SSA's and CBO's benefits paid, not CBO's taxable
+        # benefits (taxable grows faster: the thresholds are not indexed); projection_growth.gross_ss_between stops the
+        # run if a year has no source
+        import projection_growth as PG
+        last = total_years()[-1]
+        y = common.TARGET_YEAR if year is None else year
+        return g(y) if y <= last else g(last) * PG.gross_ss_between(last, y)
+    concept = CBO_CONCEPT.get(item, 'Net business income' if rows is not None and any(
+        k in r for r in rows for k in ('partnership', 'business', 'farm', 'rent', 'royalty', 'estate')) else
+        'Adjusted gross income')
+    return carried(g, common.TARGET_YEAR if year is None else year, concept)
 
 
 def all_returns(y):
     """Table 1.4's number of returns in year y (past its last year, carried forward)."""
-    return carried(lambda b: totals()[(b, 'number of returns')], y)
+    return carried(lambda b: totals()[(b, 'number of returns')], y, 'Number of returns')
 
 
 # ---- 3. Table 1.6: returns by filing status and the primary filer's age -----------------------
@@ -300,7 +433,10 @@ def table_1_6(y):
         assert (t.value != '').all(), 'Table 1.6: a blank all-AGI cell'
         t = t.assign(status=t.panel.map(status), year=t.tax_year.astype(int), value=t.value.astype(float))
         _T16 = t.groupby(['year', 'status', 'row_label'])['value'].sum().to_dict()
-    return {(s, k): carried(lambda b: _T16[(b, s, row)], y) for s in T16_PANELS for k, row in enumerate(T16_ROWS)}
+    # past the last year: each cell grows with CBO's number of returns (30 October), so the last year's mix of filing
+    # status and age is kept (no projection of returns by age exists)
+    return {(s, k): carried(lambda b: _T16[(b, s, row)], y, 'Number of returns') for s in T16_PANELS
+            for k, row in enumerate(T16_ROWS)}
 
 
 if __name__ == '__main__':

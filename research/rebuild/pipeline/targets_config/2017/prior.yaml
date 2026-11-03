@@ -1,0 +1,19 @@
+# 2017: the prior the year's file is drawn under (TARGETS.md section 7), written out in full. Read by generate.py
+# (the balance sheet's SCF waves), survey_mix.py (the CEX, CPS and SIPP years) and scf_targets.py (the SCF targets'
+# waves). Copied from 2019's folder on 30 October (targets for every year, piece 4 of the overnight plan) and the
+# shares recomputed by section 7's rule for 2017; what the entries mean is said in 2019's prior.yaml.
+# Section 7's rule for the SCF in 2017: weights exp(-|2017 - t| / 2) over the waves' income years t = 2018, 2015, 2012
+# give 0.6065, 0.3679, 0.0821; as shares of their sum 57.4%, 34.8%, 7.8%; the rest rescaled to 57.41%, 34.82%, 7.77%
+# (exactly 0.574097, 0.348207, 0.077696; rounded so they sum to 1).
+# Section 7's rule for the CEX, CPS and SIPP in 2017 (an odd year takes its own year and the one two years before):
+# weights exp(-|2017 - t| / 2) over t = 2017, 2015 give 1.0000, 0.3679; as shares of their sum 73.11%, 26.89% (exactly
+# 0.731059, 0.268941).
+# The PUF variables are drawn under the PUF 2015 label in every year (the only PUF year).
+
+year: 2017
+prior:
+  puf variables: {puf 2015: 1.0}
+  balance sheet: {scf 2019: 0.5741, scf 2016: 0.3482, scf 2013: 0.0777}
+  consumption: {cex 2017: 0.7311, cex 2015: 0.2689}
+  cps items: {cps 2017: 0.7311, cps 2015: 0.2689}
+  sipp tips: {sipp 2017: 0.7311, sipp 2015: 0.2689}

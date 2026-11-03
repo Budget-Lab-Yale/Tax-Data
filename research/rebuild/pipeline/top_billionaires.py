@@ -26,8 +26,8 @@ choice: Forbes covers the people above $1 billion better than a handful of heavi
    - Wealth: net worth is Forbes's. Public holdings are the person's public share (Forbes's tracked share holdings over
      net worth, from production's later 2025 profiles: not dated 2019) times their 2019 net worth; where it is
      unknown, the rank group's wealth-weighted average share among people with a known one (not assumed private).
-     The rest is private: real estate (w_re_fund) when Forbes's industry is real estate, otherwise a private business
-     (w_pass_throughs). No home, no debt (net worth right, gross assets understated). Basis: zero for self-made
+     The rest is private: real estate (value.re_fund) when Forbes's industry is real estate, otherwise a private business
+     (value.pass_throughs). No home, no debt (net worth right, gross assets understated). Basis: zero for self-made
      fortunes (Forbes's 2019 self_made flag), equal to value for inherited ones, written as accumulated gains
      (w_kg_other on public stock, w_kg_pass_throughs, w_kg_other_re) so the non-microdata step's cost_basis gives it.
    - Income (steps 13-14): each rank group's dollars of each kind = the group's Forbes wealth x the IRS study's
@@ -63,33 +63,128 @@ import dollars as D
 S = common.SETTINGS['tilt'].get('top', {})
 RES = os.path.abspath(os.path.join(common.HERE, '..', 'resources', 'top'))
 ID_BASE = 95_000_000             # Part A's rebuilt returns take 90,000,000 up (top_hidden id_block)
-TOP_AGE = 80                      # the file's top age (age_primary, age_spouse): 80 means 80 and over
+TOP_AGE = 80                      # the file's top age (age1, age2): 80 means 80 and over
 GROUPS = [('top', 92), ('next', 276)]   # BSYZ's top 0.00005% and next 0.00015% of tax units (IRS study units)
 SCF_SET = list(D.META['scf_amounts'])
 
 # kinds of income: (IRS study item(s), the holdings that share it out)
-KINDS = {'gains': ('public'), 'dividends': ('public'), 'interest': ('total'), 'exempt': ('total'),
+KINDS = {'gains': ('public'), 'dividends': ('public'), 'txbl_int': ('total'), 'exempt': ('total'),
          'business profits': ('private'), 'business losses': ('private'), 'rent profits': ('total'),
          'rent losses': ('total'), 'estate': ('total'), 'other income': ('total'), 'wages and pensions': ('total')}
 # items beyond the kinds, at their ratio to AGI in the mix (step 17)
-RATIO_ITEMS = ['salt_inc_sales', 'real_estate_tax', 'ftc', 'amt_ftc', 'gbc', 'prior_yr_cred', 'other_item_exp',
+RATIO_ITEMS = ['salt_inc_sales', 'salt_prop', 'ftc', 'amt_ftc', 'gbc', 'prior_yr_cred', 'other_item_exp',
                'other_misc_exp', 'tax_prep_exp', 'part_se', 'se_tax_ded', 'se_health', 'keogh_contr']
 # items set to zero, with the reason (for the report)
 ZERO_ITEMS = {
-    'ss_gross': 'not market income; capped per person, so not scaled with income',
-    'ss_taxable': 'as ss_gross', 'unemployment': 'none', 'alimony': 'none', 'alimony_exp': 'none',
+    'gross_ss': 'not market income; capped per person, so not scaled with income',
+    'ss_taxable': 'as gross_ss', 'ui': 'none', 'alimony': 'none', 'alimony_exp': 'none',
     'trad_contr_ira': 'capped, negligible', 'sl_int_ded': 'phased out', 'ed_exp': 'phased out',
-    'tuition_ded': 'phased out', 'hsa_ded': 'capped, negligible', 'early_penalty': 'none', 'med_exp': 'none',
-    'casualty_exp': 'none', 'job_exp': 'none', 'mortgage_interest': 'no home, no debt (step 12)',
+    'tuition_ded': 'phased out', 'hsa_contr': 'capped, negligible', 'early_penalty': 'none', 'med_exp': 'none',
+    'casualty_exp': 'none', 'job_exp': 'none', 'first_mort_int': 'no home, no debt (step 12)',
     'aoc_exp': 'phased out', 'llc_exp': 'phased out', 'old_cred': 'none', 'savers_cred': 'phased out',
     'res_energy_cred': 'none', 'other_nonref': 'none', 'net_ptc': 'none', 'excess_ptc': 'none',
     'recapture_tax': 'none', 'ira_penalty': 'none', 'amt_nols': 'net operating losses left out (step 13)',
-    'dpad': 'repealed after 2017', 'farm_rent': 'none', 'sche_other': 'none', 'childcare': 'none',
+    'dpad': 'repealed after 2017', 'farm_rent': 'none', 'sche_other': 'none', 'care_exp': 'none',
     'auto_int_exp': 'no debt', 'elective_deferrals': 'none', 'tips_primary': 'none', 'tips_spouse': 'none',
     'ot_primary': 'none', 'ot_spouse': 'none'}
 
 
 # ---- the list as tax units ------------------------------------------------------------------------------------
+def wealth_parts(p):
+    """Each person's net worth in three parts (module docstring, step 12): public holdings = the public share (known,
+    else the rank group's wealth-weighted average among people with a known share) x net worth; the rest private, real
+    estate (private_re) when Forbes's industry is real estate, else a private business (private_pt). p: the people
+    table with group, net_worth, public_share and real_estate. Returns p with public_share_used, public, private,
+    private_re, private_pt, and the mask of people whose share is known."""
+    p = p.copy()
+    known = p['public_share'].notna()
+    avg = (p[known].assign(x=lambda d: d.public_share * d.net_worth).groupby('group')['x'].sum()
+           / p[known].groupby('group')['net_worth'].sum())
+    p['public_share_used'] = p['public_share'].fillna(p['group'].map(avg))
+    assert p['public_share_used'].notna().all(), 'a rank group with no known public share'
+    p['public'] = p['public_share_used'] * p['net_worth']
+    p['private'] = p['net_worth'] - p['public']
+    p['private_re'] = np.where(p['real_estate'], p['private'], 0.0)
+    p['private_pt'] = p['private'] - p['private_re']
+    return p, known
+
+
+def last_list_year():
+    """The latest year with a Forbes list in settings tilt.top.billionaire_lists, or None."""
+    years = [int(y) for y in (S.get('billionaire_lists') or {})]
+    return max(years) if years else None
+
+
+def list_for_year(year):
+    """The billionaires' list for tax year year and how it is used: ('list', the year's own list, year) when settings
+    tilt.top.billionaire_lists has one (the records then have weight 1, held fixed); ('grown', the last list grown to
+    the year by grow_list, the last list's year) for a year after the last list when settings tilt.top.after_last_list
+    .grow is true (John, 2 November 2026: the records then start at weight 1 times their cell's population growth;
+    whether they are then held fixed is after_last_list.fixed, top_records.add_list); (None, None, None) otherwise."""
+    lst = read_list(year)
+    if lst is not None:
+        return 'list', lst, year
+    last = last_list_year()
+    if last is not None and year > last and (S.get('after_last_list') or {}).get('grow', False):
+        return 'grown', grow_list(read_list(last), last, year), last
+    return None, None, None
+
+
+def growth_factors(s, t):
+    """The growth per return from s to t of the three kinds of holding the billionaires have, by the rule the
+    projection years' start grows each item with (tilt.grow_dollars, cbo_per_return): public stock as value.equities
+    and a private business as value.pass_throughs (projection_growth.plan_factors: the Financial Accounts series per
+    return through 2025, then CBO's GDP per return), private real estate as value.re_fund, which has no projection
+    rule and so, as in grow_dollars, keeps growth.yaml's (the SCF's mean per tax unit, wave of income year t - 1 over
+    that of s - 1, after the last wave by the Financial Accounts per person: build_table.scf_growth). Returns
+    {part: (factor, source)}."""
+    import build_table as BT
+    import projection_growth as PG
+    assert 2024 <= s < t <= 2036, f'billionaires grown from {s} to {t}: projection growth covers 2024-2036 only'
+    cols = {'public': 'value.equities', 'private_pt': 'value.pass_throughs', 'private_re': 'value.re_fund'}
+    got, problems = PG.plan_factors(list(cols.values()), t, None, strict=False, from_year=s)
+    got = got.set_index('column')
+    out, scf = {}, None
+    for k, c in cols.items():
+        if c in got.index:
+            out[k] = (float(got.loc[c, 'factor']), f'{c}: {got.loc[c, "source"]}')
+            continue
+        if scf is None:   # as grow_dollars: the SCF rows of the training table
+            scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
+            scf = scf[scf.source == 'scf']
+        f = BT.scf_growth(scf, s - 1, t - 1)[c]
+        assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
+        out[k] = (float(f), f'{c}: no projection rule ({next(q for q in problems if q.startswith(c))[:60]}...); '
+                            f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
+    return out
+
+
+def grow_list(lst, s, t):
+    """The year-s list carried to year t (a year after the last list; John, 2 November 2026): each person's net worth
+    split into public stock, private business and private real estate as build_billionaires splits it (wealth_parts,
+    on the year-s ranking), each part grown by growth_factors(s, t), net worth their sum, and the public share made
+    the grown public part over the grown net worth (so build_billionaires splits the grown fortune into the same
+    grown parts); ages raised by t - s (a missing age stays missing). Spouses, couples, families and every other column
+    stay as on the year-s list. Income is not carried: build_billionaires computes it from the grown wealth by the IRS
+    study's ratios, as in a list year."""
+    units, people = tax_units(lst)
+    p = _people_attributes(people)
+    p, _ = wealth_parts(p)
+    f = growth_factors(s, t)
+    grown = {k: p[k].to_numpy(float) * f[k][0] for k in f}
+    nw = grown['public'] + grown['private_pt'] + grown['private_re']
+    by_uri = pd.DataFrame({'uri': p['uri'].to_numpy(), 'nw': nw, 'share': grown['public'] / nw}).set_index('uri')
+    out = lst.copy()
+    assert out['uri'].isin(by_uri.index).all()
+    out['net_worth_list'] = out['net_worth']
+    out['net_worth'] = np.round(out['uri'].map(by_uri['nw']).to_numpy(float))
+    out['public_share_later'] = out['uri'].map(by_uri['share']).to_numpy(float)
+    age = pd.to_numeric(out['age'], errors='coerce')
+    out['age'] = (age + (t - s)).astype('Int64')
+    out.attrs['growth'] = {k: v for k, v in f.items()}
+    return out
+
+
 def read_list(year):
     """The year's Forbes list (settings tilt.top.billionaire_lists: {year: file in resources/top}), or None."""
     name = (S.get('billionaire_lists') or {}).get(str(year))
@@ -137,15 +232,15 @@ def bsyz_groups():
     cols = {'top': t['top_00005pct'] * 1e3, 'next': (4 * t['top_0002pct'] - t['top_00005pct']) / 3 * 1e3}
     out = {}
     for g, a in cols.items():
-        k = {'gains': a['realized_capital_gains'], 'dividends': a['dividends'], 'interest': a['interest'],
-             'exempt': a['tax_exempt_interest'], 'business profits': a['positive_business_income'],
+        k = {'gains': a['realized_capital_gains'], 'dividends': a['dividends'], 'txbl_int': a['txbl_int'],
+             'exempt': a['exempt_int'], 'business profits': a['positive_business_income'],
              'business losses': a['business_income'] - a['positive_business_income'],
              'rent losses': a['negative_rental_income'],
              'rent profits': a['rental_income'] + a['royalties'] - a['negative_rental_income'],
              'estate': a['estate_and_trust_income'], 'other income': a['other_income_excl_nols'],
              'wages and pensions': a['wages_and_pensions']}
-        fiscal = (a['wages_and_pensions'] + a['realized_capital_gains'] + a['dividends'] + a['interest']
-                  + a['tax_exempt_interest'] + a['rental_income'] + a['estate_and_trust_income'] + a['royalties']
+        fiscal = (a['wages_and_pensions'] + a['realized_capital_gains'] + a['dividends'] + a['txbl_int']
+                  + a['exempt_int'] + a['rental_income'] + a['estate_and_trust_income'] + a['royalties']
                   + a['business_income'] + a['other_income_excl_nols'])
         assert abs(sum(k.values()) - fiscal) < 1e-6 * abs(fiscal)
         out[g] = {'wealth': a['wealth'], 'fiscal': fiscal, 'kinds': k, 'agi': a['agi'],
@@ -201,40 +296,40 @@ def item_mix(df, w, notes):
     m['kg_1250 per kg_lt'] = _share(tot('kg_1250'), pos('kg_lt'), 0.0)
     m['kg_collect per kg_lt'] = _share(tot('kg_collect'), pos('kg_lt'), 0.0)
     m['div_pref share'] = _share(tot('div_pref'), tot('div_pref') + tot('div_ord'), 1.0)
-    wp = {c: pos(c) for c in ['wages', 'pensions_taxable', 'ira_taxable']}
+    wp = {c: pos(c) for c in ['wages', 'txbl_pens_dist', 'txbl_ira_dist']}
     m['wages and pensions'] = {c: _share(v, sum(wp.values()), 1.0 if c == 'wages' else 0.0) for c, v in wp.items()}
     # business profits and losses: the Schedule C and farm part from the mix, partnership against S corporation from
     # the IRS study (build_billionaires), and within each the mix's split
-    prof = {'part_pass_inc': tot('part_pass_inc'), 'part_nonpass_inc': tot('part_nonpass_inc'),
-            'scorp_pass_inc': tot('scorp_pass_inc'), 'scorp_nonpass_inc': tot('scorp_nonpass_inc'),
-            'sch_c': pos('sch_c'), 'farm': pos('farm')}
-    loss = {'part_pass_loss': tot('part_pass_loss'), 'part_nonpass_loss': tot('part_nonpass_loss'),
-            'part_179': tot('part_179'), 'scorp_pass_loss': tot('scorp_pass_loss'),
-            'scorp_nonpass_loss': tot('scorp_nonpass_loss'), 'scorp_179': tot('scorp_179'),
-            'sch_c': neg('sch_c'), 'farm': neg('farm')}
-    m['schedule C and farm share of profits'] = _share(prof['sch_c'] + prof['farm'], sum(prof.values()), 0.0)
-    m['schedule C and farm share of losses'] = _share(loss['sch_c'] + loss['farm'], sum(loss.values()), 0.0)
+    prof = {'part_passive': tot('part_passive'), 'part_active': tot('part_active'),
+            'scorp_passive': tot('scorp_passive'), 'scorp_active': tot('scorp_active'),
+            'sole_prop': pos('sole_prop'), 'farm': pos('farm')}
+    loss = {'part_passive_loss': tot('part_passive_loss'), 'part_active_loss': tot('part_active_loss'),
+            'part_179': tot('part_179'), 'scorp_passive_loss': tot('scorp_passive_loss'),
+            'scorp_active_loss': tot('scorp_active_loss'), 'scorp_179': tot('scorp_179'),
+            'sole_prop': neg('sole_prop'), 'farm': neg('farm')}
+    m['schedule C and farm share of profits'] = _share(prof['sole_prop'] + prof['farm'], sum(prof.values()), 0.0)
+    m['schedule C and farm share of losses'] = _share(loss['sole_prop'] + loss['farm'], sum(loss.values()), 0.0)
     # the share of the group's returns with a Schedule C or farm profit, and with a loss (weighted): only that share of
     # the billionaires holds one (build_billionaires)
-    cf = x['sch_c'].to_numpy(float) + x['farm'].to_numpy(float)
+    cf = x['sole_prop'].to_numpy(float) + x['farm'].to_numpy(float)
     m['holders of schedule C and farm profits'] = float(ww[cf > 0].sum() / ww.sum())
     m['holders of schedule C and farm losses'] = float(ww[cf < 0].sum() / ww.sum())
     part = lambda d, keys, first: {k: _share(d[k], sum(d[q] for q in keys), 1.0 if k == first else 0.0) for k in keys}
-    m['partnership profits'] = part(prof, ['part_pass_inc', 'part_nonpass_inc'], 'part_nonpass_inc')
-    m['scorp profits'] = part(prof, ['scorp_pass_inc', 'scorp_nonpass_inc'], 'scorp_nonpass_inc')
-    m['schedule C and farm profits'] = part(prof, ['sch_c', 'farm'], 'sch_c')
-    m['partnership losses'] = part(loss, ['part_pass_loss', 'part_nonpass_loss', 'part_179'], 'part_nonpass_loss')
-    m['scorp losses'] = part(loss, ['scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179'], 'scorp_nonpass_loss')
-    m['schedule C and farm losses'] = part(loss, ['sch_c', 'farm'], 'sch_c')
-    oth = {c: pos(c) for c in ['other_gains', 'state_refunds', 'other_agi_remainder']}
+    m['partnership profits'] = part(prof, ['part_passive', 'part_active'], 'part_active')
+    m['scorp profits'] = part(prof, ['scorp_passive', 'scorp_active'], 'scorp_active')
+    m['schedule C and farm profits'] = part(prof, ['sole_prop', 'farm'], 'sole_prop')
+    m['partnership losses'] = part(loss, ['part_passive_loss', 'part_active_loss', 'part_179'], 'part_active_loss')
+    m['scorp losses'] = part(loss, ['scorp_passive_loss', 'scorp_active_loss', 'scorp_179'], 'scorp_active_loss')
+    m['schedule C and farm losses'] = part(loss, ['sole_prop', 'farm'], 'sole_prop')
+    oth = {c: pos(c) for c in ['other_gains', 'state_ref', 'other_agi_remainder']}
     m['other income'] = {c: _share(v, sum(oth.values()), 1.0 if c == 'other_agi_remainder' else 0.0)
                          for c, v in oth.items()}
     m['char_cash share'] = _share(tot('char_cash'), tot('char_cash') + tot('char_noncash'), 0.5)
     agi_pos = float((ww * np.maximum(agi[g], 0)).sum())
     m['ratio to AGI'] = {c: tot(c) / agi_pos for c in RATIO_ITEMS}
     # QBI: each kind's outside workers per dollar of the kind's positive income, and its industry with the most income
-    kinds = {'schc': {'sch_c': 1}, 'part': {'part_pass_inc': 1, 'part_nonpass_inc': 1},
-             'scorp': {'scorp_pass_inc': 1, 'scorp_nonpass_inc': 1}}
+    kinds = {'schc': {'sole_prop': 1}, 'part': {'part_passive': 1, 'part_active': 1},
+             'scorp': {'scorp_passive': 1, 'scorp_active': 1}}
     m['workers per dollar'], m['industry'] = {}, {}
     for k, parts in kinds.items():
         inc = np.maximum(sum(s * x[p].to_numpy(float) for p, s in parts.items()), 0)
@@ -274,16 +369,7 @@ def build_billionaires(lst, df, w, year, notes):
     units, people = tax_units(lst)
     p = _people_attributes(people)
     groups = bsyz_groups()
-    # wealth: public share known, else the rank group's wealth-weighted average among people with a known share
-    known = p['public_share'].notna()
-    avg = (p[known].assign(x=lambda d: d.public_share * d.net_worth).groupby('group')['x'].sum()
-           / p[known].groupby('group')['net_worth'].sum())
-    p['public_share_used'] = p['public_share'].fillna(p['group'].map(avg))
-    assert p['public_share_used'].notna().all(), 'a rank group with no known public share'
-    p['public'] = p['public_share_used'] * p['net_worth']
-    p['private'] = p['net_worth'] - p['public']
-    p['private_re'] = np.where(p['real_estate'], p['private'], 0.0)
-    p['private_pt'] = p['private'] - p['private_re']
+    p, known = wealth_parts(p)
     for c in ['public', 'private_re', 'private_pt']:
         p[f'gain_{c}'] = np.where(p['founder'], p[c], 0.0)
     agg = p.groupby('unit_uri').agg(public=('public', 'sum'), private=('private', 'sum'), private_re=('private_re', 'sum'),
@@ -299,7 +385,7 @@ def build_billionaires(lst, df, w, year, notes):
     u = u.join(spou[['uri', 'age_used', 'sex']].add_prefix('sp_'), on='unit_uri')
     u['joint_pair'] = u['sp_uri'].notna()
     u['married'] = (u['joint_pair'] | (u['couple_entry'].astype(str) == 'True') | u['married_later']).astype(int)
-    u['age_spouse'] = np.where(u['married'] == 1, np.where(u['joint_pair'], u['sp_age_used'], u['age_used']), -1).astype(int)
+    u['age2'] = np.where(u['married'] == 1, np.where(u['joint_pair'], u['sp_age_used'], u['age_used']), -1).astype(int)
     u['sex_spouse'] = np.where(u['married'] == 1, np.where(u['joint_pair'], u['sp_sex'], 3 - u['sex']), 0).astype(int)
     u['n_dep'] = np.where(u['age_used'] < 45, np.minimum(u['children'], 3), 0).astype(int)
 
@@ -335,7 +421,6 @@ def build_billionaires(lst, df, w, year, notes):
             out[c] = 0
         else:
             out[c] = ''
-    n = len(u)
     put = lambda c, v: out.__setitem__(c, v)
     put('source', 'puf'); put('year', common.PUF_YEAR); put('filer', 1); put('stratifier', 'forbes'); put('model', 0)
     put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)
@@ -349,16 +434,16 @@ def build_billionaires(lst, df, w, year, notes):
     # people
     put('married', u['married'].to_numpy())
     put('n_dep', u['n_dep'].to_numpy())
-    put('mars', np.where(u['married'] == 1, 2, np.where(u['n_dep'] > 0, 4, 1)))
-    put('n_ctc', u['n_dep'].to_numpy()); put('n_eitc', 0)
+    put('filing_status', np.where(u['married'] == 1, 2, np.where(u['n_dep'] > 0, 4, 1)))
+    put('n_dep_ctc', u['n_dep'].to_numpy()); put('n_dep_eitc', 0)
     age = u['age_used'].to_numpy()
-    put('age_primary', age)
+    put('age1', age)
     put('age_range', np.searchsorted([26, 35, 45, 55, 65], age, side='right'))
-    put('age_spouse', u['age_spouse'].to_numpy())
+    put('age2', u['age2'].to_numpy())
     put('sex_primary', u['sex'].to_numpy()); put('sex_spouse', u['sex_spouse'].to_numpy())
     for k, a in enumerate([12, 9, 6], start=1):
         has = u['n_dep'].to_numpy() >= k
-        put(f'age_dep{k}', np.where(has, a, -1))
+        put(f'dep_age{k}', np.where(has, a, -1))
         put(f'ssn_status_dep{k}', np.where(has, 1, 0))
         if f'dep_ssn{k}' in df:
             put(f'dep_ssn{k}', np.where(has, 1.0, np.nan))
@@ -379,10 +464,10 @@ def build_billionaires(lst, df, w, year, notes):
     put('kg_collect', np.maximum(out['kg_lt'], 0) * mix['kg_collect per kg_lt'])
     put('div_pref', kinds['dividends'] * mix['div_pref share'])
     put('div_ord', kinds['dividends'] * (1 - mix['div_pref share']))
-    put('interest', kinds['interest']); put('tax_exempt_interest', kinds['exempt'])
+    put('txbl_int', kinds['txbl_int']); put('exempt_int', kinds['exempt'])
     for c, s in mix['wages and pensions'].items():
         put(c, kinds['wages and pensions'] * s)
-    put('retirement_gross', out['pensions_taxable'] + out['ira_taxable'])
+    put('retirement_gross', out['txbl_pens_dist'] + out['txbl_ira_dist'])
     # business: partnership against S corporation from the IRS study (by group), Schedule C and farm from the mix
     grp = u['group'].to_numpy()
     irs = lambda k: np.array([groups[x][k] for x in grp])
@@ -419,33 +504,33 @@ def build_billionaires(lst, df, w, year, notes):
                 h_ = m_ & (privk == privk[m_].max())
             amt[h_] = total[m_].sum() * privk[h_] / privk[h_].sum()
         cf_amount[side] = amt
-    for c in ['sch_c', 'farm']:
+    for c in ['sole_prop', 'farm']:
         put(c, cf_amount['profits'] * mix['schedule C and farm profits'][c]
             - cf_amount['losses'] * mix['schedule C and farm losses'][c])
-    put('rent_inc', kinds['rent profits']); put('rent_loss', -kinds['rent losses'])
-    put('estate_inc', np.maximum(kinds['estate'], 0)); put('estate_loss', np.maximum(-kinds['estate'], 0))
+    put('rent', kinds['rent profits']); put('rent_loss', -kinds['rent losses'])
+    put('estate', np.maximum(kinds['estate'], 0)); put('estate_loss', np.maximum(-kinds['estate'], 0))
     for c, s in mix['other income'].items():
         put(c, kinds['other income'] * s)
     assert (out['rent_loss'] >= 0).all()
     # the computed business total, as drawn (no draw here)
     parts = D.META['computed_totals']['business_income']
-    put('business_income_drawn', out[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float))
+    put('business_income_drawn', D.signed_sum(out, parts))
     # charity (step 16)
     rate = np.where(grp == 'top', float(S.get('gift_rate_top', 0.007)), float(S.get('gift_rate_rest', 0.006)))
     gifts = rate * u['net_worth'].to_numpy(float)
     put('char_cash', gifts * mix['char_cash share']); put('char_noncash', gifts * (1 - mix['char_cash share']))
     # the balance sheet (step 12) and basis as accumulated gains
-    put('w_equities', u['public'].to_numpy(float)); put('w_pass_throughs', u['private_pt'].to_numpy(float))
-    put('w_re_fund', u['private_re'].to_numpy(float))
+    put('value.equities', u['public'].to_numpy(float)); put('value.pass_throughs', u['private_pt'].to_numpy(float))
+    put('value.re_fund', u['private_re'].to_numpy(float))
     put('w_kg_other', u['gain_public'].to_numpy(float)); put('w_kg_pass_throughs', u['gain_private_pt'].to_numpy(float))
     put('w_kg_other_re', u['gain_private_re'].to_numpy(float))
     put('owns_business', (u['private_pt'] > 0).astype(int).to_numpy())
     # QBI kinds: an industry where the kind has income, workers per dollar of its profits
-    kp = {'schc': np.maximum(out['sch_c'], 0), 'part': out['part_pass_inc'] + out['part_nonpass_inc'],
-          'scorp': out['scorp_pass_inc'] + out['scorp_nonpass_inc']}
-    anyk = {'schc': out['sch_c'] != 0,
-            'part': (out[['part_pass_inc', 'part_nonpass_inc', 'part_pass_loss', 'part_nonpass_loss', 'part_179']] != 0).any(axis=1),
-            'scorp': (out[['scorp_pass_inc', 'scorp_nonpass_inc', 'scorp_pass_loss', 'scorp_nonpass_loss', 'scorp_179']] != 0).any(axis=1)}
+    kp = {'schc': np.maximum(out['sole_prop'], 0), 'part': out['part_passive'] + out['part_active'],
+          'scorp': out['scorp_passive'] + out['scorp_active']}
+    anyk = {'schc': out['sole_prop'] != 0,
+            'part': (out[['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179']] != 0).any(axis=1),
+            'scorp': (out[['scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']] != 0).any(axis=1)}
     for k in kp:
         put(f'biz_industry_{k}', np.where(anyk[k], mix['industry'][k], 0))
         put(f'biz_workers_{k}', np.where(anyk[k], kp[k] * mix['workers per dollar'][k], 0.0))
@@ -510,7 +595,7 @@ def balance_sheet_dollars(rows, maps, salt):
     for slot, (item, base) in D.RATIOS.items():
         if slot in out and base in out:
             out[item] = out[slot] * out[base]
-    out['net_worth'] = out[list(D.NET_WORTH_PARTS)].to_numpy(float) @ np.array(list(D.NET_WORTH_PARTS.values()), float)
+    out['net_worth'] = D.signed_sum(out, D.NET_WORTH_PARTS)
     return out
 
 
@@ -568,7 +653,7 @@ def kept_picks(rid, k, salt):
             for i, v in enumerate(D.META['scf_amounts'])}
 
 
-SCF_MADE = ['net_worth', 'w_primary_mortgage', 'w_dc_stocks', 'elective1', 'elective2', 'trad_contr_er1',
+SCF_MADE = ['net_worth', 'value.primary_mortgage', 'w_dc_stocks', 'elective1', 'elective2', 'trad_contr_er1',
             'trad_contr_er2', 'trad_deferrals', 'medicare_wages']   # made from the SCF amounts (draw_dollars)
 
 

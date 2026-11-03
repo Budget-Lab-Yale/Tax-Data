@@ -22,7 +22,8 @@ One record is drawn slot by slot:
      nothing drawn for it, and every slot the CPS has is present and hidden
      until its turn, except the CPS's two shares, absent
      until married and the share's base are drawn (model.gate_shares);
-  2. the computed totals: line-13 capital gains from its four pieces,
+  2. the computed totals: capital gains from its three pieces (short and long term before the loss limit,
+     distributions; since 29-30 October),
      business income and its two subtotals (Schedules C and F, Schedule E)
      from its eighteen parts, and (since 27 October) ordinary dividends from
      qualified and other dividends and the adjustments from their eleven parts. Each part gets a dollar value inside its band
@@ -84,7 +85,7 @@ that year, and dollars.py turns its bands into dollars with that year's own map,
 carries cex_year, cps_year and sipp_year. The non-filer batch's own items stay under the CPS label at the target year.
 
 The SCF waves (TARGETS.md section 7). The balance sheet is drawn from a mix of SCF waves: the target year's
-configuration file gives each wave's share (targets_config/years/<target year>.yaml, prior, "balance sheet"; for 2019
+configuration file gives each wave's share (targets_config/<target year>/prior.yaml, "balance sheet"; for 2019
 the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%, by the rule of 24 October). Each record, filers and
 non-filers alike, is given one wave at random with those shares, by a random generator of its own (seeded by settings
 generation.scf_wave_seed and the batch's generation seed), so no other draw moves. Its SCF phase runs under the SCF
@@ -230,8 +231,8 @@ DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
 SURVEY_ONLY = torch.tensor([P.index(v) for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS])
 POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
-STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_ctc, n_eitc)
-MARS, MARRIED, AGE_RANGE = P.index('mars'), P.index('married'), P.index('age_range')
+STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_dep_ctc, n_dep_eitc)
+MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index('age_range')
 # The trained models pooled (see the top): each a run under OUT/model and the shift added to its generation seeds.
 # null: the run's own model (common.MODEL) alone, with today's seeds.
 MODELS = G.get('models', [{'run': 'seed20261016', 'seed_shift': 0}, {'run': 'seed20261017', 'seed_shift': 1000}])
@@ -252,10 +253,19 @@ def filer_records():
 
 def cps_expected_nonfilers(year):
     """The CPS's expected non-filers in year: the sum over its units of weight x (1 - filer_p)."""
-    t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
-    t = t[(t.source == 'cps') & (t.year == year)]
-    assert len(t), f'no CPS units for {year}: the non-filer batch is drawn from the CPS at the target year'
-    return float((t['weight'] * (1 - t['filer_p'])).sum())
+    import target_list as TLS
+    return TLS.nonfiler_count(year)   # a year with no CPS units: the geometric mean of the CPS years either side
+
+
+def nonfiler_years():
+    """[(CPS year, share)] the non-filer batch is drawn at: the target year alone when the CPS has it; otherwise
+    (an even year, 30 October) the year's CPS mix (prior "cps items": the CPS years either side, half each), each
+    year's part of the batch drawn under the CPS label at that year."""
+    import survey_mix
+    import target_list as TLS
+    if common.TARGET_YEAR in TLS.cps_years():
+        return [(common.TARGET_YEAR, 1.0)]
+    return survey_mix.mix('cps')
 
 
 # ---- the SCF waves (TARGETS.md section 7) ------------------------------------------------------
@@ -264,7 +274,7 @@ def scf_waves():
     [(wave survey year, income year, share)], by survey year."""
     import target_list as TLS
     prior = TLS.resolve(common.TARGET_YEAR)['prior']['balance sheet']
-    where = f'targets_config/years/{common.TARGET_YEAR}.yaml, prior "balance sheet"'
+    where = f'targets_config/{common.TARGET_YEAR}/prior.yaml, prior "balance sheet"'
     out = []
     for key, share in prior.items():
         src, wave = str(key).split()
@@ -917,8 +927,19 @@ def build_stack(models, factors):
         checks.append(check)
         rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
         common.say(f"{mod['run']}: filers done")
-        nf, counts = generate(model, n_nf_k, G.get('nonfiler_seed', 35) + shift, factors=fac, label='cps',
-                              year=common.TARGET_YEAR, filer=0)
+        nf_parts, counts = [], {r: 0 for r in rule_counts}
+        nf_years = nonfiler_years()
+        sizes = [int(round(n_nf_k * s)) for _, s in nf_years]
+        sizes[-1] = n_nf_k - sum(sizes[:-1])
+        for j, ((ny, _), size) in enumerate(zip(nf_years, sizes)):
+            # one year (the target year): the seed as before; several (a year with no CPS units): a seed per year
+            part_nf, c = generate(model, size, G.get('nonfiler_seed', 35) + shift + 100 * j, factors=fac, label='cps',
+                                  year=ny, filer=0)
+            if len(nf_years) > 1:
+                common.say(f"  non-filers drawn at CPS {ny}: {size:,} records")
+            nf_parts.append(part_nf)
+            counts = {r: counts[r] + c[r] for r in counts}
+        nf = pd.concat(nf_parts, ignore_index=True)
         nf['weight'], nf['stratifier'] = n_nf / len(models) / n_nf_k, 'nonfiler'   # each model: an equal share
         nf['q_group'], nf['label_ok'] = -1, True                                     # no label on a non-filer
         rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}

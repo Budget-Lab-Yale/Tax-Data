@@ -2,18 +2,18 @@ column,status,from the rebuild,"what it is, or what would fill it"
 id,renamed,record_id,"record id, unique in the file"
 weight,same,weight (after the tilt); weight_start is the weight before it,tax units the record stands for
 filer,same,filer,"1 files a return, 0 a non-filer"
-filing_status,renamed,mars,"1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household"
+filing_status,renamed,filing_status,"1 single, 2 joint (and surviving spouses), 3 separate, 4 head of household"
 dep_status,computed,"age_range in 6, 7, 8 (the PUF's three dependent-filer ranges)",1 if the return is filed by someone claimed as a dependent
-age1,renamed,"age_primary; NaN where the rebuild has -1 (none), as Tax-Data writes it (the dependent filers, about 6% of filers)","age of the primary filer, 80 for 80 and over"
-age2,renamed,"age_spouse; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the spouse
-male1,computed,sex_primary == 1 (0 also where the rebuild has no sex: the dependent filers),"primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain"
+age1,renamed,"age1; dependent filers (age1 -1) dep_filer_age, drawn by the non-microdata imputations, where the file has it (as taxsim_file); else NaN where the rebuild has -1","age of the primary filer, 80 for 80 and over"
+age2,renamed,"age2; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the spouse
+male1,computed,sex_primary == 1; dependent filers dep_filer_sex == 1 where the file has it (else 0),"primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain"
 blind1,zero,0,primary filer is blind: the blindness rule (NEXT_STEPS step 1)
 blind2,zero,0,spouse is blind: the blindness rule (NEXT_STEPS step 1)
 n_dep,same,n_dep (the rebuild caps it at 3),number of dependents
-n_dep_eitc,renamed,"n_eitc (PUF EIC, capped at 3)",number of EITC qualifying children
-dep_age1,renamed,"age_dep1; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the first dependent
-dep_age2,renamed,"age_dep2; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the second dependent
-dep_age3,renamed,"age_dep3; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the third dependent
+n_dep_eitc,renamed,"n_dep_eitc (PUF EIC, capped at 3)",number of EITC qualifying children
+dep_age1,renamed,"dep_age1; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the first dependent
+dep_age2,renamed,"dep_age2; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the second dependent
+dep_age3,renamed,"dep_age3; NaN where the rebuild has -1 (none), as Tax-Data writes it",age of the third dependent
 dep_ssn1,zero,0,dependent 1 has a Social Security number: the dependents' SSN rule (NEXT_STEPS step 1)
 dep_ssn2,zero,0,dependent 2 has a Social Security number: as dep_ssn1
 dep_ssn3,zero,0,dependent 3 has a Social Security number: as dep_ssn1
@@ -34,28 +34,28 @@ ot1,same,ot1 where the file has it; else 0,"primary filer's overtime pay, inside
 ot2,same,ot2 where the file has it; else 0,"spouse's overtime pay, inside wages2"
 trad_contr_er1,same,trad_contr_er1,primary filer's traditional elective deferrals (outside box 1)
 trad_contr_er2,same,trad_contr_er2,spouse's traditional elective deferrals
-sole_prop,renamed,sch_c,Schedule C net income of the unit
-sole_prop1,computed,sch_c - sole_prop2,primary filer's Schedule C income
-sole_prop2,computed,sch_c x spouse_se_share (production splits by one self-employment share too),spouse's Schedule C income
+sole_prop,renamed,sole_prop,Schedule C net income of the unit
+sole_prop1,computed,sole_prop - sole_prop2,primary filer's Schedule C income
+sole_prop2,computed,sole_prop x spouse_se_share (production splits by one self-employment share too),spouse's Schedule C income
 farm,same,farm,Schedule F net farm income of the unit
 farm1,computed,farm - farm2,primary filer's farm income
 farm2,computed,farm x spouse_se_share,spouse's farm income
 part_se1,computed,part_se - part_se2,primary filer's partnership income subject to self-employment tax
 part_se2,computed,part_se x spouse_se_share,spouse's partnership income subject to self-employment tax
 ei_prior_yr,zero,0 (production writes 0 too),earned income last year (child credit look-back; off under 2019 law): no source planned
-part_active,renamed,part_nonpass_inc,nonpassive partnership income
-part_active_loss,renamed,part_nonpass_loss,"nonpassive partnership loss, stored positive"
-part_passive,renamed,part_pass_inc,passive partnership income
-part_passive_loss,renamed,part_pass_loss,"passive partnership loss, stored positive"
+part_active,renamed,part_active,nonpassive partnership income
+part_active_loss,renamed,part_active_loss,"nonpassive partnership loss, stored positive"
+part_passive,renamed,part_passive,passive partnership income
+part_passive_loss,renamed,part_passive_loss,"passive partnership loss, stored positive"
 part_179,same,part_179,partnership section 179 deduction
-scorp_active,renamed,scorp_nonpass_inc,nonpassive S corporation income
-scorp_active_loss,renamed,scorp_nonpass_loss,"nonpassive S corporation loss, stored positive"
-scorp_passive,renamed,scorp_pass_inc,passive S corporation income
-scorp_passive_loss,renamed,scorp_pass_loss,"passive S corporation loss, stored positive"
+scorp_active,renamed,scorp_active,nonpassive S corporation income
+scorp_active_loss,renamed,scorp_active_loss,"nonpassive S corporation loss, stored positive"
+scorp_passive,renamed,scorp_passive,passive S corporation income
+scorp_passive_loss,renamed,scorp_passive_loss,"passive S corporation loss, stored positive"
 scorp_179,same,scorp_179,S corporation section 179 deduction
-rent,renamed,rent_inc,"rents and royalties, net income"
+rent,renamed,rent,"rents and royalties, net income"
 rent_loss,same,rent_loss,"rents and royalties, net loss, stored positive"
-estate,renamed,estate_inc,estate and trust net income
+estate,renamed,estate,estate and trust net income
 estate_loss,same,estate_loss,"estate and trust net loss, stored positive"
 wagebill_sole_prop,zero,0,W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule (NEXT_STEPS step 1)
 wagebill_part,zero,0,W-2 wages paid by the partnership (QBI): as wagebill_sole_prop
@@ -65,16 +65,16 @@ sstb_sole_prop,zero,0,the sole proprietorship is a specified service business (Q
 sstb_part,zero,0,the partnership is a specified service business: as sstb_sole_prop
 sstb_scorp,zero,0,the S corporation is a specified service business: as sstb_sole_prop
 sstb_farm,zero,0,the farm is a specified service business: as sstb_sole_prop
-txbl_int,renamed,interest,taxable interest
-exempt_int,renamed,tax_exempt_interest,tax-exempt interest
+txbl_int,renamed,txbl_int,taxable interest
+exempt_int,renamed,exempt_int,tax-exempt interest
 div_ord,same,div_ord,ordinary dividends that are not qualified
 div_pref,same,div_pref,qualified dividends
-state_ref,renamed,state_refunds,taxable state income tax refunds
-txbl_ira_dist,renamed,ira_taxable,taxable IRA distributions
-txbl_pens_dist,renamed,pensions_taxable,taxable pensions and annuities
-gross_pens_dist,computed,retirement_gross - ss_gross (retirement_gross is the PUF's E02400 + E01500),gross pensions and annuities
-gross_ss,renamed,ss_gross,gross Social Security benefits (the calculator computes the taxable part)
-ui,renamed,unemployment,unemployment compensation
+state_ref,renamed,state_ref,taxable state income tax refunds
+txbl_ira_dist,renamed,txbl_ira_dist,taxable IRA distributions
+txbl_pens_dist,renamed,txbl_pens_dist,taxable pensions and annuities
+gross_pens_dist,computed,retirement_gross - gross_ss (retirement_gross is the PUF's E02400 + E01500),gross pensions and annuities
+gross_ss,renamed,gross_ss,gross Social Security benefits (the calculator computes the taxable part)
+ui,renamed,ui,unemployment compensation
 alimony,same,alimony,alimony received
 other_inc,computed,other_agi_remainder + farm_rent + sche_other,other income in AGI: AGI less every item the calculator gets in another column. The rebuild's remainder does not hold the adjustments (production's does); farm rental and the unnamed rest of Schedule E have no column of their own in the calculator
 other_gains,same,other_gains,Form 4797 gains and losses
@@ -85,7 +85,7 @@ kg_collect,same,kg_collect,28 percent rate (collectibles) gain
 kg_lt_basis,zero,0,cost basis of long-term gains (indexing reforms only): basis from SOI's Sales of Capital Assets tables (NEXT_STEPS step 1)
 kg_lt_years_held,zero,0,holding period of long-term gains (indexing reforms only): as kg_lt_basis
 ed_exp,same,ed_exp,educator expenses
-hsa_contr,renamed,hsa_ded,HSA deduction
+hsa_contr,renamed,hsa_contr,HSA deduction
 trad_contr_ira,same,trad_contr_ira,deductible IRA contributions
 keogh_contr,same,keogh_contr,"Keogh, SEP and SIMPLE contributions"
 se_health,same,se_health,self-employed health insurance deduction
@@ -98,13 +98,13 @@ sl_int_ded,same,sl_int_ded,student loan interest deduction
 auto_int_exp,same,auto_int_exp,auto loan interest (deductible only from 2025)
 med_exp,same,med_exp,medical expenses before the AGI floor
 salt_inc_sales,same,salt_inc_sales,state and local income or sales tax
-salt_prop,renamed,real_estate_tax,real estate tax
+salt_prop,renamed,salt_prop,real estate tax
 salt_pers,zero,0 (production writes 0 too),personal property tax: none planned
-first_mort_bal,zero,0 (production writes 0 too),"first mortgage balance (the $750,000 limit): the balance sheet's w_primary_mortgage could fill it (a decision)"
+first_mort_bal,zero,0 (production writes 0 too),"first mortgage balance (the $750,000 limit): the balance sheet's value.primary_mortgage could fill it (a decision)"
 second_mort_bal,zero,0 (production writes 0 too),second mortgage balance: as first_mort_bal
 first_mort_year,zero,0 (production writes 0 too),year the first mortgage was taken out; the calculator overrides it
 second_mort_year,zero,0 (production writes 0 too),as first_mort_year
-first_mort_int,renamed,"mortgage_interest (PUF E19200, all deductible interest, as production)",mortgage interest paid
+first_mort_int,renamed,"first_mort_int (PUF E19200, all deductible interest, as production)",mortgage interest paid
 second_mort_int,zero,0 (production writes 0 too),interest on a second mortgage: inside first_mort_int
 inv_int_exp,zero,0 (production writes 0 too),investment interest: inside first_mort_int
 casualty_exp,same,casualty_exp,casualty and theft losses
@@ -132,31 +132,31 @@ recapture_tax,same,recapture_tax,recapture taxes
 ira_penalty,same,ira_penalty,additional tax on IRAs and other plans
 q_death1,zero,0,chance the primary filer dies this year: the death probabilities rule (NEXT_STEPS 1)
 q_death2,zero,0,chance the spouse dies this year: as q_death1
-value.cash,renamed,w_cash,balance sheet: cash
-value.equities,renamed,w_equities,balance sheet: equities
-value.bonds,renamed,w_bonds,balance sheet: bonds
-value.dc,renamed,w_dc,balance sheet: dc
-value.db,renamed,w_db,balance sheet: db
-value.life_ins,renamed,w_life_ins,balance sheet: life ins
-value.annuities,renamed,w_annuities,balance sheet: annuities
-value.trusts,renamed,w_trusts,balance sheet: trusts
-value.other_fin,renamed,w_other_fin,balance sheet: other fin
-value.pass_throughs,renamed,w_pass_throughs,balance sheet: pass throughs
-value.primary_home,renamed,w_primary_home,balance sheet: primary home
-value.other_home,renamed,w_other_home,balance sheet: other home
-value.re_fund,renamed,w_re_fund,balance sheet: re fund
-value.other_nonfin,renamed,w_other_nonfin,balance sheet: other nonfin
-value.primary_mortgage,renamed,w_primary_mortgage,balance sheet: primary mortgage
-value.other_mortgage,renamed,w_other_mortgage,balance sheet: other mortgage
-value.credit_lines,renamed,w_credit_lines,balance sheet: credit lines
-value.credit_cards,renamed,w_credit_cards,balance sheet: credit cards
-value.installment_debt,renamed,w_installment_debt,balance sheet: installment debt
-value.other_debt,renamed,w_other_debt,balance sheet: other debt
-basis.equities,computed,w_equities - w_kg_other (the SCF's unrealized gain on stocks and funds),cost basis of equities
-basis.pass_throughs,computed,w_pass_throughs - w_kg_pass_throughs,cost basis of businesses
-basis.primary_home,computed,w_primary_home - w_kg_primary_home,cost basis of the home
-basis.other_home,computed,w_other_home - w_kg_other_re x w_other_home / (w_other_home + w_re_fund),"cost basis of other homes (the other real estate gain split by value, as production)"
-basis.re_fund,computed,w_re_fund - w_kg_other_re x w_re_fund / (w_other_home + w_re_fund),cost basis of other real estate
+value.cash,renamed,value.cash,balance sheet: cash
+value.equities,renamed,value.equities,balance sheet: equities
+value.bonds,renamed,value.bonds,balance sheet: bonds
+value.dc,renamed,value.dc,balance sheet: dc
+value.db,renamed,value.db,balance sheet: db
+value.life_ins,renamed,value.life_ins,balance sheet: life ins
+value.annuities,renamed,value.annuities,balance sheet: annuities
+value.trusts,renamed,value.trusts,balance sheet: trusts
+value.other_fin,renamed,value.other_fin,balance sheet: other fin
+value.pass_throughs,renamed,value.pass_throughs,balance sheet: pass throughs
+value.primary_home,renamed,value.primary_home,balance sheet: primary home
+value.other_home,renamed,value.other_home,balance sheet: other home
+value.re_fund,renamed,value.re_fund,balance sheet: re fund
+value.other_nonfin,renamed,value.other_nonfin,balance sheet: other nonfin
+value.primary_mortgage,renamed,value.primary_mortgage,balance sheet: primary mortgage
+value.other_mortgage,renamed,value.other_mortgage,balance sheet: other mortgage
+value.credit_lines,renamed,value.credit_lines,balance sheet: credit lines
+value.credit_cards,renamed,value.credit_cards,balance sheet: credit cards
+value.installment_debt,renamed,value.installment_debt,balance sheet: installment debt
+value.other_debt,renamed,value.other_debt,balance sheet: other debt
+basis.equities,computed,value.equities - w_kg_other (the SCF's unrealized gain on stocks and funds),cost basis of equities
+basis.pass_throughs,computed,value.pass_throughs - w_kg_pass_throughs,cost basis of businesses
+basis.primary_home,computed,value.primary_home - w_kg_primary_home,cost basis of the home
+basis.other_home,computed,value.other_home - w_kg_other_re x value.other_home / (value.other_home + value.re_fund),"cost basis of other homes (the other real estate gain split by value, as production)"
+basis.re_fund,computed,value.re_fund - w_kg_other_re x value.re_fund / (value.other_home + value.re_fund),cost basis of other real estate
 accruals.equities,zero,0,yearly unrealized gain on equities (reporting only): the yearly unrealized gains rule (NEXT_STEPS step 1)
 accruals.pass_throughs,zero,0,yearly unrealized gain on pass throughs (reporting only): the yearly unrealized gains rule (NEXT_STEPS step 1)
 accruals.primary_home,zero,0,yearly unrealized gain on primary home (reporting only): the yearly unrealized gains rule (NEXT_STEPS step 1)

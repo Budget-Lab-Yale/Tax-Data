@@ -99,6 +99,11 @@ DEFINITION_GAP = S.get('definition_gap', {})        # kind -> share of the value
 # A Table 1.4 target resting only on cells SOI samples in full (the $10,000,000-or-more bracket, CV 0): a judgment
 # share of the value, since a target with no error cannot give way (TARGETS.md section 9, "everything else").
 FULL_SAMPLE_SE = float(S.get('full_sample_se', 0.01))
+# (1 November, decision 55) A published CV below this many percent is treated like the printed 0.00: SOI samples every
+# return in the cell, so there is no sampling error to give a standard error from. SOI printed 0.01 for the
+# $10,000,000-or-more cells of 2022 and 0.00 in the other years; taken literally, 0.01% of the value was about 3 returns
+# on 30,108, and no weights could meet it. 0 or less turns the rule off.
+FULL_SAMPLE_CV_BELOW = float(S.get('full_sample_cv_below_pct', 0.1))
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 INF = np.inf
 
@@ -108,8 +113,9 @@ RENAMED = {'total wages > total > number of returns': 'salaries and wages > numb
            'total wages > total > amount': 'salaries and wages > amount'}
 IRS_PARTS = {'returns': [('returns', 'count', 1)],
              'wages count': [('wages', 'count', 1)], 'wages amount': [('wages', 'amount', 1)],
-             'interest count': [('taxable_interest', 'count', 1)],
-             'interest amount': [('taxable_interest', 'amount', 1)],
+             'txbl_int count': [('taxable_interest', 'count', 1)],
+             'txbl_int amount': [('taxable_interest', 'amount', 1)],
+             'gross_ss count': [('gross_ss', 'count', 1)], 'gross_ss amount': [('gross_ss', 'amount', 1)],
              'dividends count': [('ordinary_dividends', 'count', 1)],
              'dividends amount': [('ordinary_dividends', 'amount', 1)],
              'capital_gains count': [('sch_d_net_gain', 'count', 1), ('sch_d_net_loss', 'count', 1)],
@@ -259,20 +265,24 @@ def build_soi_cv():
 _CV = None
 
 
-def soi_cells(year):
-    """Table 1.4's all-returns cells of one year with their CVs, in targets.py's terms: lo, hi, variable, statistic
-    (for the items targets.py names, else the mirror's item), value (dollars for amounts), cv_pct, se. A year with no
-    CV workbook (a projection year) takes the CVs of the latest year that has one, said in the reason."""
+def soi_cells(year, table='1.4'):
+    """Table 1.4's (or the table named: '3.3' since 30 October) all-returns cells of one year with their CVs, in
+    targets.py's terms: lo, hi, variable, statistic (for the items targets.py names, else the mirror's item), value
+    (dollars for amounts), cv_pct, se. A year with no CV workbook (a projection year) takes the CVs of the latest year
+    that has one, said in the reason."""
     global _CV
     if _CV is None:
         _CV = pd.read_csv(f'{CV_DIR}/soi_cv.csv', keep_default_na=False, na_values=[''], low_memory=False)
-    c = _CV[(_CV.table.astype(str) == '1.4') & (_CV.panel == 'All returns')]
+    c = _CV[(_CV.table.astype(str) == table) & (_CV.panel == 'All returns')]
     have = sorted(c.tax_year.unique())
     use = year if year in have else max(y for y in have if y <= year) if any(y <= year for y in have) else min(have)
     c = c[c.tax_year == use].copy()
-    known = c['item'].replace(RENAMED).map(TG.T14)
+    known = c['item'].replace(RENAMED).map(TG.TABLE_ITEMS[table])
     c['variable'] = [k[0] if isinstance(k, tuple) else i for k, i in zip(known, c['item'])]
     c['value'] = c['value'] * np.where(c['statistic'] == 'amount', 1000.0, 1.0)   # SOI publishes thousands
+    # a published CV below the line is the same as 0.00 (FULL_SAMPLE_CV_BELOW); the published figure is kept in cv_pct_published
+    c['cv_pct_published'] = c['cv_pct']
+    c['cv_pct'] = c['cv_pct'].mask((c['cv_pct'] > 0) & (c['cv_pct'] < FULL_SAMPLE_CV_BELOW), 0.0)
     c['se'] = c['value'] * c['cv_pct'] / 100
     c['total_row'] = ~np.isfinite(c['lo']) & ~np.isfinite(c['hi'])
     return c, use
@@ -297,6 +307,8 @@ def sum_error(cells, parts, lo, hi):
         n += len(s)
         if (s.cv_pct == 0).any() and (s.value != 0).any():
             notes.append('includes cells SOI samples in full (CV 0)')
+        if ((s.cv_pct_published > 0) & (s.cv_pct == 0) & (s.value != 0)).any():
+            notes.append(f'includes cells with a published CV below {FULL_SAMPLE_CV_BELOW:g}%, treated as 0')
     return np.sqrt(var), total, n, '; '.join(sorted(set(notes)))
 
 
@@ -305,6 +317,10 @@ def borrow_cv(cells, count=None, amount=None, returns=None):
     closest count cells in log number of returns (a count), or the closest amount cells in log amount and log number
     of returns of the same item (an amount; without returns, in amount alone). Cells with a CV of 0 or none are not
     lent. Returns (cv_pct, description of the donors)."""
+    # lending uses the published CVs, as before decision 55: the rule that a CV below the line counts as 0 is for the
+    # standard error of a target resting on such cells, not for which cells are lent (soi_cells keeps both)
+    if 'cv_pct_published' in cells:
+        cells = cells.assign(cv_pct=cells['cv_pct_published'])
     d = cells[(cells.cv_pct > 0) & (cells.value > 0)]
     if count is not None:
         d = d[d.statistic == 'count']
@@ -357,12 +373,33 @@ def group_range(kind, group, lo=np.nan, hi=np.nan):
     return r
 
 
+def dependent_filer_item_returns(year, variable, lo, hi):
+    """Table 1.7's number of returns with an item (the variable's 'soi 1.7' count) in the AGI range [lo, hi), the
+    all-AGI row when lo and hi are NaN: the count an amount's borrowed CV is matched on."""
+    import target_list as TLS
+    t = TLS.table_17(year)
+    t = t[t['item'] == TLS.table_17_item(variable, 'count')]
+    x = t[t['lo'].isna()] if np.isnan(lo) else t[t['lo'].notna() & (t['lo'] >= lo) & (t['hi'] <= hi)]
+    assert len(x) and (x['value'] != '').all(), f'Table 1.7 {year}: no count of returns for {variable} in [{lo}, {hi})'
+    return float(x['value'].astype(float).sum())
+
+
 def soi_errors(rows, year):
     """Table 1.4 targets (published CVs) and the counts of other SOI tables (borrowed CVs)."""
     cells, cv_year = soi_cells(year)
     yr = '' if cv_year == year else f' (the {cv_year} CVs: no CV workbook for {year})'
     out = []
     for r in rows.itertuples():
+        if r.kind == 'dependent filers' and r.statistic == 'amount':
+            # (2 November 2026) a Table 1.7 amount (dependent filers' net capital gain): the median CV of the Table
+            # 1.4 amount cells closest in amount and in their number of returns, the cell's own count of returns
+            # with the item (Table 1.7 publishes it beside the amount)
+            n = dependent_filer_item_returns(year, r.variable, getattr(r, 'agi_lo', np.nan), getattr(r, 'agi_hi', np.nan))
+            cv, what = borrow_cv(cells, amount=r.value, returns=n)
+            out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
+                        f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
+                        f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
+            continue
         if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'dependent filers'):
             cv, what = borrow_cv(cells, count=r.value)
             table = {'IRS': '1.2', 'age': '1.6', 'dependent filers': '1.7'}[r.kind]
@@ -370,14 +407,21 @@ def soi_errors(rows, year):
                         f'Table {table} count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells closest in '
                         f'returns{yr}: {what}'))
             continue
+        use, table = cells, '1.4'
         if r.kind == 'IRS':
             parts = IRS_PARTS[r.target]
+        elif r.kind == 'calculator':
+            # (30 October) a column the tax calculator computes (taxes.py), against its line in Table 1.4 or 3.3
+            import target_list as TLS
+            table, parts = TLS.soi_table_lines(r.variable, r.statistic)
+            if table != '1.4':
+                use, _ = soi_cells(year, table)
         else:   # business: '<family> <net_income|net_loss> <count|amount>'
             fam_side, st = r.target.rsplit(' ', 1)
             fam, side = fam_side.split(' ')
             parts = [(f'{fam}_{side}', st, 1)]
         lo, hi = group_range(r.kind, r.group, getattr(r, 'agi_lo', np.nan), getattr(r, 'agi_hi', np.nan))
-        se, total, n, note = sum_error(cells, parts, lo, hi)
+        se, total, n, note = sum_error(use, parts, lo, hi)
         if abs(total - r.value) > 1e-6 * max(abs(r.value), 1):
             note = (note + '; ' if note else '') + f'cells add to {total:,.0f}, not the target {r.value:,.0f}'
         how = 'one published cell' if n == 1 else f'sum of {n} published cells, taken as independent'
@@ -385,11 +429,11 @@ def soi_errors(rows, year):
             # only cells SOI samples in full ($10,000,000 or more): no sampling error, so a judgment number
             out.append((r.Index, FULL_SAMPLE_SE * abs(r.value), 'judgment',
                         f'{100 * FULL_SAMPLE_SE:.1f}% of the value (settings errors.full_sample_se): SOI samples every '
-                        f'return here (published CV 0, {how}{yr}), so there is no sampling error; the number stands '
+                        f'return here (published CV 0 or below {FULL_SAMPLE_CV_BELOW:g}%, {how}{yr}), so there is no sampling error; the number stands '
                         'for the gap between the file\'s definitions and SOI\'s (the next bracket down, $5M-10M, has '
                         'CVs of 0.6-2.9% on these items in 2019)'))
             continue
-        out.append((r.Index, se, 'soi_cv', f'Table 1.4 CV, {how}{yr}' + (f'; {note}' if note else '')))
+        out.append((r.Index, se, 'soi_cv', f'Table {table} CV, {how}{yr}' + (f'; {note}' if note else '')))
     return out
 
 
@@ -533,8 +577,17 @@ def _ipums_fixed_width(folder, fields):
     out = {}
     for name, (start, width, dcml) in spec.items():
         d = a[:, start:start + width].astype(np.int64) - 48
-        assert ((d >= 0) & (d <= 9)).all(), f'{dat}: {name} holds a character other than a digit'
-        out[name] = (d @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float) / 10 ** dcml
+        ok = ((d >= 0) & (d <= 9)).all(1)
+        val = (np.where(ok[:, None], d, 0) @ (10 ** np.arange(width - 1, -1, -1, dtype=np.int64))).astype(float)
+        if not ok.all():
+            # (30 October) a field that is not all digits must still be a whole number written out, a sign and leading
+            # blanks allowed (the March 2016 ASEC's replicate weights have negative values); anything else stops
+            for r in np.where(~ok)[0]:
+                txt = bytes(a[r, start:start + width]).decode('ascii')
+                assert re.fullmatch(r' *-?[0-9]+', txt), f'{dat}: {name} holds {txt!r}, not a number'
+                val[r] = float(int(txt))
+            common.say(f'{dat}: {name}: {int((~ok).sum())} values with a sign or blanks read as numbers')
+        out[name] = val / 10 ** dcml
     return out
 
 
@@ -568,7 +621,12 @@ def cps_replicates(year, units):
                f'ASECWT on all but {int(off.sum()):,}'
                + (f' (ratio {ratio[off].min():.4f}-{ratio[off].max():.4f} there)' if off.any() else '')
                + f'; each replicate\'s total over the main weight\'s: {tot.min():.3f}-{tot.max():.3f}')
-    assert (W >= 0).all() and (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
+    # (30 October) the March 2016 ASEC (tax year 2015) has a few negative person replicate weights, which successive
+    # difference replication allows; they are kept and counted, and only the replicates' totals are checked
+    if (W < 0).any():
+        common.say(f'CPS {year}: {int((W < 0).any(1).sum())} units with a negative replicate weight in some replicate '
+                   f'({int((W < 0).sum())} unit-replicate cells), kept')
+    assert (np.abs(tot - 1) < 0.1).all(), f'CPS {year}: replicate weights out of line'
     return W
 
 
@@ -617,24 +675,79 @@ def overtime_errors(rows, year):
     return out
 
 
+def cps_age_errors(rows, year):
+    """(2 November 2026) The counts of units by the primary's age from the CPS (kind 'older ages', target_list.cps_age_rows):
+    each CPS year's standard error from the ASEC's 160 person replicate weights (the unit head's, cps_replicates), by
+    successive difference replication, variance = 4 / 160 x the sum over the replicates of (replicate count - full-sample
+    count)^2; the years are independent samples, so the pooled variance is the sum over years of share^2 x the year's."""
+    import survey_mix
+    import target_list as TLS
+    parts = []
+    for y, share in survey_mix.mix('cps', year):
+        u = TLS.cps_age_units(y)
+        parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
+    by_label = {lab: (g['variable'], -np.inf if lo is None else lo, np.inf if hi is None else hi)
+                for g in TLS.CAT['groupings'].values() if 'edges' in g and g['variable'] != 'agi'
+                for lo, hi, lab in g['edges']}
+    out = []
+    for r in rows.itertuples():
+        rv = getattr(r, 'range_variable', '')
+        rng = (rv, r.range_lo, r.range_hi) if isinstance(rv, str) and rv else by_label.get(r.group)
+        assert rng, f'older ages target {r.group}: no age range'
+        var, value, notes = 0.0, 0.0, []
+        for y, share, u, w, rep in parts:
+            xg = TLS.record_value(u, rng[0])
+            mu = (xg >= rng[1]) & (xg < rng[2])
+            full = w[mu].sum()
+            reps = rep[mu].sum(0)
+            var += share ** 2 * 4 / CPS_REPLICATES * ((reps - full) ** 2).sum()
+            value += share * full
+            notes.append(f'{y} {100 * share:.2f}%: {int(mu.sum())} sample units, se {np.sqrt(4 / CPS_REPLICATES * ((reps - full) ** 2).sum()):,.0f}')
+        note = '' if abs(value - r.value) <= 1e-9 * abs(r.value) else f'; pooled full-sample value {value:,.6g}, not {r.value:,.6g}'
+        out.append((r.Index, float(np.sqrt(var)), 'survey_replicate',
+                    'CPS year mix, the ASEC\'s 160 person replicate weights (the unit head\'s), successive difference '
+                    'replication (variance = 4/160 x sum of squared deviations) year by year, variance = sum of '
+                    f'share^2 x the year\'s; {"; ".join(notes)}{note}'))
+    return out
+
+
 # ---- 4. Judgment -----------------------------------------------------------------------------------
 def nonfiler_errors(rows, year):
     """The non-filer count and the people in non-filer units (the filing stage's calibration targets)."""
-    t = pd.read_csv(f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{year}_nonfilers_vs_targets.csv").set_index('band')
+    def census(y):
+        """The filing stage's population by band in year y; a year with no CPS year of its own (30 October): the
+        geometric mean of the CPS years either side, or past the last CPS year the last one grown with the
+        population."""
+        p = f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{y}_nonfilers_vs_targets.csv"
+        if os.path.exists(p):
+            return pd.read_csv(p).set_index('band')['census_adults']
+        import growth as GR
+        import target_list as TLS
+        have = TLS.cps_years()
+        if y > max(have):
+            return census(max(have)) * GR.population(y) / GR.population(max(have))
+        lo, hi = TLS.cps_neighbours(y)
+        return np.sqrt(census(lo) * census(hi))
+    need = rows.kind.eq('non-filer people').any()
+    t = census(year).to_frame('census_adults') if need else None
     out = []
     for r in rows.itertuples():
         if r.kind == 'non-filers':
-            s = JUDGMENT['nonfiler_count']
-            out.append((r.Index, s * r.value, 'judgment',
-                        f'{100 * s:.0f}% of the count (settings errors.nonfiler_count_se): the non-filer units hold '
-                        'the residual adults, about 253 million CPS adults less 209 million on returns and 17 million '
-                        'dependents (2019); half a percent of the adults, 1.3 million, is about 6% of the count'))
+            # expand_entry has already applied the year's configured judgment error. Preserve it, including its
+            # reason, rather than replacing every year's tolerance with the settings fallback.
+            if hasattr(r, 'se') and pd.notna(r.se):
+                out.append((r.Index, r.se, 'judgment',
+                            f"Year configuration: {getattr(r, 'error_reason', '')}"))
+            else:
+                s = JUDGMENT['nonfiler_count']
+                out.append((r.Index, s * abs(r.value), 'judgment',
+                            f'{100 * s:g}% of the count (settings errors.nonfiler_count_se fallback)'))
             continue
         band = 'children under 17' if r.group == 'non-filers, children under 17' else \
             r.group.replace('non-filers, heads and spouses aged ', '')
         pop = 1e6 * t.loc[band, 'census_adults']
         s = JUDGMENT['nonfiler_people']
-        who = 'CPS children under 17' if band == 'children under 17' else f"the band's CPS adults"
+        who = 'CPS children under 17' if band == 'children under 17' else "the band's CPS adults"
         out.append((r.Index, s * pop, 'judgment',
                     f'{100 * s:.1f}% of {who} ({pop / 1e6:.1f} m; settings errors.nonfiler_people_population_se): '
                     'the target is that population less the people on returns, each known to about half a percent, '
@@ -658,11 +771,13 @@ def standard_errors(rows, year=Y):
     for a share). A kind this module does not know gets no error (error_kind 'none') and is listed in the summary."""
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers']),
+    table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
-          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime'}
+          'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
+          'older ages': rows.kind == 'older ages'}
     for name, f in [('soi', soi_errors), ('scf', scf_errors), ('consumption', consumption_errors),
-                    ('nonfiler', nonfiler_errors), ('overtime', overtime_errors)]:
+                    ('nonfiler', nonfiler_errors), ('overtime', overtime_errors), ('older ages', cps_age_errors)]:
         if by[name].any():
             for i, se, kind, why in f(rows[by[name]], year):
                 res[i] = (se, kind, why)
@@ -670,6 +785,9 @@ def standard_errors(rows, year=Y):
     out['se'] = [res.get(i, (np.nan,))[0] for i in out.index]
     out['error_kind'] = [res.get(i, (None, 'none'))[1] for i in out.index]
     out['se_reason'] = [res.get(i, (None, None, 'no error source'))[2] for i in out.index]
+    out.loc[table21, 'se'] = rows.loc[table21, 'se']
+    out.loc[table21, 'error_kind'] = 'table21'
+    out.loc[table21, 'se_reason'] = rows.loc[table21, 'error_reason']
     for k, gap in DEFINITION_GAP.items():   # a definition gap: square root of the sum of squares
         m = out.kind == k
         out.loc[m, 'se'] = np.sqrt(out.loc[m, 'se'] ** 2 + (gap * rows.loc[m, 'value']) ** 2)

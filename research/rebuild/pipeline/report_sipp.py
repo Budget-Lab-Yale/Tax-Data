@@ -53,7 +53,7 @@ def main():
     s['tips'] = s['tips1'] + s['tips2']
     s['tips_lh1'], s['tips_lh2'] = s['tips_lh_primary'], s['tips_lh_spouse']
     s['wages'] = s['wages_translated']
-    src = {'file': f, f'SIPP mix': s}
+    src = {'file': f, 'SIPP mix': s}
     for d in src.values():
         d['wg'] = common.groups_by(d['wages'].to_numpy(float), WAGES)
     out = [f'# Tips in the {Y} file against the SIPP year mix', '',

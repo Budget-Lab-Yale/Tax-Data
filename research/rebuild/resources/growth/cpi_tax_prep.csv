@@ -1,0 +1,13 @@
+year,value,months_present,mean_common_months,note
+2014,205.602,12,204.553,no BLS annual average in keyless API; mean of all 12 months
+2015,217.128,12,217.043,no BLS annual average in keyless API; mean of all 12 months
+2016,226.026,12,225.459,no BLS annual average in keyless API; mean of all 12 months
+2017,237.062,12,235.625,no BLS annual average in keyless API; mean of all 12 months
+2018,249.172,12,248.277,no BLS annual average in keyless API; mean of all 12 months
+2019,253.516,12,255.663,no BLS annual average in keyless API; mean of all 12 months
+2020,260.734,12,260.399,no BLS annual average in keyless API; mean of all 12 months
+2021,266.89,9,267.2,"no BLS annual average; mean of 9 months present; missing Apr, Oct, Dec (not published: insufficient sample)"
+2022,290.349,9,288.799,"no BLS annual average; mean of 9 months present; missing Mar, Apr, May (not published: insufficient sample)"
+2023,323.863,10,320.673,"no BLS annual average; mean of 10 months present; missing Sep, Dec (not published: insufficient sample)"
+2024,341.75,10,339.877,"no BLS annual average; mean of 10 months present; missing Oct, Dec (not published: insufficient sample)"
+2025,352.458,11,349.001,no BLS annual average; mean of 11 months present; missing Oct (Data unavailable due to the 2025 lapse in appropriations)

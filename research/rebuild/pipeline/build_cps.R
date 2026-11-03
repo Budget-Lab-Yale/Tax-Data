@@ -62,7 +62,7 @@
 #                         self-employment income, can be negative)
 #     interest            INCINT
 #     dividends           INCDIVID
-#     ss_gross            INCSS (gross Social Security)
+#     gross_ss            INCSS (gross Social Security)
 #     unemployment        INCUNEMP
 #     retirement_income   the builder's harmonised retirement series (S16):
 #                         INCRETIR through tax year 2017; from 2018 (the
@@ -114,8 +114,8 @@
 #                         do not ask it (since 29 October; 0 before), so the training table shows it as not asked
 #                         there, as the translation table's row says (first_year, settings "translation")
 #   mars: filing status as step 1's returns carry it, 1 single, 2 joint, 3 separate, 4 head of household
-#   n_ctc, n_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
-#     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_eitc counts them
+#   n_dep_ctc, n_dep_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
+#     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_dep_eitc counts them
 #     only when the unit is eligible for the EITC under the year's law (step 1's eitc_eligible), as the PUF's EIC
 #     counts children only on returns that get the credit
 #   eitc_eligible: 1 or 0, step 1's (filing.py)
@@ -171,7 +171,7 @@ step1_units_path = function(yr) file.path(STEP1, STEP1_OUT, sprintf('units_%d.cs
 # unit must match one return of step 1's file and the reverse, or the build stops.
 step1_returns = function(built, yr) {
   su = fread(step1_units_path(yr))
-  need = c('hh', 'head_pn', 'couple_uid', 'person', 'filing_status', 'p_file_cal', 'must_file', 'n24', 'n_eitc',
+  need = c('hh', 'head_pn', 'couple_uid', 'person', 'filing_status', 'p_file_cal', 'must_file', 'n24', 'n_dep_eitc',
            'eitc_eligible', 'year')
   stopifnot(all(need %in% names(su)), all(su$year == yr), !anyNA(su[, ..need]),
             all(su$p_file_cal >= 0 & su$p_file_cal <= 1), all(su$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
@@ -201,7 +201,7 @@ step1_returns = function(built, yr) {
     stop(sprintf('step 1\'s returns and the units here differ: %d units with no return, %d returns with no unit',
                  sum(!hh_ids %in% su$unit_id), sum(!su$unit_id %in% hh_ids)))
   units[su, on = 'unit_id', `:=`(filing_status = i.filing_status, p_file_cal = i.p_file_cal,
-                                 must_file = as.logical(i.must_file), n24_step1 = i.n24, n_eitc_step1 = i.n_eitc,
+                                 must_file = as.logical(i.must_file), n24_step1 = i.n24, n_eitc_step1 = i.n_dep_eitc,
                                  eitc_eligible = as.logical(i.eitc_eligible))]
   units[unit_type == 'dependent', `:=`(p_file_cal = NA_real_, must_file = NA)]   # scoring rows, dropped below
   cat(sprintf('  step 1\'s calibrated chances: filers %.2f m of %.2f m household units\n',
@@ -550,12 +550,12 @@ for (yr in YEARS) {
   paid = spm[chx > 0]
   alloc = rbind(merge(paid[, .(SPMFAMUNIT, chx)], kids[, .(SPMFAMUNIT, unit_id, share)], by = 'SPMFAMUNIT'),
                 paid[!SPMFAMUNIT %in% kids$SPMFAMUNIT, .(SPMFAMUNIT, chx, unit_id = ref_unit, share = 1)])
-  alloc[, childcare := chx * share]
+  alloc[, care_exp := chx * share]
   cat(sprintf('  SPM units paying for child care: %d; to units claiming their children %d, to the reference person\'s unit %d\n',
               nrow(paid), nrow(paid[SPMFAMUNIT %in% kids$SPMFAMUNIT]), nrow(paid[!SPMFAMUNIT %in% kids$SPMFAMUNIT])))
-  chk_spm = alloc[, .(got = sum(childcare), chx = chx[1]), by = SPMFAMUNIT]
+  chk_spm = alloc[, .(got = sum(care_exp), chx = chx[1]), by = SPMFAMUNIT]
   stopifnot(nrow(chk_spm) == nrow(paid), max(abs(chk_spm$got - chk_spm$chx)) < 1e-6)
-  cc = alloc[, .(childcare = sum(childcare)), by = unit_id]
+  cc = alloc[, .(care_exp = sum(care_exp)), by = unit_id]
   stopifnot(all(cc$unit_id %in% units$unit_id))
 
   #-----------------------------------------------------------------------------
@@ -567,8 +567,8 @@ for (yr in YEARS) {
   stopifnot(!anyNA(units$eitc_eligible))
   units[, eitc_ok := as.integer(eitc_eligible)]
   out = units[, .(unit_id, SERIAL, weight, filing_status, must_file, p_file = p_file_cal, eitc_ok,
-                  wages = INCWAGE, sch_cf_income = se_income, interest = INCINT, dividends = INCDIVID,
-                  ss_gross = INCSS, unemployment = INCUNEMP, retirement_income, rent_royalty_estate = INCRENT)]
+                  wages = INCWAGE, sch_cf_income = se_income, txbl_int = INCINT, dividends = INCDIVID,
+                  gross_ss = INCSS, ui = INCUNEMP, retirement_income, rent_royalty_estate = INCRENT)]
   extra = p[role %in% c('primary', 'spouse'),
             .(survivor_disability = sum(INCSURV + INCDISAB), survdis_pension = sum(survdis_pension),
               survdis_other = sum(survdis_other), other_income = sum(INCOTHER),
@@ -593,7 +593,7 @@ for (yr in YEARS) {
                              dep_age1 = -1, dep_age2 = -1, dep_age3 = -1,
                              dep_ssn_status1 = 0L, dep_ssn_status2 = 0L, dep_ssn_status3 = 0L)]
   stopifnot(all(out$filing_status %in% c('single', 'joint', 'separate', 'hoh')))
-  out[is.na(childcare), childcare := 0]
+  out[is.na(care_exp), care_exp := 0]
 
   # split sums: exact
   stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income),
@@ -606,20 +606,20 @@ for (yr in YEARS) {
   out = out[, .(year = yr, record_id = as.integer(unit_id), household_id = as.integer(SERIAL), weight,
                 married, n_dep = pmin(n_dep_raw, 3L), dep_filer = 0L,
                 head_of_household = as.integer(filing_status == 'hoh'),
-                mars = fcase(filing_status == 'single', 1L, filing_status == 'joint', 2L,
+                filing_status = fcase(filing_status == 'single', 1L, filing_status == 'joint', 2L,
                              filing_status == 'separate', 3L, filing_status == 'hoh', 4L),
                 # EITC children as the PUF's EIC means them: the qualifying children of a unit eligible for the
                 # credit (step 1's eligibility)
-                n_ctc = pmin(n_ctc_raw, 3L), n_eitc = pmin(n_eitc_raw, 3L) * eitc_ok,
+                n_dep_ctc = pmin(n_ctc_raw, 3L), n_dep_eitc = pmin(n_eitc_raw, 3L) * eitc_ok,
                 eitc_eligible = eitc_ok,
                 filer = as.integer(draw < p_file), p_file, must_file = as.integer(must_file),
                 age1 = as.integer(age1), age2 = as.integer(age2), sex1 = as.integer(sex1), sex2 = as.integer(sex2),
                 male1 = as.integer(sex1 == 1), male2 = fifelse(married == 1, as.integer(sex2 == 1), -1L),
                 dep_age1 = as.integer(dep_age1), dep_age2 = as.integer(dep_age2), dep_age3 = as.integer(dep_age3),
                 n_dep_under13 = pmin(n13, 3L), n_dep_under6 = pmin(n6, 3L),
-                wages, sch_cf_income, interest, dividends, ss_gross, unemployment, retirement_income,
+                wages, sch_cf_income, txbl_int, dividends, gross_ss, ui, retirement_income,
                 rent_royalty_estate, survivor_disability, survdis_pension, survdis_other, other_income, capital_gains,
-                wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, childcare,
+                wages1, wages2, se1, se2, weeks_worked1, weeks_worked2, usual_hours1, usual_hours2, care_exp,
                 ot1, ot2, ssn_status1 = as.integer(ssn_status1), ssn_status2 = as.integer(ssn_status2),
                 dep_ssn_status1 = as.integer(dep_ssn_status1), dep_ssn_status2 = as.integer(dep_ssn_status2),
                 dep_ssn_status3 = as.integer(dep_ssn_status3))]
@@ -634,7 +634,7 @@ for (yr in YEARS) {
   # capital gains: missing exactly in the years not asked (before tax year 2018)
   stopifnot(if (yr >= 2018) !anyNA(out$capital_gains) else all(is.na(out$capital_gains)))
   stopifnot(!anyNA(out[, !c('ot1', 'ot2', 'capital_gains')]), all(out$weight > 0), all(out$n_dep_under13 <= out$n_dep),
-            all(out$n_eitc <= out$n_dep), all((out$mars == 2) == (out$married == 1)),
+            all(out$n_dep_eitc <= out$n_dep), all((out$filing_status == 2) == (out$married == 1)),
             all((out$dep_age1 >= 0) == (out$n_dep > 0)),
             all(out$ssn_status1 %in% 1:3), all((out$ssn_status2 > 0) == (out$married == 1)),
             all(out$ssn_status2 %in% 0:3), all((out$dep_ssn_status1 > 0) == (out$dep_age1 >= 0)),
@@ -662,10 +662,10 @@ for (yr in YEARS) {
   cat(sprintf('  Census tax model (FILESTAT) simulated returns %.2f m, for comparison only\n', fs_returns / 1e6))
   if (all(out$eitc_eligible >= 0)) {
     ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
-                 eitc_children_expected_filers_m = sum(weight * p_file * n_eitc) / 1e6), by = .(children = n_eitc)]
+                 eitc_children_expected_filers_m = sum(weight * p_file * n_dep_eitc) / 1e6), by = .(children = n_dep_eitc)]
     setorder(ef, children)
     cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
-                sum(out$weight * out$p_file * out$n_eitc) / 1e6))
+                sum(out$weight * out$p_file * out$n_dep_eitc) / 1e6))
     print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
     fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
   }
@@ -673,14 +673,14 @@ for (yr in YEARS) {
               sum(out$age1 < 18), sum(w[out$age1 < 18]) / 1e6, sum(w * out$n_dep) / 1e6))
   spm_total_spmwt = sum(spm$chx * spm$spmwt) / 1e9
   spm_total_refw = sum(spm$chx * spm$ref_w) / 1e9
-  amounts = c('wages', 'sch_cf_income', 'interest', 'dividends', 'ss_gross', 'unemployment', 'retirement_income',
+  amounts = c('wages', 'sch_cf_income', 'txbl_int', 'dividends', 'gross_ss', 'ui', 'retirement_income',
               'rent_royalty_estate', 'survivor_disability', 'survdis_pension', 'survdis_other', 'other_income',
-              'capital_gains', 'childcare')
+              'capital_gains', 'care_exp')
   tot = data.table(year = yr, item = amounts, billions = sapply(amounts, function(v) bn(w, out[[v]])),
                    recipients_m = sapply(amounts, function(v) sum(w * (out[[v]] != 0)) / 1e6))
   print(tot[, .(item, billions = round(billions, 1), recipients_m = round(recipients_m, 2))])
   cat(sprintf('  child care: tax units $%.2f bn; SPM units $%.2f bn weighted by SPMWT, $%.2f bn by the reference person\'s ASECWT; unweighted sums agree exactly\n',
-              bn(w, out$childcare), spm_total_spmwt, spm_total_refw))
+              bn(w, out$care_exp), spm_total_spmwt, spm_total_refw))
   summary_rows[[as.character(yr)]] = rbind(
     tot,
     data.table(year = yr, item = c('weighted_units_m', 'married_share', 'filer_share', 'expected_filer_share',

@@ -24,8 +24,10 @@ pools them half and half (section 8).
 - *generate*: draw a fresh sample from the two models, with year t's mix of survey years (section 7; built for the
   SCF's waves). The AGI group is drawn first: a set number of records in each of 12 AGI groups, more at the top,
   each weighted by its group's returns over the records drawn in it, which undoes q exactly (S8). Its dollars come
-  from year t's rank-to-dollar maps (the PUF's amounts grown to year t per return, the balance sheet grown per tax
-  unit from its wave to year t's wave), and its weights are scaled to year t's demographic cells (section 4).
+  from year t's rank-to-dollar maps (each PUF amount grown to year t by its line in the year's growth.yaml: per
+  return with the item where SOI Table 1.4 has it, else a declared series exogenous to tax policy, section 12; the
+  balance sheet grown per tax unit from its wave to year t's wave), and its weights are scaled to year t's
+  demographic cells (section 4).
   Historical years use this.
 - *from_year s*: take year s's finished file, scale its weights to year t's demographic cells and grow each
   record's amounts to year t. Future years use this, from the last historical year, so they carry its
@@ -44,11 +46,9 @@ A family of targets is kept only if it bears on an output, its source matches th
 miss it without it (S5). The SCF targets are computed on the same mix of SCF waves the start draws its balance
 sheet from (S9).
 
-**4. Each year t: the tilt.** The weights move as little as possible (smallest Kullback-Leibler move) so that every
-target lands within its value ± k standard errors (S6): k = 0.5 for the SCF targets (auto loans included) and 1 for every other kind,
-a setting by kind of target (S9). Identities are exact. If the
-ranges cannot all be met, misses beyond them are weighed by their standard errors. Cells resting on too few
-records are flagged, with a stop for the worst (section 5).
+**4. Each year t: the tilt.** One cost (S11, since 1 November): the weights minimize the sum over targets of
+0.5 x importance x (miss ÷ standard error)² plus tau x the Kullback-Leibler move from the start. Identities are exact; no target has a range
+and none is dropped; tau is 1,000. Cells resting on too few records are flagged, with a stop for the worst (section 5).
 
 **5. Each year t: the report** (section 14): every target and where it landed, the thin cells, published numbers
 not targeted, what the tilt moved, and how far the two models disagree.
@@ -129,6 +129,13 @@ A value therefore comes from one of three places:
 Historical years and projection years are one case. They differ only in which of the three is available for each
 statistic.
 
+**CBO's counts of returns follow the same rule (1 November 2026).** In the projection years 2024-2035 the number of
+all returns, of itemizers and of returns affected by the AMT are each the previous year's file count times CBO's growth
+in that count from the previous year to this one, with the error of 1% as a judgment. Until 31 October they were CBO's
+published levels, which count a return differently from the file (CBO's 2024 count of all returns, 167.1 million, was 2.4%
+above the file's). `target_list.cbo_count_rows` reads the previous year's file. The population cells (previous count
+times CBO's population growth) and the dollar totals (previous total times CBO's growth) were already of this form.
+
 ## 4. What the prior for year t contains before any target (agreed 24 October)
 
 The prior is our best guess for year t, with every change we can explain from outside facts already applied. The
@@ -162,16 +169,15 @@ across all years. John judged it a solution in search of a problem.
 Targets are what we trust. The prior is not a competing estimate; it is a crude first approximation whose job is
 to supply realistic records (who has what along with what).
 
-- **When every target can be hit, every target is hit exactly.** Among the reweightings that do so, the one that
-  moves the prior least is chosen. The prior only breaks ties; it is never weighed against a target.
-- **When the targets cannot all be hit, each target's standard error decides who gives way.** A miss costs
-  (miss ÷ standard error)², so noisy targets give way and precise ones hold. Example, with made-up numbers: one
-  table puts a group at 27.60 million (standard error 0.28 million), another implies 28.00 million (standard error
-  0.07 million). The file lands at 27.98 million, near the precise one.
+- **Since 1 November (S11) every target is weighed against the move of the weights, in one cost.** A miss costs
+  0.5 x importance x (miss ÷ standard error)², so noisy targets give way and precise ones hold. Example, with made-up
+  numbers: one table puts a group at 27.60 million (standard error 0.28 million), another implies 28.00 million
+  (standard error 0.07 million). The file lands near the precise one, 27.98 million. The move of the weights costs
+  tau times its Kullback-Leibler divergence, so the prior is weighed against the targets, with the weight tau says.
 - Exact, with no error, only for identities.
 
-This is what the current solver does with its default setting. The 22 October plan's extra weight on the prior,
-which would let standard errors loosen targets that can be hit, is dropped.
+(What this section said on 24 October, that every target is hit exactly when all can be, and that standard errors
+decide only when they cannot, was replaced by ranges on 25 October (S6) and by the one cost on 1 November (S11).)
 
 **A target that can be hit only by stretching a few records far is flagged, not silently hit.** The metric is the
 effective number of records behind each target cell after the reweighting: how many records the cell's total
@@ -338,7 +344,42 @@ what the code already does.
 Each year gets one file. We do not build several versions per year with target values drawn from their errors to
 show a range from data uncertainty, and the code does not need to support it.
 
-## 12. How a year's targets are written down (agreed 24 October)
+## 12. How a year's targets are written down (agreed 24 October; one folder per year since 29 October)
+
+**Since 29 October (John)** each year has a folder of its own, `pipeline/targets_config/<year>/`, with three files
+written out in full; nothing is inherited at run time:
+
+| File | Holds |
+|---|---|
+| `<year>/targets.yaml` | every target entry of the year (statistic, population, variable, cells, value source, error, key), the year's start settings and what the run reports |
+| `<year>/prior.yaml` | the year's prior: the shares of the SCF waves and of the CEX, CPS and SIPP years (section 7) |
+| `<year>/growth.yaml` | one line for every dollar item the pipeline grows: its source series, the measure (per return with the item, per holder, per household, a price), how negative values are grown, and a one-line reason |
+| `catalog.yaml` (shared) | the dictionary: sources, populations, variables and their lines in each published table, groupings, kinds of error. It is not a layer of defaults |
+| `OVERVIEW.md`, `OVERVIEW.csv` (generated) | one table: every setting (each target with its value source and definition, each growth line, each prior share) by year, a cell that differs from the year before marked. Regenerate with `python research/rebuild/pipeline/config_overview.py` |
+
+A new year starts as a copy of the nearest year's folder, then is edited. Before any run (`target_list.resolve`,
+which every stage that reads the configuration calls) the pipeline checks that every entry has a value source the
+catalog defines and that every dollar item has a growth line with a positive factor to the year (`growth.check`);
+otherwise it stops and lists what is missing. 2019 is the only year with a folder; its files were written from the
+layers below and expand to the same targets with the same values (proof: scratch
+`explore/2026-10-29/yearcfg/RESULTS.md`).
+
+**Growth sources (John, 29 October).** Every dollar item needs a growth source in every year. The source must be
+exogenous to tax policy, so SOI's itemized deduction tables (Table 2.1) are ruled out: the 2017 law's collapse in
+itemizers moves their totals and means. A series on the underlying spending or tax is used, per holder where a
+clean one exists, else per household when the share of holders is steady, else AGI per return as a rough prior.
+SOI Table 1.4's lines (dollars per return with the item) stay as they were for the items Table 1.4 publishes. For
+the 26 items with no Table 1.4 line, which until 29 October were not grown at all: mortgage interest by BEA's
+mortgage interest of owner-occupants per ACS home with a mortgage; real estate tax by the ACS's real estate taxes
+per owner-occupied home paying them; state and local income or sales tax by Census state and local income tax
+revenue per return; medical expenses by MEPS out-of-pocket spending per person with any; tax preparation fees by
+the CPI's price of tax preparation; the two education credits' expenses by the College Board's published tuition
+and fees; everything else by AGI per return (SOI Table 1.1), extended past SOI's last year by BEA personal income
+per capita and CBO's projection of it. The capital loss allowed on a return ($3,000) is a statutory nominal amount
+and is not grown. The series and where each came from are in `research/rebuild/resources/growth/` (`sources.csv`).
+
+**Until 29 October** the layout was the overnight prototype's (`explore/2026-10-22/targets/config_format/`), which
+reproduced the 317 targets of 22 October exactly:
 
 The layout is the overnight prototype's (`explore/2026-10-22/targets/config_format/`), which reproduced the 317
 targets of 22 October exactly:
@@ -358,6 +399,9 @@ value comes from, and its error. Two additions to the prototype:
 
 The prototype has to be brought up to the 383 targets of 24 October before anything is built on it.
 
+The defaults, historical and projection layers and the year files under `years/` were removed on 29 October, when
+the one folder per year replaced them (git history keeps them).
+
 ## 13. Values that come from other models (agreed 24 October)
 
 1. **Produced inside the pipeline**, such as the filing stage's non-filer counts (a pipeline stage since commit
@@ -373,7 +417,7 @@ in `resources/`.
 ## 14. What every run reports (agreed 24 October)
 
 One short summary page per year, with one table behind each item:
-1. **Every target:** value, error, where the file lands, and the miss in errors; targets that gave way first.
+1. **Every target:** value, error, where the file lands, and the miss in errors; targets more than one standard error from their value first.
 2. **Thin cells:** effective records behind each target and the largest weight factor, with section 5's warnings
    and stops.
 3. **Published numbers not targeted:** the file's value and the miss in errors (Table 1.7 today).
@@ -468,10 +512,12 @@ A family is kept only if:
 3. **it is needed:** without it the file would miss the published number by more than its error. This is a
    judgment, informed by the run report's comparisons of numbers not targeted, not a formal test.
 
-The 104 CEX consumption cells (13 cells x 8 categories) are kept for now (25 October): with ranges (S6) they no
+The 104 CEX consumption cells (13 cells x 8 categories) are kept for now (25 October): with ranges (S6, since replaced by S11) they no
 longer conflict with the non-filer people targets.
 
-### S6. Targets are ranges of one standard error (agreed 25 October; replaces section 5's "hit exactly")
+### S6. Targets are ranges of one standard error (agreed 25 October; replaces section 5's "hit exactly"; replaced by S11, 1 November)
+
+*Superseded: the range solver is removed; this section is the record of the rule that ran from 25 October to 1 November.*
 
 Each target is met anywhere within its value ± 1 standard error, at no cost inside the range; the prior decides
 where inside it (the smallest move). Identities stay exact. If the ranges cannot all be met, a miss beyond a range
@@ -501,13 +547,13 @@ configuration file says how each is built.
    Historical years normally use `generate`; future years `from_year` the last historical year. The start from a
    tilted file carries the latest distribution of income, which cannot be written down cleanly as aggregate
    targets; with demographics and nominal levels rescaled, the tilt has little left to do.
-2. **The targets:** the hand-written entries (catalog, defaults, historical or projection, the year's own file):
+2. **The targets:** the hand-written entries (since 29 October the year's own `targets.yaml`, with the catalog):
    SOI detail in historical years, macro totals and population by age in future ones. Plus, optionally,
    `hold_distribution`: targets built automatically from the start file, each item's share of its total in AGI
    rank groups (e.g. p0-50, p50-90, p90-99, p99-99.9, p99.9+), with a judgment error. Stated by rank, so nominal
    growth does not disturb them. They make "the distribution does not drift from what we agreed" a target that is
    checked and reported.
-3. **The tilt**, with ranges (S6).
+3. **The tilt**, one cost (S11).
 
 Projected totals in future years may be identities, so the file matches the baseline it is scored against.
 
@@ -533,7 +579,7 @@ the middle.
 
 **Training settings with it:** batches of 512 records, 80 passes, bfloat16, a network of width 128 and 4 layers.
 
-### S9. SCF targets from the year's mix of waves, held to half a standard error (agreed 26 October)
+### S9. SCF targets from the year's mix of waves, held to half a standard error (agreed 26 October; the half-standard-error ranges ended 1 November, S11)
 
 Tested 26 October (run P3, approved by John; `HISTORY.md`); in the pipeline since 26 October
 (`pipeline/scf_targets.py`, commit 5441ad6).
@@ -621,3 +667,47 @@ the latest run meets every one with 87.2% of the effective sample kept, against 
    top 0.01% as a whole, with the 0.1% and 1% below it, until the aggregate records are in. Table 1.3's capital loss
    is measured as the loss allowed on the return (at most $3,000), as SOI publishes it; generated records that carry
    a net loss past the cap are left as drawn (John, 27 October: the item is definitional).
+
+
+### S11. The reweighting is one cost and no other rule (John, 1 November 2026; decisions 57, 62-65 and 68)
+
+The range solver (S6), the smoothing sequence, the finish step, the penalty sequence, the rule that dropped the costliest
+block of calculator targets in historical years, the limit on each weight's factor and the hard cap on weights are removed;
+none is kept as an option. The weights minimize
+
+    sum over targets of 0.5 x importance x (miss ÷ standard error)²  +  tau x (Kullback-Leibler move of the weights),
+
+with identities exact. Importance is 1 for the published figures of the IRS (kinds IRS, business, soi 1.3, soi 4.3, age,
+dependent filers, tips, deferrals) and for the calculator's columns against them, and 1/1.5 for the survey and pipeline kinds
+(wealth, wealth grid, consumption, auto loans, overtime, non-filers). tau is 1,000 (settings `tilt.reweighting`). Each
+record's weight also pays a soft cap: 0.5 x beta x ((w - U) / U)² above U = 10 x the mean starting weight of its AGI group (decision 73; before it was the median)
+(settings `tilt.soft_cap`; beta 1 as the mild strength). The demographic prescaling uses the same cost. At most 100 Newton
+steps in all, never raised. The SCF targets are no longer held to half a standard error: their standard errors enter the cost
+like the others' (S9's value and error are unchanged; its half-standard-error ranges are not).
+
+### S12. Target consolidation (John, 1 November 2026; decisions 71 and 72)
+
+Counts under 250,000 returns (scratch `explore/2026-11-01/dryrun/out/tiny_count_cells.csv`) are folded into their
+neighbours, every historical year 2015-2023 (the projection years do not carry these targets):
+
+1. Means-tested credit cells where few qualify are folded, each inside its own SOI line. Nonrefundable child credit
+   (child and other dependent credit): no AGI, $1-10k and $10-20k are one group, under $20k. Additional child tax credit:
+   $100k and over is one group. AMT: under $200k and $200k-500k are one group, under $500k. EITC: $40k-50k, $50k-75k and
+   above are one group, $40k and over. (Groupings `nonref_credit_agi_groups`, `ref_credit_agi_groups`,
+   `amt_agi_groups`, `eitc_agi_groups` in the catalog.)
+2. Farm and farm rental: one overall target each for net income and net loss, count and amount (entry `business_farm`, no AGI groups).
+3. Table 1.3, married filing separately: returns and AGI only (the income items are targeted for single, joint and head of household).
+4. AGI groups $1m-1.5m and $1.5m-2m are one group, $1m-2m, in Table 1.4's grid and the business grid and in the calculator targets.
+5. The calculator's income tax after credits targets are dropped.
+A merged group sums the published cells and combines their errors as before. Table 4.3's top groups, dependent filers
+and the deferrals are unchanged.
+
+### S13. Projection years start from the 2023 file, not from each other (John, 1 November 2026; decision 74)
+
+Every year 2024-2035 starts from the same base, the 2023 reweighted file (`start: {from_year: 2023}`), grown directly to
+the year: weights times the population growth from 2023 to the year (age x joint cells for filers, age bands for
+non-filers), dollars grown per return from 2023 to the year by CBO's and the macro series compounded over the years
+(`projection_growth.plan_factors` with `from_year`), and targets the 2023 file's level times the cumulative growth from
+2023 to the year (population cells exact; CBO totals and the counts of returns, itemizers and AMT returns with the error of
+1% as before). The prior in the cost is the 2023 file prescaled to the year. The years are independent and run in parallel;
+no year inherits another's misses or moves.

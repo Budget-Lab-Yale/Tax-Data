@@ -131,17 +131,17 @@ def main():
     f['w'] = f['weight']
     c['w'] = c['weight']
     # the CPS side on the file's terms: ages in years (-1 none), the spouse's amounts, wages as reported
-    for a in ['age_primary', 'age_spouse', 'age_dep1', 'age_dep2', 'age_dep3']:
+    for a in ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']:
         c[a] = c[a] - 1
     c['wages_reported'] = c['wages_primary_reported'] + c['wages_spouse_reported']
     c['wages'] = c['wages_translated']             # the tax data's wages at the same percentile among earners
     c['wages2'] = c['wages_spouse_reported']        # the spouse's share uses the CPS's own amounts
     c['sch_cf_income'] = c['se_primary_reported'] + c['se_spouse_reported']
     c['se2'] = c['se_spouse_reported']
-    src = {'file': f, f'CPS mix': c}
+    src = {'file': f, 'CPS mix': c}
     for d in src.values():
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
-        d['n_young'] = sum(((d[f'age_dep{k}'] >= 0) & (d[f'age_dep{k}'] < 13)).astype(int) for k in (1, 2, 3))
+        d['n_young'] = sum(((d[f'dep_age{k}'] >= 0) & (d[f'dep_age{k}'] < 13)).astype(int) for k in (1, 2, 3))
         d['woman'] = (d['sex_primary'] == 2).astype(float)
     out = [f'# The CPS-only items in the {Y} file against the CPS year mix', '',
            f'CPS: tax year {Y}, every tax unit (filers and non-filers), weighted. File: after the tilt, dependent filers '
@@ -153,19 +153,19 @@ def main():
                                        'p90': wq(m[col], m.w, 0.9)})
     by_range = [(lab, (lambda k: lambda d: d['age_range'] == k)(k)) for k, lab in enumerate(ADULT)]
     out += ['## The primary filer\'s age, within each age range', '',
-            side_by_side(src, by_range, age_stat('age_primary')), '',
+            side_by_side(src, by_range, age_stat('age1')), '',
             '## The spouse\'s age (married couples), by the primary filer\'s age range', '',
             side_by_side(src, [(lab, (lambda k: lambda d: (d['age_range'] == k) & (d['married'] == 1))(k))
-                               for k, lab in enumerate(ADULT)], age_stat('age_spouse')), '',
+                               for k, lab in enumerate(ADULT)], age_stat('age2')), '',
             '## The spouse\'s age less the primary filer\'s (married couples)', '',
             side_by_side(src, [('all couples', lambda d: d['married'] == 1)],
-                         lambda m: {'mean': wavg(m.age_spouse - m.age_primary, m.w),
-                                    'p10': wq(m.age_spouse - m.age_primary, m.w, 0.1),
-                                    'median': wq(m.age_spouse - m.age_primary, m.w, 0.5),
-                                    'p90': wq(m.age_spouse - m.age_primary, m.w, 0.9)}), '']
+                         lambda m: {'mean': wavg(m.age2 - m.age1, m.w),
+                                    'p10': wq(m.age2 - m.age1, m.w, 0.1),
+                                    'median': wq(m.age2 - m.age1, m.w, 0.5),
+                                    'p90': wq(m.age2 - m.age1, m.w, 0.9)}), '']
 
     def dep_ages(m):
-        x = np.concatenate([m[f'age_dep{k}'].to_numpy(float) for k in (1, 2, 3)])
+        x = np.concatenate([m[f'dep_age{k}'].to_numpy(float) for k in (1, 2, 3)])
         w = np.concatenate([m.w.to_numpy(float)] * 3)
         x, w = x[x >= 0], w[x >= 0]
         g = groups_by(x, DEP_AGE_GROUPS)
@@ -198,9 +198,9 @@ def main():
                                ('a net loss', couples(lambda d: d['sch_cf_income'] < 0))],
                          split('sch_cf_income', 'se2')), '']
 
-    care = lambda m: {'units (m)': m.w.sum() / 1e6, 'with any (%)': 100 * m.w[m.childcare > 0].sum() / m.w.sum(),
-                      'mean, all ($)': wavg(m.childcare, m.w),
-                      'mean, those with any ($)': wavg(m.childcare[m.childcare > 0], m.w[m.childcare > 0])}
+    care = lambda m: {'units (m)': m.w.sum() / 1e6, 'with any (%)': 100 * m.w[m.care_exp > 0].sum() / m.w.sum(),
+                      'mean, all ($)': wavg(m.care_exp, m.w),
+                      'mean, those with any ($)': wavg(m.care_exp[m.care_exp > 0], m.w[m.care_exp > 0])}
     out += ['## Childcare, by the number of dependents under 13', '',
             side_by_side(src, [(str(k), (lambda k: lambda d: d['n_young'] == k)(k)) for k in (0, 1, 2, 3)], care), '',
             '## Childcare, units with a dependent under 13, by wages', '',

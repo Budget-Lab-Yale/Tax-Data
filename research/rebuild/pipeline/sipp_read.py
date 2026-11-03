@@ -19,12 +19,10 @@ Security for oneself this month (ESSSMNYN), received retirement income item k th
 owned stocks or mutual funds in the year, alone, jointly with the spouse or jointly with others (EOWN_ST, EOWN_MF,
 EJSOWNST, EJSOWNMF, EJOOWNST, EJOOWNMF). A cached file that lacks one of them is read again.
 """
-import io
 import os
 import zipfile
 import gzip
 
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as pcsv
