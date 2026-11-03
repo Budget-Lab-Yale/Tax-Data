@@ -23,6 +23,9 @@ from):
   nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns (the CEX's rule since 22 October).
   scf mean per unit between waves   the SCF's own weighted mean per tax unit, one wave over another
                     (build_table.scf_growth computes it from the table; nothing here).
+  scf net worth per unit between waves   the SCF's weighted mean net worth per tax unit, one wave over another (after
+                    the last wave Z.1 household net worth per person), for an SCF item too lumpy to grow by its own
+                    mean (inheritances received this year, since 3 November; build_table.scf_growth).
   none              not grown, for the reason given (a statutory nominal amount, a share, a count).
 
   load(year)        the year's growth lines, checked
@@ -69,6 +72,8 @@ SERIES = {
         ('college_board_tuition_tax_year.csv',)),
     'nipa pce per return': ("the category's NIPA PCE over SOI's number of returns", None),
     'scf mean per unit between waves': ("the SCF wave's weighted mean per tax unit over another wave's", None),
+    'scf net worth per unit between waves': ("the SCF wave's weighted mean net worth per tax unit over another wave's "
+                                             "(after the last wave Z.1 household net worth per person)", None),
 }
 
 
@@ -299,7 +304,7 @@ def between(v, s, t, year=common.TARGET_YEAR):
     if spec['series'] == 'soi 1.4':
         f = _factor(spec, t) / _factor(spec, s)
     else:
-        assert spec['series'] != 'scf mean per unit between waves', f'{v}: the SCF is grown by build_table.scf_growth'
+        assert not spec['series'].startswith('scf '), f'{v}: the SCF is grown by build_table.scf_growth'
         f = level(spec, t) / level(spec, s)
     # the maps (build_table.build_maps, build_year_maps) multiply by this with no check of their own: a missing value
     # in a series (a blank cell in the NIPA PCE file) would otherwise reach them as a missing factor
@@ -337,14 +342,15 @@ def check(year=common.TARGET_YEAR):
     every = [v for vs in groups.values() for v in vs]
     bad = [f'{g} item {v}: no growth line' for g, vs in groups.items() for v in vs if v not in items]
     bad += [f'{v}: a growth line for an item the pipeline does not have' for v in items if v not in every]
-    if year > 2022:
+    last_wave = max(int(w) for w in common.SETTINGS['paths']['raw']['scf_waves'])   # the stock year of the last wave
+    if year > last_wave:
         for v in SCF_Z1_CATEGORIES:
             try:
-                factor = scf_extension(2022, year, v)
+                factor = scf_extension(last_wave, year, v)
                 assert np.isfinite(factor) and factor > 0
             except (OSError, KeyError, AssertionError, ValueError) as exc:
                 bad.append(f'{v}: missing or invalid Financial Accounts category growth to {year}: {exc}')
-    allowed = {'SCF': {'scf mean per unit between waves'}, 'CEX': {'nipa pce per return'},
+    allowed = {'SCF': {'scf mean per unit between waves', 'scf net worth per unit between waves'}, 'CEX': {'nipa pce per return'},
                'CPS': {'soi 1.4'}, 'SIPP': {'soi 1.4'}}
     for g, ok in allowed.items():
         for v in groups[g]:

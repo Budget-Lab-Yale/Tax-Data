@@ -15,8 +15,11 @@
     2013,
     2016,
     2019,
-    2022
+    2022,
+    2025
    ],
+   "scf_wave_dirs": {"2025": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-11-03/scf2025/raw/{wave}/historical"},
+   "_scf_wave_dirs": "A wave whose files are not (yet) in the shared raw-data folder: its own folder, in place of the scf path above ({wave} in the path). The 2025 wave (released by the Federal Reserve in October 2026) was downloaded on 2 November 2026 to the scf2025 piece's scratch folder: scf2025s.zip (p25i6.dta), scfp2025excel.zip (SCFP2025.csv), scf2025rw1s.zip (p25_rw1.dta), codebk2025.txt. Remove the entry once the files are copied into the shared folder.",
    "nonfiler_pool": "/nfs/roberts/project/pi_nrs36/shared/model_data/ASEC-Nonfilers/v1/2026091201/historical/nonfiler_pool_{year}.csv.gz",
    "soi_mirror": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned",
    "soi_tables": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/IRS-Ind/aligned",
@@ -47,6 +50,12 @@
   "_reassign": "CBO's reassignment pass (4c): true is CBO's default; false applies the first assignment only. The SCF and CEX (roster_scf.py, roster_cex.py) read it; the CPS's units (filing.py) follow cps.cbo_variant, 'cbo' (with the pass) or 'strict' (without), and tax_units.py run as a script takes --strict.",
   "npeu_split": "equal",
   "_npeu_split": "The SCF's adults outside the primary economic unit: how the group's income is divided among them. equal: equally; moore: wages among those under 70 and Social Security and pensions among those 62 and over (Moore's rule). The group's balance sheet is divided equally either way."
+ },
+ "inheritance": {
+  "_what": "Inheritances received this year, an SCF-only slot (since 3 November; John, 2 November; roster_scf.inheritances, build_scf.R, build_table.SCF_AMOUNTS). The SCF's up to three reported inheritances, trusts and gifts (gift_type left out); the year received is rounded to the nearest 5 in the public file (years that would round past the interview set to the survey year), so each counts as received in the wave's income year with the chance its year code carries (year_weights: {wave: {year code: chance}}; codes not listed have chance 0), by a uniform draw keyed by the wave, the household and implicate and the inheritance's position, seeded by salt. 2013-2022: the Estate-Tax-Distribution model's weights (src/house_obbba.R), calibrated to Gale and Sabelhaus (2024). 2025: Gale and Sabelhaus's rule (their section F: the chance that an inheritance with a rounded year code was received in the income year is 1.25 over the statistical years the code covers, the survey taken at mid-year): the 2025 wave's code 2025 holds 2023, 2024 and 2025 to the interview, 2.5 years, so 1.25 / 2.5 = 0.5; code 2020 (2018-2022) does not hold 2024. The value is the value when received, taken as income-year dollars (scratch explore/2026-11-03/scf2025/DECISIONS.md).",
+  "year_weights": {"2013": {"2013": 1.0, "2010": 0.1}, "2016": {"2015": 0.36}, "2019": {"2019": 0.82}, "2022": {"2022": 1.0, "2020": 0.28}, "2025": {"2025": 0.5}},
+  "gift_type": 3,
+  "salt": 2026110301
  },
  "network": {
   "_what": "The network (model.py, SlotTransformer): width of each slot's vector, layers, attention heads, ffn (the width inside each layer's feed-forward block), dropout.",

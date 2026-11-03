@@ -1,12 +1,13 @@
-"""The training table: the PUF's filers, four SCF waves, six CEX years and five CPS years, stacked, each amount
+"""The training table: the PUF's filers, five SCF waves, six CEX years and five CPS years, stacked, each amount
 cut into bands, plus the dollar maps.
 
 Rows, in this order:
   PUF filers      the PUF (the PUF year, settings "years") without its four aggregate
                   records; weight S006/100; filer = 1 and filer_p = 1. The PUF holds
                   filers only: non-filers come from the CPS.
-  SCF waves       2016, 2019, 2022, then 2013 (tax years 2015, 2018, 2021, 2012),
-                  tax units from build_scf.R, all five implicates
+  SCF waves       2016, 2019, 2022, then 2013, then 2025 (tax years 2015, 2018, 2021, 2012, 2024; the 2025 wave since
+                  3 November, after the others so their rows keep their order), tax units from build_scf.R, all five
+                  implicates
   CEX years       the interview survey's tax units from build_cex.R (settings "cex"),
                   one row per tax unit and quarterly interview, spending annualized;
                   dependent filers are folded into the unit that claims them
@@ -85,7 +86,7 @@ that year per return. A computed total (capital gains, business income and its t
 row for, but has rows for all its parts, is computed from the translated parts, and the partnership flag k1_owner
 likewise. The report is data/translation_report.csv; each year's tax data is data/tax_data_<year>.parquet. The SCF's
 balance sheet is cut within each wave, the CEX's categories and the CPS's own amounts within each year.
-SCF ids of tax years 2018 and 2021 are offset by 1e8 x (year - 2015), the 2013
+SCF ids of tax years 2018, 2021 and 2024 are offset by 1e8 x (year - 2015), the 2013
 wave's by 2.013e12, so every id is unique (the held-back
 slice is drawn by household id).
 
@@ -227,6 +228,16 @@ QBI_KINDS = {'schc': ['sole_prop'],
 SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_KINDS]
 SCF_AMOUNTS = SCF_AMOUNTS + SCF_WORKERS
 SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not dollars: not grown either)
+# inheritance (since 3 November; John, 2 November): the unit's inheritances and trusts received this year, gifts left out,
+# in the wave's income-year dollars (roster_scf.inheritances, build_scf.R): each reported inheritance counted as this
+# year's with the chance its rounded year code carries, by a draw keyed by the household, implicate and position; all of
+# it to a unit holding the whole PEU, half to each part of a split couple, missing (not asked) on the units outside the PEU
+# and other units. An SCF-only slot like the balance sheet: no tax-data counterpart, no translation row, no fill-in; zeros
+# and amounts one distribution, as every slot. Grown between waves by the SCF's household net worth per tax unit (its
+# growth.yaml line, series 'scf net worth per unit between waves'; scf_growth), not by its own lumpy mean. Not part of
+# net worth.
+SCF_AMOUNTS = SCF_AMOUNTS + ['inheritance']
+SCF_NOT_ASKED = SCF_NOT_ASKED + ['inheritance']
 SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_KINDS}
 PUF_AMOUNTS = ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
@@ -957,7 +968,9 @@ def loan_to_value(s):
 
 def scf_rows():
     waves = []
-    for wave in [2016, 2019, 2022, 2013]:   # this order fixes the rows' order, and so the training batches
+    # this order fixes the rows' order, and so the training batches; the 2025 wave (3 November) comes last, so the
+    # rows of the others keep their places
+    for wave in [2016, 2019, 2022, 2013, 2025]:
         s = pd.read_csv(f'{common.DATA}/scf_units_{wave}.csv.gz')
         y = wave - 1
         off = WAVE_2013_ID_OFFSET if wave == 2013 else 1e8 * (y - PUF_YEAR)
@@ -974,6 +987,13 @@ def scf_rows():
         e1, e2 = s['elective1'].to_numpy(float), s['elective2'].to_numpy(float)     # the head's and the spouse's
         assert np.allclose(e1[asked] + e2[asked], e[asked]) and np.isnan(e2[~asked]).all()
         assert (e2[asked & (s['married'] == 0).to_numpy()] == 0).all(), 'a spouse\'s deferrals off a couple'
+        # inheritances received this year (3 November): asked of the PEU only, like the deferrals
+        h = s['inheritance'].to_numpy(float)
+        assert not np.isnan(h[asked]).any() and np.isnan(h[~asked]).all() and (h[asked] >= 0).all(), \
+            'inheritance missing on a PEU unit, or present outside it, or negative'
+        common.say(f'  inheritances received this year: ${(s.weight * s.inheritance)[asked].sum() / 1e9:.1f} billion '
+                   f'(income-year dollars) on {s.weight[asked & (h > 0)].sum() / 1e6:.3f} m units ({int((asked & (h > 0)).sum())} '
+                   f'rows); not asked (missing, not zero) on the {int((~asked).sum())} rows outside the PEU')
         common.say(f'  elective deferrals not asked (units outside the PEU, other units; missing, not zero): '
                    f'{int((~asked).sum())} rows, {s.weight[~asked].sum() / 1e6:.2f} m units with '
                    f'${(s.weight * s.wages)[~asked].sum() / 1e9:.1f} billion of wages')
@@ -1370,8 +1390,13 @@ def scf_growth(scf, y_from, y_to):
     included; scf: SCF rows with year, weight and the items in dollars). It carries price change and the change in
     holdings per unit together. The mortgage's share of the home's value (w_primary_ltv) is a ratio and is not grown:
     the mortgage in dollars moves with the home. An amount the SCF does not ask of some units (SCF_NOT_ASKED: elective
-    deferrals, not asked outside the PEU): the mean over the units asked."""
+    deferrals, not asked outside the PEU): the mean over the units asked. An item whose growth.yaml line names 'scf net
+    worth per unit between waves' (inheritance, since 3 November) takes the growth of net worth per tax unit (all units),
+    net worth computed from the balance sheet where the frame has no net_worth column (the home mortgage as its share of
+    the home's value times the home)."""
     out = {}
+    if 'net_worth' not in scf:
+        scf = scf.assign(net_worth=scf_net_worth(scf))
     for v in SCF_AMOUNTS:
         if v in SCF_RATIOS:
             # The mortgage share changes after the final wave so that the home and mortgage each follow their own Z.1 series.
@@ -1380,10 +1405,25 @@ def scf_growth(scf, y_from, y_to):
             out[v] = (GR.scf_extension(a, b, 'value.primary_mortgage') /
                       GR.scf_extension(a, b, 'value.primary_home')) if v == 'w_primary_ltv' else 1.0
             continue
-        mean = {y: scf_mean(scf, v, y) for y in (y_from, y_to)}
+        # an item whose growth.yaml line names 'scf net worth per unit between waves' (inheritance, 3 November) is grown
+        # by the SCF's net worth per tax unit, not by its own mean
+        src = GR.line(v)['source']
+        by = 'net_worth' if isinstance(src, dict) and src.get('series') == 'scf net worth per unit between waves' else v
+        mean = {y: scf_mean(scf, by, y) for y in (y_from, y_to)}
         # a mean at or below zero (possible for the unrealized gains) makes the ratio meaningless: no factor
         out[v] = mean[y_to] / mean[y_from] if mean[y_from] > 0 and mean[y_to] > 0 else np.nan
     return out
+
+
+def scf_net_worth(scf):
+    """Net worth of SCF rows from the balance sheet: the 14 assets less the 6 debts, the home mortgage as its share of the
+    home's value times the home (loan_to_value; the same as the units' own net worth)."""
+    nw = np.zeros(len(scf))
+    for c, sign in NET_WORTH_PARTS.items():
+        x = (scf['w_primary_ltv'] * scf['value.primary_home']) if c == 'value.primary_mortgage' else scf[c]
+        nw = nw + sign * x.to_numpy(float)
+    assert not np.isnan(nw).any(), 'SCF net worth: a balance-sheet item missing'
+    return nw
 
 
 def _wave_mean(scf, v, y):

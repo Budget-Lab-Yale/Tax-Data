@@ -101,9 +101,15 @@ def bracket(code):
     return lo, hi
 
 
+def scf_dir(s, wave):
+    """The wave's folder of raw files: settings paths.raw.scf_wave_dirs for a wave not in the shared folder, else
+    paths.raw.scf, {wave} filled in."""
+    return s['paths']['raw'].get('scf_wave_dirs', {}).get(str(wave), s['paths']['raw']['scf']).replace('{wave}', str(wave))
+
+
 def read_raw(wave):
     s = json.load(open(SETTINGS))
-    path = os.path.join(s['paths']['raw']['scf'].replace('{wave}', str(wave)), f'p{wave % 100:02d}i6.dta')
+    path = os.path.join(scf_dir(s, wave), f'p{wave % 100:02d}i6.dta')
     want = [c.lower() for c in HH + sum(POS.values(), [])]
     with pd.read_stata(path, iterator=True) as rd:
         have = list(rd.variable_labels().keys())
@@ -349,6 +355,64 @@ def units(wave, npeu_split='equal', reassign_pass=True):
     return persons, U, nd
 
 
+# ---- inheritances received this year (3 November 2026; John, 2 November; settings "inheritance") ----------------------
+INHERIT_SETS = [('X5803', 'X5804', 'X5805'), ('X5808', 'X5809', 'X5810'), ('X5813', 'X5814', 'X5815')]   # type, value, year
+
+
+def inheritances(wave, s):
+    """Each household's (Y1's) inheritances received this year, in dollars of the wave's income year (wave - 1).
+
+    The SCF asks the respondent and the spouse or partner, as one household, about up to three inheritances, trusts
+    or gifts received (type X5803/X5808/X5813, value when received X5804/X5809/X5814, year received X5805/X5810/
+    X5815). Gifts (type 3) are left out; inheritances (1, with inherited trusts, 6, merged into it in the public
+    file), trusts (2) and the 'other' code (-7, mostly a programming error that skipped the verbatim answer) are kept,
+    as the Estate-Tax-Distribution model keeps them. A value of -1 (no market value) or 0 holds nothing. The public
+    file rounds the year to the nearest 5 (years that would round past the interview are set to the survey year), so
+    each reported inheritance counts as this year's (the wave's income year) with the chance its year code carries
+    (settings inheritance.year_weights: the Estate-Tax-Distribution model's weights calibrated to Gale and Sabelhaus
+    (2024) for 2013-2022; the 2025 wave's by Gale and Sabelhaus's rule, 1.25 over the years its code covers),
+    realised by a uniform draw keyed by the wave, the household and implicate (Y1) and the inheritance's position
+    (rule S23: independent across the five implicates, never dependent on which other records are present). An
+    inheritance counted as this year's was, on that premise, received in the income year, so its value when received
+    is already in the income year's dollars and is not grown (as Gale and Sabelhaus treat it). The others reported
+    (X5818, no year asked) are left out.
+
+    Returns (households: hh, inheritance, n_this_year, expected; detail: one row per reported inheritance)."""
+    cfg = s['inheritance']
+    wts = {int(k): float(v) for k, v in cfg['year_weights'][str(wave)].items()}
+    assert all(0 <= v <= 1 for v in wts.values()), f'inheritance year weights of wave {wave}: {wts}'
+    path = os.path.join(scf_dir(s, wave), f'p{wave % 100:02d}i6.dta')
+    cols = ['y1', 'yy1', 'x42001'] + [c.lower() for st in INHERIT_SETS for c in st]
+    d = pd.read_stata(path, columns=cols, convert_categoricals=False).astype(float)
+    d.columns = [c.upper() for c in d.columns]
+    assert not d.isna().any().any(), f'wave {wave}: inheritance items missing: {d.isna().sum()[d.isna().sum() > 0]}'
+    year = wave - 1
+    hh = d.Y1.to_numpy().astype(np.int64)
+    w = d.X42001.to_numpy() / 5
+    total = np.zeros(len(d)); n_this = np.zeros(len(d), int); expected = np.zeros(len(d))
+    detail = []
+    for k, (t, v, y) in enumerate(INHERIT_SETS, 1):
+        typ, val, code = d[t].to_numpy(), d[v].to_numpy(), d[y].to_numpy().astype(int)
+        held = (val > 0) & (typ != cfg['gift_type'])
+        p = np.array([wts.get(c, 0.0) for c in code])
+        u = T.keyed_uniform((wave * 100000 + hh) * 10 + k, cfg['salt'])
+        now = held & (u < p)
+        amt = np.where(now, val, 0.0)
+        total += amt; n_this += now; expected += np.where(held, p * val, 0.0)
+        r = held | (val != 0)
+        detail.append(pd.DataFrame({'hh': hh[r], 'k': k, 'weight': w[r], 'type': typ[r], 'value': val[r], 'code': code[r],
+                                    'gift': (typ[r] == cfg['gift_type']), 'chance': np.where(held, p, 0.0)[r],
+                                    'u': u[r], 'this_year': now[r], 'amount': amt[r]}))
+    detail = pd.concat(detail, ignore_index=True)
+    out = pd.DataFrame({'hh': hh, 'weight': w, 'inheritance': total, 'n_this_year': n_this, 'expected': expected})
+    print(f'wave {wave}: inheritances received this year (gifts out; year weights {wts}): '
+          f'{(w * n_this).sum() / 1e6:.3f} m inheritances drawn (expected {(detail.weight * detail.chance).sum() / 1e6:.3f} m), '
+          f'${(w * total).sum() / 1e9:.1f} billion drawn (expected ${(w * expected).sum() / 1e9:.1f} billion), '
+          f'income-year {year} dollars; households with any {w[total > 0].sum() / 1e6:.3f} m; SCF rows with any '
+          f'{int((total > 0).sum())}; above $5 million: {int((total > 5e6).sum())} rows, {w[total > 5e6].sum() / 1e3:.1f} thousand households')
+    return out, detail
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('waves', type=int, nargs='*', help="default: the settings' SCF waves")
@@ -373,6 +437,10 @@ def main():
                 'any_dep_by_support', 'any_claimed_in_group']
         U.loc[~U.dep_return, keep].to_csv(f'{out}/scf_units_module_{wave}.csv.gz', index=False)
         nd.reset_index().to_csv(f'{out}/scf_npeu_dollars_{wave}.csv.gz', index=False)
+        # inheritances received this year, per household (build_scf.R gives them to the PEU's units)
+        inh, inh_detail = inheritances(wave, s)
+        inh.to_csv(f'{out}/scf_inheritance_{wave}.csv.gz', index=False)
+        inh_detail.to_parquet(f'{out}/scf_inheritance_detail_{wave}.parquet')
         m = U[~U.dep_return]
         w = m.weight / 1e6
         print(f'wave {wave} (npeu_split {split}): {len(persons)} people, {len(m)} unit rows, {w.sum():.2f} m units')

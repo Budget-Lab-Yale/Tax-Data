@@ -115,6 +115,13 @@
 # about 1,300 rows a wave, so the share is taken over all four). A household ratio, the same on each PEU unit; 0 where
 # the unit has no value.dc (the share multiplies value.dc: non_micro_imputations.unrealized_gains); missing (not asked) on
 # units outside the PEU and other units, whose accounts the SCF does not break down.
+# Inheritances received this year (inheritance, since 3 November; John, 2 November): the household's inheritances and
+# trusts (gifts left out) counted as received in the wave's income year, in that year's dollars (roster_scf.py,
+# inheritances: each reported inheritance counts with the chance its rounded year code carries, settings
+# inheritance.year_weights, by a draw keyed by the household, implicate and position), read from
+# scf_inheritance_{wave}.csv.gz. A household item (the question does not say which spouse received it): a unit holding the
+# whole PEU takes all of it, the respondent's part and the spouse's or partner's part half each; units outside the PEU
+# and other units are not asked: missing (NA), not zero.
 # Ages and sexes of the unit's head and spouse (age1, male1; age2, male2 on
 # joint units, else -1; male missing (NA, not observed) where the SCF does not
 # report sex: members other than the respondent and the spouse or partner), for the primary
@@ -206,7 +213,9 @@ person_incomes = function(h) {
 r_share = function(r, s) if_else(r + s == 0, 0.5, r / pmax(r + s, 1e-9))
 
 for (wave in settings$paths$raw$scf_waves) {
-  dir = sub('{wave}', wave, settings$paths$raw$scf, fixed = TRUE)
+  # the wave's folder: settings paths.raw.scf_wave_dirs for a wave not in the shared folder (the 2025 wave), else paths.raw.scf
+  own = settings$paths$raw$scf_wave_dirs[[as.character(wave)]]
+  dir = sub('{wave}', wave, if (is.null(own)) settings$paths$raw$scf else own, fixed = TRUE)
   raw_path = file.path(dir, sprintf('p%02di6.dta', wave %% 100))
   scfp = fread(file.path(dir, sprintf('SCFP%d.csv', wave))) %>% as_tibble()
   hh = read_dta(raw_path, col_select = all_of(c('y1', 'yy1', 'x42001', 'x3902', tolower(INCOME), BUSINESS_ITEMS, QBI_ITEMS,
@@ -329,6 +338,11 @@ for (wave in settings$paths$raw$scf_waves) {
   fwrite(dper, file.path(OUT, sprintf('scf_deferral_persons_%d.csv.gz', wave)))
   peu = peu %>% inner_join(dper %>% select(Y1, r_elective, s_elective), by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh))
+  # inheritances received this year, per household (roster_scf.py; see the top)
+  inh = fread(file.path(OUT, sprintf('scf_inheritance_%d.csv.gz', wave))) %>% as_tibble() %>% select(Y1 = hh, inheritance)
+  stopifnot(nrow(inh) == nrow(hh), !anyDuplicated(inh$Y1), !anyNA(inh$inheritance), all(inh$inheritance >= 0))
+  peu = peu %>% inner_join(inh, by = 'Y1')
+  stopifnot(nrow(peu) == nrow(hh))
 
   # the module's units
   mu = fread(file.path(OUT, sprintf('scf_units_module_%d.csv.gz', wave))) %>% as_tibble()
@@ -387,26 +401,27 @@ for (wave in settings$paths$raw$scf_waves) {
                           p$peu_dollars == 'r' ~ p$r_elective, TRUE ~ p$s_elective)
   p$elective2 = case_when(joint_all & p$head_pn == 2 ~ p$r_elective, joint_all ~ p$s_elective, TRUE ~ 0)
   p$elective_deferrals = p$elective1 + p$elective2
+  p$inheritance = p$inheritance * if_else(p$peu_dollars == 'all', 1, 0.5)   # a split couple: half each
   stopifnot(all(p$elective_deferrals <= p$wages * (1 + 1e-9) + 1e-6))
   p$w_dc_stock_share = if_else(p$value.dc > 0, pmin(p$ret_stock_share, 1), 0)
   p = p %>% mutate(taxunit_code = case_when(peu_dollars == 'all' ~ 0L, peu_dollars == 'r' ~ 1L, TRUE ~ 2L)) %>%
     select(uid, all_of(names(INCOME)), gross_ss, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
-           elective1, elective2, w_dc_stock_share, taxunit_code)
+           elective1, elective2, w_dc_stock_share, inheritance, taxunit_code)
 
   # units outside the PEU: their members' shares of the group; other units: nothing
   npeu = mu %>% filter(source == 'npeu') %>% select(uid) %>% left_join(nd, by = 'uid')
   stopifnot(!anyNA(npeu$wages), 'gross_ss' %in% names(npeu), !anyNA(npeu$gross_ss))
   for (v in setdiff(c(names(INCOME), WCOLS, 'auto_int_exp'), names(npeu))) npeu[[v]] = 0
-  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share')) npeu[[v]] = NA_real_   # not asked: missing, not zero
+  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share', 'inheritance')) npeu[[v]] = NA_real_   # not asked: missing, not zero
   # the SCF asks the property section of the PEU only: no rental part outside it (the group's real estate income is
   # all in its rent_royalty_estate, so in sche_rest)
   npeu$rental_income = 0
   npeu = npeu %>% mutate(taxunit_code = 9L) %>%
     select(uid, all_of(names(INCOME)), gross_ss, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
-           elective1, elective2, w_dc_stock_share, taxunit_code)
+           elective1, elective2, w_dc_stock_share, inheritance, taxunit_code)
   other = mu %>% filter(source == 'other') %>% select(uid)
   for (v in c(names(INCOME), 'gross_ss', 'rental_income', WCOLS, 'auto_int_exp')) other[[v]] = 0
-  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share')) other[[v]] = rep(NA_real_, nrow(other))   # not asked
+  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share', 'inheritance')) other[[v]] = rep(NA_real_, nrow(other))   # not asked
   other$taxunit_code = rep(8L, nrow(other))
   dollars = bind_rows(p, npeu, other)
   stopifnot(nrow(dollars) == nrow(mu), !anyDuplicated(dollars$uid))
@@ -489,7 +504,7 @@ for (wave in settings$paths$raw$scf_waves) {
               male2 = if_else(filing_status == 'joint', if_else(spouse_sex == 0, NA_integer_, as.integer(spouse_sex == 1)), -1L),
               taxunit_code, across(all_of(names(INCOME))), gross_ss, rental_income, sche_rest, net_worth,
               asset_factor = asset_factor, across(all_of(WCOLS)), auto_int_exp, elective_deferrals, elective1, elective2,
-              w_dc_stock_share, across(all_of(QBI_COLS)),
+              w_dc_stock_share, inheritance, across(all_of(QBI_COLS)),
               owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part, filing_status, n_child_away,
               group_level = as.integer(group_level), npeu_people,
               any_age_assumed = as.integer(any_age_assumed), any_link_assumed = as.integer(any_link_assumed),
@@ -499,8 +514,9 @@ for (wave in settings$paths$raw$scf_waves) {
   # sex is allowed missing (not observed outside the respondent and the spouse or partner), and elective deferrals
   # (not asked outside the PEU)
   stopifnot(nrow(units) == nrow(mu), !anyDuplicated(units$record_id),
-            !anyNA(select(units, -male1, -male2, -elective_deferrals, -elective1, -elective2, -w_dc_stock_share)),
+            !anyNA(select(units, -male1, -male2, -elective_deferrals, -elective1, -elective2, -w_dc_stock_share, -inheritance)),
             all(is.na(units$w_dc_stock_share) == (units$taxunit_code > 2)),
+            all(is.na(units$inheritance) == (units$taxunit_code > 2)),
             all(is.na(units$elective_deferrals) == (units$taxunit_code > 2)),
             all(is.na(units$elective2) == (units$taxunit_code > 2)),
             all(units$elective2[units$married == 0 & units$taxunit_code <= 2] == 0),
@@ -513,8 +529,8 @@ for (wave in settings$paths$raw$scf_waves) {
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
     stopifnot(abs(z - a) <= 1e-6 * max(1, abs(a)))
   }
-  for (v in c('gross_ss', 'rental_income')) {
-    a = sum(hh$X42001 / 5 * (if (v == 'gross_ss') hh$r_ss + hh$s_ss else hh$rental_hh))
+  for (v in c('gross_ss', 'rental_income', 'inheritance')) {
+    a = sum(hh$X42001 / 5 * (if (v == 'gross_ss') hh$r_ss + hh$s_ss else if (v == 'inheritance') peu$inheritance else hh$rental_hh))
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
     stopifnot(abs(z - a) <= 1e-6 * max(1, abs(a)))
   }
@@ -554,6 +570,11 @@ for (wave in settings$paths$raw$scf_waves) {
   cat(sprintf('wave %d: k1_owner = 1: %.2f m units; with zero sche_rest %.2f m\n', wave,
               sum(units$weight[units$k1_owner == 1]) / 1e6,
               sum(units$weight[units$k1_owner == 1 & units$sche_rest == 0]) / 1e6))
+  pe = units$taxunit_code <= 2
+  cat(sprintf(paste0('wave %d: inheritances received this year: $%.1f billion on the PEU units (income-year %d dollars), units with any ',
+                     '%.3f m; not asked (missing) on %.2f m units outside the PEU or other (%d rows)\n'), wave,
+              sum((units$weight * units$inheritance)[pe]) / 1e9, wave - 1L, sum(units$weight[pe & units$inheritance > 0]) / 1e6,
+              sum(units$weight[!pe]) / 1e6, sum(!pe)))
   fwrite(units, file.path(OUT, sprintf('scf_units_%d.csv.gz', wave)))
   cat(sprintf('wave %d: %d unit rows, %.2f m units (outside the PEU %.2f m); PEU totals kept; asset factor %.6f\n',
               wave, nrow(units), sum(units$weight) / 1e6, sum(units$weight[units$taxunit_code == 9]) / 1e6,
