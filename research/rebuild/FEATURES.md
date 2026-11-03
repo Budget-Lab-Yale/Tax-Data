@@ -1463,8 +1463,9 @@ target year's law are computed by tax-simulator-gpu (`pipeline/taxes.py`, settin
 
 1. The file becomes the calculator's input frame (`calculator.convert`, the contract of `CALCULATOR_CONTRACT.md`),
    written as a parquet file keyed by record id.
-2. tax-simulator-gpu's batch command, `python -m taxmodel.run.batch` (a module on its local branch `taxdata-batch`,
-   commit 2b3b907, not pushed), runs it on the CPU in the calculator's own Python environment, from a copy of that
+2. tax-simulator-gpu's batch command, `python -m taxmodel.run.batch` (a module on its local branch
+   `taxdata-batch-1103`, not pushed: master 080b8dbb of 3 November with the batch command and the itemized deduction
+   categories added; pinned at c89e272 since 3 November, 0bc55a1 before), runs it on the CPU in the calculator's own Python environment, from a copy of that
    repository at the pinned commit; it writes one row per record with every computed column, and a manifest. About 20
    seconds for 457,000 records. It compiles the law of 2014 to 2040.
 3. The QBI dials of the non-microdata imputations (`a` for the wage bill, `b` for specified services; scratch

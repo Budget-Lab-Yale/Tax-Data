@@ -8,7 +8,7 @@ the start after the top of the file and the non-microdata imputations.
 
 1. The batch command (run_batch). The file becomes the calculator's input frame (calculator.convert: the contract,
    one row per column the calculator reads, with Tax-Simulator's names), written as a parquet file keyed by record
-   id. tax-simulator-gpu's batch command (`python -m taxmodel.run.batch`, a local branch taxdata-batch of that
+   id. tax-simulator-gpu's batch command (`python -m taxmodel.run.batch`, a local branch taxdata-batch-1103 of that
    repository, not pushed) runs it under the year's law in the calculator's own Python environment, from a copy of
    the repository at the commit in settings taxes.commit (pin: written once with git archive under
    <out>/lib/tax-simulator-gpu_<first 12 characters>). Its output, one row per record keyed by the same id, is read
@@ -170,11 +170,14 @@ KINDS = ['sole_prop', 'part', 'scorp', 'farm']   # the calculator's four kinds o
 
 
 def qbi_parts(inp, out):
-    """What the QBI formula reads that the dials do not move: the provisional taxable income (AGI less the larger of
-    the standard and itemized deductions and the personal exemptions, at least 0, as the calculator's QBI step), each
-    kind's income as the calculator counts it, the cap's base, and the year's QBI law for each record."""
+    """What the QBI formula reads that the dials do not move: taxable income before the deduction (AGI less the larger
+    of the standard and itemized deductions, the personal exemptions and the tip, overtime, senior and car loan
+    interest deductions of 2025-2028, at least 0, as the calculator's QBI step since its master 080b8dbb), each kind's
+    income as the calculator counts it, the cap's base, and the year's QBI law for each record."""
     x = lambda d, c: d[c].to_numpy(float)
-    txbl = np.maximum(x(out, 'agi') - np.maximum(x(out, 'item_ded'), x(out, 'std_ded')) - x(out, 'pe_ded'), 0.0)
+    schedule_1a = x(out, 'tip_ded') + x(out, 'ot_ded') + x(out, 'senior_ded') + x(out, 'auto_int_ded')
+    txbl = np.maximum(x(out, 'agi') - np.maximum(x(out, 'item_ded'), x(out, 'std_ded')) - x(out, 'pe_ded')
+                      - schedule_1a, 0.0)
     inc = np.column_stack([x(inp, 'sole_prop1') + x(inp, 'sole_prop2'), x(out, 'part'), x(out, 'scorp'),
                            x(inp, 'farm1') + x(inp, 'farm2')])
     law = {c[len(f'law.{QBI_LAW}.'):]: x(out, c) for c in out.columns if c.startswith(f'law.{QBI_LAW}.')}
