@@ -38,7 +38,8 @@ return of projection_growth.plan_factors, turned back into a growth in total by 
 'total'; or, for an item with no such rule, growth.yaml's per-return rule, kind 'per_unit'), 'file:<csv>:<column>'
 (a csv under research/rebuild/resources with a 'year' column; the growth is the column's value in the year over its
 value in 2023, both present and positive, never extended past the data), 'same_as:<column>' (the factors of another
-item), or 'none' (not grown). kind is 'auto' (only with 'current'), 'total' or 'per_unit'. target is 1 or 0; error is
+item), or 'none' (not grown). kind is 'auto' (with 'current': today's kind; with 'same_as' kind is not used), 'total'
+or 'per_unit'. target is 1 or 0; error is
 the relative standard error of the item's total target.
 """
 import os
@@ -225,8 +226,8 @@ def items_table():
         assert t['target'].isin([0, 1]).all(), f'{p}: target is 0 or 1'
         bad = t[(t.target == 1) & ~(pd.to_numeric(t['error'], errors='coerce') > 0)]
         assert bad.empty, f'{p}: targeted items with no positive error: {bad.column.tolist()}'
-        bad = t[(t.kind == 'auto') & (t.series != 'current')]
-        assert bad.empty, f'{p}: kind auto is only for series current: {bad.column.tolist()}'
+        bad = t[(t.kind == 'auto') & ~((t.series == 'current') | t.series.str.startswith('same_as:'))]
+        assert bad.empty, f'{p}: kind auto is only for series current or same_as: {bad.column.tolist()}'
         _TABLE['t'] = t.set_index('column')
         _TABLE['path'] = p
     return _TABLE['t']
