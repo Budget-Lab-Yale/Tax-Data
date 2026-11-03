@@ -15,13 +15,12 @@ ENTRY = {'cex': 'consumption', 'cps': 'cps items', 'sipp': 'sipp tips'}
 SOURCES = list(ENTRY)
 
 
-def mix(source, year=None):
-    """[(tax year, share)] for the survey in the target year's file, sorted by year, shares summing to one. Every year
-    must be one the training table holds for that survey (checked by the callers that read the table)."""
+def prior_shares(year, entry, source):
+    """[(year, share)] from one entry of the year's prior (targets_config/<year>/prior.yaml), whose keys are
+    '<source> <year>': sorted by year, each share divided by their sum, which must be one."""
     import target_list as TLS
-    year = common.TARGET_YEAR if year is None else year
-    prior = TLS.resolve(year).get('prior', {}).get(ENTRY[source])
-    where = f'targets_config/{year}/prior.yaml, prior "{ENTRY[source]}"'
+    prior = TLS.resolve(year).get('prior', {}).get(entry)
+    where = f'targets_config/{year}/prior.yaml, prior "{entry}"'
     assert prior, f'{where}: missing (the {source} year mix)'
     out = []
     for key, share in prior.items():
@@ -31,6 +30,13 @@ def mix(source, year=None):
     total = sum(s for _, s in out)
     assert abs(total - 1) < 1e-6, f'{where}: shares sum to {total}'
     return sorted((y, s / total) for y, s in out)
+
+
+def mix(source, year=None):
+    """[(tax year, share)] for the survey in the target year's file, sorted by year, shares summing to one. Every year
+    must be one the training table holds for that survey (checked by the callers that read the table)."""
+    year = common.TARGET_YEAR if year is None else year
+    return prior_shares(year, ENTRY[source], source)
 
 
 def years(source, year=None):

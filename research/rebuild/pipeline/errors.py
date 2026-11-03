@@ -44,10 +44,9 @@ right, and only three kinds are computed; everything else is a judgment number w
      person replicate weights (REPWTP1-REPWTP160, the unit head's, from settings paths.raw.cps_repwt): variance =
      4 / 160 x the sum over the replicates of (replicate estimate - full-sample estimate)^2; over the year's mix of
      CPS years, as the CEX's.
-4. Everything else ('judgment'): settings, each with its one-line reason (the non-filer count and the people in
-   non-filer units, which come from the filing stage's calibration).
-A definition gap (settings definition_gap, by kind, a share of the value; none set today) adds to the sampling error
-as the square root of the sum of squares. Identities (a row with identity true) have error 0 ('identity').
+4. Everything else ('judgment'): the people in non-filer units, which come from the filing stage's calibration
+   (settings, with its one-line reason); the non-filer count's error is set in the year's targets.yaml.
+Identities (a row with identity true) have error 0 ('identity').
 
 Interface: standard_errors(rows, year) -> one row per target, keyed by (kind, group, target) as in the run's
 fit.csv, with se in the units of the published statistic (on the average itself for an average, on the share for a
@@ -68,12 +67,10 @@ Data, downloaded once (public; to scratch, never to the shared raw-data folder; 
                           p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2.
   The CEX's replicate weights are read from the FMLI files in the shared raw-data folder (settings paths.raw.cex).
 Settings (section errors, each with a default): soi_cv_dir, scf_replicate_dir ({wave} in the path), borrow_neighbours,
-nonfiler_count_se, nonfiler_people_population_se, definition_gap.
+nonfiler_people_population_se.
 
 Usage (through Slurm, from the repository root):
-  python errors.py soi_cv                          parse the CV workbooks into <soi_cv_dir>/soi_cv.csv
-  python errors.py errors <rows.csv> <out folder>  the errors of the targets listed in rows.csv (a fit.csv or a
-                                                   targets.csv): errors_<target year>.csv and errors_summary.md
+  python errors.py soi_cv     parse the CV workbooks into <soi_cv_dir>/soi_cv.csv
 """
 import glob
 import os
@@ -88,14 +85,11 @@ import targets as TG
 
 Y = common.TARGET_YEAR
 S = common.SETTINGS.get('errors', {})
-S_TILT = common.SETTINGS['tilt']
 CV_DIR = S.get('soi_cv_dir', f'{common.TARGETS}/soi_cv')
 BORROW_K = int(S.get('borrow_neighbours', 5))
 SCF_RW_DIR = S.get('scf_replicate_dir', f'{common.OUT}/data/scf_rw/{{wave}}')
-JUDGMENT = {   # share of the value unless said otherwise; each with its reason
-    'nonfiler_count': S.get('nonfiler_count_se', 0.06),
-    'nonfiler_people': S.get('nonfiler_people_population_se', 0.005)}
-DEFINITION_GAP = S.get('definition_gap', {})        # kind -> share of the value; none today
+# the people in non-filer units: a share of the population they are counted in (nonfiler_errors)
+NONFILER_PEOPLE_SE = S.get('nonfiler_people_population_se', 0.005)
 # A Table 1.4 target resting only on cells SOI samples in full (the $10,000,000-or-more bracket, CV 0): a judgment
 # share of the value, since a target with no error cannot give way (TARGETS.md section 9, "everything else").
 FULL_SAMPLE_SE = float(S.get('full_sample_se', 0.01))
@@ -106,26 +100,6 @@ FULL_SAMPLE_SE = float(S.get('full_sample_se', 0.01))
 FULL_SAMPLE_CV_BELOW = float(S.get('full_sample_cv_below_pct', 0.1))
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 INF = np.inf
-
-# Which published statistic is each IRS target, in Table 1.4's terms (variable, statistic, sign).
-# Table 1.4 lines SOI renamed, by their old names (targets.T14's): from tax year 2022 wages are "total wages > total"
-RENAMED = {'total wages > total > number of returns': 'salaries and wages > number of returns',
-           'total wages > total > amount': 'salaries and wages > amount'}
-IRS_PARTS = {'returns': [('returns', 'count', 1)],
-             'wages count': [('wages', 'count', 1)], 'wages amount': [('wages', 'amount', 1)],
-             'txbl_int count': [('taxable_interest', 'count', 1)],
-             'txbl_int amount': [('taxable_interest', 'amount', 1)],
-             'gross_ss count': [('gross_ss', 'count', 1)], 'gross_ss amount': [('gross_ss', 'amount', 1)],
-             'dividends count': [('ordinary_dividends', 'count', 1)],
-             'dividends amount': [('ordinary_dividends', 'amount', 1)],
-             'capital_gains count': [('sch_d_net_gain', 'count', 1), ('sch_d_net_loss', 'count', 1)],
-             'capital_gains amount': [('sch_d_net_gain', 'amount', 1), ('sch_d_net_loss', 'amount', -1)],
-             # (28 October, the calculator experiment) the tax calculator's two lines, named by a separate configuration
-             'calc_taxable_income count': [('taxable_income', 'count', 1)],
-             'calc_taxable_income amount': [('taxable_income', 'amount', 1)],
-             'calc_income_tax_bc count': [('income_tax_before_credits', 'count', 1)],
-             'calc_income_tax_bc amount': [('income_tax_before_credits', 'amount', 1)]}
-
 
 # ---- 1. SOI's published coefficients of variation ------------------------------------------------
 CV_TABLES = {'14': ('1.4', 'income_sources'), '21': ('2.1', 'itemized_deductions'), '33': ('3.3', 'tax_liability')}
@@ -277,7 +251,7 @@ def soi_cells(year, table='1.4'):
     have = sorted(c.tax_year.unique())
     use = year if year in have else max(y for y in have if y <= year) if any(y <= year for y in have) else min(have)
     c = c[c.tax_year == use].copy()
-    known = c['item'].replace(RENAMED).map(TG.TABLE_ITEMS[table])
+    known = c['item'].map(TG.TABLE_ITEMS[table])   # targets.T14 names a renamed line under both its names
     c['variable'] = [k[0] if isinstance(k, tuple) else i for k, i in zip(known, c['item'])]
     c['value'] = c['value'] * np.where(c['statistic'] == 'amount', 1000.0, 1.0)   # SOI publishes thousands
     # a published CV below the line is the same as 0.00 (FULL_SAMPLE_CV_BELOW); the published figure is kept in cv_pct_published
@@ -341,38 +315,6 @@ def borrow_cv(cells, count=None, amount=None, returns=None):
     return cv, what
 
 
-def business_groups():
-    """{label: (lo, hi)} of every business grouping in the targets catalog (targets_config/catalog.yaml: the
-    groupings with edges on AGI)."""
-    import yaml
-    cat = yaml.safe_load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'targets_config', 'catalog.yaml')))
-    edges = [e for g in cat['groupings'].values() if g.get('variable') == 'agi' and 'edges' in g for e in g['edges']]
-    out = {}
-    for lo, hi, lab in edges:
-        r = (-INF if lo is None else lo, INF if hi is None else hi)
-        assert out.get(lab, r) == r, f'business group {lab}: two AGI ranges'
-        out[lab] = r
-    return out
-
-
-def group_range(kind, group, lo=np.nan, hi=np.nan):
-    """The AGI range of an SOI target's group: the row's own range (agi_lo, agi_hi, as target_list.expand writes it)
-    when it has one; else read from the label: an SOI bracket label (merged top brackets end '... or more'), a
-    business group of the targets catalog (merged groups 'A to B'), or 'all'."""
-    if not (np.isnan(lo) or np.isnan(hi)):
-        return (float(lo), float(hi))
-    if group == 'all':
-        return (-INF, INF)
-    if kind == 'business':
-        g = business_groups()
-        ends = group.split(' to ')
-        assert ends[0] in g and ends[-1] in g, f'business group {group}: not in the targets catalog'
-        return (g[ends[0]][0], g[ends[-1]][1])
-    r = agi_range(group)
-    assert r is not None, f'{group}: not an AGI class'
-    return r
-
-
 def dependent_filer_item_returns(year, variable, lo, hi):
     """Table 1.7's number of returns with an item (the variable's 'soi 1.7' count) in the AGI range [lo, hi), the
     all-AGI row when lo and hi are NaN: the count an amount's borrowed CV is matched on."""
@@ -386,6 +328,7 @@ def dependent_filer_item_returns(year, variable, lo, hi):
 
 def soi_errors(rows, year):
     """Table 1.4 targets (published CVs) and the counts of other SOI tables (borrowed CVs)."""
+    import target_list as TLS
     cells, cv_year = soi_cells(year)
     yr = '' if cv_year == year else f' (the {cv_year} CVs: no CV workbook for {year})'
     out = []
@@ -394,7 +337,7 @@ def soi_errors(rows, year):
             # (2 November 2026) a Table 1.7 amount (dependent filers' net capital gain): the median CV of the Table
             # 1.4 amount cells closest in amount and in their number of returns, the cell's own count of returns
             # with the item (Table 1.7 publishes it beside the amount)
-            n = dependent_filer_item_returns(year, r.variable, getattr(r, 'agi_lo', np.nan), getattr(r, 'agi_hi', np.nan))
+            n = dependent_filer_item_returns(year, r.variable, r.agi_lo, r.agi_hi)
             cv, what = borrow_cv(cells, amount=r.value, returns=n)
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
                         f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
@@ -407,20 +350,15 @@ def soi_errors(rows, year):
                         f'Table {table} count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells closest in '
                         f'returns{yr}: {what}'))
             continue
-        use, table = cells, '1.4'
-        if r.kind == 'IRS':
-            parts = IRS_PARTS[r.target]
-        elif r.kind == 'calculator':
-            # (30 October) a column the tax calculator computes (taxes.py), against its line in Table 1.4 or 3.3
-            import target_list as TLS
-            table, parts = TLS.soi_table_lines(r.variable, r.statistic)
-            if table != '1.4':
-                use, _ = soi_cells(year, table)
-        else:   # business: '<family> <net_income|net_loss> <count|amount>'
-            fam_side, st = r.target.rsplit(' ', 1)
-            fam, side = fam_side.split(' ')
-            parts = [(f'{fam}_{side}', st, 1)]
-        lo, hi = group_range(r.kind, r.group, getattr(r, 'agi_lo', np.nan), getattr(r, 'agi_hi', np.nan))
+        # the published lines behind the target, in Table 1.4 or (a calculator column, since 30 October) Table 3.3:
+        # the catalog's own lines, as target_list.expand summed them for the value
+        table, parts = TLS.soi_table_lines(r.variable, r.statistic)
+        use = cells if table == '1.4' else soi_cells(year, table)[0]
+        if np.isnan(r.agi_lo):   # the cell 'all': the table's total row
+            assert r.group == 'all', f'{r.kind} {r.group} {r.target}: no AGI range'
+            lo, hi = -INF, INF
+        else:
+            lo, hi = float(r.agi_lo), float(r.agi_hi)
         se, total, n, note = sum_error(use, parts, lo, hi)
         if abs(total - r.value) > 1e-6 * max(abs(r.value), 1):
             note = (note + '; ' if note else '') + f'cells add to {total:,.0f}, not the target {r.value:,.0f}'
@@ -471,13 +409,9 @@ def scf_replicates(wave, units):
 
 def scf_errors(rows, year):
     """The SCF targets (kinds 'wealth', 'wealth grid' and 'auto loans'): the standard errors scf_targets.py computed with their
-    values, over the year's mix of SCF waves. They are recorded when target_list.expand builds the year's targets;
-    for a list read from a file (python errors.py errors), the year's targets are built first."""
+    values, over the year's mix of SCF waves. They are recorded when target_list.expand builds the year's targets."""
     import scf_targets
-    import target_list
     keys = list(zip(rows['kind'], rows['group'], rows['target']))
-    if any(k not in scf_targets.RESULTS for k in keys):
-        target_list.expand(year)
     out = []
     for i, k in zip(rows.index, keys):
         assert k in scf_targets.RESULTS, f'SCF target {k}: not among the {year} targets'
@@ -644,14 +578,9 @@ def overtime_errors(rows, year):
     for y, share in survey_mix.mix('cps', year):
         u = TLS.cps_overtime_units(y)
         parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
-    # a list without the range columns (a fit.csv): the cell from its label, by the catalog's dollar ranges
-    by_label = {lab: (g['variable'], -np.inf if lo is None else lo, np.inf if hi is None else hi)
-                for g in TLS.CAT['groupings'].values() if 'edges' in g and g['variable'] != 'agi'
-                for lo, hi, lab in g['edges']}
     out = []
     for r in rows.itertuples():
-        rv = getattr(r, 'range_variable', '')
-        rng = (rv, r.range_lo, r.range_hi) if isinstance(rv, str) and rv else by_label.get(r.group.split(', ', 1)[1])
+        rng = (r.range_variable, r.range_lo, r.range_hi) if r.range_variable else None
         var, value, notes = 0.0, 0.0, []
         for y, share, u, w, rep in parts:
             if rng:
@@ -686,14 +615,10 @@ def cps_age_errors(rows, year):
     for y, share in survey_mix.mix('cps', year):
         u = TLS.cps_age_units(y)
         parts.append((y, share, u, u['weight'].to_numpy(float), cps_replicates(y, u)))
-    by_label = {lab: (g['variable'], -np.inf if lo is None else lo, np.inf if hi is None else hi)
-                for g in TLS.CAT['groupings'].values() if 'edges' in g and g['variable'] != 'agi'
-                for lo, hi, lab in g['edges']}
     out = []
     for r in rows.itertuples():
-        rv = getattr(r, 'range_variable', '')
-        rng = (rv, r.range_lo, r.range_hi) if isinstance(rv, str) and rv else by_label.get(r.group)
-        assert rng, f'older ages target {r.group}: no age range'
+        assert r.range_variable, f'older ages target {r.group}: no age range'
+        rng = (r.range_variable, r.range_lo, r.range_hi)
         var, value, notes = 0.0, 0.0, []
         for y, share, u, w, rep in parts:
             xg = TLS.record_value(u, rng[0])
@@ -718,7 +643,7 @@ def nonfiler_errors(rows, year):
         """The filing stage's population by band in year y; a year with no CPS year of its own (30 October): the
         geometric mean of the CPS years either side, or past the last CPS year the last one grown with the
         population."""
-        p = f"{common.DATA}/{S_TILT['nonfiler_targets_dir']}/{y}_nonfilers_vs_targets.csv"
+        p = f'{common.DATA}/filing/checks/{y}_nonfilers_vs_targets.csv'   # the filing stage's checks
         if os.path.exists(p):
             return pd.read_csv(p).set_index('band')['census_adults']
         import growth as GR
@@ -733,20 +658,14 @@ def nonfiler_errors(rows, year):
     out = []
     for r in rows.itertuples():
         if r.kind == 'non-filers':
-            # expand_entry has already applied the year's configured judgment error. Preserve it, including its
-            # reason, rather than replacing every year's tolerance with the settings fallback.
-            if hasattr(r, 'se') and pd.notna(r.se):
-                out.append((r.Index, r.se, 'judgment',
-                            f"Year configuration: {getattr(r, 'error_reason', '')}"))
-            else:
-                s = JUDGMENT['nonfiler_count']
-                out.append((r.Index, s * abs(r.value), 'judgment',
-                            f'{100 * s:g}% of the count (settings errors.nonfiler_count_se fallback)'))
+            # the year's configured error (identity or judgment), which expand_entry has already applied, with its reason
+            assert pd.notna(r.se), f'{year} non-filer count: no error in the year\'s configuration'
+            out.append((r.Index, r.se, 'judgment', f'Year configuration: {r.error_reason}'))
             continue
         band = 'children under 17' if r.group == 'non-filers, children under 17' else \
             r.group.replace('non-filers, heads and spouses aged ', '')
         pop = 1e6 * t.loc[band, 'census_adults']
-        s = JUDGMENT['nonfiler_people']
+        s = NONFILER_PEOPLE_SE
         who = 'CPS children under 17' if band == 'children under 17' else "the band's CPS adults"
         out.append((r.Index, s * pop, 'judgment',
                     f'{100 * s:.1f}% of {who} ({pop / 1e6:.1f} m; settings errors.nonfiler_people_population_se): '
@@ -757,18 +676,15 @@ def nonfiler_errors(rows, year):
 
 # ---- the interface -----------------------------------------------------------------------------------
 def published_value(rows):
-    """The published statistic of each row: for an average or share, the average or share itself (in 'average'
-    where a row has one, else in 'value', as fit.csv and targets.csv carry it), else the value."""
-    v = rows['value'].astype(float)
-    if 'average' in rows:
-        v = rows['average'].astype(float).where(rows['average'].notna(), v)
-    return v
+    """The published statistic of each row, as a number: the value column, which for an average or a share holds the
+    average or share itself (target_list.expand's rows; tilt.py's precheck reads it here)."""
+    return rows['value'].astype(float)
 
 
 def standard_errors(rows, year=Y):
-    """One row per target of rows (columns kind, group, target, value; identity optional): kind, group, target, se,
-    error_kind, se_reason. se is in the published statistic's units (the average itself for an average, the share
-    for a share). A kind this module does not know gets no error (error_kind 'none') and is listed in the summary."""
+    """One row per target of rows (target_list.expand's): kind, group, target, se, error_kind, se_reason. se is in the
+    published statistic's units (the average itself for an average, the share for a share; the value column holds
+    the published statistic). A kind this module does not know gets no error (error_kind 'none')."""
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
@@ -788,49 +704,12 @@ def standard_errors(rows, year=Y):
     out.loc[table21, 'se'] = rows.loc[table21, 'se']
     out.loc[table21, 'error_kind'] = 'table21'
     out.loc[table21, 'se_reason'] = rows.loc[table21, 'error_reason']
-    for k, gap in DEFINITION_GAP.items():   # a definition gap: square root of the sum of squares
-        m = out.kind == k
-        out.loc[m, 'se'] = np.sqrt(out.loc[m, 'se'] ** 2 + (gap * rows.loc[m, 'value']) ** 2)
-        out.loc[m, 'se_reason'] += f'; plus a definition gap of {100 * gap:.1f}% (settings errors.definition_gap)'
     if 'identity' in rows:
         m = rows['identity'].astype(bool)
         out.loc[m, ['se', 'error_kind', 'se_reason']] = [0.0, 'identity', 'an identity: hit exactly']
     return out
 
 
-def summary(rows, e):
-    """By kind: the median and range of se as a % of the value, and the targets with no error source."""
-    pct = 100 * e['se'] / published_value(rows).abs()
-    t = pd.DataFrame({'kind': e['kind'], 'error_kind': e['error_kind'], 'pct': pct})
-    s = t.groupby(['kind', 'error_kind'])['pct'].agg(targets='size', median='median', min='min', max='max')
-    none = e[e['error_kind'] == 'none']
-    zero = e[(e['se'] == 0) & (e['error_kind'] != 'identity')]
-    top = e.assign(se_pct=pct).sort_values('se_pct', ascending=False).groupby('kind').head(3)
-    text = [f'# Standard errors of the {Y} targets', '', f'{len(e)} targets. Standard error as a % of the value '
-            '(for an average or share, of the average or share):', '', s.to_markdown(floatfmt='.3f'), '',
-            f'Targets with no error source: {len(none)}' + ('' if none.empty else '\n\n' + none.to_markdown(index=False)),
-            '', f'Targets with an error of exactly 0 that are not identities: {len(zero)}', '',
-            'The three noisiest targets of each kind:', '',
-            top[['kind', 'group', 'target', 'se_pct', 'error_kind']].to_markdown(index=False, floatfmt='.2f')]
-    return '\n'.join(text)
-
-
-def main():
-    if sys.argv[1] == 'soi_cv':
-        build_soi_cv()
-        return
-    assert sys.argv[1] == 'errors'
-    rows = pd.read_csv(sys.argv[2])
-    out_dir = sys.argv[3]
-    os.makedirs(out_dir, exist_ok=True)
-    e = standard_errors(rows, Y)
-    e.insert(3, 'value', published_value(rows))
-    e.insert(5, 'se_pct', 100 * e['se'] / e['value'].abs())
-    e.to_csv(f'{out_dir}/errors_{Y}.csv', index=False)
-    text = summary(rows, e)
-    open(f'{out_dir}/errors_summary.md', 'w').write(text + '\n')
-    common.say(text)
-
-
 if __name__ == '__main__':
-    main()
+    assert sys.argv[1:] == ['soi_cv'], 'usage: python errors.py soi_cv'
+    build_soi_cv()

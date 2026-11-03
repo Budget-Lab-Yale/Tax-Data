@@ -2,8 +2,7 @@
 
 Every SCF target (kinds 'wealth', 'wealth grid' and 'auto loans' in targets_config/) is computed on the same waves, with the same
 shares, as the generated file draws its balance sheet from: the year file's prior, "balance sheet" (2019: the 2019
-wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%). Settings tilt.scf_target_waves: "prior" (the default)
-uses that mix; "target year" uses the target year's wave alone, for checks.
+wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%).
 
 Each wave, on its own:
   - its units are its rows of the training table (source scf, the wave's income year, all five implicates);
@@ -42,24 +41,10 @@ _TABLE = {}
 
 
 def mix(year):
-    """[(wave, share)] for the year's SCF targets, by wave; the shares sum to 1 (divided by their sum, as
-    generate.scf_waves does)."""
-    how = common.SETTINGS['tilt'].get('scf_target_waves', 'prior')
-    if how == 'target year':
-        return [(int(year), 1.0)]
-    assert how == 'prior', f'settings tilt.scf_target_waves: {how!r} (prior or target year)'
-    import target_list as TLS
-    prior = TLS.resolve(year).get('prior', {}).get('balance sheet')
-    where = f'targets_config/{year}/prior.yaml, prior "balance sheet"'
-    assert prior, f'{where}: missing; the SCF targets are pooled over its waves (or set tilt.scf_target_waves)'
-    out = []
-    for key, share in prior.items():
-        src, wave = str(key).split()
-        assert src == 'scf' and float(share) > 0, f'{where}: {key}: {share}'
-        out.append((int(wave), float(share)))
-    total = sum(s for _, s in out)
-    assert abs(total - 1) < 1e-6, f'{where}: shares sum to {total}'
-    return sorted((w, s / total) for w, s in out)
+    """[(wave, share)] for the year's SCF targets: the waves and shares of the year's prior "balance sheet", the
+    file's own (survey_mix.prior_shares; the shares divided by their sum, as generate.scf_waves does)."""
+    import survey_mix
+    return survey_mix.prior_shares(year, 'balance sheet', 'scf')
 
 
 def _table(cols):

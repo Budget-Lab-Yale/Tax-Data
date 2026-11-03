@@ -681,14 +681,10 @@ item_aliases:
 
 # Named lists of variables, so an entry can say "the income items".
 variable_lists:
-  income_items: [wages, taxable_interest, ordinary_dividends, sch_d_net_capital_gain]
   # (1 November, decision 57 d) Table 1.4's wages on the standard AGI grid, its interest, dividends and capital gains
   # on the broad one
   income_items_standard: [wages]
   income_items_broad: [taxable_interest, ordinary_dividends, sch_d_net_capital_gain, gross_ss]
-  business: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss,
-             rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
-             farm_net_income, farm_net_loss, farm_rental_net_income, farm_rental_net_loss]
   # The business families targeted in the five top AGI brackets (TARGETS.md S2), and the rest, which keep one
   # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
   # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.
@@ -728,8 +724,6 @@ variable_lists:
   auto_loans: [any_auto_loan_interest, auto_loan_interest]
   # Overtime pay from the CPS (28 October): the share of units with any and the dollars per unit
   overtime: [any_ot, ot]
-  # The child tax credit's two parts (30 October, taxes.py)
-  child_tax_credit: [ctc_nonrefundable, ctc_refundable]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Groupings: named ways of cutting units into cells. An entry's cells are "all", one grouping (all its cells or a
@@ -769,13 +763,6 @@ groupings:
     # returns, 26 records in a 200,000-record file); generation, with the AGI group drawn first (qgroups.py), puts
     # thousands of records there.
     kept_separate: [1000000, 1500000, 2000000, 5000000, 10000000]
-  soi_1_7_agi_brackets:
-    variable: agi
-    as_published: soi 1.7
-    merge_top_until: {records: 500, in_a_file_of: 200000}
-    what: >-
-      Table 1.7's AGI brackets, the top ones merged until each would hold 500 records in a 200,000-record file of
-      filers (the bracket's share of all Table 1.4 returns, times 200,000): the IRS brackets' rule
   business_agi_groups:
     variable: agi
     merge_across_published: true
@@ -786,22 +773,6 @@ groupings:
       - [100000, 200000, $100k-200k]
       - [200000, 1000000, $200k-1m]
       - [1000000, null, $1m and over]
-  business_agi_groups_top:
-    variable: agi
-    merge_across_published: true
-    what: >-
-      the business groups with "$1m and over" cut into SOI's five top brackets (TARGETS.md S2), for the families in
-      business_top; groups below $1M are the same as business_agi_groups', so no cell is targeted twice
-    edges:
-      - [null, 1, no AGI]
-      - [1, 50000, under $50k]
-      - [50000, 100000, $50k-100k]
-      - [100000, 200000, $100k-200k]
-      - [200000, 1000000, $200k-1m]
-      - [1000000, 2000000, $1m-2m]
-      - [2000000, 5000000, $2m-5m]
-      - [5000000, 10000000, $5m-10m]
-      - [10000000, null, $10m and over]
   # (30 October, decision 48: under $25k and $25k-50k are one group, $1-50k, 'no AGI' staying its own)
   # The calculator targets' AGI groups (30 October, taxes.py): the file's AGI, as every IRS target, in groups whose
   # edges are Table 1.4's and 3.3's bracket edges, so a group sums whole published cells; merged where a published
@@ -821,22 +792,6 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
-  # The credits' AGI groups (30 October): finer below $50,000, where most of the EITC and the refundable child credit
-  # go (cells published as zero, the EITC above about $60,000, are left out)
-  credit_agi_groups:
-    variable: agi
-    merge_across_published: true
-    edges:
-      - [null, 1, no AGI]
-      - [1, 10000, under $10k]
-      - [10000, 20000, $10k-20k]
-      - [20000, 30000, $20k-30k]
-      - [30000, 40000, $30k-40k]
-      - [40000, 50000, $40k-50k]
-      - [50000, 75000, $50k-75k]
-      - [75000, 100000, $75k-100k]
-      - [100000, 200000, $100k-200k]
-      - [200000, null, $200k and over]
   # (1 November, decisions 71 and 72) The credits' AGI groups, each as fine as its credit's counts allow. They start from the
   # standard grid with $1m-1.5m and $1.5m-2m merged into $1m-2m (decision 72 a).
   # The nonrefundable child credit (child and other dependent credit): no AGI, $1-10k and $10-20k are one group, under
