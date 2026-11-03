@@ -510,7 +510,7 @@ def compute(df, year, w, nmi_ctx, folder):
         ctx['runs']['final'] = man
         return df, inp, notes, out, man
 
-    solve = bool(S.get('qbi_dials', {}).get('solve')) and nmi_ctx is not None and nmi_ctx.get('qbi') is not None
+    solve = bool(S.get('qbi_dials', {}).get('solve'))
     out, man = run_batch(inp, year, folder, 'first', law_sections=[QBI_LAW] if solve else [],
                          wage_increment=0.0 if solve else float(S.get('wage_increment', 0)))
     ctx['runs']['first'] = man
