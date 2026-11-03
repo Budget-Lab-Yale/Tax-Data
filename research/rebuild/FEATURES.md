@@ -1413,9 +1413,7 @@ below $1 billion. The tilt folder also gets `billionaire_units.csv`, `billionair
 ($3,000; $1,500 married filing separately) stays at it after growth. The rule grows the positive "other" gain piece but
 not losses, so such a return used to turn into a gain.
 
-**With the merges of 29 October.** The top of the file runs before the tilt's fixed columns (`tilt.fixed_columns`,
-the calculator experiment), so a file of fixed columns must hold every record, the rebuilt hidden returns and the
-billionaires included. The AMT rule (`amt_nol_cap`) runs on every record in the non-microdata step, Part A's rebuilt
+**With the merges of 29 October.** The AMT rule (`amt_nol_cap`) runs on every record in the non-microdata step, Part A's rebuilt
 returns included: their `amt_nols` was scaled to the aggregate records' dollars, and the rule then holds it to each
 record's loss.
 

@@ -374,23 +374,6 @@ def start_from_year(spec):
     return df, w, growth
 
 
-def add_fixed_columns(df, spec):
-    """Columns computed outside the pipeline for each record, joined by record id (settings tilt.fixed_columns; the
-    calculator experiment of 28 October, CALCULATOR_CONTRACT.md): spec {'file': a parquet with id and the columns,
-    'columns': {name in the frame: column of the file}}. Every record must have a value. The tilt moves weights only,
-    so the values stay as computed; a target can then name them (a catalog variable with record: the name)."""
-    t = pd.read_parquet(spec['file'], columns=['id'] + list(spec['columns'].values()))
-    t = t.rename(columns={**{v: k for k, v in spec['columns'].items()}, 'id': 'record_id'})
-    assert t['record_id'].is_unique, f'{spec["file"]}: an id twice'
-    clash = set(spec['columns']) & set(df.columns)
-    assert not clash, f'fixed columns already in the frame: {clash}'
-    out = df.merge(t, on='record_id', how='left', validate='one_to_one')
-    gone = out[list(spec['columns'])].isna().any(axis=1)
-    assert not gone.any(), f'{int(gone.sum())} records with no value in {spec["file"]}'
-    common.say(f'fixed columns from {spec["file"]}: ' + ', '.join(spec['columns']))
-    return out
-
-
 def start_nonfilers():
     """The non-filer count the start's non-filer weights are scaled to: the CPS's expected non-filers in the year
     (target_list.nonfiler_count). A year with no CPS units (the CPS years are 2015, 2017, ..., 2023) takes the geometric mean of
@@ -496,10 +479,6 @@ def main():
         g19, imp, given, fixed, top = TR.add_list(*base, Y)
         del base
     del raw
-    # the fixed columns after the top of the file: their file must hold a value for every record, the rebuilt hidden
-    # returns and the billionaires included (add_fixed_columns stops otherwise)
-    if S.get('fixed_columns'):
-        g19 = add_fixed_columns(g19, S['fixed_columns'])
     x = g19['net_worth'].to_numpy(float)
     filer = g19['filer'].to_numpy() == 1
 
