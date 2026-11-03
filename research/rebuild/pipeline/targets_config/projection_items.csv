@@ -51,7 +51,7 @@ alimony_exp,file:projection_series_b.csv:alimony_fade,total,1,0.01,B: as alimony
 kg_1250,same_as:kg_lt,auto,1,0.01,B: with long-term gain
 kg_collect,same_as:kg_lt,auto,1,0.01,B: with long-term gain
 part_se,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
-med_exp,file:projection_series_b.csv:med_per_person,per_unit,1,0.01,"B: MEPS to 2024, then CBO CPI medical"
+med_exp,file:projection_series_b.csv:pce_per_person,per_unit,1,0.01,"CBO nominal PCE per person (CBO's PCE over the Social Security area population), so real medical spending per person grows with real consumer spending per person; was MEPS to 2024, then CBO's medical price index, which held real spending per person fixed (John, 3 November)"
 salt_inc_sales,file:projection_series_b.csv:sl_income_tax,total,1,0.01,"B: QTAX to 2025, then CBO AGI"
 char_cash,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
 char_noncash,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,B: AGI per return
