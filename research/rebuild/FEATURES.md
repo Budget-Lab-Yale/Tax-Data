@@ -7,7 +7,8 @@ records' weights so the file meets the year's published totals. The code is in `
 How the latest runs came out is at the end of this file.
 
 - **What a record carries.** Every PUF item production carries; from the SCF the household balance sheet (20 items,
-  net worth computed from them), elective deferrals and auto loan interest; spending in 8 categories from the CEX; from
+  net worth computed from them), elective deferrals, auto loan interest and (since 3 November) inheritances received
+  this year; spending in 8 categories from the CEX; from
   the CPS each person's age and sex, dependents' ages, the split of a couple's wages and self-employment income,
   weeks and hours worked, childcare and overtime pay; each adult's tips from the SIPP; and the non-microdata
   imputations (below): dependent filers' ages, child credit eligibility, blindness, death probabilities, unrealized
@@ -47,7 +48,7 @@ pieces added since 28 October, each under the date and branch it was built on.
 | Source | Rows | What it covers |
 |---|---:|---|
 | 2015 PUF | 207,692 | filers |
-| SCF waves 2013, 2016, 2019, 2022 | 36,478 / 38,698 / 35,515 / 28,211 | tax years 2012–2021, five implicates each; tax units by the shared rules (below) |
+| SCF waves 2013, 2016, 2019, 2022, 2025 | 36,478 / 38,698 / 35,515 / 28,211 / 27,216 | tax years 2012–2024, five implicates each; tax units by the shared rules (below); the 2025 wave since 3 November (branch `rebuild-scf2025`) |
 | CEX interview survey 2015, 2017, 2019, 2021, 2023, 2024 | 36,335 / 34,281 / 30,206 / 29,133 / 26,893 / 26,411 | every tax unit, one row per quarterly interview (`build_cex.R`, below) |
 | CPS ASEC, tax years 2015, 2017, 2019, 2021, 2023 | 88,231 / 86,913 / 77,282 / 75,672 / 72,952 | every tax unit, filers and non-filers (`build_cps.R`, below) |
 | SIPP, reference years 2015, 2017, 2019, 2021, 2023 | 23,699 / 33,536 / 27,907 / 22,140 / 20,317 | every tax unit (`roster_sipp.py`, below) |
@@ -1592,6 +1593,36 @@ all. Every existing target keeps its value and standard error. The runs of every
 dependent filers fix, are in scratch `explore/2026-11-02/age_targets/RESULTS.md` (2022: net worth under 55 $40.2
 trillion against the SCF's $39.8 trillion, $48.9 trillion without these targets; 80 and over $11.7 trillion against
 $11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective sample kept against 65.8% without).
+
+## The 2025 SCF wave and inheritances received this year (branch `rebuild-scf2025`, 3 November)
+
+**The 2025 wave.** The Federal Reserve released the 2025 SCF in October 2026. Its files (the full public data set, the
+summary extract, the replicate weights, the codebook) were downloaded to scratch `explore/2026-11-03/scf2025/raw/`
+and are read from there (settings `paths.raw.scf_wave_dirs`) until they are copied to the shared raw-data folder.
+Every raw item the pipeline reads has the same number and question as in 2022 (one label change: the group outside the
+PEU's public assistance now names SSI). The wave is income year 2024 in the table, after the other waves (ids offset
+by 9e8). Section 7's rule now gives 2022 the 2022 wave 54.65%, the 2025 wave 33.15% and the 2019 wave 12.20%; 2023 the
+2025 wave 57.41%, the 2022 wave 34.82%, the 2019 wave 7.77%; 2024 on the 2025 wave 81.76% and the 2022 wave 18.24%;
+2015-2021 are unchanged. After the last wave the SCF's items grow by Z.1 from 2025 rather than 2022.
+
+**Inheritances received this year** (`inheritance`; John, 2 November). An SCF-only slot like the balance sheet: no
+tax-data counterpart, no translation row and no fill-in; zeros and amounts are one distribution, as every slot. In
+preprocessing (`roster_scf.inheritances`): the SCF asks the household about up to three inheritances, trusts or gifts
+received, with the value and the year; gifts are left out. The public file rounds the year to the nearest 5 (years
+that would round past the interview are set to the survey year), so each reported inheritance counts as received in the
+wave's income year with the chance its year code carries (settings `inheritance.year_weights`): for 2013-2022 the
+Estate-Tax-Distribution model's weights, calibrated to Gale and Sabelhaus (2024) (2022 wave: code 2022 with chance 1,
+code 2020 with 0.28); for the 2025 wave Gale and Sabelhaus's own rule, 1.25 over the years the code covers (code 2025
+covers 2023 to mid-2025, so 0.5). The chance is realised by a draw keyed by the household, implicate and the
+inheritance's position, so the expected count and dollars are right and the five implicates draw independently. The
+value when received is taken as income-year dollars. In `build_scf.R` a unit holding the whole PEU takes all of it, a
+split couple half each; units outside the PEU and other units are not asked, so the item is missing there (band -1,
+as the elective deferrals). Between waves it is grown by the SCF's net worth per tax unit, after the last wave by Z.1
+household net worth per person (growth.yaml series `scf net worth per unit between waves`). Dependent filers get none
+(generation's rule for every survey slot). Its random stream is the last in `dollars.ORDER`. The top is not adjusted:
+the SCF has a handful of households a wave with more than $5 million. Weighted, the waves give 2.3, 2.2, 2.9, 3.0 and
+3.8 million inheritances and $367, 372, 554, 595 and 1,088 billion (income years 2012, 2015, 2018, 2021, 2024).
+Results of the retrain: scratch `explore/2026-11-03/scf2025/RESULTS.md`.
 
 ## How the latest runs come out (2 November 2026)
 
