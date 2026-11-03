@@ -16,7 +16,7 @@ Three steps, all run by `main` (stage `calculator` of run.sbatch):
    columns, or 0 where the rebuild does not have it yet. CONTRACT below is the list, one row per column; it is
    written beside the outputs as calculator_contract.csv and is the source of research/rebuild/CALCULATOR_CONTRACT.csv.
 3. The run. Since 30 October tax-simulator-gpu's own batch command (python -m taxmodel.run.batch, its local branch
-   taxdata-batch), called by taxes.run_batch with settings taxes (the pinned commit, the calculator's Python
+   taxdata-batch-1103), called by taxes.run_batch with settings taxes (the pinned commit, the calculator's Python
    environment), in place of the experiment's own runner (calculator_run.py, removed): the calculator's own
    preparation (the wage split and the random draws keyed by record id, as its bridge does), its frame steps under
    the year's law and its tax chain; every computed column per record (calculator_<year>.parquet). The same command
