@@ -99,7 +99,7 @@ def agi_groups(agi, filer):
     return np.where(filer, g, 8)
 
 
-def weight_factor_table(w0, w1, grp, fixed):
+def weight_factor_table(w0, w1, grp):
     """The weight factor (final over starting weight) overall and by AGI group among the records with a starting weight:
     percentiles, the records raised more than 10x and 100x, cut below 0.1x, and the largest final weight."""
     pcs = [1, 5, 10, 25, 50, 75, 90, 95, 99, 99.9, 100]
@@ -353,8 +353,7 @@ def start_from_year(spec):
     # (30 October) the year-s file carries the non-microdata imputations' columns; they are made again on this start
     # (impute below refuses a frame that has them), so they are dropped and the written-back columns put back to
     # their drawn values first (non_micro_imputations.as_drawn)
-    if NMI.S.get('run_in_tilt', False):
-        df = NMI.as_drawn(df)
+    df = NMI.as_drawn(df)
     common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
     if spec['dollars'] == 'per_return_growth':
         df, growth = grow_dollars(df, s, Y)
@@ -527,7 +526,7 @@ def main():
     # the targets (targets_config/, expanded by target_list.py, errors by errors.py) and the solve (solver.py):
     # every target hit exactly when they can all be hit; otherwise the standard errors decide which give way
     # the calculator targets wait for the taxes, computed after the non-microdata imputations (below)
-    rows = TLS.expand(Y, start=g19, which='without calculator' if TX.S.get('enabled', False) else 'all')
+    rows = TLS.expand(Y, start=g19, which='without calculator')
     TLS.check_nonfiler_bands(g19, rows)   # every non-filer head and spouse in exactly one non-filer people band
     F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
@@ -541,17 +540,13 @@ def main():
     # dollars and with its prescaled weights, before the solve. New columns only, except amt_nols, which the AMT cap
     # changes (its drawn value kept as amt_nols_drawn); the ranking items rank on w0, and no target reads their columns
     # or amt_nols yet
-    nmi_ctx = None
-    if NMI.S.get('run_in_tilt', False):
-        g19, nmi_ctx = NMI.impute(g19, Y, w0)
+    g19, nmi_ctx = NMI.impute(g19, Y, w0)
     # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start, the QBI
     # dials solved first on the start's weights; then the calculator targets, on the computed columns
-    tax_ctx, calc_rows = None, pd.DataFrame()
-    if TX.S.get('enabled', False):
-        g19, tax_ctx = TX.compute(g19, Y, w0, nmi_ctx, f'{common.TILT}/taxes')
-        calc_rows = TLS.expand(Y, start=g19, which='calculator')
-        common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
-                                                              ' (reported only: settings taxes.target is false)'))
+    g19, tax_ctx = TX.compute(g19, Y, w0, nmi_ctx, f'{common.TILT}/taxes')
+    calc_rows = TLS.expand(Y, start=g19, which='calculator')
+    common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
+                                                          ' (reported only: settings taxes.target is false)'))
     targeted_calc = calc_rows if TX.S.get('target', True) else pd.DataFrame()
     # hold_distribution: built from the start as scaled, so its rank groups and shares are the scaled start's
     hold = TLS.hold_rows(Y, g19, w0)
@@ -645,19 +640,18 @@ def main():
                         hold_table(rows, g19, w0, w1).to_markdown(index=False, floatfmt='.3f'), '']
 
     # outputs
-    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, S_main, identity)
+    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
     fit.to_csv(f'{common.TILT}/fit.csv', index=False)
-    factors = weight_factor_table(w0, w1, grp, fixed)
+    factors = weight_factor_table(w0, w1, grp)
     factors.to_csv(f'{common.TILT}/weight_factors.csv', index=False)
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
-    if nmi_ctx is not None:   # their published checks, on the weights after the tilt (Q9: reported only)
-        NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
-    tax_lines = []
-    if tax_ctx is not None:   # the calculator targets before and after (targeted or not), the totals and the dials
-        tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(targeted_calc) else TX.evaluate(g19, calc_rows, w0, w1)
-        tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
-        tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
-        open(f'{common.TILT}/taxes/taxes_summary.md', 'w').write('\n'.join(tax_lines))
+    # the non-microdata imputations' published checks, on the weights after the tilt (Q9: reported only)
+    NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
+    # the calculator targets before and after (targeted or not), the totals and the dials
+    tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(targeted_calc) else TX.evaluate(g19, calc_rows, w0, w1)
+    tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
+    tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
+    open(f'{common.TILT}/taxes/taxes_summary.md', 'w').write('\n'.join(tax_lines))
     import scf_targets
     if scf_targets.RESULTS:   # the SCF targets by wave (scf_targets.py), for the record
         scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
@@ -699,8 +693,8 @@ def main():
                                       stops=('flag', lambda f: (f == 'stop').sum()))
     text = [f'# The {Y} tilt', '', *SV.summary_lines(info, fit), '', summary.to_frame('').to_markdown(floatfmt=',.4f'),
             '', *precheck_lines, *top_lines, *start_lines, *prescale_lines(prescaled), *tax_lines,
-            *(['## The non-microdata imputations (on the start; checks in non_micro_checks.md)', '']
-              + [f'- {n}' for n in nmi_ctx['notes']] + [''] if nmi_ctx is not None else []),
+            '## The non-microdata imputations (on the start; checks in non_micro_checks.md)', '',
+            *[f'- {n}' for n in nmi_ctx['notes']], '',
             '## Weight factors (final weight over starting weight), all records and by AGI group', '',
             factors.to_markdown(index=False, floatfmt=',.3g'), '',
             '## Targets by kind', '', by_kind.to_markdown(floatfmt='.3f'), '',

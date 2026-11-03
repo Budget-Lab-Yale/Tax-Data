@@ -118,7 +118,7 @@ untouched records are scaled. The last run is the one kept. Items drawn
 later condition on earlier ones, so a run's own figures are reported and
 written to consistency.csv: what is left of the excess after the last run.
 
-The filer batch: the AGI group first (settings "generation", design "label"; qgroups.py). The network has learned the
+The filer batch: the AGI group first (the label design; qgroups.py). The network has learned the
 PUF record's band-AGI group (agi_group, 12 groups) as a category, always shown in training. label_records filer
 records over all models are split across the 12 groups in proportion to the PUF's records per group (which, with
 grouped weighting, are also each group's shares of the PUF's training weight), each model drawing an equal share. Each
@@ -130,7 +130,7 @@ model and group (label_check.csv) and kept in the stack (q_group, label_ok). It 
 the label.
 
 The non-filer batch is one part (stratifier "nonfiler"), every weight 1.
-Its number of records (settings "generation", nonfiler_records; null: in proportion) is the filer batch's records
+Its number of records is the filer batch's records
 times the CPS's expected non-filers in the target year (the sum of weight x (1 - filer_p)) over SOI's returns for
 that year, so the stack's weights carry the two batches in their real proportion (the tilt sets their levels).
 
@@ -235,12 +235,9 @@ STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_
 MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index('age_range')
 # The trained models pooled (see the top): each a run under OUT/model and the shift added to its generation seeds.
 # null: the run's own model (common.MODEL) alone, with today's seeds.
-MODELS = G.get('models', [{'run': 'seed20261016', 'seed_shift': 0}, {'run': 'seed20261017', 'seed_shift': 1000}])
+MODELS = G['models']
 ID_BLOCK = 10_000_000                       # model k's record ids start at k x ID_BLOCK
-# The filer batch's design (settings "generation", design; see the top): 'label', the AGI group preset on every
-# record.
-DESIGN = G['design']
-assert DESIGN == 'label', f'generation design {DESIGN!r}: only "label" is built'
+# The filer batch's design (see the top): the AGI group preset on every record.
 LABEL = 'agi_group'
 assert M.PUF_LABELS == [LABEL], 'the label design needs the AGI group label in the table (build_table.agi_group_label)'
 LABEL_META = M.META['labels'][LABEL]
@@ -868,21 +865,20 @@ def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     return part, check, counts
 
 
-def store_picks(s, k):
+def store_picks(s, k, stream=4242):
     """The stored picks (see the top): for each record and each amount with a band column, one uniform number in
-    [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the model's position k and the variable's
-    position in dollars.ORDER, so the same in every offset run."""
+    [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the stream (4242 for the stack, 4343 for
+    Part A's candidates, top_hidden.py), the model's position k and the variable's position in dollars.ORDER, so the
+    same in every offset run."""
     import dollars as D
     seed = int(common.SETTINGS['dollars']['seed'])
-    cols = {f'u_{v}': np.random.default_rng([seed, 4242, k, i]).random(len(s), dtype=np.float32)
+    cols = {f'u_{v}': np.random.default_rng([seed, stream, k, i]).random(len(s), dtype=np.float32)
             for i, v in enumerate(D.ORDER) if f'{v}_band' in s}
     return pd.concat([s, pd.DataFrame(cols, index=s.index)], axis=1)
 
 
 def nonfiler_records():
     """The non-filer batch's number of records (see the top)."""
-    if G.get('nonfiler_records') is not None:
-        return int(G['nonfiler_records'])
     n_filers = filer_records()
     nf, returns = cps_expected_nonfilers(common.TARGET_YEAR), TG.returns(TG.load(), common.TARGET_YEAR)
     n = int(round(n_filers * nf / returns))
@@ -933,7 +929,7 @@ def build_stack(models, factors):
         sizes[-1] = n_nf_k - sum(sizes[:-1])
         for j, ((ny, _), size) in enumerate(zip(nf_years, sizes)):
             # one year (the target year): the seed as before; several (a year with no CPS units): a seed per year
-            part_nf, c = generate(model, size, G.get('nonfiler_seed', 35) + shift + 100 * j, factors=fac, label='cps',
+            part_nf, c = generate(model, size, G['nonfiler_seed'] + shift + 100 * j, factors=fac, label='cps',
                                   year=ny, filer=0)
             if len(nf_years) > 1:
                 common.say(f"  non-filers drawn at CPS {ny}: {size:,} records")

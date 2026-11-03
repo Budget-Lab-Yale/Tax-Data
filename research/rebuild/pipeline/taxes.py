@@ -128,10 +128,7 @@ def run_batch(frame, year, folder, tag, wage_increment=0.0, law_sections=()):
     frame.to_parquet(src, index=False)
     env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
     env.update(PYTHONPATH=f'{path}/src', PYTHONUNBUFFERED='1')
-    if S.get('device', 'cpu') == 'cpu':
-        env['JAX_PLATFORMS'] = 'cpu'
-    else:
-        env['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+    env['JAX_PLATFORMS'] = 'cpu'   # the calculator runs on the CPU, as the whole tilt does
     cmd = [S['python'], '-m', 'taxmodel.run.batch', '--records', src, '--year', str(law_year(year)), '--out', dst,
            '--seed', str(S['draw_seed']), '--commit', S['commit'], '--wage-increment', str(float(wage_increment))]
     if S.get('law_alternative'):
@@ -513,7 +510,7 @@ def compute(df, year, w, nmi_ctx, folder):
         ctx['runs']['final'] = man
         return df, inp, notes, out, man
 
-    solve = bool(S.get('qbi_dials', {}).get('solve')) and nmi_ctx is not None and nmi_ctx.get('qbi') is not None
+    solve = bool(S.get('qbi_dials', {}).get('solve'))
     out, man = run_batch(inp, year, folder, 'first', law_sections=[QBI_LAW] if solve else [],
                          wage_increment=0.0 if solve else float(S.get('wage_increment', 0)))
     ctx['runs']['first'] = man
@@ -610,7 +607,7 @@ def evaluate(df, rows, w0, w1):
         return pd.DataFrame(columns=['group', 'target', 'value', 'kind', 'before', 'after', 'se', 'miss_in_se'])
     F, T, averages = TLS.conditions(df, rows, w0, average_form=common.SETTINGS['tilt'].get('average_form', 'zero'))
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
-    return SV.fit_table(w0, w1, F, T, se, averages, rows, common.SETTINGS['tilt'], identity)
+    return SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
 
 
 def report(path, folder):

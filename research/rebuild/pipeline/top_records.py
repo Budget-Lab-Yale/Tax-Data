@@ -1,10 +1,10 @@
 """The very top of the file, added after generation and before the reweighting (PLAN.md of
-explore/2026-10-29/top_research, "Where it runs"; John, 29 October 2026). tilt.main() calls prepare_top() on the start,
+explore/2026-10-29/top_research, "Where it runs"; John, 29 October 2026). tilt.main() runs these steps on the start,
 in target-year dollars, before it saves the population masks, builds the target conditions or does the demographic
 prescaling; the ordinary non-microdata step then runs on the whole file (it may add no rows and change no column, so
 it must come after).
 
-prepare_top, in order:
+The steps, in order:
   1. a start from an earlier year's tilted file: its billionaires are removed (the year's own list replaces them;
      PLAN.md open question 4);
   2. Part A, the PUF's hidden top returns rebuilt from generated records (top_hidden.rebuild_hidden_returns, merged
@@ -51,23 +51,15 @@ def _hidden_returns(df, year, mode, notes):
     if not S.get('hidden_returns', False):
         notes.append('Part A (the PUF\'s hidden top returns): off (settings tilt.top.hidden_returns)')
         return None
-    if not os.path.exists(os.path.join(common.HERE, 'top_hidden.py')):
-        notes.append('Part A (the PUF\'s hidden top returns): settings ask for it, but top_hidden.py is not in this '
-                     'pipeline; skipped')
-        return None
     if mode != 'generate':
         notes.append('WARNING: Part A (the PUF\'s hidden top returns) is built for a generated start only; this start '
                      'is an earlier year\'s file, so it is skipped')
         return None
     import top_hidden
-    # a stack drawn before the blindness rule (the retrain of 28 October) carries four blindness columns Part A's rows
-    # do not: they are given the neutral values (not blind; no draw)
+    # a stack drawn before the blindness rule (the retrain of 28 October) carries blindness columns Part A's rows do not
     old = [c for c in ['blind', 'blind_drawn1', 'blind_drawn2', 'blind_chance1', 'blind_chance2'] if c in df]
-    h = top_hidden.rebuild_hidden_returns(df.drop(columns=old), year, details=True)
-    neutral = {'blind': 1, 'blind_drawn1': 0, 'blind_drawn2': 0, 'blind_chance1': 0.0}
-    for c in old:
-        h[c] = np.where(h['married'] == 1, 0.0, -1.0) if c == 'blind_chance2' else neutral[c]
-        h[c] = h[c].astype(df[c].dtype)
+    assert not old, f'the stack has the blindness columns {old} (drawn before 28 October)'
+    h = top_hidden.rebuild_hidden_returns(df, year, details=True)
     assert (h['synthetic_top'] == 1).all() and h['weight'].notna().all() and (h['weight'] > 0).all()
     h = h.drop(columns=['weight_2015', 'donor_record_id']).rename(columns={'hidden_wealth_fallback': 'wealth_redraw_fallback'})
     h['wealth_redrawn'] = 1
@@ -77,15 +69,10 @@ def _hidden_returns(df, year, mode, notes):
     return h
 
 
-def prepare_top(g19, raw, imp, year, mode):
-    """See the top: steps 1-4. g19: the start (target-year dollars); raw: the same records with their bands and stored
-    picks (the generated stack, or the start file itself); imp: their starting weights; mode: 'generate' or
-    'from_year'."""
-    return add_list(*network_part(g19, raw, imp, year, mode), year)
-
-
 def network_part(g19, raw, imp, year, mode):
-    """Steps 1-3 (see the top). Returns the frame, starting weights, given and fixed masks (all False) and report."""
+    """Steps 1-3 (see the top). g19: the start (target-year dollars); raw: the same records with their bands and stored
+    picks (the generated stack, or the start file itself); imp: their starting weights; mode: 'generate' or
+    'from_year'. Returns the frame, starting weights, given and fixed masks (all False) and report."""
     notes, rep = [], {}
     ceiling = TLS.net_worth_ceiling(POPULATION)
     assert ceiling is not None, f'settings tilt.top.enabled, but population {POPULATION} has no net_worth_below'

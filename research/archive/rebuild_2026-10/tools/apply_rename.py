@@ -3,10 +3,14 @@ files: every row of rename_map.csv with kind "renamed" turns the rebuild's old n
 name (or production Tax-Data's, where the calculator does not read the item). Written so it can be re-applied to
 another branch made before the rename:
 
-    python research/rebuild/pipeline/tools/apply_rename.py [--check] [files or folders ...]
+    python research/archive/rebuild_2026-10/tools/apply_rename.py [--check] [files or folders ...]
 
 (default: research/rebuild, less HISTORY.md, the archive and this folder). --check lists what would change and writes
 nothing. Run from the repository root. Pure text; reads no data.
+
+Archived 3 November 2026 from research/rebuild/pipeline/tools/ (a one-time migration; the branches made before the
+rename that are still open are parked or not adopted). The table it applies, rename_map.csv, stays in the pipeline's
+tools folder, where model.renamed reads it.
 
 Rules, by the shape of the old name:
   * a name with an underscore (sch_c, w_cash, age_primary, ...) is replaced wherever it stands as a whole name,
@@ -27,7 +31,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MAP = os.path.join(HERE, 'rename_map.csv')
+MAP = os.path.join(HERE, '..', '..', '..', 'rebuild', 'pipeline', 'tools', 'rename_map.csv')
 EXT = ('.py', '.R', '.json', '.yaml', '.md', '.csv', '.sbatch', '.txt')
 SKIP = ('HISTORY.md', 'rename_map.csv', 'apply_rename.py')
 # The shared tax-unit rules' own person income fields (wage, selfemp, interest, dividends, rents, ...) are not the
