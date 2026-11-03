@@ -23,8 +23,8 @@ How it is solved. Every target is a linear condition on the weights, F.T @ w = T
 that meet a set of linear conditions have the form w = w0 x exp(F @ lambda), one multiplier per condition, and with the
 misses in the cost the multipliers minimize a smooth, strictly convex function (the dual) by Newton's method; the
 miss on target j is then minus tau x s_j^2 x lambda_j / rho_j. An identity has a standard error of zero, so its
-miss is zero. Newton's method is given a budget of steps in all (settings tilt.reweighting.newton_budget, 100; never
-raised). With the soft cap, a record's weight solves a one-variable equation (_soft_weights) and the dual's curvature
+miss is zero. Newton's method is given a budget of steps in all (settings tilt.reweighting.newton_budget, 150 since
+3 November 2026, 100 before; John raised it so that the 2023 solve with its Forbes list finishes). With the soft cap, a record's weight solves a one-variable equation (_soft_weights) and the dual's curvature
 changes above the cap.
 
 Averages and shares. The standard error of an average is on the average itself. The condition "the group's average of
@@ -225,7 +225,7 @@ def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, 
         phi(lambda) = sum_i p_i exp((X lambda)_i) - t . lambda + (1/2) sum_j (tau s_j^2 / rho_j) lambda_j^2,
     whose gradient X'w - t + tau (s^2 / rho) lambda is zero when m_j = - tau s_j^2 lambda_j / rho_j (X, t and p are the
     conditions and weights on the solver's scale, as in _newton). An identity has s = 0, so its penalty term vanishes
-    and the condition is met exactly. Settings read: 'reweighting' {tau, newton_budget (100), gradient_tolerance (1e-8),
+    and the condition is met exactly. Settings read: 'reweighting' {tau, newton_budget (150), gradient_tolerance (1e-8),
     average_weight_change (1e-3)}; solver_importance (one positive number per target, 1 if absent); and, for the soft cap,
     solver_soft_upper (each record's cap U_i, a weight; one per record of this call) with solver_soft_beta. In the dual
     the soft cap's record term is the conjugate of h(e) = e log(e/p) - e + p + (c/2)((e - U)+)^2 with
@@ -237,7 +237,7 @@ def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, 
     cfg = _get(settings, 'reweighting', None)
     assert cfg is not None and float(cfg['tau']) > 0, "settings 'reweighting' with tau above 0"
     tau = float(cfg['tau'])
-    budget = int(cfg.get('newton_budget', 100))
+    budget = int(cfg.get('newton_budget', 150))
     tol = float(cfg.get('gradient_tolerance', 1e-8))
     avg_change = float(cfg.get('average_weight_change', 1e-3))
     w0 = np.asarray(w0, float)

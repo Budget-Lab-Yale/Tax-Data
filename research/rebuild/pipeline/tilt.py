@@ -619,7 +619,7 @@ def main():
         f'{common.TILT}/importance.csv', index=False)
     common.say(f"one cost: tau {cfg['tau']:g}, importance 1 for kinds {sorted(cfg['importance_one_kinds'])} ({int((rho == 1).sum())} targets), "
                f"{1 / float(cfg['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
-               f"{cfg.get('newton_budget', 100)} Newton steps")
+               f"{cfg.get('newton_budget', 150)} Newton steps")
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
