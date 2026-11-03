@@ -18,15 +18,6 @@ with fill_in (since 28 October on all four surveys, wages included) is redrawn
 in each batch. In the held-back slice no fill-in is drawn, so there a
 zero-reporter's PUF-concept slot is absent (unknown: not shown, not scored).
 
-One SCF implicate per household per pass (settings "training", scf_one_implicate_per_pass; off by default; branch
-rebuild-implicate1, 29 October). The SCF publishes five versions (implicates) of each household and the table has all
-five. With the setting on, each pass trains on one implicate of each SCF training household, chosen at random by a
-generator seeded from the training seed and the pass (one draw per household, over the households in a fixed order),
-with all of that implicate's tax units; its rows count 5 times their weight, so the SCF's total weight per pass is
-about unchanged (the log prints the ratio). The other sources, the held-back records and the fill-in's averages (over
-all five implicates, which together describe the population) are unchanged; the fill-in draws only on the rows in a
-batch, as always. The learning-rate schedule counts the steps actually taken.
-
 Age range (ages.py). PUF records with no range carry step 0's probabilities;
 a range is drawn from them for every training record at the start of each
 pass, and once for the held-back ones.
@@ -36,8 +27,7 @@ flag is drawn from the unit's filing chance (filer_p) for every training
 record at the start of each pass, and once for the held-back ones, the same
 pattern as the age range.
 
-The CPS's shares (model.gate_shares; settings "training",
-shares_shown_with_their_base). The spouse's share of the couple's wages (of
+The CPS's shares (model.gate_shares). The spouse's share of the couple's wages (of
 its self-employment income) is left out of a record whenever married or the
 share's base is hidden, so its presence never tells the network what those
 hidden slots hold. Generation needs this to draw non-filers' married flag and
@@ -49,18 +39,17 @@ rescaled within each source, so each source's share of training is unchanged. Th
 their q. Averages meant to describe the population use the survey weights without q: the fill-in's averages over a
 type (fillin.py) and the per-variable log.
 
-The AGI group label (settings "training", label_always_shown). Generation always presets a filer's AGI group, so on PUF
+The AGI group label (shown always since 26 October). Generation always presets a filer's AGI group, so on PUF
 rows the label is never hidden in training and never scored: the hidden set is drawn over all of a record's present
 slots, the label included, then the label alone is set back to shown. Which other slots are hidden, and how many, is
 therefore as if the label were an ordinary slot. A record whose only hidden slot was the label has nothing hidden
 (about 0.04% of PUF rows a pass) and adds nothing to the loss. The loss denominator still counts the label among the
 expected hidden slots. The held-back loss in train_log.csv is measured with the label shown too.
 
-Precision of the training steps (settings "training", precision): fp32,
-standard 32-bit; tf32, large matrix multiplications at TF32's reduced internal
-precision, storage 32-bit; bf16, the forward pass under autocast in bfloat16,
-the log-probabilities, loss, gradients and weight updates in 32-bit. The
-fill-in, the held-back loss and the per-variable log always run in 32-bit.
+Precision of the training steps (bf16, adopted 26 October; fp32 and tf32 were
+tested on 22 October): the forward pass under autocast in bfloat16, the
+log-probabilities, loss, gradients and weight updates in 32-bit. The fill-in,
+the held-back loss and the per-variable log run in 32-bit.
 
 Writes, in common.MODEL: model.pt, train_log.csv (loss per pass),
 var_log.csv (held-back PUF, CEX, CPS and SIPP holder shares per variable, every few
@@ -83,21 +72,13 @@ import qgroups
 
 S = common.SETTINGS['translation']
 T = dict(common.SETTINGS['training'], passes=common.PASSES)
-PRECISION = T.get('precision', 'fp32')
-GATE_SHARES = bool(T.get('shares_shown_with_their_base', True))
-assert PRECISION in ('fp32', 'tf32', 'bf16'), PRECISION
 C, P = len(M.CONTEXT), M.PREDICTED
-LABEL_SHOWN = bool(T.get('label_always_shown', False))
-ONE_IMPLICATE = bool(T.get('scf_one_implicate_per_pass', False))
 OVERFIT_LOG = bool(T.get('overfit_log', False))
-IMPLICATE_SALT = 20261029
 J_LABEL = [P.index(v) for v in M.PUF_LABELS]       # the AGI group label's position among the predicted slots
 
 
 def show_label(hidden, slots=None):
     """hidden [N, predicted slots of `slots`] (all of PREDICTED when slots is None), with the label set to shown."""
-    if not LABEL_SHOWN:
-        return hidden
     cols = list(range(len(P))) if slots is None else M.predicted_of(slots)
     for j in J_LABEL:
         if j in cols:
@@ -105,13 +86,9 @@ def show_label(hidden, slots=None):
     return hidden
 
 
-def training_precision(on):
-    """Switch the training steps' precision on (on=True) or back to standard 32-bit."""
-    torch.set_float32_matmul_precision('high' if on and PRECISION == 'tf32' else 'highest')
-
-
 def autocast():
-    return torch.autocast('cuda', dtype=torch.bfloat16, enabled=PRECISION == 'bf16')
+    """The training step's forward pass in bfloat16."""
+    return torch.autocast('cuda', dtype=torch.bfloat16)
 
 
 def encode(part, device):
@@ -156,68 +133,31 @@ def main():
     draw_filers(te)
     draw_filers(tr)
 
-    def gate(values, hidden, slots):
-        return M.gate_shares(values, hidden, slots) if GATE_SHARES else (values, hidden)
-
     model = M.new_model(device)
     fill = fillin.FillIn(model, tr, train_rows, gen)
     opt = torch.optim.AdamW(model.parameters(), lr=T['peak_learning_rate'], weight_decay=T['weight_decay'])
     n, bs = len(tr['values']), T['batch']
     src_rows = {src: tr[src].nonzero().squeeze(1) for src in M.SOURCES}
-    # one SCF implicate per household per pass (ONE_IMPLICATE): each pass's SCF rows, chosen up front so the
-    # schedule can count the steps; the weight factor on SCF rows is the number of implicates (5)
-    scf_factor, pass_rows = 1.0, None
-    if ONE_IMPLICATE:
-        scf_tr = (train_rows['source'] == 'scf').to_numpy()
-        hh = train_rows.loc[scf_tr, ['year', 'household_id', 'implicate']].reset_index(drop=True)
-        n_missing = int(hh.isna().sum().sum())
-        if n_missing:
-            raise ValueError(f'{n_missing} missing year, household or implicate values on SCF training rows')
-        n_imp = hh.groupby(['year', 'household_id'])['implicate'].nunique()
-        assert (n_imp == 5).all(), n_imp.value_counts()
-        assert hh['implicate'].between(1, 5).all(), hh['implicate'].unique()
-        hh_index = hh.groupby(['year', 'household_id'], sort=True).ngroup().to_numpy()   # households in a fixed order
-        n_hh = int(hh_index.max()) + 1
-        imp_rank = hh['implicate'].to_numpy() - 1
-        scf_all = np.flatnonzero(scf_tr)
-        assert (torch.tensor(scf_all, device=device) == src_rows['scf']).all()
-        scf_factor = 5.0
-        w_scf = tr['weight'][src_rows['scf']].double()
-        pass_rows = []
-        for epoch in range(1, T['passes'] + 1):
-            pick = np.random.default_rng([common.SEED, epoch, IMPLICATE_SALT]).integers(0, 5, size=n_hh)
-            chosen = imp_rank == pick[hh_index]
-            pass_rows.append(torch.tensor(scf_all[chosen], device=device))
-        ratios = [float(scf_factor * tr['weight'][r].double().sum() / w_scf.sum()) for r in pass_rows]
-        common.say(f'one SCF implicate per household per pass: {n_hh:,} training households; SCF rows per pass '
-                   f'{min(map(len, pass_rows)):,} to {max(map(len, pass_rows)):,} of {len(scf_all):,}; SCF weight per pass '
-                   f'(x {scf_factor:g}) over the full SCF weight: {min(ratios):.4f} to {max(ratios):.4f}')
-
-    def rows_of_pass(epoch):
-        return src_rows if pass_rows is None else dict(src_rows, scf=pass_rows[epoch - 1])
-    steps = [sum(math.ceil(len(r) / bs) for r in rows_of_pass(e).values()) for e in range(1, T['passes'] + 1)]
-    spe = steps[0]
+    spe = sum(math.ceil(len(r) / bs) for r in src_rows.values())   # batches per pass
     # the average over training records of weight x expected hidden slots (ceil(u n) for u uniform on (0, 1] has
     # mean (n + 1) / 2): the denominator per record of a batch mixing all sources, on average
     n_present = (tr['values'][:, C:] >= 0).sum(1).double()
     per_record = float((tr['weight'].double() * (n_present + 1) / 2).mean())
     gpu = torch.cuda.get_device_name() if device == "cuda" else "cpu"
-    common.say(f'device {gpu}; precision {PRECISION}; fill-in chunk {fill.chunk} records')
-    common.say(f'batches per pass {min(steps)} to {max(steps)}; weight x expected hidden slots per record {per_record:.3f}')
-    common.say(f'grouped weighting: q_groups {qgroups.Q_GROUPS or None}; fill-in PUF side '
-               f'{T.get("fillin_puf_side") or "model"}; AGI group label always shown {LABEL_SHOWN}')
+    common.say(f'device {gpu}; precision bf16; fill-in chunk {fill.chunk} records')
+    common.say(f'batches per pass {spe}; weight x expected hidden slots per record {per_record:.3f}')
+    common.say(f'grouped weighting: q_groups {qgroups.Q_GROUPS or None}')
     if qgroups.Q_GROUPS:
         common.say(qgroups.describe(table).to_string(index=False, float_format=lambda x: f'{x:.6g}'))
         common.say('training share by source (unchanged by q): '
                    + str(train_rows.groupby('source').size().div(len(train_rows)).round(4).to_dict()))
 
-    def batches(order_gen, epoch):
-        """(slots, row indices, weight factor) per batch for one pass."""
+    def batches(order_gen):
+        """(slots, row indices) per batch for one pass."""
         out = []
-        for src, rows in rows_of_pass(epoch).items():
+        for src, rows in src_rows.items():
             rows = rows[torch.randperm(len(rows), generator=order_gen, device=device)]
-            f = scf_factor if src == 'scf' else 1.0
-            out += [(M.SOURCE_SLOTS[src], rows[a:a + bs], f) for a in range(0, len(rows), bs)]
+            out += [(M.SOURCE_SLOTS[src], rows[a:a + bs]) for a in range(0, len(rows), bs)]
         return [out[k] for k in torch.randperm(len(out), generator=order_gen, device=device).tolist()]
 
     def held_back_loss(hidden_draws):
@@ -228,7 +168,7 @@ def main():
             for src in M.SOURCES:
                 r = te[src].nonzero().squeeze(1)
                 sl = M.SOURCE_SLOTS[src]
-                vals, hid = gate(*M.pack(te['values'][r], h[r], sl), sl)
+                vals, hid = M.gate_shares(*M.pack(te['values'][r], h[r], sl), sl)
                 ch = M.safe_chunk(vals.shape[1])
                 sums = [M.masked_sums(model, vals[i:i + ch], te['weight'][r][i:i + ch], hid[i:i + ch], sl)
                         for i in range(0, len(vals), ch)]
@@ -237,15 +177,14 @@ def main():
             for src in M.SOURCES:
                 by_src[src].append(num[src] / den[src])
         return float(np.mean(overall)), {s: float(np.mean(x)) for s, x in by_src.items()}
-    # the steps actually taken (every pass the same, T['passes'] x spe, unless ONE_IMPLICATE)
-    total, warm, floor = sum(steps), sum(steps[:T['warmup_passes']]), T['final_learning_rate_share']
+    total, warm, floor = T['passes'] * spe, T['warmup_passes'] * spe, T['final_learning_rate_share']
     sched = torch.optim.lr_scheduler.LambdaLR(
         opt, lambda s: (s + 1) / warm if s < warm else
         floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * (s - warm) / max(1, total - warm))))
     val_hidden = [show_label(M.draw_hidden(te['values'], gen)) for _ in range(4)]
     # overfitting diagnostic (overfit_log.py; settings training.overfit_log, off by default): its own random
     # generators, so training's draws are unchanged
-    olog = overfit_log.OverfitLog(model, tr, te, val_hidden, gate, show_label, common.SEED, common.MODEL) \
+    olog = overfit_log.OverfitLog(model, tr, te, val_hidden, M.gate_shares, show_label, common.SEED, common.MODEL) \
         if OVERFIT_LOG else None
 
     # ---- the per-variable log: held-back PUF records for the PUF items, held-back CEX records for consumption
@@ -286,7 +225,7 @@ def main():
             torch.cuda.reset_peak_memory_stats()
         sync()
         t0 = time.time()
-        plan = batches(gen, epoch)
+        plan = batches(gen)
         tot, seen = 0.0, 0
         draw_ages(tr)
         draw_filers(tr)
@@ -295,14 +234,11 @@ def main():
             fill.refit(epoch)
         sync()
         t_refit = time.time() - t0
-        training_precision(True)
-        for slots, idx, factor in plan:
+        for slots, idx in plan:
             if filling:
                 fill.draw(idx)
             values, weight = tr['values'][idx][:, M.slot_tensor(slots, device)], tr['weight'][idx]
-            if factor != 1.0:
-                weight = weight * factor
-            values, hidden = gate(values, show_label(M.draw_hidden(values, gen), slots), slots)
+            values, hidden = M.gate_shares(values, show_label(M.draw_hidden(values, gen), slots), slots)
             with autocast():
                 loss = M.masked_loss(model, values, weight, hidden, slots, denominator=len(idx) * per_record)
             opt.zero_grad()
@@ -311,7 +247,6 @@ def main():
             sched.step()
             tot += loss.item() * len(idx)
             seen += len(idx)
-        training_precision(False)
         sync()
         t_batches = time.time() - t0 - t_refit
         model.eval()
@@ -340,7 +275,7 @@ def main():
                       open(os.path.join(ck, 'train_meta.json'), 'w'), indent=1, default=float)
     pd.DataFrame(log).to_csv(os.path.join(common.MODEL, 'train_log.csv'), index=False)
     M.save_model(model, os.path.join(common.MODEL, 'model.pt'))
-    meta = dict(seed=common.SEED, settings=common.SETTINGS, precision=PRECISION, shares_gated=GATE_SHARES, gpu=gpu,
+    meta = dict(seed=common.SEED, settings=common.SETTINGS, precision='bf16', shares_gated=True, gpu=gpu,
                 node=os.environ.get('SLURMD_NODENAME'), job=os.environ.get('SLURM_JOB_ID'),
                 minutes=(time.time() - began) / 60, last_held_back_loss=log[-1]['held_back_loss'],
                 rows=table.groupby(['source', 'year', 'split']).size().to_dict().__repr__())
