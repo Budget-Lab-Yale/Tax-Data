@@ -15,8 +15,8 @@ to 675,000 rows, 86 slots); reports under
 | before (every record carries every slot) | 18.5 | 10.7 GB | | |
 | packing: a batch holds one source and only its slots (`packing/`) | 8.5 | 5.7 GB | same answers to rounding; trained results within seed noise | yes |
 | and the output layers in one batched multiplication (`precision/`) | 7.8 | 5.8 GB | same answers | yes |
-| and TF32 for the training steps (`precision/`) | 6.5 | 5.8 GB | within seed noise | setting, off |
-| and bfloat16 instead (`precision/`) | 5.4 | 5.6 GB | within seed noise, on every measure checked | setting, on since 26 October |
+| and TF32 for the training steps (`precision/`) | 6.5 | 5.8 GB | within seed noise | no (a setting until 3 November) |
+| and bfloat16 instead (`precision/`) | 5.4 | 5.6 GB | within seed noise, on every measure checked | yes, since 26 October |
 | table stored as 8-bit integers (`benchmark/`) | no change | table 364 MB → 45 MB | | no: matters only at tens of millions of rows |
 | batch of 16,384 records (`benchmark/`) | −5% | 36 GB | | no |
 
@@ -117,7 +117,7 @@ problem.
 ## 3. Precision
 
 Written before the measurements above; since 26 October training runs in
-bfloat16 (settings training.precision). Before then everything was standard
+bfloat16 (a setting, training.precision, until 3 November). Before then everything was standard
 32-bit floating point (about 7 significant
 digits).
 
