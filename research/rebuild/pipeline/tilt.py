@@ -528,7 +528,7 @@ def main():
     # the calculator targets wait for the taxes, computed after the non-microdata imputations (below)
     rows = TLS.expand(Y, start=g19, which='without calculator')
     TLS.check_nonfiler_bands(g19, rows)   # every non-filer head and spouse in exactly one non-filer people band
-    F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
+    F, T, averages = TLS.conditions(g19, rows, w0)
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     missing = rows.loc[~identity & ~(se > 0), ['kind', 'group', 'target']]
     assert missing.empty, f'targets with no standard error:\n{missing.to_string()}'
@@ -558,7 +558,7 @@ def main():
             rows = pd.concat([rows, targeted_calc], ignore_index=True)
         if len(hold):
             rows = pd.concat([rows, hold], ignore_index=True)
-        F, T, averages = TLS.conditions(g19, rows, w0, average_form=S.get('average_form', 'zero'))
+        F, T, averages = TLS.conditions(g19, rows, w0)
         se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     if ranked:
         common.say('income rank lines on the file (starting weights): '

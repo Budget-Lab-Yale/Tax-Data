@@ -1577,14 +1577,11 @@ def population(df, name):
     return m
 
 
-def conditions(df, rows, w_start, check=True, average_form='zero'):
+def conditions(df, rows, w_start, check=True):
     """F (records x targets), T, averages for the file df: the target in row j is met when F[:, j] @ w == T[j]. For
     an average or a share, averages[j] = (member, v, published average): the average of v over the records in
     member, written as the sum over member of w (v / m - 1) = 0 (a share is the average of a 0/1 indicator); else
     None. With check, a target no record with a positive starting weight can reach is an error."""
-    # tilt.py and taxes.py still name the form (settings tilt.average_form, which no settings file sets): 'zero' is
-    # the only one left (3 November); the argument goes when they stop passing it
-    assert average_form == 'zero', f'average_form {average_form!r}: only the zero form is left'
     rows = rows.fillna({'variable': '', 'dependent_filers': ''})   # as read back from targets.csv
     if 'line_variable' not in rows:   # a target list written before 25 October: every line was on the target's variable
         rows = rows.assign(line_variable=np.where(rows['line'].notna(), rows['variable'], ''))

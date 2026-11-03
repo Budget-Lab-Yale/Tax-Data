@@ -605,7 +605,7 @@ def evaluate(df, rows, w0, w1):
     import target_list as TLS
     if not len(rows):   # (review, 30 October) a year with no calculator entries (every year but 2019 for now)
         return pd.DataFrame(columns=['group', 'target', 'value', 'kind', 'before', 'after', 'se', 'miss_in_se'])
-    F, T, averages = TLS.conditions(df, rows, w0, average_form=common.SETTINGS['tilt'].get('average_form', 'zero'))
+    F, T, averages = TLS.conditions(df, rows, w0)
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     return SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
 
