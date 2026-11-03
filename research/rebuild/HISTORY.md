@@ -964,6 +964,22 @@ Each folder is under scratch `explore/2026-11-02/` and has a RESULTS.md.
   lists (2019, same list, identical to the last digit); every year converged within 100 steps, but 2023 took 99 and
   ran out of steps on a second node, so the merge waits for John (`NEXT_STEPS.md`).
 
+### 3 November: the step budget raised to 150
+
+- The night of 2-3 November (scratch `explore/2026-11-03/`, `MORNING.md` there): `rebuild-integration-1102` merged into
+  `rebuild-joint-model` with the 2023 Forbes list off (c526b34; 2023 identical to the 2 November control, 2024-2035 in
+  11-14 steps). The slow 2023 solve with the list traced to the soft cap meeting Table 4.3's tight top 0.001% cells,
+  which the list fills a quarter of; no target is wrong, and the step count varied from 72 to 100 with the processor
+  count alone (`forbes2023/RESULTS.md`).
+- John raised the Newton budget from 100 to 150 and switched the 2023 list back on (branch `rebuild-budget150`): 2023
+  converged in 92, 99 and 103 steps on 1, 4 and 16 processors, 2024-2035 in 12-14 (`budget150/`). No further raise
+  without John.
+- tax-simulator-gpu master pushed with the AMT senior deduction fix, car loan interest below the line and the QBI
+  income limit net of the Schedule 1-A deductions; the R Tax-Simulator's fixes on its branch
+  `fix/senior-deduction-amt-itemizers` (`simfixes/`, `simfixes2/`).
+- The projection-year redesign begun with John (`explore/2026-11-02/projection_design/DESIGN.md`; `NEXT_STEPS.md`,
+  step 4).
+
 ## Paths tried and not taken
 
 | What | Why not |

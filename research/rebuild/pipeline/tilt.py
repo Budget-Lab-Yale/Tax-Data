@@ -36,7 +36,7 @@ solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes
 
 The tilt. solver.solve, the one-cost reweighting (decisions 57 and 68): the weights that minimize the sum over targets
 of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, identities exact
-(settings tilt.reweighting; tau 1,000; at most 100 Newton steps in all), with a soft cap on each weight (settings
+(settings tilt.reweighting; tau 1,000; at most 150 Newton steps in all), with a soft cap on each weight (settings
 tilt.soft_cap). The demographic prescaling before it uses the same rule on its own cells. No target has a range and none is
 dropped.
 

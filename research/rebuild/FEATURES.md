@@ -29,7 +29,7 @@ How the latest runs came out is at the end of this file.
   (itemizers, taxable income, credits, AMT) can be targets.
 - **The reweighting.** One cost minimized in one Newton solve: the squared misses in standard errors, weighted by
   importance (1 for IRS figures, 2/3 for the rest), plus 1,000 times how far the weights move (Kullback-Leibler),
-  plus a soft cap on each weight at 10 times the mean starting weight of its AGI group; at most 100 Newton steps.
+  plus a soft cap on each weight at 10 times the mean starting weight of its AGI group; at most 150 Newton steps.
   Past years have 862-929 targets: SOI's tables, the calculator against SOI, SCF wealth (also by the primary's
   age), CEX consumption, CPS overtime and older ages, W-2 tips and deferrals, dependent filers (Table 1.7), non-filers.
 - **Projection years (2024-2035)** start from the 2023 file grown to the year, with 108 targets anchored to the
@@ -958,7 +958,7 @@ non-filer people by age (section 4).
 
 **The tilt** (`solver.py`; TARGETS.md S11): the one-cost reweighting, the only rule. The weights minimize the sum over
 targets of 0.5 x importance x (miss ÷ standard error)² plus tau x the Kullback-Leibler move from the start; identities
-exact; no target has a range and none is dropped. tau is 1,000 and the budget 100 Newton steps in all (settings
+exact; no target has a range and none is dropped. tau is 1,000 and the budget 150 Newton steps in all (100 before 3 November) (settings
 `tilt.reweighting`); importance is 1 for the IRS's published figures and the calculator's columns, 1/1.5 for the survey and
 pipeline kinds. A soft cap on each weight (`tilt.soft_cap`: 0.5 x beta x ((w - U) ÷ U)² above U = 10 x the mean starting
 weight of the record's AGI group (decision 73; before it was the median), beta 1) replaces the earlier hard caps and factor limits. An average's standard error is on the average itself, with the cell's weight after
@@ -1596,7 +1596,7 @@ $11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective s
 ## How the latest runs come out (2 November 2026)
 
 All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
-`RESULTS.md` there; run folders `run/<year>/`). Past years: Newton steps out of the budget of 100, share of the
+`RESULTS.md` there; run folders `run/<year>/`). Past years: Newton steps out of the then budget of 100, share of the
 effective sample kept, largest miss in standard errors, the Forbes list in the file, and net worth of units whose
 primary is 80 and over (units below $1 billion) against the SCF tax units on the year's wave mix. Projection years
 have no age targets; their SCF figure is the wave mix grown to the year.
@@ -1618,11 +1618,11 @@ have no age targets; their SCF figure is the wave mix grown to the year.
 | 2030 | 16 | 97.3% | 1.79 | 1,040 (held), $10,080bn | 18,880 / 17,815 |
 | 2035 | 13 | 96.5% | 1.93 | 1,097 (held), $12,356bn | 23,230 / 21,254 |
 
-**2023 is at the edge of the step budget.** With the 2023 Forbes list the solve took 99 of 100 Newton steps, against
-58 without it; run again on a node with more processors, the same inputs ran out of steps at 100. No target is beyond
-reach; the solver's step is cut short for about 60 steps while it works on the wealth grid cell "net worth above the
-SCF's 99.9th percentile, income below its 90th" and Table 1.4's capital gains with no AGI. The list holds 360 of Table
-4.3's 1,531 top 0.001% returns in 2023 and half their dividends. An open question for John (`NEXT_STEPS.md`).
+**2023 and the step budget.** With the 2023 Forbes list the solve took 99 of 100 Newton steps, against 58 without
+it, and between 72 and 100 depending on the processor count alone. The cause is the soft cap meeting Table 4.3's tight
+top 0.001% cells, a quarter of whose returns the list holds; no target is wrong (`explore/2026-11-03/forbes2023/RESULTS.md`).
+John raised the budget to 150 on 3 November and switched the 2023 list back on: 2023 then converged in 92, 99 and 103
+steps on 1, 4 and 16 processors (`explore/2026-11-03/budget150/`).
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (the 2019 run of 28 October, up to commit
 4c2c518). Known gaps are listed in `ROADMAP.md` and `NEXT_STEPS.md`.

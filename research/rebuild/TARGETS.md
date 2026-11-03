@@ -681,8 +681,8 @@ with identities exact. Importance is 1 for the published figures of the IRS (kin
 dependent filers, tips, deferrals) and for the calculator's columns against them, and 1/1.5 for the survey and pipeline kinds
 (wealth, wealth grid, consumption, auto loans, overtime, non-filers). tau is 1,000 (settings `tilt.reweighting`). Each
 record's weight also pays a soft cap: 0.5 x beta x ((w - U) / U)² above U = 10 x the mean starting weight of its AGI group (decision 73; before it was the median)
-(settings `tilt.soft_cap`; beta 1 as the mild strength). The demographic prescaling uses the same cost. At most 100 Newton
-steps in all, never raised. The SCF targets are no longer held to half a standard error: their standard errors enter the cost
+(settings `tilt.soft_cap`; beta 1 as the mild strength). The demographic prescaling uses the same cost. At most 150 Newton
+steps in all (raised from 100 by John on 3 November, so the 2023 solve with its Forbes list finishes; no further raise without him). The SCF targets are no longer held to half a standard error: their standard errors enter the cost
 like the others' (S9's value and error are unchanged; its half-standard-error ranges are not).
 
 ### S12. Target consolidation (John, 1 November 2026; decisions 71 and 72)

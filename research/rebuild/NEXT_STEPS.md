@@ -1,4 +1,4 @@
-# Next steps (as of 2 November 2026)
+# Next steps (as of 3 November 2026)
 
 The pipeline builds a file for every year 2015-2035 from one branch (`FEATURES.md`). The work of 29 October to 2
 November is merged on `rebuild-integration-1102`; how its runs came out is in scratch
@@ -6,34 +6,31 @@ November is merged on `rebuild-integration-1102`; how its runs came out is in sc
 `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch, a run of the years it
 touches, a comparison with the run before it, and John's approval.
 
-## Near-term steps, in order (John, 2 November evening)
+## Near-term steps (John, 2 November evening; brought up to 3 November)
 
-1. **2023 and its Forbes list.** With the list, the 2023 solve takes 99 of 100 Newton steps (see the first open
-   question below). John decides: merge with the 2023 list switched off and investigate the clash separately, or
-   find and fix the clash first.
-2. **Merge `rebuild-integration-1102` into `rebuild-joint-model`** (John approved the merge, 2 November, once the
-   verification passes; 2023 is the one failure).
-3. **Code simplification agents** on the merged base, each change shown to leave every output identical.
-4. **The projection years (2024-2035), redesigned with John** (probably 3 November), then built. Pieces agreed so far
-   (`explore/2026-11-02/projection_design/DESIGN.md`):
-   - no solver in projection years; each year is the 2023 file prescaled: weights grown by population, and every
-     dollar item multiplied by one factor so that its weighted total grows exactly at its source's growth;
-   - every growth series is per return, per holder or per person, never a total that already contains population
-     growth;
-   - a dollar item with no matched series grows with AGI per return, so it stays a fixed share of AGI;
-   - 2024 and 2025 are a nowcast from the data that exist for them.
-
-   Still open, for John to design: weights from the growth of every member of the unit, and finer ages; the number
-   of returns (population growth gives about 4 million fewer than CBO's count by 2035); the distribution of income,
-   which prescaling holds at 2023; which items take CBO's lines, and mismatched pairs; CBO's 2023 interest line,
-   which is below SOI's 2023 taxable interest; the post-2026 billionaires and the records grown past $1 billion.
-   Nothing is built until the whole design is agreed.
+1. **Done, 3 November: 2023 and its Forbes list.** The slow 2023 solve came from the soft cap meeting Table 4.3's tight
+   top 0.001% cells, which the list fills a quarter of, not from a wrong target (`explore/2026-11-03/forbes2023/`).
+   John raised the Newton budget from 100 to 150 and switched the 2023 list back on; 2023 converges in 92-103 steps
+   depending on the processor count (`explore/2026-11-03/budget150/`).
+2. **Done, 3 November: the merge** of `rebuild-integration-1102` into `rebuild-joint-model` (c526b34), then the 150-step
+   budget (branch `rebuild-budget150`).
+3. **Code simplification:** combined on branch `rebuild-simplify` (0827468), every output identical; not merged
+   (`explore/2026-11-03/MORNING.md`, section E).
+4. **The projection years (2024-2035), being redesigned with John.** The steps agreed so far are in
+   `explore/2026-11-02/projection_design/DESIGN.md`: each year starts from the 2023 file and the years stay
+   independent; a small reweighting first to exact person counts by age and marital status (the 2023 file's counts
+   grown with CBO's population growth); one dollar factor per item so its total grows at CBO's rate; then the main
+   reweighting, with itemizer and AMT counts indexed from 2023. Next to design: the number of returns. Nothing is
+   built until the whole design is agreed.
 
    **Placeholder until then:** the billionaires after the last Forbes list (2027-2035) are held at their starting
    weight in the solver (settings `tilt.top.after_last_list.fixed`). Left free on 2 November, the solver cut the ten
    richest to weights near zero (`explore/2026-11-02/billionaires/RESULTS.md`).
-5. **Push tax-simulator-gpu master** (John): seven model-law fixes are committed there, not pushed
-   (`explore/2026-11-02/sim_master_fixes/RESULTS.md`).
+5. **Done, 3 November: tax-simulator-gpu master pushed,** with the AMT senior deduction fix, car loan interest below
+   the line, and the QBI income limit net of the Schedule 1-A deductions (`explore/2026-11-03/simfixes2/`). The R
+   Tax-Simulator's AMT and QBI fixes are on its branch `fix/senior-deduction-amt-itemizers`, pushed, not merged.
+6. **The 2025 SCF and inheritances:** on branch `rebuild-scf2025`, not merged (`explore/2026-11-03/MORNING.md`,
+   section B); not yet reviewed with John.
 
 ## Other to-dos (not in order)
 
@@ -50,9 +47,6 @@ touches, a comparison with the run before it, and John's approval.
   in 2024-2029 (2024: $465 billion against $310 billion; production is about 7% below). The rebuild matches SOI's
   2023 taxable interest ($314 billion), while CBO's 2023 line is $287 billion, so part of the gap is CBO's stale
   base (part of step 4).
-- **Projection-year weights** averaged over every member of the unit, with finer ages (part of step 4).
-- **tax-simulator-gpu:** check whether the senior deduction is counted twice in the AMT (John, 2 November;
-  `explore/2026-11-02/sim_master_fixes/RESULTS.md`).
 - **Series flags from 1-2 November** (`explore/2026-11-01/tax_expenditures/series/RESULTS.md`): the 2020-2021 files
   hold about 1,500 records above weight 5,000; non-filers jump 19% in 2023 and miss their target in even years.
 - **Inheritances** drawn by the network as an SCF item at the next retrain, the simulator scaling heir dollars to its
@@ -65,17 +59,9 @@ touches, a comparison with the run before it, and John's approval.
 
 ## Open questions for John
 
-- **Before the merge into `rebuild-joint-model`: 2023 at the edge of the step budget.** With the 2023 Forbes list the
-  2023 solve takes 99 of 100 Newton steps (58 without the list); rerun on a node with more processors it ran out of
-  steps at 100. No target is beyond reach and the misses are the same with and without the list; the solver's step
-  is cut short for about 60 steps on the wealth grid cell "net worth above the SCF's 99.9th percentile, income below
-  its 90th" and on Table 1.4's capital gains with no AGI. The list holds 360 of Table 4.3's 1,531 top 0.001% returns,
-  whose cells are met almost exactly. Under the rule a slow solve means a wrong target; which one is John's call (the
-  wealth grid cell is the network's known excess of high wealth on low income, item 2 above). Nothing was
-  changed (`explore/2026-11-02/integration/RESULTS.md`).
 - Projection-year records grown past $1 billion from the 2023 file sit beside the grown Forbes list (2024: 71
   records; 2035: 1,256 records, $3.6 trillion): redraw them, scale them below $1 billion, or leave them
-  (`explore/2026-11-02/billionaires/DECISIONS.md`, entry 10). Part of item 1.
+  (`explore/2026-11-02/billionaires/DECISIONS.md`, entry 10). Part of step 4.
 - Couples in a divorce on the Forbes list are kept as separate units; Li Ge and the late Zhao Ning are one unit in
   2023 (same file, entries 3 and 4).
 - Tax-Simulator's heir data is turned off for the rebuild's files (configuration only). Should the simulator warn
