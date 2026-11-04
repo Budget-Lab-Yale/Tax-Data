@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<title>Check tool: the posttrained file against its sources</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; margin: 1.2em 2em; color: #1d1d1f; font-size: 14px; }
+  h1 { font-size: 20px; margin: 0 0 0.2em 0; }
+  h2 { font-size: 15px; margin: 1.2em 0 0.4em 0; }
+  .note { color: #555; max-width: 70em; }
+  fieldset { border: 1px solid #ccc; border-radius: 6px; margin: 0.6em 0; padding: 0.5em 1em 0.8em 1em; max-width: 72em; }
+  legend { font-weight: 600; }
+  label { margin-right: 1.2em; }
+  select, input[type=text], input[type=number] { font-size: 13px; padding: 2px 4px; }
+  input.num { width: 9em; }
+  input.list { width: 32em; }
+  .row { margin: 0.35em 0; }
+  button { font-size: 13px; padding: 3px 10px; }
+  button.go { font-size: 14px; font-weight: 600; padding: 5px 16px; }
+  table.out { border-collapse: collapse; margin-top: 0.6em; font-variant-numeric: tabular-nums; }
+  table.out th, table.out td { border: 1px solid #ddd; padding: 3px 7px; text-align: right; white-space: nowrap; }
+  table.out th { background: #f3f3f5; font-weight: 600; }
+  table.out td.lab { text-align: left; }
+  table.out tr.total td { font-weight: 600; border-top: 2px solid #999; }
+  table.out td.thin { background: #fdecc8; }
+  table.out th.side { text-align: center; }
+  .err { color: #b00020; font-weight: 600; }
+  .src { background: #f6f8fa; border-left: 3px solid #4a7; padding: 0.4em 0.8em; max-width: 72em; }
+  .small { font-size: 12px; color: #555; }
+</style>
+</head>
+<body>
+<h1>The posttrained file against its sources</h1>
+<div id="head" class="note">Loading the list of variables...</div>
+
+<fieldset>
+  <legend>Y: the item tabulated</legend>
+  <div class="row"><select id="y"></select></div>
+  <div id="ysrc" class="src small"></div>
+</fieldset>
+
+<fieldset>
+  <legend>Filters (applied to both files)</legend>
+  <div class="row">
+    <label>Units:
+      <select id="units">
+        <option value="all">all units</option>
+        <option value="nodep">all units except dependent filers</option>
+        <option value="filers">filers only (returns)</option>
+        <option value="nonfilers">non-filers only</option>
+      </select></label>
+    <label><input type="checkbox" id="forbes"> leave out the file's Forbes-list records</label>
+  </div>
+  <div class="row">
+    <label>Filing status:
+      <select id="fs"><option value="">any</option></select></label>
+    <span id="fsnote" class="small"></span>
+  </div>
+  <div id="filters"></div>
+  <div class="row"><button id="addf" type="button">Add a filter</button>
+    <span class="small">Each filter keeps the units whose value is greater than, less than, or between two values (both ends included), or in a category. A unit missing the filter's variable is left out, and the table says how many.</span></div>
+</fieldset>
+
+<fieldset>
+  <legend>X: the groups</legend>
+  <div class="row"><select id="x"></select></div>
+  <div id="xamount" style="display:none">
+    <div class="row">
+      <label><input type="radio" name="xmode" value="percentiles" checked> percentiles</label>
+      <label><input type="radio" name="xmode" value="dollars"> cutoffs I type (in the variable's own units)</label>
+    </div>
+    <div class="row" id="pctrow">Percentiles: <input type="text" id="pcts" class="list">
+      <div class="row">
+        <label><input type="radio" name="rank" value="own" checked> (a) each file ranked within itself</label>
+        <label><input type="radio" name="rank" value="source"> (b) cutoffs taken from the source, applied to both files</label>
+      </div>
+      <div class="row">
+        <label><input type="radio" name="base" value="filtered" checked> percentiles of the filtered units</label>
+        <label><input type="radio" name="base" value="all"> percentiles of all units (the units choice above, before the other filters)</label>
+      </div>
+    </div>
+    <div class="row" id="cutrow" style="display:none">Cutoffs: <input type="text" id="cuts" class="list">
+      <span class="small">A unit exactly at a cutoff goes to the group above it.</span></div>
+  </div>
+</fieldset>
+
+<div class="row"><button class="go" id="go" type="button">Make the table</button> <span id="status" class="small"></span></div>
+<div id="result"></div>
+
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.search).get("token") || "";
+const BASE = location.pathname.endsWith("/") ? location.pathname : location.pathname.replace(/[^/]*$/, "");
+let CAT = null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+async function api(path, body) {
+  const opt = {headers: {"X-Check-Token": TOKEN}};
+  if (body) { opt.method = "POST"; opt.body = JSON.stringify(body); opt.headers["Content-Type"] = "application/json"; }
+  const r = await fetch(BASE + path, opt);
+  const txt = await r.text();
+  let j; try { j = JSON.parse(txt); } catch (e) { throw new Error(txt); }
+  if (!r.ok) throw new Error(j.error || txt);
+  return j;
+}
+
+function V(v) { return CAT.variables[v]; }
+function srcOf(y) { return CAT.sources[V(y).y_source]; }
+function allowed(y) { return srcOf(y).x; }
+function varLabel(v) { const u = V(v).unit; return v + ": " + V(v).label + (u && u !== "dollars" ? " (" + u + ")" : ""); }
+
+function fillY() {
+  const sel = $("y");
+  const order = ["puf", "scf", "cex", "cps", "sipp"];
+  for (const s of order) {
+    const g = document.createElement("optgroup");
+    g.label = "Source: " + CAT.sources[s].name;
+    const vs = Object.keys(CAT.variables).filter((v) => V(v).y_source === s).sort();
+    for (const v of vs) { const o = document.createElement("option"); o.value = v; o.textContent = varLabel(v); g.appendChild(o); }
+    if (vs.length) sel.appendChild(g);
+  }
+  sel.value = CAT.variables.wages ? "wages" : sel.options[0].value;
+}
+
+function onY() {
+  const y = $("y").value, s = srcOf(y);
+  $("ysrc").innerHTML = "<b>Source for this item: " + esc(s.name) + ".</b> " + esc(s.what) +
+    " Sample records are counted as " + esc(s.count) + ". " +
+    (V(y).y_source === "puf" ? "" : "X and the filters offer only the variables the network was given for this survey when it drew its items.");
+  const xs = allowed(y);
+  // X: none, then the allowed variables
+  const xsel = $("x"), keepX = xsel.value;
+  xsel.innerHTML = "<option value=''>none (one row: every unit)</option>";
+  for (const v of xs.slice().sort()) { if (v === y) continue; const o = document.createElement("option"); o.value = v; o.textContent = varLabel(v); xsel.appendChild(o); }
+  xsel.value = xs.includes(keepX) ? keepX : (xs.includes("agi") ? "agi" : (xs.includes("wages") ? "wages" : ""));
+  onX();
+  // filing status
+  const fs = $("fs"), keepFs = fs.value;
+  fs.innerHTML = "<option value=''>any</option>";
+  if (xs.includes("filing_status")) {
+    for (const [k, lab] of Object.entries(V("filing_status").categories)) { const o = document.createElement("option"); o.value = k; o.textContent = lab; fs.appendChild(o); }
+    fs.disabled = false; fs.value = keepFs; $("fsnote").textContent = "";
+  } else { fs.disabled = true; $("fsnote").textContent = "This source has no filing status."; }
+  // units
+  const u = $("units");
+  for (const o of u.options) o.disabled = (o.value === "filers" || o.value === "nonfilers") && !s.has_filer;
+  if (u.selectedOptions[0].disabled) u.value = "all";
+  if (V(y).y_source !== "puf" && V(y).y_source !== "cps" && u.value === "all") u.value = "nodep";
+  // filters: drop any whose variable this source lacks
+  for (const row of Array.from(document.querySelectorAll(".frow"))) {
+    if (!xs.includes(row.querySelector(".fvar").value)) row.remove(); else fillFvar(row.querySelector(".fvar"), row.querySelector(".fvar").value);
+  }
+}
+
+function onX() {
+  const x = $("x").value;
+  const amount = x && V(x).kind === "amount";
+  $("xamount").style.display = amount ? "" : "none";
+  const m = document.querySelector("input[name=xmode]:checked").value;
+  $("pctrow").style.display = m === "percentiles" ? "" : "none";
+  $("cutrow").style.display = m === "dollars" ? "" : "none";
+}
+
+function fillFvar(sel, keep) {
+  const xs = allowed($("y").value).filter((v) => v !== "filing_status").slice().sort();
+  sel.innerHTML = "";
+  for (const v of xs) { const o = document.createElement("option"); o.value = v; o.textContent = varLabel(v); sel.appendChild(o); }
+  if (keep && xs.includes(keep)) sel.value = keep;
+  else if (xs.includes("age1")) sel.value = "age1";
+  else if (xs.includes("agi")) sel.value = "agi";
+}
+
+function addFilter() {
+  const row = document.createElement("div");
+  row.className = "row frow";
+  row.innerHTML = "<select class='fvar'></select> <select class='fop'></select> <span class='fval'></span> <button type='button' class='frm'>remove</button>";
+  $("filters").appendChild(row);
+  const fv = row.querySelector(".fvar");
+  fillFvar(fv);
+  const setOps = () => {
+    const v = fv.value, op = row.querySelector(".fop"), val = row.querySelector(".fval");
+    const cat = V(v).kind !== "amount";
+    op.innerHTML = cat ? "<option value='is'>is</option>"
+      : "<option value='gt'>greater than</option><option value='lt'>less than</option><option value='between'>between</option>";
+    const draw = () => {
+      if (cat) {
+        const opts = Object.entries(V(v).categories).map(([k, lab]) => "<option value='" + esc(k) + "'>" + esc(lab) + "</option>").join("");
+        val.innerHTML = "<select class='fa'>" + (opts || "<option value='0'>0</option><option value='1'>1</option>") + "</select>";
+      } else if (op.value === "between") {
+        val.innerHTML = "<input type='number' class='fa num'> and <input type='number' class='fb num'>";
+      } else { val.innerHTML = "<input type='number' class='fa num'>"; }
+    };
+    op.onchange = draw; draw();
+  };
+  fv.onchange = setOps; setOps();
+  row.querySelector(".frm").onclick = () => row.remove();
+}
+
+function query() {
+  const y = $("y").value, x = $("x").value;
+  const filters = [];
+  if ($("fs").value && !$("fs").disabled) filters.push({var: "filing_status", op: "is", values: [$("fs").value]});
+  for (const row of document.querySelectorAll(".frow")) {
+    const v = row.querySelector(".fvar").value, op = row.querySelector(".fop").value;
+    const a = row.querySelector(".fa"), b = row.querySelector(".fb");
+    if (op === "is") filters.push({var: v, op: "is", values: [a.value]});
+    else {
+      if (a.value === "" || (b && b.value === "")) throw new Error("A filter on " + v + " has no value.");
+      filters.push({var: v, op: op, a: Number(a.value), b: b ? Number(b.value) : null});
+    }
+  }
+  const q = {y: y, units: $("units").value, forbes: $("forbes").checked ? "drop" : "keep", filters: filters, x: {var: x || null}};
+  if (x && V(x).kind === "amount") {
+    const m = document.querySelector("input[name=xmode]:checked").value;
+    q.x.mode = m;
+    q.x.cuts = m === "percentiles" ? $("pcts").value : $("cuts").value;
+    q.x.rank = document.querySelector("input[name=rank]:checked").value;
+    q.x.base = document.querySelector("input[name=base]:checked").value;
+  }
+  return q;
+}
+
+// ---- formatting ----
+const pct = (v, d = 1) => v === null || v === undefined ? "" : (100 * v).toFixed(d) + "%";
+const mil = (v) => v === null || v === undefined ? "" : (v / 1e6).toLocaleString("en-US", {minimumFractionDigits: 3, maximumFractionDigits: 3});
+const int = (v) => v === null || v === undefined ? "" : Math.round(v).toLocaleString("en-US");
+function money(v, unit) {
+  if (v === null || v === undefined) return "";
+  if (unit && unit !== "dollars") return v.toLocaleString("en-US", {maximumFractionDigits: 3});
+  return (v < 0 ? "-" : "") + "$" + Math.abs(Math.round(v)).toLocaleString("en-US");
+}
+function bn(v, unit) {
+  if (v === null || v === undefined) return "";
+  if (unit && unit !== "dollars") return (v / 1e6).toLocaleString("en-US", {maximumFractionDigits: 3});
+  return (v / 1e9).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function rng(st, unit) {
+  if (st.x_min === undefined || st.x_min === null) return "";
+  return money(st.x_min, unit) + " to " + money(st.x_max, unit);
+}
+
+function render(r) {
+  const flag = r.y_kind === "flag", unit = r.y_unit;
+  const ymiss = ["source", "file"].some((s) => r.total[s].y_missing_records > 0);
+  const xu = r.x.var ? V(r.x.var).unit : null;
+  const showRange = r.x.var && r.x.mode !== "category";
+  const cols = [
+    ["records", "sample records", (st) => int(st.records)],
+    ["units", "units (millions)", (st) => mil(st.units)],
+    ["share_of_units", "share of units", (st) => pct(st.share_of_units)],
+    ["nonzero", flag ? "share yes" : "share with a nonzero value", (st) => pct(st.nonzero_share)],
+    ["total", flag ? "units with yes (millions)" : (unit === "dollars" ? "total ($ billions)" : "total (millions of " + unit + ")"),
+      (st) => flag ? mil(st.total) : bn(st.total, unit)],
+    ["mean", flag ? "share yes" : "mean per unit", (st) => flag ? pct(st.mean) : money(st.mean, unit)],
+    ["share_of_total", flag ? "share of all units with yes" : "share of the total", (st) => pct(st.share_of_total)],
+  ].filter((c) => !(flag && c[0] === "mean"));
+  if (ymiss) cols.push(["ymiss", "records missing Y", (st) => int(st.y_missing_records)]);
+  if (showRange) cols.push(["range", "X range in the group", (st) => rng(st, xu)]);
+  let h = "<h2>" + esc(r.y + ": " + r.y_label) + (r.x_label ? " by " + esc(r.x.var + ": " + r.x_label) : "") + "</h2>";
+  h += "<div class='src small'><b>Source: " + esc(r.source.name) + ".</b> " + esc(r.source.what) + "<br><b>File: " + esc(r.file.name) + ".</b> " + esc(r.file.what) + "</div>";
+  h += "<table class='out'><tr><th rowspan=2>" + esc(r.x_label ? r.x.var : "") + "</th><th class='side' colspan=" + cols.length + ">source: " + esc(r.source.name) +
+       "</th><th class='side' colspan=" + cols.length + ">file: " + esc(r.file.name) + "</th></tr><tr>";
+  for (let i = 0; i < 2; i++) for (const c of cols) h += "<th>" + esc(c[1]) + "</th>";
+  h += "</tr>";
+  const line = (row, cls) => {
+    let s = "<tr class='" + (cls || "") + "'><td class='lab" + (row.thin ? " thin" : "") + "'>" + esc(row.label) + (row.thin ? " (thin)" : "") + "</td>";
+    for (const side of ["source", "file"]) for (const c of cols) {
+      const thin = row[side].records < r.thin_cell_records;
+      s += "<td" + (thin ? " class='thin'" : "") + ">" + c[2](row[side]) + "</td>";
+    }
+    return s + "</tr>";
+  };
+  for (const row of r.rows) h += line(row);
+  h += line(r.total, "total");
+  h += "</table>";
+  const notes = [];
+  notes.push("Shaded cells rest on fewer than " + r.thin_cell_records + " sample records in that file; a row marked thin has fewer in either file.");
+  notes.push("Shares with a nonzero value, totals and means are over the units whose Y is not missing. Weights are each file's own.");
+  if (r.cuts.source && r.x.mode === "percentiles") notes.push("Cutoffs from the source, applied to both files: " + r.cuts.source.map((v) => money(v, xu)).join(", ") + ".");
+  if (r.x.mode === "percentiles" && r.x.rank === "own") notes.push("Each file is ranked within itself; units tied at one value (zero, say) are split between groups by their order in the file.");
+  if (r.x.mode === "percentiles") notes.push("Percentiles of " + (r.x.base === "all" ? "all units of the chosen units, before the other filters" : "the filtered units") + ".");
+  for (const side of ["source", "file"]) for (const f of r.filter_missing[side]) {
+    notes.push("The " + side + " has " + int(f.records) + " records (" + mil(f.units) + " million units) missing " + esc(f.var) + "; the filter on it leaves them out.");
+  }
+  if (r.forbes_in_file) notes.push("The file's part of the table holds " + r.forbes_in_file + " Forbes-list records.");
+  notes.push("Population before the filters: source " + int(r.population.source.records) + " records, " + mil(r.population.source.units) +
+             " million units; file " + int(r.population.file.records) + " records, " + mil(r.population.file.units) + " million units.");
+  h += "<ul class='small'>" + notes.map((n) => "<li>" + n + "</li>").join("") + "</ul>";
+  $("result").innerHTML = h;
+}
+
+async function go() {
+  $("status").textContent = "working...";
+  try {
+    const q = query();
+    const t0 = performance.now();
+    const r = await api("api/table", q);
+    render(r);
+    $("status").textContent = "done in " + ((performance.now() - t0) / 1000).toFixed(2) + " seconds (server " + r.seconds.toFixed(2) + ").";
+  } catch (e) { $("status").innerHTML = "<span class='err'>" + esc(e.message) + "</span>"; }
+}
+
+async function init() {
+  try { CAT = await api("api/catalog"); }
+  catch (e) { $("head").innerHTML = "<span class='err'>" + esc(e.message) + "</span> Open the page with the address the server printed, which ends in ?token=..."; return; }
+  $("head").innerHTML = "Year " + CAT.year + ". File: " + esc(CAT.file) + ". Source for PUF items: <b>" + esc(CAT.sources.puf.name) +
+    "</b> (setting puf_source = " + esc(CAT.puf_source) + "). Tables built " + esc(CAT.built) + ". " + CAT.notes.map(esc).join(" ");
+  $("pcts").value = CAT.default_percentiles.join(", ");
+  $("cuts").value = CAT.default_dollar_cutoffs.join(", ");
+  fillY(); onY();
+  $("y").onchange = onY; $("x").onchange = onX;
+  for (const r of document.querySelectorAll("input[name=xmode]")) r.onchange = onX;
+  $("addf").onclick = addFilter; $("go").onclick = go;
+}
+init();
+</script>
+</body>
+</html>
