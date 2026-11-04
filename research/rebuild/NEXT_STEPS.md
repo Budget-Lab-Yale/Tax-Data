@@ -1,11 +1,10 @@
-# Next steps (as of 3 November 2026, evening)
+# Next steps (as of 4 November 2026)
 
-The pipeline builds a file for every year 2015-2035 from one branch, `rebuild-joint-model` (`FEATURES.md`). The day's
-branches are merged on it (projection design with add factors, Social Security and pensions, small fixes, the 2025
-SCF with inheritances, the check tool), and the full run on the merged code (retrain, new draws, every year) is in
-scratch `explore/2026-11-03/bigrun/RESULTS.md`. Paths starting `explore/` are under
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch, a run of the years it
-touches, a comparison with the run before it, and John's approval.
+The pipeline builds a file for every year 2015-2035 from one branch, `rebuild-joint-model` (`FEATURES.md`). The full
+run on the merged code of 3-4 November (`explore/2026-11-03/bigrun/RESULTS.md`) is installed as the latest (John, 4
+November). The code to run to 2075 is on `rebuild-longrun` and has passed its first test years. Paths starting
+`explore/` are under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch,
+a run of the years it touches, a comparison with the run before it, and John's approval.
 
 ## Near-term steps (John, 2 November evening; brought up to 3 November evening)
 
@@ -17,12 +16,28 @@ touches, a comparison with the run before it, and John's approval.
    `rebuild-small-fixes`, `rebuild-scf2025` and `rebuild-tabtool` (`HISTORY.md`, 3 November).
 3. **Done, 3-4 November: the full run on the merged code**: three networks retrained on the new table (the rest of
    pensions as a slot, the 2025 SCF wave, the inheritance item), every year 2015-2023 drawn and reweighted, 2024-2035
-   from the new 2023 (`explore/2026-11-03/bigrun/RESULTS.md`). Not installed: the install waits for John.
+   from the new 2023 (`explore/2026-11-03/bigrun/RESULTS.md`). **Installed 4 November** (John): the scratch folders
+   `data/`, `targets/`, `model/`, `gen/`, `tilt/` and `taxsim/` hold its 2019 run, the old ones are in
+   `previous_2026-11-04_before_bigrun/` (`INSTALLED.txt`). Its reweighting ran on the code with age by AGI, Table 4.3
+   at SOI's cutoffs and married people under 18 counted unmarried, but its settings file predates the age-by-AGI
+   merge, so those 75 targets a year had importance 1/1.5, not 1. No second run was made: nothing that touches
+   training changed after it trained. John chose not to look further at its two unexplained moves (other income about
+   $14 billion a year higher from 2023, mostly at $10 million and up; 2021 in 89 Newton steps against 58).
+   **Done 4 November, not yet in a full run:** Table 4.3's counts in the top 0.1% and 1% borrow their errors only from
+   Table 1.4 cells at or above the group's cutoff (`TARGETS.md` S15; 9766566). The next full run picks up both this
+   and the age-by-AGI importance.
 4. **The projection years (2024-2035).** John's three-step design is built and merged (`FEATURES.md`, "The projection
    years in three steps"): people by age and marital status, one dollar factor per item from John's series, then
    the main reweighting with no itemizer target and the AMT payer count kept. The Schedule A add factors (+2% a year
    2024-2028, +1% 2029-2033) are a crude step toward CBO's itemized deductions, to be revisited at each CBO update.
    Still to design: the number of returns (CBO's 2023 count is 4.4 million above SOI's; `explore/2026-11-03/noitem/`).
+
+   **Past 2035 (branch `rebuild-longrun`, not merged; `explore/2026-11-04/longrun/`).** Years 2036-2075 run the same
+   three steps with longer series: each item continues from 2035 at a Macro-Projections aggregate, borrowed from
+   production's long-run mapping. First test (4 November, `longrun/test/RESULTS.md`): 2036, 2045, 2055, 2065 and 2075
+   from the big run's 2023 all converge (6-12 Newton steps, largest miss 2.03 standard errors), step 1 meets every
+   person count, and AGI holds at 57-58% of nominal GDP and wages at 87% of GDP wages. Next: the other 35 years, then
+   John's review and the merge.
 
    **Placeholder until then:** the billionaires after the last Forbes list (2027-2035) are held at their starting
    weight in the solver (settings `tilt.top.after_last_list.fixed`). Left free on 2 November, the solver cut the ten
@@ -37,6 +52,13 @@ touches, a comparison with the run before it, and John's approval.
    then go.
 
 ## Other to-dos (not in order)
+
+- **Tax expenditures against JCT** (`explore/2026-11-03/tax_expenditures_1103/RESULTS.md`, on the big run's
+  2024-2029 and the 3 November calculator). Fiscal 2026, 19 provisions other than step-up: the absolute gaps to JCT
+  sum to $79 billion on the rebuild (was $105 billion) and $65 billion on production. Still off on both: overtime,
+  tips, car loans, step-up (-54%), the education and dependent care credits; on the rebuild only, the QBI deduction
+  (-13%; sole proprietor income $427 billion against production's $615 billion) and the lower rates on gains (+8%).
+- **The network's settings:** searched on 3-4 November and closed with no change (`HISTORY.md`).
 
 - **Known flaws in the draw.**
   - The gain as a share of an asset's value is too flat by age. On the SCF's own units the network draws the right

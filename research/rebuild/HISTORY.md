@@ -1051,6 +1051,25 @@ The seed moved the score more than any setting. Not tried, if the search is reop
 installed 0.01 (0.001 and 0), since raising it was the largest effect seen; more seeds for the three best ideas; and
 training five or six seeds and keeping the best three by this score.
 
+### 4 November: the install, Table 4.3's count errors, tax expenditures, the first years past 2035
+
+- **The full run of 3-4 November installed** as the latest (John). The planned second run was not made: the run's
+  reweighting already ran on the code with the age-by-AGI targets, Table 4.3 at SOI's cutoffs and the under-18 rule,
+  and nothing that touches training had changed. Its settings file predated the age-by-AGI merge, so those targets
+  had importance 1/1.5.
+- **Table 4.3's counts in the top 0.1% and 1%** borrow their errors only from Table 1.4 count cells in the AGI classes
+  reaching above the group's cutoff (John; `TARGETS.md` S15). Borrowing by count alone gave the top 0.1% count 8% and
+  some item counts up to 26%. Side check on the big run's 2015, 2019 and 2023 draws (`explore/2026-11-04/t43se/`):
+  every count still met, nothing else moved by more than 0.06 standard errors.
+- **Tax expenditures** on the 3 November calculator, production and the big run's 2024-2029, against JCT and OTA
+  (`explore/2026-11-03/tax_expenditures_1103/`; simulator branch `te-1103`, not pushed). The rebuild's absolute gaps
+  to JCT over 19 provisions fell from $105 billion to $79 billion in fiscal 2026, mostly from the Social Security
+  exclusion (+35% to +4%) and charity (-16% to -4%).
+- **Years past 2035:** the 2075 code (`rebuild-longrun`) merged with the day's branch and tested on 2036, 2045, 2055,
+  2065 and 2075 (`explore/2026-11-04/longrun/test/RESULTS.md`): all converge; AGI holds at 57-58% of nominal GDP.
+- **The check tool's folder** was unreadable for the RA: two of its files were in the owner's own group. The tool now
+  gives every file the folder's group.
+
 ## Paths tried and not taken
 
 | What | Why not |
