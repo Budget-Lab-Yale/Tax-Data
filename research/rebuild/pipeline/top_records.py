@@ -19,8 +19,11 @@ The steps, in order:
      year (top_billionaires.grow_list), its records starting at weight 1 times the population growth of their
      demographic cell from the list's year to the year (projection_demographics.population_cells, the start scaling
      every other record of a projection year gets from 2023). Since 2 November 2026 they are held fixed at that
-     starting weight (settings tilt.top.after_last_list.fixed true), a placeholder until the projection years are
-     redesigned: left free (false), the solver cut the richest to weights near zero.
+     starting weight (settings tilt.top.after_last_list.fixed true; kept as the rule by John, 4 November 2026): left
+     free (false), the solver cut the richest to weights near zero.
+  5. in a year with a Forbes list, every other record at or above the ceiling held just below it (hold_below_ceiling;
+     John, 4 November 2026): the list is every US billionaire, so no other record may be one. In 2024-2026 these are
+     2023 records that growth carried past $1 billion; in a generated year, redraw fallbacks (none since 2 November).
 Returns the frame, the starting weights (relative importance weights for generated records, as before; the weight in
 returns or units for records whose weight is given), the mask of records whose starting weight is given, the mask of
 records held fixed, and the report (notes and tables, written by write_report).
@@ -35,6 +38,7 @@ import numpy as np
 import pandas as pd
 
 import common
+import dollars as D
 import target_list as TLS
 import top_billionaires as TB
 
@@ -110,8 +114,49 @@ def network_part(g19, raw, imp, year, mode):
     return g19, imp, given, np.zeros(len(g19), bool), rep
 
 
-LIST_KEYS = ['units', 'people', 'groups', 'mix', 'mix group', 'bsyz', 'list', 'over ceiling, not on the list']
-LIST_NOTES = ('billionaires', 'item mix:', 'WARNING: no Forbes list', 'records other than the list')
+LIST_KEYS = ['units', 'people', 'groups', 'mix', 'mix group', 'bsyz', 'list', 'over ceiling, not on the list',
+             'held below the ceiling']
+LIST_NOTES = ('billionaires', 'item mix:', 'WARNING: no Forbes list', 'records other than the list',
+              'held below the ceiling')
+
+# The balance sheet's dollar columns besides net worth's parts: the unrealized gains (w_kg_*, dollars) and the DC
+# account's stocks (w_dc_stocks = its share x value.dc); the cost bases (basis.*) are taken wherever the file has them.
+# Ratios (w_primary_ltv, w_dc_stock_share) are not dollars and are left as they are.
+BALANCE_DOLLARS = ['w_kg_primary_home', 'w_kg_other_re', 'w_kg_pass_throughs', 'w_kg_other', 'w_dc_stocks']
+HOLD_SHARE = 0.999   # a held record's net worth: this share of the ceiling
+
+
+def hold_below_ceiling(g19, imp, ceiling, notes):
+    """Step 5 (John, 4 November 2026). In a year with a Forbes list the list is every US billionaire, so a record not on
+    it at or above the ceiling has its whole balance sheet (net worth's assets and debts, the unrealized gains, the cost
+    bases, the DC account's stocks) multiplied by one factor that puts its net worth at HOLD_SHARE x the ceiling. Its
+    income, its weight and every other column are unchanged. Returns the frame and a table, one row per record held."""
+    nw = g19['net_worth'].to_numpy(float)
+    over = (nw >= ceiling) & (g19['billionaire'].to_numpy() != 1)
+    if not over.any():
+        notes.append('held below the ceiling: no record other than the list at or above it')
+        return g19, pd.DataFrame()
+    parts = list(D.NET_WORTH_PARTS)
+    assert np.allclose(D.signed_sum(g19.loc[over], D.NET_WORTH_PARTS), nw[over], rtol=1e-9), \
+        'a record over the ceiling whose net worth is not the sum of its parts'
+    f = HOLD_SHARE * ceiling / nw[over]
+    cols = [c for c in parts + BALANCE_DOLLARS if c in g19] + [c for c in g19.columns if c.startswith('basis.')]
+    g19 = g19.copy()
+    idx = np.flatnonzero(over)
+    for c in cols:
+        j = g19.columns.get_loc(c)
+        g19.iloc[idx, j] = g19.iloc[idx, j].to_numpy(float) * f
+    g19.iloc[idx, g19.columns.get_loc('net_worth')] = D.signed_sum(g19.iloc[idx], D.NET_WORTH_PARTS)
+    after = g19['net_worth'].to_numpy(float)
+    assert (after[idx] < ceiling).all() and np.allclose(after[idx], HOLD_SHARE * ceiling, rtol=1e-9)
+    w = np.asarray(imp, float)[idx]
+    tab = pd.DataFrame({'record_id': g19['record_id'].to_numpy()[idx], 'starting weight': w,
+                        'net worth before': nw[idx], 'net worth after': after[idx], 'factor': f})
+    notes.append(f'held below the ceiling: {len(idx)} records other than the list at or above ${ceiling / 1e9:g} billion '
+                 f'({w.sum():,.1f} on their starting weights; net worth ${(w * nw[idx]).sum() / 1e12:.3f} trillion '
+                 f'before, ${(w * after[idx]).sum() / 1e12:.3f} trillion after); each balance sheet scaled to '
+                 f'{HOLD_SHARE:g} x the ceiling (factors {f.min():.3f} to {f.max():.3f}); income and weights unchanged')
+    return g19, tab
 
 
 def strip_list(g19, imp, given, fixed, rep):
@@ -158,7 +203,7 @@ def add_list(g19, imp, given, fixed, rep, year):
             # the year, as every projection-year record's weight is grown from 2023 (tilt.main, population_cells)
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
-            # (2 November 2026, a placeholder until the projection years are redesigned) settings
+            # (2 November 2026; the rule since John, 4 November 2026) settings
             # tilt.top.after_last_list.fixed: true holds them at that starting weight in the solver, as the list years
             # hold theirs at 1; false leaves them free (the 2 November run: the solver then cut the richest to ~0)
             hold = S['after_last_list']['fixed']
@@ -166,14 +211,15 @@ def add_list(g19, imp, given, fixed, rep, year):
             fix_b = np.full(len(b), hold)
             notes.append(f'billionaires: starting weights 1 x the population growth of their cell from {list_year} to '
                          f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); '
-                         + ('held fixed at them in the reweighting (settings tilt.top.after_last_list.fixed, a '
-                            'placeholder until the projection years are redesigned)' if hold else
+                         + ('held fixed at them in the reweighting (settings tilt.top.after_last_list.fixed)' if hold else
                             'free in the reweighting, under the soft cap'))
         g19 = pd.concat([g19, b], ignore_index=True)
         imp = np.r_[imp, w_b]
         given = np.r_[given, np.ones(len(b), bool)]
         fixed = np.r_[fixed, fix_b]
     assert g19['record_id'].is_unique, 'a tax unit appears twice'
+    if lst is not None and kind == 'list':   # 5. (John, 4 November 2026) the list is every US billionaire
+        g19, rep['held below the ceiling'] = hold_below_ceiling(g19, imp, ceiling, notes)
     over = (g19['net_worth'].to_numpy(float) >= ceiling) & (g19['billionaire'].to_numpy() != 1)
     rep['over ceiling, not on the list'] = int(over.sum())
     if over.any():
@@ -185,7 +231,8 @@ def add_list(g19, imp, given, fixed, rep, year):
 
 
 def write_report(rep, folder, year):
-    """The preparation's tables: billionaire_units.csv (one row per tax unit), billionaire_groups.csv, redraw.csv, and
+    """The preparation's tables: billionaire_units.csv (one row per tax unit), billionaire_groups.csv, redraw.csv,
+    held_below_ceiling.csv, and
     top_notes.md (the notes and the item mix)."""
     if 'units' in rep:
         u = rep['units'].drop(columns=['uri', 'sp_uri'], errors='ignore')
@@ -193,6 +240,8 @@ def write_report(rep, folder, year):
         rep['groups'].to_csv(os.path.join(folder, 'billionaire_groups.csv'), index=False)
     if len(rep.get('redraw', [])):
         rep['redraw'].to_csv(os.path.join(folder, 'redraw.csv'), index=False)
+    if len(rep.get('held below the ceiling', [])):
+        rep['held below the ceiling'].to_csv(os.path.join(folder, 'held_below_ceiling.csv'), index=False)
     lines = [f'# The top of the {year} file: notes from the preparation (top_records.py)', '']
     lines += [f'- {n}' for n in rep['notes']] + ['']
     if 'mix' in rep:

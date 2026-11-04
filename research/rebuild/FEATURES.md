@@ -24,8 +24,8 @@ How the latest runs came out is at the end of this file.
   the year's mix of SCF waves, the CEX, CPS and SIPP items from the year's mix of survey years.
 - **The top of the file.** The PUF's four aggregate records are rebuilt from generated records; any generated balance
   sheet at $1 billion or more is drawn again; Forbes's list for the year (2015-2026) is added at weight 1, held fixed;
-  after 2026 the 2026 list is grown and, as a placeholder, held at its starting weight. Below $1 billion the SCF
-  targets apply.
+  after 2026 the 2026 list is grown and held at its starting weight. In a list year no other record may be at or above
+  $1 billion (held just below it). Below $1 billion the SCF targets apply.
 - **Taxes.** Every record's taxes come from tax-simulator-gpu inside the reweighting stage, so calculator columns
   (itemizers, taxable income, credits, AMT) can be targets.
 - **The reweighting.** One cost minimized in one Newton solve: the squared misses in standard errors, weighted by
@@ -1367,11 +1367,23 @@ start uses for the matching balance sheet item (`value.equities` and `value.pass
 CBO's GDP, per return; `value.re_fund`: no projection rule, so growth.yaml's SCF rule, as `tilt.grow_dollars`), ages
 raised; income then computed from the IRS study's ratios as in a list year. **Their weights grow like any other
 person's**: each starts at 1 times its demographic cell's population growth from 2026 to the year (the start scaling
-every projection-year record gets from 2023); no count target for them. **Placeholder (2 November 2026, until the
-projection years are redesigned; `NEXT_STEPS.md`, item 1):** they are held fixed at that starting weight in the solver,
-as the list years hold theirs at 1 (settings `tilt.top.after_last_list.fixed` true; `top_records.add_list`). Left free
-(`fixed` false), the solver took the ten richest to weights near zero in every year 2027-2035 and the list's net worth
-fell from $8.4 trillion (2026) to $3.9 trillion (2027) (scratch `explore/2026-11-02/billionaires/RESULTS.md`). The
+every projection-year record gets from 2023); no count target for them. **They are held fixed at that starting weight
+in the solver** (2 November 2026; kept as the rule by John on 4 November: after the last list they are records like any
+other, aged naively, and not moved by the solver), as the list years hold theirs at 1 (settings
+`tilt.top.after_last_list.fixed` true; `top_records.add_list`); their dollars count toward every target, so the other
+records make room for them. Left free (`fixed` false), the solver took the ten richest to weights near zero in every
+year 2027-2035 and the list's net worth fell from $8.4 trillion (2026) to $3.9 trillion (2027) (scratch
+`explore/2026-11-02/billionaires/RESULTS.md`): a record of weight 1 holding billions of dividends and gains is the
+cheapest place to cut, because the cost of moving a weight is relative to its size.
+
+**No other record at or above $1 billion in a list year (John, 4 November 2026; `top_records.hold_below_ceiling`).** The
+list is every US billionaire, so in a year with a Forbes list a record not on it at or above the ceiling has its whole
+balance sheet (net worth's assets and debts, the unrealized gains `w_kg_*`, the cost bases `basis.*`, `w_dc_stocks`)
+multiplied by one factor that puts its net worth at 0.999 times the ceiling; its income, weight and every other column
+are unchanged, and `held_below_ceiling.csv` lists them. In 2024-2026 these are 2023 records that growth carried past $1
+billion (82, 209 and 292 records; $0.09, $0.21 and $0.42 trillion before, factors 0.72-1.00); in a generated year they
+would be redraw fallbacks (none since 2 November). After the last list such records stay: they stand for the people who
+become billionaires after it (scratch `explore/2026-11-04/ceiling/`). The
 network part of the top step (Part A, the redraw) is cached (`REBUILD_TOP_CACHE`) and the list is built on every run
 (`top_records.network_part`, `add_list`).
 
