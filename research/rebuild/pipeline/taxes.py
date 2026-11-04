@@ -377,7 +377,28 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
            'records zeroed (unweighted)': int(zero.sum()),
            'itemizing filers (millions)': w[filer & item].sum() / 1e6}
     df = df.copy()
-    df['state_ref'] = np.where(item, ref, 0.0)
+    kept = np.where(item, ref, 0.0)
+    if S.get('refund_tax_benefit', False):
+        # (autoresearch, 4 November) The tax benefit rule (IRS Publication 525, worksheet 2): a refund of state income
+        # tax is taxable only to the extent that deducting the tax lowered tax. Two limits on an itemizer: (1) the
+        # taxes deduction the return claimed less the one it would have claimed had it paid the refund less tax;
+        # under a cap on the deduction (2018 on) a return whose taxes paid exceed the cap by more than the refund got
+        # no benefit, so its refund is not taxable; (2) the itemized deductions less the standard deduction. The
+        # current year's taxes paid and deductions stand in for last year's, as the itemizing flag does above. The
+        # cap is read from the calculator's own result (claimed taxes below taxes paid), so the rule needs no
+        # parameter of the year's law. In run3's 2019 the draw kept 2015's refunds at every income: SOI has 6,818
+        # returns with a refund at AGI $2-5 million against the file's 61,269.
+        paid = df['salt_inc_sales'].to_numpy(float) + df['salt_prop'].to_numpy(float)
+        claimed = out['claimed_taxes'].to_numpy(float)
+        excess = np.maximum(out['item_ded'].to_numpy(float) - out['std_ded'].to_numpy(float), 0.0)
+        assert np.isfinite(paid).all() and np.isfinite(claimed).all() and np.isfinite(excess).all(), \
+            'refund rule: a missing taxes paid, claimed taxes or deduction'
+        benefit = np.maximum(claimed - np.maximum(paid - ref, 0.0), 0.0)
+        kept = np.where(item, np.minimum(ref, np.minimum(benefit, excess)), 0.0)
+        row.update({'itemizer refunds cut by the tax benefit rule (unweighted)': int((item & (kept < ref - 1e-6)).sum()),
+                    'itemizer refund dollars removed by the tax benefit rule, filers ($ billion)':
+                        (w * (np.where(item, ref, 0.0) - kept))[filer].sum() / 1e9})
+    df['state_ref'] = kept
     ref2 = df['state_ref'].to_numpy(float)
     # (1 November, decision 75) every total built from the refund is recomputed with it: other_agi holds the refund
     # (dollars.FOLD, sign +1), so it falls by what the rule removed. Without this the file's other_agi (and AGI, which

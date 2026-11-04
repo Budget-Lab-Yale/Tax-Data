@@ -369,8 +369,14 @@ variables:
   alimony:
     record: alimony
     short: alimony
+    soi 1.4: {count: [alimony_received], amount: [alimony_received]}
     published:
       soi 1.3: {item: alimony received, count: returns, amount: amount}
+  # (autoresearch, 4 November) alimony paid, Table 1.4's statutory adjustment
+  alimony_paid:
+    record: alimony_exp
+    short: alimony_paid
+    soi 1.4: {count: [alimony_paid], amount: [alimony_paid]}
   capital_gain_total:
     record: capital_gains_line13
     short: capital_gain_total
@@ -399,6 +405,17 @@ variables:
     short: other_gains
     published:
       soi 1.3: {item: 'sales of property other than capital assets, net gain less loss', count: returns, amount: amount}
+  # (autoresearch, 4 November) Form 4797's net gain and net loss, Table 1.4's two lines (the loss stored positive)
+  other_gains_net_gain:
+    base: other_gains
+    transform: positive
+    short: other_gains_net_gain
+    soi 1.4: {count: [other_gains_net_gain], amount: [other_gains_net_gain]}
+  other_gains_net_loss:
+    base: other_gains
+    transform: loss
+    short: other_gains_net_loss
+    soi 1.4: {count: [other_gains_net_loss], amount: [other_gains_net_loss]}
   txbl_ira_dist:
     record: txbl_ira_dist
     short: txbl_ira_dist

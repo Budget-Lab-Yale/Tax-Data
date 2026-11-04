@@ -80,6 +80,18 @@ T14 = {  # SOI item -> (variable, statistic)
     'qualified business income deduction > amount': ('qbi_deduction', 'amount'),
     'alternative minimum tax > number of returns': ('alternative_minimum_tax', 'count'),
     'alternative minimum tax > amount': ('alternative_minimum_tax', 'amount'),
+    # (autoresearch, 4 November) three Table 1.4 lines the draw overstates and nothing targeted: Form 4797's gains and
+    # losses (run3's 2019 file: net gain $56 billion against SOI's $38 billion, net loss $52 billion against $19
+    # billion), and alimony received and paid (2019: $20.5 billion received against $10.8 billion; the 2015 draw keeps
+    # the alimony of divorces before 2019, whose payments the 2017 law left in AGI and which run off)
+    'sales of property other than capital assets > net gain > number of returns': ('other_gains_net_gain', 'count'),
+    'sales of property other than capital assets > net gain > amount': ('other_gains_net_gain', 'amount'),
+    'sales of property other than capital assets > net loss > number of returns': ('other_gains_net_loss', 'count'),
+    'sales of property other than capital assets > net loss > amount': ('other_gains_net_loss', 'amount'),
+    'alimony received > number of returns': ('alimony_received', 'count'),
+    'alimony received > amount': ('alimony_received', 'amount'),
+    'statutory adjustments > alimony paid > number of returns': ('alimony_paid', 'count'),
+    'statutory adjustments > alimony paid > amount': ('alimony_paid', 'amount'),
 }
 # (30 October, taxes.py) Table 3.3, tax liability, tax credits and tax payments by size of AGI: the credits and taxes
 # the calculator computes (SOI item -> (variable, statistic)). The earned income credit is the whole credit (the part

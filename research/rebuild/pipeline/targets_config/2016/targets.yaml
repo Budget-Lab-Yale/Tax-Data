@@ -222,18 +222,37 @@ targets:
   # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
   # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
   # In 2019 (since 22 October) estates and trusts are left out: the family list business_other less estate_trust.
+  # (autoresearch, 4 November) estates and trusts back, and Form 4797's gain and loss added: with standard errors
+  # (the one-cost rule of 1 November) a cell that conflicts gives way instead of stopping the solve. In run3's 2019
+  # file, untargeted, estate and trust net income was $51.9 billion against SOI's $36.2 billion ($6.5 billion at no
+  # AGI against $0.5 billion), Form 4797 net gain $56.3 billion against $37.9 billion and net loss $52.3 billion
+  # against $18.5 billion.
   - id: business
     kind: business
     statistic: [count, amount]
     population: filers
-    variable: [rent_royalty_net_income, rent_royalty_net_loss]
+    variable: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
+               other_gains_net_gain, other_gains_net_loss]
     cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
     reason: >-
-      variable: estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met
-      (with standard errors they could come back, giving way where they conflict)
+      variable: estates and trusts, left out on 22 and 24 October because their tiny cells could not always be met,
+      are back under standard errors (autoresearch, 4 November), with Form 4797's gain and loss
+
+  # (autoresearch, 4 November) Alimony received and paid, Table 1.4, all AGI. The draw carries 2015's alimony into
+  # every year; the 2017 law ends the inclusion and the deduction for divorces from 2019, so the payments run off
+  # (SOI: 344,000 returns with alimony received in 2019, 184,000 in 2023; run3's files 538,000 and 577,000).
+  - id: alimony
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: [alimony, alimony_paid]
+    cells: all
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: all, target: '{variable} {statistic}'}
 
   # Farm and farm rental income (1 November, decision 71): one overall target each, net income and net loss, returns and
   # dollars, no AGI groups; the cells by AGI group held 1,200 to 140,000 returns.
