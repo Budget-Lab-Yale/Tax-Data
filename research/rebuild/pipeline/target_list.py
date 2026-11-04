@@ -635,6 +635,35 @@ def table_16_by_agi(year):
     return out
 
 
+def published_12_agi(soi, year, cells, stats):
+    """(Autoresearch, round 8) Table 1.2's returns by filing status within AGI groups (targets/soi.csv's Table 1.2
+    rows, read by targets.read): each group sums the published cells inside it, the groups merged where a published
+    cell of any of the entry's statuses crosses an edge (merge_groups), as Table 1.4's groups are."""
+    assert stats == ['units'], 'Table 1.2 by AGI: returns only'
+    four = {'single': 'single', 'joint': 'joint', 'separate': 'separate', 'head of household': 'head_of_household'}
+    (gname,) = {c['agi'] for c in cells}
+    g = CAT['groupings'][gname]
+    groups = [(-np.inf if lo is None else float(lo), np.inf if hi is None else float(hi), lab) for lo, hi, lab in g['edges']]
+    st_of = {}
+    for c in cells:
+        (fname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'filing_status']
+        st_of[c['label']] = four[c['parts'][fname]]
+    pc = {st: TG.published_cells(soi, year, 'returns', 'count', '1.2', st) for st in set(st_of.values())}
+    groups = merge_groups(groups, [(lo, hi, '') for cl in pc.values() for lo, hi, _ in cl])
+    rows = []
+    for c in cells:
+        st = st_of[c['label']]
+        cl = pc[st]
+        for lo, hi, lab in groups:
+            inside = [v for l_, h_, v in cl if l_ >= lo and h_ <= hi]
+            assert inside, f'Table 1.2 {year}, {st}: no published cell in {lab}'
+            spec = {**c, 'label': f'{lab}, {c["label"]}'}
+            rows.append({'cell': spec['label'], 'cell_spec': spec, 'agi': (lo, hi), 'statistic': 'units',
+                         'value': float(sum(inside)),
+                         'source': f'soi 1.2 {year}: returns of {st}, {len(inside)} AGI cell(s) summed'})
+    return rows
+
+
 def published_16_agi(year, cells, stats):
     """Rows of returns by the primary filer's age range (26 and over) within AGI groups, Table 1.6's All returns
     panel. Each AGI group sums the published columns inside it (Table 1.6's columns are Table 1.4's brackets, so the
@@ -1625,6 +1654,8 @@ def expand_entry(e, year, soi):
             rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
         elif vkind == 'published' and src == 'soi 2.5':
             rows = published_25(vyear, cells, v, stats)
+        elif vkind == 'published' and src == 'soi 1.2' and any(c['agi'] for c in cells):
+            rows = published_12_agi(soi, vyear, cells, stats)
         elif vkind == 'published' and src == 'soi 1.6' and any(c['agi'] for c in cells):
             rows = published_16_agi(vyear, cells, stats)
         elif vkind == 'published':

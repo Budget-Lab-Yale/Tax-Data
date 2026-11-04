@@ -212,6 +212,19 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
 
+  # (autoresearch, round 8) SOI Table 1.2: returns of single filers, married people filing separately and heads of
+  # household in each group of the standard AGI grid (joint returns follow from these, Table 1.4's returns and the joint
+  # total). Untargeted, run3's 2019 file had 0.63-0.70 of SOI's single returns at AGI $1-10 million and 1.8 times its
+  # joint returns at $10,000-15,000. Errors borrowed as for Table 1.6 by AGI (Table 1.4's count cells in the same group).
+  - id: status_returns_by_agi
+    kind: status by AGI
+    statistic: units
+    population: filers
+    cells: {filing_four: [single, separate, head of household], standard_agi_groups: all}
+    value: {published: soi 1.2}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
   # (autoresearch, 4 November) SOI Table 1.6: returns of heads of household and of married people filing separately
   # by the primary filer's age range, all six ranges, all AGI. The entry above leaves the split of non-joint returns
   # between single filers and heads of household free within each age, and the draw puts heads of household too young:
@@ -284,6 +297,21 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: state_ref
+    cells: {business_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, round 7) More of Table 1.4 in the business AGI groups: statutory adjustments, tax-exempt interest,
+  # unemployment compensation, taxable IRA distributions and taxable pensions. After round 6 these were the
+  # untargeted Table 1.4 lines with the most cells beyond 3 standard errors (2023 statutory adjustments: 41.6 million
+  # returns in run3's file against SOI's 35.8 million; 2019 tax-exempt interest at $5-10 million $4.3 billion against
+  # $3.0 billion).
+  - id: irs_more_items
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: [statutory_adjustments, exempt_int, ui, txbl_ira_dist, txbl_pens_dist]
     cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}

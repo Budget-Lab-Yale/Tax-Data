@@ -343,7 +343,7 @@ def soi_errors(rows, year):
                         f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
                         f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
             continue
-        if r.kind == 'age by AGI':
+        if r.kind in ('age by AGI', 'status by AGI'):   # (round 8) Table 1.2 by AGI borrows the same way
             # (3 November 2026, John) Table 1.6 by AGI. In an AGI group where SOI samples every return (Table 1.4's
             # number of returns there has no sampling error: the $10,000,000-or-more class), the judgment number Table
             # 1.4's and Table 4.3's fully sampled cells get. Elsewhere the CV is borrowed by count as for the totals by
@@ -716,7 +716,7 @@ def standard_errors(rows, year=Y):
     grid = rows['source'].astype(str).str.match(r'soi (4\.3|2\.5) ') if 'source' in rows else pd.Series(False, index=rows.index)
     grid_calc = grid & (rows.kind == 'calculator')
     table21 = table21 | grid_calc
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'age by status', 'business', 'dependent filers', 'calculator']) & ~table21,
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'age by status', 'status by AGI', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
           'older ages': rows.kind == 'older ages'}

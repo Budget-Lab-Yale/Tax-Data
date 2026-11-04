@@ -57,6 +57,17 @@ T14 = {  # SOI item -> (variable, statistic)
     'total wages > total > amount': ('wages', 'amount'),
     'taxable interest > number of returns': ('taxable_interest', 'count'),
     'taxable interest > amount': ('taxable_interest', 'amount'),
+    # (autoresearch round 7) more of Table 1.4's lines, for targets in the broad AGI groups
+    'statutory adjustments > total > number of returns': ('statutory_adjustments', 'count'),
+    'statutory adjustments > total > amount': ('statutory_adjustments', 'amount'),
+    'tax exempt interest > number of returns': ('tax_exempt_interest', 'count'),
+    'tax exempt interest > amount': ('tax_exempt_interest', 'amount'),
+    'unemployment compensation > number of returns': ('unemployment', 'count'),
+    'unemployment compensation > amount': ('unemployment', 'amount'),
+    'taxable individual retirement arrangement (ira) distributions > number of returns': ('taxable_ira', 'count'),
+    'taxable individual retirement arrangement (ira) distributions > amount': ('taxable_ira', 'amount'),
+    'pensions and annuities > taxable > number of returns': ('taxable_pensions', 'count'),
+    'pensions and annuities > taxable > amount': ('taxable_pensions', 'amount'),
     'capital gain distributions reported on form 1040 > number of returns': ('capital_gain_distributions', 'count'),
     'capital gain distributions reported on form 1040 > amount': ('capital_gain_distributions', 'amount'),
     'qualified dividends > number of returns': ('qualified_dividends', 'count'),
@@ -209,11 +220,11 @@ def returns(soi, year, table='1.4', status='all'):
     return s['value'].item()
 
 
-def published_cells(soi, year, variable, stat, table='1.4'):
+def published_cells(soi, year, variable, stat, table='1.4', status='all'):
     """An item's cells by AGI as published in a table (Table 1.4 unless said), lowest first, as (lo, hi, value).
     A non-blank 'combined' cell holds its own bracket and the blank ones after it,
     so it becomes one cell spanning them."""
-    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == 'all')
+    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == status)
             & (soi['variable'] == variable) & (soi['statistic'] == stat) & (soi['label'] != 'all')]
     out = []
     pending = None   # (autoresearch, 4 November) a blank lowest cell: SOI put it in a later 'combined' cell
