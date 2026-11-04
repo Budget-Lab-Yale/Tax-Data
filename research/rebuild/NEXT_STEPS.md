@@ -47,9 +47,12 @@ a run of the years it touches, a comparison with the run before it, and John's a
    credits grow 3.5-4.8% a year with no jump between years. Merged (6239d27) and installed in `bigrun/run/2036-2075`.
    Open: the child credit moves in steps of up to 2.5% a year past 2035; cause not checked.
 
-   **Placeholder until then:** the billionaires after the last Forbes list (2027-2035) are held at their starting
-   weight in the solver (settings `tilt.top.after_last_list.fixed`). Left free on 2 November, the solver cut the ten
-   richest to weights near zero (`explore/2026-11-02/billionaires/RESULTS.md`).
+   **The billionaires after the last Forbes list** (John, 4 November): records like any other, aged naively and held at
+   their starting weight in the solver (settings `tilt.top.after_last_list.fixed`; left free on 2 November, the solver
+   cut the ten richest to weights near zero). In a list year no other record may be at or above $1 billion
+   (`top_records.hold_below_ceiling`; 2024-2026 had 82-292 grown 2023 records there). After the last list, records grown
+   past $1 billion stay as the new billionaires; wealth above $1 billion in 2026 dollars rises from 4.7% of net worth in
+   2026 to 6.9% in 2075, the top 0.001%'s share from 5.0% to 6.1% (`explore/2026-11-04/billionaires_talk/shares.csv`).
 5. **Done, 3 November: tax-simulator-gpu master pushed,** with the AMT senior deduction fix, car loan interest below
    the line, and the QBI income limit net of the Schedule 1-A deductions (`explore/2026-11-03/simfixes2/`). The R
    Tax-Simulator's AMT and QBI fixes are on its branch `fix/senior-deduction-amt-itemizers`, pushed, not merged.
