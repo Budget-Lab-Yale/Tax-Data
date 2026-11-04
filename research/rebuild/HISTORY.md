@@ -995,6 +995,28 @@ wave's code 2025). The three networks were retrained on the new table and 2019, 
 The 2025 wave shows twice the inheritances of the earlier waves ($1.09 trillion in 2024 against $0.55-0.59 trillion
 in 2018 and 2021), mostly from about a dozen households reporting $1-6 million.
 
+### 3 November (evening): the day's branches merged into `rebuild-joint-model`
+
+John approved each merge (scratch `explore/2026-11-03/`, one RESULTS.md per piece):
+- **The projection years' design** (`rebuild-addfactors`, with `rebuild-proj-a`, `-proj-b`, `-itemcbo-base` and
+  `-proj-noitem` under it; `proj_A/`, `proj_B/`, `noitem/`, `addfactors/`). Each year 2024-2035 starts from the 2023
+  file: weights calibrated to people by age and marital status, one dollar factor per item from John's series, then
+  the main reweighting. No itemizer count target; the AMT payer count is kept. Medical expenses grow with AGI per
+  return times CBO's PCE medical price over its PCE price. Add factors on the Schedule A items: +2% a year in
+  2024-2028, +1% in 2029-2033, none after.
+- **Social Security and pensions** (`rebuild-pensions`, `pensions/`): the network draws gross Social Security,
+  taxable pensions and the non-taxable rest; gross pensions are the two parts added, and taxable Social Security is
+  computed by the section 86 worksheet. Broad income no longer counts Social Security twice; the Forbes records' IRA
+  distributions are no longer in their pensions. The projection items table follows: no row for taxable Social
+  Security, and a row for the rest on CBO's pensions line in place of `retirement_gross`'s.
+- **Two small fixes** (`rebuild-small-fixes`): other itemized deductions held at zero from below in the table. Its
+  broad income fix was covered by the pensions branch, whose version was kept.
+- **The 2025 SCF and inheritances** (`rebuild-scf2025`, `scf2025/`), as built overnight; John decided the 2025 wave
+  goes in as it is, with no adjustment to its inheritances, and the top left as the SCF has it. The conflicts with the
+  later work were resolved in its favour; the projection items table got a row for the inheritance item (grown by its
+  growth.yaml rule, not targeted).
+- **The RA's check tool** (`rebuild-tabtool`, `check_tool/`), outside the pipeline.
+
 ## Paths tried and not taken
 
 | What | Why not |

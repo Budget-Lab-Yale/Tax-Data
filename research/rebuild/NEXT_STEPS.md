@@ -1,27 +1,28 @@
-# Next steps (as of 3 November 2026)
+# Next steps (as of 3 November 2026, evening)
 
-The pipeline builds a file for every year 2015-2035 from one branch (`FEATURES.md`). The work of 29 October to 2
-November is merged on `rebuild-integration-1102`; how its runs came out is in scratch
-`explore/2026-11-02/integration/RESULTS.md`. Paths starting `explore/` are under
+The pipeline builds a file for every year 2015-2035 from one branch, `rebuild-joint-model` (`FEATURES.md`). The day's
+branches are merged on it (projection design with add factors, Social Security and pensions, small fixes, the 2025
+SCF with inheritances, the check tool), and the full run on the merged code (retrain, new draws, every year) is in
+scratch `explore/2026-11-03/bigrun/RESULTS.md`. Paths starting `explore/` are under
 `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch, a run of the years it
 touches, a comparison with the run before it, and John's approval.
 
-## Near-term steps (John, 2 November evening; brought up to 3 November)
+## Near-term steps (John, 2 November evening; brought up to 3 November evening)
 
 1. **Done, 3 November: 2023 and its Forbes list.** The slow 2023 solve came from the soft cap meeting Table 4.3's tight
    top 0.001% cells, which the list fills a quarter of, not from a wrong target (`explore/2026-11-03/forbes2023/`).
-   John raised the Newton budget from 100 to 150 and switched the 2023 list back on; 2023 converges in 92-103 steps
-   depending on the processor count (`explore/2026-11-03/budget150/`).
-2. **Done, 3 November: the merge** of `rebuild-integration-1102` into `rebuild-joint-model` (c526b34), then the 150-step
-   budget (branch `rebuild-budget150`).
-3. **Code simplification:** combined on branch `rebuild-simplify` (0827468), every output identical; not merged
-   (`explore/2026-11-03/MORNING.md`, section E).
-4. **The projection years (2024-2035), being redesigned with John.** The steps agreed so far are in
-   `explore/2026-11-02/projection_design/DESIGN.md`: each year starts from the 2023 file and the years stay
-   independent; a small reweighting first to exact person counts by age and marital status (the 2023 file's counts
-   grown with CBO's population growth); one dollar factor per item so its total grows at CBO's rate; then the main
-   reweighting, with itemizer and AMT counts indexed from 2023. Next to design: the number of returns. Nothing is
-   built until the whole design is agreed.
+   John raised the Newton budget from 100 to 150 and switched the 2023 list back on.
+2. **Done, 3 November: the merges** of `rebuild-integration-1102`, the 150-step budget, the code simplification, the
+   calculator pin (tax-simulator-gpu c89e2729), and in the evening `rebuild-addfactors`, `rebuild-pensions`,
+   `rebuild-small-fixes`, `rebuild-scf2025` and `rebuild-tabtool` (`HISTORY.md`, 3 November).
+3. **Done, 3-4 November: the full run on the merged code**: three networks retrained on the new table (the rest of
+   pensions as a slot, the 2025 SCF wave, the inheritance item), every year 2015-2023 drawn and reweighted, 2024-2035
+   from the new 2023 (`explore/2026-11-03/bigrun/RESULTS.md`). Not installed: the install waits for John.
+4. **The projection years (2024-2035).** John's three-step design is built and merged (`FEATURES.md`, "The projection
+   years in three steps"): people by age and marital status, one dollar factor per item from John's series, then
+   the main reweighting with no itemizer target and the AMT payer count kept. The Schedule A add factors (+2% a year
+   2024-2028, +1% 2029-2033) are a crude step toward CBO's itemized deductions, to be revisited at each CBO update.
+   Still to design: the number of returns (CBO's 2023 count is 4.4 million above SOI's; `explore/2026-11-03/noitem/`).
 
    **Placeholder until then:** the billionaires after the last Forbes list (2027-2035) are held at their starting
    weight in the solver (settings `tilt.top.after_last_list.fixed`). Left free on 2 November, the solver cut the ten
@@ -29,8 +30,11 @@ touches, a comparison with the run before it, and John's approval.
 5. **Done, 3 November: tax-simulator-gpu master pushed,** with the AMT senior deduction fix, car loan interest below
    the line, and the QBI income limit net of the Schedule 1-A deductions (`explore/2026-11-03/simfixes2/`). The R
    Tax-Simulator's AMT and QBI fixes are on its branch `fix/senior-deduction-amt-itemizers`, pushed, not merged.
-6. **The 2025 SCF and inheritances:** on branch `rebuild-scf2025`, not merged (`explore/2026-11-03/MORNING.md`,
-   section B); not yet reviewed with John.
+6. **Inheritances in the files.** The item is drawn now; open are the top (the SCF and the file have almost no heirs
+   above $18 million; estate data imply about $90-100 billion more a year), the 2013 and 2022 waves' year weights,
+   and Tax-Simulator's columns for it (`taxsim_file.py` does not yet write it; `explore/2026-11-03/scf2025/RESULTS.md`,
+   section 6). The 2025 files should move to the shared raw-data folder, and the setting `paths.raw.scf_wave_dirs`
+   then go.
 
 ## Other to-dos (not in order)
 
@@ -46,17 +50,13 @@ touches, a comparison with the run before it, and John's approval.
 - **Interest against CBO's line.** The rebuild is about 50% above CBO's line for interest and non-qualified dividends
   in 2024-2029 (2024: $465 billion against $310 billion; production is about 7% below). The rebuild matches SOI's
   2023 taxable interest ($314 billion), while CBO's 2023 line is $287 billion, so part of the gap is CBO's stale
-  base (part of step 4).
+  base.
 - **Series flags from 1-2 November** (`explore/2026-11-01/tax_expenditures/series/RESULTS.md`): the 2020-2021 files
   hold about 1,500 records above weight 5,000; non-filers jump 19% in 2023 and miss their target in even years.
-- **Inheritances** drawn by the network as an SCF item at the next retrain, the simulator scaling heir dollars to its
-  bequests (`explore/2026-11-02/inheritances/RESULTS.md`). Open for John: the SCF's thin top (about 4 households a
-  wave above $5 million). Until then the rebuild's runs go without heir data: its record ids do not match the heir
-  file's (`explore/2026-11-02/estate_heirs/RESULTS.md`).
-- **The 2025 SCF and inheritances** (built 3 November on `rebuild-scf2025`, not merged; scratch
-  `explore/2026-11-03/scf2025/RESULTS.md`): open are the 2025 wave's doubled inheritances, the top of the item, the
-  simulator's columns for it, and moving the 2025 files to the shared raw-data folder.
-- **Slimming the pipeline** (after the simplification agents).
+- **Heir data in Tax-Simulator.** The rebuild's runs go without the heir file: its record ids do not match the
+  rebuild's (`explore/2026-11-02/estate_heirs/RESULTS.md`). The plan is for the simulator to read the drawn
+  inheritance item and scale heir dollars to its bequests (`explore/2026-11-02/inheritances/RESULTS.md`; step 6).
+- **Slimming the pipeline** further (the simplification of 3 November is merged).
 - **Not to be merged:** `rebuild-puf-start` (John, 2 November).
 
 ## Open questions for John
@@ -71,9 +71,6 @@ touches, a comparison with the run before it, and John's approval.
 - The CPS has more units aged 65 and over than SOI's Table 1.6 and the non-filer targets allow. With the CPS's counts
   within 65 and over as targets, Table 1.6's 65+ returns end 1.1-2.1 standard errors above SOI
   (`explore/2026-11-02/age_targets/RESULTS.md`).
-- From 2024 the file's gross Social Security grows faster than its source, by about 8% in total by 2035. A gross
-  benefit target in projection years would remove it (`explore/2026-11-02/social_security/RESULTS.md`, item 7). Part
-  of item 1.
 
 ## Done outside this repository (2 November)
 

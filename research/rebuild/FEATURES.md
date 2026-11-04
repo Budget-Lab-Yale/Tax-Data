@@ -304,7 +304,7 @@ them, separate returns by the CEX's rule.
   tipped returns and workers and the amount.
 
 **Auto loan interest** (since 27 October; `build_scf.R`). The SCF's own vehicles 1-4 (every wave the model uses:
-2013, 2016, 2019, 2022, with the same items and codes): the amount still owed (X2218, X2318, X2418, X7169) times the
+2013, 2016, 2019, 2022 and, since 3 November, 2025, with the same items and codes): the amount still owed (X2218, X2318, X2418, X7169) times the
 current annual rate in hundredths of a percent (X2219, X2319, X2419, X7170) over 10,000, Tedeschi's car interest
 rule; a rate coded -1 (no interest) reads as 0. A household debt, divided among the PEU's units as installment debt
 is, none to units outside the PEU (the group's vehicle loans are not asked). An SCF-only amount, drawn in the SCF
@@ -1649,7 +1649,7 @@ empty table (a header only) gives every item an add factor of exactly 1, and the
 feature (checked on 2026: scratch `explore/2026-11-03/addfactors/RESULTS.md`). The Forbes list's records are outside
 step 2, so add factors do not touch them.
 
-## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, 3 November)
+## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, merged 3 November)
 
 John's decision of 3 November; it took effect with the retrain of 3-4 November (scratch `explore/2026-11-03/bigrun/`). Results: scratch `explore/2026-11-03/pensions/RESULTS.md`. It replaces the post-draw patch of
 `explore/2026-11-03/pairs_C/`, which John did not take.
@@ -1692,7 +1692,7 @@ John's decision of 3 November; it took effect with the retrain of 3-4 November (
 - **Elsewhere.** The non-microdata imputations' broad income adds gross pensions, not `retirement_gross` (which
   counted gross Social Security twice); `calculator.convert` takes `gross_pens_dist` from the two parts.
 
-## The 2025 SCF wave and inheritances received this year (branch `rebuild-scf2025`, 3 November)
+## The 2025 SCF wave and inheritances received this year (branch `rebuild-scf2025`, merged 3 November)
 
 **The 2025 wave.** The Federal Reserve released the 2025 SCF in October 2026. Its files (the full public data set, the
 summary extract, the replicate weights, the codebook) were downloaded to scratch `explore/2026-11-03/scf2025/raw/`
@@ -1720,7 +1720,10 @@ household net worth per person (growth.yaml series `scf net worth per unit betwe
 (generation's rule for every survey slot). Its random stream is the last in `dollars.ORDER`. The top is not adjusted:
 the SCF has a handful of households a wave with more than $5 million. Weighted, the waves give 2.3, 2.2, 2.9, 3.0 and
 3.8 million inheritances and $367, 372, 554, 595 and 1,088 billion (income years 2012, 2015, 2018, 2021, 2024).
-Results of the retrain: scratch `explore/2026-11-03/scf2025/RESULTS.md`.
+Results of the retrain: scratch `explore/2026-11-03/scf2025/RESULTS.md`. In the projection years the item has a row in the
+items table (`projection_items.csv`: series `current`, so its growth.yaml rule; not targeted). The networks of the
+full run on the merged code (scratch `explore/2026-11-03/bigrun/`) are the first trained with this item and the
+pensions slots together.
 
 ## How the latest runs come out (2 November 2026)
 
