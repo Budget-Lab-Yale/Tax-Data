@@ -744,6 +744,30 @@ def cps_neighbours(year):
     return lo, hi
 
 
+def taxdata_nonfiler_rows(year, cells, v, stats):
+    """(Autoresearch, round 9) An item of the non-filers in the pipeline's tax data for the year (data/tax_data_<year>
+    .parquet, the CPS units weighted by their chance of not filing, their amounts in PUF terms before the training's
+    fill-in): its amount, or the units with it (statistic count). A year with no tax data file takes the geometric mean
+    of the CPS years either side, as the non-filer count does. Cells all."""
+    assert cells == [group_cells('all')[0]], 'tax data non-filers: cells all only'
+    def one(y):
+        t = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
+        t = t[t['filer'] == 0]
+        x = record_value(t, v); w = t['weight'].to_numpy(float)
+        assert np.isfinite(x).all() and np.isfinite(w).all(), f'tax data {y}: {v} or weight missing on a non-filer'
+        return {'amount': float((w * x).sum()), 'count': float(w[x != 0].sum())}
+    if os.path.exists(f'{common.DATA}/tax_data_{year}.parquet'):
+        vals, how = one(year), f'tax data {year}'
+    else:
+        lo, hi = cps_neighbours(year)
+        a, b = one(lo), one(hi)
+        vals = {k: float(np.sqrt(a[k] * b[k])) if a[k] > 0 and b[k] > 0 else (a[k] + b[k]) / 2 for k in a}
+        how = f'geometric mean of the tax data of {lo} and {hi}'
+    return [{'cell': 'all', 'statistic': st, 'value': vals[st],
+             'source': f'{how}: non-filers (CPS units weighted by their chance of not filing), {v}, {st}, before the fill-in'}
+            for st in stats]
+
+
 def nonfiler_count(year):
     """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
     the generated non-filer batch is sized by (generate.cps_expected_nonfilers). A year with no CPS units (an even
@@ -1662,6 +1686,10 @@ def expand_entry(e, year, soi):
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
             rows = survey_rows(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'pipeline' and src == 'tax_data_nonfilers':
+            rows = taxdata_nonfiler_rows(vyear, cells, v, stats)
+            for r in rows:
+                r['cell_spec'] = cells[0]
         elif vkind == 'pipeline':
             rows = pipeline_rows(vyear, cells, v, stats)
             for r in rows:

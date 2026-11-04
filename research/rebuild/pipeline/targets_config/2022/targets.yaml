@@ -131,6 +131,31 @@ targets:
         million claimed dependents)
     key: {group: 'non-filers, {label}', target: people}
 
+  # (autoresearch, round 9) Non-filers' dividends, against the non-filers of the pipeline's own tax data, with a wide
+  # error: the CPS-label draw puts large dividends on non-filers the source does not have (run3's 2019 file $30.0 billion
+  # on 3.1 million non-filers, $13.8 billion of it on 46,000 units with $100,000 or more, against $7.1 billion on 2.1
+  # million in the source; 2023 $51 billion against $7.7 billion). The source is before the fill-in of holders the CPS
+  # misses, so the error is half the value (amount) and a quarter (holders).
+  - id: nonfiler_dividends
+    kind: non-filer items
+    statistic: amount
+    population: non_filers
+    variable: ordinary_dividends
+    cells: all
+    value: {pipeline: tax_data_nonfilers}
+    error: {kind: judgment, relative: 0.5, reason: 'the source is before the fill-in of the dividend holders the CPS misses'}
+    key: {group: all, target: 'non-filers, {variable} {statistic}'}
+
+  - id: nonfiler_dividend_holders
+    kind: non-filer items
+    statistic: count
+    population: non_filers
+    variable: ordinary_dividends
+    cells: all
+    value: {pipeline: tax_data_nonfilers}
+    error: {kind: judgment, relative: 0.25, reason: 'the source is before the fill-in of the dividend holders the CPS misses'}
+    key: {group: all, target: 'non-filers, {variable} {statistic}'}
+
   # SOI Table 1.7: dependent filers' returns by AGI bracket. Dependent filers are real returns, counted in every SOI
   # table (TARGETS.md section 10), but nothing else fixes how many there are, so the tilt could fill the Table 1.6
   # age counts with them: in the first run with consumption hit exactly (24 October) they rose from 9.85 to 21.92

@@ -206,6 +206,14 @@ sources:
     what: >-
       the Federal Reserve's Financial Accounts, households and nonprofit organizations, net worth (S1M.b,
       FL152090005), fourth quarter; past 2025 held at its 2025 ratio to nominal GDP
+  # (autoresearch, round 9) the non-filers of the pipeline's tax data (target_list.taxdata_nonfiler_rows)
+  tax_data_nonfilers:
+    kind: pipeline
+    built_by: [filing.py, build_cps.R, build_table.py]
+    tax_unit_rules: shared_cbo
+    what: >-
+      The non-filers of the year's tax data (build_table.tax_data): CPS units weighted by their chance of not filing,
+      their amounts in PUF terms after the translation's first step and before the training's fill-in.
   filing_stage:
     kind: pipeline
     built_by: [filing.py, build_cps.R, build_table.py]
@@ -231,6 +239,7 @@ tax_unit_rules:
       cps: [cps.cbo_variant, filing.mfs_salt]
       cps units: [cps.cbo_variant, filing.mfs_salt]
       filing_stage: [cps.cbo_variant, filing.mfs_salt]
+      tax_data_nonfilers: [cps.cbo_variant, filing.mfs_salt]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Populations: which units a target is about. A share or an average is over the population's units in the cell.
