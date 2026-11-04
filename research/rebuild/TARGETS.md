@@ -760,7 +760,11 @@ start by construction. Now the weights must put SOI's number of returns above SO
 `soi_4_3_returns` entry. Its error is 1% of the value (`errors.full_sample_se`) where the cutoff is $10 million or
 more, since SOI samples every such return (the top 0.01% and 0.001% in every year). Below that (the top 0.1% and 1%)
 it is the median CV of the Table 1.4 count cells closest in number of returns among the AGI classes reaching above the
-cutoff (`errors.borrow_cv`; John, 4 November 2026). Until 4 November the cells came from every AGI class, so the top
+cutoff (`errors.borrow_cv`; John, 4 November 2026). The same rule covers every count in those two groups (returns with
+wages, gains, dividends and so on); the amounts are unchanged. On the big run's draws (scratch
+`explore/2026-11-04/t43se/`) the top 0.1% count's CV falls from 7.8-8.2% to 0.4-0.5% and the item counts' from up to
+26% to 0.4-2.2%; every one is still met (within 0.04 standard errors), Newton steps 49, 67, 53 in 2015, 2019, 2023
+(36, 65, 61 before), effective sample kept unchanged. Until 4 November the cells came from every AGI class, so the top
 0.1% (141,000 returns in 2015) borrowed 8.2% from cells such as partnership income at $15,000-$20,000 of AGI, which
 SOI samples lightly; the same rule as Table 1.6's age-by-AGI cells (S14). A year
 with no published cutoff for a targeted group stops the run; every year 2015-2023 has all of them.
