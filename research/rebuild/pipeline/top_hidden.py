@@ -1163,17 +1163,19 @@ def table_43(year):
     return out
 
 
-def top_groups(df, w, label):
-    """The file's top 0.001%, 0.01% and 0.1% by AGI among returns other than dependent filers: returns, AGI floor,
-    AGI and the items (target_list.record_value, the tilt's own definitions)."""
+def top_groups(df, w, label, pub):
+    """The file's top 0.001%, 0.01% and 0.1% among returns other than dependent filers, each at SOI's published AGI
+    floor for the year (pub, table_43's; the groups' lines in the tilt since 3 November): returns, the floor, AGI and
+    the items (target_list.record_value, the tilt's own definitions), and the file's own percentile line beside it."""
     import target_list as TLS
     pop = (df['filer'].to_numpy() == 1) & (df['age_range'].to_numpy() < common.ADULT_RANGES)
     a = D.agi(df)
     rows = []
     for gname, p in T43_GROUPS.items():
-        line = float(common.wquantile(a[pop], w[pop], [p / 100])[0])
+        line = pub[gname]['AGI floor']
         m = pop & (a >= line)
-        r = {'file': label, 'group': gname, 'returns': w[m].sum(), 'AGI floor': line, 'agi': (w * a)[m].sum()}
+        r = {'file': label, 'group': gname, 'returns': w[m].sum(), 'AGI floor': line, 'agi': (w * a)[m].sum(),
+             'file percentile line': float(common.wquantile(a[pop], w[pop], [p / 100])[0])}
         for k in T43_ITEMS:
             if k in ('returns', 'agi'):
                 continue
@@ -1202,7 +1204,7 @@ def check():
     both = pd.concat([d15, h[d15.columns]], ignore_index=True)
     wb = np.concatenate([w15, h15['weight'].to_numpy(float)])
     pub = table_43(PY)
-    res = [top_groups(d15, w15, 'generated filers'), top_groups(both, wb, 'with the rebuilt returns')]
+    res = [top_groups(d15, w15, 'generated filers', pub), top_groups(both, wb, 'with the rebuilt returns', pub)]
     res.append(pd.DataFrame([{'file': f'SOI Table 4.3, {PY}', 'group': k, **v} for k, v in pub.items()]))
     t15 = pd.concat(res, ignore_index=True)
     t15.to_csv(f'{out}/check_table43_{PY}.csv', index=False)
@@ -1220,12 +1222,12 @@ def check():
     soi = TG.load()
     full = pd.concat([g19, hid.drop(columns=['synthetic_top'])], ignore_index=True)
     res = []
+    pub = table_43(Y)
     for name, df in [('generated file', g19), ('with the rebuilt returns', full)]:
         imp = df['weight'].to_numpy(float)
         filer = df['filer'].to_numpy() == 1
         w0 = np.where(filer, imp * TG.returns(soi, Y) / imp[filer].sum(), imp)
-        res.append(top_groups(df, w0, name))
-    pub = table_43(Y)
+        res.append(top_groups(df, w0, name, pub))
     res.append(pd.DataFrame([{'file': f'SOI Table 4.3, {Y}', 'group': k, **v} for k, v in pub.items()]))
     t19 = pd.concat(res, ignore_index=True)
     t19.to_csv(f'{out}/check_table43_{Y}.csv', index=False)

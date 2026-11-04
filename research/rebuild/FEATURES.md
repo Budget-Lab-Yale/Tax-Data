@@ -1010,9 +1010,18 @@ The 2019 targets (789 on 28 October; 787 from the next run, with the overtime gr
 **Tables 1.3 and 4.3** (since 27 October; `targets_config/2019/targets.yaml`, read from the local IRS-Ind store's tidy files, settings
 `paths.raw.soi_tables`). Errors are borrowed from the nearest Table 1.4 cells. Table 1.3's capital loss is measured
 on the file as the loss allowed on the return (at most $3,000, $1,500 if married filing separately; catalog
-transform `loss_allowed`), which is what SOI publishes. Table 4.3's groups are set by AGI rank on the file's
-starting weights and held fixed in dollars through the tilt. Its top 0.001% is not a group of its own: the file
-probably lacks those records until the PUF's aggregate records are unpacked (John, 26 October).
+transform `loss_allowed`), which is what SOI publishes. Table 4.3's groups (since 3 November, John; `TARGETS.md`
+S15) are the returns other than dependent filers' with AGI at or above SOI's published cutoff for each group and
+year (the item "adjusted gross income floor on percentiles"; catalog grouping `agi_cumulative`, `cutoffs:
+published`), fixed through the tilt; a missing cutoff stops the run, and every year 2015-2023 has them. The count
+of returns above each cutoff is a target like the others (its error borrowed from Table 1.4's count cells, or 1%
+where the cutoff is $10 million or more). Before, the groups were set at the starting file's own AGI percentiles,
+which sat above SOI's because the draw is too heavy at the top (2015: $504,632 for the top 1% against SOI's
+$480,930), so SOI's totals were imposed on too few returns. On the 1 November draws (scratch
+`explore/2026-11-03/t43_lines/RESULTS.md`), the change met the 2015 top 1% (returns and wages had been 2.3 and 2.6
+standard errors short), left 2019 and 2023 almost unchanged, cut the Newton steps from 78, 73 and 99 to 41, 50 and 62
+in 2015, 2019 and 2023, and kept the same effective sample. The top 0.001% was folded into the top 0.01% from 26
+October until the PUF's aggregate records were rebuilt (29 October, `top_hidden.py`); it is a group of its own again.
 
 **Tips** (since 27 October; `targets_config/2019/targets.yaml`, settings `paths.raw.soi_w2`; the W-2 reader handles the 2019 and 2020
 layout only). The file's tips are measured as box 7 holds them: each person's tips at most the Social Security wage

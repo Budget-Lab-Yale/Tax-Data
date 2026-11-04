@@ -35,8 +35,9 @@ pools them half and half (section 8).
 
 **3. Each year t: the targets.** Facts about year t, each with a value and a standard error (sections 2, 3, 9):
 - hand-written in the configuration: SOI detail in historical years (AGI brackets with the five top ones separate,
-  income items and their composition at the top, income items by filing status (Table 1.3) and in the top 0.01%,
-  0.1% and 1% (Table 4.3), business income, ages, dependent filers, W-2 tips), SCF wealth at the top and by asset
+  income items and their composition at the top, income items by filing status (Table 1.3) and in the top 0.001%,
+  0.01%, 0.1% and 1% (Table 4.3, each group at SOI's published AGI cutoff, S14), business income, ages, dependent
+  filers, W-2 tips), SCF wealth at the top and by asset
   type, an SCF income x net worth grid (26 October), SCF auto loan interest, CEX consumption, the non-filer count
   and non-filer people by age; in future years, macro
   totals and population by age (projected totals may be exact, to match the baseline);
@@ -740,3 +741,24 @@ against SOI's 30%; scratch `explore/2026-11-03/top_wages_2015/RESULTS.md`).
   groups are one, $40k-75k, for every age, and the 26-34 cell is the row's total less its other columns
   (`target_list.published_16_agi`, which stops on any other row that does not add up).
 - Results: scratch `explore/2026-11-03/age_by_agi/RESULTS.md`.
+
+### S15. Table 4.3's groups at SOI's published AGI cutoffs (John, 3 November 2026)
+
+Each Table 4.3 group (the top 0.001%, 0.01%, 0.1% and 1% of returns other than dependent filers') is the returns
+with AGI at or above the cutoff SOI publishes for that group and year (the item "adjusted gross income floor on
+percentiles" in `pctile_top_items.csv`; catalog source `soi 4.3`, its `cutoff_item`; grouping `agi_cumulative`,
+`cutoffs: published`). The cutoff is in nominal dollars of the year and does not move in the tilt. The population is
+unchanged, and so are the targets: SOI's counts and amounts for each group.
+
+Before, each group's line was the starting file's own percentile in dollars, held fixed. Because the draw is too
+heavy at the top, those lines sat above SOI's: in 2015, $504,632 for the top 1% against SOI's $480,930, and $2.55
+million for the top 0.1% against $2.22 million. SOI's totals were then imposed on a smaller, richer set of returns
+(scratch `explore/2026-11-03/top_wages_2015/RESULTS.md`).
+
+**The count of returns above each cutoff is now a real target.** With the file's own line, the count held at the
+start by construction. Now the weights must put SOI's number of returns above SOI's cutoff. It is the existing
+`soi_4_3_returns` entry, with the same rule for its error as the other SOI counts: the median CV of the Table 1.4
+count cells closest in number of returns (`errors.borrow_cv`), or 1% of the value (`errors.full_sample_se`) where the
+cutoff is $10 million or more, since SOI samples every such return (the top 0.01% and 0.001% in every year). A year
+with no published cutoff for a targeted group stops the run; every year 2015-2023 has all of them.
+

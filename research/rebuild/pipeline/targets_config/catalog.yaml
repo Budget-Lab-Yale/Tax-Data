@@ -54,6 +54,7 @@ sources:
   # variable's item and measure (variables, "published") and the grouping's published labels (groupings). Errors are
   # borrowed from the nearest Table 1.4 cells (target_list.published_grid); a Table 4.3 group whose published AGI
   # cutoff is at or above full_sample_above gets errors.full_sample_se instead (SOI samples every such return).
+  # Since 3 November the same cutoff is the group's AGI line in the file (grouping agi_cumulative, cutoffs: published).
   soi 1.3:
     kind: published
     layout: tidy_grid
@@ -985,11 +986,14 @@ groupings:
       joint: [Returns of married persons filing jointly and returns of surviving spouses]
       separate: [Returns of married persons filing separately]
       head of household: [Returns of heads of households]
-  # Table 4.3's cumulative AGI percentile groups, by AGI rank among returns other than dependent filers' (the
-  # file's lines on its starting weights after the demographic prescaling, held fixed in dollars through the tilt,
-  # as income_rank_groups). [low percentile, high percentile, label].
+  # Table 4.3's cumulative AGI percentile groups among returns other than dependent filers'. Since 3 November (John)
+  # each group is the returns with AGI at or above SOI's published cutoff for the group and year (cutoffs: published;
+  # the source's cutoff_item, "adjusted gross income floor on percentiles"), in nominal dollars of the year, fixed
+  # through the tilt. Before, the lines were the file's own percentiles on its starting weights. The percentiles
+  # here name the groups. [low percentile, high percentile, label].
   agi_cumulative:
     variable: agi
+    cutoffs: published
     ranks:
       - [99.999, 100, top 0.001 percent]
       - [99.99, 100, top 0.01 percent]
