@@ -355,11 +355,15 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
             r = next((q for q in rows if q['column'] == other), None)
             assert r is not None, f'{col}: same_as {other}, which is not grown'
             x = out[col].to_numpy(float)
+            A = PS.same_as_add_factor(col, s, t)   # the column's own add factors (exactly 1 with none)
             fp, fn = r['factor, positive values'], r['factor, negative values']
+            if A != 1.0:
+                fp, fn = fp * A, fn * A
             out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
-            PS.record_same_as(col, other, x)
+            PS.record_same_as(col, other, x, A)
             rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn,
                          'series': f'same as {other}', 'records with a value': int((x != 0).sum())})
+        PS.check_add_factors_applied(t)
     # the allowed capital loss: since 29-30 October the short and long term pieces are the gains and losses before the
     # $3,000 limit, grown like any amount, and recombine() applies the nominal limit again in year t (before, a piece
     # kg_other held the limit and needed a rule here)

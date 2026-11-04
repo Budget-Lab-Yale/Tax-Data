@@ -41,6 +41,16 @@ value in 2023, both present and positive, never extended past the data), 'same_a
 item), or 'none' (not grown). kind is 'auto' (with 'current': today's kind; with 'same_as' kind is not used), 'total'
 or 'per_unit'. target is 1 or 0; error is
 the relative standard error of the item's total target.
+
+Add factors (John, 3 November; add_factors_table, add_factor). A second table (settings
+tilt.projection.add_factors_table) adds extra growth, in percent a year, on top of an item's series: one row per item
+and range of years (column, first_year, last_year, percent, note). The item's growth from the base year s to year t is
+its series' growth times the product of (1 + percent / 100) over the years s + 1 to t that the item's rows cover. It
+enters step 2 as part of the series' growth, so the step 2 factor, the item's total target in step 3 and the SCF
+targets' growth (scf_factor) all include it. A same_as item takes the other column's factors, add factors included,
+times its own add factors. The table may be empty (a header only): every item's add factor is then exactly 1 and the
+year is what it was without the table. Every row with a non-zero percent needs a note saying who set it, when and why;
+the year's report lists the rows in force.
 """
 import os
 
@@ -55,6 +65,7 @@ P = common.SETTINGS['tilt'].get('projection', {})
 TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary's and spouse's ages at 80)
 MARRIED_FROM = 16     # CBO's population has no married person under 16
 ITEMS_COLUMNS = ['column', 'series', 'kind', 'target', 'error', 'note']
+ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
 PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__'}
 
 STATE = {}   # this run's year: set by tilt (the 2023 file, its weights, step 1 and 2 results, the start)
@@ -206,12 +217,13 @@ def step1(df, w, year, s):
                               'units after step 1': w1[c].sum(), 'filers after step 1': w1[c & fil].sum()}
     STATE.clear()
     STATE.update(year=int(year), base_year=int(s), record_id=df['record_id'].to_numpy(), keep=keep, w_base=w.copy(),
-                 w1=w1, person_targets=table, step1=out, return_shares=shares, items={})
+                 w1=w1, person_targets=table, step1=out, return_shares=shares, items={}, add_factors=[])
     return w1, out
 
 
 # ---- step 2 ---------------------------------------------------------------------------------------------------
 _TABLE = {}
+_ADD = {}
 
 
 def items_table():
@@ -231,6 +243,53 @@ def items_table():
         _TABLE['t'] = t.set_index('column')
         _TABLE['path'] = p
     return _TABLE['t']
+
+
+def add_factors_table():
+    """The add factors table (settings tilt.projection.add_factors_table, relative to the pipeline folder or absolute;
+    see the module docstring). Every column must be in the items table, every year range sensible, no item's years
+    covered twice, and every non-zero percent must carry a note."""
+    if 't' not in _ADD:
+        p = P['add_factors_table']
+        p = p if os.path.isabs(p) else os.path.join(HERE, p)
+        t = pd.read_csv(p, dtype={'column': str, 'note': str}, keep_default_na=False)
+        assert list(t.columns) == ADD_COLUMNS, f'{p}: columns {list(t.columns)}, not {ADD_COLUMNS}'
+        for c in ('first_year', 'last_year', 'percent'):
+            v = pd.to_numeric(t[c], errors='coerce')
+            assert v.notna().all() and np.isfinite(v).all(), f'{p}: {c} missing or not a number on rows {t.index[v.isna()].tolist()}'
+            t[c] = v
+        assert (t.first_year == t.first_year.round()).all() and (t.last_year == t.last_year.round()).all(), \
+            f'{p}: years must be whole numbers'
+        t[['first_year', 'last_year']] = t[['first_year', 'last_year']].astype(int)
+        assert (t.first_year <= t.last_year).all(), f'{p}: first_year after last_year'
+        assert (t.percent > -100).all(), f'{p}: a percent of -100 or less'
+        bad = t[(t.percent != 0) & (t.note.str.strip() == '')]
+        assert bad.empty, f'{p}: non-zero add factors with no note (who, when, why): {bad.column.tolist()}'
+        missing = sorted(set(t.column) - set(items_table().index))
+        assert not missing, f'{p}: columns not in the items table {_TABLE["path"]}: {missing}'
+        for col, g in t.groupby('column'):
+            years = [y for r in g.itertuples() for y in range(r.first_year, r.last_year + 1)]
+            assert len(years) == len(set(years)), f'{p}: {col} has a year in two rows'
+        _ADD['t'] = t
+        _ADD['path'] = p
+    return _ADD['t']
+
+
+def add_factor(col, s, t):
+    """Column col's add factor from base year s to year t: the product of (1 + percent / 100) over the years s + 1 to
+    t covered by its rows of the add factors table (exactly 1 with none). Returns (factor, rows in force)."""
+    tab = add_factors_table()
+    rows = tab[tab.column == col]
+    early = rows[rows.first_year <= s]
+    assert early.empty, f'{_ADD["path"]}: {col} has add factors for years up to the base year {s}'
+    f, used = 1.0, []
+    for r in rows.itertuples():
+        n = len(range(max(r.first_year, s + 1), min(r.last_year, t) + 1))
+        if n > 0 and r.percent != 0:
+            f *= (1 + r.percent / 100) ** n
+            used.append({'column': col, 'first_year': r.first_year, 'last_year': r.last_year, 'percent': r.percent,
+                         'years in force': n, 'note': r.note})
+    return f, used
 
 
 def series_growth(spec, s, t):
@@ -269,9 +328,15 @@ def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
         G = (g, g)
     else:
         raise ValueError(f'{col}: unknown series {series!r}')
+    A, used = add_factor(col, s, t)
+    if used:   # the add factors on top of the series (module docstring); with none, G is left exactly as it was
+        G = (G[0] * A, G[1] * A)
+        spans = ', '.join('%+g%% a year %d-%d' % (u['percent'], u['first_year'], u['last_year']) for u in used)
+        what = f'{what}; times add factors {A:.5f} ({spans})'
+        STATE['add_factors'] += used
     keep, w0, w1 = STATE['keep'], STATE['w_base'], STATE['w1']
     rec = {'column': col, 'series': series, 'kind': kind, 'source': what, 'target': int(row['target']),
-           'error': row['error'], 'growth positive': G[0], 'growth negative': G[1]}
+           'error': row['error'], 'add factor': A, 'growth positive': G[0], 'growth negative': G[1]}
     fs = list(G)
     for i, sign in enumerate((1, -1)):
         m = keep & (sign * x > 0)
@@ -292,14 +357,36 @@ def same_as(col):
     return sr.split(':', 1)[1] if sr.startswith('same_as:') else None
 
 
-def record_same_as(col, other, x):
+def check_add_factors_applied(t):
+    """After step 2: every item with a non-zero add factor in force by year t was grown by the start (else the table
+    names a column the file does not carry, and its add factor would be silently lost)."""
+    tab = add_factors_table()
+    live = tab[(tab.percent != 0) & (tab.first_year <= t)]
+    lost = sorted(set(live.column) - set(STATE['items']))
+    assert not lost, f'{_ADD["path"]}: add factors in force for {t} on columns step 2 did not grow: {lost}'
+
+
+def same_as_add_factor(col, s, t):
+    """A same_as column's own add factor (on top of the other column's factors, which carry the other's add factors).
+    Returns the factor; records the rows in force."""
+    A, used = add_factor(col, s, t)
+    STATE['add_factors'] += used
+    return A
+
+
+def record_same_as(col, other, x, A=1.0):
+    """Records a same_as column: the other column's factors record by record, times the column's own add factor A
+    (same_as_add_factor; exactly 1 with none)."""
     r = dict(STATE['items'][other])
     keep, w0 = STATE['keep'], STATE['w_base']
     # the other column's factors record by record: on this column's records that is a growth per record (kind
     # per_unit), whatever the other column's kind
+    src = f"the factors of {other} record by record ({r['source'][:120]})"
+    if A != 1.0:
+        src += f'; times its own add factors {A:.5f}'
     r.update(column=col, series=f'same_as:{other}', kind='per_unit', target=int(items_table().loc[col, 'target']),
-             error=items_table().loc[col, 'error'], source=f"the factors of {other} record by record ({r['source'][:120]})",
-             **{'growth positive': r['factor positive'], 'growth negative': r['factor negative']})
+             error=items_table().loc[col, 'error'], source=src, **{'add factor': r['add factor'] * A},
+             **{'growth positive': r['factor positive'] * A, 'growth negative': r['factor negative'] * A})
     for sign, nm in ((1, 'positive'), (-1, 'negative')):
         m = keep & (sign * x > 0)
         r[f'2023 total {nm}'], r[f'records {nm}'] = float(w0[m] @ x[m]), int(m.sum())
@@ -425,4 +512,14 @@ def write(folder):
              pd.Series(STATE['step1']).to_frame('').to_markdown(), '',
              f"Step 2: {len(items)} columns; kinds {items['kind'].value_counts().to_dict()}; targeted "
              f"{int(items['target'].sum())} (projection_step2_items.csv). Items table: {_TABLE.get('path')}", '']
+    add_factors_table()
+    if STATE['add_factors']:
+        af = pd.DataFrame(STATE['add_factors'])
+        af['factor to this year'] = (1 + af['percent'] / 100) ** af['years in force']
+        af.to_csv(f'{folder}/projection_add_factors.csv', index=False)
+        lines += [f"Add factors in force, on top of each item's series ({len(af)} rows; add factors table "
+                  f"{_ADD['path']}; projection_add_factors.csv):", '',
+                  af.to_markdown(index=False, floatfmt='.5f'), '']
+    else:
+        lines += [f"Add factors: none in force (add factors table {_ADD['path']}).", '']
     return lines

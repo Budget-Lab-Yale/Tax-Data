@@ -1624,6 +1624,23 @@ on with `start_scaling: {weights: persons, dollars: item_factor}`.
    projection_extension`). No `hold_distribution`. The 2023 Forbes list's records are outside steps 1 and 2; the
    year's list adds its own fixed contribution to every target.
 
+**Add factors** (John, 3 November; branch `rebuild-addfactors`; `projection_steps.add_factor`). A table of extra
+growth on top of an item's series, set by hand: `targets_config/projection_add_factors.csv` (settings
+`tilt.projection.add_factors_table`), one row per item and range of years, with columns `column`, `first_year`,
+`last_year`, `percent` (extra growth in percent a year) and `note`. The item's growth from 2023 to year t is its
+series' growth times the product of (1 + percent / 100) over the years 2024 to t that its rows cover; for example +2%
+a year from 2024 makes the 2030 growth the series' growth times 1.02^7 = 1.149. It enters step 2 as part of the
+series' growth, so the step 2 factor, the item's total target in step 3 and, for a balance sheet item, the SCF targets'
+growth all include it. It works for any item in the items table; a `same_as` item takes the other column's factors,
+add factors included, times its own. Rules, checked when the table is read: every column must be in the items table;
+years are whole numbers after 2023; no item has a year in two rows; and every row with a non-zero percent needs a note
+saying who set it, when and why. A run stops if an add factor in force names a column the start did not grow. Each
+year's `summary.md` lists the add factors in force (also `projection_add_factors.csv` in the year's tilt folder), and
+`projection_step2_items.csv` has each item's `add factor`. The table is meant to be revisited at each CBO update. An
+empty table (a header only) gives every item an add factor of exactly 1, and the year is what it was without the
+feature (checked on 2026: scratch `explore/2026-11-03/addfactors/RESULTS.md`). The Forbes list's records are outside
+step 2, so add factors do not touch them.
+
 ## How the latest runs come out (2 November 2026)
 
 All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
