@@ -366,9 +366,9 @@ def soi_errors(rows, year):
                         f'Table 1.6 count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells in the same AGI '
                         f'group closest in returns{yr}: {what}'))
             continue
-        if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'dependent filers'):
+        if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'age by status', 'dependent filers'):
             cv, what = borrow_cv(cells, count=r.value)
-            table = {'IRS': '1.2', 'age': '1.6', 'dependent filers': '1.7'}[r.kind]
+            table = {'IRS': '1.2', 'age': '1.6', 'age by status': '1.6', 'dependent filers': '1.7'}[r.kind]
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
                         f'Table {table} count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells closest in '
                         f'returns{yr}: {what}'))
@@ -711,7 +711,7 @@ def standard_errors(rows, year=Y):
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'business', 'dependent filers', 'calculator']) & ~table21,
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'age by status', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
           'older ages': rows.kind == 'older ages'}

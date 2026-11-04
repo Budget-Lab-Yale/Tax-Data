@@ -556,9 +556,15 @@ def published_status(soi, year, source, cells, stats):
     assert stats == ['units'], f'{source}: returns only'
     rows = []
     t16 = TG.table_1_6(year) if source == 'soi 1.6' else None
+    # (autoresearch, 4 November) Table 1.6 by the four filing statuses too (grouping filing_four), not only joint or not
+    four = {'single': ['single'], 'joint': ['joint'], 'separate': ['separate'], 'head of household': ['head_of_household']}
     for c in cells:
-        (gname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'married']
-        statuses = CAT['groupings'][gname][f'in {source}'][c['parts'][gname]]
+        (gname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] in ('married', 'filing_status')]
+        if CAT['groupings'][gname]['variable'] == 'filing_status':
+            assert source == 'soi 1.6', f'{source}: by filing status only for Table 1.6'
+            statuses = four[c['parts'][gname]]
+        else:
+            statuses = CAT['groupings'][gname][f'in {source}'][c['parts'][gname]]
         if source == 'soi 1.2':
             v = sum(TG.returns(soi, year, '1.2', s) for s in statuses)
             src = f'soi 1.2 {year}: returns of ' + ' + '.join(statuses)

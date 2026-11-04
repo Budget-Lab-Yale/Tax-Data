@@ -74,6 +74,10 @@ OUTPUTS = {
     'calc_liab_amt': ('liab_amt', 'alternative minimum tax'),
     'calc_ctc_nonref': ('ctc_nonref', 'child tax credit and credit for other dependents, the nonrefundable part'),
     'calc_ctc_ref': ('ctc_ref', 'additional child tax credit (the refundable part)'),
+    # (autoresearch, 4 November) the education credits, for Table 3.3's targets
+    'calc_ed_nonref': ('ed_nonref', 'education credits used against tax (lifetime learning and the nonrefundable part of '
+                                    'the American opportunity credit)'),
+    'calc_ed_ref': ('ed_ref', 'the refundable part of the American opportunity credit'),
     'calc_eitc': ('eitc', 'earned income tax credit, all of it (refundable and used against tax)'),
     'calc_nonref': ('nonref', 'nonrefundable credits used'),
     'calc_ref': ('ref', 'refundable credits'),

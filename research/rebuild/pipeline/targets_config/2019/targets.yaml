@@ -181,6 +181,22 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
 
+  # (autoresearch, 4 November) SOI Table 1.6: returns of heads of household and of married people filing separately
+  # by the primary filer's age range, all six ranges, all AGI. The entry above leaves the split of non-joint returns
+  # between single filers and heads of household free within each age, and the draw puts heads of household too young:
+  # run3's 2019 file had 4.06 million heads of household under 26 against SOI's 3.46 million, and 8.80 million aged
+  # 45-54 against 9.79 million (2023: 4.35 against 3.06 million under 26). With the entry above and Table 1.3's
+  # returns by status these also fix single filers by age. Dependent filers are not heads of household; the few
+  # married dependent filers filing separately are left out of these cells (the file has no exact age for them).
+  - id: age_returns_by_status
+    kind: age by status
+    statistic: units
+    population: filers
+    cells: {filing_four: [separate, head of household], adult_age_ranges: all}
+    value: {published: soi 1.6}
+    error: {kind: soi_borrowed}
+    key: {group: '{filing_four}, primary {adult_age_ranges}', target: returns}
+
   # (3 November 2026, John; explore/2026-11-03/age_by_agi/RESULTS.md) SOI Table 1.6 by AGI: returns by the primary
   # filer's age range, 26-34 to 65+, within each group of the standard AGI grid, from the table's All returns panel.
   # The totals by age above leave the age mix within AGI free, and the SCF's wealth by age (2 November) moved
@@ -224,6 +240,21 @@ targets:
     reason: >-
       variable: estates and trusts, left out on 22 and 24 October because their tiny cells could not always be met,
       are back under standard errors (autoresearch, 4 November), with Form 4797's gain and loss
+
+  # (autoresearch, 4 November) Taxable state income tax refunds, Table 1.4, in the six business AGI groups. The
+  # tax benefit rule (settings taxes.refund_tax_benefit) takes the refunds off itemizers whose taxes paid exceed the
+  # cap by more than the refund; on its own it left too few (2019: $2.3 billion on 3.0 million returns against SOI's
+  # $5.6 billion on 4.3 million), because the reweighting cuts the 2015 itemizers who carry them and because some
+  # refunds repay taxes deducted before the cap.
+  - id: state_refunds
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: state_ref
+    cells: {business_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
 
   # (autoresearch, 4 November) Alimony received and paid, Table 1.4, all AGI. The draw carries 2015's alimony into
   # every year; the 2017 law ends the inclusion and the deduction for divorces from 2019, so the payments run off
@@ -633,6 +664,18 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: ctc_refundable
+    cells: {ref_credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  # (autoresearch, 4 November) Table 3.3's education credits: the draw carries 2015's claims, and the number of
+  # returns claiming them fell after 2015 (run3's 2019 file: 9.18 million returns with the refundable American
+  # opportunity credit against SOI's 6.94 million; 2023: 8.72 against 5.82 million)
+  - id: calc_education_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: [education_credit_nonrefundable, aotc_refundable]
     cells: {ref_credit_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}

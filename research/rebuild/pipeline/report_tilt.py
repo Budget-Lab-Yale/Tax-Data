@@ -136,7 +136,7 @@ def describe(kind, group, target):
         cell = re.sub(r'aged (\d+)_(\d+)', r'aged \1-\2', group).replace('aged 75p', 'aged 75 and over')
     elif kind == 'non-filers':
         what, cell = 'non-filer units', 'all'
-    elif kind in ('age', 'age by AGI'):
+    elif kind in ('age', 'age by AGI', 'age by status'):
         what = 'number of returns'
         cell = group.replace('non-joint', 'returns other than joint').replace('joint,', 'joint returns,') \
             .replace('primary', 'primary filer aged')

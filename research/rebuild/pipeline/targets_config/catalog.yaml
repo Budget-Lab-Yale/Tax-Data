@@ -364,6 +364,7 @@ variables:
   state_ref:
     record: state_ref
     short: state_ref
+    soi 1.4: {count: [state_refunds], amount: [state_refunds]}
     published:
       soi 1.3: {item: state income tax refunds, count: returns, amount: amount}
   alimony:
@@ -690,6 +691,17 @@ variables:
     record: calc_liab_amt
     short: AMT
     soi 1.4: {count: [alternative_minimum_tax], amount: [alternative_minimum_tax]}
+  # (autoresearch, 4 November) the education credits from the calculator, against Table 3.3
+  education_credit_nonrefundable:
+    record: calc_ed_nonref
+    short: nonrefundable education credits
+    what: the lifetime learning credit and the nonrefundable part of the American opportunity credit, used against tax
+    soi 3.3: {count: [education_credit_nonrefundable], amount: [education_credit_nonrefundable]}
+  aotc_refundable:
+    record: calc_ed_ref
+    short: refundable American opportunity credit
+    what: the refundable part of the American opportunity credit
+    soi 3.3: {count: [aotc_refundable], amount: [aotc_refundable]}
   ctc_nonrefundable:
     record: calc_ctc_nonref
     short: child and other dependent credit

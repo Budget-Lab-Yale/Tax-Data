@@ -88,6 +88,8 @@ T14 = {  # SOI item -> (variable, statistic)
     'sales of property other than capital assets > net gain > amount': ('other_gains_net_gain', 'amount'),
     'sales of property other than capital assets > net loss > number of returns': ('other_gains_net_loss', 'count'),
     'sales of property other than capital assets > net loss > amount': ('other_gains_net_loss', 'amount'),
+    'state income tax refunds > number of returns': ('state_refunds', 'count'),
+    'state income tax refunds > amount': ('state_refunds', 'amount'),
     'alimony received > number of returns': ('alimony_received', 'count'),
     'alimony received > amount': ('alimony_received', 'amount'),
     'statutory adjustments > alimony paid > number of returns': ('alimony_paid', 'count'),
@@ -113,6 +115,12 @@ T33 = {
         ('ctc_refundable', 'amount'),
     'tax credits > total refundable credits > earned income credit > number of returns': ('eitc', 'count'),
     'tax credits > total refundable credits > earned income credit > amount': ('eitc', 'amount'),
+    # (autoresearch, 4 November) the education credits: run3's 2019 file had 1.32 times SOI's returns with the refundable
+    # American opportunity credit and 1.18 times its returns with the nonrefundable education credits (2023: 1.50, 1.26)
+    'tax credits > nonrefundable education credit > number of returns': ('education_credit_nonrefundable', 'count'),
+    'tax credits > nonrefundable education credit > amount': ('education_credit_nonrefundable', 'amount'),
+    'tax credits > total refundable credits > american opportunity credit > number of returns': ('aotc_refundable', 'count'),
+    'tax credits > total refundable credits > american opportunity credit > amount': ('aotc_refundable', 'amount'),
     'income tax after credits > number of returns': ('income_tax_after_credits', 'count'),
     'income tax after credits > amount': ('income_tax_after_credits', 'amount'),
     'total income tax > number of returns': ('total_income_tax', 'count'),
