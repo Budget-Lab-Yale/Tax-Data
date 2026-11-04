@@ -1624,7 +1624,7 @@ on with `start_scaling: {weights: persons, dollars: item_factor}`.
 1. **Step 1, people.** The 2023 weights are calibrated (the smallest Kullback-Leibler move, every count exact) to
    people by marital status and single year of age, 0 to 79 and 80 and over: the primary, a joint return's spouse
    and every dependent with an age, each carrying the unit's weight; a dependent filer's own record counts only its
-   dependents; a married person under 16 counts as unmarried. Each count is the 2023 file's count times CBO's growth
+   dependents; a married person under 18 counts as unmarried, in the file and in CBO's population (John, 4 November 2026; CBO's projections have no married 16-year-olds in 2070-2072). Each count is the 2023 file's count times CBO's growth
    of the same people (Macro-Projections population, settings `tilt.projection.population_dir`). The dependent
    filers' six cells (age range by marital status) are exact too, at their population growth as before.
 2. **Step 2, one factor per dollar item.** Each grown column has a row in `targets_config/projection_items.csv`
