@@ -66,6 +66,8 @@ T14 = {  # SOI item -> (variable, statistic)
     'unemployment compensation > amount': ('unemployment', 'amount'),
     'taxable individual retirement arrangement (ira) distributions > number of returns': ('taxable_ira', 'count'),
     'taxable individual retirement arrangement (ira) distributions > amount': ('taxable_ira', 'amount'),
+    'pensions and annuities > total > number of returns': ('total_pensions', 'count'),
+    'pensions and annuities > total > amount': ('total_pensions', 'amount'),
     'pensions and annuities > taxable > number of returns': ('taxable_pensions', 'count'),
     'pensions and annuities > taxable > amount': ('taxable_pensions', 'amount'),
     'capital gain distributions reported on form 1040 > number of returns': ('capital_gain_distributions', 'count'),

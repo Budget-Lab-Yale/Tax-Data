@@ -420,6 +420,11 @@ variables:
       count: tax exempt interest > number of returns
       amount: tax exempt interest > amount
     soi 1.4: {count: [tax_exempt_interest], amount: [tax_exempt_interest]}
+  # (autoresearch round 12) gross pensions and annuities (Form 1040 line 4c/5a), taxable plus the non-taxable rest
+  total_pensions:
+    record: gross_pens_dist
+    short: pensions and annuities, total
+    soi 1.4: {count: [total_pensions], amount: [total_pensions]}
   # (autoresearch round 7) the statutory adjustments' total, Table 1.4
   statutory_adjustments:
     record: adjustments

@@ -337,7 +337,7 @@ targets:
     kind: IRS
     statistic: [count, amount]
     population: filers
-    variable: [statutory_adjustments, exempt_int, ui, txbl_ira_dist, txbl_pens_dist]
+    variable: [statutory_adjustments, exempt_int, ui, txbl_ira_dist, txbl_pens_dist, total_pensions]
     cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}

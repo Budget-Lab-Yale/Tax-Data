@@ -1880,4 +1880,34 @@ at higher rates than the SCF, and the targets missed by up to 82 standard errors
 pass-through entity tax election before 2024: dropped on John's instruction, because the loop changes data, not tax
 law. The file's AGI stays above the calculator's by the election's amount ($27.1 billion in 2019), a known difference.
 
-Rounds 5 and later: see LOG.md; this section is extended when they are kept.
+**Rounds 5-6: more SOI lines, and two rules that make the file's adjustments the calculator's.**
+- Targets: qualified dividends (Table 1.4 broad groups; Table 4.3 top 0.1% and 1%; before, 1.5-2 times SOI's at the
+  top); Table 4.3's charitable, interest and QBI deductions in the top 0.1% and 1%; the EITC by qualifying children
+  (Table 2.5, source `soi 2.5`, 2015-2020; the credit without children had been 0.68 of SOI's); Table 3.3's child care
+  and saver's credits; capital gain distributions on Form 1040; more of Table 1.7 (dependent filers' tax-exempt
+  interest, distributions, capital losses, Schedule C).
+- Rules in `taxes.py`: `taxes.repealed_adjustments` zeroes the production activities deduction from 2018 and the
+  tuition and fees deduction from 2021; `taxes.se_tax_ded_from_calculator` takes the deductible half of
+  self-employment tax from the calculator. Together they make the file's adjustments equal the calculator's on every
+  record. The top 0.001% and 0.01% cells of Table 4.3 for the new items and its taxes paid line were left out (the
+  solve did not converge with them).
+
+**Rounds 7-8: Table 1.4's other lines and Table 1.2 by AGI.** Statutory adjustments, tax-exempt interest,
+unemployment compensation, taxable IRA distributions and taxable pensions in the business AGI groups; Table 1.2's
+single, separate and head of household returns in each standard AGI group (kind `status by AGI`,
+`target_list.published_12_agi`). Single returns at $1-10 million had been 0.63-0.70 of SOI's.
+
+Round 12 added gross pensions and annuities (Table 1.4 total, taxable plus the non-taxable rest) to the same entry.
+
+**Round 9: non-filers' dividends** against the non-filers of the pipeline's tax data (value source
+`tax_data_nonfilers`, kind `non-filer items`, errors half the value and a quarter of the holders). The 2019 file had
+$30.0 billion against $7.1 billion; after, $9.3 billion.
+
+**Round 10: the Schedule D net capital gain on the standard AGI grid** (it had been on the broad grid). Also
+`taxes.refund_tax_benefit_from` (2019) and a fix in `targets.published_cells` for a blank cell held in the next
+combined cell (Table 3.3, 2015). **Round 11:** no state refund targets in 2018 (its refunds repay 2017 taxes).
+
+Also tried and dropped: an SCF target on the share of units owning a private business (2019 effective sample kept
+61.8% to 58.6% for an item no tax calculation reads).
+
+The log of every round, with the numbers before and after, is `LOG.md`.
