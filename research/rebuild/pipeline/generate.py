@@ -237,6 +237,7 @@ MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index
 # null: the run's own model (common.MODEL) alone, with today's seeds.
 MODELS = G['models']
 ID_BLOCK = 10_000_000                       # model k's record ids start at k x ID_BLOCK
+REAL_PUF = bool(G.get('real_puf', False))   # the real-PUF test (real_puf_part), in place of the filer batch
 # The filer batch's design (see the top): the AGI group preset on every record.
 LABEL = 'agi_group'
 assert M.PUF_LABELS == [LABEL], 'the label design needs the AGI group label in the table (build_table.agi_group_label)'
@@ -556,8 +557,10 @@ class Chunk:
     scf_year: each record's index into model.YEARS for its SCF phase (its wave's income year); survey_year: the same
     for the CEX, CPS and SIPP phases, per survey."""
 
-    def __init__(self, model, size, order, preset, start, factors, gen, scf_year, survey_year, label='puf', year=None):
+    def __init__(self, model, size, order, preset, start, factors, gen, scf_year, survey_year, label='puf', year=None,
+                 adult_only=False):
         device = order.device
+        self.adult_only = adult_only                                 # an adult age range under any label (real PUF)
         self.model, self.order, self.factors, self.gen = model, order, factors, gen
         self.scf_year = scf_year.to(device)
         self.survey_year = {src: y.to(device) for src, y in survey_year.items()}   # per survey: each record's year index
@@ -612,7 +615,7 @@ class Chunk:
             allowed[~married, 1] = allowed[~married, 3] = allowed[~married, 4] = 1.0
             probs = only(probs, sel, allowed)
         sel = slot == AGE_RANGE
-        if self.label == 'cps' and sel.any():
+        if (self.label == 'cps' or self.adult_only) and sel.any():
             allowed = torch.zeros(int(sel.sum()), probs.shape[1], device=probs.device)
             allowed[:, :common.ADULT_RANGES] = 1.0
             probs = only(probs, sel, allowed)
@@ -710,14 +713,22 @@ class Chunk:
 
 
 @torch.no_grad()
-def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf', year=None, filer=1):
+def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf', year=None, filer=1,
+             totals_preset=False, adult_only=False):
     """n PUF-style records, and how many records each consistency rule applies to. label, year: the batch's label and
     year for its own items (default the PUF at the PUF year); filer: the batch's filing flag, set before anything is
     drawn. preset: {variable: bands, one per record} set before anything is drawn (the filer batch: the AGI group
     label). factors: {ruled holding: factor on its odds of being nonzero}. Each record's SCF wave is drawn first, by a
     generator of its own (assign_waves). For each ruled holding the table also carries the model's own chance it is
-    nonzero (_own_<v>) and whether a rule forced it (_forced_<v>)."""
+    nonzero (_own_<v>) and whether a rule forced it (_forced_<v>).
+    totals_preset (the real-PUF test, 4 November): the computed totals and flags are in preset (a real PUF record's
+    own bands) and are kept as they are; only the bookkeeping that follows them is done (Chunk.after_totals).
+    adult_only: an age range drawn under the PUF label is one of the six adult ranges (the PUF's aggregate records,
+    which are no one's dependents)."""
     preset, factors = dict(preset or {}), factors or {}
+    if totals_preset:
+        missing = [v for v in list(COMPUTED) + list(FLAGS) if v not in preset]
+        assert not missing, f'totals_preset: the computed totals and flags must be preset, missing {missing}'
     assert label != 'puf' or all(v in preset for v in M.PUF_LABELS), \
         'the filer batch presets the AGI group label (the network never sees it hidden on a PUF record)'
     preset['filer'] = torch.full((n,), filer, dtype=torch.long)
@@ -788,10 +799,10 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
         size = min(chunk, n - start)
         order = orders(size)
         d = Chunk(model, size, order, preset, start, factors, gpu_gen, scf_year[start:start + size],
-                  {src: y[start:start + size] for src, y in svy_year.items()}, label, year)
+                  {src: y[start:start + size] for src, y in svy_year.items()}, label, year, adult_only)
         for step in range(n_own):
             d.puf_step(order[:, step])
-        for name, count in d.compute_totals().items():
+        for name, count in (d.after_totals() if totals_preset else d.compute_totals()).items():
             rule_counts[name] += count
         parts.append(finish(d, order))
     table = to_table(torch.cat([p[0] for p in parts]))
@@ -865,6 +876,139 @@ def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     return part, check, counts
 
 
+# ---- the real-PUF test (4 November 2026; settings generation.real_puf) ------------------------------------------
+# In place of the filer batch drawn from the networks, every 2015 PUF record keeps all its own PUF items (their bands
+# preset, so the draw is conditional on them) and each pooled network draws everything else given the record: the
+# exact ages, the balance sheet, consumption, the CPS's and the SIPP's items. Each record so appears once per network
+# (a "copy"), at its PUF weight divided by the number of networks. The record's own 2015 amounts go with it (columns
+# own_<item>); dollars.own_values grows them to the target year in place of a pick from the band's dollar map.
+REAL_ID = 50_000_000            # a real record's id: REAL_ID + copy index x REAL_COPY_BLOCK + its PUF RECID
+REAL_COPY_BLOCK = 1_000_000
+_REAL = {}
+
+
+def own_items():
+    """The PUF amounts a real record carries its own 2015 value of: every PUF amount of the dollar map (the drawn
+    items and the totals whose band is drawn), in dollars.ORDER."""
+    import build_table as BT
+    import dollars as D
+    return [v for v in D.ORDER if v in set(BT.PUF_AMOUNTS)]
+
+
+def preset_slots():
+    """The slots a real PUF record presets: its own items, the computed totals and the computed flag (not the filing
+    flag, which generate sets)."""
+    return [v for v in PUF_SLOTS if v != 'filer'] + list(COMPUTED) + list(FLAGS)
+
+
+def real_puf_records():
+    """The 2015 PUF's records with their bands, their own 2015 amounts and their weights, for the real-PUF test.
+    'ord': the training table's PUF rows (the PUF less its four aggregate records), every slot as the table holds it
+    (age_range -1 where the PUF's demographic file has none, with step 0's probabilities age_p*). 'agg': the four
+    aggregate records (top_hidden.RECIDS), which the table leaves out: their amounts translated from the raw fields by
+    the table's rules as Part A reads them (top_hidden.puf_items: every one an itemizer, the 10% medical floor), banded
+    on the 2015 cut points (top_hidden.reband), the AGI group label from those bands (filing status taken as single for
+    the label alone). Their filing status, dependents and age are zero on the PUF (disclosure protection), so those
+    slots are drawn by the networks."""
+    if _REAL:
+        return _REAL
+    import dollars as D
+    import top_hidden as TH
+    own = own_items()
+    slots = preset_slots()
+    cols = list(dict.fromkeys(['source', 'record_id', 'weight', 'age_range'] + M.AGE_PROBS
+                              + [M.column(v) for v in slots] + own))
+    t = pd.read_parquet(common.TABLE, columns=cols)
+    o = t[(t.source == 'puf').to_numpy()].reset_index(drop=True)
+    del t
+    na = o[cols].isna().sum()
+    assert not na.any(), f'missing values on PUF rows: {na[na > 0].to_dict()}'
+    bad = {M.column(v): int((o[M.column(v)] < 0).sum()) for v in slots if v != 'age_range' and (o[M.column(v)] < 0).any()}
+    assert not bad, f'PUF rows with a slot absent: {bad}'
+    o = o.rename(columns={v: D.OWN + v for v in own})
+    agg_raw, _ = TH.read_raw()
+    # alimony received and paid (E00800, E03500) are blank on the four records (disclosure-suppressed; top_hidden
+    # SUPPRESSED_FIELDS): read as zero, so each record's AGI is still its E00100 (a choice of the test, 4 November)
+    sup = list(TH.SUPPRESSED_FIELDS)
+    assert agg_raw[sup].isna().all().all(), 'the suppressed fields are not blank on the aggregate records'
+    agg_raw = agg_raw.copy()
+    agg_raw[sup] = 0.0
+    f = TH.puf_items(agg_raw, itemizer=True)
+    na = f.isna().sum()
+    assert not na.any(), f'aggregate records: items missing after the translation: {na[na > 0].to_dict()}'
+    f['capital_gains'] = f['kg_st'] + f['kg_lt'] + f['kg_dist']       # the table's total: before the loss limit
+    for tot, parts in M.META['computed_totals'].items():
+        f[tot] = D.signed_sum(f, parts)
+    f['other_agi'] = f['other_agi_remainder']                         # the table's other_agi is the remainder
+    bands = TH.reband(f)
+    a = pd.DataFrame({'record_id': agg_raw['RECID'].astype(float).to_numpy(),
+                      'weight': agg_raw['S006'].to_numpy(float) / 100})
+    for v in slots:
+        if v in M.CATEGORICAL or v in M.PUF_LABELS:
+            continue
+        a[M.column(v)] = bands[f'{v}_band'].to_numpy()
+    for flag, parts in FLAGS.items():
+        a[flag] = (f[parts].to_numpy(float) != 0).any(1).astype(np.int64)
+    lab = a[[c for c in a.columns if c.endswith('_band')]].assign(filing_status=1)
+    a[LABEL] = Q.puf_group(Q.band_agi(lab), Q.puf_groups()['cuts'])
+    a = pd.concat([a, pd.DataFrame({D.OWN + v: f[v].to_numpy(float) for v in own})], axis=1)
+    _REAL.update({'ord': o, 'agg': a, 'own': own, 'slots': slots})
+    common.say(f'real PUF: {len(o):,} ordinary records ({o.weight.sum() / 1e6:,.3f} million returns), '
+               f'{len(a)} aggregate records ({a.weight.sum():,.2f} returns); {int((o.age_range < 0).sum()):,} ordinary '
+               f'records with no age range (drawn from step 0\'s probabilities); {len(own)} own amounts per record')
+    return _REAL
+
+
+def real_puf_part(model, mod, k, n_models, fac):
+    """Model k's (of n_models) copy of the real PUF (see above): the ordinary records with every PUF slot preset (the
+    age range, where the PUF has none, one draw per record and copy from step 0's probabilities, as training draws
+    it), and the four aggregate records with their amounts preset and their filing status, dependents and (adult)
+    age range drawn; then every survey item drawn given the record. Weight: the PUF weight / n_models. Returns the
+    part, the label check's table and the rule counts, as label_part does."""
+    import dollars as D
+    from ages import uniform_by_id
+    R = real_puf_records()
+    o, a, own, slots = R['ord'], R['agg'], R['own'], R['slots']
+    seed = int(G['label_seed']) + mod['seed_shift'] + int(G.get('real_puf_seed_shift', 500))
+    rng = o['age_range'].to_numpy().astype(np.int64)
+    miss = rng < 0
+    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), int(G.get('real_puf_age_salt', 2026110401)) + k)
+    cp = np.cumsum(o.loc[miss, M.AGE_PROBS].to_numpy(float), 1)
+    rng[miss] = np.minimum((cp < u[:, None]).sum(1), common.N_RANGES - 1)
+    preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v != 'age_range'}
+    preset['age_range'] = torch.as_tensor(rng)
+    part, counts = generate(model, len(o), seed, preset=preset, factors=fac, totals_preset=True)
+    for v in slots:
+        c = M.column(v)
+        assert np.array_equal(part[c].to_numpy(), preset[v].numpy()), f'real PUF: the draw moved {c}'
+    part['age_range_drawn'] = miss.astype(np.int64)
+    part['puf_aggregate'] = 0
+    drawn_a = set(TYPE_SLOTS) | set(STATUS_SLOTS)
+    pre_a = {v: torch.as_tensor(a[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v not in drawn_a}
+    part_a, counts_a = generate(model, len(a), seed + 7, preset=pre_a, factors=fac, totals_preset=True,
+                                adult_only=True)
+    part_a['age_range_drawn'] = 1
+    part_a['puf_aggregate'] = 1
+    counts = {r: counts[r] + counts_a[r] for r in counts}
+    for p, src in [(part, o), (part_a, a)]:
+        p['weight'] = src['weight'].to_numpy(float) / n_models
+        p['puf_recid'] = src['record_id'].to_numpy().astype(np.int64)
+        p['puf_copy'] = k + 1
+    part, part_a = [pd.concat([p, src[[D.OWN + v for v in own]].reset_index(drop=True)], axis=1)
+                    for p, src in [(part, o), (part_a, a)]]
+    part = pd.concat([part, part_a], ignore_index=True)
+    g = part[LABEL].to_numpy()
+    qg = Q.puf_group(Q.band_agi(part), Q.puf_groups()['cuts'])
+    part['q_group'], part['label_ok'] = qg, qg == g
+    check = pd.DataFrame([{'model': mod['seed'], 'group': name, 'records drawn': int((g == j).sum()),
+                           'band group differs (%)': 100 * float((qg[g == j] != j).mean()) if (g == j).any() else np.nan}
+                          for j, name in enumerate(LABEL_META['labels'])])
+    common.say(f"{mod['run']}: real PUF copy {k + 1}: {len(part):,} records; the aggregate records were drawn with "
+               f"filing status {part_a['filing_status'].tolist()}, age range {part_a['age_range'].tolist()} and "
+               f"dependents {part_a['n_dep'].tolist()}")
+    return part, check, counts
+
+
 def store_picks(s, k, stream=4242):
     """The stored picks (see the top): for each record and each amount with a band column, one uniform number in
     [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the stream (4242 for the stack, 4343 for
@@ -917,7 +1061,10 @@ def build_stack(models, factors):
     stacks, checks = [], []
     for k, (mod, n_nf_k) in enumerate(zip(models, equal_shares(n_nf, len(models)))):
         model, shift, fac = mod['network'], mod['seed_shift'], factors[mod['run']]
-        part, check, counts = label_part(model, mod, k, len(models), fac)
+        if REAL_PUF:      # the real-PUF test: every 2015 PUF record, its survey items drawn given it (see above)
+            part, check, counts = real_puf_part(model, mod, k, len(models), fac)
+        else:
+            part, check, counts = label_part(model, mod, k, len(models), fac)
         part['weight'] *= filer_records() / len(models) / part['weight'].sum()   # each model: an equal share
         part['stratifier'] = 'label'
         checks.append(check)
@@ -940,10 +1087,16 @@ def build_stack(models, factors):
         nf['q_group'], nf['label_ok'] = -1, True                                     # no label on a non-filer
         rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
         common.say(f"{mod['run']}: nonfiler done")
+        if REAL_PUF:
+            nf['puf_recid'], nf['puf_copy'], nf['puf_aggregate'], nf['age_range_drawn'] = -1, -1, 0, 0
         s = pd.concat([part, nf], ignore_index=True)
         s['model'] = mod['seed']
         assert len(s) < ID_BLOCK
         s['record_id'] = k * ID_BLOCK + np.arange(len(s))
+        if REAL_PUF:      # a real record's id from its RECID and copy, so the package can key on them
+            r = s['puf_recid'].to_numpy() >= 0
+            s.loc[r, 'record_id'] = REAL_ID + k * REAL_COPY_BLOCK + s.loc[r, 'puf_recid'].to_numpy()
+            assert s['record_id'].is_unique and (s.loc[~r, 'record_id'] < REAL_ID).all()
         stacks.append(store_picks(s, k))
     stack = pd.concat(stacks, ignore_index=True)
     by = stack[['model', 'weight']].assign(batch=np.where(stack['filer'] == 1, 'filers', 'non-filers'))
