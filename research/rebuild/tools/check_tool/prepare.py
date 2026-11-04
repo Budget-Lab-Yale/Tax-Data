@@ -545,6 +545,11 @@ def main():
     say(f'Y items by source: ' + ', '.join(f'{s} {sum(1 for v in ysrc.values() if v == s)}' for s in sources))
     say(f'written to {OUT} in {time.time() - t0:.0f} seconds')
     open(os.path.join(OUT, 'checks.md'), 'w').write('\n'.join(CHECKS) + '\n')
+    # every file takes the folder's group (pi_nrs36), so the RA can read them: on 3 November catalog.json and checks.md
+    # came out in the owner's own group and the notebook could not open the folder for anyone else (4 November)
+    gid = os.stat(OUT).st_gid
+    for f in os.listdir(OUT):
+        os.chown(os.path.join(OUT, f), -1, gid)
 
 
 if __name__ == '__main__':
