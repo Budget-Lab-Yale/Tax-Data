@@ -121,6 +121,10 @@ T33 = {
     'tax credits > nonrefundable education credit > amount': ('education_credit_nonrefundable', 'amount'),
     'tax credits > total refundable credits > american opportunity credit > number of returns': ('aotc_refundable', 'count'),
     'tax credits > total refundable credits > american opportunity credit > amount': ('aotc_refundable', 'amount'),
+    # (autoresearch, 4 November) self-employment tax: run3's files had 0.89 of SOI's in 2019 ($59.8 against $67.3
+    # billion) and in 2023 ($72.2 against $81.1 billion), on 0.97 of its returns
+    'all other taxes > self employment tax > number of returns': ('self_employment_tax', 'count'),
+    'all other taxes > self employment tax > amount': ('self_employment_tax', 'amount'),
     'income tax after credits > number of returns': ('income_tax_after_credits', 'count'),
     'income tax after credits > amount': ('income_tax_after_credits', 'amount'),
     'total income tax > number of returns': ('total_income_tax', 'count'),

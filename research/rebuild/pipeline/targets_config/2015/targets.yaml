@@ -156,6 +156,20 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: all, target: net capital gain}
 
+  # (autoresearch, 4 November) Dependent filers' taxable interest and ordinary dividends, Table 1.7, all AGI.
+  # Untargeted in run3, the 2019 file had $2.1 billion of their taxable interest against SOI's $0.38 billion and
+  # $3.2 billion of their dividends against $2.2 billion (2023: $2.6 against $0.69 billion of interest); this income
+  # is what the tax on a child's unearned income falls on.
+  - id: dependent_filer_investment_income
+    kind: dependent filers
+    statistic: [count, amount]
+    population: dependent_filers
+    variable: [taxable_interest, ordinary_dividends]
+    cells: all
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: all, target: '{variable} {statistic}'}
+
   - id: dependent_filer_returns_top
     kind: dependent filers
     statistic: units
@@ -254,7 +268,9 @@ targets:
   # tax benefit rule (settings taxes.refund_tax_benefit) takes the refunds off itemizers whose taxes paid exceed the
   # cap by more than the refund; on its own it left too few (2019: $2.3 billion on 3.0 million returns against SOI's
   # $5.6 billion on 4.3 million), because the reweighting cuts the 2015 itemizers who carry them and because some
-  # refunds repay taxes deducted before the cap.
+  # refunds repay taxes deducted before the cap. Round 3: the rule alone left too few refunds at the top to meet the
+  # $1 million and over cell (2019: $0.27 billion against SOI's $0.66 billion); settings taxes.refund_reported_anyway
+  # keeps a share of the refunds the rule would take off.
   - id: state_refunds
     kind: IRS
     statistic: [count, amount]
@@ -598,6 +614,19 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+  # (autoresearch, 4 November) Table 3.3's self-employment tax, in the business AGI groups. The draw splits a
+  # couple's wages and self-employment income between the spouses with too little of the CPS's pattern (in the CPS a
+  # spouse with most of the wages has most of the self-employment income in 7% of such couples, in run3's 2019
+  # file 12%), so more of it sits above the Social Security wage base and the tax comes out at 0.89 of SOI's.
+  - id: calc_se_tax
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: self_employment_tax
+    cells: {business_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
   - id: calc_eitc
     kind: calculator
     statistic: [count, amount]
@@ -642,6 +671,19 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: itemized_interest
+    cells: {itemized_agi_groups: all}
+    value: {published: soi 2.1}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, 4 November) Table 2.1's cash gifts and gifts other than cash on itemizing returns, as reported
+  # (before the deduction's limits). The deduction itself is the next entry; its split was free, and run3's 2019
+  # file had $156 billion of cash and $98 billion of other gifts against SOI's $130 and $75 billion.
+  - id: calc_itemized_charity_split
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: [itemized_charity_cash, itemized_charity_noncash]
     cells: {itemized_agi_groups: all}
     value: {published: soi 2.1}
     error: {kind: soi_cv}

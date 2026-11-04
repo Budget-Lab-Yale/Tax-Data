@@ -78,6 +78,10 @@ OUTPUTS = {
     'calc_ed_nonref': ('ed_nonref', 'education credits used against tax (lifetime learning and the nonrefundable part of '
                                     'the American opportunity credit)'),
     'calc_ed_ref': ('ed_ref', 'the refundable part of the American opportunity credit'),
+    # (autoresearch, 4 November) itemizers' cash gifts and gifts other than cash as reported on Schedule A (before the
+    # deduction's limits), for Table 2.1's targets; set in compute from the calculator's input and its itemizing flag
+    'calc_char_cash_itemizers': ('input char_cash x itemizing', 'cash gifts to charity on itemizing returns, as reported'),
+    'calc_char_noncash_itemizers': ('input char_noncash x itemizing', 'gifts to charity other than cash on itemizing returns, as reported'),
     'calc_eitc': ('eitc', 'earned income tax credit, all of it (refundable and used against tax)'),
     'calc_nonref': ('nonref', 'nonrefundable credits used'),
     'calc_ref': ('ref', 'refundable credits'),
@@ -164,6 +168,8 @@ def joined_columns(out):
             cols[name] = x(src)
         elif src.startswith('mtr_'):
             continue   # no wage increment in this run
+        elif src.startswith('input '):
+            continue   # set in compute, from the calculator's input
         else:
             raise KeyError(f'the calculator wrote no column {src}')
     return pd.DataFrame(cols)
@@ -399,6 +405,15 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
             'refund rule: a missing taxes paid, claimed taxes or deduction'
         benefit = np.maximum(claimed - np.maximum(paid - ref, 0.0), 0.0)
         kept = np.where(item, np.minimum(ref, np.minimum(benefit, excess)), 0.0)
+        # (round 3) Returns still report part of the refunds the rule takes off: SOI has taxable refunds on about 5%
+        # of returns at AGI $2-5 million in 2019 and 2023, where taxes paid are far above the cap. Without this share
+        # the rule left 800 such returns in 2019 against SOI's 6,818, and its $1 million and over cell could not be
+        # met. A record keeps its whole refund with this chance, drawn from its record id (the same draw every run).
+        share = float(S.get('refund_reported_anyway', 0.0))
+        if share > 0:
+            rid = df['record_id'].to_numpy().astype(np.uint64)
+            u = ((rid * np.uint64(2654435761) + np.uint64(97)) % np.uint64(2 ** 32)).astype(float) / 2 ** 32
+            kept = np.where(item & (u < share), ref, kept)
         row.update({'itemizer refunds cut by the tax benefit rule (unweighted)': int((item & (kept < ref - 1e-6)).sum()),
                     'itemizer refund dollars removed by the tax benefit rule, filers ($ billion)':
                         (w * (np.where(item, ref, 0.0) - kept))[filer].sum() / 1e9})
@@ -591,6 +606,11 @@ def compute(df, year, w, nmi_ctx, folder):
         ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
+    item = out['itemizing'].to_numpy(float) > 0
+    for name, (src, _) in OUTPUTS.items():
+        if src.startswith('input '):
+            col = src.split(' ')[1]
+            cols[name] = inp[col].to_numpy(float) * item
     cols.index = df.index
     df = pd.concat([df, cols], axis=1)
     bad = [c for c in cols if not np.isfinite(df[c].to_numpy(float)).all()]

@@ -307,6 +307,13 @@ variables:
   itemized_charity:
     record: calc_claimed_charity
     short: charitable deductions
+  # (autoresearch, 4 November) itemizers' cash gifts and other gifts as reported on Schedule A (Table 2.1)
+  itemized_charity_cash:
+    record: calc_char_cash_itemizers
+    short: cash gifts to charity, itemizers
+  itemized_charity_noncash:
+    record: calc_char_noncash_itemizers
+    short: gifts to charity other than cash, itemizers
   itemized_other:
     record: calc_itemized_total_minus_four
     short: other itemized deductions residual
@@ -324,6 +331,10 @@ variables:
     published:
       soi 1.3: {item: taxable interest, count: returns, amount: amount}
       soi 4.3: {item: taxable interest, count: returns, amount: amount}
+    # (autoresearch, 4 November) Table 1.7's line for dependent filers
+    soi 1.7:
+      count: taxable interest > number of returns
+      amount: taxable interest > amount
   ordinary_dividends:
     record: dividends
     short: dividends
@@ -331,6 +342,10 @@ variables:
     published:
       soi 1.3: {item: ordinary dividends, count: returns, amount: amount}
       soi 4.3: {item: ordinary dividends, count: returns, amount: amount}
+    # (autoresearch, 4 November) Table 1.7's line for dependent filers
+    soi 1.7:
+      count: ordinary dividends > number of returns
+      amount: ordinary dividends > amount
   sch_d_net_capital_gain:
     record: capital_gains               # the Schedule D net in AGI: short + long term, a loss held to $3,000 (dollars.py)
     short: capital_gains
@@ -702,6 +717,13 @@ variables:
     short: refundable American opportunity credit
     what: the refundable part of the American opportunity credit
     soi 3.3: {count: [aotc_refundable], amount: [aotc_refundable]}
+  # (autoresearch, 4 November) self-employment tax from the calculator, against Table 3.3
+  self_employment_tax:
+    record: calc_liab_seca
+    short: self-employment tax
+    what: the self-employment tax, Social Security and Medicare, on each person's earnings from Schedules C and F and
+      partnerships, the Social Security part up to the wage base less the person's wages
+    soi 3.3: {count: [self_employment_tax], amount: [self_employment_tax]}
   ctc_nonrefundable:
     record: calc_ctc_nonref
     short: child and other dependent credit

@@ -1824,7 +1824,8 @@ def conditions(df, rows, w_start, check=True):
             count_var = variable_def(r.variable).get('count_variable')
             xc = record_value(df, count_var) if count_var else x
             # SOI Table 2.1 counts returns claiming a positive category amount.
-            pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity')
+            pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity',
+                                     'itemized_charity_cash', 'itemized_charity_noncash')
             F[:, j] = cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)

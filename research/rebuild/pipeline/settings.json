@@ -2001,6 +2001,8 @@
   "refund_rule": true,
  "_refund_rule": "Decision 47 (John, 30 October): after the draw, a record the calculator says does not itemize under the year's law (one calculator run on the grown start, the flag itemizing) has its taxable state income tax refund (state_ref) set to zero. It stands in for 'did not itemize last year'. A rule like the AMT rule: the draw carries 2015's roughly 21 million refund returns into every year, and SOI has 4.3 million in 2019 and 3.1 million in 2023. false: the draw's refunds stay.",
   "refund_tax_benefit": true,
+  "refund_reported_anyway": 0.15,
+  "_refund_reported_anyway": "(Autoresearch round 3.) The chance that an itemizer whose refund the tax benefit rule would take off reports it anyway (drawn from the record id): SOI has taxable refunds on about 5% of returns at AGI $2-5 million, where taxes paid are far above the cap. 0: the rule alone.",
   "_refund_tax_benefit": "(Autoresearch, 4 November.) On a record that itemizes, the taxable state refund is held to the tax benefit of the deduction it repays (IRS Publication 525, worksheet 2): the taxes deduction claimed less the one with taxes paid lowered by the refund (zero where taxes paid exceed the cap on the deduction by more than the refund), and the itemized deductions less the standard deduction. The current year stands in for the year before. false: an itemizer keeps the refund as drawn.",
  "greedy_schedule_a": {
   "enabled": true,
