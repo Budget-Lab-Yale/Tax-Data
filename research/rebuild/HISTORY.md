@@ -1051,6 +1051,18 @@ The seed moved the score more than any setting. Not tried, if the search is reop
 installed 0.01 (0.001 and 0), since raising it was the largest effect seen; more seeds for the three best ideas; and
 training five or six seeds and keeping the best three by this score.
 
+### 3-4 November (night): the projection years to 2075 (branch `rebuild-longrun`, merged 4 November)
+
+John: "lets just run to 2075"; the same three steps, only longer series (scratch `explore/2026-11-04/longrun/`,
+RESULTS.md, DECISIONS.md, MAPPING.md). Every series of the items table continues past 2035 at one Macro-Projections
+aggregate (production's long-run mapping); per-return series are divided by adults with a married couple counted
+once. The 27 items on today's code rule became series files with the same growth to 2035, so the start no longer
+reads CBO's planner. Configuration folders 2036-2075, 401(k) limits, the Z.1 and population files, the growth.yaml
+rules and the Forbes list's growth extended; the calculator's law compiles to 2075. Cheap checks only (2024-2035
+reproduced to 7 in 10^16; every factor finite and positive; every year's configuration loads); no year was run.
+Open then: CBO has no married 16-year-olds in 2070-2072, so step 1 could not run those three years; settled when
+married people under 18 were counted as unmarried (ede6f65).
+
 ### 4 November: the install, Table 4.3's count errors, tax expenditures, the first years past 2035
 
 - **The full run of 3-4 November installed** as the latest (John). The planned second run was not made: the run's
@@ -1066,7 +1078,10 @@ training five or six seeds and keeping the best three by this score.
   to JCT over 19 provisions fell from $105 billion to $79 billion in fiscal 2026, mostly from the Social Security
   exclusion (+35% to +4%) and charity (-16% to -4%).
 - **Years past 2035:** the 2075 code (`rebuild-longrun`) merged with the day's branch and tested on 2036, 2045, 2055,
-  2065 and 2075 (`explore/2026-11-04/longrun/test/RESULTS.md`): all converge; AGI holds at 57-58% of nominal GDP.
+  2065 and 2075, then run on the other 35 years (`explore/2026-11-04/longrun/test/RESULTS.md`): every year 2036-2075
+  converges in 5-13 Newton steps, the largest miss rises smoothly from 1.23 to 2.03 standard errors, AGI holds at
+  57-58% of nominal GDP. The branch merged into `rebuild-joint-model` and 2036-2075 installed beside the big run's
+  2015-2035 (John).
 - **The check tool's folder** was unreadable for the RA: two of its files were in the owner's own group. The tool now
   gives every file the folder's group.
 

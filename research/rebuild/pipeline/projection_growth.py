@@ -35,11 +35,74 @@ def ssa_per_return(item, year):
 
 def gross_ss_between(a, b):
     """Growth in gross Social Security benefits per return from year a to year b (a < b, both after SOI's last year or
-    equal to it): the product of the adjacent years' factors, SSA through 2025 and CBO's outlays from 2026. A year
-    with no source stops the run."""
+    equal to it): the product of the adjacent years' factors, SSA through 2025 and CBO's outlays from 2026 to CBO's last
+    year used (settings tilt.projection.cbo_last_year); after it (4 November 2026, the long-run years) Macro-Projections'
+    OASDI outlays per return (long_run_growth). A year with no source stops the run."""
+    L = cbo_last_year()
     f = 1.0
-    for y in range(int(a) + 1, int(b) + 1):
+    for y in range(int(a) + 1, min(int(b), L) + 1):
         f *= cbo_per_return('ss_gross', y)[0]
+    if int(b) > L:
+        f *= long_run_growth('outlays_mand_oasdi', max(int(a), L), int(b), per='units')
+    return f
+
+
+# ---- the long-run years (4 November 2026, branch rebuild-longrun) -------------------------------------------------
+# Past CBO's last projection year used (settings tilt.projection.cbo_last_year, 2035) every series continues at the
+# growth of one Macro-Projections aggregate (production's long-run mapping, src/project_puf.R income_far). The
+# aggregates are written once, with the counts they are divided by, to resources/growth/macro_long_run.csv
+# (resources/growth/build_long_run.py). The items table's series files carry their own continuation (the same
+# aggregates, resources/projection_long_run_mapping.csv); the functions here continue the series the growth.yaml rules
+# read (targets.cbo_growth, growth.income_per_person_growth, gross_ss_between) and the count of returns
+# (returns_growth, for the Forbes list grown past the last list).
+_LR = {}
+
+
+def cbo_last_year():
+    """The last year a CBO projection is used (settings tilt.projection.cbo_last_year)."""
+    import common
+    return int(common.SETTINGS['tilt']['projection']['cbo_last_year'])
+
+
+def long_run_level(name, year):
+    """The level of a long-run aggregate in year: a column of resources/growth/macro_long_run.csv, or a sum 'a + b'.
+    Columns: the Macro-Projections aggregates, 'units' (people aged 18 and over, a married couple counted once) and
+    'population' (every age)."""
+    if 'd' not in _LR:
+        d = pd.read_csv(os.path.join(RESOURCES, 'growth', 'macro_long_run.csv'))
+        assert d['year'].is_unique, 'macro_long_run.csv: a year twice'
+        _LR['d'] = d.set_index('year')
+    d = _LR['d']
+    if int(year) not in d.index:
+        raise ValueError(f'long-run aggregates: no {year} in macro_long_run.csv (it covers {d.index.min()}-{d.index.max()})')
+    parts = [q.strip() for q in name.split('+')]
+    missing = [q for q in parts if q not in d.columns]
+    if missing:
+        raise ValueError(f'long-run aggregates: no column {missing} in macro_long_run.csv')
+    v = float(sum(float(d.loc[int(year), q]) for q in parts))
+    if not (np.isfinite(v) and v > 0):
+        raise ValueError(f'long-run aggregate {name} in {year}: {v}')
+    return v
+
+
+def long_run_growth(name, a, b, per=None):
+    """Growth of the long-run aggregate name from year a to year b; with per ('units' or 'population'), divided by the
+    growth of that count over the same years (a growth per return or per person)."""
+    g = long_run_level(name, b) / long_run_level(name, a)
+    if per is not None:
+        g /= long_run_level(per, b) / long_run_level(per, a)
+    return g
+
+
+def returns_growth(a, b):
+    """Growth in the number of returns from year a to year b (a <= b): CBO's count through cbo_last_year, then the
+    growth of adults with a couple counted once ('units')."""
+    a, b, L = int(a), int(b), cbo_last_year()
+    f = 1.0
+    for y in range(a + 1, min(b, L) + 1):
+        f *= cbo_return_growth(y)
+    if b > L:
+        f *= long_run_growth('units', max(a, L), b)
     return f
 
 

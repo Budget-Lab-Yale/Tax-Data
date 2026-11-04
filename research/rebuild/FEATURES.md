@@ -1659,6 +1659,38 @@ empty table (a header only) gives every item an add factor of exactly 1, and the
 feature (checked on 2026: scratch `explore/2026-11-03/addfactors/RESULTS.md`). The Forbes list's records are outside
 step 2, so add factors do not touch them.
 
+## The projection years to 2075 (branch `rebuild-longrun`, 4 November; not merged, not yet run)
+
+Scratch `explore/2026-11-04/longrun/` (RESULTS.md, DECISIONS.md, MAPPING.md). Years 2036-2075 run the same three
+steps as 2024-2035 (`projection_steps.py` unchanged); only the series are longer.
+
+- **Configuration.** `targets_config/2036` to `2075`: copies of 2035 (the same targets; the survey mixes fixed after
+  the last wave). Settings `tilt.projection.cbo_last_year` (2035): the last year a CBO projection is used.
+- **Series.** Each items-table series continues from its 2035 value at the growth of one Macro-Projections aggregate,
+  one row per series column in `resources/projection_long_run_mapping.csv` (production's mapping, `src/project_puf.R`
+  income_far, where it has the item: wages with wages, interest with personal interest income, dividends and gains
+  with corporate profits, pass-through income with proprietors' income plus rents plus corporate profits, rents with
+  rental income, pensions and Social Security with Social Security outlays, consumption and consumer debt with
+  consumption; nominal GDP where there is no natural aggregate, and for the balance sheet). Kind `total`: the 2035
+  level times the aggregate's growth. Kind `per_unit`: per return over the growth of adults with a married couple
+  counted once (unmarried people 18 and over plus half of all married people), per person over the population, a
+  price with CPI-U; medical expenses keep their 2035 price relative to all consumer prices. Alimony keeps its yearly
+  decline. `resources/growth/build_long_run.py` writes `projection_series_b.csv` and `projection_series_med.csv` (rows
+  2036-2075 added), `projection_series_current.csv` and `growth/macro_long_run.csv` (the aggregates and the two
+  counts, 2026-2075), and extends the Z.1 and population files of `resources/growth/` to 2075 by their own rules.
+- **The 27 items that used today's code rule** (`current`: wages, elective deferrals, overtime, tips, the Financial
+  Accounts balance-sheet items, the consumption categories) read series files instead, with the same growth through
+  2035 (to 7 in 10^16), so `tilt.grow_dollars` in item mode no longer calls `projection_growth.plan_factors` or
+  CBO's count of returns. The 15 `current` rows left are per-unit rules (kind `per_unit`); a `current` row of kind
+  `total` stops the run.
+- **Past CBO's last year** the growth.yaml rules continue too (`targets.cbo_growth`, `growth.income_per_person_growth`,
+  `projection_growth.gross_ss_between`, `projection_growth.long_run_growth`), so every year's configuration check
+  passes; the Forbes list after 2026 grows per return by the items table's series over the growth of returns
+  (`projection_growth.returns_growth`; `top_billionaires.growth_factors`); the AMT count target has no row after 2035;
+  401(k) limits to 2075 by their rule (2.4% a year, rounded down to $500).
+- **Open.** CBO's population has no married 16-year-olds in 2070-2072, so step 1 cannot meet that cell in those years
+  (DECISIONS.md, item 1).
+
 ## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, merged 3 November)
 
 John's decision of 3 November; it took effect with the retrain of 3-4 November (scratch `explore/2026-11-03/bigrun/`). Results: scratch `explore/2026-11-03/pensions/RESULTS.md`. It replaces the post-draw patch of

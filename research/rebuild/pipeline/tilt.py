@@ -234,9 +234,10 @@ def recombine(df, year):
 
 
 def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
-    # (3 November, agent A) mode 'item_factor': today's rule for each column (as cbo_per_return) handed to
-    # projection_steps.step2_factor, which applies the items table's series and makes each 'total' item's start total
-    # grow exactly at its series on the step 1 weights (projection_steps.STATE, set by step1 before this call)
+    # (3 November, agent A) mode 'item_factor': each column handed to projection_steps.step2_factor, which applies the
+    # items table's series and makes each 'total' item's start total grow exactly at its series on the step 1 weights
+    # (projection_steps.STATE, set by step1 before this call); a 'current' row's own rule (growth.yaml, the SCF's growth
+    # per unit) is computed here and passed on (4 November: only for 'current' rows, all of kind per_unit)
     """Each record's amounts grown item by item from year s to year t (TARGETS.md S7, per-return growth), by the
     series the dollar maps are grown by (build_table.build_maps), each item's line in the target year's growth.yaml
     (growth.py), as a ratio of year t's factor to year s's:
@@ -259,12 +260,21 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
             f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
     out, rows = df.copy(), []
-    cbo_mode = mode in ('cbo_per_return', 'item_factor')
+    # (4 November 2026, the long-run years) item mode no longer reads CBO's projections here (before: the CBO planner,
+    # projection_growth.plan_factors, and CBO's growth in returns for a 'current' row of kind total). Every items-table
+    # row whose 'current' rule was a CBO or Federal Reserve series is a 'file:' row since then, the same growth in
+    # 2024-2035 and continued to 2075 (resources/projection_series_current.csv); a 'current' row left is a per-unit rule
+    # of growth.yaml or the SCF's growth per unit, and a 'file:', 'none' or 'same_as' row needs no rule of today's code.
+    # So the code path is the same for every projection year, and no year needs a CBO number at this step.
+    cbo_mode = mode == 'cbo_per_return'
     item_mode = mode == 'item_factor'
     if item_mode:
-        import projection_growth as PG0
         import projection_steps as PS
-        R_total = float(np.prod([PG0.cbo_return_growth(y_) for y_ in range(s + 1, t + 1)]))
+        tab = PS.items_table()
+        bad = tab[(tab['series'] == 'current') & (tab['kind'] != 'per_unit')].index.tolist()
+        assert not bad, (f'items table: rows with series current must be kind per_unit (a growth.yaml or SCF rule per '
+                         f'unit); a CBO series goes in a series file (resources/projection_series_current.csv): {bad}')
+        R_total = float('nan')   # read by step2_factor only for a 'current' row of kind total, ruled out above
         deferred = []
     drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
     item_of = {v: k for k, v in drawn_as.items()}   # a drawn column's item: other_agi_remainder is other_agi's
@@ -308,6 +318,9 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
             fp = fn = plan[col][0]
             series = plan[col][1]
             kind = 'total'
+        elif item_mode and col in tab.index and tab.loc[col, 'series'] != 'current':
+            fp = fn = 1.0          # not read: the row's own series gives the growth (projection_steps.step2_factor)
+            kind, series = 'per_unit', ''
         else:
             fp, fn = thunk()
             kind = 'per_unit'

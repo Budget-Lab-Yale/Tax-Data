@@ -40,6 +40,6 @@ for name in series:
     with (output / f'z1_scf_{name}.csv').open('w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['year', 'value', 'note'])
-        for y in range(2010, 2061):
+        for y in range(2010, 2076):   # to 2075 since 4 November 2026 (the long-run years; build_long_run.py added 2061-2075 by the same rule)
             value = observed[y][name] if y <= 2025 else observed[2025][name] * gdp[y] / gdp[2025]
             w.writerow([y, f'{value:.0f}', '' if y <= 2025 else 'projection: 2025 ratio to nominal GDP held fixed'])

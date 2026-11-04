@@ -205,7 +205,14 @@ def agi_per_return(y):
 
 def income_per_person_growth(a, b):
     """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3) while BEA has both years,
-    then CBO's projection (cbo_personal_income_population.csv, its growth only)."""
+    then CBO's projection (cbo_personal_income_population.csv, its growth only) through CBO's last year used (settings
+    tilt.projection.cbo_last_year), then (4 November 2026, the long-run years) Macro-Projections' nominal GDP per person
+    (projection_growth.long_run_growth)."""
+    import projection_growth as PG
+    L = PG.cbo_last_year()
+    if b > L:
+        x = max(a, L)
+        return (income_per_person_growth(a, x) if x > a else 1.0) * PG.long_run_growth('gdp', x, b, per='population')
     bea = _csv('bea_personal_income_per_capita.csv')
     b_last = int(bea.index.max())
     if b <= b_last:
