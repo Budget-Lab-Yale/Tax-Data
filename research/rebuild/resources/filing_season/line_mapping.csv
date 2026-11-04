@@ -1,0 +1,98 @@
+item,tax_year,layout,line,published,definition,label_changes
+adjustments,2017,long,Total statutory adjustments,amount and returns,total statutory adjustments (Schedule 1 part II),
+adjustments,2018,long,Total statutory adjustments,amount and returns,total statutory adjustments (Schedule 1 part II),
+adjustments,2021,long,Total statutory adjustments,amount and returns,total statutory adjustments (Schedule 1 part II),
+adjustments,2022,long,Total statutory adjustments,amount and returns,total statutory adjustments (Schedule 1 part II),
+adjustments,2023,long,Total statutory adjustments,amount and returns,total statutory adjustments (Schedule 1 part II),
+adjustments,2024,long,Total statutory adjustments,amount and returns,total statutory adjustments (Schedule 1 part II),
+agi,2015,short,Adjusted gross income less deficit,amount,adjusted gross income less deficit,"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2016,short,Adjusted gross income less deficit,amount,adjusted gross income less deficit,"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2017,long,Adjusted gross income less deficit,amount,adjusted gross income less deficit,"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2017,short,Adjusted gross income less deficit,amount,adjusted gross income less deficit,"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2018,long,Adjusted gross income,amount,adjusted gross income less deficit (Form 1040 line 11 from 2020),"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2021,long,Adjusted gross income,amount,adjusted gross income less deficit (Form 1040 line 11 from 2020),"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2022,long,Adjusted gross income,amount,adjusted gross income less deficit (Form 1040 line 11 from 2020),"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2023,long,Adjusted gross income,amount,adjusted gross income less deficit (Form 1040 line 11 from 2020),"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+agi,2024,long,Adjusted gross income,amount,adjusted gross income less deficit (Form 1040 line 11 from 2020),"""Adjusted gross income"" in 2018, 2021, 2022, 2023, 2024; ""Adjusted gross income less deficit"" in 2015, 2016, 2017"
+capital_gains_line13,2015,short,Percentage of AGI composed of capital gains (times AGI),amount,"the short layout's share of AGI that is capital gains, times the class's AGI: an amount only, no count of returns","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2016,short,Percentage of AGI composed of capital gains (times AGI),amount,"the short layout's share of AGI that is capital gains, times the class's AGI: an amount only, no count of returns","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2017,long,Net capital gains / losses,amount and returns,"capital gain or loss on Form 1040 (line 7 from 2019): Schedule D's net gain, or its loss as allowed (at most $3,000), or capital gain distributions reported without a Schedule D; the file's capital_gains_line13","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2017,short,Percentage of AGI composed of capital gains (times AGI),amount,"the short layout's share of AGI that is capital gains, times the class's AGI: an amount only, no count of returns","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2018,long,Net capital gains / losses,amount and returns,"capital gain or loss on Form 1040 (line 7 from 2019): Schedule D's net gain, or its loss as allowed (at most $3,000), or capital gain distributions reported without a Schedule D; the file's capital_gains_line13","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2021,long,Net capital gains / losses,amount and returns,"capital gain or loss on Form 1040 (line 7 from 2019): Schedule D's net gain, or its loss as allowed (at most $3,000), or capital gain distributions reported without a Schedule D; the file's capital_gains_line13","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2022,long,Net capital gains / losses,amount and returns,"capital gain or loss on Form 1040 (line 7 from 2019): Schedule D's net gain, or its loss as allowed (at most $3,000), or capital gain distributions reported without a Schedule D; the file's capital_gains_line13","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2023,long,Net capital gains / losses,amount and returns,"capital gain or loss on Form 1040 (line 7 from 2019): Schedule D's net gain, or its loss as allowed (at most $3,000), or capital gain distributions reported without a Schedule D; the file's capital_gains_line13","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+capital_gains_line13,2024,long,Net capital gains / losses,amount and returns,"capital gain or loss on Form 1040 (line 7 from 2019): Schedule D's net gain, or its loss as allowed (at most $3,000), or capital gain distributions reported without a Schedule D; the file's capital_gains_line13","""Net capital gains / losses"" in 2017, 2018, 2021, 2022, 2023, 2024; ""Percentage of AGI composed of capital gains (times AGI)"" in 2015, 2016, 2017"
+div_pref,2017,long,Qualified dividends,amount and returns,"qualified dividends, a part of ordinary dividends (Form 1040 line 3a)",
+div_pref,2018,long,Qualified dividends,amount and returns,"qualified dividends, a part of ordinary dividends (Form 1040 line 3a)",
+div_pref,2021,long,Qualified dividends,amount and returns,"qualified dividends, a part of ordinary dividends (Form 1040 line 3a)",
+div_pref,2022,long,Qualified dividends,amount and returns,"qualified dividends, a part of ordinary dividends (Form 1040 line 3a)",
+div_pref,2023,long,Qualified dividends,amount and returns,"qualified dividends, a part of ordinary dividends (Form 1040 line 3a)",
+div_pref,2024,long,Qualified dividends,amount and returns,"qualified dividends, a part of ordinary dividends (Form 1040 line 3a)",
+dividends,2017,long,Ordinary dividends,amount and returns,"ordinary dividends, qualified dividends included (Form 1040 line 3b)",
+dividends,2018,long,Ordinary dividends,amount and returns,"ordinary dividends, qualified dividends included (Form 1040 line 3b)",
+dividends,2021,long,Ordinary dividends,amount and returns,"ordinary dividends, qualified dividends included (Form 1040 line 3b)",
+dividends,2022,long,Ordinary dividends,amount and returns,"ordinary dividends, qualified dividends included (Form 1040 line 3b)",
+dividends,2023,long,Ordinary dividends,amount and returns,"ordinary dividends, qualified dividends included (Form 1040 line 3b)",
+dividends,2024,long,Ordinary dividends,amount and returns,"ordinary dividends, qualified dividends included (Form 1040 line 3b)",
+farm,2017,long,Farm income / losses,amount and returns,Schedule F net income less loss (Schedule 1 line 6),"""Farm income / losses"" in 2017, 2018; ""Farm income / losses (Schedule F)"" in 2021, 2022, 2023, 2024"
+farm,2018,long,Farm income / losses,amount and returns,Schedule F net income less loss (Schedule 1 line 6),"""Farm income / losses"" in 2017, 2018; ""Farm income / losses (Schedule F)"" in 2021, 2022, 2023, 2024"
+farm,2021,long,Farm income / losses (Schedule F),amount and returns,Schedule F net income less loss (Schedule 1 line 6),"""Farm income / losses"" in 2017, 2018; ""Farm income / losses (Schedule F)"" in 2021, 2022, 2023, 2024"
+farm,2022,long,Farm income / losses (Schedule F),amount and returns,Schedule F net income less loss (Schedule 1 line 6),"""Farm income / losses"" in 2017, 2018; ""Farm income / losses (Schedule F)"" in 2021, 2022, 2023, 2024"
+farm,2023,long,Farm income / losses (Schedule F),amount and returns,Schedule F net income less loss (Schedule 1 line 6),"""Farm income / losses"" in 2017, 2018; ""Farm income / losses (Schedule F)"" in 2021, 2022, 2023, 2024"
+farm,2024,long,Farm income / losses (Schedule F),amount and returns,Schedule F net income less loss (Schedule 1 line 6),"""Farm income / losses"" in 2017, 2018; ""Farm income / losses (Schedule F)"" in 2021, 2022, 2023, 2024"
+returns,2015,short,Number of returns,returns,number of returns (Form 1040 and its variants); the short layout,"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2016,short,Number of returns,returns,number of returns (Form 1040 and its variants); the short layout,"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2017,long,Total number of returns,returns,number of returns (Form 1040 and its variants),"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2017,short,Number of returns,returns,number of returns (Form 1040 and its variants); the short layout,"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2018,long,All returns,returns,number of returns (Form 1040 and its variants),"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2021,long,All returns,returns,number of returns (Form 1040 and its variants),"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2022,long,All returns,returns,number of returns (Form 1040 and its variants),"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2023,long,All returns,returns,number of returns (Form 1040 and its variants),"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+returns,2024,long,All returns,returns,number of returns (Form 1040 and its variants),"""All returns"" in 2018, 2021, 2022, 2023, 2024; ""Number of returns"" in 2015, 2016, 2017; ""Total number of returns"" in 2017"
+schedule_e,2017,long,"Rental real estate, royalties, partnerships, S corporations, trusts (Schedule E)",amount and returns,"Schedule E net income less loss (Schedule 1 line 5): rents and royalties, partnerships, S corporations, estates and trusts, and farm rental (Form 4835); the file's parts of those families, signed",
+schedule_e,2018,long,"Rental real estate, royalties, partnerships, S corporations, trusts (Schedule E)",amount and returns,"Schedule E net income less loss (Schedule 1 line 5): rents and royalties, partnerships, S corporations, estates and trusts, and farm rental (Form 4835); the file's parts of those families, signed",
+schedule_e,2021,long,"Rental real estate, royalties, partnerships, S corporations, trusts (Schedule E)",amount and returns,"Schedule E net income less loss (Schedule 1 line 5): rents and royalties, partnerships, S corporations, estates and trusts, and farm rental (Form 4835); the file's parts of those families, signed",
+schedule_e,2022,long,"Rental real estate, royalties, partnerships, S corporations, trusts (Schedule E)",amount and returns,"Schedule E net income less loss (Schedule 1 line 5): rents and royalties, partnerships, S corporations, estates and trusts, and farm rental (Form 4835); the file's parts of those families, signed",
+schedule_e,2023,long,"Rental real estate, royalties, partnerships, S corporations, trusts (Schedule E)",amount and returns,"Schedule E net income less loss (Schedule 1 line 5): rents and royalties, partnerships, S corporations, estates and trusts, and farm rental (Form 4835); the file's parts of those families, signed",
+schedule_e,2024,long,"Rental real estate, royalties, partnerships, S corporations, trusts (Schedule E)",amount and returns,"Schedule E net income less loss (Schedule 1 line 5): rents and royalties, partnerships, S corporations, estates and trusts, and farm rental (Form 4835); the file's parts of those families, signed",
+sole_prop,2017,long,Business net income / loss,amount and returns,Schedule C net income less loss (Schedule 1 line 3),"""Business net income / loss"" in 2017, 2018; ""Business net income / loss (Schedule C)"" in 2021, 2022, 2023, 2024"
+sole_prop,2018,long,Business net income / loss,amount and returns,Schedule C net income less loss (Schedule 1 line 3),"""Business net income / loss"" in 2017, 2018; ""Business net income / loss (Schedule C)"" in 2021, 2022, 2023, 2024"
+sole_prop,2021,long,Business net income / loss (Schedule C),amount and returns,Schedule C net income less loss (Schedule 1 line 3),"""Business net income / loss"" in 2017, 2018; ""Business net income / loss (Schedule C)"" in 2021, 2022, 2023, 2024"
+sole_prop,2022,long,Business net income / loss (Schedule C),amount and returns,Schedule C net income less loss (Schedule 1 line 3),"""Business net income / loss"" in 2017, 2018; ""Business net income / loss (Schedule C)"" in 2021, 2022, 2023, 2024"
+sole_prop,2023,long,Business net income / loss (Schedule C),amount and returns,Schedule C net income less loss (Schedule 1 line 3),"""Business net income / loss"" in 2017, 2018; ""Business net income / loss (Schedule C)"" in 2021, 2022, 2023, 2024"
+sole_prop,2024,long,Business net income / loss (Schedule C),amount and returns,Schedule C net income less loss (Schedule 1 line 3),"""Business net income / loss"" in 2017, 2018; ""Business net income / loss (Schedule C)"" in 2021, 2022, 2023, 2024"
+ss_taxable,2021,long,Taxable social security benefits,amount and returns,taxable Social Security benefits (Form 1040 line 6b),
+ss_taxable,2022,long,Taxable social security benefits,amount and returns,taxable Social Security benefits (Form 1040 line 6b),
+ss_taxable,2023,long,Taxable social security benefits,amount and returns,taxable Social Security benefits (Form 1040 line 6b),
+ss_taxable,2024,long,Taxable social security benefits,amount and returns,taxable Social Security benefits (Form 1040 line 6b),
+state_ref,2021,long,State and local income tax refunds,amount and returns,state and local income tax refunds (Schedule 1 line 1),
+state_ref,2022,long,State and local income tax refunds,amount and returns,state and local income tax refunds (Schedule 1 line 1),
+state_ref,2023,long,State and local income tax refunds,amount and returns,state and local income tax refunds (Schedule 1 line 1),
+state_ref,2024,long,State and local income tax refunds,amount and returns,state and local income tax refunds (Schedule 1 line 1),
+txbl_int,2017,long,Taxable interest,amount and returns,taxable interest (Form 1040 line 2b),
+txbl_int,2018,long,Taxable interest,amount and returns,taxable interest (Form 1040 line 2b),
+txbl_int,2021,long,Taxable interest,amount and returns,taxable interest (Form 1040 line 2b),
+txbl_int,2022,long,Taxable interest,amount and returns,taxable interest (Form 1040 line 2b),
+txbl_int,2023,long,Taxable interest,amount and returns,taxable interest (Form 1040 line 2b),
+txbl_int,2024,long,Taxable interest,amount and returns,taxable interest (Form 1040 line 2b),
+txbl_ira_dist,2021,long,Taxable income from Individual Retirement Arrangement (IRA),amount and returns,taxable IRA distributions (Form 1040 line 4b),
+txbl_ira_dist,2022,long,Taxable income from Individual Retirement Arrangement (IRA),amount and returns,taxable IRA distributions (Form 1040 line 4b),
+txbl_ira_dist,2023,long,Taxable income from Individual Retirement Arrangement (IRA),amount and returns,taxable IRA distributions (Form 1040 line 4b),
+txbl_ira_dist,2024,long,Taxable income from Individual Retirement Arrangement (IRA),amount and returns,taxable IRA distributions (Form 1040 line 4b),
+txbl_ira_pens_dist,2017,long,"Taxable IRA's, pensions, and annuities",amount and returns,taxable IRA distributions and taxable pensions and annuities together (tax years 2017 and 2018; the file's txbl_ira_dist plus txbl_pens_dist),
+txbl_ira_pens_dist,2018,long,"Taxable IRA's, pensions, and annuities",amount and returns,taxable IRA distributions and taxable pensions and annuities together (tax years 2017 and 2018; the file's txbl_ira_dist plus txbl_pens_dist),
+txbl_pens_dist,2021,long,"Taxable income from pensions, and annuities",amount and returns,taxable pensions and annuities (Form 1040 line 5b),
+txbl_pens_dist,2022,long,"Taxable income from pensions, and annuities",amount and returns,taxable pensions and annuities (Form 1040 line 5b),
+txbl_pens_dist,2023,long,"Taxable income from pensions, and annuities",amount and returns,taxable pensions and annuities (Form 1040 line 5b),
+txbl_pens_dist,2024,long,"Taxable income from pensions, and annuities",amount and returns,taxable pensions and annuities (Form 1040 line 5b),
+ui,2021,long,Unemployment compensation,amount and returns,unemployment compensation (Schedule 1 line 7),
+ui,2022,long,Unemployment compensation,amount and returns,unemployment compensation (Schedule 1 line 7),
+ui,2023,long,Unemployment compensation,amount and returns,unemployment compensation (Schedule 1 line 7),
+ui,2024,long,Unemployment compensation,amount and returns,unemployment compensation (Schedule 1 line 7),
+wages,2017,long,Salaries and wages,amount and returns,"wages (Form 1040 line 1; line 1z, total wages, from 2022)","""Salaries and wages"" in 2017, 2018, 2021, 2022, 2023; ""Total wages"" in 2024"
+wages,2018,long,Salaries and wages,amount and returns,"wages (Form 1040 line 1; line 1z, total wages, from 2022)","""Salaries and wages"" in 2017, 2018, 2021, 2022, 2023; ""Total wages"" in 2024"
+wages,2021,long,Salaries and wages,amount and returns,"wages (Form 1040 line 1; line 1z, total wages, from 2022)","""Salaries and wages"" in 2017, 2018, 2021, 2022, 2023; ""Total wages"" in 2024"
+wages,2022,long,Salaries and wages,amount and returns,"wages (Form 1040 line 1; line 1z, total wages, from 2022)","""Salaries and wages"" in 2017, 2018, 2021, 2022, 2023; ""Total wages"" in 2024"
+wages,2023,long,Salaries and wages,amount and returns,"wages (Form 1040 line 1; line 1z, total wages, from 2022)","""Salaries and wages"" in 2017, 2018, 2021, 2022, 2023; ""Total wages"" in 2024"
+wages,2024,long,Total wages,amount and returns,"wages, Form 1040 line 1z (the same line as ""salaries and wages"" in 2022 and 2023)","""Salaries and wages"" in 2017, 2018, 2021, 2022, 2023; ""Total wages"" in 2024"
