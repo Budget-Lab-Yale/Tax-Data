@@ -323,7 +323,7 @@ and the SIPP, not measured by the CPS, so a non-filer has none.
   other_item_exp: itemized deductions before the overall limitation (P04470 + E21040) less deductible medical
   expenses (floor 7.5% of AGI at 65+, else 10%), the two taxes, interest, charity, casualty and net limited
   miscellaneous deductions, on itemizers. The PUF rounds each item on its own, so it is negative on 15 million
-  returns, mostly by under $500; it is kept as the PUF has it (John, 27 October).
+  returns, mostly by under $500; held at zero from below since 3 November 2026 (John; kept as the PUF had it from 27 October).
 - Growth to the target year: per return with the item by its own SOI Table 1.4 line (qualified dividends; ordinary
   dividends for div_ord; each adjustment; Schedule D gains for the two gains; partnership and S corporation income
   for part_se). The itemized deduction items, AMT items, credits and other taxes have no Table 1.4 line; until 29

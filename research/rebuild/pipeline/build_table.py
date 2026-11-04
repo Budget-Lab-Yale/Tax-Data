@@ -459,12 +459,14 @@ def puf_rows(puf):
     # taxes, interest paid, charity, casualty losses and net limited miscellaneous deductions; zero otherwise. The
     # medical floor is 7.5% of AGI for the 65+ range and 10% otherwise (production's rule); a record with no range
     # counts as 65+ when step 0 gives 65+ more than half (production imputes the range there). The PUF rounds each
-    # item on its own, so the residual is negative on many itemizers (mostly by under $500).
+    # item on its own, so the residual is negative on many itemizers (mostly by under $500); it is held at zero from
+    # below (John, 3 November 2026; kept as the PUF had it from 27 October until then).
     old = (df['age_range'].to_numpy() == 5) | (df['age_p5'].to_numpy() > 0.5)
     agi_ = I['E00100'].astype(float)
     medical = np.maximum(0, I['E17500'] - np.maximum(0, agi_ * np.where(old, 0.075, 0.1)))
     df['other_item_exp'] = np.where(I['FDED'] == 1, I['P04470'] + I['E21040'] - medical - I['E18400'] - I['E18500']
                                     - I['E19200'] - I['E19700'] - I['E20500'] - I['E20800'], 0.0)
+    df['other_item_exp'] = np.maximum(df['other_item_exp'], 0.0)
     return df
 
 
