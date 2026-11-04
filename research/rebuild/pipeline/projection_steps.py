@@ -221,8 +221,7 @@ def step1(df, w, year, s):
     STATE.clear()
     STATE.update(year=int(year), base_year=int(s), record_id=df['record_id'].to_numpy(), keep=keep, w_base=w.copy(),
                  w1=w1, person_targets=table, step1=out, return_shares=shares, items={}, add_factors=[])
-    if fs_active(year):   # the November filing-season tables (below): the 2023 file's own items by its AGI groups
-        assert int(s) == int(FS['base_year']), f'filing_season: the start is {s}, the setting says {FS["base_year"]}'
+    if fs_active(year, s):   # the November filing-season tables (below): the base year file's own items by its AGI groups
         STATE['df_base'] = df
         STATE['fs'] = {'blend': {}, 'columns': {}}
     return w1, out
@@ -287,8 +286,8 @@ def add_factor(col, s, t):
     t covered by its rows of the add factors table (exactly 1 with none). Returns (factor, rows in force)."""
     tab = add_factors_table()
     rows = tab[tab.column == col]
-    early = rows[rows.first_year <= s]
-    assert early.empty, f'{_ADD["path"]}: {col} has add factors for years up to the base year {s}'
+    # (4 November, the jump-off year) a row covering years up to the start year s counts only its years after s: the
+    # start's file already carries the earlier years' add factors
     f, used = 1.0, []
     for r in rows.itertuples():
         n = len(range(max(r.first_year, s + 1), min(r.last_year, t) + 1))
@@ -582,8 +581,21 @@ FS_EDGES_E = [(None, 75000, 'under $75k')] + FS_EDGES[6:]
 _FS = {}
 
 
-def fs_active(year):
-    return bool(FS.get('enabled', False)) and int(year) >= int(FS['year'])
+def fs_active(year, s=None):
+    """The blend is in force for a year at or after FS year whose start is the base_year file (s, else the start of this
+    run's step 1). From the jump-off year on the start is the jump-off year's file, which carries the blend already."""
+    s = STATE.get('base_year') if s is None else s
+    return bool(FS.get('enabled', False)) and int(year) >= int(FS['year']) and s is not None and \
+        int(s) == int(FS['base_year'])
+
+
+def jump_off(year, s):
+    """(John, 4 November 2026, evening; PLAN.md "The jump-off year") The start year of a projection year whose
+    targets.yaml says from_year s: the jump-off year, the last year with IRS data (the November table included), for
+    every year after it; s otherwise. With the setting off: s (every year from base_year, as before)."""
+    if FS.get('enabled', False) and int(s) == int(FS['base_year']) and int(year) > int(FS['year']):
+        return int(FS['year'])
+    return int(s)
 
 
 def fs_e_parts():
@@ -850,8 +862,14 @@ def fs_write(folder):
     """The filing-season lines of the summary, and projection_filing_season.csv (the blends) and
     projection_filing_season_targets.csv (the group targets)."""
     if not fs_active(STATE.get('year', 0)):
-        return [f"Filing-season blend (settings tilt.projection.filing_season): "
-                f"{'off' if not FS.get('enabled', False) else 'not used before ' + str(FS['year'])}.", '']
+        if not FS.get('enabled', False):
+            how = 'off'
+        elif int(STATE.get('base_year', 0)) == int(FS['year']):
+            how = (f"the start is the jump-off year's file ({FS['year']}), which carries the blend; every item grows "
+                   f"from it by its series")
+        else:
+            how = 'not used before ' + str(FS['year'])
+        return [f"Filing-season blend (settings tilt.projection.filing_season): {how}.", '']
     bl = pd.DataFrame(list(STATE['fs']['blend'].values()))
     cols = pd.DataFrame([{'column': c, 'factor': v[0], 'how': v[1]} for c, v in STATE['fs']['columns'].items()
                          if v is not None])

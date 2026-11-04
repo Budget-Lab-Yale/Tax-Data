@@ -1895,6 +1895,10 @@ def start_spec(year):
             f'{year}/targets.yaml: start is generate or {{from_year: <year>, run: <tilt run>}}, not {st!r}'
         assert int(st['from_year']) < int(year), f'{year}/targets.yaml: from_year {st["from_year"]} is not earlier'
         spec = {'mode': 'from_year', 'year': int(st['from_year']), 'run': str(st['run'])}
+        import projection_steps as PS   # (4 November, evening) the jump-off year (settings tilt.projection.filing_season)
+        j = PS.jump_off(year, spec['year'])
+        if j != spec['year']:
+            spec.update(year=j, run=f'y{j}', jump_off=True)
     sc = dict(cfg.get('start_scaling') or {})
     bad = set(sc) - set(START_SCALING)
     assert not bad, f'{year}/targets.yaml: unknown keys in start_scaling {bad}'

@@ -1711,7 +1711,8 @@ steps as 2024-2035 (`projection_steps.py` unchanged); only the series are longer
 John's rule (4 November; scratch `explore/2026-11-04/nowcast/`: PLAN.md with "Decisions after the backtest",
 BACKTEST.md, RESULTS.md). The last year of final SOI tables (2023) stays a past year. The year after it (2024) takes
 part of its growth from SOI's filing-season table of returns processed through November (tax year 2024 against tax
-year 2023, the November tables only). Every later year grows from that 2024 level by CBO's and the macro series.
+year 2023, the November tables only). Every later year starts from the finished 2024 file (the jump-off year) and grows from it by CBO's and the
+macro series.
 Settings `tilt.projection.filing_season`; `projection_steps.py`, its last section.
 
 - **The tables.** `build_filing_season.py` (stage `filing_season`, not in the default list) reads every November table
@@ -1740,8 +1741,18 @@ Settings `tilt.projection.filing_season`; `projection_steps.py`, its last sectio
   million and over as the top; for Schedule E every group below $75,000 is one. Errors: the backtest's root mean
   square miss for the item and group (`targets_config/filing_season_errors.csv`), at least 1%; Schedule E's lowest
   group in dollars (5.8% of the national total). In 2024: 149 group targets in place of 27 national item totals (430 targets, run3 308).
-- **Off.** `enabled: false` gives every year exactly the file it gave before (checked on 2024 and 2030 against run3:
-  every column and weight equal).
+- **The jump-off year** (John, 4 November evening; TARGETS.md S13). 2024, the last year with IRS data, is the
+  jump-off year: every year 2025-2075 starts from the finished 2024 file (`projection_steps.jump_off`, read by
+  `target_list.start_spec`), grown from 2024 by the series, with targets at the 2024 file's level times the growth from
+  2024; the blend is not applied again (`fs_active` needs a start from base_year), and an add factor counts only its
+  years after the start. The SCF targets take the 2024 run's own growth from 2023 and its units' growth from its tilt
+  folder (`scf_targets.jump_off_chain`), so they are the 2023 frame grown to 2024 as in the 2024 run and on from there.
+  The Forbes lists (2025, 2026), the list-year ceiling and the grown list after 2026 do not depend on the start year.
+  Against run3, income tax after credits is -0.4% in 2024 and -0.03% to +0.11% in 2025-2075; the item totals keep 2024's
+  differences; the effective sample against the 2023 file stays 1.2-2.1 points below run3's (scratch
+  `explore/2026-11-04/nowcast/RESULTS.md`).
+- **Off.** `enabled: false` gives every year exactly the file it gave before, every year from 2023 (checked against
+  run3 on 2024 and, with the jump-off code, on 2025 and 2030: every column and weight equal).
 - **When SOI publishes.** Final tables for 2024 make 2024 a past year: base_year and year move to 2024 and 2025, and
   the tax-year-2025 November table (`26inweek47.xlsx`, expected January 2027) supplies the next blend (NEXT_STEPS.md).
 

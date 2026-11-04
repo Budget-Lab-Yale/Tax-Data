@@ -76,8 +76,11 @@ a run of the years it touches, a comparison with the run before it, and John's a
      tables, the table for 2025 is not used: the blend covers only the year after the last final year.
    - **When SOI publishes final tables for 2024** (Table 1.4, expected late 2026 or 2027): 2024 becomes a past year
      (its targets.yaml a past year's, run on its own draw), settings `tilt.projection.filing_season` base_year 2024 and
-     year 2025, the projection starts from the 2024 file, and the 2025 targets.yaml gets the `filing_season_groups`
-     entry (to be taken out of 2024's). The November tables for 2024 and 2025 then give 2025's blend.
+     year 2025, the 2025 targets.yaml gets the `filing_season_groups` entry (to be taken out of 2024's) and 2025, built
+     from the 2024 file, becomes the jump-off year: 2026-2075 start from it (every projection targets.yaml's
+     `from_year` then reads 2024, which `projection_steps.jump_off` turns into 2025). The November tables for 2024 and
+     2025 give 2025's blend. If the November table for the year after the last SOI year is missing, the jump-off year
+     is the last SOI year and the setting is off.
    - **Schedule C** stays at no trust until its 2024 fall is understood: $47 billion of the $55 billion fall is larger
      losses on returns with no AGI, whose number did not change (scratch `explore/2026-11-04/nowcast/RESULTS.md`).
 

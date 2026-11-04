@@ -724,6 +724,15 @@ non-filers), dollars grown per return from 2023 to the year by CBO's and the mac
 1% as before). The prior in the cost is the 2023 file prescaled to the year. The years are independent and run in parallel;
 no year inherits another's misses or moves.
 
+**The jump-off year (John, 4 November 2026, evening).** The base is the jump-off year: the last year with IRS data,
+the November filing-season table included (now 2024; FEATURES.md, "The first projection year from SOI's November
+filing-season tables"). 2024 starts from the 2023 file as above. Every year after it, 2025-2075, starts from the
+finished 2024 file (`target_list.start_spec` turns the targets.yaml's `from_year: 2023` into 2024 when settings
+`tilt.projection.filing_season.enabled` is true), its dollars grown from 2024 by CBO's and the macro series, its
+targets the 2024 file's level times the growth from 2024. The years after the jump-off year are still independent of
+one another. When no November table exists for the year after the last SOI year, the jump-off year is the last SOI
+year; with the setting off every year starts from 2023, as before.
+
 ### S14. Returns by age within each AGI group (John, 3 November 2026; experiment on branch rebuild-age-by-agi)
 
 SOI Table 1.6's All returns panel, returns by the primary filer's age range 26-34 to 65+, in each of the 15 groups of the
