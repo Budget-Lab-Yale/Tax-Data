@@ -1361,11 +1361,14 @@ builder; ex-spouses and couples whose divorce was filed before the list are sepa
 siblings named in one entry, stays one record. In a list year the records have weight 1 and are held fixed.
 
 **After the last list (2027-2035; John, 2 November 2026)**: the 2026 list grown to the year (settings
-`tilt.top.after_last_list.grow`; `top_billionaires.grow_list`): each person's fortune split as `build_billionaires`
-splits it (public stock, private business, private real estate), each part grown from 2026 by the rule the projection
-start uses for the matching balance sheet item (`value.equities` and `value.pass_throughs`: Financial Accounts, then
-CBO's GDP, per return; `value.re_fund`: no projection rule, so growth.yaml's SCF rule, as `tilt.grow_dollars`), ages
-raised; income then computed from the IRS study's ratios as in a list year. **Their weights grow like any other
+`tilt.top.after_last_list.grow`; `top_billionaires.grow_list`): every fortune grown from 2026 by one factor, chosen
+so that the list's net worth on its starting weights grows as Z.1 household net worth, the series of the file's own
+net worth target (John, 4 November 2026: "I want them to grow at the same rate"; settings
+`tilt.top.after_last_list.wealth_growth` 'net worth', `top_records.net_worth_growth`; 2027: x 1.030, Z.1's 1.043 over
+the list's weight growth). The list then keeps its 2026 share of the file's net worth (4.5% in 2026, 4.3% in 2075;
+scratch `explore/2026-11-04/listgrowth/shares.csv`). Until then ('parts') each part grew by the rule of its balance
+sheet item (public stock and private business by the Financial Accounts, then GDP, per return; real estate by the
+SCF rule), and the list's share rose to 5.8% by 2075. Ages raised; income then computed from the IRS study's ratios as in a list year. **Their weights grow like any other
 person's**: each starts at 1 times its demographic cell's population growth from 2026 to the year (the start scaling
 every projection-year record gets from 2023); no count target for them. **They are held fixed at that starting weight
 in the solver** (2 November 2026; kept as the rule by John on 4 November: after the last list they are records like any

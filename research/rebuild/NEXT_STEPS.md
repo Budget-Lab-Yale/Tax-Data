@@ -53,8 +53,11 @@ a run of the years it touches, a comparison with the run before it, and John's a
    their starting weight in the solver (settings `tilt.top.after_last_list.fixed`; left free on 2 November, the solver
    cut the ten richest to weights near zero). In a list year no other record may be at or above $1 billion
    (`top_records.hold_below_ceiling`; 2024-2026 had 82-292 grown 2023 records there). After the last list, records grown
-   past $1 billion stay as the new billionaires; wealth above $1 billion in 2026 dollars rises from 4.7% of net worth in
-   2026 to 6.9% in 2075, the top 0.001%'s share from 5.0% to 6.1% (`explore/2026-11-04/billionaires_talk/shares.csv`).
+   past $1 billion stay as the new billionaires. The list's fortunes grow so that its net worth grows as Z.1 household
+   net worth (John, 4 November; its share 4.5% in 2026, 4.3% in 2075; the top 0.001%'s share 5.0% to 4.6%;
+   `explore/2026-11-04/listgrowth/shares.csv`); before that rule its share rose to 5.8%. The records grown past $1
+   billion are under no net worth target (Z.1's covers units below $1 billion), so their wealth grows with their items
+   alone ($57 trillion in 2075).
 5. **Done, 3 November: tax-simulator-gpu master pushed,** with the AMT senior deduction fix, car loan interest below
    the line, and the QBI income limit net of the Schedule 1-A deductions (`explore/2026-11-03/simfixes2/`). The R
    Tax-Simulator's AMT and QBI fixes are on its branch `fix/senior-deduction-amt-itemizers`, pushed, not merged.

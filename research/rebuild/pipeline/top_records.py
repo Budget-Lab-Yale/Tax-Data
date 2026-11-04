@@ -172,6 +172,32 @@ def strip_list(g19, imp, given, fixed, rep):
     return g19, imp, given, fixed, rep
 
 
+def net_worth_growth(g19, imp, year, list_year):
+    """(John, 4 November 2026: "I want them to grow at the same rate") The one factor by which every fortune on the
+    last list grows to the year when settings tilt.top.after_last_list.wealth_growth is 'net worth': the factor that
+    makes the list's net worth on its starting weights (1 x its cells' population growth from the list's year) grow
+    from the list's year as Z.1 household net worth (resources/growth/z1_household_net_worth.csv, the series of the
+    file's own net worth target), so the list keeps its share of the file's net worth. The weights depend on the
+    records' cells only (ages and marital status), not on their wealth, so a first build with any growth gives them.
+    Returns (factor, source) for top_billionaires.grow_list."""
+    import growth as GR
+    import projection_demographics as PD
+    first = TB.grow_list(TB.read_list(list_year), list_year, year)
+    b0, _ = TB.build_billionaires(first, g19, imp, year, [])
+    w0, _ = PD.population_cells(b0.assign(weight=1.0), year, from_year=list_year)
+    w0 = np.asarray(w0, float)
+    units, _ = TB.tax_units(TB.read_list(list_year))
+    nw_s = b0['forbes_uri'].map(units.set_index('unit_uri')['net_worth']).to_numpy(float)
+    assert np.isfinite(nw_s).all() and np.isclose(nw_s.sum(), units['net_worth'].sum(), rtol=1e-12), \
+        'the list\'s units and the built records differ'
+    z = GR._csv('z1_household_net_worth.csv')
+    zg = float(z.loc[year]) / float(z.loc[list_year])
+    wg = (w0 * nw_s).sum() / nw_s.sum()
+    f = zg / wg
+    return f, (f'one factor for every part: Z.1 household net worth {list_year} to {year} x {zg:.5f} over the list\'s '
+               f'weight growth (net-worth-weighted) x {wg:.5f}')
+
+
 def add_list(g19, imp, given, fixed, rep, year):
     """Step 4 (see the top) on the result of steps 1-3."""
     import projection_demographics as PD
@@ -181,6 +207,11 @@ def add_list(g19, imp, given, fixed, rep, year):
     kind, lst, list_year = TB.list_for_year(year)
     g19 = g19.copy()
     g19['billionaire'], g19['billionaire_rank'], g19['forbes_uri'] = 0, -1, ''
+    rule = (S.get('after_last_list') or {}).get('wealth_growth', 'parts')
+    assert rule in ('parts', 'net worth'), f'settings tilt.top.after_last_list.wealth_growth: {rule!r}'
+    if kind == 'grown' and rule == 'net worth':
+        lst = TB.grow_list(TB.read_list(list_year), list_year, year,
+                           factor=net_worth_growth(g19, imp, year, list_year))
     if lst is None:
         notes.append(f'WARNING: no Forbes list for {year} (settings tilt.top.billionaire_lists): the file has no units '
                      f'at or above ${ceiling / 1e9:g} billion, and the SCF targets cover the units below it only')
@@ -203,6 +234,11 @@ def add_list(g19, imp, given, fixed, rep, year):
             # the year, as every projection-year record's weight is grown from 2023 (tilt.main, population_cells)
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
+            if rule == 'net worth':   # the list's net worth on these weights grows as Z.1's from the list's year
+                import growth as GR
+                z = GR._csv('z1_household_net_worth.csv')
+                want = lst['net_worth_list'].sum() * float(z.loc[year]) / float(z.loc[list_year])
+                assert np.isclose((w_b * b['net_worth'].to_numpy(float)).sum(), want, rtol=1e-6), 'list growth off'
             # (2 November 2026; the rule since John, 4 November 2026) settings
             # tilt.top.after_last_list.fixed: true holds them at that starting weight in the solver, as the list years
             # hold theirs at 1; false leaves them free (the 2 November run: the solver then cut the richest to ~0)

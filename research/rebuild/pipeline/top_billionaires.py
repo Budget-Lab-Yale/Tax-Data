@@ -170,10 +170,12 @@ def growth_factors(s, t):
     return out
 
 
-def grow_list(lst, s, t):
+def grow_list(lst, s, t, factor=None):
     """The year-s list carried to year t (a year after the last list; John, 2 November 2026): each person's net worth
     split into public stock, private business and private real estate as build_billionaires splits it (wealth_parts,
-    on the year-s ranking), each part grown by growth_factors(s, t), net worth their sum, and the public share made
+    on the year-s ranking), each part grown by growth_factors(s, t), or, with factor (a pair (factor, source); John, 4
+    November 2026, settings tilt.top.after_last_list.wealth_growth), every part by that one factor, net worth their
+    sum, and the public share made
     the grown public part over the grown net worth (so build_billionaires splits the grown fortune into the same
     grown parts); ages raised by t - s (a missing age stays missing). Spouses, couples, families and every other column
     stay as on the year-s list. Income is not carried: build_billionaires computes it from the grown wealth by the IRS
@@ -181,7 +183,7 @@ def grow_list(lst, s, t):
     units, people = tax_units(lst)
     p = _people_attributes(people)
     p, _ = wealth_parts(p)
-    f = growth_factors(s, t)
+    f = growth_factors(s, t) if factor is None else {k: factor for k in ('public', 'private_pt', 'private_re')}
     grown = {k: p[k].to_numpy(float) * f[k][0] for k in f}
     nw = grown['public'] + grown['private_pt'] + grown['private_re']
     by_uri = pd.DataFrame({'uri': p['uri'].to_numpy(), 'nw': nw, 'share': grown['public'] / nw}).set_index('uri')
