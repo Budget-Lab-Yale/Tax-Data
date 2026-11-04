@@ -36,8 +36,10 @@ a run of the years it touches, a comparison with the run before it, and John's a
    three steps with longer series: each item continues from 2035 at a Macro-Projections aggregate, borrowed from
    production's long-run mapping. First test (4 November, `longrun/test/RESULTS.md`): 2036, 2045, 2055, 2065 and 2075
    from the big run's 2023 all converge (6-12 Newton steps, largest miss 2.03 standard errors), step 1 meets every
-   person count, and AGI holds at 57-58% of nominal GDP and wages at 87% of GDP wages. Next: the other 35 years, then
-   John's review and the merge.
+   person count, and AGI holds at 57-58% of nominal GDP and wages at 87% of GDP wages. The other 35 years (2037-2074)
+   ran the same way the same day (jobs 32023190-32023224; `longrun/test/RESULTS.md`): every year converges in 5-13
+   Newton steps, the largest miss rises smoothly from 1.23 to 2.03 standard errors, and AGI, wages and tax after
+   credits grow 3.5-4.8% a year with no jump between years. Next: John's review and the merge.
 
    **Placeholder until then:** the billionaires after the last Forbes list (2027-2035) are held at their starting
    weight in the solver (settings `tilt.top.after_last_list.fixed`). Left free on 2 November, the solver cut the ten
