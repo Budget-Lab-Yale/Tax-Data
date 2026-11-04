@@ -152,7 +152,9 @@ def frame(wave, year):
     # them (since 28 October; build_table.SCF_NOT_ASKED) are missing where the SCF does not ask and no SCF target reads
     # them (their targets are the W-2 statistics'), so they are left out here; so is the retirement accounts' stock share
     # (since 29 October), a share missing outside the PEU that no SCF target reads
-    not_asked = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']
+    # (3 November) and the inheritances received this year, missing outside the PEU, which no SCF target reads either
+    import build_table as BT
+    not_asked = list(BT.SCF_NOT_ASKED)
     items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
     cols = list(dict.fromkeys(items + ['value.primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
     t = _table(['household_id', 'implicate', 'weight', 'age_range', 'age1'] + cols)

@@ -446,102 +446,102 @@ items:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
   value.equities:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 stocks_funds per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 stocks_funds per person (past 2025 its ratio to nominal GDP is fixed)'
   value.bonds:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
   value.dc:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
   value.db:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
   value.life_ins:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.annuities:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.trusts:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_fin:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.pass_throughs:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 business per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 business per person (past 2025 its ratio to nominal GDP is fixed)'
   value.primary_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 primary_home per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 primary_home per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
   value.re_fund:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_nonfin:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   w_primary_ltv:
     source: 'none: a share, not dollars'
     negative: same
     measure: 'a share'
-    reason: 'held between SCF waves; after 2022 adjusted for mortgage and primary-home Z.1 growth'
+    reason: 'held between SCF waves; after the last wave (2025 since 3 November) adjusted for mortgage and primary-home Z.1 growth'
   value.other_mortgage:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 mortgages per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 mortgages per person (past 2025 its ratio to nominal GDP is fixed)'
   value.credit_lines:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   value.credit_cards:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   value.installment_debt:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_debt:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after 2022 use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   w_kg_primary_home:
     source: {series: scf mean per unit between waves}
     negative: same
@@ -597,6 +597,11 @@ items:
     negative: same
     measure: 'a count of workers'
     reason: 'a count of workers is not grown between waves (as before)'
+  inheritance:
+    source: {series: scf net worth per unit between waves}
+    negative: same
+    measure: 'the SCF''s weighted mean net worth per tax unit, the target year''s wave over the record''s wave (after the last wave, Z.1 household net worth per person)'
+    reason: 'inheritances received this year (3 November; John, 2 November): grown with household net worth per tax unit, the wealth inheritances come from, not by their own mean, which a handful of large inheritances move (build_table.scf_growth)'
 
   # ---- CEX consumption categories (build_table.CEX_AMOUNTS) -----------------------------------------------------
   c_clothing:

@@ -106,6 +106,7 @@ w_dc_stock_share,current,auto,0,,"today: a ratio; 2023 total $0.0bn gains, $0.0b
 biz_workers_schc,current,auto,0,,"today: a ratio; 2023 total $0.0bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
 biz_workers_part,current,auto,0,,"today: a ratio; 2023 total $0.0bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
 biz_workers_scorp,current,auto,0,,"today: a ratio; 2023 total $0.1bn gains, $0.0bn losses; not a dollar amount (a share, a count, weeks or hours)"
+inheritance,current,auto,0,,"inheritances received this year, an SCF-only item (3 November merge of rebuild-scf2025); today: growth.yaml rule (SCF net worth per tax unit between waves, after the last wave Z.1 household net worth per person); not targeted"
 c_clothing,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $215.7bn gains, $0.0bn losses"
 c_motor_vehicles,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $754.2bn gains, $0.0bn losses"
 c_durables,current,auto,1,0.01,"today: CBO or macro series (total); 2023 total $550.3bn gains, $0.0bn losses"
