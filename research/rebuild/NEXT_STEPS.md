@@ -1,9 +1,10 @@
 # Next steps (as of 4 November 2026)
 
-The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The full
-run on the merged code of 3-4 November (`explore/2026-11-03/bigrun/RESULTS.md`) is installed as the latest (John, 4
-November), with the years 2036-2075 run from its 2023 and installed beside it the same day
-(`explore/2026-11-04/longrun/test/RESULTS.md`). Paths starting
+The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The latest
+installed run is run3 (John, 4 November; `explore/2026-11-04/run3/run/`, every year 2015-2075): the big run of 3-4
+November (`explore/2026-11-03/bigrun/RESULTS.md`), its networks and draws, reweighted again on the code with Table
+4.3's count errors, the age-by-AGI targets at importance 1 and the list-year ceiling (2024-2026), and 2024-2075 projected
+from its 2023. Paths starting
 `explore/` are under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch,
 a run of the years it touches, a comparison with the run before it, and John's approval.
 
@@ -24,9 +25,10 @@ a run of the years it touches, a comparison with the run before it, and John's a
    merge, so those 75 targets a year had importance 1/1.5, not 1. No second run was made: nothing that touches
    training changed after it trained. John chose not to look further at its two unexplained moves (other income about
    $14 billion a year higher from 2023, mostly at $10 million and up; 2021 in 89 Newton steps against 58).
-   **Done 4 November, not yet in a full run:** Table 4.3's counts in the top 0.1% and 1% borrow their errors only from
-   Table 1.4 cells at or above the group's cutoff (`TARGETS.md` S15; 9766566). The next full run picks up both this
-   and the age-by-AGI importance.
+   **Done 4 November, in run3 (installed the same day):** Table 4.3's counts in the top 0.1% and 1% borrow their
+   errors only from Table 1.4 cells at or above the group's cutoff (`TARGETS.md` S15; 9766566), and the age-by-AGI
+   targets at importance 1. Every year converges (2015-2023 in 45-67 Newton steps, 2021 in 66 against 89); the
+   age-by-AGI cells' mean miss falls from about 0.11 to 0.09 standard errors, the largest in 2021 from 1.85 to 1.38.
 4. **The projection years (2024-2035).** John's three-step design is built and merged (`FEATURES.md`, "The projection
    years in three steps"): people by age and marital status, one dollar factor per item from John's series, then
    the main reweighting with no itemizer target and the AMT payer count kept. The Schedule A add factors (+2% a year

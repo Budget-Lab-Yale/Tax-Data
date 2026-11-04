@@ -1084,6 +1084,16 @@ married people under 18 were counted as unmarried (ede6f65).
   2015-2035 (John).
 - **The check tool's folder** was unreadable for the RA: two of its files were in the owner's own group. The tool now
   gives every file the folder's group.
+- **Run3, installed** (John): the big run's networks and draws reweighted again on the code with the Table 4.3 count
+  errors and the age-by-AGI targets at importance 1, all 61 years 2015-2075 (`explore/2026-11-04/run3/`). Every year
+  converges; the age-by-AGI misses shrink (mean 0.11 to 0.09 standard errors). 2024-2026 from the ceiling fix below.
+- **The number of returns** after 2023 kept as built (John): SOI's 2023 count, grown with the population at 2023 filing
+  shares. CBO's 2023 count is a projection 4.4 million above SOI's; in 2022, both actual, they agree.
+- **The billionaires.** After the last list they stay held at their starting weight, now as the rule (John: records like
+  any other, aged naively, not moved by the solver). In a list year no other record may be at or above $1 billion
+  (`top_records.hold_below_ceiling`): 82-292 grown 2023 records in 2024-2026 held at $999 million. After the last list,
+  records grown past $1 billion stay as the new billionaires; wealth above $1 billion in 2026 dollars goes from 4.7% of
+  net worth in 2026 to 6.9% in 2075 (`explore/2026-11-04/billionaires_talk/`).
 
 ## Paths tried and not taken
 

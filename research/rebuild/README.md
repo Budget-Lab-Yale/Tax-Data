@@ -78,8 +78,9 @@ training seed can be changed with `REBUILD_SEED`, the output folder with
 passes, for a quick test, with `REBUILD_PASSES`.
 
 Outputs. The folders `data/`, `targets/`, `model/`, `gen/` and `tilt/` under
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run (since 4 November, the 2019 run of the full run of
-3-4 November, with `taxsim/` beside them; `INSTALLED.txt` says what is where); they are changed only by an install
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run (since 4 November, the 2019 run of run3: the big run of
+3-4 November reweighted again, every year 2015-2075 in `explore/2026-11-04/run3/run/`, with `taxsim/` beside them;
+`INSTALLED.txt` says what is where); they are changed only by an install
 John approves. Runs since then live in
 their own folders under `explore/`: the networks of 30 October are in `explore/2026-10-30/train/model/`, their draws
 for 2015-2023 in `explore/2026-11-01/dryrun/run/<year>/gen/`, and the latest files for every year in
