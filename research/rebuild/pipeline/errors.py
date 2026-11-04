@@ -711,6 +711,11 @@ def standard_errors(rows, year=Y):
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
+    # (autoresearch, 4 November) a calculator target on Table 4.3 (the top groups' deductions) has its error from the
+    # tidy grid already (target_list.published_grid), as the Table 2.1 targets do
+    grid = rows['source'].astype(str).str.match(r'soi (4\.3|2\.5) ') if 'source' in rows else pd.Series(False, index=rows.index)
+    grid_calc = grid & (rows.kind == 'calculator')
+    table21 = table21 | grid_calc
     by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'age by status', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
@@ -727,6 +732,9 @@ def standard_errors(rows, year=Y):
     out.loc[table21, 'se'] = rows.loc[table21, 'se']
     out.loc[table21, 'error_kind'] = 'table21'
     out.loc[table21, 'se_reason'] = rows.loc[table21, 'error_reason']
+    out.loc[grid_calc, 'error_kind'] = rows.loc[grid_calc, 'error_kind']
+    if 'se_reason' in rows:
+        out.loc[grid_calc, 'se_reason'] = rows.loc[grid_calc, 'se_reason']
     if 'identity' in rows:
         m = rows['identity'].astype(bool)
         out.loc[m, ['se', 'error_kind', 'se_reason']] = [0.0, 'identity', 'an identity: hit exactly']

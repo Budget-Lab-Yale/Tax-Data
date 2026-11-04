@@ -551,6 +551,38 @@ def published_17(soi, year, cells, v, stats):
     return out
 
 
+def published_25(year, cells, v, stats):
+    """(Autoresearch, 4 November) SOI Table 2.5, returns with the earned income credit by the number of qualifying
+    children, all AGI (the mirror's bysize_eitc.csv, row Total): the returns with the credit and its amount in each
+    children group (grouping eitc_children on n_dep_eitc). Errors borrow Table 1.4's nearest cells (errors.borrow_cv),
+    as the other tables' counts and amounts do."""
+    import errors
+    lab = {'none': 'no qualifying children', 'one': 'one qualifying child', 'two': 'two qualifying children',
+           'three or more': 'three or more qualifying children'}
+    t = pd.read_csv(os.path.join(TG.MIRROR, 'bysize_eitc.csv'), dtype=str, keep_default_na=False)
+    t = t[(t.tax_year == str(year)) & (t.row_label == 'Total')]
+    assert len(t), f'Table 2.5 {year}: no Total row in bysize_eitc.csv'
+    donors, _ = errors.soi_cells(year)
+    rows = []
+    for c in cells:
+        (g,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'n_dep_eitc']
+        group = lab[c['parts'][g]]
+        vals = {}
+        for st in ('count', 'amount'):
+            item = f'returns with {group} > ' + ('number of returns' if st == 'count' else 'total earned income credit > amount')
+            x = t[t['item'] == item]['value']
+            assert len(x) == 1 and x.iloc[0] != '', f'Table 2.5 {year}: no value for {item}'
+            vals[st] = float(x.iloc[0]) * (1000.0 if st == 'amount' else 1.0)
+        for st in stats:
+            val = vals[st]
+            cv, what = (errors.borrow_cv(donors, count=val) if st == 'count' else
+                        errors.borrow_cv(donors, amount=val, returns=vals['count']))
+            rows.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'se': abs(val) * cv / 100,
+                         'error_kind': 'soi_borrowed', 'se_reason': f'Table 2.5 {st}, CV {cv:.2f}% borrowed from Table 1.4: {what}',
+                         'source': f'soi 2.5 {year}: returns with {group}, the earned income credit ({st}), all AGI; bysize_eitc.csv'})
+    return rows
+
+
 def published_status(soi, year, source, cells, stats):
     """Rows of returns by filing status (Table 1.2) or by filing status and age (Table 1.6), all AGI."""
     assert stats == ['units'], f'{source}: returns only'
@@ -1591,6 +1623,8 @@ def expand_entry(e, year, soi):
             rows = published_w2_shares(src, vyear, cells, v, e)
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_by_agi':
             rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'published' and src == 'soi 2.5':
+            rows = published_25(vyear, cells, v, stats)
         elif vkind == 'published' and src == 'soi 1.6' and any(c['agi'] for c in cells):
             rows = published_16_agi(vyear, cells, stats)
         elif vkind == 'published':

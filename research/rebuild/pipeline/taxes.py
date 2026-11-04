@@ -78,6 +78,8 @@ OUTPUTS = {
     'calc_ed_nonref': ('ed_nonref', 'education credits used against tax (lifetime learning and the nonrefundable part of '
                                     'the American opportunity credit)'),
     'calc_ed_ref': ('ed_ref', 'the refundable part of the American opportunity credit'),
+    'calc_cdctc_nonref': ('cdctc_nonref', 'credit for child and dependent care, used against tax'),
+    'calc_savers_nonref': ('savers_nonref', 'retirement savings contributions credit, used against tax'),
     # (autoresearch, 4 November) itemizers' cash gifts and gifts other than cash as reported on Schedule A (before the
     # deduction's limits), for Table 2.1's targets; set in compute from the calculator's input and its itemizing flag
     'calc_char_cash_itemizers': ('input char_cash x itemizing', 'cash gifts to charity on itemizing returns, as reported'),
@@ -369,6 +371,35 @@ SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculat
 }
 
 
+def apply_repealed_adjustments(df, year, w, ctx):
+    """(Autoresearch, 4 November) Adjustments the law has repealed by the year, set to zero (settings
+    taxes.repealed_adjustments: item -> first tax year without it): the domestic production activities deduction from
+    2018 (the 2017 law), the tuition and fees deduction from 2021 (the 2020 law). The draw carries 2015's claims into
+    every year; the calculator already ignores them under the year's law, so the file's adjustments and AGI disagreed
+    with its own: run3's 2019 file subtracted $3.8 billion of the production deduction from AGI, and its 2023 file $3.9
+    billion of it and $3.9 billion of tuition and fees (1.6 million returns), part of why it had 41.6 million returns
+    with adjustments against SOI's 35.8 million. The adjustments total and other_agi (adjustments sign -1 in
+    dollars.FOLD) move by the removed dollars, then taxable Social Security is computed again on the new AGI."""
+    rep = {k: int(v) for k, v in S.get('repealed_adjustments', {}).items() if not k.startswith('_')}
+    gone = [k for k, y0 in rep.items() if year >= y0 and k in df]
+    if not gone:
+        return df
+    df = df.copy()
+    filer = df['filer'].to_numpy() == 1
+    assert D.FOLD['adjustments'] == -1, 'other_agi holds the adjustments with sign -1 (dollars.FOLD)'
+    lines = []
+    for k in gone:
+        x = df[k].to_numpy(float)
+        assert np.isfinite(x).all(), f'{k}: a missing value'
+        lines.append(f'{k} ${(w * x)[filer].sum() / 1e9:.2f} billion on {w[filer & (x != 0)].sum() / 1e6:.2f} million filers')
+        df['adjustments'] = df['adjustments'].to_numpy(float) - x
+        df['other_agi'] = df['other_agi'].to_numpy(float) + x
+        df[k] = 0.0
+    D.retirement_items(df, in_agi=True)
+    ctx['notes'].append(f'repealed adjustments set to zero under {year} law (start weights): ' + '; '.join(lines))
+    return df
+
+
 def apply_refund_rule(df, year, w, folder, ctx, C):
     """Decision 47: taxable state refunds set to zero on records the calculator says do not itemize under the year's
     law, and the total built from them (other_agi) lowered by the same dollars; then taxable Social Security, which
@@ -542,6 +573,7 @@ def compute(df, year, w, nmi_ctx, folder):
         df = df.drop(columns=stale)
         ctx['notes'].append(f'the start\'s computed columns (from its own year) dropped and computed again under '
                             f'{law_year(year)} law: {len(stale)} columns')
+    df = apply_repealed_adjustments(df, law_year(year), w, ctx)
     if S.get('refund_rule', False):
         df = apply_refund_rule(df, year, w, folder, ctx, C)
     if S.get('greedy_schedule_a', {}).get('enabled', False):
@@ -606,6 +638,25 @@ def compute(df, year, w, nmi_ctx, folder):
         ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
+    if S.get('se_tax_ded_from_calculator', False):
+        # (autoresearch, 4 November) the deductible half of self-employment tax is the calculator's (liab_seca_er,
+        # computed from each person's self-employment income and wages), not the drawn one: the calculator never reads
+        # the drawn deduction, so the file's adjustments and AGI disagreed with its own (run3's 2019 file: the drawn
+        # deduction $34.6 billion, the calculator's $29.9 billion, on 21 million returns). The adjustments total and
+        # other_agi (adjustments sign -1 in dollars.FOLD) move with it, then taxable Social Security is computed again,
+        # so the file's AGI is the calculator's.
+        new_se = out['liab_seca_er'].to_numpy(float)
+        assert np.isfinite(new_se).all() and (new_se >= 0).all(), 'liab_seca_er: a missing or negative value'
+        old_se = df['se_tax_ded'].to_numpy(float)
+        filer_ = df['filer'].to_numpy() == 1
+        ctx['notes'].append(f'deductible half of self-employment tax from the calculator (start weights): drawn '
+                            f'${(w * old_se)[filer_].sum() / 1e9:.2f} billion, calculator\'s ${(w * new_se)[filer_].sum() / 1e9:.2f} '
+                            f'billion on filers; {int((np.abs(new_se - old_se) > 1).sum()):,} records changed')
+        df = df.copy()
+        df['se_tax_ded'] = new_se
+        df['adjustments'] = df['adjustments'].to_numpy(float) + (new_se - old_se)
+        df['other_agi'] = df['other_agi'].to_numpy(float) - (new_se - old_se)
+        D.retirement_items(df, in_agi=True)
     item = out['itemizing'].to_numpy(float) > 0
     for name, (src, _) in OUTPUTS.items():
         if src.startswith('input '):

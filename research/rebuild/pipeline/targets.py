@@ -57,6 +57,10 @@ T14 = {  # SOI item -> (variable, statistic)
     'total wages > total > amount': ('wages', 'amount'),
     'taxable interest > number of returns': ('taxable_interest', 'count'),
     'taxable interest > amount': ('taxable_interest', 'amount'),
+    'capital gain distributions reported on form 1040 > number of returns': ('capital_gain_distributions', 'count'),
+    'capital gain distributions reported on form 1040 > amount': ('capital_gain_distributions', 'amount'),
+    'qualified dividends > number of returns': ('qualified_dividends', 'count'),
+    'qualified dividends > amount': ('qualified_dividends', 'amount'),
     'ordinary dividends > number of returns': ('ordinary_dividends', 'count'),
     'ordinary dividends > amount': ('ordinary_dividends', 'amount'),
     'sales of capital assets reported on form 1040, schedule d > taxable net gain > number of returns':
@@ -117,6 +121,10 @@ T33 = {
     'tax credits > total refundable credits > earned income credit > amount': ('eitc', 'amount'),
     # (autoresearch, 4 November) the education credits: run3's 2019 file had 1.32 times SOI's returns with the refundable
     # American opportunity credit and 1.18 times its returns with the nonrefundable education credits (2023: 1.50, 1.26)
+    'tax credits > credit for child and dependent care > number of returns': ('child_care_credit', 'count'),
+    'tax credits > credit for child and dependent care > amount': ('child_care_credit', 'amount'),
+    'tax credits > retirement savings contribution credit > number of returns': ('savers_credit', 'count'),
+    'tax credits > retirement savings contribution credit > amount': ('savers_credit', 'amount'),
     'tax credits > nonrefundable education credit > number of returns': ('education_credit_nonrefundable', 'count'),
     'tax credits > nonrefundable education credit > amount': ('education_credit_nonrefundable', 'amount'),
     'tax credits > total refundable credits > american opportunity credit > number of returns': ('aotc_refundable', 'count'),
@@ -208,12 +216,24 @@ def published_cells(soi, year, variable, stat, table='1.4'):
     s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == 'all')
             & (soi['variable'] == variable) & (soi['statistic'] == stat) & (soi['label'] != 'all')]
     out = []
+    pending = None   # (autoresearch, 4 November) a blank lowest cell: SOI put it in a later 'combined' cell
     for r in s.sort_values('lo').itertuples():
         if pd.isna(r.value):
-            assert out and out[-1][3], f'{year} {variable} {stat}: a blank cell with no cell to join'
+            if not out:
+                pending = (r.lo if pending is None else pending[0], 0.0)
+                continue
+            assert out[-1][3], f'{year} {variable} {stat}: a blank cell with no cell to join'
             out[-1] = (out[-1][0], r.hi, out[-1][2], True)
+        elif pending is not None:
+            # every cell from the blank one up to the first combined cell is one cell (Table 3.3, 2023: the child care
+            # credit's no-AGI cell is in the $10,000-15,000 cell, with the zero cells between them)
+            pending = (pending[0], pending[1] + float(r.value))
+            if r.flag == 'combined':
+                out.append((pending[0], r.hi, pending[1], True))
+                pending = None
         else:
             out.append((r.lo, r.hi, float(r.value), r.flag == 'combined'))
+    assert pending is None, f'{year} {variable} {stat}: a blank lowest cell and no combined cell above it'
     return [(lo, hi, v) for lo, hi, v, _ in out]
 
 

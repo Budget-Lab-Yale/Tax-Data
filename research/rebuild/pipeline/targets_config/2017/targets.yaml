@@ -154,7 +154,8 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: all, target: net capital gain}
 
-  # (autoresearch, 4 November) Dependent filers' taxable interest and ordinary dividends, Table 1.7, all AGI.
+  # (autoresearch, 4 November) Dependent filers' taxable interest and ordinary dividends, Table 1.7, all AGI
+  # (round 7: also their tax-exempt interest, capital gain distributions, capital losses and Schedule C income and loss).
   # Untargeted in run3, the 2019 file had $2.1 billion of their taxable interest against SOI's $0.38 billion and
   # $3.2 billion of their dividends against $2.2 billion (2023: $2.6 against $0.69 billion of interest); this income
   # is what the tax on a child's unearned income falls on.
@@ -162,7 +163,8 @@ targets:
     kind: dependent filers
     statistic: [count, amount]
     population: dependent_filers
-    variable: [taxable_interest, ordinary_dividends]
+    variable: [taxable_interest, ordinary_dividends, exempt_int, capital_gain_distributions, capital_gain_loss,
+               sole_prop_net_income, sole_prop_net_loss]
     cells: all
     value: {published: soi 1.7}
     error: {kind: soi_borrowed}
@@ -503,6 +505,37 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
+  # (autoresearch, 4 November) Table 4.3's deductions in the top AGI groups, from the calculator: the charitable
+  # and interest deductions, dollars only. Table 2.1's top group is $500,000 and over and
+  # Table 1.4's QBI cells stop at $10 million, so the very top was free: run3's 2019 file had 1.42 times SOI's
+  # contributions deduction in the top 0.001% and 0.52 times its interest deduction.
+  # (round 6) Only the top 0.1% and 1%: in 2023 the top 0.001% and 0.01% cells, where the Forbes list's records are
+  # held at their weight, could not be met and the solve ran out of its 150 Newton steps (round 5).
+  # Table 4.3's taxes paid deduction is left out: it adds taxes other than state and local (in 2019 the top 0.001%
+  # deducted $191 million, $129,000 a return, under a $10,000 cap on state and local taxes), which the calculator's
+  # claimed taxes do not hold; as a target it stopped the solve (round 5, 271 standard errors).
+  - id: soi_4_3_deductions
+    kind: calculator
+    statistic: amount
+    population: independent_filers
+    variable: [itemized_charity, itemized_interest]
+    cells: {agi_cumulative: [top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, round 6) Qualified dividends in Table 4.3's top 0.1% and 1%: with ordinary dividends met, run3's
+  # 2019 file had 1.48 times SOI's qualified dividends in the top 0.1% before the tilt.
+  - id: soi_4_3_qualified_dividends
+    kind: soi 4.3
+    statistic: [count, amount]
+    population: independent_filers
+    variable: qualified_dividends
+    cells: {agi_cumulative: [top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
   # Auto loan interest from the SCF (27 October, candidate): in the four income groups of the wealth grid, the share
   # of the group's units with any auto loan interest and its dollars per unit, on the year's mix of SCF waves
   # (scf_targets.py), each wave's amounts grown per tax unit to the target year's wave. Stated per unit, not as
@@ -625,6 +658,34 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+  # (autoresearch, 4 November) Table 2.5: the returns with the earned income credit and its amount by the number of
+  # qualifying children, all AGI. The EITC by AGI below leaves the mix of children free: run3's 2019 file had $1.5
+  # billion of the credit without children against SOI's $2.3 billion, and $25.1 billion with one child against
+  # $22.7 billion. Table 2.5 in the mirror stops at tax year 2020.
+  - id: calc_eitc_children
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: eitc
+    cells: {eitc_children: all}
+    value: {published: soi 2.5}
+    error: {kind: soi_borrowed}
+    key: {group: '{eitc_children} qualifying children', target: '{variable} {statistic}'}
+
+  # (autoresearch, 4 November) Table 3.3's credit for child and dependent care and the retirement savings
+  # contributions credit, used against tax, by AGI. Untargeted, run3's 2019
+  # file had $4.3 billion of the child care credit against SOI's $3.8 billion and 8.0 million returns with the
+  # saver's credit against 9.6 million (2023: $4.1 against $3.5 billion; 8.2 against 9.8 million).
+  - id: calc_small_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: [child_care_credit, savers_credit]
+    cells: {ref_credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
   - id: calc_eitc
     kind: calculator
     statistic: [count, amount]
