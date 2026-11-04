@@ -1022,6 +1022,35 @@ John approved each merge (scratch `explore/2026-11-03/`, one RESULTS.md per piec
   in 2026-2035. One fix on the way: the top step's copy of the other itemized deductions rule lacked the small fix's
   floor at zero, and its check stopped every year's top build (2a42643).
 
+### 3-4 November (overnight): a search over the pretraining settings
+
+Scratch `explore/2026-11-04/netsearch/` (RESULTS.md, SCORE.md, DECISIONS.md, results.csv), branch `rebuild-netsearch`
+(18f1363, not merged; every idea is a setting whose default is the installed behaviour, and with the settings off the
+code reproduces the big run's networks weight for weight). Six ideas, each trained on two seeds (20261017, 20261018)
+and scored by one number fixed before any network was scored: the mean absolute log miss of the file before
+reweighting against the truth, each source weighted equally (PUF 2015 shares, dollars and top counts by AGI class and
+how often a record's parts land in its labelled AGI group; SCF 2019 net worth by income group and the top 0.1%'s
+income mix; CEX consumption means; CPS family and work items). The installed settings on five seeds scored 0.108,
+0.119, 0.121, 0.125 and 0.130 (mean 0.1205, standard deviation 0.008); a win needed a two-seed mean below 0.1124.
+No idea won; John closed the search on 4 November.
+
+| Idea | Two-seed mean |
+|---|---:|
+| Average of the weights over the last 10 passes | 0.1129 |
+| Moving average of the weights from pass 50 | 0.1134 |
+| One output layer per source (in place of one shared across sources) | 0.1139 |
+| Width 256 (50% more time a pass; best PUF part, worse SCF part) | 0.1156 |
+| Peak learning rate 0.0015 / 10-pass warm-up / peak 0.006 | 0.1167 / 0.1181 / 0.1188 |
+| Installed settings (five seeds) | 0.1205 |
+| Peak held, then straight-line decay | 0.1214 |
+| Finer bands at the top (105 dollar bands) | 0.1275 |
+| Muon optimizer at its usual settings | 0.1388 |
+| Weight decay 0.05 / 0.1 (also with width 256: 0.157 / 0.198) | 0.158 / 0.218 |
+
+The seed moved the score more than any setting. Not tried, if the search is reopened: weight decay below the
+installed 0.01 (0.001 and 0), since raising it was the largest effect seen; more seeds for the three best ideas; and
+training five or six seeds and keeping the best three by this score.
+
 ## Paths tried and not taken
 
 | What | Why not |
@@ -1079,3 +1108,6 @@ John approved each merge (scratch `explore/2026-11-03/`, one RESULTS.md per piec
 | Choosing networks by their held-back loss | Differences in the third or fourth decimal place, not in the order of the networks' wealth fit. The income-item check against the PUF does pick out the bad network |
 | A network saved at pass 20, 40 or 60 of the 80-pass run | Worse on every check than at pass 80 (seed 20261017's net worth before reweighting $226, $141, $126 and $105 trillion) |
 | 8 layers in place of 4 (28 October) | Moved both seeds toward the SCF a little but did not fix the bad seed; 45% more time a pass. Not adopted on two seeds |
+| Weight decay of 0.05 or 0.1 in place of 0.01 (4 November) | Worse on every source; at 0.1 about 51,000 returns with AGI of $10 million or more against the PUF's 18,000 |
+| The Muon optimizer (4 November) | Worse on average and less stable: one seed drew too many top returns and too much wealth |
+| 105 dollar bands with finer bands at the top (4 November) | Worse on both seeds (0.1275 against 0.1205) |
