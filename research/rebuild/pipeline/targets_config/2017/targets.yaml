@@ -194,8 +194,9 @@ targets:
   # high-income returns from primaries under 55 to 55-64: in 2015's $2m-5m class, 22% with a primary aged 45-54
   # against SOI's 30%. Summed over AGI these cells are the totals by age above (joint plus non-joint, to a few
   # returns), so the two entries agree; both are kept, because the demographic prescaling uses the totals (kind
-  # age) and this entry is a kind of its own. Under 26 is not a target, as above. Errors borrowed from Table 1.4 by
-  # number of returns, except in the $10m-and-over group, which SOI samples in full (errors.py).
+  # age) and this entry is a kind of its own. Under 26 is not a target, as above. Errors borrowed by number of
+  # returns from Table 1.4's count cells in the same AGI group (John, 3 November), except in the $10m-and-over group,
+  # which SOI samples in full (errors.py).
   - id: age_returns_by_agi
     kind: age by AGI
     statistic: units
