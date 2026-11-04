@@ -1659,7 +1659,7 @@ empty table (a header only) gives every item an add factor of exactly 1, and the
 feature (checked on 2026: scratch `explore/2026-11-03/addfactors/RESULTS.md`). The Forbes list's records are outside
 step 2, so add factors do not touch them.
 
-## The projection years to 2075 (branch `rebuild-longrun`, 4 November; not merged, not yet run)
+## The projection years to 2075 (4 November; merged from `rebuild-longrun`, every year run)
 
 Scratch `explore/2026-11-04/longrun/` (RESULTS.md, DECISIONS.md, MAPPING.md). Years 2036-2075 run the same three
 steps as 2024-2035 (`projection_steps.py` unchanged); only the series are longer.

@@ -1,8 +1,9 @@
 # Next steps (as of 4 November 2026)
 
-The pipeline builds a file for every year 2015-2035 from one branch, `rebuild-joint-model` (`FEATURES.md`). The full
+The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The full
 run on the merged code of 3-4 November (`explore/2026-11-03/bigrun/RESULTS.md`) is installed as the latest (John, 4
-November). The code to run to 2075 is on `rebuild-longrun` and has passed its first test years. Paths starting
+November), with the years 2036-2075 run from its 2023 and installed beside it the same day
+(`explore/2026-11-04/longrun/test/RESULTS.md`). Paths starting
 `explore/` are under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch,
 a run of the years it touches, a comparison with the run before it, and John's approval.
 
@@ -32,14 +33,15 @@ a run of the years it touches, a comparison with the run before it, and John's a
    2024-2028, +1% 2029-2033) are a crude step toward CBO's itemized deductions, to be revisited at each CBO update.
    Still to design: the number of returns (CBO's 2023 count is 4.4 million above SOI's; `explore/2026-11-03/noitem/`).
 
-   **Past 2035 (branch `rebuild-longrun`, not merged; `explore/2026-11-04/longrun/`).** Years 2036-2075 run the same
+   **Past 2035 (branch `rebuild-longrun`, merged and installed 4 November; `explore/2026-11-04/longrun/`).** Years 2036-2075 run the same
    three steps with longer series: each item continues from 2035 at a Macro-Projections aggregate, borrowed from
    production's long-run mapping. First test (4 November, `longrun/test/RESULTS.md`): 2036, 2045, 2055, 2065 and 2075
    from the big run's 2023 all converge (6-12 Newton steps, largest miss 2.03 standard errors), step 1 meets every
    person count, and AGI holds at 57-58% of nominal GDP and wages at 87% of GDP wages. The other 35 years (2037-2074)
    ran the same way the same day (jobs 32023190-32023224; `longrun/test/RESULTS.md`): every year converges in 5-13
    Newton steps, the largest miss rises smoothly from 1.23 to 2.03 standard errors, and AGI, wages and tax after
-   credits grow 3.5-4.8% a year with no jump between years. Next: John's review and the merge.
+   credits grow 3.5-4.8% a year with no jump between years. Merged (6239d27) and installed in `bigrun/run/2036-2075`.
+   Open: the child credit moves in steps of up to 2.5% a year past 2035; cause not checked.
 
    **Placeholder until then:** the billionaires after the last Forbes list (2027-2035) are held at their starting
    weight in the solver (settings `tilt.top.after_last_list.fixed`). Left free on 2 November, the solver cut the ten
