@@ -196,9 +196,13 @@ def variable_names(spec):
 
 
 def variable_def(v):
-    """The catalog's definition of a variable; a business family's net income or loss from targets.FAMILIES."""
+    """The catalog's definition of a variable; a business family's net income or loss from targets.FAMILIES; a
+    projection year's people, returns group or item side (projection_steps, 3 November)."""
     if v in CAT['variables']:
         return CAT['variables'][v]
+    import projection_steps as PS
+    if PS.handles(v):
+        return PS.variable_def(v)
     for fam in CAT['families']:
         for side in ('net_income', 'net_loss'):
             if v == f'{fam}_{side}':
@@ -232,6 +236,9 @@ def person_values(df, v):
 def record_value(df, v):
     """A record's value of variable v (in the file's dollars)."""
     d = variable_def(v)
+    if 'projection' in d:
+        import projection_steps as PS
+        return PS.record_value(df, v)
     if 'family' in d:
         f = TG.FAMILIES[d['family']]
         net = df[f['income']].to_numpy(float).sum(1) - (df[f['loss']].to_numpy(float).sum(1) if f['loss'] else 0.0)
@@ -852,6 +859,10 @@ def outside_rows(src, year, cells, v, stats, e):
         return population_cell_rows(year, e)
     if src == 'cbo counts':
         return cbo_count_rows(year, v, stats, e)
+    if src in ('projection persons', 'projection returns', 'projection items'):
+        import projection_steps as PS   # (3 November, agent A) the steps of the projection years
+        assert stats == ['amount'], f'entry {e["id"]}: projection targets are amounts'
+        return PS.outside_rows(src, year)
     assert cells == [group_cells('all')[0]], f'entry {e["id"]}: an outside target has cells all'
     spec = start_spec(year)
     assert spec['mode'] == 'from_year', f'entry {e["id"]}: an outside target needs a start from an earlier year\'s file'
@@ -1469,13 +1480,14 @@ def expand_entry(e, year, soi):
             filt = dict(c['filters'])
             se = {'identity': 0.0, 'judgment': err.get('relative', np.nan) * abs(r['value'])}.get(err['kind'], np.nan)
             line = r.get('line')
-            group, target = _fill(e['key']['group'], c, v, st, vyear, line), _fill(e['key']['target'], c, v, st, vyear, line)
+            vr = r.get('variable', v)   # a row may carry its own variable (projection_steps)
+            group, target = _fill(e['key']['group'], c, vr, st, vyear, line), _fill(e['key']['target'], c, vr, st, vyear, line)
             if 'pooled' in r:   # an SCF target: its standard error, computed with its value, for errors.py
                 import scf_targets
                 scf_targets.RESULTS[(e['kind'], group, target)] = r['pooled']
             out.append({
                 'kind': e['kind'], 'group': group, 'target': target,
-                'statistic': st, 'population': e['population'], 'variable': v or '', 'value': float(r['value']),
+                'statistic': st, 'population': e['population'], 'variable': vr or '', 'value': float(r['value']),
                 'error_kind': r.get('error_kind', err['kind']), 'se': r.get('se', se), 'identity': err['kind'] == 'identity',
                 'source': r['source'], 'reason': reasons,
                 'tax_unit_rules': tax_unit_rules(src) if vkind in ('survey', 'pipeline') else '',
@@ -1724,8 +1736,8 @@ def conditions(df, rows, w_start, check=True):
 
 
 # ---- the start and the targets built from it (TARGETS.md S7) ----------------------------------------------------
-START_SCALING = {'weights': ('none', 'filing_status', 'demographic', 'population_cells'),
-                 'dollars': ('per_return_growth', 'cbo_per_return', 'none')}
+START_SCALING = {'weights': ('none', 'filing_status', 'demographic', 'population_cells', 'persons'),
+                 'dollars': ('per_return_growth', 'cbo_per_return', 'item_factor', 'none')}
 
 
 def start_spec(year):

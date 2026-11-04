@@ -1596,6 +1596,51 @@ dependent filers fix, are in scratch `explore/2026-11-02/age_targets/RESULTS.md`
 trillion against the SCF's $39.8 trillion, $48.9 trillion without these targets; 80 and over $11.7 trillion against
 $11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective sample kept against 65.8% without).
 
+## The projection years in three steps (branch `rebuild-proj-a`, 3 November; an experiment, not merged)
+
+John's design of 3 November (scratch `explore/2026-11-02/projection_design/DESIGN.md`, "Agreed on 3 November";
+`pipeline/projection_steps.py`; results in scratch `explore/2026-11-03/proj_A/RESULTS.md`). Every projection year
+2024-2035 starts from the 2023 file and does not depend on any other projection year. A year's targets.yaml switches it
+on with `start_scaling: {weights: persons, dollars: item_factor}`.
+
+1. **Step 1, people.** The 2023 weights are calibrated (the smallest Kullback-Leibler move, every count exact) to
+   people by marital status and single year of age, 0 to 79 and 80 and over: the primary, a joint return's spouse
+   and every dependent with an age, each carrying the unit's weight; a dependent filer's own record counts only its
+   dependents; a married person under 16 counts as unmarried. Each count is the 2023 file's count times CBO's growth
+   of the same people (Macro-Projections population, settings `tilt.projection.population_dir`). The dependent
+   filers' six cells (age range by marital status) are exact too, at their population growth as before.
+2. **Step 2, one factor per dollar item.** Each grown column has a row in `targets_config/projection_items.csv`
+   (settings `tilt.projection.items_table`): its series (`current`: today's rule; `file:<csv>:<column>`;
+   `same_as:<column>`; `none`), kind (`total`: the series is the growth of the item's total, and the factor makes the
+   start's total equal the 2023 total times it on the step 1 weights, gains and losses each on their own; `per_unit`:
+   the series multiplies each record), whether its total is targeted, and its error.
+3. **Step 3, the reweighting.** Targets: the step 1 people (exact; kind `projection persons`); returns in each group
+   of the primary's age band (settings `tilt.projection.return_age_edges`) and marital status, and of the dependent
+   filers' age ranges, at the 2023 file's filing share times the group's units after step 1 (exact; `projection
+   returns`; CBO's count of returns is not used); every targeted item's total on the start, gains and losses
+   separately where each has at least 500 records and $0.5 billion in 2023 (judgment, the table's error, 1% for now;
+   `projection items`); itemizers and AMT payers at the 2023 file's count times CBO's growth in the count, 5%; household
+   net worth and the SCF categories as before, the SCF targets grown by step 2's factors (`scf_targets.
+   projection_extension`). No `hold_distribution`. The 2023 Forbes list's records are outside steps 1 and 2; the
+   year's list adds its own fixed contribution to every target.
+
+**Add factors** (John, 3 November; branch `rebuild-addfactors`; `projection_steps.add_factor`). A table of extra
+growth on top of an item's series, set by hand: `targets_config/projection_add_factors.csv` (settings
+`tilt.projection.add_factors_table`), one row per item and range of years, with columns `column`, `first_year`,
+`last_year`, `percent` (extra growth in percent a year) and `note`. The item's growth from 2023 to year t is its
+series' growth times the product of (1 + percent / 100) over the years 2024 to t that its rows cover; for example +2%
+a year from 2024 makes the 2030 growth the series' growth times 1.02^7 = 1.149. It enters step 2 as part of the
+series' growth, so the step 2 factor, the item's total target in step 3 and, for a balance sheet item, the SCF targets'
+growth all include it. It works for any item in the items table; a `same_as` item takes the other column's factors,
+add factors included, times its own. Rules, checked when the table is read: every column must be in the items table;
+years are whole numbers after 2023; no item has a year in two rows; and every row with a non-zero percent needs a note
+saying who set it, when and why. A run stops if an add factor in force names a column the start did not grow. Each
+year's `summary.md` lists the add factors in force (also `projection_add_factors.csv` in the year's tilt folder), and
+`projection_step2_items.csv` has each item's `add factor`. The table is meant to be revisited at each CBO update. An
+empty table (a header only) gives every item an add factor of exactly 1, and the year is what it was without the
+feature (checked on 2026: scratch `explore/2026-11-03/addfactors/RESULTS.md`). The Forbes list's records are outside
+step 2, so add factors do not touch them.
+
 ## How the latest runs come out (2 November 2026)
 
 All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
