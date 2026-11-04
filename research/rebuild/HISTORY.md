@@ -1094,6 +1094,14 @@ married people under 18 were counted as unmarried (ede6f65).
   (`top_records.hold_below_ceiling`): 82-292 grown 2023 records in 2024-2026 held at $999 million. After the last list,
   records grown past $1 billion stay as the new billionaires; wealth above $1 billion in 2026 dollars goes from 4.7% of
   net worth in 2026 to 6.9% in 2075 (`explore/2026-11-04/billionaires_talk/`).
+- **The November filing-season tables** (branch `rebuild-nowcast`, not merged; scratch `explore/2026-11-04/nowcast/`:
+  PLAN.md, BACKTEST.md, RESULTS.md). A backtest of the November tables' growth against final SOI (2016-2023, the
+  years both exist) led John to four trust levels and a blend with CBO's national growth for 2024, with targets by
+  AGI group in 2024 only (FEATURES.md). With the blend, 2024 meets its 149 group targets within half a standard error
+  in 16 Newton steps; taxable interest is 21% above run3 in every year run, IRA distributions about 10%, ordinary dividends
+  about 9%, pensions 4.5-5.3% below; income tax after credits is 0.4% below run3 in 2024 and 1.2-1.7% above it in 2025-2075.
+  Without it 2024 and 2030 are run3's files exactly. Schedule C's 16.5% fall in 2024 is mostly larger losses on returns with no
+  AGI; it stays on its series.
 
 ## Paths tried and not taken
 

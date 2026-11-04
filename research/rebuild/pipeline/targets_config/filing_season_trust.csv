@@ -8,6 +8,6 @@ txbl_pens_dist,full,"taxable pensions and annuities: misses 0.3-1.4% in two year
 schedule_e,mostly trust,"Schedule E, all its parts by one common factor: misses 0.1-5.9% against CBO's business line 0.3-10.4%; Table 1.4 has no exact Schedule E line to check against"
 wages,mostly not trust,"wages: misses 0.5-0.8% below final in all three years, CBO's one-year-ahead forecasts 0.1-0.5%"
 capital_gains_line13,mostly not trust,"net capital gain or loss (Form 1040): misses up to 7.8%, the November tables' coverage of gains moves from year to year; CBO's one-year-ahead forecasts within 2.2%"
-sole_prop,none,"Schedule C: misses 3.5-6.1%, always too high, and a 16.5% fall in 2024 not yet explained (John, 4 November: no trust until it is)"
+sole_prop,none,"Schedule C: misses 3.5-6.1%, always too high; its 16.5% fall in 2024 is $47 billion of larger losses on the same number of returns with no AGI and $7 billion elsewhere (John, 4 November: no trust until it is understood)"
 farm,none,"Schedule F: a net amount near zero, a 21% miss in 2023"
 ui,none,"unemployment compensation: misses of 23% each year"

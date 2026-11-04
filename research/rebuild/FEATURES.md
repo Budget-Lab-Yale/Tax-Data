@@ -1706,6 +1706,45 @@ steps as 2024-2035 (`projection_steps.py` unchanged); only the series are longer
 - **Open.** CBO's population has no married 16-year-olds in 2070-2072, so step 1 cannot meet that cell in those years
   (DECISIONS.md, item 1).
 
+## The first projection year from SOI's November filing-season tables (branch `rebuild-nowcast`, 4 November)
+
+John's rule (4 November; scratch `explore/2026-11-04/nowcast/`: PLAN.md with "Decisions after the backtest",
+BACKTEST.md, RESULTS.md). The last year of final SOI tables (2023) stays a past year. The year after it (2024) takes
+part of its growth from SOI's filing-season table of returns processed through November (tax year 2024 against tax
+year 2023, the November tables only). Every later year grows from that 2024 level by CBO's and the macro series.
+Settings `tilt.projection.filing_season`; `projection_steps.py`, its last section.
+
+- **The tables.** `build_filing_season.py` (stage `filing_season`, not in the default list) reads every November table
+  SOI has posted (tax years 2015-2018 and 2021-2024; none exists for 2019 and 2020) from
+  `resources/filing_season/raw/` into `resources/filing_season/november_tables.csv`, on the standard AGI grid with the
+  top class $1 million and over; `line_mapping.csv` says which line is which item.
+- **Trust.** Each item has one of four levels in `targets_config/filing_season_trust.csv` (item, level, reason): full
+  (weight 1: taxable interest, ordinary and qualified dividends, taxable IRA distributions, taxable pensions, the
+  number of returns), mostly trust (2/3: Schedule E), mostly not trust (1/3: wages, net capital gain or loss), none (0:
+  Schedule C, Schedule F, unemployment compensation). The backtest informs the levels; they are revisited when the
+  next November table appears.
+- **The blend.** An item's growth from 2023 to 2024 in AGI group g is w x (the November tables' growth in g) +
+  (1 - w) x (CBO's national growth, the item's series now). CBO has no group detail, so a lower trust shrinks the
+  differences across groups toward CBO's single rate; an item with no trust is exactly today's rule.
+- **Step 2 stays national.** Each of the item's columns gets one more factor, so that the start's national total grows
+  at the blended national growth on the step 1 weights. The factor stays on the column's series in every later year:
+  year t's growth from 2023 is the blend to 2024 times the series from 2024 to t. Ordinary dividends: the
+  non-qualified part gets the factor that makes the sum grow at its blend, given qualified dividends'. Capital gains:
+  the pieces before the loss limit by the ratio of the blended growth of Form 1040's net gain or loss to CBO's capital
+  gains line. Schedule E: every part by one common factor.
+- **Step 3 carries the groups, in 2024 only.** Each trusted item's blended total in each 2024 AGI group, on filers
+  (and, for items of full trust, the number of returns with the item), replaces the item's national total target.
+  Each value is the 2023 file's own total in the group (the Forbes list left out) times the blended growth, plus the
+  year's list. The number of returns is targeted as shares across the groups; the exact returns cells by age and
+  marital status keep the total. Groups: the standard grid with no AGI and $1-10,000 merged ("under $10k") and $1
+  million and over as the top; for Schedule E every group below $75,000 is one. Errors: the backtest's root mean
+  square miss for the item and group (`targets_config/filing_season_errors.csv`), at least 1%; Schedule E's lowest
+  group in dollars (5.8% of the national total). In 2024: 149 group targets in place of 27 national item totals (430 targets, run3 308).
+- **Off.** `enabled: false` gives every year exactly the file it gave before (checked on 2024 and 2030 against run3:
+  every column and weight equal).
+- **When SOI publishes.** Final tables for 2024 make 2024 a past year: base_year and year move to 2024 and 2025, and
+  the tax-year-2025 November table (`26inweek47.xlsx`, expected January 2027) supplies the next blend (NEXT_STEPS.md).
+
 ## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, merged 3 November)
 
 John's decision of 3 November; it took effect with the retrain of 3-4 November (scratch `explore/2026-11-03/bigrun/`). Results: scratch `explore/2026-11-03/pensions/RESULTS.md`. It replaces the post-draw patch of

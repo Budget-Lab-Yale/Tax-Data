@@ -137,6 +137,14 @@ published levels, which count a return differently from the file (CBO's 2024 cou
 above the file's). `target_list.cbo_count_rows` reads the previous year's file. The population cells (previous count
 times CBO's population growth) and the dollar totals (previous total times CBO's growth) were already of this form.
 
+**Observed growth for the first projection year (John, 4 November 2026).** For the year after the last final SOI
+tables (now 2024), SOI's filing-season table of returns processed through November gives the change from the year
+before, item by item and AGI group by AGI group, about thirteen months after the year ends. It is used the same way:
+the 2023 file's own total in a group times the table's growth in the group, never the table's level (its levels sit
+2-17% below final SOI's, because it misses late and corrected returns). It is blended with CBO's national growth by the
+item's trust (FEATURES.md, "The first projection year from SOI's November filing-season tables"), and its error is the
+backtest's miss of that growth against final SOI in 2016-2023 (scratch `explore/2026-11-04/nowcast/BACKTEST.md`).
+
 ## 4. What the prior for year t contains before any target (agreed 24 October)
 
 The prior is our best guess for year t, with every change we can explain from outside facts already applied. The
