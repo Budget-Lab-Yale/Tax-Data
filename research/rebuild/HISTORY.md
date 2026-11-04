@@ -979,6 +979,12 @@ Each folder is under scratch `explore/2026-11-02/` and has a RESULTS.md.
   `fix/senior-deduction-amt-itemizers` (`simfixes/`, `simfixes2/`).
 - The projection-year redesign begun with John (`explore/2026-11-02/projection_design/DESIGN.md`; `NEXT_STEPS.md`,
   step 4).
+- Social Security and pensions (branch `rebuild-pensions`, for the next retrain; `explore/2026-11-03/pensions/`). The
+  2023 file had gross pensions below zero on 14.8 million units and taxable pensions above gross pensions on 30.4
+  million, because `retirement_gross` and `gross_ss` were drawn and turned into dollars apart (`pairs_C/RESULTS.md`).
+  John chose to change the slots rather than patch the draw: the network draws gross Social Security, taxable pensions
+  and the non-taxable rest of pensions; gross pensions and taxable Social Security (the section 86 worksheet) are
+  computed, and taxable Social Security is no longer targeted (FEATURES.md).
 
 ## Paths tried and not taken
 

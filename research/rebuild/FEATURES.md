@@ -63,12 +63,16 @@ held-back rows included.
   and losses from Schedule D before the $3,000 loss limit, and capital gain
   distributions; since 29-30 October, below);
 - more AGI items: other gains, taxable IRA distributions, taxable
-  pensions, taxable Social Security, unemployment, alimony, state refunds,
+  pensions, unemployment, alimony, state refunds,
   the statutory adjustments (computed from their eleven parts), and the rest
   of AGI ("other income");
-- three items outside AGI: gross Social Security plus pensions,
-  tax-exempt interest, and gross Social Security alone (shared with every
+- three items outside AGI: the non-taxable rest of pensions (since 3 November),
+  tax-exempt interest, and gross Social Security (shared with every
   survey);
+- two items computed, never drawn (since 3 November, below, "Social Security and
+  pensions"): gross pensions, taxable pensions plus the rest; and taxable Social
+  Security, by the section 86 worksheet on the record's own items, part of the
+  file's AGI;
 - the other PUF items production carries (since 27 October), 40 PUF-only
   slots under production's names: qualified and other dividends, the eleven
   adjustments, unrecaptured section 1250 gain, 28% collectibles gain,
@@ -144,9 +148,9 @@ the spouse's share of the couple's wages. The PUF also shares:
 - with the CPS and the SIPP, taxable pensions;
 - with the CPS alone, every other PUF tax item, because its rows are the
   non-filers: the filing flag, filing status, child credit and EITC children,
-  unemployment, rents, gross Social Security plus pensions and the rest of AGI
-  from its answers, and zero for the items it does not ask (short-term gains,
-  the partnership and S corporation parts and the like).
+  unemployment, rents and the rest of AGI from its answers, and zero for the
+  items it does not ask (short-term gains, the partnership and S corporation
+  parts, the non-taxable rest of pensions and the like).
 
 The rest belong to one source. A slot a source lacks is absent on its records
 (`model.py`, "present_on").
@@ -514,7 +518,7 @@ Two standard functions and one table (`settings.json`, "translation";
   | CEX | gross Social Security | dollars |
   | CPS | dividends, into qualified dividends | ranked against the tax data's ordinary dividends; fill-in, percentile |
   | CPS | capital gains, into long-term gains | kept out of training in every year since the second retrain of 29 October (branch `rebuild-retrain-1029`); the row still gives the tax data's non-filers their gains from tax year 2018 (zero before); before, shown from 2018 with the fill-in, percentile |
-  | CPS | pensions, with the 1099-R survivor and disability pensions | compared with taxable pensions plus taxable IRA distributions; fill-in, dollars |
+  | CPS | pensions, with the 1099-R survivor and disability pensions | all taken as taxable pensions; compared with taxable pensions plus taxable IRA distributions; fill-in, dollars. The non-taxable rest of pensions is zero (3 November) |
   | CPS | unemployment | fill-in, dollars |
   | CPS | Schedule C (nonfarm and farm self-employment) | fill-in, count from the top |
   | CPS | gross Social Security, rents, the filing flag, the rest | dollars, as before |
@@ -1382,7 +1386,9 @@ network part of the top step (Part A, the redraw) is cached (`REBUILD_TOP_CACHE`
   spread over every unit, the list alone exceeded Table 4.3's count of top-0.001% returns with a Schedule C or F
   profit (255 against 243), and the solve could not settle. Items beyond the kinds (state income tax, foreign tax credits, business
   credits, self-employment items, other itemized deductions) at their ratio to AGI in the mix; consumption at its
-  average; Social Security, credits that phase out, and the rest listed in `ZERO_ITEMS` zero.
+  average; Social Security, credits that phase out, and the rest listed in `ZERO_ITEMS` zero. Pensions are taxable
+  pensions alone (the non-taxable rest zero); taxable IRA distributions stay their own item and, since 3 November, are
+  no longer counted in the units' gross retirement income.
 - Charity: gifts of 0.7% of wealth in the top group and 0.6% in the rest (BSYZ Table 2), cash and other as in the mix,
   entered as gifts; the calculator computes the deduction.
 - People: Forbes's 2019 age (held to 80), sex; married from the later profiles (missing: married, production's rule),
@@ -1434,7 +1440,8 @@ to the year (`projection_demographics.population_cells`), each record's dollars 
 from 2023 to the year and divided by CBO's growth in returns (`projection_growth.plan_factors`; Table 1.4 items by CBO's
 February 2026 growth per return of the closest line; gross Social Security, since 2 November, by SSA's benefits paid in
 2024 and 2025 and CBO's Social Security outlays from 2026, not CBO's taxable benefits). The targets, each the 2023
-file's own level times the cumulative growth to the year: the non-filer count; nine national totals (value kind
+file's own level times the cumulative growth to the year: the non-filer count; eight national totals (nine until 3
+November, when taxable Social Security stopped being targeted; value kind
 `outside`, `target_list.outside_rows`); the counts of all returns, itemizers and AMT returns (CBO's growth in the count,
 `target_list.cbo_count_rows`); household net worth by the Financial Accounts' growth; the SCF categories, grown from 2023
 by the factors the start's records get, on the SCF's units grown with the file's units (decision 76); and
@@ -1596,7 +1603,7 @@ dependent filers fix, are in scratch `explore/2026-11-02/age_targets/RESULTS.md`
 trillion against the SCF's $39.8 trillion, $48.9 trillion without these targets; 80 and over $11.7 trillion against
 $11.7 trillion, $9.0 trillion without; 51 Newton steps, 59.1% of the effective sample kept against 65.8% without).
 
-## The projection years in three steps (branch `rebuild-proj-a`, 3 November; an experiment, not merged)
+## The projection years in three steps (John's design, 3 November; merged from `rebuild-addfactors`)
 
 John's design of 3 November (scratch `explore/2026-11-02/projection_design/DESIGN.md`, "Agreed on 3 November";
 `pipeline/projection_steps.py`; results in scratch `explore/2026-11-03/proj_A/RESULTS.md`). Every projection year
@@ -1640,6 +1647,49 @@ year's `summary.md` lists the add factors in force (also `projection_add_factors
 empty table (a header only) gives every item an add factor of exactly 1, and the year is what it was without the
 feature (checked on 2026: scratch `explore/2026-11-03/addfactors/RESULTS.md`). The Forbes list's records are outside
 step 2, so add factors do not touch them.
+
+## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, 3 November)
+
+John's decision of 3 November; it took effect with the retrain of 3-4 November (scratch `explore/2026-11-03/bigrun/`). Results: scratch `explore/2026-11-03/pensions/RESULTS.md`. It replaces the post-draw patch of
+`explore/2026-11-03/pairs_C/`, which John did not take.
+
+- **Slots.** The network draws gross Social Security (`gross_ss`, as before), taxable pensions (`txbl_pens_dist`, as
+  before) and a new slot, the non-taxable rest of pensions (`nontxbl_pens_dist`): on the PUF total pensions less
+  taxable pensions, E01500 - E01700, never below zero. The slots `retirement_gross` (gross Social Security plus total
+  pensions, E02400 + E01500, a leftover from when the SCF and CEX shared it) and `ss_taxable` (E02500) are gone.
+- **Computed, never drawn** (`dollars.retirement_items`, called by `draw_dollars`, `tilt.recombine` after any growth,
+  and again after the refund rule, which lowers AGI):
+  - gross pensions `gross_pens_dist` = taxable pensions + the rest, exactly; the Tax-Simulator file's
+    `gross_pens_dist` is this column;
+  - taxable Social Security `ss_taxable`, on every record, by the section 86 worksheet as tax-simulator-gpu computes it
+    (`common.taxable_social_security`): provisional income is half the benefits plus modified AGI (AGI without
+    taxable benefits, plus tax-exempt interest, plus the student loan interest deduction); 50% above $25,000 ($32,000
+    joint), 85% above $34,000 ($44,000 joint), at most 85% of the benefits; separate returns on the single amounts.
+    It is added into `other_agi`, so the file's AGI holds it. Never targeted.
+- **The PUF's rows.** `other_agi` (the remainder) is AGI less every item and less the PUF's own taxable Social
+  Security, so a PUF record's AGI in the file is E00100 with E02500 replaced by the worksheet's amount (the table
+  stage writes `data/puf_ss_check.csv`). The AGI group label's band-AGI uses the worksheet too (`qgroups.band_agi`).
+- **The surveys.** The SCF, CEX and SIPP share gross Social Security only; the SIPP's pensions stay against taxable
+  pensions, so the rest is absent on the SIPP, the SCF and the CEX. The CPS's pensions all go to taxable pensions
+  (agreed 23 October), so the rest is zero on the CPS and its gross pensions equal its taxable pensions, as before.
+  The SCF's own Social Security plus pensions (X5722), used only for the units' income test, is renamed
+  `ss_pensions_scf` in `roster_scf.py` and `build_scf.R`.
+- **Growth.** The rest grows by SOI Table 1.4's total less taxable pensions, per return with total pensions
+  (`targets.SOI_ITEMS`, a line whose returns are not added); past SOI's last year by CBO's taxable pensions line
+  (`projection_growth_mapping.csv`). Taxable Social Security has no growth line: the worksheet is applied to the grown
+  items, with the unindexed thresholds.
+- **Targets.** Taxable Social Security is no longer targeted: out of Table 1.3's items in every past year (catalog
+  `soi_1_3_items`, `soi_1_3_items_2018`), and in the projection years it has no row in the items table (`projection_items.csv`), so it
+  is neither grown nor targeted there; the rest of pensions has a row of its own, on CBO's pensions line like taxable
+  pensions, in place of `retirement_gross`'s. The top
+  step's rebuilt aggregate records no longer match the booklet's count of returns with taxable benefits (E02500 and
+  E01500 are checks only).
+- **The top of the file.** `top_hidden.py`: the two pension parts are scaled like any part (the bounds on taxable
+  Social Security and taxable pensions are gone); each rebuilt record's taxable Social Security is the worksheet's, and
+  the gap to the raw record's E02500 moves into the residual, so each group's AGI is still the raw record's.
+  `top_billionaires.py`: IRA distributions are no longer put in the Forbes units' retirement income.
+- **Elsewhere.** The non-microdata imputations' broad income adds gross pensions, not `retirement_gross` (which
+  counted gross Social Security twice); `calculator.convert` takes `gross_pens_dist` from the two parts.
 
 ## How the latest runs come out (2 November 2026)
 

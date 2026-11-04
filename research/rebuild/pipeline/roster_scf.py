@@ -246,7 +246,10 @@ def npeu_shares(P, d, how):
     h = d.set_index('hh').loc[g.hh]
     n = g.groupby('hh').pn.transform('size').to_numpy()
     pos = lambda c: np.maximum(h[c].to_numpy(), 0)
-    kinds = {'retirement_gross': ['X6406', 'X6407', 'X6408'], 'txbl_int': ['X6410'], 'dividends': ['X6411'],
+    # ss_pensions_scf: the SCF's own Social Security plus pensions (here the group's kinds X6406-X6408; X5722 in the
+    # PEU), used only for the units' gross income test and the division of the PEU's income (build_scf.R's INCOME); not
+    # a slot of the model (named retirement_gross until 3 November, when the model's slot of that name was taken out)
+    kinds = {'ss_pensions_scf': ['X6406', 'X6407', 'X6408'], 'txbl_int': ['X6410'], 'dividends': ['X6411'],
              'business_income': ['X6412'], 'rent_royalty_estate': ['X6413'], 'other_income': ['X6409', 'X6414']}
     flags = {k: sum(((h[c].to_numpy() == 1) if c != 'X6414' else (h[c].to_numpy() > 5)) for c in v)
              for k, v in kinds.items()}
@@ -267,10 +270,10 @@ def npeu_shares(P, d, how):
         raise ValueError(how)
     out['wages'] = pos('X6403') * w_wage
     for k, f in flags.items():
-        out[k] = other * f * (w_ret if k == 'retirement_gross' else eq)
+        out[k] = other * f * (w_ret if k == 'ss_pensions_scf' else eq)
     # gross Social Security alone (build_scf.R's gross_ss): the Social Security kind's (X6406) part of the group's
-    # retirement income, divided as retirement income is; kept apart from retirement_gross, which also holds
-    # pensions (X6407) and disability (X6408). Not added to gi below: retirement_gross already holds it.
+    # retirement income, divided as retirement income is; kept apart from ss_pensions_scf, which also holds
+    # pensions (X6407) and disability (X6408). Not added to gi below: ss_pensions_scf already holds it.
     out['gross_ss'] = other * (h['X6406'].to_numpy() == 1) * w_ret
     # the balance sheet, always equally; the home share is the group's share of R's home, with its mortgage
     home = np.minimum(pos('X6432'), pos('X6436') * pos('X6435') / 10000)
@@ -281,7 +284,7 @@ def npeu_shares(P, d, how):
     out['value.primary_mortgage'] = pos('X6437') * pos('X6435') / 10000 * eq
     out['value.other_debt'] = pos('X6439') * eq
     # gross income for the income test (CBO's 3a items, Social Security counted as received, a fallback)
-    out['gi'] = out[['wages', 'retirement_gross', 'txbl_int', 'dividends', 'business_income',
+    out['gi'] = out[['wages', 'ss_pensions_scf', 'txbl_int', 'dividends', 'business_income',
                      'rent_royalty_estate', 'other_income']].sum(axis=1)
     return out
 

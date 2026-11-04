@@ -37,8 +37,12 @@ PUF N24) and n_dep_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); file
     probabilities (age_p0-age_p8), from which training draws; on the SCF, CEX
     and CPS, the range of the primary filer's age, couples by the
     primary-filer rule;
-  the other AGI items (ITEMS), and other_agi = AGI minus everything above;
-  gross Social Security plus pensions, and tax-exempt interest (not in AGI);
+  the other AGI items (ITEMS), and other_agi = AGI minus everything above and minus taxable Social Security (E02500),
+    which is not drawn: the file computes it by the section 86 worksheet (dollars.retirement_items; 3 November);
+  pensions in two parts: taxable pensions E01700 (in AGI) and the non-taxable rest E01500 - E01700, never below
+    zero (nontxbl_pens_dist, not in AGI); gross pensions are their sum, computed, never drawn (3 November; until
+    then gross Social Security plus total pensions, E02400 + E01500, was a slot);
+  gross Social Security E02400 and tax-exempt interest (not in AGI);
   mortgage interest paid E19200 and real estate tax E18500 (itemizers only;
     PUF only, not in AGI);
   since stage 3 (27 October), production's other PUF items (STAGE3; PUF only, absent on the SCF, CEX and SIPP, not
@@ -149,9 +153,13 @@ ITEMS = {  # item: (sign in AGI, on the SCF, SCF rule). The order fixes the mode
     # SCF's property income) and the rest (sche_rest: partnerships, S corporations, estates and trusts, farm rental)
     'sche_rent': (0, True, 'percentile'), 'sche_rest': (0, True, 'percentile'),
     'other_gains': (1, False, None), 'txbl_ira_dist': (1, False, None),
-    'txbl_pens_dist': (1, False, None), 'ss_taxable': (1, False, None), 'ui': (1, False, None),
+    # (3 November, John) pensions in two parts, both drawn: taxable pensions, and the non-taxable rest of total
+    # pensions (E01500 - E01700, never below zero; not in AGI). Gross pensions (gross_pens_dist) are their sum and
+    # taxable Social Security comes from the section 86 worksheet, both computed (dollars.retirement_items); the slots
+    # retirement_gross (E02400 + E01500) and ss_taxable (E02500) are gone
+    'txbl_pens_dist': (1, False, None), 'nontxbl_pens_dist': (0, False, None), 'ui': (1, False, None),
     'alimony': (1, False, None), 'state_ref': (1, False, None), 'adjustments': (-1, False, None),
-    'retirement_gross': (0, False, None), 'exempt_int': (0, True, 'unchanged'),
+    'exempt_int': (0, True, 'unchanged'),
     'first_mort_int': (0, False, None), 'salt_prop': (0, False, None),
     'gross_ss': (0, True, 'unchanged')}   # gross Social Security, not in AGI; shared with the CEX, the CPS, the SIPP and
 # (since 28 October, in place of Social Security plus pensions) the SCF
@@ -394,9 +402,10 @@ def puf_rows(puf):
     line13_allowed = common.allowed_capital_gain(kg['kg_st'] + kg['kg_lt'], I['MARS']) + I['E01100']
     assert ((line13_allowed - I['E01100'] == I['E01000']) | (left > 0)).all(), 'line 13 not restored'
     items = {'business_income': I['E00900'] + I['E02000'] + I['E02100'], 'other_gains': I['E01200'],
-             'txbl_ira_dist': I['E01400'], 'txbl_pens_dist': I['E01700'], 'ss_taxable': I['E02500'],
+             'txbl_ira_dist': I['E01400'], 'txbl_pens_dist': I['E01700'],
+             'nontxbl_pens_dist': np.maximum(I['E01500'] - I['E01700'], 0),
              'ui': I['E02300'], 'alimony': I['E00800'], 'state_ref': I['E00700'],
-             'adjustments': sum(I[c] for c in ADJ_FIELDS), 'retirement_gross': I['E02400'] + I['E01500'],
+             'adjustments': sum(I[c] for c in ADJ_FIELDS),
              'gross_ss': I['E02400'],
              'exempt_int': I['E00400'], 'first_mort_int': I['E19200'], 'salt_prop': I['E18500']}
     parts = {p: I[f] for p, (f, _) in PARTS.items() if f}
@@ -426,8 +435,15 @@ def puf_rows(puf):
     k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
     out['part_se'] = np.where(k1_part, (I['E30400'] + I['E30500']) / 0.9235 - I['E00900'] - I['E02100'], 0.0)
     out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
+    # (3 November) the PUF's own taxable Social Security (E02500) comes off too: it is not a slot, and the file computes
+    # it by the worksheet, so other_agi is AGI without taxable benefits less the items (puf_ss_check compares the two)
     out['other_agi'] = I['E00100'] - out['wages'] - out['txbl_int'] - out['dividends'] - line13_allowed - \
-        sum(ITEMS[v][0] * items[v] for v in ITEMS)
+        sum(ITEMS[v][0] * items[v] for v in ITEMS) - I['E02500']
+    # gross pensions = taxable + the rest, exactly; the rest below zero (taxable above total pensions) is held at zero
+    over = I['E01700'] > I['E01500']
+    common.say(f'PUF: taxable pensions above total pensions (the rest held at zero) on {int(over.sum()):,} records, '
+               f'{(raw.S006.to_numpy() / 100)[over].sum() / 1e6:,.3f} million returns')
+    assert np.array_equal(items['txbl_pens_dist'] + items['nontxbl_pens_dist'], np.maximum(I['E01500'], I['E01700']))
     df = pd.DataFrame(out)
     for v in PUF_AMOUNTS:
         df[v] = df[v].astype(float)
@@ -1128,34 +1144,53 @@ def translate_surveys(t, edges):
     return t, factors
 
 
-# Taxable Social Security (Form 1040 worksheet): base and adjusted amounts by filing status (1 single, 2 joint, 3
-# separate, taken as living apart, 4 head of household); not indexed
-SS_BASE = {1: 25_000, 2: 32_000, 3: 25_000, 4: 25_000}
-SS_ADJUSTED = {1: 34_000, 2: 44_000, 3: 34_000, 4: 34_000}
+# Taxable Social Security: the section 86 worksheet is common.taxable_social_security (the calculator's formula; since
+# 3 November the file computes it on every record, dollars.retirement_items). Until then this module had its own copy.
+taxable_social_security = common.taxable_social_security
 
 
-def taxable_social_security(ss, other_income, mars):
-    """The taxable part of Social Security benefits ss by the worksheet: provisional income is the other income in
-    AGI plus tax-exempt interest plus half the benefits."""
-    base = np.vectorize(SS_BASE.get)(mars).astype(float)
-    adj = np.vectorize(SS_ADJUSTED.get)(mars).astype(float)
-    pi = other_income + 0.5 * ss
-    tier1 = np.minimum(0.5 * ss, 0.5 * np.maximum(pi - base, 0))
-    tier2 = np.minimum(0.85 * ss, 0.85 * np.maximum(pi - adj, 0) + np.minimum(0.5 * ss, 0.5 * (adj - base)))
-    return np.where(pi <= base, 0.0, np.where(pi <= adj, tier1, tier2))
+def puf_ss_check(t, puf):
+    """(3 November) The worksheet on the PUF's own records against the PUF's taxable Social Security (E02500): returns
+    with benefits, and how many the worksheet puts within $1, $100 and $1,000 of the reported amount; the totals.
+    Modified AGI is E00100 - E02500 + tax-exempt interest (E00400) + the student loan interest deduction (E03210).
+    Written to data/puf_ss_check.csv; the training table carries no taxable Social Security."""
+    p = t[t.source == 'puf']
+    raw = puf.set_index('RECID').loc[p['record_id'].astype(np.int64).to_numpy()]
+    rep = raw['E02500'].to_numpy(float)
+    magi = (raw['E00100'] - raw['E02500'] + raw['E00400'] + raw['E03210']).to_numpy(float)
+    calc = taxable_social_security(p['gross_ss'].to_numpy(float), magi, p['filing_status'].to_numpy())
+    w = p['weight'].to_numpy(float)
+    has = p['gross_ss'].to_numpy(float) > 0
+    gap = np.abs(calc - rep)
+    out = pd.DataFrame([{
+        'returns with gross benefits (millions)': w[has].sum() / 1e6,
+        'with taxable benefits, reported (millions)': w[rep > 0].sum() / 1e6,
+        'with taxable benefits, worksheet (millions)': w[calc > 0].sum() / 1e6,
+        'worksheet within $1 of reported (millions, returns with benefits)': w[has & (gap <= 1)].sum() / 1e6,
+        'within $100 (millions)': w[has & (gap <= 100)].sum() / 1e6,
+        'within $1,000 (millions)': w[has & (gap <= 1000)].sum() / 1e6,
+        'taxable benefits, reported ($ billion)': (w * rep).sum() / 1e9,
+        'taxable benefits, worksheet ($ billion)': (w * calc).sum() / 1e9,
+        'reported above 85% of gross (records)': int((rep > 0.85 * p['gross_ss'].to_numpy(float) + 1).sum()),
+        'records with taxable benefits and no gross benefits': int(((rep > 0) & ~has).sum())}])
+    out.to_csv(f'{common.DATA}/puf_ss_check.csv', index=False)
+    common.say('PUF, taxable Social Security by the worksheet against E02500 (weighted, 2015):\n'
+               + out.round(3).T.to_string())
 
 
 def cps_ss_taxable_check(t):
     """For each CPS year: the units, and the expected non-filers (weight x (1 - filer_p)), the taxable-benefits
     formula would give a positive taxable Social Security, from the CPS's amounts in PUF terms (before function 1).
-    The translation table keeps taxable Social Security at zero on the CPS (agreed 23 October); this only counts.
-    Written to data/cps_ss_taxable_check.csv."""
+    Since 3 November taxable Social Security is no slot on any source (the file computes it on every record by the
+    same worksheet, dollars.retirement_items); this only counts. Written to data/cps_ss_taxable_check.csv."""
     rows = []
     for y in CP['years']:
         d = t[(t.source == 'cps') & (t.year == y)]
         a = survey_puf_amounts(d, 'cps', y)
+        # modified AGI: the AGI items without taxable benefits plus tax-exempt interest (the CPS has no student loan
+        # interest deduction)
         other = a['wages'] + a.get('txbl_int', 0.0) + a['dividends'] + a['capital_gains'] + \
-            sum(ITEMS[v][0] * a.get(v, 0.0) for v in ITEMS if ITEMS[v][0] != 0 and v != 'ss_taxable') + a['other_agi'] + \
+            sum(ITEMS[v][0] * a.get(v, 0.0) for v in ITEMS if ITEMS[v][0] != 0) + a['other_agi'] + \
             a['exempt_int']
         tx = taxable_social_security(a['gross_ss'].to_numpy(float), other.to_numpy(float), d['filing_status'].to_numpy())
         w, p = d['weight'].to_numpy(float), d['filer_p'].to_numpy(float)
@@ -1169,7 +1204,8 @@ def cps_ss_taxable_check(t):
                      'all units with taxable benefits by the formula (millions)': w[pos].sum() / 1e6})
     out = pd.DataFrame(rows)
     out.to_csv(f'{common.DATA}/cps_ss_taxable_check.csv', index=False)
-    common.say('CPS, taxable Social Security by the formula (kept at zero on the CPS):\n' + out.round(3).T.to_string())
+    common.say('CPS, taxable Social Security by the formula (no slot on any source since 3 November):\n'
+               + out.round(3).T.to_string())
 
 
 def band_table(t):
@@ -1654,6 +1690,7 @@ def main():
     t, pi = primary_age_range(t, puf)
     t, edges = band_table(t)
     cps_ss_taxable_check(t)
+    puf_ss_check(t, puf)
     # the report's CPS and SIPP units also carry their wages after function 1 (the CPS's: the tax data's wages at the
     # same percentile among earners since 28 October), so the report's wage groups mean the same on both sides
     for src in ('cps', 'sipp'):

@@ -45,12 +45,15 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      dividends (the parts are qualified and other dividends, both at least 0); the capital gain on the return is short
      plus long term (both before the loss limit since 29-30 October), a net loss held to the allowed loss (-$3,000,
      -$1,500 married filing separately) where AGI is made (common.allowed_capital_gain), the difference between each
-     group's allowed gain and the raw record's moved into other_agi_remainder; taxable Social Security at most 85% of gross; taxable
-     pensions at most total pensions, total pensions (gross retirement less gross Social Security, E01500) being the
-     part scaled (BOUNDED). A bounded part is scaled on the records inside its bound, iterated; what a bounded part
-     falls short of its group's net moves into other_agi_remainder, so each group's AGI equals the raw record's.
-     Donors whose total pensions are below their taxable pensions (the network draws them as separate items) are
-     raised first. A part a group's raw record has none of is zero on that group's records, redone each round.
+     group's allowed gain and the raw record's moved into other_agi_remainder. Since 3 November pensions are two
+     parts, taxable pensions (E01700) and the non-taxable rest (E01500 - E01700, never below zero), each scaled like
+     any part, so gross pensions (their sum, E01500) are never below taxable pensions; and taxable Social Security is
+     not a part: each record's is the section 86 worksheet on its own amounts (puf_totals, dollars.retirement_items),
+     and the gap between the group's worksheet total and the raw record's E02500 moves into other_agi_remainder,
+     repeated until it settles (the worksheet reads AGI, which holds the residual), so each group's AGI still equals
+     the raw record's. (Until 3 November taxable Social Security was a part held to 85% of gross, and total pensions
+     a part held at least at taxable pensions: BOUNDED, empty since.) A part a group's raw record has none of is zero
+     on that group's records, redone each round.
      Charity: char_cash is E19800 (cash gifts), char_noncash E20100 (gifts other than cash); E19700 (the deduction)
      is a check only.
   7. Wealth drawn again after the scaling (redraw_wealth): every rebuilt return's whole balance sheet (every SCF slot:
@@ -115,11 +118,12 @@ def agi_group(agi):
 # ---- the parts the rebuild draws, from PUF fields (build_table.puf_rows) ----------------------------------------
 SIGNED_ITEMS = {v: s for v, (s, _, _) in BT.ITEMS.items() if s != 0}   # AGI items besides wages ... capital gains
 PRIMITIVES = (['wages', 'txbl_int', 'div_pref', 'div_ord'] + BT.KG_PIECES + list(BT.PARTS)
-              + ['other_gains', 'txbl_ira_dist', 'txbl_pens_dist', 'ss_taxable', 'ui', 'alimony',
-                 'state_ref', 'retirement_gross', 'gross_ss', 'exempt_int', 'first_mort_int',
+              + ['other_gains', 'txbl_ira_dist', 'txbl_pens_dist', 'nontxbl_pens_dist', 'ui', 'alimony',
+                 'state_ref', 'gross_ss', 'exempt_int', 'first_mort_int',
                  'salt_prop'] + list(BT.ADJ_PARTS) + list(BT.NEW_ITEMS) + ['other_agi_remainder'])
-# Parts that are residuals in the PUF's translation (no PUF field of their own; no booklet line)
-RESIDUALS = ['div_ord', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_remainder', 'retirement_gross']
+# Parts that are residuals in the PUF's translation (no PUF field of their own; no booklet line), which may take both
+# signs (the non-taxable rest of pensions has no field of its own either, but is never below zero)
+RESIDUALS = ['div_ord', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_remainder']
 
 
 def puf_items(raw, itemizer=None, old=None):
@@ -138,8 +142,8 @@ def puf_items(raw, itemizer=None, old=None):
             out[p] = f[fld]
     out['sche_other'] = f['E02000'] - sum(BT.PARTS[p][1] * out[p] for p in BT.SCHE_PARTS)
     out.update({'other_gains': f['E01200'], 'txbl_ira_dist': f['E01400'], 'txbl_pens_dist': f['E01700'],
-                'ss_taxable': f['E02500'], 'ui': f['E02300'], 'alimony': f['E00800'],
-                'state_ref': f['E00700'], 'retirement_gross': f['E02400'] + f['E01500'], 'gross_ss': f['E02400'],
+                'nontxbl_pens_dist': np.maximum(f['E01500'] - f['E01700'], 0.0), 'ui': f['E02300'], 'alimony': f['E00800'],
+                'state_ref': f['E00700'], 'gross_ss': f['E02400'],
                 'exempt_int': f['E00400'], 'first_mort_int': f['E19200'], 'salt_prop': f['E18500']})
     out.update({p: f[fld] for p, fld in BT.ADJ_PARTS.items()})
     out.update({v: f[fld] for v, fld in BT.NEW_ITEMS.items() if fld})
@@ -152,20 +156,23 @@ def puf_items(raw, itemizer=None, old=None):
                                      - f['E19200'] - f['E19700'] - f['E20500'] - f['E20800'], 0.0)
     business = f['E00900'] + f['E02000'] + f['E02100']
     items = {'business_income': business, 'other_gains': out['other_gains'], 'txbl_ira_dist': out['txbl_ira_dist'],
-             'txbl_pens_dist': out['txbl_pens_dist'], 'ss_taxable': out['ss_taxable'],
+             'txbl_pens_dist': out['txbl_pens_dist'],
              'ui': out['ui'], 'alimony': out['alimony'], 'state_ref': out['state_ref'],
              'adjustments': sum(f[c] for c in BT.ADJ_FIELDS)}
     assert set(items) == set(SIGNED_ITEMS), (set(items) ^ set(SIGNED_ITEMS))
     # line 13 in AGI as build_table.puf_rows has it: the allowed Schedule D net plus distributions (29-30 October)
     allowed = common.allowed_capital_gain(out['kg_st'] + f['P23250'], mars)
+    # (3 November) taxable Social Security (E02500) comes off as well: not a part, computed by the worksheet
     out['other_agi_remainder'] = f['E00100'] - f['E00200'] - f['E00300'] - f['E00600'] - allowed - f['E01100'] \
-        - sum(SIGNED_ITEMS[v] * items[v] for v in items)
+        - sum(SIGNED_ITEMS[v] * items[v] for v in items) - f['E02500']
     df = pd.DataFrame({v: np.asarray(out[v], float) for v in PRIMITIVES}, index=raw.index)
     return df
 
 
-def puf_totals(df):
-    """The totals from the parts (2015 frame), exactly as dollars.draw_dollars computes them; plus agi."""
+def puf_totals(df, ss_taxable=None):
+    """The totals from the parts (2015 frame), exactly as dollars.draw_dollars computes them; plus agi. Gross pensions
+    and taxable Social Security as dollars.retirement_items makes them (3 November); ss_taxable: given amounts in place
+    of the worksheet (the raw records' E02500, whose AGI holds it; a fixed amount while the residual is scaled)."""
     out = df.copy()
     out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
                                                        out['filing_status'] if 'filing_status' in out else None)
@@ -175,6 +182,12 @@ def puf_totals(df):
     out['business_income_drawn'] = out['business_income']
     out['other_agi'] = out['other_agi_remainder'] + out['kg_dist'] \
         + D.signed_sum(out, D.FOLD)
+    if ss_taxable is None:
+        D.retirement_items(out)
+    else:
+        out[common.GROSS_PENSIONS] = out[common.PENSION_PARTS].to_numpy(float).sum(1)
+        out['ss_taxable'] = np.asarray(ss_taxable, float)
+        out['other_agi'] = out['other_agi'] + out['ss_taxable']
     out['agi'] = D.agi(out)
     return out
 
@@ -207,6 +220,8 @@ def raw_targets(agg):
         if fld in blank:
             means[part] = np.nan
     nets = means.mul(n, axis=0)
+    # (3 November) the raw record's taxable Social Security, which its AGI holds; not a part (scale_all)
+    nets['ss_taxable'] = n * agg['E02500'].fillna(0.0).to_numpy(float)
     # the allowed Schedule D net of each raw record (the loss limit on its mean), as its residual was made (puf_items)
     f = agg.fillna({c: 0.0 for c in blank})
     nets['sched_d_allowed'] = n * common.allowed_capital_gain(means['kg_st'].to_numpy(float) + means['kg_lt'].to_numpy(float),
@@ -255,11 +270,13 @@ COUNT_FIELDS = {**{fld: p for p, (fld, _) in BT.PARTS.items() if fld},
                 'E00200': 'wages', 'E00300': 'txbl_int', 'E00400': 'exempt_int', 'E00600': 'dividends',
                 'E00650': 'div_pref', 'E00700': 'state_ref', 'E00800': 'alimony', 'E01100': 'kg_dist',
                 'E01200': 'other_gains', 'E01400': 'txbl_ira_dist', 'E01700': 'txbl_pens_dist',
-                'E02300': 'ui', 'E02400': 'gross_ss', 'E02500': 'ss_taxable', 'E18500': 'salt_prop',
+                'E02300': 'ui', 'E02400': 'gross_ss', 'E18500': 'salt_prop',
                 'E19200': 'first_mort_int', 'P22250': 'kg_st', 'P23250': 'kg_lt'}
 # Booklet fields that are totals the rebuild computes from its parts: checks only (their signs can move with scaling)
+# (3 November: taxable Social Security, computed by the worksheet and never targeted, and gross pensions, the sum of
+# the two pension parts, are checks only; until then E02500's counts were matched)
 CHECK_FIELDS = {'E00100': 'agi', 'E01000': 'capital_gains', 'E02000': 'sch_e_income', 'E26270': 'pship_scorp_net',
-                'E00900': 'sole_prop', 'E02100': 'farm'}
+                'E00900': 'sole_prop', 'E02100': 'farm', 'E02500': 'ss_taxable', 'E01500': 'gross_pens_dist'}
 # Parts with both signs whose booklet line splits the combined amount into positive and negative dollars
 SPLIT_PARTS = {'sole_prop': 'E00900', 'farm': 'E02100', 'other_gains': 'E01200', 'kg_st': 'P22250', 'kg_lt': 'P23250',
                'amt_nols': 'P60100'}
@@ -273,7 +290,7 @@ SELECT = ([('agi', 1, 'top_agi')]
                                                'sch_e_income', 'farm', 'ui']]
           + [(v, -1, 'loss_items') for v in ['sole_prop', 'other_gains', 'sch_e_income', 'farm']]
           + [(v, 1, 'other_fields') for v in ['exempt_int', 'div_pref', 'kg_st', 'kg_lt', 'kg_1250',
-                                               'kg_collect', 'retirement_gross']
+                                               'kg_collect', 'gross_pens_dist']
              + [p for p, (fld, _) in BT.PARTS.items() if fld and p not in ('sole_prop', 'farm')]
              + ['dpad', 'early_penalty', 'alimony_exp', 'first_mort_int', 'salt_prop', 'salt_inc_sales',
                 'char_cash', 'char_noncash', 'med_exp', 'casualty_exp', 'job_exp', 'tax_prep_exp', 'other_misc_exp',
@@ -281,10 +298,11 @@ SELECT = ([('agi', 1, 'top_agi')]
                 'res_energy_cred']]
           + [(v, -1, 'other_fields') for v in ['kg_st', 'kg_lt', 'amt_nols']])
 EXCLUDED_FROM_SELECTION = {
-    'capped or income-limited': ['gross_ss', 'ss_taxable', 'trad_contr_ira', 'sl_int_ded', 'ed_exp', 'tuition_ded',
+    'capped or income-limited': ['gross_ss', 'ss_taxable (computed by the worksheet)', 'trad_contr_ira', 'sl_int_ded', 'ed_exp', 'tuition_ded',
                                  'hsa_contr', 'keogh_contr', 'aoc_exp', 'llc_exp', 'savers_cred', 'old_cred', 'net_ptc',
                                  'excess_ptc', 'capital loss (the $3,000 cap)'],
     'derived': ['div_ord', 'kg_dist (zero on the aggregate records)', 'sche_other', 'part_se',
+                'nontxbl_pens_dist (selected through gross pensions, E01500)',
                 'other_item_exp', 'other_agi_remainder', 'se_tax_ded', 'se_health', 'business_income',
                 'sch_cf_income', 'sche_rent', 'sche_rest', 'adjustments']}
 
@@ -389,10 +407,11 @@ def apply_factors(x, grp, a, b):
 
 
 # Parts held to a bound on each record: (part, lower bound, upper bound), each a function of the frame after the
-# parts it depends on are scaled (BOUNDED is scaled last, in this order).
-BOUNDED = [('ss_taxable', None, lambda d: 0.85 * d['gross_ss'].to_numpy(float)),
-           ('txbl_pens_dist', None, lambda d: np.maximum(0.0, d['retirement_gross'].to_numpy(float)
-                                                            - d['gross_ss'].to_numpy(float)))]
+# parts it depends on are scaled (BOUNDED is scaled last, in this order). Empty since 3 November: taxable Social
+# Security (held to 85% of gross) is computed by the worksheet, and taxable pensions (held to total pensions) can no
+# longer exceed gross pensions, which are taxable pensions plus the non-taxable rest.
+BOUNDED = []
+SS_ROUNDS = 50   # rounds of the residual against the worksheet's taxable Social Security (scale_all)
 
 
 def scale_bounded(x, w, grp, T, lo, hi, rounds=400):
@@ -440,6 +459,26 @@ def scale_bounded(x, w, grp, T, lo, hi, rounds=400):
 AGI_RANGE = [(-np.inf, -2.0), (1.0, 10e6 - 1), (10e6 + 2, 100e6 - 1), (100e6 + 2, np.inf)]
 
 
+def agi_without_ss_at(line, d):
+    """(3 November) Per record of d, the AGI without taxable Social Security at which the record's AGI (with the
+    worksheet's taxable Social Security) equals line: AGI = a + ss(a), and ss rises with a by at most 85 cents a
+    dollar, so the AGI is increasing in a and the answer is found by bisection between line - 0.85 x gross benefits - 1
+    and line + 1. An infinite line stays infinite. Lets scale_all hold each record's AGI in its group exactly while the
+    residual alone moves."""
+    line = np.asarray(line, float)
+    gs = d['gross_ss'].to_numpy(float)
+    add = d['exempt_int'].to_numpy(float) + d['sl_int_ded'].to_numpy(float)
+    fs = d['filing_status'].to_numpy()
+    fin = np.isfinite(line)
+    lo = np.where(fin, line - 0.85 * gs - 1.0, 0.0)
+    hi = np.where(fin, line + 1.0, 0.0)
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        below = mid + common.taxable_social_security(gs, mid + add, fs) < np.where(fin, line, 0.0)
+        lo, hi = np.where(below, mid, lo), np.where(below, hi, mid)
+    return np.where(fin, 0.5 * (lo + hi), line)
+
+
 def scale_all(base, w, grp, nets, book, hold=False):
     """Step 6 on base (2015 parts, structural zeros applied) with weights w and groups grp: every part scaled, then
     the totals. hold: the residual other_agi_remainder (other income, the PUF's AGI less every identified item) is
@@ -457,8 +496,7 @@ def scale_all(base, w, grp, nets, book, hold=False):
                      f'(${own.sum() / 1e6:,.1f} million); the residual moved to keep AGI'})
     suppressed = {r['part'] for r in rows}
     last = ['other_agi_remainder']                       # the residual: scaled last, after every other part
-    later = ['retirement_gross']                         # after gross Social Security (below)
-    for v in [p for p in PRIMITIVES if p not in bounded and p not in suppressed and p not in last + later]:
+    for v in [p for p in PRIMITIVES if p not in bounded and p not in suppressed and p not in last]:
         x = base[v].to_numpy(float)
         P = np.array([(w * np.where(x > 0, x, 0))[grp == g].sum() for g in range(N_G)])
         N = np.array([(w * np.where(x < 0, x, 0))[grp == g].sum() for g in range(N_G)])
@@ -469,18 +507,6 @@ def scale_all(base, w, grp, nets, book, hold=False):
         out[v] = apply_factors(x, grp, a, b)
         rows.append({'part': v, **{f'positive factor, {GROUPS[g]}': a[g] for g in range(N_G)},
                      **{f'negative factor, {GROUPS[g]}': b[g] for g in range(N_G)}, 'notes': '; '.join(notes)})
-    # gross retirement income is gross Social Security plus total pensions (E02400 + E01500): total pensions is the
-    # part scaled (at least 0, to E01500's net), so gross retirement is never below gross Social Security and taxable
-    # pensions can be held to total pensions
-    x = base['retirement_gross'].to_numpy(float) - base['gross_ss'].to_numpy(float)
-    assert (x >= -1e-6).all(), 'gross retirement below gross Social Security on a donor (made consistent in build)'
-    x = np.maximum(x, 0.0)
-    T = nets['retirement_gross'].to_numpy(float) - nets['gross_ss'].to_numpy(float)
-    P = np.array([(w * x)[grp == g].sum() for g in range(N_G)])
-    a, b, notes = solve_field(P, np.zeros(N_G), T)
-    out['retirement_gross'] = out['gross_ss'] + apply_factors(x, grp, a, b)
-    rows.append({'part': 'retirement_gross', **{f'positive factor, {GROUPS[g]}': a[g] for g in range(N_G)},
-                 'notes': '; '.join(['scaled as total pensions (gross retirement less gross Social Security)'] + notes)})
     for v, lo_f, hi_f in BOUNDED:
         x = base[v].to_numpy(float)
         lo = lo_f(out) if lo_f else None
@@ -501,24 +527,46 @@ def scale_all(base, w, grp, nets, book, hold=False):
         fs = out['filing_status'] if 'filing_status' in out else None
         got = common.allowed_capital_gain(out['kg_st'].to_numpy(float) + out['kg_lt'].to_numpy(float), fs)
         short += nets['sched_d_allowed'].to_numpy(float) - np.array([(w * got)[grp == g].sum() for g in range(N_G)])
-    T = nets[v].to_numpy(float) + short
     note = ('held parts short of their nets, moved into it: ' + ', '.join(f'{GROUPS[g]} ${short[g] / 1e6:,.1f}m'
                                                                             for g in range(N_G) if abs(short[g]) > 1))
-    if hold:
-        without = D.agi(puf_totals(out.assign(other_agi_remainder=0.0)))
-        lo = np.array([AGI_RANGE[g][0] for g in grp]) - without
-        hi = np.array([AGI_RANGE[g][1] for g in grp]) - without
-        y, notes = scale_bounded(base[v].to_numpy(float), w, grp, T, lo, hi)
-        out[v] = y
-        rows.append({'part': v, 'notes': '; '.join(['held so each record\'s AGI stays in its group', note] + notes)})
-    else:
-        x = base[v].to_numpy(float)
-        P = np.array([(w * np.where(x > 0, x, 0))[grp == g].sum() for g in range(N_G)])
-        N = np.array([(w * np.where(x < 0, x, 0))[grp == g].sum() for g in range(N_G)])
-        a, b, notes = solve_field(P, N, T)
-        out[v] = apply_factors(x, grp, a, b)
-        rows.append({'part': v, **{f'positive factor, {GROUPS[g]}': a[g] for g in range(N_G)},
-                     **{f'negative factor, {GROUPS[g]}': b[g] for g in range(N_G)}, 'notes': '; '.join([note] + notes)})
+    # (3 November) taxable Social Security is the worksheet's on each record, not a part: the raw record's AGI holds its
+    # E02500 (nets ss_taxable), so the residual's target moves by the raw net less the group's worksheet total. The
+    # worksheet reads AGI, which holds the residual, so the two are repeated until the group totals settle (within a
+    # dollar), each round's residual scaled with the last round's taxable Social Security held fixed
+    by_group = lambda x: np.array([(w * x)[grp == g].sum() for g in range(N_G)])
+    raw_ss = nets['ss_taxable'].to_numpy(float)
+    out[v] = base[v].to_numpy(float)
+    ss = puf_totals(out)['ss_taxable'].to_numpy(float)
+    for k in range(SS_ROUNDS):
+        T = nets[v].to_numpy(float) + short + (raw_ss - by_group(ss))
+        if hold:
+            # the bounds on AGI without taxable Social Security that keep each record's AGI (with the worksheet's
+            # taxable Social Security) inside its group (agi_without_ss_at), less what the record has without the residual
+            without = D.agi(puf_totals(out.assign(other_agi_remainder=0.0), ss_taxable=np.zeros(len(out))))
+            lo = agi_without_ss_at(np.array([AGI_RANGE[g][0] for g in grp]), out) - without
+            hi = agi_without_ss_at(np.array([AGI_RANGE[g][1] for g in grp]), out) - without
+            y, notes = scale_bounded(base[v].to_numpy(float), w, grp, T, lo, hi)
+            out[v] = y
+            row = {'part': v, 'notes': ['held so each record\'s AGI stays in its group', note] + notes}
+        else:
+            x = base[v].to_numpy(float)
+            P = np.array([(w * np.where(x > 0, x, 0))[grp == g].sum() for g in range(N_G)])
+            N = np.array([(w * np.where(x < 0, x, 0))[grp == g].sum() for g in range(N_G)])
+            a, b, notes = solve_field(P, N, T)
+            out[v] = apply_factors(x, grp, a, b)
+            row = {'part': v, **{f'positive factor, {GROUPS[g]}': a[g] for g in range(N_G)},
+                   **{f'negative factor, {GROUPS[g]}': b[g] for g in range(N_G)}, 'notes': [note] + notes}
+        new = puf_totals(out)['ss_taxable'].to_numpy(float)
+        moved = np.abs(by_group(new) - by_group(ss)).max()
+        ss = new
+        if moved < 1.0:
+            break
+    gap = raw_ss - by_group(ss)
+    row['notes'] = '; '.join(row['notes'] + [
+        f'taxable Social Security by the worksheet against the raw records\' E02500, moved into it: '
+        + ', '.join(f'{GROUPS[g]} ${gap[g] / 1e6:,.2f}m' for g in range(N_G))
+        + f' ({k + 1} rounds' + ('' if moved < 1.0 else f', not settled: last move ${moved:,.0f}') + ')'])
+    rows.append(row)
     return puf_totals(out), pd.DataFrame(rows)
 
 
@@ -778,15 +826,10 @@ def build():
                            float((w[keep] * np.abs(x))[by_sign].sum())})
             base.loc[by_sign, v] = 0.0
 
-    # Donors drawn by the network can break the pension identities (each item is its own slot): total pensions (gross
-    # retirement less gross Social Security) made at least taxable pensions and never below zero, before any scaling
-    tot_p = base['retirement_gross'].to_numpy(float) - base['gross_ss'].to_numpy(float)
-    fixed_p = np.maximum(tot_p, np.maximum(base['txbl_pens_dist'].to_numpy(float), 0.0))
-    changed = fixed_p != tot_p
-    common.say(f'donors with total pensions below taxable pensions or below zero, made consistent: {int(changed.sum())}')
-    zeroed.append({'part': 'retirement_gross', 'records raised so total pensions are at least taxable pensions and at '
-                   'least zero': int(changed.sum())})
-    base['retirement_gross'] = base['gross_ss'].to_numpy(float) + fixed_p
+    # (3 November) the pension parts are drawn as two amounts, each at least zero, so gross pensions (their sum) are
+    # never below taxable pensions; until then total pensions were gross retirement less gross Social Security, two
+    # slots drawn apart, and donors that broke the identity were made consistent here
+    assert (base[common.PENSION_PARTS].to_numpy(float) >= 0).all(), 'a pension part below zero on a donor'
     base_src = base                       # the donors before the per-group zeros, which follow each record's group
 
     def zero_groups(src, grp):
@@ -886,12 +929,13 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
     counts.to_csv(f'{out}/check_counts.csv', index=False)
     # dollars by group against the raw records, every part and the totals
     rows = []
-    tot = puf_totals(pd.DataFrame({v: nets[v].to_numpy() for v in PRIMITIVES}).fillna(0.0).assign(filing_status=0))
+    tot = puf_totals(pd.DataFrame({v: nets[v].to_numpy() for v in PRIMITIVES}).fillna(0.0).assign(filing_status=0),
+                     ss_taxable=nets['ss_taxable'].to_numpy(float))
     for part in SUPPRESSED_FIELDS.values():          # suppressed: no raw amount (the totals read them as 0)
         if nets[part].isna().all():
             tot[part] = np.nan
     for v in PRIMITIVES + ['capital_gains', 'business_income', 'sch_e_income', 'dividends', 'adjustments', 'other_agi',
-                           'agi']:
+                           'agi', 'ss_taxable', common.GROSS_PENSIONS]:
         x = h15[v].to_numpy(float)
         for g in range(N_G):
             m = grp == g
@@ -926,16 +970,17 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
         'capital gain = short + long, a loss held to the limit': np.isclose(
             h15['capital_gains'], common.allowed_capital_gain(h15['kg_st'] + h15['kg_lt'], h15['filing_status'])),
         'capital gain at least the allowed loss': h15['capital_gains'] >= cap - 1e-6,
-        'taxable Social Security at most 85% of gross': h15['ss_taxable'] <= 0.85 * h15['gross_ss'] + 1e-6,
-        'taxable pensions at most total pensions': h15['txbl_pens_dist'] <= h15['retirement_gross'] - h15['gross_ss'] + 1e-6,
-        'gross retirement at least gross Social Security': h15['retirement_gross'] >= h15['gross_ss'] - 1e-6,
+        'taxable Social Security (the worksheet) at most 85% of gross': h15['ss_taxable'] <= 0.85 * h15['gross_ss'] + 1e-6,
+        'gross pensions = taxable pensions + the non-taxable rest': np.isclose(
+            h15['gross_pens_dist'], h15['txbl_pens_dist'] + h15['nontxbl_pens_dist'], rtol=0, atol=1e-6),
+        'the non-taxable rest of pensions at least zero': h15['nontxbl_pens_dist'] >= 0,
         'no negative amount in a positive-only part': np.ones(len(h15), bool),
         'AGI = wages + interest + dividends + capital gain + other AGI': np.isclose(
             h15['agi'], h15[D.AGI_PARTS].sum(axis=1)),
     }
     two_signed = set(SPLIT_PARTS) | set(RESIDUALS) | {'kg_dist'}
     for v in PRIMITIVES:
-        if v not in two_signed and v != 'retirement_gross':
+        if v not in two_signed:
             rules['no negative amount in a positive-only part'] &= h15[v].to_numpy() >= 0
     # the long-term gain pieces against the long-term gain (reported, not enforced: no strict rule in the law)
     for v in ['kg_1250', 'kg_collect']:
@@ -993,7 +1038,8 @@ def target_year_rows(h15, donors, models, factors, out):
     rows['hidden_wealth_fallback'] = (accepted == -1).astype(np.int64)
     # 8. the PUF items grown from 2015 (tilt.grow_dollars on the PUF block alone), then every total recomputed
     puf15 = h15[PRIMITIVES + ['capital_gains_line13', 'capital_gains', 'business_income', 'business_income_drawn',
-                             'other_agi', 'filing_status']   # the filing status: the capital loss limit
+                             'other_agi', 'filing_status',   # the filing status: the capital loss limit
+                             'ss_taxable', common.GROSS_PENSIONS]   # computed (3 November): recombine checks them
               + [k for k in D.META['computed_totals'] if k != 'business_income']].copy()
     puf15 = puf15.loc[:, ~puf15.columns.duplicated()]
     grown, growth = TL.grow_dollars(puf15, PY, Y)

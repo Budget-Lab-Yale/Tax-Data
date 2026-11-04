@@ -8,11 +8,10 @@ business_income_drawn,file:projection_series_b.csv:rev_iit_business_income,total
 other_gains,file:projection_series_b.csv:rev_iit_capital_gain_loss,total,1,0.01,B: CBO capital gain line (Form 4797 is in it; no loss limit)
 txbl_ira_dist,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,B: CBO pensions line
 txbl_pens_dist,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,B: CBO pensions line
-ss_taxable,file:projection_series_b.csv:rev_iit_ss_benefits,total,1,0.01,B: CBO taxable Social Security line
 ui,file:projection_series_b.csv:ui_outlays,total,1,0.01,"B: CBO unemployment outlays, calendar years"
 alimony,file:projection_series_b.csv:alimony_fade,total,1,0.01,"B: SOI 2019-2023 decline, 0.886820 a year (John, decision 2)"
 state_ref,file:projection_series_b.csv:sl_income_tax,total,0,,"B: as state and local income tax; today: CBO or macro series (total); 2023 total $13.3bn gains, $0.0bn losses; set to zero on non-itemizers each year by the refund rule (taxes.apply_refund_rule)"
-retirement_gross,file:projection_series_b.csv:retirement_gross,total,1,0.01,B: gross pensions on CBO pensions line plus gross_ss on its series
+nontxbl_pens_dist,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,"B: CBO pensions line, as taxable pensions; the non-taxable rest of pensions (3 November merge of rebuild-pensions; before, retirement_gross: gross pensions on the CBO pensions line plus gross_ss on its series). Taxable Social Security is computed by the section 86 worksheet, not grown"
 exempt_int,file:projection_series_b.csv:int_remainder,total,1,0.01,B: as taxable interest
 first_mort_int,file:projection_series_b.csv:mortgage_interest_b,total,1,0.01,"B: balance times average rate, rule (b) (John, decision 1)"
 salt_prop,file:projection_series_b.csv:re_tax,total,1,0.01,"B: ACS to 2024, then FHFA x households"

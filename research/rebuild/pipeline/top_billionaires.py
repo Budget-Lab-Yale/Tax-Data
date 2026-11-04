@@ -46,7 +46,10 @@ choice: Forbes covers the people above $1 billion better than a handful of heavi
      from the later profiles (married, or "widowed, remarried"; missing: married, production's rule); a spouse of the
      same age and the other sex (a separately listed spouse keeps their own age and sex). Dependents by production's
      rule (only under 45, at most three, ages 12, 9, 6, from the later profiles' children). Earnings all to the primary
-     filer. Items beyond the kinds (state income tax, foreign tax credits, business credits, self-employment items,
+     filer. Wages and pensions are shared among wages, taxable pensions and taxable IRA distributions as in the mix;
+     the non-taxable rest of pensions is zero, so gross pensions are the taxable pensions and IRA distributions are not
+     in them (3 November); with no Social Security, taxable Social Security computes to zero.
+     Items beyond the kinds (state income tax, foreign tax credits, business credits, self-employment items,
      the other itemized deductions in RATIO_ITEMS) at their ratio to AGI in the mix; consumption at the mix's average;
      everything else zero, listed in ZERO_ITEMS. Ids from 95,000,000 (ID_BASE) up, by rank (Part A's from 90,000,000).
 """
@@ -77,7 +80,8 @@ RATIO_ITEMS = ['salt_inc_sales', 'salt_prop', 'ftc', 'amt_ftc', 'gbc', 'prior_yr
 # items set to zero, with the reason (for the report)
 ZERO_ITEMS = {
     'gross_ss': 'not market income; capped per person, so not scaled with income',
-    'ss_taxable': 'as gross_ss', 'ui': 'none', 'alimony': 'none', 'alimony_exp': 'none',
+    'nontxbl_pens_dist': 'the IRS study\'s pensions are the taxable amounts on the return',
+    'ui': 'none', 'alimony': 'none', 'alimony_exp': 'none',
     'trad_contr_ira': 'capped, negligible', 'sl_int_ded': 'phased out', 'ed_exp': 'phased out',
     'tuition_ded': 'phased out', 'hsa_contr': 'capped, negligible', 'early_penalty': 'none', 'med_exp': 'none',
     'casualty_exp': 'none', 'job_exp': 'none', 'first_mort_int': 'no home, no debt (step 12)',
@@ -465,7 +469,9 @@ def build_billionaires(lst, df, w, year, notes):
     put('txbl_int', kinds['txbl_int']); put('exempt_int', kinds['exempt'])
     for c, s in mix['wages and pensions'].items():
         put(c, kinds['wages and pensions'] * s)
-    put('retirement_gross', out['txbl_pens_dist'] + out['txbl_ira_dist'])
+    # (3 November, John) pensions are taxable pensions alone (the non-taxable rest is zero, ZERO_ITEMS); gross pensions
+    # and taxable Social Security are computed by recombine below. IRA distributions stay in txbl_ira_dist and are not
+    # pensions (until 3 November gross retirement income was set to taxable pensions plus IRA distributions)
     # business: partnership against S corporation from the IRS study (by group), Schedule C and farm from the mix
     grp = u['group'].to_numpy()
     irs = lambda k: np.array([groups[x][k] for x in grp])

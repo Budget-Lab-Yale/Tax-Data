@@ -41,7 +41,13 @@ After the draws, the pieces are put on the definitions the IRS targets use:
   adjustments     the exact sum of its eleven parts (since 27 October)
   other_agi       AGI minus wages, interest, dividends and capital gains:
                   the drawn remainder plus kg_dist plus the AGI items folded
-                  back in (FOLD); the remainder alone is other_agi_remainder
+                  back in (FOLD) plus taxable Social Security; the remainder
+                  alone is other_agi_remainder
+  gross_pens_dist gross pensions, taxable pensions plus the non-taxable
+                  rest (nontxbl_pens_dist), exactly (3 November; both drawn)
+  ss_taxable      taxable Social Security, never drawn (3 November): the
+                  section 86 worksheet on the record's own amounts, as the
+                  tax calculator computes it (retirement_items)
   net_worth       the 14 assets less the 6 debts; the home mortgage is its
                   drawn share of the home's value times the home's dollars
   wages2, se2     the spouse's wages and self-employment income: the drawn
@@ -100,7 +106,8 @@ import pandas as pd
 import common
 
 # The order fixes each amount's random stream; it must not change. (kg_other, dropped on 29-30 October, keeps its
-# place so the streams after it do not move; a frame without its band skips it.)
+# place so the streams after it do not move; a frame without its band skips it. So do retirement_gross and
+# ss_taxable, slots until 3 November: gross pensions and taxable Social Security are computed since then.)
 ORDER = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
          'kg_st', 'kg_lt', 'kg_dist', 'kg_other',
          'business_income', 'retirement_gross', 'exempt_int', 'other_gains', 'txbl_ira_dist',
@@ -124,9 +131,12 @@ RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_schc', 'biz_workers_part', 'biz
 ORDER = ORDER + ['first_mort_int', 'salt_prop'] + [v for v in META['scf_amounts'] if v not in LATER + NEWEST + RETRAIN_1029] \
     + list(META['cex_amounts']) + ['gross_ss'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
-ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals']]
+# The non-taxable rest of pensions (3 November), at the very end after the retrain of 29 October's amounts
+PENSIONS_1103 = ['nontxbl_pens_dist']
+ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals'] and v not in PENSIONS_1103]
 ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
 ORDER = ORDER + [v for v in RETRAIN_1029 if v in META['scf_amounts']]
+ORDER = ORDER + [v for v in PENSIONS_1103 if v in META['items']]
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
@@ -138,11 +148,41 @@ AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 
 KG_PIECES = META['kg_pieces']
 FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
 AGI_PARTS = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']
+# What taxable Social Security reads besides AGI without it and the filing status (common.taxable_social_security)
+SS_INPUTS = ['gross_ss', 'exempt_int', 'sl_int_ded']
 
 
 def agi(df):
     """AGI of records whose dollars draw_dollars has put on the IRS targets' definitions."""
     return df[AGI_PARTS].to_numpy(float).sum(1)
+
+
+def retirement_items(out, in_agi=False):
+    """In place (3 November, John): the two computed retirement items.
+      gross_pens_dist  gross pensions (Form 1040 line 5a) = taxable pensions + the non-taxable rest
+                       (common.PENSION_PARTS), exactly; both parts at least zero. Made where the frame has both parts.
+      ss_taxable       taxable Social Security by the section 86 worksheet (common.taxable_social_security) on the
+                       record's own amounts: modified AGI is AGI without taxable benefits (wages, interest, dividends,
+                       the Schedule D net, other AGI), plus tax-exempt interest, plus the student loan interest
+                       deduction; the filing status sets the base amounts. Added to other_agi, so it is in the file's
+                       AGI (dollars.agi). Every record, filers and non-filers, as the calculator computes it.
+    in_agi: other_agi already holds the record's ss_taxable (a recomputation after an item of AGI changed, the refund
+    rule of taxes.py): it is taken out before the worksheet runs again. Returns out."""
+    if all(p in out for p in common.PENSION_PARTS):
+        parts = out[common.PENSION_PARTS].to_numpy(float)
+        assert np.isfinite(parts).all(), 'a pension part missing on a record'
+        assert (parts >= 0).all(), 'a pension part below zero on a record'
+        out[common.GROSS_PENSIONS] = parts.sum(1)
+    need = AGI_PARTS + SS_INPUTS + ['filing_status'] + (['ss_taxable'] if in_agi else [])
+    missing = [c for c in need if c not in out]
+    assert not missing, f'taxable Social Security needs {missing}'
+    other = out['other_agi'].to_numpy(float) - (out['ss_taxable'].to_numpy(float) if in_agi else 0.0)
+    without = out[AGI_PARTS[:-1]].to_numpy(float).sum(1) + other
+    magi = without + out['exempt_int'].to_numpy(float) + out['sl_int_ded'].to_numpy(float)
+    taxable = common.taxable_social_security(out['gross_ss'].to_numpy(float), magi, out['filing_status'].to_numpy())
+    out['ss_taxable'] = taxable
+    out['other_agi'] = other + taxable
+    return out
 
 
 def signed_sum(df, parts):
@@ -399,6 +439,7 @@ def draw_dollars(df, maps, year=None):
     out['other_agi_remainder'] = remainder
     out['other_agi'] = out['other_agi'] + signed_sum(out, FOLD)
     assert not out[list(FOLD) + KG_PIECES].isna().any().any(), 'a part is missing on a record'
+    retirement_items(out)                          # gross pensions; taxable Social Security into other_agi
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
         out['total_consumption'] = out[cats].to_numpy(float).sum(1)

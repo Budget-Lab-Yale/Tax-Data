@@ -57,7 +57,7 @@ kg_1250,same,kg_1250,unrecaptured section 1250 gain,yes
 kg_collect,same,kg_collect,28 percent rate (collectibles) gain,yes
 other_gains,same,other_gains,Form 4797 gains and losses,yes
 txbl_ira_dist,renamed,txbl_ira_dist,taxable IRA distributions,yes
-gross_pens_dist,computed,retirement_gross - gross_ss (retirement_gross is the PUF's E02400 + E01500),gross pensions and annuities,yes
+gross_pens_dist,computed,"txbl_pens_dist + nontxbl_pens_dist (the non-taxable rest of pensions, the PUF's E01500 - E01700, never below zero; since 3 November, before: retirement_gross - gross_ss)",gross pensions and annuities,yes
 txbl_pens_dist,renamed,txbl_pens_dist,taxable pensions and annuities,yes
 part_active,renamed,part_active,nonpassive partnership income,yes
 part_active_loss,renamed,part_active_loss,"nonpassive partnership loss, stored positive",yes

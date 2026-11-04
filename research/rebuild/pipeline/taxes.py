@@ -361,8 +361,9 @@ SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculat
 
 def apply_refund_rule(df, year, w, folder, ctx, C):
     """Decision 47: taxable state refunds set to zero on records the calculator says do not itemize under the year's
-    law, and the total built from them (other_agi) lowered by the same dollars. One calculator run on the grown start gives
-    the flag. Returns the frame; the counts go to ctx['refund']."""
+    law, and the total built from them (other_agi) lowered by the same dollars; then taxable Social Security, which
+    depends on AGI, computed again (3 November). One calculator run on the grown start gives the flag. Returns the
+    frame; the counts go to ctx['refund']."""
     inp, _ = C.convert(df)
     out, man = run_batch(inp, year, folder, 'refund', wage_increment=0.0)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
@@ -384,6 +385,13 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
     assert (ref2 <= ref + 1e-9).all(), 'the refund rule only removes refunds'
     assert D.FOLD['state_ref'] == 1, 'other_agi is built from state_ref with sign +1 (dollars.FOLD)'
     df['other_agi'] = df['other_agi'].to_numpy(float) + D.FOLD['state_ref'] * (ref2 - ref)
+    # (3 November) taxable Social Security, computed by the section 86 worksheet on AGI, is computed again on the lower
+    # AGI (dollars.retirement_items: the old amount is taken out of other_agi first)
+    ss_before = df['ss_taxable'].to_numpy(float).copy()
+    D.retirement_items(df, in_agi=True)
+    ss_after = df['ss_taxable'].to_numpy(float)
+    row.update({'records whose taxable Social Security fell with the refund (unweighted)': int((ss_after < ss_before - 1e-6).sum()),
+                'taxable Social Security removed with the refund, filers ($ billion)': (w * (ss_before - ss_after))[filer].sum() / 1e9})
     row.update({'returns with a refund after (millions)': w[filer & (ref2 > 0)].sum() / 1e6,
                 'dollars after ($ billion)': (w * ref2)[filer].sum() / 1e9,
                 'non-filer dollars before ($ billion)': (w * ref)[~filer].sum() / 1e9})

@@ -973,13 +973,13 @@
    },
    {
     "survey": "cps",
-    "variable": "ss_taxable",
+    "variable": "nontxbl_pens_dist",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
     "fill_in": null,
     "type_for_fill_in": false,
-    "reason": "zero, agreed 23 October; the table stage's log counts the non-filing units the taxable-benefits formula would give a positive amount"
+    "reason": "zero (3 November, the slot new that day): the CPS's pensions and retirement distributions are all taken as taxable (row txbl_pens_dist, agreed 23 October), so the non-taxable rest of pensions is none and the CPS's gross pensions equal its taxable pensions, as its gross retirement income less gross Social Security did before. The CPS asks the gross amount received and nothing about the taxable part. Taxable Social Security, zero on the CPS until 3 November, is no longer a slot: the file computes it on every record by the section 86 worksheet (the table stage's log still counts the non-filing units it would give a positive amount)"
    },
    {
     "survey": "cps",
@@ -1035,20 +1035,6 @@
     "fill_in": null,
     "type_for_fill_in": false,
     "reason": "not asked by the CPS: zero (the old non-filer pool's mapping (nonfiler_pool/05_emit_pool.R), agreed 23 October)"
-   },
-   {
-    "survey": "cps",
-    "variable": "retirement_gross",
-    "items": [
-     "gross_ss",
-     "retirement_income",
-     "survdis_pension"
-    ],
-    "dollar_line": null,
-    "loss_cap": null,
-    "fill_in": null,
-    "type_for_fill_in": false,
-    "reason": "gross Social Security plus all pensions and retirement distributions, as on the PUF (E02400 + E01500); since 28 October with the survivor and disability pensions that are pensions on a return"
    },
    {
     "survey": "cps",

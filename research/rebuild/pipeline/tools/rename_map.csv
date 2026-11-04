@@ -57,7 +57,7 @@ alimony alimony_exp,divorce_year,computed,"0 where alimony is received or paid, 
 sole_prop spouse_se_share,sole_prop1 sole_prop2,computed,"sole_prop2 = sole_prop x spouse_se_share, sole_prop1 = the rest"
 farm spouse_se_share,farm1 farm2,computed,"as sole_prop1, sole_prop2"
 part_se spouse_se_share,part_se1 part_se2,computed,"as sole_prop1, sole_prop2"
-retirement_gross gross_ss,gross_pens_dist,computed,gross pensions = retirement_gross (PUF E02400 + E01500) - gross_ss
+txbl_pens_dist nontxbl_pens_dist,gross_pens_dist,computed,"gross pensions = taxable pensions + the non-taxable rest (since 3 November; until then retirement_gross, PUF E02400 + E01500, less gross_ss)"
 other_agi_remainder farm_rent sche_other,other_inc,computed,other income in AGI: the remainder plus farm rental and the unnamed rest of Schedule E
 kg_lt kg_dist,kg_lt,computed,"the calculator's kg_lt is the rebuild's kg_lt (Schedule D long term, PUF P23250, production's kg_lt) plus capital gain distributions on Form 1040 (kg_dist, PUF E01100), which are long-term gains"
 value.equities w_kg_other,basis.equities,computed,"made in the file by the non-microdata imputations (value less unrealized gain, the gain first held to the value)"
@@ -193,9 +193,9 @@ sche_rent,sche_rent,rebuild-only,Schedule E rents and royalties net
 sche_rest,sche_rest,rebuild-only,the rest of Schedule E
 farm_rent,farm_rent,rebuild-only,"farm rental, PUF E27200"
 sche_other,sche_other,rebuild-only,unnamed rest of Schedule E
-ss_taxable,ss_taxable,rebuild-only,taxable Social Security (the calculator computes its own)
+ss_taxable,ss_taxable,rebuild-only,"taxable Social Security, computed by the section 86 worksheet since 3 November (drawn before); the calculator computes its own the same way"
 adjustments,adjustments,rebuild-only,total of the adjustments
-retirement_gross,retirement_gross,rebuild-only,gross Social Security plus total pensions
+nontxbl_pens_dist,nontxbl_pens_dist,rebuild-only,"the non-taxable rest of pensions, PUF E01500 - E01700, never below zero (since 3 November, in place of retirement_gross, gross Social Security plus total pensions)"
 se_tax_ded,se_tax_ded,rebuild-only,deduction for half of self-employment tax (the calculator computes its own)
 other_agi,other_agi,rebuild-only,AGI less every item
 other_agi_remainder,other_agi_remainder,rebuild-only,file: AGI remainder

@@ -187,7 +187,8 @@ def prescale_lines(prescaled):
 def recombine(df, year):
     """The columns dollars.draw_dollars computes from the drawn amounts, computed again from the (grown) drawn
     amounts in the same order: the capital gains totals, business income and its two schedules from the eighteen
-    parts, other AGI (the drawn remainder plus capital gain distributions plus the AGI items folded in), total
+    parts, other AGI (the drawn remainder plus capital gain distributions plus the AGI items folded in plus taxable
+    Social Security by the section 86 worksheet, dollars.retirement_items, since 3 November), gross pensions, total
     consumption, the amounts made from a share (the spouse's wages, the home mortgage), the remainders (the primary
     filer's wages), net worth, and (with the elective deferrals) the traditional deferrals and Medicare wages of tax year
     year. Returns the frame and the columns recomputed."""
@@ -205,6 +206,10 @@ def recombine(df, year):
         put(total, D.signed_sum(out, totals[total]))
     put('other_agi', out['other_agi_remainder'] + out['kg_dist']
         + D.signed_sum(out, D.FOLD))
+    # (3 November) gross pensions from the two parts, and taxable Social Security by the section 86 worksheet on the
+    # (grown) amounts, into other_agi: the thresholds are not indexed, so growth moves it as the law does
+    D.retirement_items(out)
+    done += [c for c in ['ss_taxable', common.GROSS_PENSIONS] if c in out]
     cats = list(D.META['cex_amounts'])
     if all(c in out for c in cats):
         put('total_consumption', out[cats].to_numpy(float).sum(1))
