@@ -195,7 +195,7 @@ def published_cells(soi, year, variable, stat, table='1.4'):
 
 # ---- 2. totals for growth ------------------------------------------------------------------
 NET = lambda name: [(name + ' > net income', 1), (name + r' > net loss.*', -1)]
-SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
+SOI_ITEMS = {  # item: list of (SOI item pattern, sign), or (pattern, sign, whether its returns count: default yes)
     'wages': [('(salaries and wages|total wages > total)', 1)],   # SOI's name from tax year 2022
     'txbl_int': [('taxable interest', 1)],
     'dividends': [('ordinary dividends', 1)],
@@ -214,10 +214,14 @@ SOI_ITEMS = {  # item: list of (SOI item pattern, sign)
     'txbl_ira_dist': [(r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions'
                      r'|individual retirement arrangement.*taxable.*)', 1)],
     'txbl_pens_dist': [('pensions and annuities > taxable', 1)],
-    'ss_taxable': [('social security benefits > taxable', 1)], 'ui': [('unemployment compensation', 1)],
+    # (3 November) the non-taxable rest of pensions: total less taxable pensions and annuities, per return with total
+    # pensions (the taxable line's returns are not added: they are among the total's). Taxable Social Security is no
+    # longer grown (the worksheet computes it), and gross Social Security plus pensions (retirement_gross, the two
+    # total lines added) is no longer an item
+    'nontxbl_pens_dist': [('pensions and annuities > total', 1), ('pensions and annuities > taxable', -1, False)],
+    'ui': [('unemployment compensation', 1)],
     'alimony': [('alimony received', 1)], 'state_ref': [('state income tax refunds', 1)],
     'adjustments': [('statutory adjustments > total', 1)],
-    'retirement_gross': [('social security benefits > total', 1), ('pensions and annuities > total', 1)],
     'gross_ss': [('social security benefits > total', 1)],
     'exempt_int': [('tax exempt interest', 1)], 'other_agi': NET('other income'),
     # stage 3 (27 October): the two parts of ordinary dividends and the eleven statutory adjustments, each by its own
@@ -290,9 +294,11 @@ def soi_item(y, item, base=None, rows=None, absolute=False, combined_counts=Fals
     """Amount and returns of an item in year y, summed over its SOI rows; with
     base, only the rows published in both years (so a ratio compares like with like)."""
     amt = cnt = 0.0
-    for p, s in ([(r, 1) for r in rows] if rows is not None else SOI_ITEMS[item]):
+    for p, s, *counted in ([(r, 1) for r in rows] if rows is not None else SOI_ITEMS[item]):
         try:
             a, c = soi_get(y, p, 'amount'), soi_get(y, p, 'number of returns')
+            if counted and not counted[0]:
+                c = 0.0          # a line subtracted from another whose returns already count it
             if base is not None:
                 soi_get(base, p, 'amount')
         except KeyError:
@@ -330,7 +336,9 @@ CBO_CONCEPT = {
     'business_income': 'Net business income', 'sch_cf_income': 'Net business income', 'sch_e_income': 'Net business income',
     'sche_rent': 'Net business income', 'sche_rest': 'Net business income',
     'txbl_pens_dist': 'Taxable pensions and annuities', 'txbl_ira_dist': 'Taxable pensions and annuities',
-    'ss_taxable': 'Taxable Social Security benefits', 'adjustments': 'Subtract statutory adjustments'}
+    # (3 November) CBO publishes no line for total or non-taxable pensions: the taxable line is the closest
+    'nontxbl_pens_dist': 'Taxable pensions and annuities',
+    'adjustments': 'Subtract statutory adjustments'}
 _CBO = None
 
 

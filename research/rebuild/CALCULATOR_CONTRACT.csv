@@ -72,7 +72,7 @@ div_pref,same,div_pref,qualified dividends
 state_ref,renamed,state_ref,taxable state income tax refunds
 txbl_ira_dist,renamed,txbl_ira_dist,taxable IRA distributions
 txbl_pens_dist,renamed,txbl_pens_dist,taxable pensions and annuities
-gross_pens_dist,computed,retirement_gross - gross_ss (retirement_gross is the PUF's E02400 + E01500),gross pensions and annuities
+gross_pens_dist,computed,"txbl_pens_dist + nontxbl_pens_dist (the non-taxable rest of pensions, the PUF's E01500 - E01700, never below zero; since 3 November, before: retirement_gross - gross_ss)",gross pensions and annuities
 gross_ss,renamed,gross_ss,gross Social Security benefits (the calculator computes the taxable part)
 ui,renamed,ui,unemployment compensation
 alimony,same,alimony,alimony received

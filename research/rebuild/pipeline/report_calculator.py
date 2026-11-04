@@ -6,7 +6,10 @@
      capital gains        the calculator's net gain on the return (short- plus long-term, a net loss held to
                           $3,000) against the rebuild's line 13 (capital_gains_line13: since 29-30 October the
                           rebuild applies the same limit to kg_st + kg_lt, then adds kg_dist);
-     taxable Social Security  computed from gross benefits, against the rebuild's drawn ss_taxable;
+     taxable Social Security  computed from gross benefits, against the rebuild's ss_taxable (drawn until 3 November;
+                          since then the same section 86 worksheet on the file's own items, so the gap is only where
+                          the calculator's modified AGI differs from the file's: its own self-employment tax
+                          deduction, the state tax workaround, the law's caps on adjustments);
      self-employment tax deduction  half the computed self-employment tax, against the drawn se_tax_ded;
      state tax workaround the calculator's frame step moves part of some owners' state income tax into the
                           partnership's or S corporation's loss (75% of eligible owners, a random draw);

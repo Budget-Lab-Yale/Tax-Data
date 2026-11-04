@@ -102,11 +102,11 @@ items:
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  ss_taxable:
-    source: {series: soi 1.4, item: ss_taxable}
+  nontxbl_pens_dist:
+    source: {series: soi 1.4, item: nontxbl_pens_dist}
     negative: same
-    measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    measure: 'dollars per return with total pensions (SOI Table 1.4, all returns: total less taxable pensions and annuities, over the returns with total pensions)'
+    reason: 'the non-taxable rest of pensions, a slot since 3 November (John); SOI publishes total and taxable pensions, not the rest, so the rest is their difference; taxable Social Security (computed by the worksheet) and gross Social Security plus pensions (no longer a slot) have no line'
   ui:
     source: {series: soi 1.4, item: ui}
     negative: same
@@ -124,11 +124,6 @@ items:
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
   adjustments:
     source: {series: soi 1.4, item: adjustments}
-    negative: same
-    measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
-  retirement_gross:
-    source: {series: soi 1.4, item: retirement_gross}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
     reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'

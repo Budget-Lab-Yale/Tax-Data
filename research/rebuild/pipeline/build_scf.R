@@ -147,7 +147,7 @@ QBI_ITEMS = unlist(lapply(c('31', '32'), function(b) paste0('x', b, c('07', '11'
 QBI_KINDS = list(schc = c(2, 40), part = c(1, 11, 12), scorp = 3)
 K1_FORMS = c(1, 3, 11, 12)
 INCOME = c(wages = 'X5702', txbl_int = 'X5708', dividends = 'X5710', capital_gains = 'X5712',
-           business_income = 'X5704', rent_royalty_estate = 'X5714', retirement_gross = 'X5722',
+           business_income = 'X5704', rent_royalty_estate = 'X5714', ss_pensions_scf = 'X5722',
            exempt_int = 'X5706')
 # Items for the respondent's and the spouse's or partner's own incomes (Moore's code, as production's builder)
 PERSON_ITEMS = c('X4112', 'X4113', 'X4712', 'X4713', 'X4131', 'X4132', 'X4731', 'X4732',

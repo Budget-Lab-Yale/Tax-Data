@@ -395,6 +395,8 @@ variables:
     record: gross_ss
     short: gross_ss
     soi 1.4: {count: [gross_ss], amount: [gross_ss]}
+  # (3 November, John) taxable Social Security is computed by the section 86 worksheet on each record's own items
+  # (dollars.retirement_items), as the tax calculator computes it; never drawn and never targeted. Defined for reports.
   ss_taxable:
     record: ss_taxable
     short: ss_taxable
@@ -709,14 +711,15 @@ variable_lists:
   # (1 November, decision 57 d, John) eight of Table 1.3's items are no longer targeted: total income, other gains,
   # tax-exempt interest, state refunds, estate and trust net, farm net, farm rental net and alimony (64 targets a year);
   # the variables stay defined above
+  # (3 November, John) taxable Social Security left out: it is computed, never targeted
   soi_1_3_items: [wages, taxable_interest, ordinary_dividends,
                   sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, txbl_ira_dist,
-                  txbl_pens_dist, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
+                  txbl_pens_dist, ui, rent_royalty_net_income, rent_royalty_net_loss,
                   pship_scorp_net]
   # tax year 2018 (30 October): taxable IRA distributions and pensions published as one line
   soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends,
                        sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss,
-                       ira_pensions_taxable, ss_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
+                       ira_pensions_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
                        pship_scorp_net]
   soi_4_3_items: [wages, taxable_interest, ordinary_dividends, capital_gain_total, sch_cf_positive, sch_cf_loss,
                   pship_scorp_net_income, pship_scorp_net_loss]

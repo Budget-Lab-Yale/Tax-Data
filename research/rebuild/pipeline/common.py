@@ -63,6 +63,47 @@ def allowed_capital_gain(sched_d, filing_status=None):
     return np.maximum(sched_d, -limit)
 
 
+# Social Security and pensions (3 November, John). The network draws three parts: gross Social Security (gross_ss),
+# taxable pensions (txbl_pens_dist) and the non-taxable rest of pensions (nontxbl_pens_dist: on the PUF E01500 less
+# E01700, never below zero). Two items are computed, never drawn: gross pensions (gross_pens_dist, Form 1040 line 5a)
+# = taxable pensions + the rest; and taxable Social Security (ss_taxable) by the section 86 worksheet below, which is
+# part of the file's AGI and is never targeted. Until 3 November the network drew gross Social Security plus total
+# pensions (retirement_gross, E02400 + E01500) and taxable Social Security (E02500) as slots of their own.
+PENSION_PARTS = ['txbl_pens_dist', 'nontxbl_pens_dist']
+GROSS_PENSIONS = 'gross_pens_dist'
+# Section 86, as tax-simulator-gpu has it (taxes/calc/agi.py, calc_ss; config/scenarios/tax_law/default/ss.yaml):
+# half of the benefits plus modified AGI is the provisional income; the base and adjusted amounts are $25,000 and
+# $34,000, $32,000 and $44,000 on a joint return (filing status 2). A separate return takes the single amounts, as the
+# calculator's filing-status map does. Not indexed.
+SS_BRACKETS = {'single': (25_000.0, 34_000.0), 'joint': (32_000.0, 44_000.0)}
+SS_RATES = (0.5, 0.85)
+SS_MAGI_RATE = 0.5
+
+
+def taxable_social_security(gross_ss, magi, filing_status):
+    """Taxable Social Security by the section 86 worksheet, the calculator's formula (calc_ss): provisional income
+    p = max(0.5 x benefits + modified AGI, 0); 50% of the part of p between the base and the adjusted amount and 85% of
+    the part above the adjusted amount, each part at most the benefits; the sum at most 85% of the benefits.
+    magi: AGI without taxable benefits, plus tax-exempt interest, plus the student loan interest deduction (the
+    calculator's magi_ss: income other than benefits, plus tax-exempt interest, less the adjustments other than the
+    student loan interest deduction). Worked example, a single return with $20,000 of benefits and $30,000 of other
+    income: p = $40,000; 50% of $9,000 (the part from $25,000 to $34,000) is $4,500; 85% of $6,000 (the part above
+    $34,000) is $5,100; taxable $9,600, below 85% of the benefits ($17,000)."""
+    ss = np.asarray(gross_ss, float)
+    magi = np.asarray(magi, float)
+    fs = np.asarray(filing_status)
+    assert np.isfinite(ss).all() and np.isfinite(magi).all(), 'taxable Social Security: a missing benefit or income'
+    assert (ss >= 0).all(), 'taxable Social Security: gross benefits below zero'
+    assert np.isin(fs, [1, 2, 3, 4]).all(), 'taxable Social Security: a filing status outside 1-4'
+    joint = fs == 2
+    base = np.where(joint, SS_BRACKETS['joint'][0], SS_BRACKETS['single'][0])
+    adjusted = np.where(joint, SS_BRACKETS['joint'][1], SS_BRACKETS['single'][1])
+    p = np.maximum(SS_MAGI_RATE * ss + magi, 0.0)
+    tier1 = np.minimum(np.clip(p, base, adjusted) - base, ss) * SS_RATES[0]
+    tier2 = np.minimum(np.maximum(p - adjusted, 0.0), ss) * SS_RATES[1]
+    return np.minimum(tier1 + tier2, SS_RATES[1] * ss)
+
+
 def groups_by(x, lines):
     """Labels of dollar ranges: lines = [(lo, hi, label)], lo inclusive."""
     out = np.full(len(x), '', dtype=object)

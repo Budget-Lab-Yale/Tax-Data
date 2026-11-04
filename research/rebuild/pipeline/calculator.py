@@ -135,7 +135,8 @@ CONTRACT = [
     ('state_ref', SAME, 'state_ref', 'taxable state income tax refunds'),
     ('txbl_ira_dist', SAME, 'txbl_ira_dist', 'taxable IRA distributions'),
     ('txbl_pens_dist', SAME, 'txbl_pens_dist', 'taxable pensions and annuities'),
-    ('gross_pens_dist', COMPUTED, 'retirement_gross - gross_ss (retirement_gross is the PUF\'s E02400 + E01500)',
+    ('gross_pens_dist', COMPUTED, 'txbl_pens_dist + nontxbl_pens_dist (the non-taxable rest of pensions, the PUF\'s '
+     'E01500 - E01700, never below zero; since 3 November, before: retirement_gross - gross_ss)',
      'gross pensions and annuities'),
     ('gross_ss', SAME, 'gross_ss', 'gross Social Security benefits (the calculator computes the taxable part)'),
     ('ui', SAME, 'ui', 'unemployment compensation'),
@@ -243,7 +244,7 @@ def convert(f):
     # check is kept for every column the converter reads; the others' missing values are counted in the notes.
     reads = {s.split(' ')[0].rstrip(';') for n, st, s, _ in CONTRACT if st in (SAME, RENAMED)} | set(NO_AGE_COLUMNS.values()) \
         | {'filer', 'age_range', 'filing_status', 'n_dep', 'spouse_se_share', 'married', 'sole_prop', 'farm', 'part_se', 'se2',
-           'sex_primary', 'retirement_gross', 'gross_ss', 'other_agi_remainder', 'farm_rent', 'sche_other', 'kg_lt',
+           'sex_primary', 'nontxbl_pens_dist', 'gross_ss', 'other_agi_remainder', 'farm_rent', 'sche_other', 'kg_lt',
            'kg_dist', 'value.other_home', 'value.re_fund', 'w_kg_other_re', 'value.equities', 'w_kg_other', 'value.pass_throughs',
            'w_kg_pass_throughs', 'value.primary_home', 'w_kg_primary_home', 'weight', 'ot', 'ot1', 'ot2'} \
         | {n for n, st, _, _ in CONTRACT if st == ZERO and n in f.columns}
@@ -313,15 +314,18 @@ def convert(f):
         notes.append(f'dependent filers given dep_filer_age and dep_filer_sex: {dep.sum():,} records; primary age '
                      f'still missing on {np.isnan(out["age1"]).sum():,} records')
     out['divorce_year'] = np.zeros(len(f))
-    out['gross_pens_dist'] = x('retirement_gross') - x('gross_ss')
-    neg = out['gross_pens_dist'] < 0
+    # (3 November) gross pensions are taxable pensions plus the drawn non-taxable rest, so they are never below zero
+    # and never below taxable pensions (until then retirement_gross - gross_ss, below zero on 15 million units in 2023)
+    rest = x('nontxbl_pens_dist')
+    assert (rest >= 0).all() and (out['txbl_pens_dist'] >= 0).all(), 'a pension part below zero'
+    out['gross_pens_dist'] = out['txbl_pens_dist'] + rest
+    if 'gross_pens_dist' in f.columns:
+        gap = np.abs(out['gross_pens_dist'] - x('gross_pens_dist')).max()
+        assert gap < 1e-6 * max(1.0, np.abs(out['gross_pens_dist']).max()), f'the file\'s gross_pens_dist is not its parts\' sum ({gap})'
     w = x('weight')
-    notes.append(f'gross pensions negative (retirement_gross below gross_ss): {neg.sum():,} records, '
-                 f'{w[neg].sum() / 1e6:,.3f} million units, ${(w * out["gross_pens_dist"])[neg].sum() / 1e9:,.2f} billion '
-                 '(passed as they are; the calculator reads gross pensions only for expanded income and the SALT '
-                 'workaround\'s income shares)')
-    over = out['txbl_pens_dist'] > out['gross_pens_dist'] + 0.5
-    notes.append(f'taxable pensions above gross pensions: {over.sum():,} records, {w[over].sum() / 1e6:,.3f} million units')
+    notes.append(f'gross pensions = taxable pensions + the non-taxable rest on every record; the rest above zero on '
+                 f'{(rest > 0).sum():,} records, {w[rest > 0].sum() / 1e6:,.3f} million units, '
+                 f'${(w * rest).sum() / 1e9:,.2f} billion')
     out['other_inc'] = x('other_agi_remainder') + x('farm_rent') + x('sche_other')
     out['kg_lt'] = x('kg_lt') + x('kg_dist')
     other_re = x('value.other_home') + x('value.re_fund')

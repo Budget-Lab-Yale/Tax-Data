@@ -11,8 +11,9 @@ bands always fall in the same group. Each band of each amount has one fixed repr
 of the real PUF-year amounts in that band (the PUF year's dollar map; a band with no real record: the map's filled
 value).
   PUF "agi12": band-AGI, the AGI formula of dollars.draw_dollars (the capital gains pieces, capital gain distributions
-    and the folded items into other AGI, business income from its parts) applied to the representative amounts of the
-    record's bands. Positive band-AGI in 9 groups at the weighted rank lines p50, p75, p90, p95, p99, p99.5, p99.9 and
+    and the folded items into other AGI, business income from its parts, and since 3 November taxable Social Security
+    by the section 86 worksheet on the representative amounts, dollars.retirement_items) applied to the
+    representative amounts of the record's bands. Positive band-AGI in 9 groups at the weighted rank lines p50, p75, p90, p95, p99, p99.5, p99.9 and
     p99.99 of band-AGI over the PUF year's returns; band-AGI zero or negative in 3 groups: -$50,000 to 0 (0
     included), -$1,000,000 to below -$50,000, below -$1,000,000. A record exactly at a line is in the group above.
   SCF "income5": within each wave, 5 classes cut at the weighted p50, p90, p99 and p99.9 of band-income, the sum of
@@ -87,12 +88,16 @@ def band_agi(df):
     """AGI from the representative amounts of each record's bands, through the combination dollars.draw_dollars uses.
     PUF-year dollars."""
     import dollars as D
-    need = set(D.AGI_PARTS) | set(D.KG_PIECES) | set(D.FOLD) | set(D.META['computed_totals']['business_income'])
+    # (3 November) and what taxable Social Security reads (gross benefits, tax-exempt interest, the student loan
+    # interest deduction, the filing status): it is computed by the section 86 worksheet, not drawn
+    need = set(D.AGI_PARTS) | set(D.KG_PIECES) | set(D.FOLD) | set(D.META['computed_totals']['business_income']) \
+        | set(D.SS_INPUTS)
     cols = [f'{v}_band' for v in D.ORDER if v in need]
     bands = df[cols].reset_index(drop=True)
     assert (bands >= 0).all().all(), 'a part with no band on a record'
-    if 'filing_status' in df:          # the capital loss limit is $1,500 on a separate return (29-30 October)
-        bands['filing_status'] = df['filing_status'].to_numpy()
+    # the capital loss limit is $1,500 on a separate return (29-30 October); the worksheet's base amounts depend on it
+    assert 'filing_status' in df, 'band-AGI needs the filing status (the loss limit and taxable Social Security)'
+    bands['filing_status'] = df['filing_status'].to_numpy()
     return D.agi(D.draw_dollars(bands, rep_maps()))
 
 

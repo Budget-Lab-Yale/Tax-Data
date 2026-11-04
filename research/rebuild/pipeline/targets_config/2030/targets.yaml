@@ -197,17 +197,8 @@ targets:
     error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
     key: {group: all, target: 'ira_pensions_taxable amount'}
 
-  # taxable Social Security benefits
-  - id: ss_taxable_cbo
-    kind: cbo totals
-    statistic: amount
-    population: filers
-    variable: ss_taxable
-    cells: all
-    value: {outside: cbo individual income tax}
-    outside_line: Taxable Social Security benefits
-    error: {kind: judgment, relative: 0.01, reason: 'CBO growth applied to our own level; 1% as a judgment (CBO publishes no error)'}
-    key: {group: all, target: 'ss_taxable amount'}
+  # (3 November, John) taxable Social Security benefits are no longer targeted (CBO's taxable benefits line was the
+  # target ss_taxable_cbo until then): the file computes them by the section 86 worksheet, as the tax calculator does
 
   # household net worth, all units below the Forbes line, the start's own total times the Financial Accounts' growth
   - id: net_worth_z1
