@@ -1,10 +1,9 @@
 # The check tool: the posttrained file against its sources
 
 This tool lets you check the posttrained file of one year (2015 for now) against the data it was built from. You pick
-an item Y and a variable X, and the tool shows Y by X in two tables side by side: one from the item's source data and
-one from the posttrained file. Each table shows, for each X group, the share of units with a nonzero Y, the weighted
-total and the mean per unit of Y, and each group's share of the total. (On the screen the two tables are one wide
-table: the source's columns on the left, the file's on the right, one row per X group, so the rows line up.)
+an item Y, a variable X and one statistic (the share of units with a nonzero Y, say, or the weighted total of Y), and
+the tool shows that statistic for each X group in a short table, with three columns: the item's source data, the
+posttrained file, and the difference between them. A plot of the same numbers is drawn under the table.
 
 The tool is a Jupyter notebook, `check_tool.ipynb`, that you open in Open OnDemand's Jupyter app. The notebook runs in
 your own Jupyter session on Bouchet and reads the tool's tables there; nothing else needs to be started, and no
@@ -41,8 +40,8 @@ first.
 5. Open the notebook: click your way through the folders `project_pi_nrs36`, `jar335`, `Repositories`,
    `Tax-Data-tabtool`, `research`, `rebuild`, `tools`, `check_tool`, and open `check_tool.ipynb`.
 6. Run it: in the **Run** menu, choose **Run All Cells**. After about five seconds the controls appear under the code
-   cell, with a first table (wages by AGI) below them.
-7. Change any control and the table is made again, in under a second. After typing in a box (percentiles, cutoffs,
+   cell, with a first table and plot (the share of units with wages, by AGI) below them.
+7. Change any control and the table and the plot are made again, in under a second. After typing in a box (percentiles, cutoffs,
    a filter's number), press Enter.
 8. When you are done, close the tab, go back to Open OnDemand, choose **My Interactive Sessions** and click
    **Delete** on the Jupyter session. (Closing the tab alone leaves the session running until its hours run out.)
@@ -132,13 +131,58 @@ number (dollars, years, weeks) cut into groups in one of two ways:
 
 Units whose X is missing get a row of their own at the bottom, never dropped.
 
-**The table is made again after every change.** The line above the table says how long it took: a tenth to a third
-of a second. If a choice cannot be tabulated (a percentile of 0 or 100, a filter with no number yet), that line says
-why in red and no table is shown until the choice is fixed.
+**The statistic shown.** One statistic at a time, chosen from the drop-down:
+- *share of units with a nonzero value:* the weighted share of the group's units whose Y is not zero;
+- *number of units with a nonzero value,* in millions, on each file's own weights;
+- *weighted total:* the weighted sum of Y in the group, in $ billions (for an item not in dollars, in millions of its
+  unit: weeks, hours);
+- *mean per unit (zeros included):* the total over all of the group's units;
+- *mean among units with a nonzero value:* the total over the group's units whose Y is not zero;
+- *each group's share of the total:* the group's total over the total of all units shown.
+
+For a yes-or-no item the list is shorter: the share of units answering yes, the number of units answering yes, and
+each group's share of all units answering yes. (Its total is the number answering yes, and its means are the share
+yes, so those would repeat.) The choice is kept when Y changes, where the new item offers it.
+
+**Also show the full tables.** Tick this to show, under the notes, the earlier view: both files' tables with every
+statistic at once, the units in each group and, for a number cut into groups, the lowest and highest X in each group
+(the column "X range in the group"). See "The full tables" below.
+
+**The table and the plot are made again after every change.** The line above the table says how long it took: a
+tenth to a third of a second. A change of the statistic alone only redraws them, at once. If a choice cannot be
+tabulated (a percentile of 0 or 100, a filter with no number yet), that line says why in red and no table or plot is
+shown until the choice is fixed.
 
 ## Reading the table
 
-Each row is an X group, then a row for all units shown. For each file:
+Above the table, its title names Y and X, and a box says what the source and the file are. Over the table, a line
+names the statistic and its unit (percent, $ billions, millions of units, dollars per unit).
+
+Each row is an X group, then a row for all units shown. The columns:
+
+| Column | What it is |
+|---|---|
+| source | the statistic in the item's source data (its name is in the column's heading) |
+| posttrained file | the statistic in the posttrained file |
+| difference (percentage points, file minus source) | only for the two shares: the file's share minus the source's. A share of 12.0% in the source and 15.0% in the file is +3.0 points |
+| percent difference | the file's value minus the source's, divided by the source's: 15.0% against 12.0% is +25.0%. A plus sign means the file is higher; where the source's value is negative it is divided by its size, so plus still means higher. Blank where the source's value is zero |
+| sample records: source, and: file | how many of each file's own sample records the group rests on (below, "What a record is"), in small grey type |
+| records missing Y: source, and: file | shown only when Y is missing on some records (CPS overtime, which only part of the sample is asked); those records are left out of every statistic |
+
+For the two shares both differences are given: points say how far apart the shares are, the percent difference says
+how far apart relative to the source's share, which matters most for small shares.
+
+**The plot.** Under the table, the same statistic by X group, the source in blue and the file in orange. When the
+groups are in an order (percentiles, or cutoffs you type) it draws two lines; when they are categories (filing status,
+age range) or there is no X, it draws pairs of bars. The left axis gives the unit, the bottom axis names X and how it
+was cut. A hollow point or a pale bar marks a group resting on fewer than 30 sample records in that file. Hovering
+over a point or bar shows its value and its number of sample records. Units whose X is missing are left out of the
+lines (they are in the table) but get their own pair of bars.
+
+## The full tables
+
+With "also show the full tables" ticked, the earlier view appears under the notes: one row per X group, and for each
+file:
 
 | Column | What it is |
 |---|---|
@@ -152,8 +196,9 @@ Each row is an X group, then a row for all units shown. For each file:
 | records missing Y | shown only when Y is missing on some records (CPS overtime, which only part of the sample is asked); those records are left out of the share, the total and the mean |
 | X range in the group | the lowest and highest X in the group, for a number cut into groups |
 
-**Thin cells.** A cell resting on fewer than 30 sample records is shaded, and a row is marked "(thin)" when either
-file's cell is thin. The threshold is the setting `thin_cell_records`.
+**Thin cells.** In the table and in the full tables, a cell resting on fewer than 30 sample records is shaded, and a
+row is marked "(thin)" when either file's cell is thin. In the compact table the shaded cells are the file's value and
+its sample records. The threshold is the setting `thin_cell_records`.
 
 **What a record is.** Sample records are counted as each file's own sample units: for the file, its records; for the
 PUF source, PUF returns and CPS non-filer units (a PUF return split over age ranges, below, counts once); for the SCF,
@@ -209,8 +254,10 @@ second, and need no pipeline modules.
 
 The files:
 - `check_tool.ipynb`: the notebook the RA opens. One code cell; it calls `check_notebook.show()`.
-- `check_notebook.py`: the notebook's controls (ipywidgets) and the drawing of the table. It turns the controls into
-  a request and the answer into a table; it does no tabulation of its own.
+- `check_notebook.py`: the notebook's controls (ipywidgets) and the drawing of the table and the plot. It turns the
+  controls into a request and the answer into a table and a plot; it does no tabulation of its own. The plot is drawn
+  as SVG (a picture format browsers read) by its own short code, because the two modules hold no plotting package:
+  matplotlib is not among them (checked 3 November), and the tool installs nothing.
 - `check_tables.py`: the tabulation, used by both the notebook and the web server.
 - `server.py`, `index.html` and `start.sbatch`: the web page, the earlier way of using the tool (below).
 - `prepare.py`, `prepare.sbatch` and `settings.json`: the tables and the settings.
@@ -218,7 +265,12 @@ The files:
 What was tested and what was not (3 November): in a Slurm job with only the two modules above, the notebook ran
 headless (`jupyter nbconvert --execute`) and drew its controls and first table; the tabulation gave the same tables as
 the server's test for its nine cases, cell for cell against a separate pandas tabulation and field for field against
-the server; and the controls, set one at a time as the RA would, made the same requests and tables. The Jupyter app's
+the server; and the controls, set one at a time as the RA would, made the same requests and tables. Later on 3 November the
+notebook got its compact view (one statistic, the difference, the plot); tested the same way in a Slurm job with only
+the two modules: for eight cases (PUF, SCF, CEX, CPS and SIPP items, a yes-or-no item, filters, percentiles, cutoffs
+and categories) and every statistic in the drop-down, every number of the compact table equals the full table's
+within the rounding of the two, and the differences equal those recomputed from the tabulation; the plots were
+rendered to pictures and looked at. The Jupyter app's
 form was not tried: its field names above come from YCRC's documentation (the Jupyter page and the Ollama page's
 "additional modules for Jupyter"), and whether the app runs Jupyter from the modules rather than from the
 environment is not documented. The first time someone uses it, check that the controls appear.
