@@ -343,9 +343,20 @@ def soi_errors(rows, year):
                         f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
                         f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
             continue
-        if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'dependent filers'):
+        if r.kind == 'age by AGI' and np.isfinite(r.agi_lo):
+            # (3 November 2026) Table 1.6 by AGI: in an AGI group where SOI samples every return (Table 1.4's number
+            # of returns there has no sampling error: the $10,000,000-or-more class), the judgment number Table 1.4's
+            # and Table 4.3's fully sampled cells get; elsewhere the borrowed CV below
+            se14, _, _, _ = sum_error(cells, [('returns', 'count', 1)], float(r.agi_lo), float(r.agi_hi))
+            if se14 == 0:
+                out.append((r.Index, FULL_SAMPLE_SE * abs(r.value), 'judgment',
+                            f'{100 * FULL_SAMPLE_SE:.1f}% of the value (settings errors.full_sample_se): SOI samples '
+                            f'every return in this AGI group (Table 1.4\'s number of returns there has CV 0{yr}), so '
+                            'there is no sampling error; the number stands for definition gaps'))
+                continue
+        if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'age by AGI', 'dependent filers'):
             cv, what = borrow_cv(cells, count=r.value)
-            table = {'IRS': '1.2', 'age': '1.6', 'dependent filers': '1.7'}[r.kind]
+            table = {'IRS': '1.2', 'age': '1.6', 'age by AGI': '1.6', 'dependent filers': '1.7'}[r.kind]
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
                         f'Table {table} count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells closest in '
                         f'returns{yr}: {what}'))
@@ -688,7 +699,7 @@ def standard_errors(rows, year=Y):
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']) & ~table21,
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
           'older ages': rows.kind == 'older ages'}

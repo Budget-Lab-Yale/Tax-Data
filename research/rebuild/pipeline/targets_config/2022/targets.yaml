@@ -196,6 +196,26 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
 
+  # (3 November 2026, John; explore/2026-11-03/age_by_agi/RESULTS.md) SOI Table 1.6 by AGI: returns by the primary
+  # filer's age range, 26-34 to 65+, within each group of the standard AGI grid, from the table's All returns panel.
+  # The totals by age above leave the age mix within AGI free, and the SCF's wealth by age (2 November) moved
+  # high-income returns from primaries under 55 to 55-64: in 2015's $2m-5m class, 22% with a primary aged 45-54
+  # against SOI's 30%. Summed over AGI these cells are the totals by age above (joint plus non-joint, to a few
+  # returns), so the two entries agree; both are kept, because the demographic prescaling uses the totals (kind
+  # age) and this entry is a kind of its own. Under 26 is not a target, as above. Errors borrowed from Table 1.4 by
+  # number of returns, except in the $10m-and-over group, which SOI samples in full (errors.py).
+  - id: age_returns_by_agi
+    kind: age by AGI
+    statistic: units
+    population: filers
+    cells: {standard_agi_groups: all, adult_age_ranges: [26-34, 35-44, 45-54, 55-64, 65+]}
+    value: {published: soi 1.6}
+    dependent_filers: >-
+      under 26 in the under-26 range; 26 and over (the file has no exact age for them) spread over the five ranges
+      26 and over in proportion to this entry's own values in the same AGI group
+    error: {kind: soi_borrowed}
+    key: {group: 'all returns, {standard_agi_groups}, primary {adult_age_ranges}', target: returns}
+
   # Business income: each family's net income and net loss, returns and dollars, in six AGI groups (merged where
   # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
   # business_top instead, the same five groups below $1M and SOI's five top brackets above it.

@@ -1833,7 +1833,7 @@
    "newton_budget": 150,
    "gradient_tolerance": 1e-8,
    "average_weight_change": 0.001,
-   "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "dependent filers", "tips", "deferrals", "calculator"],
+   "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "age by AGI", "dependent filers", "tips", "deferrals", "calculator"],
    "other_importance_divisor": 1.5
   },
   "_reweighting": "The reweighting is one cost and no other rule (1 November 2026, decisions 57, 63, 64 and 68; solver.py). The file minimizes the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move of the weights from the start (in nats, on weights divided by the sum of the starting weights); identities are met exactly; no target has a range and none is dropped. The demographic prescaling uses the same rule on its cells. tau (1,000): the weight of the move against the misses; chosen in decision 63 (median miss 0.04 standard errors, 7 targets above 2 in 2022 on the new targets; the effective sample kept 62.5%). newton_budget: the most Newton steps in all (100); never raised. gradient_tolerance: the solver's stopping size for the gradient of the dual, on the solver's scale (a miss as a share of the target's size). average_weight_change: an average's standard error is solved again at the first answer's group weight if a group moved by more than this share. importance_one_kinds: the target kinds with importance 1 (SOI's published tables, W-2 statistics, and the calculator's columns against SOI's); every other kind has importance 1 / other_importance_divisor.",

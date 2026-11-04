@@ -712,3 +712,23 @@ non-filers), dollars grown per return from 2023 to the year by CBO's and the mac
 2023 to the year (population cells exact; CBO totals and the counts of returns, itemizers and AMT returns with the error of
 1% as before). The prior in the cost is the 2023 file prescaled to the year. The years are independent and run in parallel;
 no year inherits another's misses or moves.
+
+### S14. Returns by age within each AGI group (John, 3 November 2026; experiment on branch rebuild-age-by-agi)
+
+SOI Table 1.6's All returns panel, returns by the primary filer's age range 26-34 to 65+, in each of the 15 groups of the
+standard AGI grid ($1m-1.5m and $1.5m-2m one group, as in Table 1.4's returns): 75 targets a year, 2015-2023, kind
+`age by AGI`, importance 1. Why: the totals by age left the age mix within AGI free, and the SCF wealth-by-age targets of
+2 November moved high-income returns from primaries under 55 to 55-64 (2015, $2m-5m: 22% with a primary aged 45-54
+against SOI's 30%; scratch `explore/2026-11-03/top_wages_2015/RESULTS.md`).
+- **No double count.** Summed over AGI the cells equal the totals by age (joint plus non-joint) within 4 returns in every
+  year. Both are kept, consistent: the demographic prescaling uses the totals by age (kind `age`) and is unchanged.
+- **Errors** are borrowed from Table 1.4 by number of returns, as for the totals (section 9), except in the
+  $10m-and-over group, which SOI samples in full: 1% of the value, as Table 1.4's and Table 4.3's fully sampled cells.
+- **Small cells.** No cell is folded: the smallest is 26-34 at $10m and over (546 to 1,432 returns, resting on about
+  540 sample records in 2015). In 2015 no new target rests on fewer than 45 effective records; 8 get a warning for a
+  weight factor above 10 in the cell.
+- **2018's misprint.** SOI's 2018 workbook prints the 26-34 row's $40,000-50,000 and $50,000-75,000 cells 2.21 million
+  returns too high (the row's columns exceed its own total; the filing-status panels confirm it). In 2018 those two
+  groups are one, $40k-75k, for every age, and the 26-34 cell is the row's total less its other columns
+  (`target_list.published_16_agi`, which stops on any other row that does not add up).
+- Results: scratch `explore/2026-11-03/age_by_agi/RESULTS.md`.

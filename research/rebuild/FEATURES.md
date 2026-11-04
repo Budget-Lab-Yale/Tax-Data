@@ -990,6 +990,7 @@ The 2019 targets (789 on 28 October; 787 from the next run, with the overtime gr
 | SOI Table 1.3: returns, AGI, and the number with and amount of 22 income items, in each of the four filing statuses | 184 |
 | SOI Table 4.3: returns, AGI and 8 income items in the top 0.01% (one group), 0.1% and 1% of AGI, returns other than dependent filers' | 54 |
 | Age (Table 1.6): returns by primary age 26-34 to 65+, joint and non-joint | 10 |
+| Age by AGI (Table 1.6, All returns panel; since 3 November 2026, branch rebuild-age-by-agi): returns by primary age 26-34 to 65+ in each of the 15 standard AGI groups (kind `age by AGI`; summed over AGI they equal the row above's joint plus non-joint totals, so both are kept; the prescaling uses only the row above) | 75 |
 | Dependent filers (Table 1.7): returns by AGI | 9 |
 | Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
 | Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
