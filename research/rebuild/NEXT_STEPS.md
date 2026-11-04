@@ -31,7 +31,11 @@ a run of the years it touches, a comparison with the run before it, and John's a
    years in three steps"): people by age and marital status, one dollar factor per item from John's series, then
    the main reweighting with no itemizer target and the AMT payer count kept. The Schedule A add factors (+2% a year
    2024-2028, +1% 2029-2033) are a crude step toward CBO's itemized deductions, to be revisited at each CBO update.
-   Still to design: the number of returns (CBO's 2023 count is 4.4 million above SOI's; `explore/2026-11-03/noitem/`).
+   The number of returns (John, 4 November: kept as built, for now): SOI's 2023 count, grown with the population at
+   each age and marital group's 2023 filing share. CBO's 2023 (164.7 million) is a projection 4.4 million above SOI's
+   actual 160.6 million; in 2022, where both are actual, they agree (161.3 million), so the gap is CBO's projection,
+   not a definition. CBO's growth after 2023 is a little faster (+9.1% to 2035 against our +8.1%, 1.6 million
+   returns), from "estimates of future additional filers" it does not describe (`explore/2026-11-03/noitem/`).
 
    **Past 2035 (branch `rebuild-longrun`, merged and installed 4 November; `explore/2026-11-04/longrun/`).** Years 2036-2075 run the same
    three steps with longer series: each item continues from 2035 at a Macro-Projections aggregate, borrowed from
