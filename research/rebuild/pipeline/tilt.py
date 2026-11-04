@@ -510,8 +510,8 @@ def main():
             w0[g] = imp[g] * (total - imp[batch & given].sum()) / imp[g].sum()
     if given.any():
         # the records whose weight is given carry, in the weight column, their weight on the generated records'
-        # relative scale, so that anything reading that column (expand's reach check, which ranks Table 4.3's groups
-        # on it) sees them in proportion
+        # relative scale, so that anything reading that column (expand's reach check, which ranks the income rank
+        # groups on it) sees them in proportion
         gen_f = filer & ~given
         g19.loc[given, 'weight'] = w0[given] * imp[gen_f].sum() / w0[gen_f].sum()
     w_plain = w0.copy()
@@ -563,6 +563,11 @@ def main():
     if ranked:
         common.say('income rank lines on the file (starting weights): '
                    + '; '.join(f'{k[0]} {k[1]} p{k[2]:g}: {v:,.0f}' for k, v in TLS.FILE_RANK_LINES.items()))
+    t43 = rows[(rows['kind'] == 'soi 4.3') & (rows['target'] == 'returns')]
+    if len(t43):   # (3 November) Table 4.3's groups are at SOI's published AGI cutoffs
+        common.say('Table 4.3 groups at SOI\'s published AGI cutoffs (returns on the starting weights, SOI): '
+                   + '; '.join(f'{r.group} ${r.agi_lo:,.0f} ({float(w0 @ F[:, i]) / 1e3:,.1f} thousand, '
+                               f'SOI {r.value / 1e3:,.1f} thousand)' for i, r in t43.iterrows()))
     TLS.write(rows, common.TILT, Y)
     S_main = S
     feas = None

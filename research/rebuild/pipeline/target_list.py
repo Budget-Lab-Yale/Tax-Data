@@ -298,6 +298,16 @@ def group_cells(spec):
             assert sel == 'all' or len(lines) == len(sel), f'{name}: unknown cells in {sel}'
             per_dim.append([{'parts': {name: ln[2]}, 'filters': [], 'agi': None, 'line': (g['variable'], *ln)}
                             for ln in lines])
+        elif 'ranks' in g and g.get('cutoffs') == 'published':
+            # (3 November, John) a published percentile group at the source's own published dollar line for the
+            # year: the AGI cutoff the source prints for the group (catalog cutoff_item), not the file's percentile.
+            # The percentiles name the group only; published_grid sets the cell's AGI range from the cutoff.
+            assert g['variable'] == 'agi', f'{name}: published lines are AGI cutoffs'
+            ranks = [rk for rk in g['ranks'] if sel == 'all' or rk[2] in sel]
+            assert sel == 'all' or len(ranks) == len(sel), f'{name}: unknown cells in {sel}'
+            assert all(float(rk[1]) == 100 for rk in ranks), f'{name}: published lines are for top groups only'
+            per_dim.append([{'parts': {name: rk[2]}, 'filters': [], 'agi': None, 'line': None,
+                             'published_line': name} for rk in ranks])
         elif 'ranks' in g:
             # a range of a variable's weighted percentiles, each side its own
             ranks = [rk for rk in g['ranks'] if sel == 'all' or rk[2] in sel]
@@ -323,16 +333,20 @@ def group_cells(spec):
                                        np.inf if ed[1] is None else float(ed[1]))} for ed in ranges])
         else:
             raise NotImplementedError(name)
-    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None, 'range': None}]
+    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None, 'range': None,
+            'published_line': None}]
     for dim in per_dim:
         for a in out:
             assert not (a.get('range') and any(b.get('range') for b in dim)), 'a cell with two dollar ranges'
         out = [{'parts': {**a['parts'], **b['parts']}, 'filters': a['filters'] + b['filters'],
                 'agi': a['agi'] or b['agi'], 'line': a['line'] or b['line'],
                 'rank': a.get('rank') or b.get('rank'), 'band': a.get('band') or b.get('band'),
-                'range': a.get('range') or b.get('range')}
+                'range': a.get('range') or b.get('range'),
+                'published_line': a.get('published_line') or b.get('published_line')}
                for a in out for b in dim]
     assert not any(c['line'] and c['band'] for c in out), 'a cell with both a line and a band'
+    assert not any(c['published_line'] and (c['agi'] or c['rank']) for c in out), \
+        'a cell with a published AGI line and another AGI grouping'
     for c in out:
         c['label'] = ', '.join(c['parts'].values()) or 'all'
     return out
@@ -1021,8 +1035,11 @@ def published_grid(source, year, cells, v, stats):
     """A tidy published table, selected by catalog item, measure and group labels.
 
     Group labels map to one or several published panels (several panels are added). Rank cells map to published
-    cumulative groups. Errors borrow errors.py's nearest Table 1.4 cells using the paired holder count. A published
-    AGI cutoff at or above the catalog's full-sample line gets errors.full_sample_se instead.
+    cumulative groups. A cell of a grouping with published lines (catalog cutoffs: published; Table 4.3's top groups
+    since 3 November) is the returns with AGI at or above the group's published cutoff for the year (catalog
+    cutoff_item), in nominal dollars of the year; a missing cutoff is an error. Errors borrow errors.py's nearest
+    Table 1.4 cells using the paired holder count. A published AGI cutoff at or above the catalog's full-sample line
+    gets errors.full_sample_se instead.
     """
     import errors
     definition = CAT['sources'][source]
@@ -1042,6 +1059,11 @@ def published_grid(source, year, cells, v, stats):
             assert len(cut) == 1, f'{source} {c["label"]}: expected one AGI cutoff'
             if cut.iloc[0].value:
                 cutoff = float(cut.iloc[0].value)
+        if c.get('published_line'):
+            # (3 November, John) the group is the returns at or above SOI's published AGI cutoff for the year
+            assert definition.get('cutoff_item'), f'{source}: no cutoff_item for the published lines of {c["label"]}'
+            assert cutoff is not None and np.isfinite(cutoff) and cutoff > 0, \
+                f'{source} {year} {c["label"]}: no published AGI cutoff ({definition["cutoff_item"]})'
         def value(measure, item=None):
             # an item SOI names differently in some years (catalog item_aliases: salaries and wages is "total wages"
             # in Table 4.3 from tax year 2022) is read under the name the year publishes
@@ -1077,9 +1099,13 @@ def published_grid(source, year, cells, v, stats):
                     errors.borrow_cv(donors, amount=abs(val), returns=count)
                 se, kind = abs(val) * cv / 100, 'soi_borrowed'
                 reason = f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}'
-            out.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val,
-                        'source': f'{source} {year}: {spec["item"]}, {c["label"]}; {definition["file"]}',
-                        'se': se, 'error_kind': kind, 'se_reason': reason})
+            row = {'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val,
+                   'source': f'{source} {year}: {spec["item"]}, {c["label"]}; {definition["file"]}',
+                   'se': se, 'error_kind': kind, 'se_reason': reason}
+            if c.get('published_line'):
+                row['agi'] = (cutoff, np.inf)
+                row['source'] += f'; AGI at or above SOI\'s published cutoff ${cutoff:,.0f}'
+            out.append(row)
     return out
 
 
@@ -1466,6 +1492,8 @@ def expand_entry(e, year, soi):
             raise NotImplementedError(vkind)
         for r in rows:
             c, st = r['cell_spec'], r['statistic']
+            assert not c.get('published_line') or 'agi' in r, \
+                f'{e["id"]} {c["label"]}: a published AGI line the value source ({src}) does not set'
             filt = dict(c['filters'])
             se = {'identity': 0.0, 'judgment': err.get('relative', np.nan) * abs(r['value'])}.get(err['kind'], np.nan)
             line = r.get('line')
