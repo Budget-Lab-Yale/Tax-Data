@@ -319,16 +319,9 @@ targets:
   # refunds repay taxes deducted before the cap. Round 3: the rule alone left too few refunds at the top to meet the
   # $1 million and over cell (2019: $0.27 billion against SOI's $0.66 billion); settings taxes.refund_reported_anyway
   # keeps a share of the refunds the rule would take off.
-  - id: state_refunds
-    kind: IRS
-    statistic: [count, amount]
-    population: filers
-    variable: state_ref
-    cells: {business_agi_groups: all}
-    value: {published: soi 1.4}
-    error: {kind: soi_cv}
-    key: {group: '{cell}', target: '{variable} {statistic}'}
-
+  # (round 11) No state refund targets in 2018: 2018's refunds repay 2017 taxes, deducted by the 2017 itemizers, and
+  # with only 2018's itemizers keeping a refund (decision 47) the cells cannot be met (round 10's check: 6.6 million
+  # returns with a refund at AGI $100,000-200,000 against SOI's 7.3 million, 9 standard errors).
   # (autoresearch, round 7) More of Table 1.4 in the business AGI groups: statutory adjustments, tax-exempt interest,
   # unemployment compensation (2018 publishes IRA distributions and pensions as one line). After round 6 these were the
   # untargeted Table 1.4 lines with the most cells beyond 3 standard errors (2023 statutory adjustments: 41.6 million
