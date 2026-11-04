@@ -836,9 +836,10 @@ item_aliases:
 variable_lists:
   # (1 November, decision 57 d) Table 1.4's wages on the standard AGI grid, its interest, dividends and capital gains
   # on the broad one
-  income_items_standard: [wages]
-  income_items_broad: [taxable_interest, ordinary_dividends, qualified_dividends, capital_gain_distributions, sch_d_net_capital_gain,
-                       gross_ss]
+  # (autoresearch, round 10) the Schedule D net capital gain on the standard grid too: on the broad grid its cells inside
+  # the broad groups were off (2019: 5 of 20 Table 1.4 cells beyond 3 standard errors, gain and loss)
+  income_items_standard: [wages, sch_d_net_capital_gain]
+  income_items_broad: [taxable_interest, ordinary_dividends, qualified_dividends, capital_gain_distributions, gross_ss]
   # The business families targeted in the five top AGI brackets (TARGETS.md S2), and the rest, which keep one
   # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
   # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.

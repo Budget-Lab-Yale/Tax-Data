@@ -419,7 +419,10 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
            'itemizing filers (millions)': w[filer & item].sum() / 1e6}
     df = df.copy()
     kept = np.where(item, ref, 0.0)
-    if S.get('refund_tax_benefit', False):
+    # (round 10) a refund received in year t repays year t-1's taxes, so the cap on the deduction bears on it only from
+    # 2019 (refunds of 2017 taxes, deducted with no cap, filled 2018: SOI has 7.3 million returns with a refund at AGI
+    # $100,000-200,000 that year, and the rule left 1.8 million)
+    if S.get('refund_tax_benefit', False) and law_year(year) >= int(S.get('refund_tax_benefit_from', 2019)):
         # (autoresearch, 4 November) The tax benefit rule (IRS Publication 525, worksheet 2): a refund of state income
         # tax is taxable only to the extent that deducting the tax lowered tax. Two limits on an itemizer: (1) the
         # taxes deduction the return claimed less the one it would have claimed had it paid the refund less tax;

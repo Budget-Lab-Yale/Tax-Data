@@ -230,10 +230,11 @@ def published_cells(soi, year, variable, stat, table='1.4', status='all'):
     pending = None   # (autoresearch, 4 November) a blank lowest cell: SOI put it in a later 'combined' cell
     for r in s.sort_values('lo').itertuples():
         if pd.isna(r.value):
-            if not out:
-                pending = (r.lo if pending is None else pending[0], 0.0)
+            if pending is not None or not out or not out[-1][3]:
+                # (round 10) a blank cell with no combined cell before it is held in the next combined cell (Table
+                # 3.3, 2015: the child care credit's $5,000-10,000 cell is in the $10,000-15,000 one)
+                pending = (r.lo if pending is None else pending[0], 0.0 if pending is None else pending[1])
                 continue
-            assert out[-1][3], f'{year} {variable} {stat}: a blank cell with no cell to join'
             out[-1] = (out[-1][0], r.hi, out[-1][2], True)
         elif pending is not None:
             # every cell from the blank one up to the first combined cell is one cell (Table 3.3, 2023: the child care
