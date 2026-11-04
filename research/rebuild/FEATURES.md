@@ -995,6 +995,7 @@ The 2019 targets (789 on 28 October; 787 from the next run, with the overtime gr
 | SOI Table 1.3: returns, AGI, and the number with and amount of 22 income items, in each of the four filing statuses | 184 |
 | SOI Table 4.3: returns, AGI and 8 income items in the top 0.01% (one group), 0.1% and 1% of AGI, returns other than dependent filers' | 54 |
 | Age (Table 1.6): returns by primary age 26-34 to 65+, joint and non-joint | 10 |
+| Age by AGI (Table 1.6, All returns panel; since 3 November 2026, branch rebuild-age-by-agi): returns by primary age 26-34 to 65+ in each of the 15 standard AGI groups (kind `age by AGI`; summed over AGI they equal the row above's joint plus non-joint totals, so both are kept; the prescaling uses only the row above) | 75 |
 | Dependent filers (Table 1.7): returns by AGI | 9 |
 | Business: net income and net loss, returns and dollars; Schedule C and partnership/S corp in 10 AGI groups (the five top ones separate), rent and royalty, farm and farm rental in 6 (cells SOI combined are merged) | 148 |
 | Non-filer count (identity) and non-filer people by own age band and children under 17 | 9 |
@@ -1009,9 +1010,18 @@ The 2019 targets (789 on 28 October; 787 from the next run, with the overtime gr
 **Tables 1.3 and 4.3** (since 27 October; `targets_config/2019/targets.yaml`, read from the local IRS-Ind store's tidy files, settings
 `paths.raw.soi_tables`). Errors are borrowed from the nearest Table 1.4 cells. Table 1.3's capital loss is measured
 on the file as the loss allowed on the return (at most $3,000, $1,500 if married filing separately; catalog
-transform `loss_allowed`), which is what SOI publishes. Table 4.3's groups are set by AGI rank on the file's
-starting weights and held fixed in dollars through the tilt. Its top 0.001% is not a group of its own: the file
-probably lacks those records until the PUF's aggregate records are unpacked (John, 26 October).
+transform `loss_allowed`), which is what SOI publishes. Table 4.3's groups (since 3 November, John; `TARGETS.md`
+S15) are the returns other than dependent filers' with AGI at or above SOI's published cutoff for each group and
+year (the item "adjusted gross income floor on percentiles"; catalog grouping `agi_cumulative`, `cutoffs:
+published`), fixed through the tilt; a missing cutoff stops the run, and every year 2015-2023 has them. The count
+of returns above each cutoff is a target like the others (its error borrowed from Table 1.4's count cells, or 1%
+where the cutoff is $10 million or more). Before, the groups were set at the starting file's own AGI percentiles,
+which sat above SOI's because the draw is too heavy at the top (2015: $504,632 for the top 1% against SOI's
+$480,930), so SOI's totals were imposed on too few returns. On the 1 November draws (scratch
+`explore/2026-11-03/t43_lines/RESULTS.md`), the change met the 2015 top 1% (returns and wages had been 2.3 and 2.6
+standard errors short), left 2019 and 2023 almost unchanged, cut the Newton steps from 78, 73 and 99 to 41, 50 and 62
+in 2015, 2019 and 2023, and kept the same effective sample. The top 0.001% was folded into the top 0.01% from 26
+October until the PUF's aggregate records were rebuilt (29 October, `top_hidden.py`); it is a group of its own again.
 
 **Tips** (since 27 October; `targets_config/2019/targets.yaml`, settings `paths.raw.soi_w2`; the W-2 reader handles the 2019 and 2020
 layout only). The file's tips are measured as box 7 holds them: each person's tips at most the Social Security wage
@@ -1614,7 +1624,7 @@ on with `start_scaling: {weights: persons, dollars: item_factor}`.
 1. **Step 1, people.** The 2023 weights are calibrated (the smallest Kullback-Leibler move, every count exact) to
    people by marital status and single year of age, 0 to 79 and 80 and over: the primary, a joint return's spouse
    and every dependent with an age, each carrying the unit's weight; a dependent filer's own record counts only its
-   dependents; a married person under 16 counts as unmarried. Each count is the 2023 file's count times CBO's growth
+   dependents; a married person under 18 counts as unmarried, in the file and in CBO's population (John, 4 November 2026; CBO's projections have no married 16-year-olds in 2070-2072). Each count is the 2023 file's count times CBO's growth
    of the same people (Macro-Projections population, settings `tilt.projection.population_dir`). The dependent
    filers' six cells (age range by marital status) are exact too, at their population growth as before.
 2. **Step 2, one factor per dollar item.** Each grown column has a row in `targets_config/projection_items.csv`
@@ -1757,36 +1767,42 @@ items table (`projection_items.csv`: series `current`, so its growth.yaml rule; 
 full run on the merged code (scratch `explore/2026-11-03/bigrun/`) are the first trained with this item and the
 pensions slots together.
 
-## How the latest runs come out (2 November 2026)
+## How the latest runs come out (3-4 November 2026)
 
-All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
-`RESULTS.md` there; run folders `run/<year>/`). Past years: Newton steps out of the then budget of 100, share of the
-effective sample kept, largest miss in standard errors, the Forbes list in the file, and net worth of units whose
-primary is 80 and over (units below $1 billion) against the SCF tax units on the year's wave mix. Projection years
-have no age targets; their SCF figure is the wave mix grown to the year.
+Every year on `rebuild-joint-model` after the evening merges of 3 November (2a42643): three networks retrained on the
+merged table, every year 2015-2023 drawn again with a fresh top cache, 2024-2035 from the new 2023 (scratch
+`explore/2026-11-03/bigrun/RESULTS.md`; run folders `run/<year>/`). The run also includes the Table 1.6 age-by-AGI
+targets and Table 4.3's published cutoffs, merged onto the branch while it ran. Newton steps out of the budget of 150,
+share of the effective sample kept, largest miss in standard errors, and the calculator's income tax after credits on
+filers ($ billion, nominal dollars of the year).
 
-| Year | Steps | Effective sample kept | Largest miss (se) | Billionaires: units, net worth | Net worth 80+, file / SCF ($ billion) |
-|---|---:|---:|---:|---|---|
-| 2015 | 71 | 59.5% | 9.27 | 534, $2,564bn | 7,000 / 6,991 |
-| 2016 | 63 | 60.7% | 10.12 | 540, $2,400bn | 7,068 / 7,039 |
-| 2017 | 54 | 58.1% | 8.33 | 564, $2,756bn | 6,806 / 6,792 |
-| 2018 | 45 | 74.6% | 3.13 | 584, $3,099bn | 6,602 / 6,595 |
-| 2019 | 73 | 67.3% | 3.67 | 605, $3,111bn | 7,559 / 7,563 |
-| 2020 | 63 | 42.8% | 5.29 | 612, $2,949bn | 9,078 / 9,079 |
-| 2021 | 58 | 43.8% | 5.52 | 720, $4,398bn | 10,737 / 10,746 |
-| 2022 | 66 | 59.1% | 5.04 | 730, $4,701bn | 11,675 / 11,690 |
-| 2023 | 99 | 56.1% | 5.19 | 726, $4,489bn | 12,519 / 12,522 |
-| 2024 | 8 | 96.2% | 1.56 | 804, $5,701bn | 13,767 / 13,393 |
-| 2026 | 10 | 96.6% | 1.62 | 982, $8,431bn | 15,788 / 15,248 |
-| 2027 | 9 | 96.8% | 1.67 | 997 (held), $8,830bn | 16,539 / 15,890 |
-| 2030 | 16 | 97.3% | 1.79 | 1,040 (held), $10,080bn | 18,880 / 17,815 |
-| 2035 | 13 | 96.5% | 1.93 | 1,097 (held), $12,356bn | 23,230 / 21,254 |
+| Year | Steps | Effective sample kept | Largest miss (se) | Tax after credits ($ billion) |
+|---|---:|---:|---:|---:|
+| 2015 | 36 | 74.6% | 2.79 | 1,443 |
+| 2016 | 48 | 75.6% | 2.82 | 1,433 |
+| 2017 | 46 | 72.5% | 2.81 | 1,588 |
+| 2018 | 59 | 74.5% | 3.10 | 1,519 |
+| 2019 | 65 | 65.9% | 3.78 | 1,561 |
+| 2020 | 53 | 41.1% | 5.59 | 1,492 |
+| 2021 | 89 | 41.3% | 6.01 | 1,975 |
+| 2022 | 72 | 54.8% | 4.89 | 2,112 |
+| 2023 | 61 | 54.2% | 4.96 | 2,122 |
+| 2024 | 8 | 96.4% | 0.83 | 2,337 |
+| 2025 | 12 | 96.5% | 0.86 | 2,421 |
+| 2026 | 11 | 96.6% | 0.89 | 2,581 |
+| 2027 | 8 | 96.6% | 0.93 | 2,688 |
+| 2028 | 13 | 96.8% | 0.97 | 2,769 |
+| 2029 | 11 | 96.7% | 1.01 | 2,931 |
+| 2030 | 8 | 96.7% | 1.04 | 3,090 |
+| 2031 | 7 | 96.7% | 1.07 | 3,220 |
+| 2032 | 6 | 96.8% | 1.11 | 3,356 |
+| 2033 | 5 | 96.7% | 1.14 | 3,495 |
+| 2034 | 5 | 96.8% | 1.17 | 3,649 |
+| 2035 | 5 | 96.9% | 1.20 | 3,808 |
 
-**2023 and the step budget.** With the 2023 Forbes list the solve took 99 of 100 Newton steps, against 58 without
-it, and between 72 and 100 depending on the processor count alone. The cause is the soft cap meeting Table 4.3's tight
-top 0.001% cells, a quarter of whose returns the list holds; no target is wrong (`explore/2026-11-03/forbes2023/RESULTS.md`).
-John raised the budget to 150 on 3 November and switched the 2023 list back on: 2023 then converged in 92, 99 and 103
-steps on 1, 4 and 16 processors (`explore/2026-11-03/budget150/`).
+Every year converged. The pension and Social Security pairs have no breaks in any year, and taxable Social Security,
+now computed by the worksheet and untargeted, lands on SOI (2023: $528 billion against $527 billion). Against CBO,
+income tax after credits is 0.981-0.989 of CBO's in 2026-2035.
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (the 2019 run of 28 October, up to commit
 4c2c518). Known gaps are listed in `ROADMAP.md` and `NEXT_STEPS.md`.

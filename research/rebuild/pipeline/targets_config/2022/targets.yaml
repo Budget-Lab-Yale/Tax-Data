@@ -196,6 +196,27 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
 
+  # (3 November 2026, John; explore/2026-11-03/age_by_agi/RESULTS.md) SOI Table 1.6 by AGI: returns by the primary
+  # filer's age range, 26-34 to 65+, within each group of the standard AGI grid, from the table's All returns panel.
+  # The totals by age above leave the age mix within AGI free, and the SCF's wealth by age (2 November) moved
+  # high-income returns from primaries under 55 to 55-64: in 2015's $2m-5m class, 22% with a primary aged 45-54
+  # against SOI's 30%. Summed over AGI these cells are the totals by age above (joint plus non-joint, to a few
+  # returns), so the two entries agree; both are kept, because the demographic prescaling uses the totals (kind
+  # age) and this entry is a kind of its own. Under 26 is not a target, as above. Errors borrowed by number of
+  # returns from Table 1.4's count cells in the same AGI group (John, 3 November), except in the $10m-and-over group,
+  # which SOI samples in full (errors.py).
+  - id: age_returns_by_agi
+    kind: age by AGI
+    statistic: units
+    population: filers
+    cells: {standard_agi_groups: all, adult_age_ranges: [26-34, 35-44, 45-54, 55-64, 65+]}
+    value: {published: soi 1.6}
+    dependent_filers: >-
+      under 26 in the under-26 range; 26 and over (the file has no exact age for them) spread over the five ranges
+      26 and over in proportion to this entry's own values in the same AGI group
+    error: {kind: soi_borrowed}
+    key: {group: 'all returns, {standard_agi_groups}, primary {adult_age_ranges}', target: returns}
+
   # Business income: each family's net income and net loss, returns and dollars, in six AGI groups (merged where
   # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
   # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
@@ -384,8 +405,11 @@ targets:
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
   # SOI Table 4.3 (27 October; run G2): returns, AGI, and the number with and the amount of eight income items, in the
-  # top 0.001%, the top 0.01%, the top 0.1% and the top 1% of AGI. Returns other than dependent filers', ranked by AGI
-  # on the file's starting weights; the dollar lines are then held fixed through the tilt. The top 0.001% was folded
+  # top 0.001%, the top 0.01%, the top 0.1% and the top 1% of AGI. Returns other than dependent filers' with AGI at
+  # or above SOI's published cutoff for the group and year (3 November, John; before, the file's own percentile lines
+  # on its starting weights), held fixed through the tilt, so the count of returns above each cutoff is a target the
+  # weights must meet (its error as the other counts: borrowed from Table 1.4's cells, or 1% of the value where the
+  # cutoff is $10 million or more). The top 0.001% was folded
   # into the top 0.01% from 26 October (John) because the file lacked the PUF's aggregate records; it is restored with
   # them (29 October, PLAN.md Part A step 9: top_hidden.py rebuilds them), and expand must keep it (must_reach). With
   # settings tilt.top.enabled false, expand leaves the must_reach cells out, as before 29 October.

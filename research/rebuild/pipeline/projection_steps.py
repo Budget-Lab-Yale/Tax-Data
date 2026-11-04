@@ -8,8 +8,10 @@ start_scaling {weights: persons, dollars: item_factor}:
    by marital status and single year of age (0 to 79, then 80 and over). Every member of a unit carries the unit's
    weight: the primary filer and, on a joint return, the spouse (married), the primary of any other unit (unmarried),
    and every dependent with an age (unmarried). A dependent filer's own record counts only its dependents: the filer
-   himself is counted on the return that claims him. A married person under 16 is counted unmarried (CBO's population
-   has no married person under 16). Each count is the 2023 file's own count times CBO's growth of the same people
+   himself is counted on the return that claims him. A married person under 18 is counted unmarried, in the file and in
+   CBO's population (whose married and unmarried counts at those ages are added; John, 4 November 2026: CBO's
+   population has no married person under 16, and none aged 16 in 2070-2072, which made that cell unreachable). Each
+   count is the 2023 file's own count times CBO's growth of the same people
    (the Social Security area population of the Macro-Projections interface, settings tilt.projection.population_dir).
    The dependent filers' own six cells (age range x married) are exact too, each the 2023 count times its population
    growth (projection_demographics.population_cells, the rule used before), because the person counts do not see the
@@ -63,7 +65,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RESOURCES = os.path.join(os.path.dirname(HERE), 'resources')
 P = common.SETTINGS['tilt'].get('projection', {})
 TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary's and spouse's ages at 80)
-MARRIED_FROM = 16     # CBO's population has no married person under 16
+MARRIED_FROM = 18     # married people under 18 counted unmarried, in the file and in CBO's population (John, 4 Nov 2026)
 ITEMS_COLUMNS = ['column', 'series', 'kind', 'target', 'error', 'note']
 ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
 PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__'}
@@ -119,10 +121,11 @@ def cbo_population(year, married, age):
         _POP['pop'] = both.drop_duplicates('year').set_index('year')
     t = _POP['pop']
     assert int(year) in t.index, f'CBO population: no {year}'
-    pre = 'married_' if married else 'unmarried_'
     ages = range(age, 101) if age >= TOP_AGE else [age]
-    v = t.loc[int(year), [f'{pre}{a}' for a in ages]].to_numpy(float)
-    assert np.isfinite(v).all() and (v >= 0).all(), f'population {year} {pre}{age}: missing or negative'
+    assert not (married and age < MARRIED_FROM), f'no married cell under {MARRIED_FROM} (age {age})'
+    pres = ['unmarried_', 'married_'] if age < MARRIED_FROM else ['married_' if married else 'unmarried_']
+    v = t.loc[int(year), [f'{pre}{a}' for pre in pres for a in ages]].to_numpy(float)
+    assert np.isfinite(v).all() and (v >= 0).all(), f'population {year} {pres} {age}: missing or negative'
     return float(v.sum())
 
 

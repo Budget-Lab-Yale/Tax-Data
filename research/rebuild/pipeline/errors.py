@@ -343,6 +343,29 @@ def soi_errors(rows, year):
                         f'Table 1.7 amount, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 amount cells closest in '
                         f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
             continue
+        if r.kind == 'age by AGI':
+            # (3 November 2026, John) Table 1.6 by AGI. In an AGI group where SOI samples every return (Table 1.4's
+            # number of returns there has no sampling error: the $10,000,000-or-more class), the judgment number Table
+            # 1.4's and Table 4.3's fully sampled cells get. Elsewhere the CV is borrowed by count as for the totals by
+            # age, but only from Table 1.4's count cells in the same AGI group: SOI's sampling rate depends on income,
+            # so a cell of 3,000 returns at $2-5 million is measured far better than one of 3,000 returns at $20,000,
+            # and borrowing from the whole table gave errors of 0.9% to 96% of the value with no pattern
+            assert not np.isnan(r.agi_lo), f'{r.group}: an age-by-AGI target with no AGI group'
+            lo, hi = float(r.agi_lo), float(r.agi_hi)
+            se14, _, _, _ = sum_error(cells, [('returns', 'count', 1)], lo, hi)
+            if se14 == 0:
+                out.append((r.Index, FULL_SAMPLE_SE * abs(r.value), 'judgment',
+                            f'{100 * FULL_SAMPLE_SE:.1f}% of the value (settings errors.full_sample_se): SOI samples '
+                            f'every return in this AGI group (Table 1.4\'s number of returns there has CV 0{yr}), so '
+                            'there is no sampling error; the number stands for definition gaps'))
+                continue
+            same = cells[~cells.total_row & (cells.lo >= lo) & (cells.hi <= hi)]
+            cv, what = borrow_cv(same, count=r.value)
+            assert np.isfinite(cv), f'{r.group}: no Table 1.4 count cell with a CV in its AGI group'
+            out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
+                        f'Table 1.6 count, CV {cv:.2f}%: median of the {BORROW_K} Table 1.4 count cells in the same AGI '
+                        f'group closest in returns{yr}: {what}'))
+            continue
         if r.kind == 'IRS' and r.target == 'joint returns' or r.kind in ('age', 'dependent filers'):
             cv, what = borrow_cv(cells, count=r.value)
             table = {'IRS': '1.2', 'age': '1.6', 'dependent filers': '1.7'}[r.kind]
@@ -688,7 +711,7 @@ def standard_errors(rows, year=Y):
     rows = rows.reset_index(drop=True).assign(value=lambda d: published_value(d))
     res = {}
     table21 = rows['error_kind'].eq('table21') if 'error_kind' in rows else pd.Series(False, index=rows.index)
-    by = {'soi': rows.kind.isin(['IRS', 'age', 'business', 'dependent filers', 'calculator']) & ~table21,
+    by = {'soi': rows.kind.isin(['IRS', 'age', 'age by AGI', 'business', 'dependent filers', 'calculator']) & ~table21,
           'scf': rows.kind.isin(['wealth', 'wealth grid', 'auto loans']), 'consumption': rows.kind == 'consumption',
           'nonfiler': rows.kind.isin(['non-filers', 'non-filer people']), 'overtime': rows.kind == 'overtime',
           'older ages': rows.kind == 'older ages'}

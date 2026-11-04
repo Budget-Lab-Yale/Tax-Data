@@ -305,6 +305,16 @@ def group_cells(spec):
             assert sel == 'all' or len(lines) == len(sel), f'{name}: unknown cells in {sel}'
             per_dim.append([{'parts': {name: ln[2]}, 'filters': [], 'agi': None, 'line': (g['variable'], *ln)}
                             for ln in lines])
+        elif 'ranks' in g and g.get('cutoffs') == 'published':
+            # (3 November, John) a published percentile group at the source's own published dollar line for the
+            # year: the AGI cutoff the source prints for the group (catalog cutoff_item), not the file's percentile.
+            # The percentiles name the group only; published_grid sets the cell's AGI range from the cutoff.
+            assert g['variable'] == 'agi', f'{name}: published lines are AGI cutoffs'
+            ranks = [rk for rk in g['ranks'] if sel == 'all' or rk[2] in sel]
+            assert sel == 'all' or len(ranks) == len(sel), f'{name}: unknown cells in {sel}'
+            assert all(float(rk[1]) == 100 for rk in ranks), f'{name}: published lines are for top groups only'
+            per_dim.append([{'parts': {name: rk[2]}, 'filters': [], 'agi': None, 'line': None,
+                             'published_line': name} for rk in ranks])
         elif 'ranks' in g:
             # a range of a variable's weighted percentiles, each side its own
             ranks = [rk for rk in g['ranks'] if sel == 'all' or rk[2] in sel]
@@ -330,16 +340,20 @@ def group_cells(spec):
                                        np.inf if ed[1] is None else float(ed[1]))} for ed in ranges])
         else:
             raise NotImplementedError(name)
-    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None, 'range': None}]
+    out = [{'parts': {}, 'filters': [], 'agi': None, 'line': None, 'rank': None, 'band': None, 'range': None,
+            'published_line': None}]
     for dim in per_dim:
         for a in out:
             assert not (a.get('range') and any(b.get('range') for b in dim)), 'a cell with two dollar ranges'
         out = [{'parts': {**a['parts'], **b['parts']}, 'filters': a['filters'] + b['filters'],
                 'agi': a['agi'] or b['agi'], 'line': a['line'] or b['line'],
                 'rank': a.get('rank') or b.get('rank'), 'band': a.get('band') or b.get('band'),
-                'range': a.get('range') or b.get('range')}
+                'range': a.get('range') or b.get('range'),
+                'published_line': a.get('published_line') or b.get('published_line')}
                for a in out for b in dim]
     assert not any(c['line'] and c['band'] for c in out), 'a cell with both a line and a band'
+    assert not any(c['published_line'] and (c['agi'] or c['rank']) for c in out), \
+        'a cell with a published AGI line and another AGI grouping'
     for c in out:
         c['label'] = ', '.join(c['parts'].values()) or 'all'
     return out
@@ -554,6 +568,90 @@ def published_status(soi, year, source, cells, stats):
             v = sum(t16[(s, k)] for s in statuses)
             src = f'soi 1.6 {year}: returns of ' + ' + '.join(statuses) + f', primary {c["parts"][aname]}'
         rows.append({'cell': c['label'], 'cell_spec': c, 'statistic': 'units', 'value': v, 'source': src})
+    return rows
+
+
+# (3 November 2026, John; explore/2026-11-03/age_by_agi) Table 1.6 by AGI: the All returns panel's returns by the
+# primary filer's age range within each AGI group. A row whose AGI columns do not add to its own all-AGI total by more
+# than this many returns has a misprinted cell (2018, 26 under 35: SOI's workbook prints $40,000-50,000 and
+# $50,000-75,000 2.21 million too high, both flagged combined in the mirror; the four filing-status panels confirm it).
+T16_ROW_SLACK = 50
+
+
+def table_16_by_agi(year):
+    """Table 1.6's All returns panel for a year: {age row label: (all-AGI total, [(lo, hi, value, flag), ...])}, the
+    AGI columns lowest first. Values are returns. Rows under 26 are left out (the targets start at 26)."""
+    t = pd.read_csv(common.SETTINGS['ages']['table_1_6'], dtype=str, keep_default_na=False)
+    t = t[(t.tax_year == str(year)) & (t.panel == 'All returns') & t.row_label.isin(TG.T16_ROWS[1:])]
+    assert len(t), f'Table 1.6 {year}: no All returns panel'
+    out = {}
+    for row, g in t.groupby('row_label'):
+        tot = g[(g.col_agi_lo == '') & (g.col_agi_hi == '')]
+        assert len(tot) == 1 and tot.value.iloc[0] != '', f'Table 1.6 {year}, {row}: no all-AGI total'
+        cols = g[(g.col_agi_lo != '') & (g.col_agi_hi != '')]
+        assert (cols.value != '').all(), f'Table 1.6 {year}, {row}: a blank AGI cell in the All returns panel ' \
+                                         f'({cols.loc[cols.value == "", "col_label"].tolist()}); it would need joining'
+        cells = sorted((float(r.col_agi_lo), float(r.col_agi_hi), float(r.value), r.flag) for r in cols.itertuples())
+        out[row] = (float(tot.value.iloc[0]), cells)
+    assert sorted(out) == sorted(TG.T16_ROWS[1:]), f'Table 1.6 {year}: age rows {sorted(out)}'
+    return out
+
+
+def published_16_agi(year, cells, stats):
+    """Rows of returns by the primary filer's age range (26 and over) within AGI groups, Table 1.6's All returns
+    panel. Each AGI group sums the published columns inside it (Table 1.6's columns are Table 1.4's brackets, so the
+    standard grid's edges fall on them). Where a row's columns do not add to its own all-AGI total, the run of adjacent
+    cells it flags 'combined' is the misprint: the groups that run touches are merged for every age (as a published
+    cell crossing an edge merges groups, merge_groups), and in the misprinted row the merged group is the row's total
+    less its other columns. Every row's groups must then add to its total."""
+    assert stats == ['units'], 'Table 1.6 by AGI: returns only'
+    t16 = table_16_by_agi(year)
+    (gname,) = {c['agi'] for c in cells}
+    g = CAT['groupings'][gname]
+    groups = [(-np.inf if lo is None else float(lo), np.inf if hi is None else float(hi), lab) for lo, hi, lab in g['edges']]
+    bad = {}
+    for row, (tot, cl) in t16.items():
+        if abs(sum(v for _, _, v, _ in cl) - tot) <= T16_ROW_SLACK:
+            continue
+        runs, cur = [], []
+        for lo, hi, v, flag in cl:
+            if flag == 'combined':
+                cur.append((lo, hi))
+            else:
+                runs, cur = runs + ([cur] if len(cur) > 1 else []), []
+        runs += [cur] if len(cur) > 1 else []
+        assert len(runs) == 1, f'Table 1.6 {year}, {row}: AGI columns add to {sum(v for _, _, v, _ in cl):,.0f}, the ' \
+                               f'total is {tot:,.0f}, and {len(runs)} runs of adjacent combined cells: a decision is needed'
+        bad[row] = (runs[0][0][0], runs[0][-1][1])
+        common.say(f'Table 1.6 {year}, {row}: AGI columns add to {sum(v for _, _, v, _ in cl):,.0f} against the '
+                   f'total {tot:,.0f}; the combined cells from {bad[row][0]:,.0f} to {bad[row][1]:,.0f} are taken as the '
+                   'total less the other columns')
+    groups = merge_groups(groups, [(lo, hi, row) for row, (lo, hi) in bad.items()])
+    rows = []
+    for c in cells:
+        (aname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'age_range']
+        (k,) = [val for val, lab in CAT['groupings'][aname]['values'] if lab == c['parts'][aname]]
+        row = TG.T16_ROWS[k]
+        tot, cl = t16[row]
+        vals = []
+        for lo, hi, lab in groups:
+            inside = [v for l_, h_, v, _ in cl if l_ >= lo and h_ <= hi]
+            assert all((l_ >= lo and h_ <= hi) or h_ <= lo or l_ >= hi for l_, h_, _, _ in cl), \
+                f'Table 1.6 {year}, {row}: a published column crosses the edge of {lab}'
+            if row in bad and lo <= bad[row][0] and bad[row][1] <= hi:
+                v = tot - sum(v for l_, h_, v, _ in cl if not (l_ >= lo and h_ <= hi))
+                src = f'soi 1.6 {year}, All returns, {row}: the all-AGI total less the other AGI columns (the ' \
+                      'published cells here are misprinted)'
+            else:
+                v = float(sum(inside))
+                src = f'soi 1.6 {year}, All returns, {row}: ' + ('one AGI column' if len(inside) == 1 else
+                                                                  f'{len(inside)} AGI columns summed')
+            vals.append(v)
+            spec = {**c, 'parts': {**c['parts'], gname: lab}, 'label': f'{lab}, primary {c["parts"][aname]}'}
+            rows.append({'cell': spec['label'], 'cell_spec': spec, 'agi': (lo, hi), 'statistic': 'units', 'value': v,
+                         'source': src})
+        assert abs(sum(vals) - tot) <= T16_ROW_SLACK, \
+            f'Table 1.6 {year}, {row}: the AGI groups add to {sum(vals):,.0f}, the total is {tot:,.0f}'
     return rows
 
 
@@ -1034,8 +1132,11 @@ def published_grid(source, year, cells, v, stats):
     """A tidy published table, selected by catalog item, measure and group labels.
 
     Group labels map to one or several published panels (several panels are added). Rank cells map to published
-    cumulative groups. Errors borrow errors.py's nearest Table 1.4 cells using the paired holder count. A published
-    AGI cutoff at or above the catalog's full-sample line gets errors.full_sample_se instead.
+    cumulative groups. A cell of a grouping with published lines (catalog cutoffs: published; Table 4.3's top groups
+    since 3 November) is the returns with AGI at or above the group's published cutoff for the year (catalog
+    cutoff_item), in nominal dollars of the year; a missing cutoff is an error. Errors borrow errors.py's nearest
+    Table 1.4 cells using the paired holder count. A published AGI cutoff at or above the catalog's full-sample line
+    gets errors.full_sample_se instead.
     """
     import errors
     definition = CAT['sources'][source]
@@ -1055,6 +1156,11 @@ def published_grid(source, year, cells, v, stats):
             assert len(cut) == 1, f'{source} {c["label"]}: expected one AGI cutoff'
             if cut.iloc[0].value:
                 cutoff = float(cut.iloc[0].value)
+        if c.get('published_line'):
+            # (3 November, John) the group is the returns at or above SOI's published AGI cutoff for the year
+            assert definition.get('cutoff_item'), f'{source}: no cutoff_item for the published lines of {c["label"]}'
+            assert cutoff is not None and np.isfinite(cutoff) and cutoff > 0, \
+                f'{source} {year} {c["label"]}: no published AGI cutoff ({definition["cutoff_item"]})'
         def value(measure, item=None):
             # an item SOI names differently in some years (catalog item_aliases: salaries and wages is "total wages"
             # in Table 4.3 from tax year 2022) is read under the name the year publishes
@@ -1090,9 +1196,13 @@ def published_grid(source, year, cells, v, stats):
                     errors.borrow_cv(donors, amount=abs(val), returns=count)
                 se, kind = abs(val) * cv / 100, 'soi_borrowed'
                 reason = f'CV {cv:g}% from nearest Table 1.4 cells ({donor_year}): {what}'
-            out.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val,
-                        'source': f'{source} {year}: {spec["item"]}, {c["label"]}; {definition["file"]}',
-                        'se': se, 'error_kind': kind, 'se_reason': reason})
+            row = {'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val,
+                   'source': f'{source} {year}: {spec["item"]}, {c["label"]}; {definition["file"]}',
+                   'se': se, 'error_kind': kind, 'se_reason': reason}
+            if c.get('published_line'):
+                row['agi'] = (cutoff, np.inf)
+                row['source'] += f'; AGI at or above SOI\'s published cutoff ${cutoff:,.0f}'
+            out.append(row)
     return out
 
 
@@ -1463,6 +1573,8 @@ def expand_entry(e, year, soi):
             rows = published_w2_shares(src, vyear, cells, v, e)
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_by_agi':
             rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'published' and src == 'soi 1.6' and any(c['agi'] for c in cells):
+            rows = published_16_agi(vyear, cells, stats)
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
@@ -1479,6 +1591,8 @@ def expand_entry(e, year, soi):
             raise NotImplementedError(vkind)
         for r in rows:
             c, st = r['cell_spec'], r['statistic']
+            assert not c.get('published_line') or 'agi' in r, \
+                f'{e["id"]} {c["label"]}: a published AGI line the value source ({src}) does not set'
             filt = dict(c['filters'])
             se = {'identity': 0.0, 'judgment': err.get('relative', np.nan) * abs(r['value'])}.get(err['kind'], np.nan)
             line = r.get('line')
@@ -1677,9 +1791,16 @@ def conditions(df, rows, w_start, check=True):
         if r.statistic == 'units':
             F[:, j] = cell
             if r.dependent_filers:
-                # Table 1.6's dependent filers 26 and over: spread over this status's ranges by the entry's own values
-                same = (rows['entry'] == r.entry) & (rows['married'] == r.married)
-                dep_26 = pops[r.population] & (married == r.married) & (rng == common.DEPENDENT_RANGES[-1])
+                # Table 1.6's dependent filers 26 and over: spread over this status's ranges by the entry's own values;
+                # (3 November 2026) for an entry by AGI group and not by status, over the ranges of the same AGI group
+                same = rows['entry'] == r.entry
+                dep_26 = pops[r.population] & (rng == common.DEPENDENT_RANGES[-1])
+                if not np.isnan(r.married):
+                    same &= rows['married'] == r.married
+                    dep_26 &= married == r.married
+                if not np.isnan(r.agi_lo):
+                    same &= (rows['agi_lo'] == r.agi_lo) & (rows['agi_hi'] == r.agi_hi)
+                    dep_26 &= (a >= r.agi_lo) & (a < r.agi_hi)
                 F[:, j] += dep_26 * r.value / rows.loc[same, 'value'].sum()
         elif r.statistic == 'count':
             count_var = variable_def(r.variable).get('count_variable')

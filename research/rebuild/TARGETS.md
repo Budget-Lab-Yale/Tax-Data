@@ -35,8 +35,9 @@ pools them half and half (section 8).
 
 **3. Each year t: the targets.** Facts about year t, each with a value and a standard error (sections 2, 3, 9):
 - hand-written in the configuration: SOI detail in historical years (AGI brackets with the five top ones separate,
-  income items and their composition at the top, income items by filing status (Table 1.3) and in the top 0.01%,
-  0.1% and 1% (Table 4.3), business income, ages, dependent filers, W-2 tips), SCF wealth at the top and by asset
+  income items and their composition at the top, income items by filing status (Table 1.3) and in the top 0.001%,
+  0.01%, 0.1% and 1% (Table 4.3, each group at SOI's published AGI cutoff, S14), business income, ages, dependent
+  filers, W-2 tips), SCF wealth at the top and by asset
   type, an SCF income x net worth grid (26 October), SCF auto loan interest, CEX consumption, the non-filer count
   and non-filer people by age; in future years, macro
   totals and population by age (projected totals may be exact, to match the baseline);
@@ -322,6 +323,8 @@ roughly right, and only the first three kinds are computed.
 1. **SOI tables that publish errors** (Tables 1.4, 2.1 and 3.3): the published coefficients of variation.
 2. **Other SOI tables** (1.6, 1.7, the business tables): the same SOI sample, so each cell borrows the coefficient
    of variation of the Table 1.4 cell closest to it in number of returns and amount.
+   Table 1.6's cells by age within an AGI group (S14) borrow only from Table 1.4's count cells in the same AGI group
+   (John, 3 November 2026; see S14 for why).
 3. **Survey targets** (SCF, CEX): sampling error from the survey's replicate weights.
 
 Everything else gets a judgment number, written in the year's configuration with a one-line reason. That covers
@@ -712,3 +715,50 @@ non-filers), dollars grown per return from 2023 to the year by CBO's and the mac
 2023 to the year (population cells exact; CBO totals and the counts of returns, itemizers and AMT returns with the error of
 1% as before). The prior in the cost is the 2023 file prescaled to the year. The years are independent and run in parallel;
 no year inherits another's misses or moves.
+
+### S14. Returns by age within each AGI group (John, 3 November 2026; experiment on branch rebuild-age-by-agi)
+
+SOI Table 1.6's All returns panel, returns by the primary filer's age range 26-34 to 65+, in each of the 15 groups of the
+standard AGI grid ($1m-1.5m and $1.5m-2m one group, as in Table 1.4's returns): 75 targets a year, 2015-2023, kind
+`age by AGI`, importance 1. Why: the totals by age left the age mix within AGI free, and the SCF wealth-by-age targets of
+2 November moved high-income returns from primaries under 55 to 55-64 (2015, $2m-5m: 22% with a primary aged 45-54
+against SOI's 30%; scratch `explore/2026-11-03/top_wages_2015/RESULTS.md`).
+- **No double count.** Summed over AGI the cells equal the totals by age (joint plus non-joint) within 4 returns in every
+  year. Both are kept, consistent: the demographic prescaling uses the totals by age (kind `age`) and is unchanged.
+- **Errors: borrowed from the same AGI group (John, 3 November 2026).** Each cell takes the median coefficient of
+  variation of the five Table 1.4 count cells closest to it in number of returns, chosen only among Table 1.4's cells
+  in the same AGI group. The $10m-and-over group, which SOI samples in full, gets 1% of the value, as Table 1.4's and
+  Table 4.3's fully sampled cells. What changed: the first test borrowed from the whole of Table 1.4, as section 9 does
+  for the totals by age. Why: SOI samples high-income returns at much higher rates, so how well a count of a few
+  thousand returns is measured depends on its income class, not just its size. Borrowing from the whole table matched
+  a top-income cell to small cells at low incomes, and gave 2015's top cells errors from 0.9% to 96% of the value with
+  no pattern (26-34 at $5m-10m: 96%; 55-64 at $1m-2m: 0.9%).
+- **Small cells.** No cell is folded: the smallest is 26-34 at $10m and over (546 to 1,432 returns, resting on about
+  540 sample records in 2015). In 2015 no new target rests on fewer than 45 effective records; 8 get a warning for a
+  weight factor above 10 in the cell.
+- **2018's misprint.** SOI's 2018 workbook prints the 26-34 row's $40,000-50,000 and $50,000-75,000 cells 2.21 million
+  returns too high (the row's columns exceed its own total; the filing-status panels confirm it). In 2018 those two
+  groups are one, $40k-75k, for every age, and the 26-34 cell is the row's total less its other columns
+  (`target_list.published_16_agi`, which stops on any other row that does not add up).
+- Results: scratch `explore/2026-11-03/age_by_agi/RESULTS.md`.
+
+### S15. Table 4.3's groups at SOI's published AGI cutoffs (John, 3 November 2026)
+
+Each Table 4.3 group (the top 0.001%, 0.01%, 0.1% and 1% of returns other than dependent filers') is the returns
+with AGI at or above the cutoff SOI publishes for that group and year (the item "adjusted gross income floor on
+percentiles" in `pctile_top_items.csv`; catalog source `soi 4.3`, its `cutoff_item`; grouping `agi_cumulative`,
+`cutoffs: published`). The cutoff is in nominal dollars of the year and does not move in the tilt. The population is
+unchanged, and so are the targets: SOI's counts and amounts for each group.
+
+Before, each group's line was the starting file's own percentile in dollars, held fixed. Because the draw is too
+heavy at the top, those lines sat above SOI's: in 2015, $504,632 for the top 1% against SOI's $480,930, and $2.55
+million for the top 0.1% against $2.22 million. SOI's totals were then imposed on a smaller, richer set of returns
+(scratch `explore/2026-11-03/top_wages_2015/RESULTS.md`).
+
+**The count of returns above each cutoff is now a real target.** With the file's own line, the count held at the
+start by construction. Now the weights must put SOI's number of returns above SOI's cutoff. It is the existing
+`soi_4_3_returns` entry, with the same rule for its error as the other SOI counts: the median CV of the Table 1.4
+count cells closest in number of returns (`errors.borrow_cv`), or 1% of the value (`errors.full_sample_se`) where the
+cutoff is $10 million or more, since SOI samples every such return (the top 0.01% and 0.001% in every year). A year
+with no published cutoff for a targeted group stops the run; every year 2015-2023 has all of them.
+
