@@ -68,7 +68,7 @@ TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary
 MARRIED_FROM = 18     # married people under 18 counted unmarried, in the file and in CBO's population (John, 4 Nov 2026)
 ITEMS_COLUMNS = ['column', 'series', 'kind', 'target', 'error', 'note']
 ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
-PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__'}
+PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__', 'filing_season': 'fs__'}
 
 STATE = {}   # this run's year: set by tilt (the 2023 file, its weights, step 1 and 2 results, the start)
 
@@ -221,6 +221,10 @@ def step1(df, w, year, s):
     STATE.clear()
     STATE.update(year=int(year), base_year=int(s), record_id=df['record_id'].to_numpy(), keep=keep, w_base=w.copy(),
                  w1=w1, person_targets=table, step1=out, return_shares=shares, items={}, add_factors=[])
+    if fs_active(year):   # the November filing-season tables (below): the 2023 file's own items by its AGI groups
+        assert int(s) == int(FS['base_year']), f'filing_season: the start is {s}, the setting says {FS["base_year"]}'
+        STATE['df_base'] = df
+        STATE['fs'] = {'blend': {}, 'columns': {}}
     return w1, out
 
 
@@ -331,6 +335,11 @@ def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
         G = (g, g)
     else:
         raise ValueError(f'{col}: unknown series {series!r}')
+    fsm = fs_column_factor(col, int(t))
+    if fsm is not None:   # (4 November, John) the November table's blend for 2024, carried to every later year
+        assert kind == 'total' and series.startswith('file:'), f'{col}: the filing-season blend needs a file series of kind total'
+        G = (G[0] * fsm[0], G[1] * fsm[0])
+        what = f'{what}; times the filing-season blend {fsm[0]:.5f} ({fsm[1]})'
     A, used = add_factor(col, s, t)
     if used:   # the add factors on top of the series (module docstring); with none, G is left exactly as it was
         G = (G[0] * A, G[1] * A)
@@ -339,7 +348,8 @@ def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
         STATE['add_factors'] += used
     keep, w0, w1 = STATE['keep'], STATE['w_base'], STATE['w1']
     rec = {'column': col, 'series': series, 'kind': kind, 'source': what, 'target': int(row['target']),
-           'error': row['error'], 'add factor': A, 'growth positive': G[0], 'growth negative': G[1]}
+           'error': row['error'], 'add factor': A, 'filing season factor': 1.0 if fsm is None else fsm[0],
+           'growth positive': G[0], 'growth negative': G[1]}
     fs = list(G)
     for i, sign in enumerate((1, -1)):
         m = keep & (sign * x > 0)
@@ -436,6 +446,8 @@ def record_value(df, v):
         return _CACHE['persons'][:, int(key)].astype(float)
     if kind == 'returns':
         return ((df['filer'].to_numpy() == 1) & (return_group(df) == int(key))).astype(float)
+    if kind == 'filing_season':
+        return fs_value(df, key)
     x = df[key].to_numpy(float)
     assert np.isfinite(x).all(), f'{key}: {int((~np.isfinite(x)).sum())} missing values'
     return np.maximum(x, 0) if kind == 'item_pos' else np.maximum(-x, 0)
@@ -482,9 +494,10 @@ def outside_rows(src, year):
                             f"year's list {lp:,.0f}"))
     elif src == 'projection items':
         mn_rec, mn_usd = int(P['item_min_records']), float(P['item_min_dollars'])
+        replaced = fs_replaced_columns(year)
         for col, r in STATE['items'].items():
-            if not r['target']:
-                continue
+            if not r['target'] or col in replaced:
+                continue   # (4 November) replaced: the item's targets by AGI group (projection filing season)
             for nm, pre in (('positive', 'item_pos'), ('negative', 'item_neg')):
                 if r[f'records {nm}'] < mn_rec or abs(r[f'2023 total {nm}']) < mn_usd:
                     continue
@@ -499,6 +512,8 @@ def outside_rows(src, year):
                 label = f"{col}{' (losses)' if nm == 'negative' else ''}"
                 out.append(_row(label, val, v, f"the start's total after step 2 ({r['kind']}: {r['source'][:160]}); "
                                                f"the year's list {lp:,.0f}") | {'se': float(r['error']) * val})
+    elif src == 'projection filing season':
+        out = fs_rows(int(year))
     else:
         raise KeyError(src)
     return out
@@ -525,4 +540,329 @@ def write(folder):
                   af.to_markdown(index=False, floatfmt='.5f'), '']
     else:
         lines += [f"Add factors: none in force (add factors table {_ADD['path']}).", '']
+    lines += fs_write(folder)
+    return lines
+
+
+# ---- the November filing-season tables for the first projection year (John, 4 November 2026) -----------------------
+# Scratch explore/2026-11-04/nowcast/PLAN.md, with "Decisions after the backtest"; the backtest is BACKTEST.md there.
+# Settings tilt.projection.filing_season: enabled; base_year (the last year of final SOI tables, 2023); year (the
+# first projection year, 2024, whose growth comes from SOI's November tables for base_year and year); tables (the
+# November tables as read, build_filing_season.py); trust_table and errors_table (targets_config); min_error; series
+# (CBO's national series for items with no items-table column of their own: capital gains).
+#   1. Trust. Each item has one of four levels in the trust table: full (weight 1), mostly trust (2/3), mostly not
+#      trust (1/3), none (0).
+#   2. The blend. Item i's growth from base_year to year in AGI group g is w x (the November tables' growth in g) +
+#      (1 - w) x (CBO's national growth, the item's series now). An item with no trust is exactly today's rule.
+#   3. Step 2 stays national: each of the item's columns gets one more factor, so that the start's national total
+#      grows from base_year to year at the blended national growth (w x November + (1 - w) x CBO, nationally); the
+#      factor multiplies the column's series in every later year too, so year t's growth is the blended growth to
+#      year times the series' growth from year to t. Ordinary dividends: the non-qualified part (div_ord) gets the
+#      factor that makes ordinary dividends (div_pref + div_ord) grow at their blend, given qualified dividends'.
+#      Capital gains: the pieces before the loss limit (kg_st, kg_lt, kg_dist) by the ratio of the blended growth of
+#      Form 1040's net gain or loss to CBO's capital gains line. Schedule E: every part by one common factor, so the
+#      signed sum grows at its blend.
+#   4. Step 3, in year only: each item's blended total in each AGI group of the year (and, for items of full trust,
+#      the number of returns with the item in each group) on filers, replacing the item's national total target; the
+#      number of returns as shares across the groups, their total set by the exact returns cells. Each value is the
+#      base_year file's own total in the group (Forbes list left out) times the blended growth, plus the year's list.
+#      Errors from the backtest (errors_table), at least min_error; Schedule E's lowest group in dollars.
+#   5. Groups: the standard AGI grid with no AGI and $1-10,000 as one group, under $10,000, and $1 million and over as
+#      the top group; for Schedule E every group below $75,000 is one group.
+FS = P.get('filing_season', {})
+FS_LEVELS = {'full': 1.0, 'mostly trust': 2.0 / 3.0, 'mostly not trust': 1.0 / 3.0, 'none': 0.0}
+# item -> the items-table columns it grows (returns: none, its targets are shares)
+FS_ITEMS = ['returns', 'wages', 'txbl_int', 'dividends', 'div_pref', 'txbl_ira_dist', 'txbl_pens_dist',
+            'capital_gains_line13', 'schedule_e', 'sole_prop', 'farm', 'ui']
+FS_EDGES = [(None, 10000, 'under $10k'), (10000, 20000, '$10k-20k'), (20000, 30000, '$20k-30k'),
+            (30000, 40000, '$30k-40k'), (40000, 50000, '$40k-50k'), (50000, 75000, '$50k-75k'),
+            (75000, 100000, '$75k-100k'), (100000, 200000, '$100k-200k'), (200000, 500000, '$200k-500k'),
+            (500000, 1000000, '$500k-1m'), (1000000, None, '$1m and over')]
+FS_EDGES_E = [(None, 75000, 'under $75k')] + FS_EDGES[6:]
+_FS = {}
+
+
+def fs_active(year):
+    return bool(FS.get('enabled', False)) and int(year) >= int(FS['year'])
+
+
+def fs_e_parts():
+    import build_table as BT
+    return [(p, BT.PARTS[p][1]) for p in BT.E_PARTS]
+
+
+def fs_columns(item):
+    if item == 'schedule_e':
+        return [p for p, _ in fs_e_parts()]
+    return {'returns': [], 'dividends': ['div_ord'], 'capital_gains_line13': ['kg_st', 'kg_lt', 'kg_dist']}.get(item, [item])
+
+
+def fs_trust():
+    """{item: weight} from the trust table (settings filing_season.trust_table, relative to the pipeline folder)."""
+    if 'trust' not in _FS:
+        p = FS['trust_table']
+        p = p if os.path.isabs(p) else os.path.join(HERE, p)
+        t = pd.read_csv(p, keep_default_na=False)
+        assert list(t.columns) == ['item', 'level', 'reason'], f'{p}: columns item, level, reason'
+        assert t['item'].is_unique and set(t['item']) == set(FS_ITEMS), \
+            f'{p}: one row for each of {FS_ITEMS}; has {t["item"].tolist()}'
+        bad = t[~t['level'].isin(FS_LEVELS)]
+        assert bad.empty, f'{p}: levels are {list(FS_LEVELS)}; not {bad["level"].tolist()}'
+        assert (t['reason'].str.strip() != '').all(), f'{p}: every level needs a reason'
+        _FS['trust'] = {r.item: FS_LEVELS[r.level] for r in t.itertuples()}
+        _FS['trust_levels'] = dict(zip(t['item'], t['level']))
+        _FS['trust_path'] = p
+    return _FS['trust']
+
+
+def fs_edges(item):
+    return FS_EDGES_E if item == 'schedule_e' else FS_EDGES
+
+
+def fs_group_of_class(item, lo):
+    """The target group a class of the November tables (its lower edge; None for no AGI) falls in."""
+    lo_ = -np.inf if (lo is None or (isinstance(lo, float) and np.isnan(lo))) else float(lo)
+    hit = [lab for a, b, lab in fs_edges(item) if (-np.inf if a is None else a) <= lo_ < (np.inf if b is None else b)]
+    assert len(hit) == 1, (item, lo)
+    return hit[0]
+
+
+def fs_november(item, stat):
+    """{group: (level base_year, level year)} and 'all' of an item in the November tables (the long layout)."""
+    key = (item, stat)
+    if key not in _FS:
+        if 'tables' not in _FS:
+            p = FS['tables']
+            p = p if os.path.isabs(p) else os.path.join(HERE, p)
+            t = pd.read_csv(p, keep_default_na=False)
+            t = t[t['layout'] == 'long']
+            _FS['tables'], _FS['tables_path'] = t, p
+        t = _FS['tables']
+        stat_ = 'returns' if stat in ('count', 'units') else 'amount'
+        out = {}
+        for y in (int(FS['base_year']), int(FS['year'])):
+            s = t[(t.tax_year == y) & (t['item'] == item) & (t.statistic == stat_)]
+            assert len(s) == 13, f'November tables {y}: {item} {stat_} has {len(s)} rows, not 13 (the total and 12 classes)'
+            for r in s.itertuples():
+                g = 'all' if r.agi_class == 'all' else fs_group_of_class(item, None if r.agi_lo == '' else float(r.agi_lo))
+                out.setdefault(g, [0.0, 0.0])[y != int(FS['base_year'])] += float(r.value)
+        assert all(v[0] != 0 for v in out.values()), f'{item} {stat}: a group with nothing in {FS["base_year"]}'
+        _FS[key] = out
+    return _FS[key]
+
+
+def fs_errors():
+    if 'errors' not in _FS:
+        p = FS['errors_table']
+        p = p if os.path.isabs(p) else os.path.join(HERE, p)
+        e = pd.read_csv(p)
+        _FS['errors'], _FS['errors_path'] = e, p
+    return _FS['errors']
+
+
+def fs_error(item, stat, group):
+    """(kind, number): ('relative', the relative error, at least min_error) or ('dollars', a share of the item's
+    national total). A group with no backtest error stops the run."""
+    e = fs_errors()
+    s = e[(e['item'] == item) & (e.statistic == ('returns' if stat in ('count', 'units') else 'amount')) &
+          (e['group'] == group)]
+    assert len(s) == 1, f'{_FS["errors_path"]}: no error for {item} {stat} {group}'
+    r = s.iloc[0]
+    if r.error_kind == 'dollars':
+        assert np.isfinite(r.error_share_of_national) and r.error_share_of_national > 0, (item, group)
+        return 'dollars', float(r.error_share_of_national)
+    assert np.isfinite(r.error) and r.error >= 0, (item, group)
+    return 'relative', max(float(r.error), float(FS['min_error']))
+
+
+def fs_value(df, item):
+    """A record's value of a filing-season item (in the frame's dollars)."""
+    if item == 'returns':
+        return np.ones(len(df))
+    if item == 'capital_gains_line13' and item not in df:
+        x = df['capital_gains'].to_numpy(float) + df['kg_dist'].to_numpy(float)
+    elif item == 'schedule_e':
+        x = sum(sign * df[p].to_numpy(float) for p, sign in fs_e_parts())
+    else:
+        x = df[item].to_numpy(float)
+    assert np.isfinite(x).all(), f'{item}: {int((~np.isfinite(x)).sum())} missing values'
+    return x
+
+
+def fs_series_growth(col):
+    """The column's own series' growth from base_year to year, and its add factor over those years (must be 1)."""
+    tab = items_table()
+    assert col in tab.index and tab.loc[col, 'series'].startswith('file:'), f'{col}: a file series in the items table'
+    s, t = int(FS['base_year']), int(FS['year'])
+    g, _ = series_growth(tab.loc[col, 'series'], s, t)
+    A, _ = add_factor(col, s, t)
+    assert A == 1.0, f'{col}: an add factor in {t}; the filing-season blend assumes none'
+    return g
+
+
+def fs_base_total(x):
+    """The base_year file's national total of record values x (all units, Forbes list left out)."""
+    k, w0 = STATE['keep'], STATE['w_base']
+    return float(w0[k] @ x[k])
+
+
+def fs_blend(item):
+    """{'w', 'november', 'cbo', 'blend'}: the item's national growth from base_year to year in the November tables,
+    CBO's (the item's series now) and the blend."""
+    b = STATE['fs']['blend']
+    if item not in b:
+        w = fs_trust()[item]
+        nov = fs_november(item, 'amount' if item != 'returns' else 'units')['all']
+        N = nov[1] / nov[0]
+        if item == 'returns':
+            C = N                                    # shares only: the CBO part leaves every group's share unchanged
+        elif item == 'dividends':
+            C = fs_series_growth('div_ord')          # both parts of dividends grow by CBO's qualified dividends now
+            assert abs(C / fs_series_growth('div_pref') - 1) < 1e-12, 'dividends: the two parts have different series'
+        elif item == 'capital_gains_line13':
+            C, _ = series_growth(FS['series']['capital_gains_line13'], int(FS['base_year']), int(FS['year']))
+        elif item == 'schedule_e':
+            df = STATE['df_base']
+            tot = [(sign * fs_base_total(df[p].to_numpy(float)), fs_series_growth(p)) for p, sign in fs_e_parts()]
+            C = sum(v * g for v, g in tot) / sum(v for v, _ in tot)
+        else:
+            C = fs_series_growth(fs_columns(item)[0])
+        b[item] = {'item': item, 'level': _FS['trust_levels'][item], 'w': w, 'november': N, 'cbo': C,
+                   'blend': w * N + (1 - w) * C}
+    return b[item]
+
+
+def fs_column_factor(col, t):
+    """(factor, description) of the filing-season blend on column col in year t, or None (not active, or an item with
+    no trust: exactly today's rule)."""
+    if not fs_active(t):
+        return None
+    cols = STATE['fs']['columns']
+    if col not in cols:
+        cols[col] = None
+        for item in FS_ITEMS:
+            if col not in fs_columns(item) or fs_trust()[item] == 0:
+                continue
+            bl = fs_blend(item)
+            g = fs_series_growth(col)
+            if item == 'dividends':
+                df = STATE['df_base']
+                q, o = fs_base_total(df['div_pref'].to_numpy(float)), fs_base_total(df['div_ord'].to_numpy(float))
+                gq = fs_blend('div_pref')['blend'] if fs_trust()['div_pref'] > 0 else fs_series_growth('div_pref')
+                g_ord = (bl['blend'] * (q + o) - gq * q) / o
+                cols[col] = (g_ord / g, f"ordinary dividends' blend {bl['blend']:.5f} given qualified dividends' "
+                                        f"{gq:.5f}: the non-qualified part grows {g_ord:.5f}, its series {g:.5f}")
+            elif item == 'capital_gains_line13':
+                cols[col] = (bl['blend'] / bl['cbo'], f"Form 1040 net gain or loss: blend {bl['blend']:.5f} over CBO's "
+                                                      f"capital gains line {bl['cbo']:.5f}")
+            elif item == 'schedule_e':
+                cols[col] = (bl['blend'] / g, f"Schedule E's common factor {bl['blend']:.5f} (blend; CBO's rules now "
+                                              f"{bl['cbo']:.5f} on the signed sum) over the part's series {g:.5f}")
+            else:
+                cols[col] = (bl['blend'] / g, f"blend {bl['blend']:.5f} (w {bl['w']:.3f}, November {bl['november']:.5f}, "
+                                              f"CBO {bl['cbo']:.5f}) over the series {g:.5f}")
+            assert np.isfinite(cols[col][0]) and cols[col][0] > 0, (col, cols[col])
+    return cols[col]
+
+
+def fs_replaced_columns(year):
+    """The columns whose national total target the group targets replace (in the filing-season year only)."""
+    if not (fs_active(year) and int(year) == int(FS['year'])):
+        return set()
+    return {c for item in FS_ITEMS if fs_trust()[item] > 0 for c in fs_columns(item)}
+
+
+def fs_rows(year):
+    """The rows of outside source 'projection filing season' (module section above, point 4); none unless active in
+    the filing-season year."""
+    if not (fs_active(year) and int(year) == int(FS['year'])):
+        return []
+    import dollars as D
+    df, w, fixed = _start()
+    lst = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
+    b = STATE['df_base']
+    k, w0 = STATE['keep'], STATE['w_base']
+    fb, fs_ = b['filer'].to_numpy() == 1, df['filer'].to_numpy() == 1
+    a0, a1 = D.agi(b), D.agi(df)
+    out, table = [], []
+
+    def row(item, stat, lab, lo, hi, value, se, source):
+        v = f"{PREFIX['filing_season']}{item}"
+        out.append({'cell': lab, 'statistic': stat, 'value': float(value), 'variable': v, 'source': source,
+                    'se': float(se), 'agi': (-np.inf if lo is None else lo, np.inf if hi is None else hi),
+                    'cell_spec': {'parts': {}, 'filters': [], 'label': lab, 'agi': None, 'line': None}})
+
+    def in_g(a, lo, hi):
+        return (a >= (-np.inf if lo is None else lo)) & (a < (np.inf if hi is None else hi))
+
+    # the number of returns: shares across groups of the total the exact returns cells set
+    T = sum(d['filers 2023'] / d['units 2023'] * d['units after step 1'] for d in STATE['return_shares'].values())
+    bl = fs_blend('returns')
+    nov = fs_november('returns', 'units')
+    base = {lab: float(w0[k & fb & in_g(a0, lo, hi)].sum()) for lo, hi, lab in FS_EDGES}
+    grown = {lab: base[lab] * (bl['w'] * nov[lab][1] / nov[lab][0] + (1 - bl['w']) * bl['cbo']) for lab in base}
+    for lo, hi, lab in FS_EDGES:
+        share = grown[lab] / sum(grown.values())
+        lp = float(w[lst & fs_ & in_g(a1, lo, hi)].sum())
+        kind, e = fs_error('returns', 'units', lab)
+        val = share * T + lp
+        row('returns', 'units', lab, lo, hi, val, e * val,
+            f"share {share:.5f} of the {T:,.0f} returns the exact returns cells set: the {FS['base_year']} file's "
+            f"{base[lab]:,.0f} returns in the group times the November growth {nov[lab][1] / nov[lab][0]:.5f}, as a "
+            f"share; plus the year's list {lp:,.0f}")
+        table.append({'item': 'returns', 'statistic': 'units', 'group': lab, 'base': base[lab],
+                      'november growth': nov[lab][1] / nov[lab][0], 'growth': share * T / base[lab] if base[lab] else np.nan,
+                      'value': val, 'se': e * val})
+    for item in FS_ITEMS:
+        if item == 'returns' or fs_trust()[item] == 0:
+            continue
+        bl = fs_blend(item)
+        x0, x1 = fs_value(b, item), fs_value(df, item)
+        stats = [('amount', x0, x1)] + ([('count', (x0 != 0).astype(float), (x1 != 0).astype(float))]
+                                        if bl['w'] == 1.0 else [])
+        for stat, v0, v1 in stats:
+            nov = fs_november(item, stat)
+            nat = abs(float(w0[k & fb] @ v0[k & fb]) * bl['blend'])
+            for lo, hi, lab in fs_edges(item):
+                m0 = k & fb & in_g(a0, lo, hi)
+                base_g = float(w0[m0] @ v0[m0])
+                ng = nov[lab][1] / nov[lab][0]
+                g = bl['w'] * ng + (1 - bl['w']) * (bl['cbo'] if stat == 'amount' else 1.0)
+                if stat == 'count' and bl['w'] < 1:
+                    raise AssertionError('counts are targeted only for items of full trust')
+                lp_m = lst & fs_ & in_g(a1, lo, hi)
+                lp = float(w[lp_m] @ v1[lp_m])
+                val = base_g * g + lp
+                kind, e = fs_error(item, stat, lab)
+                se = e * nat if kind == 'dollars' else e * abs(val)
+                row(item, stat, lab, lo, hi, val, se,
+                    f"the {FS['base_year']} file's {base_g:,.0f} in the group (filers, Forbes list left out) times "
+                    f"{g:.5f} = {bl['w']:.3f} x November {ng:.5f} + {1 - bl['w']:.3f} x CBO's national "
+                    f"{bl['cbo'] if stat == 'amount' else 1.0:.5f}; plus the year's list {lp:,.0f}; error "
+                    f"{'%.4f of the national total' % e if kind == 'dollars' else '%.4f' % e}")
+                table.append({'item': item, 'statistic': stat, 'group': lab, 'base': base_g, 'november growth': ng,
+                              'growth': g, 'value': val, 'se': se})
+    STATE['fs']['targets'] = table
+    return out
+
+
+def fs_write(folder):
+    """The filing-season lines of the summary, and projection_filing_season.csv (the blends) and
+    projection_filing_season_targets.csv (the group targets)."""
+    if not fs_active(STATE.get('year', 0)):
+        return [f"Filing-season blend (settings tilt.projection.filing_season): "
+                f"{'off' if not FS.get('enabled', False) else 'not used before ' + str(FS['year'])}.", '']
+    bl = pd.DataFrame(list(STATE['fs']['blend'].values()))
+    cols = pd.DataFrame([{'column': c, 'factor': v[0], 'how': v[1]} for c, v in STATE['fs']['columns'].items()
+                         if v is not None])
+    bl.to_csv(f'{folder}/projection_filing_season.csv', index=False)
+    cols.to_csv(f'{folder}/projection_filing_season_columns.csv', index=False)
+    lines = [f"## The filing-season blend (November tables {FS['base_year']} and {FS['year']}; trust table "
+             f"{_FS['trust_path']})", '', bl.to_markdown(index=False, floatfmt='.5f'), '',
+             f"Step 2 factors on {len(cols)} columns (projection_filing_season_columns.csv).", '']
+    if 'targets' in STATE['fs']:
+        tg = pd.DataFrame(STATE['fs']['targets'])
+        tg.to_csv(f'{folder}/projection_filing_season_targets.csv', index=False)
+        lines += [f"{len(tg)} targets by AGI group (projection_filing_season_targets.csv), replacing the national totals "
+                  f"of {sorted(fs_replaced_columns(STATE['year']))}.", '']
     return lines

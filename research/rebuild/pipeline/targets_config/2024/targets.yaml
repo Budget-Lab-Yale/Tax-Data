@@ -51,6 +51,19 @@ targets:
     error: {kind: judgment, relative: 0.01, reason: 'the item total grown by its series; 1% as a judgment (the items table holds the error of each item)'}
     key: {group: '{cell}', target: amount}
 
+  # (4 November 2026, John) the November filing-season tables: each trusted item's total by AGI group on filers (and,
+  # for items of full trust, the returns with it), and the number of returns as shares across the groups; these
+  # replace the items' national totals above. Errors from the backtest (targets_config/filing_season_errors.csv), at
+  # least 1%. Nothing when settings tilt.projection.filing_season.enabled is false (projection_steps.fs_rows)
+  - id: filing_season_groups
+    kind: projection filing season
+    statistic: amount
+    population: filers
+    cells: all
+    value: {outside: projection filing season}
+    error: {kind: judgment, relative: 0.01, reason: 'the backtest of the November tables against final SOI (scratch explore/2026-11-04/nowcast/BACKTEST.md); each row carries its own error'}
+    key: {group: '{cell}', target: 'November {variable} {statistic}'}
+
   # AMT payers, indexed: the 2023 file's count times CBO's growth in the count; 5% (John, 3 November). No itemizer count
   # target (John, 3 November): the calculator decides who itemizes; the count is reported against CBO's as a check
   - id: amt_cbo

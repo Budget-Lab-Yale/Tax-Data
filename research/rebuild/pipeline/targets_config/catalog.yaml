@@ -190,6 +190,16 @@ sources:
     what: >-
       each targeted dollar item's total (gains and losses separately) on the start after step 2, which grows the item's
       2023 total by its series; projection_steps.outside_rows
+  # (4 November 2026, John) the first projection year's growth from SOI's November filing-season tables
+  projection filing season:
+    kind: outside
+    file: research/rebuild/resources/filing_season/november_tables.csv (build_filing_season.py)
+    what: >-
+      in the first projection year (settings tilt.projection.filing_season), each trusted item's total in each AGI group
+      on filers, and for items of full trust the number of returns with it: the base year file's own total in the group
+      times w x the November tables' growth in the group + (1 - w) x CBO's national growth (targets_config/
+      filing_season_trust.csv), plus the year's list; the number of returns as shares across the groups;
+      projection_steps.fs_rows
   cbo counts:
     kind: outside
     file: research/rebuild/resources/cbo_counts.csv

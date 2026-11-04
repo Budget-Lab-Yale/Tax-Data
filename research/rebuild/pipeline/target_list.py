@@ -957,7 +957,7 @@ def outside_rows(src, year, cells, v, stats, e):
         return population_cell_rows(year, e)
     if src == 'cbo counts':
         return cbo_count_rows(year, v, stats, e)
-    if src in ('projection persons', 'projection returns', 'projection items'):
+    if src in ('projection persons', 'projection returns', 'projection items', 'projection filing season'):
         import projection_steps as PS   # (3 November, agent A) the steps of the projection years
         assert stats == ['amount'], f'entry {e["id"]}: projection targets are amounts'
         return PS.outside_rows(src, year)
