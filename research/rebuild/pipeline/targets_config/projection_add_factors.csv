@@ -1,1 +1,12 @@
 column,first_year,last_year,percent,note
+first_mort_int,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+salt_prop,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+salt_inc_sales,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+med_exp,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+char_cash,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+char_noncash,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+casualty_exp,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+other_item_exp,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+job_exp,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+tax_prep_exp,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
+other_misc_exp,2024,2035,2,"John, 3 November: crude adjustment toward CBO's itemized deductions, to revisit at CBO's next update"
