@@ -1,0 +1,92 @@
+# 2055: the targets of the year's file (TARGETS.md section 12). Rewritten on 3 November 2026 (agent A, branch
+# rebuild-proj-a) for John's design of the projection years (scratch explore/2026-11-02/projection_design/DESIGN.md,
+# "Agreed on 3 November"; projection_steps.py). The earlier phases of this file (30 October to 1 November) are in the
+# history of rebuild-joint-model.
+# 2055 (4 November 2026, long-run years, branch rebuild-longrun): copied from 2035's folder; the same three steps,
+# with every series past 2035 continued at its long-run aggregate (projection_items.csv; the series files in
+# research/rebuild/resources). CBO publishes no count of AMT returns past its last year, so amt_cbo gives no row.
+#
+# The start is the 2023 file, and the year does not depend on any other projection year. Step 1: the 2023 weights
+# calibrated to exact people by marital status and single year of age (the 2023 file's count times CBO's growth of the
+# same people) and the dependent filers' six cells. Step 2: each dollar item multiplied by one factor so that its total
+# grows exactly at its series (the items table, settings tilt.projection.items_table). Step 3, the reweighting below.
+
+year: 2055
+kind: projection
+start: {from_year: 2023, run: y2023}
+start_scaling: {weights: persons, dollars: item_factor}
+
+report:
+  - every target with its value, standard error, where the file lands, and the miss in standard errors
+
+targets:
+
+  # Step 1's people by marital status and single year of age (0-79, 80 and over), exact
+  - id: persons_by_age
+    kind: projection persons
+    statistic: amount
+    population: all_units
+    cells: all
+    value: {outside: projection persons}
+    error: {kind: identity}
+    key: {group: '{cell}', target: people}
+
+  # Returns, indexed: in each group of the primary's age band (under 20, 5-year bands, 80 and over; dependent filers by
+  # age range) and marital status, the 2023 file's share of the group's units that file times the group's units after
+  # step 1; exact. CBO's count of returns is not used.
+  - id: returns_indexed
+    kind: projection returns
+    statistic: amount
+    population: all_units
+    cells: all
+    value: {outside: projection returns}
+    error: {kind: identity}
+    key: {group: '{cell}', target: returns}
+
+  # Step 2's dollar totals: every targeted item of the items table, gains and losses separately, at the start's total
+  # (the 2023 total grown by the item's series); the error is the item's in the table (1% for every item for now)
+  - id: item_totals
+    kind: projection items
+    statistic: amount
+    population: all_units
+    cells: all
+    value: {outside: projection items}
+    error: {kind: judgment, relative: 0.01, reason: 'the item total grown by its series; 1% as a judgment (the items table holds the error of each item)'}
+    key: {group: '{cell}', target: amount}
+
+  # AMT payers, indexed: the 2023 file's count times CBO's growth in the count; 5% (John, 3 November). No itemizer count
+  # target (John, 3 November): the calculator decides who itemizes; the count is reported against CBO's as a check
+  - id: amt_cbo
+    kind: cbo counts
+    statistic: count
+    population: filers
+    variable: alternative_minimum_tax
+    cells: all
+    needs_calculator: true
+    value: {outside: cbo counts}
+    outside_line: rev_iit_returns_amt
+    error: {kind: judgment, relative: 0.05, reason: 'the 2023 file count times CBO growth in the count from 2023; 5% (John, 3 November)'}
+    key: {group: all, target: amt returns}
+
+  # The wealth targets as before: household net worth by the Financial Accounts' growth
+  - id: net_worth_z1
+    kind: z1 wealth
+    statistic: amount
+    population: scf_units_below_a_billion
+    variable: net_worth
+    cells: all
+    value: {outside: z1 household net worth}
+    outside_line: net worth
+    error: {kind: judgment, relative: 0.02, reason: 'Financial Accounts growth applied to our own level (households and nonprofits; past 2025 at a fixed ratio to GDP); 2% as a judgment'}
+    key: {group: all, target: net worth}
+
+  # and the balance-sheet categories' dollars and holders within each SCF net worth class
+  - id: wealth_categories
+    kind: wealth
+    statistic: [count, amount]
+    population: scf_units_below_a_billion
+    variable: scf_wealth_categories
+    cells: {scf_net_worth_classes: [net worth below SCF p90, net worth above SCF p90]}
+    value: {survey: scf}
+    error: {kind: survey_replicate}
+    key: {group: '{cell}', target: '{variable} {statistic}'}

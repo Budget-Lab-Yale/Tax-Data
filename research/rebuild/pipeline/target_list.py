@@ -912,11 +912,13 @@ def cbo_count_rows(year, v, stats, e):
     (since 1 November, decision 74, always the 2023 file) count (its final weights; the count as the targets count it: filers, and for itemizers and AMT
     returns the filers with a nonzero calculator value) times CBO's growth in that count from the previous year to
     this one. Until 31 October the target was CBO's level itself, which differs from the file's by the definition of a
-    return. After 2036 CBO publishes none: no row (the entry is then left out and the file's count follows from the
-    demographic cells). The standard error is the entry's, as before."""
+    return. After 2036 CBO publishes none, and since 4 November 2026 (the long-run years) no CBO number is used after
+    settings tilt.projection.cbo_last_year (2035): no row (the entry is then left out and the file's count follows from
+    the demographic cells). The standard error is the entry's, as before."""
     import projection_demographics as PD
+    import projection_growth as PG
     series = e['outside_line']
-    if year > 2036:
+    if year > PG.cbo_last_year():
         return []
     assert len(stats) == 1
     spec = start_spec(year)

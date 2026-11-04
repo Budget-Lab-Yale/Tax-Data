@@ -135,31 +135,38 @@ def list_for_year(year):
 
 
 def growth_factors(s, t):
-    """The growth per return from s to t of the three kinds of holding the billionaires have, by the rule the
-    projection years' start grows each item with (tilt.grow_dollars, cbo_per_return): public stock as value.equities
-    and a private business as value.pass_throughs (projection_growth.plan_factors: the Financial Accounts series per
-    return through 2025, then CBO's GDP per return), private real estate as value.re_fund, which has no projection
-    rule and so, as in grow_dollars, keeps growth.yaml's (the SCF's mean per tax unit, wave of income year t - 1 over
-    that of s - 1, after the last wave by the Financial Accounts per person: build_table.scf_growth). Returns
-    {part: (factor, source)}."""
+    """The growth per return from s to t of the three kinds of holding the billionaires have: public stock as
+    value.equities and a private business as value.pass_throughs, private real estate as value.re_fund, which keeps
+    growth.yaml's rule (the SCF's mean per tax unit, wave of income year t - 1 over that of s - 1, after the last wave
+    by the Financial Accounts per person: build_table.scf_growth). Until 4 November 2026 the first two were
+    projection_growth.plan_factors (the Financial Accounts series per return through 2025, then CBO's GDP per return,
+    2024-2036 only); since then (the long-run years, 2036-2075) they are the items table's series for the column (the
+    same growth in total through 2035, resources/projection_series_current.csv, then nominal GDP) over the growth in
+    the number of returns (projection_growth.returns_growth: CBO's through settings tilt.projection.cbo_last_year, then
+    adults with a couple counted once), which gives the same factors as before through 2035. No add factors apply
+    (none may be set on these two columns). Returns {part: (factor, source)}."""
     import build_table as BT
     import projection_growth as PG
-    assert 2024 <= s < t <= 2036, f'billionaires grown from {s} to {t}: projection growth covers 2024-2036 only'
+    import projection_steps as PS
+    assert 2024 <= s < t, f'billionaires grown from {s} to {t}: only forward from a list year after 2023'
     cols = {'public': 'value.equities', 'private_pt': 'value.pass_throughs', 'private_re': 'value.re_fund'}
-    got, problems = PG.plan_factors(list(cols.values()), t, None, strict=False, from_year=s)
-    got = got.set_index('column')
+    tab, add = PS.items_table(), PS.add_factors_table()
+    R = PG.returns_growth(s, t)
     out, scf = {}, None
     for k, c in cols.items():
-        if c in got.index:
-            out[k] = (float(got.loc[c, 'factor']), f'{c}: {got.loc[c, "source"]}')
+        if k != 'private_re':
+            spec = tab.loc[c, 'series']
+            assert spec.startswith('file:') and tab.loc[c, 'kind'] == 'total', f'{c}: the items table row is {spec}, not a file series of kind total'
+            assert not (add['column'] == c).any(), f'{c}: add factors on a column the billionaires are grown by'
+            g, what = PS.series_growth(spec, s, t)
+            out[k] = (g / R, f'{c}: {what} (growth in total) over the growth in returns {R:.5f}')
             continue
         if scf is None:   # as grow_dollars: the SCF rows of the training table
             scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
             scf = scf[scf.source == 'scf']
         f = BT.scf_growth(scf, s - 1, t - 1)[c]
         assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
-        out[k] = (float(f), f'{c}: no projection rule ({next(q for q in problems if q.startswith(c))[:60]}...); '
-                            f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
+        out[k] = (float(f), f'{c}: SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
     return out
 
 

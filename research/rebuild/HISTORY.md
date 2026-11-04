@@ -1017,6 +1017,18 @@ John approved each merge (scratch `explore/2026-11-03/`, one RESULTS.md per piec
   growth.yaml rule, not targeted).
 - **The RA's check tool** (`rebuild-tabtool`, `check_tool/`), outside the pipeline.
 
+### 3-4 November (night): the projection years to 2075 (branch `rebuild-longrun`, not merged)
+
+John: "lets just run to 2075"; the same three steps, only longer series (scratch `explore/2026-11-04/longrun/`,
+RESULTS.md, DECISIONS.md, MAPPING.md). Every series of the items table continues past 2035 at one Macro-Projections
+aggregate (production's long-run mapping); per-return series are divided by adults with a married couple counted
+once. The 27 items on today's code rule became series files with the same growth to 2035, so the start no longer
+reads CBO's planner. Configuration folders 2036-2075, 401(k) limits, the Z.1 and population files, the growth.yaml
+rules and the Forbes list's growth extended; the calculator's law compiles to 2075. Cheap checks only (2024-2035
+reproduced to 7 in 10^16; every factor finite and positive; every year's configuration loads); no year was run.
+Open: CBO has no married 16-year-olds in 2070-2072, so step 1 cannot run those three years until married people under
+18 are counted as unmarried (not changed: John's call).
+
 ## Paths tried and not taken
 
 | What | Why not |

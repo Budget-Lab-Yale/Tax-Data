@@ -352,8 +352,29 @@ def cbo_level(concept, y):
     return float(d['value'].iloc[0])
 
 
+# (4 November 2026, the long-run years) past CBO's last year used (settings tilt.projection.cbo_last_year) each concept
+# continues at the growth of a Macro-Projections aggregate per return (production's long-run mapping, src/project_puf.R
+# income_far), the number of returns at the growth of adults with a couple counted once (projection_growth.long_run_growth)
+CBO_LONG_RUN = {
+    'Salaries and wages': 'gdp_wages', 'Taxable interest and ordinary dividends': 'gdp_interest',
+    'Qualified dividends': 'gdp_corp', 'Capital gain or loss': 'gdp_corp',
+    'Net business income': 'gdp_proprietors + gdp_rent + gdp_corp', 'Taxable pensions and annuities': 'outlays_mand_oasdi',
+    'Subtract statutory adjustments': 'gdp', 'Adjusted gross income': 'gdp'}
+
+
 def cbo_growth(concept, a, b):
-    """CBO's growth of a concept per return from year a to b (a count, 'Number of returns', as itself)."""
+    """CBO's growth of a concept per return from year a to b (a count, 'Number of returns', as itself); past CBO's last
+    year used, its long-run aggregate's (CBO_LONG_RUN)."""
+    import projection_growth as PG
+    L = PG.cbo_last_year()
+    if b > L:
+        x = max(a, L)
+        head = cbo_growth(concept, a, x) if x > a else 1.0
+        if concept == 'Number of returns':
+            return head * PG.long_run_growth('units', x, b)
+        if concept not in CBO_LONG_RUN:
+            raise ValueError(f'CBO concept {concept!r}: no long-run aggregate past {L} (targets.CBO_LONG_RUN)')
+        return head * PG.long_run_growth(CBO_LONG_RUN[concept], x, b, per='units')
     if concept == 'Number of returns':
         return cbo_level(concept, b) / cbo_level(concept, a)
     per = lambda y: cbo_level(concept, y) / cbo_level('Number of returns', y)

@@ -2,7 +2,7 @@
 
 A general method for building a synthetic tax file for any year: one generative model of tax units, pretrained on the
 PUF and household surveys (the SCF, the CEX, the CPS and the SIPP), then reweighted to each year's published totals.
-It builds a file for every year 2015-2035. Nothing here feeds `src/main.R` yet.
+It builds a file for every year 2015-2035 (2036-2075 on branch `rebuild-longrun`: code only, not yet run). Nothing here feeds `src/main.R` yet.
 
 | Read | For |
 |---|---|
