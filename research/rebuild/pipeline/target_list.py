@@ -557,6 +557,90 @@ def published_status(soi, year, source, cells, stats):
     return rows
 
 
+# (3 November 2026, John; explore/2026-11-03/age_by_agi) Table 1.6 by AGI: the All returns panel's returns by the
+# primary filer's age range within each AGI group. A row whose AGI columns do not add to its own all-AGI total by more
+# than this many returns has a misprinted cell (2018, 26 under 35: SOI's workbook prints $40,000-50,000 and
+# $50,000-75,000 2.21 million too high, both flagged combined in the mirror; the four filing-status panels confirm it).
+T16_ROW_SLACK = 50
+
+
+def table_16_by_agi(year):
+    """Table 1.6's All returns panel for a year: {age row label: (all-AGI total, [(lo, hi, value, flag), ...])}, the
+    AGI columns lowest first. Values are returns. Rows under 26 are left out (the targets start at 26)."""
+    t = pd.read_csv(common.SETTINGS['ages']['table_1_6'], dtype=str, keep_default_na=False)
+    t = t[(t.tax_year == str(year)) & (t.panel == 'All returns') & t.row_label.isin(TG.T16_ROWS[1:])]
+    assert len(t), f'Table 1.6 {year}: no All returns panel'
+    out = {}
+    for row, g in t.groupby('row_label'):
+        tot = g[(g.col_agi_lo == '') & (g.col_agi_hi == '')]
+        assert len(tot) == 1 and tot.value.iloc[0] != '', f'Table 1.6 {year}, {row}: no all-AGI total'
+        cols = g[(g.col_agi_lo != '') & (g.col_agi_hi != '')]
+        assert (cols.value != '').all(), f'Table 1.6 {year}, {row}: a blank AGI cell in the All returns panel ' \
+                                         f'({cols.loc[cols.value == "", "col_label"].tolist()}); it would need joining'
+        cells = sorted((float(r.col_agi_lo), float(r.col_agi_hi), float(r.value), r.flag) for r in cols.itertuples())
+        out[row] = (float(tot.value.iloc[0]), cells)
+    assert sorted(out) == sorted(TG.T16_ROWS[1:]), f'Table 1.6 {year}: age rows {sorted(out)}'
+    return out
+
+
+def published_16_agi(year, cells, stats):
+    """Rows of returns by the primary filer's age range (26 and over) within AGI groups, Table 1.6's All returns
+    panel. Each AGI group sums the published columns inside it (Table 1.6's columns are Table 1.4's brackets, so the
+    standard grid's edges fall on them). Where a row's columns do not add to its own all-AGI total, the run of adjacent
+    cells it flags 'combined' is the misprint: the groups that run touches are merged for every age (as a published
+    cell crossing an edge merges groups, merge_groups), and in the misprinted row the merged group is the row's total
+    less its other columns. Every row's groups must then add to its total."""
+    assert stats == ['units'], 'Table 1.6 by AGI: returns only'
+    t16 = table_16_by_agi(year)
+    (gname,) = {c['agi'] for c in cells}
+    g = CAT['groupings'][gname]
+    groups = [(-np.inf if lo is None else float(lo), np.inf if hi is None else float(hi), lab) for lo, hi, lab in g['edges']]
+    bad = {}
+    for row, (tot, cl) in t16.items():
+        if abs(sum(v for _, _, v, _ in cl) - tot) <= T16_ROW_SLACK:
+            continue
+        runs, cur = [], []
+        for lo, hi, v, flag in cl:
+            if flag == 'combined':
+                cur.append((lo, hi))
+            else:
+                runs, cur = runs + ([cur] if len(cur) > 1 else []), []
+        runs += [cur] if len(cur) > 1 else []
+        assert len(runs) == 1, f'Table 1.6 {year}, {row}: AGI columns add to {sum(v for _, _, v, _ in cl):,.0f}, the ' \
+                               f'total is {tot:,.0f}, and {len(runs)} runs of adjacent combined cells: a decision is needed'
+        bad[row] = (runs[0][0][0], runs[0][-1][1])
+        common.say(f'Table 1.6 {year}, {row}: AGI columns add to {sum(v for _, _, v, _ in cl):,.0f} against the '
+                   f'total {tot:,.0f}; the combined cells from {bad[row][0]:,.0f} to {bad[row][1]:,.0f} are taken as the '
+                   'total less the other columns')
+    groups = merge_groups(groups, [(lo, hi, row) for row, (lo, hi) in bad.items()])
+    rows = []
+    for c in cells:
+        (aname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'age_range']
+        (k,) = [val for val, lab in CAT['groupings'][aname]['values'] if lab == c['parts'][aname]]
+        row = TG.T16_ROWS[k]
+        tot, cl = t16[row]
+        vals = []
+        for lo, hi, lab in groups:
+            inside = [v for l_, h_, v, _ in cl if l_ >= lo and h_ <= hi]
+            assert all((l_ >= lo and h_ <= hi) or h_ <= lo or l_ >= hi for l_, h_, _, _ in cl), \
+                f'Table 1.6 {year}, {row}: a published column crosses the edge of {lab}'
+            if row in bad and lo <= bad[row][0] and bad[row][1] <= hi:
+                v = tot - sum(v for l_, h_, v, _ in cl if not (l_ >= lo and h_ <= hi))
+                src = f'soi 1.6 {year}, All returns, {row}: the all-AGI total less the other AGI columns (the ' \
+                      'published cells here are misprinted)'
+            else:
+                v = float(sum(inside))
+                src = f'soi 1.6 {year}, All returns, {row}: ' + ('one AGI column' if len(inside) == 1 else
+                                                                  f'{len(inside)} AGI columns summed')
+            vals.append(v)
+            spec = {**c, 'parts': {**c['parts'], gname: lab}, 'label': f'{lab}, primary {c["parts"][aname]}'}
+            rows.append({'cell': spec['label'], 'cell_spec': spec, 'agi': (lo, hi), 'statistic': 'units', 'value': v,
+                         'source': src})
+        assert abs(sum(vals) - tot) <= T16_ROW_SLACK, \
+            f'Table 1.6 {year}, {row}: the AGI groups add to {sum(vals):,.0f}, the total is {tot:,.0f}'
+    return rows
+
+
 _CPS_YEARS = None
 
 
@@ -1461,6 +1545,8 @@ def expand_entry(e, year, soi):
             rows = published_w2_shares(src, vyear, cells, v, e)
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_by_agi':
             rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'published' and src == 'soi 1.6' and any(c['agi'] for c in cells):
+            rows = published_16_agi(vyear, cells, stats)
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
@@ -1675,9 +1761,16 @@ def conditions(df, rows, w_start, check=True):
         if r.statistic == 'units':
             F[:, j] = cell
             if r.dependent_filers:
-                # Table 1.6's dependent filers 26 and over: spread over this status's ranges by the entry's own values
-                same = (rows['entry'] == r.entry) & (rows['married'] == r.married)
-                dep_26 = pops[r.population] & (married == r.married) & (rng == common.DEPENDENT_RANGES[-1])
+                # Table 1.6's dependent filers 26 and over: spread over this status's ranges by the entry's own values;
+                # (3 November 2026) for an entry by AGI group and not by status, over the ranges of the same AGI group
+                same = rows['entry'] == r.entry
+                dep_26 = pops[r.population] & (rng == common.DEPENDENT_RANGES[-1])
+                if not np.isnan(r.married):
+                    same &= rows['married'] == r.married
+                    dep_26 &= married == r.married
+                if not np.isnan(r.agi_lo):
+                    same &= (rows['agi_lo'] == r.agi_lo) & (rows['agi_hi'] == r.agi_hi)
+                    dep_26 &= (a >= r.agi_lo) & (a < r.agi_hi)
                 F[:, j] += dep_26 * r.value / rows.loc[same, 'value'].sum()
         elif r.statistic == 'count':
             count_var = variable_def(r.variable).get('count_variable')
