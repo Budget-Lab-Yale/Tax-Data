@@ -1735,36 +1735,42 @@ items table (`projection_items.csv`: series `current`, so its growth.yaml rule; 
 full run on the merged code (scratch `explore/2026-11-03/bigrun/`) are the first trained with this item and the
 pensions slots together.
 
-## How the latest runs come out (2 November 2026)
+## How the latest runs come out (3-4 November 2026)
 
-All 21 years on `rebuild-integration-1102`, on the 1 November draws (scratch `explore/2026-11-02/integration/`,
-`RESULTS.md` there; run folders `run/<year>/`). Past years: Newton steps out of the then budget of 100, share of the
-effective sample kept, largest miss in standard errors, the Forbes list in the file, and net worth of units whose
-primary is 80 and over (units below $1 billion) against the SCF tax units on the year's wave mix. Projection years
-have no age targets; their SCF figure is the wave mix grown to the year.
+Every year on `rebuild-joint-model` after the evening merges of 3 November (2a42643): three networks retrained on the
+merged table, every year 2015-2023 drawn again with a fresh top cache, 2024-2035 from the new 2023 (scratch
+`explore/2026-11-03/bigrun/RESULTS.md`; run folders `run/<year>/`). The run also includes the Table 1.6 age-by-AGI
+targets and Table 4.3's published cutoffs, merged onto the branch while it ran. Newton steps out of the budget of 150,
+share of the effective sample kept, largest miss in standard errors, and the calculator's income tax after credits on
+filers ($ billion, nominal dollars of the year).
 
-| Year | Steps | Effective sample kept | Largest miss (se) | Billionaires: units, net worth | Net worth 80+, file / SCF ($ billion) |
-|---|---:|---:|---:|---|---|
-| 2015 | 71 | 59.5% | 9.27 | 534, $2,564bn | 7,000 / 6,991 |
-| 2016 | 63 | 60.7% | 10.12 | 540, $2,400bn | 7,068 / 7,039 |
-| 2017 | 54 | 58.1% | 8.33 | 564, $2,756bn | 6,806 / 6,792 |
-| 2018 | 45 | 74.6% | 3.13 | 584, $3,099bn | 6,602 / 6,595 |
-| 2019 | 73 | 67.3% | 3.67 | 605, $3,111bn | 7,559 / 7,563 |
-| 2020 | 63 | 42.8% | 5.29 | 612, $2,949bn | 9,078 / 9,079 |
-| 2021 | 58 | 43.8% | 5.52 | 720, $4,398bn | 10,737 / 10,746 |
-| 2022 | 66 | 59.1% | 5.04 | 730, $4,701bn | 11,675 / 11,690 |
-| 2023 | 99 | 56.1% | 5.19 | 726, $4,489bn | 12,519 / 12,522 |
-| 2024 | 8 | 96.2% | 1.56 | 804, $5,701bn | 13,767 / 13,393 |
-| 2026 | 10 | 96.6% | 1.62 | 982, $8,431bn | 15,788 / 15,248 |
-| 2027 | 9 | 96.8% | 1.67 | 997 (held), $8,830bn | 16,539 / 15,890 |
-| 2030 | 16 | 97.3% | 1.79 | 1,040 (held), $10,080bn | 18,880 / 17,815 |
-| 2035 | 13 | 96.5% | 1.93 | 1,097 (held), $12,356bn | 23,230 / 21,254 |
+| Year | Steps | Effective sample kept | Largest miss (se) | Tax after credits ($ billion) |
+|---|---:|---:|---:|---:|
+| 2015 | 36 | 74.6% | 2.79 | 1,443 |
+| 2016 | 48 | 75.6% | 2.82 | 1,433 |
+| 2017 | 46 | 72.5% | 2.81 | 1,588 |
+| 2018 | 59 | 74.5% | 3.10 | 1,519 |
+| 2019 | 65 | 65.9% | 3.78 | 1,561 |
+| 2020 | 53 | 41.1% | 5.59 | 1,492 |
+| 2021 | 89 | 41.3% | 6.01 | 1,975 |
+| 2022 | 72 | 54.8% | 4.89 | 2,112 |
+| 2023 | 61 | 54.2% | 4.96 | 2,122 |
+| 2024 | 8 | 96.4% | 0.83 | 2,337 |
+| 2025 | 12 | 96.5% | 0.86 | 2,421 |
+| 2026 | 11 | 96.6% | 0.89 | 2,581 |
+| 2027 | 8 | 96.6% | 0.93 | 2,688 |
+| 2028 | 13 | 96.8% | 0.97 | 2,769 |
+| 2029 | 11 | 96.7% | 1.01 | 2,931 |
+| 2030 | 8 | 96.7% | 1.04 | 3,090 |
+| 2031 | 7 | 96.7% | 1.07 | 3,220 |
+| 2032 | 6 | 96.8% | 1.11 | 3,356 |
+| 2033 | 5 | 96.7% | 1.14 | 3,495 |
+| 2034 | 5 | 96.8% | 1.17 | 3,649 |
+| 2035 | 5 | 96.9% | 1.20 | 3,808 |
 
-**2023 and the step budget.** With the 2023 Forbes list the solve took 99 of 100 Newton steps, against 58 without
-it, and between 72 and 100 depending on the processor count alone. The cause is the soft cap meeting Table 4.3's tight
-top 0.001% cells, a quarter of whose returns the list holds; no target is wrong (`explore/2026-11-03/forbes2023/RESULTS.md`).
-John raised the budget to 150 on 3 November and switched the 2023 list back on: 2023 then converged in 92, 99 and 103
-steps on 1, 4 and 16 processors (`explore/2026-11-03/budget150/`).
+Every year converged. The pension and Social Security pairs have no breaks in any year, and taxable Social Security,
+now computed by the worksheet and untargeted, lands on SOI (2023: $528 billion against $527 billion). Against CBO,
+income tax after credits is 0.981-0.989 of CBO's in 2026-2035.
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (the 2019 run of 28 October, up to commit
 4c2c518). Known gaps are listed in `ROADMAP.md` and `NEXT_STEPS.md`.

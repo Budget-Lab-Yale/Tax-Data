@@ -1016,6 +1016,11 @@ John approved each merge (scratch `explore/2026-11-03/`, one RESULTS.md per piec
   later work were resolved in its favour; the projection items table got a row for the inheritance item (grown by its
   growth.yaml rule, not targeted).
 - **The RA's check tool** (`rebuild-tabtool`, `check_tool/`), outside the pipeline.
+- **The full run on the merged branch** (3-4 November, `bigrun/`): three networks retrained on the new table, every
+  year drawn again with a fresh top cache, all 21 years reweighted. Every year converged (2015-2023 in 36-89 Newton
+  steps, 2024-2035 in 5-13); no break in the pension and Social Security pairs; tax after credits 0.981-0.989 of CBO
+  in 2026-2035. One fix on the way: the top step's copy of the other itemized deductions rule lacked the small fix's
+  floor at zero, and its check stopped every year's top build (2a42643).
 
 ## Paths tried and not taken
 
