@@ -154,6 +154,8 @@ def puf_items(raw, itemizer=None, old=None):
     medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * np.where(old, 0.075, 0.1)))
     out['other_item_exp'] = np.where(itemizer, f['P04470'] + f['E21040'] - medical - f['E18400'] - f['E18500']
                                      - f['E19200'] - f['E19700'] - f['E20500'] - f['E20800'], 0.0)
+    # held at zero from below, as build_table.puf_rows does since 3 November (rebuild-small-fixes)
+    out['other_item_exp'] = np.maximum(out['other_item_exp'], 0.0)
     business = f['E00900'] + f['E02000'] + f['E02100']
     items = {'business_income': business, 'other_gains': out['other_gains'], 'txbl_ira_dist': out['txbl_ira_dist'],
              'txbl_pens_dist': out['txbl_pens_dist'],
