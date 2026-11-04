@@ -757,8 +757,11 @@ million for the top 0.1% against $2.22 million. SOI's totals were then imposed o
 
 **The count of returns above each cutoff is now a real target.** With the file's own line, the count held at the
 start by construction. Now the weights must put SOI's number of returns above SOI's cutoff. It is the existing
-`soi_4_3_returns` entry, with the same rule for its error as the other SOI counts: the median CV of the Table 1.4
-count cells closest in number of returns (`errors.borrow_cv`), or 1% of the value (`errors.full_sample_se`) where the
-cutoff is $10 million or more, since SOI samples every such return (the top 0.01% and 0.001% in every year). A year
+`soi_4_3_returns` entry. Its error is 1% of the value (`errors.full_sample_se`) where the cutoff is $10 million or
+more, since SOI samples every such return (the top 0.01% and 0.001% in every year). Below that (the top 0.1% and 1%)
+it is the median CV of the Table 1.4 count cells closest in number of returns among the AGI classes reaching above the
+cutoff (`errors.borrow_cv`; John, 4 November 2026). Until 4 November the cells came from every AGI class, so the top
+0.1% (141,000 returns in 2015) borrowed 8.2% from cells such as partnership income at $15,000-$20,000 of AGI, which
+SOI samples lightly; the same rule as Table 1.6's age-by-AGI cells (S14). A year
 with no published cutoff for a targeted group stops the run; every year 2015-2023 has all of them.
 

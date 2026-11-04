@@ -1189,6 +1189,18 @@ def published_grid(source, year, cells, v, stats):
                 se, kind = errors.FULL_SAMPLE_SE * abs(val), 'judgment'
                 reason = (f'{100 * errors.FULL_SAMPLE_SE:g}% of value (errors.full_sample_se): published AGI cutoff '
                           f'${cutoff:,.0f} is in the fully sampled AGI range; allowance for definition differences')
+            elif c.get('published_line') and st in ('count', 'units'):
+                # (4 November 2026, John) the count above a published AGI cutoff borrows only from Table 1.4's count
+                # cells in the AGI classes at or above the cutoff (a class reaching above it counts), as Table 1.6's
+                # age-by-AGI cells do (errors.soi_errors): SOI samples the top far more densely than the middle, and
+                # borrowing by count alone gave the top 0.1% (141,000 returns in 2015) the 8% CV of cells such as
+                # partnership income at $15,000-$20,000 of AGI
+                same = donors[~donors.total_row & (donors.hi > cutoff)]
+                cv, what = errors.borrow_cv(same, count=abs(val))
+                assert np.isfinite(cv), f'{source} {year} {c["label"]}: no Table 1.4 count cell with a CV above ${cutoff:,.0f}'
+                se, kind = abs(val) * cv / 100, 'soi_borrowed'
+                reason = (f'CV {cv:g}% from the nearest Table 1.4 count cells in AGI classes reaching above the cutoff '
+                          f'${cutoff:,.0f} ({donor_year}): {what}')
             else:
                 cv, what = errors.borrow_cv(donors, count=abs(val)) if st in ('count', 'units') else \
                     errors.borrow_cv(donors, amount=abs(val), returns=count)
