@@ -9,7 +9,7 @@ How the latest runs came out is at the end of this file.
 - **What a record carries.** Every PUF item production carries; from the SCF the household balance sheet (20 items,
   net worth computed from them), elective deferrals, auto loan interest and (since 3 November) inheritances received
   this year; spending in 8 categories from the CEX; from
-  the CPS each person's age and sex, dependents' ages, the split of a couple's wages and self-employment income,
+  the CPS each person's age and sex, dependents' ages, the split of a couple's wages (self-employment income: from the PUF since 4 November),
   weeks and hours worked, childcare and overtime pay; each adult's tips from the SIPP; and the non-microdata
   imputations (below): dependent filers' ages, child credit eligibility, blindness, death probabilities, unrealized
   gains and basis, parents' income rank, the AMT loss rule. Names are Tax-Simulator's.
@@ -124,11 +124,13 @@ held-back rows included.
   SIPP; not on the PUF, which has only the age range): below, "Exact ages";
 - person items (CPS only): the exact ages of up to three dependents
   (youngest first); the sex of the primary
-  filer and the spouse; the spouse's share of the couple's wages and of its
-  Schedules C and F income; each adult's weeks worked and usual weekly
+  filer and the spouse; the spouse's share of the couple's wages; each adult's weeks worked and usual weekly
   hours; childcare expenses; each adult's overtime pay (since 28 October;
   below, "Overtime"). The file's wages1 and wages2 (and se1, se2) are the
   total split by the drawn share, so they add up to the total.
+- the split of a couple's earnings (PUF and CPS, since 4 November; below, "The split of a couple's earnings"): the
+  spouse's share of the couple's self-employment income (on the PUF from Schedule SE, E30500 / E30400) and the
+  earnings split code (the PUF's EARNSPLIT; on the CPS the couple's own code).
 - the AGI group label (PUF only; `qgroups.py`, `build_table.py`
   agi_group_label): the record's band-AGI group, one of 12 (below). It is
   computed from the record's bands, not its exact dollars.
@@ -137,6 +139,8 @@ All five sources share married, dependents, the primary filer's age range,
 wages and gross Social Security. The SCF, the CEX, the CPS and the SIPP share
 the exact ages of the primary filer and the spouse; the CPS and the SIPP share
 the spouse's share of the couple's wages. The PUF also shares:
+- with the CPS, the spouse's share of the couple's self-employment income and the earnings split code (since 4
+  November);
 - with the SCF, the CEX and the CPS, Schedules C and F income (the CPS's as its
   Schedule C);
 - with the SCF, the CPS and the SIPP, ordinary dividends (the CPS's go to
@@ -219,9 +223,9 @@ targets the tilt reads for non-filers by age.
     ages: 87 values (the CPS's top code is 85). The primary filer's and the
     spouse's: 82 values, 80 and over as 80 (below, "Exact ages"). Sex: 0
     none, 1 a man, 2 a woman;
-  - the spouse's share of the couple's wages, and of its Schedules C and F
-    income, is an amount from 0 to 1, cut into bands within each year like
-    the CEX's categories. It is recorded only on married couples with some
+  - the spouse's share of the couple's wages is an amount from 0 to 1, cut into bands within each year like
+    the CEX's categories (the share of self-employment income: since 4 November a PUF slot shared with the CPS, cut
+    on fixed cut points on both; below, "The split of a couple's earnings"). It is recorded only on married couples with some
     of the item (absent elsewhere, so the model is never asked it there).
     The file's spouse amount is the share times the record's own total, and
     the primary filer's is the total less the spouse's: the parts add up to
@@ -756,7 +760,9 @@ Two standard functions and one table (`settings.json`, "translation";
 1. the PUF variables, in a random order;
 2. line-13 capital gains, business income and its two subtotals, ordinary
    dividends and the adjustments, computed from their parts; then the
-   partnership/S corporation/LLC flag;
+   partnership/S corporation/LLC flag; then (since 4 November) under the batch's label the spouse's share of the
+   couple's self-employment income (only on a married couple with Schedules C or F or partnership income subject to
+   self-employment tax) and the earnings split code (0 unless married; 1-3 with wages);
 3. the exact ages of the primary filer and the spouse, in a random order,
    as the CPS would see the unit (CPS label, at the record's CPS year): the
    CPS covers every tax unit, filers and non-filers, in every year, and its
@@ -1831,6 +1837,30 @@ Results of the retrain: scratch `explore/2026-11-03/scf2025/RESULTS.md`. In the 
 items table (`projection_items.csv`: series `current`, so its growth.yaml rule; not targeted). The networks of the
 full run on the merged code (scratch `explore/2026-11-03/bigrun/`) are the first trained with this item and the
 pensions slots together.
+
+## The split of a couple's earnings, taken from the PUF (branch `rebuild-earnsplit`, 4 November)
+
+What changed: the spouse's share of a couple's self-employment income and the earnings split code (EARNSPLIT) are
+now PUF facts shared with the CPS. Before, both were drawn from the CPS alone. Design and reading of the PUF fields:
+"The earnings split" in `AGES.md`; the checks in scratch `explore/2026-11-04/earnsplit/FINDINGS.md`.
+
+1. E30400 is the couple's Schedule SE earnings and E30500 the spouse's part (production reads E30400 as the
+   primary's alone). The spouse's share of the couple's self-employment income is E30500 / E30400 on a joint return.
+2. EARNSPLIT is a category on the PUF (known, or filled by a gradient boosted classifier where the record has no
+   demographics) and the CPS couple's own code on the CPS. The spouse's share of wages is drawn inside the range the
+   code allows.
+3. The three pooled models were retrained with the two new slots; the 2019 file was drawn and reweighted with run3's
+   targets.
+
+Result for 2019 against run3 (`explore/2026-11-04/earnsplit/RESULTS.md`): the higher-wage spouse's share of
+self-employment income fell from 0.45 to 0.40 (CPS 0.25; PUF 0.31); the spouse's Schedules C and F fell from $62.9
+to $38.0 billion; self-employment tax is $60.8 billion (run3 $59.8; SOI $67.3); the child and dependent care credit
+is $4.27 billion (run3 $4.31; SOI $3.78); AGI, wages and Schedules C and F do not move. Held-out score 9.29 against
+8.14, all of it in the CPS checks (5.53 to 13.45; the spouse's wage share distribution is the largest); the PUF checks
+improved (10.23 to 9.94). The wages1 + wages2 and se1 + se2 identities hold to machine precision (largest gap 3e-8).
+Not adopted: the CPS score has to be understood first.
+
+The partnership item part_se is a separate change (below, in the combined retrain); it is not in these networks.
 
 ## How the latest runs come out (3-4 November 2026)
 
