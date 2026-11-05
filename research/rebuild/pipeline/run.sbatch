@@ -42,7 +42,9 @@ PY_MODULES='PyTorch/2.9.1-foss-2024a-CUDA-12.8.0 scikit-learn/1.6.1-gfbf-2024a A
 export PYTHONDONTWRITEBYTECODE=1
 # settings generation.filers ('synthetic' or 'real_puf') and whether the year's start is generated (a past year)
 filers() { python -c "import json, os; print(json.load(open(os.environ['REBUILD_SETTINGS']))['generation'].get('filers', 'synthetic'))"; }
-start_mode() { PYTHONPATH=$P${PYTHONPATH:+:$PYTHONPATH} python -c "import target_list as T, common; print(T.start_spec(common.TARGET_YEAR)['mode'])"; }
+# (5 November) the last line only: importing target_list prints notes in some years (2018: SOI lines filled from the
+# neighbouring years), and with them the comparison with "generate" failed and the real-PUF top step was skipped
+start_mode() { PYTHONPATH=$P${PYTHONPATH:+:$PYTHONPATH} python -c "import target_list as T, common; print(T.start_spec(common.TARGET_YEAR)['mode'])" | tail -n 1; }
 # the package (package.py): the files and the Python merge script's round trip, then the R merge script run on the
 # same PUF (R with the arrow package, John's library) and its round trip; any failure stops the job
 run_package() {
