@@ -106,10 +106,10 @@ a run of the years it touches, a comparison with the run before it, and John's a
    every package passes the round trip with both scripts. **Not installed; John decides.** Open with it:
    - **The real-PUF 2021 does not converge** (150 of 150 Newton steps, largest gradient 1.32, still falling about a
      third every ten steps); real 2023 now converges in 100. Real 2022 and 2024-2075 do not start from 2021.
-   - **The four aggregate records.** In every real-PUF year the solve sets almost every copy of them to a weight near
-     zero: they hold most of Table 4.3's top 0.001% at the start, and every one has Schedule C or F profit, so the
+   - **The four aggregate records.** In every real-PUF year the solve sets at least 9 of their 12 copies to a weight near
+     zero: they hold much of Table 4.3's top 0.001% at the start (43-79% of its cells in 2021), and every one has Schedule C or F profit, so the
      count of such returns there (2.9-4.7 times SOI's at the start) can only be cut by removing them; the top
-     0.001%'s AGI and gains then miss by 7-18 standard errors. Splitting the aggregate records, or how Table 4.3's top
+     0.001%'s AGI then misses by 6.7-18 standard errors (2019: 2.1). Splitting the aggregate records, or how Table 4.3's top
      cells treat them, is John's decision.
    - **Synthetic 2021** converged on its 150th Newton step (2020: 137), with no margin.
 
