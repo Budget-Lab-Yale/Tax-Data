@@ -702,6 +702,11 @@ class Chunk:
         for var, bands in preset.items():
             self.values[:, NC + P.index(var)] = bands[start:start + size].to(device)
             self.filled[:, P.index(var)] = True
+            if P.index(var) in GATED:
+                # (run6, 5 November; filers real_puf) a gated share preset on some records only: -1 is no preset, and
+                # those records are asked or not by the generator's own rule and drawn in step 2b; a preset share
+                # stands, whether or not the rule would ask it
+                self.filled[:, P.index(var)] = bands[start:start + size].to(device) >= 0
         self.triggered = torch.zeros(size, len(RULES), dtype=torch.bool, device=device)
         self.resolved = self.triggered.clone()
         self.must = torch.zeros(size, len(P), dtype=torch.bool, device=device)
@@ -800,7 +805,7 @@ class Chunk:
             some = torch.zeros_like(married)
             for b in bases:
                 some |= v[:, NC + b] > 0
-            self.not_asked[j] = ~married | ~some | dep
+            self.not_asked[j] = (~married | ~some | dep) & ~self.filled[:, j]   # (run6) a preset share stands
             v[~self.not_asked[j] & ~self.filled[:, j], NC + j] = 0   # asked, not yet drawn: present and hidden
         for j, m in self.not_asked.items():
             v[m, NC + j] = -1
@@ -833,7 +838,13 @@ class Chunk:
             probs[na, 0] = 1.0
         if label == 'cps' and WAGE_SHARE is not None and ES_SLOT is not None:
             probs = self.wage_share_bands(slot, probs)
+        # (run6) a slot preset on some records only (a real PUF record's share) keeps its preset value; in a synthetic
+        # batch no survey step's slot is filled before its own step, so nothing changes there
+        keep = self.filled[self.rows, slot]
+        before = self.values[self.rows, NC + slot].clone()
         self.take(probs, slot)
+        if bool(keep.any()):
+            self.values[self.rows[keep], NC + slot[keep]] = before[keep]
         for j, m in self.not_asked.items():
             self.values[m, NC + j] = -1
 
@@ -921,7 +932,8 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
                          and v not in STATUS_SLOTS and v not in M.PUF_LABELS and v not in LATE_SLOTS], dtype=torch.long)
     own = torch.cat([first, then, rest])
-    late = torch.tensor([P.index(v) for v in LATE_SLOTS if v not in preset], dtype=torch.long)   # step 2b
+    # step 2b; (run6) a gated share preset on some records only is drawn here for the others
+    late = torch.tensor([P.index(v) for v in LATE_SLOTS if v not in preset or P.index(v) in GATED], dtype=torch.long)
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
     cps = torch.tensor([P.index(v) for v in CPS_FIRST])
     cps_ot = torch.tensor([P.index(v) for v in CPS_OVERTIME], dtype=torch.long)
@@ -1090,15 +1102,23 @@ def real_puf_records():
     import top_hidden as TH
     own = own_items()
     slots = preset_slots()
-    cols = list(dict.fromkeys(['source', 'record_id', 'weight', 'age_range'] + M.AGE_PROBS
+    cols = list(dict.fromkeys(['source', 'record_id', 'weight', 'age_range'] + M.AGE_PROBS + M.ES_PROBS
                               + [M.column(v) for v in slots] + own))
     t = pd.read_parquet(common.TABLE, columns=cols)
     o = t[(t.source == 'puf').to_numpy()].reset_index(drop=True)
     del t
     na = o[cols].isna().sum()
     assert not na.any(), f'missing values on PUF rows: {na[na > 0].to_dict()}'
-    bad = {M.column(v): int((o[M.column(v)] < 0).sum()) for v in slots if v != 'age_range' and (o[M.column(v)] < 0).any()}
+    # (run6, 5 November) the earnings split's two slots (earn_split.py) may be -1 on a PUF row, as in training: the
+    # spouse's share of self-employment income where the PUF does not ask it (not joint, no self-employment income, or
+    # no Schedule SE earnings), kept absent; the earnings split code on joint returns with no demographics, drawn
+    # from step 0's probabilities (real_puf_part), as the age range is
+    may_lack = {'age_range', 'earn_split'} | set(M.PUF_SHARES)
+    bad = {M.column(v): int((o[M.column(v)] < 0).sum()) for v in slots if v not in may_lack and (o[M.column(v)] < 0).any()}
     assert not bad, f'PUF rows with a slot absent: {bad}'
+    if 'earn_split' in slots:
+        none = o['earn_split'].to_numpy() < 0
+        assert np.allclose(o.loc[none, M.ES_PROBS].sum(1), 1), 'earn_split: a PUF row with no code and no probabilities'
     o = o.rename(columns={v: D.OWN + v for v in own})
     agg_raw, _ = TH.read_raw()
     # alimony received and paid (E00800, E03500) are blank on the four records (disclosure-suppressed; top_hidden
@@ -1118,7 +1138,7 @@ def real_puf_records():
     a = pd.DataFrame({'record_id': agg_raw['RECID'].astype(float).to_numpy(),
                       'weight': agg_raw['S006'].to_numpy(float) / 100})
     for v in slots:
-        if v in M.CATEGORICAL or v in M.PUF_LABELS:
+        if v in M.CATEGORICAL or v in M.PUF_LABELS or v in LATE_SLOTS:   # the late slots are drawn (real_puf_part)
             continue
         a[M.column(v)] = bands[f'{v}_band'].to_numpy()
     for flag, parts in FLAGS.items():
@@ -1151,13 +1171,31 @@ def real_puf_part(model, mod, k, n_models, fac):
     rng[miss] = np.minimum((cp < u[:, None]).sum(1), common.N_RANGES - 1)
     preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v != 'age_range'}
     preset['age_range'] = torch.as_tensor(rng)
+    if 'earn_split' in preset:
+        # (run6, 5 November) the earnings split code where the PUF has none (joint returns with no demographics): one
+        # draw per record and copy from step 0's probabilities (es_p*, earn_split.py), as training draws it each pass
+        es = o['earn_split'].to_numpy().astype(np.int64)
+        es_miss = es < 0
+        ue = uniform_by_id(o.loc[es_miss, 'record_id'].to_numpy(), int(G.get('real_puf_earn_split_salt', 2026110501)) + k)
+        ce = np.cumsum(o.loc[es_miss, M.ES_PROBS].to_numpy(float), 1)
+        es[es_miss] = np.minimum((ce < ue[:, None]).sum(1), len(M.ES_PROBS) - 1)
+        preset['earn_split'] = torch.as_tensor(es)
+        common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from step 0's probabilities on "
+                   f"{int(es_miss.sum()):,} joint returns with no demographics (codes {np.bincount(es[es_miss], minlength=len(M.ES_PROBS)).tolist()})")
     part, counts = generate(model, len(o), seed, preset=preset, factors=fac, totals_preset=True)
     for v in slots:
         c = M.column(v)
-        assert np.array_equal(part[c].to_numpy(), preset[v].numpy()), f'real PUF: the draw moved {c}'
+        on = preset[v].numpy() >= 0 if P.index(v) in GATED else np.ones(len(part), bool)   # (run6) -1: drawn
+        assert np.array_equal(part[c].to_numpy()[on], preset[v].numpy()[on]), f'real PUF: the draw moved {c}'
+    for v in slots:
+        if P.index(v) in GATED:
+            n_drawn = int((preset[v].numpy() < 0).sum())
+            n_set = int((part[M.column(v)].to_numpy()[preset[v].numpy() < 0] > 0).sum())
+            common.say(f"{mod['run']}: real PUF copy {k + 1}: {v} not on the PUF for {n_drawn:,} records, which the "
+                       f"generator's rule then asks or not; {n_set:,} of them drew a share above the first band")
     part['age_range_drawn'] = miss.astype(np.int64)
     part['puf_aggregate'] = 0
-    drawn_a = set(TYPE_SLOTS) | set(STATUS_SLOTS)
+    drawn_a = set(TYPE_SLOTS) | set(STATUS_SLOTS) | set(LATE_SLOTS)   # (run6) the late slots drawn, as the status is
     pre_a = {v: torch.as_tensor(a[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v not in drawn_a}
     part_a, counts_a = generate(model, len(a), seed + 7, preset=pre_a, factors=fac, totals_preset=True,
                                 adult_only=True)
