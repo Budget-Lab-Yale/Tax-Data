@@ -17,7 +17,7 @@ network, no GPU and none of our other data.
 |---|---|
 | `README.md` | the year's own description: how the file was made, each file, how to run the merge, the round-trip result |
 | `factors.parquet`, `factors.csv` | one row per PUF item and step, with a factor for positive amounts and one for negative amounts, the same for every record. Always relative to the 2015 PUF |
-| `records.parquet` | one row per PUF record copy in the file: RECID and copy, the weight factor, the refund flag, the items we added, and a few Tax-Simulator columns as values |
+| `records.parquet` | one row per PUF record copy in the file: RECID and copy, the weight factor, the refund multiplier, the items we added, and a few Tax-Simulator columns as values |
 | `extra_records.parquet` | the records that are not PUF records: non-filers and the Forbes list of billionaires, every Tax-Simulator column |
 | `spec.json` | the definitions: how each 2015 item is made from PUF fields, how the computed columns are made, where each Tax-Simulator column comes from |
 | `merge_puf.py`, `merge_puf.R` | the merge, in Python and in R |
@@ -26,7 +26,9 @@ Each PUF record appears three times, once per network (column `copy`), at a thir
 the years the file was built through: in a past year (2015-2023), the growth from 2015 to the year; in 2024, the
 growth from 2015 to 2023 and then from 2023 to 2024; in 2025-2075, those and then the growth from 2024 to the year (the
 jump-off rule, TARGETS.md S13). The six Schedule A multipliers of the year the records were drawn are one more step on
-six itemized items.
+six itemized items. A deduction the law has repealed by the year is one more step with a factor of zero from the
+repeal year (John, 5 November): the domestic production activities deduction from 2018, the tuition and fees
+deduction from 2021 (settings `taxes.repealed_adjustments`).
 
 ## How they use it
 
@@ -39,17 +41,30 @@ exactly; no extension writes both.
 
 ## How the values that change beyond a growth factor are shipped
 
-Most PUF items are their 2015 amount times one growth factor per year and sign. Three rules change an item by more
-than that; each is shipped in the form that says least about any record:
+Most PUF items are their 2015 amount times one growth factor per year and sign. These rules change an item by more
+than that; each is shipped in the form that says least about any record (John's decisions of 5 November for 1, 3
+and 4):
 
-1. **Taxable state refunds** (the tax benefit rule, decision 47: a refund is taxable only to a return that deducted
-   the tax by itemizing; the pipeline sets the refund to zero on returns our calculator finds do not itemize in the
-   year): a 0/1 flag per record copy, `state_ref_kept`, not the amount. The merge removes the refund where the flag is 0 and computes other income and taxable Social Security
-   again.
+1. **Taxable state refunds.** Two rules cut the refund. The refund rule (decision 47): a refund is taxable only to a
+   return that deducted the tax by itemizing, so the pipeline removes it on returns our calculator finds do not
+   itemize in the year. The tax benefit rule (version A, from 2019): an itemizer's refund is taxable only as far as
+   deducting the tax lowered tax, so under the cap on the state and local tax deduction part or all of it can go;
+   15% of the refunds this rule would cut are kept whole, because SOI shows returns reporting them anyway. The
+   package ships the outcome as one multiplier per record copy and year, `state_ref_multiplier`, between 0 and 1: 0
+   where the refund is removed, 1 where it is kept whole, the share kept where the tax benefit rule keeps part. The
+   merge multiplies the grown refund by it and computes other income and taxable Social Security again; it does no
+   tax calculation for this item.
 2. **The Schedule A multipliers** (decision 49: medical expenses, state and local income or sales tax, real estate
    tax, mortgage interest, cash and other gifts, each scaled so that the average deduction per itemizer is the IRS's):
    six numbers per year, a step in the factor file, the same for every record.
-3. **The AMT net operating loss adjustment** (P60100): a rule the merge applies, not values. The adjustment, grown
+3. **Repealed deductions** (the domestic production activities deduction from 2018, tuition and fees from 2021): a
+   step of factor zero in the factor file from the repeal year, the same for every record.
+4. **The deductible half of self-employment tax** (E03260): not shipped. The pipeline's file holds our calculator's
+   amount (settings `taxes.se_tax_ded_from_calculator`), no column of the Tax-Simulator file holds it, and the
+   recipient's tax calculator computes it from the self-employment income and wages, as ours does. Its factor rows
+   are the plain growth, so the merge's working items carry the PUF's own amount grown, which no output column reads;
+   the factor check counts the record copies where that differs from our file and does not stop on them.
+5. **The AMT net operating loss adjustment** (P60100): a rule the merge applies, not values. The adjustment, grown
    like any item, is held to at most the record's net operating loss, the negative part of its other income (the PUF
    has no field of its own for the loss).
 
@@ -65,7 +80,15 @@ and from weights that no factor reproduces to the last binary digit; each year's
 `roundtrip_<run>_python.csv` and `roundtrip_<run>_r.csv` beside the package list them by column. On 4 November
 (2019, 2023, 2024, 2030 and 2075) both scripts gave 187 of the 188 columns identical on every record; the weight was
 one last binary digit off on about 12% of record copies (scratch `explore/2026-11-04/realpuf_setting/RESULTS.md`).
-A package is about 69 MB a year.
+The deductible half of self-employment tax is the stated exception: it is not shipped and no Tax-Simulator column
+holds it, so the test compares every other column.
+
+Run6 (5 November, with the three changes above; scratch `explore/2026-11-05/run6/RESULTS.md` and
+`package_results.csv`): every year 2015-2075 passed with both scripts. 2015-2018: 187 of 188 columns identical on
+every record, the weight off by rounding only. 2019 on: 186 identical; the weight and the taxable state refund off by
+rounding only (the refund on 7 to 218 record copies a year, by one last binary digit: the grown refund times its
+multiplier is not always exactly the file's refund). Each year about 11,700 (2015-2017) to 144,000 (2075) record
+copies have the refund removed, and up to 6,400 keep part of it. A package is about 70-73 MB a year.
 
 ## Confidentiality
 
@@ -74,7 +97,7 @@ so the merge computes them from the recipient's PUF and the package holds only t
 gains (the package holds the basis-to-sales ratio of the drawn holding period), the farm's wage bill for the qualified
 business income deduction (it is the farm income), and the S corporation's wage bill (the package holds the outside
 workers' pay and a 0/1 flag for adding the owner's wages). Parts of the package still depend on PUF values: the refund
-flag, whether a record has a long-term gain (its holding period is missing where it has none), and items computed from
+multiplier (whether the record itemizes, and the share of its refund the tax benefit rule keeps), whether a record has a long-term gain (its holding period is missing where it has none), and items computed from
 the record's income rank (death probabilities, parents' income rank). The non-filers' tax items are amounts picked
 from PUF records with similar items, grown, as in every file the pipeline makes. The package folders are readable by the owner only
 (chmod 700), and the recipient should treat the package as PUF-derived data under their license.

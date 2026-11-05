@@ -9,14 +9,18 @@
 #   1. each record's 2015 items from the PUF's own fields (items_2015);
 #   2. for each record copy (column copy, 1 to 3: one per trained network), each PUF item is its 2015 amount times the
 #      item's factors in factors.parquet, step by step, the factor for positive amounts on positive amounts and the
-#      factor for negative amounts on negative ones; zero stays zero; the same factors for every record (grow);
+#      factor for negative amounts on negative ones; zero stays zero; a factor of zero from the year the law repealed
+#      a deduction; the same factors for every record (grow);
 #   3. the weight: the PUF weight (S006 / 100) times the record copy's weight factor;
 #   4. the items we added, as values (records.parquet);
 #   5. the computed columns, in the pipeline's order (derive);
-#   6. the two rules: the taxable state refund removed where state_ref_kept is 0, then other income and taxable Social
+#   6. the two rules: the taxable state refund times state_ref_multiplier (0 removed, 1 kept whole, in between the share
+#      the tax benefit rule keeps; only a multiplication, no tax calculation), then other income and taxable Social
 #      Security computed again (refund_rule); the AMT net operating loss adjustment held to the record's net operating
 #      loss (amt_cap); three added items computed from a PUF amount computed from the PUF items (puf_based);
 #   7. the Tax-Simulator file's columns, then the records that are not PUF records, in the file's own order.
+# The deductible half of self-employment tax is not in the package and is no output column: the tax calculator
+# computes it from the self-employment income and wages (the working items carry the PUF's own E03260 grown).
 # Sums are added from left to right; Python's numpy may add some in another order, so the two scripts can differ in
 # the last binary digit on a few records.
 
@@ -184,9 +188,10 @@ derive <- function(d, spec) {
 }
 
 # ---- step 6: the two rules ---------------------------------------------------------------------------------------
-refund_rule <- function(d, kept, spec) {
+refund_rule <- function(d, multiplier, spec) {   # merge_puf.refund_rule
+  stopifnot(!anyNA(multiplier), all(multiplier >= 0), all(multiplier <= 1))
   ref <- d$state_ref
-  ref2 <- ifelse(kept == 1, ref, 0)
+  ref2 <- ref * multiplier
   d$state_ref <- ref2
   d$other_agi <- d$other_agi + (ref2 - ref)
   other <- d$other_agi - d$ss_taxable
@@ -289,7 +294,7 @@ merge_puf <- function(puf_path, pkg) {
   for (c in names(spec$constants)) d[[c]] <- rep(spec$constants[[c]], n)
   d$record_id <- spec$real_id_base + (d$copy - 1) * spec$copy_block + d$RECID
   d <- derive(d, spec)
-  d <- refund_rule(d, rec$state_ref_kept, spec)
+  d <- refund_rule(d, as.numeric(rec$state_ref_multiplier), spec)
   d <- amt_cap(d)
   d <- puf_based(d, rec, spec)
   t <- tax_simulator_columns(d, rec, spec)

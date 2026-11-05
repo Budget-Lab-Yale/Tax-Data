@@ -1870,6 +1870,11 @@ Choosing `real_puf` sets what goes with it, so no other switch needs setting:
 3. The taxsim_file stage is followed by the package stage.
 4. A projection year's start must be built the same way: the tilt stops if `filers` is `real_puf` and the start file
    is synthetic, or the reverse.
+5. (run6, 5 November) With the earnings split merged, a real record presets its two new slots as the PUF has them.
+   The spouse's share of self-employment income stays absent where the PUF does not ask it, as in training. The
+   earnings split code, where a joint return has no demographics, is one draw per record and copy from step 0's
+   probabilities (es_p*), as for the age range (salt `generation.real_puf_earn_split_salt`, default 2026110501). The
+   four aggregate records draw both, as they draw their filing status. Before this fix the real-PUF draw stopped.
 Every year 2015-2075 runs this way. A past year draws on the real PUF and reweights on its own; a projection year
 follows the jump-off rule (TARGETS.md S13): 2024 starts from the real-PUF 2023 file, 2025-2075 from the real-PUF 2024
 file. A projection year's tilt now writes its growth factors in full precision, `start_growth.csv`, which the package
@@ -1884,11 +1889,21 @@ projection step); `records.parquet`, one row per PUF record copy in the Tax-Simu
 values; the other records (non-filers, the Forbes list) as full Tax-Simulator rows; `spec.json`; a README; and the
 merge scripts `merge_puf.py` and `merge_puf.R`. Before writing, every step is checked against the files of the chain:
 each PUF item of every record copy must be exactly its 2015 amount times the factors so far, or the stage stops.
-- The values that change beyond a growth factor ship in the least revealing form. The taxable state refund removed
-  by the tax benefit rule: a 0/1 flag per record copy (`state_ref_kept`), not the amount; the merge removes the
-  refund and computes other income and taxable Social Security again, in the pipeline's order. The six Schedule A
-  multipliers: six numbers per year in the factor file. The AMT net operating loss: the cap rule, applied by the merge
-  (the grown P60100 held to the negative part of other income), not values.
+- The values that change beyond a growth factor ship in the least revealing form (John's decisions of 5 November
+  for the first three):
+  - the taxable state refund: one multiplier per record copy and year, `state_ref_multiplier`, between 0 and 1 (0
+    where the refund rule or the tax benefit rule removes it, 1 where it is kept whole, the share kept where the tax
+    benefit rule's cap keeps part; the 15% kept anyway is inside it). It replaces the 0/1 flag `state_ref_kept`. The
+    merge multiplies the grown refund by it and computes other income and taxable Social Security again, in the
+    pipeline's order; it does no tax calculation. The factor check accepts a refund between 0 and its grown amount;
+  - the repealed deductions (the domestic production activities deduction from 2018, tuition and fees from 2021,
+    settings `taxes.repealed_adjustments`): a step of factor zero in the factor file from the repeal year;
+  - the deductible half of self-employment tax: not shipped (`package.NOT_SHIPPED`). The file's is the calculator's,
+    no Tax-Simulator column holds it, and the recipient's calculator computes it from the other items. Its factor
+    rows are the plain growth; the factor check counts the copies that differ and does not stop on them;
+  - the six Schedule A multipliers: six numbers per year in the factor file;
+  - the AMT net operating loss: the cap rule, applied by the merge (the grown P60100 held to the negative part of
+    other income), not values.
 - Recomputed by the merge, not shipped: capital gains after the loss limit, business income, other income, taxable
   Social Security, gross pensions, each spouse's wages, tips, overtime and deferrals, Medicare wages, and three added
   items that are a PUF amount times or plus something (the basis of long-term gains, from the gain and the shipped
@@ -1955,6 +1970,16 @@ The partnership item part_se is a separate change (below, in the combined retrai
 networks, and it is in the second retrain's.
 
 ## How the latest runs come out (3-4 November 2026)
+
+**Run6, every year on the earnings-split networks (5 November 2026; not installed).** The three networks of
+run5's second retrain (`explore/2026-11-04/run5_earnsplit/train/`), not retrained; code `rebuild-run6` (the package
+changes above and the real-PUF fix for the earnings split's slots), merged into rebuild-joint-model. Scratch
+`explore/2026-11-05/run6/RESULTS.md`. Synthetic: every year 2015-2075 converges (2015-2023 in 63-150 Newton steps;
+2021 on its 150th; 2024-2075 in 5-23); income tax after credits within 0.33% of the installed files in every year;
+held-out score 7.09 (2019) and 10.58 (2023), the run5_earnsplit files. Real PUF: every year has its Tax-Simulator
+file and its package, and every package passes the round trip with both scripts; 2021 does not converge (150 of
+150 Newton steps, largest gradient 1.32); 2023 converges in 100. In every real-PUF year the solve sets almost every
+copy of the PUF's four aggregate records to a weight near zero (RESULTS.md, "The real-PUF solve").
 
 **Run5, the combined retrain (4-5 November 2026; not installed).** On the code with version A, the real-PUF setting
 and the part_se fix: three networks retrained, every year 2015-2075 run, and the same years on the real PUF (files

@@ -1157,6 +1157,23 @@ married people under 18 were counted as unmarried (ede6f65).
   `rebuild-combined-es`): the earnings split codes match the PUF's, the held-out CPS checks get much worse (12.81
   against 5.88 in 2019). Not merged; John decides.
 
+### 5 November: run6, every year on the earnings-split networks, and the packages
+
+- **Run6** (scratch `explore/2026-11-05/run6/RESULTS.md`; branch `rebuild-run6`, merged): run5's second-retrain
+  networks, not retrained; every year 2015-2075 synthetic (2019 and 2023 the run5_earnsplit files, same code) and on
+  the real PUF. Every synthetic year converges, 2021 on its 150th Newton step; income tax after credits within 0.33%
+  of the installed files. Real 2023 converges in 100 steps (run5: not in 150); real 2021 does not (largest gradient
+  1.32 at 150). Not installed.
+- **The package with John's three decisions**: the taxable state refund as one multiplier per record copy and year
+  (0 to 1, in place of the 0/1 flag); the repealed deductions as a factor of zero from the repeal year; the
+  self-employment tax deduction not shipped. Every year's package passes the round trip with both merge scripts.
+- **A fix:** with the earnings split merged, the real-PUF draw stopped at once (the PUF rows lack the spouse's
+  self-employment share where not asked, and the earnings split code where a joint return has no demographics);
+  `generate.py` now keeps a preset share and draws the rest, and draws the missing code from step 0's probabilities.
+- **Found:** in every real-PUF year the solve sets almost every copy of the four aggregate records to a weight near
+  zero, against Table 4.3's top 0.001% count of returns with Schedule C or F profit; that group's AGI then misses by
+  7-18 standard errors.
+
 ## Paths tried and not taken
 
 | What | Why not |
