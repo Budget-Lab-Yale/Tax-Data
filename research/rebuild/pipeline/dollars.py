@@ -406,11 +406,11 @@ def ssn_items(out):
     return out
 
 
-OWN = 'own_'   # a real PUF record's own PUF-year amount of an item (the real-PUF test, generate.real_puf_part)
+OWN = 'own_'   # a real PUF record's own PUF-year amount of an item (filers real_puf, generate.real_puf_part)
 
 
 def own_values(out, df, year):
-    """In place (the real-PUF test, 4 November 2026): on a real PUF record (a frame column own_<item> that is not
+    """In place (settings generation.filers real_puf, 4 November 2026): on a real PUF record (a frame column own_<item> that is not
     missing), each PUF amount is the record's own PUF-year amount grown to year exactly as the PUF's dollar map is
     grown (build_table.puf_target_map: positive values times the item's factor for positive values, negative values
     times its factor for negative values, zero left at zero; growth.factors), in place of the draw from its band.

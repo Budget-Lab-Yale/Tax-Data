@@ -237,7 +237,7 @@ MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index
 # null: the run's own model (common.MODEL) alone, with today's seeds.
 MODELS = G['models']
 ID_BLOCK = 10_000_000                       # model k's record ids start at k x ID_BLOCK
-REAL_PUF = bool(G.get('real_puf', False))   # the real-PUF test (real_puf_part), in place of the filer batch
+REAL_PUF = common.REAL_PUF                 # settings generation.filers 'real_puf': real_puf_part in place of the filer batch
 # The filer batch's design (see the top): the AGI group preset on every record.
 LABEL = 'agi_group'
 assert M.PUF_LABELS == [LABEL], 'the label design needs the AGI group label in the table (build_table.agi_group_label)'
@@ -721,7 +721,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     label). factors: {ruled holding: factor on its odds of being nonzero}. Each record's SCF wave is drawn first, by a
     generator of its own (assign_waves). For each ruled holding the table also carries the model's own chance it is
     nonzero (_own_<v>) and whether a rule forced it (_forced_<v>).
-    totals_preset (the real-PUF test, 4 November): the computed totals and flags are in preset (a real PUF record's
+    totals_preset (filers real_puf, 4 November): the computed totals and flags are in preset (a real PUF record's
     own bands) and are kept as they are; only the bookkeeping that follows them is done (Chunk.after_totals).
     adult_only: an age range drawn under the PUF label is one of the six adult ranges (the PUF's aggregate records,
     which are no one's dependents)."""
@@ -876,7 +876,7 @@ def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     return part, check, counts
 
 
-# ---- the real-PUF test (4 November 2026; settings generation.real_puf) ------------------------------------------
+# ---- the real PUF as the filers (4 November 2026; settings generation.filers 'real_puf') -------------------------
 # In place of the filer batch drawn from the networks, every 2015 PUF record keeps all its own PUF items (their bands
 # preset, so the draw is conditional on them) and each pooled network draws everything else given the record: the
 # exact ages, the balance sheet, consumption, the CPS's and the SIPP's items. Each record so appears once per network
@@ -902,7 +902,7 @@ def preset_slots():
 
 
 def real_puf_records():
-    """The 2015 PUF's records with their bands, their own 2015 amounts and their weights, for the real-PUF test.
+    """The 2015 PUF's records with their bands, their own 2015 amounts and their weights, for filers real_puf.
     'ord': the training table's PUF rows (the PUF less its four aggregate records), every slot as the table holds it
     (age_range -1 where the PUF's demographic file has none, with step 0's probabilities age_p*). 'agg': the four
     aggregate records (top_hidden.RECIDS), which the table leaves out: their amounts translated from the raw fields by
@@ -1061,7 +1061,7 @@ def build_stack(models, factors):
     stacks, checks = [], []
     for k, (mod, n_nf_k) in enumerate(zip(models, equal_shares(n_nf, len(models)))):
         model, shift, fac = mod['network'], mod['seed_shift'], factors[mod['run']]
-        if REAL_PUF:      # the real-PUF test: every 2015 PUF record, its survey items drawn given it (see above)
+        if REAL_PUF:      # filers real_puf: every 2015 PUF record, its survey items drawn given it (see above)
             part, check, counts = real_puf_part(model, mod, k, len(models), fac)
         else:
             part, check, counts = label_part(model, mod, k, len(models), fac)

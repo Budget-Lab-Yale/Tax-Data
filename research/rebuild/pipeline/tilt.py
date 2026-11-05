@@ -397,6 +397,11 @@ def start_from_year(spec):
     path = f"{common.OUT}/tilt/{spec['run']}/file_{s}.parquet"
     df = pd.read_parquet(path)
     assert df['weight'].notna().all() and (df['weight'] >= 0).all(), f'{path}: a missing or negative weight'
+    # (4 November 2026) a start built on the real PUF carries the PUF's record numbers (puf_recid); settings
+    # generation.filers must say the same, so a real-PUF year never grows from a synthetic file or the reverse
+    real_start = 'puf_recid' in df and bool((df['puf_recid'] >= 0).any())
+    assert real_start == common.REAL_PUF, (f'settings generation.filers is {common.FILERS}, but the start {path} was '
+                                           f'built {"on the real PUF" if real_start else "on synthetic filers"}')
     w = df['weight'].to_numpy(float)
     df = df.drop(columns=['weight_start']).rename(columns={'weight': f'weight_{s}'})
     # (30 October) the year-s file carries the non-microdata imputations' columns; they are made again on this start
@@ -505,6 +510,8 @@ def main():
     else:
         g19, imp, growth = start_from_year(spec)   # every dollar amount grown to the target year
         raw = g19
+        if growth is not None:   # (4 November 2026) each column's factors in full precision, read by package.py
+            growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
     # the top of the file (top_records.py, settings tilt.top; 29 October): Part A's rebuilt hidden returns, the
     # redraw of balance sheets at $1 billion or more, and the Forbes list's billionaires, before any mask, condition or
     # prescaling. given: records whose starting weight is given (in returns or units); fixed: records held at it
@@ -520,6 +527,15 @@ def main():
         import pickle
         import top_records as TR
         cache = os.environ.get('REBUILD_TOP_CACHE')
+        if common.REAL_PUF and spec['mode'] == 'generate':
+            # (4 November 2026) settings generation.filers real_puf: the redraw at $1 billion touches about 700 record
+            # copies and takes about 80 seconds a record on a CPU, so it runs on the generate stage's GPU, into the top
+            # cache (default <out>/top_cache.pkl), and the tilt reads it; a tilt with no cache stops here
+            cache = cache or f'{common.OUT}/top_cache.pkl'
+            import torch
+            assert os.path.exists(cache) or (os.environ.get('REBUILD_TOP_ONLY') and torch.cuda.is_available()), \
+                (f'filers real_puf: no top cache at {cache}. The top step\'s redraw at $1 billion runs on a GPU: run the '
+                 f'generate stage (which writes it after the draw) or the top stage on a GPU partition first')
         if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
             with open(cache, 'rb') as fh:
                 base = TR.strip_list(*pickle.load(fh))
