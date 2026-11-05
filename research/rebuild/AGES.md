@@ -40,7 +40,7 @@ non-filers.
 |---|---|---|
 | Primary filer's age range (AGERANGE) | yes | yes (built 23 October) |
 | Dependents' age ranges (AGEDP1–3) | no | no; Step 3 |
-| Earnings split (EARNSPLIT) | no | no; Step 3 |
+| Earnings split (EARNSPLIT) | yes (4 November, branch `rebuild-earnsplit`) | yes: the spouse's share of wages, inside the range |
 | Primary filer's sex (GENDER) | no | no: today drawn from the CPS without the PUF's value; Step 3 |
 
 The spouse's age and sex have no PUF fact: drawn only on joint returns,
@@ -225,7 +225,8 @@ After: reweighting to Table 1.6 by age, and later SSA population by age.
    the repository, so the only outside check is the booklet's full-sample
    counts above (about 2.69 million male and 0.32 million female primaries
    among the records with no demographics). The earnings split (EARNSPLIT)
-   is missing for the same records and can be handled the same way later.
+   is missing for the same records; since 4 November it has its own step 0
+   (below, "The earnings split").
 5. **Store the probabilities.** A fresh range and sex are drawn for each
    pass of training. That is equivalent, on average, to splitting each record into
    weighted copies, one per range, without multiplying the records.
@@ -553,17 +554,44 @@ CPS without the PUF's value. It becomes a shared category: on the PUF the
 observed (or step 0) value, on the surveys the primary's sex after the
 primary-filer rule; nothing to draw at generation where it is known.
 
-**The earnings split.** EARNSPLIT gives the primary's share of
-the couple's earnings in three ranges (75% or more, 25–75%, under 25%).
-Earnings are wages plus Schedule SE self-employment earnings (the primary's
-E30400 less E30500, the spouse's E30500). It is given only on joint returns
-and is missing only on the records with no demographics; the farm and
-small-cell rules for dependents do not apply to it. Production reads the
-three ranges as exactly 100%, 50% and 0% (`src/imputations/earnings_split.R`),
-which is why 97% of its couples split at one of those points. It can be
-treated like the dependents' ranges: shared with the CPS (computed on the
-same earnings definition), missing values filled the same way, the exact
-share drawn inside the range.
+**The earnings split** (built 4 November 2026, branch `rebuild-earnsplit`;
+`pipeline/earn_split.py`; checks in scratch `explore/2026-11-04/earnsplit/`).
+EARNSPLIT gives the primary's share of the couple's earnings in three ranges
+(75% or more, 25–75%, under 25%; 0 where there are none). Earnings are wages
+plus Schedule SE self-employment earnings: E30400 is the couple's Schedule SE
+earnings and E30500 the spouse's part, so the primary's are E30400 less
+E30500. The data confirm this reading (`FINDINGS.md` there): E30400 is never
+below E30500; on joint returns with the spouse self-employed and no
+partnership income, E30400 alone is 92.35% of Schedules C and F; and on joint
+returns with no wages this reading reproduces EARNSPLIT on 99.9% of them, the
+other (E30400 the primary's alone, as production's
+`src/imputations/earnings_split.R` reads it) on 80.7%. Production also reads
+the three ranges as exactly 100%, 50% and 0%, which is why 97% of its
+couples split at one of those points.
+
+As built:
+1. The spouse's share of the couple's self-employment income is a PUF slot
+   shared with the CPS: on the PUF E30500 / E30400, on the CPS the same share
+   of the couple's Schedule SE earnings (92.35% of each person's income, none
+   below $400). It multiplies Schedules C and F and partnership income subject
+   to self-employment tax alike. Joint returns with such income but no
+   Schedule SE earnings (4.9 million: losses, or under $400) have it missing.
+2. EARNSPLIT is a category shared with the CPS (the CPS couple's own code on
+   the same definition). It is given on joint returns with demographics;
+   joint returns with none and no earnings get 0; the 2.51 million with
+   earnings get probabilities from a gradient boosted classifier fitted on
+   the known codes, redrawn each training pass as the age range's step 0 is.
+   Fitted below $250,000 of AGI it predicts the known codes at
+   $250,000–400,000 better than a logit (log score -0.90 against -1.03; a
+   logit puts too little in code 1, which rises with AGI there), and gives
+   the records with no demographics 1.45, 0.73 and 0.33 million returns in
+   codes 1–3 against the booklet's full sample less public file, 1.36, 0.63
+   and 0.39 million (a check, not a target).
+3. At generation the PUF label draws the self-employment share and then the
+   code after the PUF items; under the CPS label the spouse's share of wages
+   is drawn only in the bands that reach the code's range given the couple's
+   wages and self-employment split, and the dollar step holds the exact
+   share inside the exact range.
 
 **The number of dependents: the CPS builder's definition.** 2015 filers:
 91.7 million dependents on the PUF (80.1 million children at home, 8.3

@@ -66,8 +66,15 @@ PUF_CATEGORIES = META.get('puf_categories', {})
 # (Schedule C, partnership, S corporation; 0 none, 1-7 the SCF's public groups, 8 no industry code; build_scf.R).
 # {slot: values}
 SCF_CATEGORIES = META.get('scf_categories', {})
+# (4 November, earn_split.py) the categories the PUF and the CPS share beyond the type (the earnings split code,
+# earn_split: 0 none, 1-3 the primary's share of the couple's earnings in EARNSPLIT's ranges), {slot: values}; and the
+# PUF slots shared with the CPS that are shares (the spouse's share of the couple's self-employment income). Both are
+# drawn at generation after the PUF items and their totals (generate.py).
+SHARED_CATEGORIES = META.get('shared_categories', {})
+PUF_SHARES = list(META.get('puf_shares', []))
+ES_PROBS = [f'es_p{k}' for k in range(SHARED_CATEGORIES['earn_split'])] if 'earn_split' in SHARED_CATEGORIES else []
 CATEGORICAL = ['married', 'n_dep', 'age_range'] + FILER + list(TAX_STATUS) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-    + list(LABELS) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES)
+    + list(LABELS) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES) + list(SHARED_CATEGORIES)
 # The SCF-only slots: the balance sheet (the home mortgage as its share of the home's value), the
 # unrealized gains, and owns_business. Net worth is computed from the balance sheet in dollars.
 SCF_SLOTS = list(META['scf_amounts']) + [c for c, o in CATEGORIES.items() if o == 'scf'] + list(SCF_CATEGORIES)
@@ -89,7 +96,7 @@ SIPP_SLOTS = list(META['sipp_amounts']) + list(SIPP_CATEGORIES)   # each adult's
 TYPE_SLOTS = ['married', 'n_dep', 'age_range']
 PREDICTED = (TYPE_SLOTS + FILER + list(TAX_STATUS) + PUF_LABELS + ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES
              + list(ITEMS) + ['other_agi'] + [c for c, o in CATEGORIES.items() if o == 'shared'] + list(PUF_CATEGORIES)
-             + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS + SIPP_SLOTS)
+             + PUF_SHARES + list(SHARED_CATEGORIES) + SCF_SLOTS + list(REPORTED) + CEX_SLOTS + EXACT_AGES + CPS_SLOTS + SIPP_SLOTS)
 AMOUNTS = [v for v in PREDICTED if v not in CATEGORICAL]
 SLOTS = CONTEXT + PREDICTED
 # The sources that have each slot; a slot on one source only is owned by it.
@@ -132,7 +139,7 @@ def band_layout():
 
 BAND_LAYOUT = band_layout()
 N_CHOICES = {'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-             **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES,
+             **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES, **SHARED_CATEGORIES,
              **{a: BAND_LAYOUT[a]['n_bands'] for a in AMOUNTS}}
 MAX_CHOICES = max(N_CHOICES.values())
 
@@ -145,7 +152,7 @@ MAX_NEGATIVE = max(BAND_LAYOUT[a]['first_positive'] - 1 for a in AMOUNTS)
 MAX_POSITIVE = max(BAND_LAYOUT[a]['n_bands'] - BAND_LAYOUT[a]['first_positive'] for a in AMOUNTS)
 BLOCK_SIZES = {'source': len(SOURCES), 'year': len(YEARS), 'married': 2, 'n_dep': 4, 'age_range': AGE_RANGES,
                'band': 1 + MAX_NEGATIVE + MAX_POSITIVE, 'filer': 2, **TAX_STATUS, **{c: 2 for c in CATEGORIES},
-               **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES}
+               **PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES, **SHARED_CATEGORIES}
 BLOCK_START, _next = {}, 1
 for _name, _size in BLOCK_SIZES.items():
     BLOCK_START[_name] = _next
@@ -176,7 +183,7 @@ def read_table():
     for r, v in REPORTED.items():
         table[r + '_band'] = np.where(table['source'].isin(FILLED_ON[v]), table[v + '_band'], -1)
     used = ['source', 'year', 'weight', 'married', 'n_dep', 'household_id', 'filer_p'] + [column(v) for v in PREDICTED] \
-        + AGE_PROBS
+        + AGE_PROBS + ES_PROBS
     n_missing = table[used].isna().sum()
     if n_missing.any():
         raise ValueError(f'missing values in the training table:\n{n_missing[n_missing > 0]}')
@@ -201,8 +208,13 @@ def read_table():
         'mars 2 (joint) exactly when married; separate returns are not married'
     for c in CATEGORIES:
         assert table[c].between(0 if everywhere(c) else -1, 1).all(), c
-    for c, n in {**PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES}.items():
+    for c, n in {**PERSON_CATEGORIES, **LABELS, **SIPP_CATEGORIES, **PUF_CATEGORIES, **SCF_CATEGORIES,
+                 **SHARED_CATEGORIES}.items():
         assert table[c].between(-1, n - 1).all(), c
+    if ES_PROBS:   # earn_split: -1 only on PUF records with no code, which carry step 0's probabilities (earn_split.py)
+        none = (table['earn_split'] == -1) & (table['source'] == 'puf')   # (-1 elsewhere: absent on the surveys)
+        assert table.loc[table.source == 'cps', 'earn_split'].ge(0).all()
+        assert np.allclose(table.loc[none, ES_PROBS].sum(1), 1) and (table.loc[~none, ES_PROBS] == 0).all().all()
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')
@@ -223,6 +235,14 @@ def age_draws(table, device):
     rows = np.flatnonzero(table['age_range'].to_numpy() == -1)
     return (torch.tensor(rows, device=device),
             torch.tensor(table[AGE_PROBS].to_numpy()[rows], dtype=torch.float32, device=device))
+
+
+def earn_draws(table, device):
+    """The PUF rows with no earnings split code and their step 0 probabilities, to draw a code from (train.py)."""
+    rows = np.flatnonzero((table['earn_split'].to_numpy() == -1) & (table['source'] == 'puf').to_numpy()) if ES_PROBS \
+        else np.zeros(0, dtype=np.int64)
+    probs = table[ES_PROBS].to_numpy()[rows] if ES_PROBS else np.zeros((0, 1))
+    return torch.tensor(rows, device=device), torch.tensor(probs, dtype=torch.float32, device=device)
 
 
 def held_back(table):
@@ -320,34 +340,49 @@ def token_ids(values, hidden, slots):
 # before it knows either (generate.py), so in training, and in every call of the network, a share is left absent
 # (out of the record) whenever married or its base is hidden; it is present only once both are shown. Its own
 # question is then only ever asked given married and its base, as generation asks it.
-# {share's PREDICTED index: (married's, its base's)}; a base band above 0 is a nonzero amount
-SHARE_GATES = {PREDICTED.index(s): (PREDICTED.index('married'), PREDICTED.index(base))
-               for s, (_, base) in RATIOS.items() if s in CPS_SLOTS}
+# Since 4 November (earn_split.py) the same holds for the spouse's share of the couple's self-employment income, a
+# PUF slot shared with the CPS, whose base is Schedules C and F or partnership income subject to self-employment tax
+# (any of several bases; a base a source lacks, as the CPS lacks the partnership item, counts as zero, and is not one
+# that can be hidden). The table's meta "share_gates" names each share's bases; a table built before it has one base
+# per CPS share, the ratio's.
+# {share's PREDICTED index: (married's, [its bases'])}; a base band above 0 is a nonzero amount
+_GATES = META.get('share_gates') or {s: [base] for s, (_, base) in RATIOS.items() if s in CPS_SLOTS}
+SHARE_GATES = {PREDICTED.index(s): (PREDICTED.index('married'), [PREDICTED.index(b) for b in bases])
+               for s, bases in _GATES.items()}
 
 
 def gate_shares(values, hidden, slots):
-    """Packed values [N, len(slots)] and hidden [N, predicted positions]: each CPS share made absent where married
-    or its base is hidden (see above). Returns new tensors."""
+    """Packed values [N, len(slots)] and hidden [N, predicted positions]: each share made absent where married or any of
+    its bases the source has is hidden (see above). Returns new tensors."""
     pred = predicted_of(slots)
     at = {j: k for k, j in enumerate(pred)}
-    gated = [(at[s], at[m], at[b]) for s, (m, b) in SHARE_GATES.items() if s in at]
+    gated = [(at[s], at[m], [at[b] for b in bases if b in at]) for s, (m, bases) in SHARE_GATES.items() if s in at]
     if not gated:
         return values, hidden
     values, hidden = values.clone(), hidden.clone()
-    for ks, km, kb in gated:
-        off = hidden[:, km] | hidden[:, kb] | (values[:, len(CONTEXT) + km] < 0) | (values[:, len(CONTEXT) + kb] < 0)
+    for ks, km, kbs in gated:
+        off = hidden[:, km] | (values[:, len(CONTEXT) + km] < 0)
+        for kb in kbs:
+            off = off | hidden[:, kb] | (values[:, len(CONTEXT) + kb] < 0)
         values[off, len(CONTEXT) + ks] = -1
         hidden[off, ks] = False
     return values, hidden
 
 
 def share_presence(values, hidden):
-    """Full-width values [N, SLOTS] and hidden [N, PREDICTED] seen as the CPS: each share present (and hidden) exactly
-    when married and its base are both shown, married is 1 and the base nonzero; absent otherwise."""
+    """Full-width values [N, SLOTS] and hidden [N, PREDICTED] in one source's view: each share present (and hidden)
+    exactly when married and every base the view has (not absent) are shown, married is 1 and some base nonzero; absent
+    otherwise."""
     values, hidden = values.clone(), hidden.clone()
-    for s, (m, b) in SHARE_GATES.items():
-        vm, vb = values[:, len(CONTEXT) + m], values[:, len(CONTEXT) + b]
-        asked = ~hidden[:, m] & ~hidden[:, b] & (vm == 1) & (vb > 0)
+    for s, (m, bases) in SHARE_GATES.items():
+        vm = values[:, len(CONTEXT) + m]
+        asked = ~hidden[:, m] & (vm == 1)
+        some = torch.zeros_like(asked)
+        for b in bases:
+            vb = values[:, len(CONTEXT) + b]
+            asked = asked & (~hidden[:, b] | (vb < 0))
+            some = some | (vb > 0)
+        asked = asked & some
         values[:, len(CONTEXT) + s] = torch.where(asked, 0, -1)
         hidden[:, s] = asked
     return values, hidden

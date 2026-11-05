@@ -333,7 +333,7 @@ def check(year=common.TARGET_YEAR):
     import build_table as BT
     items = load(year)
     groups = {'PUF': BT.PUF_AMOUNTS, 'SCF': BT.SCF_AMOUNTS, 'CEX': BT.CEX_AMOUNTS, 'CPS': BT.CPS_AMOUNTS,
-              'SIPP': BT.SIPP_AMOUNTS}
+              'SIPP': BT.SIPP_AMOUNTS, 'PUF and CPS shares': BT.PUF_SHARES}   # (shares: never grown, 4 November)
     every = [v for vs in groups.values() for v in vs]
     bad = [f'{g} item {v}: no growth line' for g, vs in groups.items() for v in vs if v not in items]
     bad += [f'{v}: a growth line for an item the pipeline does not have' for v in items if v not in every]
@@ -354,6 +354,9 @@ def check(year=common.TARGET_YEAR):
             src = items[v]['source']
             if not _is_none(src) and src['series'] not in ok:
                 bad.append(f'{g} item {v}: series {src["series"]} is not one its code applies ({sorted(ok)})')
+    for v in BT.PUF_SHARES:
+        if v in items and not _is_none(items[v]['source']):
+            bad.append(f'shared share {v}: a share (build_table.PUF_SHARES), its source must be none')
     for v in BT.SCF_RATIOS:
         if v in items and not _is_none(items[v]['source']):
             bad.append(f'SCF item {v}: a share or a count (build_table.SCF_RATIOS), its source must be none')

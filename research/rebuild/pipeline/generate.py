@@ -31,6 +31,13 @@ One record is drawn slot by slot:
      that band), the signed sum is placed in the total's band on the PUF's
      cut points. Then the computed flag k1_owner: any partnership or
      S corporation part nonzero;
+  2b. (since 4 November; earn_split.py) under the batch's label, the spouse's share of the couple's
+     self-employment income (asked only of a married couple with Schedules C or F or partnership
+     income subject to self-employment tax: absent until then and where not asked, zero at the end),
+     then the earnings split code (0 unless married; 1-3 where the couple has wages; 0 where it has
+     neither wages nor positive self-employment income), each given everything drawn so far. Neither
+     is drawn among the amounts above, so no PUF item is drawn with them known: the filer batch's
+     share comes from the PUF's own Schedule SE split, the non-filers' from the CPS's;
   (On a dependent filer, every survey slot below is zero or none: see structural.)
   3. the exact ages of the primary filer and the spouse (model.EXACT_AGES), in
      a random order per record, under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out: the CPS covers
@@ -60,7 +67,11 @@ One record is drawn slot by slot:
      wages less tips when bands become dollars, dollars.py; the tips are drawn
      later in the order, under the SIPP label), each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
      follow the record's PUF items (cps_structure): the spouse's items only
-     when married, the k-th dependent's age only with k or more dependents;
+     when married, the k-th dependent's age only with k or more dependents.
+     The spouse's share of the couple's wages (since 4 November) only in the bands
+     that reach the range the earnings split code allows given the couple's wages and
+     self-employment split, at each band's median PUF dollars (wage_share_bands);
+     dollars.py then holds the exact share inside the exact range;
   7. the SIPP-only slots (since 26 October): each adult's tips in dollars,
      in a random order, then the two leisure and
      hospitality flags, in a random order, each under the SIPP label and the record's own SIPP year (below) with every slot the SIPP lacks left
@@ -178,6 +189,8 @@ P = M.PREDICTED
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
+# (4 November) drawn after the PUF items and their totals, in this order, under the batch's label (step 2b at the top)
+LATE_SLOTS = [v for v in M.PUF_SHARES + list(M.SHARED_CATEGORIES) if v in P]
 # (29 October) the QBI items under the SCF label (build_table, meta scf_structure): each kind's outside workers drawn
 # after its industry group and zero with none; the industry group never none on a record with any of the kind's PUF
 # parts nonzero
@@ -215,6 +228,11 @@ CPS_CATEGORICAL = torch.tensor([P.index(v) for v in M.PERSON_CATEGORIES])
 # the network (a present slot, even hidden, says "a couple with some of this"), so generation leaves the slot absent
 # on the same records, and gives them a share of zero once the CPS phase is over.
 CPS_SHARES = {slot: base for slot, (_, base) in M.RATIOS.items() if slot in CPS_SLOTS}
+# Every gated share (model.SHARE_GATES; since 4 November also the PUF's self-employment share): {slot index: [base
+# indices]}. A share is asked only of a married couple with some of a base (a band above zero: band 0 is zero, -1 absent)
+GATED = {s: list(bases) for s, (_, bases) in M.SHARE_GATES.items()}
+ES_SLOT = P.index('earn_split') if 'earn_split' in P else None
+WAGE_SHARE = P.index('spouse_wage_share') if 'spouse_wage_share' in P else None
 # the primary filer's age range of each age value (value 0 is none, value a + 1 is age a)
 RANGE_OF_AGE_VALUE = torch.tensor([-1] + [int(r) for r in np.searchsorted([26, 35, 45, 55, 65],
                                                                           np.arange(M.PERSON_CATEGORIES[CPS_STRUCTURE['primary_age']] - 1),
@@ -463,6 +481,94 @@ def cps_structure(values, slot, probs):
     return probs
 
 
+def positive(values, v):
+    """Whether amount slot v is drawn above zero (a positive band)."""
+    return values[:, NC + P.index(v)] >= M.BAND_LAYOUT[v]['first_positive']
+
+
+def earn_structure(values, slot, probs):
+    """The earnings split code (4 November; earn_split.py): 0 unless married; on a married couple, 1-3 where it has
+    wages (the PUF has code 0 with earnings on 0.02% of joint returns' weight), 0 where it has neither wages nor
+    positive Schedules C and F or partnership income subject to self-employment tax; otherwise as the model draws."""
+    if ES_SLOT is None:
+        return probs
+    sel = slot == ES_SLOT
+    if not bool(sel.any()):
+        return probs
+    married = values[:, NC + MARRIED] == 1
+    wages = positive(values, 'wages')
+    se = torch.zeros_like(married)
+    for b in GATED.get(P.index('spouse_se_share'), []):
+        se = se | (values[:, NC + b] >= M.BAND_LAYOUT[P[b]]['first_positive'])
+    probs = only(probs, sel & (~married | (~wages & ~se)))
+    some = sel & married & wages
+    allowed = torch.zeros(int(some.sum()), probs.shape[1], device=probs.device)
+    allowed[:, 1:4] = 1.0
+    return only(probs, some, allowed)
+
+
+_BAND_TABLES = {}
+
+
+def se_earnings_t(x):
+    """Schedule SE net earnings from self-employment income x (a tensor): 92.35% of it where that is $400 or more."""
+    e = float(M.META['earn_split']['se_factor']) * x
+    return torch.where(e >= float(M.META['earn_split']['se_floor']), e, torch.zeros_like(e))
+
+
+def band_tables(device):
+    """For wage_share_bands: each band's median PUF-year dollars (the band edges' record; an empty band, the middle of
+    its cut points) of wages, the self-employment share's bases and the share itself; the earnings split codes' ranges
+    of the primary's share; and, per year index, each band's range of the spouse's share of wages on that CPS year's
+    cut points (band 0 the share 0; loss bands never)."""
+    key = str(device)
+    if key in _BAND_TABLES:
+        return _BAND_TABLES[key]
+    E = common.edges()
+    bases = [P[b] for b in GATED.get(P.index('spouse_se_share'), [])] if 'spouse_se_share' in P else []
+    med = {}
+    for name in ['wages', 'spouse_se_share'] + bases:
+        e = E[f'puf/{common.PUF_YEAR}/{name}']
+        n, fp = M.BAND_LAYOUT[name]['n_bands'], M.BAND_LAYOUT[name]['first_positive']
+        pos, neg = list(e['positive']['cuts']), list(e['negative']['cuts'])
+        x = np.zeros(n)
+        for k, rec in enumerate(e['bands']):
+            if rec['median'] is not None:
+                x[k] = rec['median']
+            elif k >= fp:
+                i = k - fp
+                lo = pos[i - 1] if i >= 1 else 0.0
+                hi = pos[i] if i < len(pos) else lo
+                x[k] = (lo + hi) / 2
+            elif 1 <= k < fp and neg:
+                i = k - 1
+                lo = neg[i - 1] if i >= 1 else neg[0]
+                hi = neg[i] if i < len(neg) else 0.0
+                x[k] = (lo + hi) / 2
+        med[name] = torch.tensor(x, dtype=torch.float64, device=device)
+    rng = M.META['earn_split']['ranges']
+    low = torch.tensor([0.0] + [rng[str(k)][0] for k in (1, 2, 3)], dtype=torch.float64, device=device)
+    high = torch.tensor([0.0] + [rng[str(k)][1] for k in (1, 2, 3)], dtype=torch.float64, device=device)
+    n = M.N_CHOICES['spouse_wage_share']
+    fp = M.BAND_LAYOUT['spouse_wage_share']['first_positive']
+    wlo = np.full((len(M.YEARS), n), 2.0)
+    whi = np.full((len(M.YEARS), n), -1.0)
+    for i, y in enumerate(M.YEARS):
+        e = E.get(f'cps/{y}/spouse_wage_share')
+        if e is None or 'positive' not in e:
+            continue
+        cuts = list(e['positive']['cuts'])
+        wlo[i, 0] = whi[i, 0] = 0.0
+        for k in range(fp, n):
+            j = k - fp
+            wlo[i, k] = cuts[j - 1] if j >= 1 else 0.0
+            whi[i, k] = cuts[j] if j < len(cuts) else 1.0
+    _BAND_TABLES[key] = {'median': med, 'se_bases': bases, 'low': low, 'high': high,
+                         'wage_lo': torch.tensor(wlo, dtype=torch.float64, device=device),
+                         'wage_hi': torch.tensor(whi, dtype=torch.float64, device=device)}
+    return _BAND_TABLES[key]
+
+
 def sipp_structure(values, slot, probs):
     """The SIPP's items follow the record's: the spouse's tips and flag are zero unless married; the primary filer's
     tips are zero without wages, the spouse's without a spouse's share of wages above zero (not asked, -1, or zero); a
@@ -515,9 +621,12 @@ def structural(values, slot, probs):
     surveys count it in the household that claims it, so on its own return every one is zero or none, and its
     wages and self-employment income are all its own."""
     for slot_name, (_, base) in M.RATIOS.items():
+        if P.index(slot_name) in GATED:     # a gated share: zero where not asked (Chunk.not_asked), not by one base
+            continue
         no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
         probs[no_base] = 0.0
         probs[no_base, 0] = 1.0
+    probs = earn_structure(values, slot, probs)
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
     probs = deferral_structure(values, slot, probs)
@@ -585,6 +694,8 @@ class Chunk:
         if label == 'cps':        # the CPS's own slots: present and hidden from the start, as on a CPS training row
             for v in AGE_SLOTS + CPS_SLOTS + [r for r in M.REPORTED if 'cps' in M.PRESENT_ON[r]]:
                 self.values[:, NC + P.index(v)] = 0     # (and the CPS's reported slots of its filled-in items, 28 Oct.)
+        for j in GATED:           # a share is absent until married and its bases are drawn (gate_shares, after_totals)
+            self.values[:, NC + j] = -1
         for tot in list(COMPUTED) + list(FLAGS):
             self.values[:, NC + P.index(tot)] = 0                    # present and hidden until computed
         self.filled = torch.zeros(size, len(P), dtype=torch.bool, device=device)
@@ -602,16 +713,22 @@ class Chunk:
             self.column[src] = torch.full((len(M.SLOTS),), -1, dtype=torch.long, device=device)
             self.column[src][list(slots)] = torch.arange(len(slots), device=device)
         self.not_asked = {}
-        if label == 'cps':
-            self.gate_shares()
+        self.bounded = 0                                             # wage shares drawn inside an earnings split range
+        self.gate_shares()
 
     def gate_shares(self):
-        """Non-filer batch, own phase: each CPS share present (hidden) once married and its base are drawn and the unit
-        is married with some of the base; absent before that, and where not asked (model.gate_shares)."""
-        for s, (m, b) in M.SHARE_GATES.items():
-            known = self.filled[:, m] & self.filled[:, b]
-            asked = known & (self.values[:, NC + m] == 1) & (self.values[:, NC + b] > 0)
-            self.values[:, NC + s] = torch.where(asked, 0, -1)
+        """Own phase: each share not yet drawn present (hidden) once married and its bases are drawn and the unit is
+        married with some of a base; absent before that, and where not asked (model.gate_shares). In the filer batch the
+        self-employment share's base Schedules C and F is a computed total, so the share stays absent until the totals."""
+        for s, (m, bases) in M.SHARE_GATES.items():
+            known = self.filled[:, m].clone()
+            some = torch.zeros_like(known)
+            for b in bases:
+                known &= self.filled[:, b]
+                some |= self.values[:, NC + b] > 0
+            asked = known & (self.values[:, NC + m] == 1) & some
+            self.values[:, NC + s] = torch.where(self.filled[:, s], self.values[:, NC + s],
+                                                 torch.where(asked, 0, -1))
 
     def own_rules(self, slot, probs):
         """Full filing status joint exactly when married (separate returns are not married, as in the data); under the
@@ -634,8 +751,7 @@ class Chunk:
     def last_layer(self, values, hidden, src):
         """The network on the source's slots, all of which must be present."""
         slots = M.SOURCE_SLOTS[src]
-        may_be_absent = [M.SOURCE_SLOTS[src].index(NC + P.index(v)) for v in CPS_SHARES
-                         if src in ('cps', 'sipp') and src in M.PRESENT_ON[v]]
+        may_be_absent = [M.SOURCE_SLOTS[src].index(NC + j) for j in GATED if src in M.PRESENT_ON[P[j]]]
         present = values[:, M.slot_tensor(slots, values.device)] >= 0
         present[:, may_be_absent] = True
         assert present.all(), f'a {src} slot is absent'
@@ -654,8 +770,7 @@ class Chunk:
         h = self.last_layer(self.values, hidden, self.label)
         probs = self.model.slot_probs(h[self.rows, self.column[self.label][NC + slot]], slot)
         self.take(self.own_rules(slot, probs), slot)
-        if self.label == 'cps':
-            self.gate_shares()
+        self.gate_shares()
 
     def compute_totals(self):
         """The computed totals and flags from their parts; which rules each record triggers (none for a
@@ -680,8 +795,13 @@ class Chunk:
             v[:, NC + P.index(s)] = 0                                # each survey's view leaves out the others'
         v[:, NC + REP_SLOTS.to(v.device)] = 0                        # reported slots: present, never drawn (hidden)
         married = v[:, NC + P.index('married')] == 1
-        self.not_asked = {P.index(sh): ~married | (v[:, NC + P.index(base)] == 0) | dep
-                          for sh, base in CPS_SHARES.items()}           # the CPS shares' records with no question
+        self.not_asked = {}                                         # the shares' records with no question
+        for j, bases in GATED.items():
+            some = torch.zeros_like(married)
+            for b in bases:
+                some |= v[:, NC + b] > 0
+            self.not_asked[j] = ~married | ~some | dep
+            v[~self.not_asked[j] & ~self.filled[:, j], NC + j] = 0   # asked, not yet drawn: present and hidden
         for j, m in self.not_asked.items():
             v[m, NC + j] = -1
         return {r['name']: int(self.triggered[:, k].sum()) for k, r in enumerate(RULES)}
@@ -711,9 +831,47 @@ class Chunk:
             na = m & (slot == j)
             probs[na] = 0.0
             probs[na, 0] = 1.0
+        if label == 'cps' and WAGE_SHARE is not None and ES_SLOT is not None:
+            probs = self.wage_share_bands(slot, probs)
         self.take(probs, slot)
         for j, m in self.not_asked.items():
             self.values[m, NC + j] = -1
+
+    def wage_share_bands(self, slot, probs):
+        """The spouse's share of the couple's wages (CPS phase): on a married couple with wages and an earnings split
+        code of 1-3, only the bands of the record's CPS year that reach the shares putting the primary's share of
+        earnings in the code's range (earn_split.wage_share_bounds), with the couple's wages, Schedules C and F,
+        partnership income subject to self-employment tax and self-employment share at their bands' median PUF-year
+        dollars. Where the model gives every such band no chance, they are taken as equally likely (only). dollars.py
+        holds the exact share inside the exact range."""
+        sel = (slot == WAGE_SHARE) & ~self.not_asked.get(WAGE_SHARE, torch.zeros_like(slot, dtype=torch.bool))
+        code = self.values[:, NC + ES_SLOT]
+        sel = sel & (code >= 1) & (code <= 3)
+        if not bool(sel.any()):
+            return probs
+        B = band_tables(probs.device)
+        v = self.values[sel]
+        med = lambda name: B['median'][name][v[:, NC + P.index(name)].clamp(min=0)]
+        W = med('wages')
+        X = torch.zeros_like(W)
+        for name in B['se_bases']:
+            X = X + torch.where(v[:, NC + P.index(name)] >= 0, med(name), torch.zeros_like(W))
+        sh = torch.where(v[:, NC + P.index('spouse_se_share')] >= 0, med('spouse_se_share'), torch.zeros_like(W))
+        e2, e1 = se_earnings_t(sh * X), se_earnings_t((1 - sh) * X)
+        c = code[sel]
+        a, b = B['low'][c], B['high'][c]
+        T = W + e1 + e2
+        Wd = W.clamp(min=1e-9)
+        lo = (1 - (b * T - e1) / Wd).clamp(0, 1)
+        hi = (1 - (a * T - e1) / Wd).clamp(0, 1)
+        yi = self.survey_year['cps'][sel]
+        blo, bhi = B['wage_lo'][yi], B['wage_hi'][yi]                # [n, bands]: each band's share range, that year
+        allowed = torch.zeros(len(lo), probs.shape[1], device=probs.device)   # (the choices past the share's bands: 0)
+        allowed[:, :blo.shape[1]] = ((bhi >= lo[:, None] - 1e-9) & (blo <= hi[:, None] + 1e-9)).float()
+        none = allowed.sum(1) == 0
+        allowed[none] = 1.0                                          # (not expected: the bands cover 0 to 1)
+        self.bounded += int(sel.sum())
+        return only(probs, sel, allowed)
 
     def finish(self):
         """The CPS shares not asked of a record: zero (no spouse, or none of the item, or a dependent filer). Called
@@ -761,8 +919,9 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
     then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
     rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
-                         and v not in STATUS_SLOTS and v not in M.PUF_LABELS], dtype=torch.long)
+                         and v not in STATUS_SLOTS and v not in M.PUF_LABELS and v not in LATE_SLOTS], dtype=torch.long)
     own = torch.cat([first, then, rest])
+    late = torch.tensor([P.index(v) for v in LATE_SLOTS if v not in preset], dtype=torch.long)   # step 2b
     cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
     cps = torch.tensor([P.index(v) for v in CPS_FIRST])
     cps_ot = torch.tensor([P.index(v) for v in CPS_OVERTIME], dtype=torch.long)
@@ -770,12 +929,14 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     sipp_flags = torch.tensor([P.index(v) for v in SIPP_FLAGS])
     age = torch.tensor([P.index(v) for v in AGE_SLOTS])
     n_own, n_age, n_scf, n_cex, n_cps = len(own), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
+    n_late = len(late)
     rule_counts = {r['name']: 0 for r in RULES}
 
     def orders(size):
         return torch.cat([first[torch.rand(size, len(first), generator=cpu_gen).argsort(1)],
                           then.expand(size, -1),
                           rest[torch.rand(size, len(rest), generator=cpu_gen).argsort(1)],
+                          late.expand(size, -1),
                           age[torch.rand(size, len(age), generator=cpu_gen).argsort(1)],
                           scf_order(size, cpu_gen),
                           cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
@@ -785,8 +946,11 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
                           sipp_flags[torch.rand(size, len(sipp_flags), generator=cpu_gen).argsort(1)]], 1).to(device)
 
     def finish(d, order):
-        """Steps 3 to 7 on a chunk whose own items and totals are drawn."""
+        """Steps 2b to 7 on a chunk whose own items and totals are drawn."""
         k = n_own
+        for step in range(k, k + n_late):      # step 2b: the self-employment share and the earnings split code
+            d.survey_step(order[:, step], d.label)
+        k += n_late
         for step in range(k, k + n_age):
             d.survey_step(order[:, step], 'cps', d.survey_year['cps'])
         k += n_age
