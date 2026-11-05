@@ -80,7 +80,15 @@ and from weights that no factor reproduces to the last binary digit; each year's
 `roundtrip_<run>_python.csv` and `roundtrip_<run>_r.csv` beside the package list them by column. On 4 November
 (2019, 2023, 2024, 2030 and 2075) both scripts gave 187 of the 188 columns identical on every record; the weight was
 one last binary digit off on about 12% of record copies (scratch `explore/2026-11-04/realpuf_setting/RESULTS.md`).
-A package is about 69 MB a year.
+The deductible half of self-employment tax is the stated exception: it is not shipped and no Tax-Simulator column
+holds it, so the test compares every other column.
+
+Run6 (5 November, with the three changes above; scratch `explore/2026-11-05/run6/RESULTS.md` and
+`package_results.csv`): every year 2015-2075 passed with both scripts. 2015-2018: 187 of 188 columns identical on
+every record, the weight off by rounding only. 2019 on: 186 identical; the weight and the taxable state refund off by
+rounding only (the refund on 7 to 218 record copies a year, by one last binary digit: the grown refund times its
+multiplier is not always exactly the file's refund). Each year about 11,700 (2015-2017) to 144,000 (2075) record
+copies have the refund removed, and up to 6,400 keep part of it. A package is about 70-73 MB a year.
 
 ## Confidentiality
 

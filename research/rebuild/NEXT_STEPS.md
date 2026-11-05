@@ -1,4 +1,4 @@
-# Next steps (as of 5 November 2026)
+# Next steps (as of 5 November 2026, afternoon)
 
 The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The latest
 installed run is run3 (John, 4 November; `explore/2026-11-04/run3/run/`, every year 2015-2075): the big run of 3-4
@@ -91,14 +91,27 @@ a run of the years it touches, a comparison with the run before it, and John's a
      self-employment tax (2019: $27 billion before the reweighting, $153 billion after), and it costs 2020 most of its
      149 Newton steps (without it, 73). Keep it, target the item differently, or fix the draw's split of the tax
      between Schedule C, F and partnership income.
-   - **The package stage with version A's rules** stops on three items (the tax benefit rule's partial refunds, the
-     repealed deductions set to zero, the calculator's self-employment tax deduction). Options in RESULTS.md; then the
-     stage `package` runs alone on CPU for every year of `run5/confidential/run/`.
+   - **Done in run6 (item 9):** the package stage with version A's rules (John's decisions of 5 November).
    - **The real-PUF 2023 does not converge** in 150 Newton steps with version A's targets (the real-PUF test before
      them: 103); leaving out any one of version A's entries brings it under the budget (education credits: 82). Real
-     2024-2075 start from it.
+     2024-2075 start from it. On run6's networks it converges in 100; real 2021 does not (item 9).
    - **The earnings split** (`rebuild-earnsplit`, run beside run5 as `explore/2026-11-04/run5_earnsplit/`): it matches
-     the PUF's EARNSPLIT codes and worsens the held-out CPS checks of the spouse's wage share. Merge or not.
+     the PUF's EARNSPLIT codes and worsens the held-out CPS checks of the spouse's wage share. Merged by John (5
+     November, 2b0f14d).
+
+9. **Run6, every year on the earnings-split networks** (5 November; scratch `explore/2026-11-05/run6/RESULTS.md`):
+   the networks of run5's second retrain, every year 2015-2075 synthetic and on the real PUF, and the packages for
+   every year with John's three package decisions (the refund multiplier, repealed deductions as a zero factor, the
+   self-employment tax deduction not shipped). Every synthetic year converges (2021 on its 150th Newton step);
+   every package passes the round trip with both scripts. **Not installed; John decides.** Open with it:
+   - **The real-PUF 2021 does not converge** (150 of 150 Newton steps, largest gradient 1.32, still falling about a
+     third every ten steps); real 2023 now converges in 100. Real 2022 and 2024-2075 do not start from 2021.
+   - **The four aggregate records.** In every real-PUF year the solve sets almost every copy of them to a weight near
+     zero: they hold most of Table 4.3's top 0.001% at the start, and every one has Schedule C or F profit, so the
+     count of such returns there (2.9-4.7 times SOI's at the start) can only be cut by removing them; the top
+     0.001%'s AGI and gains then miss by 7-18 standard errors. Splitting the aggregate records, or how Table 4.3's top
+     cells treat them, is John's decision.
+   - **Synthetic 2021** converged on its 150th Newton step (2020: 137), with no margin.
 
 ## Other to-dos (not in order)
 
