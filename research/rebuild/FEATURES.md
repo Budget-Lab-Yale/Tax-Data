@@ -1782,6 +1782,19 @@ items table (`projection_items.csv`: series `current`, so its growth.yaml rule; 
 full run on the merged code (scratch `explore/2026-11-03/bigrun/`) are the first trained with this item and the
 pensions slots together.
 
+## The real-PUF test (branch `rebuild-realpuf`, 4 November)
+
+Settings `generation.real_puf` true (off by default) replaces the filer batch with every 2015 PUF record: the training
+table's PUF rows and the four aggregate records, all their PUF slots and computed totals preset
+(`generate.real_puf_part`; `generate(totals_preset=True)`), each pooled network drawing the rest given the record, so
+each record appears once per network at its PUF weight over the number of networks. Where the PUF has no age range
+each copy draws one from step 0's probabilities. The aggregate records' filing status, dependents and age range
+(blank on the PUF) are drawn, adult ranges only (`adult_only`); their blank alimony fields are read as zero. A real
+record's own 2015 amounts ride in the stack (`own_<item>`), and `dollars.own_values` grows them exactly as the dollar
+map is grown, in place of a pick from the map. Record ids are 50,000,000 + copy index x 1,000,000 + RECID. With it,
+`tilt.top.hidden_returns` is set false (the aggregate records are real records). Results and the package for CRS:
+scratch `explore/2026-11-04/realpuf/RESULTS.md`.
+
 ## How the latest runs come out (3-4 November 2026)
 
 Every year on `rebuild-joint-model` after the evening merges of 3 November (2a42643): three networks retrained on the

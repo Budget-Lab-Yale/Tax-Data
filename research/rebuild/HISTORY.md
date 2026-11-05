@@ -1094,6 +1094,13 @@ married people under 18 were counted as unmarried (ede6f65).
   (`top_records.hold_below_ceiling`): 82-292 grown 2023 records in 2024-2026 held at $999 million. After the last list,
   records grown past $1 billion stay as the new billionaires; wealth above $1 billion in 2026 dollars goes from 4.7% of
   net worth in 2026 to 6.9% in 2075 (`explore/2026-11-04/billionaires_talk/`).
+- **The real-PUF test for CRS** (branch `rebuild-realpuf`, scratch `explore/2026-11-04/realpuf/`). The 2019 file made
+  on the real 2015 PUF records: each record keeps its PUF items, each network draws the rest given it (three copies
+  at a third of the weight), the aggregate records kept as records, Part A off. 87 Newton steps; the new misses are in
+  Table 4.3's top 0.001% (Schedule C or F profit count 272 against 243), because the aggregate records' copies cannot
+  be split; held-out score 6.86 against run3's 8.14. A package of factors per PUF item, imputed values and the extra
+  records, with a merge script, reproduces the file to the last binary digit on 232 of 244 columns and to rounding on
+  the rest.
 
 ## Paths tried and not taken
 
