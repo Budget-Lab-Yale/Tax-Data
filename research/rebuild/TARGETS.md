@@ -137,6 +137,14 @@ published levels, which count a return differently from the file (CBO's 2024 cou
 above the file's). `target_list.cbo_count_rows` reads the previous year's file. The population cells (previous count
 times CBO's population growth) and the dollar totals (previous total times CBO's growth) were already of this form.
 
+**Observed growth for the first projection year (John, 4 November 2026).** For the year after the last final SOI
+tables (now 2024), SOI's filing-season table of returns processed through November gives the change from the year
+before, item by item and AGI group by AGI group, about thirteen months after the year ends. It is used the same way:
+the 2023 file's own total in a group times the table's growth in the group, never the table's level (its levels sit
+2-17% below final SOI's, because it misses late and corrected returns). It is blended with CBO's national growth by the
+item's trust (FEATURES.md, "The first projection year from SOI's November filing-season tables"), and its error is the
+backtest's miss of that growth against final SOI in 2016-2023 (scratch `explore/2026-11-04/nowcast/BACKTEST.md`).
+
 ## 4. What the prior for year t contains before any target (agreed 24 October)
 
 The prior is our best guess for year t, with every change we can explain from outside facts already applied. The
@@ -715,6 +723,15 @@ non-filers), dollars grown per return from 2023 to the year by CBO's and the mac
 2023 to the year (population cells exact; CBO totals and the counts of returns, itemizers and AMT returns with the error of
 1% as before). The prior in the cost is the 2023 file prescaled to the year. The years are independent and run in parallel;
 no year inherits another's misses or moves.
+
+**The jump-off year (John, 4 November 2026, evening).** The base is the jump-off year: the last year with IRS data,
+the November filing-season table included (now 2024; FEATURES.md, "The first projection year from SOI's November
+filing-season tables"). 2024 starts from the 2023 file as above. Every year after it, 2025-2075, starts from the
+finished 2024 file (`target_list.start_spec` turns the targets.yaml's `from_year: 2023` into 2024 when settings
+`tilt.projection.filing_season.enabled` is true), its dollars grown from 2024 by CBO's and the macro series, its
+targets the 2024 file's level times the growth from 2024. The years after the jump-off year are still independent of
+one another. When no November table exists for the year after the last SOI year, the jump-off year is the last SOI
+year; with the setting off every year starts from 2023, as before.
 
 ### S14. Returns by age within each AGI group (John, 3 November 2026; experiment on branch rebuild-age-by-agi)
 

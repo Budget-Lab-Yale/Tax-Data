@@ -1,0 +1,13 @@
+item,level,reason
+returns,full,"the number of returns, as shares across AGI groups (the exact cells by age and marital status keep the total): national misses 0.3-1.2% in five years, CBO's count 2.2-2.6%"
+txbl_int,full,"taxable interest: national misses 0.4-6.1% in three years; CBO missed 2023's rise by 47%"
+dividends,full,"ordinary dividends (qualified included): misses 0.1-3.0%; CBO's qualified line missed ordinary dividends by 14% in 2023"
+div_pref,full,"qualified dividends: misses 0.1-1.2%, CBO 0.3-2.1%"
+txbl_ira_dist,full,"taxable IRA distributions: misses 0.1-0.3% in two years; CBO's combined pension line 2.8-8.1%"
+txbl_pens_dist,full,"taxable pensions and annuities: misses 0.3-1.4% in two years; CBO's combined pension line 0.7-7.3%"
+schedule_e,mostly trust,"Schedule E, all its parts by one common factor: misses 0.1-5.9% against CBO's business line 0.3-10.4%; Table 1.4 has no exact Schedule E line to check against"
+wages,mostly not trust,"wages: misses 0.5-0.8% below final in all three years, CBO's one-year-ahead forecasts 0.1-0.5%"
+capital_gains_line13,mostly not trust,"net capital gain or loss (Form 1040): misses up to 7.8%, the November tables' coverage of gains moves from year to year; CBO's one-year-ahead forecasts within 2.2%"
+sole_prop,none,"Schedule C: misses 3.5-6.1%, always too high; its 16.5% fall in 2024 is $47 billion of larger losses on the same number of returns with no AGI and $7 billion elsewhere (John, 4 November: no trust until it is understood)"
+farm,none,"Schedule F: a net amount near zero, a 21% miss in 2023"
+ui,none,"unemployment compensation: misses of 23% each year"

@@ -71,7 +71,37 @@ def growth_factors(wave, year):
     ext = projection_extension(year, list(f))
     for v, x in ext.items():
         f[v] = f[v] * x
+    chain, _ = jump_off_chain(year)
+    for v in f:
+        if chain is not None and v in ext:
+            f[v] = f[v] * chain[v]
     return f
+
+
+def jump_off_chain(year):
+    """(4 November, the jump-off year) For a year whose start is the jump-off year's file (target_list.start_spec sets
+    jump_off): the jump-off year's own SCF growth from the base year, ({item: factor}, units' growth), read from that
+    year's tilt folder (projection_step2_items.csv, projection_return_groups.csv) exactly as projection_steps.scf_factor
+    and unit_growth made them there, so the SCF targets are the base year's SCF frame grown to the jump-off year and on
+    from it. (None, 1.0) for any other start."""
+    import target_list as TLS
+    spec = TLS.start_spec(year)
+    if not spec.get('jump_off'):
+        return None, 1.0
+    if 'chain' not in _EXT:
+        d = f"{common.OUT}/tilt/{spec['run']}"
+        it = pd.read_csv(f'{d}/projection_step2_items.csv')
+        g = pd.read_csv(f'{d}/projection_return_groups.csv')
+        ug = float(g['units after step 1'].sum() / g['units 2023'].sum())
+        assert np.isfinite(ug) and ug > 0, f'{d}: the units\' growth {ug}'
+        chain = {r.column: (r['growth positive'] / ug if r.kind == 'total' else r['factor positive'])
+                 for _, r in it.iterrows()}
+        bad = [v for v, x in chain.items() if not (np.isfinite(x) and x > 0)]
+        assert not bad, f'{d}: no SCF growth factor for {bad}'
+        _EXT['chain'] = (chain, ug)
+        common.say(f"SCF targets: the jump-off year {spec['year']}'s own growth from the base year taken over "
+                   f"({len(chain)} items; units {ug:.5f})")
+    return _EXT['chain']
 
 
 _EXT = {}
@@ -183,7 +213,10 @@ def frame(wave, year):
     # (age and joint status; 2023 to 2030 +6.5% against the population's +3.3%), and the start's dollars per unit are grown
     # on that basis, so targets that scaled units by the population stood 4% too low in total by 2030.
     spec = TLS.start_spec(year)
-    if spec['mode'] == 'from_year':
+    if spec.get('jump_off'):   # (4 November) the base year's units, grown to the jump-off year as there, and on
+        import projection_steps as PS
+        units = BT.scf_units_at(_table(['weight']), int(PS.FS['base_year']) - 1) * jump_off_chain(year)[1] * unit_growth(year)
+    elif spec['mode'] == 'from_year':
         units = BT.scf_units_at(_table(['weight']), spec['year'] - 1) * unit_growth(year)
     else:
         units = BT.scf_units_at(_table(['weight']), year - 1)

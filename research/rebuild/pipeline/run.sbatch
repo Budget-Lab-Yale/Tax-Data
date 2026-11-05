@@ -13,6 +13,7 @@
 # CPS's units and their calibrated filing chances, which cps reads), sipp (the SIPP's tax units, in Python), targets (SOI), errors (SOI's CVs), table, train,
 # generate, tilt (the year's targets, the reweighting and the run report), report (the CEX, CPS and translation reports).
 # non_micro_tables (not in the default list) rebuilds research/rebuild/resources/non_micro/ from its sources (build_non_micro_tables.py).
+# filing_season (not in the default list) reads SOI's November filing-season tables into research/rebuild/resources/filing_season/ (build_filing_season.py).
 # calculator (an experiment, not in the default list: each record's taxes from the GPU tax calculator, calculator.py).
 # taxsim_file (not in the default list): the year file as Tax-Simulator's tax_units_<year>.csv (taxsim_file.py).
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:
@@ -52,6 +53,7 @@ for s in $STAGES; do
     maps)     python $P/build_table.py maps ;;   # the target year's dollar maps alone, from the table already built (not in the default list)
     targets)  python $P/targets.py ;;
     non_micro_tables) python $P/build_non_micro_tables.py ;;   # the non-microdata imputations' published tables (committed; run when a source changes)
+    filing_season) python $P/build_filing_season.py ;;   # SOI's November filing-season tables into research/rebuild/resources/filing_season/ (committed; run when SOI posts a new one)
     errors)   python $P/errors.py soi_cv ;;   # SOI's published CVs, parsed from the workbooks in <out>/targets/soi_cv/raw
     train)    python $P/train.py ;;
     generate) python $P/generate.py ;;

@@ -67,6 +67,23 @@ a run of the years it touches, a comparison with the run before it, and John's a
    section 6). The 2025 files should move to the shared raw-data folder, and the setting `paths.raw.scf_wave_dirs`
    then go.
 
+7. **The November filing-season tables, each year** (branch `rebuild-nowcast`; FEATURES.md, "The first projection
+   year from SOI's November filing-season tables"). Two moments a year:
+   - **When SOI posts the next November table** (the tax-year-2025 table, `26inweek47.xlsx`, expected January 2027):
+     download it into `resources/filing_season/raw/`, run the stage `filing_season`, add the new year's pair to the
+     backtest (scratch `explore/2026-11-04/nowcast/scripts/backtest.py` and `errors_table.py`, which rewrites
+     `targets_config/filing_season_errors.csv`) and revisit the trust levels with John. While 2024 has no final
+     tables, the table for 2025 is not used: the blend covers only the year after the last final year.
+   - **When SOI publishes final tables for 2024** (Table 1.4, expected late 2026 or 2027): 2024 becomes a past year
+     (its targets.yaml a past year's, run on its own draw), settings `tilt.projection.filing_season` base_year 2024 and
+     year 2025, the 2025 targets.yaml gets the `filing_season_groups` entry (to be taken out of 2024's) and 2025, built
+     from the 2024 file, becomes the jump-off year: 2026-2075 start from it (every projection targets.yaml's
+     `from_year` then reads 2024, which `projection_steps.jump_off` turns into 2025). The November tables for 2024 and
+     2025 give 2025's blend. If the November table for the year after the last SOI year is missing, the jump-off year
+     is the last SOI year and the setting is off.
+   - **Schedule C** stays at no trust until its 2024 fall is understood: $47 billion of the $55 billion fall is larger
+     losses on returns with no AGI, whose number did not change (scratch `explore/2026-11-04/nowcast/RESULTS.md`).
+
 ## Other to-dos (not in order)
 
 - **Tax expenditures against JCT** (`explore/2026-11-03/tax_expenditures_1103/RESULTS.md`, on the big run's
