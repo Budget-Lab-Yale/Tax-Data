@@ -1,10 +1,10 @@
 # Next steps (as of 5 November 2026, afternoon)
 
 The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The latest
-installed run is run3 (John, 4 November; `explore/2026-11-04/run3/run/`, every year 2015-2075): the big run of 3-4
-November (`explore/2026-11-03/bigrun/RESULTS.md`), its networks and draws, reweighted again on the code with Table
-4.3's count errors, the age-by-AGI targets at importance 1 and the list-year ceiling (2024-2026), and 2024-2075 projected
-from its 2023. Paths starting
+installed run is run6 (John, 5 November; `explore/2026-11-05/run6/run/`, every year 2015-2075): version A's rules and
+target breakdowns, the part_se fix, the real-PUF setting and package, and the earnings split from the PUF, on the
+earnings-split networks (items 8 and 9). The run installed before it (run3 for 2015-2023, run4 for 2024-2075) is in
+`explore/2026-11-04/run3/run/`. Paths starting
 `explore/` are under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch,
 a run of the years it touches, a comparison with the run before it, and John's approval.
 
@@ -86,7 +86,8 @@ a run of the years it touches, a comparison with the run before it, and John's a
 
 8. **Run5, the combined retrain** (4-5 November overnight; scratch `explore/2026-11-04/run5/RESULTS.md`): version A,
    the real-PUF setting and the part_se fix merged, three networks retrained, every year 2015-2075 run; held-out
-   score 6.21 (2019) and 8.25 (2023) against run3's 8.14 and 9.56. **Not installed; John decides.** Open with it:
+   score 6.21 (2019) and 8.25 (2023) against run3's 8.14 and 9.56. Not installed: run6 (item 9), with the earnings
+   split, was installed in its place. Open with it:
    - **The self-employment tax target** is met by moving weight to records with large partnership income subject to
      self-employment tax (2019: $27 billion before the reweighting, $153 billion after), and it costs 2020 most of its
      149 Newton steps (without it, 73). Keep it, target the item differently, or fix the draw's split of the tax
@@ -103,7 +104,7 @@ a run of the years it touches, a comparison with the run before it, and John's a
    the networks of run5's second retrain, every year 2015-2075 synthetic and on the real PUF, and the packages for
    every year with John's three package decisions (the refund multiplier, repealed deductions as a zero factor, the
    self-employment tax deduction not shipped). Every synthetic year converges (2021 on its 150th Newton step);
-   every package passes the round trip with both scripts. **Not installed; John decides.** Open with it:
+   every package passes the round trip with both scripts. **Installed 5 November (John).** Open with it:
    - **The real-PUF 2021 does not converge** (150 of 150 Newton steps, largest gradient 1.32, still falling about a
      third every ten steps); real 2023 now converges in 100. Real 2022 and 2024-2075 do not start from 2021.
    - **The four aggregate records.** In every real-PUF year the solve sets at least 9 of their 12 copies to a weight near
