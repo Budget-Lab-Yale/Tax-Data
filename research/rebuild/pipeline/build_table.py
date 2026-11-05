@@ -462,10 +462,12 @@ def puf_rows(puf):
     assert np.array_equal(sum(out[p] for p in ADJ_PARTS), items['adjustments'])
     out.update({v: I[fld] for v, fld in NEW_ITEMS.items() if fld})
     # part_se, production's partnership income subject to self-employment tax: on a return with any partnership
-    # income or loss, Schedule SE's earnings of both spouses (E30400 + E30500, after the 92.35% factor) grossed up,
-    # less Schedules C and F; zero elsewhere (src/process_puf.R). Not whole dollars (the division by 0.9235).
+    # income or loss, the couple's Schedule SE earnings (E30400, which already holds the spouse's E30500, after the
+    # 92.35% factor) grossed up, less Schedules C and F, negatives kept; zero elsewhere. Production's formula
+    # ((E30400 + E30500) / 0.9235 - C - F, src/process_puf.R) counts the spouse's earnings twice; John approved the fix
+    # 4 November 2026 for the combined retrain. Not whole dollars (the division by 0.9235).
     k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
-    out['part_se'] = np.where(k1_part, (I['E30400'] + I['E30500']) / 0.9235 - I['E00900'] - I['E02100'], 0.0)
+    out['part_se'] = np.where(k1_part, I['E30400'] / 0.9235 - I['E00900'] - I['E02100'], 0.0)
     out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
     # (3 November) the PUF's own taxable Social Security (E02500) comes off too: it is not a slot, and the file computes
     # it by the worksheet, so other_agi is AGI without taxable benefits less the items (puf_ss_check compares the two)
