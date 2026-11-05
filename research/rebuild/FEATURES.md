@@ -1791,14 +1791,24 @@ John's rule (5 November 2026; scratch `explore/2026-11-05/interest_check/FINDING
   November); the rate-like part grows as taxable interest. The column grows by one index, the 2024-share-weighted blend
   of the two, so every record's `div_ord` is scaled by one factor as before and no column is added. The share is
   computed in every run from SOI's table and the start file, and written to the year's `summary.md` and
-  `projection_interest.csv`.
+  `projection_interest.csv`. On run6's 2024 file: SOI's 2022 non-qualified dividends $99.1 billion times qualified
+  dividends' growth 1.108 ($313.2 billion in SOI 2022 to $347.1 billion on the 2024 file's filers) gives a stock-like
+  part of $109.8 billion of $224.5 billion, a share of 0.489; the rate-like part is $114.7 billion. (Qualified
+  dividends on all units, $358.0 billion, would give 0.505; filers are used because SOI's table counts returns.)
 - **Tax-exempt interest** (`exempt_int`) keeps `int_remainder`, the same numbers as before: it is mostly municipal
   bonds with fixed long-term coupons. `int_remainder` is a fixed column of the series file; nothing recomputes it.
   Its name now describes how it was made, not what is left of CBO's line under the new rule.
 - **When it applies.** Every year whose start is `from_year` (2024, the jump-off year) or later, so 2025-2075 and no
   year before; the rule never meets the filing-season blend (2024 starts from 2023). Every other item, target and
   error is as before; the two items' total targets in step 3 follow their new step 2 growth. `enabled: false`, or no
-  entry, gives every year exactly the file it gave before.
+  entry, gives every year exactly the file it gave before (checked on 2030 against run6, and 2024 with the rule on:
+  every column and weight equal, the Tax-Simulator file byte for byte).
+- **The run** (5 November, 2025-2075 on run6's networks and 2024 file; scratch `explore/2026-11-05/interest_growth/`,
+  not installed). Taxable interest is $362 billion in 2025 and $420 billion in 2035 (run6 $442 and $743 billion);
+  taxable interest plus non-qualified dividends is $714 billion in 2035, 1.35 times CBO's line (run6 2.08 times).
+  Every year converges in 7-22 Newton steps, with run6's largest misses. Income tax (after credits, with the net
+  investment income tax) is $29 billion lower in 2025 and $114 billion (2.9%) lower in 2035; tax after credits is
+  then 3.9% below CBO's in 2035 (run6 1.1%).
 
 ## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, merged 3 November)
 
