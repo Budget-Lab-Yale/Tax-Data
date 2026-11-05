@@ -1,5 +1,6 @@
 file,column,kind,aggregate,per,series_2024_2035,reason
 projection_series_b.csv,int_remainder,total,gdp_interest,,"CBO's interest and non-qualified dividend line less non-qualified dividends on CBO's qualified dividend line","production: interest = gdp_interest"
+projection_series_b.csv,int_gdp_bill,total,gdp * tsy_3m,,"CBO's nominal GDP times CBO's 3-month Treasury bill rate (build_interest_series.py)","the assets that earn taxable interest grow with GDP and their yield follows the bill rate (John, 5 November 2026): Macro-Projections nominal GDP times its 3-month bill rate, CBO's long-term rate"
 projection_series_b.csv,biz_common,total,gdp_proprietors + gdp_rent + gdp_corp,,"CBO's business line less rents, Section 179 and estates, as one factor on the rest","production: pass-through = gdp_proprietors + gdp_rent + gdp_corp"
 projection_series_b.csv,cg_before_limit,total,gdp_corp,,"the growth before the loss limit that puts the net capital gain on CBO's capital gain line","production: capital gains = gdp_corp"
 projection_series_b.csv,retirement_gross,total,outlays_mand_oasdi,,"gross pensions on CBO's pensions line plus gross Social Security on its series (no item uses it since 3 November)","production: pensions and Social Security = outlays_mand_oasdi"

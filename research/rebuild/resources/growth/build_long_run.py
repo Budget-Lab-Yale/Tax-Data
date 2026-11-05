@@ -17,7 +17,9 @@ Writes, all from the same interface:
                                  ratio to nominal GDP; the population summed from the interface); rows to 2060 kept
                                  as they are.
   projection_series_b.csv, projection_series_med.csv
-                                 rows 2036-2075 added; the rows 2023-2035 are kept byte for byte.
+                                 rows 2036-2075 added; the rows 2023-2035 are kept byte for byte. (Column
+                                 int_gdp_bill is written for every year by build_interest_series.py; its mapping row,
+                                 gdp * tsy_3m, continues it here by the same rule.)
   projection_series_current.csv  one column per items-table row whose rule was 'current' and resolved, in every year
                                  2024-2035, to a CBO or Federal Reserve series (projection_growth.plan_factors): its
                                  growth in total from 2023 exactly as tilt.grow_dollars computed it (the factor per
@@ -65,7 +67,10 @@ lev = lr.set_index('year')
 
 
 def agg(name, y):
-    return float(sum(lev.loc[y, c.strip()] for c in name.split('+')))
+    # a sum of terms, each a product of Macro-Projections columns ('gdp * tsy_3m': nominal GDP times the 3-month bill
+    # rate, the taxable interest series of build_interest_series.py; 5 November 2026). Read from the whole interface,
+    # so a rate need not be one of AGG; a column of AGG has the same value in both
+    return float(sum(np.prod([float(m.loc[y, f.strip()]) for f in c.split('*')]) for c in name.split('+')))
 
 
 # ---- 2. the Z.1 and population files past 2060 ------------------------------------------------------------------
