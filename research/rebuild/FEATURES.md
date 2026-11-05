@@ -1907,7 +1907,16 @@ $30.0 billion against $7.1 billion; after, $9.3 billion.
 `taxes.refund_tax_benefit_from` (2019) and a fix in `targets.published_cells` for a blank cell held in the next
 combined cell (Table 3.3, 2015). **Round 11:** no state refund targets in 2018 (its refunds repay 2017 taxes).
 
+**Round 12: gross pensions and annuities** as a target in the business AGI groups.
+
+**Round 13: the QBI items drawn after every other SCF item** (settings `generation.qbi_items_last`,
+`generate.scf_order`). The QBI rule gives a Schedule C, partnership or S corporation industry group to every record
+with that kind of income, while in the SCF only business owners have one; drawn first, the industry group made the
+record an owner. Drawn last, owns_business and the balance sheet follow the record's income as the SCF taught: 2019
+ownership 16.8% to 11.0% (SCF 11.6%), bottom income quarter 13.6% to 6.4% (SCF 3.4%); 2023 18.0% to 11.6% (SCF
+12.6%). A new draw of 2019 and 2023 (GPU), no retrain.
+
 Also tried and dropped: an SCF target on the share of units owning a private business (2019 effective sample kept
-61.8% to 58.6% for an item no tax calculation reads).
+61.8% to 58.6% for an item no tax calculation reads); round 13 fixed the cause in the draw instead.
 
 The log of every round, with the numbers before and after, is `LOG.md`.

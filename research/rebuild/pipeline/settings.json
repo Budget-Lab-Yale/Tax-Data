@@ -1714,6 +1714,8 @@
   "whole_tolerance": 0.02
  },
  "generation": {
+  "qbi_items_last": true,
+  "_qbi_items_last": "Autoresearch round 13: the QBI items (industry groups and outside workers) drawn after every other SCF slot, so owns_business and the balance sheet are not drawn given an industry group that the QBI rule gave the record (generate.scf_order).",
   "_what": "The filer batch and the non-filer batch (generate.py says how). Since 26 October the AGI group label is preset on every filer record and everything else is drawn given it.",
   "label_records": 400000,
   "label_seed": 61,

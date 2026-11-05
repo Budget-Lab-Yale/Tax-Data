@@ -384,6 +384,16 @@ def scf_order(size, gen):
         pos, pos_b = (perm == i).int().argmax(1), (perm == ib).int().argmax(1)
         swap = pos < pos_b
         perm[rows[swap], pos[swap]], perm[rows[swap], pos_b[swap]] = ib, i
+    if G.get('qbi_items_last', False):
+        # (autoresearch, round 13) the QBI items (each kind's industry group and its outside workers) after every other
+        # SCF slot, keeping their order among themselves. qbi_structure gives an industry group to every record with the
+        # kind's PUF parts nonzero, while in the SCF only owners of a business have one; drawn before owns_business and
+        # the balance sheet, a given industry made the record an owner (the 2019 file: 32 million units with a Schedule C
+        # industry against the SCF's 7 million; ownership 16.8% against 11.6%, 13.6% in the bottom income quarter
+        # against 3.4%).
+        qbi = torch.tensor(sorted(set(INDUSTRY_PARTS) | set(SCF_AFTER)))
+        key = torch.arange(perm.shape[1]).expand(size, -1) + perm.shape[1] * torch.isin(perm, qbi).long()
+        perm = torch.gather(perm, 1, key.argsort(1))
     return perm
 
 
