@@ -123,6 +123,22 @@ def exact_factor(x, y):
     return q, int((x * q != y).sum())
 
 
+def nearest_exact(x, y, f):
+    """The factor as the pipeline applied it: f, or the nearest value within four last binary digits of it that gives
+    y = x * f on the most records (a factor read back from a text file can be one digit off). Only for the steps
+    after the first, whose factor is a single multiplication; the check that follows must then find every record exact."""
+    if not len(x):
+        return f
+    cands, g = [f], f
+    for _ in range(4):
+        g = np.nextafter(g, np.inf); cands.append(g)
+    g = f
+    for _ in range(4):
+        g = np.nextafter(g, -np.inf); cands.append(g)
+    hits = [int((x * c == y).sum()) for c in cands]
+    return float(cands[int(np.argmax(hits))])
+
+
 def medical_floor(recid):
     """The floor build_table.puf_rows used for other itemized deductions: 7.5% for the 65+ range (or no range and step
     0's 65+ chance over one half), 10% otherwise; the aggregate records 10%, as Part A reads them."""
@@ -285,12 +301,12 @@ def build():
             sa = {}
             sa_path = f'{folder}/taxes/schedule_a_factors.csv'
             if os.path.exists(sa_path):
-                s = pd.read_csv(sa_path)
+                s = pd.read_csv(sa_path, float_precision='round_trip')   # the C parser's default is not exact
                 for _, r in s.iterrows():
                     for c in str(r['input columns']).split(', '):
                         sa[c] = (float(r['multiplier s on the prior']), r['category'])
         else:
-            gtab = pd.read_csv(f'{folder}/start_growth.csv').set_index('column')
+            gtab = pd.read_csv(f'{folder}/start_growth.csv', float_precision='round_trip').set_index('column')
         for c, b in cols.items():
             if k == 0:
                 x = x0[b].to_numpy(float)
@@ -312,7 +328,11 @@ def build():
                 steps.append({'column': c, 'puf_item': b, 'what': f'growth from {links[k - 1][0]} to {y}',
                               'positive': fp, 'negative': fn})
                 assert prev[c].index.is_unique and np.isin(ids, prev[c].index).all(), f'{y}: a PUF record copy not in {links[k - 1][0]}'
-                v = apply(prev[c].loc[ids].to_numpy(float), fp, fn)
+                x = prev[c].loc[ids].to_numpy(float)
+                fp = nearest_exact(x[x > 0], fy[c].to_numpy(float)[x > 0], fp)
+                fn = nearest_exact(x[x < 0], fy[c].to_numpy(float)[x < 0], fn)
+                steps[-1].update(positive=fp, negative=fn)
+                v = apply(x, fp, fn)
             got = fy[c].to_numpy(float)
             assert np.isfinite(got).all(), f'{c}: missing on a PUF record copy in {y}'
             bad = v != got
