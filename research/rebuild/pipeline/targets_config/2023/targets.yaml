@@ -770,11 +770,14 @@ targets:
   # contributions credit, used against tax, by AGI. Untargeted, run3's 2019
   # file had $4.3 billion of the child care credit against SOI's $3.8 billion and 8.0 million returns with the
   # saver's credit against 9.6 million (2023: $4.1 against $3.5 billion; 8.2 against 9.8 million).
+  # (John's rule of 4 November 2026, evening; applied 5 November) The child and dependent care credit is no longer a
+  # target: with it, the held-out check of mean child care spending among payers by wage group was more than twice
+  # run3's (run5 2019: 26.5 against 7.9; 2023: 12.7 against 4.4). The saver's credit stays.
   - id: calc_small_credits
     kind: calculator
     statistic: [count, amount]
     population: filers
-    variable: [child_care_credit, savers_credit]
+    variable: [savers_credit]
     cells: {ref_credit_agi_groups: all}
     value: {published: soi 3.3}
     error: {kind: soi_cv}

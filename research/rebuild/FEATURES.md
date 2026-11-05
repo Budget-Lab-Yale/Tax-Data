@@ -1971,6 +1971,8 @@ group, $1 million and over included (if that group cannot be met within the 150-
 sample, it is merged with the group below rather than dropped); the child and dependent care credit target stays,
 to be checked after the full run against the held-out check of child care spending by wage group (it worsened from
 7.9 to 32 in version A), and dropped if it is still much worse than run3's.
+After run5 it was still much worse (26.5 against run3's 7.9 in 2019, 12.7 against 4.4 in 2023), so the care credit
+is no longer a target (5 November); the saver's credit in the same entry stays.
 The rounds below describe the branch before that change.
 
 **Round 1: estates and trusts, Form 4797, alimony, and the tax benefit rule on state refunds.**
