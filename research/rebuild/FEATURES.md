@@ -1879,6 +1879,17 @@ and added a target or a rule for them. Dollars are nominal dollars of the year. 
 errors used by the reweighting. The log of every round is `LOG.md` in the scratch folder
 `explore/2026-11-04/autoresearch/llm/`. Only what was kept is listed here.
 
+**Merged into rebuild-joint-model (John, 4 November 2026, evening), with one change to the branch as it stood:**
+Table 4.3's two new entries (the top 0.1% and 1% cells of the charitable, interest and QBI deductions, and of
+qualified dividends) are dropped: they covered only two of the table's four rows. John's other decisions at the merge:
+the share of refunds kept against the tax benefit rule (15%, `taxes.refund_reported_anyway`) stays, as it rests on
+SOI's refunds on about 5% of returns at AGI $2-5 million, and the state refunds are targets in every business AGI
+group, $1 million and over included (if that group cannot be met within the 150-step budget, or costs much effective
+sample, it is merged with the group below rather than dropped); the child and dependent care credit target stays,
+to be checked after the full run against the held-out check of child care spending by wage group (it worsened from
+7.9 to 32 in version A), and dropped if it is still much worse than run3's.
+The rounds below describe the branch before that change.
+
 **Round 1: estates and trusts, Form 4797, alimony, and the tax benefit rule on state refunds.**
 - The file against SOI Table 1.4, 2019: estate and trust net income $51.9 billion against $36.2 billion; Form 4797 net
   gain $56.3 against $37.9 billion and net loss $52.3 against $18.5 billion; alimony received $20.5 billion against

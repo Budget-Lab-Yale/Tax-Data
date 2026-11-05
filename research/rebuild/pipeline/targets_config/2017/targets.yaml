@@ -308,7 +308,8 @@ targets:
   # $5.6 billion on 4.3 million), because the reweighting cuts the 2015 itemizers who carry them and because some
   # refunds repay taxes deducted before the cap. Round 3: the rule alone left too few refunds at the top to meet the
   # $1 million and over cell (2019: $0.27 billion against SOI's $0.66 billion); settings taxes.refund_reported_anyway
-  # keeps a share of the refunds the rule would take off.
+  # keeps a share of the refunds the rule would take off (John, 4 November 2026, evening: kept, as it rests on SOI's
+  # refunds on about 5% of returns at AGI $2-5 million; every AGI group a target, $1 million and over included).
   - id: state_refunds
     kind: IRS
     statistic: [count, amount]
@@ -554,37 +555,6 @@ targets:
     variable: soi_4_3_items
     cells: {agi_cumulative: [top 0.001 percent, top 0.01 percent, top 0.1 percent, top 1 percent]}
     must_reach: [top 0.001 percent]
-    value: {published: soi 4.3}
-    error: {kind: soi_borrowed}
-    key: {group: '{cell}', target: '{variable} {statistic}'}
-
-  # (autoresearch, 4 November) Table 4.3's deductions in the top AGI groups, from the calculator: the charitable
-  # and interest deductions, dollars only. Table 2.1's top group is $500,000 and over and
-  # Table 1.4's QBI cells stop at $10 million, so the very top was free: run3's 2019 file had 1.42 times SOI's
-  # contributions deduction in the top 0.001% and 0.52 times its interest deduction.
-  # (round 6) Only the top 0.1% and 1%: in 2023 the top 0.001% and 0.01% cells, where the Forbes list's records are
-  # held at their weight, could not be met and the solve ran out of its 150 Newton steps (round 5).
-  # Table 4.3's taxes paid deduction is left out: it adds taxes other than state and local (in 2019 the top 0.001%
-  # deducted $191 million, $129,000 a return, under a $10,000 cap on state and local taxes), which the calculator's
-  # claimed taxes do not hold; as a target it stopped the solve (round 5, 271 standard errors).
-  - id: soi_4_3_deductions
-    kind: calculator
-    statistic: amount
-    population: independent_filers
-    variable: [itemized_charity, itemized_interest]
-    cells: {agi_cumulative: [top 0.1 percent, top 1 percent]}
-    value: {published: soi 4.3}
-    error: {kind: soi_borrowed}
-    key: {group: '{cell}', target: '{variable} {statistic}'}
-
-  # (autoresearch, round 6) Qualified dividends in Table 4.3's top 0.1% and 1%: with ordinary dividends met, run3's
-  # 2019 file had 1.48 times SOI's qualified dividends in the top 0.1% before the tilt.
-  - id: soi_4_3_qualified_dividends
-    kind: soi 4.3
-    statistic: [count, amount]
-    population: independent_filers
-    variable: qualified_dividends
-    cells: {agi_cumulative: [top 0.1 percent, top 1 percent]}
     value: {published: soi 4.3}
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
