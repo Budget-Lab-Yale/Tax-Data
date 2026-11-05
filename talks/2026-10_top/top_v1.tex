@@ -1,0 +1,347 @@
+% Build: module load texlive/20240312-GCC-13.3.0 && pdflatex top.tex (twice)
+% Facts, all under /nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-29/:
+%   top_research/PLAN.md (the approved plan), top_research/REPORT.md (sections 1, 2, 5),
+%   top_research/REVIEW_PLAN_codex.md (BSYZ ratios, giving and deduction figures, the 2019 Forbes list),
+%   top_research/pwbm/pwbm.txt (section 2.1), top_build/hidden/RESULTS.md (Part A results).
+% SCF training rows: research/rebuild/FEATURES.md, Data (138,902 rows less the 2% held back).
+% Part B and C results: top_build/billionaires/RESULTS.md.
+
+\input{../2026-10_translation/preamble}
+
+\newcommand{\slidenote}[1]{\par\vfill{\scriptsize\color{yalegrey}#1}}
+
+\title[The PUF's aggregate records and the billionaires]{The PUF's aggregate records and the billionaires\\in the Tax-Data rebuild}
+\author{John Ricco}
+\institute{The Budget Lab at Yale}
+\date{October 2026}
+
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+
+\begin{document}
+
+\begin{frame}[plain,noframenumbering]
+  \titlepage
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The PUF's aggregate records}
+  \small
+  The rebuild is a generative model of tax units, trained on the 2015 PUF and four surveys. Records
+  drawn from it are reweighted to each year's published targets.
+  \vspace{0.4em}
+  \begin{itemize}
+    \item From tax year 2009, SOI replaced the most extreme returns in the PUF with records holding their
+          group means.
+    \item In the 2015 PUF, the last one released, 1,233 returns sit in four such records by AGI group: the
+          top 400 by AGI, plus any return with one of the largest amounts of some item.
+  \end{itemize}
+  \vspace{0.3em}
+  \setlength{\tabcolsep}{3pt}
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \centering\scriptsize
+      \begin{tabular}{lrrr}
+        \toprule
+        AGI group & Returns & Mean AGI & Total AGI \\
+        \midrule
+        Negative          & 140   & $-$\$96.4m & $-$\$13.5bn \\
+        \$0--10 million   & 233   & \$4.0m     & \$0.9bn \\
+        \$10--100 million & 394   & \$43.8m    & \$17.2bn \\
+        Over \$100 million & 465  & \$291.8m   & \$135.7bn \\
+        \midrule
+        All four          & 1,233 &            & \$140.3bn \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.51\textwidth}
+      \centering\scriptsize
+      \begin{tabular}{lrr}
+        \toprule
+        AGI above \$59.4 million & Returns & AGI \\
+        \midrule
+        SOI Table 4.3, top 0.001\% & 1,412 & \$214.6bn \\
+        Retained PUF records       & 840   & \$71.1bn \\
+        \bottomrule
+      \end{tabular}
+      \vspace{0.4em}
+
+      \raggedright
+      The largest retained AGI, \$136.2 million, is below the group's mean, \$152.0 million. No
+      reweighting of retained records can reach both the count and the AGI.
+    \end{column}
+  \end{columns}
+  \slidenote{2015 dollars. Table 4.3: SOI's table of returns at the top percentiles of AGI.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The billionaires, and handling both problems after generation}
+  \footnotesize
+  \begin{itemize}
+    \item \textbf{No source has the billionaires.} The SCF removes the Forbes 400 by name before it draws
+          its sample. The PUF records no wealth, and it hides the richest returns in the aggregate records.
+    \vspace{0.4em}
+    \item \textbf{Adding billionaire records to the SCF before training would not work}, for three reasons.
+    \begin{enumerate}
+      \item A few hundred rows among about 136,000 SCF training rows would barely move the network, so
+            generation would almost never draw anything like them.
+      \item The list gives wealth but no tax items, so the network would have nothing to learn their
+            income from.
+      \item The network predicts a size band for each amount, and the dollar figure is a real training
+            record's value from that band. Nothing above the training data's largest values can be drawn.
+    \end{enumerate}
+    \vspace{0.4em}
+    \item \textbf{So both problems are handled after generation and before the reweighting.} Pretraining
+          does not change, and there is no retrain.
+  \end{itemize}
+  \slidenote{SCF training rows: four waves, each household stored five times by the SCF (``implicates'').
+             The exclusion: Bricker, Henriques, Krimmel and Sabelhaus (2016), p.~280.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The hidden returns rebuilt from generated records (Part A)}
+  \footnotesize
+  \begin{enumerate}\setlength{\itemsep}{1pt}
+    \item \textbf{Candidates.} Draw 510,000 extra 2015 PUF records from the networks, oversampling high AGI
+          and large losses. Each keeps its population weight (one over its chance of being drawn).
+    \item \textbf{Selection by SOI's rule} (Bryant, Czajka, Ivsin and Nunns 2014): the top 400 by AGI, the 30
+          highest of each income item, the 30 lowest of each loss, the 10 highest or lowest of most other fields,
+          ranked in population weight. SOI has not published the rule in full.
+    \item \textbf{Four AGI groups}, as SOI's. Starting weights are each group's count from the raw records
+          (140.31, 233.47, 394, 465), split equally over its records.
+    \item \textbf{Counts.} Move the weights as little as possible so that the number of returns with a
+          positive and with a negative amount of each field matches SOI's booklet table.
+    \item \textbf{Dollars.} Scale each item so that each group's net amount equals its raw record and the
+          positive and negative totals equal the booklet's. Totals are recomputed from their parts.
+    \item \textbf{Wealth} drawn again from the network given the new incomes, below \$1 billion.
+    \item \textbf{Growth} to the target year like the rest of the file. Table 4.3's top 0.001\% is a target again.
+  \end{enumerate}
+  \slidenote{Steps 1--6 are in 2015 dollars. The method follows Ricco (2020), Penn Wharton Budget Model, section 2.1,
+             which started from 134 retained 2012 PUF records.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The billionaires built from the Forbes list (Part B)}
+  \scriptsize
+  \setbeamerfont{block title}{size=\footnotesize}
+  \setlength{\itemsep}{0pt}
+  \begin{columns}[T]
+    \begin{column}{0.53\textwidth}
+      \begin{itemize}\setlength{\itemsep}{1pt}
+        \item \textbf{The list.} Forbes World's Billionaires, March 2019: 607 US billionaires,
+              \$3.1 trillion. Spouses become one joint return; a family fortune stays one record.
+        \item \textbf{The SCF's own units at \$1 billion or more are dropped}; SCF wealth targets are
+              rebuilt below \$1 billion. A generated record at \$1 billion or more has its balance sheet
+              drawn again.
+        \item \textbf{Wealth.} Listed public holdings are public stock; the rest is a private business
+              (real estate for real-estate fortunes). No home, no debt. Basis zero if self-made, equal to
+              value if inherited.
+        \item \textbf{Each rank group's income} from Balkir, Saez, Yagan and Zucman (2025): reported
+              income is 1.75\% of wealth for the top 100 and 3.46\% for ranks 101 and below (their
+              next-300 figure), split by kind as in their table.
+        \item \textbf{Charity}: gifts of 0.7\% and 0.6\% of wealth; the calculator applies the limits.
+        \item Age, sex and marital status from Forbes. \textbf{Weight 1, held fixed.}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{block}{Each person's share of the group's income}
+        In proportion to the matching asset:
+        \begin{itemize}\setlength{\itemsep}{0pt}
+          \item dividends and capital gains: public stock;
+          \item business profits, and separately losses: private holdings;
+          \item interest, other income, wages and pensions: total wealth.
+        \end{itemize}
+        \vspace{0.1em}
+        \textit{Example, with illustrative figures.} A group holds \$400 billion of public stock, of which Zuckerberg holds \$60
+        billion, or 15\%. If the group's dividends are \$5 billion, his are \$0.75 billion. A founder of a
+        wholly private company gets no dividends but a share of business profits.
+      \end{block}
+      Each kind is then split into tax items (for example, short- and long-term gains) as in Part A's
+      rebuilt over-\$100-million group.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{One reweighting of the whole file (Part C)}
+  \footnotesize
+  \begin{enumerate}
+    \item \textbf{Billionaires held at weight 1.} Their contribution is subtracted from each target, and
+          only the other weights are solved for.
+    \vspace{0.3em}
+    \item \textbf{A check before solving.} What remains of each target after the billionaires must be
+          reachable with nonnegative weights on the other records. Any target the billionaires alone
+          exceed is reported.
+    \vspace{0.3em}
+    \item \textbf{The reweighting} uses the usual targets plus Table 4.3's top 0.001\%. Every other record
+          can move, the rebuilt hidden returns included. A target is met if it is within one standard
+          error (half a standard error for SCF targets).
+  \end{enumerate}
+  \vspace{0.6em}
+  \textbf{Why nothing is counted twice}
+  \begin{itemize}
+    \item \textbf{Income.} SOI's totals already include billionaires' income. With the billionaires fixed,
+          the reweighting has to lower other top records to hit SOI's top totals. Among them are the rebuilt
+          hidden returns, which partly stand for the same people.
+    \item \textbf{Wealth.} The SCF targets cover the population below \$1 billion, and the list supplies
+          everything above it.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Data sources}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{>{\raggedright}p{3.5cm} >{\raggedright\arraybackslash}p{9.6cm}}
+    \toprule
+    Source & What it gives, and where it is used \\
+    \midrule
+    Balkir, Saez, Yagan and Zucman (2025), and the IRS study by the same authors (2024)
+      & Forbes 400 matched to tax returns, means per tax unit over 2018--2020. ``Fiscal income'' is market
+        income reported on returns, including tax-exempt interest and excluding prior-year net operating
+        losses. Fiscal income over wealth: 1.7515\% for the top 100 (92 tax units), 3.4627\% for the next
+        300 (276). Shares in gains, dividends, interest, business, other, wages and pensions: 62, 28, 11,
+        $-$11, 6, 5\% and 60, 16, 8, 4, 6, 5\% (the underlying amounts are used). Gifts 0.7\% and 0.6\% of
+        wealth. Deduction check: \$105.3m deducted of \$140.1m given per top-group unit (75\%); about 94\%
+        for the next group. (Part B) \\
+    SOI, 2015 PUF booklet, printed pp.~32--36
+      & For all four aggregate records together: returns and dollars with a positive and with a negative
+        amount, 171 fields. (Part A) \\
+    Forbes World's Billionaires, March 2019
+      & 607 US billionaires, \$3.1 trillion. (Part B) \\
+    SOI Table 4.3
+      & Returns, AGI and items at the top 0.001\%, 0.01\%, 0.1\% and 1\% by AGI. (Part A check; targets) \\
+    Ricco (2020), ``Data Processing for PWBM's Tax Module,'' section 2.1
+      & The method Part A follows: copy the extreme records, rescale weights to each group's count, match
+        counts as closely as feasible, then scale dollars by AGI group. (Part A) \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{How other models handle the very top}
+  \scriptsize
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabular}{>{\raggedright}p{3.0cm} >{\raggedright\arraybackslash}p{10.1cm}}
+    \toprule
+    \multicolumn{2}{l}{\textbf{The aggregate records}} \\
+    PolicyEngine & Since March 2026, each record is rebuilt as 20--40 synthetic returns started from
+                   retained returns in the same AGI group, calibrated to the record's totals. The
+                   over-\$100-million group is built from a Forbes 400 snapshot. \\
+    Tax Policy Center & Replaces them with several thousand extreme records from the 2001--2007 PUFs,
+                        reweighted to the aggregate totals (from its documentation as quoted elsewhere;
+                        not read directly). \\
+    PSL taxdata and tmd & Drop them. \\
+    CBO, JCT, Treasury & Use SOI's confidential sample, which keeps every high-income return. \\
+    \midrule
+    \multicolumn{2}{l}{\textbf{Rich lists}} \\
+    Federal Reserve (DFA) & Adds the Forbes 400 to the SCF, with income from the top 0.1\%'s median
+                            income-to-wealth ratio. The paper splits weight between the SCF and Forbes in
+                            wealth bins; the public code adds the list at weight 1. \\
+    CBO (2024) & Places Forbes families at the top of the SCF, with portfolios from other families in the
+                 top 0.1\% of wealth. \\
+    Tax Policy Center & Matches each Forbes 400 member to a model record of the same age and marital status,
+                        with assets from a matched SCF record. \\
+    \bottomrule
+  \end{tabular}
+  \slidenote{Sources and page references: REPORT.md, section 5 (29 October 2026).}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Results for the hidden returns, 2015 (Part A)}
+  \footnotesize
+  \centering
+  \begin{tabular}{lrrr}
+    \toprule
+    Top 0.001\% by AGI, 2015 & Generated file & With rebuilt returns & SOI Table 4.3 \\
+    \midrule
+    Returns                  & 1,419     & 1,420     & 1,412 \\
+    AGI floor                & \$49.1m   & \$61.8m   & \$59.4m \\
+    AGI                      & \$103.2bn & \$216.1bn & \$214.6bn \\
+    Dividends                & \$6.7bn   & \$23.3bn  & \$23.4bn \\
+    Capital gains            & \$59.7bn  & \$122.6bn & \$118.3bn \\
+    Partnership and S corporation income & \$20.2bn & \$38.0bn & \$37.7bn \\
+    \bottomrule
+  \end{tabular}
+  \raggedright
+  \begin{itemize}
+    \item 2,212 rebuilt records stand for the 1,233 returns. All 64 booklet counts the rebuild carries are
+          met within the larger of 2 returns and 2\%. Each group's AGI equals its raw record's.
+    \item The wider groups overshoot before reweighting. The generated file alone already has SOI's AGI
+          for the top 0.1\% (\$1,032.9bn against \$1,033.5bn); with the rebuilt returns it is 15\% above.
+          The reweighting has to lower other top records.
+    \item Every rebuilt return has wealth below \$1 billion. In the over-\$100-million group, median net
+          worth rises from \$140 million to \$255 million when drawn again given the new incomes.
+  \end{itemize}
+  \slidenote{2015 dollars, except net worth (2019 dollars). Generated filers at their 2015 population
+             weights, before any reweighting; dependent filers excluded, as in Table 4.3.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Results: the billionaires}
+  \footnotesize
+  \centering
+  \renewcommand{\arraystretch}{1.1}
+  \begin{tabular}{>{\raggedright}p{4.6cm} >{\raggedright}p{4.6cm} >{\raggedright\arraybackslash}p{3.4cm}}
+    \toprule
+    Check & Compared with & Result \\
+    \midrule
+    Count and wealth of the list & Forbes: 607 people, \$3.1 trillion & 607 people, \$3,111.0 billion; 605 tax units after joining two couples \\
+    AGI per unit, top 92 units & IRS study (BSYZ): \$345 million & \$329 million \\
+    AGI per unit, next 276 units & IRS study: \$115 million & \$124 million \\
+    Gifts per unit, top group & IRS study: \$140 million & \$133 million \\
+    Gifts per unit, next group & IRS study: \$22.0 million & \$21.7 million \\
+    SCF units dropped at \$1 billion or more & Forbes ranks 401 and below: 205 units, \$298 billion & 360 units, \$430 billion \\
+    \bottomrule
+  \end{tabular}
+  \raggedright
+  \begin{itemize}
+    \item The calculator has not been run, so the charitable deduction and federal income tax are not yet checked against the IRS study.
+  \end{itemize}
+  \slidenote{Nominal 2019 dollars. The test used the networks from the 28--29 October retrain.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Results: the reweighting}
+  \footnotesize
+  \centering
+  \renewcommand{\arraystretch}{1.1}
+  \begin{tabular}{>{\raggedright}p{5.2cm} >{\raggedright}p{4.0cm} >{\raggedright\arraybackslash}p{3.4cm}}
+    \toprule
+    Check & Compared with & Result \\
+    \midrule
+    Targets met & Every 2019 target, 805 in all & All met, with and without the billionaires \\
+    Top 0.001\% by AGI & SOI Table 4.3, 2019: \$214.5 billion & \$212.3 billion \\
+    Top 0.001\% returns & SOI: 1,482 & 1,492 \\
+    Billionaire weights & Exactly 1 & Exactly 1, all 605 \\
+    Effective sample of free records & File without billionaires: 80.33\% & 80.32\% \\
+    Part A's over-\$100-million rebuilt returns & Their starting values: 470 returns, \$151 billion AGI & 336 returns, \$65 billion AGI \\
+    Wealth below \$1 billion & SCF target: \$96.65 trillion & \$96.83 trillion; the list adds \$3.11 trillion \\
+    \bottomrule
+  \end{tabular}
+  \slidenote{Nominal 2019 dollars. The test used the networks from the 28--29 October retrain.}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{Open questions and limits}
+  \footnotesize
+  \begin{itemize}
+    \item \textbf{Inside the hidden groups, the joint distribution is assumed.} Other candidate records
+          could match the same SOI totals and give different answers for policies with thresholds in this
+          range, such as a minimum tax on very high incomes.
+    \item \textbf{Family fortunes are kept as one record}, though a family may file several returns.
+    \item \textbf{Ratios below rank 400 are extrapolated.} Balkir, Saez, Yagan and Zucman cover only the top 400; the next-300 ratio
+          is used for everyone below.
+    \item \textbf{Income shared by holdings is an approximation.} A private C corporation can pay
+          dividends, and a gain can come from an asset no longer held.
+    \item \textbf{Replacing the SCF's households above \$1 billion with the list is an assumption.} The
+          Federal Reserve estimated that about \$300 billion of Forbes 400 wealth was already represented
+          in the 2019 SCF.
+    \item \textbf{Wealth for the rebuilt returns is an extrapolation.} The network sees their incomes only
+          as its top bands, the same bands a \$20 million income falls in.
+    \item \textbf{Later years} start from the 2015 rebuild, grown forward, and need each year's Table 4.3
+          and each year's Forbes list. Charity and some deductions are not grown from 2015 dollars.
+  \end{itemize}
+\end{frame}
+
+\end{document}

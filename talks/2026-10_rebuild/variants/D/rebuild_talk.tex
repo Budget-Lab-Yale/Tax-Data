@@ -1,0 +1,917 @@
+% Build: module load texlive/20240312-GCC-13.3.0 && latexmk -pdf rebuild_talk.tex
+
+\documentclass[11pt,aspectratio=169]{beamer}
+
+% ---------------------------------------------------------------------------
+% Look: plain beamer, Yale colours
+% ---------------------------------------------------------------------------
+\usetheme{default}
+\usefonttheme{professionalfonts}
+\setbeamertemplate{navigation symbols}{}
+
+\definecolor{yaleblue}{HTML}{00356B}
+\definecolor{yalemid}{HTML}{286DC0}
+\definecolor{yalelight}{HTML}{63AAFF}
+\definecolor{yalegrey}{HTML}{4A4A4A}
+\definecolor{yalelightgrey}{HTML}{DDDDDD}
+
+\setbeamercolor{structure}{fg=yaleblue}
+\setbeamercolor{normal text}{fg=black}
+\setbeamercolor{frametitle}{fg=yaleblue}
+\setbeamercolor{title}{fg=yaleblue}
+\setbeamercolor{alerted text}{fg=yalemid}
+\setbeamercolor{block title}{fg=white,bg=yaleblue}
+\setbeamercolor{block body}{bg=yalelightgrey!40}
+
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamerfont{title}{series=\bfseries,size=\Large}
+
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{blocks}[rounded][shadow=false]
+
+% A thin blue rule under each frame title
+\setbeamertemplate{frametitle}{%
+  \vspace*{0.6em}%
+  \usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\par
+  \vspace*{-0.2em}{\color{yaleblue}\rule{\textwidth}{0.6pt}}%
+}
+
+% Footer: short title on the left, slide number on the right
+\setbeamertemplate{footline}{%
+  \hspace*{1.2em}{\color{yalegrey}\scriptsize\insertshorttitle}%
+  \hfill{\color{yalegrey}\scriptsize\insertframenumber}\hspace*{1.2em}%
+  \vspace*{0.6em}%
+}
+
+% ---------------------------------------------------------------------------
+% Packages
+% ---------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\graphicspath{{figures/}}
+
+% Diagram styles
+\tikzset{
+  tok/.style={draw=yaleblue, rounded corners=2pt, font=\small, inner sep=4pt,
+              minimum height=0.65cm},
+  blank/.style={tok, fill=yalelight!35, font=\small\bfseries},
+  box/.style={draw=yaleblue, rounded corners=2pt, font=\scriptsize, align=center,
+               text width=2.1cm, minimum height=1.1cm, inner sep=3pt},
+  arr/.style={-{Stealth[length=5pt]}, yaleblue, thick},
+  cF/.style={fill=yaleblue},
+  cP/.style={fill=yalelight!60},
+  cN/.style={fill=white},
+}
+
+\pgfplotsset{colormap={yalemap}{color=(white) color=(yalelight) color=(yaleblue)}}
+
+
+% Distribution maps (slides on pretraining and post-training): a smooth 2D
+% density from Gaussian bumps g, shaded white to Yale blue.
+\pgfplotsset{sentencemap/.style={view={0}{90}, width=6.6cm, height=5.4cm,
+    xmin=-3, xmax=3, ymin=-3, ymax=3, ticks=none, colormap name=yalemap,
+    axis line style={yalegrey}, clip=false,
+    /pgf/declare function={g(\x,\y,\a,\b,\s) = exp(-((\x-\a)^2 + (\y-\b)^2)/(2*\s^2));}}}
+
+% Four labelled points on a distribution map, at fixed positions:
+% #1 top left, #2 top right, #3 bottom right, #4 bottom left (the unrealistic one)
+\newcommand{\maplabels}[4]{%
+  \begin{scope}[every node/.style={font=\tiny, fill=white, fill opacity=0.8,
+        text opacity=1, inner sep=1.5pt, rounded corners=1pt, align=left}]
+    \fill[black] (axis cs:-1.6,1.2,5) circle (1.2pt);
+    \node[anchor=south west] at (axis cs:-1.7,1.3,5) {#1};
+    \fill[black] (axis cs:1.4,1.3,5) circle (1.2pt);
+    \node[anchor=north, align=center] at (axis cs:1.4,1.2,5) {#2};
+    \fill[black] (axis cs:1.5,-1.5,5) circle (1.2pt);
+    \node[anchor=north, align=center] at (axis cs:1.5,-1.6,5) {#3};
+    \fill[black] (axis cs:-2.2,-2.4,5) circle (1.2pt);
+    \node[anchor=south west] at (axis cs:-2.2,-2.3,5) {#4};
+  \end{scope}}
+
+\newcommand{\recordlabels}{\maplabels{married, 38,\\ two children}{age 81, Social\\ Security \$31k}{age 70, \$400k saved,\\ \$2k interest (0.5\%)}{age 9, wages \$300k}}
+
+% Training slide. Cells sit at column #1, row #2 of a picture with x=1.5cm, y=0.85cm.
+\tikzset{
+  cell/.style={tok, minimum width=1.38cm, minimum height=0.7cm, font=\scriptsize},
+  hid/.style={blank, minimum width=1.38cm, minimum height=0.7cm, font=\scriptsize\bfseries},
+  absent/.style={cell, draw=yalelightgrey, fill=yalelightgrey!50, text=yalegrey},
+}
+\newcommand{\cellv}[3]{\node[cell] at (#1,-#2) {#3};}          % a visible value
+\newcommand{\cellh}[2]{\node[hid] at (#1,-#2) {?};}            % a hidden cell
+\newcommand{\cella}[2]{\node[absent] at (#1,-#2) {--};}        % not in this source
+% A guessed distribution: #3 the bar heights (tallest = 1), #4 the true bar
+% (0 = truth not shown yet), #5 the true value
+\newcommand{\cellg}[5]{%
+  \node[hid] at (#1,-#2) {};
+  \foreach \hgt [count=\k] in {#3} {
+    \ifnum\k=#4 \def\barcol{yaleblue}\else\def\barcol{yalemid!40}\fi
+    \fill[\barcol] ($(#1,-#2)+(-0.75cm+\k*0.15cm,-0.27cm)$) rectangle ++(0.1cm,\hgt*0.5cm);
+  }
+  \ifnum#4>0 \node[font=\tiny, text=yaleblue] at ($(#1,-#2)+(0.4cm,0)$) {#5};\fi
+}
+% The network strip under the table: idle, guess (arrows on), or update (weights lit)
+\newcommand{\trainnet}[1]{%
+  \begin{scope}[shift={(5,-5.5)}, x=1cm, y=1cm]
+    \def\mode{#1}\def\upd{update}\def\idle{idle}
+    \ifx\mode\upd \def\wcol{yalemid}\def\wth{0.9pt}\else \def\wcol{yalelightgrey}\def\wth{0.4pt}\fi
+    \foreach \a in {-0.5,-0.17,0.17,0.5} \foreach \b in {-0.5,-0.17,0.17,0.5} {
+      \draw[\wcol, line width=\wth] (-0.8,\a) -- (0,\b);
+      \draw[\wcol, line width=\wth] (0,\a) -- (0.8,\b);
+    }
+    \foreach \lx in {-0.8,0,0.8} \foreach \ly in {-0.5,-0.17,0.17,0.5}
+      \fill[yaleblue] (\lx,\ly) circle (2.2pt);
+    \ifx\mode\idle\else
+      \draw[arr] (-3.2,0) -- (-1.1,0);
+      \node[font=\scriptsize, anchor=south] at (-2.15,0.05) {visible cells};
+      \draw[arr] (1.1,0) -- (2.9,0);
+      \node[font=\scriptsize, anchor=south] at (2.0,0.05) {a guess for each ?};
+    \fi
+    \ifx\mode\upd \node[font=\scriptsize, text=yalemid, anchor=north] at (0,-0.6) {adjust the weights}; \fi
+  \end{scope}}
+
+% 100 squares, 10 by 10, at #1: the first #2 dark, the next #3 light, the rest
+% empty; #4 a caption underneath
+\newcommand{\waffle}[4]{%
+  \begin{scope}[shift={(#1)}]
+    \foreach \n in {0,...,99} {
+      \pgfmathtruncatemacro{\col}{mod(\n,10)}
+      \pgfmathtruncatemacro{\row}{div(\n,10)}
+      \pgfmathtruncatemacro{\light}{#2+#3}
+      \ifnum\n<#2 \def\wf{yaleblue}\else\ifnum\n<\light \def\wf{yalelight!70}\else\def\wf{white}\fi\fi
+      \filldraw[fill=\wf, draw=yalegrey!60] (\col*0.32, -\row*0.32) rectangle ++(0.28,0.28);
+    }
+    \node[font=\small, anchor=north] at (1.58,-3.05) {#4};
+  \end{scope}}
+
+% Small grey note at the bottom of a slide
+\newcommand{\slidenote}[1]{\par\vfill{\scriptsize\color{yalegrey}#1}}
+
+% ---------------------------------------------------------------------------
+% Title
+% ---------------------------------------------------------------------------
+\title{Using deep learning to generate synthetic tax records}
+\author{John Ricco}
+\institute{The Budget Lab at Yale}
+\date{October 28, 2026}
+
+% No hyphenation on slides
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+
+\begin{document}
+
+\begin{frame}[plain,noframenumbering]
+  \titlepage
+\end{frame}
+
+% ===========================================================================
+% 1. The problem
+% ===========================================================================
+
+\begin{frame}{What do we want?}
+  \vfill
+  \begin{center}
+    {\LARGE\bfseries\color{yaleblue} Augmented tax unit microdata\\[0.3em] for every year, including future years}
+  \end{center}
+  \vfill
+\end{frame}
+
+\begin{frame}{What do we have?}
+  \begin{itemize}
+    \item \textbf{One year of tax data, filers only}
+    \begin{itemize}
+      \item About ten years out of date
+      \item Some values are blurred and some records are distorted
+      \item No non-filers, and none of the other variables a tax calculation needs:
+            consumption, wealth, unrealized gains, estates
+    \end{itemize}
+    \vspace{0.5em}
+    \item \textbf{Surveys} that hold some of this information, but noisily and not
+          at administrative quality
+    \vspace{0.5em}
+    \item \textbf{Aggregate targets}
+    \begin{itemize}
+      \item Past years: IRS totals by AGI group, filing status and age range
+      \item Future years: CBO-style projections of 1040 items, or of total wages,
+            business profits and similar totals
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The task}
+  \vfill
+  \begin{center}
+    {\Large Turn these scattered sources into\\[0.4em]
+    {\bfseries\color{yaleblue} synthetic, realistic, augmented tax unit microdata}\\[0.4em]
+    for every year}
+  \end{center}
+  \vfill
+\end{frame}
+
+% ===========================================================================
+% 2. The traditional approach, built up one step at a time on a made-up table
+% ===========================================================================
+
+% Column centres (cm) of the picture: status, weight, wages, interest, capital
+% gains from the PUF; net worth, consumption, tips imputed from surveys.
+\def\cS{0.95}\def\cW{2.55}\def\cWg{3.85}\def\cI{5.15}\def\cG{6.45}
+\def\cN{7.85}\def\cC{9.3}\def\cT{10.6}
+\tikzset{
+  tc/.style={draw=yalegrey!60, font=\scriptsize, minimum height=0.46cm, inner sep=1pt},
+  tw/.style={tc, minimum width=#1},
+  added/.style={fill=yalelight!25},
+  imputed/.style={fill=yalemid!15},
+  wup/.style={fill=wgreen!25, text=wgreen!70!black, font=\scriptsize\bfseries},
+  wdown/.style={fill=wred!20, text=wred!80!black, font=\scriptsize\bfseries},
+}
+\definecolor{wgreen}{HTML}{2E8B57}
+\definecolor{wred}{HTML}{C0392B}
+% A record from the tax data: #1 row y, #2 extra style, then status, weight,
+% wages, interest, capital gains
+\newcommand{\pufrow}[7]{%
+  \node[tw=1.9cm,#2] at (\cS,#1) {#3};
+  \node[tw=1.3cm,#2] at (\cW,#1) {#4};
+  \node[tw=1.3cm,#2] at (\cWg,#1) {#5};
+  \node[tw=1.3cm,#2] at (\cI,#1) {#6};
+  \node[tw=1.3cm,#2] at (\cG,#1) {#7};}
+% The imputed columns of a record: #1 row y, then net worth, consumption, tips
+\newcommand{\improw}[4]{%
+  \node[tw=1.5cm,imputed] at (\cN,#1) {#2};
+  \node[tw=1.4cm,imputed] at (\cC,#1) {#3};
+  \node[tw=1.2cm,imputed] at (\cT,#1) {#4};}
+% A reweighted weight: #1 row y, #2 the new weight, higher or lower
+\newcommand{\wupcell}[2]{\node[tw=1.3cm,wup] at (\cW,#1) {#2 $\uparrow$};}
+\newcommand{\wdncell}[2]{\node[tw=1.3cm,wdown] at (\cW,#1) {#2 $\downarrow$};}
+
+\begin{frame}{How has this been done before?}
+  \centering
+  \begin{tikzpicture}[x=1cm, y=1cm]
+    \useasboundingbox (-2.6,0.55) rectangle (11.3,-4.75);
+
+    % header
+    \foreach \x/\lab in {\cS/Status, \cW/Weight, \cWg/Wages, \cI/Interest, \cG/{Capital\\gains}}
+      \node[font=\scriptsize\bfseries, text=yaleblue, align=center, anchor=south, text depth=0.4ex] at (\x,-0.3) {\lab};
+
+    % filers from the PUF
+    \pufrow{-1.15}{}{Married}{812}{\$142k}{\$310}{\$5.2k}
+    \pufrow{-1.61}{}{Single}{1,404}{\$38k}{\$0}{\$0}
+    \pufrow{-2.07}{}{Married}{655}{\$0}{\$4.9k}{\$61k}
+    \pufrow{-2.53}{}{Head of hh.}{1,120}{\$51k}{\$12}{\$0}
+    \pufrow{-2.99}{}{Single}{3}{\$2.3m}{\$88k}{\$3.9m}
+    \node[font=\scriptsize, anchor=east, align=right] at (-0.15,-2.07) {Filers\\(PUF)};
+
+    % step 2: records added above and below
+    \onslide<2->{
+      \pufrow{-0.5}{added}{Married}{1}{\$1.2m}{\$14m}{\$310m}
+      \node[font=\scriptsize, anchor=east, align=right] at (-0.15,-0.5) {Billionaires};
+      \pufrow{-3.65}{added}{Single}{2,310}{\$0}{\$0}{\$0}
+      \pufrow{-4.11}{added}{Single}{1,870}{\$6.5k}{\$0}{\$0}
+      \node[font=\scriptsize, anchor=east, align=right] at (-0.15,-3.88) {Non-filers};
+    }
+
+    % step 3: columns added on the right
+    \onslide<3->{
+      \foreach \x/\lab in {\cN/{Net\\worth}, \cC/{Consump-\\tion}, \cT/Tips}
+        \node[font=\scriptsize\bfseries, text=yalemid, align=center, anchor=south, text depth=0.4ex] at (\x,-0.3) {\lab};
+      \improw{-0.5}{\$4.1b}{\$6m}{\$0}
+      \improw{-1.15}{\$610k}{\$96k}{\$0}
+      \improw{-1.61}{\$9k}{\$34k}{\$6.1k}
+      \improw{-2.07}{\$2.4m}{\$88k}{\$0}
+      \improw{-2.53}{\$31k}{\$47k}{\$0}
+      \improw{-2.99}{\$38m}{\$410k}{\$0}
+      \improw{-3.65}{\$2k}{\$19k}{\$0}
+      \improw{-4.11}{\$1k}{\$15k}{\$1.2k}
+    }
+
+    % step 4: weights move up or down
+    \only<4>{
+      \wupcell{-1.15}{860}
+      \wdncell{-1.61}{1,290}
+      \wupcell{-2.07}{702}
+      \wupcell{-2.53}{1,180}
+      \wdncell{-2.99}{2}
+      \wupcell{-3.65}{2,450}
+      \wdncell{-4.11}{1,760}
+    }
+  \end{tikzpicture}
+
+  \vspace{0.5em}
+  \small
+  \only<1>{\textbf{1. Start with the IRS PUF}, whatever year is available.}%
+  \only<2>{\textbf{2. Add records}: non-filers, and the very rich the PUF leaves out.}%
+  \only<3>{\textbf{3. Add columns}: estimate $Y$ given $X$ in a survey, where $X$ is also on the PUF; draw $Y$ for each record.}%
+  \only<4>{\textbf{4. Reweight to the target year}: grow weights for population and dollars for prices,
+           then move each weight up or down until the year's totals are hit.}
+  \slidenote{Made-up records.}
+\end{frame}
+
+\begin{frame}{What were the problems with this approach?}
+  \begin{itemize}
+    \item \textbf{It did not work well for past years.} The affordability project made this clear.
+    \vspace{0.6em}
+    \item \textbf{A separate model for each variable}, each estimating its conditional
+          relationships in its own way.
+    \vspace{0.6em}
+    \item \textbf{Reweighting worked for only a few past years.} Tax law changed what the
+          IRS targets measure, mainly TCJA cutting back itemized deductions.
+    \vspace{0.6em}
+    \item \textbf{Stretched further every year.} Plausible records for future years, but
+          worse with each year away from 2015.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The ideal approach}
+  \begin{enumerate}
+    \item Take in survey data covering the joint relationships among every variable we
+          might want to model.
+    \vspace{0.6em}
+    \item Learn all of those relationships in \textbf{One Huge Joint Probability Distribution}.
+    \vspace{0.6em}
+    \item For any target year, supply the targets that describe that year, and pull out
+          of it the records that match them.
+  \end{enumerate}
+  \vspace{1em}
+  The result: a realistic synthetic microdata set for that year.
+  \slidenote{From a conversation with John and Harris.}
+\end{frame}
+
+% ===========================================================================
+% 3. The analogy to language models (maps from the 21 October deck)
+% ===========================================================================
+
+\begin{frame}{Language models: pretraining, then post-training}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[sentencemap, name=pre, title={\small\bfseries Pretraining}]
+      \addplot3[surf, shader=interp, samples=45, domain=-3:3, y domain=-3:3]
+        {1.0*g(x,y,-1.6,1.2,0.8) + 0.8*g(x,y,1.4,1.3,0.7) + 0.6*g(x,y,1.5,-1.5,0.6)
+         + 0.9*g(x,y,-0.6,-0.9,0.9) + 0.5*g(x,y,0.3,0.3,0.7)};
+      \maplabels{`The cat sat on the mat.'}{`Sure! Let me look\\ at your code first.'}{`The way to make\\ a bomb is'}{`mat the on cat sat'}
+    \end{axis}
+    \begin{axis}[sentencemap, at={($(pre.east)+(0.8cm,0)$)}, anchor=west,
+        title={\small\bfseries Post-training}]
+      \addplot3[surf, shader=interp, samples=45, domain=-3:3, y domain=-3:3]
+        {0.2*g(x,y,-1.6,1.2,0.8) + 3.0*g(x,y,1.4,1.3,0.7) + 0.005*g(x,y,1.5,-1.5,0.6)
+         + 0.2*g(x,y,-0.6,-0.9,0.9) + 0.2*g(x,y,0.3,0.3,0.7)};
+      \maplabels{`The cat sat on the mat.'}{`Sure! Let me look\\ at your code first.'}{`The way to make\\ a bomb is'}{`mat the on cat sat'}
+    \end{axis}
+  \end{tikzpicture}
+
+  \vspace{0.3em}
+  \begin{columns}[T]
+    \begin{column}{0.45\textwidth}\centering\small
+      Read the whole internet and learn which sentences are likely: a prior over language
+    \end{column}
+    \begin{column}{0.45\textwidth}\centering\small
+      Squeeze the mass toward a helpful, harmless assistant, and away from nonsense and harm
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Our model: pretraining, then post-training}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[sentencemap, name=pre, title={\small\bfseries Pretraining}]
+      \addplot3[surf, shader=interp, samples=45, domain=-3:3, y domain=-3:3]
+        {1.0*g(x,y,-1.6,1.2,0.8) + 0.8*g(x,y,1.4,1.3,0.7) + 0.6*g(x,y,1.5,-1.5,0.6)
+         + 0.9*g(x,y,-0.6,-0.9,0.9) + 0.5*g(x,y,0.3,0.3,0.7)};
+      \recordlabels
+    \end{axis}
+    \begin{axis}[sentencemap, at={($(pre.east)+(0.8cm,0)$)}, anchor=west,
+        title={\small\bfseries Post-training for 2040}]
+      \addplot3[surf, shader=interp, samples=45, domain=-3:3, y domain=-3:3]
+        {0.5*g(x,y,-1.6,1.2,0.8) + 2.5*g(x,y,1.4,1.3,0.7) + 0.03*g(x,y,1.5,-1.5,0.6)
+         + 0.6*g(x,y,-0.6,-0.9,0.9) + 0.5*g(x,y,0.3,0.3,0.7)};
+      \recordlabels
+    \end{axis}
+  \end{tikzpicture}
+
+  \vspace{0.3em}
+  \begin{columns}[T]
+    \begin{column}{0.45\textwidth}\centering\small
+      Learn which records are likely, from every source: a prior over records
+    \end{column}
+    \begin{column}{0.45\textwidth}\centering\small
+      Squeeze the mass toward records that hit 2040's totals, each still coherent
+    \end{column}
+  \end{columns}
+  \vfill
+  {\small Post-training finds the distribution closest to the prior that hits the year's totals.}
+  \vspace{0.4em}
+\end{frame}
+
+% ===========================================================================
+% 4. The method (variant D: under the hood, with the real figures)
+% Sources of the numbers, all under research/rebuild/ or the scratch output
+% folder /nfs/roberts/scratch/pi_nrs36/jar335/rebuild/ (run of 27 October):
+%   rows per source: FEATURES.md, Data, Sources table (= model/<run>/train_meta.json)
+%   84 bands, 10 loss bands, 73 positive: FEATURES.md "Amounts as bands"
+%   wage band cuts, records per band: data/band_edges.json, key puf/2015/wages
+%   wage growth 2015-19 per return, 1.1168: data/maps/growth_factors.csv
+%   hiding rule: pipeline/model.py draw_hidden
+%   1.4 million numbers, 80 passes, 2% held back: FEATURES.md, The model
+%   73.6 minutes: model/label_seed20261016/train_meta.json
+%   records per AGI group, returns per record: gen/seed20261016/label_check.csv (records drawn and
+%     2015 returns per record are per model; the table adds the two models' records and halves the
+%     returns per record, as the stack does: its weights below p50 / at p99.99+ = 1.910 / 0.00218)
+%   54,379 non-filer records and its rule: tilt/seed20261016/summary.md; generate.py docstring
+%   SCF wave shares 54.65/33.15/12.20: FEATURES.md, Generation
+%   one generated record: tilt/seed20261016/file_2019.parquet, record_id 87865
+%   753 targets by kind: tilt/seed20261016/fit.csv (column kind)
+%   87.2%, 0.047 and 3.24, 753 of 753: tilt/seed20261016/summary.md
+%   before/after rows: tilt/seed20261016/fit.csv
+% ===========================================================================
+
+\begin{frame}{The training data: about one million records from five sources}
+  \centering\small
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{llrl}
+    \toprule
+    Source & Years & Records & What only it brings \\
+    \midrule
+    PUF  & 2015                  & 207,692 & about 90 tax items \\
+    SCF  & 4 waves, 2013--2022    & 138,902 & balance sheet (20 items), auto loans \\
+    CEX  & 6 years, 2015--2024    & 183,259 & spending in 8 categories \\
+    CPS  & 5 years, 2015--2023    & 401,050 & non-filers, children's ages, childcare \\
+    SIPP & 5 years, 2015--2023    & 127,599 & tips \\
+    \midrule
+    All  &                              & 1,058,502 & \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{1em}
+  \begin{itemize}
+    \item Every source has married, dependents, the age range and wages.
+    \item Every record carries its source and year as labels.
+    \item Items a source never covers, like the balance sheet on the PUF, are left out rather than set to zero.
+  \end{itemize}
+  \slidenote{Surveys split into tax units by one set of CBO rules first.}
+\end{frame}
+
+\begin{frame}{Each dollar amount goes in as one of 84 ranges}
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \small
+      \begin{itemize}
+        \item One range for exactly zero, 10 for losses, 73 for positive amounts.
+        \item Cut at percentiles of the item's own weighted distribution, finer at the top.
+        \item Wages on the 2015 PUF: every 2 points to p90, then every point to p99,
+              every 0.1 to p99.9, every 0.01 to p99.99.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \centering\small
+      \begin{tabular}{rrr}
+        \toprule
+        Wage range & Percentiles & PUF records \\
+        \midrule
+        \$0            & (zero)      & 42,144 \\
+        \$1--1,320      & 0--2        & 2,772 \\
+        \$120,100--126,200 & 90--91    & 1,702 \\
+        \$4.73m--123.7m  & 99.99--100 & 3,511 \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+  \end{columns}
+
+  \vspace{1em}
+  \centering
+  \begin{tikzpicture}[every node/.append style={align=center, font=\scriptsize, inner sep=2.5pt, minimum height=0.95cm}]
+    \node[tok, anchor=west] (r1) at (0,0) {source\\PUF};
+    \node[tok, right=2pt of r1] (r2) {year\\2015};
+    \node[tok, right=2pt of r2] (r3) {married\\yes};
+    \node[tok, right=2pt of r3] (r4) {dependents\\2};
+    \node[tok, right=2pt of r4] (r5) {age range\\35--44};
+    \node[tok, right=2pt of r5] (r6) {wages\\range 90--91};
+    \node[tok, right=2pt of r6] (r8) {\dots\ about\\90 items};
+    \node[tok, right=2pt of r8, draw=yalelightgrey, fill=yalelightgrey!50, text=yalegrey] (r9) {home\\left out};
+  \end{tikzpicture}
+  \slidenote{Ranges and record counts: wages on the 2015 PUF. The row of boxes: an example PUF record as it goes in.}
+\end{frame}
+
+\begin{frame}{What the model learns, and what it returns}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \small
+      \textbf{\color{yaleblue}Training}
+      \begin{enumerate}
+        \item Take a record. Hide a random share of its items, from one to all.
+        \item For each hidden item, the model gives a probability for each range.
+        \item Nudge its 1.4 million numbers to raise the probability of the true range.
+      \end{enumerate}
+      \vspace{0.3em}
+      80 passes over the records (2\% held back to check): 74 minutes on one GPU.
+      Two models, from different random starts.
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \small
+      \textbf{\color{yaleblue}What it returns}\\[0.3em]
+      Asked ``wages, given married, two dependents, aged 35--44, PUF, 2015, \dots'':
+      \begin{center}
+      \begin{tikzpicture}
+        \begin{axis}[ybar, width=6.2cm, height=3.4cm, bar width=7pt, ymin=0, ymax=0.3,
+            symbolic x coords={0,a,b,c,d,e,f,g},
+            xtick={0,c,g}, xticklabels={\$0, \$120--126k, \$4.7m+},
+            xticklabel style={font=\tiny}, yticklabel style={font=\tiny},
+            axis x line*=bottom, axis y line*=left, ylabel={\tiny probability}]
+          \addplot[fill=yalemid!50, draw=none] coordinates
+            {(0,0.05) (a,0.08) (b,0.14) (d,0.12) (e,0.09) (f,0.04) (g,0.001)};
+          \addplot[fill=yaleblue, draw=none] coordinates {(c,0.16)};
+        \end{axis}
+      \end{tikzpicture}
+      \end{center}
+      \vspace{-0.6em}
+      Draw a range: \$120,100--126,200. Pick a real 2015 PUF record in it, by weight:
+      \$123,100. Grow with wages per return ($\times$1.117): \textbf{\$137,472} in 2019.
+    \end{column}
+  \end{columns}
+  \slidenote{Bar heights made up; a few of the 84 ranges shown. The range and dollars: a real record of the 2019 file.}
+\end{frame}
+
+\begin{frame}{Generating the 2019 file}
+  \small
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \textbf{\color{yaleblue}Which records}
+      \begin{itemize}
+        \item 400,000 filers: the AGI group set first, the rest drawn given it.
+        \item 54,379 non-filers, under the CPS label, in proportion to the CPS's
+              expected non-filers.
+        \item Half from each of the two models.
+      \end{itemize}
+      \vspace{0.4em}
+      \centering
+      \begin{tabular}{lrr}
+        \toprule
+        AGI group & Records & Returns each \\
+        \midrule
+        below p50     & 101,838 & 720 \\
+        p99--99.5     & 15,916  & 47 \\
+        p99.99 and up & 18,360  & 0.8 \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \textbf{\color{yaleblue}Each record, one item at a time}
+      \begin{enumerate}
+        \item Tax items, in a random order.
+        \item Totals added up from their parts.
+        \item Exact ages, as the CPS would see the unit.
+        \item Balance sheet, as the SCF would see it, from one wave: 2019 (55\%), 2022 (33\%), 2016 (12\%).
+        \item Spending, as the CEX would see it.
+        \item The CPS's person items; the SIPP's tips.
+      \end{enumerate}
+      \vspace{0.2em}
+      Each item: probabilities for its ranges, draw one, add it to what is known.
+    \end{column}
+  \end{columns}
+  \slidenote{In 14\% of filer records the drawn parts add up to another AGI group than the one set first. Reported, not forced.}
+\end{frame}
+
+\begin{frame}{One record from the 2019 file}
+  \footnotesize
+  \renewcommand{\arraystretch}{1.15}
+  \begin{columns}[T]
+    \begin{column}{0.47\textwidth}
+      \begin{tabular}{@{}p{3.3cm}r@{}}
+        \multicolumn{2}{@{}l}{\small\bfseries\color{yaleblue}Tax items (PUF label)} \\
+        Joint return, dependents & yes, 2 \\
+        Age range & 35--44 \\
+        Wages & \$137,472 \\
+        Taxable interest & \$280 \\
+        State refund & \$1,076 \\
+        Student loan interest & \$246 \\[0.4em]
+        \multicolumn{2}{@{}l}{\small\bfseries\color{yaleblue}People (CPS label)} \\
+        Ages of the couple & 41 and 49 \\
+        Ages of the children & 5 and 10 \\
+        Wages of each & \$59,128 and \$78,344 \\
+        Weeks worked & 52 and 50 \\
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \begin{tabular}{@{}p{3.3cm}r@{}}
+        \multicolumn{2}{@{}l}{\small\bfseries\color{yaleblue}Balance sheet (SCF label, 2022 wave)} \\
+        Home & \$225,295 \\
+        Mortgage & \$139,061 \\
+        Retirement accounts & \$202,062 \\
+        Deposits & \$99,260 \\
+        Net worth & \$478,731 \\[0.4em]
+        \multicolumn{2}{@{}l}{\small\bfseries\color{yaleblue}Spending (CEX label)} \\
+        Total & \$109,623 \\
+        Food at home & \$14,652 \\[0.4em]
+        \multicolumn{2}{@{}l}{\small\bfseries\color{yaleblue}Weight (returns it stands for)} \\
+        Drawn & 565 \\
+        After post-training & 111 \\
+      \end{tabular}
+    \end{column}
+  \end{columns}
+  \slidenote{Nominal 2019 dollars. Selected items only: the record has others, such as hours worked, the other spending categories and auto loan interest.}
+\end{frame}
+
+\begin{frame}{Post-training: reweight to hit 753 targets}
+  \footnotesize
+  \renewcommand{\arraystretch}{1.12}
+  \begin{columns}[T]
+    \begin{column}{0.36\textwidth}
+      \begin{tabular}{@{}lr@{}}
+        \toprule
+        Targets for 2019 & Number \\
+        \midrule
+        SOI tables and business & 577 \\
+        CEX spending & 104 \\
+        SCF wealth, auto loans & 52 \\
+        W-2 tips & 11 \\
+        Non-filers & 9 \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.6\textwidth}
+      \begin{tabular}{@{}lrrr@{}}
+        \toprule
+        & Drawn & After & Target \\
+        \midrule
+        Returns with no AGI (m) & 3.25 & 2.16 & 2.13 \\
+        Head of household returns (m) & 23.86 & 21.59 & 21.66 \\
+        AGI of the top 0.01\% (\$bn) & 447 & 517 & 522 \\
+        Joint returns with tips (m) & 0.95 & 1.17 & 1.16 \\
+        Units above SCF p99.9 net worth (\%) & 0.142 & 0.097 & 0.100 \\
+        Vehicle spending per unit (\$) & 3,194 & 3,369 & 3,508 \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.6em}
+  \small
+  The solver changes only the weights, as little as it can, until every target is within
+  one standard error of its value (half a standard error for the SCF's).
+  \begin{itemize}
+    \item All 753 targets met.
+    \item Most weights end between 0.05 and 3.2 times where they started.
+    \item Effective sample kept: 87\%.
+  \end{itemize}
+  \slidenote{Drawn: scaled to SOI's returns by age and filing status. Most weights: 1st to 99th percentile. Effective sample: Kish's.}
+\end{frame}
+
+% ===========================================================================
+% 5. Challenges. Interest numbers: 2016 SCF (tax year 2015) against the 2015 PUF,
+% weighted, married with wages $75k-200k (21 October deck; source report in
+% rebuild/explore/2026-10-21/reporting_formula/, as cited there).
+% ===========================================================================
+
+\begin{frame}{Challenge: surveys and returns measure differently}
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[ybar, width=12cm, height=5.4cm, bar width=14pt, ymin=0, ymax=32,
+        symbolic x coords={\$1--100, \$100--500, \$500--2k, \$2k--10k, \$10k+},
+        xtick=data, xticklabel style={font=\small}, yticklabel style={font=\small},
+        ylabel={Per 100 tax units}, ylabel style={font=\small},
+        xlabel={Interest received in the year}, xlabel style={font=\small},
+        legend style={font=\small, draw=none, at={(0.97,0.95)}, anchor=north east},
+        axis x line*=bottom, axis y line*=left, enlarge x limits=0.12,
+        nodes near coords, every node near coord/.append style={font=\scriptsize}]
+      \addplot[fill=yaleblue, draw=none] coordinates
+        {(\$1--100,28) (\$100--500,13) (\$500--2k,4) (\$2k--10k,2) (\$10k+,1)};
+      \addplot[fill=yalelight!70, draw=none] coordinates
+        {(\$1--100,8) (\$100--500,6) (\$500--2k,3) (\$2k--10k,3) (\$10k+,1)};
+      \legend{PUF: on the return (48 in all), SCF: say they have it (21 in all)}
+    \end{axis}
+  \end{tikzpicture}
+
+  \vspace{0.3em}
+  The gap is all in small amounts: they go unreported in the survey. Above \$2,000 the two sources agree.
+  \slidenote{Married, wages \$75--200k. 2015 PUF and 2016 SCF (tax year 2015), weighted.}
+\end{frame}
+
+\begin{frame}{The fix: two slots and a fill-in}
+  \begin{columns}[c]
+    \begin{column}{0.5\textwidth}
+      \centering
+      \begin{tikzpicture}[x=2.05cm, y=0.62cm,
+          c/.style={tok, minimum width=1.85cm, minimum height=0.5cm, font=\scriptsize}]
+        \node[font=\scriptsize\bfseries, text=yaleblue] at (1,0) {SCF household};
+        \node[font=\scriptsize\bfseries, text=yaleblue, align=center] at (2,0) {interest,\\as said};
+        \node[font=\scriptsize\bfseries, text=yaleblue, align=center] at (3,0) {interest, as on\\a return};
+        \foreach \r/\said/\ret/\hd in {1/\$250/\$250/0, 2/\$0/?/1, 3/\$0/?/1, 4/{\$1,800}/{\$1,800}/0} {
+          \node[c] at (1,-\r) {household \r};
+          \node[c] at (2,-\r) {\said};
+          \ifnum\hd=1 \node[c, blank, font=\scriptsize\bfseries] at (3,-\r) {\ret}; \else \node[c] at (3,-\r) {\ret}; \fi
+        }
+      \end{tikzpicture}
+
+      \vspace{0.8em}
+      \small
+      The answer given is kept. A second slot holds what the return would show,
+      the only slot the PUF has.
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \centering
+      \small
+      \begin{tabular}{lrrr}
+        \toprule
+        Per 100 couples & PUF & SCF & Fill in \\
+        \midrule
+        \$1--100      & 28 & 8 & 20 \\
+        \$100--500    & 13 & 6 & 7 \\
+        \$500--2k     & 4  & 3 & 2 \\
+        \$2k and over & 3  & 3 & 0 \\
+        \midrule
+        Any           & 48 & 21 & 28 \\
+        \bottomrule
+      \end{tabular}
+
+      \vspace{0.8em}
+      The PUF sets how many are filled in, and at what sizes.
+      The rest of the SCF record sets which households.
+    \end{column}
+  \end{columns}
+  \slidenote{Married, wages \$75--200k. 2015 PUF and 2016 SCF (tax year 2015), weighted. Rows may not add because of rounding.}
+\end{frame}
+
+\begin{frame}{Other challenges}
+  \begin{itemize}
+    \item \textbf{Building tax units from surveys.} Surveys count households. Each one is split
+          into tax units by the same rules for every survey, and then we decide who files.
+    \vspace{0.5em}
+    \item \textbf{The return itself changes.} TCJA cut back itemizing; new items, like the
+          tips and overtime deductions, are on no past return.
+    \vspace{0.5em}
+    \item \textbf{A thin top.} Few very rich records in any source.
+    \vspace{0.5em}
+    \item \textbf{Future years.} No microdata, only a handful of projected totals.
+    \vspace{0.5em}
+    \item \textbf{Checking the result.} No source has every variable, so some relationships
+          have nothing to check against.
+  \end{itemize}
+\end{frame}
+
+% ===========================================================================
+% 6. Where we are
+% ===========================================================================
+
+\begin{frame}{Where we are}
+  \begin{itemize}
+    \item A 2019 file: 400,000 filer records, plus non-filers
+    \vspace{0.4em}
+    \item Five sources: the 2015 PUF, the SCF, the CEX, the CPS and the SIPP, every survey
+          split into tax units by the same rules
+    \vspace{0.4em}
+    \item Every PUF item, plus a balance sheet, consumption, tips and auto loan interest
+    \vspace{0.4em}
+    \item About 750 targets, all met within their standard errors: IRS tables by AGI,
+          filing status and age, the top 1\%, 0.1\% and 0.01\%, W-2 tips, SCF wealth
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{What is left}
+  \begin{itemize}
+    \item Rules applied after drawing: credit eligibility, death probabilities, unrealized gains,
+          the basis of capital gains
+    \vspace{0.4em}
+    \item The file Tax-Simulator reads, and a first run of Tax-Simulator on it
+    \vspace{0.4em}
+    \item A tax calculator inside post-training, for targets on computed tax
+    \vspace{0.4em}
+    \item Other years: 2015 to 2023, then the projection years
+    \vspace{0.4em}
+    \item The very top: the PUF's aggregate records and the Forbes 400
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[plain,noframenumbering,c]
+  \begin{center}
+    {\color{yaleblue}\Large\bfseries Questions}
+  \end{center}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+% Parked: the 24 October intro slides, kept in case any are wanted back.
+% ---------------------------------------------------------------------------
+\iffalse
+
+\begin{frame}{What do we need?}
+  % Click 1: the need as one sentence. Click 2: its words down the side, each explained.
+  \only<1>{%
+    \vfill
+    \begin{center}
+      {\LARGE\bfseries\color{yaleblue} Realistic synthetic augmented tax unit microdata}
+    \end{center}
+    \vfill
+  }
+  \only<2>{%
+  \vspace{0.6em}
+  \renewcommand{\arraystretch}{1.4}
+  \begin{tabular}{@{}r@{\hspace{1.2em}}>{\raggedright\arraybackslash}p{0.74\textwidth}@{}}
+    {\large\bfseries\color{yaleblue} Realistic}   & joint distributions across all variables are respected; aggregate targets are hit \\
+    {\large\bfseries\color{yaleblue} Synthetic}   & files for historical and future years \\
+    {\large\bfseries\color{yaleblue} Augmented}   & variables not on tax returns, and people who don't file \\
+    {\large\bfseries\color{yaleblue} Tax unit}    & the unit that files or would file: non-filers included, households split \\
+    {\large\bfseries\color{yaleblue} Microdata}   & individual records, so we can calculate taxes in detail \\
+  \end{tabular}
+  }
+\end{frame}
+
+% What each source has, and which years. Simplified: shading marks whether a
+% source carries the item at all, not how well. Tax years.
+\begin{frame}{What do we have?}
+  \centering
+  \begin{tikzpicture}[x=1.1cm, y=0.62cm]
+    % column labels
+    \foreach \lab [count=\i] in {Wages, {Capital\\income}, {Business\\income}, {Deduc-\\tions},
+        Ages, {Net\\worth}, {Consump-\\tion}, {Non-\\filers}} {
+      \node[font=\scriptsize, align=center, anchor=south] at (\i-0.5, 0.15) {\lab};
+    }
+    % rows: F = on a tax return, P = survey answer, N = not there
+    \foreach \lab/\codes [count=\j] in {
+        PUF/{cF,cF,cF,cF,cN,cN,cN,cN},
+        SCF/{cP,cP,cP,cN,cP,cP,cN,cP},
+        CEX/{cP,cP,cP,cN,cP,cN,cP,cP},
+        CPS/{cP,cP,cP,cN,cP,cN,cN,cP}} {
+      \node[font=\small, anchor=east] at (-0.1, -\j+0.5) {\lab};
+      \foreach \c [count=\i] in \codes {
+        \draw[\c, draw=yalegrey] (\i-1, -\j) rectangle (\i, -\j+1);
+      }
+    }
+    % the PUF has the primary filer's age range only, and for most records
+    \fill[yalelightgrey] (4,-1) rectangle (5,0);
+    \draw[yalegrey] (4,-1) rectangle (5,0);
+    \node[font=\tiny, align=center] at (4.5,-0.5) {range\\only};
+    % legend
+    \begin{scope}[shift={(0,-5.6)}]
+      \draw[cF, draw=yalegrey] (0,0) rectangle (0.35,0.6);
+      \node[font=\scriptsize, anchor=west] at (0.4,0.3) {on a tax return};
+      \draw[cP, draw=yalegrey] (2.6,0) rectangle (2.95,0.6);
+      \node[font=\scriptsize, anchor=west] at (3.0,0.3) {survey answer};
+      \draw[cN, draw=yalegrey] (5.1,0) rectangle (5.45,0.6);
+      \node[font=\scriptsize, anchor=west] at (5.5,0.3) {not there};
+    \end{scope}
+
+    % Click 2: which years each source covers, on a line from 2010 to 2060
+    \onslide<2>{
+    \begin{scope}[shift={(8.3,0)}, x=0.064cm]
+      \node[font=\scriptsize\bfseries, text=yaleblue, anchor=south] at (25,0.15) {Years covered};
+      % no microdata after the last survey year
+      \fill[yalelightgrey!50] (15,-4.0) rectangle (50,0);
+      \node[font=\scriptsize, align=center, text=yalegrey] at (32.5,-2) {no microdata:\\only projected\\totals};
+      % PUF: 2015 only
+      \fill[yaleblue] (5,-0.5) circle (3pt);
+      % SCF: every third tax year
+      \foreach \yr in {2012,2015,2018,2021} \fill[yalemid] (\yr-2010,-1.5) circle (2.4pt);
+      % CEX and CPS: every year
+      \draw[yalemid, line width=3pt] (0,-2.5) -- (14,-2.5);
+      \draw[yalemid, line width=3pt] (0,-3.5) -- (14,-3.5);
+      % axis under the last row
+      \draw[yalegrey] (0,-4.05) -- (50,-4.05);
+      \foreach \yr in {2015, 2025, 2060} {
+        \draw[yalegrey] (\yr-2010,-4.05) -- (\yr-2010,-4.25);
+        \node[font=\scriptsize, anchor=north] at (\yr-2010,-4.25) {\yr};
+      }
+    \end{scope}
+    }
+  \end{tikzpicture}
+
+  \vspace{0.6em}
+  No source has everything, and only one year has tax returns.
+  \slidenote{Simplified. Years are tax years.}
+\end{frame}
+
+\begin{frame}{Why can't we just combine them?}
+  \begin{itemize}
+    \item \textbf{Different units.} Surveys count households; returns count tax units.
+          One household can hold several returns, and some people file none.
+    \vspace{0.6em}
+    \item \textbf{Different definitions.} A return caps capital losses at \$3,000;
+          survey wages are counted before pre-tax deductions.
+    \vspace{0.6em}
+    \item \textbf{Different measurement.} Small amounts go unreported: of every 100 couples,
+          48 show interest on their returns, but only 21 tell the SCF they have any.
+  \end{itemize}
+  \slidenote{Interest: married couples with wages of \$75--200k, 2015 PUF and 2016 SCF (tax year 2015), weighted.}
+\end{frame}
+
+\begin{frame}{The task}
+  \centering
+  \vspace{1.5em}
+  \begin{tikzpicture}
+    \node[box, text width=3.6cm, minimum height=2.2cm, font=\small] (learn)
+      {\textbf{Learn}\\[3pt] how variables go together, from every source and year};
+    \node[box, text width=3.6cm, minimum height=2.2cm, font=\small, right=0.8cm of learn] (draw)
+      {\textbf{Draw}\\[3pt] realistic records for year $t$};
+    \node[box, text width=3.6cm, minimum height=2.2cm, font=\small, right=0.8cm of draw] (hit)
+      {\textbf{Reweight}\\[3pt] to year $t$'s published totals, at whatever detail exists};
+    \draw[arr] (learn) -- (draw);
+    \draw[arr] (draw) -- (hit);
+  \end{tikzpicture}
+\end{frame}
+
+\fi
+
+\end{document}

@@ -1,0 +1,75 @@
+% Shared look, copied from ../2026-10_rebuild/rebuild_talk.tex (lines 1-75)
+
+\documentclass[11pt,aspectratio=169]{beamer}
+
+% ---------------------------------------------------------------------------
+% Look: plain beamer, Yale colours
+% ---------------------------------------------------------------------------
+\usetheme{default}
+\usefonttheme{professionalfonts}
+\setbeamertemplate{navigation symbols}{}
+
+\definecolor{yaleblue}{HTML}{00356B}
+\definecolor{yalemid}{HTML}{286DC0}
+\definecolor{yalelight}{HTML}{63AAFF}
+\definecolor{yalegrey}{HTML}{4A4A4A}
+\definecolor{yalelightgrey}{HTML}{DDDDDD}
+
+\setbeamercolor{structure}{fg=yaleblue}
+\setbeamercolor{normal text}{fg=black}
+\setbeamercolor{frametitle}{fg=yaleblue}
+\setbeamercolor{title}{fg=yaleblue}
+\setbeamercolor{alerted text}{fg=yalemid}
+\setbeamercolor{block title}{fg=white,bg=yaleblue}
+\setbeamercolor{block body}{bg=yalelightgrey!40}
+
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+\setbeamerfont{title}{series=\bfseries,size=\Large}
+
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{blocks}[rounded][shadow=false]
+
+% A thin blue rule under each frame title
+\setbeamertemplate{frametitle}{%
+  \vspace*{0.6em}%
+  \usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\par
+  \vspace*{-0.2em}{\color{yaleblue}\rule{\textwidth}{0.6pt}}%
+}
+
+% Footer: short title on the left, slide number on the right
+\setbeamertemplate{footline}{%
+  \hspace*{1.2em}{\color{yalegrey}\scriptsize\insertshorttitle}%
+  \hfill{\color{yalegrey}\scriptsize\insertframenumber}\hspace*{1.2em}%
+  \vspace*{0.6em}%
+}
+
+% ---------------------------------------------------------------------------
+% Packages
+% ---------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\graphicspath{{figures/}}
+
+% Diagram styles
+\tikzset{
+  tok/.style={draw=yaleblue, rounded corners=2pt, font=\small, inner sep=4pt,
+              minimum height=0.65cm},
+  blank/.style={tok, fill=yalelight!35, font=\small\bfseries},
+  box/.style={draw=yaleblue, rounded corners=2pt, font=\scriptsize, align=center,
+               text width=2.1cm, minimum height=1.1cm, inner sep=3pt},
+  arr/.style={-{Stealth[length=5pt]}, yaleblue, thick},
+  cF/.style={fill=yaleblue},
+  cP/.style={fill=yalelight!60},
+  cN/.style={fill=white},
+}
+
+\pgfplotsset{colormap={yalemap}{color=(white) color=(yalelight) color=(yaleblue)}}
+
