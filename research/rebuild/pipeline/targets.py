@@ -57,6 +57,23 @@ T14 = {  # SOI item -> (variable, statistic)
     'total wages > total > amount': ('wages', 'amount'),
     'taxable interest > number of returns': ('taxable_interest', 'count'),
     'taxable interest > amount': ('taxable_interest', 'amount'),
+    # (autoresearch round 7) more of Table 1.4's lines, for targets in the broad AGI groups
+    'statutory adjustments > total > number of returns': ('statutory_adjustments', 'count'),
+    'statutory adjustments > total > amount': ('statutory_adjustments', 'amount'),
+    'tax exempt interest > number of returns': ('tax_exempt_interest', 'count'),
+    'tax exempt interest > amount': ('tax_exempt_interest', 'amount'),
+    'unemployment compensation > number of returns': ('unemployment', 'count'),
+    'unemployment compensation > amount': ('unemployment', 'amount'),
+    'taxable individual retirement arrangement (ira) distributions > number of returns': ('taxable_ira', 'count'),
+    'taxable individual retirement arrangement (ira) distributions > amount': ('taxable_ira', 'amount'),
+    'pensions and annuities > total > number of returns': ('total_pensions', 'count'),
+    'pensions and annuities > total > amount': ('total_pensions', 'amount'),
+    'pensions and annuities > taxable > number of returns': ('taxable_pensions', 'count'),
+    'pensions and annuities > taxable > amount': ('taxable_pensions', 'amount'),
+    'capital gain distributions reported on form 1040 > number of returns': ('capital_gain_distributions', 'count'),
+    'capital gain distributions reported on form 1040 > amount': ('capital_gain_distributions', 'amount'),
+    'qualified dividends > number of returns': ('qualified_dividends', 'count'),
+    'qualified dividends > amount': ('qualified_dividends', 'amount'),
     'ordinary dividends > number of returns': ('ordinary_dividends', 'count'),
     'ordinary dividends > amount': ('ordinary_dividends', 'amount'),
     'sales of capital assets reported on form 1040, schedule d > taxable net gain > number of returns':
@@ -80,6 +97,20 @@ T14 = {  # SOI item -> (variable, statistic)
     'qualified business income deduction > amount': ('qbi_deduction', 'amount'),
     'alternative minimum tax > number of returns': ('alternative_minimum_tax', 'count'),
     'alternative minimum tax > amount': ('alternative_minimum_tax', 'amount'),
+    # (autoresearch, 4 November) three Table 1.4 lines the draw overstates and nothing targeted: Form 4797's gains and
+    # losses (run3's 2019 file: net gain $56 billion against SOI's $38 billion, net loss $52 billion against $19
+    # billion), and alimony received and paid (2019: $20.5 billion received against $10.8 billion; the 2015 draw keeps
+    # the alimony of divorces before 2019, whose payments the 2017 law left in AGI and which run off)
+    'sales of property other than capital assets > net gain > number of returns': ('other_gains_net_gain', 'count'),
+    'sales of property other than capital assets > net gain > amount': ('other_gains_net_gain', 'amount'),
+    'sales of property other than capital assets > net loss > number of returns': ('other_gains_net_loss', 'count'),
+    'sales of property other than capital assets > net loss > amount': ('other_gains_net_loss', 'amount'),
+    'state income tax refunds > number of returns': ('state_refunds', 'count'),
+    'state income tax refunds > amount': ('state_refunds', 'amount'),
+    'alimony received > number of returns': ('alimony_received', 'count'),
+    'alimony received > amount': ('alimony_received', 'amount'),
+    'statutory adjustments > alimony paid > number of returns': ('alimony_paid', 'count'),
+    'statutory adjustments > alimony paid > amount': ('alimony_paid', 'amount'),
 }
 # (30 October, taxes.py) Table 3.3, tax liability, tax credits and tax payments by size of AGI: the credits and taxes
 # the calculator computes (SOI item -> (variable, statistic)). The earned income credit is the whole credit (the part
@@ -101,6 +132,20 @@ T33 = {
         ('ctc_refundable', 'amount'),
     'tax credits > total refundable credits > earned income credit > number of returns': ('eitc', 'count'),
     'tax credits > total refundable credits > earned income credit > amount': ('eitc', 'amount'),
+    # (autoresearch, 4 November) the education credits: run3's 2019 file had 1.32 times SOI's returns with the refundable
+    # American opportunity credit and 1.18 times its returns with the nonrefundable education credits (2023: 1.50, 1.26)
+    'tax credits > credit for child and dependent care > number of returns': ('child_care_credit', 'count'),
+    'tax credits > credit for child and dependent care > amount': ('child_care_credit', 'amount'),
+    'tax credits > retirement savings contribution credit > number of returns': ('savers_credit', 'count'),
+    'tax credits > retirement savings contribution credit > amount': ('savers_credit', 'amount'),
+    'tax credits > nonrefundable education credit > number of returns': ('education_credit_nonrefundable', 'count'),
+    'tax credits > nonrefundable education credit > amount': ('education_credit_nonrefundable', 'amount'),
+    'tax credits > total refundable credits > american opportunity credit > number of returns': ('aotc_refundable', 'count'),
+    'tax credits > total refundable credits > american opportunity credit > amount': ('aotc_refundable', 'amount'),
+    # (autoresearch, 4 November) self-employment tax: run3's files had 0.89 of SOI's in 2019 ($59.8 against $67.3
+    # billion) and in 2023 ($72.2 against $81.1 billion), on 0.97 of its returns
+    'all other taxes > self employment tax > number of returns': ('self_employment_tax', 'count'),
+    'all other taxes > self employment tax > amount': ('self_employment_tax', 'amount'),
     'income tax after credits > number of returns': ('income_tax_after_credits', 'count'),
     'income tax after credits > amount': ('income_tax_after_credits', 'amount'),
     'total income tax > number of returns': ('total_income_tax', 'count'),
@@ -177,19 +222,32 @@ def returns(soi, year, table='1.4', status='all'):
     return s['value'].item()
 
 
-def published_cells(soi, year, variable, stat, table='1.4'):
+def published_cells(soi, year, variable, stat, table='1.4', status='all'):
     """An item's cells by AGI as published in a table (Table 1.4 unless said), lowest first, as (lo, hi, value).
     A non-blank 'combined' cell holds its own bracket and the blank ones after it,
     so it becomes one cell spanning them."""
-    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == 'all')
+    s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == status)
             & (soi['variable'] == variable) & (soi['statistic'] == stat) & (soi['label'] != 'all')]
     out = []
+    pending = None   # (autoresearch, 4 November) a blank lowest cell: SOI put it in a later 'combined' cell
     for r in s.sort_values('lo').itertuples():
         if pd.isna(r.value):
-            assert out and out[-1][3], f'{year} {variable} {stat}: a blank cell with no cell to join'
+            if pending is not None or not out or not out[-1][3]:
+                # (round 10) a blank cell with no combined cell before it is held in the next combined cell (Table
+                # 3.3, 2015: the child care credit's $5,000-10,000 cell is in the $10,000-15,000 one)
+                pending = (r.lo if pending is None else pending[0], 0.0 if pending is None else pending[1])
+                continue
             out[-1] = (out[-1][0], r.hi, out[-1][2], True)
+        elif pending is not None:
+            # every cell from the blank one up to the first combined cell is one cell (Table 3.3, 2023: the child care
+            # credit's no-AGI cell is in the $10,000-15,000 cell, with the zero cells between them)
+            pending = (pending[0], pending[1] + float(r.value))
+            if r.flag == 'combined':
+                out.append((pending[0], r.hi, pending[1], True))
+                pending = None
         else:
             out.append((r.lo, r.hi, float(r.value), r.flag == 'combined'))
+    assert pending is None, f'{year} {variable} {stat}: a blank lowest cell and no combined cell above it'
     return [(lo, hi, v) for lo, hi, v, _ in out]
 
 

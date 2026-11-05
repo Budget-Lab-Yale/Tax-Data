@@ -125,6 +125,31 @@ targets:
         million claimed dependents)
     key: {group: 'non-filers, {label}', target: people}
 
+  # (autoresearch, round 9) Non-filers' dividends, against the non-filers of the pipeline's own tax data, with a wide
+  # error: the CPS-label draw puts large dividends on non-filers the source does not have (run3's 2019 file $30.0 billion
+  # on 3.1 million non-filers, $13.8 billion of it on 46,000 units with $100,000 or more, against $7.1 billion on 2.1
+  # million in the source; 2023 $51 billion against $7.7 billion). The source is before the fill-in of holders the CPS
+  # misses, so the error is half the value (amount) and a quarter (holders).
+  - id: nonfiler_dividends
+    kind: non-filer items
+    statistic: amount
+    population: non_filers
+    variable: ordinary_dividends
+    cells: all
+    value: {pipeline: tax_data_nonfilers}
+    error: {kind: judgment, relative: 0.5, reason: 'the source is before the fill-in of the dividend holders the CPS misses'}
+    key: {group: all, target: 'non-filers, {variable} {statistic}'}
+
+  - id: nonfiler_dividend_holders
+    kind: non-filer items
+    statistic: count
+    population: non_filers
+    variable: ordinary_dividends
+    cells: all
+    value: {pipeline: tax_data_nonfilers}
+    error: {kind: judgment, relative: 0.25, reason: 'the source is before the fill-in of the dividend holders the CPS misses'}
+    key: {group: all, target: 'non-filers, {variable} {statistic}'}
+
   # SOI Table 1.7: dependent filers' returns by AGI bracket. Dependent filers are real returns, counted in every SOI
   # table (TARGETS.md section 10), but nothing else fixes how many there are, so the tilt could fill the Table 1.6
   # age counts with them: in the first run with consumption hit exactly (24 October) they rose from 9.85 to 21.92
@@ -155,6 +180,22 @@ targets:
     value: {published: soi 1.7}
     error: {kind: soi_borrowed}
     key: {group: all, target: net capital gain}
+
+  # (autoresearch, 4 November) Dependent filers' taxable interest and ordinary dividends, Table 1.7, all AGI
+  # (round 7: also their tax-exempt interest, capital gain distributions, capital losses and Schedule C income and loss).
+  # Untargeted in run3, the 2019 file had $2.1 billion of their taxable interest against SOI's $0.38 billion and
+  # $3.2 billion of their dividends against $2.2 billion (2023: $2.6 against $0.69 billion of interest); this income
+  # is what the tax on a child's unearned income falls on.
+  - id: dependent_filer_investment_income
+    kind: dependent filers
+    statistic: [count, amount]
+    population: dependent_filers
+    variable: [taxable_interest, ordinary_dividends, exempt_int, capital_gain_distributions, capital_gain_loss,
+               sole_prop_net_income, sole_prop_net_loss]
+    cells: all
+    value: {published: soi 1.7}
+    error: {kind: soi_borrowed}
+    key: {group: all, target: '{variable} {statistic}'}
 
   - id: dependent_filer_returns_top
     kind: dependent filers
@@ -190,6 +231,35 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
 
+  # (autoresearch, round 8) SOI Table 1.2: returns of single filers, married people filing separately and heads of
+  # household in each group of the standard AGI grid (joint returns follow from these, Table 1.4's returns and the joint
+  # total). Untargeted, run3's 2019 file had 0.63-0.70 of SOI's single returns at AGI $1-10 million and 1.8 times its
+  # joint returns at $10,000-15,000. Errors borrowed as for Table 1.6 by AGI (Table 1.4's count cells in the same group).
+  - id: status_returns_by_agi
+    kind: status by AGI
+    statistic: units
+    population: filers
+    cells: {filing_four: [single, separate, head of household], standard_agi_groups: all}
+    value: {published: soi 1.2}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: returns}
+
+  # (autoresearch, 4 November) SOI Table 1.6: returns of heads of household and of married people filing separately
+  # by the primary filer's age range, all six ranges, all AGI. The entry above leaves the split of non-joint returns
+  # between single filers and heads of household free within each age, and the draw puts heads of household too young:
+  # run3's 2019 file had 4.06 million heads of household under 26 against SOI's 3.46 million, and 8.80 million aged
+  # 45-54 against 9.79 million (2023: 4.35 against 3.06 million under 26). With the entry above and Table 1.3's
+  # returns by status these also fix single filers by age. Dependent filers are not heads of household; the few
+  # married dependent filers filing separately are left out of these cells (the file has no exact age for them).
+  - id: age_returns_by_status
+    kind: age by status
+    statistic: units
+    population: filers
+    cells: {filing_four: [separate, head of household], adult_age_ranges: all}
+    value: {published: soi 1.6}
+    error: {kind: soi_borrowed}
+    key: {group: '{filing_four}, primary {adult_age_ranges}', target: returns}
+
   # (3 November 2026, John; explore/2026-11-03/age_by_agi/RESULTS.md) SOI Table 1.6 by AGI: returns by the primary
   # filer's age range, 26-34 to 65+, within each group of the standard AGI grid, from the table's All returns panel.
   # The totals by age above leave the age mix within AGI free, and the SCF's wealth by age (2 November) moved
@@ -215,18 +285,69 @@ targets:
   # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
   # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
   # In 2019 (since 22 October) estates and trusts are left out: the family list business_other less estate_trust.
+  # (autoresearch, 4 November) estates and trusts back, and Form 4797's gain and loss added: with standard errors
+  # (the one-cost rule of 1 November) a cell that conflicts gives way instead of stopping the solve. In run3's 2019
+  # file, untargeted, estate and trust net income was $51.9 billion against SOI's $36.2 billion ($6.5 billion at no
+  # AGI against $0.5 billion), Form 4797 net gain $56.3 billion against $37.9 billion and net loss $52.3 billion
+  # against $18.5 billion.
   - id: business
     kind: business
     statistic: [count, amount]
     population: filers
-    variable: [rent_royalty_net_income, rent_royalty_net_loss]
+    variable: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
+               other_gains_net_gain, other_gains_net_loss]
     cells: {business_agi_groups: all}
     value: {published: soi 1.4}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
     reason: >-
-      variable: estates and trusts are left out, as on 22 and 24 October: their tiny cells could not always be met
-      (with standard errors they could come back, giving way where they conflict)
+      variable: estates and trusts, left out on 22 and 24 October because their tiny cells could not always be met,
+      are back under standard errors (autoresearch, 4 November), with Form 4797's gain and loss
+
+  # (autoresearch, 4 November) Taxable state income tax refunds, Table 1.4, in the six business AGI groups. The
+  # tax benefit rule (settings taxes.refund_tax_benefit) takes the refunds off itemizers whose taxes paid exceed the
+  # cap by more than the refund; on its own it left too few (2019: $2.3 billion on 3.0 million returns against SOI's
+  # $5.6 billion on 4.3 million), because the reweighting cuts the 2015 itemizers who carry them and because some
+  # refunds repay taxes deducted before the cap. Round 3: the rule alone left too few refunds at the top to meet the
+  # $1 million and over cell (2019: $0.27 billion against SOI's $0.66 billion); settings taxes.refund_reported_anyway
+  # keeps a share of the refunds the rule would take off.
+  - id: state_refunds
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: state_ref
+    cells: {business_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, round 7) More of Table 1.4 in the business AGI groups: statutory adjustments, tax-exempt interest,
+  # unemployment compensation, taxable IRA distributions and taxable pensions. After round 6 these were the
+  # untargeted Table 1.4 lines with the most cells beyond 3 standard errors (2023 statutory adjustments: 41.6 million
+  # returns in run3's file against SOI's 35.8 million; 2019 tax-exempt interest at $5-10 million $4.3 billion against
+  # $3.0 billion).
+  - id: irs_more_items
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: [statutory_adjustments, exempt_int, ui, txbl_ira_dist, txbl_pens_dist, total_pensions]
+    cells: {business_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, 4 November) Alimony received and paid, Table 1.4, all AGI. The draw carries 2015's alimony into
+  # every year; the 2017 law ends the inclusion and the deduction for divorces from 2019, so the payments run off
+  # (SOI: 344,000 returns with alimony received in 2019, 184,000 in 2023; run3's files 538,000 and 577,000).
+  - id: alimony
+    kind: IRS
+    statistic: [count, amount]
+    population: filers
+    variable: [alimony, alimony_paid]
+    cells: all
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: all, target: '{variable} {statistic}'}
 
   # Farm and farm rental income (1 November, decision 71): one overall target each, net income and net loss, returns and
   # dollars, no AGI groups; the cells by AGI group held 1,200 to 140,000 returns.
@@ -439,6 +560,37 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
+  # (autoresearch, 4 November) Table 4.3's deductions in the top AGI groups, from the calculator: the charitable
+  # and interest deductions and the QBI deduction, dollars only. Table 2.1's top group is $500,000 and over and
+  # Table 1.4's QBI cells stop at $10 million, so the very top was free: run3's 2019 file had 1.42 times SOI's
+  # contributions deduction in the top 0.001% and 0.52 times its interest deduction, and 0.28 times its QBI deduction.
+  # (round 6) Only the top 0.1% and 1%: in 2023 the top 0.001% and 0.01% cells, where the Forbes list's records are
+  # held at their weight, could not be met and the solve ran out of its 150 Newton steps (round 5).
+  # Table 4.3's taxes paid deduction is left out: it adds taxes other than state and local (in 2019 the top 0.001%
+  # deducted $191 million, $129,000 a return, under a $10,000 cap on state and local taxes), which the calculator's
+  # claimed taxes do not hold; as a target it stopped the solve (round 5, 271 standard errors).
+  - id: soi_4_3_deductions
+    kind: calculator
+    statistic: amount
+    population: independent_filers
+    variable: [itemized_charity, itemized_interest, qbi_deduction]
+    cells: {agi_cumulative: [top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, round 6) Qualified dividends in Table 4.3's top 0.1% and 1%: with ordinary dividends met, run3's
+  # 2019 file had 1.48 times SOI's qualified dividends in the top 0.1% before the tilt.
+  - id: soi_4_3_qualified_dividends
+    kind: soi 4.3
+    statistic: [count, amount]
+    population: independent_filers
+    variable: qualified_dividends
+    cells: {agi_cumulative: [top 0.1 percent, top 1 percent]}
+    value: {published: soi 4.3}
+    error: {kind: soi_borrowed}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
   # Auto loan interest from the SCF (27 October, candidate): in the four income groups of the wealth grid, the share
   # of the group's units with any auto loan interest and its dollars per unit, on the year's mix of SCF waves
   # (scf_targets.py), each wave's amounts grown per tax unit to the target year's wave. Stated per unit, not as
@@ -604,6 +756,60 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
+  # (autoresearch, 4 November) Table 3.3's education credits: the draw carries 2015's claims, and the number of
+  # returns claiming them fell after 2015 (run3's 2019 file: 9.18 million returns with the refundable American
+  # opportunity credit against SOI's 6.94 million; 2023: 8.72 against 5.82 million)
+  - id: calc_education_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: [education_credit_nonrefundable, aotc_refundable]
+    cells: {ref_credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  # (autoresearch, 4 November) Table 3.3's self-employment tax, in the business AGI groups. The draw splits a
+  # couple's wages and self-employment income between the spouses with too little of the CPS's pattern (in the CPS a
+  # spouse with most of the wages has most of the self-employment income in 7% of such couples, in run3's 2019
+  # file 12%), so more of it sits above the Social Security wage base and the tax comes out at 0.89 of SOI's.
+  - id: calc_se_tax
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: self_employment_tax
+    cells: {business_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+  # (autoresearch, 4 November) The QBI deduction's dollars by AGI, Table 1.4, without its counts (the counts are the
+  # conflict that took the entry out on 30 October: SOI counts returns whose deduction comes from REIT dividends and
+  # publicly traded partnerships, which the file does not carry). The dial b sets the deduction from AGI $500,000 up
+  # in total; within it the file had too much at $500,000-1 million and too little at the top (run3's 2019 file:
+  # $9.5 billion at $10 million and over against SOI's $15.3 billion; $5.7 against $8.5 billion at $5-10 million).
+  - id: calc_qbi_amount
+    kind: calculator
+    statistic: amount
+    population: filers
+    variable: qbi_deduction
+    cells: {calc_agi_groups: all}
+    value: {published: soi 1.4}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, 4 November) Table 3.3's credit for child and dependent care and the retirement savings
+  # contributions credit, used against tax, by AGI. Untargeted, run3's 2019
+  # file had $4.3 billion of the child care credit against SOI's $3.8 billion and 8.0 million returns with the
+  # saver's credit against 9.6 million (2023: $4.1 against $3.5 billion; 8.2 against 9.8 million).
+  - id: calc_small_credits
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: [child_care_credit, savers_credit]
+    cells: {ref_credit_agi_groups: all}
+    value: {published: soi 3.3}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
   - id: calc_eitc
     kind: calculator
     statistic: [count, amount]
@@ -648,6 +854,19 @@ targets:
     statistic: [count, amount]
     population: filers
     variable: itemized_interest
+    cells: {itemized_agi_groups: all}
+    value: {published: soi 2.1}
+    error: {kind: soi_cv}
+    key: {group: '{cell}', target: '{variable} {statistic}'}
+
+  # (autoresearch, 4 November) Table 2.1's cash gifts and gifts other than cash on itemizing returns, as reported
+  # (before the deduction's limits). The deduction itself is the next entry; its split was free, and run3's 2019
+  # file had $156 billion of cash and $98 billion of other gifts against SOI's $130 and $75 billion.
+  - id: calc_itemized_charity_split
+    kind: calculator
+    statistic: [count, amount]
+    population: filers
+    variable: [itemized_charity_cash, itemized_charity_noncash]
     cells: {itemized_agi_groups: all}
     value: {published: soi 2.1}
     error: {kind: soi_cv}

@@ -1871,3 +1871,102 @@ income tax after credits is 0.981-0.989 of CBO's in 2026-2035.
 
 Earlier runs' figures are in `HISTORY.md` and in this file's git history (the 2019 run of 28 October, up to commit
 4c2c518). Known gaps are listed in `ROADMAP.md` and `NEXT_STEPS.md`.
+
+## Autoresearch version A (4-5 November 2026; branch autoresearch-llm)
+
+Each round compared run3's file with published SOI lines that were not targets, picked the ones that were far off,
+and added a target or a rule for them. Dollars are nominal dollars of the year. "Standard errors" are the target
+errors used by the reweighting. The log of every round is `LOG.md` in the scratch folder
+`explore/2026-11-04/autoresearch/llm/`. Only what was kept is listed here.
+
+**Round 1: estates and trusts, Form 4797, alimony, and the tax benefit rule on state refunds.**
+- The file against SOI Table 1.4, 2019: estate and trust net income $51.9 billion against $36.2 billion; Form 4797 net
+  gain $56.3 against $37.9 billion and net loss $52.3 against $18.5 billion; alimony received $20.5 billion against
+  $10.8 billion (2023: $27.0 against $6.7 billion); taxable state refunds $14.1 billion on 6.59 million returns
+  against $5.6 billion on 4.31 million.
+- Fix: estate and trust income and loss and Form 4797 gain and loss are targets in the business block's six AGI
+  groups; alimony received and paid are targets for all AGI. In `taxes.py`, an itemizer's taxable refund is held to
+  the tax benefit of the deduction it repays (IRS Publication 525); the setting is `taxes.refund_tax_benefit`.
+- Result: every new target met within 0.12 standard errors, at a cost of 0.2 points of effective sample kept. The
+  refund rule alone left 2019 refunds at $2.3 billion, too low, which round 2 corrects.
+
+**Round 2: state refunds, heads of household and separate filers by age, education credits.**
+- Heads of household under 26 in 2019: 4.06 million in the file against 3.46 million in SOI's published cells; only
+  joint against not joint had been targeted by age. Refundable American opportunity credit $7.8 billion on 9.18
+  million returns against $6.1 billion on 6.94 million.
+- Fix: state refunds as Table 1.4 targets in the six business AGI groups; a new target kind, "age by status", for
+  Table 1.6 heads of household and married filing separately by the six age ranges (importance 1); Table 3.3
+  nonrefundable education credits and the refundable American opportunity credit by AGI (calculator columns
+  `calc_ed_nonref`, `calc_ed_ref`).
+- Result: all met within 0.3 standard errors except refunds at AGI $1 million and over (round 3). 2019 refunds
+  $5.16 billion on 4.31 million returns. Effective sample kept 65.7% to 64.7% (2019) and 53.9% to 53.0% (2023).
+
+**Round 3: self-employment tax, dependent filers' investment income, itemizers' gifts.**
+- Self-employment tax, 2019: $59.8 billion against SOI's $67.3 billion (2023: $72.2 against $81.1 billion). The
+  calculator's split of a couple's self-employment income between spouses puts it on the higher-wage spouse in 41% of
+  couples, against 21% in the CPS, so more of it lies above the Social Security wage base. Dependent filers' taxable
+  interest $2.1 billion against $0.38 billion. Itemizers' cash gifts $156 billion against $130 billion, and gifts
+  other than cash $98 billion against $75 billion (Table 2.1).
+- Fix: targets for Table 3.3 self-employment tax in the business AGI groups (`calc_liab_seca`); Table 1.7 dependent
+  filers' taxable interest and ordinary dividends, all AGI; Table 2.1 cash and other gifts on itemizing returns in the
+  itemized AGI groups (`calc_char_cash_itemizers`, `calc_char_noncash_itemizers`; rows added to
+  `table21_2015_2023.csv` by `resources/build_table21_charity.py`). A refund the tax benefit rule would remove is
+  kept with probability 0.15, drawn from the record id (`taxes.refund_reported_anyway`), because SOI shows refunds on
+  about 5% of returns at AGI $2-5 million.
+- Result: every new target met within 0.5 standard errors. Refunds at $1 million and over are now met (2019 $0.66
+  billion; the cell was 20.8 standard errors short). Largest miss 3.80 (2019) and 4.99 (2023) standard errors.
+
+**Round 4: the QBI deduction's dollars by AGI, 2018-2023.**
+- Run3's 2019 file had $9.5 billion at AGI $10 million and over against SOI's $15.3 billion, and $5.7 against $8.5
+  billion at $5-10 million. The counts are not targeted because SOI counts returns whose deduction comes from REIT
+  dividends and publicly traded partnerships, which the file lacks.
+- Fix: the deduction's dollars, without counts, are targets in the 11 calculator AGI groups.
+- Result: every cell met within 0.12 standard errors (2019 at $10 million and over: $11.6 to $15.3 billion; 2023:
+  $20.7 to $32.1 billion). Effective sample unchanged (64.7%, 52.9%). Newton steps rose to 84 (2019) and 119 (2023)
+  against the budget of 150.
+
+**Tried and dropped.** Stating the SCF holder counts as shares of each cell's units: the file already holds the items
+at higher rates than the SCF, and the targets missed by up to 82 standard errors. Switching off the calculator's
+pass-through entity tax election before 2024: dropped on John's instruction, because the loop changes data, not tax
+law. The file's AGI stays above the calculator's by the election's amount ($27.1 billion in 2019), a known difference.
+
+**Rounds 5-6: more SOI lines, and two rules that make the file's adjustments the calculator's.**
+- Targets: qualified dividends (Table 1.4 broad groups; Table 4.3 top 0.1% and 1%; before, 1.5-2 times SOI's at the
+  top); Table 4.3's charitable, interest and QBI deductions in the top 0.1% and 1%; the EITC by qualifying children
+  (Table 2.5, source `soi 2.5`, 2015-2020; the credit without children had been 0.68 of SOI's); Table 3.3's child care
+  and saver's credits; capital gain distributions on Form 1040; more of Table 1.7 (dependent filers' tax-exempt
+  interest, distributions, capital losses, Schedule C).
+- Rules in `taxes.py`: `taxes.repealed_adjustments` zeroes the production activities deduction from 2018 and the
+  tuition and fees deduction from 2021; `taxes.se_tax_ded_from_calculator` takes the deductible half of
+  self-employment tax from the calculator. Together they make the file's adjustments equal the calculator's on every
+  record. The top 0.001% and 0.01% cells of Table 4.3 for the new items and its taxes paid line were left out (the
+  solve did not converge with them).
+
+**Rounds 7-8: Table 1.4's other lines and Table 1.2 by AGI.** Statutory adjustments, tax-exempt interest,
+unemployment compensation, taxable IRA distributions and taxable pensions in the business AGI groups; Table 1.2's
+single, separate and head of household returns in each standard AGI group (kind `status by AGI`,
+`target_list.published_12_agi`). Single returns at $1-10 million had been 0.63-0.70 of SOI's.
+
+Round 12 added gross pensions and annuities (Table 1.4 total, taxable plus the non-taxable rest) to the same entry.
+
+**Round 9: non-filers' dividends** against the non-filers of the pipeline's tax data (value source
+`tax_data_nonfilers`, kind `non-filer items`, errors half the value and a quarter of the holders). The 2019 file had
+$30.0 billion against $7.1 billion; after, $9.3 billion.
+
+**Round 10: the Schedule D net capital gain on the standard AGI grid** (it had been on the broad grid). Also
+`taxes.refund_tax_benefit_from` (2019) and a fix in `targets.published_cells` for a blank cell held in the next
+combined cell (Table 3.3, 2015). **Round 11:** no state refund targets in 2018 (its refunds repay 2017 taxes).
+
+**Round 12: gross pensions and annuities** as a target in the business AGI groups.
+
+**Round 13: the QBI items drawn after every other SCF item** (settings `generation.qbi_items_last`,
+`generate.scf_order`). The QBI rule gives a Schedule C, partnership or S corporation industry group to every record
+with that kind of income, while in the SCF only business owners have one; drawn first, the industry group made the
+record an owner. Drawn last, owns_business and the balance sheet follow the record's income as the SCF taught: 2019
+ownership 16.8% to 11.0% (SCF 11.6%), bottom income quarter 13.6% to 6.4% (SCF 3.4%); 2023 18.0% to 11.6% (SCF
+12.6%). A new draw of 2019 and 2023 (GPU), no retrain.
+
+Also tried and dropped: an SCF target on the share of units owning a private business (2019 effective sample kept
+61.8% to 58.6% for an item no tax calculation reads); round 13 fixed the cause in the draw instead.
+
+The log of every round, with the numbers before and after, is `LOG.md`.

@@ -551,14 +551,52 @@ def published_17(soi, year, cells, v, stats):
     return out
 
 
+def published_25(year, cells, v, stats):
+    """(Autoresearch, 4 November) SOI Table 2.5, returns with the earned income credit by the number of qualifying
+    children, all AGI (the mirror's bysize_eitc.csv, row Total): the returns with the credit and its amount in each
+    children group (grouping eitc_children on n_dep_eitc). Errors borrow Table 1.4's nearest cells (errors.borrow_cv),
+    as the other tables' counts and amounts do."""
+    import errors
+    lab = {'none': 'no qualifying children', 'one': 'one qualifying child', 'two': 'two qualifying children',
+           'three or more': 'three or more qualifying children'}
+    t = pd.read_csv(os.path.join(TG.MIRROR, 'bysize_eitc.csv'), dtype=str, keep_default_na=False)
+    t = t[(t.tax_year == str(year)) & (t.row_label == 'Total')]
+    assert len(t), f'Table 2.5 {year}: no Total row in bysize_eitc.csv'
+    donors, _ = errors.soi_cells(year)
+    rows = []
+    for c in cells:
+        (g,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'n_dep_eitc']
+        group = lab[c['parts'][g]]
+        vals = {}
+        for st in ('count', 'amount'):
+            item = f'returns with {group} > ' + ('number of returns' if st == 'count' else 'total earned income credit > amount')
+            x = t[t['item'] == item]['value']
+            assert len(x) == 1 and x.iloc[0] != '', f'Table 2.5 {year}: no value for {item}'
+            vals[st] = float(x.iloc[0]) * (1000.0 if st == 'amount' else 1.0)
+        for st in stats:
+            val = vals[st]
+            cv, what = (errors.borrow_cv(donors, count=val) if st == 'count' else
+                        errors.borrow_cv(donors, amount=val, returns=vals['count']))
+            rows.append({'cell': c['label'], 'cell_spec': c, 'statistic': st, 'value': val, 'se': abs(val) * cv / 100,
+                         'error_kind': 'soi_borrowed', 'se_reason': f'Table 2.5 {st}, CV {cv:.2f}% borrowed from Table 1.4: {what}',
+                         'source': f'soi 2.5 {year}: returns with {group}, the earned income credit ({st}), all AGI; bysize_eitc.csv'})
+    return rows
+
+
 def published_status(soi, year, source, cells, stats):
     """Rows of returns by filing status (Table 1.2) or by filing status and age (Table 1.6), all AGI."""
     assert stats == ['units'], f'{source}: returns only'
     rows = []
     t16 = TG.table_1_6(year) if source == 'soi 1.6' else None
+    # (autoresearch, 4 November) Table 1.6 by the four filing statuses too (grouping filing_four), not only joint or not
+    four = {'single': ['single'], 'joint': ['joint'], 'separate': ['separate'], 'head of household': ['head_of_household']}
     for c in cells:
-        (gname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'married']
-        statuses = CAT['groupings'][gname][f'in {source}'][c['parts'][gname]]
+        (gname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] in ('married', 'filing_status')]
+        if CAT['groupings'][gname]['variable'] == 'filing_status':
+            assert source == 'soi 1.6', f'{source}: by filing status only for Table 1.6'
+            statuses = four[c['parts'][gname]]
+        else:
+            statuses = CAT['groupings'][gname][f'in {source}'][c['parts'][gname]]
         if source == 'soi 1.2':
             v = sum(TG.returns(soi, year, '1.2', s) for s in statuses)
             src = f'soi 1.2 {year}: returns of ' + ' + '.join(statuses)
@@ -595,6 +633,35 @@ def table_16_by_agi(year):
         out[row] = (float(tot.value.iloc[0]), cells)
     assert sorted(out) == sorted(TG.T16_ROWS[1:]), f'Table 1.6 {year}: age rows {sorted(out)}'
     return out
+
+
+def published_12_agi(soi, year, cells, stats):
+    """(Autoresearch, round 8) Table 1.2's returns by filing status within AGI groups (targets/soi.csv's Table 1.2
+    rows, read by targets.read): each group sums the published cells inside it, the groups merged where a published
+    cell of any of the entry's statuses crosses an edge (merge_groups), as Table 1.4's groups are."""
+    assert stats == ['units'], 'Table 1.2 by AGI: returns only'
+    four = {'single': 'single', 'joint': 'joint', 'separate': 'separate', 'head of household': 'head_of_household'}
+    (gname,) = {c['agi'] for c in cells}
+    g = CAT['groupings'][gname]
+    groups = [(-np.inf if lo is None else float(lo), np.inf if hi is None else float(hi), lab) for lo, hi, lab in g['edges']]
+    st_of = {}
+    for c in cells:
+        (fname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] == 'filing_status']
+        st_of[c['label']] = four[c['parts'][fname]]
+    pc = {st: TG.published_cells(soi, year, 'returns', 'count', '1.2', st) for st in set(st_of.values())}
+    groups = merge_groups(groups, [(lo, hi, '') for cl in pc.values() for lo, hi, _ in cl])
+    rows = []
+    for c in cells:
+        st = st_of[c['label']]
+        cl = pc[st]
+        for lo, hi, lab in groups:
+            inside = [v for l_, h_, v in cl if l_ >= lo and h_ <= hi]
+            assert inside, f'Table 1.2 {year}, {st}: no published cell in {lab}'
+            spec = {**c, 'label': f'{lab}, {c["label"]}'}
+            rows.append({'cell': spec['label'], 'cell_spec': spec, 'agi': (lo, hi), 'statistic': 'units',
+                         'value': float(sum(inside)),
+                         'source': f'soi 1.2 {year}: returns of {st}, {len(inside)} AGI cell(s) summed'})
+    return rows
 
 
 def published_16_agi(year, cells, stats):
@@ -675,6 +742,30 @@ def cps_neighbours(year):
     assert year not in have and lo is not None and hi is not None, \
         f'{year}: no CPS units and no CPS year on both sides (CPS years {have})'
     return lo, hi
+
+
+def taxdata_nonfiler_rows(year, cells, v, stats):
+    """(Autoresearch, round 9) An item of the non-filers in the pipeline's tax data for the year (data/tax_data_<year>
+    .parquet, the CPS units weighted by their chance of not filing, their amounts in PUF terms before the training's
+    fill-in): its amount, or the units with it (statistic count). A year with no tax data file takes the geometric mean
+    of the CPS years either side, as the non-filer count does. Cells all."""
+    assert cells == [group_cells('all')[0]], 'tax data non-filers: cells all only'
+    def one(y):
+        t = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
+        t = t[t['filer'] == 0]
+        x = record_value(t, v); w = t['weight'].to_numpy(float)
+        assert np.isfinite(x).all() and np.isfinite(w).all(), f'tax data {y}: {v} or weight missing on a non-filer'
+        return {'amount': float((w * x).sum()), 'count': float(w[x != 0].sum())}
+    if os.path.exists(f'{common.DATA}/tax_data_{year}.parquet'):
+        vals, how = one(year), f'tax data {year}'
+    else:
+        lo, hi = cps_neighbours(year)
+        a, b = one(lo), one(hi)
+        vals = {k: float(np.sqrt(a[k] * b[k])) if a[k] > 0 and b[k] > 0 else (a[k] + b[k]) / 2 for k in a}
+        how = f'geometric mean of the tax data of {lo} and {hi}'
+    return [{'cell': 'all', 'statistic': st, 'value': vals[st],
+             'source': f'{how}: non-filers (CPS units weighted by their chance of not filing), {v}, {st}, before the fill-in'}
+            for st in stats]
 
 
 def nonfiler_count(year):
@@ -1585,12 +1676,20 @@ def expand_entry(e, year, soi):
             rows = published_w2_shares(src, vyear, cells, v, e)
         elif vkind == 'published' and CAT['sources'][src].get('layout') == 'w2_by_agi':
             rows = published_w2_agi(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'published' and src == 'soi 2.5':
+            rows = published_25(vyear, cells, v, stats)
+        elif vkind == 'published' and src == 'soi 1.2' and any(c['agi'] for c in cells):
+            rows = published_12_agi(soi, vyear, cells, stats)
         elif vkind == 'published' and src == 'soi 1.6' and any(c['agi'] for c in cells):
             rows = published_16_agi(vyear, cells, stats)
         elif vkind == 'published':
             rows = published_status(soi, vyear, src, cells, stats)
         elif vkind == 'survey':
             rows = survey_rows(src, vyear, cells, v, stats, e['population'])
+        elif vkind == 'pipeline' and src == 'tax_data_nonfilers':
+            rows = taxdata_nonfiler_rows(vyear, cells, v, stats)
+            for r in rows:
+                r['cell_spec'] = cells[0]
         elif vkind == 'pipeline':
             rows = pipeline_rows(vyear, cells, v, stats)
             for r in rows:
@@ -1818,7 +1917,8 @@ def conditions(df, rows, w_start, check=True):
             count_var = variable_def(r.variable).get('count_variable')
             xc = record_value(df, count_var) if count_var else x
             # SOI Table 2.1 counts returns claiming a positive category amount.
-            pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity')
+            pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity',
+                                     'itemized_charity_cash', 'itemized_charity_noncash')
             F[:, j] = cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)

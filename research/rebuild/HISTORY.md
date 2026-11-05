@@ -1167,3 +1167,14 @@ married people under 18 were counted as unmarried (ede6f65).
 | Weight decay of 0.05 or 0.1 in place of 0.01 (4 November) | Worse on every source; at 0.1 about 51,000 returns with AGI of $10 million or more against the PUF's 18,000 |
 | The Muon optimizer (4 November) | Worse on average and less stable: one seed drew too many top returns and too much wealth |
 | 105 dollar bands with finer bands at the top (4 November) | Worse on both seeds (0.1275 against 0.1205) |
+
+**4-5 November: autoresearch version A (branch `autoresearch-llm`).** An automated loop compared run3's 2019 and 2023
+files with SOI lines that were not targets and added targets or rules for the largest differences, four rounds kept.
+Round 1 added estate and trust income, Form 4797 gain and loss, and alimony as targets, with the tax benefit rule on
+itemizers' state refunds. Round 2 added state refunds, Table 1.6 heads of household and separate filers by age (a new
+kind, "age by status"), and education credits. Round 3 added self-employment tax, dependent filers' interest and
+dividends, and itemizers' cash and other gifts from Table 2.1, and kept some refunds the rule would remove
+(probability 0.15). Round 4 added the QBI deduction's dollars by AGI. Effective sample kept in 2019 went from 65.9% to
+64.7%, and in 2023 from 54.2% to 52.9%; Newton steps rose to 84 and 119. Stating the SCF holder counts as shares was
+dropped, and the pass-through entity tax switch was dropped on John's instruction (the loop changes data, not tax
+law). Details are in `FEATURES.md` and in the scratch `LOG.md`.

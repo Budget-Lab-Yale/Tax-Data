@@ -1714,6 +1714,8 @@
   "whole_tolerance": 0.02
  },
  "generation": {
+  "qbi_items_last": true,
+  "_qbi_items_last": "Autoresearch round 13: the QBI items (industry groups and outside workers) drawn after every other SCF slot, so owns_business and the balance sheet are not drawn given an industry group that the QBI rule gave the record (generate.scf_order).",
   "_what": "The filer batch and the non-filer batch (generate.py says how). Since 26 October the AGI group label is preset on every filer record and everything else is drawn given it.",
   "label_records": 400000,
   "label_seed": 61,
@@ -1868,7 +1870,7 @@
    "newton_budget": 150,
    "gradient_tolerance": 1e-8,
    "average_weight_change": 0.001,
-   "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "age by AGI", "dependent filers", "tips", "deferrals", "calculator"],
+   "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "age by AGI", "age by status", "status by AGI", "dependent filers", "tips", "deferrals", "calculator"],
    "other_importance_divisor": 1.5
   },
   "_reweighting": "The reweighting is one cost and no other rule (1 November 2026, decisions 57, 63, 64 and 68; solver.py). The file minimizes the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move of the weights from the start (in nats, on weights divided by the sum of the starting weights); identities are met exactly; no target has a range and none is dropped. The demographic prescaling uses the same rule on its cells. tau (1,000): the weight of the move against the misses; chosen in decision 63 (median miss 0.04 standard errors, 7 targets above 2 in 2022 on the new targets; the effective sample kept 62.5%). newton_budget: the most Newton steps in all (150 since 3 November, raised from 100 by John for 2023 with its Forbes list); never raised without John. gradient_tolerance: the solver's stopping size for the gradient of the dual, on the solver's scale (a miss as a share of the target's size). average_weight_change: an average's standard error is solved again at the first answer's group weight if a group moved by more than this share. importance_one_kinds: the target kinds with importance 1 (SOI's published tables, W-2 statistics, and the calculator's columns against SOI's); every other kind has importance 1 / other_importance_divisor.",
@@ -1998,8 +2000,17 @@
   "_law_alternative": "null: the default law folder (current law as enacted: TCJA, the 2020-21 measures, OBBBA). Else a folder under the calculator's config/scenarios/tax_law/alternatives.",
   "wage_increment": 100,
   "_wage_increment": "Dollars added to the primary earner's wages for the marginal rates on wages (calc_mtr_wages_iit, calc_mtr_wages_payroll); 0: not computed.",
+  "repealed_adjustments": {"dpad": 2018, "tuition_ded": 2021, "_what": "Autoresearch, 4 November: each adjustment and the first tax year the law no longer allows it (the domestic production activities deduction, repealed by the 2017 law; the tuition and fees deduction, ended after 2020). taxes.apply_repealed_adjustments sets it to zero and moves the adjustments total and other_agi with it."},
+  "se_tax_ded_from_calculator": true,
+  "_se_tax_ded_from_calculator": "Autoresearch, 4 November: after the final calculator run the deductible half of self-employment tax is the calculator's (liab_seca_er), and the adjustments total and other_agi move with it, so the file's AGI is the calculator's. false: the drawn deduction stays.",
   "refund_rule": true,
  "_refund_rule": "Decision 47 (John, 30 October): after the draw, a record the calculator says does not itemize under the year's law (one calculator run on the grown start, the flag itemizing) has its taxable state income tax refund (state_ref) set to zero. It stands in for 'did not itemize last year'. A rule like the AMT rule: the draw carries 2015's roughly 21 million refund returns into every year, and SOI has 4.3 million in 2019 and 3.1 million in 2023. false: the draw's refunds stay.",
+  "refund_tax_benefit": true,
+  "refund_reported_anyway": 0.15,
+  "refund_tax_benefit_from": 2019,
+  "_refund_tax_benefit_from": "(Autoresearch round 10.) The first tax year the tax benefit rule applies: a refund received in year t repays year t-1's taxes, and the cap on the taxes deduction began in 2018, so 2018's refunds (of 2017 taxes) are left to decision 47 alone.",
+  "_refund_reported_anyway": "(Autoresearch round 3.) The chance that an itemizer whose refund the tax benefit rule would take off reports it anyway (drawn from the record id): SOI has taxable refunds on about 5% of returns at AGI $2-5 million, where taxes paid are far above the cap. 0: the rule alone.",
+  "_refund_tax_benefit": "(Autoresearch, 4 November.) On a record that itemizes, the taxable state refund is held to the tax benefit of the deduction it repays (IRS Publication 525, worksheet 2): the taxes deduction claimed less the one with taxes paid lowered by the refund (zero where taxes paid exceed the cap on the deduction by more than the refund), and the itemized deductions less the standard deduction. The current year stands in for the year before. false: an itemizer keeps the refund as drawn.",
  "greedy_schedule_a": {
   "enabled": true,
   "passes": 3,
