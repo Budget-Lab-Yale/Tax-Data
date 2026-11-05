@@ -95,7 +95,8 @@ Outputs. The folders `data/`, `targets/`, `model/`, `gen/` and `tilt/` under
 John approves. Runs since then live in
 their own folders under `explore/`: the networks of 30 October are in `explore/2026-10-30/train/model/`, their draws
 for 2015-2023 in `explore/2026-11-01/dryrun/run/<year>/gen/`, and the latest files for every year in
-`explore/2026-11-03/bigrun/run/<year>/` (the networks of that run in `explore/2026-11-03/bigrun/train/model/`). A year's tilt folder (`tilt/y<year>/`) holds the file
+`explore/2026-11-03/bigrun/run/<year>/` (the networks of that run in `explore/2026-11-03/bigrun/train/model/`). The combined retrain of 4-5 November (run5: version A's targets and rules, the real-PUF setting, the part_se
+fix; not installed) is in `explore/2026-11-04/run5/`, its networks in `run5/train/model/`. A year's tilt folder (`tilt/y<year>/`) holds the file
 (`file_<year>.parquet`, every dollar in nominal dollars of the year), the targets (`targets.csv`), every target before
 and after (`fit.csv`), the summary (`summary.md`), the run report (`report.md`, `report_*.csv`) and the top step's
 notes; the Tax-Simulator file is in `taxsim/y<year>/`.

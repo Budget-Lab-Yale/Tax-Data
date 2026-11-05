@@ -786,3 +786,28 @@ wages, gains, dividends and so on); the amounts are unchanged. On the big run's 
 SOI samples lightly; the same rule as Table 1.6's age-by-AGI cells (S14). A year
 with no published cutoff for a targeted group stops the run; every year 2015-2023 has all of them.
 
+
+### S16. Version A's target entries (John, 4 November 2026, evening; applied 5 November)
+
+The autoresearch loop's version A (branch `autoresearch-llm`, `FEATURES.md` "Autoresearch version A") added target
+entries for published lines that run3's files missed by many standard errors. John kept them, with three decisions:
+
+- **Table 4.3's two new entries are dropped** (the top 0.1% and 1% cells of the charitable, interest and QBI
+  deductions, and of qualified dividends): they covered two of the table's four rows. Table 4.3's targets stay those
+  of S15.
+- **State income tax refunds are targets in every business AGI group**, $1 million and over included, with the 15%
+  share of refunds kept against the tax benefit rule (`taxes.refund_reported_anyway`), which rests on SOI's refunds on
+  about 5% of returns at AGI $2-5 million. If the top group could not be met within the budget, it would be merged
+  with the group below rather than dropped; in run5 it is met in every year (2018 has no state refund targets).
+- **The child and dependent care credit is not a target** (5 November, by John's rule): with it, the held-out check
+  of mean child care spending among payers by wage group was more than twice run3's (run5 2019: 26.5 against 7.9).
+  The saver's credit in the same entry stays.
+
+The entries kept, each in the year folders 2015-2023 where SOI publishes the line: estate and trust income and Form
+4797 gain and loss in the business block; alimony; state refunds; more Table 1.4 lines (statutory adjustments,
+tax-exempt interest, unemployment compensation, IRA distributions, pensions, gross pensions); Table 1.2 returns by
+filing status and AGI; Table 1.6 heads of household and separate filers by age; the education credits, the QBI
+deduction's dollars, self-employment tax, the EITC by number of children and the saver's credit from the calculator;
+Table 2.1 itemizers' gifts in cash and other than cash; Table 1.7 dependent filers' investment income; non-filers'
+dividends against the tax data's non-filers. The self-employment tax target is met mostly through partnership income
+subject to self-employment tax, an item with no published total (scratch `explore/2026-11-04/run5/RESULTS.md`).

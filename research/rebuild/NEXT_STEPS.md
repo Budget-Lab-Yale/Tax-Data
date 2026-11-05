@@ -1,4 +1,4 @@
-# Next steps (as of 4 November 2026)
+# Next steps (as of 5 November 2026)
 
 The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The latest
 installed run is run3 (John, 4 November; `explore/2026-11-04/run3/run/`, every year 2015-2075): the big run of 3-4
@@ -83,6 +83,19 @@ a run of the years it touches, a comparison with the run before it, and John's a
      is the last SOI year and the setting is off.
    - **Schedule C** stays at no trust until its 2024 fall is understood: $47 billion of the $55 billion fall is larger
      losses on returns with no AGI, whose number did not change (scratch `explore/2026-11-04/nowcast/RESULTS.md`).
+
+8. **Run5, the combined retrain** (4-5 November overnight; scratch `explore/2026-11-04/run5/RESULTS.md`): version A,
+   the real-PUF setting and the part_se fix merged, three networks retrained, every year 2015-2075 run; held-out
+   score 6.21 (2019) and 8.25 (2023) against run3's 8.14 and 9.56. **Not installed; John decides.** Open with it:
+   - **The self-employment tax target** is met by moving weight to records with large partnership income subject to
+     self-employment tax (2019: $27 billion before the reweighting, $153 billion after), and it costs 2020 most of its
+     149 Newton steps (without it, 73). Keep it, target the item differently, or fix the draw's split of the tax
+     between Schedule C, F and partnership income.
+   - **The package stage with version A's rules** stops on three items (the tax benefit rule's partial refunds, the
+     repealed deductions set to zero, the calculator's self-employment tax deduction). Options in RESULTS.md; then the
+     stage `package` runs alone on CPU for every year of `run5/confidential/run/`.
+   - **The earnings split** (`rebuild-earnsplit`, run beside run5 as `explore/2026-11-04/run5_earnsplit/`): it matches
+     the PUF's EARNSPLIT codes and worsens the held-out CPS checks of the spouse's wage share. Merge or not.
 
 ## Other to-dos (not in order)
 

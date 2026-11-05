@@ -1125,6 +1125,38 @@ married people under 18 were counted as unmarried (ede6f65).
   2030 come out identical. A first 2024 package failed its factor check because pandas' default CSV reader is not
   exact to the last digit; the factor tables are now read exactly.
 
+### 4-5 November, overnight: the merges and the combined retrain (run5)
+
+- **The autoresearch experiment** (scratch `explore/2026-11-04/autoresearch/`). Two loops started from run3's 2019 and
+  2023 files and added targets and rules where the file disagreed with its sources: version A, an Opus agent judging
+  each finding (13 rounds), and version B, fixed rules in code (12 rounds). Neither loop could see a set of held-out
+  checks written separately; scored on them at the end (lower is better): run3 8.14 (2019) and 9.56 (2023), version A
+  6.59 and 8.63, version B 8.12 and 9.58. Version A was merged; version B was not.
+- **Version A merged** (John's decisions, 4 November evening): its six rule changes (the tax benefit rule on state
+  refunds, the repealed deductions set to zero, the self-employment tax deduction from the calculator, no state refund
+  targets in 2018, non-filers' dividends held near the tax data's, the QBI items drawn after every other SCF item) and
+  its new target entries, without Table 4.3's two new entries (they covered two of the table's four rows). The 15%
+  share of refunds kept against the tax benefit rule stays, and state refunds are targets in every AGI group. The
+  plain merge reproduced version A's final fit exactly in 2019 and 2023.
+- **The real PUF as a setting** merged (`rebuild-realpuf`); the part_se fix taken alone from `rebuild-earnsplit`
+  (E30400 / 0.9235 less Schedules C and F; production's formula counted the spouse's earnings twice). The earnings
+  split itself was not merged: its 2019 test worsened the held-out CPS checks of the spouse's wage share.
+- **Run5** (scratch `explore/2026-11-04/run5/RESULTS.md`): three networks retrained on the merged code, every year
+  2015-2023 drawn, 2024 from 2023, 2025-2075 from 2024. Every year converges; 2020 in 149 of 150 Newton steps. The
+  self-employment tax target is met mostly by moving weight to records with large partnership income subject to
+  self-employment tax (2019: $27 billion before the reweighting, $153 billion after). Held-out score 6.21 (2019) and 8.25 (2023).
+  Not installed.
+- **The child and dependent care credit target dropped** by John's rule: with it, the held-out check of child care
+  spending by wage group was more than twice run3's (26.5 against 7.9 in 2019). Without it, 3.1.
+- **A fix:** run.sbatch's check of whether a real-PUF year's start is generated read everything python printed, and
+  failed in the years where the target code prints notes (2018, 2020-2023), so those years' top step was skipped.
+- **Found, not fixed:** with version A's rules the package stage stops (the tax benefit rule keeps part of some refunds;
+  the repealed deductions and the calculator's self-employment tax deduction change PUF items record by record). John
+  decides how to carry them; run5's real-PUF files are built without packages.
+- **The earnings split as a second retrain** (2019 and 2023; scratch `explore/2026-11-04/run5_earnsplit/`, branch
+  `rebuild-combined-es`): the earnings split codes match the PUF's, the held-out CPS checks get much worse (12.81
+  against 5.88 in 2019). Not merged; John decides.
+
 ## Paths tried and not taken
 
 | What | Why not |

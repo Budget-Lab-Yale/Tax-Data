@@ -1917,6 +1917,15 @@ business income about 1% lower.
 
 ## How the latest runs come out (3-4 November 2026)
 
+**Run5, the combined retrain (4-5 November 2026; not installed).** On the code with version A, the real-PUF setting
+and the part_se fix: three networks retrained, every year 2015-2075 run, and the same years on the real PUF (files
+only; the package stage waits on John's decision, scratch `explore/2026-11-04/run5/RESULTS.md`). Every year converges
+within 150 Newton steps (2015-2023 in 60-149, 2020 the slowest; 2024-2075 in 10-22). Effective sample kept 34.6-75.7% in
+past years, 95.4-99.2% after. Income tax after credits within 0.6% of the installed files in every year. Held-out
+score 6.21 (2019) and 8.25 (2023) against run3's 8.14 and 9.56. Self-employment tax meets SOI Table 3.3 ($67.2 billion
+in 2019), mostly through partnership income subject to self-employment tax, which the reweighting raises from $27
+billion to $153 billion.
+
 Every year on `rebuild-joint-model` after the evening merges of 3 November (2a42643): three networks retrained on the
 merged table, every year 2015-2023 drawn again with a fresh top cache, 2024-2035 from the new 2023 (scratch
 `explore/2026-11-03/bigrun/RESULTS.md`; run folders `run/<year>/`). The run also includes the Table 1.6 age-by-AGI
