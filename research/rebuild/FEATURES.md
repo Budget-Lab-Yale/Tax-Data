@@ -37,6 +37,9 @@ How the latest runs came out is at the end of this file.
   2023 file times CBO's and the macro series' growth. This part is to be redesigned (`NEXT_STEPS.md`, item 1).
 - **Output.** `taxsim_file.py` writes each year as Tax-Simulator's `tax_units_<year>.csv` (production's 188
   columns).
+- **The real PUF as the filers** (4 November, branch `rebuild-realpuf`). Settings `generation.filers` `real_puf`
+  builds the file on every 2015 PUF record in place of drawn filers, and a package stage writes the files that let a
+  holder of the PUF rebuild our Tax-Simulator file from their own copy (`PACKAGE.md`; the section near the end).
 
 The sections below follow the pipeline's order (data, translation, the model, generation, post-training), then the
 pieces added since 28 October, each under the date and branch it was built on.
@@ -1832,18 +1835,83 @@ items table (`projection_items.csv`: series `current`, so its growth.yaml rule; 
 full run on the merged code (scratch `explore/2026-11-03/bigrun/`) are the first trained with this item and the
 pensions slots together.
 
-## The real-PUF test (branch `rebuild-realpuf`, 4 November)
+## The real PUF as the filers, and the package (branch `rebuild-realpuf`, 4 November)
 
-Settings `generation.real_puf` true (off by default) replaces the filer batch with every 2015 PUF record: the training
-table's PUF rows and the four aggregate records, all their PUF slots and computed totals preset
-(`generate.real_puf_part`; `generate(totals_preset=True)`), each pooled network drawing the rest given the record, so
-each record appears once per network at its PUF weight over the number of networks. Where the PUF has no age range
-each copy draws one from step 0's probabilities. The aggregate records' filing status, dependents and age range
-(blank on the PUF) are drawn, adult ranges only (`adult_only`); their blank alimony fields are read as zero. A real
-record's own 2015 amounts ride in the stack (`own_<item>`), and `dollars.own_values` grows them exactly as the dollar
-map is grown, in place of a pick from the map. Record ids are 50,000,000 + copy index x 1,000,000 + RECID. With it,
-`tilt.top.hidden_returns` is set false (the aggregate records are real records). Results and the package for CRS:
-scratch `explore/2026-11-04/realpuf/RESULTS.md`.
+John's plan of 4 November, after the 2019 test (scratch `explore/2026-11-04/realpuf/RESULTS.md`); the setting and
+the stage were built and run the same evening (scratch `explore/2026-11-04/realpuf_setting/`, RESULTS.md and
+STATUS.md).
+
+**The setting.** `generation.filers` is `synthetic` (the default: the filer batch drawn from the networks, exactly
+as before) or `real_puf` (it replaces `generation.real_puf` of the test; `common.FILERS`, `common.REAL_PUF`). With
+`real_puf` the filer batch is every 2015 PUF record: the training table's PUF rows and the four aggregate records,
+all their PUF slots and computed totals preset (`generate.real_puf_part`; `generate(totals_preset=True)`), each pooled
+network drawing everything else given the record, so each record appears once per network ("copy" 1 to 3) at its PUF
+weight over the number of networks. Where the PUF has no age range each copy draws one from step 0's probabilities.
+The aggregate records' filing status, dependents and age range (blank on the PUF) are drawn, adult ranges only; their
+blank alimony fields are read as zero. A real record's own 2015 amounts ride in the stack (`own_<item>`) and
+`dollars.own_values` grows them exactly as the dollar map is grown, in place of a pick from the map. Record ids are
+50,000,000 + (copy - 1) x 1,000,000 + RECID. The non-filer batch and the Forbes list are as in a synthetic run.
+Choosing `real_puf` sets what goes with it, so no other switch needs setting:
+1. Part A (the rebuild of the PUF's aggregate records from generated records) is off, whatever
+   `tilt.top.hidden_returns` says, because the aggregate records are in the file as real records
+   (`top_records._hidden_returns`).
+2. In a past year the generate stage, after the draw, runs the top step's redraw of every balance sheet at $1 billion
+   or more on the same GPU and writes it to the top cache (REBUILD_TOP_CACHE, default `<out>/top_cache.pkl`); the
+   tilt reads it on a CPU and stops if there is none (the redraw on a CPU takes about 80 seconds a record, and about
+   700 record copies are redrawn). The stage `top` runs the redraw alone.
+3. The taxsim_file stage is followed by the package stage.
+4. A projection year's start must be built the same way: the tilt stops if `filers` is `real_puf` and the start file
+   is synthetic, or the reverse.
+Every year 2015-2075 runs this way. A past year draws on the real PUF and reweights on its own; a projection year
+follows the jump-off rule (TARGETS.md S13): 2024 starts from the real-PUF 2023 file, 2025-2075 from the real-PUF 2024
+file. A projection year's tilt now writes its growth factors in full precision, `start_growth.csv`, which the package
+reads.
+
+**The package** (`package.py`, stage `package`; what the recipient gets and how to use it is `PACKAGE.md`). Per year,
+in `<out>/package/<run>/` (chmod 700): the factor file, one row per PUF item and step with one factor for positive
+and one for negative amounts, the same for every record and always relative to the 2015 PUF (the growth from 2015 to
+the year the records were drawn, the six Schedule A multipliers of that year as a step on six items, then each
+projection step); `records.parquet`, one row per PUF record copy in the Tax-Simulator file, with the weight factor
+(the weight over S006 / 100), the refund flag, the items we added as values and a few Tax-Simulator columns as
+values; the other records (non-filers, the Forbes list) as full Tax-Simulator rows; `spec.json`; a README; and the
+merge scripts `merge_puf.py` and `merge_puf.R`. Before writing, every step is checked against the files of the chain:
+each PUF item of every record copy must be exactly its 2015 amount times the factors so far, or the stage stops.
+- The values that change beyond a growth factor ship in the least revealing form. The taxable state refund removed
+  by the tax benefit rule: a 0/1 flag per record copy (`state_ref_kept`), not the amount; the merge removes the
+  refund and computes other income and taxable Social Security again, in the pipeline's order. The six Schedule A
+  multipliers: six numbers per year in the factor file. The AMT net operating loss: the cap rule, applied by the merge
+  (the grown P60100 held to the negative part of other income), not values.
+- Recomputed by the merge, not shipped: capital gains after the loss limit, business income, other income, taxable
+  Social Security, gross pensions, each spouse's wages, tips, overtime and deferrals, Medicare wages, and three added
+  items that are a PUF amount times or plus something (the basis of long-term gains, from the gain and the shipped
+  basis-to-sales ratio; the farm's QBI wage bill, which is the farm income; the S corporation's wage bill, the
+  shipped outside pay plus the owner's wages where a shipped flag says so). So no PUF amount of a PUF record is in the
+  package.
+- The round trip: the stage runs both merge scripts on our own 2015 PUF and compares the result with the year's
+  Tax-Simulator file column by column. It fails unless every column is identical on every record or differs by
+  rounding only (at most one millionth of a dollar or one part in 10^12); the differences are listed by column
+  (`<out>/package/roundtrip_<run>_python.csv`, `_r.csv`). The weight is the one column that differs: S006 / 100 times
+  a factor is not always exactly our weight in the last binary digit.
+
+**How it came out (4 November; scratch `explore/2026-11-04/realpuf_setting/RESULTS.md`).** With `filers`
+synthetic, run3's 2019 and run4's 2030 rebuilt on this code are identical in every column and weight. With
+`real_puf`, 2019 gives the test's file exactly (all 554 columns, 678,072 records). In 2019, 2023, 2024, 2030 and 2075
+the package's factor check found every PUF item of every record copy exactly its 2015 amount times the factors, and
+both merge scripts rebuilt the year's Tax-Simulator file from our PUF with 187 of 188 columns identical on every record;
+the weight differs by one last binary digit on about 12% of record copies. Against the installed synthetic files:
+
+| Year | Newton steps (synthetic / real) | Largest miss, se | Income tax after credits on filers, $ billion | Real / synthetic |
+|---|---|---|---|---:|
+| 2019 | 67 / 87 | 3.79 / 11.90 | 1,560.9 / 1,554.0 | 0.996 |
+| 2023 | 53 / 103 | 4.97 / 7.05 | 2,122.0 / 2,109.8 | 0.994 |
+| 2024 | 16 / 14 | 0.86 / 0.87 | 2,327.6 / 2,316.5 | 0.995 |
+| 2030 | 7 / 6 | 0.50 / 0.48 | 3,089.0 / 3,078.1 | 0.996 |
+| 2075 | 12 / 10 | 1.92 / 1.94 | 20,504.0 / 20,397.5 | 0.995 |
+
+The new misses in the past years are Table 4.3's top groups (the aggregate records' copies cannot be split). Totals
+of AGI, wages, interest, gains, pensions, Social Security, net worth and consumption are within 0.3% of the synthetic
+files through 2030; ordinary dividends are 1-3% lower, mostly on non-filers (all of the gap in 2019 and 2023), and
+business income about 1% lower.
 
 ## How the latest runs come out (3-4 November 2026)
 

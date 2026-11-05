@@ -1,0 +1,80 @@
+# The package for a holder of the 2015 PUF
+
+What CRS (or anyone with their own license to the 2015 IRS Public Use File) receives from us, and how they use it.
+John's plan of 4 November 2026. The pipeline makes it when settings `generation.filers` is `real_puf`
+(FEATURES.md, "The real PUF as the filers").
+
+## Why a package
+
+With `filers: real_puf` every 2015 PUF record is in the year's file: each record keeps its own PUF items, grown to
+the year, and our three networks draw everything the PUF lacks given the record. A holder of the PUF can then rebuild
+our year's Tax-Simulator file exactly from their own PUF and a set of files that contains no PUF value. They need no
+network, no GPU and none of our other data.
+
+## What they receive, one folder per year
+
+| File | What it holds |
+|---|---|
+| `README.md` | the year's own description: how the file was made, each file, how to run the merge, the round-trip result |
+| `factors.parquet`, `factors.csv` | one row per PUF item and step, with a factor for positive amounts and one for negative amounts, the same for every record. Always relative to the 2015 PUF |
+| `records.parquet` | one row per PUF record copy in the file: RECID and copy, the weight factor, the refund flag, the items we added, and a few Tax-Simulator columns as values |
+| `extra_records.parquet` | the records that are not PUF records: non-filers and the Forbes list of billionaires, every Tax-Simulator column |
+| `spec.json` | the definitions: how each 2015 item is made from PUF fields, how the computed columns are made, where each Tax-Simulator column comes from |
+| `merge_puf.py`, `merge_puf.R` | the merge, in Python and in R |
+
+Each PUF record appears three times, once per network (column `copy`), at a third of its weight. The factors chain
+the years the file was built through: in a past year (2015-2023), the growth from 2015 to the year; in 2024, the
+growth from 2015 to 2023 and then from 2023 to 2024; in 2025-2075, those and then the growth from 2024 to the year (the
+jump-off rule, TARGETS.md S13). The six Schedule A multipliers of the year the records were drawn are one more step on
+six itemized items.
+
+## How they use it
+
+    python merge_puf.py puf_2015.csv <package folder> tax_units_<year>.csv
+    Rscript merge_puf.R puf_2015.csv <package folder> tax_units_<year>.csv
+
+The output is our `tax_units_<year>.csv`, the file Tax-Simulator reads (production's 188 columns, in its order, with
+its conventions for missing values). An output name ending in `.parquet` writes Parquet, which keeps every number
+exactly; no extension writes both.
+
+## How the values that change beyond a growth factor are shipped
+
+Most PUF items are their 2015 amount times one growth factor per year and sign. Three rules change an item by more
+than that; each is shipped in the form that says least about any record:
+
+1. **Taxable state refunds** (the tax benefit rule, decision 47: a refund is taxable only to a return that deducted
+   the tax by itemizing; the pipeline sets the refund to zero on returns our calculator finds do not itemize in the
+   year): a 0/1 flag per record copy, `state_ref_kept`, not the amount. The merge removes the refund where the flag is 0 and computes other income and taxable Social Security
+   again.
+2. **The Schedule A multipliers** (decision 49: medical expenses, state and local income or sales tax, real estate
+   tax, mortgage interest, cash and other gifts, each scaled so that the average deduction per itemizer is the IRS's):
+   six numbers per year, a step in the factor file, the same for every record.
+3. **The AMT net operating loss adjustment** (P60100): a rule the merge applies, not values. The adjustment, grown
+   like any item, is held to at most the record's net operating loss, the negative part of its other income (the PUF
+   has no field of its own for the loss).
+
+Capital gains after the loss limit, other income in AGI and taxable Social Security are recomputed by the merge from
+the shipped items, not shipped.
+
+## The test
+
+The package stage fails unless the merge, run on our own copy of the 2015 PUF, gives the year's Tax-Simulator file:
+every column equal on every record, or different by rounding only (at most one millionth of a dollar or one part in
+10^12). The stage runs both scripts. The differences that remain come from adding the same numbers in another order,
+and from weights that no factor reproduces to the last binary digit; each year's README and the files
+`roundtrip_<run>_python.csv` and `roundtrip_<run>_r.csv` beside the package list them by column. On 4 November
+(2019, 2023, 2024, 2030 and 2075) both scripts gave 187 of the 188 columns identical on every record; the weight was
+one last binary digit off on about 12% of record copies (scratch `explore/2026-11-04/realpuf_setting/RESULTS.md`).
+A package is about 69 MB a year.
+
+## Confidentiality
+
+No PUF amount of any PUF record is in the package. Three items we add are a PUF amount times or plus something else,
+so the merge computes them from the recipient's PUF and the package holds only the other part: the basis of long-term
+gains (the package holds the basis-to-sales ratio of the drawn holding period), the farm's wage bill for the qualified
+business income deduction (it is the farm income), and the S corporation's wage bill (the package holds the outside
+workers' pay and a 0/1 flag for adding the owner's wages). Parts of the package still depend on PUF values: the refund
+flag, whether a record has a long-term gain (its holding period is missing where it has none), and items computed from
+the record's income rank (death probabilities, parents' income rank). The non-filers' tax items are amounts picked
+from PUF records with similar items, grown, as in every file the pipeline makes. The package folders are readable by the owner only
+(chmod 700), and the recipient should treat the package as PUF-derived data under their license.

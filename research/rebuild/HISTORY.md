@@ -1113,6 +1113,17 @@ married people under 18 were counted as unmarried (ede6f65).
   be split; held-out score 6.86 against run3's 8.14. A package of factors per PUF item, imputed values and the extra
   records, with a merge script, reproduces the file to the last binary digit on 232 of 244 columns and to rounding on
   the rest.
+- **The real PUF as a setting, and the package stage** (John's plan, 4 November evening; branch `rebuild-realpuf`,
+  scratch `explore/2026-11-04/realpuf_setting/`). Settings `generation.filers` (`synthetic`, the default, or
+  `real_puf`) replaces the test's switch and sets what goes with it (Part A off, the redraw at $1 billion on the
+  generate stage's GPU, the package after taxsim_file). The package ships one factor per PUF item, sign and step for
+  every record, the refund as a 0/1 flag, the Schedule A multipliers as six numbers, the AMT loss as a rule, and
+  merge scripts in Python and R; the stage fails unless both rebuild the Tax-Simulator file from our PUF.
+  Run for 2019, 2023, 2024, 2030 and 2075 (scratch `explore/2026-11-04/realpuf_setting/RESULTS.md`): every round
+  trip passes (187 of 188 columns identical, the weight one last binary digit off on about 12% of record copies);
+  income tax after credits 0.4-0.6% below the installed synthetic files; with `synthetic`, run3's 2019 and run4's
+  2030 come out identical. A first 2024 package failed its factor check because pandas' default CSV reader is not
+  exact to the last digit; the factor tables are now read exactly.
 
 ## Paths tried and not taken
 
