@@ -10,24 +10,29 @@ Lab's pipeline, package.py) holds the files this script reads; its README.md say
   2. Each PUF record appears once per trained network (column copy, 1 to 3). For each record copy, each PUF item is
      its 2015 amount multiplied, in order, by the item's factors in factors.parquet: one factor for positive amounts
      and one for negative amounts at each step (the growth from 2015 to the year the networks drew the records, the
-     year's Schedule A multiplier on six itemized items, then each projection step). A 2015 amount of zero stays zero.
-     The same factors apply to every record: none depends on the record.
+     year's Schedule A multiplier on six itemized items, a factor of zero from the year the law repealed a deduction,
+     then each projection step). A 2015 amount of zero stays zero. The same factors apply to every record: none
+     depends on the record.
   3. The weight is the PUF weight (S006 / 100) times the record copy's weight factor (records.parquet).
   4. The items the networks and the other imputations added, as plain values (records.parquet), joined on RECID and
      copy.
   5. The columns that are sums or simple functions of the above (capital gains after the $3,000 loss limit, business
      income, other income in AGI, taxable Social Security, each spouse's wages, tips, overtime pay and elective
      deferrals), computed by the same rules and in the same order as the Budget Lab's pipeline (derive).
-  6. Two rules of the pipeline that change a PUF item by more than a growth factor, applied here: taxable state
-     refunds are removed where the record copy's state_ref_kept is 0 (the tax benefit rule: a refund is taxable only
-     to a return that itemized), and AGI's other income and taxable Social Security are computed again without them;
+  6. Two rules of the pipeline that change a PUF item by more than a growth factor, applied here: the taxable state
+     refund is multiplied by the record copy's state_ref_multiplier, between 0 and 1 (0 where the refund is removed,
+     because a refund is taxable only to a return that itemized; 1 where it is kept whole; the share kept where the
+     tax benefit rule keeps part of it; no tax calculation is done here), and AGI's other income and taxable Social
+     Security are computed again with the new refund;
      the AMT net operating loss adjustment is held to the record's net operating loss, the negative part of its other
      income (amt_cap). Three added items that are computed from a PUF amount are computed here from the PUF items, so
      the package ships only their other part (puf_based).
   7. The Tax-Simulator file's columns (tax_simulator_columns), then the records that are not PUF records (non-filers
      and the Forbes list of billionaires, extra_records.parquet), in the file's own order.
 
-Every dollar amount of the output is in nominal dollars of the package's year.
+Every dollar amount of the output is in nominal dollars of the package's year. The deductible half of
+self-employment tax is not in the package and is no column of the output: the tax calculator computes it from the
+self-employment income and wages (the working frame here carries the PUF's own E03260 grown, which no output reads).
 """
 import json
 import os
@@ -220,12 +225,15 @@ def derive(d, spec):
 
 
 # ---- step 6: the two rules ----------------------------------------------------------------------------------------
-def refund_rule(d, kept, spec):
-    """In place (the pipeline's taxes.apply_refund_rule): the taxable state refund removed where kept is 0, other
-    income lowered by the refund removed, then taxable Social Security computed again on the lower AGI, in the
-    pipeline's order, on every record."""
+def refund_rule(d, multiplier, spec):
+    """In place (the outcome of the pipeline's taxes.apply_refund_rule, shipped): the taxable state refund times the
+    record copy's multiplier (0 removed, 1 kept whole, in between the share the tax benefit rule keeps), other income
+    lowered by the refund removed, then taxable Social Security computed again on the lower AGI, in the pipeline's
+    order, on every record. Only a multiplication: no tax calculation."""
     ref = d['state_ref'].to_numpy(float)
-    ref2 = np.where(np.asarray(kept) == 1, ref, 0.0)
+    m = np.asarray(multiplier, float)
+    assert np.isfinite(m).all() and (m >= 0).all() and (m <= 1).all(), 'state_ref_multiplier: outside 0 to 1'
+    ref2 = ref * m
     d['state_ref'] = ref2
     d['other_agi'] = d['other_agi'].to_numpy(float) + (ref2 - ref)
     other = d['other_agi'].to_numpy(float) - d['ss_taxable'].to_numpy(float)
@@ -354,7 +362,7 @@ def merge(puf_path, pkg, file_frame=False):
         d[c] = v
     d['record_id'] = spec['real_id_base'] + (d['copy'] - 1) * spec['copy_block'] + d['RECID']
     derive(d, spec)
-    refund_rule(d, rec['state_ref_kept'].to_numpy(), spec)
+    refund_rule(d, rec['state_ref_multiplier'].to_numpy(float), spec)
     amt_cap(d)
     puf_based(d, rec, spec)
     t = tax_simulator_columns(d, rec, spec)
