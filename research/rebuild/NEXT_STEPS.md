@@ -94,6 +94,9 @@ a run of the years it touches, a comparison with the run before it, and John's a
    - **The package stage with version A's rules** stops on three items (the tax benefit rule's partial refunds, the
      repealed deductions set to zero, the calculator's self-employment tax deduction). Options in RESULTS.md; then the
      stage `package` runs alone on CPU for every year of `run5/confidential/run/`.
+   - **The real-PUF 2023 does not converge** in 150 Newton steps with version A's targets (the real-PUF test before
+     them: 103); leaving out any one of version A's entries brings it under the budget (education credits: 82). Real
+     2024-2075 start from it.
    - **The earnings split** (`rebuild-earnsplit`, run beside run5 as `explore/2026-11-04/run5_earnsplit/`): it matches
      the PUF's EARNSPLIT codes and worsens the held-out CPS checks of the spouse's wage share. Merge or not.
 
