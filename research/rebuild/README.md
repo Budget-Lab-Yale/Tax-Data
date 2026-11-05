@@ -15,7 +15,6 @@ It builds a file for every year 2015-2075. Nothing here feeds `src/main.R` yet.
 | `AGES.md`, `TAX_UNITS.md`, `PERFORMANCE.md` | reference: ages for every person in a unit; how each survey is turned into tax units; training and generation time and memory |
 | `CALCULATOR_CONTRACT.md`, `TAXSIM_FILE_COLUMNS.csv` | the columns the tax calculator reads, and where each column of the Tax-Simulator file comes from |
 | `PACKAGE.md` | what a holder of the 2015 PUF (CRS) receives when the file is built on the real PUF, and how they turn their PUF into our Tax-Simulator file |
-| `tools/check_tool/README.md` | the check tool: a page in the browser that tabulates an item by a variable in the posttrained file and in its source, side by side |
 
 The full record up to 20 October 2026 (every experiment, report and decision) is in
 `research/archive/rebuild_2026-10/`. Work since then is in scratch

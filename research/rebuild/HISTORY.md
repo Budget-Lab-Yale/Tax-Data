@@ -1015,7 +1015,7 @@ John approved each merge (scratch `explore/2026-11-03/`, one RESULTS.md per piec
   goes in as it is, with no adjustment to its inheritances, and the top left as the SCF has it. The conflicts with the
   later work were resolved in its favour; the projection items table got a row for the inheritance item (grown by its
   growth.yaml rule, not targeted).
-- **The RA's check tool** (`rebuild-tabtool`, `check_tool/`), outside the pipeline.
+- **The RA's check tool** (`rebuild-tabtool`, `check_tool/`), outside the pipeline. Deleted 5 November 2026 (John): the folder, the branch and its scratch caches; the code is in the history at e81bc3c.
 - **The full run on the merged branch** (3-4 November, `bigrun/`): three networks retrained on the new table, every
   year drawn again with a fresh top cache, all 21 years reweighted. Every year converged (2015-2023 in 36-89 Newton
   steps, 2024-2035 in 5-13); no break in the pension and Social Security pairs; tax after credits 0.981-0.989 of CBO
