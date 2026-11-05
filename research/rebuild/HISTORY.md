@@ -1170,9 +1170,9 @@ married people under 18 were counted as unmarried (ede6f65).
 - **A fix:** with the earnings split merged, the real-PUF draw stopped at once (the PUF rows lack the spouse's
   self-employment share where not asked, and the earnings split code where a joint return has no demographics);
   `generate.py` now keeps a preset share and draws the rest, and draws the missing code from step 0's probabilities.
-- **Found:** in every real-PUF year the solve sets almost every copy of the four aggregate records to a weight near
+- **Found:** in every real-PUF year the solve sets at least 9 of the 12 copies of the four aggregate records to a weight near
   zero, against Table 4.3's top 0.001% count of returns with Schedule C or F profit; that group's AGI then misses by
-  7-18 standard errors.
+  6.7-18 standard errors in every year but 2019 (2.1).
 
 ## Paths tried and not taken
 

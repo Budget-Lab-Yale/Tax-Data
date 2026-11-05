@@ -1978,8 +1978,8 @@ changes above and the real-PUF fix for the earnings split's slots), merged into 
 2021 on its 150th; 2024-2075 in 5-23); income tax after credits within 0.33% of the installed files in every year;
 held-out score 7.09 (2019) and 10.58 (2023), the run5_earnsplit files. Real PUF: every year has its Tax-Simulator
 file and its package, and every package passes the round trip with both scripts; 2021 does not converge (150 of
-150 Newton steps, largest gradient 1.32); 2023 converges in 100. In every real-PUF year the solve sets almost every
-copy of the PUF's four aggregate records to a weight near zero (RESULTS.md, "The real-PUF solve").
+150 Newton steps, largest gradient 1.32); 2023 converges in 100. In every real-PUF year the solve sets at least 9 of the 12
+copies of the PUF's four aggregate records to a weight near zero (RESULTS.md, "The real-PUF solve").
 
 **Run5, the combined retrain (4-5 November 2026; not installed).** On the code with version A, the real-PUF setting
 and the part_se fix: three networks retrained, every year 2015-2075 run, and the same years on the real PUF (files
