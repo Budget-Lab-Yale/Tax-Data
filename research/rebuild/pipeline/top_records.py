@@ -52,6 +52,11 @@ def _hidden_returns(df, year, mode, notes):
     SOI's returns grows them with the count of returns; they are free in the tilt. Kept with them: hidden_group (0
     negative AGI, 1 $0-10 million, 2 $10-100 million, 3 over $100 million, in 2015 dollars) and their redraw's fallback
     flag."""
+    if common.REAL_PUF:   # (4 November 2026) the four aggregate records are in the file as real records
+        notes.append('Part A (the PUF\'s hidden top returns): off, because settings generation.filers is real_puf: the '
+                     'PUF\'s four aggregate records are in the file as real records'
+                     + (' (settings tilt.top.hidden_returns true is overridden)' if S.get('hidden_returns') else ''))
+        return None
     if not S.get('hidden_returns', False):
         notes.append('Part A (the PUF\'s hidden top returns): off (settings tilt.top.hidden_returns)')
         return None

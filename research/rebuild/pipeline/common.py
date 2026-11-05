@@ -27,6 +27,15 @@ PASSES = int(os.environ.get('REBUILD_PASSES', SETTINGS['training']['passes']))  
 PUF_YEAR = int(SETTINGS['years']['puf'])          # the PUF's tax year: its records, cut points and dollar maps
 TARGET_YEAR = int(SETTINGS['years']['target'])    # the year of the file the tilt makes, and of its targets
 
+# Where the filer records come from (settings generation.filers, 4 November 2026): 'synthetic', the filer batch drawn
+# from the networks (the default, and every run before the setting); 'real_puf', every 2015 PUF record with its own
+# PUF items, the networks drawing the rest (generate.real_puf_part). REAL_PUF is read by every stage that differs.
+FILERS = SETTINGS['generation'].get('filers', 'synthetic')
+assert FILERS in ('synthetic', 'real_puf'), f"settings generation.filers is 'synthetic' or 'real_puf', not {FILERS!r}"
+assert 'real_puf' not in SETTINGS['generation'], \
+    "settings generation.real_puf (the test of 4 November) is replaced by generation.filers: 'real_puf'"
+REAL_PUF = FILERS == 'real_puf'
+
 DATA = f'{OUT}/data'
 TABLE = f'{DATA}/table.parquet'
 EDGES = f'{DATA}/band_edges.json'

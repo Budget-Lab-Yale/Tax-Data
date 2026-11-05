@@ -16,6 +16,13 @@
 # filing_season (not in the default list) reads SOI's November filing-season tables into research/rebuild/resources/filing_season/ (build_filing_season.py).
 # calculator (an experiment, not in the default list: each record's taxes from the GPU tax calculator, calculator.py).
 # taxsim_file (not in the default list): the year file as Tax-Simulator's tax_units_<year>.csv (taxsim_file.py).
+# Settings generation.filers real_puf (4 November 2026; FEATURES.md, PACKAGE.md): generate draws the survey items on
+# every 2015 PUF record and then, in a past year, runs the top step's redraw at $1 billion on the same GPU into the top
+# cache (REBUILD_TOP_CACHE, default <out>/top_cache.pkl), so the job's GPU is released when both are written; the
+# tilt reads the cache on a CPU. taxsim_file is then followed by package (package.py): the files that let a holder of
+# the 2015 PUF rebuild the year's Tax-Simulator file, and their round-trip test (CPU; R is loaded for the R script).
+# top (not in the default list): the top step's network part alone into the top cache (a GPU; REBUILD_TOP_ONLY).
+# package (not in the default list): the package alone, on a finished year (filers real_puf only).
 # The R stages, targets and the table need no GPU; run them alone on a CPU partition if you like:
 #   sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch scf cex filing cps sipp targets table
 # H100 and H200 only: one stack from a B200 drew fewer rare business items (PRECISION.md); until that is
@@ -33,6 +40,19 @@ export REBUILD_SETTINGS=${REBUILD_SETTINGS:-$P/settings.json}
 STAGES=${*:-scf cex filing cps sipp targets errors table train generate tilt report}
 PY_MODULES='PyTorch/2.9.1-foss-2024a-CUDA-12.8.0 scikit-learn/1.6.1-gfbf-2024a Arrow/17.0.0-gfbf-2024a matplotlib/3.9.2-gfbf-2024a'
 export PYTHONDONTWRITEBYTECODE=1
+# settings generation.filers ('synthetic' or 'real_puf') and whether the year's start is generated (a past year)
+filers() { python -c "import json, os; print(json.load(open(os.environ['REBUILD_SETTINGS']))['generation'].get('filers', 'synthetic'))"; }
+start_mode() { PYTHONPATH=$P${PYTHONPATH:+:$PYTHONPATH} python -c "import target_list as T, common; print(T.start_spec(common.TARGET_YEAR)['mode'])"; }
+# the package (package.py): the files and the Python merge script's round trip, then the R merge script run on the
+# same PUF (R with the arrow package, John's library) and its round trip; any failure stops the job
+run_package() {
+  python $P/package.py build
+  read -r PKG PUF CHK < <(python $P/package.py paths)
+  module purge; module load R/4.4.1-foss-2022b
+  R_LIBS=$HOME/R/4.4.1-foss-2022b Rscript "$PKG/merge_puf.R" "$PUF" "$PKG" "$CHK/merged_by_r.parquet"
+  module purge; module load $PY_MODULES
+  python $P/package.py check_r
+}
 for s in $STAGES; do
   echo "=== $s $(date)"
   case $s in scf|cex|filing|cps) ;; *) module load $PY_MODULES ;; esac
@@ -56,11 +76,18 @@ for s in $STAGES; do
     filing_season) python $P/build_filing_season.py ;;   # SOI's November filing-season tables into research/rebuild/resources/filing_season/ (committed; run when SOI posts a new one)
     errors)   python $P/errors.py soi_cv ;;   # SOI's published CVs, parsed from the workbooks in <out>/targets/soi_cv/raw
     train)    python $P/train.py ;;
-    generate) python $P/generate.py ;;
+    generate) python $P/generate.py
+              if [ "$(filers)" = real_puf ] && [ "$(start_mode)" = generate ]; then
+                echo "=== top (filers real_puf: the redraw at \$1 billion on this GPU, into the top cache) $(date)"
+                REBUILD_TOP_ONLY=1 python $P/tilt.py
+              fi ;;
+    top)      REBUILD_TOP_ONLY=1 python $P/tilt.py ;;   # the top step's network part into the top cache (a GPU)
     tilt)     python $P/tilt.py; python $P/report_tilt.py ;;
     report)   python $P/report_cex.py; python $P/report_cps.py; python $P/report_sipp.py; python $P/report_translation.py ;;
     calculator) python $P/calculator.py; python $P/report_calculator.py ;;   # every record's taxes from the GPU tax calculator (settings calculator), against SOI
-    taxsim_file) python $P/taxsim_file.py ;;   # the year file as the CSV Tax-Simulator reads (production's 188 columns)
+    taxsim_file) python $P/taxsim_file.py   # the year file as the CSV Tax-Simulator reads (production's 188 columns)
+              if [ "$(filers)" = real_puf ]; then echo "=== package (filers real_puf) $(date)"; run_package; fi ;;
+    package)  run_package ;;   # filers real_puf only (package.py stops otherwise)
     *) echo "unknown stage $s"; exit 1 ;;
   esac
 done

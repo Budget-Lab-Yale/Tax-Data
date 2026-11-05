@@ -406,6 +406,40 @@ def ssn_items(out):
     return out
 
 
+OWN = 'own_'   # a real PUF record's own PUF-year amount of an item (filers real_puf, generate.real_puf_part)
+
+
+def own_values(out, df, year):
+    """In place (settings generation.filers real_puf, 4 November 2026): on a real PUF record (a frame column own_<item> that is not
+    missing), each PUF amount is the record's own PUF-year amount grown to year exactly as the PUF's dollar map is
+    grown (build_table.puf_target_map: positive values times the item's factor for positive values, negative values
+    times its factor for negative values, zero left at zero; growth.factors), in place of the draw from its band.
+    For an ordinary PUF record this is the value its own row of the map holds; the PUF's four aggregate records are
+    not in the map, so this is the only way they get their amounts. Records with no own amounts (generated records)
+    are left as drawn. The own_ columns are not carried into out."""
+    cols = [c for c in df.columns if c.startswith(OWN)]
+    if not cols:
+        return out
+    import growth as GR
+    assert year is not None, 'a frame with real PUF amounts (own_ columns) needs the year of the maps\' dollars'
+    for c in cols:
+        v = c[len(OWN):]
+        assert v in out, f'{c}: the frame has no column {v} to put the record\'s own amount in'
+        x = df[c].to_numpy(float)
+        real = ~np.isnan(x)
+        if not real.any():
+            continue
+        fp, fn = (1.0, 1.0) if int(year) == common.PUF_YEAR else GR.factors(v, int(year))
+        g = x.copy()
+        g[x > 0] *= fp
+        g[x < 0] *= fn
+        y = out[v].to_numpy(float).copy()
+        y[real] = g[real]
+        out[v] = y
+    out.drop(columns=[c for c in cols if c in out], inplace=True)
+    return out
+
+
 def draw_dollars(df, maps, year=None):
     """Dollars for every banded amount, then the pieces combined (see the top). A column u_<variable> is the record's
     stored pick; a balance-sheet amount comes from the record's own wave's map. year: the tax year of the maps'
@@ -423,6 +457,7 @@ def draw_dollars(df, maps, year=None):
             else:
                 assert v in maps, f'no dollar map for {v}'
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
+    own_values(out, df, year)
     remainder = out['other_agi'].to_numpy(float).copy()
     # the Schedule D gains and losses are drawn before the loss limit; AGI's capital gain applies it (29-30 October)
     out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
