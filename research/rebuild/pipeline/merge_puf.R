@@ -66,7 +66,8 @@ items_2015 <- function(raw, spec, floor) {
   for (p in names(s$adj_parts)) out[[p]] <- f[[s$adj_parts[[p]]]]
   for (v in names(s$new_items)) if (!is.null(s$new_items[[v]])) out[[v]] <- f[[s$new_items[[v]]]]
   k1_part <- (f$E25940 + f$E25980 - f$E25920 - f$E25960) != 0
-  out$part_se <- ifelse(k1_part, (f$E30400 + f$E30500) / 0.9235 - f$E00900 - f$E02100, 0)
+  # the couple's Schedule SE earnings once (E30400 holds the spouse's E30500), as build_table.puf_rows (part_se fix)
+  out$part_se <- ifelse(k1_part, f$E30400 / 0.9235 - f$E00900 - f$E02100, 0)
   itemizer <- (f$FDED == 1) | agg
   medical <- pmax(0, f$E17500 - pmax(0, f$E00100 * floor))
   out$other_item_exp <- pmax(ifelse(itemizer, f$P04470 + f$E21040 - medical - f$E18400 - f$E18500 - f$E19200 -

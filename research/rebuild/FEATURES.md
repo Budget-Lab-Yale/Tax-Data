@@ -323,7 +323,9 @@ and the SIPP, not measured by the CPS, so a non-filer has none.
   computed from the parts at generation and in the dollars, so they add up exactly. The CPS's one dividend amount goes
   to div_pref, ranked against the tax data's ordinary dividends (the translation table's `rank_against`), so its
   translated dollars stay as before; its adjustments, which it never asked, are absent.
-- part_se: on a return with any partnership income or loss, (E30400 + E30500) / 0.9235 less Schedules C and F.
+- part_se: on a return with any partnership income or loss, E30400 / 0.9235 less Schedules C and F (E30400 is the
+  couple's Schedule SE earnings and already holds the spouse's E30500; production's (E30400 + E30500) / 0.9235 counted the
+  spouse's earnings twice; fixed for the combined retrain, John, 4 November 2026; negatives kept).
   other_item_exp: itemized deductions before the overall limitation (P04470 + E21040) less deductible medical
   expenses (floor 7.5% of AGI at 65+, else 10%), the two taxes, interest, charity, casualty and net limited
   miscellaneous deductions, on itemizers. The PUF rounds each item on its own, so it is negative on 15 million

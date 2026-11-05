@@ -87,7 +87,8 @@ def items_2015(raw, spec, floor):
     out.update({p: f[fld] for p, fld in s['adj_parts'].items()})
     out.update({v: f[fld] for v, fld in s['new_items'].items() if fld})
     k1_part = (f['E25940'] + f['E25980'] - f['E25920'] - f['E25960']) != 0
-    out['part_se'] = np.where(k1_part, (f['E30400'] + f['E30500']) / 0.9235 - f['E00900'] - f['E02100'], 0.0)
+    # the couple's Schedule SE earnings once (E30400 holds the spouse's E30500), as build_table.puf_rows (part_se fix)
+    out['part_se'] = np.where(k1_part, f['E30400'] / 0.9235 - f['E00900'] - f['E02100'], 0.0)
     itemizer = (f['FDED'] == 1) | agg
     medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * floor))
     out['other_item_exp'] = np.maximum(np.where(itemizer, f['P04470'] + f['E21040'] - medical - f['E18400'] - f['E18500']
