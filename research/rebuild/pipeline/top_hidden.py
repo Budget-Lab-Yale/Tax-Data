@@ -666,8 +666,8 @@ def reband(frame2015):
     import model as M
     out = {}
     for v in M.PREDICTED:
-        if v in M.CATEGORICAL or 'puf' not in M.PRESENT_ON[v] or v in M.REPORTED:
-            continue
+        if v in M.CATEGORICAL or 'puf' not in M.PRESENT_ON[v] or v in M.REPORTED or v in M.PUF_SHARES:
+            continue   # (a share, since 4 November the self-employment share: the donor's own band is kept)
         col = 'other_agi_remainder' if v == 'other_agi' else v
         assert col in frame2015, f'{v}: no 2015 dollars to band'
         x = frame2015[col].to_numpy(float)

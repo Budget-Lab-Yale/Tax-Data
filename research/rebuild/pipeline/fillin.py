@@ -358,7 +358,8 @@ class FillIn:
             else:
                 v[:, C + j] = v[:, C + j].clamp(min=0)
                 hid[:, j] = sl not in type_vars
-        return v, hid
+        # (4 November) the self-employment share is a PUF slot too: present only where married and its bases are shown
+        return M.share_presence(v, hid)
 
     def cps_view(self, vals, cps_year, type_vars):
         """Records as the CPS would see a non-filer with only its type known: CPS label, the nearest CPS year, every
@@ -420,9 +421,14 @@ class FillIn:
         for tot in self.totals.get(s, {}):
             hidden[:, P.index(tot)] = vals[:, C + P.index(tot)] >= 0
         vals = vals.clone()
-        for j, (_, b) in M.SHARE_GATES.items():
-            if hidden[0, b]:
+        for j, (_, bases) in M.SHARE_GATES.items():
+            if any(bool(hidden[0, b]) for b in bases):
                 vals[:, C + j], hidden[:, j] = -1, False
+        # (4 November) the earnings split code is made from the reported wages and self-employment income, so it
+        # would give a reported zero away: hidden whenever the chance of reporting is read
+        if 'earn_split' in P:
+            je = P.index('earn_split')
+            hidden[:, je] = vals[:, C + je] >= 0
         lp = M.log_probs_as(self.model, vals, hidden, s)
         return lp(self.reported_slot[v])[:, :self.n_bands[v]].exp().double()
 

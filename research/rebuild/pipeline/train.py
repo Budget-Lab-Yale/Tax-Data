@@ -20,7 +20,9 @@ zero-reporter's PUF-concept slot is absent (unknown: not shown, not scored).
 
 Age range (ages.py). PUF records with no range carry step 0's probabilities;
 a range is drawn from them for every training record at the start of each
-pass, and once for the held-back ones.
+pass, and once for the held-back ones. The earnings split code (earn_split.py,
+since 4 November) the same way: joint returns with no demographics and some
+earnings carry probabilities over EARNSPLIT's three ranges.
 
 The filing flag (step 2). PUF rows are filers (filer = 1). On CPS rows the
 flag is drawn from the unit's filing chance (filer_p) for every training
@@ -96,9 +98,10 @@ def encode(part, device):
     band of each mapped item (on SCF rows the PUF-concept slot starts as a copy of it)."""
     d = M.encode(part, device)
     age_rows, age_probs = M.age_draws(part, device)
+    es_rows, es_probs = M.earn_draws(part, device)
     filer_rows, filer_p = M.filer_draws(part, device)
     return dict(values=d['values'], weight=d['weight'], pop_weight=d['pop_weight'], age_rows=age_rows, age_probs=age_probs,
-                filer_rows=filer_rows, filer_p=filer_p,
+                es_rows=es_rows, es_probs=es_probs, filer_rows=filer_rows, filer_p=filer_p,
                 **{src: torch.tensor((part['source'] == src).to_numpy(), device=device) for src in M.SOURCES},
                 rep_band={v: d['values'][:, C + P.index(v)].clone() for v in fillin.MAPPED})
 
@@ -124,6 +127,13 @@ def main():
         if len(d['age_rows']):
             d['values'][d['age_rows'], j_age] = torch.multinomial(d['age_probs'], 1, generator=gen).squeeze(1)
     draw_ages(te)
+    j_es = C + P.index('earn_split') if 'earn_split' in P else None
+
+    def draw_splits(d):
+        """An earnings split code for every record with none, from step 0's probabilities (earn_split.py)."""
+        if j_es is not None and len(d['es_rows']):
+            d['values'][d['es_rows'], j_es] = torch.multinomial(d['es_probs'], 1, generator=gen).squeeze(1)
+    draw_splits(te)
     j_filer = C + P.index('filer')
 
     def draw_filers(d):
@@ -228,6 +238,7 @@ def main():
         plan = batches(gen)
         tot, seen = 0.0, 0
         draw_ages(tr)
+        draw_splits(tr)
         draw_filers(tr)
         filling = epoch >= S['fill_from_pass']
         if filling:

@@ -107,7 +107,9 @@ EXTRA = {
     'male2': ('computed', 'sex_spouse == 1 (1 man, 0 woman); missing without a spouse, as production'),
     'parent_rank': ('same', 'parent_rank (non-microdata imputations, production\'s method)'),
     'n_dep_ctc': ('same', 'n_dep_ctc (the PUF\'s child credit children, N24, held to 3)'),
-    'part_se': ('same', 'part_se (production\'s formula on the PUF)'),
+    'part_se': ('same', 'part_se (production\'s formula on the PUF, (E30400 + E30500) / 0.9235 less Schedules C and F; '
+                'E30400 already holds the spouse\'s E30500, so the spouse\'s earnings count twice: '
+                'explore/2026-11-04/earnsplit/FINDINGS.md)'),
     'nols': ('zero', '0, as production writes it (no source in either)'),
     'prim_mort_share': ('computed', 'value.primary_mortgage / (value.primary_mortgage + value.other_mortgage) from the drawn '
                         'balance sheet, each balance read as at least 0; 1 where there is no mortgage (production\'s default); production imputes '

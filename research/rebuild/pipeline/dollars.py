@@ -130,9 +130,14 @@ OVERTIME = list(META['cps_structure'].get('overtime', []))
 RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_schc', 'biz_workers_part', 'biz_workers_scorp']
 # The SCF amount of the retrain of 3 November (inheritances received this year), at the very end, so no earlier stream moves
 RETRAIN_1103 = ['inheritance']
+# (4 November) the spouse's share of self-employment income, a PUF slot shared with the CPS since then, keeps its place
+# right after the spouse's share of wages among the CPS's amounts, so no stream moves
+_CPS_ORDER = [v for v in META['cps_amounts'] if v not in OVERTIME]
+for _v in reversed(META.get('puf_shares', [])):
+    _CPS_ORDER.insert(_CPS_ORDER.index('spouse_wage_share') + 1, _v)
 ORDER = ORDER + ['first_mort_int', 'salt_prop'] + [v for v in META['scf_amounts']
                                                    if v not in LATER + NEWEST + RETRAIN_1029 + RETRAIN_1103] \
-    + list(META['cex_amounts']) + ['gross_ss'] + [v for v in META['cps_amounts'] if v not in OVERTIME] + LATER
+    + list(META['cex_amounts']) + ['gross_ss'] + _CPS_ORDER + LATER
 # Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
 # The non-taxable rest of pensions (3 November), at the very end after the retrain of 29 October's amounts
 PENSIONS_1103 = ['nontxbl_pens_dist']
@@ -406,6 +411,83 @@ def ssn_items(out):
     return out
 
 
+def couple_se_earnings(out):
+    """Each person's Schedule SE net earnings (earn_split.py): the couple's Schedules C and F plus partnership income
+    subject to self-employment tax, split by the drawn self-employment share (the calculator splits each item by it),
+    92.35% of each person's part where that is $400 or more. Returns (primary's, spouse's)."""
+    E = META['earn_split']
+    x = out['sch_cf_income'].to_numpy(float) + (out['part_se'].to_numpy(float) if 'part_se' in out else 0.0)
+    s = out['spouse_se_share'].to_numpy(float) if 'spouse_se_share' in out else np.zeros(len(out))
+    f, floor = float(E['se_factor']), float(E['se_floor'])
+    e = lambda v: np.where(f * v >= floor, f * v, 0.0)
+    return e((1 - s) * x), e(s * x)
+
+
+def wage_share_bounds(wages, e1, e2, code):
+    """earn_split.wage_share_bounds, from the table's meta (no import of the step 0 module): (low, high, unreachable)."""
+    rng = META['earn_split']['ranges']
+    low = np.array([np.nan] + [rng[str(k)][0] for k in (1, 2, 3)])
+    high = np.array([np.nan] + [rng[str(k)][1] for k in (1, 2, 3)])
+    w = np.maximum(np.asarray(wages, float), 0.0)
+    T = w + e1 + e2
+    on = (code >= 1) & (code <= 3) & (w > 0)
+    c = np.where(on, code, 1).astype(int)
+    ww = np.where(on, w, 1.0)
+    raw_lo, raw_hi = 1 - (high[c] * T - e1) / ww, 1 - (low[c] * T - e1) / ww
+    return (np.where(on, np.clip(raw_lo, 0, 1), np.nan), np.where(on, np.clip(raw_hi, 0, 1), np.nan),
+            on & ((raw_hi < 0) | (raw_lo > 1)))
+
+
+def wage_share_in_range(out, df, maps):
+    """In place (4 November; earn_split.py): the spouse's share of the couple's wages held inside the range its
+    earnings split code allows given the couple's wages and each person's Schedule SE earnings (wage_share_bounds).
+    A share already inside keeps its value. One outside is picked again inside the range, among the real shares of its
+    own band's map (its CPS year's, else the single-year map) that lie in the range, with its stored pick rescaled to
+    them, so that within each band the shares follow the band's own distribution cut to the range; where none of the
+    band's real shares lies in the range (generation chose the band at median dollars), the nearest end of the range.
+    Where no share reaches the code's range, the nearest share (0 or 1). Prints the counts. A frame without the code,
+    or without the wage share, is left alone."""
+    if 'earn_split' not in df or 'spouse_wage_share_band' not in df or 'earn_split' not in META:
+        return out
+    code = df['earn_split'].to_numpy()
+    e1, e2 = couple_se_earnings(out)
+    lo, hi, unreachable = wage_share_bounds(out['wages'].to_numpy(float), e1, e2, code)
+    married = out['married'].to_numpy() == 1
+    s = out['spouse_wage_share'].to_numpy(float).copy()
+    on = married & ~np.isnan(lo)
+    outside = on & ((s < lo - 1e-12) | (s > hi + 1e-12))
+    bands = df['spouse_wage_share_band'].to_numpy()
+    u = df['u_spouse_wage_share'].to_numpy(float) if 'u_spouse_wage_share' in df else np.full(len(df), 0.5)
+    year = df['cps_year'].to_numpy() if 'cps_year' in df and YEAR_MAPS in maps else None
+    clipped = np.zeros(len(df), bool)
+    idx_all = np.flatnonzero(outside)
+    groups = pd.DataFrame({'y': year[idx_all] if year is not None else 0, 'b': bands[idx_all], 'i': idx_all})
+    for (yy, bb), ii in groups.groupby(['y', 'b'])['i']:
+        idx = ii.to_numpy()
+        vmap = maps[YEAR_MAPS]['cps'][int(yy)]['spouse_wage_share'] if year is not None else maps['spouse_wage_share']
+        g = vmap[vmap['band'] == bb]
+        x, wt = g['value'].to_numpy(float), g['weight'].to_numpy(float)
+        o = np.argsort(x, kind='stable')
+        x, F = x[o], np.concatenate([[0.0], np.cumsum(wt[o])])
+        a = np.searchsorted(x, lo[idx] - 1e-12, side='left')      # the band's real shares inside [lo, hi]
+        b = np.searchsorted(x, hi[idx] + 1e-12, side='right')
+        has = b > a
+        pos = F[a] + u[idx] * (F[b] - F[a])
+        k = np.clip(np.searchsorted(F, pos, side='right') - 1, a, np.maximum(b - 1, a))
+        pick = np.where(has, x[np.minimum(k, len(x) - 1)] if len(x) else 0.0, np.clip(s[idx], lo[idx], hi[idx]))
+        s[idx] = np.clip(pick, lo[idx], hi[idx])
+        clipped[idx] = ~has
+    assert not (on & ((s < lo - 1e-9) | (s > hi + 1e-9))).any(), 'a wage share outside its range'
+    out['spouse_wage_share'] = s
+    w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
+    common.say(f'wage share in the earnings split range: couples with a range {w[on].sum() / 1e6:,.2f} million '
+               f'({int(on.sum()):,} records); drawn outside it {w[outside].sum() / 1e6:,.3f} million ({int(outside.sum()):,}), '
+               f'of which picked again within the band {w[outside & ~clipped].sum() / 1e6:,.3f} million and set to the '
+               f'nearest end of the range {w[clipped].sum() / 1e6:,.3f} million; no share reaches the range '
+               f'{w[unreachable & married].sum() / 1e6:,.3f} million (weights: the frame\'s, else 1 per record)')
+    return out
+
+
 def draw_dollars(df, maps, year=None):
     """Dollars for every banded amount, then the pieces combined (see the top). A column u_<variable> is the record's
     stored pick; a balance-sheet amount comes from the record's own wave's map. year: the tax year of the maps'
@@ -447,6 +529,7 @@ def draw_dollars(df, maps, year=None):
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
         out['total_consumption'] = out[cats].to_numpy(float).sum(1)
+    wage_share_in_range(out, df, maps)             # (4 November) before the shares multiply their totals
     for slot, (item, base) in RATIOS.items():      # after the totals above, so a share multiplies the final total
         if f'{slot}_band' in df:
             out[item] = out[slot] * out[base]

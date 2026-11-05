@@ -1707,6 +1707,14 @@
   "min_missing_share": 0.1,
   "primary_rule_salt": 20261021
  },
+ "earn_split": {
+  "_what": "The split of a married couple's earnings (earn_split.py; branch rebuild-earnsplit, 4 November 2026). E30400 is the couple's Schedule SE net earnings, E30500 the spouse's part. spouse_se_share on the PUF is E30500 / E30400; earn_split is the PUF demographic file's EARNSPLIT (the primary's share of wages plus Schedule SE earnings: 1 75% or more, 2 25-75%, 3 under 25%, 0 none), on the CPS the same code of the couple's own earnings. Joint returns with no demographics and some earnings carry probabilities over codes 1-3 from a gradient boosted classifier fitted on the joint returns with demographics and earnings (model: scikit-learn HistGradientBoostingClassifier settings), redrawn at each training pass. check_agi: the step 0 check fits below the first line and predicts the known codes between the two. booklet_full_less_public: the demographic booklet's weighted counts (millions) of codes 1-3 in SOI's full sample less the public file's, a check only. se_factor and se_floor: Schedule SE's 92.35% and $400. The wage share is drawn inside the range the code allows (generate.py in bands, dollars.py exactly).",
+  "se_factor": 0.9235,
+  "se_floor": 400,
+  "model": {"max_iter": 300, "learning_rate": 0.05, "max_leaf_nodes": 31, "min_samples_leaf": 50, "seed": 0},
+  "check_agi": [250000, 400000],
+  "booklet_full_less_public": {"1": 1.362377, "2": 0.634738, "3": 0.394848}
+ },
  "blindness": {
   "_what": "The blindness rule's PUF reading (since the second retrain of 29 October; John; build_non_micro_tables.puf_blind_rates, non_micro_imputations.blindness). On unmarried returns taking the standard deduction (single, head of household; not dependent filers) the deduction above the basic amount, in units of the additional amount for the aged or blind, is the number of extra boxes; blind = the boxes less one at 65 and over. The rates by age range where the return shows it go to resources/non_micro/puf_blind_rates.csv. The 2015 PUF's amounts: the basic standard deduction by filing status (1 single, 4 head of household) and the additional amount for an unmarried filer. whole_tolerance: how far from a whole number the boxes may be (97% of these returns are within it). Blindness was a PUF slot learned in pretraining on 29 October; it drew 2.95 million blind primary filers against 260 thousand boxes, so it is now a rule.",
   "puf_basic_standard_deduction": {"1": 6300, "4": 9250},

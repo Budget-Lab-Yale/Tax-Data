@@ -80,7 +80,8 @@ CONTRACT = [
     # wages and self-employment, in Tax-Data's overlapping form (the calculator splits them itself)
     ('wages', SAME, 'wages', 'W-2 wages of the unit, box 1 (tips and overtime included)'),
     ('wages1', SAME, 'wages1', 'primary filer\'s wages; wages1 + wages2 = wages'),
-    ('wages2', SAME, 'wages2', 'spouse\'s wages'),
+    ('wages2', SAME, 'wages2 = wages x spouse_wage_share (the CPS label\'s draw, held inside the range the earnings '
+     'split code allows, earn_split.py)', 'spouse\'s wages'),
     ('tips', SAME, 'tips', 'tips of the unit; tips1 + tips2'),
     ('tips1', SAME, 'tips1', 'primary filer\'s tips, inside wages1'),
     ('tips2', SAME, 'tips2', 'spouse\'s tips, inside wages2'),
@@ -93,8 +94,8 @@ CONTRACT = [
     ('trad_contr_er2', SAME, 'trad_contr_er2', 'spouse\'s traditional elective deferrals'),
     ('sole_prop', SAME, 'sole_prop', 'Schedule C net income of the unit'),
     ('sole_prop1', COMPUTED, 'sole_prop - sole_prop2', 'primary filer\'s Schedule C income'),
-    ('sole_prop2', COMPUTED, 'sole_prop x spouse_se_share (production splits by one self-employment share too)',
-     'spouse\'s Schedule C income'),
+    ('sole_prop2', COMPUTED, 'sole_prop x spouse_se_share (one self-employment share, as production; on filers the PUF '
+     'label\'s draw, learned from E30500 / E30400, since 4 November)', 'spouse\'s Schedule C income'),
     ('farm', SAME, 'farm', 'Schedule F net farm income of the unit'),
     ('farm1', COMPUTED, 'farm - farm2', 'primary filer\'s farm income'),
     ('farm2', COMPUTED, 'farm x spouse_se_share', 'spouse\'s farm income'),

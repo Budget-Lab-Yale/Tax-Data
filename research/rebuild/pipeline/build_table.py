@@ -72,8 +72,13 @@ PUF N24) and n_dep_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); file
     the CEX and the CPS, absent on the PUF: 0 none, else the age plus 1, ages
     80 and over as 80 (exact_age_value); the primary filer by the rule the age
     range uses, so the exact age always lies in the age range;
+  the PUF and the CPS (since 4 November, earn_split.py): the spouse's share of
+    the couple's self-employment income (PUF_SHARES: on the PUF E30500 /
+    E30400, cut on fixed cut points on both) and the earnings split code
+    (earn_split: the PUF's EARNSPLIT, on the CPS the couple's own code; PUF
+    joint returns with no demographics carry probabilities es_p0-3);
   CPS only (CPS_AMOUNTS, CPS_CATEGORIES): the spouse's share of the couple's
-    wages and of its self-employment income, each person's weeks worked and
+    wages, each person's weeks worked and
     usual weekly hours, childcare, each adult's overtime pay (since 28 October;
     missing on the units not asked); exact ages of up to three dependents, and
     the two adults' sex (cps_person_slots).
@@ -128,6 +133,7 @@ import pandas as pd
 
 import ages
 import common
+import earn_split as ES
 import growth as GR
 import targets as TG
 import translate as TR
@@ -260,8 +266,23 @@ CEX_AMOUNTS = list(CEX_CATS)
 # married, and missing (absent) on every unit whose adults were not asked the earnings questions, about three
 # quarters of the CPS's units; at generation drawn after the other CPS slots and held to each person's wages less tips.
 CPS_OVERTIME = ['ot_primary', 'ot_spouse']
-CPS_AMOUNTS = ['spouse_wage_share', 'spouse_se_share', 'weeks_primary', 'weeks_spouse', 'hours_primary',
+CPS_AMOUNTS = ['spouse_wage_share', 'weeks_primary', 'weeks_spouse', 'hours_primary',
                'hours_spouse', 'care_exp'] + CPS_OVERTIME
+# Since 4 November (branch rebuild-earnsplit; earn_split.py): the spouse's share of the couple's self-employment income
+# is a PUF slot shared with the CPS, no longer the CPS's own. On the PUF it is E30500 / E30400 (E30400 the couple's
+# Schedule SE earnings, E30500 the spouse's part); on the CPS the same share of the couple's Schedule SE earnings. Both
+# are cut on one set of fixed cut points (SHARE_CUTS), so a band means the same share on both; the dollar map is the
+# PUF's. It multiplies Schedules C and F and partnership income subject to self-employment tax alike.
+PUF_SHARES = ['spouse_se_share']
+SHARE_CUTS = np.arange(1, 73) / 73.0            # 72 cuts, 73 positive bands; a share of exactly 1 is in the top band
+# The shares are asked (present on a training row, drawn at generation) only of a married couple with some of their
+# base; the self-employment share's base is Schedules C and F or partnership income subject to self-employment tax
+# (0.60 million joint returns have Schedule SE earnings from partnerships alone). A base a source lacks counts as zero.
+SHARE_GATES = {'spouse_wage_share': ['wages'], 'spouse_se_share': ['sch_cf_income', 'part_se']}
+# earn_split (earn_split.py): EARNSPLIT, the primary's share of the couple's earnings in three ranges (0 none), on the
+# PUF and the CPS; PUF joint returns with no demographics carry probabilities (es_p0-3) drawn from at each pass.
+SHARED_CATEGORIES = {'earn_split': ES.N_CODES}
+ES_PROBS = [f'es_p{k}' for k in range(ES.N_CODES)]
 MAX_AGE = 85                                   # the CPS's top code (80 is 80-84, 85 is 85 and over)
 AGE_SLOTS = ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']   # value: 0 none, else the age + 1
 # The primary filer's and the spouse's exact ages are shared by the SCF, the CEX and the CPS (translation table), absent
@@ -292,7 +313,7 @@ SIPP_AMOUNTS = ['tips_primary', 'tips_spouse']
 SIPP_CATEGORIES = {'tips_lh_primary': 2, 'tips_lh_spouse': 2}
 SIPP_SPOUSE_SLOTS = ['tips_spouse', 'tips_lh_spouse']
 SIPP_LH_OF = {'tips_lh_primary': 'tips_primary', 'tips_lh_spouse': 'tips_spouse'}
-AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS + CEX_AMOUNTS + CPS_AMOUNTS + SIPP_AMOUNTS
+AMOUNTS = PUF_AMOUNTS + SCF_AMOUNTS + CEX_AMOUNTS + CPS_AMOUNTS + SIPP_AMOUNTS + PUF_SHARES
 CX = common.SETTINGS['cex']
 CP = common.SETTINGS['cps']
 CEX_YEAR_ID_OFFSET = 1e10                      # added to build_cex.R's ids (year x 1e10 + interview x 100 + unit)
@@ -380,7 +401,7 @@ PUF_FIELDS = ['RECID', 'S006', 'MARS', 'N24', 'EIC', 'XOCAH', 'XOCAWH', 'XOPAR',
 
 def read_puf():
     """The PUF, read once for the table and for ages.py, without its four aggregate records."""
-    fields = list(dict.fromkeys(PUF_FIELDS + ages.PUF_FIELDS))
+    fields = list(dict.fromkeys(PUF_FIELDS + ages.PUF_FIELDS + ES.PUF_FIELDS))
     raw = pd.read_csv(RAW['puf'], usecols=fields)
     return raw[raw.RECID < 999996].reset_index(drop=True)
 
@@ -465,6 +486,29 @@ def puf_rows(puf):
     df['age_range'] = rng.age_range.to_numpy()
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]
+    # (4 November, earn_split.py) the spouse's share of the couple's self-employment income: E30500 / E30400 (E30400
+    # the couple's Schedule SE earnings, E30500 the spouse's part) on a joint return with Schedule C, F or partnership
+    # income subject to self-employment tax (the share's base, SHARE_GATES); missing where such a return has no
+    # Schedule SE earnings (a loss, or under the $400 floor: the split changes no tax there); absent elsewhere
+    joint = I['MARS'] == 2
+    se_all, se_spouse = I['E30400'].astype(float), I['E30500'].astype(float)
+    assert (se_spouse <= se_all).all() and (se_spouse[~joint] == 0).all() and (se_spouse >= 0).all(), \
+        'E30500 (the spouse\'s Schedule SE earnings) above E30400 (the couple\'s), or on a return that is not joint'
+    base = np.column_stack([df[b].to_numpy(float) != 0 for b in SHARE_GATES['spouse_se_share']]).any(1)
+    asked = joint & base
+    df['spouse_se_share'] = np.where(asked & (se_all > 0), se_spouse / np.where(se_all > 0, se_all, 1.0), np.nan)
+    wt = raw.S006.to_numpy() / 100
+    known = asked & (se_all > 0)
+    common.say(f'PUF spouse_se_share: asked of {wt[asked].sum() / 1e6:.2f} million joint returns ({int(asked.sum()):,} '
+               f'records); known (Schedule SE earnings) on {wt[known].sum() / 1e6:.2f} million, missing on '
+               f'{wt[asked & ~known].sum() / 1e6:.2f} million (a loss or under the floor); share 0 '
+               f'{100 * wt[known & (se_spouse == 0)].sum() / wt[known].sum():.1f}%, 1 '
+               f'{100 * wt[known & (se_spouse == se_all)].sum() / wt[known].sum():.1f}% (weighted); Schedule SE earnings '
+               f'on joint returns with no base, not split: {wt[joint & ~base & (se_all > 0)].sum() / 1e6:.2f} million returns')
+    code, eprobs, _ = ES.puf_codes(puf)
+    df['earn_split'] = code
+    for k in range(ES.N_CODES):
+        df[f'es_p{k}'] = eprobs[:, k]
     # other_item_exp, production's other itemized deductions (src/process_puf.R): on itemizers (FDED 1), total
     # itemized deductions before the overall limitation (P04470 + E21040) less deductible medical expenses, the two
     # taxes, interest paid, charity, casualty losses and net limited miscellaneous deductions; zero otherwise. The
@@ -781,6 +825,20 @@ def cps_person_slots(t, primary_is_2):
         # question), and generation sets it to zero by rule (generate.structural)
         out[share] = np.where(married_ & (total != 0), np.clip(x, 0.0, 1.0), np.nan)
         out[f'{item}_primary_reported'], out[f'{item}_spouse_reported'] = pick(item, 1), pick(item, 2)
+    # (4 November, earn_split.py) the self-employment share on the PUF's definition: the spouse's share of the couple's
+    # Schedule SE earnings (each person's 0.9235 x self-employment income, none below $400), where the couple has any;
+    # where it has self-employment income but no Schedule SE earnings, the share of the income above stays. And the
+    # earnings split code of the couple's own earnings (wages plus Schedule SE earnings), 0 unless married with some.
+    e = {k: ES.se_earnings(pick('se', k)) for k in (1, 2)}
+    has_e = married_ & (e[1] + e[2] > 0)
+    out['spouse_se_share'] = np.where(has_e, e[2] / np.where(has_e, e[1] + e[2], 1.0), out['spouse_se_share'])
+    wg = {k: np.maximum(pick('wages', k), 0.0) for k in (1, 2)}
+    out['earn_split'] = np.where(married_, ES.code_of(wg[1] + e[1], wg[1] + wg[2] + e[1] + e[2]), 0)
+    sel = married_ & np.isfinite(out['spouse_se_share'])
+    common.say(f'CPS spouse_se_share on the Schedule SE definition: couples with Schedule SE earnings '
+               f'{w[has_e].sum() / 1e6:.2f} million of {w[sel].sum() / 1e6:.2f} million asked (weighted, all CPS years); '
+               f'earn_split among married units (%): ' + ', '.join(
+                   f'{k} {100 * w[married_ & (out["earn_split"] == k)].sum() / w[married_].sum():.1f}' for k in range(4)))
     t = pd.concat([t, pd.DataFrame({v: np.nan for v in out if v not in t}, index=t.index)], axis=1)
     for v, x in out.items():
         t.loc[c, v] = x
@@ -822,7 +880,7 @@ def cps_person_slots(t, primary_is_2):
         common.say(f'CPS {v}: recorded on {int(d[v].notna().sum()):,} rows (married couples with some of the item)')
     keep = ['year', 'record_id', 'household_id', 'weight', 'married', 'n_dep', 'filer', 'filer_p', 'age_range'] + \
         list(TAX_CATEGORIES) + \
-        list(PERSON_CATEGORIES) + CPS_AMOUNTS + ['wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
+        list(PERSON_CATEGORIES) + CPS_AMOUNTS + PUF_SHARES + list(SHARED_CATEGORIES) + ['wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
                                               'se_spouse_reported'] + [c for c in d if c.startswith('raw_')]
     for y in mix_years('cps'):
         d[d.year == y][keep].to_parquet(f'{common.DATA}/cps_units_{y}_all.parquet', index=False)
@@ -1249,6 +1307,19 @@ def band_table(t):
                 b, rec = band_variable(t.loc[sel, v].to_numpy(float), w[sel])
                 rec['cut_rule'] = rule
                 t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = b, rec
+    for v in PUF_SHARES:   # (4 November) one set of fixed cut points on the PUF and on every CPS year
+        x = t[v].to_numpy(float)
+        held = pside & ~np.isnan(x) & (x > 0)
+        probs = [float(w[held & (x <= c)].sum() / w[held].sum()) for c in SHARE_CUTS]
+        fixed = {'negative': {'bands_used': 0, 'probs': [], 'cuts': []},
+                 'positive': {'probs': probs, 'cuts': SHARE_CUTS.tolist()}}
+        for src in ['puf', 'cps']:
+            for y in sorted(t.loc[t.source == src, 'year'].unique()):
+                sel = ((t.source == src) & (t.year == y)).to_numpy()
+                b, rec = band_variable(x[sel], w[sel], fixed)
+                rec['cut_rule'] = 'fixed share cut points (build_table.SHARE_CUTS), the same on the PUF and the CPS'
+                t.loc[sel, f'{v}_band'], edges[f'{src}/{y}/{v}'] = b, rec
+        assert (t.loc[~t.source.isin(['puf', 'cps']), v].isna()).all(), f'{v} on a source other than the PUF and the CPS'
     t = shared_between_surveys(t, edges)
     for v in AMOUNTS:
         b, x = t[f'{v}_band'], t[v]
@@ -1306,6 +1377,14 @@ def table_meta(t, factor):
             'scf_amounts': SCF_AMOUNTS,
             'cex_amounts': CEX_AMOUNTS,
             'cps_amounts': CPS_AMOUNTS,
+            # (4 November, earn_split.py) the PUF slots shared with the CPS that are shares, drawn at generation after
+            # the PUF items and their totals; the shares' gates (asked only of a married couple with some of a base);
+            # the categories shared by the PUF and the CPS (the earnings split code) and the code's ranges
+            'puf_shares': PUF_SHARES,
+            'share_gates': SHARE_GATES,
+            'shared_categories': SHARED_CATEGORIES,
+            'earn_split': {'ranges': {str(k): list(r) for k, r in ES.RANGES.items()}, 'se_factor': ES.SE_FACTOR,
+                           'se_floor': ES.SE_FLOOR},
             'cps_categories': CPS_CATEGORIES,
             'person_categories': PERSON_CATEGORIES,
             'exact_ages': EXACT_AGES,
@@ -1495,6 +1574,7 @@ def puf_target_map(m_puf, y=TARGET_YEAR):
     """The PUF year's map with every value grown to year y by its item's growth line (positive and negative values
     each by their own factor); and the factors."""
     g = {v: growth(v, y) for v in PUF_AMOUNTS}
+    g.update({v: (1.0, 1.0) for v in PUF_SHARES if v in set(m_puf['variable'])})   # a share is not grown
     bad = {k: f for k, f in g.items() if not all(np.isfinite(x) and x > 0 for x in f)}
     assert not bad, f'growth factors missing or not positive (growth.yaml): {bad}'
     m_target = m_puf.copy()
@@ -1511,7 +1591,7 @@ def build_maps(t, edges):
     os.makedirs(common.MAPS, exist_ok=True)
     GR.check(TARGET_YEAR)   # every dollar item has a growth line (stops otherwise)
     pside = t[t.source == 'puf'].reset_index(drop=True)
-    m_puf = build_map(pside, edges, 'puf', PUF_AMOUNTS)
+    m_puf = build_map(pside, edges, 'puf', PUF_AMOUNTS + PUF_SHARES)   # (the shares: the PUF's own values, every source)
     m_puf.to_parquet(f'{common.MAPS}/map_puf_{PUF_YEAR}.parquet', index=False)
     m_target, g = puf_target_map(m_puf)   # to the target year, by each item's growth line
     m_target.to_parquet(f'{common.MAPS}/map_puf_{TARGET_YEAR}.parquet', index=False)
@@ -1590,7 +1670,7 @@ def present_on(t):
     for v in AMOUNTS:
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, f'{v}_band'] >= 0).any())
     for v in ['married', 'n_dep', 'age_range', 'filer'] + list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) \
-            + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES):
+            + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES) + list(SHARED_CATEGORIES):
         out[v] = sorted(s for s in t.source.unique() if (t.loc[t.source == s, v] >= 0).any())
     return out
 
@@ -1746,8 +1826,15 @@ def main():
     keep = ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer', 'filer_p'] + \
         list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + \
         list(SCF_CATEGORIES) + AMOUNTS + ['net_worth', 'value.primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
-        ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + ['agi_group']
+        ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + ['agi_group'] + list(SHARED_CATEGORIES) + ES_PROBS
     t['implicate'] = t['implicate'].fillna(0).astype(np.int64)
+    for c in SHARED_CATEGORIES:   # the PUF and the CPS (earn_split); -1 on the PUF only where step 0 gives probabilities
+        on = t.source.isin(['puf', 'cps'])
+        assert not t.loc[on, c].isna().any() and t.loc[~on, c].isna().all(), c
+        assert (t.loc[t.source == 'cps', c] >= 0).all(), c
+        t[c] = t[c].fillna(-1)
+    for c in ES_PROBS:
+        t[c] = t[c].fillna(0.0)
     for k in range(ages.N_RANGES):
         t[f'age_p{k}'] = t[f'age_p{k}'].fillna(0.0)
     for c in SIPP_CATEGORIES:     # SIPP only
@@ -1767,7 +1854,8 @@ def main():
     assert not t['filer_p'].isna().any() and ((t.filer_p == -1) == ~t.source.isin(['puf', 'cps'])).all()
     assert (t.loc[t.source == 'puf', 'filer_p'] == 1).all() and t.loc[t.source == 'cps', 'filer_p'].between(0, 1).all()
     for c in ['year', 'married', 'n_dep', 'filer', 'age_range'] + list(TAX_CATEGORIES) + list(CATEGORIES) + \
-            list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES):
+            list(PERSON_CATEGORIES) + list(SIPP_CATEGORIES) + list(PUF_CATEGORIES) + list(SCF_CATEGORIES) + \
+            list(SHARED_CATEGORIES):
         assert not t[c].isna().any(), c
         t[c] = t[c].astype(np.int64)
     age_range_table(t)
