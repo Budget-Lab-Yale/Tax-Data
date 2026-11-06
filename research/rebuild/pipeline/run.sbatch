@@ -95,7 +95,8 @@ for s in $STAGES; do
     state_start)  for y in ${STATE_YEARS:-2015 2016 2017 2018 2019 2020 2021 2022 2023}; do   # the networks' chances of each state (a GPU)
                     python $P/state_start.py start --file $STATE_RUN/$y/tilt/y$y/file_$y.parquet --year $y --out $STATE_OUT/starts/start_$y.npz
                   done ;;
-    state_tilt)   python $P/state_weights.py --run $STATE_RUN --out $STATE_OUT --year ${STATE_YEAR:-$SLURM_ARRAY_TASK_ID} --final ;;   # a past year: the tilt and its file (CPU)
+    state_tilt)   export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
+                  python $P/state_weights.py --run $STATE_RUN --out $STATE_OUT --year ${STATE_YEAR:-$SLURM_ARRAY_TASK_ID} --final ;;   # a past year: the tilt and its file (CPU)
     state_carry)  python $P/state_weights.py --run $STATE_RUN --out $STATE_OUT --year ${STATE_YEAR:-$SLURM_ARRAY_TASK_ID} --carry ;;   # a projection year: the 2023 shares (CPU)
     state_check)  python $P/state_weights.py --run $STATE_RUN --out $STATE_OUT --year 2015 --check ;;   # every year's file there and in order, or it stops
     *) echo "unknown stage $s"; exit 1 ;;
