@@ -702,9 +702,21 @@ def main():
     common.say(f"one cost: tau {cfg['tau']:g}, importance 1 for kinds {sorted(cfg['importance_one_kinds'])} ({int((rho == 1).sum())} targets), "
                f"{1 / float(cfg['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
                f"{cfg.get('newton_budget', 150)} Newton steps")
+    # (6 November 2026, the joint solve of state weights, state_joint.py) with REBUILD_SAVE_SOLVE set, the solve's inputs are
+    # written to that file, and the solve's multipliers beside it afterwards. Nothing else changes.
+    save_solve = os.environ.get('REBUILD_SAVE_SOLVE')
+    if save_solve:
+        import pickle
+        with open(save_solve, 'wb') as fh:
+            pickle.dump({'record_id': g19['record_id'].to_numpy(), 'w0': w0, 'F': F, 'T': T, 'se': se, 'identity': identity,
+                         'averages': averages, 'rho': rho, 'fixed': fixed, 'soft_upper': S_main.get('solver_soft_upper'),
+                         'soft_beta': S_main.get('solver_soft_beta'), 'rows': rows, 'reweighting': cfg}, fh, protocol=4)
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
+    if save_solve:
+        np.savez(save_solve + '.answer.npz', multipliers=info['multipliers'], w1=w1, newton_steps=info['newton_steps'],
+                 converged=info['converged'])
     common.say(f"the whole tilt before the solve: {(t_solve - t_start) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
     common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
                f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended without meeting the stopping size)")
