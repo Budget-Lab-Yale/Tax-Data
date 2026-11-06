@@ -480,38 +480,42 @@ class Joint:
 
 
 # ---- the year ------------------------------------------------------------------------------------------------------------
-def load_year(run, year, start_dir):
+def load_year(run, year, start_dir, share_year=None):
     """The control's file (its weights set the state targets' national totals), the solve's inputs, the starting shares."""
     path = f'{run}/{year}/tilt/y{year}/file_{year}.parquet'
     df = ST.read_file(path, extra=['weight_start'])
     inp = pickle.load(open(f'{run}/{year}/solve_inputs.pkl', 'rb'))
     assert np.array_equal(inp['record_id'], df['record_id'].to_numpy()), 'the solve\'s records are not the file\'s, in order'
     assert np.array_equal(inp['w0'], df['weight_start'].to_numpy(float)), 'the solve\'s starting weights are not the file\'s'
-    ht2 = ST.read_ht2(year)
-    areas = ST.areas(year)
+    ht2 = ST.read_ht2(share_year or year)
+    areas = ST.areas(share_year or year)
     filer = df['filer'].to_numpy() == 1
-    pi = SW.read_start(f'{start_dir}/start_{year}.npz', df)
+    pi = SW.read_start(f'{start_dir}/start_{year}.npz', df) if start_dir else None
     return df, inp, ht2, areas, filer, pi
 
 
-def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust, by_group_move=False, totals_weight=None):
+def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust, by_group_move=False, totals_weight=None, P0_given=None, share_year=None):
     """The starting shares [n, A] and the state targets, as part 1's tilt_filers and tilt_nonfilers make them: targets from the file's (control's)
     national totals. A record the national solve holds fixed keeps its starting weight and shares and enters as a fixed amount.
     by_group_move: part 1's tilt charges tau on each AGI group's own move; here the move is on the whole file, so a group holding share h of the weight has
     tau x h on its own move. With by_group_move each state target's standard error is multiplied by 1 / sqrt(h), which gives each group part 1's balance between
     its misses and its move. Worked example: the group $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 2% / sqrt(0.11) = 6.0%. Only tau x tolerance^2 matters.
-    totals_weight: national weights [all records] that set the state targets' national totals, in place of the file's: an earlier joint solve's, so the targets follow the joint solve's own totals."""
+    totals_weight: national weights [all records] that set the state targets' national totals, in place of the file's: an earlier joint solve's, so the targets follow the joint solve's own totals.
+    P0_given, share_year (a future year): the starting shares [n, A] carried from the prior file, in place of the network's; ht2 is share_year's table, and the non-filers keep share_year's state and age shares. The target of a filer cell is then the year's national total x the IRS's share in share_year."""
     f = df[filer].reset_index(drop=True)
     nf = df[~filer].reset_index(drop=True)
     group = ST.agi_group(f['calc_agi'])
     pin = SW.pins_of(f, year, areas)
-    p_f = SW.cps_start(pi[filer], group, ht2, areas)
+    p_f = SW.cps_start(pi[filer], group, ht2, areas) if P0_given is None else P0_given[filer].copy()
     free_pin = pin < 0
     p_f[~free_pin] = 0.0
     p_f[np.flatnonzero(~free_pin), pin[~free_pin]] = 1.0
     P0 = np.zeros((len(df), len(areas)))
     P0[filer] = p_f
-    P0[~filer, :51] = pi[~filer]
+    if P0_given is None:
+        P0[~filer, :51] = pi[~filer]
+    else:
+        P0[~filer] = P0_given[~filer]
     fixed = np.asarray(inp['fixed'], bool)
     w0 = np.asarray(inp['w0'], float)
     say(f'{year}: {int(fixed.sum())} records held fixed nationally; {int((~free_pin).sum())} filers pinned to an area; '
@@ -558,7 +562,7 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
         fits.append(c.assign(fixed_amount=fixed_amt[c['a'].to_numpy(), c['k'].to_numpy()]))
     fit = pd.concat(fits, ignore_index=True)
     # the non-filers
-    tgn, table, Xn = ST.nonfiler_targets(nf if totals_weight is None else nf.assign(weight=totals_weight[~filer]), ht2, year)
+    tgn, table, Xn = ST.nonfiler_targets(nf if totals_weight is None else nf.assign(weight=totals_weight[~filer]), ht2, share_year or year)
     Tn51 = tgn.pivot(index='state', columns='band', values='target').loc[ST.STATES, ST.AGE_BAND_NAMES].to_numpy(float)
     Tn = np.full((A, len(ST.AGE_BAND_NAMES)), np.nan)
     Tn[:51] = Tn51
@@ -570,6 +574,35 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
     nf_scale = 1.0 / np.sqrt(wn.sum() / w_total) if by_group_move else 1.0
     specs.append(dict(name='non-filers', all_rows=nrow[fn], Z=Xn[fn], T=Tn, se=nf_scale * nonfiler_tolerance * np.abs(Tn), fixed=np.zeros_like(Tn), size=size))
     return P0, specs, fit, tgn, table, notes, items
+
+
+def prior_shares(df, prior_long, areas, year):
+    """A future year's starting shares [n, A]: each record's shares in the prior file (id, state, weight), part 1's carry. A list record's id is its rank on the year's list, so it does
+    not follow a person: list records are pinned by forbes_uri, and one with no state on any list takes the distribution of the year's pinned list records. A record with no weight in the prior file
+    has no shares to carry: it takes the prior file's overall shares, which multiply nothing. A record that is neither on the list nor in the prior file stops the run."""
+    d = pd.read_parquet(prior_long)
+    assert not d.isna().any().any(), f'{prior_long}: a missing value'
+    ids0 = pd.Index(d['id'].unique())
+    W = np.zeros((len(ids0), len(areas)))
+    W[ids0.get_indexer(d['id'].to_numpy()), pd.Index(areas).get_indexer(d['state'].astype(str).to_numpy())] = d['weight'].to_numpy(float)
+    tot = W.sum(1)
+    overall = W.sum(0) / W.sum()
+    S = np.where(tot[:, None] > 0, W / np.where(tot > 0, tot, 1.0)[:, None], overall[None, :])
+    say(f'{year}: prior file {prior_long}: {len(ids0):,} records, {int((tot == 0).sum())} with no weight, which take the overall shares')
+    idx = ids0.get_indexer(df['record_id'].to_numpy())
+    lst = df['billionaire'].to_numpy() == 1
+    n_new = int(((idx < 0) & ~lst).sum())
+    assert n_new == 0, f'{year}: {n_new} records neither on the list nor in the prior file'
+    P = np.zeros((len(df), len(areas)))
+    P[~lst] = S[idx[~lst]]
+    pin = SW.pins_of(df, year, areas)
+    pinned = lst & (pin >= 0)
+    P[np.flatnonzero(pinned), pin[pinned]] = 1.0
+    unpinned = lst & (pin < 0)
+    if unpinned.any():
+        P[unpinned] = np.bincount(pin[pinned], minlength=len(areas)) / pinned.sum()
+    say(f'{year}: list records {int(lst.sum())}, pinned {int(pinned.sum())}, on the pinned distribution {int(unpinned.sum())}; non-list records not in the prior file: 0')
+    return P
 
 
 def read_back(specs, wis_all, areas):
@@ -585,7 +618,7 @@ def main():
     ap.add_argument('--run', required=True, help='the control\'s run folder: <run>/<year>/tilt/y<year>/file_<year>.parquet and <run>/<year>/solve_inputs.pkl')
     ap.add_argument('--out', required=True, help='the output folder')
     ap.add_argument('--year', type=int, required=True)
-    ap.add_argument('--start-dir', required=True)
+    ap.add_argument('--start-dir', default=None)
     ap.add_argument('--items', default='comparison')
     ap.add_argument('--tolerance', type=float, default=0.02)
     ap.add_argument('--nonfiler-tolerance', type=float, default=0.02)
@@ -597,10 +630,14 @@ def main():
     ap.add_argument('--by-group-move', action='store_true', help='state standard errors divided by the square root of the AGI group\'s share of the weight (state_problem)')
     ap.add_argument('--max-capped', type=int, default=20000)
     ap.add_argument('--totals-from', default=None, help='the file of an earlier solve whose national weights set the state targets\' national totals')
+    ap.add_argument('--prior-long', default=None, help='a future year: the prior file of id, state, weight whose shares start this solve')
+    ap.add_argument('--share-year', type=int, default=None, help='a future year: the year of the IRS\'s shares, and of the non-filers\' state and age shares')
+    ap.add_argument('--no-state', action='store_true', help='no state targets: the national solve\'s weights x the prior shares; every state number is only measured')
     a = ap.parse_args()
     year = a.year
     t_all = time.time()
-    df, inp, ht2, areas, filer, pi = load_year(a.run, year, a.start_dir)
+    df, inp, ht2, areas, filer, pi = load_year(a.run, year, a.start_dir, a.share_year)
+    P_given = prior_shares(df, a.prior_long, areas, year) if a.prior_long else None
     items = {'comparison': ST.ISELIN_21, 'final': ST.FINAL_ITEMS,
              'wider': ST.ISELIN_21 + [v for v in ST.EXTRA_ITEMS if v != 'kg_amt']}.get(a.items) or a.items.split(',')
     trust = a.items != 'comparison' and not a.no_trust
@@ -609,7 +646,7 @@ def main():
         tf = pd.read_parquet(a.totals_from, columns=['record_id', 'weight'])
         assert np.array_equal(tf['record_id'].to_numpy(), df['record_id'].to_numpy())
         totals_weight = tf['weight'].to_numpy(float)
-    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust, a.by_group_move, totals_weight)
+    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust, a.by_group_move, totals_weight, P_given, a.share_year)
     w0 = np.asarray(inp['w0'], float)
     fixed = np.asarray(inp['fixed'], bool)
     cfg = inp['reweighting']
@@ -625,7 +662,7 @@ def main():
         groups.append(dict(rows=r, Z=sp['Z'], T=sp['T'], se=sp['se'], fixed=sp['fixed'], size=sp['size'], name=sp['name']))
     n_in = sum(len(g['rows']) for g in groups)
     assert n_in == int((free & (w0 > 0)).sum()), f'{n_in} records in the groups, {int((free & (w0 > 0)).sum())} free with a weight'
-    assert n_in == int(free.sum()), 'a free record with no starting weight: the national solve has none in run7; stop rather than guess'
+    say(f'{year}: {int((free & (w0 == 0)).sum())} free records with no starting weight stay at zero')
     soft = None
     if inp.get('soft_upper') is not None:
         soft = (np.asarray(inp['soft_upper'], float)[free], float(inp['soft_beta']))
@@ -641,17 +678,25 @@ def main():
     del_F = inp.pop('F')
     nat['X'] = None
     t_solve = time.time()
-    lam, fields, info = J.solve(budget=a.budget - warm_steps, avg_change=float(cfg.get('average_weight_change', 1e-3)), lam0=lam0)
+    if a.no_state:
+        lam, fields = None, None
+        info = dict(status='converged', newton_steps=0, newton_calls=0, rounds=0, notes=['no state targets: the national solve\'s weights x the prior shares'], largest_gradient=0.0, converged=True)
+    else:
+        lam, fields, info = J.solve(budget=a.budget - warm_steps, avg_change=float(cfg.get('average_weight_change', 1e-3)), lam0=lam0)
     info['solve_minutes'] = (time.time() - t_solve) / 60
     say(f'{year}: {info["status"]} in {info["newton_steps"]} Newton steps ({info["rounds"]} rounds), {info["solve_minutes"]:.1f} minutes, largest gradient {info["largest_gradient"]:.2e}')
     # the weights: free records from the solve, fixed records at their start
     n, A = len(w0), len(areas)
     wis = w0[:, None] * P0
     w1 = w0.copy()
-    for g, (E, e) in zip(J.groups, fields):
-        r = np.flatnonzero(free)[g['rows']]
-        wis[r] = E * J.W
-        w1[r] = e * J.W
+    if a.no_state:
+        w1 = df['weight'].to_numpy(float)
+        wis = w1[:, None] * P0
+    else:
+        for g, (E, e) in zip(J.groups, fields):
+            r = np.flatnonzero(free)[g['rows']]
+            wis[r] = E * J.W
+            w1[r] = e * J.W
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
     sum_err = np.abs(wis.sum(1) - w1) / np.where(w1 > 1e-300, w1, np.inf)
     # The solve can take a record's weight to a number so small that every area's part underflows to zero (run7's own file has national weights
@@ -704,7 +749,8 @@ def main():
              **SW.quality(f, Q[filer], areas), **{f'heldout {k}': v for k, v in s.items()})
     say(json.dumps({k: (round(v, 4) if isinstance(v, float) else v) for k, v in r.items() if not k.startswith('heldout plain ') and not k.startswith('heldout weighted ')}))
     json.dump(r, open(f'{od}/summary.json', 'w'), indent=1)
-    np.savez_compressed(f'{od}/multipliers.npz', lam=lam)
+    if lam is not None:
+        np.savez_compressed(f'{od}/multipliers.npz', lam=lam)
     # the file for the held-out national score, the national weights only, and the year's file of id, state, weight
     import pyarrow.parquet as pq
     src = f'{a.run}/{year}/tilt/y{year}/file_{year}.parquet'
