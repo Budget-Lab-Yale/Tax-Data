@@ -2057,5 +2057,14 @@
    ],
    "rounds": 4
   }
+ },
+ "state_weights": {
+  "_what": "The supplemental state weights (FEATURES.md, State weights; run_state_weights.sh). networks: the training folder of the networks with the state slot. items: final is state_targets.FINAL_ITEMS, with its filters. tolerance: a target's standard error as a share of the larger of the target and 0.1% of the item's national total in the AGI group. tau: the weight of the move, as in tilt.reweighting. nonfiler_tolerance: the same for the non-filers' state by age band targets. newton_budget: Newton steps a group.",
+  "networks": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-11-05/state_weights/train",
+  "items": "final",
+  "tolerance": 0.02,
+  "tau": 1000,
+  "nonfiler_tolerance": 0.02,
+  "newton_budget": 150
  }
 }
