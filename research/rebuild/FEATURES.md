@@ -1767,7 +1767,7 @@ Settings `tilt.projection.filing_season`; `projection_steps.py`, its last sectio
 - **When SOI publishes.** Final tables for 2024 make 2024 a past year: base_year and year move to 2024 and 2025, and
   the tax-year-2025 November table (`26inweek47.xlsx`, expected January 2027) supplies the next blend (NEXT_STEPS.md).
 
-## Taxable interest after the jump-off year (branch `rebuild-interest-growth`, 5 November)
+## Taxable interest after the jump-off year (merged 5 November 2026; installed as run7)
 
 John's rule (5 November 2026; scratch `explore/2026-11-05/interest_check/FINDINGS.md` for why,
 `explore/2026-11-05/interest_growth/RESULTS.md` for the run). Settings `tilt.projection.interest_growth`;

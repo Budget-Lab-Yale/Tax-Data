@@ -143,6 +143,14 @@ a run of the years it touches, a comparison with the run before it, and John's a
   (scratch `explore/2026-11-05/interest_growth/RESULTS.md`): the pair is 1.35 times CBO's line in 2035 (was 2.08),
   income tax $114 billion lower in 2035. **Merged and installed as run7 (John, 5 November, evening).** The real-PUF
   files and packages for 2025-2075 (run6/confidential/) were built on the old interest growth and are not rerun.
+- **Revenue below CBO at the top** (5 November; scratch `explore/2026-11-05/top_gap/FINDINGS.md`; John: fine as it
+  is, no change). Run7's tax after credits is 3.9% below CBO in 2035, all of it the distribution of AGI, not deductions.
+  Of the 2.5-point gap in the top 1% AGI share in 2035, 1.4 points is CBO's 2023 projection (our 2023 matches SOI's
+  final 2023 tables: top 1% 20.5% against SOI's 20.6%, the 37% bracket $1,146 billion against $1,160 billion); 0.7 arises
+  in 2024 and 0.4 in 2026-2028, from one growth factor per item (the items concentrated at the top grow more slowly than
+  AGI even in CBO's lines). CBO's business income for 2023 is 16% above SOI's. Unchecked: the calculator subtracts its
+  pass-through entity tax workaround from Schedule E ($35 billion in 2023, $70 billion in 2035), which may count twice
+  taxes SOI's partnership and S corporation income is already net of.
 - **Series flags from 1-2 November** (`explore/2026-11-01/tax_expenditures/series/RESULTS.md`): the 2020-2021 files
   hold about 1,500 records above weight 5,000; non-filers jump 19% in 2023 and miss their target in even years.
 - **Heir data in Tax-Simulator.** The rebuild's runs go without the heir file: its record ids do not match the

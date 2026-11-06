@@ -1179,7 +1179,11 @@ married people under 18 were counted as unmarried (ede6f65).
   Taxable interest now grows by nominal GDP times the 3-month bill rate; non-qualified dividends by a blend of that
   and CBO's qualified dividend line (stock-like share 0.489, from SOI 2022 and the 2024 file); tax-exempt interest
   as before. 2025-2075 rerun on run6's networks: every year converges in 7-22 Newton steps; 2024 and, with the rule
-  off, 2030 reproduce run6 exactly. Income tax $114 billion lower in 2035. Not merged or installed.
+  off, 2030 reproduce run6 exactly. Income tax $114 billion lower in 2035. Merged and installed as run7 (John, 5
+  November, evening): run6's 2015-2024 and these 2025-2075 (`explore/2026-11-05/interest_growth/run/`); the CBO and
+  JCT comparison pages show it as the latest (`explore/2026-11-05/pages_run7/`).
+- **Revenue below CBO at the top** (`explore/2026-11-05/top_gap/FINDINGS.md`): our 2023 matches SOI's final tables;
+  most of the gap to CBO is CBO's 2023 projection, the rest one growth factor per item after 2024. John: no change.
 
 ## Paths tried and not taken
 
