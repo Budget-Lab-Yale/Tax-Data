@@ -1,10 +1,12 @@
-# Next steps (as of 5 November 2026, afternoon)
+# Next steps (as of 5 November 2026, evening)
 
 The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The latest
-installed run is run6 (John, 5 November; `explore/2026-11-05/run6/run/`, every year 2015-2075): version A's rules and
-target breakdowns, the part_se fix, the real-PUF setting and package, and the earnings split from the PUF, on the
-earnings-split networks (items 8 and 9). The run installed before it (run3 for 2015-2023, run4 for 2024-2075) is in
-`explore/2026-11-04/run3/run/`. Paths starting
+installed run is run7 (John, 5 November, evening; `explore/2026-11-05/interest_growth/run/`, every year 2015-2075):
+run6's 2015-2024 (links to `explore/2026-11-05/run6/run/`) and 2025-2075 rerun with the interest rule (FEATURES.md,
+"Taxable interest after the jump-off year"). Run6 itself is version A's rules and target breakdowns, the part_se fix,
+the real-PUF setting and package, and the earnings split from the PUF, on the earnings-split networks (items 8 and 9);
+its own 2025-2075 stay in `explore/2026-11-05/run6/run/`. The run installed before run6 (run3 for 2015-2023, run4 for
+2024-2075) is in `explore/2026-11-04/run3/run/`. Paths starting
 `explore/` are under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch,
 a run of the years it touches, a comparison with the run before it, and John's approval.
 
@@ -139,8 +141,8 @@ a run of the years it touches, a comparison with the run before it, and John's a
   the jump-off year"): taxable interest grows from 2024 by nominal GDP times the 3-month bill rate, non-qualified
   dividends by a blend (stock-like share 0.489), tax-exempt interest as before. 2025-2075 rerun on run6's networks
   (scratch `explore/2026-11-05/interest_growth/RESULTS.md`): the pair is 1.35 times CBO's line in 2035 (was 2.08),
-  income tax $114 billion lower in 2035. Awaiting John: the merge and the install, and the tax expenditure tables
-  after it.
+  income tax $114 billion lower in 2035. **Merged and installed as run7 (John, 5 November, evening).** The real-PUF
+  files and packages for 2025-2075 (run6/confidential/) were built on the old interest growth and are not rerun.
 - **Series flags from 1-2 November** (`explore/2026-11-01/tax_expenditures/series/RESULTS.md`): the 2020-2021 files
   hold about 1,500 records above weight 5,000; non-filers jump 19% in 2023 and miss their target in even years.
 - **Heir data in Tax-Simulator.** The rebuild's runs go without the heir file: its record ids do not match the

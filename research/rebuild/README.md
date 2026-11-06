@@ -88,11 +88,11 @@ training seed can be changed with `REBUILD_SEED`, the output folder with
 passes, for a quick test, with `REBUILD_PASSES`.
 
 Outputs. The folders `data/`, `targets/`, `model/`, `gen/`, `tilt/` and `taxsim/` under
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run's 2019 (since 5 November, run6: every year
-2015-2075 in `explore/2026-11-05/run6/run/<year>/`, on the earnings-split networks of
-`explore/2026-11-04/run5_earnsplit/train/model/`; `INSTALLED.txt` says what is where). They are changed only by an
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run's 2019 (since 5 November, run7: every year
+2015-2075 in `explore/2026-11-05/interest_growth/run/<year>/`, which is run6's 2015-2024 and 2025-2075 rerun with
+the interest rule, on the earnings-split networks of `explore/2026-11-04/run5_earnsplit/train/model/`; `INSTALLED.txt` says what is where). They are changed only by an
 install John approves. The real-PUF files and packages for every year are in `explore/2026-11-05/run6/confidential/`
-(readable by John only). Runs since then live in their own folders under `explore/`. A year's tilt folder (`tilt/y<year>/`) holds the file
+(readable by John only; 2025-2075 there predate the interest rule). Runs since then live in their own folders under `explore/`. A year's tilt folder (`tilt/y<year>/`) holds the file
 (`file_<year>.parquet`, every dollar in nominal dollars of the year), the targets (`targets.csv`), every target before
 and after (`fit.csv`), the summary (`summary.md`), the run report (`report.md`, `report_*.csv`) and the top step's
 notes; the Tax-Simulator file is in `taxsim/y<year>/`.
