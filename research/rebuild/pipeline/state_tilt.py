@@ -61,7 +61,8 @@ def solve(w, p0, X, T, se, fixed=None, tau=1000.0, budget=150, tol=1e-8, verbose
     def shares(lam):
         E = logp + Z @ lam.reshape(A, K).T
         ls = logsumexp(E, axis=1)
-        return np.exp(E - ls[:, None]), ls
+        q = np.exp(E - ls[:, None])
+        return q / q.sum(1, keepdims=True), ls   # (a record with a huge item has a huge E, and the rounding of E - ls reaches 1e-8)
 
     def value(lam, ls):
         return float(a @ ls - t.ravel() @ lam + 0.5 * (nu.ravel() * lam ** 2).sum())

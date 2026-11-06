@@ -221,9 +221,10 @@ EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', '
 FINAL_ITEMS = ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS
 TRUST = (0.67, 1.5)
 # ... and no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item: (sum |w x|)^2 / sum (w x)^2, the list
-# records left out. State income tax deducted in the group under $1 rests on 4 effective records in 2019 and cannot be spread over 53
-# areas; in Newton's method such an item takes the whole budget and moves nothing that matters.
-MIN_EFFECTIVE = 100
+# records left out; 250 is about 5 for each of the 53 areas. State income tax deducted in the group under $1 rests on 4 effective records
+# in 2019 and cannot be spread over 53 areas; with such an item Newton's method takes the whole budget and moves nothing that matters
+# (at 100, the group $10-25k did not converge in 2015 and 2018, on Vermont's state income tax deducted among others).
+MIN_EFFECTIVE = 250
 assert len(ISELIN_21) == 21 and set(ISELIN_21 + HELD_OUT + FINAL_ITEMS) <= set(ITEMS)
 
 
