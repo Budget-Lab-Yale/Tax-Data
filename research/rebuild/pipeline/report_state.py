@@ -108,6 +108,35 @@ def levels(run, out, year, items=('n_returns', 'agi_amt', 'wages_amt', 'fedtax_a
     return pd.concat(by_area, ignore_index=True), pd.concat(by_group, ignore_index=True)
 
 
+def nonfilers(out, year, tag='final'):
+    """The non-filers by state, adults in thousands: Census adults, adults on returns, the residual; the file's non-filer adults on
+    the start and the final shares, and the target; group quarters adults from the ACS (Iselin's tabulation), which Census's count
+    has and the file does not. Totals are in the last row."""
+    t = pd.read_csv(f'{out}/fits/y{year}/{tag}/nonfiler_states.csv', index_col=0)
+    f = pd.read_csv(f'{out}/fits/y{year}/{tag}/nonfiler_fit.csv').groupby('state')[['target', 'start', 'final']].sum()
+    d = t.join(f)
+    g = os.path.join(ST.REPO, 'research/state_weights/nonfiler_residual/results', f'acs_gq_composition_{year}.csv')
+    if os.path.exists(g):
+        q = pd.read_csv(g)
+        d['group quarters adults (ACS)'] = q.groupby('state')['persons'].sum().reindex(d.index)
+    else:
+        d['group quarters adults (ACS)'] = np.nan
+    d = d[['pep_adults', 'filing_adults', 'residual', 'floored', 'target', 'start', 'final', 'group quarters adults (ACS)']]
+    num = [c for c in d.columns if c != 'floored']
+    d[num] = d[num] / 1e3
+    tot = d[num].sum().to_frame('US').T
+    tot['floored'] = d['floored'].sum()
+    return pd.concat([d, tot]).reset_index(names='state').rename(columns={'pep_adults': 'Census adults', 'filing_adults': 'adults on returns',
+                                                                         'residual': 'Census less returns', 'target': 'file: target', 'start': 'file: start', 'final': 'file: final'})
+
+
+def by_year(out, s):
+    """The final files' fit by year."""
+    c = s[s['tag'] == 'final'].sort_values('year')
+    return c[['year', 'targets', 'within_2pct_start', 'within_2pct', 'plain_targeted_start', 'plain_targeted', 'largest_miss_se', 'newton_largest_group',
+              'newton_all_groups', 'all_converged', 'move_nats', 'heldout plain', 'smallest_state_effective_records', 'records_over_99pct_in_one_area']]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--run', required=True)
@@ -135,6 +164,12 @@ def main():
                 t = ar[ar['item'] == it].sort_values('IRS', ascending=False).head(12).drop(columns=['year', 'item'])
                 text += [f'## {it}, {y}, the twelve largest areas\n', md(t)]
             text += [f'## Average miss across areas by AGI group, {y}\n', md(gr[gr['item'].isin(['agi_amt', 'fedtax_amt'])].drop(columns=['year']))]
+            n = nonfilers(a.out, y)
+            n.to_csv(f'{a.out}/out/nonfilers_{y}.csv', index=False)
+            text += [f'## Non-filers, {y}, thousands of adults, US row and the ten largest differences\n', md(n.tail(1))]
+        b = by_year(a.out, s)
+        b.to_csv(f'{a.out}/out/final_by_year.csv', index=False)
+        text += ['## The final files by year\n', md(b)]
     open(f'{a.out}/out/tables.md', 'w').write('\n'.join(text))
     print('\n'.join(text))
 
