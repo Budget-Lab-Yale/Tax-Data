@@ -151,7 +151,7 @@ def _item_table():
         'div_amt': (['A00600'], div, 'amount'),
         'n_kg': (['N01000'], nz('capital_gains_line13'), 'count'),
         'kg_amt': (['A01000'], amt('capital_gains_line13'), 'amount'),   # not in Iselin's 21: added by the plan
-        # Schedule A items are the IRS's among itemizers: the file draws them on other records too (2.5 times the IRS's count of
+        # Schedule A items are the IRS's among itemizers: the file draws them on other records too (2.3 times the IRS's count of
         # returns with property tax in 2019), so the file's side counts them on records the calculator itemizes
         'n_salt': (['N18425', 'N18450'], lambda d: ((d['salt_inc_sales'].to_numpy(float) != 0) & itm(d)).astype(float), 'count'),
         'salt_amt': (['A18425', 'A18450'], lambda d: d['salt_inc_sales'].to_numpy(float) * itm(d), 'amount'),
