@@ -494,9 +494,12 @@ def load_year(run, year, start_dir):
     return df, inp, ht2, areas, filer, pi
 
 
-def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust):
+def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust, by_group_move=False):
     """The starting shares [n, A] and the state targets, as part 1's tilt_filers and tilt_nonfilers make them: targets from the file's (control's)
-    national totals. A record the national solve holds fixed keeps its starting weight and shares and enters as a fixed amount."""
+    national totals. A record the national solve holds fixed keeps its starting weight and shares and enters as a fixed amount.
+    by_group_move: part 1's tilt charges tau on each AGI group's own move; here the move is on the whole file, so a group holding share h of the weight has
+    tau x h on its own move. With by_group_move each state target's standard error is multiplied by 1 / sqrt(h), which gives each group part 1's balance between
+    its misses and its move. Worked example: the group $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 2% / sqrt(0.11) = 6.0%. Only tau x tolerance^2 matters."""
     f = df[filer].reset_index(drop=True)
     nf = df[~filer].reset_index(drop=True)
     group = ST.agi_group(f['calc_agi'])
@@ -515,6 +518,11 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
     tg, notes = ST.filer_targets(f, group, ht2, items, year, trust=trust)
     items = [v for v in items if v in set(tg['item'])]
     tg['se'] = SW.tolerances(tg, tolerance)
+    w_total = float(w0.sum())
+    if by_group_move:
+        h = pd.Series(wf_all := w0[filer]).groupby(group).sum() / w_total
+        tg['se'] = tg['se'] / np.sqrt(tg['group'].map(h).to_numpy(float))
+        say(f'{year}: each AGI group\'s share of the weight: {h.round(4).to_dict()}')
     x = ST.item_vectors(f, items)
     X = np.column_stack([x[v] for v in items])
     apos, ipos = {a: k for k, a in enumerate(areas)}, {v: k for k, v in enumerate(items)}
@@ -558,7 +566,8 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
     fn = ~fixed[~filer] & (wn > 0)
     assert not fixed[~filer].any(), 'a non-filer held fixed'
     size = np.abs(Tn51).sum(0)
-    specs.append(dict(name='non-filers', all_rows=nrow[fn], Z=Xn[fn], T=Tn, se=nonfiler_tolerance * np.abs(Tn), fixed=np.zeros_like(Tn), size=size))
+    nf_scale = 1.0 / np.sqrt(wn.sum() / w_total) if by_group_move else 1.0
+    specs.append(dict(name='non-filers', all_rows=nrow[fn], Z=Xn[fn], T=Tn, se=nf_scale * nonfiler_tolerance * np.abs(Tn), fixed=np.zeros_like(Tn), size=size))
     return P0, specs, fit, tgn, table, notes, items
 
 
@@ -584,6 +593,7 @@ def main():
     ap.add_argument('--tag', required=True)
     ap.add_argument('--warm', action='store_true', help='start from the national solve\'s multipliers (its steps then count too)')
     ap.add_argument('--no-trust', action='store_true')
+    ap.add_argument('--by-group-move', action='store_true', help='state standard errors divided by the square root of the AGI group\'s share of the weight (state_problem)')
     ap.add_argument('--max-capped', type=int, default=20000)
     a = ap.parse_args()
     year = a.year
@@ -592,7 +602,7 @@ def main():
     items = {'comparison': ST.ISELIN_21, 'final': ST.FINAL_ITEMS,
              'wider': ST.ISELIN_21 + [v for v in ST.EXTRA_ITEMS if v != 'kg_amt']}.get(a.items) or a.items.split(',')
     trust = a.items != 'comparison' and not a.no_trust
-    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust)
+    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust, a.by_group_move)
     w0 = np.asarray(inp['w0'], float)
     fixed = np.asarray(inp['fixed'], bool)
     cfg = inp['reweighting']
