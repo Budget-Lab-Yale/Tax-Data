@@ -2,7 +2,7 @@
 each of the 51 states, read from the networks trained with the state slot (build_table.py's CPS-only category 'state').
 A GPU stage, and the only one of the state weights.
 
-  python state_start.py start --file <file_<year>.parquet> --year <year> --out <start_<year>.npz> [--show-puf-items]
+  python state_start.py start --file <file_<year>.parquet> --year <year> --out <start_<year>.npz> [--cps-items-only]
   python state_start.py holdback --out <folder>
 
 How a record is read. The network sees the record as a CPS row would look: the source is the CPS, the year is one of the target
@@ -27,8 +27,10 @@ chance of a state is the average over the three networks and over the target yea
 example: a 2018 file's CPS mix is 2017 and 2019; a record read as 0.11 for California at 2017 and 0.13 at 2019 with shares 0.5 and
 0.5 under each network has 0.12.
 
-With --show-puf-items (a test, not the default): the record's PUF-only items and AGI group label are shown as well, a combination
-the network never saw with state in training.
+The record's PUF-only items and AGI group label are shown as well, a combination the network never saw with state in training: the plan had
+this as a test, and it became the default on 6 November because it does better on the held-out items, tilted, than the CPS's items alone
+(RESULTS.md: 2019 average miss 17.29 against 17.70; 2022 21.61 against 21.98; the dollar-weighted miss about equal). --cps-items-only reads
+the record with the PUF-only items absent, the plan's first reading.
 
 holdback: how well the networks predict state on the CPS's held-back rows (2%, whole households), against the state shares of each
 row's AGI group: mean log loss and the share of rows whose state is in the k most likely, weighted by the survey weights.
@@ -162,14 +164,14 @@ def cmd_start(a):
     values0 = gate_shares_in_view(values0)
     values0[:, 0] = M.SOURCES.index('cps')
     slots = CPS_SLOTS_PACKED
-    if a.show_puf_items:
+    if not a.cps_items_only:
         fv = {c for c in pq.ParquetFile(a.file).schema.names}
         extra = [v for v in P if v in M.OWNED_BY and M.OWNED_BY[v] == 'puf' and M.column(v) in fv and 'cps' not in M.PRESENT_ON[v]]
         ex = pd.read_parquet(a.file, columns=[M.column(v) for v in extra])
         for v in extra:
             values0[:, C + P.index(v)] = torch.as_tensor(ex[M.column(v)].to_numpy(float)).long()
         slots = tuple(sorted(set(CPS_SLOTS_PACKED) | {C + P.index(v) for v in extra}))
-        print(f'shown as well (the test): {len(extra)} PUF-only slots', flush=True)
+        print(f'shown as well: {len(extra)} PUF-only slots', flush=True)
     chunk = M.safe_chunk(len(slots))
     probs = np.zeros((len(ids), N_STATES))
     for k, (m, run) in enumerate(zip(models, runs)):
@@ -280,7 +282,7 @@ if __name__ == '__main__':
     s.add_argument('--file', required=True)
     s.add_argument('--year', type=int, required=True)
     s.add_argument('--out', required=True)
-    s.add_argument('--show-puf-items', action='store_true')
+    s.add_argument('--cps-items-only', action='store_true', help='the PUF-only items absent')
     s.add_argument('--hide-on-filers', default=','.join(HIDE_ON_FILERS), help='slots hidden on filers (empty: none)')
     s = sub.add_parser('holdback')
     s.add_argument('--out', required=True)
