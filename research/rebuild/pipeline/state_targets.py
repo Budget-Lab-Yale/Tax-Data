@@ -220,6 +220,10 @@ EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', '
                'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt']
 FINAL_ITEMS = ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS
 TRUST = (0.67, 1.5)
+# ... and no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item: (sum |w x|)^2 / sum (w x)^2, the list
+# records left out. State income tax deducted in the group under $1 rests on 4 effective records in 2019 and cannot be spread over 53
+# areas; in Newton's method such an item takes the whole budget and moves nothing that matters.
+MIN_EFFECTIVE = 100
 assert len(ISELIN_21) == 21 and set(ISELIN_21 + HELD_OUT + FINAL_ITEMS) <= set(ITEMS)
 
 
@@ -295,8 +299,12 @@ def filer_targets(df, group, ht2, items, year, weight=None, trust=False):
             s, note = cell_rule(vals.loc[g], total)
             if trust and not note:
                 ratio = total / float(vals.loc[g].sum())
+                a = np.abs(w * x[v])[(group == g) & (df['billionaire'].to_numpy() != 1)]
+                eff = a.sum() ** 2 / (a ** 2).sum() if a.sum() > 0 else 0.0
                 if not TRUST[0] <= ratio <= TRUST[1]:
                     s, note = None, f'the file is {ratio:.2f} times the IRS in the group'
+                elif eff < MIN_EFFECTIVE:
+                    s, note = None, f'{eff:.0f} effective records in the group'
             if note:
                 notes.append(dict(year=year, item=v, group=g, note=note))
                 continue
