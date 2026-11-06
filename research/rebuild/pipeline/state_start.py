@@ -16,6 +16,10 @@ year's CPS years (survey_mix.py), and each slot the CPS has is either shown or h
     so a record's real amount is not shown to it, and neither is a false zero.
   - absent: PUF-only items; a slot the CPS year never holds (capital gains before tax year 2018: a slot absent on every CPS row of
     the year is never shown there); the spouse's shares where training would leave them out (not married, or none of the base).
+On filers, the slots HIDE_ON_FILERS are hidden as well: slots with no fill-in in training whose holders are far more common on the file's
+filers than on CPS rows, so that a holder means something else. Other income is the case that matters: 2.7% of CPS tax units hold it in 2019,
+and 44% in Alaska (the Permanent Fund dividend), while 58.7% of the file's filers hold it (the remainder of AGI on the PUF). Shown, it put
+1.46 million returns in Alaska in the 2019 start against the IRS's 0.36 million. Non-filers are drawn under the CPS label and keep these slots.
 A dependent filer has no person items on its return (the surveys count it in the household that claims it), and the CPS has no
 dependent filers: its age range and every person item are hidden rather than shown as none.
 The chances over the 51 are the network's over the slot's 52 values, the value none left out and the rest rescaled. The record's
@@ -50,6 +54,7 @@ N_STATES = M.N_CHOICES['state'] - 1
 CPS_SLOTS_PACKED = M.SOURCE_SLOTS['cps']
 AGE_COLUMNS = {'age1': 80, 'age2': 80, 'dep_age1': 85, 'dep_age2': 85, 'dep_age3': 85}   # in years in the file; the top code
 PERSON = [v for v in M.EXACT_AGES + M.CPS_SLOTS if v != 'state']
+HIDE_ON_FILERS = ['other_agi', 'rent_loss']   # share holding it, the file's filers against CPS tax units, 2019: 58.7% / 2.7%, 3.0% / 0.3%
 
 
 def load_models(device):
@@ -144,6 +149,11 @@ def cmd_start(a):
     for v in zero:
         hidden0[:, P.index(v)] = True
         values0[:, C + P.index(v)] = 0
+    on_filers = values0[:, C + P.index('filer')] == 1
+    for v in (a.hide_on_filers.split(',') if a.hide_on_filers else []):
+        j = P.index(v)
+        hidden0[on_filers, j] = True
+        values0[on_filers, C + j] = values0[on_filers, C + j].clamp(min=0)
     d = torch.as_tensor(dep)
     for v in PERSON + ['age_range']:
         j = P.index(v)
@@ -271,6 +281,7 @@ if __name__ == '__main__':
     s.add_argument('--year', type=int, required=True)
     s.add_argument('--out', required=True)
     s.add_argument('--show-puf-items', action='store_true')
+    s.add_argument('--hide-on-filers', default=','.join(HIDE_ON_FILERS), help='slots hidden on filers (empty: none)')
     s = sub.add_parser('holdback')
     s.add_argument('--out', required=True)
     a = ap.parse_args()
