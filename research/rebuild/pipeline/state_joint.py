@@ -494,12 +494,13 @@ def load_year(run, year, start_dir):
     return df, inp, ht2, areas, filer, pi
 
 
-def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust, by_group_move=False):
+def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust, by_group_move=False, totals_weight=None):
     """The starting shares [n, A] and the state targets, as part 1's tilt_filers and tilt_nonfilers make them: targets from the file's (control's)
     national totals. A record the national solve holds fixed keeps its starting weight and shares and enters as a fixed amount.
     by_group_move: part 1's tilt charges tau on each AGI group's own move; here the move is on the whole file, so a group holding share h of the weight has
     tau x h on its own move. With by_group_move each state target's standard error is multiplied by 1 / sqrt(h), which gives each group part 1's balance between
-    its misses and its move. Worked example: the group $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 2% / sqrt(0.11) = 6.0%. Only tau x tolerance^2 matters."""
+    its misses and its move. Worked example: the group $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 2% / sqrt(0.11) = 6.0%. Only tau x tolerance^2 matters.
+    totals_weight: national weights [all records] that set the state targets' national totals, in place of the file's: an earlier joint solve's, so the targets follow the joint solve's own totals."""
     f = df[filer].reset_index(drop=True)
     nf = df[~filer].reset_index(drop=True)
     group = ST.agi_group(f['calc_agi'])
@@ -515,7 +516,7 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
     w0 = np.asarray(inp['w0'], float)
     say(f'{year}: {int(fixed.sum())} records held fixed nationally; {int((~free_pin).sum())} filers pinned to an area; '
         f'fixed and not pinned {int((fixed[filer] & free_pin).sum())}, pinned and not fixed {int((~fixed[filer] & ~free_pin).sum())}')
-    tg, notes = ST.filer_targets(f, group, ht2, items, year, trust=trust)
+    tg, notes = ST.filer_targets(f, group, ht2, items, year, weight=None if totals_weight is None else totals_weight[filer], trust=trust)
     items = [v for v in items if v in set(tg['item'])]
     tg['se'] = SW.tolerances(tg, tolerance)
     w_total = float(w0.sum())
@@ -557,7 +558,7 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
         fits.append(c.assign(fixed_amount=fixed_amt[c['a'].to_numpy(), c['k'].to_numpy()]))
     fit = pd.concat(fits, ignore_index=True)
     # the non-filers
-    tgn, table, Xn = ST.nonfiler_targets(nf, ht2, year)
+    tgn, table, Xn = ST.nonfiler_targets(nf if totals_weight is None else nf.assign(weight=totals_weight[~filer]), ht2, year)
     Tn51 = tgn.pivot(index='state', columns='band', values='target').loc[ST.STATES, ST.AGE_BAND_NAMES].to_numpy(float)
     Tn = np.full((A, len(ST.AGE_BAND_NAMES)), np.nan)
     Tn[:51] = Tn51
@@ -595,6 +596,7 @@ def main():
     ap.add_argument('--no-trust', action='store_true')
     ap.add_argument('--by-group-move', action='store_true', help='state standard errors divided by the square root of the AGI group\'s share of the weight (state_problem)')
     ap.add_argument('--max-capped', type=int, default=20000)
+    ap.add_argument('--totals-from', default=None, help='the file of an earlier solve whose national weights set the state targets\' national totals')
     a = ap.parse_args()
     year = a.year
     t_all = time.time()
@@ -602,7 +604,12 @@ def main():
     items = {'comparison': ST.ISELIN_21, 'final': ST.FINAL_ITEMS,
              'wider': ST.ISELIN_21 + [v for v in ST.EXTRA_ITEMS if v != 'kg_amt']}.get(a.items) or a.items.split(',')
     trust = a.items != 'comparison' and not a.no_trust
-    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust, a.by_group_move)
+    totals_weight = None
+    if a.totals_from:
+        tf = pd.read_parquet(a.totals_from, columns=['record_id', 'weight'])
+        assert np.array_equal(tf['record_id'].to_numpy(), df['record_id'].to_numpy())
+        totals_weight = tf['weight'].to_numpy(float)
+    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust, a.by_group_move, totals_weight)
     w0 = np.asarray(inp['w0'], float)
     fixed = np.asarray(inp['fixed'], bool)
     cfg = inp['reweighting']
