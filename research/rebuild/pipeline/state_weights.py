@@ -36,6 +36,12 @@ def say(*a):
     print(*a, flush=True)
 
 
+def common_settings():
+    """settings state_weights, from REBUILD_SETTINGS or the pipeline's settings.json."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    return json.load(open(os.path.join(here, 'settings.json')))['state_weights']
+
+
 # ---- the file ---------------------------------------------------------------------------------------------------------
 def load_year(run, year):
     """The year's records (state_targets.read_file), filers and non-filers, Historic Table 2, the areas and the list records."""
@@ -101,19 +107,31 @@ def cps_start(pi, group, ht2, areas):
 
 
 # ---- the tilt ---------------------------------------------------------------------------------------------------------
-def tolerances(tg, tolerance, ht2_ratio=None):
-    """A target's standard error: the relative tolerance x |target|, with the rounding of Historic Table 2's counts added in
-    quadrature for a count item (10 / sqrt(12) returns, on the file's scale). Historic Table 2 has no sampling error."""
-    se = tolerance * tg['target'].abs().to_numpy()
+# A cell smaller than this share of the item's national total in the AGI group is held to the tolerance on this share of the total,
+# not on its own size. Without it a tiny cell costs as much as California: Puerto Rico's property tax deducted in the group $10-25k
+# was a target of $89,000 (65 returns) with a standard error of $1,800, and the file has no records that can land on it.
+CELL_FLOOR = 0.001
+
+
+def tolerances(tg, tolerance):
+    """A target's standard error: the relative tolerance x the larger of |target| and CELL_FLOOR x |the item's national total in the
+    group|, with the rounding of Historic Table 2's counts added in quadrature for a count item (10 / sqrt(12) returns, on the file's
+    scale). Historic Table 2 has no sampling error, so the tolerance is a choice, reported with its results. Worked example, tolerance
+    2%: wages in a group with a national total of $1,000 billion. Connecticut's target of $12 billion has a standard error of 2% x $12
+    billion = $240 million; a territory's target of $0.3 billion has 2% x $1 billion = $20 million."""
+    t = tg['target'].abs().to_numpy()
+    total = (tg['target'] / tg['share']).abs().to_numpy()
+    se = tolerance * np.maximum(t, CELL_FLOOR * total)
     cnt = (tg['kind'] == 'count').to_numpy()
     scale = np.abs(tg['target'].to_numpy() / tg['published'].to_numpy())
     return np.where(cnt, np.sqrt(se ** 2 + (ROUNDING_SE * scale) ** 2), se)
 
 
-def tilt_filers(f, p0, group, ht2, areas, items, tolerance, tau, pin, budget=150, year=None, log=say, no_tilt=False):
+def tilt_filers(f, p0, group, ht2, areas, items, tolerance, tau, pin, budget=150, year=None, log=say, no_tilt=False, trust=False):
     """Every AGI group's tilt. f: the filers; p0 [n, A] the start; pin: the filers' area index or -1. Returns the shares [n, A]
     (pinned records 1 in their area) and the fit table, one row per target: start, final, miss in standard errors."""
-    tg, notes = ST.filer_targets(f, group, ht2, items, year)
+    tg, notes = ST.filer_targets(f, group, ht2, items, year, trust=trust)
+    items = [v for v in items if v in set(tg['item'])]
     tg['se'] = tolerances(tg, tolerance)
     x = ST.item_vectors(f, items)
     w = f['weight'].to_numpy(float)
@@ -269,6 +287,62 @@ def check_written(path, df, items_x):
     return out
 
 
+def carry(a):
+    """A projection year: every record keeps its shares of the base year (2023). The projection years start from the 2023 file
+    (2025 on from the 2024 file, which starts from 2023), and the record ids of the 2023 file carry through. The list records are
+    the exception: a list record's id is its rank on the year's list, so its id does not follow a person, and the list has new
+    people to 2026. Every list record is pinned by its forbes_uri (forbes_states); one with no state on any list takes the state
+    distribution of the year's pinned list records. A record that is not on the list and not in the 2023 file stops the run."""
+    year = a.year
+    z = np.load(f'{a.out}/shares/shares_{a.base_year}.npz')
+    ids0, areas, P0 = z['record_id'], [str(x) for x in z['areas']], z['P']
+    df = ST.read_file(f'{a.run}/{year}/tilt/y{year}/file_{year}.parquet')
+    assert df['record_id'].is_unique and (df['weight'] >= 0).all()
+    idx = pd.Index(ids0).get_indexer(df['record_id'].to_numpy())
+    lst = df['billionaire'].to_numpy() == 1
+    n_new = int(((idx < 0) & ~lst).sum())
+    assert n_new == 0, f'{year}: {n_new} records neither on the list nor in the {a.base_year} file'
+    P = np.zeros((len(df), len(areas)))
+    P[~lst] = P0[idx[~lst]]
+    pin = pins_of(df, year, areas)
+    pinned = lst & (pin >= 0)
+    P[np.flatnonzero(pinned), pin[pinned]] = 1.0
+    unpinned = lst & (pin < 0)
+    if unpinned.any():
+        d = np.bincount(pin[pinned], minlength=len(areas)) / pinned.sum()
+        P[unpinned] = d
+    os.makedirs(f'{a.out}/files', exist_ok=True)
+    path = f'{a.out}/files/state_weights_{year}.parquet'
+    assert not os.path.exists(path), f'{path} is already there'
+    ids, wt = df['record_id'].to_numpy(), df['weight'].to_numpy(float)
+    write_long(path, ids, wt, P, areas)
+    items_x = ST.item_vectors(df, [v for v in ST.ITEMS])
+    chk = check_written(path, df, items_x) | {'year': year, 'list_records': int(lst.sum()), 'list_pinned': int(pinned.sum()),
+                                              'list_not_in_base': int((lst & (idx < 0)).sum()), 'newton_largest_group': 0,
+                                              'newton_all_groups': 0, 'all_converged': True, 'carried_from': a.base_year}
+    say(json.dumps(chk))
+    os.makedirs(f'{a.out}/checks', exist_ok=True)
+    json.dump(chk, open(f'{a.out}/checks/check_{year}.json', 'w'), indent=1)
+
+
+def check_all(a):
+    """Check 1 and 2: every year 2015-2075 has a file; shares sum to 1 and national totals are unchanged, to rounding; each past
+    year's tilt converged within the budget. Writes checks/by_year.csv, stops if one fails."""
+    rows = []
+    for y in range(2015, 2076):
+        f, c = f'{a.out}/files/state_weights_{y}.parquet', f'{a.out}/checks/check_{y}.json'
+        rows.append(dict(json.load(open(c)), file=os.path.exists(f)) if os.path.exists(c) else dict(year=y, file=os.path.exists(f)))
+    d = pd.DataFrame(rows)
+    d.to_csv(f'{a.out}/checks/by_year.csv', index=False)
+    ok = {'every file there': bool(d['file'].all()), 'shares sum to 1 (largest error under 1e-9)': bool((d['largest_share_sum_error'] < 1e-9).all()),
+          'national totals unchanged (largest error under 1e-9)': bool((d['largest_item_total_error'] < 1e-9).all()),
+          'every past year converged within 150 Newton steps a group': bool(d['all_converged'].all() and (d['newton_largest_group'] <= 150).all())}
+    say(json.dumps(ok, indent=1))
+    say(f"largest share sum error {d['largest_share_sum_error'].max():.2e}; largest item total error {d['largest_item_total_error'].max():.2e}; "
+        f"largest group's Newton steps {d['newton_largest_group'].max()}; largest year's, all groups {d['newton_all_groups'].max()}; bytes {d['bytes'].sum() / 1e9:.1f} GB in all")
+    assert all(ok.values()), ok
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--run', required=True, help='a finished run: <run>/<year>/tilt/y<year>/file_<year>.parquet')
@@ -283,17 +357,31 @@ def main():
     ap.add_argument('--budget', type=int, default=150)
     ap.add_argument('--tag', default=None)
     ap.add_argument('--no-tilt', action='store_true')
+    ap.add_argument('--no-trust', action='store_true', help='no filter on the file-to-IRS ratio')
     ap.add_argument('--write', action='store_true', help='the year\'s final file, with the non-filers')
     ap.add_argument('--save-shares', action='store_true')
+    ap.add_argument('--carry', action='store_true', help='a projection year: the base year\'s shares')
+    ap.add_argument('--base-year', type=int, default=2023)
+    ap.add_argument('--check', action='store_true', help='every year\'s file and check')
+    ap.add_argument('--final', action='store_true', help='the settings\' items, tolerance and tau, and --write')
     a = ap.parse_args()
     year = a.year
+    if a.check:
+        return check_all(a)
+    if a.carry:
+        return carry(a)
+    if a.final:
+        c = common_settings()
+        a.items, a.tolerance, a.tau, a.nonfiler_tolerance, a.budget = c['items'], c['tolerance'], c['tau'], c['nonfiler_tolerance'], c['newton_budget']
+        a.write, a.tag = True, 'final'
     df, ht2 = load_year(a.run, year)
     areas = ST.areas(year)
     filer = df['filer'].to_numpy() == 1
     f = df[filer].reset_index(drop=True)
     group = ST.agi_group(f['calc_agi'])
     pin = pins_of(f, year, areas)
-    items = ST.ISELIN_21 if a.items == 'comparison' else (ST.FINAL_ITEMS if a.items == 'final' else a.items.split(','))
+    items = {'comparison': ST.ISELIN_21, 'final': ST.FINAL_ITEMS,
+             'wider': ST.ISELIN_21 + [v for v in ST.EXTRA_ITEMS if v != 'kg_amt']}.get(a.items) or a.items.split(',')
     start_dir = a.start_dir or f'{a.out}/starts'
     tag = a.tag or f'{a.start}_{a.items}_t{a.tolerance:g}_tau{a.tau:g}' + ('_notilt' if a.no_tilt else '')
     od = f'{a.out}/fits/y{year}/{tag}'
@@ -303,7 +391,8 @@ def main():
     else:
         pi_all = read_start(f'{start_dir}/start_{year}.npz', df)
         p0 = cps_start(pi_all[filer], group, ht2, areas)
-    P, fit, info, notes = tilt_filers(f, p0, group, ht2, areas, items, a.tolerance, a.tau, pin, a.budget, year, no_tilt=a.no_tilt)
+    P, fit, info, notes = tilt_filers(f, p0, group, ht2, areas, items, a.tolerance, a.tau, pin, a.budget, year, no_tilt=a.no_tilt,
+                                      trust=a.items != 'comparison' and not a.no_trust)
     fit.to_csv(f'{od}/fit.csv.gz', index=False)
     info.to_csv(f'{od}/newton.csv', index=False)
     notes.to_csv(f'{od}/no_target.csv', index=False)

@@ -210,7 +210,17 @@ ITEMS = _item_table()
 ISELIN_21 = ['n_returns', 'n_single', 'n_joint', 'n_hoh', 'n_indiv', 'agi_amt', 'n_wages', 'wages_amt', 'n_int', 'int_amt', 'n_div',
              'div_amt', 'n_kg', 'n_salt', 'salt_amt', 'n_re_tax', 're_tax_amt', 'n_mort_int', 'mort_int_amt', 'n_eitc', 'eitc_amt']
 HELD_OUT = ['n_bus', 'bus_amt', 'n_pens', 'pens_amt', 'n_ss', 'ss_amt', 'n_fedtax', 'fedtax_amt', 'kg_amt_pos']
-assert len(ISELIN_21) == 21 and set(ISELIN_21 + HELD_OUT) <= set(ITEMS)
+# The items the final files use: Iselin's 21, capital gains dollars, his nine held-out items' own lines (with the capital gains
+# line in place of its positive part), and the other lines of the return the file holds on the IRS's definition. A line the year's
+# table does not have is left out that year (pensions and IRA distributions are one line in 2018; the QBI deduction starts in
+# 2018; tax-exempt interest in 2022). In the final files an item has no targets in an AGI group where its national total
+# in the file is outside TRUST times the IRS's (filer_targets, trust=True): the file's item then is not the IRS's item in that group.
+EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', 'ui_amt', 'n_qdiv', 'qdiv_amt', 'n_pship', 'pship_amt',
+               'n_txinc', 'txinc_amt', 'n_itemize', 'itemize_amt', 'n_char', 'char_amt', 'n_setax', 'setax_amt', 'n_refund_state',
+               'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt']
+FINAL_ITEMS = ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS
+TRUST = (0.67, 1.5)
+assert len(ISELIN_21) == 21 and set(ISELIN_21 + HELD_OUT + FINAL_ITEMS) <= set(ITEMS)
 
 
 def ht2_values(ht2, item):
@@ -268,7 +278,7 @@ def cell_rule(values, file_total):
     return s, ''
 
 
-def filer_targets(df, group, ht2, items, year, weight=None):
+def filer_targets(df, group, ht2, items, year, weight=None, trust=False):
     """The filer targets of one year: one row per area, AGI group and item with a target, columns area, group, item, kind,
     share (the IRS's signed share), target (dollars or returns), published (the IRS's value); and the notes on what has no
     target. df, group: the file's filers and their AGI group."""
@@ -283,6 +293,10 @@ def filer_targets(df, group, ht2, items, year, weight=None):
         for g in range(1, 11):
             total = float((w[group == g] * x[v][group == g]).sum())
             s, note = cell_rule(vals.loc[g], total)
+            if trust and not note:
+                ratio = total / float(vals.loc[g].sum())
+                if not TRUST[0] <= ratio <= TRUST[1]:
+                    s, note = None, f'the file is {ratio:.2f} times the IRS in the group'
             if note:
                 notes.append(dict(year=year, item=v, group=g, note=note))
                 continue

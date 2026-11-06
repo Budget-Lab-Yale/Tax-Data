@@ -10,8 +10,10 @@ year's CPS years (survey_mix.py), and each slot the CPS has is either shown or h
   - shown: every item the record has that the CPS has (married, dependents, age range, filing flag and status, wages, dividends,
     pensions, Social Security, the person items ...). Bands and categories are the file's own, except the five ages, which the file
     holds in years and the network as categories (0 none, else the age plus 1; the primary filer's and spouse's held at 80).
-  - hidden: state, the one slot read; and the CPS's reported slots (what a survey unit reported before the fill-in), as at generation:
-    a file record is on the PUF's concepts and has no report.
+  - hidden: state, the one slot read; the CPS's reported slots (what a survey unit reported before the fill-in), as at generation:
+    a file record is on the PUF's concepts and has no report; and a slot that is zero on every CPS row (the CPS does not ask it:
+    mortgage interest, property tax, partnership income and others; translation table): the network has only ever seen zero there,
+    so a record's real amount is not shown to it, and neither is a false zero.
   - absent: PUF-only items; a slot the CPS year never holds (capital gains before tax year 2018: a slot absent on every CPS row of
     the year is never shown there); the spouse's shares where training would leave them out (not married, or none of the base).
 A dependent filer has no person items on its return (the surveys count it in the household that claims it), and the CPS has no
@@ -56,11 +58,13 @@ def load_models(device):
 
 
 def present_by_year():
-    """Per CPS year the slots some row of that year holds (present in training), from the training table."""
-    cols = ['source', 'year'] + [M.column(v) for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED]
-    t = pq.read_table(common.TABLE, columns=cols, filters=[('source', '=', 'cps')]).to_pandas()
-    return {int(y): {v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED and (g[M.column(v)] >= 0).any()}
-            for y, g in t.groupby('year')}
+    """Per CPS year the slots some row of that year holds (present in training), and the slots zero on every CPS row, from the
+    training table."""
+    slots = [v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED]
+    t = pq.read_table(common.TABLE, columns=['source', 'year'] + [M.column(v) for v in slots], filters=[('source', '=', 'cps')]).to_pandas()
+    have = {int(y): {v for v in slots if (g[M.column(v)] >= 0).any()} for y, g in t.groupby('year')}
+    zero = [v for v in slots if (t[M.column(v)] <= 0).all() and v != 'state']
+    return have, zero
 
 
 def file_values(path):
@@ -124,7 +128,8 @@ def cmd_start(a):
     t0 = time.time()
     models, runs = load_models(device)
     mix = survey_mix.mix('cps', a.year)
-    have = present_by_year()
+    have, zero = present_by_year()
+    print(f'zero on every CPS row, hidden: {zero}', flush=True)
     assert all(y in have for y, _ in mix), f'CPS years {mix} against the table\'s {sorted(have)}'
     values0, ids, dep = file_values(a.file)
     values0[:, C + J_STATE] = 0                             # present and hidden
@@ -136,6 +141,9 @@ def cmd_start(a):
     for r in M.REPORTED:
         if 'cps' in M.PRESENT_ON[r]:
             hidden0[:, P.index(r)] = True
+    for v in zero:
+        hidden0[:, P.index(v)] = True
+        values0[:, C + P.index(v)] = 0
     d = torch.as_tensor(dep)
     for v in PERSON + ['age_range']:
         j = P.index(v)
