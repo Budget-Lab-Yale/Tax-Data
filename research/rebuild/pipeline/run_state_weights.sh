@@ -4,7 +4,8 @@
 # <run folder>/<year>/tilt/y<year>/file_<year>.parquet are the run's files, read only. The output folder is created and must not hold
 # a file already. The networks: the third argument, else settings state_weights.networks. Four sets of jobs, each after the last:
 # 2015-2023 the networks' chances (a GPU), 2015-2023 the tilt and the file (CPU, an array), 2024-2075 carried from 2023 (CPU, an array),
-# and the check of every year. On a run with the same record ids only the last three need to run again if the items change.
+# and the check of every year. If <output folder>/starts already holds every year's chances (the same run, the items or settings changed),
+# the GPU job is skipped.
 set -euo pipefail
 RUN=${1:?the run folder}; OUT=${2:?the output folder}
 P=research/rebuild/pipeline
@@ -15,8 +16,14 @@ if [ -e $OUT/files ]; then echo "$OUT already holds files"; exit 1; fi
 mkdir -p $OUT/logs
 E="ALL,STATE_RUN=$RUN,STATE_OUT=$OUT,REBUILD_OUT=$TRAIN,REBUILD_SETTINGS=$TRAIN/settings.json"
 LOG="--output=$OUT/logs/%x_%A_%a.log"
-a=$(sbatch --parsable --job-name=sw_start --export=$E $LOG --cpus-per-task=4 --mem=48G --time=02:00:00 $P/run.sbatch state_start)
-b=$(sbatch --parsable --job-name=sw_tilt --export=$E $LOG --dependency=afterok:$a --partition=day --gres=gpu:0 --cpus-per-task=16 --mem=96G --time=03:00:00 --array=2015-2023 $P/run.sbatch state_tilt)
+have=$(ls $OUT/starts/start_20*.npz 2>/dev/null | wc -l)
+if [ "$have" -eq 9 ]; then
+  a=none; DEP=""
+else
+  a=$(sbatch --parsable --job-name=sw_start --export=$E $LOG --cpus-per-task=4 --mem=48G --time=02:00:00 $P/run.sbatch state_start)
+  DEP="--dependency=afterok:$a"
+fi
+b=$(sbatch --parsable --job-name=sw_tilt --export=$E $LOG $DEP --partition=day --gres=gpu:0 --cpus-per-task=16 --mem=96G --time=03:00:00 --array=2015-2023 $P/run.sbatch state_tilt)
 c=$(sbatch --parsable --job-name=sw_carry --export=$E $LOG --dependency=afterok:$b --partition=day --gres=gpu:0 --cpus-per-task=2 --mem=48G --time=01:00:00 --array=2024-2075 $P/run.sbatch state_carry)
 d=$(sbatch --parsable --job-name=sw_check --export=$E $LOG --dependency=afterok:$c --partition=day --gres=gpu:0 --cpus-per-task=1 --mem=8G --time=00:20:00 $P/run.sbatch state_check)
 echo "chances $a, tilts $b, carried years $c, check $d; logs in $OUT/logs"

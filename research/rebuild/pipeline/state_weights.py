@@ -111,6 +111,7 @@ def cps_start(pi, group, ht2, areas):
 # not on its own size. Without it a tiny cell costs as much as California: Puerto Rico's property tax deducted in the group $10-25k
 # was a target of $89,000 (65 returns) with a standard error of $1,800, and the file has no records that can land on it.
 CELL_FLOOR = 0.001
+LIST_FULL = 0.9     # a cell where the list records hold this share of the target or more has no target (tilt_filers)
 
 
 def tolerances(tg, tolerance):
@@ -155,6 +156,17 @@ def tilt_filers(f, p0, group, ht2, areas, items, tolerance, tau, pin, budget=150
         fixed = np.zeros_like(T)
         if len(pn):
             np.add.at(fixed, pin[pn], w[pn, None] * X[pn])
+        # A cell the list records already fill has no target: the free records' shares cannot be negative, so the cell cannot be met, and
+        # chasing it stalls Newton's method. 2023, the group $1 million and over: the list's Hawaii residents hold 6 times the IRS's charity in Hawaii.
+        full = np.isfinite(T) & (np.abs(fixed) >= LIST_FULL * np.abs(np.nan_to_num(T))) & (fixed != 0)
+        if full.any():
+            T[full] = np.nan
+            filled = pd.DataFrame({'year': year, 'item': [items[k] for k in np.nonzero(full)[1]], 'group': g,
+                                   'note': [f'{areas[r]}: the list records hold {fixed[r, k] / c.loc[(c["a"] == r) & (c["k"] == k), "target"].iloc[0]:.2f} times the target, no target'
+                                            for r, k in zip(*np.nonzero(full))]})
+            notes = pd.concat([notes, filled], ignore_index=True)
+            drop = pd.Series(list(zip(c['a'], c['k'])), index=c.index).isin(list(zip(*np.nonzero(full))))
+            c = c[~drop.to_numpy()]
         start_reached = ((w[fr, None] * X[fr]).T @ p0[fr]).T + fixed
         t0 = time.time()
         if no_tilt:
