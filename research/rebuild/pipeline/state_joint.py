@@ -605,6 +605,22 @@ def prior_shares(df, prior_long, areas, year):
     return P
 
 
+def share_floor(P, df, filer, ht2, areas, share_year, eps):
+    """A future year's starting shares with a floor. Carried shares can be extremely small: a record with a large item in a year's tilt ends with shares such as 1e-238 in some areas, and a cell whose holders all
+    have such shares has almost no curvature, so Newton's step on it is enormous and the solve stalls. Each record's shares become (1 - eps) x carried + eps x the IRS's shares: for a filer the IRS's share of returns in
+    the record's AGI group, for a non-filer the state's share of the residual of Census adults less adults on returns. Worked example, eps = 0.001: a record with a share of 1e-238 in Wyoming, where the IRS has 0.18% of
+    the group's returns, starts at 0.001 x 0.0018 = 1.8e-6; a share of 20% in California with the IRS at 11% starts at 0.999 x 0.20 + 0.001 x 0.11 = 19.99%. Pinned list records are set after this, by state_problem."""
+    out = P.copy()
+    group = ST.agi_group(df.loc[filer, 'calc_agi'])
+    out[filer] = (1 - eps) * P[filer] + eps * SW.irs_return_shares(ht2, areas)[group - 1]
+    t, _ = ST.nonfiler_state_table(share_year, ht2)
+    r = t['residual'].clip(lower=0).to_numpy(float)
+    b = np.zeros(len(areas))
+    b[:51] = r / r.sum()
+    out[~filer] = (1 - eps) * P[~filer] + eps * b
+    return out
+
+
 def read_back(specs, wis_all, areas):
     """Where each target lands: [(spec, reached [A, K])]."""
     out = []
@@ -632,12 +648,15 @@ def main():
     ap.add_argument('--totals-from', default=None, help='the file of an earlier solve whose national weights set the state targets\' national totals')
     ap.add_argument('--prior-long', default=None, help='a future year: the prior file of id, state, weight whose shares start this solve')
     ap.add_argument('--share-year', type=int, default=None, help='a future year: the year of the IRS\'s shares, and of the non-filers\' state and age shares')
+    ap.add_argument('--share-floor', type=float, default=0.0, help='a future year: each record\'s carried shares mixed with this much of the IRS\'s shares (share_floor)')
     ap.add_argument('--no-state', action='store_true', help='no state targets: the national solve\'s weights x the prior shares; every state number is only measured')
     a = ap.parse_args()
     year = a.year
     t_all = time.time()
     df, inp, ht2, areas, filer, pi = load_year(a.run, year, a.start_dir, a.share_year)
     P_given = prior_shares(df, a.prior_long, areas, year) if a.prior_long else None
+    if a.share_floor > 0:
+        P_given = share_floor(P_given, df, filer, ht2, areas, a.share_year, a.share_floor)
     items = {'comparison': ST.ISELIN_21, 'final': ST.FINAL_ITEMS,
              'wider': ST.ISELIN_21 + [v for v in ST.EXTRA_ITEMS if v != 'kg_amt']}.get(a.items) or a.items.split(',')
     trust = a.items != 'comparison' and not a.no_trust
