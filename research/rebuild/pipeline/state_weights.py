@@ -274,7 +274,8 @@ def check_written(path, df, items_x):
     w = pd.Series(df['weight'].to_numpy(float), index=df['record_id'].to_numpy())
     assert set(tot.index) == set(w.index), f'{path}: the ids differ from the file'
     tot = tot.reindex(w.index)
-    rel = (tot - w).abs() / w.where(w > 0, 1.0)
+    # (the reweighting takes some records to a weight of the order of 1e-316; the rounding of so small a number is no error of the split)
+    rel = (tot - w).abs() / w.where(w > 1e-300, np.inf)
     out = {'records': len(w), 'rows': len(d), 'largest_share_sum_error': float(rel.max()),
            'bytes': os.path.getsize(path), 'national_weight': float(w.sum()), 'file_weight': float(d['weight'].sum())}
     worst = 0.0
@@ -331,7 +332,16 @@ def check_all(a):
     rows = []
     for y in range(2015, 2076):
         f, c = f'{a.out}/files/state_weights_{y}.parquet', f'{a.out}/checks/check_{y}.json'
-        rows.append(dict(json.load(open(c)), file=os.path.exists(f)) if os.path.exists(c) else dict(year=y, file=os.path.exists(f)))
+        r = dict(json.load(open(c)), file=os.path.exists(f)) if os.path.exists(c) else dict(year=y, file=os.path.exists(f))
+        if r['file']:   # read every file back here, against the run's own weights
+            d = pd.read_parquet(f, columns=['id', 'weight']).groupby('id', sort=False)['weight'].sum()
+            w = pd.read_parquet(f'{a.run}/{y}/tilt/y{y}/file_{y}.parquet', columns=['record_id', 'weight']).set_index('record_id')['weight']
+            assert d.index.nunique() == len(w) and set(d.index) == set(w.index), f'{y}: the ids differ'
+            d = d.reindex(w.index)
+            r['largest_share_sum_error'] = float(((d - w).abs() / w.where(w > 1e-300, np.inf)).max())
+            r['weight_difference'] = float(d.sum() - w.sum())
+            r['records_under_1e-6'] = int((w < 1e-6).sum())
+        rows.append(r)
     d = pd.DataFrame(rows)
     d.to_csv(f'{a.out}/checks/by_year.csv', index=False)
     ok = {'every file there': bool(d['file'].all()), 'shares sum to 1 (largest error under 1e-9)': bool((d['largest_share_sum_error'] < 1e-9).all()),
