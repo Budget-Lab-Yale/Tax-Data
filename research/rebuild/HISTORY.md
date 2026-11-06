@@ -1256,3 +1256,5 @@ dividends, and itemizers' cash and other gifts from Table 2.1, and kept some ref
 64.7%, and in 2023 from 54.2% to 52.9%; Newton steps rose to 84 and 119. Stating the SCF holder counts as shares was
 dropped, and the pass-through entity tax switch was dropped on John's instruction (the loop changes data, not tax
 law). Details are in `FEATURES.md` and in the scratch `LOG.md`.
+
+**5-6 November: state weights (branch `rebuild-state-weights`).** A supplement on run7: the CPS's state as a training slot, the networks' chances of state as the start, a tilt of each record's split to Historic Table 2. On held-out items it beats Iselin's AGI-group start under the same tilt by about half a point of average miss in 2019 and a third of a point in 2022. Results and what was tried: `explore/2026-11-05/state_weights/RESULTS.md`.

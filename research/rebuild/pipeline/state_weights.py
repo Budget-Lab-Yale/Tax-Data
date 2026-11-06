@@ -7,9 +7,9 @@ Run through run_state_weights.sh (one command for a whole run), or for one setti
 The starts.
   iselin  every record in an AGI group has the IRS's share of the group's returns in each area (Iselin's prior).
   cps     the network's probabilities (state_start.py) scaled to 1 - the IRS's share of Other Areas and Puerto Rico in the
-          record's AGI group, those two areas at the IRS's share. Worked example: in 2019 in the group $25-50k, if Other Areas
-          and Puerto Rico hold 0.8% of returns, a record with a 12% chance of California under the network starts at
-          0.12 x 0.992 = 11.9% in California. Non-filers have only the 51: the CPS and Census have no other area.
+          record's AGI group, those two areas at the IRS's share. Worked example: in 2019 in the group $25-50k Other Areas
+          and Puerto Rico hold 0.395% of returns, so a record with a 20.7% chance of California under the network starts at
+          0.207 x 0.99605 = 20.6% in California. Non-filers have only the 51: the CPS and Census have no other area.
 Records on the Forbes list are pinned to their state in every start and held out of the shares (forbes_states).
 
 The scores of the held-out items (validate_state_weights.R's rule, for any set of shares). For item v, AGI group g, areas with a
@@ -118,8 +118,8 @@ def tolerances(tg, tolerance):
     """A target's standard error: the relative tolerance x the larger of |target| and CELL_FLOOR x |the item's national total in the
     group|, with the rounding of Historic Table 2's counts added in quadrature for a count item (10 / sqrt(12) returns, on the file's
     scale). Historic Table 2 has no sampling error, so the tolerance is a choice, reported with its results. Worked example, tolerance
-    2%: wages in a group with a national total of $1,000 billion. Connecticut's target of $12 billion has a standard error of 2% x $12
-    billion = $240 million; a territory's target of $0.3 billion has 2% x $1 billion = $20 million."""
+    2%, 2019, wages in the group $50-75k, a national total of $1,070 billion: Connecticut's target of $12.21 billion has a standard error
+    of 2% x $12.21 billion = $244 million; a target under $1.07 billion has 2% x $1.07 billion = $21 million."""
     t = tg['target'].abs().to_numpy()
     total = (tg['target'] / tg['share']).abs().to_numpy()
     se = tolerance * np.maximum(t, CELL_FLOOR * total)

@@ -13,10 +13,9 @@ What this module gives the next stage (state_weights.py), and a later joint solv
 
 The rule for a filer target. For area s, AGI group g, item v:
     target = (the file's total of v in g, every record, the list included) x (s's value of v in g) / (the sum over areas)
-Worked example, 2019, wages in the group $50,000-75,000 in Connecticut: if the file has $1,200 billion of wages in the
-group and the IRS has Connecticut at $12 billion of a national $1,180 billion, the target is $1,200 billion x 12 / 1,180
-= $12.2 billion. Only the IRS's geography is used, not its level, so a gap between the file and the IRS nationally
-cannot make the targets impossible to meet.
+Worked example, 2019, wages in the group $50,000-75,000 in Connecticut: the IRS has Connecticut at $12.170 billion of $1,066.6 billion,
+a share of 1.141%; the file has $1,070.2 billion of wages in the group; the target is $12.21 billion. Only the IRS's geography is used,
+not its level, so a gap between the file and the IRS nationally cannot make the targets impossible to meet.
 
 Cells that are merged, not positive or signed. The rule for each area, group and item (cell_rule below):
   - Historic Table 2 merges a cell with fewer than 10 returns into a neighbouring AGI group of the same state without a
@@ -424,9 +423,9 @@ def nonfiler_targets(df_nf, ht2, year, floor=0.02):
       3. The state x band table starts at Census adults(s, b) x residual(b) / Census adults(b), the band's national
          non-filing rate, and is raked to the shares of 1 and 2.
       4. target(s, b) = the file's non-filer adults in band b (each adult at own age) x the table's share of s within b.
-    Worked example, 2019, band 18-25: the national residual is 11.06 million of 35.75 million Census adults, a rate of 0.309;
-    a state with 1 million Census adults aged 18-25 starts at 309,000 before raking; if the file has 8 million non-filer
-    adults in the band and the raked table gives the state 2.8% of the band, its target is 224,000.
+    Worked example, 2019, band 18-25: the national residual is 11.06 million of 35.75 million Census adults, a rate of 0.309. After raking
+    Colorado holds 1.232% of the band; the file has 980,000 non-filer adults in the band; Colorado's target is 12,079 adults (the start has
+    19,161, the final shares 12,080).
     The file has no group quarters population and Census does (state_weights.py reports the size of that difference).
     Returns target frame (state, band, target, share), the state table, and each record's adults by band (X)."""
     table, pep = nonfiler_state_table(year, ht2)

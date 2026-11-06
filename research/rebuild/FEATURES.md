@@ -1767,6 +1767,53 @@ Settings `tilt.projection.filing_season`; `projection_steps.py`, its last sectio
 - **When SOI publishes.** Final tables for 2024 make 2024 a past year: base_year and year move to 2024 and 2025, and
   the tax-year-2025 November table (`26inweek47.xlsx`, expected January 2027) supplies the next blend (NEXT_STEPS.md).
 
+## State weights (branch `rebuild-state-weights`, 5 November; a supplement, nothing in the run changes)
+
+A file for each year 2015-2075 that splits every record's national weight across areas: the 50 states and DC, the IRS's Other Areas,
+and Puerto Rico from 2018. Each record's national weight stays fixed, so a national total is the same with or without the split.
+The content is id, state, weight (`files/state_weights_<year>.parquet`, Zstandard compression, the form of Iselin's interface; about
+190 MB a year, 24 million rows, 12 GB for all 61 years). John's decisions of 5 November; plan `~/.claude/plans/floating-mixing-bubble.md`.
+
+Rerun on a later installed run, from the repository root (`pipeline/run_state_weights.sh`):
+
+    research/rebuild/pipeline/run_state_weights.sh <run folder> <output folder> <folder of the networks with the state slot>
+
+It submits the networks' reading on a GPU, the tilts on CPU as an array, the projection years on CPU as an array and a check. Settings
+`state_weights` hold the items, tolerance, tau and the networks' folder. The stages are in `run.sbatch` (`state_start`, `state_tilt`,
+`state_carry`, `state_check`); `report_state.py` writes the tables.
+
+- **State in pretraining.** ASEC's STATEFIP goes through `build_cps.R` (a unit's state is its household's; the filing stage does not need
+  it, since `build_cps.R` already holds the household id) and `build_table.py`, as the CPS-only category `state`: 0 none, else 1 + the
+  position among the 51 by FIPS code. A dependent filer draws none at generation, as for every CPS person item. The networks with the slot
+  are trained on a table otherwise identical to the installed networks' table, row by row, and are used only to read state. Run7's items
+  stay as they are.
+- **The start** (`state_start.py`, GPU). Each record of the year's file is read under the CPS label, with the CPS year mix of the target year
+  (`survey_mix.py`), averaged over the three networks. Shown: what the record has that the CPS asks, and its PUF-only items and AGI group
+  label (the plan had these as a test; they became the default on 6 November on the held-out scores below; `--cps-items-only` is the plan's
+  first reading). Hidden: state; the reported slots, as at generation; every slot that is zero on all CPS rows (mortgage interest, property tax
+  and others: the CPS does not ask them, so the network has seen only zero); on filers, other income and rental loss, which have no fill-in and
+  whose holders are far more common on the file's filers than on CPS rows. Other income is the case that matters: 2.7% of CPS units hold it in
+  2019, 44% in Alaska (the Permanent Fund dividend), 58.7% of the file's filers; shown, it put 1.46 million returns in Alaska in the 2019
+  start against the IRS's 0.36 million. A dependent filer's age range and person items are hidden, since the CPS has no dependent filers. The file
+  holds ages in years and the network as categories, so the five ages are converted. Other Areas and Puerto Rico start at the IRS's share of returns
+  in the record's AGI group, with the 51 scaled to the rest. Example: in 2019 in the group $25-50k the two hold 0.395%, so a 20.7% chance of California
+  starts at 0.207 x 0.99605 = 20.6%. Non-filers have only the 51. Reading a year on an H100 takes about a minute.
+- **The list records** are pinned to `residence_state` by `forbes_uri` (not by id: a list record's id is its rank on the year's list). No state on the year's list: the nearest list that gives one. No state on any list: a residence abroad goes to Other Areas, otherwise the record is treated as any other in a past year, and in a projection year takes the state distribution of the year's pinned list records. Pinned records are held out of the shares and enter the tilt as fixed amounts on the left side.
+- **Filer targets** (`state_targets.py`). For area s, AGI group g (Historic Table 2's ten, on the file's `calc_agi`), item v: the file's national total
+  of v in g times the IRS's share of s in g and v. Only the IRS's geography is used. Example: 2019, wages, the group $50-75k, Connecticut: $12.170 billion
+  of the IRS's $1,066.6 billion is 1.141%; the file has $1,070.2 billion; the target is $12.21 billion. Schedule A items are counted on records the
+  calculator itemizes, since the IRS's are among itemizers and the file draws them on others too. A cell has no target in these cases:
+  - *merged*: reads zero in a group whose national total is not zero (fewer than 10 returns, moved into a neighbouring group without a flag);
+  - *cancelling or opposite signs*: a signed item keeps its sign, but where the areas' values cancel (|sum| under half the sum of |values|) or the file and the IRS have opposite signs the item has no targets in that group;
+  - *filled by the list*: the list records hold 90% or more of the target (the free records' shares cannot be negative; in 2023 the list's Hawaii residents hold 6 times the IRS's charity in Hawaii at $1 million and over).
+  The final files use `FINAL_ITEMS` (52-55 items a year): Iselin's 21, capital gains dollars, the eight held-out lines other than capital gains' positive part, and IRA distributions, unemployment, qualified dividends, partnership and S corporation income, taxable income, itemizers and itemized deductions, charity, self-employment tax, state refunds, the QBI deduction, net investment income tax, the refundable child credit and tax-exempt interest, where the year's table has the line. An item on this list has no targets in an AGI group where the file's national total is outside 0.67-1.5 times the IRS's (the item is then not the IRS's item) or where fewer than 250 effective records stand behind it, about 5 for each of the 53 areas (state income tax deducted at AGI under $1 rests on 4 in 2019).
+- **Non-filer targets.** The IRS has filing adults by state, and by age band only nationally (Table 1.6). The state by band table starts at Census adults (Census-PEP, July 1) times the band's national non-filing rate and is raked to each state's Census adults less adults on its returns (`ht2_filing_persons`'s identity) and to the national residual by band. Target: the file's non-filer adults in the band (each adult at own age) times the table's share of the state within the band. Example: 2019, band 18-25, Colorado 1.232% of 980,000 is 12,079 adults. The tilt is the same, over the 51 states, tolerance 2%.
+- **The tilt** (`state_tilt.py`, CPU). Each AGI group is its own problem, since each record is in one group and each target in one group; the non-filers are another. Cost: 0.5 x (miss / standard error)^2 summed over targets, plus tau x the weighted Kullback-Leibler move of the shares from the start, in nats, on weights divided by the group's total. A record's shares are the start times exp(x' lambda_area), normalized over areas, so they sum to 1 by construction. Newton's method on the multipliers, about 1,000-2,700 of them a group, with a budget of 150 steps a group.
+- **Standard errors.** Historic Table 2 has no sampling error, so a target's standard error is a stated tolerance: `tolerance` x the larger of |target| and 0.1% of the item's national total in the group (without that floor a tiny cell costs as much as California: Puerto Rico's property tax deducted in the group $10-25k was a target of $89,000), with the rounding of the IRS's counts to the nearest 10 added for a count item. With one tolerance for all, only tau x tolerance^2 matters (checked: 1%, tau 4,000 gives 2%, tau 1,000).
+- **Projection years.** Every record keeps its 2023 shares; the record ids of the 2023 file carry through 2024-2075 (checked: any other record stops the stage). A list record's id is its rank on the year's list, so list records are pinned by `forbes_uri` every year. A person with no state on any list takes the distribution of the year's pinned list records.
+- **Results** (`explore/2026-11-05/state_weights/RESULTS.md`, on run7). Held-out items at tolerance 2%, tau 1,000, average miss and dollar-weighted miss: 2019 17.25% and 7.54% against 17.76% and 7.97% on Iselin's AGI-group start with the same tilt; 2022 21.52% and 7.90% against 21.89% and 8.20%. Every year's tilt converges within 135 Newton steps a group; 99.5-99.7% of 19,500-22,200 targeted cells are within 2%.
+- **What a later joint solve reuses.** Readers: `state_start.file_values`, `read_state`. Starting shares: `starts/start_<year>.npz` (`state_weights.read_start`, `cps_start`, `pins_of`). Targets: `state_targets.filer_targets`, `nonfiler_targets`, `forbes_states`, `state_weights.tolerances`. Scores: `state_weights.heldout_cells`, `score`. The networks with the state slot draw a `state` column at generation (checked on a small draw).
+
 ## Taxable interest after the jump-off year (merged 5 November 2026; installed as run7)
 
 John's rule (5 November 2026; scratch `explore/2026-11-05/interest_check/FINDINGS.md` for why,
