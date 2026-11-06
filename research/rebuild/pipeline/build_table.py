@@ -297,9 +297,15 @@ EXACT_AGE_TOP = 80
 # with the other CPS slots, after the ages (model.py's order); dollars.py turns them into ssn1, ssn2, dep_ssn1-3.
 SSN_STATUS_SLOTS = ['ssn_status_primary', 'ssn_status_spouse', 'ssn_status_dep1', 'ssn_status_dep2', 'ssn_status_dep3']
 DEPENDENT_SSN_SLOTS = ['ssn_status_dep1', 'ssn_status_dep2', 'ssn_status_dep3']   # the k-th: present when n_dep >= k
+# Since 5 November 2026 (the state weights, state_start.py): the household's state, CPS only: 0 none (only a dependent
+# filer at generation, generate.structural), else 1 + the state's position in STATE_FIPS (the 50 states and DC by FIPS
+# code; the CPS has neither Puerto Rico nor the IRS's Other Areas). The state needs no translation.
+STATE_FIPS = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+              34, 35, 36, 37, 38, 39, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 53, 54, 55, 56]
 CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS if a not in EXACT_AGES},
                   'sex_primary': 3, 'sex_spouse': 3,   # CPS only; sex: 0 none, 1 man, 2 woman
-                  **{v: 4 for v in SSN_STATUS_SLOTS}}
+                  **{v: 4 for v in SSN_STATUS_SLOTS},
+                  'state': len(STATE_FIPS) + 1}
 PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGORIES}   # every person category
 SPOUSE_SLOTS = ['age2', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse',
                 'ot_spouse', 'ssn_status_spouse']
@@ -778,7 +784,8 @@ def cps_rows():
                        **{f'p{k}_ssn_status': s[f'ssn_status{k}'].astype(np.int64) for k in (1, 2)},
                        **{f'svy_dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
                        **{f'dep_ssn_status{k}': s[f'dep_ssn_status{k}'].astype(np.int64) for k in (1, 2, 3)},
-                       'cps_childcare': s['care_exp'].astype(float)})
+                       'cps_childcare': s['care_exp'].astype(float),
+                       'svy_statefip': s['statefip'].astype(np.int64)})
     for v in AMOUNTS:
         if v not in df:
             df[v] = np.nan
@@ -787,7 +794,7 @@ def cps_rows():
 
 PERSON_COLUMNS = [f'p{k}_{c}' for k in (1, 2) for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']] + \
     ['p1_ot', 'p2_ot', 'svy_dep_age1', 'svy_dep_age2', 'svy_dep_age3', 'cps_childcare', 'p1_ssn_status', 'p2_ssn_status',
-     'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3']
+     'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3', 'svy_statefip']
 
 
 def cps_person_slots(t, primary_is_2):
@@ -805,7 +812,10 @@ def cps_person_slots(t, primary_is_2):
     age = {k: pick('age', k) for k in (1, 2)}
     w = d['weight'].to_numpy(float)
     married_ = (d['married'] == 1).to_numpy()
+    statefip = d['svy_statefip'].to_numpy()
+    assert np.isin(statefip, STATE_FIPS).all(), f'CPS: a state code outside the 50 states and DC: {sorted(set(statefip) - set(STATE_FIPS))}'
     out = {'age1': exact_age_value(age[1]), 'age2': exact_age_value(age[2]),
+           'state': 1 + np.searchsorted(STATE_FIPS, statefip),
            'sex_primary': pick('sex', 1), 'sex_spouse': pick('sex', 2),
            'weeks_primary': pick('weeks_worked', 1), 'weeks_spouse': pick('weeks_worked', 2),
            'hours_primary': pick('usual_hours', 1), 'hours_spouse': pick('usual_hours', 2),
