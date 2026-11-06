@@ -53,6 +53,12 @@ targets' growth (scf_factor) all include it. A same_as item takes the other colu
 times its own add factors. The table may be empty (a header only): every item's add factor is then exactly 1 and the
 year is what it was without the table. Every row with a non-zero percent needs a note saying who set it, when and why;
 the year's report lists the rows in force.
+
+Taxable interest after the jump-off year (John, 5 November 2026; settings tilt.projection.interest_growth; the section
+"Taxable interest and the rate-like part of non-qualified dividends" below). With the setting on, every year whose start
+is the jump-off year or later grows taxable interest by nominal GDP times the 3-month Treasury bill rate, and
+non-qualified dividends by a blend of that series and their items-table series, in place of their items-table rows'
+series. Off, or absent, the items table alone decides, as before.
 """
 import os
 
@@ -224,6 +230,8 @@ def step1(df, w, year, s):
     if fs_active(year, s):   # the November filing-season tables (below): the base year file's own items by its AGI groups
         STATE['df_base'] = df
         STATE['fs'] = {'blend': {}, 'columns': {}}
+    if ig_active(s):         # (John, 5 November 2026) the split of non-qualified dividends on the start file (below)
+        STATE['interest'] = ig_split(df, w, s)
     return w1, out
 
 
@@ -334,6 +342,10 @@ def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
         G = (g, g)
     else:
         raise ValueError(f'{col}: unknown series {series!r}')
+    if ig_active(s) and col in IG_COLUMNS:   # (John, 5 November 2026) in place of the row's series (section below)
+        assert kind == 'total' and series.startswith('file:'), f'{col}: the interest rule needs a file series of kind total'
+        g, what = ig_growth(col, s, t)
+        G = (g, g)
     fsm = fs_column_factor(col, int(t))
     if fsm is not None:   # (4 November, John) the November table's blend for 2024, carried to every later year
         assert kind == 'total' and series.startswith('file:'), f'{col}: the filing-season blend needs a file series of kind total'
@@ -540,6 +552,7 @@ def write(folder):
     else:
         lines += [f"Add factors: none in force (add factors table {_ADD['path']}).", '']
     lines += fs_write(folder)
+    lines += ig_write(folder)
     return lines
 
 
@@ -884,3 +897,100 @@ def fs_write(folder):
         lines += [f"{len(tg)} targets by AGI group (projection_filing_season_targets.csv), replacing the national totals "
                   f"of {sorted(fs_replaced_columns(STATE['year']))}.", '']
     return lines
+
+
+# ---- taxable interest and the rate-like part of non-qualified dividends (John, 5 November 2026) ----------------------
+# Scratch explore/2026-11-05/interest_check/FINDINGS.md (why) and explore/2026-11-05/interest_growth/ (the run). The
+# interest on tax returns behaves like short-term money: taxable interest tripled from 2022 to 2024 while short rates
+# rose, so the high rate is already in the 2024 file. Growing it after 2024 by CBO's combined interest and dividend line
+# (the items table's int_remainder) counts the high rate again every later year, while CBO's own bill rate falls from
+# 4.97% in 2024 to 3.12% in 2035. Settings tilt.projection.interest_growth: enabled; from_year (the first start year the
+# rule applies to: the jump-off year, 2024, so every year 2025-2075 and no year before); rate_series (nominal GDP times
+# the 3-month bill rate, resources/growth/build_interest_series.py); split_year (the SOI year of the split, 2022).
+#   1. Taxable interest (txbl_int) grows from the start year s to year t by rate_series: the assets grow with nominal
+#      GDP and their yield follows the bill rate.
+#   2. Non-qualified dividends (div_ord) are two parts on the start file. The stock-like part is SOI's split_year
+#      non-qualified dividends (Table 1.4, ordinary less qualified, all returns) grown to s by the growth of qualified
+#      dividends from split_year to s (SOI's split_year, the start file's filers in s, Forbes list included, as SOI
+#      counts every return); the rate-like part is the rest of the start file's non-qualified dividends on filers. The
+#      stock-like part keeps the column's items-table series (CBO's qualified dividend line, John's decision 5); the
+#      rate-like part grows as taxable interest. The column grows by one index, the start-share-weighted blend of the
+#      two, so every record's div_ord is scaled by one factor as before and no column is added.
+#   3. Tax-exempt interest (exempt_int) and every other item keep their items-table rows (int_remainder is a fixed
+#      series in resources/projection_series_b.csv; nothing here recomputes it).
+# The year's summary.md and projection_interest.csv give the share, the parts and their growth.
+IG = P.get('interest_growth', {})
+IG_COLUMNS = ('txbl_int', 'div_ord')
+
+
+def ig_active(s):
+    """The rule is in force for a year whose start year is s: on, and s at or after from_year. It never meets the
+    filing-season blend: from_year must be after the blend's base year (the blend is applied only from that year's
+    start)."""
+    if not IG.get('enabled', False):
+        return False
+    if FS.get('enabled', False):
+        assert int(IG['from_year']) > int(FS['base_year']), \
+            'tilt.projection.interest_growth.from_year must be after the filing-season base year'
+    return int(s) >= int(IG['from_year'])
+
+
+def ig_split(df, w, s):
+    """The two parts of the start file's non-qualified dividends (section above, point 2). df, w: the start file and
+    its own weights (before step 1)."""
+    import targets as TG
+    y0 = int(IG['split_year'])
+    assert y0 < int(s), f'interest_growth.split_year {y0} must be before the start year {s}'
+    ordinary0, q0 = TG.soi_get(y0, 'ordinary dividends', 'amount'), TG.soi_get(y0, 'qualified dividends', 'amount')
+    d0 = ordinary0 - q0
+    fil = df['filer'].to_numpy() == 1
+    q1 = float(w[fil] @ df['div_pref'].to_numpy(float)[fil])
+    d1 = float(w[fil] @ df['div_ord'].to_numpy(float)[fil])
+    d1_all = float(w @ df['div_ord'].to_numpy(float))
+    stock = d0 * q1 / q0
+    share = stock / d1
+    assert 0 < share < 1, f'interest rule: stock-like share {share:.4f} of non-qualified dividends is not between 0 and 1'
+    out = {'split year': y0, 'start year': int(s),
+           f'SOI {y0} ordinary dividends': ordinary0, f'SOI {y0} qualified dividends': q0,
+           f'SOI {y0} non-qualified dividends': d0,
+           f'{s} file qualified dividends, filers': q1, f'{s} file non-qualified dividends, filers': d1,
+           f'{s} file non-qualified dividends, all units': d1_all,
+           f'growth of qualified dividends {y0}-{s}': q1 / q0,
+           f'{s} stock-like part': stock, f'{s} rate-like part': d1 - stock, 'stock-like share': share}
+    common.say(f"interest rule (John, 5 November 2026): non-qualified dividends {s}, ${d1 / 1e9:,.1f} billion on filers: "
+               f"stock-like ${stock / 1e9:,.1f} billion (SOI {y0} ${d0 / 1e9:,.1f} billion times qualified dividends' "
+               f"growth {q1 / q0:.5f}), share {share:.5f}; rate-like ${(d1 - stock) / 1e9:,.1f} billion")
+    return out
+
+
+def ig_growth(col, s, t):
+    """(growth from s to t, description) of a column under the rule."""
+    gr, what_r = series_growth(IG['rate_series'], s, t)
+    if col == 'txbl_int':
+        return gr, f'interest rule: {what_r} (nominal GDP times the 3-month bill rate)'
+    assert col == 'div_ord', col
+    sh = STATE['interest']['stock-like share']
+    gq, what_q = series_growth(items_table().loc[col, 'series'], s, t)
+    g = sh * gq + (1 - sh) * gr
+    STATE['interest'].update({f'growth of the stock-like part {s}-{t}': gq, f'growth of the rate-like part {s}-{t}': gr,
+                              f'growth of non-qualified dividends {s}-{t}': g})
+    return g, (f'interest rule: {sh:.5f} x {what_q} ({gq:.5f}) + {1 - sh:.5f} x {what_r} ({gr:.5f}), the stock-like '
+               f'and rate-like parts')
+
+
+def ig_write(folder):
+    """The summary lines of the rule, and projection_interest.csv."""
+    if 'interest_growth' not in P:
+        return []
+    if not ig_active(STATE.get('base_year', 0)):
+        how = 'off' if not IG.get('enabled', False) else f"not used for a start before {IG['from_year']}"
+        return [f'Interest rule (settings tilt.projection.interest_growth): {how}.', '']
+    r = STATE['interest']
+    pd.Series(r).to_frame('value').to_csv(f'{folder}/projection_interest.csv')
+    return ["## Taxable interest and non-qualified dividends (John, 5 November 2026; settings "
+            "tilt.projection.interest_growth)", '',
+            f"Taxable interest grows from {r['start year']} by {IG['rate_series']} (nominal GDP times the 3-month "
+            f"Treasury bill rate). Non-qualified dividends grow by the blend of their items-table series (the "
+            f"stock-like part) and that series (the rate-like part), weighted by the start file's split "
+            f"(projection_interest.csv):", '',
+            pd.Series(r).to_frame('value').to_markdown(floatfmt=',.5f'), '']

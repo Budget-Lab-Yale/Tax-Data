@@ -1173,6 +1173,13 @@ married people under 18 were counted as unmarried (ede6f65).
 - **Found:** in every real-PUF year the solve sets at least 9 of the 12 copies of the four aggregate records to a weight near
   zero, against Table 4.3's top 0.001% count of returns with Schedule C or F profit; that group's AGI then misses by
   6.7-18 standard errors in every year but 2019 (2.1).
+- **Taxable interest after 2024** (branch `rebuild-interest-growth`, John's decisions of 5 November; scratch
+  `explore/2026-11-05/interest_check/FINDINGS.md` and `interest_growth/RESULTS.md`): the tax-return interest base
+  tripled in 2022-2024 with short rates, so growing it after 2024 by CBO's combined line counted the high rate again.
+  Taxable interest now grows by nominal GDP times the 3-month bill rate; non-qualified dividends by a blend of that
+  and CBO's qualified dividend line (stock-like share 0.489, from SOI 2022 and the 2024 file); tax-exempt interest
+  as before. 2025-2075 rerun on run6's networks: every year converges in 7-22 Newton steps; 2024 and, with the rule
+  off, 2030 reproduce run6 exactly. Income tax $114 billion lower in 2035. Not merged or installed.
 
 ## Paths tried and not taken
 

@@ -135,7 +135,12 @@ a run of the years it touches, a comparison with the run before it, and John's a
 - **Interest against CBO's line.** The rebuild is about 50% above CBO's line for interest and non-qualified dividends
   in 2024-2029 (2024: $465 billion against $310 billion; production is about 7% below). The rebuild matches SOI's
   2023 taxable interest ($314 billion), while CBO's 2023 line is $287 billion, so part of the gap is CBO's stale
-  base.
+  base. **5 November: John's rule built** on branch `rebuild-interest-growth` (FEATURES.md, "Taxable interest after
+  the jump-off year"): taxable interest grows from 2024 by nominal GDP times the 3-month bill rate, non-qualified
+  dividends by a blend (stock-like share 0.489), tax-exempt interest as before. 2025-2075 rerun on run6's networks
+  (scratch `explore/2026-11-05/interest_growth/RESULTS.md`): the pair is 1.35 times CBO's line in 2035 (was 2.08),
+  income tax $114 billion lower in 2035. Awaiting John: the merge and the install, and the tax expenditure tables
+  after it.
 - **Series flags from 1-2 November** (`explore/2026-11-01/tax_expenditures/series/RESULTS.md`): the 2020-2021 files
   hold about 1,500 records above weight 5,000; non-filers jump 19% in 2023 and miss their target in even years.
 - **Heir data in Tax-Simulator.** The rebuild's runs go without the heir file: its record ids do not match the

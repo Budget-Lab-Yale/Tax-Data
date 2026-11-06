@@ -1,6 +1,6 @@
 column,series,kind,target,error,note
 wages,file:projection_series_b.csv:rev_iit_wages,total,1,0.01,"CBO's wages line, then Macro-Projections wages (gdp_wages) past 2035 (4 November, long-run years; until then series current, which grew it by the same CBO line: the same growth to 1e-15); today: CBO or macro series (total); 2023 total $10,484.0bn gains, $0.0bn losses"
-txbl_int,file:projection_series_b.csv:int_remainder,total,1,0.01,B: what is left of CBO's combined interest and non-qualified dividend line
+txbl_int,file:projection_series_b.csv:int_remainder,total,1,0.01,"B: what is left of CBO's combined interest and non-qualified dividend line; for a start in 2024 or later, with settings tilt.projection.interest_growth on, nominal GDP times CBO's 3-month bill rate in its place (int_gdp_bill; John, 5 November 2026)"
 kg_st,file:projection_series_b.csv:cg_before_limit,total,1,0.01,B: growth before the loss limit that puts line 13 on CBO's line
 kg_lt,file:projection_series_b.csv:cg_before_limit,total,1,0.01,B: as kg_st
 kg_dist,file:projection_series_b.csv:cg_before_limit,total,1,0.01,B: as kg_st
@@ -12,7 +12,7 @@ ui,file:projection_series_b.csv:ui_outlays,total,1,0.01,"B: CBO unemployment out
 alimony,file:projection_series_b.csv:alimony_fade,total,1,0.01,"B: SOI 2019-2023 decline, 0.886820 a year (John, decision 2)"
 state_ref,file:projection_series_b.csv:sl_income_tax,total,0,,"B: as state and local income tax; today: CBO or macro series (total); 2023 total $13.3bn gains, $0.0bn losses; set to zero on non-itemizers each year by the refund rule (taxes.apply_refund_rule)"
 nontxbl_pens_dist,file:projection_series_b.csv:rev_iit_pensions,total,1,0.01,"B: CBO pensions line, as taxable pensions; the non-taxable rest of pensions (3 November merge of rebuild-pensions; before, retirement_gross: gross pensions on the CBO pensions line plus gross_ss on its series). Taxable Social Security is computed by the section 86 worksheet, not grown"
-exempt_int,file:projection_series_b.csv:int_remainder,total,1,0.01,B: as taxable interest
+exempt_int,file:projection_series_b.csv:int_remainder,total,1,0.01,"B: as taxable interest was until 5 November 2026 (int_remainder, the same numbers as before); not under the interest rule: mostly municipal bonds with fixed long-term coupons (John, 5 November 2026)"
 first_mort_int,file:projection_series_b.csv:mortgage_interest_b,total,1,0.01,"B: balance times average rate, rule (b) (John, decision 1)"
 salt_prop,file:projection_series_b.csv:re_tax,total,1,0.01,"B: ACS to 2024, then FHFA x households"
 gross_ss,file:projection_series_b.csv:gross_ss_series,total,1,0.01,"B: SSA to 2025, then CBO outlays in calendar years"
@@ -35,7 +35,7 @@ farm_rent,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common bus
 sche_other,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
 farm,file:projection_series_b.csv:biz_common,total,1,0.01,B: the common business factor
 div_pref,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,B: CBO qualified dividends line
-div_ord,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,"B: CBO qualified dividends line (John, decision 5)"
+div_ord,file:projection_series_b.csv:rev_iit_qualified_dividends,total,1,0.01,"B: CBO qualified dividends line (John, decision 5); for a start in 2024 or later, with settings tilt.projection.interest_growth on, this series for the stock-like part and int_gdp_bill for the rate-like part, blended by the start file's split (John, 5 November 2026)"
 trad_contr_ira,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
 sl_int_ded,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"
 ed_exp,file:projection_series_b.csv:agi_per_return,per_unit,1,0.01,"B: AGI per return (John, decision 3)"

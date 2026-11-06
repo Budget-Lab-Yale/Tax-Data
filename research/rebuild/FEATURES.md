@@ -1767,6 +1767,49 @@ Settings `tilt.projection.filing_season`; `projection_steps.py`, its last sectio
 - **When SOI publishes.** Final tables for 2024 make 2024 a past year: base_year and year move to 2024 and 2025, and
   the tax-year-2025 November table (`26inweek47.xlsx`, expected January 2027) supplies the next blend (NEXT_STEPS.md).
 
+## Taxable interest after the jump-off year (branch `rebuild-interest-growth`, 5 November)
+
+John's rule (5 November 2026; scratch `explore/2026-11-05/interest_check/FINDINGS.md` for why,
+`explore/2026-11-05/interest_growth/RESULTS.md` for the run). Settings `tilt.projection.interest_growth`;
+`projection_steps.py`, its last section; the series from `resources/growth/build_interest_series.py`.
+
+- **Why.** The interest on tax returns behaves like short-term money: taxable interest went from $134 billion in 2022
+  to $418 billion in 2024 (run6's file, on SOI's tables and the November filing-season table) while short rates rose,
+  so the high rate is already in the 2024 file. Until this change taxable interest grew after 2024 by `int_remainder`,
+  CBO's combined interest and non-qualified dividend line less non-qualified dividends (+70% for the pair from 2024 to
+  2035), which counts the high rate again every later year while CBO's own 3-month bill rate falls from 4.97% to 3.12%.
+- **Taxable interest** (`txbl_int`) grows from the start year by nominal GDP times the 3-month Treasury bill rate, each
+  relative to the start year: the assets that earn it grow with the economy and their yield follows the bill rate.
+  Series `int_gdp_bill` in `projection_series_b.csv`: CBO's February 2026 economic projections (`cbo_economic.csv`,
+  calendar years, the vintage of every other series) to 2035, then the Macro-Projections interface's nominal GDP and
+  3-month bill rate (built from the same CBO vintage; it carries CBO's long-term bill rate, about 3.1-3.2%, to 2075).
+  The long-run mapping row is `gdp * tsy_3m`, so `build_long_run.py` continues the column by the same rule.
+- **Non-qualified dividends** (`div_ord`) are taken as two parts of the start file (2024). The stock-like part is SOI's
+  2022 non-qualified dividends (Table 1.4, ordinary less qualified, all returns) grown to 2024 by the growth of
+  qualified dividends from SOI's 2022 to the 2024 file's filers; the rate-like part is the rest of the 2024 file's
+  non-qualified dividends on filers. The stock-like part keeps CBO's qualified dividend line (John's decision 5 of 3
+  November); the rate-like part grows as taxable interest. The column grows by one index, the 2024-share-weighted blend
+  of the two, so every record's `div_ord` is scaled by one factor as before and no column is added. The share is
+  computed in every run from SOI's table and the start file, and written to the year's `summary.md` and
+  `projection_interest.csv`. On run6's 2024 file: SOI's 2022 non-qualified dividends $99.1 billion times qualified
+  dividends' growth 1.108 ($313.2 billion in SOI 2022 to $347.1 billion on the 2024 file's filers) gives a stock-like
+  part of $109.8 billion of $224.5 billion, a share of 0.489; the rate-like part is $114.7 billion. (Qualified
+  dividends on all units, $358.0 billion, would give 0.505; filers are used because SOI's table counts returns.)
+- **Tax-exempt interest** (`exempt_int`) keeps `int_remainder`, the same numbers as before: it is mostly municipal
+  bonds with fixed long-term coupons. `int_remainder` is a fixed column of the series file; nothing recomputes it.
+  Its name now describes how it was made, not what is left of CBO's line under the new rule.
+- **When it applies.** Every year whose start is `from_year` (2024, the jump-off year) or later, so 2025-2075 and no
+  year before; the rule never meets the filing-season blend (2024 starts from 2023). Every other item, target and
+  error is as before; the two items' total targets in step 3 follow their new step 2 growth. `enabled: false`, or no
+  entry, gives every year exactly the file it gave before (checked on 2030 against run6, and 2024 with the rule on:
+  every column and weight equal, the Tax-Simulator file byte for byte).
+- **The run** (5 November, 2025-2075 on run6's networks and 2024 file; scratch `explore/2026-11-05/interest_growth/`,
+  not installed). Taxable interest is $362 billion in 2025 and $420 billion in 2035 (run6 $442 and $743 billion);
+  taxable interest plus non-qualified dividends is $714 billion in 2035, 1.35 times CBO's line (run6 2.08 times).
+  Every year converges in 7-22 Newton steps, with run6's largest misses. Income tax (after credits, with the net
+  investment income tax) is $29 billion lower in 2025 and $114 billion (2.9%) lower in 2035; tax after credits is
+  then 3.9% below CBO's in 2035 (run6 1.1%).
+
 ## Social Security and pensions: parts drawn, totals computed (branch `rebuild-pensions`, merged 3 November)
 
 John's decision of 3 November; it took effect with the retrain of 3-4 November (scratch `explore/2026-11-03/bigrun/`). Results: scratch `explore/2026-11-03/pensions/RESULTS.md`. It replaces the post-draw patch of
