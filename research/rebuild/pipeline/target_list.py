@@ -1842,6 +1842,10 @@ def conditions(df, rows, w_start, check=True):
     married = df['married'].to_numpy()
     pops = {p: population(df, p) for p in rows['population'].unique()}
     values = {}
+    holder = None
+    if common.REAL_AGGREGATES == 'holder_share':
+        import aggregate_counts
+        holder = aggregate_counts.Holders(df)
     F = np.zeros((len(df), len(rows)))
     T = rows['value'].to_numpy(float).copy()
     averages = [None] * len(rows)
@@ -1920,6 +1924,10 @@ def conditions(df, rows, w_start, check=True):
             pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity',
                                      'itemized_charity_cash', 'itemized_charity_noncash')
             F[:, j] = cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line)
+            if holder is not None and holder.has(r.variable):
+                # (settings generation.real_puf_aggregates 'holder_share', aggregate_counts.py) an aggregate record copy
+                # in the cell counts as the share of a holder, whatever the sign of its own mean
+                F[holder.rows, j] = (cell * (1.0 if line is None else line))[holder.rows] * holder.share(r.variable)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
         elif r.statistic == 'workers':

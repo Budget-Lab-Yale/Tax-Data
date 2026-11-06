@@ -549,6 +549,7 @@ def main():
                 common.say(f'the top step written to {cache}')
         if os.environ.get('REBUILD_TOP_ONLY'):
             return
+        base = TR.replace_aggregates(*base, Y, spec['mode'])   # settings generation.real_puf_aggregates 'rebuilt' only
         g19, imp, given, fixed, top = TR.add_list(*base, Y)
         del base
     del raw

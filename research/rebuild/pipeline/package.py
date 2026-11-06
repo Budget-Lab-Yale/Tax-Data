@@ -526,6 +526,7 @@ def build():
     part = int((pos & (mult > 0) & (mult < 1)).sum())
     capped = int((Fr['amt_nols'].to_numpy(float) < Fr['amt_nols_drawn'].to_numpy(float)).sum())
     summary = {'year': Y, 'chain': spec['chain'], 'records': len(T), 'PUF record copies': int(real.sum()),
+               'aggregate record copies': int(agg.sum()),
                'other records': int((~real).sum()), 'factor rows': len(fac), 'weight factors not exact': n_inexact,
                'refunds removed (record copies)': removed, 'refunds kept in part (record copies)': part,
                'refund multipliers whose product is not exactly the file\'s refund': n_mult_inexact,
@@ -590,6 +591,14 @@ def write_readme(spec, summary, rt):
     names = {'dpad': 'the domestic production activities deduction', 'tuition_ded': 'the tuition and fees deduction'}
     rp = summary.get('repealed adjustments (a factor of zero)', {})
     repealed_text = '; '.join(f'{names.get(c, c)} from {yy}' for c, yy in rp.items()) or 'none'
+    if summary['aggregate record copies']:
+        aggregates_text = ("""2. The PUF's four aggregate records (RECID 999996 to 999999) are records like the others. Their filing status,
+   dependents and age range are blank on the PUF, so the networks drew them; their blank alimony fields are read as
+   zero.""")
+    else:
+        aggregates_text = ("""2. The PUF's four aggregate records (RECID 999996 to 999999) are not used: the merge ignores them. In their place
+   `extra_records.parquet` holds synthetic returns made from our networks' draws, scaled so that each of the four AGI
+   groups has its aggregate record's net amount of each item and the counts follow SOI's booklet table.""")
     text = f"""# The Budget Lab's {y} Tax-Simulator file, as a merge onto the 2015 IRS Public Use File
 
 This package turns your own copy of the 2015 IRS Public Use File (PUF) into the Budget Lab's {y} tax file, the file
@@ -605,9 +614,7 @@ Written by the pipeline's package stage (`package.py`, branch `rebuild-joint-mod
    Consumer Finances), consumption (from the Consumer Expenditure Survey), and person items from the Current
    Population Survey and the Survey of Income and Program Participation. So each PUF record appears three times
    (column `copy`, 1 to 3), at a third of its weight. The records were drawn for {y0}.
-2. The PUF's four aggregate records (RECID 999996 to 999999) are records like the others. Their filing status,
-   dependents and age range are blank on the PUF, so the networks drew them; their blank alimony fields are read as
-   zero.
+{aggregates_text}
 3. Non-filers and the Forbes list of US billionaires are added as records of their own.
 4. Every dollar amount was grown to {y} ({steps}), and the weights were adjusted to the year's published totals.
 
