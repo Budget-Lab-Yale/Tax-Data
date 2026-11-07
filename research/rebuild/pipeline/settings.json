@@ -1711,6 +1711,12 @@
   "_what": "The split of a married couple's earnings (earn_split.py; branch rebuild-earnsplit, 4 November 2026). E30400 is the couple's Schedule SE net earnings, E30500 the spouse's part. spouse_se_share on the PUF is E30500 / E30400; earn_split is the PUF demographic file's EARNSPLIT (the primary's share of wages plus Schedule SE earnings: 1 75% or more, 2 25-75%, 3 under 25%, 0 none), on the CPS the same code of the couple's own earnings. Joint returns with no demographics and some earnings carry probabilities over codes 1-3 from a gradient boosted classifier fitted on the joint returns with demographics and earnings (model: scikit-learn HistGradientBoostingClassifier settings), redrawn at each training pass. check_agi: the step 0 check fits below the first line and predicts the known codes between the two. booklet_full_less_public: the demographic booklet's weighted counts (millions) of codes 1-3 in SOI's full sample less the public file's, a check only. se_factor and se_floor: Schedule SE's 92.35% and $400. The wage share is drawn inside the range the code allows (generate.py in bands, dollars.py exactly).",
   "se_factor": 0.9235,
   "se_floor": 400,
+  "_part_se": "How part_se is read from the PUF's reported tax (earn_split.part_se_from_schedule_se; fix B, explore/2026-11-05/se_tax_gap/RESULTS.md; John, 6 November 2026). se_rate_social_security and se_rate_medicare: the two rates of Schedule SE. se_wage_base: the Social Security wage base of the PUF year, 2015's $118,500, which caps E30400 and is used for the wage share's range. se_beyond_share and se_beyond_dollars: on a return with no partnership, the earnings differ from 92.35% of Schedules C and F beyond rounding when the gap is above the larger of this share of that amount and these dollars.",
+  "se_rate_social_security": 0.124,
+  "se_rate_medicare": 0.029,
+  "se_wage_base": 118500,
+  "se_beyond_share": 0.01,
+  "se_beyond_dollars": 50,
   "model": {"max_iter": 300, "learning_rate": 0.05, "max_leaf_nodes": 31, "min_samples_leaf": 50, "seed": 0},
   "check_agi": [250000, 400000],
   "booklet_full_less_public": {"1": 1.362377, "2": 0.634738, "3": 0.394848}

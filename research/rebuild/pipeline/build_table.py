@@ -49,7 +49,7 @@ PUF N24) and n_dep_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); file
   since stage 3 (27 October), production's other PUF items (STAGE3; PUF only, absent on the SCF, CEX and SIPP, not
     measured by the CPS): ordinary dividends as qualified (div_pref, E00650) plus other (div_ord), the adjustments
     as their eleven parts (ADJ_PARTS), both totals computed from the parts; unrecaptured section 1250 gain, 28%
-    collectibles gain, partnership income subject to self-employment tax (part_se, production's formula), the
+    collectibles gain, Schedule SE earnings other than Schedules C and F (part_se, read from the reported tax), the
     itemized deduction items, the two AMT items, the credits and the two other taxes (NEW_ITEMS). On the CPS the
     dividends go to div_pref (div_ord zero; the translation table); the adjustments, which the CPS never asked
     (zero until stage 3), are absent on the CPS like the other new items (generation gives non-filers none);
@@ -272,12 +272,11 @@ CPS_AMOUNTS = ['spouse_wage_share', 'weeks_primary', 'weeks_spouse', 'hours_prim
 # is a PUF slot shared with the CPS, no longer the CPS's own. On the PUF it is E30500 / E30400 (E30400 the couple's
 # Schedule SE earnings, E30500 the spouse's part); on the CPS the same share of the couple's Schedule SE earnings. Both
 # are cut on one set of fixed cut points (SHARE_CUTS), so a band means the same share on both; the dollar map is the
-# PUF's. It multiplies Schedules C and F and partnership income subject to self-employment tax alike.
+# PUF's. It multiplies Schedules C and F and part_se (Schedule SE earnings other than C and F) alike.
 PUF_SHARES = ['spouse_se_share']
 SHARE_CUTS = np.arange(1, 73) / 73.0            # 72 cuts, 73 positive bands; a share of exactly 1 is in the top band
 # The shares are asked (present on a training row, drawn at generation) only of a married couple with some of their
-# base; the self-employment share's base is Schedules C and F or partnership income subject to self-employment tax
-# (0.60 million joint returns have Schedule SE earnings from partnerships alone). A base a source lacks counts as zero.
+# base; the self-employment share's base is Schedules C and F or part_se. A base a source lacks counts as zero.
 SHARE_GATES = {'spouse_wage_share': ['wages'], 'spouse_se_share': ['sch_cf_income', 'part_se']}
 # earn_split (earn_split.py): EARNSPLIT, the primary's share of the couple's earnings in three ranges (0 none), on the
 # PUF and the CPS; PUF joint returns with no demographics carry probabilities (es_p0-3) drawn from at each pass.
@@ -402,7 +401,7 @@ PUF_FIELDS = ['RECID', 'S006', 'MARS', 'N24', 'EIC', 'XOCAH', 'XOCAWH', 'XOPAR',
               'E00600', 'E00700', 'E00800', 'E00900', 'E01000', 'E01100', 'E01200', 'E01400', 'E01500', 'E01700',
               'E02000', 'E02100', 'E02300', 'E02400', 'E02500', 'E18500', 'E19200', 'P22250', 'P23250'] + \
     ADJ_FIELDS + [f for f, _ in PARTS.values() if f and f not in ('E00900', 'E02100')] + \
-    ['E00650', 'E30400', 'E30500', 'FDED', 'P04470', 'E21040', 'E19700', 'E20800'] + [f for f in NEW_ITEMS.values() if f]
+    ['E00650', 'E09400', 'E30400', 'E30500', 'FDED', 'P04470', 'E21040', 'E19700', 'E20800'] + [f for f in NEW_ITEMS.values() if f]
 
 
 def read_puf():
@@ -467,13 +466,11 @@ def puf_rows(puf):
     out.update({p: I[fld] for p, fld in ADJ_PARTS.items()})
     assert np.array_equal(sum(out[p] for p in ADJ_PARTS), items['adjustments'])
     out.update({v: I[fld] for v, fld in NEW_ITEMS.items() if fld})
-    # part_se, production's partnership income subject to self-employment tax: on a return with any partnership
-    # income or loss, the couple's Schedule SE earnings (E30400, which already holds the spouse's E30500, after the
-    # 92.35% factor) grossed up, less Schedules C and F, negatives kept; zero elsewhere. Production's formula
-    # ((E30400 + E30500) / 0.9235 - C - F, src/process_puf.R) counts the spouse's earnings twice; John approved the fix
-    # 4 November 2026 for the combined retrain. Not whole dollars (the division by 0.9235).
+    # part_se: Schedule SE earnings other than Schedules C and F, read from the reported tax (earn_split.py; fix B,
+    # John, 6 November 2026), negatives kept. Until then E30400 / 0.9235 less C and F on partnership returns alone,
+    # which stops at the Social Security wage base because E30400 does. Not whole dollars (the division by 0.9235).
     k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
-    out['part_se'] = np.where(k1_part, I['E30400'] / 0.9235 - I['E00900'] - I['E02100'], 0.0)
+    out['part_se'] = ES.part_se_from_schedule_se(I['E09400'], I['E30400'], I['E00900'] + I['E02100'], k1_part)
     out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
     # (3 November) the PUF's own taxable Social Security (E02500) comes off too: it is not a slot, and the file computes
     # it by the worksheet, so other_agi is AGI without taxable benefits less the items (puf_ss_check compares the two)
@@ -495,9 +492,9 @@ def puf_rows(puf):
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]
     # (4 November, earn_split.py) the spouse's share of the couple's self-employment income: E30500 / E30400 (E30400
-    # the couple's Schedule SE earnings, E30500 the spouse's part) on a joint return with Schedule C, F or partnership
-    # income subject to self-employment tax (the share's base, SHARE_GATES); missing where such a return has no
-    # Schedule SE earnings (a loss, or under the $400 floor: the split changes no tax there); absent elsewhere
+    # the couple's Schedule SE earnings up to the wage base, E30500 the spouse's part) on a joint return with Schedule
+    # C, F or part_se (the share's base, SHARE_GATES); missing where such a return has E30400 zero (a loss, under the
+    # $400 floor, or wages at the cap); absent elsewhere
     joint = I['MARS'] == 2
     se_all, se_spouse = I['E30400'].astype(float), I['E30500'].astype(float)
     assert (se_spouse <= se_all).all() and (se_spouse[~joint] == 0).all() and (se_spouse >= 0).all(), \
@@ -1396,7 +1393,7 @@ def table_meta(t, factor):
             'share_gates': SHARE_GATES,
             'shared_categories': SHARED_CATEGORIES,
             'earn_split': {'ranges': {str(k): list(r) for k, r in ES.RANGES.items()}, 'se_factor': ES.SE_FACTOR,
-                           'se_floor': ES.SE_FLOOR},
+                           'se_floor': ES.SE_FLOOR, 'se_wage_base': ES.SE_WAGE_BASE},
             'cps_categories': CPS_CATEGORIES,
             'person_categories': PERSON_CATEGORIES,
             'exact_ages': EXACT_AGES,

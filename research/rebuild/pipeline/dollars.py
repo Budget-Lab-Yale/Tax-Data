@@ -446,9 +446,9 @@ def own_values(out, df, year):
 
 
 def couple_se_earnings(out):
-    """Each person's Schedule SE net earnings (earn_split.py): the couple's Schedules C and F plus partnership income
-    subject to self-employment tax, split by the drawn self-employment share (the calculator splits each item by it),
-    92.35% of each person's part where that is $400 or more. Returns (primary's, spouse's)."""
+    """Each person's Schedule SE net earnings (earn_split.py): the couple's Schedules C and F plus part_se, split by
+    the drawn self-employment share (the calculator splits each item by it), 92.35% of each person's part where that is
+    $400 or more. Before the cap under the wage base (wage_share_bounds). Returns (primary's, spouse's)."""
     E = META['earn_split']
     x = out['sch_cf_income'].to_numpy(float) + (out['part_se'].to_numpy(float) if 'part_se' in out else 0.0)
     s = out['spouse_se_share'].to_numpy(float) if 'spouse_se_share' in out else np.zeros(len(out))
@@ -457,24 +457,64 @@ def couple_se_earnings(out):
     return e((1 - s) * x), e(s * x)
 
 
-def wage_share_bounds(wages, e1, e2, code):
-    """earn_split.wage_share_bounds, from the table's meta (no import of the step 0 module): (low, high, unreachable)."""
+def wage_base(year):
+    """The wage base in the dollars of draw_dollars' year: the PUF year's, grown as wages are, so a drawn record's wages
+    stand against the cap as they did in the PUF year, which is what its earnings split code describes."""
+    base = float(META['earn_split']['se_wage_base'])
+    if year is None or int(year) == common.PUF_YEAR:
+        return base
+    import growth as GR
+    return base * GR.factors('wages', int(year))[0]
+
+
+def wage_share_bounds(wages, e1, e2, code, cap):
+    """The spouse's share of the couple's wages that puts the primary's share of earnings in the code's range: (low,
+    high, unreachable), low = high = NaN where there is no bound (code 0, or no wages); where no share reaches the
+    range, the share that comes nearest (0 or 1), flagged. EARNSPLIT is built on E30400, so each person's earnings count
+    only up to the room under the wage base: min(e, max(cap - own wages, 0)). A person's wages plus counted earnings
+    fall as the person's wages fall, so the primary's share falls as the spouse's wage share rises, and each end of the
+    range is found by halving. With an infinite cap this gives earn_split.wage_share_bounds."""
     rng = META['earn_split']['ranges']
     low = np.array([np.nan] + [rng[str(k)][0] for k in (1, 2, 3)])
     high = np.array([np.nan] + [rng[str(k)][1] for k in (1, 2, 3)])
     w = np.maximum(np.asarray(wages, float), 0.0)
-    T = w + e1 + e2
     on = (code >= 1) & (code <= 3) & (w > 0)
     c = np.where(on, code, 1).astype(int)
-    ww = np.where(on, w, 1.0)
-    raw_lo, raw_hi = 1 - (high[c] * T - e1) / ww, 1 - (low[c] * T - e1) / ww
-    return (np.where(on, np.clip(raw_lo, 0, 1), np.nan), np.where(on, np.clip(raw_hi, 0, 1), np.nan),
-            on & ((raw_hi < 0) | (raw_lo > 1)))
+    a, b = low[c], high[c]
+
+    def primary_share(s):
+        w1, w2 = w * (1 - s), w * s
+        p1 = w1 + np.minimum(e1, np.maximum(cap - w1, 0.0))
+        p2 = w2 + np.minimum(e2, np.maximum(cap - w2, 0.0))
+        return p1 / np.where(p1 + p2 > 0, p1 + p2, 1.0)
+
+    def first_at_most(limit):
+        """The smallest s in 0-1 with primary_share(s) <= limit (1 where there is none)."""
+        s0, s1 = np.zeros(len(w)), np.ones(len(w))
+        for _ in range(50):
+            mid = (s0 + s1) / 2
+            ok = primary_share(mid) <= limit
+            s1, s0 = np.where(ok, mid, s1), np.where(ok, s0, mid)
+        return np.where(primary_share(np.zeros(len(w))) <= limit, 0.0, s1)
+
+    def last_at_least(limit):
+        """The largest s in 0-1 with primary_share(s) >= limit (0 where there is none)."""
+        s0, s1 = np.zeros(len(w)), np.ones(len(w))
+        for _ in range(50):
+            mid = (s0 + s1) / 2
+            ok = primary_share(mid) >= limit
+            s0, s1 = np.where(ok, mid, s0), np.where(ok, s1, mid)
+        return np.where(primary_share(np.ones(len(w))) >= limit, 1.0, s0)
+
+    lo, hi = first_at_most(b), last_at_least(a)
+    unreachable = on & ((primary_share(np.ones(len(w))) > b) | (primary_share(np.zeros(len(w))) < a))
+    return np.where(on, lo, np.nan), np.where(on, hi, np.nan), unreachable
 
 
-def wage_share_in_range(out, df, maps):
+def wage_share_in_range(out, df, maps, year=None):
     """In place (4 November; earn_split.py): the spouse's share of the couple's wages held inside the range its
-    earnings split code allows given the couple's wages and each person's Schedule SE earnings (wage_share_bounds).
+    earnings split code allows given the couple's wages and each person's Schedule SE earnings up to the wage base
+    (wage_share_bounds).
     A share already inside keeps its value. One outside is picked again inside the range, among the real shares of its
     own band's map (its CPS year's, else the single-year map) that lie in the range, with its stored pick rescaled to
     them, so that within each band the shares follow the band's own distribution cut to the range; where none of the
@@ -485,7 +525,7 @@ def wage_share_in_range(out, df, maps):
         return out
     code = df['earn_split'].to_numpy()
     e1, e2 = couple_se_earnings(out)
-    lo, hi, unreachable = wage_share_bounds(out['wages'].to_numpy(float), e1, e2, code)
+    lo, hi, unreachable = wage_share_bounds(out['wages'].to_numpy(float), e1, e2, code, wage_base(year))
     married = out['married'].to_numpy() == 1
     s = out['spouse_wage_share'].to_numpy(float).copy()
     on = married & ~np.isnan(lo)
@@ -564,7 +604,7 @@ def draw_dollars(df, maps, year=None):
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
         out['total_consumption'] = out[cats].to_numpy(float).sum(1)
-    wage_share_in_range(out, df, maps)             # (4 November) before the shares multiply their totals
+    wage_share_in_range(out, df, maps, year)       # (4 November) before the shares multiply their totals
     for slot, (item, base) in RATIOS.items():      # after the totals above, so a share multiplies the final total
         if f'{slot}_band' in df:
             out[item] = out[slot] * out[base]

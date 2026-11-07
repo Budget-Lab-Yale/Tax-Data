@@ -341,7 +341,7 @@ def token_ids(values, hidden, slots):
 # (out of the record) whenever married or its base is hidden; it is present only once both are shown. Its own
 # question is then only ever asked given married and its base, as generation asks it.
 # Since 4 November (earn_split.py) the same holds for the spouse's share of the couple's self-employment income, a
-# PUF slot shared with the CPS, whose base is Schedules C and F or partnership income subject to self-employment tax
+# PUF slot shared with the CPS, whose base is Schedules C and F or part_se (Schedule SE earnings other than C and F)
 # (any of several bases; a base a source lacks, as the CPS lacks the partnership item, counts as zero, and is not one
 # that can be hidden). The table's meta "share_gates" names each share's bases; a table built before it has one base
 # per CPS share, the ratio's.

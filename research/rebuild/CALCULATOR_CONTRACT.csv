@@ -40,8 +40,8 @@ sole_prop2,computed,sole_prop x spouse_se_share (production splits by one self-e
 farm,same,farm,Schedule F net farm income of the unit
 farm1,computed,farm - farm2,primary filer's farm income
 farm2,computed,farm x spouse_se_share,spouse's farm income
-part_se1,computed,part_se - part_se2,primary filer's partnership income subject to self-employment tax
-part_se2,computed,part_se x spouse_se_share,spouse's partnership income subject to self-employment tax
+part_se1,computed,part_se - part_se2,primary filer's Schedule SE earnings other than Schedules C and F
+part_se2,computed,part_se x spouse_se_share,spouse's Schedule SE earnings other than Schedules C and F
 ei_prior_yr,zero,0 (production writes 0 too),earned income last year (child credit look-back; off under 2019 law): no source planned
 part_active,renamed,part_active,nonpassive partnership income
 part_active_loss,renamed,part_active_loss,"nonpassive partnership loss, stored positive"

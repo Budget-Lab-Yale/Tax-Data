@@ -64,9 +64,9 @@ part_active_loss,same,part_active_loss,"nonpassive partnership loss, stored posi
 part_passive,same,part_passive,passive partnership income,yes
 part_passive_loss,same,part_passive_loss,"passive partnership loss, stored positive",yes
 part_179,same,part_179,partnership section 179 deduction,yes
-part_se,same,"part_se (production's formula on the PUF, (E30400 + E30500) / 0.9235 less Schedules C and F; E30400 already holds the spouse's E30500, so the spouse's earnings count twice: explore/2026-11-04/earnsplit/FINDINGS.md)",,no
-part_se1,computed,part_se - part_se2,primary filer's partnership income subject to self-employment tax,yes
-part_se2,computed,part_se x spouse_se_share,spouse's partnership income subject to self-employment tax,yes
+part_se,same,"part_se (Schedule SE earnings other than Schedules C and F, read from the PUF's reported tax, can be negative: earn_split.part_se_from_schedule_se; production's formula, (E30400 + E30500) / 0.9235 less Schedules C and F on partnership returns, stops at the wage base and counts the spouse's earnings twice)",,no
+part_se1,computed,part_se - part_se2,primary filer's Schedule SE earnings other than Schedules C and F,yes
+part_se2,computed,part_se x spouse_se_share,spouse's Schedule SE earnings other than Schedules C and F,yes
 wagebill_part,same,"wagebill_part (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the partnership (QBI): as wagebill_sole_prop,yes
 sstb_part,same,"sstb_part (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the partnership is a specified service business: as sstb_sole_prop,yes
 scorp_active,same,scorp_active,nonpassive S corporation income,yes

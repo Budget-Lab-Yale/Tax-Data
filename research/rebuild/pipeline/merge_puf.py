@@ -63,6 +63,33 @@ def signed_sum(df, parts):
     return df[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
 
 
+def half_rounding_unit(x):
+    """Half the PUF's rounding unit for an amount (2015 booklet, ninth disclosure step)."""
+    a = np.abs(np.asarray(x, float))
+    out = np.full(a.shape, 5.0)
+    out[a >= 1e4] = 50.0
+    big = a >= 1e5
+    out[big] = 0.5 * 10.0 ** (np.floor(np.log10(a[big])) - 3)
+    out[a < 5] = 3.0
+    return out
+
+
+def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
+    """Schedule SE earnings other than Schedules C and F, before the 92.35% factor (the pipeline's
+    earn_split.part_se_from_schedule_se). tax E09400, capped E30400, sch_cf E00900 + E02100. Tax is 12.4% of E30400
+    plus 2.9% of net earnings, so net earnings are read from the tax, except where the tax is within the PUF's rounding
+    of 15.3% of E30400 (net earnings are then E30400). On a partnership return: net earnings / 0.9235 less C and F. On
+    another return the same, only where net earnings differ from 92.35% of C and F by more than the larger of 1% and
+    $50, and not where net earnings are zero with C and F at most $433."""
+    same = np.abs(tax - 0.153 * capped) <= half_rounding_unit(tax) + 0.153 * half_rounding_unit(capped)
+    net = np.where(same, capped, (tax - 0.124 * capped) / 0.029)
+    total = np.where(net > 0, net / 0.9235, 0.0)
+    expected = 0.9235 * sch_cf
+    beyond = np.abs(net - expected) > np.maximum(0.01 * np.abs(expected), 50.0)
+    nothing = (net == 0) & (sch_cf <= 400.0 / 0.9235)
+    return np.where(partnership | (beyond & ~nothing), total - sch_cf, 0.0)
+
+
 def items_2015(raw, spec, floor):
     """Each record's 2015 items from the PUF's fields (the pipeline's build_table.puf_rows). raw: the PUF with every
     field in spec raw_fields; floor: per record, the medical expense floor used for other itemized deductions (0.075
@@ -92,8 +119,7 @@ def items_2015(raw, spec, floor):
     out.update({p: f[fld] for p, fld in s['adj_parts'].items()})
     out.update({v: f[fld] for v, fld in s['new_items'].items() if fld})
     k1_part = (f['E25940'] + f['E25980'] - f['E25920'] - f['E25960']) != 0
-    # the couple's Schedule SE earnings once (E30400 holds the spouse's E30500), as build_table.puf_rows (part_se fix)
-    out['part_se'] = np.where(k1_part, f['E30400'] / 0.9235 - f['E00900'] - f['E02100'], 0.0)
+    out['part_se'] = part_se_from_schedule_se(f['E09400'], f['E30400'], f['E00900'] + f['E02100'], k1_part)
     itemizer = (f['FDED'] == 1) | agg
     medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * floor))
     out['other_item_exp'] = np.maximum(np.where(itemizer, f['P04470'] + f['E21040'] - medical - f['E18400'] - f['E18500']
