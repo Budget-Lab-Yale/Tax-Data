@@ -1,4 +1,4 @@
-"""The state weights' targets (FEATURES.md, "State weights"): IRS Historic Table 2 and Census adults, read for one year's
+"""The state weights' targets (FEATURES.md, "State weights"): IRS Historic Table 2, SOI Table 1.7 and the CPS, read for one year's
 file.
 
 What this module gives the next stage (state_weights.py), and a later joint solve:
@@ -8,8 +8,8 @@ What this module gives the next stage (state_weights.py), and a later joint solv
   agi_group(agi)              each record's Historic Table 2 AGI group (1-10) from the file's calc_agi
   filer_targets(...)          target = the file's national total for the group and item x the IRS's share of the area
   forbes_states(df, year)     the list records' states
-  nonfiler_targets(...)       each state's Census adults less the adults on its IRS returns, as shares of the file's
-                              non-filer adults, by age band
+  nonfiler_targets(...)       each state's share of the file's non-filer adults, by age band: CPS adults in tax units, less
+                              IRS adults on returns, plus dependent returns
 
 The rule for a filer target. For area s, AGI group g, item v:
     target = (the file's total of v in g, every record, the list included) x (s's value of v in g) / (the sum over areas)
@@ -32,10 +32,9 @@ import numpy as np
 import pandas as pd
 
 HT2_DIR = '/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/state/HT2'
-PEP_DIR = '/nfs/roberts/project/pi_nrs36/shared/raw_data/Census-PEP'
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
 FORBES = os.path.join(HERE, '..', 'resources', 'top', 'forbes_billionaires_{year}.csv')
+DEPENDENT_RETURNS = os.path.join(HERE, '..', 'resources', 'soi_table_1_7_dependent_returns.csv')
 
 # The 50 states and DC by FIPS code: the CPS's 51 values, the order of build_table.STATE_FIPS.
 STATE_FIPS = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
@@ -212,14 +211,12 @@ HELD_OUT = ['n_bus', 'bus_amt', 'n_pens', 'pens_amt', 'n_ss', 'ss_amt', 'n_fedta
 # The items the final files use: Iselin's 21, capital gains dollars, his nine held-out items' own lines (with the capital gains
 # line in place of its positive part), and the other lines of the return the file holds on the IRS's definition. A line the year's
 # table does not have is left out that year (pensions and IRA distributions are one line in 2018; the QBI deduction starts in
-# 2018; tax-exempt interest in 2022). In the final files an item has no targets in an AGI group where its national total
-# in the file is outside TRUST times the IRS's (filer_targets, trust=True): the file's item then is not the IRS's item in that group.
+# 2018; tax-exempt interest in 2022).
 EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', 'ui_amt', 'n_qdiv', 'qdiv_amt', 'n_pship', 'pship_amt',
                'n_txinc', 'txinc_amt', 'n_itemize', 'itemize_amt', 'n_char', 'char_amt', 'n_setax', 'setax_amt', 'n_refund_state',
                'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt']
 FINAL_ITEMS = ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS
-TRUST = (0.67, 1.5)
-# ... and no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item: (sum |w x|)^2 / sum (w x)^2, the list
+# In the final files an item has no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item (filer_targets, drop_thin=True): (sum |w x|)^2 / sum (w x)^2, the list
 # records left out; 250 is about 5 for each of the 53 areas. State income tax deducted in the group under $1 rests on 4 effective records
 # in 2019 and cannot be spread over 53 areas; with such an item Newton's method takes the whole budget and moves nothing that matters
 # (at 100, the group $10-25k did not converge in 2015 and 2018, on Vermont's state income tax deducted among others).
@@ -282,7 +279,7 @@ def cell_rule(values, file_total):
     return s, ''
 
 
-def filer_targets(df, group, ht2, items, year, weight=None, trust=False):
+def filer_targets(df, group, ht2, items, year, weight=None, drop_thin=False):
     """The filer targets of one year: one row per area, AGI group and item with a target, columns area, group, item, kind,
     share (the IRS's signed share), target (dollars or returns), published (the IRS's value); and the notes on what has no
     target. df, group: the file's filers and their AGI group."""
@@ -297,13 +294,10 @@ def filer_targets(df, group, ht2, items, year, weight=None, trust=False):
         for g in range(1, 11):
             total = float((w[group == g] * x[v][group == g]).sum())
             s, note = cell_rule(vals.loc[g], total)
-            if trust and not note:
-                ratio = total / float(vals.loc[g].sum())
+            if drop_thin and not note:
                 a = np.abs(w * x[v])[(group == g) & (df['billionaire'].to_numpy() != 1)]
                 eff = a.sum() ** 2 / (a ** 2).sum() if a.sum() > 0 else 0.0
-                if not TRUST[0] <= ratio <= TRUST[1]:
-                    s, note = None, f'the file is {ratio:.2f} times the IRS in the group'
-                elif eff < MIN_EFFECTIVE:
+                if eff < MIN_EFFECTIVE:
                     s, note = None, f'{eff:.0f} effective records in the group'
             if note:
                 notes.append(dict(year=year, item=v, group=g, note=note))
@@ -351,57 +345,85 @@ def forbes_states(df, year):
     return pd.Series(out, index=rows, dtype=object)
 
 
-# ---- Census adults ------------------------------------------------------------------------------------------------
+# ---- the non-filers ------------------------------------------------------------------------------------------------
 AGE_BANDS = [(18, 26), (26, 35), (35, 45), (45, 55), (55, 65), (65, 200)]
 AGE_BAND_NAMES = ['18-25', '26-34', '35-44', '45-54', '55-64', '65+']
 
 
-def pep_adults(year):
-    """Census resident population estimates, July 1 of the year: a frame, index the 51 states by two letters, one column per
-    age band of AGE_BANDS (group quarters included: Census's estimates have them). Files: sc-est2020int (2015-2019) and
-    sc-est2024 (2020 on). Rows SEX 0 (both), ORIGIN 0 (total), summed over the six race groups; AGE 85 is 85 and over."""
-    f = 'sc-est2020int-alldata6.csv' if year <= 2019 else 'sc-est2024-alldata6.csv'
-    c = f'POPESTIMATE{year}'
-    p = pd.read_csv(f'{PEP_DIR}/{f}', dtype={'STATE': str}, encoding='latin-1', usecols=['STATE', 'SEX', 'ORIGIN', 'RACE', 'AGE', c])
-    p = p[(p['SEX'] == 0) & (p['ORIGIN'] == 0)]
-    p['fips'] = p['STATE'].astype(int)
-    assert set(STATE_FIPS) <= set(p['fips'])
-    p = p[p['fips'].isin(STATE_FIPS)]
-    out = pd.DataFrame(index=STATES, columns=AGE_BAND_NAMES, dtype=float)
-    for name, (lo, hi) in zip(AGE_BAND_NAMES, AGE_BANDS):
-        s = p[(p['AGE'] >= lo) & (p['AGE'] < hi)].groupby('fips')[c].sum()
-        out[name] = s.reindex(STATE_FIPS).to_numpy(float)
-    assert not out.isna().any().any()
-    return out
-
-
 def filing_adults(ht2):
-    """Adults on returns by area, as Iselin's ht2_filing_persons: 2 x joint returns + every other return (a separate return
-    or a surviving spouse's is one adult, single and head of household one), summed over AGI groups 1 to 10."""
+    """Adults on returns by area: 2 x joint returns + every other return (a separate return or a surviving spouse's is one adult,
+    single and head of household one), summed over AGI groups 1 to 10."""
     d = ht2[(ht2['state'] != 'US') & (ht2['group'] > 0)]
     g = d.groupby('state')[['N1', 'MARS2']].sum()
     return (g['N1'] + g['MARS2']).astype(float)
 
 
-def nonfiler_state_table(year, ht2):
-    """Per state: Census adults, adults on returns (Historic Table 2), and the residual. Residual = Census adults less
-    adults on returns; a residual at or below zero is kept and reported, and the target there is a floor (state_weights.py
-    says how)."""
-    pep = pep_adults(year)
-    fa = filing_adults(ht2).reindex(STATES)
-    t = pd.DataFrame({'pep_adults': pep.sum(axis=1), 'filing_adults': fa})
-    t['residual'] = t['pep_adults'] - t['filing_adults']
-    return t, pep
+def dependent_returns(year):
+    """SOI Table 1.7's national count of dependent returns (resources/soi_table_1_7_dependent_returns.csv)."""
+    d = pd.read_csv(DEPENDENT_RETURNS).set_index('tax_year')['dependent_returns']
+    assert year in d.index, f'{year}: no count in {DEPENDENT_RETURNS}'
+    return float(d.loc[year])
 
 
-def age_band_national(year):
-    """The national residual by age band, Census adults less adults on returns in the band (SOI Table 1.6), from Iselin's
-    nonfiler_age_shape_<year>.csv: resources for 2014-2023. Its 65-74 and 75+ rows are one band here."""
-    f = os.path.join(REPO, 'research/state_weights/nonfiler_residual/resources', f'nonfiler_age_shape_{year}.csv')
-    a = pd.read_csv(f)
-    a['band'] = a['band'].replace({'65_74': '65+', '75p': '65+'}).str.replace('_', '-')
-    # the file's 65+ rows split one residual by a share: pep_adults and filing_adults are by the split band
-    return a.groupby('band')[['pep_adults', 'filing_adults', 'residual_nonfiling_adults']].sum().reindex(AGE_BAND_NAMES)
+_CPS = {}
+
+
+def cps_state_counts(data_dir):
+    """The CPS counts behind the non-filers' shares, for each of the training table's CPS years (the filing stage's tax units), by state in the
+    order of STATES. Returns years, and arrays [years, 51]: adults, the heads and spouses of the CPS rows of the table, each row's weight x (1 +
+    married), filers and non-filers both, so people in group quarters are out and dependents are inside the unit that claims them; people_15_24,
+    every person aged 15-24 in those households; and [years, 51, bands] adults_by_band, the heads and spouses aged 18 and over by age band."""
+    if data_dir in _CPS:
+        return _CPS[data_dir]
+    import pyarrow.parquet as pq
+    t = pq.read_table(f'{data_dir}/table.parquet', columns=['year', 'household_id', 'weight', 'married', 'state'], filters=[('source', '==', 'cps')]).to_pandas()
+    n_na = t.isna().sum()
+    assert not n_na.any(), f'{data_dir}: missing values in the CPS rows: {n_na[n_na > 0].to_dict()}'
+    assert t['state'].between(1, 51).all(), 'a CPS row with no state'
+    assert t.groupby('household_id')['state'].nunique().eq(1).all(), 'a CPS household in two states'
+    t['adults'] = t['weight'] * (1 + (t['married'] == 1))
+    state = t.groupby('household_id')['state'].first()
+    years = sorted(int(y) for y in t['year'].unique())
+    adults, people, by_band = [np.zeros((len(years), 51)) for _ in range(2)] + [np.zeros((len(years), 51, len(AGE_BANDS)))]
+    for k, y in enumerate(years):
+        adults[k] = np.bincount(t.loc[t['year'] == y, 'state'].astype(int) - 1, weights=t.loc[t['year'] == y, 'adults'], minlength=51)
+        p = pd.read_parquet(f'{data_dir}/filing/returns/persons_{y}.parquet', columns=['hh', 'age', 'weight', 'tu_rel'])
+        n_na = p.isna().sum()
+        assert not n_na.any(), f'{y}: missing values in the persons: {n_na[n_na > 0].to_dict()}'
+        # the table's household id: build_table.CPS_ID_OFFSET + (year - 2000) x 1e9 + the CPS household
+        st = (3e12 + (y - 2000) * 1e9 + p['hh'].astype(float)).map(state)
+        assert st.notna().all(), f'{y}: {int(st.isna().sum())} persons whose household is not in the table'
+        st = st.astype(int).to_numpy() - 1
+        age, w = p['age'].to_numpy(float), p['weight'].to_numpy(float)
+        people[k] = np.bincount(st, weights=w * ((age >= 15) & (age <= 24)), minlength=51)
+        head = p['tu_rel'].isin([1, 2]).to_numpy()
+        for b, (lo, hi) in enumerate(AGE_BANDS):
+            by_band[k, :, b] = np.bincount(st, weights=w * (head & (age >= lo) & (age < hi)), minlength=51)
+    _CPS[data_dir] = dict(years=years, adults=adults, people_15_24=people, adults_by_band=by_band)
+    return _CPS[data_dir]
+
+
+def nonfiler_state_table(year, ht2, data_dir):
+    """Per state: CPS adults in tax units, adults on returns (Historic Table 2), dependent returns, and the residual. John's rule (6 November 2026):
+        residual(s) = CPS adults(s) - IRS adults on returns(s) + dependent returns(s).
+    CPS adults(s): the state's share of the CPS adults, the five CPS years' shares averaged with equal weights, x the CPS adults of the target year
+    (the mean of the two neighbouring CPS years in a year the CPS rows do not have). IRS adults: N1 + MARS2. Dependent returns are added back because N1
+    counts them and their filers are not CPS heads: SOI Table 1.7's national count, spread by the state's share of CPS people aged 15-24, pooled the same way.
+    Worked example, Colorado, 2019: the pooled share 1.793% x 230.81 million = 4,138,588 CPS adults, less 3,910,950 IRS adults, plus 169,230 dependent returns (its 1.772% of CPS people aged 15-24 x 9,550,878) = 396,868, which is 1.364% of the national 29.09 million. No Census figures and no floor: a residual at or below zero stops the run."""
+    c = cps_state_counts(data_dir)
+    years = c['years']
+    near = [k for k, y in enumerate(years) if y == year] or [k for k, y in enumerate(years) if abs(y - year) == 1]
+    assert near, f'{year}: no CPS year at or next to it among {years}'
+    level = float(np.mean(c['adults'][near].sum(1)))
+    adult_share = (c['adults'] / c['adults'].sum(1, keepdims=True)).mean(0)
+    young_share = (c['people_15_24'] / c['people_15_24'].sum(1, keepdims=True)).mean(0)
+    t = pd.DataFrame({'cps_adults': adult_share * level, 'irs_adults': filing_adults(ht2).reindex(STATES).to_numpy(float),
+                      'dependent_returns': young_share * dependent_returns(year)}, index=STATES)
+    assert not t.isna().any().any(), f'{year}: a state with no count'
+    t['residual'] = t['cps_adults'] - t['irs_adults'] + t['dependent_returns']
+    bad = t.index[t['residual'] <= 0].tolist()
+    assert not bad, f'{year}: the non-filer residual is not positive in {bad}: {t.loc[bad, "residual"].round().to_dict()}'
+    return t
 
 
 def rake(seed, row, col, steps=200):
@@ -413,30 +435,16 @@ def rake(seed, row, col, steps=200):
     return t
 
 
-def nonfiler_targets(df_nf, ht2, year, floor=0.02):
-    """The non-filers' targets: state x age band, adults. The IRS publishes filing adults by state and (Table 1.6) by age
-    band nationally, not by state and band, so the table is built by one rule:
-      1. residual(s) = Census adults(s) - adults on returns(s) (Historic Table 2). A residual below floor x Census adults(s)
-         is set to that floor (reported in the state table; a state whose returns outnumber its residents has no usable
-         residual).
-      2. national residual(b) = Census adults(b) - adults on returns(b) (SOI Table 1.6, Iselin's nonfiler_age_shape).
-      3. The state x band table starts at Census adults(s, b) x residual(b) / Census adults(b), the band's national
-         non-filing rate, and is raked to the shares of 1 and 2.
-      4. target(s, b) = the file's non-filer adults in band b (each adult at own age) x the table's share of s within b.
-    Worked example, 2019, band 18-25: the national residual is 11.06 million of 35.75 million Census adults, a rate of 0.309. After raking
-    Colorado holds 1.232% of the band; the file has 980,000 non-filer adults in the band; Colorado's target is 12,079 adults (the start has
-    19,161, the final shares 12,080).
-    The file has no group quarters population and Census does (state_weights.py reports the size of that difference).
+def nonfiler_targets(df_nf, ht2, year, data_dir):
+    """The non-filers' targets: state x age band, adults. The rule gives each state's share (nonfiler_state_table); the age bands come from the file:
+      1. The state x band table starts at the CPS's adults by state and band, the five CPS years' shares averaged. (Only how age varies across states
+         matters in this start: scaling a row or a column changes nothing after the raking.)
+      2. It is raked to the states' residuals and to the file's own non-filer adults by band, each adult at own age, on the residuals' sum. On these
+         margins the raking leaves each state's share of the file's non-filer adults equal to its share of the residuals.
+      3. target(s, b) = the file's non-filer adults in band b x the table's share of s within b.
+    data_dir: the run's data folder, with the training table and the filing stage's persons (cps_state_counts).
     Returns target frame (state, band, target, share), the state table, and each record's adults by band (X)."""
-    table, pep = nonfiler_state_table(year, ht2)
-    table['floored'] = table['residual'] < floor * table['pep_adults']
-    use = table['residual'].where(~table['floored'], floor * table['pep_adults']).to_numpy(float)
-    nat = age_band_national(year)
-    assert (nat['residual_nonfiling_adults'] > 0).all(), nat
-    seed = pep.to_numpy(float) * (nat['residual_nonfiling_adults'] / nat['pep_adults']).to_numpy(float)[None, :]
-    col = nat['residual_nonfiling_adults'].to_numpy(float)
-    col = col / col.sum() * use.sum()
-    t = rake(seed, use, col)
+    table = nonfiler_state_table(year, ht2, data_dir)
     a1, a2 = df_nf['age1'].to_numpy(float), df_nf['age2'].to_numpy(float)
     married = df_nf['married'].to_numpy() == 1
     assert (a1 >= 18).all(), 'a non-filer head under 18'
@@ -447,10 +455,18 @@ def nonfiler_targets(df_nf, ht2, year, floor=0.02):
     assert n_outside == 0, f'{n_outside} non-filer adults outside the age bands'
     w = df_nf['weight'].to_numpy(float)
     file_b = (w[:, None] * X).sum(0)
+    assert (file_b > 0).all(), f'{year}: an age band with no non-filer adults in the file: {file_b}'
+    c = cps_state_counts(data_dir)
+    seed = (c['adults_by_band'] / c['adults_by_band'].sum((1, 2), keepdims=True)).mean(0)
+    assert (seed > 0).all(), f'{year}: a state and age band with no CPS adults in the five years'
+    use = table['residual'].to_numpy(float)
+    t = rake(seed, use, file_b / file_b.sum() * use.sum())
     share = t / t.sum(0, keepdims=True)
     tgt = pd.DataFrame(share * file_b[None, :], index=STATES, columns=AGE_BAND_NAMES).stack().rename('target').reset_index()
     tgt.columns = ['state', 'band', 'target']
     tgt['share'] = (pd.DataFrame(share, index=STATES, columns=AGE_BAND_NAMES).stack()).to_numpy()
     table['file_share_target'] = (share * file_b[None, :]).sum(1) / file_b.sum()
     table['residual_share'] = use / use.sum()
+    gap = float((table['file_share_target'] - table['residual_share']).abs().max())
+    assert gap < 1e-9, f'{year}: the raking left a state share {gap:.2e} from its share of the residuals'
     return tgt, table, X

@@ -1,7 +1,7 @@
 """The state weights' report (FEATURES.md, "State weights"): tables in levels from a finished state_weights folder, for RESULTS.md.
   python report_state.py --run <run folder> --out <state weights folder> [--chosen tolerance,tau]
 Writes out/tables.md and the CSVs behind it into <out>/out: the held-out scores of the four starts, the setting-by-result table,
-levels by state and by AGI group on 2019 and 2022, the final files' fit by year, and the non-filers against Census adults.
+levels by state and by AGI group on 2019 and 2022, the final files' fit by year, and the non-filers against the CPS rule.
 """
 import argparse
 import glob
@@ -109,25 +109,14 @@ def levels(run, out, year, items=('n_returns', 'agi_amt', 'wages_amt', 'fedtax_a
 
 
 def nonfilers(out, year, tag='final'):
-    """The non-filers by state, adults in thousands: Census adults, adults on returns, the residual; the file's non-filer adults on
-    the start and the final shares, and the target; group quarters adults from the ACS (Iselin's tabulation), which Census's count
-    has and the file does not. Totals are in the last row."""
+    """The non-filers by state, adults in thousands: CPS adults in tax units, adults on returns, dependent returns, the residual; the file's
+    non-filer adults on the start and the final shares, and the target. Totals are in the last row."""
     t = pd.read_csv(f'{out}/fits/y{year}/{tag}/nonfiler_states.csv', index_col=0)
     f = pd.read_csv(f'{out}/fits/y{year}/{tag}/nonfiler_fit.csv').groupby('state')[['target', 'start', 'final']].sum()
-    d = t.join(f)
-    g = os.path.join(ST.REPO, 'research/state_weights/nonfiler_residual/results', f'acs_gq_composition_{year}.csv')
-    if os.path.exists(g):
-        q = pd.read_csv(g)
-        d['group quarters adults (ACS)'] = q.groupby('state')['persons'].sum().reindex(d.index)
-    else:
-        d['group quarters adults (ACS)'] = np.nan
-    d = d[['pep_adults', 'filing_adults', 'residual', 'floored', 'target', 'start', 'final', 'group quarters adults (ACS)']]
-    num = [c for c in d.columns if c != 'floored']
-    d[num] = d[num] / 1e3
-    tot = d[num].sum().to_frame('US').T
-    tot['floored'] = d['floored'].sum()
-    return pd.concat([d, tot]).reset_index(names='state').rename(columns={'pep_adults': 'Census adults', 'filing_adults': 'adults on returns',
-                                                                         'residual': 'Census less returns', 'target': 'file: target', 'start': 'file: start', 'final': 'file: final'})
+    d = t.join(f)[['cps_adults', 'irs_adults', 'dependent_returns', 'residual', 'target', 'start', 'final']] / 1e3
+    tot = d.sum().to_frame('US').T
+    return pd.concat([d, tot]).reset_index(names='state').rename(columns={'cps_adults': 'CPS adults', 'irs_adults': 'adults on returns', 'dependent_returns': 'dependent returns',
+                                                                         'target': 'file: target', 'start': 'file: start', 'final': 'file: final'})
 
 
 def by_year(out, s):
