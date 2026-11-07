@@ -607,7 +607,7 @@ def qbi(df, year, w, ctx):
     """The QBI service flags and wage bills (Q5, John, 28 October; two groups and an IRS total since 6 November, scratch
     explore/2026-11-06/RETRAIN_PLAN.md, section 2). The model draws, per record and group of business (cf: Schedules C
     and F; ps: partnerships and S corporations), an industry group (biz_industry_<group>, the group's largest business)
-    and a number (biz_workers_<group>, the owner's share of the outside workers).
+    and a number (biz_workers_<group>, the owner's share of the workers: an S corporation's all, other forms' outside workers only).
 
     Wages. A group's wages on a filing record = its number x the group's scalar for the year, 0 where the record has no
     positive income of the types the group's wages go to. A non-filer has none: the IRS tables are of returns. The scalar is computed here, once a year, in the tilt stage: on the start,

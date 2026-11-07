@@ -1246,9 +1246,12 @@ numbers could not be tied to their income.
 - *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). Two groups, by the legal form of the household's
   actively managed businesses 1 and 2: `cf`, Schedules C and F (sole proprietorship, or "not a formal business"), and
   `ps`, partnerships and S corporations (partnership, limited partnership, LLP, LLC, S corporation); other corporations
-  get no item. `biz_workers_<group>` (an amount, a count not grown between waves): the owner's share of outside workers,
-  the business's workers less the household members working in it, times the household's ownership share from the SCF,
-  summed over the group's businesses. `biz_industry_<group>` (a category): the SCF's industry group of the group's largest
+  get no item. `biz_workers_<group>` (an amount, a count not grown between waves): the owner's share of the workers, summed over
+  the group's businesses. In an S corporation the business's number is all its workers times the household's ownership
+  share, household members included, because an S corporation pays a working owner W-2 wages; a one-person S corporation
+  owned outright has 1. The SCF's count includes the respondent and family. Every other form counts outside workers only,
+  the workers less the household members working in it, because partners and sole proprietors cannot pay themselves W-2
+  wages (John, 6 November). `biz_industry_<group>` (a category): the SCF's industry group of the group's largest
   business by the value of the household's share, 8 for "no industry code", 0 with none. Given, as `owns_business`, to
   the units holding the household's business equity; 0 on units outside the PEU. On SCF rows the network sees
   `sch_cf_income` and `sche_rest`. Generation draws each group's workers after its industry group (zero with none) and
@@ -1275,7 +1278,7 @@ numbers could not be tied to their income.
   6: 0.291, the others 0; "no industry code": the average weighted by positive income). A record with both a partnership
   and an S corporation has one flag for both. Farms never. No QBI targets.
 - *Dropped on 6 November:* the dials a and b and their search, the CPS's industry pay, the rule adding S corporation
-  owners' own wages (the IRS total has officers' pay in it).
+  owners' own wages (the IRS total has officers' pay in it; the owners now count in the number instead).
 
 ## The second retrain of 29 October (branch `rebuild-retrain-1029`)
 
