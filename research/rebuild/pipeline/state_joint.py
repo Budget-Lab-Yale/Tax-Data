@@ -1,4 +1,4 @@
-"""The joint solve of national and state weights (FEATURES.md, "State weights"). One solve over record-by-state weights:
+"""The integrated solve of national and state weights, the method for past years 2015-2023 (FEATURES.md, "State weights"). One solve over record-by-state weights:
 
     w_is = w0_i x p0_is x exp(x_i' lambda_national + x_i' lambda_s),
 
@@ -33,6 +33,7 @@ import argparse
 import json
 import os
 import pickle
+import sys
 import time
 
 import numpy as np
@@ -42,6 +43,11 @@ import scipy.linalg as sl
 import solver as SV
 import state_targets as ST
 import state_weights as SW
+
+
+# A year that runs out of Newton steps with its largest gradient within this many times the stopping size is used and reported to John; beyond that, the job fails
+# with the year's files written, and the choice is John's (RETRAIN_PLAN.md, small choice 6).
+NEAR = 10.0
 
 
 def say(*a):
@@ -480,47 +486,44 @@ class Joint:
 
 
 # ---- the year ------------------------------------------------------------------------------------------------------------
-def load_year(run, year, start_dir, share_year=None):
-    """The control's file (its weights set the state targets' national totals), the solve's inputs, the starting shares."""
+def load_year(run, year, start_dir):
+    """The national-only solve's file (its weights set the state targets' national totals), the solve's inputs, the starting shares."""
     path = f'{run}/{year}/tilt/y{year}/file_{year}.parquet'
     df = ST.read_file(path, extra=['weight_start'])
     inp = pickle.load(open(f'{run}/{year}/solve_inputs.pkl', 'rb'))
     assert np.array_equal(inp['record_id'], df['record_id'].to_numpy()), 'the solve\'s records are not the file\'s, in order'
     assert np.array_equal(inp['w0'], df['weight_start'].to_numpy(float)), 'the solve\'s starting weights are not the file\'s'
-    ht2 = ST.read_ht2(share_year or year)
-    areas = ST.areas(share_year or year)
+    ht2 = ST.read_ht2(year)
+    areas = ST.areas(year)
     filer = df['filer'].to_numpy() == 1
-    pi = SW.read_start(f'{start_dir}/start_{year}.npz', df) if start_dir else None
+    pi = SW.read_start(f'{start_dir}/start_{year}.npz', df)
     return df, inp, ht2, areas, filer, pi
 
 
-def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, trust, by_group_move=False, totals_weight=None, P0_given=None, share_year=None):
-    """The starting shares [n, A] and the state targets, as part 1's tilt_filers and tilt_nonfilers make them: targets from the file's (control's)
-    national totals. A record the national solve holds fixed keeps its starting weight and shares and enters as a fixed amount.
+def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, drop_thin, data_dir, by_group_move=True, totals_weight=None):
+    """The starting shares [n, A] and the state targets, as part 1's tilt_filers and tilt_nonfilers make them: targets from the national-only solve's totals. A record the national solve holds
+    fixed keeps its starting weight and shares and enters as a fixed amount.
     by_group_move: part 1's tilt charges tau on each AGI group's own move; here the move is on the whole file, so a group holding share h of the weight has
     tau x h on its own move. With by_group_move each state target's standard error is multiplied by 1 / sqrt(h), which gives each group part 1's balance between
     its misses and its move. Worked example: the group $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 2% / sqrt(0.11) = 6.0%. Only tau x tolerance^2 matters.
-    totals_weight: national weights [all records] that set the state targets' national totals, in place of the file's: an earlier joint solve's, so the targets follow the joint solve's own totals.
-    P0_given, share_year (a future year): the starting shares [n, A] carried from the prior file, in place of the network's; ht2 is share_year's table, and the non-filers keep share_year's state and age shares. The target of a filer cell is then the year's national total x the IRS's share in share_year."""
+    totals_weight: national weights [all records] that set the state targets' national totals, in place of the file's: an earlier solve's.
+    data_dir: the run's data folder, for the non-filers' CPS counts."""
     f = df[filer].reset_index(drop=True)
     nf = df[~filer].reset_index(drop=True)
     group = ST.agi_group(f['calc_agi'])
     pin = SW.pins_of(f, year, areas)
-    p_f = SW.cps_start(pi[filer], group, ht2, areas) if P0_given is None else P0_given[filer].copy()
+    p_f = SW.cps_start(pi[filer], group, ht2, areas)
     free_pin = pin < 0
     p_f[~free_pin] = 0.0
     p_f[np.flatnonzero(~free_pin), pin[~free_pin]] = 1.0
     P0 = np.zeros((len(df), len(areas)))
     P0[filer] = p_f
-    if P0_given is None:
-        P0[~filer, :51] = pi[~filer]
-    else:
-        P0[~filer] = P0_given[~filer]
+    P0[~filer, :51] = pi[~filer]
     fixed = np.asarray(inp['fixed'], bool)
     w0 = np.asarray(inp['w0'], float)
     say(f'{year}: {int(fixed.sum())} records held fixed nationally; {int((~free_pin).sum())} filers pinned to an area; '
         f'fixed and not pinned {int((fixed[filer] & free_pin).sum())}, pinned and not fixed {int((~fixed[filer] & ~free_pin).sum())}')
-    tg, notes = ST.filer_targets(f, group, ht2, items, year, weight=None if totals_weight is None else totals_weight[filer], trust=trust)
+    tg, notes = ST.filer_targets(f, group, ht2, items, year, weight=None if totals_weight is None else totals_weight[filer], drop_thin=drop_thin)
     items = [v for v in items if v in set(tg['item'])]
     tg['se'] = SW.tolerances(tg, tolerance)
     w_total = float(w0.sum())
@@ -562,7 +565,7 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
         fits.append(c.assign(fixed_amount=fixed_amt[c['a'].to_numpy(), c['k'].to_numpy()]))
     fit = pd.concat(fits, ignore_index=True)
     # the non-filers
-    tgn, table, Xn = ST.nonfiler_targets(nf if totals_weight is None else nf.assign(weight=totals_weight[~filer]), ht2, share_year or year)
+    tgn, table, Xn = ST.nonfiler_targets(nf if totals_weight is None else nf.assign(weight=totals_weight[~filer]), ht2, year, data_dir)
     Tn51 = tgn.pivot(index='state', columns='band', values='target').loc[ST.STATES, ST.AGE_BAND_NAMES].to_numpy(float)
     Tn = np.full((A, len(ST.AGE_BAND_NAMES)), np.nan)
     Tn[:51] = Tn51
@@ -576,51 +579,6 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
     return P0, specs, fit, tgn, table, notes, items
 
 
-def prior_shares(df, prior_long, areas, year):
-    """A future year's starting shares [n, A]: each record's shares in the prior file (id, state, weight), part 1's carry. A list record's id is its rank on the year's list, so it does
-    not follow a person: list records are pinned by forbes_uri, and one with no state on any list takes the distribution of the year's pinned list records. A record with no weight in the prior file
-    has no shares to carry: it takes the prior file's overall shares, which multiply nothing. A record that is neither on the list nor in the prior file stops the run."""
-    d = pd.read_parquet(prior_long)
-    assert not d.isna().any().any(), f'{prior_long}: a missing value'
-    ids0 = pd.Index(d['id'].unique())
-    W = np.zeros((len(ids0), len(areas)))
-    W[ids0.get_indexer(d['id'].to_numpy()), pd.Index(areas).get_indexer(d['state'].astype(str).to_numpy())] = d['weight'].to_numpy(float)
-    tot = W.sum(1)
-    overall = W.sum(0) / W.sum()
-    S = np.where(tot[:, None] > 0, W / np.where(tot > 0, tot, 1.0)[:, None], overall[None, :])
-    say(f'{year}: prior file {prior_long}: {len(ids0):,} records, {int((tot == 0).sum())} with no weight, which take the overall shares')
-    idx = ids0.get_indexer(df['record_id'].to_numpy())
-    lst = df['billionaire'].to_numpy() == 1
-    n_new = int(((idx < 0) & ~lst).sum())
-    assert n_new == 0, f'{year}: {n_new} records neither on the list nor in the prior file'
-    P = np.zeros((len(df), len(areas)))
-    P[~lst] = S[idx[~lst]]
-    pin = SW.pins_of(df, year, areas)
-    pinned = lst & (pin >= 0)
-    P[np.flatnonzero(pinned), pin[pinned]] = 1.0
-    unpinned = lst & (pin < 0)
-    if unpinned.any():
-        P[unpinned] = np.bincount(pin[pinned], minlength=len(areas)) / pinned.sum()
-    say(f'{year}: list records {int(lst.sum())}, pinned {int(pinned.sum())}, on the pinned distribution {int(unpinned.sum())}; non-list records not in the prior file: 0')
-    return P
-
-
-def share_floor(P, df, filer, ht2, areas, share_year, eps):
-    """A future year's starting shares with a floor. Carried shares can be extremely small: a record with a large item in a year's tilt ends with shares such as 1e-238 in some areas, and a cell whose holders all
-    have such shares has almost no curvature, so Newton's step on it is enormous and the solve stalls. Each record's shares become (1 - eps) x carried + eps x the IRS's shares: for a filer the IRS's share of returns in
-    the record's AGI group, for a non-filer the state's share of the residual of Census adults less adults on returns. Worked example, eps = 0.001: a record with a share of 1e-238 in Wyoming, where the IRS has 0.18% of
-    the group's returns, starts at 0.001 x 0.0018 = 1.8e-6; a share of 20% in California with the IRS at 11% starts at 0.999 x 0.20 + 0.001 x 0.11 = 19.99%. Pinned list records are set after this, by state_problem."""
-    out = P.copy()
-    group = ST.agi_group(df.loc[filer, 'calc_agi'])
-    out[filer] = (1 - eps) * P[filer] + eps * SW.irs_return_shares(ht2, areas)[group - 1]
-    t, _ = ST.nonfiler_state_table(share_year, ht2)
-    r = t['residual'].clip(lower=0).to_numpy(float)
-    b = np.zeros(len(areas))
-    b[:51] = r / r.sum()
-    out[~filer] = (1 - eps) * P[~filer] + eps * b
-    return out
-
-
 def read_back(specs, wis_all, areas):
     """Where each target lands: [(spec, reached [A, K])]."""
     out = []
@@ -630,42 +588,46 @@ def read_back(specs, wis_all, areas):
 
 
 def main():
+    c = SW.common_settings()
     ap = argparse.ArgumentParser()
-    ap.add_argument('--run', required=True, help='the control\'s run folder: <run>/<year>/tilt/y<year>/file_<year>.parquet and <run>/<year>/solve_inputs.pkl')
+    ap.add_argument('--run', required=True, help='the national-only solves: <run>/<year>/tilt/y<year>/file_<year>.parquet and <run>/<year>/solve_inputs.pkl (tilt.py with REBUILD_SAVE_SOLVE). Its weights set the state targets\' national totals')
     ap.add_argument('--out', required=True, help='the output folder')
     ap.add_argument('--year', type=int, required=True)
-    ap.add_argument('--start-dir', default=None)
-    ap.add_argument('--items', default='comparison')
-    ap.add_argument('--tolerance', type=float, default=0.02)
-    ap.add_argument('--nonfiler-tolerance', type=float, default=0.02)
-    ap.add_argument('--tau', type=float, default=1000.0)
-    ap.add_argument('--budget', type=int, default=150)
+    ap.add_argument('--start-dir', required=True, help='the folder of start_<year>.npz (state_start.py)')
+    ap.add_argument('--items', default=c['items'], help='final: state_targets.FINAL_ITEMS, the long list; comparison: Iselin\'s 21; or a comma-separated list')
+    ap.add_argument('--tolerance', type=float, default=c['tolerance'])
+    ap.add_argument('--nonfiler-tolerance', type=float, default=c['nonfiler_tolerance'])
+    ap.add_argument('--tau', type=float, default=float(c['tau']))
+    ap.add_argument('--budget', type=int, default=c['newton_budget'])
     ap.add_argument('--tag', required=True)
     ap.add_argument('--warm', action='store_true', help='start from the national solve\'s multipliers (its steps then count too)')
-    ap.add_argument('--no-trust', action='store_true')
-    ap.add_argument('--by-group-move', action='store_true', help='state standard errors divided by the square root of the AGI group\'s share of the weight (state_problem)')
+    ap.add_argument('--keep-thin', action='store_true', help='keep an item in a group with fewer than MIN_EFFECTIVE effective records')
+    ap.add_argument('--by-group-move', action=argparse.BooleanOptionalAction, default=True, help='state standard errors divided by the square root of the AGI group\'s share of the weight (state_problem)')
+    ap.add_argument('--list-only', action='store_true', help='write the year\'s list of state targets and what has none, then stop')
     ap.add_argument('--max-capped', type=int, default=20000)
     ap.add_argument('--totals-from', default=None, help='the file of an earlier solve whose national weights set the state targets\' national totals')
-    ap.add_argument('--prior-long', default=None, help='a future year: the prior file of id, state, weight whose shares start this solve')
-    ap.add_argument('--share-year', type=int, default=None, help='a future year: the year of the IRS\'s shares, and of the non-filers\' state and age shares')
-    ap.add_argument('--share-floor', type=float, default=0.0, help='a future year: each record\'s carried shares mixed with this much of the IRS\'s shares (share_floor)')
-    ap.add_argument('--no-state', action='store_true', help='no state targets: the national solve\'s weights x the prior shares; every state number is only measured')
     a = ap.parse_args()
     year = a.year
     t_all = time.time()
-    df, inp, ht2, areas, filer, pi = load_year(a.run, year, a.start_dir, a.share_year)
-    P_given = prior_shares(df, a.prior_long, areas, year) if a.prior_long else None
-    if a.share_floor > 0:
-        P_given = share_floor(P_given, df, filer, ht2, areas, a.share_year, a.share_floor)
+    df, inp, ht2, areas, filer, pi = load_year(a.run, year, a.start_dir)
     items = {'comparison': ST.ISELIN_21, 'final': ST.FINAL_ITEMS,
              'wider': ST.ISELIN_21 + [v for v in ST.EXTRA_ITEMS if v != 'kg_amt']}.get(a.items) or a.items.split(',')
-    trust = a.items != 'comparison' and not a.no_trust
+    drop_thin = a.items != 'comparison' and not a.keep_thin
     totals_weight = None
     if a.totals_from:
         tf = pd.read_parquet(a.totals_from, columns=['record_id', 'weight'])
         assert np.array_equal(tf['record_id'].to_numpy(), df['record_id'].to_numpy())
         totals_weight = tf['weight'].to_numpy(float)
-    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, trust, a.by_group_move, totals_weight, P_given, a.share_year)
+    P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, items, a.tolerance, a.nonfiler_tolerance, drop_thin, f'{a.run}/{year}/data', a.by_group_move, totals_weight)
+    od = f'{a.out}/{a.tag}/y{year}'
+    os.makedirs(od, exist_ok=True)
+    notes.to_csv(f'{od}/no_target.csv', index=False)
+    table.to_csv(f'{od}/nonfiler_states.csv')
+    tgn.to_csv(f'{od}/nonfiler_targets.csv', index=False)
+    if a.list_only:
+        fit.to_csv(f'{od}/state_targets.csv.gz', index=False)
+        say(f'{year}: {len(fit)} state targets on {fit["item"].nunique()} items, {len(notes)} notes on what has none; list only')
+        return
     w0 = np.asarray(inp['w0'], float)
     fixed = np.asarray(inp['fixed'], bool)
     cfg = inp['reweighting']
@@ -697,25 +659,20 @@ def main():
     del_F = inp.pop('F')
     nat['X'] = None
     t_solve = time.time()
-    if a.no_state:
-        lam, fields = None, None
-        info = dict(status='converged', newton_steps=0, newton_calls=0, rounds=0, notes=['no state targets: the national solve\'s weights x the prior shares'], largest_gradient=0.0, converged=True)
-    else:
-        lam, fields, info = J.solve(budget=a.budget - warm_steps, avg_change=float(cfg.get('average_weight_change', 1e-3)), lam0=lam0)
+    lam, fields, info = J.solve(budget=a.budget - warm_steps, avg_change=float(cfg.get('average_weight_change', 1e-3)), lam0=lam0)
     info['solve_minutes'] = (time.time() - t_solve) / 60
+    within_near = info['largest_gradient'] <= NEAR * J.tol
     say(f'{year}: {info["status"]} in {info["newton_steps"]} Newton steps ({info["rounds"]} rounds), {info["solve_minutes"]:.1f} minutes, largest gradient {info["largest_gradient"]:.2e}')
+    if not info['converged']:
+        say(f'{year}: REPORT TO JOHN: the solve stopped short of the stopping size {J.tol:.0e}, largest gradient {info["largest_gradient"]:.2e}: ' + ('within 10 times it, the result is used' if within_near else 'beyond 10 times it, this job will fail with the files written'))
     # the weights: free records from the solve, fixed records at their start
     n, A = len(w0), len(areas)
     wis = w0[:, None] * P0
     w1 = w0.copy()
-    if a.no_state:
-        w1 = df['weight'].to_numpy(float)
-        wis = w1[:, None] * P0
-    else:
-        for g, (E, e) in zip(J.groups, fields):
-            r = np.flatnonzero(free)[g['rows']]
-            wis[r] = E * J.W
-            w1[r] = e * J.W
+    for g, (E, e) in zip(J.groups, fields):
+        r = np.flatnonzero(free)[g['rows']]
+        wis[r] = E * J.W
+        w1[r] = e * J.W
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
     sum_err = np.abs(wis.sum(1) - w1) / np.where(w1 > 1e-300, w1, np.inf)
     # The solve can take a record's weight to a number so small that every area's part underflows to zero (run7's own file has national weights
@@ -728,8 +685,6 @@ def main():
     Q = Q / Q.sum(1, keepdims=True)
     sum_err = np.abs(wis.sum(1) - w1) / np.where(w1 > 1e-300, w1, np.inf)
     # the national fit, solver.py's table
-    od = f'{a.out}/{a.tag}/y{year}'
-    os.makedirs(od, exist_ok=True)
     F, T, se, identity, averages, rows = del_F, np.asarray(inp['T'], float), np.asarray(inp['se'], float), np.asarray(inp['identity'], bool), inp['averages'], inp['rows']
     nfit = SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
     nfit.to_csv(f'{od}/fit.csv', index=False)
@@ -747,7 +702,6 @@ def main():
     fit['miss_se'] = (fit['final'] - fit['target']) / fit['se']
     fit['miss_rel'] = (fit['final'] / fit['target'] - 1).abs()
     fit.to_csv(f'{od}/state_fit.csv.gz', index=False)
-    notes.to_csv(f'{od}/no_target.csv', index=False)
     group = ST.agi_group(f['calc_agi'])
     cells = SW.heldout_cells(f, group, Q[filer], ht2, areas)
     assert not cells.isna().any().any(), 'a missing value in the held-out cells'
@@ -757,7 +711,7 @@ def main():
     nfr = tgn.pivot(index='state', columns='band', values='target').loc[ST.STATES, ST.AGE_BAND_NAMES].to_numpy(float)
     miss_n = np.abs(nr / nfr - 1)
     r = dict(year=year, tag=a.tag, items=a.items, tolerance=a.tolerance, tau=a.tau, warm=a.warm, national_multipliers=J.mN, state_multipliers=J.mS, records=n, status=info['status'],
-             converged=info['converged'], newton_steps=info['newton_steps'], warm_steps=warm_steps, newton_total=info['newton_steps'] + warm_steps, rounds=info['rounds'],
+             converged=info['converged'], within_near=within_near, newton_steps=info['newton_steps'], warm_steps=warm_steps, newton_total=info['newton_steps'] + warm_steps, rounds=info['rounds'],
              solve_minutes=info['solve_minutes'], largest_gradient=info['largest_gradient'], notes=info['notes'], largest_share_sum_error=float(sum_err.max()),
              targets_state=len(fit), within_2pct=100 * float((fit['miss_rel'] <= 0.02).mean()), plain_targeted=100 * float(fit['miss_rel'].mean()),
              largest_miss_se_state=float(fit['miss_se'].abs().max()), nonfiler_mean_miss=100 * float(miss_n.mean()),
@@ -768,8 +722,7 @@ def main():
              **SW.quality(f, Q[filer], areas), **{f'heldout {k}': v for k, v in s.items()})
     say(json.dumps({k: (round(v, 4) if isinstance(v, float) else v) for k, v in r.items() if not k.startswith('heldout plain ') and not k.startswith('heldout weighted ')}))
     json.dump(r, open(f'{od}/summary.json', 'w'), indent=1)
-    if lam is not None:
-        np.savez_compressed(f'{od}/multipliers.npz', lam=lam)
+    np.savez_compressed(f'{od}/multipliers.npz', lam=lam)
     # the file for the held-out national score, the national weights only, and the year's file of id, state, weight
     import pyarrow.parquet as pq
     src = f'{a.run}/{year}/tilt/y{year}/file_{year}.parquet'
@@ -786,10 +739,16 @@ def main():
     SW.write_long(path, ids, w1, Q, areas)
     d0 = df.copy()
     d0['weight'] = w1
-    chk = SW.check_written(path, d0, ST.item_vectors(d0, list(ST.ITEMS)))
+    # each record's shares in full, for the future years (state_weights.carry): the file above loses them where a weight is zero or underflows
+    os.makedirs(f'{a.out}/shares', exist_ok=True)
+    np.savez(f'{a.out}/shares/shares_{year}.npz', record_id=ids, areas=np.array(areas), P=Q)
+    chk = SW.check_written(path, d0, ST.item_vectors(d0, list(ST.ITEMS))) | {'year': year, 'newton_largest_group': info['newton_steps'] + warm_steps, 'newton_all_groups': info['newton_steps'] + warm_steps,
+                                                                             'all_converged': bool(info['converged']), 'within_near': bool(within_near), 'largest_gradient': info['largest_gradient']}
     say(json.dumps(chk))
     json.dump(chk, open(f'{od}/check.json', 'w'), indent=1)
     say(f'all done in {(time.time() - t_all) / 60:.1f} minutes')
+    if not info['converged'] and not within_near:
+        sys.exit(3)
 
 
 if __name__ == '__main__':

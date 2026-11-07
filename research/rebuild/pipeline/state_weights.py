@@ -9,7 +9,7 @@ The starts.
   cps     the network's probabilities (state_start.py) scaled to 1 - the IRS's share of Other Areas and Puerto Rico in the
           record's AGI group, those two areas at the IRS's share. Worked example: in 2019 in the group $25-50k Other Areas
           and Puerto Rico hold 0.395% of returns, so a record with a 20.7% chance of California under the network starts at
-          0.207 x 0.99605 = 20.6% in California. Non-filers have only the 51: the CPS and Census have no other area.
+          0.207 x 0.99605 = 20.6% in California. Non-filers have only the 51: the CPS has no other area.
 Records on the Forbes list are pinned to their state in every start and held out of the shares (forbes_states).
 
 The scores of the held-out items (validate_state_weights.R's rule, for any set of shares). For item v, AGI group g, areas with a
@@ -128,10 +128,10 @@ def tolerances(tg, tolerance):
     return np.where(cnt, np.sqrt(se ** 2 + (ROUNDING_SE * scale) ** 2), se)
 
 
-def tilt_filers(f, p0, group, ht2, areas, items, tolerance, tau, pin, budget=150, year=None, log=say, no_tilt=False, trust=False):
+def tilt_filers(f, p0, group, ht2, areas, items, tolerance, tau, pin, budget=150, year=None, log=say, no_tilt=False, drop_thin=False):
     """Every AGI group's tilt. f: the filers; p0 [n, A] the start; pin: the filers' area index or -1. Returns the shares [n, A]
     (pinned records 1 in their area) and the fit table, one row per target: start, final, miss in standard errors."""
-    tg, notes = ST.filer_targets(f, group, ht2, items, year, trust=trust)
+    tg, notes = ST.filer_targets(f, group, ht2, items, year, drop_thin=drop_thin)
     items = [v for v in items if v in set(tg['item'])]
     tg['se'] = tolerances(tg, tolerance)
     x = ST.item_vectors(f, items)
@@ -190,9 +190,9 @@ def tilt_filers(f, p0, group, ht2, areas, items, tolerance, tau, pin, budget=150
     return P, fit, pd.DataFrame(infos), notes
 
 
-def tilt_nonfilers(nf, pi, ht2, year, tolerance, tau, budget=150, no_tilt=False):
+def tilt_nonfilers(nf, pi, ht2, year, data_dir, tolerance, tau, budget=150, no_tilt=False):
     """The non-filers over the 51 states. Returns shares [n, 51], fit, info, the state table."""
-    tg, table, X = ST.nonfiler_targets(nf, ht2, year)
+    tg, table, X = ST.nonfiler_targets(nf, ht2, year, data_dir)
     T = tg.pivot(index='state', columns='band', values='target').loc[ST.STATES, ST.AGE_BAND_NAMES].to_numpy(float)
     se = tolerance * np.abs(T)
     w = nf['weight'].to_numpy(float)
@@ -301,9 +301,9 @@ def check_written(path, df, items_x):
 
 
 def carry(a):
-    """A projection year: every record keeps its shares of the base year (2023). The projection years start from the 2023 file
-    (2025 on from the 2024 file, which starts from 2023), and the record ids of the 2023 file carry through. The list records are
-    the exception: a list record's id is its rank on the year's list, so its id does not follow a person, and the list has new
+    """A projection year: no state targets. Every record keeps its shares of the base year (2023), found by record id in shares_2023.npz, so each year's
+    state weight is the year's national weight x the 2023 share. The projection years start from the 2023 file (2025 on from the 2024 file, which starts
+    from 2023), and the record ids of the 2023 file carry through. The list records are the exception: a list record's id is its rank on the year's list, so its id does not follow a person, and the list has new
     people to 2026. Every list record is pinned by its forbes_uri (forbes_states); one with no state on any list takes the state
     distribution of the year's pinned list records. A record that is not on the list and not in the 2023 file stops the run."""
     year = a.year
@@ -339,10 +339,11 @@ def carry(a):
 
 
 def check_all(a):
-    """Check 1 and 2: every year 2015-2075 has a file; shares sum to 1 and national totals are unchanged, to rounding; each past
-    year's tilt converged within the budget. Writes checks/by_year.csv, stops if one fails."""
+    """Check 1 and 2: every year asked for (default 2015-2075) has a file; shares sum to 1 and national totals are unchanged, to rounding; each past
+    year's solve finished within the budget. A year that stopped short with its largest gradient within 10 times the stopping size (state_joint.NEAR)
+    is used and reported here. A year beyond that stops the check, and the choice is John's. Writes checks/by_year.csv."""
     rows = []
-    for y in range(2015, 2076):
+    for y in (range(2015, 2076) if not a.years else [int(v) for v in a.years.split(',')]):
         f, c = f'{a.out}/files/state_weights_{y}.parquet', f'{a.out}/checks/check_{y}.json'
         r = dict(json.load(open(c)), file=os.path.exists(f)) if os.path.exists(c) else dict(year=y, file=os.path.exists(f))
         if r['file']:   # read every file back here, against the run's own weights
@@ -356,9 +357,14 @@ def check_all(a):
         rows.append(r)
     d = pd.DataFrame(rows)
     d.to_csv(f'{a.out}/checks/by_year.csv', index=False)
+    short = d[(d['all_converged'] == False) & d['within_near'].fillna(False).astype(bool)] if 'within_near' in d else d.iloc[:0]    # noqa: E712
+    for _, r in short.iterrows():
+        say(f"REPORT TO JOHN: {int(r['year'])} stopped short of the stopping size after {int(r['newton_largest_group'])} Newton steps, largest gradient {r['largest_gradient']:.2e}, "
+            f"within 10 times the stopping size; the result is used")
+    fin = d.drop(short.index)
     ok = {'every file there': bool(d['file'].all()), 'shares sum to 1 (largest error under 1e-9)': bool((d['largest_share_sum_error'] < 1e-9).all()),
           'national totals unchanged (largest error under 1e-9)': bool((d['largest_item_total_error'] < 1e-9).all()),
-          'every past year converged within 150 Newton steps a group': bool(d['all_converged'].all() and (d['newton_largest_group'] <= 150).all())}
+          'every past year converged within 150 Newton steps, or stopped short and is reported above': bool(fin['all_converged'].all() and (d['newton_largest_group'] <= 150).all())}
     say(json.dumps(ok, indent=1))
     say(f"largest share sum error {d['largest_share_sum_error'].max():.2e}; largest item total error {d['largest_item_total_error'].max():.2e}; "
         f"largest group's Newton steps {d['newton_largest_group'].max()}; largest year's, all groups {d['newton_all_groups'].max()}; bytes {d['bytes'].sum() / 1e9:.1f} GB in all")
@@ -379,12 +385,13 @@ def main():
     ap.add_argument('--budget', type=int, default=150)
     ap.add_argument('--tag', default=None)
     ap.add_argument('--no-tilt', action='store_true')
-    ap.add_argument('--no-trust', action='store_true', help='no filter on the file-to-IRS ratio')
+    ap.add_argument('--keep-thin', action='store_true', help='keep an item in a group with fewer than MIN_EFFECTIVE effective records')
     ap.add_argument('--write', action='store_true', help='the year\'s final file, with the non-filers')
     ap.add_argument('--save-shares', action='store_true')
     ap.add_argument('--carry', action='store_true', help='a projection year: the base year\'s shares')
     ap.add_argument('--base-year', type=int, default=2023)
     ap.add_argument('--check', action='store_true', help='every year\'s file and check')
+    ap.add_argument('--years', default=None, help='with --check: the years, comma-separated (default 2015-2075)')
     ap.add_argument('--final', action='store_true', help='the settings\' items, tolerance and tau, and --write')
     a = ap.parse_args()
     year = a.year
@@ -414,7 +421,7 @@ def main():
         pi_all = read_start(f'{start_dir}/start_{year}.npz', df)
         p0 = cps_start(pi_all[filer], group, ht2, areas)
     P, fit, info, notes = tilt_filers(f, p0, group, ht2, areas, items, a.tolerance, a.tau, pin, a.budget, year, no_tilt=a.no_tilt,
-                                      trust=a.items != 'comparison' and not a.no_trust)
+                                      drop_thin=a.items != 'comparison' and not a.keep_thin)
     fit.to_csv(f'{od}/fit.csv.gz', index=False)
     info.to_csv(f'{od}/newton.csv', index=False)
     notes.to_csv(f'{od}/no_target.csv', index=False)
@@ -433,7 +440,7 @@ def main():
     if a.write or a.save_shares:
         nf = df[~filer].reset_index(drop=True)
         assert a.start == 'cps', 'the final files start from the network'
-        q, nfit, ninfo, ntable = tilt_nonfilers(nf, pi_all[~filer], ht2, year, a.nonfiler_tolerance, a.tau, a.budget)
+        q, nfit, ninfo, ntable = tilt_nonfilers(nf, pi_all[~filer], ht2, year, f'{a.run}/{year}/data', a.nonfiler_tolerance, a.tau, a.budget)
         say(f'{year} non-filers: {ninfo["steps"]} Newton steps, {ninfo["status"]}, move {ninfo["kl"]:.4f} nats')
         nfit.to_csv(f'{od}/nonfiler_fit.csv', index=False)
         ntable.to_csv(f'{od}/nonfiler_states.csv')
