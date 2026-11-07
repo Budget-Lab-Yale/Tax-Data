@@ -92,11 +92,11 @@ copies have the refund removed, and up to 6,400 keep part of it. A package is ab
 
 ## Confidentiality
 
-No PUF amount of any PUF record is in the package. Three items we add are a PUF amount times or plus something else,
+No PUF amount of any PUF record is in the package. Two items we add are a PUF amount times something else,
 so the merge computes them from the recipient's PUF and the package holds only the other part: the basis of long-term
-gains (the package holds the basis-to-sales ratio of the drawn holding period), the farm's wage bill for the qualified
-business income deduction (it is the farm income), and the S corporation's wage bill (the package holds the outside
-workers' pay and a 0/1 flag for adding the owner's wages). Parts of the package still depend on PUF values: the refund
+gains (the package holds the basis-to-sales ratio of the drawn holding period) and the farm's wage bill for the qualified
+business income deduction (it is the farm income). Parts of the package still depend on PUF values: the other wage bills
+(zero where the record has no positive income of the type, a partnership's and an S corporation's split by their income), the refund
 multiplier (whether the record itemizes, and the share of its refund the tax benefit rule keeps), whether a record has a long-term gain (its holding period is missing where it has none), and items computed from
 the record's income rank (death probabilities, parents' income rank). The non-filers' tax items are amounts picked
 from PUF records with similar items, grown, as in every file the pipeline makes. The package folders are readable by the owner only

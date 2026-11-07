@@ -340,9 +340,9 @@ def item_mix(df, w, notes):
     m['char_cash share'] = _share(tot('char_cash'), tot('char_cash') + tot('char_noncash'), 0.5)
     agi_pos = float((ww * np.maximum(agi[g], 0)).sum())
     m['ratio to AGI'] = {c: tot(c) / agi_pos for c in RATIO_ITEMS}
-    # QBI: each kind's outside workers per dollar of the kind's positive income, and its industry with the most income
-    kinds = {'schc': {'sole_prop': 1}, 'part': {'part_passive': 1, 'part_active': 1},
-             'scorp': {'scorp_passive': 1, 'scorp_active': 1}}
+    # QBI: each group's outside workers per dollar of the group's positive income, and its industry with the most income
+    kinds = {'cf': {'sole_prop': 1, 'farm': 1},
+             'ps': {'part_passive': 1, 'part_active': 1, 'scorp_passive': 1, 'scorp_active': 1}}
     m['workers per dollar'], m['industry'] = {}, {}
     for k, parts in kinds.items():
         inc = np.maximum(sum(s * x[p].to_numpy(float) for p, s in parts.items()), 0)
@@ -538,16 +538,16 @@ def build_billionaires(lst, df, w, year, notes):
     put('w_kg_other', u['gain_public'].to_numpy(float)); put('w_kg_pass_throughs', u['gain_private_pt'].to_numpy(float))
     put('w_kg_other_re', u['gain_private_re'].to_numpy(float))
     put('owns_business', (u['private_pt'] > 0).astype(int).to_numpy())
-    # QBI kinds: an industry where the kind has income, workers per dollar of its profits
-    kp = {'schc': np.maximum(out['sole_prop'], 0), 'part': out['part_passive'] + out['part_active'],
-          'scorp': out['scorp_passive'] + out['scorp_active']}
-    anyk = {'schc': out['sole_prop'] != 0,
-            'part': (out[['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179']] != 0).any(axis=1),
-            'scorp': (out[['scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']] != 0).any(axis=1)}
+    # QBI groups: an industry where the group has income, workers per dollar of its profits
+    kp = {'cf': np.maximum(out['sole_prop'] + out['farm'], 0),
+          'ps': out['part_passive'] + out['part_active'] + out['scorp_passive'] + out['scorp_active']}
+    anyk = {'cf': (out[['sole_prop', 'farm']] != 0).any(axis=1),
+            'ps': (out[['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
+                        'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']] != 0).any(axis=1)}
     for k in kp:
         put(f'biz_industry_{k}', np.where(anyk[k], mix['industry'][k], 0))
         put(f'biz_workers_{k}', np.where(anyk[k], kp[k] * mix['workers per dollar'][k], 0.0))
-    put('k1_owner', (anyk['part'] | anyk['scorp']).astype(int).to_numpy())
+    put('k1_owner', anyk['ps'].astype(int).to_numpy())
     # consumption and work
     for c, v in mix['consumption'].items():
         put(c, v)

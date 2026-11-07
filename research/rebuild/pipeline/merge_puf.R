@@ -17,7 +17,7 @@
 #   6. the two rules: the taxable state refund times state_ref_multiplier (0 removed, 1 kept whole, in between the share
 #      the tax benefit rule keeps; only a multiplication, no tax calculation), then other income and taxable Social
 #      Security computed again (refund_rule); the AMT net operating loss adjustment held to the record's net operating
-#      loss (amt_cap); three added items computed from a PUF amount computed from the PUF items (puf_based);
+#      loss (amt_cap); two added items computed from a PUF amount computed from the PUF items (puf_based);
 #   7. the Tax-Simulator file's columns, then the records that are not PUF records, in the file's own order.
 # The deductible half of self-employment tax is not in the package and is no output column: the tax calculator
 # computes it from the self-employment income and wages (the working items carry the PUF's own E03260 grown).
@@ -242,10 +242,6 @@ puf_based <- function(d, rec, spec) {   # merge_puf.puf_based
   pb <- unlist(spec$puf_based)
   if ("kg_lt_basis" %in% pb) d$kg_lt_basis <- lt_basis(d$kg_lt, rec$kg_lt_basis_ratio)
   if ("wagebill_farm" %in% pb) d$wagebill_farm <- pmax(d$farm, 0)
-  if ("wagebill_scorp" %in% pb) {
-    o <- rec$wagebill_scorp_outside
-    d$wagebill_scorp <- ifelse(rec$wagebill_scorp_owner_wages == 1, o + d$wages, o)
-  }
   d
 }
 

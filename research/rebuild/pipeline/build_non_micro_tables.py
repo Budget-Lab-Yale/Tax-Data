@@ -11,8 +11,6 @@ says, for every table, where its numbers come from and how they were turned into
     2026 (settings paths.raw.z1);
   - the Census Bureau's population estimates by single year of age and sex (settings paths.raw.census_pep);
   - SOI's Publication 4801 line items (settings paths.raw.soi_mirror, line_items.csv);
-  - the CPS ASEC (settings paths.raw.cps_earnings, the common extract): average pay of private employees by SCF
-    industry group and tax year, for the QBI wage bills (since 29 October);
   - SOI's Publication 4801 blind boxes, typed in from the pages (since 29 October);
   - the 2015 PUF: the share of primary filers who are blind, by age range, where the return shows it (since the second
     retrain of 29 October; the blindness rule in non_micro_imputations reads it);
@@ -218,79 +216,6 @@ def soi_children():
 
 
 # ---- the CPS: average pay of private employees by SCF industry group (29 October, the QBI wage bills) ----------
-# The SCF public file's 7 industry groups (X3107, X3207) as sets of Census industry codes (the SCF codebook's collapse;
-# the same ranges as explore/2026-10-28/qbi_plan/scripts/cps_bridge.py), lower and upper code inclusive. The CPS uses
-# the Census 2012 industry codes to the March 2019 survey and the 2017 codes from March 2020; the ranges hold both (the
-# 2017 codes that split performing arts, 8561-8564, are in group 3 with 8560). A code in no range is counted and left
-# out of the averages.
-SCF_INDUSTRY_RANGES = [(170, 290, 1), (7480, 7480, 1), (7770, 7770, 1), (370, 490, 2), (770, 770, 2), (1070, 3990, 3),
-                       (6470, 6480, 3), (8560, 8564, 3), (4070, 5790, 4), (8680, 8690, 4), (6490, 6490, 5),
-                       (6695, 6695, 5), (6870, 7080, 5), (7190, 7190, 5), (7580, 7590, 5), (7680, 7680, 5),
-                       (8770, 8890, 5), (570, 690, 6), (6070, 6390, 6), (6570, 6692, 6), (6770, 6780, 6), (7170, 7180, 6),
-                       (7270, 7470, 6), (7490, 7570, 6), (7670, 7670, 6), (7690, 7690, 6), (7780, 8470, 6),
-                       (8570, 8670, 6), (8970, 9290, 6), (9370, 9890, 7)]
-PRIVATE_CLASSES = [21, 22, 23]      # IPUMS CLASSWKR: wage and salary, private (for profit, nonprofit)
-
-
-def scf_industry_group(ind):
-    ind = np.asarray(ind, int)
-    g = np.zeros(len(ind), int)
-    for lo, hi, k in SCF_INDUSTRY_RANGES:
-        g[(ind >= lo) & (ind <= hi)] = k
-    return g
-
-
-def cps_private_pay():
-    """Average yearly wages of private employees by SCF industry group and tax year (survey year less one): people 18
-    and over whose class of worker is private wage and salary (CLASSWKR 21-23) with wages above zero (INCWAGE, the
-    previous calendar year's wages from all jobs; the industry is the current or most recent job's, IND), weighted
-    by ASECWT. Group 8 ("no industry code", the SCF's businesses worth $100 million or more) is all private
-    employees together. Nominal dollars of the tax year."""
-    folder = RAW['cps_earnings']
-    V = ['ASECWT', 'AGE', 'IND', 'CLASSWKR', 'INCWAGE']
-    rows = []
-    years = sorted(int(f[3:7]) for f in os.listdir(folder) if f.startswith('cps') and f.endswith('_03s'))
-    for sy in years:
-        sub = os.path.join(folder, f'cps{sy}_03s')
-        dat = os.path.join(sub, f'cps_{sy}_03s.dat.gz')
-        if not os.path.exists(dat):
-            continue
-        vv = pd.read_csv(os.path.join(sub, 'variables.csv')).set_index('var_name')
-        spec = [(int(vv.loc[v, 'start']) - 1, int(vv.loc[v, 'end'])) for v in V]
-        d = pd.read_fwf(dat, colspecs=spec, names=V, compression='gzip', dtype=float)
-        d['ASECWT'] = d['ASECWT'] / 10 ** int(vv.loc['ASECWT', 'imp_decim'])
-        # the universe: private employees of 18 and over with wages; INCWAGE 99999998-99999999 are missing or not in
-        # universe (none expected in this universe, counted)
-        d = d[(d['AGE'] >= 18) & d['CLASSWKR'].isin(PRIVATE_CLASSES) & (d['ASECWT'] > 0)]
-        bad = int((d['INCWAGE'] >= 99999998).sum())
-        d = d[(d['INCWAGE'] > 0) & (d['INCWAGE'] < 99999998)]
-        g = scf_industry_group(d['IND'].to_numpy())
-        w, x = d['ASECWT'].to_numpy(float), d['INCWAGE'].to_numpy(float)
-        unmatched = w[g == 0].sum() / w.sum()
-        common.say(f'CPS {sy} (tax year {sy - 1}): private employees with wages {w.sum() / 1e6:.1f} million; industry '
-                   f'code in no SCF group {100 * unmatched:.2f}% of them (left out); wage codes missing {bad}')
-        every = g > 0
-        mean_all = float((w[every] * x[every]).sum() / w[every].sum())
-        for k in range(1, 9):
-            m = (g == k) if k < 8 else every
-            # group 7, public administration, has no private employees: it takes all private employees' average
-            own = bool(m.any())
-            rows.append({'year': sy - 1, 'scf_industry_group': k, 'employees_millions': w[m].sum() / 1e6,
-                         'sample_people': int(m.sum()),
-                         'average_pay': float((w[m] * x[m]).sum() / w[m].sum()) if own else mean_all,
-                         'pay_of': 'the group' if own else 'all private employees (no private employee in the group)',
-                         'share_left_out_no_group': unmatched})
-    t = pd.DataFrame(rows)
-    write(t, 'cps_private_pay_by_scf_group.csv')
-    common.say('average pay of private employees by SCF industry group:\n'
-               + t.pivot(index='scf_industry_group', columns='year', values='average_pay').round(0).to_string())
-    note('cps_private_pay_by_scf_group.csv', 'CPS ASEC, the common IPUMS extract (settings paths.raw.cps_earnings): '
-         'ASECWT, AGE, IND, CLASSWKR, INCWAGE; the SCF codebook\'s collapse of Census industry codes to its 7 public '
-         'groups (X3107)', 'weighted mean of INCWAGE over private wage and salary workers (CLASSWKR 21-23) 18 and '
-         'over with wages, by SCF industry group of the current or most recent job; group 8 is all of them, and so is group 7 (public '
-         'administration), which has no private employees; tax year = survey year - 1; nominal dollars')
-
-
 def pub4801_blind():
     """The age and blindness boxes checked on all individual returns, and the returns taking the standard deduction,
     SOI Publication 4801 (line item estimates), read off the publication's pages (29 October; scratch
@@ -372,11 +297,13 @@ def puf_blind_rates():
 
 
 TABLES = [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates, copies,
-          soi_children, cps_private_pay, pub4801_blind, puf_blind_rates]
+          soi_children, pub4801_blind, puf_blind_rates]
+
+HAND_BUILT = ['irs_wages_by_business_type.csv']   # (6 November) by build_irs_wages.py in this folder, from SOI's downloads
 
 
 def main(names=None):
-    """Every table; or, with names (python build_non_micro_tables.py cps_private_pay ...), only those, their rows of
+    """Every table; or, with names (python build_non_micro_tables.py pub4801_blind ...), only those, their rows of
     sources.csv replaced and the other rows kept."""
     os.makedirs(OUTDIR, exist_ok=True)
     run = [f for f in TABLES if not names or f.__name__ in names]
@@ -385,9 +312,11 @@ def main(names=None):
         f()
     src = pd.DataFrame(SOURCES)
     path = os.path.join(OUTDIR, 'sources.csv')
-    if names and os.path.exists(path):
+    if os.path.exists(path):
         old = pd.read_csv(path)
-        src = pd.concat([old[~old['table'].isin(src['table'])], src], ignore_index=True)
+        # a run of some tables keeps every other table's row; a full run still keeps the table built by hand
+        keep = ~old['table'].isin(src['table']) if names else old['table'].isin(HAND_BUILT)
+        src = pd.concat([old[keep], src], ignore_index=True)
     src.to_csv(path, index=False)
     common.say(f'wrote {len(SOURCES)} tables and sources.csv to {OUTDIR}')
 

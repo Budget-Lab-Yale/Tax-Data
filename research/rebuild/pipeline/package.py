@@ -68,11 +68,9 @@ SCHEDULE_A_STEP = 'Schedule A multiplier'
 # Imputed items that are a PUF amount times or plus a part that is not one: shipped as values they would carry a grown
 # PUF amount, so the merge computes them from the PUF items (merge_puf.puf_based) and the package ships only the other
 # part (the columns listed). kg_lt_basis = the long-term gain times r / (1 - r), r the basis-to-sales ratio of the
-# drawn holding period (non_micro_imputations.gains_holding_period); wagebill_farm = the farm income, at least 0;
-# wagebill_scorp = the outside workers' pay, plus the record's wages where it has S corporation income and no Schedule
-# C or partnership income (non_micro_imputations.qbi)
-PUF_BASED = {'kg_lt_basis': ['kg_lt_basis_ratio'], 'wagebill_farm': [],
-             'wagebill_scorp': ['wagebill_scorp_outside', 'wagebill_scorp_owner_wages']}
+# drawn holding period (non_micro_imputations.gains_holding_period); wagebill_farm = the farm income, at least 0
+# (non_micro_imputations.qbi). The other wage bills are the drawn numbers times the year's scalars, shipped as values.
+PUF_BASED = {'kg_lt_basis': ['kg_lt_basis_ratio'], 'wagebill_farm': []}
 TOL_ABS, TOL_REL = 1e-6, 1e-12
 # (John, 5 November) PUF items not shipped: the file's value is the calculator's (taxes.se_tax_ded_from_calculator), no
 # Tax-Simulator column holds it, and the recipient's calculator computes it from the other items. Its factor rows are
@@ -211,27 +209,12 @@ def puf_based(Fr, rec, MG):
     r[kg > 0] = M['gain_ratio'](h[kg > 0])
     r[kg < 0] = M['loss_ratio'](h[kg < 0])
     rec['kg_lt_basis_ratio'] = r
-    farm, wages = Fr['farm'].to_numpy(float), Fr['wages'].to_numpy(float)
-    inc = NMI.qbi_income(Fr, NMI.QBI_KINDS['scorp'][2])
-    only = (inc > 0) & (Fr['sole_prop'].to_numpy(float) == 0) & \
-        np.column_stack([Fr[p].to_numpy(float) == 0 for p in NMI.QBI_KINDS['part'][2]]).all(1)
-    bill = Fr['wagebill_scorp'].to_numpy(float)
-    o = np.where(only, bill - wages, bill)
-    for _ in range(3):   # the outside part o such that o + wages is the file's bill exactly
-        bad = only & (o + wages != bill)
-        if not bad.any():
-            break
-        up, dn = np.nextafter(o, np.inf), np.nextafter(o, -np.inf)
-        o = np.where(bad & (up + wages == bill), up, np.where(bad & (dn + wages == bill), dn, o))
-    rec['wagebill_scorp_outside'] = o
-    rec['wagebill_scorp_owner_wages'] = only.astype(np.int8)
-    d = {'kg_lt': kg, 'farm': farm, 'wages': wages}
+    d = {'kg_lt': kg, 'farm': Fr['farm'].to_numpy(float)}
     MG.puf_based(d, rec, {'puf_based': list(PUF_BASED)})
     for c in PUF_BASED:
         bad = d[c] != Fr[c].to_numpy(float)
         assert not bad.any(), f'{c}: the merge\'s rule differs from the file on {int(bad.sum())} PUF record copies'
-    say(f'computed by the merge from the PUF items, not shipped: {list(PUF_BASED)} (each checked exactly); S corporation '
-        f'wage bills with the owner\'s wages: {int(only.sum()):,} record copies')
+    say(f'computed by the merge from the PUF items, not shipped: {list(PUF_BASED)} (each checked exactly)')
 
 
 def read_file(path, columns=None):
@@ -670,12 +653,12 @@ machine can give more of them, of the same size.
 
 ## Confidentiality
 
-No PUF amount is in the package for any PUF record. Three items we add are a PUF amount times or plus something
+No PUF amount is in the package for any PUF record. Two items we add are a PUF amount times something
 else, so the merge computes them from your PUF and the package holds only the other part: the basis of long-term
-gains (the gain times a ratio set by the drawn holding period; the package holds the ratio), the farm's wage bill for
-the qualified business income deduction (the farm income), and the S corporation's wage bill (the outside workers'
-pay, plus the record's wages for an owner with no Schedule C or partnership income; the package holds the pay and a
-0/1 flag). Parts of the package still depend on PUF values: the refund multiplier (whether the record itemizes in our
+gains (the gain times a ratio set by the drawn holding period; the package holds the ratio) and the farm's wage bill for
+the qualified business income deduction (the farm income). Parts of the package still depend on PUF values: the other
+wage bills (zero where the record has no positive income of the type, a partnership's and an S corporation's split by
+their income), the refund multiplier (whether the record itemizes in our
 model, and the share of the refund the tax benefit rule keeps), whether a record has a long-term gain (its holding period is missing where it has none), and items computed
 from the record's income rank (death probabilities, parents' income rank). The non-filers' tax items are amounts
 picked from PUF records with similar items, grown, as in every file the pipeline makes. Treat the package as

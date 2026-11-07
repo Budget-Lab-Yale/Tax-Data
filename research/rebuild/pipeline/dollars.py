@@ -127,7 +127,7 @@ NEWEST = ['elective_deferrals', 'spouse_deferral_share']   # the spouse's share 
 OVERTIME = list(META['cps_structure'].get('overtime', []))
 # The SCF amounts of the retrain of 29 October (the retirement accounts' stock share; the QBI items' outside workers),
 # at the very end after the overtime, so no earlier stream moves
-RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_schc', 'biz_workers_part', 'biz_workers_scorp']
+RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_cf', 'biz_workers_ps']
 # The SCF amount of the retrain of 3 November (inheritances received this year), at the very end, so no earlier stream moves
 RETRAIN_1103 = ['inheritance']
 # (4 November) the spouse's share of self-employment income, a PUF slot shared with the CPS since then, keeps its place

@@ -338,7 +338,7 @@ C_FROM_FILE = {
     **{c: 'blindness rule, non-microdata imputations' for c in ('blind1', 'blind2')},
     **{f'dep_ssn{k}': 'the drawn CPS status, dollars.py' for k in (1, 2, 3)},
     **{f'dep_ctc{k}': 'child credit eligibility, non-microdata imputations' for k in (1, 2, 3)},
-    **{f'{p}_{b}': 'QBI rule, non-microdata imputations (dials a = b = 1, not yet solved)'
+    **{f'{p}_{b}': 'QBI rule, non-microdata imputations'
        for p in ('wagebill', 'sstb') for b in ('sole_prop', 'part', 'scorp', 'farm')},
     'kg_lt_basis': 'SOCA basis rule, non-microdata imputations', 'kg_lt_years_held': 'SOCA holding period rule',
     'q_death1': 'death probabilities, non-microdata imputations', 'q_death2': 'as q_death1',
