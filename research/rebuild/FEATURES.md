@@ -2059,6 +2059,41 @@ the CPS's pattern of the exact share within each code. Self-employment tax is ta
 The partnership item part_se is a separate change (below, in the combined retrain); it is not in the first test's
 networks, and it is in the second retrain's.
 
+## Self-employment tax: part_se read from the reported tax (fix B; John, 6 November 2026; branch `retrain-se`)
+
+Why: E30400 is the lesser of a person's Schedule SE net earnings and the room under the Social Security wage base, so
+E30400 / 0.9235 less Schedules C and F stops at the cap, and the calculator then charged the 2.9% Medicare tax on the capped
+amount too. Diagnosis: scratch `explore/2026-11-05/se_tax_gap/RESULTS.md`. Tests: `explore/2026-11-06/retrain/se/`.
+
+The rule (`earn_split.part_se_from_schedule_se`; the same in `top_hidden.py`, and copied in `merge_puf.py` and `merge_puf.R`):
+1. Tax is 12.4% of E30400 plus 2.9% of net earnings, so net earnings = (E09400 - 12.4% x E30400) / 2.9%. Where E09400 is
+   within the PUF's rounding of 15.3% of E30400, net earnings are E30400.
+2. Partnership return: part_se = net earnings / 0.9235 less C and F.
+3. Any other return: the same where net earnings differ from 92.35% of C and F by more than the larger of 1% and $50, and
+   not where net earnings are zero with C and F at most $433. Otherwise zero.
+
+Example, 2015, made-up numbers: a partner with no wages reports tax of $43,694 and E30400 of $118,500. Net earnings are
+(43,694 - 14,694) / 0.029 = $1,000,000, and part_se is $1,082,837. The old formula gave $128,316.
+
+part_se now means Schedule SE earnings other than Schedules C and F, not only partnership income. It can be negative:
+net earnings below 92.35% of C and F. The wage share's range (`dollars.py`, `generate.py`) counts each person's earnings
+only up to the room under the wage base, as E30400 does; in drawn dollars the wage base is 2015's $118,500 grown by the
+wage factor.
+
+Tested on real PUF records without retraining, before reweighting, through the calculator. $ billion:
+
+| | SOI Table 3.3 | twice the grown E03260 | calculator, old part_se | calculator, new part_se | part_se, old | part_se, new |
+|---|---:|---:|---:|---:|---:|---:|
+| 2019 | 67.28 | 66.11 | 57.13 | 66.27 | 33.3 | 269.5 |
+| 2022 | 81.02 | 73.14 | 65.51 | 77.90 | 50.7 | 382.4 |
+
+On the 2015 PUF, 24,924 of 207,692 records change (2.81 million returns). Part_se is negative on 0.94 million returns and
+$9.2 billion (old formula: 0.66 million and $35.9 billion).
+
+Known and left as they are, for John: part_se grows by the partnership and S corporation lines on every return, and on
+joint returns with tax but E30400 of zero the spouse's share is drawn, which overcharges about $1 billion in 2019. The
+synthetic file needs the retrain; how well the networks draw the larger item is not yet known.
+
 ## How the latest runs come out (3-4 November 2026)
 
 **Run6, every year on the earnings-split networks (5 November 2026; not installed).** The three networks of

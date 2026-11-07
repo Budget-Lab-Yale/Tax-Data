@@ -575,7 +575,7 @@ As built:
    of the couple's Schedule SE earnings (92.35% of each person's income, none
    below $400). It multiplies Schedules C and F and part_se (since 6 November,
    Schedule SE earnings other than C and F) alike. Joint returns with such income but no
-   Schedule SE earnings (4.9 million: losses, or under $400) have it missing.
+   Schedule SE earnings up to the wage base (5.06 million: losses, under $400, or wages at the cap) have it missing.
 2. EARNSPLIT is a category shared with the CPS (the CPS couple's own code on
    the same definition). It is given on joint returns with demographics;
    joint returns with none and no earnings get 0; the 2.51 million with
