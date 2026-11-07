@@ -47,7 +47,6 @@ import pandas as pd
 import yaml
 
 import common
-import dollars as D
 import targets as TG
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1836,6 +1835,7 @@ def conditions(df, rows, w_start, check=True):
     rows = rows.fillna({'range_variable': ''})
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
+    import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
     a = D.agi(df)
     rng = df['age_range'].to_numpy()
     assert ((rng >= 0) & (rng < common.N_RANGES)).all(), 'a record with no age range'
@@ -2050,6 +2050,7 @@ def hold_rows(year, df, w):
     pop_name = h.get('population', 'filers')
     pop = population(df, pop_name)
     w = np.asarray(w, float)
+    import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
     a = D.agi(df)
     assert not np.isnan(a[pop]).any(), 'hold_distribution: a record with no AGI'
     groups = h['ranks']['groups']
