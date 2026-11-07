@@ -47,8 +47,8 @@ divorce_year,computed,"0 where alimony is received or paid, else missing (produc
 sole_prop,same,sole_prop,Schedule C net income of the unit,yes
 sole_prop1,computed,sole_prop - sole_prop2,primary filer's Schedule C income,yes
 sole_prop2,computed,"sole_prop x spouse_se_share (one self-employment share, as production; on filers the PUF label's draw, learned from E30500 / E30400, since 4 November)",spouse's Schedule C income,yes
-wagebill_sole_prop,same,"wagebill_sole_prop (made in the file since 29 October: QBI rule, non-microdata imputations)",W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule (NEXT_STEPS step 1),yes
-sstb_sole_prop,same,"sstb_sole_prop (made in the file since 29 October: QBI rule, non-microdata imputations)",the sole proprietorship is a specified service business (QBI): the QBI specified-service rule (NEXT_STEPS step 1),yes
+wagebill_sole_prop,same,"wagebill_sole_prop (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule (NEXT_STEPS step 1),yes
+sstb_sole_prop,same,"sstb_sole_prop (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the sole proprietorship is a specified service business (QBI): the QBI specified-service rule (NEXT_STEPS step 1),yes
 kg_st,same,kg_st,short-term gain or loss (PUF P22250),yes
 kg_lt,computed,kg_lt + kg_dist,"long-term gain or loss (PUF P23250) plus capital gain distributions reported on Form 1040 (PUF E01100), which are long-term gains",yes
 kg_lt_years_held,same,"kg_lt_years_held; missing where kg_lt (with capital gain distributions) is 0, as production; 0 where kg_lt is not 0 but the file has no holding period (capital gain distributions alone): Tax-Simulator then makes no indexing adjustment, which current law does not have [converter: kg_lt_years_held (made in the file since 29 October: SOCA holding period rule)]",holding period of long-term gains (indexing reforms only): as kg_lt_basis,yes
@@ -67,15 +67,15 @@ part_179,same,part_179,partnership section 179 deduction,yes
 part_se,same,"part_se (production's formula on the PUF, (E30400 + E30500) / 0.9235 less Schedules C and F; E30400 already holds the spouse's E30500, so the spouse's earnings count twice: explore/2026-11-04/earnsplit/FINDINGS.md)",,no
 part_se1,computed,part_se - part_se2,primary filer's partnership income subject to self-employment tax,yes
 part_se2,computed,part_se x spouse_se_share,spouse's partnership income subject to self-employment tax,yes
-wagebill_part,same,"wagebill_part (made in the file since 29 October: QBI rule, non-microdata imputations)",W-2 wages paid by the partnership (QBI): with wagebill_scorp the group's wages, split by income,yes
-sstb_part,same,"sstb_part (made in the file since 29 October: QBI rule, non-microdata imputations)",the partnership is a specified service business: as sstb_sole_prop,yes
+wagebill_part,same,"wagebill_part (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the partnership (QBI): as wagebill_sole_prop,yes
+sstb_part,same,"sstb_part (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the partnership is a specified service business: as sstb_sole_prop,yes
 scorp_active,same,scorp_active,nonpassive S corporation income,yes
 scorp_active_loss,same,scorp_active_loss,"nonpassive S corporation loss, stored positive",yes
 scorp_passive,same,scorp_passive,passive S corporation income,yes
 scorp_passive_loss,same,scorp_passive_loss,"passive S corporation loss, stored positive",yes
 scorp_179,same,scorp_179,S corporation section 179 deduction,yes
-wagebill_scorp,same,"wagebill_scorp (made in the file since 29 October: QBI rule, non-microdata imputations)",W-2 wages paid by the S corporation (QBI): with wagebill_part the group's wages, split by income,yes
-sstb_scorp,same,"sstb_scorp (made in the file since 29 October: QBI rule, non-microdata imputations)",the S corporation is a specified service business: as sstb_sole_prop,yes
+wagebill_scorp,same,"wagebill_scorp (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the S corporation (QBI): as wagebill_sole_prop,yes
+sstb_scorp,same,"sstb_scorp (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the S corporation is a specified service business: as sstb_sole_prop,yes
 rent,same,rent,"rents and royalties, net income",yes
 rent_loss,same,rent_loss,"rents and royalties, net loss, stored positive",yes
 estate,same,estate,estate and trust net income,yes
@@ -83,8 +83,8 @@ estate_loss,same,estate_loss,"estate and trust net loss, stored positive",yes
 farm,same,farm,Schedule F net farm income of the unit,yes
 farm1,computed,farm - farm2,primary filer's farm income,yes
 farm2,computed,farm x spouse_se_share,spouse's farm income,yes
-wagebill_farm,same,"wagebill_farm (made in the file since 29 October: QBI rule, non-microdata imputations)",W-2 wages paid by the farm (QBI): positive farm income, so the wage limit never binds,yes
-sstb_farm,same,"sstb_farm (made in the file since 29 October: QBI rule, non-microdata imputations)",the farm is a specified service business: never,yes
+wagebill_farm,same,"wagebill_farm (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",W-2 wages paid by the farm (QBI): as wagebill_sole_prop,yes
+sstb_farm,same,"sstb_farm (made in the file since 29 October: QBI rule, non-microdata imputations (dials a = b = 1, not yet solved))",the farm is a specified service business: as sstb_sole_prop,yes
 ui,same,ui,unemployment compensation,yes
 gross_ss,same,gross_ss,gross Social Security benefits (the calculator computes the taxable part),yes
 nols,zero,"0, as production writes it (no source in either)",,no
