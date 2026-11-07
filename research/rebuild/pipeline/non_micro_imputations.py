@@ -549,6 +549,7 @@ QBI_KINDS = {  # file kind: the PUF parts whose signed sum is the kind's income
     'part': {'part_passive': 1, 'part_active': 1, 'part_passive_loss': -1, 'part_active_loss': -1, 'part_179': -1},
     'scorp': {'scorp_passive': 1, 'scorp_active': 1, 'scorp_passive_loss': -1, 'scorp_active_loss': -1, 'scorp_179': -1}}
 IRS_WAGES = 'irs_wages_by_business_type.csv'
+QBI_SCALARS = 'qbi_scalars.csv'
 QBI_GROUP_TYPES = {'cf': ['sole_prop'], 'ps': ['part', 'scorp']}   # group: the table's business types its total adds
 
 
@@ -556,28 +557,50 @@ def qbi_income(df, parts):
     return sum(sg * df[p].to_numpy(float) for p, sg in parts.items())
 
 
-def irs_wage_totals(year):
-    """Each group's IRS total of wages paid, in dollars, for a year: {group: total}, and the table year it starts from.
-    Through the table's last year, the year's own lines (a year before the first: stops). Past it, the last year's total
-    times the growth of average wages from that year: SOI's wages per return with wages, extended by CBO's wages per
-    return and then Macro-Projections' wages per tax unit (growth.factors('wages', y), the series the pipeline grows
-    wages per return by)."""
+def irs_wage_table():
     t = table(IRS_WAGES)
     assert not t[['year', 'business_type', 'used', 'thousands']].isna().any().any(), f'{IRS_WAGES}: missing values'
-    t = t[t['used'] == 1]
-    first, last = int(t['year'].min()), int(t['year'].max())
-    assert year >= first, f'{IRS_WAGES}: no year before {first}'
-    use = min(year, last)
-    t = t[t['year'] == use]
+    return t[t['used'] == 1]
+
+
+def irs_wage_totals(year):
+    """Each group's IRS total of wages paid in a year of the table, in dollars: {group: total}."""
+    t = irs_wage_table()
+    assert year in set(t['year']), f'{IRS_WAGES}: no {year}'
+    t = t[t['year'] == year]
     totals = {g: 1000.0 * float(t.loc[t['business_type'].isin(kinds), 'thousands'].sum())
               for g, kinds in QBI_GROUP_TYPES.items()}
-    assert all(v > 0 for v in totals.values()), f'{IRS_WAGES} {use}: a group with no wages'
-    factor = 1.0
-    if year > last:
-        import growth as GR
-        factor = GR.factors('wages', year)[0] / GR.factors('wages', last)[0]
-        assert np.isfinite(factor) and factor > 0, f'wages per return: growth {last} to {year} is {factor}'
-    return {g: v * factor for g, v in totals.items()}, use, factor
+    assert all(v > 0 for v in totals.values()), f'{IRS_WAGES} {year}: a group with no wages'
+    return totals
+
+
+def carried_qbi_scalars(year, last):
+    """A year past the table's last: the scalars of the table's last year, carried through the projection chain in the
+    file qbi_scalars.csv beside each year's file (write_qbi_scalars), read from the folder of the file this year's start
+    comes from. Returns ({group: last year's scalar}, the growth of average wages from that year: SOI's wages per return,
+    extended by CBO's and then Macro-Projections' wages per return, growth.factors('wages', year)). Stops if they are
+    missing: there is no other source for them."""
+    import growth as GR
+    import target_list as TLS
+    spec = TLS.start_spec(year)
+    assert spec['mode'] == 'from_year', f'QBI {year}: past the IRS table\'s last year {last}, but the start is not an earlier year\'s file'
+    path = f"{common.OUT}/tilt/{spec['run']}/{QBI_SCALARS}"
+    assert os.path.exists(path), f'QBI {year}: no scalars at {path}; the {last} scalars come through the chain of start files'
+    t = pd.read_csv(path).set_index('group')
+    assert sorted(t.index) == sorted(QBI_GROUP_TYPES), f'{path}: groups {list(t.index)}'
+    assert (t['base_year'] == last).all(), f'{path}: scalars of {t["base_year"].unique()}, not of {last}, the IRS table\'s last year'
+    assert np.isfinite(t['base_scalar']).all() and (t['base_scalar'] > 0).all(), f'{path}: a scalar missing or not positive'
+    factor = GR.factors('wages', year)[0] / GR.factors('wages', last)[0]
+    assert np.isfinite(factor) and factor > 0, f'wages per return: growth {last} to {year} is {factor}'
+    return {k: float(t.loc[k, 'base_scalar']) for k in QBI_GROUP_TYPES}, factor
+
+
+def write_qbi_scalars(ctx, folder):
+    """qbi_scalars.csv beside the year's file: the year's scalars and the ones the next years in the chain start from."""
+    q = ctx['qbi']
+    pd.DataFrame([{'group': k, 'year': ctx['year'], 'scalar': q['scalars'][k], 'base_year': q['base_year'],
+                   'base_scalar': q['base_scalars'][k], 'average_wages_growth_from_base': q['factor'],
+                   'file_total_start_weights': q['file_totals'][k]} for k in QBI_GROUP_TYPES]).to_csv(f'{folder}/{QBI_SCALARS}', index=False)
 
 
 def qbi(df, year, w, ctx):
@@ -589,10 +612,12 @@ def qbi(df, year, w, ctx):
     Wages. A group's wages on a filing record = its number x the group's scalar for the year, 0 where the record has no
     positive income of the types the group's wages go to. A non-filer has none: the IRS tables are of returns. The scalar is computed here, once a year, in the tilt stage: on the start,
     after the top of the file and with every dollar in target-year dollars, before the taxes and the reweighting, on the
-    weights this function is given (w, the start's prescaled weights, kept in the file as weight_start). It is the IRS
-    total for the year (irs_wage_totals) over the sum, over filing records with positive income of those types, of weight
+    weights this function is given (w, the start's prescaled weights, kept in the file as weight_start). Through the IRS
+    table's last year it is the IRS total for the year (irs_wage_totals) over the sum, over filing records with positive income of those types, of weight
     x number, so the file's total after the zero rule equals the IRS total exactly at the start's weights. The reweighting
     moves weights only, so the total at the final weights differs (reported in the checks; no target holds it).
+    Past the table's last year (2023) there is no IRS total to match: the scalar is that year's scalar x the growth of
+    average wages since (carried_qbi_scalars), and the file's total follows from the numbers on the year's weights.
       - cf: all the wages go to wagebill_sole_prop, on records with positive Schedule C income, against SOI's Schedule C
         payroll. SOI publishes no annual Schedule F wages; farms keep their own rule below.
       - ps: on records with positive partnership or S corporation income. A record with both splits the wages by its
@@ -630,12 +655,16 @@ def qbi(df, year, w, ctx):
     den_c = sum((w * group_inc[k])[known[k]].sum() for k in grp)
     assert den_c > 0, 'QBI: no positive income with an industry group'
     c_other = float(num_c / den_c)
-    totals, table_year, factor = irs_wage_totals(year)
-    out, rows, scalars = {}, [], {}
+    table_last = int(irs_wage_table()['year'].max())
+    assert year >= int(irs_wage_table()['year'].min()), f'{IRS_WAGES}: no year as early as {year}'
+    past = year <= table_last
+    totals = irs_wage_totals(year) if past else None
+    base_scalars, factor = (None, 1.0) if past else carried_qbi_scalars(year, table_last)
+    out, rows, scalars, file_totals = {}, [], {}, {}
     for k, person in (('cf', 1), ('ps', 2)):
         base = float((w * num[k])[has[k]].sum())
         assert base > 0, f'{k}: no filer with positive income and a number'
-        scalars[k] = totals[k] / base
+        scalars[k] = totals[k] / base if past else base_scalars[k] * factor
         wages = np.where(has[k], scalars[k] * num[k], 0.0)
         flagged = uniform(df, 'qbi', person) < np.where(known[k], chance_of[np.clip(grp[k], 0, 8)], c_other)
         if k == 'cf':
@@ -655,8 +684,9 @@ def qbi(df, year, w, ctx):
             out['sstb_part'] = (flagged & (inc['part'] > 0)).astype(int)
             out['sstb_scorp'] = (flagged & (inc['scorp'] > 0)).astype(int)
         got = float((w * wages).sum())
-        assert abs(got / totals[k] - 1) < 1e-10, f'{k}: file total {got} against {totals[k]}'
-        rows.append({'group': k, 'IRS total, table year or grown ($ billion)': totals[k] / 1e9,
+        file_totals[k] = got
+        assert not past or abs(got / totals[k] - 1) < 1e-10, f'{k}: file total {got} against {totals[k]}'
+        rows.append({'group': k, 'IRS total ($ billion; none past the table)': totals[k] / 1e9 if past else np.nan,
                      'file total, start weights ($ billion)': got / 1e9,
                      'scalar ($ per worker of the number)': scalars[k],
                      'filers with positive income (millions)': w[has[k]].sum() / 1e6,
@@ -673,13 +703,14 @@ def qbi(df, year, w, ctx):
     rows.append({'group': 'farm (own rule, not in the IRS totals)', 'filers with positive income (millions)': w[filer & (farm > 0)].sum() / 1e6,
                  'income ($ billion)': (w * np.maximum(farm, 0)).sum() / 1e9,
                  'file total, start weights ($ billion)': (w * out['wagebill_farm']).sum() / 1e9})
-    ctx['qbi'] = {'table': pd.DataFrame(rows), 'c_other': c_other, 'table_year': table_year, 'factor': factor,
-                  'totals': totals, 'scalars': scalars}
+    ctx['qbi'] = {'table': pd.DataFrame(rows), 'c_other': c_other, 'factor': factor, 'totals': totals, 'scalars': scalars,
+                  'file_totals': file_totals, 'base_year': year if past else table_last,
+                  'base_scalars': scalars if past else base_scalars}
+    how = 'the IRS totals' if past else f'{table_last} scalars x average wages growth {factor:.4f}, no IRS total'
     ctx['notes'].append(
-        f'QBI wages at the start\'s weights: IRS totals ${totals["cf"] / 1e9:,.1f} billion (Schedule C) and '
-        f'${totals["ps"] / 1e9:,.1f} billion (partnerships and S corporations), table year {table_year}'
-        + (f' x average wages growth {factor:.4f}' if factor != 1.0 else '')
-        + f'; scalars ${scalars["cf"]:,.0f} and ${scalars["ps"]:,.0f} per worker; chance for no industry code {c_other:.4f}')
+        f'QBI wages at the start\'s weights: ${file_totals["cf"] / 1e9:,.1f} billion (Schedule C) and '
+        f'${file_totals["ps"] / 1e9:,.1f} billion (partnerships and S corporations), from {how}; '
+        f'scalars ${scalars["cf"]:,.0f} and ${scalars["ps"]:,.0f} per worker; chance for no industry code {c_other:.4f}')
     return {col: out[col] for col in writes}
 
 
@@ -1080,8 +1111,9 @@ def checks(df, year, w, ctx=None):
     q = ctx['qbi']
     final = {'cf': df['wagebill_sole_prop'].to_numpy(float), 'ps': df['wagebill_part'].to_numpy(float) + df['wagebill_scorp'].to_numpy(float)}
     out.append(('QBI service status and wage bill', [q['table']],
-                [f'A group\'s wages are its drawn number times a scalar set on the start\'s weights so that the file\'s wages equal the IRS '
-                 f'total (table year {q["table_year"]}, average wages growth {q["factor"]:.4f}). The chance of a specified service for '
+                [(f'A group\'s wages are its drawn number times a scalar set on the start\'s weights so that the file\'s wages equal the IRS total. '
+                  if q['totals'] else f'A group\'s wages are its drawn number times the {q["base_year"]} scalar times average wages growth since, {q["factor"]:.4f}; no IRS total. ')
+                 + f'The chance of a specified service for '
                  f'"no industry code" is {q["c_other"]:.4f}. Table: start weights. At the weights here (after the tilt) the file\'s wages are '
                  + ' and '.join(f'${(w * final[k]).sum() / 1e9:,.1f} billion ({k})' for k in final)
                  + '; no target holds them.']))
