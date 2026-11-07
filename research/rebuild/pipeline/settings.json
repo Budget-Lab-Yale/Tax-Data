@@ -1970,14 +1970,12 @@
     "_why": "Q3 as a rule (John, second retrain of 29 October): for each primary filer, and each spouse on a married-joint record, a draw keyed by record id and person, blind with chance = the 2015 PUF's blind rate for the person's age range (where the return shows it) times one factor per person type; each factor makes the filers' weighted count at the start's weights equal Publication 4801's blind boxes for the target year. Non-filers are drawn by the same rule and not counted. Replaces the PUF slot learned in pretraining (29 October), whose draws were ten times too many."
    },
    "qbi": {
-    "reads": ["biz_industry_schc", "biz_industry_part", "biz_industry_scorp", "biz_workers_schc", "biz_workers_part", "biz_workers_scorp", "sole_prop", "the partnership and S corporation parts", "farm", "wages"],
-    "tables": ["cps_private_pay_by_scf_group.csv"],
+    "reads": ["biz_industry_cf", "biz_industry_ps", "biz_workers_cf", "biz_workers_ps", "sole_prop", "the partnership and S corporation parts", "farm", "filer"],
+    "tables": ["irs_wages_by_business_type.csv"],
     "writes": ["sstb_sole_prop", "sstb_part", "sstb_scorp", "sstb_farm", "wagebill_sole_prop", "wagebill_part", "wagebill_scorp", "wagebill_farm"],
     "stream": 7,
-    "a": 1.0,
-    "b": 1.0,
-    "c_by_scf_group": {"1": 0.02, "2": 0.01, "3": 0.09, "4": 0.01, "5": 0.05, "6": 0.16, "7": 0.01},
-    "_why": "Q5 (John, 28 October; scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md; built 29 October). For each record and kind (Schedule C, partnership, S corporation) with positive income of that kind: specified service drawn (person 1-3 by kind) with chance b x c(group), at most 1, the group the model drew for the kind (an SCF item learned in pretraining); wage bill = a x the drawn owner's share of outside workers x the CPS's average pay of private employees in the group in the target year, plus, for an S corporation, all the record's wages when it has S corporation income and no Schedule C or partnership income (first version). Group 8 (no industry code): c is the average of groups 1-7 weighted by positive income on the file, pay is all private employees'. Farms: never specified service, wage bill = positive farm income. c_by_scf_group: the plan's table (Treasury's Form 8995-A shares by detailed industry, Goodman, Lim, Sacerdote and Whitten Table A1, averaged within each SCF group over CPS self-employed people 2017-2019). a and b: the two dials' starting values. Since 30 October every tilt solves them on the start's weights, against Treasury's share (a) and SOI Table 1.4's deduction (b) (taxes.solve_qbi_dials, settings taxes.qbi_dials; a is held at 1 by its range); a year without SOI's QBI line carries the dials of the file its start comes from, or else uses these values. Changing a, b or c needs only a rerun of the tilt stage. No QBI targets."
+    "c_by_scf_group": {"1": 0.0188, "2": 0.0, "3": 0.4144, "4": 0.0, "5": 0.1024, "6": 0.2914, "7": 0.0},
+    "_why": "John, 6 November (scratch explore/2026-11-06/RETRAIN_PLAN.md, section 2; 28 October for the items' first version). Wages, in the tilt stage on the start's weights, before the taxes and the reweighting: a group's wages = its drawn number (the owner's share of outside workers) x a scalar set each year so that filers' wages, after the rule that a record with no positive income of the type gets none, equal the IRS total for the year (resources/non_micro/irs_wages_by_business_type.csv). Schedule C and F group: all to wagebill_sole_prop, against SOI's Schedule C payroll. Partnership and S corporation group: split by each type's positive income, the two adding to the group's wages exactly; guaranteed payments are out of the partnership total and officers' compensation is in the S corporation total. Past the table's last year the totals grow with SOI's wages per return (growth.factors('wages', year)). Service flag: the law's list, no dial. c_by_scf_group is the share of self-employed people in each SCF industry group whose detailed industry is on the law's list (CPS ASEC 2017-2019, scratch explore/2026-10-28/qbi_plan/scripts/cps_bridge.py, statutory_sstb_share); one keyed draw per group, so a record with both a partnership and a S corporation has one flag for both. Group 8 (no industry code): the average of groups 1-7 weighted by positive income on the file. Farms: never specified service, wage bill = positive farm income, so the wage limit never binds. Dropped on 6 November: the dials a and b, the CPS's industry pay, and the rule adding S corporation owners' own wages (the IRS total has officers' pay in it). No QBI targets. A change here needs only a rerun of the tilt stage."
    },
    "amt_nol_cap": {
     "reads": ["amt_nols", "other_agi_remainder", "filer"],
@@ -2027,36 +2025,7 @@
   "max_move": 0.25,
   "_what": "Decision 49 (John, 30 October; design ALGO_GROWTH_SEARCH.md, the simple version): in a year with a Table 2.1 (2015-2023), after the growth by the declared priors and the refund rule, each category's input factor s (medical: med_exp; taxes paid: salt_inc_sales and salt_prop; interest: first_mort_int; charity: char_cash and char_noncash) is set so that the start's dollars per claiming return (the calculator's claimed amount over the filer returns claiming it, at the start's weights, all AGI) match Table 2.1's (its amounts over its counts, all AGI groups). passes: calculator runs, each followed by a multiplicative update of s; max_move: s stays within one plus or minus this of the prior (s = 1). Other itemized deductions keep the prior (Table 2.1 has no count for the residual). Years without a Table 2.1 (the chained years from 2024) keep the priors.",
   "table21": "../resources/table21_2015_2023.csv"
- },
- "qbi_dials": {
-   "solve": true,
-   "_what": "SIMPLE_PLAN.md step 4 (scratch explore/2026-10-28/qbi_plan): the QBI dials a (wage bill) and b (specified service) of non_micro_imputations.items.qbi, solved on the start's weights before the reweighting (taxes.solve_qbi_dials). a: owners of exactly one business (Schedule C, partnership or S corporation, no farm income) that is not a specified service, with taxable income above the top of the phase-in range, keep Treasury's share of 20% of their business income; b: the deduction on returns with AGI of soi_agi_floor or more equals SOI Table 1.4's. Solved in turn, at most rounds times, each by bisection in its range. false: a and b stay at the settings' values (1).",
-   "treasury_share_by_scf_group": {
-    "2": [
-     0.68
-    ],
-    "3": [
-     0.76,
-     0.65
-    ],
-    "4": [
-     0.59,
-     0.84
-    ]
-   },
-   "_treasury_share_by_scf_group": "Goodman, Lim, Sacerdote and Whitten, NBER Working Paper 28680 (revised January 2024), Table A1, column 1: actual 2018-2019 returns, owners of one business with taxable income above the phase-in range, the deduction as a share of 20% of potential QBI, in the industries that are not specified services. By SCF industry group (the Census codes of build_non_micro_tables.SCF_INDUSTRY_RANGES): 2 construction of buildings 0.68; 3 manufacturing 0.76 and publishers 0.65; 4 wholesale 0.59 and restaurants 0.84. A group's value is the average of its industries; the target is the groups' values weighted by the file's business income of those owners in each group. Groups 1, 5, 6, 7 and 8 have no published industry.",
-   "soi_agi_floor": 500000,
-   "a_range": [
-    1.0,
-    1.0
-   ],
-   "_a_range": "The range the wage dial a is searched in. Held at 1 since 30 October (the overnight run, decision 30 of explore/2026-10-30/DECISIONS_FOR_JOHN.md): on the installed networks the solve gave a = 3.00, wage bills nearly twice the economy's private wages; on the new networks it ran to the top of [0, 20] without reaching Treasury's share (0.66 against 0.70) and made wage bills of $84 trillion. The cause: most high-income owners of one business have no outside workers drawn, so no a gives them a wage bill. [0, 20] restores the solve; b is still solved.",
-   "b_range": [
-    0.0,
-    60.0
-   ],
-   "rounds": 4
-  }
+ }
  },
  "state_weights": {
   "_what": "The supplemental state weights (FEATURES.md, State weights; run_state_weights.sh). networks: the training folder of the networks with the state slot. items: final is state_targets.FINAL_ITEMS, with its filters. tolerance: a target's standard error as a share of the larger of the target and 0.1% of the item's national total in the AGI group. tau: the weight of the move, as in tilt.reweighting. nonfiler_tolerance: the same for the non-filers' state by age band targets. newton_budget: Newton steps a group.",

@@ -230,15 +230,17 @@ SCF_AMOUNTS = ['value.' + c for c in ASSETS] + ['w_primary_ltv'] + ['value.' + c
 SCF_AMOUNTS = SCF_AMOUNTS + ['w_dc_stock_share']
 SCF_NOT_ASKED = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']   # missing where the SCF does not ask
 SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share', 'w_dc_stock_share']   # SCF shares: not grown between waves
-# The QBI items (since 29 October; John, NEXT_STEPS.md item 1, Q5; build_scf.R): for each kind of business (Schedule C,
-# partnership, S corporation) the industry group of the household's largest business of the kind (a category, 0 none,
-# 1-7 the SCF's public groups, 8 no industry code) and the owner's share of its outside workers (an amount, a count of
-# workers, never grown between waves). Generation draws each kind's workers after its industry group, the workers zero
-# with no industry, and the industry group never none on a record with income of that kind (meta scf_structure).
-QBI_KINDS = {'schc': ['sole_prop'],
-             'part': ['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179'],
-             'scorp': ['scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']}
-SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_KINDS]
+# The QBI items (since 29 October, two groups since 6 November; John; scratch explore/2026-11-06/RETRAIN_PLAN.md, section
+# 2; build_scf.R): for each group of business (cf: Schedules C and F; ps: partnerships and S corporations), the two
+# groups whose income the SCF shows as sch_cf_income and inside sche_rest, the industry group of the household's largest
+# business of the group (a category, 0 none, 1-7 the SCF's public groups, 8 no industry code) and the owner's share of its
+# outside workers (an amount, a count of workers, never grown between waves). Generation draws each group's workers after
+# its industry group, the workers zero with no industry, and the industry group never none on a record with any income
+# of that group (meta scf_structure). Each group's PUF parts:
+QBI_GROUPS = {'cf': ['sole_prop', 'farm'],
+              'ps': ['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
+                     'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']}
+SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_GROUPS]
 SCF_AMOUNTS = SCF_AMOUNTS + SCF_WORKERS
 SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not dollars: not grown either)
 # inheritance (since 3 November; John, 2 November): the unit's inheritances and trusts received this year, gifts left out,
@@ -251,7 +253,7 @@ SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not d
 # net worth.
 SCF_AMOUNTS = SCF_AMOUNTS + ['inheritance']
 SCF_NOT_ASKED = SCF_NOT_ASKED + ['inheritance']
-SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_KINDS}
+SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_GROUPS}
 PUF_AMOUNTS = ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
@@ -1381,10 +1383,10 @@ def table_meta(t, factor):
             'tax_categories': TAX_CATEGORIES,
             'puf_categories': PUF_CATEGORIES,
             'scf_categories': SCF_CATEGORIES,
-            # (29 October) the QBI items: each kind's workers drawn after its industry group (zero with none); the
-            # industry group never none where any of the kind's PUF parts is nonzero
-            'scf_structure': {'after': {f'biz_workers_{k}': f'biz_industry_{k}' for k in QBI_KINDS},
-                              'industry_parts': {f'biz_industry_{k}': parts for k, parts in QBI_KINDS.items()}},
+            # (29 October) the QBI items: each group's workers drawn after its industry group (zero with none); the
+            # industry group never none where any of the group's PUF parts is nonzero
+            'scf_structure': {'after': {f'biz_workers_{k}': f'biz_industry_{k}' for k in QBI_GROUPS},
+                              'industry_parts': {f'biz_industry_{k}': parts for k, parts in QBI_GROUPS.items()}},
             'computed_flags': {'k1_owner': K1_PARTS},
             'scf_amounts': SCF_AMOUNTS,
             'cex_amounts': CEX_AMOUNTS,

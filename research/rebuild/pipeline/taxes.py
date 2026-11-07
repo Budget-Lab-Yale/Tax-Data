@@ -14,29 +14,15 @@ the start after the top of the file and the non-microdata imputations.
    <out>/lib/tax-simulator-gpu_<first 12 characters>). Its output, one row per record keyed by the same id, is read
    back, and the columns in OUTPUTS are joined to the file by record id. Every record must come back, with no
    missing value.
-2. The QBI dials (scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md, step 4; solve_qbi_dials). The non-microdata
-   imputations draw each business's specified-service status with chance b x c(industry group) and its wage bill as
-   a x outside workers x average pay. The first calculator run gives each record's taxable income before the QBI
-   deduction, which a and b do not move; the deduction is then the calculator's own formula (qbi_formula, checked
-   against the calculator's result on every record), so each dial is found by bisection:
-     a: among owners of exactly one business (Schedule C, partnership or S corporation; no farm income) that is not a
-        specified service, with taxable income above the top of the phase-in range, the deduction as a share of 20% of
-        their business income equals Treasury's measured share (Goodman, Lim, Sacerdote and Whitten, NBER Working
-        Paper 28680, Table A1, column 1: the published industries matched to SCF industry groups, each group's
-        average weighted by the file's business income of those owners in the group);
-     b: with a fixed, the deduction on returns with AGI of $500,000 or more (the file's AGI, as every IRS target)
-        equals SOI Table 1.4's.
-   Which owners are specified services moves with b, so the two are solved in turn (settings rounds). Then the QBI
-   columns are imputed again with the solved values and the calculator runs a second time; that run's columns are
-   the ones joined.
-3. Marginal rates on wages: with settings wage_increment, the batch command reruns the chain with the primary
+2. Marginal rates on wages: with settings wage_increment, the batch command reruns the chain with the primary
    earner's wages raised by that many dollars; calc_mtr_wages_iit and calc_mtr_wages_payroll are the change in
    income tax after every credit and in payroll tax, per dollar.
 
-Writes in <tilt>/taxes/: the calculator's input and output files of each run with their manifests, the conversion
-notes, qbi_dials.csv and taxes_summary.md.
+Writes in <tilt>/taxes/: the calculator's input and output files of the run with their manifests, the conversion
+notes and taxes_summary.md. (Until 6 November a search for two QBI dials ran here, against Treasury's share and SOI's
+deduction, with a second calculator run; the QBI columns are now set before the calculator, non_micro_imputations.qbi.)
 The command `python taxes.py report <file> <folder>` (run by hand; not a stage of run.sbatch) computes the taxes on a finished file with its own columns,
-with no dials solved, and evaluates the year's calculator targets on its weights before and after the tilt
+and evaluates the year's calculator targets on its weights before and after the tilt
 (report()); it is how a file made before this stage is compared.
 """
 import json
@@ -101,7 +87,6 @@ OUTPUTS = {
                                             'wages (settings taxes.wage_increment dollars more)'),
     'calc_mtr_wages_payroll': ('mtr_wages_payroll', 'marginal rate of payroll tax on the primary earner\'s wages'),
 }
-QBI_LAW = 'qbi_ded'   # the section of the year's law the batch command writes per record for the QBI formula
 
 
 # ---- 1. the batch command ------------------------------------------------------------------------------------
@@ -175,191 +160,6 @@ def joined_columns(out):
         else:
             raise KeyError(f'the calculator wrote no column {src}')
     return pd.DataFrame(cols)
-
-
-# ---- 2. the QBI dials ------------------------------------------------------------------------------------------
-KINDS = ['sole_prop', 'part', 'scorp', 'farm']   # the calculator's four kinds of business
-
-
-def qbi_parts(inp, out):
-    """What the QBI formula reads that the dials do not move: taxable income before the deduction (AGI less the larger
-    of the standard and itemized deductions, the personal exemptions and the tip, overtime, senior and car loan
-    interest deductions of 2025-2028, at least 0, as the calculator's QBI step since its master 080b8dbb), each kind's
-    income as the calculator counts it, the cap's base, and the year's QBI law for each record."""
-    x = lambda d, c: d[c].to_numpy(float)
-    schedule_1a = x(out, 'tip_ded') + x(out, 'ot_ded') + x(out, 'senior_ded') + x(out, 'auto_int_ded')
-    txbl = np.maximum(x(out, 'agi') - np.maximum(x(out, 'item_ded'), x(out, 'std_ded')) - x(out, 'pe_ded')
-                      - schedule_1a, 0.0)
-    inc = np.column_stack([x(inp, 'sole_prop1') + x(inp, 'sole_prop2'), x(out, 'part'), x(out, 'scorp'),
-                           x(inp, 'farm1') + x(inp, 'farm2')])
-    law = {c[len(f'law.{QBI_LAW}.'):]: x(out, c) for c in out.columns if c.startswith(f'law.{QBI_LAW}.')}
-    assert law, 'the batch output has no QBI law columns (--law-sections qbi_ded)'
-    cap_base = np.maximum(txbl - x(inp, 'div_pref') - x(out, 'kg_pref'), 0.0)
-    return {'txbl': txbl, 'inc': inc, 'law': law, 'cap_base': cap_base}
-
-
-def qbi_formula(p, sstb, wagebill):
-    """The QBI deduction of every record, the calculator's formula (tax-simulator-gpu deductions.calc_qbi_ded):
-    each kind's 20% of its income, less, above the threshold, the phase-in share of the excess over the wage limit
-    (50% of the wage bill; for a specified service the whole of it), at least 0, summed over the kinds; under OBBBA
-    law (po_type 1) the better of the wage-limited amount and the income-based amount after its reduction; held to
-    20% of taxable income less qualified dividends and capital gains taxed at the preferential rates. sstb and
-    wagebill: records x the four kinds (KINDS)."""
-    L, inc, txbl = p['law'], p['inc'], p['txbl']
-    col = lambda k: L[k][:, None]
-    sstb = np.nan_to_num(sstb.astype(float))
-    wages = np.nan_to_num(wagebill.astype(float))
-    thr = np.where(sstb == 1, col('po_thresh_sstb'), col('po_thresh_non_sstb'))
-    width = np.where(sstb == 1, col('po_range_sstb'), col('po_range_non_sstb'))
-    share = np.minimum(np.maximum(txbl[:, None] - thr, 0.0) / width, 1.0)
-    exception = np.where(sstb == 1, col('wage_exception_sstb'), col('wage_exception_non_sstb'))
-    tentative = inc * col('rate')
-    tcja = np.maximum(tentative - share * np.maximum(tentative - wages * col('wage_limit') * exception, 0.0), 0.0).sum(1)
-    obbb1 = np.minimum(inc * col('rate') * (sstb == 0), wages * col('wage_limit')).sum(1)
-    total = inc.sum(1)
-    obbb2 = np.maximum(total * L['rate'] - 0.75 * np.maximum(txbl - L['po_thresh_sstb'], 0.0), 0.0)
-    q = np.where(L['po_type'] == 0, tcja, np.maximum(obbb1, obbb2))
-    q = np.maximum(q, L['min_value'] * (total > 1000.0))
-    return np.minimum(q, p['cap_base'] * L['txbl_inc_limit'])
-
-
-def qbi_columns(df):
-    """sstb and wagebill for the four kinds, records x KINDS, from the file's columns (non_micro_imputations.qbi)."""
-    return (np.column_stack([df[f'sstb_{k}'].to_numpy(float) for k in KINDS]),
-            np.column_stack([df[f'wagebill_{k}'].to_numpy(float) for k in KINDS]))
-
-
-def check_formula(p, df, out, tag, strict=True):
-    """The formula's deduction against the calculator's on every record; returns the largest gap in dollars. strict
-    False (a year whose dials are carried, not solved: nothing then rests on the formula) reports the gap, as a note
-    in the log, instead of stopping. In 2026 law the two differ on 2,324 of 463,122 records, all with very large
-    incomes (30 October, phase 2; decision in DECISIONS_FOR_JOHN.md)."""
-    q = qbi_formula(p, *qbi_columns(df))
-    g = np.abs(q - out['qbi_ded'].to_numpy(float))
-    gap = float(g.max())
-    if strict:
-        assert gap < 0.01, f'QBI formula and calculator differ by up to ${gap:,.2f} ({tag})'
-    elif gap >= 0.01:
-        common.say(f'WARNING: QBI formula and calculator differ by up to ${gap:,.2f} on {int((g >= 0.01).sum())} records '
-                   f'({tag}); the dials of this year are carried, not solved, so no result rests on the formula')
-    return gap
-
-
-def bisect(f, lo, hi, rising, iterations=50):
-    """x in [lo, hi] with f(x) = 0 for f monotone (rising or falling); an end when the root lies outside."""
-    if lo == hi:   # a range of one value (settings taxes.qbi_dials.a_range [1, 1] since 30 October): held, not solved
-        return lo, 'held at this value (its range in the settings is this one value)'
-    flo, fhi = f(lo), f(hi)
-    if (flo >= 0) == rising:
-        return lo, 'at the lower end of its range: the target lies beyond that end'
-    if (fhi <= 0) == rising:
-        return hi, 'at the upper end of its range: the target lies beyond that end'
-    for _ in range(iterations):
-        mid = 0.5 * (lo + hi)
-        if (f(mid) < 0) == rising:
-            lo = mid
-        else:
-            hi = mid
-    return 0.5 * (lo + hi), 'solved'
-
-
-def soi_qbi_cells(year):
-    """SOI Table 1.4's QBI deduction amounts by AGI for the year (targets/soi.csv); empty for a year SOI has not
-    published (2024 on)."""
-    import targets as TG
-    soi = TG.load()
-    return soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.variable == 'qbi_deduction')
-               & (soi.statistic == 'amount') & (soi.label != 'all')]
-
-
-def carried_dials(year):
-    """(a, b, where they come from) for a year with no SOI QBI line: the last round of the dials of the file the start
-    comes from (<out>/tilt/<run>/taxes/qbi_dials.csv, the path tilt.start_from_year reads the file from), else the
-    settings' values."""
-    import non_micro_imputations as NMI
-    import target_list as TLS
-    spec = TLS.start_spec(year)
-    if spec['mode'] == 'from_year':
-        path = f"{common.OUT}/tilt/{spec['run']}/taxes/qbi_dials.csv"
-        if os.path.exists(path):
-            r = pd.read_csv(path).iloc[-1]
-            return float(r['a']), float(r['b']), f"carried from the {spec['year']} file ({path})"
-    return (float(NMI.ITEMS['qbi']['a']), float(NMI.ITEMS['qbi']['b']),
-            'the settings\' values (non_micro_imputations.items.qbi): no dials of an earlier year to carry')
-
-
-def solve_qbi_dials(df, inp, out, w, year, nmi_ctx):
-    """The two QBI dials (module docstring, step 2). Returns (a, b, the table of rounds, the check by SCF group, notes)."""
-    import non_micro_imputations as NMI
-    Q = S['qbi_dials']
-    p = qbi_parts(inp, out)
-    filer = df['filer'].to_numpy() == 1
-    agi = D.agi(df)
-    s = soi_qbi_cells(year)
-    floor = float(Q['soi_agi_floor'])
-    assert len(s), f'SOI Table 1.4 {year}: no QBI deduction line in targets/soi.csv'
-    # a cell SOI combined with the one below the floor would carry dollars across it
-    assert not ((s.lo < floor) & (s.hi > floor)).any() and not s.loc[s.lo >= floor, 'value'].isna().any(), \
-        f'SOI Table 1.4 {year}: the QBI deduction cells do not split at ${floor:,.0f}'
-    soi_top = float(s.loc[s.lo >= floor, 'value'].sum())
-    top = filer & (agi >= floor)
-    L = p['law']
-    end = L['po_thresh_non_sstb'] + L['po_range_non_sstb']   # the top of the phase-in range
-    inc = p['inc']
-    pos = inc[:, :3] > 0
-    one = filer & (pos.sum(1) == 1) & (inc[:, 3] <= 0) & (p['txbl'] > end)
-    kind = np.argmax(pos, axis=1)                       # the one kind, where one
-    inc_one = inc[np.arange(len(df)), kind]
-    groups = np.column_stack([df[NMI.QBI_KINDS[k][0]].to_numpy().astype(int) for k in KINDS[:3]])
-    group = groups[np.arange(len(df)), kind]
-    treasury = {int(g): float(np.mean(v)) for g, v in Q['treasury_share_by_scf_group'].items()}
-    ctx = {'notes': []}
-
-    def impute(a, b):
-        cols = NMI.qbi(df, year, w, ctx, a=a, b=b)
-        sstb = np.column_stack([cols[f'sstb_{k}'] for k in KINDS]).astype(float)
-        bill = np.column_stack([cols[f'wagebill_{k}'] for k in KINDS]).astype(float)
-        return sstb, bill
-
-    def share_a(a, b):
-        sstb, bill = impute(a, b)
-        q = qbi_formula(p, sstb, bill)
-        pop = one & (sstb[np.arange(len(df)), kind] == 0)
-        num = (w * q)[pop].sum()
-        den = (w * 0.2 * inc_one)[pop].sum()
-        inc_g = {g: (w * inc_one)[pop & (group == g)].sum() for g in treasury}
-        target = sum(inc_g[g] * treasury[g] for g in treasury) / sum(inc_g.values())
-        by_group = [{'SCF industry group': g, 'owners (millions)': w[pop & (group == g)].sum() / 1e6,
-                     'business income ($ billion)': (w * inc_one)[pop & (group == g)].sum() / 1e9,
-                     'deduction as a share of 20% of income, file': (w * q)[pop & (group == g)].sum()
-                     / max((w * 0.2 * inc_one)[pop & (group == g)].sum(), 1.0),
-                     'Treasury (Table A1, column 1; industries in the group averaged)': treasury.get(g, np.nan)}
-                    for g in range(1, 9)]
-        return num / den, target, by_group
-
-    def top_b(a, b):
-        sstb, bill = impute(a, b)
-        return (w * qbi_formula(p, sstb, bill))[top].sum()
-
-    a, b = float(NMI.ITEMS['qbi']['a']), float(NMI.ITEMS['qbi']['b'])
-    rounds = []
-    for r in range(int(Q['rounds'])):
-        target = share_a(a, b)[1]
-        a_new, a_how = bisect(lambda v: share_a(v, b)[0] - target, *Q['a_range'], rising=True)
-        b_new, b_how = bisect(lambda v: top_b(a_new, v) - soi_top, *Q['b_range'], rising=False)
-        sh, target, _ = share_a(a_new, b_new)
-        rounds.append({'round': r + 1, 'a': a_new, 'a solved': a_how, 'b': b_new, 'b solved': b_how,
-                       'share of 20% kept, file': sh, 'Treasury target': target,
-                       'deduction at AGI $500,000 and over, file ($ billion)': top_b(a_new, b_new) / 1e9,
-                       'SOI ($ billion)': soi_top / 1e9})
-        common.say(f'QBI dials, round {r + 1}: a = {a_new:.4f} ({a_how}), b = {b_new:.4f} ({b_how}); share {sh:.4f} '
-                   f'against {target:.4f}')
-        done = abs(a_new - a) < 1e-4 and abs(b_new - b) < 1e-4
-        a, b = a_new, b_new
-        if done:
-            break
-    _, _, by_group = share_a(a, b)
-    return a, b, pd.DataFrame(rounds), pd.DataFrame(by_group)
 
 
 # ---- the refund rule and the greedy Schedule A step (30 October, decisions 47 and 49) ----------------------------
@@ -562,11 +362,10 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
 
 
 # ---- the stage inside the tilt ---------------------------------------------------------------------------------
-def compute(df, year, w, nmi_ctx, folder):
+def compute(df, year, w, folder):
     """Every record's computed taxes joined to the file (module docstring). df: the start, after the non-microdata
-    imputations; w: the start's weights (for the dials). Returns the frame with OUTPUTS and a context for the summary."""
+    imputations; w: the start's weights. Returns the frame with OUTPUTS and a context for the summary."""
     import calculator as C
-    import non_micro_imputations as NMI
     ctx = {'notes': [], 'runs': {}}
     # A start from an earlier year's tilted file (targets.yaml start: from_year) carries that year's computed columns,
     # computed under that year's law on that year's dollars. They are dropped and computed again here. Until the
@@ -584,61 +383,8 @@ def compute(df, year, w, nmi_ctx, folder):
     inp, notes = C.convert(df)
     ctx['conversion'] = notes
 
-    def final_run(df, a, b):
-        # the QBI columns at dials a and b, and the calculator run on them whose output the file keeps
-        cols = NMI.qbi(df, year, w, nmi_ctx, a=a, b=b)
-        df = df.copy()
-        for c, v in cols.items():
-            df[c] = v
-        inp, notes = C.convert(df)
-        out, man = run_batch(inp, year, folder, 'final', law_sections=[QBI_LAW],
-                             wage_increment=float(S.get('wage_increment', 0)))
-        ctx['runs']['final'] = man
-        return df, inp, notes, out, man
-
-    solve = bool(S.get('qbi_dials', {}).get('solve'))
-    out, man = run_batch(inp, year, folder, 'first', law_sections=[QBI_LAW] if solve else [],
-                         wage_increment=0.0 if solve else float(S.get('wage_increment', 0)))
-    ctx['runs']['first'] = man
-    if solve:
-        p = qbi_parts(inp, out)
-        if not (p['law']['rate'] > 0).any():
-            ctx['notes'].append(f'QBI dials not solved: no QBI deduction in {law_year(year)} law')
-            solve = False
-        else:
-            gap = check_formula(p, df, out, 'first run', strict=bool(len(soi_qbi_cells(year))))
-            ctx['notes'].append(f'QBI formula against the calculator, first run: largest gap ${gap:.6f}')
-    if solve and not len(soi_qbi_cells(year)):
-        # no SOI Table 1.4 for the year (2024 on): nothing to solve against, so the dials of the year the start comes
-        # from are carried, and with them the specified-service flags (the draw is keyed by record id), as a chained
-        # year holds the distribution; settings' values when there are none to carry (review of 30 October: the solve
-        # stopped on its assertion; decision in DECISIONS_FOR_JOHN.md)
-        a, b, how = carried_dials(year)
-        df, inp, notes, out, man = final_run(df, a, b)
-        gap = check_formula(qbi_parts(inp, out), df, out, 'final run', strict=False)
-        pd.DataFrame([{'round': 0, 'a': a, 'a solved': how, 'b': b, 'b solved': how}]).to_csv(
-            f'{folder}/qbi_dials.csv', index=False)
-        ctx.update(a=a, b=b)
-        ctx['notes'].append(f'QBI dials not solved (no SOI Table 1.4 QBI deduction for {year}): a = {a:.4f}, '
-                            f'b = {b:.4f}, {how}; QBI formula against the calculator, final run: largest gap '
-                            f'${gap:.6f}')
-        solve = False
-    if solve:
-        a, b, rounds, by_group = solve_qbi_dials(df, inp, out, w, year, nmi_ctx)
-        df, inp, notes, out, man = final_run(df, a, b)   # nmi_ctx['qbi'] now describes the solved columns
-        gap = check_formula(qbi_parts(inp, out), df, out, 'final run')
-        ctx.update(a=a, b=b, rounds=rounds, by_group=by_group)
-        rounds.to_csv(f'{folder}/qbi_dials.csv', index=False)
-        by_group.to_csv(f'{folder}/qbi_share_by_scf_group.csv', index=False)
-        ctx['notes'].append(f'QBI dials solved: a = {a:.4f}, b = {b:.4f} (settings a = {NMI.ITEMS["qbi"]["a"]}, '
-                            f'b = {NMI.ITEMS["qbi"]["b"]}); QBI formula against the calculator, final run: largest gap '
-                            f'${gap:.6f}')
-    elif 'mtr_wages_iit' not in out and float(S.get('wage_increment', 0)) > 0:
-        # the first run left out the marginal rates because the dials were to be solved, and they were not (a year
-        # whose law has no QBI deduction, 2015-2017): one more run for them, or those years' files would lack the
-        # calc_mtr_* columns (review of rebuild-taxes-in-model, 30 October)
-        out, man = run_batch(inp, year, folder, 'final', wage_increment=float(S['wage_increment']))
-        ctx['runs']['final'] = man
+    out, man = run_batch(inp, year, folder, 'final', wage_increment=float(S.get('wage_increment', 0)))
+    ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
     if S.get('se_tax_ded_from_calculator', False):
@@ -700,11 +446,6 @@ def summary_lines(ctx, df, w0, w1):
                   ctx['greedy'].to_markdown(index=False, floatfmt=',.4f'), '',
                   'The passes (dollars per claiming return, start against Table 2.1):', '',
                   ctx['greedy_passes'].to_markdown(index=False, floatfmt=',.4f'), '']
-    if 'rounds' in ctx:
-        lines += ['QBI dials, round by round:', '', ctx['rounds'].to_markdown(index=False, floatfmt=',.4f'), '',
-                  'The share of 20% of business income kept by owners of one business that is not a specified service, '
-                  'above the phase-in range, by SCF industry group (start weights):', '',
-                  ctx['by_group'].to_markdown(index=False, floatfmt=',.3f'), '']
     return lines
 
 
@@ -721,7 +462,7 @@ def evaluate(df, rows, w0, w1):
 
 
 def report(path, folder):
-    """Taxes on a finished file (its own columns, no dials solved) and the year's calculator targets evaluated on
+    """Taxes on a finished file (its own columns) and the year's calculator targets evaluated on
     its weights before and after the tilt: <folder>/taxes_fit.csv."""
     import target_list as TLS
     os.makedirs(folder, exist_ok=True)

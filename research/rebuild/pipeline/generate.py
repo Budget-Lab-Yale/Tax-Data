@@ -191,9 +191,9 @@ FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
 # (4 November) drawn after the PUF items and their totals, in this order, under the batch's label (step 2b at the top)
 LATE_SLOTS = [v for v in M.PUF_SHARES + list(M.SHARED_CATEGORIES) if v in P]
-# (29 October) the QBI items under the SCF label (build_table, meta scf_structure): each kind's outside workers drawn
-# after its industry group and zero with none; the industry group never none on a record with any of the kind's PUF
-# parts nonzero
+# (29 October; two groups since 6 November) the QBI items under the SCF label (build_table, meta scf_structure): each
+# group's outside workers drawn after its industry group and zero with none; the industry group never none on a record
+# with any of the group's PUF parts nonzero
 SCF_STRUCTURE = M.META.get('scf_structure', {'after': {}, 'industry_parts': {}})
 SCF_AFTER = {P.index(v): P.index(b) for v, b in SCF_STRUCTURE['after'].items()}
 INDUSTRY_PARTS = {P.index(v): torch.tensor([P.index(q) for q in parts]) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
@@ -404,9 +404,9 @@ def scf_order(size, gen):
         swap = pos < pos_b
         perm[rows[swap], pos[swap]], perm[rows[swap], pos_b[swap]] = ib, i
     if G.get('qbi_items_last', False):
-        # (autoresearch, round 13) the QBI items (each kind's industry group and its outside workers) after every other
+        # (autoresearch, round 13) the QBI items (each group's industry group and its outside workers) after every other
         # SCF slot, keeping their order among themselves. qbi_structure gives an industry group to every record with the
-        # kind's PUF parts nonzero, while in the SCF only owners of a business have one; drawn before owns_business and
+        # group's PUF parts nonzero, while in the SCF only owners of a business have one; drawn before owns_business and
         # the balance sheet, a given industry made the record an owner (the 2019 file: 32 million units with a Schedule C
         # industry against the SCF's 7 million; ownership 16.8% against 11.6%, 13.6% in the bottom income quarter
         # against 3.4%).
@@ -597,8 +597,8 @@ def deferral_structure(values, slot, probs):
 
 
 def qbi_structure(values, slot, probs):
-    """The QBI items (29 October): a kind's outside workers are zero where its industry group is none (drawn first,
-    scf_order); its industry group is not none where any of the kind's PUF parts is nonzero (the record has such a
+    """The QBI items (29 October): a group's outside workers are zero where its industry group is none (drawn first,
+    scf_order); its industry group is not none where any of the group's PUF parts is nonzero (the record has such a
     business: the model's chances of the 8 groups, rescaled)."""
     for j, ind in SCF_AFTER.items():
         probs = only(probs, (slot == j) & (values[:, NC + ind] == 0))

@@ -267,15 +267,11 @@ def lt_basis(kg, r):
 def puf_based(d, rec, spec):
     """In place: the added items computed from a PUF amount (the pipeline's non_micro_imputations), so that the package
     ships only their other part: the basis of long-term gains from the gain and the shipped ratio r; the farm's wage
-    bill for the qualified business income deduction, the farm income if positive; the S corporation's wage bill, the
-    shipped outside workers' pay plus the record's wages where the shipped flag is 1."""
+    bill for the qualified business income deduction, the farm income if positive."""
     if 'kg_lt_basis' in spec['puf_based']:
         d['kg_lt_basis'] = lt_basis(d['kg_lt'], rec['kg_lt_basis_ratio'].to_numpy(float))
     if 'wagebill_farm' in spec['puf_based']:
         d['wagebill_farm'] = np.maximum(np.asarray(d['farm'], float), 0.0)
-    if 'wagebill_scorp' in spec['puf_based']:
-        o = rec['wagebill_scorp_outside'].to_numpy(float)
-        d['wagebill_scorp'] = np.where(rec['wagebill_scorp_owner_wages'].to_numpy() == 1, o + np.asarray(d['wages'], float), o)
     return d
 
 

@@ -233,12 +233,10 @@ ssn_status_dep2,ssn_status_dep2,rebuild-only,dep_ssn2 made from it
 ssn_status_dep3,ssn_status_dep3,rebuild-only,dep_ssn3 made from it
 ssn1,ssn1,rebuild-only,file: primary filer has a number
 ssn2,ssn2,rebuild-only,file: spouse has a number
-biz_workers_schc,biz_workers_schc,rebuild-only,"SCF outside workers, Schedule C"
-biz_workers_part,biz_workers_part,rebuild-only,"SCF outside workers, partnership"
-biz_workers_scorp,biz_workers_scorp,rebuild-only,"SCF outside workers, S corporation"
-biz_industry_schc,biz_industry_schc,rebuild-only,SCF industry group
-biz_industry_part,biz_industry_part,rebuild-only,SCF industry group
-biz_industry_scorp,biz_industry_scorp,rebuild-only,SCF industry group
+biz_workers_cf,biz_workers_cf,rebuild-only,"SCF outside workers x ownership share, Schedules C and F"
+biz_workers_ps,biz_workers_ps,rebuild-only,"SCF outside workers x ownership share, partnerships and S corporations"
+biz_industry_cf,biz_industry_cf,rebuild-only,SCF industry group
+biz_industry_ps,biz_industry_ps,rebuild-only,SCF industry group
 record_id,record_id,rebuild-only,record id (written as id for the calculator and Tax-Simulator)
 household_id,household_id,rebuild-only,household id
 capital_gains_line13,capital_gains_line13,rebuild-only,file: Form 1040 line 13

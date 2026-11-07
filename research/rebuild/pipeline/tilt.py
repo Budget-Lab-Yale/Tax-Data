@@ -30,9 +30,9 @@ them yet, so the weights do not depend on them. Their checks, on the weights aft
 non_micro_checks.md and non_micro_check_*.csv.
 
 The taxes (taxes.py, settings taxes; 30 October): after the non-microdata imputations, every record's taxes under the
-year's law from tax-simulator-gpu's batch command, the QBI dials solved first, joined by record id (columns calc_*);
+year's law from tax-simulator-gpu's batch command, joined by record id (columns calc_*);
 then the year's calculator targets (kind calculator) are expanded on them and, with settings taxes.target, join the
-solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes_summary.md the totals and the dials.
+solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes_summary.md the totals.
 
 The tilt. solver.solve, the one-cost reweighting (decisions 57 and 68): the weights that minimize the sum over targets
 of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, identities exact
@@ -624,9 +624,9 @@ def main():
     # changes (its drawn value kept as amt_nols_drawn); the ranking items rank on w0, and no target reads their columns
     # or amt_nols yet
     g19, nmi_ctx = NMI.impute(g19, Y, w0)
-    # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start, the QBI
-    # dials solved first on the start's weights; then the calculator targets, on the computed columns
-    g19, tax_ctx = TX.compute(g19, Y, w0, nmi_ctx, f'{common.TILT}/taxes')
+    # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start; then the
+    # calculator targets, on the computed columns
+    g19, tax_ctx = TX.compute(g19, Y, w0, f'{common.TILT}/taxes')
     calc_rows = TLS.expand(Y, start=g19, which='calculator')
     common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
                                                           ' (reported only: settings taxes.target is false)'))
@@ -749,7 +749,7 @@ def main():
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
     # the non-microdata imputations' published checks, on the weights after the tilt (Q9: reported only)
     NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
-    # the calculator targets before and after (targeted or not), the totals and the dials
+    # the calculator targets before and after (targeted or not), the totals
     tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(targeted_calc) else TX.evaluate(g19, calc_rows, w0, w1)
     tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
     tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
