@@ -1258,3 +1258,5 @@ dropped, and the pass-through entity tax switch was dropped on John's instructio
 law). Details are in `FEATURES.md` and in the scratch `LOG.md`.
 
 **5-6 November: state weights (branch `rebuild-state-weights`).** A supplement on run7: the CPS's state as a training slot, the networks' chances of state as the start, a tilt of each record's split to Historic Table 2. On held-out items it beats Iselin's AGI-group start under the same tilt by about half a point of average miss in 2019 and a third of a point in 2022. Results and what was tried: `explore/2026-11-05/state_weights/RESULTS.md`.
+
+**6 November: QBI wages in two groups of business (branch `retrain-qbi`).** The SCF gives two numbers per row (Schedules C and F; partnerships and S corporations); a group's wages are its number × a yearly scalar set on the start's weights to SOI's wages paid by type of business (2019: $144.0 billion and $1,977.6 billion), then the 2023 scalar × average wages growth after 2023. Flag from the law's list. Dials a and b, industry pay and the owners' own wages rule deleted (John).

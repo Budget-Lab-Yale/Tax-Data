@@ -747,6 +747,7 @@ def main():
     factors = weight_factor_table(w0, w1, grp)
     factors.to_csv(f'{common.TILT}/weight_factors.csv', index=False)
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    NMI.write_qbi_scalars(nmi_ctx, common.TILT)   # beside the file: the projection years read them from their start's folder
     # the non-microdata imputations' published checks, on the weights after the tilt (Q9: reported only)
     NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
     # the calculator targets before and after (targeted or not), the totals

@@ -1265,9 +1265,11 @@ numbers could not be tied to their income.
 - *The IRS totals* (`resources/non_micro/irs_wages_by_business_type.csv`, SOI 2015-2023, read by
   `build_irs_wages.py` there). 2019: Schedule C payroll $144.0 billion; partnership salaries and wages $712.1 billion,
   without the $68.8 billion of guaranteed payments; S corporation salaries and wages $971.9 billion plus officers'
-  compensation $293.7 billion. SOI publishes no annual Schedule F wages, so the `cf` total is Schedule C's. Past 2023
-  the total grows with average wages: SOI's wages per return, extended by CBO's and then Macro-Projections'
-  (`growth.factors('wages', year)`).
+  compensation $293.7 billion. SOI publishes no annual Schedule F wages, so the `cf` total is Schedule C's.
+- *Past 2023* there is no IRS total to match. The scalar is the 2023 scalar × the growth of average wages since: SOI's
+  wages per return, extended by CBO's and then Macro-Projections' (`growth.factors('wages', year)`). The file's total
+  follows from the scalar and the numbers on the year's weights. The 2023 scalars travel in `qbi_scalars.csv` beside each
+  year's file (2024 reads the 2023 file's folder, later years the 2024 file's); the run stops if they are missing.
 - *Service flag.* The law's list, no dial: one keyed draw per group against the share of self-employed people in the SCF
   industry group whose detailed industry is on the list (settings `c_by_scf_group`; group 1: 0.019, 3: 0.414, 5: 0.102,
   6: 0.291, the others 0; "no industry code": the average weighted by positive income). A record with both a partnership
