@@ -25,7 +25,7 @@ Lab's pipeline, package.py) holds the files this script reads; its README.md say
      tax benefit rule keeps part of it; no tax calculation is done here), and AGI's other income and taxable Social
      Security are computed again with the new refund;
      the AMT net operating loss adjustment is held to the record's net operating loss, the negative part of its other
-     income (amt_cap). Three added items that are computed from a PUF amount are computed here from the PUF items, so
+     income (amt_cap). Two added items that are computed from a PUF amount are computed here from the PUF items, so
      the package ships only their other part (puf_based).
   7. The Tax-Simulator file's columns (tax_simulator_columns), then the records that are not PUF records (non-filers
      and the Forbes list of billionaires, extra_records.parquet), in the file's own order.

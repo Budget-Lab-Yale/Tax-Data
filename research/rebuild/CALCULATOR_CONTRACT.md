@@ -201,13 +201,13 @@ Missing ages are written as missing (not -1), as Tax-Data writes them. Everythin
 | dep_ctc3               | 0                           | dependent 3 qualifies for the child tax credit: as dep_ctc1                                                                  |
 | ei_prior_yr            | 0 (production writes 0 too) | earned income last year (child credit look-back; off under 2019 law): no source planned                                      |
 | wagebill_sole_prop     | 0                           | W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule (NEXT_STEPS step 1)                            |
-| wagebill_part          | 0                           | W-2 wages paid by the partnership (QBI): as wagebill_sole_prop                                                               |
-| wagebill_scorp         | 0                           | W-2 wages paid by the S corporation (QBI): as wagebill_sole_prop                                                             |
-| wagebill_farm          | 0                           | W-2 wages paid by the farm (QBI): as wagebill_sole_prop                                                                      |
+| wagebill_part          | 0                           | W-2 wages paid by the partnership (QBI): with wagebill_scorp the group's wages, split by income                                                               |
+| wagebill_scorp         | 0                           | W-2 wages paid by the S corporation (QBI): with wagebill_part the group's wages, split by income                                                             |
+| wagebill_farm          | 0                           | W-2 wages paid by the farm (QBI): positive farm income, so the wage limit never binds                                                                      |
 | sstb_sole_prop         | 0                           | the sole proprietorship is a specified service business (QBI): the QBI specified-service rule (NEXT_STEPS step 1)            |
 | sstb_part              | 0                           | the partnership is a specified service business: as sstb_sole_prop                                                           |
 | sstb_scorp             | 0                           | the S corporation is a specified service business: as sstb_sole_prop                                                         |
-| sstb_farm              | 0                           | the farm is a specified service business: as sstb_sole_prop                                                                  |
+| sstb_farm              | 0                           | the farm is a specified service business: never                                                                  |
 | kg_lt_basis            | 0                           | cost basis of long-term gains (indexing reforms only): basis from SOI's Sales of Capital Assets tables (NEXT_STEPS step 1)   |
 | kg_lt_years_held       | 0                           | holding period of long-term gains (indexing reforms only): as kg_lt_basis                                                    |
 | other_above_ded        | 0 (production writes 0 too) | other adjustments: none planned                                                                                              |

@@ -653,12 +653,12 @@ machine can give more of them, of the same size.
 
 ## Confidentiality
 
-No PUF amount is in the package for any PUF record. Three items we add are a PUF amount times or plus something
+No PUF amount is in the package for any PUF record. Two items we add are a PUF amount times something
 else, so the merge computes them from your PUF and the package holds only the other part: the basis of long-term
-gains (the gain times a ratio set by the drawn holding period; the package holds the ratio), the farm's wage bill for
-the qualified business income deduction (the farm income), and the S corporation's wage bill (the outside workers'
-pay, plus the record's wages for an owner with no Schedule C or partnership income; the package holds the pay and a
-0/1 flag). Parts of the package still depend on PUF values: the refund multiplier (whether the record itemizes in our
+gains (the gain times a ratio set by the drawn holding period; the package holds the ratio) and the farm's wage bill for
+the qualified business income deduction (the farm income). Parts of the package still depend on PUF values: the other
+wage bills (zero where the record has no positive income of the type, a partnership's and an S corporation's split by
+their income), the refund multiplier (whether the record itemizes in our
 model, and the share of the refund the tax benefit rule keeps), whether a record has a long-term gain (its holding period is missing where it has none), and items computed
 from the record's income rank (death probabilities, parents' income rank). The non-filers' tax items are amounts
 picked from PUF records with similar items, grown, as in every file the pipeline makes. Treat the package as

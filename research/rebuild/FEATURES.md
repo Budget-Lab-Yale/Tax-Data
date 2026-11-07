@@ -1147,7 +1147,7 @@ and never renumbered.
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
 | Blindness | `blind1`, `blind2` | since the second retrain of 29 October (branch `rebuild-retrain-1029`) a rule: each primary filer, and each spouse on a married-joint return, blind with chance = the 2015 PUF's blind rate for the person's age range × one factor per person type, the factor set so blind filers at the start's weights equal Publication 4801's boxes for the target year (below, "The second retrain of 29 October"); before, a PUF slot learned in pretraining | the PUF's blind rates by age range (`puf_blind_rates.csv`); SOI Publication 4801's blind boxes (`pub4801_blind_boxes.csv`) |
 | AMT net operating loss adjustment held to the loss | `amt_nols` (changed), `amt_nols_drawn` (the drawn value) | since 29 October (branch `rebuild-amt-rule`; John): `amt_nols` (the PUF's P60100) is held to at most the record's net operating loss, the negative part of `other_agi_remainder` (the PUF has no field of its own for the loss; a net operating loss deduction is a negative amount in other income, Form 1040 line 21, which sits in the AGI remainder), so it is 0 on a record with no loss; a negative `amt_nols` is left as drawn. `amt_nols` is grown from 2015 by AGI per return since 29 October (before, it stayed in 2015 dollars), the loss is in target-year dollars. No target reads `amt_nols`, so the weights do not move. Below, "The AMT rule of 29 October" | |
-| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 29 October (branch `rebuild-retrain-1029`) the simple plan's rule on the SCF items the model draws (below, "The retrain of 29 October"); 0 for a file from an earlier model | the CPS's average pay of private employees by SCF industry group (`cps_private_pay_by_scf_group.csv`) |
+| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 6 November two groups of business on the SCF items the model draws, wages from the IRS's total for the year (below, "The QBI items"); 0 for a file from an earlier model | SOI's wages paid by type of business (`irs_wages_by_business_type.csv`); the law's list by SCF industry group (settings) |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
 or 0, −1 where the dependent does not exist; `q_death2` is −1 without a spouse; `kg_lt_years_held` is −1 and
@@ -1241,30 +1241,41 @@ from 2018, as before (`fillin.py` now allows the item to be absent in the years 
 and over, is merged into $100,000 and over (catalog `wage_groups_4`): 10 overtime targets instead of 12, 787 targets in
 all. Targets only; no retrain needed for this piece.
 
-**The QBI items** (Q5; the simple plan, scratch `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, research in `PLAN.md`
-there). Two parts.
-- *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). From the household's actively managed
-  businesses 1 and 2, for each of three kinds by legal form: Schedule C (sole proprietorship, or "not a formal
-  business"), partnership (partnership, or limited partnership, LLP or LLC) and S corporation; other corporations get no
-  item. `biz_industry_<kind>` (a category): the industry group of the household's largest business of the kind, largest
-  by the value of the household's share, the SCF public file's 7 groups, 8 for "no industry code" (the businesses worth
-  $100 million or more), 0 with no such business. `biz_workers_<kind>` (an amount, a count not grown between waves): the
-  owner's share of outside workers, the business's workers less the household members working in it, times the
-  household's ownership share, summed over the kind's businesses. Given, as `owns_business`, to the units holding the
-  household's business equity, the workers in proportion to each unit's equity; 0 on units outside the PEU. Generation
-  draws each kind's workers after its industry group (zero with none) and never draws "none" for the industry group of
-  a record with nonzero income of that kind (its PUF parts: Schedule C; the partnership parts; the S corporation parts).
-- *The rule* (`non_micro_imputations.qbi`, settings `non_micro_imputations.items.qbi`), for each record and kind with
-  positive income of that kind: specified service (`sstb_<kind>`) when the record's keyed draw is below b × c(group),
-  at most 1, with c(group) the plan's fixed chance per SCF group (6: 0.16, 3: 0.09, 5: 0.05, 1: 0.02, the others 0.01;
-  for "no industry code" the average of the seven weighted by the kind's positive income on the file); wage bill
-  (`wagebill_<kind>`) = a × the drawn owner's share of outside workers × the average pay of private employees in the
-  group in the target year (from the CPS ASEC, `build_non_micro_tables.cps_private_pay`, by the SCF codebook's collapse
-  of Census industry codes; "no industry code" takes all private employees), plus, for an S corporation, all the
-  record's wages when it has S corporation income and no Schedule C or partnership income (first version). Farms:
-  never specified service; wage bill = positive farm income. The dials a and b are 1 for now (solved later against
-  Treasury's and SOI's numbers, with the calculator); a, b and c are settings, so changing them needs only a rerun of
-  the tilt stage. No QBI targets.
+**The QBI items** (John, 6 November; `explore/2026-11-06/RETRAIN_PLAN.md`, section 2; first version 29 October, Q5).
+The SCF shows one income for Schedules C and F and one for partnerships and S corporations together, so three worker
+numbers could not be tied to their income.
+- *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). Two groups, by the legal form of the household's
+  actively managed businesses 1 and 2: `cf`, Schedules C and F (sole proprietorship, or "not a formal business"), and
+  `ps`, partnerships and S corporations (partnership, limited partnership, LLP, LLC, S corporation); other corporations
+  get no item. `biz_workers_<group>` (an amount, a count not grown between waves): the owner's share of outside workers,
+  the business's workers less the household members working in it, times the household's ownership share from the SCF,
+  summed over the group's businesses. `biz_industry_<group>` (a category): the SCF's industry group of the group's largest
+  business by the value of the household's share, 8 for "no industry code", 0 with none. Given, as `owns_business`, to
+  the units holding the household's business equity; 0 on units outside the PEU. On SCF rows the network sees
+  `sch_cf_income` and `sche_rest`. Generation draws each group's workers after its industry group (zero with none) and
+  never draws "none" for a record with nonzero income of the group.
+- *Wages* (`non_micro_imputations.qbi`). A group's wages on a record = its number × the group's scalar for the year. The
+  scalar is computed once a year in the tilt stage, on the start (top of the file included, every dollar in target-year
+  dollars), before the taxes and the reweighting, on the start's prescaled weights (`weight_start`): the IRS total over
+  the sum, over filers with positive income of the type, of weight × number. So filers' wages, after the rule that a
+  record with no positive income gets none, equal the IRS total exactly at the start's weights. No target holds that total
+  through the reweighting; the checks page gives it at the final weights. Non-filers get the same scalar and are not
+  counted, because the IRS tables are of returns.
+- *Where the wages go.* `cf`: all to `wagebill_sole_prop`, on positive Schedule C income, against SOI's Schedule C
+  payroll. `ps`: split by each type's positive income into `wagebill_part` and `wagebill_scorp`, which add to the
+  group's wages exactly. Farms keep their own rule: `wagebill_farm` = positive farm income, so the wage limit never binds.
+- *The IRS totals* (`resources/non_micro/irs_wages_by_business_type.csv`, SOI 2015-2023, read by
+  `build_irs_wages.py` there). 2019: Schedule C payroll $144.0 billion; partnership salaries and wages $712.1 billion,
+  without the $68.8 billion of guaranteed payments; S corporation salaries and wages $971.9 billion plus officers'
+  compensation $293.7 billion. SOI publishes no annual Schedule F wages, so the `cf` total is Schedule C's. Past 2023
+  the total grows with average wages: SOI's wages per return, extended by CBO's and then Macro-Projections'
+  (`growth.factors('wages', year)`).
+- *Service flag.* The law's list, no dial: one keyed draw per group against the share of self-employed people in the SCF
+  industry group whose detailed industry is on the list (settings `c_by_scf_group`; group 1: 0.019, 3: 0.414, 5: 0.102,
+  6: 0.291, the others 0; "no industry code": the average weighted by positive income). A record with both a partnership
+  and an S corporation has one flag for both. Farms never. No QBI targets.
+- *Dropped on 6 November:* the dials a and b and their search, the CPS's industry pay, the rule adding S corporation
+  owners' own wages (the IRS total has officers' pay in it).
 
 ## The second retrain of 29 October (branch `rebuild-retrain-1029`)
 
@@ -1512,16 +1523,7 @@ target year's law are computed by tax-simulator-gpu (`pipeline/taxes.py`, settin
    categories added; pinned at c89e272 since 3 November, 0bc55a1 before), runs it on the CPU in the calculator's own Python environment, from a copy of that
    repository at the pinned commit; it writes one row per record with every computed column, and a manifest. About 20
    seconds for 457,000 records. It compiles the law of 2014 to 2040.
-3. The QBI dials of the non-microdata imputations (`a` for the wage bill, `b` for specified services; scratch
-   `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, step 4) are solved on the start's weights from the first run's
-   taxable income before the deduction, with the calculator's own QBI formula (checked against the calculator on every
-   record: equal to the cent): `a` so that owners of one non-specified business above the phase-in keep Treasury's
-   share of 20% of their income, then `b` so that the deduction from AGI $500,000 up equals SOI's; in turn until they
-   settle. The QBI columns are imputed again with them and the calculator runs a second time. Since 30 October `a` is
-   held at 1 (settings `taxes.qbi_dials.a_range`) and only `b` is solved: the solve of `a` gave 3.00 on the installed
-   networks and ran to its limit, 20, on the new ones, with wage bills many times the economy's private wages, because
-   most high-income owners of one business have no outside workers drawn. On the new networks b = 0.33.
-4. The second run's columns join the file by record id, each the calculator's name with `calc_` in front
+3. The run's columns join the file by record id, each the calculator's name with `calc_` in front
    (`taxes.OUTPUTS`): AGI, itemizing and itemized deductions claimed, the standard deduction, the QBI deduction,
    taxable income, income tax before credits, the AMT, the child credit's two parts, the EITC, nonrefundable and
    refundable credits, income tax after credits, the net investment income tax, total income tax, income tax net of
@@ -1536,7 +1538,7 @@ by AGI (22 more) is left out of 2019: with it the targets could not all be met (
 new networks (pieces 1-2) the 2019 file meets all 959 targets and keeps 79.1% of the effective sample (80.7% with the
 805 targets before the calculator targets).
 `target_list.expand` builds them after the taxes (`which`); with settings `taxes.target` false they are only reported.
-Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`, `qbi_dials.csv`,
+Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`,
 `taxes_summary.md`). `python taxes.py report <file> <folder>` computes the taxes on a finished file and evaluates the
 year's calculator targets on it.
 ## The names: Tax-Simulator's, everywhere (29-30 October)
@@ -1996,10 +1998,9 @@ each PUF item of every record copy must be exactly its 2015 amount times the fac
   - the AMT net operating loss: the cap rule, applied by the merge (the grown P60100 held to the negative part of
     other income), not values.
 - Recomputed by the merge, not shipped: capital gains after the loss limit, business income, other income, taxable
-  Social Security, gross pensions, each spouse's wages, tips, overtime and deferrals, Medicare wages, and three added
-  items that are a PUF amount times or plus something (the basis of long-term gains, from the gain and the shipped
-  basis-to-sales ratio; the farm's QBI wage bill, which is the farm income; the S corporation's wage bill, the
-  shipped outside pay plus the owner's wages where a shipped flag says so). So no PUF amount of a PUF record is in the
+  Social Security, gross pensions, each spouse's wages, tips, overtime and deferrals, Medicare wages, and two added
+  items that are a PUF amount times something (the basis of long-term gains, from the gain and the shipped
+  basis-to-sales ratio; the farm's QBI wage bill, which is the farm income). So no PUF amount of a PUF record is in the
   package.
 - The round trip: the stage runs both merge scripts on our own 2015 PUF and compares the result with the year's
   Tax-Simulator file column by column. It fails unless every column is identical on every record or differs by

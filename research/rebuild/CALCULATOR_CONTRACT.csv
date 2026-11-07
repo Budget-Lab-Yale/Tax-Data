@@ -58,13 +58,13 @@ rent_loss,same,rent_loss,"rents and royalties, net loss, stored positive"
 estate,renamed,estate,estate and trust net income
 estate_loss,same,estate_loss,"estate and trust net loss, stored positive"
 wagebill_sole_prop,zero,0,W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule (NEXT_STEPS step 1)
-wagebill_part,zero,0,W-2 wages paid by the partnership (QBI): as wagebill_sole_prop
-wagebill_scorp,zero,0,W-2 wages paid by the S corporation (QBI): as wagebill_sole_prop
-wagebill_farm,zero,0,W-2 wages paid by the farm (QBI): as wagebill_sole_prop
+wagebill_part,zero,0,W-2 wages paid by the partnership (QBI): with wagebill_scorp the group's wages, split by income
+wagebill_scorp,zero,0,W-2 wages paid by the S corporation (QBI): with wagebill_part the group's wages, split by income
+wagebill_farm,zero,0,W-2 wages paid by the farm (QBI): positive farm income, so the wage limit never binds
 sstb_sole_prop,zero,0,the sole proprietorship is a specified service business (QBI): the QBI specified-service rule (NEXT_STEPS step 1)
 sstb_part,zero,0,the partnership is a specified service business: as sstb_sole_prop
 sstb_scorp,zero,0,the S corporation is a specified service business: as sstb_sole_prop
-sstb_farm,zero,0,the farm is a specified service business: as sstb_sole_prop
+sstb_farm,zero,0,the farm is a specified service business: never
 txbl_int,renamed,txbl_int,taxable interest
 exempt_int,renamed,exempt_int,tax-exempt interest
 div_ord,same,div_ord,ordinary dividends that are not qualified
