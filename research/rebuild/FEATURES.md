@@ -1254,13 +1254,12 @@ numbers could not be tied to their income.
   the units holding the household's business equity; 0 on units outside the PEU. On SCF rows the network sees
   `sch_cf_income` and `sche_rest`. Generation draws each group's workers after its industry group (zero with none) and
   never draws "none" for a record with nonzero income of the group.
-- *Wages* (`non_micro_imputations.qbi`). A group's wages on a record = its number × the group's scalar for the year. The
-  scalar is computed once a year in the tilt stage, on the start (top of the file included, every dollar in target-year
+- *Wages* (`non_micro_imputations.qbi`). A group's wages on a filing record = its number × the group's scalar for the
+  year; a non-filer has none, because the IRS tables are of returns. The scalar is computed once a year in the tilt stage, on the start (top of the file included, every dollar in target-year
   dollars), before the taxes and the reweighting, on the start's prescaled weights (`weight_start`): the IRS total over
-  the sum, over filers with positive income of the type, of weight × number. So filers' wages, after the rule that a
+  the sum, over filers with positive income of the type, of weight × number. So the file's wages, after the rule that a
   record with no positive income gets none, equal the IRS total exactly at the start's weights. No target holds that total
-  through the reweighting; the checks page gives it at the final weights. Non-filers get the same scalar and are not
-  counted, because the IRS tables are of returns.
+  through the reweighting; the checks page gives it at the final weights.
 - *Where the wages go.* `cf`: all to `wagebill_sole_prop`, on positive Schedule C income, against SOI's Schedule C
   payroll. `ps`: split by each type's positive income into `wagebill_part` and `wagebill_scorp`, which add to the
   group's wages exactly. Farms keep their own rule: `wagebill_farm` = positive farm income, so the wage limit never binds.
