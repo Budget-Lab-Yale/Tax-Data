@@ -99,7 +99,7 @@ def main():
     gpu = torch.cuda.get_device_name() if device == "cuda" else "cpu"
     common.say(f'device {gpu}; precision bf16; fill-in chunk {fill.chunk} records')
     common.say(f'batches per pass {spe}; weight x expected hidden slots per record {per_record:.3f}')
-    common.say("grouped weighting: q_groups {'puf': 'agi12', 'scf': 'income5'}")
+    common.say("grouped weighting: {'puf': 'agi12', 'scf': 'income5'}")
     common.say(qgroups.describe(table).to_string(index=False, float_format=lambda x: f'{x:.6g}'))
     common.say('training share by source (unchanged by q): '
                + str(train_rows.groupby('source').size().div(len(train_rows)).round(4).to_dict()))

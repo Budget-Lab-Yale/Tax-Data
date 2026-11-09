@@ -193,7 +193,7 @@ def main():
              'groups by the calculator\'s AGI. Returns in millions, dollars in billions.', '',
              '## The AGI check', '',
              'The calculator\'s AGI against the rebuild\'s own (the sum of its AGI parts), split by the step where '
-             'they part (the docstring of report_calculator.py says what each step is). Weighted by the weights '
+             'they part (agi_check in report_calculator.py says what each step is). Weighted by the weights '
              'after the tilt.', '',
              s.to_markdown(index=False, floatfmt=',.3f'), '']
     tot = lv[lv['AGI group'] == 'all returns']
