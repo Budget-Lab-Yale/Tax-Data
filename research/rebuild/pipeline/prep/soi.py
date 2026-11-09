@@ -7,7 +7,8 @@ other functions are lookups that later stages call:
 - all_returns: the number of returns;
 - table_1_6: the number of returns by filing status and the primary filer's age range.
 Past SOI's last published year, an item grows with the closest line of CBO's projections, per return; past the last
-CBO year used, with an aggregate from Macro-Projections. FEATURES.md, "SOI tables and their errors", describes their use.
+CBO year used, with an aggregate from Macro-Projections. FEATURES.md, "SOI tables and their errors", describes the
+module's use.
 """
 import os
 import re

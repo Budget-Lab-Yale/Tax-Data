@@ -446,7 +446,8 @@ def scf_rows():
         s = loan_to_value(s.assign(source='scf', filer=-1, filer_p=-1.0, **{c: -1 for c in TAX_CATEGORIES}))
         if wave == TARGET_YEAR:     # the reweighting's wealth targets and wealth by wage group, in this wave's dollars
             s.to_parquet(f'{common.DATA}/scf_units_{TARGET_YEAR}.parquet', index=False)
-        s = s.rename(columns={'age1': 'svy_age1', 'age2': 'svy_age2'})   # the SCF's person 1 and 2, before the primary filer is chosen
+        # The SCF's person 1 and person 2, until the primary filer is chosen.
+        s = s.rename(columns={'age1': 'svy_age1', 'age2': 'svy_age2'})
         raw = survey_items(s, 'scf')
         s = s.drop(columns=[c for c in s if c in PUF_AMOUNTS]).assign(**raw)
         waves.append(s)
@@ -1128,8 +1129,9 @@ def translate_row(t, edges, w, sel, d, T, tw, src, y, row, done, report, notes, 
     against = TR.against_name(row)
     new, beyond = TR.amounts(x, w[sel], T[against].to_numpy(float), tw, line, match, row.get('loss_line'))
     done[v] = new
-    put_banded(t, edges, w, sel, src, y, v, new, fp, fn, f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} '
-                                                         f'positive, {fn:.4f} losses); dollar line {line}, match {match}')
+    put_banded(t, edges, w, sel, src, y, v, new, fp, fn,
+               f'PUF {PUF_YEAR} cut points x per-return growth to {y} ({fp:.4f} '
+               f'positive, {fn:.4f} losses); dollar line {line}, match {match}')
     notes[f'{src} {y} {v}'] = {'dollar line (survey-year dollars)': line, 'match': match,
                                'units past the tax data\'s last holder (millions)': beyond / 1e6}
     # 2. The translation report: the amount as reported, after the definition fixes, after function 1, and in the tax
@@ -1180,8 +1182,9 @@ def translate_survey_year(t, edges, w, tax, src, y, report, notes, shortfall):
             continue
         new = sum(sg * done[p] for p, sg in parts.items())
         fp, fn = growth(v, y)
-        put_banded(t, edges, w, sel, src, y, v, new, fp, fn, f'computed from its translated parts; PUF {PUF_YEAR} cut points x '
-                                                             f'per-return growth to {y} ({fp:.4f} positive, {fn:.4f} losses)')
+        put_banded(t, edges, w, sel, src, y, v, new, fp, fn,
+                   f'computed from its translated parts; PUF {PUF_YEAR} cut points x '
+                   f'per-return growth to {y} ({fp:.4f} positive, {fn:.4f} losses)')
         done[v] = new
     if set(K1_PARTS) <= set(done):
         t.loc[sel, 'k1_owner'] = np.column_stack([done[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)
@@ -1388,7 +1391,8 @@ def add_translated_wages(t):
 
 def table_columns():
     """The columns of the written table, in order."""
-    return ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer', 'filer_p'] + \
+    return ['source', 'year', 'record_id', 'household_id', 'implicate', 'weight', 'married', 'n_dep', 'filer',
+            'filer_p'] + \
         list(TAX_CATEGORIES) + list(CATEGORIES) + list(PERSON_CATEGORIES) + list(OWN_CATEGORIES) + \
         AMOUNTS + ['net_worth', 'value.primary_mortgage'] + [f'{v}_band' for v in AMOUNTS] + \
         ['age_range'] + [f'age_p{k}' for k in range(ages.N_RANGES)] + ['agi_group'] + list(SHARED_CATEGORIES) + ES_PROBS
