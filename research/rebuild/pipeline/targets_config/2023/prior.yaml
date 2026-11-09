@@ -1,7 +1,6 @@
-# 2023: the prior the year's file is drawn under: the PUF year, and the SCF waves and CEX, CPS and SIPP years each
-# record is drawn from, with their shares. Read by generate.py and survey_mix.py; the SCF and survey targets use the
-# same waves, years and shares. Each share comes from weights exp(-|year - t| / 2) over the survey years t, those
-# under 5% dropped and the rest rescaled. See TARGETS.md, "The year's mix of survey years".
+# 2023: the prior the year's file is drawn under: the SCF waves and CEX, CPS and SIPP years each record is drawn
+# from, with their shares, which the SCF and survey targets use too. Read by generate.py and survey_mix.py. See
+# TARGETS.md, "The year's mix of survey years".
 # SCF shares for 2023 (the next wave at or after the year and the waves before it): weights exp(-|2023 - t| / 2)
 # over the waves' income years t = 2024, 2021, 2018, 2015, 2012 give 0.6065, 0.3679, 0.0821, 0.0183, 0.0041; as
 # shares of their sum 56.2%, 34.1%, 7.6%, 1.7%, 0.4%; the 2016 wave (1.7%), the 2013 wave (0.4%) under 5% and
@@ -10,7 +9,6 @@
 # CEX, CPS and SIPP shares for 2023 (an odd year takes its own year and the one two years before): weights
 # exp(-|2023 - t| / 2) over t = 2023, 2021 give 1.0000, 0.3679; as shares of their sum 73.11%, 26.89% (exactly
 # 0.731059, 0.268941).
-# The PUF variables are drawn under the PUF 2015 label in every year (the only PUF year).
 
 year: 2023
 prior:

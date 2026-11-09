@@ -1,13 +1,11 @@
-# 2016: the prior the year's file is drawn under: the PUF year, and the SCF waves and CEX, CPS and SIPP years each
-# record is drawn from, with their shares. Read by generate.py and survey_mix.py; the SCF and survey targets use the
-# same waves, years and shares. Each share comes from weights exp(-|year - t| / 2) over the survey years t, those
-# under 5% dropped and the rest rescaled. See TARGETS.md, "The year's mix of survey years".
+# 2016: the prior the year's file is drawn under: the SCF waves and CEX, CPS and SIPP years each record is drawn
+# from, with their shares, which the SCF and survey targets use too. Read by generate.py and survey_mix.py. See
+# TARGETS.md, "The year's mix of survey years".
 # SCF shares for 2016: weights exp(-|2016 - t| / 2) over the waves' income years t = 2018, 2015, 2012 give 0.3679,
 # 0.6065, 0.1353; as shares of their sum 33.1%, 54.7%, 12.2%; the rest rescaled to 33.15%, 54.65%, 12.20% (exactly
 # 0.331499, 0.546549, 0.121952; rounded so they sum to 1).
 # CEX, CPS and SIPP shares for 2016 (an even year takes the years either side): weights exp(-|2016 - t| / 2) over t
 # = 2017, 2015 give 0.6065, 0.6065; as shares of their sum 50.00%, 50.00% (exactly 0.500000, 0.500000).
-# The PUF variables are drawn under the PUF 2015 label in every year (the only PUF year).
 
 year: 2016
 prior:
