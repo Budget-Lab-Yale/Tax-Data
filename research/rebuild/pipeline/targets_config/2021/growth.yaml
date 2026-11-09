@@ -584,17 +584,12 @@ items:
     negative: same
     measure: 'a share'
     reason: 'a share is not grown between waves (as before)'
-  biz_workers_schc:
+  biz_workers_cf:
     source: 'none: a count of workers, not dollars'
     negative: same
     measure: 'a count of workers'
     reason: 'a count of workers is not grown between waves (as before)'
-  biz_workers_part:
-    source: 'none: a count of workers, not dollars'
-    negative: same
-    measure: 'a count of workers'
-    reason: 'a count of workers is not grown between waves (as before)'
-  biz_workers_scorp:
+  biz_workers_ps:
     source: 'none: a count of workers, not dollars'
     negative: same
     measure: 'a count of workers'

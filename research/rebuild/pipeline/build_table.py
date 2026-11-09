@@ -49,7 +49,7 @@ PUF N24) and n_dep_eitc (EITC children, PUF EIC), each 0-3 (3 = 3 or more); file
   since stage 3 (27 October), production's other PUF items (STAGE3; PUF only, absent on the SCF, CEX and SIPP, not
     measured by the CPS): ordinary dividends as qualified (div_pref, E00650) plus other (div_ord), the adjustments
     as their eleven parts (ADJ_PARTS), both totals computed from the parts; unrecaptured section 1250 gain, 28%
-    collectibles gain, partnership income subject to self-employment tax (part_se, production's formula), the
+    collectibles gain, Schedule SE earnings other than Schedules C and F (part_se, read from the reported tax), the
     itemized deduction items, the two AMT items, the credits and the two other taxes (NEW_ITEMS). On the CPS the
     dividends go to div_pref (div_ord zero; the translation table); the adjustments, which the CPS never asked
     (zero until stage 3), are absent on the CPS like the other new items (generation gives non-filers none);
@@ -230,15 +230,17 @@ SCF_AMOUNTS = ['value.' + c for c in ASSETS] + ['w_primary_ltv'] + ['value.' + c
 SCF_AMOUNTS = SCF_AMOUNTS + ['w_dc_stock_share']
 SCF_NOT_ASKED = ['elective_deferrals', 'spouse_deferral_share', 'w_dc_stock_share']   # missing where the SCF does not ask
 SCF_RATIOS = ['w_primary_ltv', 'spouse_deferral_share', 'w_dc_stock_share']   # SCF shares: not grown between waves
-# The QBI items (since 29 October; John, NEXT_STEPS.md item 1, Q5; build_scf.R): for each kind of business (Schedule C,
-# partnership, S corporation) the industry group of the household's largest business of the kind (a category, 0 none,
-# 1-7 the SCF's public groups, 8 no industry code) and the owner's share of its outside workers (an amount, a count of
-# workers, never grown between waves). Generation draws each kind's workers after its industry group, the workers zero
-# with no industry, and the industry group never none on a record with income of that kind (meta scf_structure).
-QBI_KINDS = {'schc': ['sole_prop'],
-             'part': ['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179'],
-             'scorp': ['scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']}
-SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_KINDS]
+# The QBI items (since 29 October, two groups since 6 November; John; scratch explore/2026-11-06/RETRAIN_PLAN.md, section
+# 2; build_scf.R): for each group of business (cf: Schedules C and F; ps: partnerships and S corporations), the two
+# groups whose income the SCF shows as sch_cf_income and inside sche_rest, the industry group of the household's largest
+# business of the group (a category, 0 none, 1-7 the SCF's public groups, 8 no industry code) and the owner's share of its
+# outside workers (an amount, a count of workers, never grown between waves). Generation draws each group's workers after
+# its industry group, the workers zero with no industry, and the industry group never none on a record with any income
+# of that group (meta scf_structure). Each group's PUF parts:
+QBI_GROUPS = {'cf': ['sole_prop', 'farm'],
+              'ps': ['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
+                     'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']}
+SCF_WORKERS = [f'biz_workers_{k}' for k in QBI_GROUPS]
 SCF_AMOUNTS = SCF_AMOUNTS + SCF_WORKERS
 SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not dollars: not grown either)
 # inheritance (since 3 November; John, 2 November): the unit's inheritances and trusts received this year, gifts left out,
@@ -251,7 +253,7 @@ SCF_RATIOS = SCF_RATIOS + SCF_WORKERS                           # (counts, not d
 # net worth.
 SCF_AMOUNTS = SCF_AMOUNTS + ['inheritance']
 SCF_NOT_ASKED = SCF_NOT_ASKED + ['inheritance']
-SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_KINDS}
+SCF_CATEGORIES = {f'biz_industry_{k}': 9 for k in QBI_GROUPS}
 PUF_AMOUNTS = ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES + list(ITEMS) + list(PARTS) + STAGE3 + \
     ['other_agi']
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
@@ -272,12 +274,11 @@ CPS_AMOUNTS = ['spouse_wage_share', 'weeks_primary', 'weeks_spouse', 'hours_prim
 # is a PUF slot shared with the CPS, no longer the CPS's own. On the PUF it is E30500 / E30400 (E30400 the couple's
 # Schedule SE earnings, E30500 the spouse's part); on the CPS the same share of the couple's Schedule SE earnings. Both
 # are cut on one set of fixed cut points (SHARE_CUTS), so a band means the same share on both; the dollar map is the
-# PUF's. It multiplies Schedules C and F and partnership income subject to self-employment tax alike.
+# PUF's. It multiplies Schedules C and F and part_se (Schedule SE earnings other than C and F) alike.
 PUF_SHARES = ['spouse_se_share']
 SHARE_CUTS = np.arange(1, 73) / 73.0            # 72 cuts, 73 positive bands; a share of exactly 1 is in the top band
 # The shares are asked (present on a training row, drawn at generation) only of a married couple with some of their
-# base; the self-employment share's base is Schedules C and F or partnership income subject to self-employment tax
-# (0.60 million joint returns have Schedule SE earnings from partnerships alone). A base a source lacks counts as zero.
+# base; the self-employment share's base is Schedules C and F or part_se. A base a source lacks counts as zero.
 SHARE_GATES = {'spouse_wage_share': ['wages'], 'spouse_se_share': ['sch_cf_income', 'part_se']}
 # earn_split (earn_split.py): EARNSPLIT, the primary's share of the couple's earnings in three ranges (0 none), on the
 # PUF and the CPS; PUF joint returns with no demographics carry probabilities (es_p0-3) drawn from at each pass.
@@ -297,9 +298,15 @@ EXACT_AGE_TOP = 80
 # with the other CPS slots, after the ages (model.py's order); dollars.py turns them into ssn1, ssn2, dep_ssn1-3.
 SSN_STATUS_SLOTS = ['ssn_status_primary', 'ssn_status_spouse', 'ssn_status_dep1', 'ssn_status_dep2', 'ssn_status_dep3']
 DEPENDENT_SSN_SLOTS = ['ssn_status_dep1', 'ssn_status_dep2', 'ssn_status_dep3']   # the k-th: present when n_dep >= k
+# Since 5 November 2026 (the state weights, state_start.py): the household's state, CPS only: 0 none (only a dependent
+# filer at generation, generate.structural), else 1 + the state's position in STATE_FIPS (the 50 states and DC by FIPS
+# code; the CPS has neither Puerto Rico nor the IRS's Other Areas). The state needs no translation.
+STATE_FIPS = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+              34, 35, 36, 37, 38, 39, 40, 41, 42, 44, 45, 46, 47, 48, 49, 50, 51, 53, 54, 55, 56]
 CPS_CATEGORIES = {**{a: MAX_AGE + 2 for a in AGE_SLOTS if a not in EXACT_AGES},
                   'sex_primary': 3, 'sex_spouse': 3,   # CPS only; sex: 0 none, 1 man, 2 woman
-                  **{v: 4 for v in SSN_STATUS_SLOTS}}
+                  **{v: 4 for v in SSN_STATUS_SLOTS},
+                  'state': len(STATE_FIPS) + 1}
 PERSON_CATEGORIES = {**{a: EXACT_AGE_TOP + 2 for a in EXACT_AGES}, **CPS_CATEGORIES}   # every person category
 SPOUSE_SLOTS = ['age2', 'sex_spouse', 'spouse_wage_share', 'spouse_se_share', 'weeks_spouse', 'hours_spouse',
                 'ot_spouse', 'ssn_status_spouse']
@@ -396,7 +403,7 @@ PUF_FIELDS = ['RECID', 'S006', 'MARS', 'N24', 'EIC', 'XOCAH', 'XOCAWH', 'XOPAR',
               'E00600', 'E00700', 'E00800', 'E00900', 'E01000', 'E01100', 'E01200', 'E01400', 'E01500', 'E01700',
               'E02000', 'E02100', 'E02300', 'E02400', 'E02500', 'E18500', 'E19200', 'P22250', 'P23250'] + \
     ADJ_FIELDS + [f for f, _ in PARTS.values() if f and f not in ('E00900', 'E02100')] + \
-    ['E00650', 'E30400', 'E30500', 'FDED', 'P04470', 'E21040', 'E19700', 'E20800'] + [f for f in NEW_ITEMS.values() if f]
+    ['E00650', 'E09400', 'E30400', 'E30500', 'FDED', 'P04470', 'E21040', 'E19700', 'E20800'] + [f for f in NEW_ITEMS.values() if f]
 
 
 def read_puf():
@@ -461,13 +468,11 @@ def puf_rows(puf):
     out.update({p: I[fld] for p, fld in ADJ_PARTS.items()})
     assert np.array_equal(sum(out[p] for p in ADJ_PARTS), items['adjustments'])
     out.update({v: I[fld] for v, fld in NEW_ITEMS.items() if fld})
-    # part_se, production's partnership income subject to self-employment tax: on a return with any partnership
-    # income or loss, the couple's Schedule SE earnings (E30400, which already holds the spouse's E30500, after the
-    # 92.35% factor) grossed up, less Schedules C and F, negatives kept; zero elsewhere. Production's formula
-    # ((E30400 + E30500) / 0.9235 - C - F, src/process_puf.R) counts the spouse's earnings twice; John approved the fix
-    # 4 November 2026 for the combined retrain. Not whole dollars (the division by 0.9235).
+    # part_se: Schedule SE earnings other than Schedules C and F, read from the reported tax (earn_split.py; fix B,
+    # John, 6 November 2026), negatives kept. Until then E30400 / 0.9235 less C and F on partnership returns alone,
+    # which stops at the Social Security wage base because E30400 does. Not whole dollars (the division by 0.9235).
     k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
-    out['part_se'] = np.where(k1_part, I['E30400'] / 0.9235 - I['E00900'] - I['E02100'], 0.0)
+    out['part_se'] = ES.part_se_from_schedule_se(I['E09400'], I['E30400'], I['E00900'] + I['E02100'], k1_part)
     out['other_item_exp'] = I['FDED'] * 0.0                       # set below, once the age range is known
     # (3 November) the PUF's own taxable Social Security (E02500) comes off too: it is not a slot, and the file computes
     # it by the worksheet, so other_agi is AGI without taxable benefits less the items (puf_ss_check compares the two)
@@ -489,9 +494,9 @@ def puf_rows(puf):
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]
     # (4 November, earn_split.py) the spouse's share of the couple's self-employment income: E30500 / E30400 (E30400
-    # the couple's Schedule SE earnings, E30500 the spouse's part) on a joint return with Schedule C, F or partnership
-    # income subject to self-employment tax (the share's base, SHARE_GATES); missing where such a return has no
-    # Schedule SE earnings (a loss, or under the $400 floor: the split changes no tax there); absent elsewhere
+    # the couple's Schedule SE earnings up to the wage base, E30500 the spouse's part) on a joint return with Schedule
+    # C, F or part_se (the share's base, SHARE_GATES); missing where such a return has E30400 zero (a loss, under the
+    # $400 floor, or wages at the cap); absent elsewhere
     joint = I['MARS'] == 2
     se_all, se_spouse = I['E30400'].astype(float), I['E30500'].astype(float)
     assert (se_spouse <= se_all).all() and (se_spouse[~joint] == 0).all() and (se_spouse >= 0).all(), \
@@ -778,7 +783,8 @@ def cps_rows():
                        **{f'p{k}_ssn_status': s[f'ssn_status{k}'].astype(np.int64) for k in (1, 2)},
                        **{f'svy_dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
                        **{f'dep_ssn_status{k}': s[f'dep_ssn_status{k}'].astype(np.int64) for k in (1, 2, 3)},
-                       'cps_childcare': s['care_exp'].astype(float)})
+                       'cps_childcare': s['care_exp'].astype(float),
+                       'svy_statefip': s['statefip'].astype(np.int64)})
     for v in AMOUNTS:
         if v not in df:
             df[v] = np.nan
@@ -787,7 +793,7 @@ def cps_rows():
 
 PERSON_COLUMNS = [f'p{k}_{c}' for k in (1, 2) for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']] + \
     ['p1_ot', 'p2_ot', 'svy_dep_age1', 'svy_dep_age2', 'svy_dep_age3', 'cps_childcare', 'p1_ssn_status', 'p2_ssn_status',
-     'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3']
+     'dep_ssn_status1', 'dep_ssn_status2', 'dep_ssn_status3', 'svy_statefip']
 
 
 def cps_person_slots(t, primary_is_2):
@@ -805,7 +811,10 @@ def cps_person_slots(t, primary_is_2):
     age = {k: pick('age', k) for k in (1, 2)}
     w = d['weight'].to_numpy(float)
     married_ = (d['married'] == 1).to_numpy()
+    statefip = d['svy_statefip'].to_numpy()
+    assert np.isin(statefip, STATE_FIPS).all(), f'CPS: a state code outside the 50 states and DC: {sorted(set(statefip) - set(STATE_FIPS))}'
     out = {'age1': exact_age_value(age[1]), 'age2': exact_age_value(age[2]),
+           'state': 1 + np.searchsorted(STATE_FIPS, statefip),
            'sex_primary': pick('sex', 1), 'sex_spouse': pick('sex', 2),
            'weeks_primary': pick('weeks_worked', 1), 'weeks_spouse': pick('weeks_worked', 2),
            'hours_primary': pick('usual_hours', 1), 'hours_spouse': pick('usual_hours', 2),
@@ -1371,10 +1380,10 @@ def table_meta(t, factor):
             'tax_categories': TAX_CATEGORIES,
             'puf_categories': PUF_CATEGORIES,
             'scf_categories': SCF_CATEGORIES,
-            # (29 October) the QBI items: each kind's workers drawn after its industry group (zero with none); the
-            # industry group never none where any of the kind's PUF parts is nonzero
-            'scf_structure': {'after': {f'biz_workers_{k}': f'biz_industry_{k}' for k in QBI_KINDS},
-                              'industry_parts': {f'biz_industry_{k}': parts for k, parts in QBI_KINDS.items()}},
+            # (29 October) the QBI items: each group's workers drawn after its industry group (zero with none); the
+            # industry group never none where any of the group's PUF parts is nonzero
+            'scf_structure': {'after': {f'biz_workers_{k}': f'biz_industry_{k}' for k in QBI_GROUPS},
+                              'industry_parts': {f'biz_industry_{k}': parts for k, parts in QBI_GROUPS.items()}},
             'computed_flags': {'k1_owner': K1_PARTS},
             'scf_amounts': SCF_AMOUNTS,
             'cex_amounts': CEX_AMOUNTS,
@@ -1386,7 +1395,7 @@ def table_meta(t, factor):
             'share_gates': SHARE_GATES,
             'shared_categories': SHARED_CATEGORIES,
             'earn_split': {'ranges': {str(k): list(r) for k, r in ES.RANGES.items()}, 'se_factor': ES.SE_FACTOR,
-                           'se_floor': ES.SE_FLOOR},
+                           'se_floor': ES.SE_FLOOR, 'se_wage_base': ES.SE_WAGE_BASE},
             'cps_categories': CPS_CATEGORIES,
             'person_categories': PERSON_CATEGORIES,
             'exact_ages': EXACT_AGES,

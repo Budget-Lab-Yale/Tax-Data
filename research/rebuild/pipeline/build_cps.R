@@ -44,6 +44,7 @@
 # Columns, one row per tax unit, no NA except ot1 and ot2 (below). Dollars are nominal dollars of the tax
 # year as reported (the ASEC asks about the previous calendar year).
 #   year, record_id, household_id, weight (the head's ASECWT)
+#   statefip: the household's STATEFIP (5 November 2026; build_table.py's CPS-only category state)
 #   married (1 joint unit), n_dep (dependents claimed, capped at 3 as the SCF
 #     builder does), dep_filer (0 on every row: dependent filers are folded),
 #     head_of_household (1 unmarried with a qualifying-child dependent)
@@ -342,7 +343,7 @@ sources_rows = list()
 RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOMLOC', 'POPLOC', 'FTYPE', 'FAMID',
              'FAMREL', 'SCHLCOLL', 'ASECWT', 'GQ', 'EDUC', 'RACE', 'HISPAN', 'HIMCAIDLY', 'FOODSTAMP', 'INCWELFR',
              'INCTOT', 'INCSS', ASEC_GROSS_INCOME_ITEMS, 'WKSWORK1', 'UHRSWORKLY', 'SPMFAMUNIT', 'SPMCHXPNS',
-             'SPMWT', 'FILESTAT', 'CITIZEN', 'INCSSI', 'HIMCARELY', 'HICHAMP', 'VETSTAT', 'CLASSWKR', 'PUBHOUS')
+             'SPMWT', 'FILESTAT', 'CITIZEN', 'INCSSI', 'HIMCARELY', 'HICHAMP', 'VETSTAT', 'CLASSWKR', 'PUBHOUS', 'STATEFIP')
 
 # Social Security number status (since 28 October; John's decision, NEXT_STEPS.md item 1, Q4): rule "B2" of scratch
 # explore/2026-10-28/rules_framework/ssn/RESULTS.md, coded as its size_check.py codes it, so that it gives that
@@ -591,11 +592,18 @@ for (yr in YEARS) {
   stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income),
             identical(out$survdis_pension + out$survdis_other, out$survivor_disability))
 
+  # the unit's state: its household's (STATEFIP; 5 November 2026, the state weights). A household has one state.
+  hh_state = p[, .(statefip = STATEFIP[1], n_states = uniqueN(STATEFIP)), by = SERIAL]
+  stopifnot(all(hh_state$n_states == 1), !anyNA(hh_state$statefip))
+  out[hh_state, on = 'SERIAL', statefip := i.statefip]
+  stopifnot(!anyNA(out$statefip))
+
   setorder(out, unit_id)
   stopifnot(!anyDuplicated(out$unit_id), all(out$unit_id == round(out$unit_id)), max(out$unit_id) < 2^31)
   set.seed(as.integer(settings$cps$filer_seed) + yr)
   draw = runif(nrow(out))
   out = out[, .(year = yr, record_id = as.integer(unit_id), household_id = as.integer(SERIAL), weight,
+                statefip = as.integer(statefip),
                 married, n_dep = pmin(n_dep_raw, 3L), dep_filer = 0L,
                 head_of_household = as.integer(filing_status == 'hoh'),
                 filing_status = fcase(filing_status == 'single', 1L, filing_status == 'joint', 2L,

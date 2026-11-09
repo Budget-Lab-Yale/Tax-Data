@@ -7,10 +7,14 @@ joint returns with no partnership income, and EARNSPLIT is reproduced on 99.9% o
 (explore/2026-11-04/earnsplit/FINDINGS.md). Production (src/imputations/earnings_split.R) read E30400 as the
 primary's alone.
 
+Since 6 November E30400 is read as the booklet defines it: the lesser of net earnings and the room under the Social
+Security wage base (explore/2026-11-05/se_tax_gap/RESULTS.md). part_se_from_schedule_se reads net earnings from the
+reported tax, E09400, above that cap. EARNSPLIT and E30500 stay on the capped amounts.
+
 The spouse's share of the couple's self-employment income (slot spouse_se_share, build_table.PUF_SHARES): on the PUF,
-E30500 / E30400 on a joint return with Schedule SE earnings and some Schedule C, F or partnership income subject to
-self-employment tax; missing (not shown, not scored) on a joint return with such income and no Schedule SE earnings
-(a loss, or under the $400 floor), where the split has no effect on the tax. On the CPS (the non-filers' source), the
+E30500 / E30400 on a joint return with E30400 above zero and some Schedule C, F or part_se; missing (not shown, not
+scored) on a joint return with such income and E30400 zero: a loss, under the $400 floor, or wages at the cap (the
+tax is then all Medicare, and a split matters only if one spouse has room under the cap). On the CPS (the non-filers' source), the
 spouse's share of the couple's Schedule SE earnings computed the same way from each person's self-employment income
 (se_earnings); where the couple has self-employment income but no Schedule SE earnings, the spouse's share of the
 income itself, cut to 0-1, as before.
@@ -30,8 +34,8 @@ return that is not joint, or a joint return with no earnings). On the PUF and th
        $250,000-400,000 (data/earn_split_step0_check.csv; explore/2026-11-04/earnsplit/out/step0_models.csv
        compares the logit, a logit with splines and this model), and against the booklet's full-sample counts.
   CPS: the code of the couple's own earnings on the same definition (code_of, se_earnings).
-At generation the wage share is drawn inside the range the code and the drawn self-employment split allow
-(wage_share_bounds: in bands in generate.py, exactly in dollars.py).
+At generation the wage share is drawn inside the range the code and the drawn self-employment split allow (in bands in
+generate.py, exactly in dollars.py), with each person's earnings capped there as E30400 is (dollars.wage_share_bounds).
 """
 import numpy as np
 import pandas as pd
@@ -42,6 +46,10 @@ import common
 S = common.SETTINGS['earn_split']
 SE_FACTOR = float(S['se_factor'])          # Schedule SE: net earnings are 92.35% of the self-employment income
 SE_FLOOR = float(S['se_floor'])            # and none are counted below $400
+SE_RATE_SS = float(S['se_rate_social_security'])     # Schedule SE's Social Security rate, on E30400
+SE_RATE_MEDICARE = float(S['se_rate_medicare'])      # and its Medicare rate, on all net earnings
+SE_WAGE_BASE = float(S['se_wage_base'])              # the Social Security wage base of the PUF year
+BEYOND_SHARE, BEYOND_DOLLARS = float(S['se_beyond_share']), float(S['se_beyond_dollars'])
 N_CODES = 4
 # the primary filer's share of the couple's earnings in each code (closed: a share of exactly 25% or 75% fits both)
 RANGES = {1: (0.75, 1.0), 2: (0.25, 0.75), 3: (0.0, 0.25)}
@@ -55,6 +63,48 @@ def se_earnings(x):
     """A person's Schedule SE net earnings from self-employment income x: 0.9235 x where that is $400 or more, else 0."""
     e = SE_FACTOR * np.asarray(x, float)
     return np.where(e >= SE_FLOOR, e, 0.0)
+
+
+def half_rounding_unit(x):
+    """Half the PUF's rounding unit for an amount (2015 booklet, ninth disclosure step): nearest $10 up to $10,000,
+    nearest $100 up to $100,000, four significant digits above that; an amount below $5 is set to $2."""
+    a = np.abs(np.asarray(x, float))
+    out = np.full(a.shape, 5.0)
+    out[a >= 1e4] = 50.0
+    big = a >= 1e5
+    out[big] = 0.5 * 10.0 ** (np.floor(np.log10(a[big])) - 3)
+    out[a < 5] = 3.0
+    return out
+
+
+def schedule_se_earnings(tax, capped):
+    """The couple's Schedule SE net earnings, read from the reported tax. tax: E09400; capped: E30400, the lesser of
+    net earnings and the room under the Social Security wage base. Tax is 12.4% of E30400 plus 2.9% of net earnings, so
+    net earnings are (tax - 12.4% x E30400) / 2.9%; where the tax is within rounding of 15.3% x E30400 the cap does not
+    bind and net earnings are E30400 itself (dividing the tax by 2.9% would blow up its rounding). Example: a partner
+    with no wages in 2015, tax $43,694, E30400 $118,500: (43,694 - 14,694) / 0.029 = $1,000,000."""
+    tax, capped = np.asarray(tax, float), np.asarray(capped, float)
+    both = SE_RATE_SS + SE_RATE_MEDICARE
+    same = np.abs(tax - both * capped) <= half_rounding_unit(tax) + both * half_rounding_unit(capped)
+    return np.where(same, capped, (tax - SE_RATE_SS * capped) / SE_RATE_MEDICARE)
+
+
+def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
+    """part_se (fix B, explore/2026-11-05/se_tax_gap/RESULTS.md; John, 6 November 2026): Schedule SE earnings other
+    than Schedules C and F, before the 92.35% factor, so that Schedules C and F plus part_se are the self-employment
+    income whose tax is the reported tax. On a return with any partnership income or loss: net earnings / 0.9235 less
+    C and F. On any other return the same difference where net earnings differ from 92.35% of C and F beyond rounding,
+    else zero; also zero where net earnings are zero and C and F are at most $433 (no tax either way, a loss included).
+    It can be negative: net earnings below 92.35% of C and F (a couple's profit and loss netted the other way, or
+    C and F that Schedule SE did not tax). Not whole dollars. Arguments are E09400, E30400, E00900 + E02100, and whether
+    the return has partnership income or loss."""
+    sch_cf = np.asarray(sch_cf, float)
+    net = schedule_se_earnings(tax, capped)
+    total = np.where(net > 0, net / SE_FACTOR, 0.0)
+    expected = SE_FACTOR * sch_cf
+    beyond = np.abs(net - expected) > np.maximum(BEYOND_SHARE * np.abs(expected), BEYOND_DOLLARS)
+    nothing = (net == 0) & (sch_cf <= SE_FLOOR / SE_FACTOR)
+    return np.where(np.asarray(partnership, bool) | (beyond & ~nothing), total - sch_cf, 0.0)
 
 
 def code_of(primary, total):

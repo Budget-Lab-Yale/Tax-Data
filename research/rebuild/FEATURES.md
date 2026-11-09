@@ -80,7 +80,7 @@ held-back rows included.
 - the other PUF items production carries (since 27 October), 40 PUF-only
   slots under production's names: qualified and other dividends, the eleven
   adjustments, unrecaptured section 1250 gain, 28% collectibles gain,
-  partnership income subject to self-employment tax (part_se), nine itemized
+  Schedule SE earnings other than Schedules C and F (part_se), nine itemized
   deduction items (medical, state and local income or sales tax, cash and
   noncash charity, casualty, job expenses, tax preparation, other
   miscellaneous, other itemized), two AMT items, eleven credits and two other
@@ -327,9 +327,8 @@ and the SIPP, not measured by the CPS, so a non-filer has none.
   computed from the parts at generation and in the dollars, so they add up exactly. The CPS's one dividend amount goes
   to div_pref, ranked against the tax data's ordinary dividends (the translation table's `rank_against`), so its
   translated dollars stay as before; its adjustments, which it never asked, are absent.
-- part_se: on a return with any partnership income or loss, E30400 / 0.9235 less Schedules C and F (E30400 is the
-  couple's Schedule SE earnings and already holds the spouse's E30500; production's (E30400 + E30500) / 0.9235 counted the
-  spouse's earnings twice; fixed for the combined retrain, John, 4 November 2026; negatives kept).
+- part_se: Schedule SE earnings other than Schedules C and F, read from the reported tax; can be negative (below,
+  "Self-employment tax: part_se read from the reported tax").
   other_item_exp: itemized deductions before the overall limitation (P04470 + E21040) less deductible medical
   expenses (floor 7.5% of AGI at 65+, else 10%), the two taxes, interest, charity, casualty and net limited
   miscellaneous deductions, on itemizers. The PUF rounds each item on its own, so it is negative on 15 million
@@ -1147,7 +1146,7 @@ and never renumbered.
 | Parents' income rank (Q8) | `parent_rank` | production's method (`src/imputations/mobility.R`): income rank among all units (start weights), bottom 10 merged into rank 10, parent rank drawn from Chetty et al.'s matrix | Chetty, Hendren, Kline and Saez (2014) |
 | Blindness | `blind1`, `blind2` | since the second retrain of 29 October (branch `rebuild-retrain-1029`) a rule: each primary filer, and each spouse on a married-joint return, blind with chance = the 2015 PUF's blind rate for the person's age range × one factor per person type, the factor set so blind filers at the start's weights equal Publication 4801's boxes for the target year (below, "The second retrain of 29 October"); before, a PUF slot learned in pretraining | the PUF's blind rates by age range (`puf_blind_rates.csv`); SOI Publication 4801's blind boxes (`pub4801_blind_boxes.csv`) |
 | AMT net operating loss adjustment held to the loss | `amt_nols` (changed), `amt_nols_drawn` (the drawn value) | since 29 October (branch `rebuild-amt-rule`; John): `amt_nols` (the PUF's P60100) is held to at most the record's net operating loss, the negative part of `other_agi_remainder` (the PUF has no field of its own for the loss; a net operating loss deduction is a negative amount in other income, Form 1040 line 21, which sits in the AGI remainder), so it is 0 on a record with no loss; a negative `amt_nols` is left as drawn. `amt_nols` is grown from 2015 by AGI per return since 29 October (before, it stayed in 2015 dollars), the loss is in target-year dollars. No target reads `amt_nols`, so the weights do not move. Below, "The AMT rule of 29 October" | |
-| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 29 October (branch `rebuild-retrain-1029`) the simple plan's rule on the SCF items the model draws (below, "The retrain of 29 October"); 0 for a file from an earlier model | the CPS's average pay of private employees by SCF industry group (`cps_private_pay_by_scf_group.csv`) |
+| QBI service flags and wage bills | `sstb_*`, `wagebill_*` (sole proprietorship, partnership, S corporation, farm) | since 6 November two groups of business on the SCF items the model draws, wages from the IRS's total for the year (below, "The QBI items"); 0 for a file from an earlier model | SOI's wages paid by type of business (`irs_wages_by_business_type.csv`); the law's list by SCF industry group (settings) |
 
 Conventions as in the rest of the file: −1 for an age or a person that does not exist, 0 for no sex; the flags are 1
 or 0, −1 where the dependent does not exist; `q_death2` is −1 without a spouse; `kg_lt_years_held` is −1 and
@@ -1241,30 +1240,45 @@ from 2018, as before (`fillin.py` now allows the item to be absent in the years 
 and over, is merged into $100,000 and over (catalog `wage_groups_4`): 10 overtime targets instead of 12, 787 targets in
 all. Targets only; no retrain needed for this piece.
 
-**The QBI items** (Q5; the simple plan, scratch `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, research in `PLAN.md`
-there). Two parts.
-- *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). From the household's actively managed
-  businesses 1 and 2, for each of three kinds by legal form: Schedule C (sole proprietorship, or "not a formal
-  business"), partnership (partnership, or limited partnership, LLP or LLC) and S corporation; other corporations get no
-  item. `biz_industry_<kind>` (a category): the industry group of the household's largest business of the kind, largest
-  by the value of the household's share, the SCF public file's 7 groups, 8 for "no industry code" (the businesses worth
-  $100 million or more), 0 with no such business. `biz_workers_<kind>` (an amount, a count not grown between waves): the
-  owner's share of outside workers, the business's workers less the household members working in it, times the
-  household's ownership share, summed over the kind's businesses. Given, as `owns_business`, to the units holding the
-  household's business equity, the workers in proportion to each unit's equity; 0 on units outside the PEU. Generation
-  draws each kind's workers after its industry group (zero with none) and never draws "none" for the industry group of
-  a record with nonzero income of that kind (its PUF parts: Schedule C; the partnership parts; the S corporation parts).
-- *The rule* (`non_micro_imputations.qbi`, settings `non_micro_imputations.items.qbi`), for each record and kind with
-  positive income of that kind: specified service (`sstb_<kind>`) when the record's keyed draw is below b × c(group),
-  at most 1, with c(group) the plan's fixed chance per SCF group (6: 0.16, 3: 0.09, 5: 0.05, 1: 0.02, the others 0.01;
-  for "no industry code" the average of the seven weighted by the kind's positive income on the file); wage bill
-  (`wagebill_<kind>`) = a × the drawn owner's share of outside workers × the average pay of private employees in the
-  group in the target year (from the CPS ASEC, `build_non_micro_tables.cps_private_pay`, by the SCF codebook's collapse
-  of Census industry codes; "no industry code" takes all private employees), plus, for an S corporation, all the
-  record's wages when it has S corporation income and no Schedule C or partnership income (first version). Farms:
-  never specified service; wage bill = positive farm income. The dials a and b are 1 for now (solved later against
-  Treasury's and SOI's numbers, with the calculator); a, b and c are settings, so changing them needs only a rerun of
-  the tilt stage. No QBI targets.
+**The QBI items** (John, 6 November; `explore/2026-11-06/RETRAIN_PLAN.md`, section 2; first version 29 October, Q5).
+The SCF shows one income for Schedules C and F and one for partnerships and S corporations together, so three worker
+numbers could not be tied to their income.
+- *SCF items learned in pretraining* (`build_scf.R`, `build_table.py`). Two groups, by the legal form of the household's
+  actively managed businesses 1 and 2: `cf`, Schedules C and F (sole proprietorship, or "not a formal business"), and
+  `ps`, partnerships and S corporations (partnership, limited partnership, LLP, LLC, S corporation); other corporations
+  get no item. `biz_workers_<group>` (an amount, a count not grown between waves): the owner's share of the workers, summed over
+  the group's businesses. In an S corporation the business's number is all its workers times the household's ownership
+  share, household members included, because an S corporation pays a working owner W-2 wages; a one-person S corporation
+  owned outright has 1. The SCF's count includes the respondent and family. Every other form counts outside workers only,
+  the workers less the household members working in it, because partners and sole proprietors cannot pay themselves W-2
+  wages (John, 6 November). `biz_industry_<group>` (a category): the SCF's industry group of the group's largest
+  business by the value of the household's share, 8 for "no industry code", 0 with none. Given, as `owns_business`, to
+  the units holding the household's business equity; 0 on units outside the PEU. On SCF rows the network sees
+  `sch_cf_income` and `sche_rest`. Generation draws each group's workers after its industry group (zero with none) and
+  never draws "none" for a record with nonzero income of the group.
+- *Wages* (`non_micro_imputations.qbi`). A group's wages on a filing record = its number × the group's scalar for the
+  year; a non-filer has none, because the IRS tables are of returns. The scalar is computed once a year in the tilt stage, on the start (top of the file included, every dollar in target-year
+  dollars), before the taxes and the reweighting, on the start's prescaled weights (`weight_start`): the IRS total over
+  the sum, over filers with positive income of the type, of weight × number. So the file's wages, after the rule that a
+  record with no positive income gets none, equal the IRS total exactly at the start's weights. No target holds that total
+  through the reweighting; the checks page gives it at the final weights.
+- *Where the wages go.* `cf`: all to `wagebill_sole_prop`, on positive Schedule C income, against SOI's Schedule C
+  payroll. `ps`: split by each type's positive income into `wagebill_part` and `wagebill_scorp`, which add to the
+  group's wages exactly. Farms keep their own rule: `wagebill_farm` = positive farm income, so the wage limit never binds.
+- *The IRS totals* (`resources/non_micro/irs_wages_by_business_type.csv`, SOI 2015-2023, read by
+  `build_irs_wages.py` there). 2019: Schedule C payroll $144.0 billion; partnership salaries and wages $712.1 billion,
+  without the $68.8 billion of guaranteed payments; S corporation salaries and wages $971.9 billion plus officers'
+  compensation $293.7 billion. SOI publishes no annual Schedule F wages, so the `cf` total is Schedule C's.
+- *Past 2023* there is no IRS total to match. The scalar is the 2023 scalar × the growth of average wages since: SOI's
+  wages per return, extended by CBO's and then Macro-Projections' (`growth.factors('wages', year)`). The file's total
+  follows from the scalar and the numbers on the year's weights. The 2023 scalars travel in `qbi_scalars.csv` beside each
+  year's file (2024 reads the 2023 file's folder, later years the 2024 file's); the run stops if they are missing.
+- *Service flag.* The law's list, no dial: one keyed draw per group against the share of self-employed people in the SCF
+  industry group whose detailed industry is on the list (settings `c_by_scf_group`; group 1: 0.019, 3: 0.414, 5: 0.102,
+  6: 0.291, the others 0; "no industry code": the average weighted by positive income). A record with both a partnership
+  and an S corporation has one flag for both. Farms never. No QBI targets.
+- *Dropped on 6 November:* the dials a and b and their search, the CPS's industry pay, the rule adding S corporation
+  owners' own wages (the IRS total has officers' pay in it; the owners now count in the number instead).
 
 ## The second retrain of 29 October (branch `rebuild-retrain-1029`)
 
@@ -1512,16 +1526,7 @@ target year's law are computed by tax-simulator-gpu (`pipeline/taxes.py`, settin
    categories added; pinned at c89e272 since 3 November, 0bc55a1 before), runs it on the CPU in the calculator's own Python environment, from a copy of that
    repository at the pinned commit; it writes one row per record with every computed column, and a manifest. About 20
    seconds for 457,000 records. It compiles the law of 2014 to 2040.
-3. The QBI dials of the non-microdata imputations (`a` for the wage bill, `b` for specified services; scratch
-   `explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md`, step 4) are solved on the start's weights from the first run's
-   taxable income before the deduction, with the calculator's own QBI formula (checked against the calculator on every
-   record: equal to the cent): `a` so that owners of one non-specified business above the phase-in keep Treasury's
-   share of 20% of their income, then `b` so that the deduction from AGI $500,000 up equals SOI's; in turn until they
-   settle. The QBI columns are imputed again with them and the calculator runs a second time. Since 30 October `a` is
-   held at 1 (settings `taxes.qbi_dials.a_range`) and only `b` is solved: the solve of `a` gave 3.00 on the installed
-   networks and ran to its limit, 20, on the new ones, with wage bills many times the economy's private wages, because
-   most high-income owners of one business have no outside workers drawn. On the new networks b = 0.33.
-4. The second run's columns join the file by record id, each the calculator's name with `calc_` in front
+3. The run's columns join the file by record id, each the calculator's name with `calc_` in front
    (`taxes.OUTPUTS`): AGI, itemizing and itemized deductions claimed, the standard deduction, the QBI deduction,
    taxable income, income tax before credits, the AMT, the child credit's two parts, the EITC, nonrefundable and
    refundable credits, income tax after credits, the net investment income tax, total income tax, income tax net of
@@ -1536,7 +1541,7 @@ by AGI (22 more) is left out of 2019: with it the targets could not all be met (
 new networks (pieces 1-2) the 2019 file meets all 959 targets and keeps 79.1% of the effective sample (80.7% with the
 805 targets before the calculator targets).
 `target_list.expand` builds them after the taxes (`which`); with settings `taxes.target` false they are only reported.
-Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`, `qbi_dials.csv`,
+Each run writes `tilt/<run>/taxes/` (the calculator's inputs and outputs, `taxes_fit.csv`,
 `taxes_summary.md`). `python taxes.py report <file> <folder>` computes the taxes on a finished file and evaluates the
 year's calculator targets on it.
 ## The names: Tax-Simulator's, everywhere (29-30 October)
@@ -1767,6 +1772,60 @@ Settings `tilt.projection.filing_season`; `projection_steps.py`, its last sectio
 - **When SOI publishes.** Final tables for 2024 make 2024 a past year: base_year and year move to 2024 and 2025, and
   the tax-year-2025 November table (`26inweek47.xlsx`, expected January 2027) supplies the next blend (NEXT_STEPS.md).
 
+## State weights (5-6 November; the integrated solve is the method from the 6 November retrain)
+
+A file for each year 2015-2075 that splits every record's national weight across areas: the 50 states and DC, the IRS's Other Areas,
+and Puerto Rico from 2018. A record's national weight is the sum of its weights across areas, so a national total is the same with or without the split.
+The content is id, state, weight (`files/state_weights_<year>.parquet`, Zstandard compression, the form of Iselin's interface; about
+190 MB a year, 24 million rows, 12 GB for all 61 years). John's decisions of 5 and 6 November: `explore/2026-11-06/RETRAIN_PLAN.md`, section 1.
+
+**The method.** Past years 2015-2023: the integrated solve, one solve of national and state weights together on the state target list below, after a national-only solve of the same
+year whose amounts set the state targets. Future years 2024-2075: no state targets; the national solve alone, each record keeping its 2023 split. The earlier floor on carried shares is not
+used and its code is gone: it existed for future years' state targets. The separate tilt (national weights first, then state shares on them) is the fallback if the integrated solve fails, as an option of the command.
+
+One command, from the repository root (`pipeline/run_state_weights.sh`, each step in `pipeline/state_year.sbatch`):
+
+    research/rebuild/pipeline/run_state_weights.sh <training folder> <output folder> [--separate] [--past <years>] [--last-year <year>] [--side <folder>]
+
+The training folder holds `settings.json`, `data/` and `model/` of the networks with the state slot. The command submits, with Slurm dependencies, for each past year: the folder, targets and dollar maps; the draw and top
+redraw (GPU); the national-only solve (`tilt.py`, with the solve's inputs saved); the networks' chances of each state (GPU); the integrated solve. Then 2024 on the 2023 file, then 2025-2075 on the 2024 file, each the national solve and
+the carried split; then a check of every year. A year's steps wait only for that year's earlier steps, so a failed year stops itself and, if it is 2023, the future years. Each year's final file is `final/<year>/tilt/y<year>/file_<year>.parquet`;
+the stages are `run.sbatch`'s own (`targets`, `maps`, `generate`, `top`, `tilt`, `state_start`, `state_joint`, `state_tilt`, `state_carry`, `state_check`). The Tax-Simulator file is not part of it: `taxsim_file` runs on `final/<year>`. Settings `state_weights` hold the items, tolerance, tau and budget.
+
+**A year that stops short** (John's small choice 6). A year that runs out of the 150 Newton steps with its largest gradient within 10 times the stopping size (1e-8) is used and named in the job's log and the check, as a report to John. Beyond that, the year's files are written, its job fails and the check stops: John decides. The step limit is not raised.
+
+- **State in pretraining.** ASEC's STATEFIP goes through `build_cps.R` (a unit's state is its household's; the filing stage does not need
+  it, since `build_cps.R` already holds the household id) and `build_table.py`, as the CPS-only category `state`: 0 none, else 1 + the
+  position among the 51 by FIPS code. A dependent filer draws none at generation, as for every CPS person item. The networks with the slot
+  are trained on a table otherwise identical to the installed networks' table, row by row, and are used only to read state. Run7's items
+  stay as they are.
+- **The start** (`state_start.py`, GPU). Each record of the year's file is read under the CPS label, with the CPS year mix of the target year
+  (`survey_mix.py`), averaged over the three networks. Shown: what the record has that the CPS asks, and its PUF-only items and AGI group
+  label (the plan had these as a test; they became the default on 6 November on the held-out scores below; `--cps-items-only` is the plan's
+  first reading). Hidden: state; the reported slots, as at generation; every slot that is zero on all CPS rows (mortgage interest, property tax
+  and others: the CPS does not ask them, so the network has seen only zero); on filers, other income and rental loss, which have no fill-in and
+  whose holders are far more common on the file's filers than on CPS rows. Other income is the case that matters: 2.7% of CPS units hold it in
+  2019, 44% in Alaska (the Permanent Fund dividend), 58.7% of the file's filers; shown, it put 1.46 million returns in Alaska in the 2019
+  start against the IRS's 0.36 million. A dependent filer's age range and person items are hidden, since the CPS has no dependent filers. The file
+  holds ages in years and the network as categories, so the five ages are converted. Other Areas and Puerto Rico start at the IRS's share of returns
+  in the record's AGI group, with the 51 scaled to the rest. Example: in 2019 in the group $25-50k the two hold 0.395%, so a 20.7% chance of California
+  starts at 0.207 x 0.99605 = 20.6%. Non-filers have only the 51. Reading a year on an H100 takes about a minute.
+- **The list records** are pinned to `residence_state` by `forbes_uri` (not by id: a list record's id is its rank on the year's list). No state on the year's list: the nearest list that gives one. No state on any list: a residence abroad goes to Other Areas, otherwise the record is treated as any other in a past year, and in a projection year takes the state distribution of the year's pinned list records. Pinned records are held out of the shares and enter the tilt as fixed amounts on the left side.
+- **Filer targets** (`state_targets.py`). For area s, AGI group g (Historic Table 2's ten, on the file's `calc_agi`), item v: the file's national total
+  of v in g times the IRS's share of s in g and v. Only the IRS's geography is used. Example: 2019, wages, the group $50-75k, Connecticut: $12.170 billion
+  of the IRS's $1,066.6 billion is 1.141%; the file has $1,070.2 billion; the target is $12.21 billion. Schedule A items are counted on records the
+  calculator itemizes, since the IRS's are among itemizers and the file draws them on others too. A cell has no target in these cases:
+  - *merged*: reads zero in a group whose national total is not zero (fewer than 10 returns, moved into a neighbouring group without a flag);
+  - *cancelling or opposite signs*: a signed item keeps its sign, but where the areas' values cancel (|sum| under half the sum of |values|) or the file and the IRS have opposite signs the item has no targets in that group;
+  - *filled by the list*: the list records hold 90% or more of the target (the free records' shares cannot be negative; in 2023 the list's Hawaii residents hold 6 times the IRS's charity in Hawaii at $1 million and over).
+  The final files use `FINAL_ITEMS` (49-52 items a year): Iselin's 21, the eight held-out lines other than capital gains' positive part, and IRA distributions, unemployment, qualified dividends, the number of returns with partnership and S corporation income, taxable income, itemizers, charity, self-employment tax, state refunds, the QBI deduction, net investment income tax, the refundable child credit and tax-exempt interest, where the year's table has the line. An item on this list has no targets in an AGI group where fewer than 250 effective records stand behind it, about 5 for each of the 53 areas (state income tax deducted at AGI under $1 rests on 4 in 2019). The earlier rule dropping an item in a group where the file's national total was outside 0.67-1.5 times the IRS's is gone (John, 6 November): it could not tell a definition problem from a level problem, and a level gap is no reason to skip a target built as a percentage times the file's amount. Three dollar amounts are not state targets (`NOT_STATE_TARGETS`; John, 7 November): capital gains, partnership and S corporation income, and itemized deductions. Their counts stay and their national targets are unchanged. With them (the long list, 52-55 items) the integrated solve of 2019 ran out of its 150 Newton steps on the retrained networks (gradient 1.1e-5); Iselin's 21 alone stalled in 2015; without the three, every year 2015-2075 converges, 74-127 Newton steps in the past years. Their state amounts are still much closer to the IRS's than the start: dollar-weighted miss in 2019 2.8% for itemized deductions (29.5% at the start), 13.0% for capital gains (26.0%), 11.3% for partnership and S corporation income (21.1%), with a few small cells far off (Other Areas at $10-25k: -$828 million against $1.5 million). `explore/2026-11-06/retrain/run/STEP8.md`.
+- **Non-filer targets** (John's rule, 6 November; `state_targets.nonfiler_state_table`). A state's share of the file's non-filer adults is its share of: CPS adults in tax units, less IRS adults on returns (N1 + MARS2), plus dependent returns. CPS adults are the heads and spouses of the training table's CPS rows, so group quarters are out and dependents are inside the unit that claims them; each state's share is pooled over the five CPS years with equal weights and multiplied by the target year's CPS total (the mean of the neighbouring CPS years in an even year). Dependent returns are added back because N1 counts them and their filers are not CPS heads: SOI Table 1.7's national count (`resources/soi_table_1_7_dependent_returns.csv`), spread by CPS people aged 15-24, pooled the same way. No Census figures and no floor: a residual at or below zero would stop the run, and none is in 2015-2023 (smallest: Alaska in 2015, 3,358). Example: 2019, Colorado: 1.793% x 230.81 million = 4,138,588 CPS adults, less 3,910,950, plus 169,230 = 396,868, which is 1.364% of the national 29.09 million. The state by age band table starts at the CPS's adults by state and band and is raked to these residuals and to the file's own non-filer adults by band (each adult at own age), which leaves the state shares unchanged. The target is the file's non-filer adults in the band times the table's share of the state within the band.
+- **The tilt, the fallback** (`state_tilt.py`, CPU). Each AGI group is its own problem, since each record is in one group and each target in one group; the non-filers are another. Cost: 0.5 x (miss / standard error)^2 summed over targets, plus tau x the weighted Kullback-Leibler move of the shares from the start, in nats, on weights divided by the group's total. A record's shares are the start times exp(x' lambda_area), normalized over areas, so they sum to 1 by construction. Newton's method on the multipliers, about 1,000-2,700 of them a group, with a budget of 150 steps a group.
+- **Standard errors.** Historic Table 2 has no sampling error, so a target's standard error is a stated tolerance: `tolerance` x the larger of |target| and 0.1% of the item's national total in the group (without that floor a tiny cell costs as much as California: Puerto Rico's property tax deducted in the group $10-25k was a target of $89,000), with the rounding of the IRS's counts to the nearest 10 added for a count item. With one tolerance for all, only tau x tolerance^2 matters (checked: 1%, tau 4,000 gives 2%, tau 1,000).
+- **Future years, 2024-2075** (`state_weights.carry`). 2024 starts from the 2023 file and each later year from the 2024 file, each with its own national solve (run7's pattern; the final 2023 file is the integrated solve's). There are no state targets. A record's state weight is the year's national weight x its 2023 share, found by record id in `shares/shares_2023.npz`, which holds every record's shares in full. A record not on the Forbes list keeps its id through the chain; any other record stops the stage. A list record's id is its rank on the year's list, so it does not follow a person: list records are pinned by `forbes_uri` every year, to the state on the nearest list that gives one, and a person with no state on any list takes the distribution of the year's pinned list records.
+- **Results of the separate tilt** (`explore/2026-11-05/state_weights/RESULTS.md`, on run7). Held-out items at tolerance 2%, tau 1,000, average miss and dollar-weighted miss: 2019 17.25% and 7.54% against 17.76% and 7.97% on Iselin's AGI-group start with the same tilt; 2022 21.52% and 7.90% against 21.89% and 8.20%. Every year's tilt converges within 135 Newton steps a group; 99.5-99.7% of 19,500-22,200 targeted cells are within 2%.
+- **The integrated solve** (`state_joint.py`; `explore/2026-11-05/state_joint/RESULTS.md`, `explore/2026-11-06/retrain/state/RESULTS.md`). One solve over record-by-state weights, w_is = w0_i x p0_is x exp(x_i' lambda_national + x_i' lambda_s), with solver.py's cost and soft cap, the year's national targets, and the state targets above, their national totals taken from the national-only solve on the same draw (the `--run` folder; `--totals-from` names another file). A record's national weight is the sum of its weights over areas. State standard errors use the by-group rule (`--by-group-move`, the default): each is divided by the square root of the AGI group's share of the weight, which gives each group the separate tilt's balance between misses and move. Two state multipliers meet in the Hessian only if they share an area and an AGI group, so the Newton system reduces to one dense matrix the size of the national targets (about 1,300 rows), about 580 small blocks, and a term for the records above their soft cap; a step takes about 10 seconds on 16 CPUs. tilt.py writes the solve's inputs when `REBUILD_SAVE_SOLVE` is set. `--list-only` writes the year's list of state targets and what has none, without solving.
+
 ## Taxable interest after the jump-off year (merged 5 November 2026; installed as run7)
 
 John's rule (5 November 2026; scratch `explore/2026-11-05/interest_check/FINDINGS.md` for why,
@@ -1948,10 +2007,9 @@ each PUF item of every record copy must be exactly its 2015 amount times the fac
   - the AMT net operating loss: the cap rule, applied by the merge (the grown P60100 held to the negative part of
     other income), not values.
 - Recomputed by the merge, not shipped: capital gains after the loss limit, business income, other income, taxable
-  Social Security, gross pensions, each spouse's wages, tips, overtime and deferrals, Medicare wages, and three added
-  items that are a PUF amount times or plus something (the basis of long-term gains, from the gain and the shipped
-  basis-to-sales ratio; the farm's QBI wage bill, which is the farm income; the S corporation's wage bill, the
-  shipped outside pay plus the owner's wages where a shipped flag says so). So no PUF amount of a PUF record is in the
+  Social Security, gross pensions, each spouse's wages, tips, overtime and deferrals, Medicare wages, and two added
+  items that are a PUF amount times something (the basis of long-term gains, from the gain and the shipped
+  basis-to-sales ratio; the farm's QBI wage bill, which is the farm income). So no PUF amount of a PUF record is in the
   package.
 - The round trip: the stage runs both merge scripts on our own 2015 PUF and compares the result with the year's
   Tax-Simulator file column by column. It fails unless every column is identical on every record or differs by
@@ -2011,6 +2069,41 @@ the CPS's pattern of the exact share within each code. Self-employment tax is ta
 
 The partnership item part_se is a separate change (below, in the combined retrain); it is not in the first test's
 networks, and it is in the second retrain's.
+
+## Self-employment tax: part_se read from the reported tax (fix B; John, 6 November 2026; branch `retrain-se`)
+
+Why: E30400 is the lesser of a person's Schedule SE net earnings and the room under the Social Security wage base, so
+E30400 / 0.9235 less Schedules C and F stops at the cap, and the calculator then charged the 2.9% Medicare tax on the capped
+amount too. Diagnosis: scratch `explore/2026-11-05/se_tax_gap/RESULTS.md`. Tests: `explore/2026-11-06/retrain/se/`.
+
+The rule (`earn_split.part_se_from_schedule_se`; the same in `top_hidden.py`, and copied in `merge_puf.py` and `merge_puf.R`):
+1. Tax is 12.4% of E30400 plus 2.9% of net earnings, so net earnings = (E09400 - 12.4% x E30400) / 2.9%. Where E09400 is
+   within the PUF's rounding of 15.3% of E30400, net earnings are E30400.
+2. Partnership return: part_se = net earnings / 0.9235 less C and F.
+3. Any other return: the same where net earnings differ from 92.35% of C and F by more than the larger of 1% and $50, and
+   not where net earnings are zero with C and F at most $433. Otherwise zero.
+
+Example, 2015, made-up numbers: a partner with no wages reports tax of $43,694 and E30400 of $118,500. Net earnings are
+(43,694 - 14,694) / 0.029 = $1,000,000, and part_se is $1,082,837. The old formula gave $128,316.
+
+part_se now means Schedule SE earnings other than Schedules C and F, not only partnership income. It can be negative:
+net earnings below 92.35% of C and F. The wage share's range (`dollars.py`, `generate.py`) counts each person's earnings
+only up to the room under the wage base, as E30400 does; in drawn dollars the wage base is 2015's $118,500 grown by the
+wage factor.
+
+Tested on real PUF records without retraining, before reweighting, through the calculator. $ billion:
+
+| | SOI Table 3.3 | twice the grown E03260 | calculator, old part_se | calculator, new part_se | part_se, old | part_se, new |
+|---|---:|---:|---:|---:|---:|---:|
+| 2019 | 67.28 | 66.11 | 57.13 | 66.27 | 33.3 | 269.5 |
+| 2022 | 81.02 | 73.14 | 65.51 | 77.90 | 50.7 | 382.4 |
+
+On the 2015 PUF, 24,924 of 207,692 records change (2.81 million returns). Part_se is negative on 0.94 million returns and
+$9.2 billion (old formula: 0.66 million and $35.9 billion).
+
+Known and left as they are, for John: part_se grows by the partnership and S corporation lines on every return, and on
+joint returns with tax but E30400 of zero the spouse's share is drawn, which overcharges about $1 billion in 2019. The
+synthetic file needs the retrain; how well the networks draw the larger item is not yet known.
 
 ## How the latest runs come out (3-4 November 2026)
 

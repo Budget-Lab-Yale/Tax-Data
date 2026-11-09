@@ -99,8 +99,8 @@ CONTRACT = [
     ('farm', SAME, 'farm', 'Schedule F net farm income of the unit'),
     ('farm1', COMPUTED, 'farm - farm2', 'primary filer\'s farm income'),
     ('farm2', COMPUTED, 'farm x spouse_se_share', 'spouse\'s farm income'),
-    ('part_se1', COMPUTED, 'part_se - part_se2', 'primary filer\'s partnership income subject to self-employment tax'),
-    ('part_se2', COMPUTED, 'part_se x spouse_se_share', 'spouse\'s partnership income subject to self-employment tax'),
+    ('part_se1', COMPUTED, 'part_se - part_se2', 'primary filer\'s Schedule SE earnings other than Schedules C and F'),
+    ('part_se2', COMPUTED, 'part_se x spouse_se_share', 'spouse\'s Schedule SE earnings other than Schedules C and F'),
     ('ei_prior_yr', ZERO, '0 (production writes 0 too)', 'earned income last year (child credit look-back; off under '
      '2019 law): no source planned'),
     # Schedule E
@@ -120,14 +120,14 @@ CONTRACT = [
     ('estate_loss', SAME, 'estate_loss', 'estate and trust net loss, stored positive'),
     ('wagebill_sole_prop', ZERO, '0', 'W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule '
      '(NEXT_STEPS step 1)'),
-    ('wagebill_part', ZERO, '0', 'W-2 wages paid by the partnership (QBI): as wagebill_sole_prop'),
-    ('wagebill_scorp', ZERO, '0', 'W-2 wages paid by the S corporation (QBI): as wagebill_sole_prop'),
-    ('wagebill_farm', ZERO, '0', 'W-2 wages paid by the farm (QBI): as wagebill_sole_prop'),
+    ('wagebill_part', ZERO, '0', 'W-2 wages paid by the partnership (QBI): with wagebill_scorp the group\'s wages, split by income'),
+    ('wagebill_scorp', ZERO, '0', 'W-2 wages paid by the S corporation (QBI): with wagebill_part the group\'s wages, split by income'),
+    ('wagebill_farm', ZERO, '0', 'W-2 wages paid by the farm (QBI): positive farm income, so the wage limit never binds'),
     ('sstb_sole_prop', ZERO, '0', 'the sole proprietorship is a specified service business (QBI): the QBI '
      'specified-service rule (NEXT_STEPS step 1)'),
     ('sstb_part', ZERO, '0', 'the partnership is a specified service business: as sstb_sole_prop'),
     ('sstb_scorp', ZERO, '0', 'the S corporation is a specified service business: as sstb_sole_prop'),
-    ('sstb_farm', ZERO, '0', 'the farm is a specified service business: as sstb_sole_prop'),
+    ('sstb_farm', ZERO, '0', 'the farm is a specified service business: never'),
     # other income
     ('txbl_int', SAME, 'txbl_int', 'taxable interest'),
     ('exempt_int', SAME, 'exempt_int', 'tax-exempt interest'),

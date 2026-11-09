@@ -17,7 +17,7 @@
 #   6. the two rules: the taxable state refund times state_ref_multiplier (0 removed, 1 kept whole, in between the share
 #      the tax benefit rule keeps; only a multiplication, no tax calculation), then other income and taxable Social
 #      Security computed again (refund_rule); the AMT net operating loss adjustment held to the record's net operating
-#      loss (amt_cap); three added items computed from a PUF amount computed from the PUF items (puf_based);
+#      loss (amt_cap); two added items computed from a PUF amount computed from the PUF items (puf_based);
 #   7. the Tax-Simulator file's columns, then the records that are not PUF records, in the file's own order.
 # The deductible half of self-employment tax is not in the package and is no output column: the tax calculator
 # computes it from the self-employment income and wages (the working items carry the PUF's own E03260 grown).
@@ -40,6 +40,29 @@ signed_sum <- function(d, parts) {
   acc <- 0
   for (p in names(parts)) acc <- acc + d[[p]] * parts[[p]]
   acc
+}
+
+# Half the PUF's rounding unit for an amount (2015 booklet, ninth disclosure step).
+half_rounding_unit <- function(x) {
+  a <- abs(as.numeric(x))
+  out <- rep(5, length(a))
+  out[a >= 1e4] <- 50
+  big <- a >= 1e5
+  out[big] <- 0.5 * 10^(floor(log10(a[big])) - 3)
+  out[a < 5] <- 3
+  out
+}
+
+# Schedule SE earnings other than Schedules C and F, before the 92.35% factor (part_se_from_schedule_se in
+# merge_puf.py, which says the rule). tax E09400, capped E30400, sch_cf E00900 + E02100.
+part_se_from_schedule_se <- function(tax, capped, sch_cf, partnership) {
+  same <- abs(tax - 0.153 * capped) <= half_rounding_unit(tax) + 0.153 * half_rounding_unit(capped)
+  net <- ifelse(same, capped, (tax - 0.124 * capped) / 0.029)
+  total <- ifelse(net > 0, net / 0.9235, 0)
+  expected <- 0.9235 * sch_cf
+  beyond <- abs(net - expected) > pmax(0.01 * abs(expected), 50)
+  nothing <- (net == 0) & (sch_cf <= 400 / 0.9235)
+  ifelse(partnership | (beyond & !nothing), total - sch_cf, 0)
 }
 
 items_2015 <- function(raw, spec, floor) {
@@ -70,8 +93,7 @@ items_2015 <- function(raw, spec, floor) {
   for (p in names(s$adj_parts)) out[[p]] <- f[[s$adj_parts[[p]]]]
   for (v in names(s$new_items)) if (!is.null(s$new_items[[v]])) out[[v]] <- f[[s$new_items[[v]]]]
   k1_part <- (f$E25940 + f$E25980 - f$E25920 - f$E25960) != 0
-  # the couple's Schedule SE earnings once (E30400 holds the spouse's E30500), as build_table.puf_rows (part_se fix)
-  out$part_se <- ifelse(k1_part, f$E30400 / 0.9235 - f$E00900 - f$E02100, 0)
+  out$part_se <- part_se_from_schedule_se(f$E09400, f$E30400, f$E00900 + f$E02100, k1_part)
   itemizer <- (f$FDED == 1) | agg
   medical <- pmax(0, f$E17500 - pmax(0, f$E00100 * floor))
   out$other_item_exp <- pmax(ifelse(itemizer, f$P04470 + f$E21040 - medical - f$E18400 - f$E18500 - f$E19200 -
@@ -220,10 +242,6 @@ puf_based <- function(d, rec, spec) {   # merge_puf.puf_based
   pb <- unlist(spec$puf_based)
   if ("kg_lt_basis" %in% pb) d$kg_lt_basis <- lt_basis(d$kg_lt, rec$kg_lt_basis_ratio)
   if ("wagebill_farm" %in% pb) d$wagebill_farm <- pmax(d$farm, 0)
-  if ("wagebill_scorp" %in% pb) {
-    o <- rec$wagebill_scorp_outside
-    d$wagebill_scorp <- ifelse(rec$wagebill_scorp_owner_wages == 1, o + d$wages, o)
-  }
   d
 }
 

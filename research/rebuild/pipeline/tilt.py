@@ -30,9 +30,9 @@ them yet, so the weights do not depend on them. Their checks, on the weights aft
 non_micro_checks.md and non_micro_check_*.csv.
 
 The taxes (taxes.py, settings taxes; 30 October): after the non-microdata imputations, every record's taxes under the
-year's law from tax-simulator-gpu's batch command, the QBI dials solved first, joined by record id (columns calc_*);
+year's law from tax-simulator-gpu's batch command, joined by record id (columns calc_*);
 then the year's calculator targets (kind calculator) are expanded on them and, with settings taxes.target, join the
-solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes_summary.md the totals and the dials.
+solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes_summary.md the totals.
 
 The tilt. solver.solve, the one-cost reweighting (decisions 57 and 68): the weights that minimize the sum over targets
 of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, identities exact
@@ -549,6 +549,7 @@ def main():
                 common.say(f'the top step written to {cache}')
         if os.environ.get('REBUILD_TOP_ONLY'):
             return
+        base = TR.replace_aggregates(*base, Y, spec['mode'])   # settings generation.real_puf_aggregates 'rebuilt' only
         g19, imp, given, fixed, top = TR.add_list(*base, Y)
         del base
     del raw
@@ -623,9 +624,9 @@ def main():
     # changes (its drawn value kept as amt_nols_drawn); the ranking items rank on w0, and no target reads their columns
     # or amt_nols yet
     g19, nmi_ctx = NMI.impute(g19, Y, w0)
-    # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start, the QBI
-    # dials solved first on the start's weights; then the calculator targets, on the computed columns
-    g19, tax_ctx = TX.compute(g19, Y, w0, nmi_ctx, f'{common.TILT}/taxes')
+    # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start; then the
+    # calculator targets, on the computed columns
+    g19, tax_ctx = TX.compute(g19, Y, w0, f'{common.TILT}/taxes')
     calc_rows = TLS.expand(Y, start=g19, which='calculator')
     common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
                                                           ' (reported only: settings taxes.target is false)'))
@@ -702,9 +703,21 @@ def main():
     common.say(f"one cost: tau {cfg['tau']:g}, importance 1 for kinds {sorted(cfg['importance_one_kinds'])} ({int((rho == 1).sum())} targets), "
                f"{1 / float(cfg['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
                f"{cfg.get('newton_budget', 150)} Newton steps")
+    # (6 November 2026, the joint solve of state weights, state_joint.py) with REBUILD_SAVE_SOLVE set, the solve's inputs are
+    # written to that file, and the solve's multipliers beside it afterwards. Nothing else changes.
+    save_solve = os.environ.get('REBUILD_SAVE_SOLVE')
+    if save_solve:
+        import pickle
+        with open(save_solve, 'wb') as fh:
+            pickle.dump({'record_id': g19['record_id'].to_numpy(), 'w0': w0, 'F': F, 'T': T, 'se': se, 'identity': identity,
+                         'averages': averages, 'rho': rho, 'fixed': fixed, 'soft_upper': S_main.get('solver_soft_upper'),
+                         'soft_beta': S_main.get('solver_soft_beta'), 'rows': rows, 'reweighting': cfg}, fh, protocol=4)
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
+    if save_solve:
+        np.savez(save_solve + '.answer.npz', multipliers=info['multipliers'], w1=w1, newton_steps=info['newton_steps'],
+                 converged=info['converged'])
     common.say(f"the whole tilt before the solve: {(t_solve - t_start) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)")
     common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
                f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended without meeting the stopping size)")
@@ -734,9 +747,10 @@ def main():
     factors = weight_factor_table(w0, w1, grp)
     factors.to_csv(f'{common.TILT}/weight_factors.csv', index=False)
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    NMI.write_qbi_scalars(nmi_ctx, common.TILT)   # beside the file: the projection years read them from their start's folder
     # the non-microdata imputations' published checks, on the weights after the tilt (Q9: reported only)
     NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
-    # the calculator targets before and after (targeted or not), the totals and the dials
+    # the calculator targets before and after (targeted or not), the totals
     tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(targeted_calc) else TX.evaluate(g19, calc_rows, w0, w1)
     tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
     tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)

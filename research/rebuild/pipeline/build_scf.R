@@ -94,16 +94,18 @@
 #   owns_other_re: owns any real estate other than the home (X1700 = 1, or the summary file's ORESRE or NNRESRE
 #     nonzero), with or without income;
 #   rents_home_part: collects rent from part of the home or from farm or ranch land (X1224 > 0 or X505 > 0).
-# The QBI items (since 29 October; John, NEXT_STEPS.md item 1, Q5; scratch explore/2026-10-28/qbi_plan/SIMPLE_PLAN.md),
-# from the household's actively managed businesses 1 and 2, for each of three kinds of business by legal form (X3119,
-# X3219): Schedule C (2 sole proprietorship, 40 not a formal business), partnership (1 partnership, 11 and 12 limited
-# partnership, LLP or LLC) and S corporation (3); other corporations (4) and the 2013 wave's code 6 (11 rows) have no
-# item:
-#   biz_industry_<kind>: the industry group of the household's largest business of that kind (largest by the value of
+# The QBI items (since 29 October, two groups since 6 November; John; scratch explore/2026-11-06/RETRAIN_PLAN.md,
+# section 2), from the household's actively managed businesses 1 and 2, for each of two groups of business by legal form
+# (X3119, X3219), because the SCF's income shows Schedules C and F as one amount (X5704) and partnerships and S
+# corporations inside another (X5714): group cf, Schedules C and F (2 sole proprietorship, 40 not a formal business), and
+# group ps, partnerships and S corporations (1 partnership, 11 and 12 limited partnership, LLP or LLC, 3 S corporation);
+# other corporations (4) and the 2013 wave's code 6 (11 rows) have no item:
+#   biz_industry_<group>: the industry group of the household's largest business of that group (largest by the value of
 #     the household's share, X3129 / X3229; business 1 on a tie): the public file's 7 groups (X3107 / X3207, 1-7), 8 for
-#     the code 99 ("no industry code", businesses worth $100 million or more), 0 with no business of the kind;
-#   biz_workers_<kind>: the owner's share of the outside workers, summed over the household's businesses of the kind:
-#     the business's workers (X3111 / X3211) less the household members who work in it (X3113-X3117 / X3213-X3217 equal
+#     the code 99 ("no industry code", businesses worth $100 million or more), 0 with no business of the group;
+#   biz_workers_<group>: the owner's share of the workers, summed over the household's businesses of the group: the
+#     business's workers (X3111 / X3211, which count the respondent and family; -1, about to be sold, counts as none), less,
+#     except in an S corporation (X3119 / X3219 = 3), the household members who work in it (X3113-X3117 / X3213-X3217 equal
 #     to 1), at least 0, times the household's share of the business (X3128 / X3228, hundredths of a percent).
 # Given, as owns_business, to the units holding the household's business equity (else the respondent's unit): the
 # industry to each, the workers in proportion to each unit's business equity (all to the one unit where there is
@@ -151,7 +153,7 @@ BUSINESS_ITEMS = c('x3103', 'x3401', 'x3119', 'x3219', 'x3407', 'x3411', 'x3451'
 # The QBI items (see the top): per business b (1, 2) the industry group, workers, household members working in it, the
 # household's share and the value of the share
 QBI_ITEMS = unlist(lapply(c('31', '32'), function(b) paste0('x', b, c('07', '11', '13', '14', '15', '16', '17', '28', '29'))))
-QBI_KINDS = list(schc = c(2, 40), part = c(1, 11, 12), scorp = 3)
+QBI_GROUPS = list(cf = c(2, 40), ps = c(1, 3, 11, 12))
 K1_FORMS = c(1, 3, 11, 12)
 INCOME = c(wages = 'X5702', txbl_int = 'X5708', dividends = 'X5710', capital_gains = 'X5712',
            business_income = 'X5704', rent_royalty_estate = 'X5714', ss_pensions_scf = 'X5722',
@@ -431,17 +433,20 @@ for (wave in settings$paths$raw$scf_waves) {
     ungroup()
   stopifnot(!anyNA(ur$inc_re), all((ur %>% group_by(hh) %>% summarise(n = sum(holder)))$n >= 1))
 
-  # The QBI items (see the top): per household and kind, the largest business's industry group and the owner's
-  # share of outside workers; then to the business-equity holders
+  # The QBI items (see the top): per household and group, the largest business's industry group and the owner's
+  # share of the workers; then to the business-equity holders
   qb = tibble(hh = hh$Y1)
-  for (k in names(QBI_KINDS)) {
+  for (k in names(QBI_GROUPS)) {
     ind = rep(0, nrow(hh)); best = rep(-Inf, nrow(hh)); wk = rep(0, nrow(hh))
     for (b in c('31', '32')) {
       x = function(i) hh[[paste0('X', b, i)]]
-      is_k = x('19') %in% QBI_KINDS[[k]]
+      is_k = x('19') %in% QBI_GROUPS[[k]]
       fam = (x('13') == 1) + (x('14') == 1) + (x('15') == 1) + (x('16') == 1) + (x('17') == 1)
-      outside = pmax(x('11') - fam, 0) * x('28') / 10000
-      wk = wk + if_else(is_k, outside, 0)
+      # An S corporation's owner who works in it is paid W-2 wages, so all its workers count; partners and sole proprietors cannot pay themselves W-2 wages, so other forms count outside workers only.
+      counted = if_else(x('19') == 3, pmax(x('11'), 0), pmax(x('11') - fam, 0)) * x('28') / 10000
+      wk = wk + if_else(is_k, counted, 0)
+      if (k == 'ps') cat(sprintf('wave %d: business %s, S corporations: %d rows, workers X%s11 below 1: %d, one worker: %d, fewer workers than household members working in it: %d\n', wave, b,
+                                 sum(x('19') == 3), b, sum(x('19') == 3 & x('11') < 1), sum(x('19') == 3 & x('11') == 1), sum(x('19') == 3 & x('11') < fam)))
       code = if_else(x('07') == 99, 8, x('07'))
       stopifnot(all(code[is_k] %in% 1:8), all(x('28')[is_k] > 0 & x('28')[is_k] <= 10000))
       take = is_k & x('29') > best          # strictly larger: business 1 on a tie
@@ -455,15 +460,15 @@ for (wave in settings$paths$raw$scf_waves) {
     if_else(holder, pmax(value.pass_throughs, 0) / sum(pmax(value.pass_throughs, 0)[holder]), 0) else as.numeric(holder) / sum(holder)) %>%
     ungroup()
   uq = ub %>% select(uid, hh, holder, eq_share) %>% left_join(qb, by = 'hh')
-  for (k in names(QBI_KINDS)) {
+  for (k in names(QBI_GROUPS)) {
     uq[[paste0('biz_industry_', k)]] = if_else(uq$holder, uq[[paste0('biz_industry_', k)]], 0)
     uq[[paste0('biz_workers_', k)]] = uq[[paste0('biz_workers_', k)]] * uq$eq_share
   }
-  QBI_COLS = c(paste0('biz_industry_', names(QBI_KINDS)), paste0('biz_workers_', names(QBI_KINDS)))
+  QBI_COLS = c(paste0('biz_industry_', names(QBI_GROUPS)), paste0('biz_workers_', names(QBI_GROUPS)))
   stopifnot(!anyNA(uq[, QBI_COLS]), all(abs((ub %>% group_by(hh) %>% summarise(s = sum(eq_share)))$s - 1) < 1e-9))
-  for (k in names(QBI_KINDS)) {
+  for (k in names(QBI_GROUPS)) {
     w5 = hh$X42001 / 5
-    cat(sprintf('wave %d: QBI %s: households with a business of the kind %.2f m; outside workers, owners\' share %.1f m; industry groups (households, m): %s\n',
+    cat(sprintf('wave %d: QBI %s: households with a business of the group %.2f m; workers counted, owners\' share %.1f m; industry groups (households, m): %s\n',
                 wave, k, sum(w5[qb[[paste0('biz_industry_', k)]] > 0]) / 1e6, sum(w5 * qb[[paste0('biz_workers_', k)]]) / 1e6,
                 paste(sprintf('%d: %.2f', 1:8, sapply(1:8, function(g) sum(w5[qb[[paste0('biz_industry_', k)]] == g]) / 1e6)), collapse = ', ')))
   }

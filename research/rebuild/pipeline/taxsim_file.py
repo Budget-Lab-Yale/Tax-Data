@@ -107,9 +107,9 @@ EXTRA = {
     'male2': ('computed', 'sex_spouse == 1 (1 man, 0 woman); missing without a spouse, as production'),
     'parent_rank': ('same', 'parent_rank (non-microdata imputations, production\'s method)'),
     'n_dep_ctc': ('same', 'n_dep_ctc (the PUF\'s child credit children, N24, held to 3)'),
-    'part_se': ('same', 'part_se (production\'s formula on the PUF, (E30400 + E30500) / 0.9235 less Schedules C and F; '
-                'E30400 already holds the spouse\'s E30500, so the spouse\'s earnings count twice: '
-                'explore/2026-11-04/earnsplit/FINDINGS.md)'),
+    'part_se': ('same', 'part_se (Schedule SE earnings other than Schedules C and F, read from the PUF\'s reported tax, '
+                'can be negative: earn_split.part_se_from_schedule_se; production\'s formula, (E30400 + E30500) / 0.9235 less '
+                'Schedules C and F on partnership returns, stops at the wage base and counts the spouse\'s earnings twice)'),
     'nols': ('zero', '0, as production writes it (no source in either)'),
     'prim_mort_share': ('computed', 'value.primary_mortgage / (value.primary_mortgage + value.other_mortgage) from the drawn '
                         'balance sheet, each balance read as at least 0; 1 where there is no mortgage (production\'s default); production imputes '
@@ -338,7 +338,7 @@ C_FROM_FILE = {
     **{c: 'blindness rule, non-microdata imputations' for c in ('blind1', 'blind2')},
     **{f'dep_ssn{k}': 'the drawn CPS status, dollars.py' for k in (1, 2, 3)},
     **{f'dep_ctc{k}': 'child credit eligibility, non-microdata imputations' for k in (1, 2, 3)},
-    **{f'{p}_{b}': 'QBI rule, non-microdata imputations (dials a = b = 1, not yet solved)'
+    **{f'{p}_{b}': 'QBI rule, non-microdata imputations'
        for p in ('wagebill', 'sstb') for b in ('sole_prop', 'part', 'scorp', 'farm')},
     'kg_lt_basis': 'SOCA basis rule, non-microdata imputations', 'kg_lt_years_held': 'SOCA holding period rule',
     'q_death1': 'death probabilities, non-microdata imputations', 'q_death2': 'as q_death1',

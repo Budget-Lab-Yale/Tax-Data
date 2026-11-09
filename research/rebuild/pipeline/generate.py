@@ -32,8 +32,8 @@ One record is drawn slot by slot:
      cut points. Then the computed flag k1_owner: any partnership or
      S corporation part nonzero;
   2b. (since 4 November; earn_split.py) under the batch's label, the spouse's share of the couple's
-     self-employment income (asked only of a married couple with Schedules C or F or partnership
-     income subject to self-employment tax: absent until then and where not asked, zero at the end),
+     self-employment income (asked only of a married couple with Schedules C or F or part_se:
+     absent until then and where not asked, zero at the end),
      then the earnings split code (0 unless married; 1-3 where the couple has wages; 0 where it has
      neither wages nor positive self-employment income), each given everything drawn so far. Neither
      is drawn among the amounts above, so no PUF item is drawn with them known: the filer batch's
@@ -191,9 +191,9 @@ FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
 # (4 November) drawn after the PUF items and their totals, in this order, under the batch's label (step 2b at the top)
 LATE_SLOTS = [v for v in M.PUF_SHARES + list(M.SHARED_CATEGORIES) if v in P]
-# (29 October) the QBI items under the SCF label (build_table, meta scf_structure): each kind's outside workers drawn
-# after its industry group and zero with none; the industry group never none on a record with any of the kind's PUF
-# parts nonzero
+# (29 October; two groups since 6 November) the QBI items under the SCF label (build_table, meta scf_structure): each
+# group's outside workers drawn after its industry group and zero with none; the industry group never none on a record
+# with any of the group's PUF parts nonzero
 SCF_STRUCTURE = M.META.get('scf_structure', {'after': {}, 'industry_parts': {}})
 SCF_AFTER = {P.index(v): P.index(b) for v, b in SCF_STRUCTURE['after'].items()}
 INDUSTRY_PARTS = {P.index(v): torch.tensor([P.index(q) for q in parts]) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
@@ -404,9 +404,9 @@ def scf_order(size, gen):
         swap = pos < pos_b
         perm[rows[swap], pos[swap]], perm[rows[swap], pos_b[swap]] = ib, i
     if G.get('qbi_items_last', False):
-        # (autoresearch, round 13) the QBI items (each kind's industry group and its outside workers) after every other
+        # (autoresearch, round 13) the QBI items (each group's industry group and its outside workers) after every other
         # SCF slot, keeping their order among themselves. qbi_structure gives an industry group to every record with the
-        # kind's PUF parts nonzero, while in the SCF only owners of a business have one; drawn before owns_business and
+        # group's PUF parts nonzero, while in the SCF only owners of a business have one; drawn before owns_business and
         # the balance sheet, a given industry made the record an owner (the 2019 file: 32 million units with a Schedule C
         # industry against the SCF's 7 million; ownership 16.8% against 11.6%, 13.6% in the bottom income quarter
         # against 3.4%).
@@ -489,7 +489,7 @@ def positive(values, v):
 def earn_structure(values, slot, probs):
     """The earnings split code (4 November; earn_split.py): 0 unless married; on a married couple, 1-3 where it has
     wages (the PUF has code 0 with earnings on 0.02% of joint returns' weight), 0 where it has neither wages nor
-    positive Schedules C and F or partnership income subject to self-employment tax; otherwise as the model draws."""
+    positive Schedules C and F or part_se; otherwise as the model draws."""
     if ES_SLOT is None:
         return probs
     sel = slot == ES_SLOT
@@ -514,6 +514,29 @@ def se_earnings_t(x):
     """Schedule SE net earnings from self-employment income x (a tensor): 92.35% of it where that is $400 or more."""
     e = float(M.META['earn_split']['se_factor']) * x
     return torch.where(e >= float(M.META['earn_split']['se_floor']), e, torch.zeros_like(e))
+
+
+def capped_wage_share_range(W, e1, e2, a, b, cap):
+    """The spouse's wage shares (low, high) that put the primary's share of earnings in [a, b], each person's earnings
+    counted up to the room under the wage base (dollars.wage_share_bounds; the primary's share falls as the spouse's
+    wage share rises, so each end is found by halving). Where no share reaches the range, the nearest share, 0 or 1."""
+    def primary_share(s):
+        w1, w2 = W * (1 - s), W * s
+        p1 = w1 + torch.minimum(e1, (cap - w1).clamp(min=0))
+        p2 = w2 + torch.minimum(e2, (cap - w2).clamp(min=0))
+        return p1 / (p1 + p2).clamp(min=1e-9)
+    s0, s1 = torch.zeros_like(W), torch.ones_like(W)
+    t0, t1 = s0.clone(), s1.clone()
+    for _ in range(40):
+        m = (s0 + s1) / 2
+        ok = primary_share(m) <= b                      # the smallest share at or below the top of the range
+        s1, s0 = torch.where(ok, m, s1), torch.where(ok, s0, m)
+        m = (t0 + t1) / 2
+        ok = primary_share(m) >= a                      # the largest share at or above the bottom of the range
+        t0, t1 = torch.where(ok, m, t0), torch.where(ok, t1, m)
+    lo = torch.where(primary_share(torch.zeros_like(W)) <= b, torch.zeros_like(W), s1)
+    hi = torch.where(primary_share(torch.ones_like(W)) >= a, torch.ones_like(W), t0)
+    return lo, hi
 
 
 def band_tables(device):
@@ -597,8 +620,8 @@ def deferral_structure(values, slot, probs):
 
 
 def qbi_structure(values, slot, probs):
-    """The QBI items (29 October): a kind's outside workers are zero where its industry group is none (drawn first,
-    scf_order); its industry group is not none where any of the kind's PUF parts is nonzero (the record has such a
+    """The QBI items (29 October): a group's outside workers are zero where its industry group is none (drawn first,
+    scf_order); its industry group is not none where any of the group's PUF parts is nonzero (the record has such a
     business: the model's chances of the 8 groups, rescaled)."""
     for j, ind in SCF_AFTER.items():
         probs = only(probs, (slot == j) & (values[:, NC + ind] == 0))
@@ -852,9 +875,9 @@ class Chunk:
         """The spouse's share of the couple's wages (CPS phase): on a married couple with wages and an earnings split
         code of 1-3, only the bands of the record's CPS year that reach the shares putting the primary's share of
         earnings in the code's range (earn_split.wage_share_bounds), with the couple's wages, Schedules C and F,
-        partnership income subject to self-employment tax and self-employment share at their bands' median PUF-year
-        dollars. Where the model gives every such band no chance, they are taken as equally likely (only). dollars.py
-        holds the exact share inside the exact range."""
+        part_se and self-employment share at their bands' median PUF-year dollars, and each person's earnings counted
+        up to the PUF year's wage base, as E30400 counts them. Where the model gives every such band no chance, they are
+        taken as equally likely (only). dollars.py holds the exact share inside the exact range."""
         sel = (slot == WAGE_SHARE) & ~self.not_asked.get(WAGE_SHARE, torch.zeros_like(slot, dtype=torch.bool))
         code = self.values[:, NC + ES_SLOT]
         sel = sel & (code >= 1) & (code <= 3)
@@ -870,11 +893,7 @@ class Chunk:
         sh = torch.where(v[:, NC + P.index('spouse_se_share')] >= 0, med('spouse_se_share'), torch.zeros_like(W))
         e2, e1 = se_earnings_t(sh * X), se_earnings_t((1 - sh) * X)
         c = code[sel]
-        a, b = B['low'][c], B['high'][c]
-        T = W + e1 + e2
-        Wd = W.clamp(min=1e-9)
-        lo = (1 - (b * T - e1) / Wd).clamp(0, 1)
-        hi = (1 - (a * T - e1) / Wd).clamp(0, 1)
+        lo, hi = capped_wage_share_range(W, e1, e2, B['low'][c], B['high'][c], float(M.META['earn_split']['se_wage_base']))
         yi = self.survey_year['cps'][sel]
         blo, bhi = B['wage_lo'][yi], B['wage_hi'][yi]                # [n, bands]: each band's share range, that year
         allowed = torch.zeros(len(lo), probs.shape[1], device=probs.device)   # (the choices past the share's bands: 0)

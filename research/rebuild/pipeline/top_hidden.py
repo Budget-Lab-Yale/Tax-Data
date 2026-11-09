@@ -148,7 +148,7 @@ def puf_items(raw, itemizer=None, old=None):
     out.update({p: f[fld] for p, fld in BT.ADJ_PARTS.items()})
     out.update({v: f[fld] for v, fld in BT.NEW_ITEMS.items() if fld})
     k1_part = (f['E25940'] + f['E25980'] - f['E25920'] - f['E25960']) != 0
-    out['part_se'] = np.where(k1_part, f['E30400'] / 0.9235 - f['E00900'] - f['E02100'], 0.0)
+    out['part_se'] = BT.ES.part_se_from_schedule_se(f['E09400'], f['E30400'], f['E00900'] + f['E02100'], k1_part)
     itemizer = (f['FDED'] == 1) if itemizer is None else np.broadcast_to(np.asarray(itemizer, bool), (n,))
     old = np.zeros(n, bool) if old is None else np.broadcast_to(np.asarray(old, bool), (n,))
     medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * np.where(old, 0.075, 0.1)))

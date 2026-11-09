@@ -1,0 +1,46 @@
+year,business_type,line,thousands,used,source
+2015,sole_prop,"Payroll, all nonfarm industries, with and without net income",126361910.0,1,SOI https://www.irs.gov/pub/irs-soi/15sp01br.xls
+2015,part,"Salaries and wages, all industries",577746711.0,1,SOI https://www.irs.gov/pub/irs-soi/15pa01.xlsx
+2015,part,"Guaranteed payments to partners, all industries (memo)",67146214.0,0,SOI https://www.irs.gov/pub/irs-soi/15pa01.xlsx
+2015,scorp,Salaries and wages,838237834.0,1,SOI https://www.irs.gov/pub/irs-soi/15co09ccr.xlsx
+2015,scorp,Compensation of officers,272857766.0,1,SOI https://www.irs.gov/pub/irs-soi/15co09ccr.xlsx
+2016,sole_prop,"Payroll, all nonfarm industries, with and without net income",126941320.0,1,SOI https://www.irs.gov/pub/irs-soi/16sp01br.xls
+2016,part,"Salaries and wages, all industries",606596550.0,1,SOI https://www.irs.gov/pub/irs-soi/16pa01.xlsx
+2016,part,"Guaranteed payments to partners, all industries (memo)",70245218.0,0,SOI https://www.irs.gov/pub/irs-soi/16pa01.xlsx
+2016,scorp,Salaries and wages,875489138.0,1,SOI https://www.irs.gov/pub/irs-soi/16co09ccr.xlsx
+2016,scorp,Compensation of officers,278326072.0,1,SOI https://www.irs.gov/pub/irs-soi/16co09ccr.xlsx
+2017,sole_prop,"Payroll, all nonfarm industries, with and without net income",139153684.0,1,SOI https://www.irs.gov/pub/irs-soi/17sp01br.xls
+2017,part,"Salaries and wages, all industries",657088598.0,1,SOI https://www.irs.gov/pub/irs-soi/17pa01.xlsx
+2017,part,"Guaranteed payments to partners, all industries (memo)",73904399.0,0,SOI https://www.irs.gov/pub/irs-soi/17pa01.xlsx
+2017,scorp,Salaries and wages,925123923.0,1,SOI https://www.irs.gov/pub/irs-soi/17co09ccr.xlsx
+2017,scorp,Compensation of officers,293207662.0,1,SOI https://www.irs.gov/pub/irs-soi/17co09ccr.xlsx
+2018,sole_prop,"Payroll, all nonfarm industries, with and without net income",139265542.0,1,SOI https://www.irs.gov/pub/irs-soi/18sp01br.xls
+2018,part,"Salaries and wages, all industries",700374995.0,1,SOI https://www.irs.gov/pub/irs-soi/18pa01.xlsx
+2018,part,"Guaranteed payments to partners, all industries (memo)",68967435.0,0,SOI https://www.irs.gov/pub/irs-soi/18pa01.xlsx
+2018,scorp,Salaries and wages,944519330.0,1,SOI https://www.irs.gov/pub/irs-soi/18co09ccr.xlsx
+2018,scorp,Compensation of officers,288973155.0,1,SOI https://www.irs.gov/pub/irs-soi/18co09ccr.xlsx
+2019,sole_prop,"Payroll, all nonfarm industries, with and without net income",143961644.0,1,SOI https://www.irs.gov/pub/irs-soi/19sp01br.xls
+2019,part,"Salaries and wages, all industries",712051408.0,1,SOI https://www.irs.gov/pub/irs-soi/19pa01.xlsx
+2019,part,"Guaranteed payments to partners, all industries (memo)",68845819.0,0,SOI https://www.irs.gov/pub/irs-soi/19pa01.xlsx
+2019,scorp,Salaries and wages,971922948.0,1,SOI https://www.irs.gov/pub/irs-soi/19co09ccr.xlsx
+2019,scorp,Compensation of officers,293662665.0,1,SOI https://www.irs.gov/pub/irs-soi/19co09ccr.xlsx
+2020,sole_prop,"Payroll, all nonfarm industries, with and without net income",141242788.0,1,SOI https://www.irs.gov/pub/irs-soi/20sp01br.xls
+2020,part,"Salaries and wages, all industries",774967319.0,1,SOI https://www.irs.gov/pub/irs-soi/20pa01.xlsx
+2020,part,"Guaranteed payments to partners, all industries (memo)",74044266.0,0,SOI https://www.irs.gov/pub/irs-soi/20pa01.xlsx
+2020,scorp,Salaries and wages,967030916.0,1,SOI https://www.irs.gov/pub/irs-soi/20co09ccr.xlsx
+2020,scorp,Compensation of officers,303082899.0,1,SOI https://www.irs.gov/pub/irs-soi/20co09ccr.xlsx
+2021,sole_prop,"Payroll, all nonfarm industries, with and without net income",154107825.0,1,SOI https://www.irs.gov/pub/irs-soi/21sp01br.xls
+2021,part,"Salaries and wages, all industries",872118799.0,1,SOI https://www.irs.gov/pub/irs-soi/21pa01.xlsx
+2021,part,"Guaranteed payments to partners, all industries (memo)",81086502.0,0,SOI https://www.irs.gov/pub/irs-soi/21pa01.xlsx
+2021,scorp,Salaries and wages,1072302049.0,1,SOI https://www.irs.gov/pub/irs-soi/21co09ccr.xlsx
+2021,scorp,Compensation of officers,340098041.0,1,SOI https://www.irs.gov/pub/irs-soi/21co09ccr.xlsx
+2022,sole_prop,"Payroll, all nonfarm industries, with and without net income",175011725.0,1,SOI https://www.irs.gov/pub/irs-soi/22sp01br.xls
+2022,part,"Salaries and wages, all industries",991848964.0,1,SOI https://www.irs.gov/pub/irs-soi/22pa01.xlsx
+2022,part,"Guaranteed payments to partners, all industries (memo)",81949505.0,0,SOI https://www.irs.gov/pub/irs-soi/22pa01.xlsx
+2022,scorp,Salaries and wages,1164295039.0,1,SOI https://www.irs.gov/pub/irs-soi/22co09ccr.xlsx
+2022,scorp,Compensation of officers,349956774.0,1,SOI https://www.irs.gov/pub/irs-soi/22co09ccr.xlsx
+2023,sole_prop,"Payroll, all nonfarm industries, with and without net income",175013634.0,1,SOI https://www.irs.gov/pub/irs-soi/23sp01br.xls
+2023,part,"Salaries and wages, all industries",1039750064.0,1,SOI https://www.irs.gov/pub/irs-soi/23pa01.xlsx
+2023,part,"Guaranteed payments to partners, all industries (memo)",87786312.0,0,SOI https://www.irs.gov/pub/irs-soi/23pa01.xlsx
+2023,scorp,Salaries and wages,1234768529.0,1,SOI https://www.irs.gov/pub/irs-soi/23co09ccr.xlsx
+2023,scorp,Compensation of officers,352935875.0,1,SOI https://www.irs.gov/pub/irs-soi/23co09ccr.xlsx

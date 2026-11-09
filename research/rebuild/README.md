@@ -63,6 +63,7 @@ scratch `explore/2026-11-04/realpuf_setting/scripts/`.
 | report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and overtime, and tips in the file against the target year's CEX, CPS and SIPP year mix; the translation report | seconds |
 | calculator | `calculator.py`, `report_calculator.py` | not in the default stages: each record of a finished file through the GPU tax calculator (tax-simulator-gpu's batch command at the commit in settings `taxes`), the AGI check and the levels against SOI 2019 (`CALCULATOR_CONTRACT.md`). Since 30 October the tilt computes the taxes itself (`taxes.py`) | under a minute, a few minutes for the report |
 | taxsim_file | `taxsim_file.py` | not in the default stages (29 October): the year file as Tax-Simulator's `tax_units_<year>.csv`, production's 188 columns in its order and with its conventions for missing values; where each column comes from is `TAXSIM_FILE_COLUMNS.csv` (written beside the output, copied to `research/rebuild/`). With real_puf it is followed by package | a few minutes on a CPU node |
+| state weights: state_start, state_joint, state_tilt, state_carry, state_check | one command `run_state_weights.sh <training folder> <output folder>` (`state_year.sbatch`; `state_start.py`, `state_joint.py`, `state_weights.py`, `state_targets.py`, `state_tilt.py`, `report_state.py`) | not in the default list: every year's final file with its state weights. Past years: draw, national-only solve, integrated solve. Future years: national solve, each record keeping its 2023 split (FEATURES.md, "State weights") | a few hours for 2015-2075, with the queue |
 | package | `package.py`, `merge_puf.py`, `merge_puf.R` | real_puf only (4 November): the files that turn a holder's own 2015 PUF into the year's Tax-Simulator file (factors per PUF item and step, the weight factor, the added items as values, the other records, the merge scripts in Python and R; `<out>/package/<run>/`, chmod 700), then the round trip: both scripts run on our PUF must give the Tax-Simulator file, or the stage fails (`PACKAGE.md`) | about 3 minutes on a CPU node |
 
 Names: every variable that Tax-Simulator's calculator reads has the calculator's name (29-30 October); the list is
@@ -88,11 +89,11 @@ training seed can be changed with `REBUILD_SEED`, the output folder with
 passes, for a quick test, with `REBUILD_PASSES`.
 
 Outputs. The folders `data/`, `targets/`, `model/`, `gen/`, `tilt/` and `taxsim/` under
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run's 2019 (since 5 November, run7: every year
-2015-2075 in `explore/2026-11-05/interest_growth/run/<year>/`, which is run6's 2015-2024 and 2025-2075 rerun with
-the interest rule, on the earnings-split networks of `explore/2026-11-04/run5_earnsplit/train/model/`; `INSTALLED.txt` says what is where). They are changed only by an
-install John approves. The real-PUF files and packages for every year are in `explore/2026-11-05/run6/confidential/`
-(readable by John only; 2025-2075 there predate the interest rule). Runs since then live in their own folders under `explore/`. A year's tilt folder (`tilt/y<year>/`) holds the file
+`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run's 2019 (since 8 November, the 6 November retrain: every year
+2015-2075 in `explore/2026-11-06/retrain/run/list_A/final/<year>/`, state weights in `explore/2026-11-06/retrain/run/list_A/files/`,
+on the networks of `explore/2026-11-06/retrain/run/train/model/`; before it run7, `explore/2026-11-05/interest_growth/run/`; `INSTALLED.txt` says what is where). They are changed only by an
+install John approves. The real-PUF files and packages in `explore/2026-11-05/run6/confidential/`
+(readable by John only) are run6's; none were made for the retrain. Runs since then live in their own folders under `explore/`. A year's tilt folder (`tilt/y<year>/`) holds the file
 (`file_<year>.parquet`, every dollar in nominal dollars of the year), the targets (`targets.csv`), every target before
 and after (`fit.csv`), the summary (`summary.md`), the run report (`report.md`, `report_*.csv`) and the top step's
 notes; the Tax-Simulator file is in `taxsim/y<year>/`.
