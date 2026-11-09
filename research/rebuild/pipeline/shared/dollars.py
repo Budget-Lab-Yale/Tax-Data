@@ -1,98 +1,10 @@
 """Dollars for generated records.
 
-The model works in bands. A record's dollars in a band are drawn from that
-band's real records ("the map", built by build_table.py): the PUF's dollar
-values for PUF variables, the SCF's for the balance sheet, the CEX's for
-consumption, each record's chance of being picked proportional to its weight.
-The target year's maps are the PUF year's grown to the target year
-(maps.build_maps); negative capital gains are not grown (the $3,000 limit
-is nominal).
-
-The balance sheet has one map per SCF wave (map_scf_wave<wave>_<year>): each
-wave's own records, grown to the target year per tax unit, item by item
-(maps.build_maps). A record's wave is its column scf_wave (generate.py
-draws each record's balance sheet from one wave, by the year's mix), and its
-balance-sheet bands, which are on that wave's band edges, become dollars from
-that wave's map.
-
-Stored picks. Generation stores, for each record and each amount, one uniform
-number in [0, 1) (column u_<variable>). It selects the row within the band's
-list of real records (rows in the map's order, each with a chance proportional
-to its weight) in place of a fresh random number. Every year's map of a variable
-has the same rows in the same order with the same weights, only the values
-grown, so a record keeps the same real record's amount in every year and in
-every step that turns its bands into dollars. A frame without the column (the
-PUF's own records, say) draws a fresh number, as before.
-
-The CEX's consumption, the CPS's items and the SIPP's tips have one map per survey year (map_<survey>_from<year>_to
-<target year>): that year's own records, grown to the target year (maps.build_maps). A record's
-year of each survey is its column cex_year, cps_year or sipp_year (generate.py draws them with the shares of the year
-file's prior); its bands become dollars from that year's map. A frame without the column draws from the single-year
-map (map_<survey>_<target year>), as before.
-
-After the draws, the pieces are put on the definitions the IRS targets use:
-  capital_gains   the Schedule D net as it enters AGI: kg_st + kg_lt, the
-                  gains and losses before the $3,000 limit, a net loss held
-                  to the limit ($1,500 on a separate return;
-                  common.allowed_capital_gain); with kg_dist it is Form 1040
-                  line 13, capital_gains_line13
-  business_income the exact signed sum of its eighteen parts
-  dividends       qualified plus other dividends (div_pref + div_ord), exactly
-  adjustments     the exact sum of its eleven parts
-  other_agi       AGI minus wages, interest, dividends and capital gains:
-                  the drawn remainder plus kg_dist plus the AGI items folded
-                  back in (FOLD) plus taxable Social Security; the remainder
-                  alone is other_agi_remainder
-  gross_pens_dist gross pensions, taxable pensions plus the non-taxable
-                  rest (nontxbl_pens_dist), exactly (both drawn)
-  ss_taxable      taxable Social Security, never drawn: the
-                  section 86 worksheet on the record's own amounts, as the
-                  tax calculator computes it (retirement_items)
-  net_worth       the 14 assets less the 6 debts; the home mortgage is its
-                  drawn share of the home's value times the home's dollars
-  wages2, se2     the spouse's wages and self-employment income: the drawn
-                  share times the couple's total (wages; Schedules C and F as
-                  computed above); wages1 and se1, the primary filer's, are the
-                  total less the spouse's, so the two add up to the total
-  tips1, tips2    each adult's tips: the drawn tips in dollars (tips_primary,
-                  tips_spouse, from the SIPP's map), at most that adult's
-                  wages (wages1, wages2); tips = tips1 + tips2 exactly;
-                  tips_lh1, tips_lh2 the leisure and hospitality flags, 0
-                  where that adult has no tips
-  ot1, ot2        each adult's overtime pay, the whole pay for the hours over
-                  40 (Tax-Simulator's names): the drawn overtime in dollars
-                  (ot_primary, ot_spouse, from the CPS's map), at most that
-                  adult's wages less that adult's tips (wages1 - tips1, never
-                  below zero: the tips are made first and the overtime gives
-                  way); ot = ot1 + ot2 exactly
-  auto_int_exp    the auto loan interest drawn (an SCF amount, from the
-                  record's own wave's map)
-  elective_deferrals  the unit's elective deferrals to 401(k)-type plans,
-                  traditional plus Roth, as drawn (an SCF amount, from the
-                  record's own wave's map, grown to the target year's wave),
-                  split between the two people by the drawn
-                  spouse_deferral_share (elective2; elective1 the rest),
-                  then, with the file's year given (draw_dollars' year), each
-                  person's held to that year's legal
-                  limit for their age and to their own wages (wages1, wages2:
-                  none without wages, as for tips); elective1 and elective2 are
-                  the held amounts. trad_contr_er1, trad_contr_er2 (Tax-
-                  Simulator's names): each person's traditional part, elective
-                  x (1 - the year's Roth share for joint or non-joint returns,
-                  settings deferrals); trad_deferrals their sum; medicare_wages
-                  wages (box 1, which holds the Roth part) plus trad_deferrals
-  CPS ages        age1, age2, dep_age1-3 in years, -1 for none
-  ssn1, ssn2, dep_ssn1-3  whether each person has a Social Security number, 1 or 0,
-                  from the drawn CPS status (ssn_status_primary, _spouse,
-                  _dep1-3: 1 citizen, 2 noncitizen with a sign of lawful
-                  status, 3 noncitizen without one): 0 for status 3, else 1.
-                  dep_ssn1-3 follow the dependents' ages (youngest first) and
-                  are Tax-Simulator's names, which it reads for three
-                  dependents; missing (NA) where there is no such dependent,
-                  as Tax-Simulator expects. ssn2 is missing without a spouse.
-                  ssn1 is missing on the dependent filers' records, whose
-                  survey items are all none (generate.structural); the non-
-                  microdata imputations give them one.
+The networks draw each amount as a band. draw_dollars turns a band into dollars by picking one of the band's real
+records in the source's dollar map, with chance proportional to its weight, then builds totals and each person's items
+from the parts. A record's stored uniform number (column u_<variable>) fixes the pick, so the record keeps the same real
+record's amount in every year. Balance-sheet amounts come from the map of the record's SCF wave, and CEX, CPS and SIPP
+amounts from the map of the record's survey year. The rules are in FEATURES.md, "Dollars in the target year".
 """
 import glob
 import os
@@ -103,15 +15,14 @@ import pandas as pd
 from shared import common
 from shared import translate as TR
 
-# The order fixes each amount's random stream; it must not change. An amount that is no longer drawn keeps its place (kg_other,
-# retirement_gross, ss_taxable: a frame without its band skips it), and an amount added later goes at the very end, so no
-# earlier stream moves.
+# The order fixes each amount's random stream and must not change. Amounts that are not drawn (kg_other,
+# retirement_gross, ss_taxable) keep their places, and a new amount goes at the end, so no other amount's stream moves.
 META = common.meta()
 OVERTIME = list(META['cps_structure'].get('overtime', []))
-# the amounts added after the first lists, in the order they were added
+# Amounts placed after all others, in this order
 TAIL = ['elective_deferrals', 'spouse_deferral_share', *OVERTIME, 'w_dc_stock_share', 'biz_workers_cf', 'biz_workers_ps',
         'nontxbl_pens_dist', 'inheritance']
-# the CPS's amounts less the overtime, the shared PUF shares right after the spouse's wage share
+# The CPS's amounts other than overtime, with the PUF's shares right after the spouse's wage share
 _CPS_ORDER = [v for v in META['cps_amounts'] if v not in OVERTIME]
 for _v in reversed(META.get('puf_shares', [])):
     _CPS_ORDER.insert(_CPS_ORDER.index('spouse_wage_share') + 1, _v)
@@ -130,34 +41,26 @@ ORDER += [v for v in TAIL if v in set(META['scf_amounts']) | set(OVERTIME) | set
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
-PERSON_CAPS = META.get('person_caps', {})         # slot: [item, its cap(, less)]: tips1 at most wages1; ot1 at most
-#                                                   wages1 - tips1 (the third entry, made by an earlier entry)
+PERSON_CAPS = META.get('person_caps', {})         # slot: [item, its cap, an amount taken off the cap (optional)]
 SUMS = META.get('sums', {})                       # item: its parts (tips = tips1 + tips2)
 FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amount it holds with] (0 without it)
 AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
 KG_PIECES = META['kg_pieces']
 FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
 AGI_PARTS = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']
-# What taxable Social Security reads besides AGI without it and the filing status (common.taxable_social_security)
+# What taxable Social Security reads besides AGI and the filing status
 SS_INPUTS = ['gross_ss', 'exempt_int', 'sl_int_ded']
 
 
 def agi(df):
-    """AGI of records whose dollars draw_dollars has put on the IRS targets' definitions."""
+    """AGI of records that have been through draw_dollars."""
     return df[AGI_PARTS].to_numpy(float).sum(1)
 
 
 def retirement_items(out, in_agi=False):
-    """In place: the two computed retirement items.
-      gross_pens_dist  gross pensions (Form 1040 line 5a) = taxable pensions + the non-taxable rest
-                       (common.PENSION_PARTS), exactly; both parts at least zero. Made where the frame has both parts.
-      ss_taxable       taxable Social Security by the section 86 worksheet (common.taxable_social_security) on the
-                       record's own amounts: modified AGI is AGI without taxable benefits (wages, interest, dividends,
-                       the Schedule D net, other AGI), plus tax-exempt interest, plus the student loan interest
-                       deduction; the filing status sets the base amounts. Added to other_agi, so it is in the file's
-                       AGI (dollars.agi). Every record, filers and non-filers, as the calculator computes it.
-    in_agi: other_agi already holds the record's ss_taxable (a recomputation after an item of AGI changed, the refund
-    rule of taxes.py): it is taken out before the worksheet runs again. Returns out."""
+    """In place: gross pensions, the sum of its two parts, where the frame has both; and taxable Social Security by the
+    section 86 worksheet, added to other_agi so that it is in AGI. With in_agi, other_agi already holds the record's
+    ss_taxable, which is taken out before the worksheet runs again. Returns out."""
     if all(p in out for p in common.PENSION_PARTS):
         parts = out[common.PENSION_PARTS].to_numpy(float)
         assert np.isfinite(parts).all(), 'a pension part missing on a record'
@@ -176,8 +79,7 @@ def retirement_items(out, in_agi=False):
 
 
 def signed_sum(df, parts):
-    """The total made from its parts: parts is {column: sign} (business income's eighteen parts, net worth's assets
-    and debts, the AGI items folded into other_agi), summed with their signs."""
+    """The sum of columns with their signs; parts is {column: sign}."""
     return df[list(parts)].to_numpy(float) @ np.array(list(parts.values()), float)
 
 
@@ -185,12 +87,12 @@ SCF_SET = set(META['scf_amounts'])
 WAVE_MAPS = 'scf waves'                           # load_maps' key for {wave: {variable: map rows}}
 YEAR_MAPS = 'survey years'                        # load_maps' key for {survey: {tax year: {variable: map rows}}}
 YEAR_SURVEYS = {'cex': set(META['cex_amounts']), 'cps': set(META['cps_amounts']), 'sipp': set(META.get('sipp_amounts', []))}
-SURVEY_OF = {v: src for src, vs in YEAR_SURVEYS.items() for v in vs}   # an amount: the survey whose year picks its map
+SURVEY_OF = {v: src for src, vs in YEAR_SURVEYS.items() for v in vs}   # amount: the survey whose year picks its map
 
 
 def load_maps(year):
-    """{variable: map rows} for a year: the PUF's, the CEX's consumption and the CPS's items; and under WAVE_MAPS
-    each SCF wave's balance-sheet maps, {wave survey year: {variable: map rows}}."""
+    """A year's dollar maps, {variable: map rows}, with each SCF wave's maps under WAVE_MAPS and each survey year's
+    under YEAR_MAPS."""
     split = lambda m: {v: g for v, g in m.groupby('variable')}
     maps = {}
     for source in ['puf', 'cex', 'cps', 'sipp']:
@@ -209,7 +111,7 @@ def load_maps(year):
 
 
 def by_band(vmap):
-    """{band: (the rows' cumulative weights, their values)} of the map rows vmap, kept on the frame after the first call."""
+    """{band: (cumulative weights, values)} of the map rows vmap, kept on the frame after the first call."""
     by = vmap.attrs.get('by_band')
     if by is None:
         by = {band: (np.cumsum(g['weight'].to_numpy()), g['value'].to_numpy()) for band, g in vmap.groupby('band', sort=True)}
@@ -218,7 +120,7 @@ def by_band(vmap):
 
 
 def draw_one(bands, vmap, rng, u=None):
-    """Dollars for bands from the map rows vmap. u: each record's stored pick (see the top); None draws from rng."""
+    """Dollars for bands from the map rows vmap. u holds each record's stored uniform number; None draws from rng."""
     u = rng.random(len(bands)) if u is None else np.asarray(u, float)
     values = np.full(len(bands), np.nan)
     by = by_band(vmap)
@@ -233,8 +135,7 @@ def draw_one(bands, vmap, rng, u=None):
 
 
 def _draw_by_group(df, v, column, maps_by_group, rng, u, what):
-    """One amount, each record from the map of its own group (an SCF wave or a survey year, in column), maps_by_group
-    {group: {variable: map rows}}; what names the group in the messages."""
+    """One amount, each record from the map of its own group (an SCF wave or a survey year, held in column)."""
     bands, group = df[f'{v}_band'].to_numpy(), df[column].to_numpy()
     assert not pd.isna(group).any(), f'{int(pd.isna(group).sum())} records with no {what}'
     u = rng.random(len(bands)) if u is None else np.asarray(u, float)
@@ -261,11 +162,9 @@ def draw_by_year(df, v, maps, rng, u):
 
 
 def person_cap(x, cap, less=None):
-    """A person's drawn amount x (at least 0) held to at most cap less `less` (never below zero), and what each part
-    of the rule takes off. Returns (held, by_cap, by_less): held = min(x, max(cap - less, 0)); by_cap, what the cap
-    alone takes off, x - min(x, max(cap, 0)); by_less, what reducing the cap by `less` takes off on top of that (0
-    where less is None). by_cap + by_less = x - held. Example: wages 50,000, tips 20,000, drawn overtime 40,000:
-    held 30,000, by_cap 0, by_less 10,000."""
+    """A person's amount x held to at most cap less `less`, never below zero. Returns (held, by_cap, by_less), where
+    by_cap is what the cap alone takes off and by_less what subtracting `less` takes off on top. Example: wages 50,000,
+    tips 20,000, drawn overtime 40,000: held 30,000, by_cap 0, by_less 10,000."""
     x, c = np.asarray(x, float), np.maximum(np.asarray(cap, float), 0.0)
     assert (x >= 0).all(), 'a drawn amount below zero'
     by_wages = np.minimum(x, c)
@@ -278,15 +177,9 @@ def person_cap(x, cap, less=None):
 
 
 def person_items(out, df):
-    """In place, after the remainders: a person's amount in dollars held to at most a person's other amount (tips1 =
-    the drawn tips_primary, at most wages1: a person's tips are part of that person's wages, as on Form W-2), or to
-    that amount less one made before it (ot1 = the drawn ot_primary, at most wages1 - tips1: tips and overtime pay
-    are both part of the person's wages; the tips are made first and the overtime gives way), then their sums (tips =
-    tips1 + tips2, ot = ot1 + ot2) and the yes/no items that hold only with the item (tips_lh1: 0 where tips1 is 0).
-    Prints how many people, and how many dollars, the cap takes off: records, and units by the frame's weight column
-    when it has one; for a cap less another amount, what the wages alone take off and what the other amount takes off
-    on top, separately. Each item is made only where the frame has its drawn amount's band column (a frame from before
-    overtime has the tips and not the overtime), and a sum or flag only where its parts were made."""
+    """In place: each person's tips held to that person's wages, and overtime to wages less tips, since both are part
+    of W-2 wages; then the sums (tips = tips1 + tips2) and the flags that hold only with an amount (tips_lh1 is 0 where
+    tips1 is 0). Prints what the caps take off. An item is made only where the frame has its band."""
     have = {slot: f'{slot}_band' in df for slot in PERSON_CAPS}
     if not any(have.values()):
         return out
@@ -331,16 +224,10 @@ def person_items(out, df):
 
 
 def deferral_items(out, year):
-    """In place, after the ages are in years: each person's
-    elective deferrals, the drawn unit total split by the drawn spouse's share (elective2 = share x total, elective1 the
-    rest; all to the primary filer when the frame has no share), each held to the year's legal limit for that
-    person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age1 and age2) and to
-    that person's own wages (wages1, wages2: none without wages, as for tips); elective1 and elective2 are the held
-    amounts. Then each person's traditional part (Tax-Simulator's trad_contr_er1, trad_contr_er2: elective x (1 - the
-    year's Roth share for joint or non-joint returns), translate.traditional_deferrals), their sum trad_deferrals, and
-    Medicare wages, wages (box 1, which holds the Roth part) plus trad_deferrals: the payroll tax base for wages. The
-    drawn total stays in elective_deferrals. Prints what each hold takes off. A frame without the drawn deferrals, or
-    with no year, gets none of these."""
+    """In place, after the ages are in years: each person's elective deferrals (the drawn unit total split by the
+    drawn spouse share), held to the year's legal limit for that person's age and to that person's wages. Then each
+    person's traditional part, their sum trad_deferrals, and Medicare wages (box 1 wages, which hold the Roth part, plus
+    traditional deferrals). Nothing is made without a year."""
     if 'elective_deferrals' not in out or year is None:
         return out
     D = common.SETTINGS['deferrals']
@@ -384,9 +271,8 @@ SSN_COLUMNS = {'ssn_status_primary': 'ssn1', 'ssn_status_spouse': 'ssn2', 'ssn_s
 
 
 def ssn_items(out):
-    """In place: ssn1, ssn2, dep_ssn1-3 from the drawn statuses (see the top): 1 has a number (status 1 or 2), 0 has
-    none (status 3), missing where there is no such person (status 0). A frame without the statuses is left alone.
-    Prints the weighted counts (weight column, else 1 per record)."""
+    """In place: ssn1, ssn2 and dep_ssn1-3 from the drawn CPS statuses. 1 for a citizen or a noncitizen with a sign of
+    lawful status (status 1 or 2), 0 for other noncitizens (status 3), missing where there is no such person."""
     if not all(v in out for v in SSN_COLUMNS):
         return out
     w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
@@ -401,17 +287,13 @@ def ssn_items(out):
     return out
 
 
-OWN = 'own_'   # a real PUF record's own PUF-year amount of an item (filers real_puf, generate.real_puf_part)
+OWN = 'own_'   # prefix of a real PUF record's own amounts, when the filers are the real PUF records
 
 
 def own_values(out, df, year):
-    """In place (settings generation.filers real_puf): on a real PUF record (a frame column own_<item> that is not
-    missing), each PUF amount is the record's own PUF-year amount grown to year exactly as the PUF's dollar map is
-    grown (maps.puf_target_map: positive values times the item's factor for positive values, negative values
-    times its factor for negative values, zero left at zero; growth.factors), in place of the draw from its band.
-    For an ordinary PUF record this is the value its own row of the map holds; the PUF's four aggregate records are
-    not in the map, so this is the only way they get their amounts. Records with no own amounts (generated records)
-    are left as drawn. The own_ columns are not carried into out."""
+    """In place, when the filers are the real PUF records: each real record's PUF amounts are its own PUF-year amounts
+    grown to year as the PUF's dollar map is grown, in place of the draw from its band. The PUF's four aggregate
+    records are not in the map, so this is how they get their amounts. The own_ columns are dropped."""
     cols = [c for c in df.columns if c.startswith(OWN)]
     if not cols:
         return out
@@ -436,9 +318,8 @@ def own_values(out, df, year):
 
 
 def couple_se_earnings(out):
-    """Each person's Schedule SE net earnings (earn_split.py): the couple's Schedules C and F plus part_se, split by
-    the drawn self-employment share (the calculator splits each item by it), 92.35% of each person's part where that is
-    $400 or more. Before the cap under the wage base (wage_share_bounds). Returns (primary's, spouse's)."""
+    """Each person's Schedule SE net earnings: the couple's Schedules C and F plus part_se, split by the drawn
+    self-employment share, times 92.35% where that is $400 or more. Returns (primary's, spouse's)."""
     E = META['earn_split']
     x = out['sch_cf_income'].to_numpy(float) + (out['part_se'].to_numpy(float) if 'part_se' in out else 0.0)
     s = out['spouse_se_share'].to_numpy(float) if 'spouse_se_share' in out else np.zeros(len(out))
@@ -448,8 +329,8 @@ def couple_se_earnings(out):
 
 
 def wage_base(year):
-    """The wage base in the dollars of draw_dollars' year: the PUF year's, grown as wages are, so a drawn record's wages
-    stand against the cap as they did in the PUF year, which is what its earnings split code describes."""
+    """The Social Security wage base in year's dollars: the PUF year's, grown as wages are, so a record's wages stand
+    against it as in the PUF year, which is the year its earnings split code describes."""
     base = float(META['earn_split']['se_wage_base'])
     if year is None or int(year) == common.PUF_YEAR:
         return base
@@ -458,12 +339,11 @@ def wage_base(year):
 
 
 def wage_share_bounds(wages, e1, e2, code, cap):
-    """The spouse's share of the couple's wages that puts the primary's share of earnings in the code's range: (low,
-    high, unreachable), low = high = NaN where there is no bound (code 0, or no wages); where no share reaches the
-    range, the share that comes nearest (0 or 1), flagged. EARNSPLIT is built on E30400, so each person's earnings count
-    only up to the room under the wage base: min(e, max(cap - own wages, 0)). A person's wages plus counted earnings
-    fall as the person's wages fall, so the primary's share falls as the spouse's wage share rises, and each end of the
-    range is found by halving. With an infinite cap this gives earn_split.wage_share_bounds."""
+    """The range (low, high, unreachable) of the spouse's share of the couple's wages that puts the primary's share of
+    earnings in the range of the earnings split code. low and high are NaN where there is no bound (code 0, or no
+    wages); where no share reaches the range they are the nearest share (0 or 1), flagged. The PUF's code is built on
+    E30400, so each person's self-employment earnings count only up to the room left under the wage base. Each end is
+    found by bisection, since the primary's share falls as the spouse's wage share rises."""
     rng = META['earn_split']['ranges']
     low = np.array([np.nan] + [rng[str(k)][0] for k in (1, 2, 3)])
     high = np.array([np.nan] + [rng[str(k)][1] for k in (1, 2, 3)])
@@ -502,15 +382,9 @@ def wage_share_bounds(wages, e1, e2, code, cap):
 
 
 def wage_share_in_range(out, df, maps, year=None):
-    """In place (earn_split.py): the spouse's share of the couple's wages held inside the range its
-    earnings split code allows given the couple's wages and each person's Schedule SE earnings up to the wage base
-    (wage_share_bounds).
-    A share already inside keeps its value. One outside is picked again inside the range, among the real shares of its
-    own band's map (its CPS year's, else the single-year map) that lie in the range, with its stored pick rescaled to
-    them, so that within each band the shares follow the band's own distribution cut to the range; where none of the
-    band's real shares lies in the range (generation chose the band at median dollars), the nearest end of the range.
-    Where no share reaches the code's range, the nearest share (0 or 1). Prints the counts. A frame without the code,
-    or without the wage share, is left alone."""
+    """In place: the spouse's wage share held inside the range its earnings split code allows (wage_share_bounds). A
+    share outside the range is picked again, with its stored uniform number, among the real shares of its band's map
+    that lie in the range; where the band has none, it is set to the nearest end of the range."""
     if 'earn_split' not in df or 'spouse_wage_share_band' not in df or 'earn_split' not in META:
         return out
     code = df['earn_split'].to_numpy()
@@ -553,9 +427,8 @@ def wage_share_in_range(out, df, maps, year=None):
 
 
 def draw_dollars(df, maps, year=None):
-    """Dollars for every banded amount, then the pieces combined (see the top). A column u_<variable> is the record's
-    stored pick; a balance-sheet amount comes from the record's own wave's map. year: the tax year of the maps'
-    dollars, for the traditional deferrals and Medicare wages (deferral_items; None: not made)."""
+    """Dollars for every banded amount, then the totals and each person's items built from them. year is the tax year
+    of the maps' dollars; without it the deferral items are not made."""
     seed = common.SETTINGS['dollars']['seed']
     out = df.copy()
     for i, v in enumerate(ORDER):
@@ -571,7 +444,7 @@ def draw_dollars(df, maps, year=None):
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
     own_values(out, df, year)
     remainder = out['other_agi'].to_numpy(float).copy()
-    # the Schedule D gains and losses are drawn before the loss limit; AGI's capital gain applies it
+    # Gains and losses are drawn before the loss limit; AGI's capital gain applies it.
     out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
                                                        out['filing_status'] if 'filing_status' in out else None)
     out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
@@ -582,8 +455,7 @@ def draw_dollars(df, maps, year=None):
     for sub in [k for k in META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
         sp = META['computed_totals'][sub]
         if sub in ('dividends', 'adjustments') and not all(f'{p}_band' in df for p in sp):
-            # a frame with the total's band and not its parts' (qgroups.band_agi, whose AGI group label reads the
-            # two totals' bands) keeps the total's own dollars
+            # A frame with the total's band but not its parts' bands keeps the total's own dollars.
             assert f'{sub}_band' in df, f'{sub}: neither its band nor its parts\' bands'
             continue
         out[sub] = signed_sum(out, sp)
@@ -603,11 +475,11 @@ def draw_dollars(df, maps, year=None):
             out[item] = out[total] - out[other]
             assert np.allclose(out[item] + out[other], out[total], rtol=1e-12, atol=1e-6), item
     person_items(out, df)
-    for a in AGE_SLOTS:                            # in years, -1 none
+    for a in AGE_SLOTS:                            # ages in years, -1 for none
         if a in out:
             out[a] = out[a] - 1
     ssn_items(out)
-    deferral_items(out, year)                      # after the ages: the legal limit depends on each person's
+    deferral_items(out, year)                      # after the ages, since the legal limit depends on age
     if all(f'{c}_band' in df for c in META['scf_amounts']):
         assert not out[list(NET_WORTH_PARTS)].isna().any().any(), 'a balance-sheet item is missing on a record'
         out['net_worth'] = signed_sum(out, NET_WORTH_PARTS)

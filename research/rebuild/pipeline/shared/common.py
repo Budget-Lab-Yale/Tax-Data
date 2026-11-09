@@ -1,14 +1,8 @@
 """Paths, settings and small helpers shared by every stage.
 
-Every choice of a run is in one settings file: REBUILD_SETTINGS if set (run.py sets it; every stage, R and
-Python, reads it), else the pipeline's own settings.json. Outputs go under OUT, one folder per stage:
-  data/     the training table, its band edges, the dollar maps   (prep/build_table.py, scale/maps.py)
-  targets/  the published SOI numbers and SOI's CVs                 (prep/soi.py, prep/soi_cv.py)
-  model/    the trained network                                    (pretrain/train.py)
-  gen/      the generated records                                  (generate/generate.py)
-  tilt/     the year's targets, weights, final file and run report (reweight/tilt.py, output/report_tilt.py)
-Environment: REBUILD_OUT overrides OUT; REBUILD_SEED the training seed; REBUILD_RUN names the model/gen/tilt
-subfolder (default seed<n>); REBUILD_PASSES the passes (for a quick test).
+Every stage, R and Python, reads one settings file: REBUILD_SETTINGS if set, else the pipeline's own settings.json.
+Outputs go under OUT (REBUILD_OUT overrides it), in data/, targets/, model/, gen/ and tilt/. REBUILD_RUN names the
+run's subfolder of model/, gen/ and tilt/ (default seed<n>).
 """
 import json
 import os
@@ -24,10 +18,10 @@ RAW = SETTINGS['paths']['raw']
 SEED = int(os.environ.get('REBUILD_SEED', SETTINGS['training']['seed']))
 PASSES = int(os.environ.get('REBUILD_PASSES', SETTINGS['training']['passes']))   # fewer for a quick test
 PUF_YEAR = int(SETTINGS['years']['puf'])          # the PUF's tax year: its records, cut points and dollar maps
-TARGET_YEAR = int(SETTINGS['years']['target'])    # the year of the file the tilt makes, and of its targets
+TARGET_YEAR = int(SETTINGS['years']['target'])    # the year of the reweighted file and its targets
 
-# Where the filer records come from (settings generation.filers): 'synthetic', the filer batch drawn from the networks;
-# 'real_puf', every 2015 PUF record with its own PUF items, the networks drawing the rest (generate.real_puf_part).
+# Where the filer records come from: 'synthetic', drawn from the networks; 'real_puf', every 2015 PUF record with its
+# own PUF items, the networks drawing the rest.
 FILERS = SETTINGS['generation'].get('filers', 'synthetic')
 assert FILERS in ('synthetic', 'real_puf'), f"settings generation.filers is 'synthetic' or 'real_puf', not {FILERS!r}"
 REAL_PUF = FILERS == 'real_puf'
@@ -41,9 +35,9 @@ RUN = os.environ.get('REBUILD_RUN', f'seed{SEED}')
 MODEL = f'{OUT}/model/{RUN}'
 GEN = f'{OUT}/gen/{RUN}'
 TILT = f'{OUT}/tilt/{RUN}'
-TOP_CACHE = f'{OUT}/top_cache.pkl'   # the top step's network part (generate/top.py), read by the tilt
+TOP_CACHE = f'{OUT}/top_cache.pkl'   # the top records drawn by generate/top.py, read by the reweighting
 
-# The primary filer's age range (ages.py): six adult ranges, then three for dependent filers.
+# The primary filer's age range: six adult ranges, then three for dependent filers.
 AGE_LABELS = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+', 'dep <18', 'dep 18-25', 'dep 26+']
 ADULT_RANGES = 6
 N_RANGES = len(AGE_LABELS)
@@ -54,46 +48,35 @@ WAGE_GROUPS = [(-np.inf, 1, 'none'), (1, 25e3, '$1-25k'), (25e3, 50e3, '$25k-50k
                (100e3, 200e3, '$100k-200k'), (200e3, np.inf, '$200k+')]
 
 
-# The capital loss limit (section 1211(b)): a net capital loss counts in AGI up to $3,000, $1,500 on a separate return
-# (filing status 3); nominal, not indexed. The file draws the Schedule D gains and losses before the limit (kg_st,
-# kg_lt); the limit is applied where AGI is made, and by the calculator.
+# The capital loss limit (section 1211(b)): a net capital loss counts in AGI up to $3,000, or $1,500 on a separate
+# return (filing status 3). Not indexed. The file holds gains and losses before the limit.
 CAPITAL_LOSS_LIMIT, CAPITAL_LOSS_LIMIT_SEPARATE = 3000.0, 1500.0
 
 
 def allowed_capital_gain(sched_d, filing_status=None):
-    """The Schedule D net gain as it enters AGI: the net (short term plus long term, before the limit), a loss held to
-    the limit. filing_status None: every return held to $3,000."""
+    """The Schedule D net gain as it enters AGI, a loss held to the limit. With no filing status, every return is held
+    to $3,000."""
     sched_d = np.asarray(sched_d, float)
     limit = CAPITAL_LOSS_LIMIT if filing_status is None else \
         np.where(np.asarray(filing_status) == 3, CAPITAL_LOSS_LIMIT_SEPARATE, CAPITAL_LOSS_LIMIT)
     return np.maximum(sched_d, -limit)
 
 
-# Social Security and pensions. The network draws three parts: gross Social Security (gross_ss), taxable pensions
-# (txbl_pens_dist) and the non-taxable rest of pensions (nontxbl_pens_dist: on the PUF E01500 less E01700, never below
-# zero). Two items are computed, never drawn: gross pensions (gross_pens_dist, Form 1040 line 5a) = taxable pensions +
-# the rest; and taxable Social Security (ss_taxable) by the section 86 worksheet below, which is part of the file's AGI
-# and is never targeted.
+# The networks draw gross Social Security, taxable pensions and the non-taxable rest of pensions (on the PUF, E01500
+# less E01700, never below zero). Gross pensions (Form 1040 line 5a) and taxable Social Security are computed.
 PENSION_PARTS = ['txbl_pens_dist', 'nontxbl_pens_dist']
 GROSS_PENSIONS = 'gross_pens_dist'
-# Section 86, as tax-simulator-gpu has it (taxes/calc/agi.py, calc_ss; config/scenarios/tax_law/default/ss.yaml):
-# half of the benefits plus modified AGI is the provisional income; the base and adjusted amounts are $25,000 and
-# $34,000, $32,000 and $44,000 on a joint return (filing status 2). A separate return takes the single amounts, as the
-# calculator's filing-status map does. Not indexed.
+# Section 86: the base and adjusted amounts are $25,000 and $34,000, or $32,000 and $44,000 on a joint return (filing
+# status 2). A separate return takes the single amounts, as in tax-simulator-gpu. Not indexed.
 SS_BRACKETS = {'single': (25_000.0, 34_000.0), 'joint': (32_000.0, 44_000.0)}
 SS_RATES = (0.5, 0.85)
 SS_MAGI_RATE = 0.5
 
 
 def taxable_social_security(gross_ss, magi, filing_status):
-    """Taxable Social Security by the section 86 worksheet, the calculator's formula (calc_ss): provisional income
-    p = max(0.5 x benefits + modified AGI, 0); 50% of the part of p between the base and the adjusted amount and 85% of
-    the part above the adjusted amount, each part at most the benefits; the sum at most 85% of the benefits.
-    magi: AGI without taxable benefits, plus tax-exempt interest, plus the student loan interest deduction (the
-    calculator's magi_ss: income other than benefits, plus tax-exempt interest, less the adjustments other than the
-    student loan interest deduction). Worked example, a single return with $20,000 of benefits and $30,000 of other
-    income: p = $40,000; 50% of $9,000 (the part from $25,000 to $34,000) is $4,500; 85% of $6,000 (the part above
-    $34,000) is $5,100; taxable $9,600, below 85% of the benefits ($17,000)."""
+    """Taxable Social Security by the section 86 worksheet, as tax-simulator-gpu computes it. magi is AGI without
+    taxable benefits, plus tax-exempt interest, plus the student loan interest deduction. Example: a single return with
+    $20,000 of benefits and $30,000 of other income has provisional income of $40,000 and $9,600 taxable."""
     ss = np.asarray(gross_ss, float)
     magi = np.asarray(magi, float)
     fs = np.asarray(filing_status)
@@ -125,7 +108,7 @@ _EDGES = None
 
 
 def edges():
-    """The band edges written by build_table.py (read once)."""
+    """The band edges written by build_table.py, read once."""
     global _EDGES
     if _EDGES is None:
         _EDGES = json.load(open(EDGES))
@@ -133,7 +116,7 @@ def edges():
 
 
 def meta():
-    """The band edges' meta: items, computed totals, the surveys' slots, AGI signs (build_table.py)."""
+    """The table's description stored with the band edges: items, computed totals, the surveys' slots."""
     return edges()['meta']
 
 
