@@ -1,9 +1,8 @@
 """roster_cps.py: the CPS reader for the shared tax-unit rules (tax_units.py). It turns an IPUMS CPS ASEC person file
 into the standard member list the rules read (one row per person; the columns are listed in tax_units.py's header).
 
-The CPS observes every input the rules use, so it needs no fallbacks (tax_units.FALLBACKS['cps']); the stand-ins for
-the few Census variables IPUMS lacks are listed in tax_units.py's header and below. Moved out of tax_units.py on
-24 October 2026 without any change to what it computes: step 1's units come out identical, unit for unit.
+The CPS observes every input the rules use, so it needs no fallbacks; the stand-ins for
+the few Census variables IPUMS lacks are listed in tax_units.py's header and below.
 
 read_roster(tax_year)  the member list for one tax year (the ASEC of March tax_year + 1). CBO reads the Census Bureau's
                        CSV files; the member list rebuilds the Census codes CBO's rules read (HHDFMX, the detailed

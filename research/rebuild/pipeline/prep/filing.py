@@ -1,11 +1,9 @@
-"""filing.py: the CPS's filing stage. Which CPS tax units file a return, as a chance per unit from the filing rule
-(v4, John, 24 October 2026), calibrated in each tax year to population and SOI counts. Moved here from step 1's
-scratch folder (explore/2026-10-23/step1_units: score_units.R and calibrate_v4.py) on 24 October 2026; the results are
-the same, apart from the comparison columns left behind (below).
+"""filing.py: the CPS's filing stage. Which CPS tax units file a return, as a chance per unit from the filing rule,
+calibrated in each tax year to population and SOI counts.
 
 The stage has three steps, run in order by run.py (stage filing), every year of settings cps.years:
-  python -m prep.filing units [year ...]      the CPS's tax units by the shared rules (tax_units.py, with CBO's
-                                         reassignment pass), people in group quarters left out
+  python -m prep.filing units [year ...]      the CPS's tax units by the shared rules (tax_units.py), people in group
+                                         quarters left out
   Rscript filing_requirement.R [year ...] each unit's statutory filing requirement (Form 1040, Charts A to C)
   python -m prep.filing calibrate [year ...]  the rule, its calibration, separate returns, the outputs and checks
 
@@ -26,7 +24,7 @@ The rule. For a household unit (not a dependent's own return):
     age, CPS weights) - adults on returns in the band (SOI Table 1.6 as the residual anchor builds it,
     research/state_weights/nonfiler_residual/resources/nonfiler_age_shape_<year>.csv, column filing_adults) -
     dependent netting in the band (dependents aged 15+ by the age of the head who claims them, not filing a
-    return of their own). Group quarters are left out (John's decision), so they enter as zero.
+    return of their own). Group quarters are left out, so they enter as zero.
   - non-filing children under 17 = settings filing.child_share x CPS children under 17
   - non-filing required units = settings filing.required_nonfiling_share x required units
   - their gross income = settings filing.income_share x the gross income of all required units
@@ -52,9 +50,6 @@ Outputs, under the run's data folder (common.DATA) / settings cps.step1_dir ("fi
                 groups_vs_targets, nonfilers_vs_targets, persons_once, people_by_age, filers_nonfilers (against SOI;
                 the PUF in 2015), pub5785_wages, pub5785_required, nonfilers_by_wages, required_by_income,
                 children_by_unit, units_by_group, log.txt
-Not carried over from step 1: the filing chances "before calibration" (Mok's probits below the filing threshold and
-the Pub 5785 hazard above it: no output used them), the comparisons with rules v2 and v3 and with the old non-filer
-pool, and the group quarters summaries (used only by those comparisons and by a check).
 """
 import argparse
 import os
@@ -139,7 +134,9 @@ def tag(year):
 
 def build_units(year):
     """Step 1 of the stage: the CPS's units by the shared rules, group quarters left out."""
-    persons, units = T.build(year)
+    from prep import roster_cps
+    r = roster_cps.read_roster(year)
+    persons, units = T.build_units(r[~r.gq].reset_index(drop=True), year)
     T.save_cps(persons, units, UNITS, tag(year))
 
 

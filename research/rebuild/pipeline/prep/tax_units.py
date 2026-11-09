@@ -2,9 +2,8 @@
 (US-CBO/CPS-tax-filing-units, Stata), translated rule by rule (research/rebuild/TAX_UNITS.md, section 4).
 
 The rules run on a standard member list that each survey's reader produces (roster_cps.py, roster_scf.py,
-roster_cex.py). Where a survey lacks an input, the rule uses a named fallback (FALLBACKS below), and every person
-and unit carries flags saying which inputs were assumed (ASSUMED_FLAGS). Split from the CPS reader on 24 October 2026;
-on the CPS the rules are unchanged, and step 1's units come out identical, unit for unit.
+roster_cex.py, roster_sipp.py). Where a survey lacks an input, the reader uses a fallback (described in its header),
+and every person and unit carries flags saying which inputs were assumed (ASSUMED_FLAGS).
 
 The standard member list, one row per person (CBO's Census codes are the shared code list; each reader translates its
 own relationship codes into them):
@@ -25,9 +24,9 @@ Steps, with the Stata module each one translates:
   assign_units                 4b_identify_tax_unit_relationships.do: every person to one unit, as head (1), spouse
                                (2), qualifying child (3) or qualifying relative (4).
   claim_within_group           not CBO's: a survey's group of members outside the main family (the SCF's members
-                               outside the primary economic unit) whose highest-income unit claims the group's other
-                               relatives who pass the income test (Gale, Joshi, Pulliam and Sabelhaus 2022). Off
-                               unless the survey's fallbacks turn it on.
+                               outside the primary economic unit, the reader's column group) whose highest-income
+                               unit claims the group's other relatives who pass the income test (Gale, Joshi, Pulliam
+                               and Sabelhaus 2022).
   reassign                     4c_reassign_relationships.do, the reassignment pass.
   collapse_units               4e_collapse_to_tax_units.do: one row per unit, plus a dependent's own return for every
                                dependent with income (gross income, wages or self-employment not zero).
@@ -37,10 +36,10 @@ Steps, with the Stata module each one translates:
 
 Married filing separately (mfs_split, a post-filing step; the CPS's filing stage calls it, filing.py): a share of
 joint filer couples, chosen in the order of a draw keyed by unit id, become two separate returns, so that the count of
-separate returns equals SOI's (Table 1.6), as nonfiler_pool/07_mfs_split.R does with weights. The SCF instead splits
-the couples that say they file separately (roster_scf.py).
+separate returns equals SOI's (Table 1.6). The SCF instead splits the couples that say they file separately
+(roster_scf.py).
 
-Inputs IPUMS lacks, and what roster_cps.py uses instead (listed in full in the 2023 reproduction report):
+Inputs IPUMS lacks, and what roster_cps.py uses instead:
   - PRNLFSCH (in school, asked of people not in the labor force): SCHLCOLL 1-4 (enrolled in high school or college)
     and LABFORCE 1 (not in the labor force). Measured on March 2024: 95% of PRNLFSCH = 1 match. PYRSN (reason for
     not working the rest of the year = school): not in the extract, dropped.
@@ -83,32 +82,6 @@ ASSUMED_FLAGS = ['age_assumed',      # exact age drawn within a reported age bra
                                      # no parent or spouse pointer to say so (SCF, CEX)
                  'income_assumed']   # own income not measured, or measured only for a group (SCF)
 
-# The fallback table: for each survey, how each rule input is obtained. 'observed' means the rule runs as CBO wrote
-# it; anything else names the fallback, which flag_dependents, assign_units and claim_within_group read.
-FALLBACKS = pd.DataFrame.from_dict({
-    'cps': {'relationship': 'observed', 'parent_links': 'observed', 'spouse_links': 'observed', 'age': 'observed',
-            'student': 'observed', 'disability': 'observed', 'income_test': 'observed',
-            'group_claim': 'off', 'children_away': 'none'},
-    'scf': {'relationship': 'observed, merged codes', 'parent_links': "reference person's unit",
-            'spouse_links': 'pair two married adults outside the PEU', 'age': 'drawn within the bracket',
-            'student': 'support answer, ages 18-24', 'disability': 'none',
-            'income_test': 'support answer where own income is not measured',
-            'group_claim': 'highest-income unit outside the PEU', 'children_away': 'if child support is paid'},
-    'cex': {'relationship': 'observed', 'parent_links': "reference person's unit",
-            'spouse_links': 'pair a married child with a married in-law of the other sex; else the only two other '
-                            'married adults of the other sex, both relatives or both not',
-            'age': 'observed (seven 2015 children without one are given 8)',
-            'student': 'enrolled in college (IN_COLL 1-2); no labor-force condition', 'disability': 'none',
-            'income_test': 'member income only (wages, self-employment, Social Security, SSI)',
-            'group_claim': 'off', 'children_away': 'none'},
-    'sipp': {'relationship': 'observed', 'parent_links': 'observed (at the interview)',
-             'spouse_links': 'observed (at the interview, both pointers agreeing)', 'age': 'observed (at the interview)',
-             'student': 'enrolled in December and no earnings that month', 'disability': 'any core disability (RDIS)',
-             'income_test': 'observed: wages, self-employment, property income, unemployment, Social Security, other '
-                            'income including pensions (TPOTHINC)',
-             'group_claim': 'off', 'children_away': 'none'},
-}, orient='index')
-
 
 # ---------------------------------------------------------------------------------------------------------------
 # 4a: dependent tests
@@ -131,8 +104,8 @@ def flag_dependents(r, tax_year):
     # an adult child is a qualifying child only if aged 18-24 and financially dependent (the answer stands in for the
     # student test, and for the under-19 test at 18); where the person's own income is not measured, the answer
     # stands in for the income test of a qualifying relative, and a non-relative adult is never claimed.
-    sup = r.support.to_numpy() if 'support' in r else np.full(len(r), -1)
-    gi_obs = r.gi_obs.to_numpy() if 'gi_obs' in r else np.ones(len(r), bool)
+    sup = r.support.to_numpy()
+    gi_obs = r.gi_obs.to_numpy()
     asked = sup >= 0
     qc_sup = (r.age < 18) | ((r.age <= 24) & (sup == 1)) | disabled
     qc = pd.Series(np.where(asked, qc_sup, qc), index=r.index)
@@ -284,8 +257,6 @@ def claim_within_group(r, tax_year):
     dep_cut, _ = PARAMS[tax_year]
     r = r.copy()
     r['claimed_in_group'] = False
-    if 'group' not in r or not (r.group > 0).any():
-        return r
     g = r[r.group > 0]
     size = pd.Series(1, index=r.index).groupby([r.hh, r.tu_id]).transform('sum')
     unit_gi = r.gi.where(r.tu_rel.isin([1, 2]), 0).groupby([r.hh, r.tu_id]).transform('sum')
@@ -578,7 +549,7 @@ def mfs_split(units, persons, filer, target_returns, salt=20261023, chance=None)
     The couples are chosen by a uniform draw keyed by the unit id: couples are taken in order of their draw until
     their weighted count reaches target_returns / 2 (SOI's MFS return count; two returns per couple), so the share
     is uniform across couples and the result is a set of records, not a split of weights.
-    With chance (an array of filing chances aligned with units; step 1, 23 October evening), every joint couple is
+    With chance (an array of filing chances aligned with units), every joint couple is
     a candidate, filer is ignored, and couples are taken until weight x filing chance reaches target_returns / 2;
     each separate return then carries the couple's chance (column p_file). Each couple becomes a
     return for person 1 and one for person 2, each with that person's own income items. Every dependent goes on
@@ -602,8 +573,7 @@ def mfs_split(units, persons, filer, target_returns, salt=20261023, chance=None)
     chosen = j.uid.to_numpy()[order[:n]]
     share = cw[n - 1] / mass.sum()
     p1, p2 = primary_and_spouse(persons, chosen)
-    deps = persons[persons.uid.isin(chosen) & persons.tu_rel.isin([3, 4])].sort_values(['uid', 'age', 'pn']).copy()
-    deps['to'] = 1                           # every dependent on person 1's return
+    deps = persons[persons.uid.isin(chosen) & persons.tu_rel.isin([3, 4])].sort_values(['uid', 'age', 'pn'])
     rows = []
     for who, pp in [(1, p1), (2, p2)]:
         r = pd.DataFrame({'uid': chosen * 10 + who, 'couple_uid': chosen, 'person': who, 'hh': pp.hh.reindex(chosen).to_numpy(),
@@ -613,7 +583,7 @@ def mfs_split(units, persons, filer, target_returns, salt=20261023, chance=None)
                           'filing_status': 'separate'})
         for c in INCOME_ITEMS:
             r[c] = pp[c].reindex(chosen).to_numpy()
-        d = deps[deps.to == who].copy()
+        d = (deps if who == 1 else deps.iloc[:0]).copy()      # every dependent on person 1's return
         d['rank'] = d.dep_type.map({t: i for i, t in enumerate(DEP_TYPES)})
         d = d.sort_values(['uid', 'rank', 'age', 'pn']); d['kk'] = d.groupby('uid').cumcount()
         kept = d[d.kk < PUF_CAP['separate']]
@@ -640,13 +610,9 @@ def build_units(r, tax_year, away=None):
     row per person with unit id (uid), role (tu_rel) and dependent type, and one row per unit, with any_<flag>
     columns saying whether any member's input was assumed (ASSUMED_FLAGS), any_dep_by_support (a dependent claimed on
     the survey's support answer) and any_claimed_in_group."""
-    for c in ASSUMED_FLAGS:
-        if c not in r:
-            r[c] = False
-    survey = r.survey.iloc[0] if 'survey' in r else 'cps'
     r = flag_dependents(r, tax_year)
     r = assign_units(r)
-    if FALLBACKS.loc[survey, 'group_claim'] != 'off':
+    if 'group' in r:
         r = claim_within_group(r, tax_year)
     r = reassign(r, tax_year)
     # CBO's code can leave a second head in the householder's unit: a nonrelative with relatives who is the parent
@@ -666,9 +632,8 @@ def build_units(r, tax_year, away=None):
     assert persons.uid.isin(units.loc[~units.dep_return, 'uid']).all()
     # the assumed-input flags, by unit (a dependent's own return carries the dependent's own)
     fl = ASSUMED_FLAGS + ['dep_by_support', 'claimed_in_group']
-    for c in fl:
-        if c not in persons:
-            persons[c] = False
+    if 'claimed_in_group' not in persons:
+        persons['claimed_in_group'] = False
     dep_only = ['dep_by_support', 'claimed_in_group']
     pf = persons[fl].copy()
     pf[dep_only] = pf[dep_only].to_numpy() & persons.tu_rel.isin([3, 4]).to_numpy()[:, None]
@@ -680,14 +645,6 @@ def build_units(r, tax_year, away=None):
             v = v.fillna(units.uid.map(own[c]))
         units[f'any_{c}'] = v.fillna(False).astype(bool).to_numpy()
     return persons, units
-
-
-def build(tax_year):
-    """The CPS: the member list from roster_cps.py, group quarters left out, then the rules."""
-    from prep import roster_cps
-    r = roster_cps.read_roster(tax_year)
-    r = r[~r.gq].reset_index(drop=True)
-    return build_units(r, tax_year)
 
 
 def save_cps(persons, units, out, tag):

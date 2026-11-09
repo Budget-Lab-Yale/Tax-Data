@@ -8,19 +8,17 @@
 # are asked only of the households in their 4th and 8th month in the survey,
 # about a quarter of the March sample, and are answered for the current job in
 # March of the year after the tax year. They are read from the ASEC extract that
-# carries them (settings paths.raw.cps_earnings, the "cps_asec_common_v2" pull of
-# 27 October), which has the same records as the common extract build_cps.R
+# carries them (settings paths.raw.cps_earnings), which has the same records as the common extract build_cps.R
 # reads (checked: the same SERIAL and PERNUM). Weeks worked and wages are the
 # tax year's (WKSWORK1, INCWAGE).
 #
 # Who is asked. A person is "asked" when the person's household is in the
 # earnings group (EARNWT > 0) and the group of their month in sample still has
 # its pay in this year's file. In the March 2024 ASEC (tax year 2023) the
-# month-4 group lost its pay (WEEKPAY_GAP.md): a month group whose workers have
+# month-4 group lost its pay: a month group whose workers have
 # weekly pay on fewer than half of them counts as not asked, unless settings
 # paths.raw.cps_march_basic gives the March basic file, which holds the same
-# people's pay (linked by MARBASECIDP; scratch explore/2026-10-28/overtime,
-# RESULTS.md part 1), in which case the pay is taken from there. The basic file
+# people's pay (linked by MARBASECIDP), in which case the pay is taken from there. The basic file
 # also gives hours last week at the main job. A person not asked has overtime missing (NA), not zero; build_cps.R
 # makes a unit's overtime missing when either adult's is. A worker in an asked
 # group with no weekly pay and no hourly wage (a few per year) is missing too.

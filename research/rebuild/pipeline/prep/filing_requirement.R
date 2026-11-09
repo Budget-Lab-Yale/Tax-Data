@@ -25,8 +25,7 @@
 #                          AGE, ASECWT, INCWAGE (filing.py checks that these are
 #                          the same people in the same units as its own)
 # Optional arguments name tax years (default settings cps.years). Run from the
-# repository root through Slurm; ipumsr is in John's library
-# (R_LIBS=$HOME/R/4.4.1-foss-2022b), as for build_cps.R.
+# repository root through Slurm; ipumsr is in John's library, as for build_cps.R.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)

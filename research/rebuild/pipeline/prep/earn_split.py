@@ -1,14 +1,12 @@
-"""The split of a married couple's earnings (settings "earn_split"; branch rebuild-earnsplit, 4 November 2026).
+"""The split of a married couple's earnings (settings "earn_split").
 
 The PUF's two Schedule SE fields: E30400 is the couple's net earnings from self-employment (Schedule SE, after the
 92.35% factor), E30500 the spouse's part of it. The PUF demographic booklet says so (the primary's earnings are
 E30400 - E30500), and the data agree: E30400 is never below E30500, E30400 alone equals 0.9235 x Schedules C and F on
-joint returns with no partnership income, and EARNSPLIT is reproduced on 99.9% of joint returns with no wages
-(explore/2026-11-04/earnsplit/FINDINGS.md). Production (src/imputations/earnings_split.R) read E30400 as the
-primary's alone.
+joint returns with no partnership income, and EARNSPLIT is reproduced on 99.9% of joint returns with no wages.
 
-Since 6 November E30400 is read as the booklet defines it: the lesser of net earnings and the room under the Social
-Security wage base (explore/2026-11-05/se_tax_gap/RESULTS.md). part_se_from_schedule_se reads net earnings from the
+E30400 is read as the booklet defines it: the lesser of net earnings and the room under the Social
+Security wage base. part_se_from_schedule_se reads net earnings from the
 reported tax, E09400, above that cap. EARNSPLIT and E30500 stay on the capped amounts.
 
 The spouse's share of the couple's self-employment income (slot spouse_se_share, build_table.PUF_SHARES): on the PUF,
@@ -31,8 +29,7 @@ return that is not joint, or a joint return with no earnings). On the PUF and th
        Social Security, pensions), then cut to the codes those bounds allow. Trees carry the pattern at the top of
        the known range (AGI up to about $400,000) flat beyond it; a multinomial logit, linear in log AGI, carried
        the middle's pattern upward instead. Checked by fitting below AGI $250,000 and predicting the known codes at
-       $250,000-400,000 (data/earn_split_step0_check.csv; explore/2026-11-04/earnsplit/out/step0_models.csv
-       compares the logit, a logit with splines and this model), and against the booklet's full-sample counts.
+       $250,000-400,000 (data/earn_split_step0_check.csv), and against the booklet's full-sample counts.
   CPS: the code of the couple's own earnings on the same definition (code_of, se_earnings).
 At generation the wage share is drawn inside the range the code and the drawn self-employment split allow (in bands in
 generate.py, exactly in dollars.py), with each person's earnings capped there as E30400 is (dollars.wage_share_bounds).
@@ -90,7 +87,7 @@ def schedule_se_earnings(tax, capped):
 
 
 def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
-    """part_se (fix B, explore/2026-11-05/se_tax_gap/RESULTS.md; John, 6 November 2026): Schedule SE earnings other
+    """part_se: Schedule SE earnings other
     than Schedules C and F, before the 92.35% factor, so that Schedules C and F plus part_se are the self-employment
     income whose tax is the reported tax. On a return with any partnership income or loss: net earnings / 0.9235 less
     C and F. On any other return the same difference where net earnings differ from 92.35% of C and F beyond rounding,
@@ -201,7 +198,7 @@ def puf_codes(puf):
     todo = missing & earns
     code[todo] = -1
     w = p.w.to_numpy()
-    # the known codes against the return's own earnings (FINDINGS.md: code 0 means no earnings)
+    # the known codes against the return's own earnings (code 0 means no earnings)
     kj = joint & have
     off0 = kj & earns & (code == 0)
     off1 = kj & ~earns & (code > 0)
@@ -240,4 +237,4 @@ def puf_codes(puf):
                f'get 0. Check (fitted below AGI ${lo_line:,.0f}, predicted at ${lo_line:,.0f}-{hi_line:,.0f}):\n'
                + chk.round(2).to_string(index=False))
     assert np.allclose(probs[code == -1].sum(1), 1) and (probs[code != -1] == 0).all()
-    return code, probs, p
+    return code, probs

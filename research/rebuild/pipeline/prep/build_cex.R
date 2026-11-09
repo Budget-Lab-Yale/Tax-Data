@@ -3,7 +3,7 @@
 # 2023 and 2024, in tax units, with each unit's income and its share of the
 # consumer unit's spending in the 8 PCE categories.
 #
-# Tax units come from the shared rules (pipeline/tax_units.py, CBO's rules, the
+# Tax units come from the shared rules (tax_units.py, CBO's rules, the
 # same as the CPS and SCF), run by roster_cex.py on the CEX member files. That
 # script writes cex_persons_module_<year>.csv.gz to this script's data folder:
 # one row per person (NEWID, MEMBNO) with the return the person is on (ret_tu,

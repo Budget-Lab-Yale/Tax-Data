@@ -7,11 +7,11 @@ read (pyarrow, include_columns) and the result is cached as a parquet file in th
 every name is read case-blind and stored in upper case. A zipped release (2023: pu2024_csv.zip) is read from the one
 CSV inside it.
 
-OPTIONAL columns (since 28 October) are read where the release has them: the own elective deferrals at the main
+OPTIONAL columns are read where the release has them: the own elective deferrals at the main
 employer (settings deferrals.sipp_item, TSCNTAMT_401, in the 2022 and 2024 releases only). A cached file that lacks an
 optional column the release has is read again.
 
-SHARED columns (since 28 October; roster_sipp.py, the units' dividends, gross Social Security and pensions), required
+SHARED columns (roster_sipp.py, the units' dividends, gross Social Security and pensions), required
 in every release (all five have them): income from stocks and mutual funds (TINC_STMF, a yearly amount repeated in
 every month), retirement income items 1-8 (TRET1AMT-TRET8AMT, monthly; TSSSAMT, monthly Social Security, is in INCOME
 already) and the questions that decide who is asked each amount, which explain its missing values: received Social

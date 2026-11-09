@@ -15,7 +15,7 @@ Households and people (the CPS's convention: the people at the interview, income
   - each person's age is TAGE (at the interview, as the CPS's ages); weight, the person's December final weight
     (WPFINWGT, month 12; the reference year's last month), or their last month's weight if they have no December row.
 
-What the SIPP observes, and the fallbacks (tax_units.FALLBACKS['sipp']):
+What the SIPP observes, and the fallbacks:
   - relationship to the householder (ERELRPE, the same codes in every release from the 2014 panel): 1 householder
     with relatives, 2 householder without, 3 opposite-sex spouse, 4 opposite-sex partner, 5 same-sex spouse,
     6 same-sex partner, 7 child, 8 grandchild, 9 parent, 10 sibling, 11 parent or child in law, 12 brother or sister
@@ -57,11 +57,11 @@ elective deferrals in years the release does not ask them:
   married (1 joint), n_dep (capped at 3), dep_filer (0), age1, age2, sex1, sex2, male1, male2 (person 1 and person 2;
   person 1 the man in a mixed-sex couple, the older in a same-sex one, as tax_units.primary_and_spouse; no spouse:
   age2 -1, sex2 0, male2 -1), wages1, wages2, wages (= wages1 + wages2), tips1, tips2, tips_lh1, tips_lh2 (0 or 1;
-  0 without tips), elective1, elective2, elective_deferrals (= elective1 + elective2; since 28 October): each adult's
+  0 without tips), elective1, elective2, elective_deferrals (= elective1 + elective2): each adult's
   elective deferrals, missing on every unit in a year the release does not ask them (2015-2019); dividends, gross_ss,
-  pensions (since 28 October): the primary filer's plus the spouse's (below).
+  pensions: the primary filer's plus the spouse's (below).
 
-The shared non-wage items (since 28 October; shared_items), per person, then the primary filer's plus the spouse's on
+The shared non-wage items (shared_items), per person, then the primary filer's plus the spouse's on
 the unit, as wages (a dependent's own amounts go nowhere; a separate return carries its one person's):
   - dividends: income from stocks and mutual funds (TINC_STMF), a yearly amount repeated in every month row, read
     once (checked: the run stops if more than 1% of the people with any have different values in different months);
@@ -80,8 +80,8 @@ Plan accounts at the main employer (TSCNTAMT_401, a yearly amount repeated in ev
 no value in any month read as none, the person not in a plan there; traditional and Roth together), held to the
 legal limit of the reference year (the catch-up limit from age 50 at the interview), then to the person's own wages
 (the plan's money comes out of them).
-Also writes persons_sipp_<year>.parquet, units_sipp_<year>.parquet and mfs_sipp_<year>.parquet (the rules' output, for
-check_units.py) and sipp_summary.csv. Usage (through Slurm): python -m prep.roster_sipp [year ...] [--out DIR].
+Also writes persons_sipp_<year>.parquet, units_sipp_<year>.parquet and mfs_sipp_<year>.parquet (the rules' output)
+and sipp_summary.csv. Usage (through Slurm): python -m prep.roster_sipp [year ...] [--out DIR].
 """
 import argparse
 import os
@@ -100,7 +100,7 @@ BLOOD = [7, 8, 9, 10, 13, 14]                  # the householder's relatives by 
 RELATIVES = [3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
 SHARED_ITEMS = ['dividends', 'gross_ss', 'pensions']   # the units file's shared non-wage items (shared_items)
 # Items a release publishes as a wholly blank column although some people say they received them: their amounts are
-# unknown and read as zero, counted in the log (28 October). Reference year 2021 (the 2022 release): National Guard or
+# unknown and read as zero, counted in the log. Reference year 2021 (the 2022 release): National Guard or
 # reserve retirement, TRET7AMT, blank for all; 3 people (36 person-months, about 20,000 people weighted) say received.
 UNPUBLISHED = {(2021, 'TRET7AMT')}
 
@@ -143,7 +143,7 @@ def explained(d, item, asked, label, unpublished=False):
 
 
 def shared_items(d, year):
-    """Per person: the shared non-wage items (since 28 October). Dividends: income from stocks and mutual funds
+    """Per person: the shared non-wage items. Dividends: income from stocks and mutual funds
     (TINC_STMF), a yearly amount repeated in every month row, read once (the person's largest monthly value; the run
     stops if more than 1% of the people with any have different values in different months). Gross Social Security:
     TSSSAMT, monthly, before Medicare premiums, summed over the months (benefits received on behalf of children,
@@ -200,7 +200,7 @@ def person_year(d, year):
     y = y.join(shared_items(d, year))
     assert np.abs(y.own_gross_ss - y.ssb).max() < 0.005, 'gross Social Security differs from ssb'
     item = common.SETTINGS['deferrals']['sipp_item']
-    if item in d:   # elective deferrals (28 October): a yearly amount, repeated by month
+    if item in d:   # elective deferrals: a yearly amount, repeated by month
         g = d.groupby(['SSUID', 'PNUM'], sort=False)[item]
         y['elective_reported'] = g.max().clip(lower=0).reindex(y.index).fillna(0.0).to_numpy()
         y['elective_no_value'] = g.count().reindex(y.index).eq(0).to_numpy()   # no value in any month: none
@@ -390,7 +390,7 @@ def read_roster(year):
         r['elective'] = 0.0
         r['elective_reported'] = 0.0
     r['elective_asked'] = asked
-    # passthrough: the shared items (since 28 October; shared_items)
+    # passthrough: the shared items (shared_items)
     for c in ['own_dividends', 'own_gross_ss', 'own_pensions']:
         r[c] = P[c].to_numpy(float)
     r['SSUID'] = P.SSUID.to_numpy(); r['PNUM'] = P.PNUM.astype(int).to_numpy()
@@ -450,7 +450,7 @@ def unit_rows(units, persons, mfs, year):
     out['elective_deferrals'] = out.elective1 + out.elective2
     if not asked:
         out[['elective1', 'elective2', 'elective_deferrals']] = np.nan
-    for c in SHARED_ITEMS:        # the primary filer's plus the spouse's (since 28 October)
+    for c in SHARED_ITEMS:        # the primary filer's plus the spouse's
         out[c] = shared[c]
     assert (out.loc[out.married == 0, ['wages2', 'tips2', 'tips_lh2']] == 0).all().all()
     assert ((out.age2 >= 0) == (out.married == 1)).all()

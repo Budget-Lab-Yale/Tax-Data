@@ -15,7 +15,6 @@ from shared import common
 from prep import soi as TG
 
 CV_DIR = f'{common.TARGETS}/soi_cv'
-INF = np.inf
 CV_TABLES = {'14': ('1.4', 'income_sources'), '21': ('2.1', 'itemized_deductions'), '33': ('3.3', 'tax_liability')}
 
 
@@ -24,13 +23,13 @@ def agi_range(label):
     (-inf, 5,000); '$10,000,000 or more'; a panel total (-inf, inf). None if the label is not an AGI class."""
     s = re.sub(r'\[\d+\]|\(\d+\)|\*', '', str(label)).strip().lower()
     if s.endswith(', total') or s == 'all':
-        return (-INF, INF)
+        return (-np.inf, np.inf)
     s = re.sub(r'\s+', ' ', s.replace('$', '').replace(',', ''))
     if s.startswith('no adjusted gross income'):
-        return (-INF, 1.0)
+        return (-np.inf, 1.0)
     for pat, f in [(r'(\d+) under (\d+)', lambda a, b: (float(a), float(b))),
-                   (r'under (\d+)', lambda b: (-INF, float(b))),
-                   (r'(\d+) or more', lambda a: (float(a), INF))]:
+                   (r'under (\d+)', lambda b: (-np.inf, float(b))),
+                   (r'(\d+) or more', lambda a: (float(a), np.inf))]:
         m = re.fullmatch(pat, s)
         if m:
             return f(*m.groups())

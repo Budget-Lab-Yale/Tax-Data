@@ -7,7 +7,7 @@ year and Q1 of the next), interviews with weight 0 dropped (weight FINLWT21 / 4 
 One "household" is one interview (NEWID): the consumer unit, the people sharing major expenses. Other consumer units
 at the same address are other interviews.
 
-What the CEX observes, and the fallbacks (tax_units.FALLBACKS['cex']):
+What the CEX observes, and the fallbacks:
   - relationship to the reference person (CU_CODE): 0 roommate or other non-relative, 1 reference person, 2 spouse,
     3 child, 4 grandchild, 5 in-law, 6 brother or sister, 7 parent, 8 other relative, 9 unmarried partner. Mapped to
     Census's codes (PERRP, HHDFMX) below.
@@ -247,7 +247,7 @@ def read_roster(year):
 
 
 def build(year):
-    """Units by the shared rules (with CBO's reassignment pass), the comparison with BLS's units, and the separate returns."""
+    """Units by the shared rules, the comparison with BLS's units, and the separate returns."""
     from prep import soi as TG
     r = read_roster(year)
     persons, units = T.build_units(r, year)

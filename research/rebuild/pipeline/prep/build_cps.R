@@ -9,7 +9,7 @@
 # from <step1_dir>/units/roster_<year>_cbo_nogq.csv.gz and the
 # returns from <step1_dir>/<step1_out>/units_<year>.csv.gz (step1_returns
 # below; settings cps.step1_dir and cps.step1_out, both required; "step 1" is
-# PLAN_v2.md's name for the filing stage). The returns give the separate
+# the filing stage). The returns give the separate
 # returns split from joint couples and each return's filing status, statutory
 # filing requirement and calibrated filing chance. A year with no such file
 # stops. The frame is the household population: people
@@ -44,7 +44,7 @@
 # Columns, one row per tax unit, no NA except ot1 and ot2 (below). Dollars are nominal dollars of the tax
 # year as reported (the ASEC asks about the previous calendar year).
 #   year, record_id, household_id, weight (the head's ASECWT)
-#   statefip: the household's STATEFIP (5 November 2026; build_table.py's CPS-only category state)
+#   statefip: the household's STATEFIP (build_table.py's CPS-only category state)
 #   married (1 joint unit), n_dep (dependents claimed, capped at 3 as the SCF
 #     builder does), dep_filer (0 on every row: dependent filers are folded),
 #     head_of_household (1 unmarried with a qualifying-child dependent)
@@ -93,7 +93,7 @@
 #                         and the class are written to
 #                         cps_survivor_disability_sources.csv.
 #     other_income        INCOTHER (includes alimony)
-#   ot1, ot2 (since 28 October; Tax-Simulator's names): the primary filer's and the
+#   ot1, ot2 (Tax-Simulator's names): the primary filer's and the
 #     spouse's overtime pay in the tax year, by Tedeschi's rules
 #     (overtime_cps.R), at most the person's wages (INCWAGE); missing (NA),
 #     not zero, on every unit whose adults were not asked the earnings
@@ -112,7 +112,7 @@
 #     person (the householder when in the SPM unit, else its lowest PERNUM).
 #     Each SPM unit's expenses are kept in full.
 #     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); missing (NA) in earlier years, which
-#                         do not ask it (since 29 October; 0 before), so the training table shows it as not asked
+#                         do not ask it, so the training table shows it as not asked
 #                         there, as the translation table's row says (first_year, settings "translation")
 #   mars: filing status as step 1's returns carry it, 1 single, 2 joint, 3 separate, 4 head of household
 #   n_dep_ctc, n_dep_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
@@ -121,10 +121,9 @@
 #     counts children only on returns that get the credit
 #   eitc_eligible: 1 or 0, step 1's (filing.py)
 #   ssn_status1, ssn_status2 (person 1 and person 2) and dep_ssn_status1..3 (the dependents of dep_age1..3, youngest
-#     first), since 28 October (John, NEXT_STEPS.md item 1, Q4): each person's status, 1 citizen, 2 noncitizen with
+#     first): each person's status, 1 citizen, 2 noncitizen with
 #     a sign of lawful status, 3 noncitizen without one (taken to lack a Social Security number); 0 where there is
-#     no such person. Rule "B2" of scratch explore/2026-10-28/rules_framework/ssn/RESULTS.md, as its size_check.py
-#     codes it (ssn_status() below). Each person's status is set in the CBO-rule unit before step 1 splits couples
+#     no such person (ssn_status() below). Each person's status is set in the CBO-rule unit before step 1 splits couples
 #     into separate returns, so a split spouse keeps the status the couple gave. Per person, every year built, the
 #     items and the status are written to cps_ssn_persons_{year}.csv.gz, for the checks.
 #
@@ -135,9 +134,8 @@
 # cps_summary.csv (the printed totals per year) and
 # cps_survivor_disability_sources.csv (the sources' table, every year built), and per year
 # cps_overtime_persons_{year}.csv.gz (every person's overtime build, for the checks). Run from the repository root
-# through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
-# hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
-# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.py, stage cps.
+# through Slurm (run.py, stage cps). The R modules lack ipumsr; it is installed in John's library for
+# R/4.4.1-foss-2022b, R_LIBS=$HOME/R/4.4.1-foss-2022b.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)
@@ -284,7 +282,7 @@ split_survivor_disability = function(x, ddi, yr) {
     }
   }
   # The two sources add to the totals. In the 2016-2024 ASECs they do for every person but one in some years (one
-  # survivor in tax years 2015, 2021 and 2023, checked 27 October 2026: totals of $47,892, $86,838 and $30,410
+  # survivor in tax years 2015, 2021 and 2023: totals of $47,892, $86,838 and $30,410
   # against sources adding to $25,092, $50,400 and $30,309), presumably the Census Bureau's disclosure protection
   # applied to the total and the sources separately. There the total is kept (survivor_disability does not change)
   # and shared between the two sources in proportion to their amounts. More than 5 such people in a year, or a
@@ -345,9 +343,7 @@ RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOML
              'INCTOT', 'INCSS', ASEC_GROSS_INCOME_ITEMS, 'WKSWORK1', 'UHRSWORKLY', 'SPMFAMUNIT', 'SPMCHXPNS',
              'SPMWT', 'FILESTAT', 'CITIZEN', 'INCSSI', 'HIMCARELY', 'HICHAMP', 'VETSTAT', 'CLASSWKR', 'PUBHOUS', 'STATEFIP')
 
-# Social Security number status (since 28 October; John's decision, NEXT_STEPS.md item 1, Q4): rule "B2" of scratch
-# explore/2026-10-28/rules_framework/ssn/RESULTS.md, coded as its size_check.py codes it, so that it gives that
-# check's counts (1.03 million dependents under 17 without a number in 2019). Every person gets one of three values:
+# Social Security number status. Every person gets one of three values:
 #   1 a citizen (CITIZEN 1-4: born in the US, in outlying areas, abroad to American parents, or naturalized);
 #   2 a noncitizen (CITIZEN 5) with a sign of lawful status;
 #   3 a noncitizen without one, taken to lack a Social Security number.
@@ -359,8 +355,8 @@ RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOML
 #   status); or being married to a citizen (the other adult of the unit is one; Borjas's edit).
 #   A dependent's sign: its own Social Security, SSI, Medicare or military cover (its own Medicaid is not a sign:
 #   several states cover children whatever their status); or a citizen parent in the unit; or a noncitizen parent in
-#   the unit with a sign of their own as above. The same rule for dependents of every age, as in the size check.
-# The rule is fixed: no yearly scaling to a published total (the DHS comparison is reported only).
+#   the unit with a sign of their own as above. The same rule for dependents of every age.
+# The rule is fixed: no yearly scaling to a published total.
 SSN_STATUS_ITEMS = c('CITIZEN', 'INCSS', 'INCSSI', 'INCUNEMP', 'HIMCARELY', 'HICHAMP', 'HIMCAIDLY', 'VETSTAT',
                      'CLASSWKR', 'PUBHOUS')
 ssn_status = function(p) {
@@ -429,7 +425,7 @@ for (yr in YEARS) {
     x[, capital_gains := clean_asec_income(x, ddi, 'INCCAPG')]
   } else {
     if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
-    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing (29 October; zero before)
+    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing
   }
   # Work: weeks 0-52 (0 did not work); usual hours, 999 not in universe (did not work) -> 0
   stopifnot(all(x$WKSWORK1 >= 0 & x$WKSWORK1 <= 52), all(x$UHRSWORKLY %in% c(0:99, 999)))
@@ -477,7 +473,6 @@ for (yr in YEARS) {
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 1),
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 2),
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 3)))
-  calibrated = TRUE   # step 1's chances are calibrated (the summary's calibrated_filing_model)
 
   #-----------------------------------------------------------------------------
   # Persons 1 and 2 of each unit
@@ -592,7 +587,7 @@ for (yr in YEARS) {
   stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income),
             identical(out$survdis_pension + out$survdis_other, out$survivor_disability))
 
-  # the unit's state: its household's (STATEFIP; 5 November 2026, the state weights). A household has one state.
+  # the unit's state: its household's (STATEFIP). A household has one state.
   hh_state = p[, .(statefip = STATEFIP[1], n_states = uniqueN(STATEFIP)), by = SERIAL]
   stopifnot(all(hh_state$n_states == 1), !anyNA(hh_state$statefip))
   out[hh_state, on = 'SERIAL', statefip := i.statefip]
@@ -660,15 +655,13 @@ for (yr in YEARS) {
               sum(w * out$filer) / 1e6, sum(w * out$p_file) / 1e6, sum(w * (1 - out$filer)) / 1e6,
               sum(w * (1 - out$p_file)) / 1e6, if (is.na(pool_hh)) 'n/a' else sprintf('%.2f', pool_hh / 1e6)))
   cat(sprintf('  Census tax model (FILESTAT) simulated returns %.2f m, for comparison only\n', fs_returns / 1e6))
-  if (all(out$eitc_eligible >= 0)) {
-    ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
-                 eitc_children_expected_filers_m = sum(weight * p_file * n_dep_eitc) / 1e6), by = .(children = n_dep_eitc)]
-    setorder(ef, children)
-    cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
-                sum(out$weight * out$p_file * out$n_dep_eitc) / 1e6))
-    print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
-    fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
-  }
+  ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
+               eitc_children_expected_filers_m = sum(weight * p_file * n_dep_eitc) / 1e6), by = .(children = n_dep_eitc)]
+  setorder(ef, children)
+  cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
+              sum(out$weight * out$p_file * out$n_dep_eitc) / 1e6))
+  print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
+  fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
   cat(sprintf('  units with person 1 under 18: %d rows, %.2f m weighted; dependents claimed, counted by the claiming unit\'s weight, capped at 3: %.2f m\n',
               sum(out$age1 < 18), sum(w[out$age1 < 18]) / 1e6, sum(w * out$n_dep) / 1e6))
   spm_total_spmwt = sum(spm$chx * spm$spmwt) / 1e9
@@ -688,7 +681,7 @@ for (yr in YEARS) {
                                    'calibrated_filing_model'),
                billions = c(sum(w) / 1e6, sum(w * out$married) / sum(w), sum(w * out$filer) / sum(w),
                             sum(w * out$p_file) / sum(w), sum(w * out$must_file) / sum(w), fs_returns / 1e6,
-                            pool_hh / 1e6, as.numeric(calibrated)),
+                            pool_hh / 1e6, 1),
                recipients_m = NA_real_))
 }
 

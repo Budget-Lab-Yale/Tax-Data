@@ -1,16 +1,13 @@
 #-------------------------------------------------------------------------------
-# build_scf.R: the SCF waves 2013, 2016, 2019 and 2022 in tax units, with each
+# build_scf.R: the SCF waves (settings paths.raw.scf_waves) in tax units, with each
 # unit's income and balance sheet.
 #
 # Who is in which unit comes from the shared tax-unit rules (tax_units.py,
 # through roster_scf.py, which the scf stage runs first; TAX_UNITS.md,
 # section 4): {out}/data/scf_units_module_{wave}.csv.gz, one row per unit, and
 # scf_npeu_dollars_{wave}.csv.gz, each outside-PEU unit's share of its group's
-# income and balance sheet. Until 24 October the units came from production's
-# builder (src/imputations/stage1_scf_tax_units.R, a port of Kevin Moore's
-# code); that builder still serves src/ and is no longer called here. Its
-# division of the primary economic unit's (PEU's) income and balance sheet
-# between two units is kept, ported below.
+# income and balance sheet. The division of the primary economic unit's (PEU's) income and balance sheet
+# between two units is Kevin Moore's (production's builder, src/imputations/stage1_scf_tax_units.R), ported below.
 #
 # Dollars, by kind of unit:
 #   - A unit holding the whole PEU (peu_dollars 'all': the respondent alone, a
@@ -51,24 +48,24 @@
 # Auto loan interest (auto_int_exp): the household's vehicle loans, up to four (the SCF's own vehicles 1-4: the amount
 # still owed, X2218, X2318, X2418, X7169, times the current annual rate in hundredths of a percent, X2219, X2319,
 # X2419, X7170, over 10,000; Tedeschi's car interest code, Reports/2024/Car-Interest). The rate's code -1 (no
-# interest charged) and any other negative code read as 0. The items and their codes are the same in the 2013, 2016,
-# 2019 and 2022 waves (checked 26 October). Interview-year dollars, a year's interest at the balance and rate of the
+# interest charged) and any other negative code read as 0. The items and their codes are the same in every wave.
+# Interview-year dollars, a year's interest at the balance and rate of the
 # interview. A household debt: divided among the PEU's units as build_scf.R divides installment debt (all of it to a
 # unit holding the whole PEU, else by the earnings shares), and none to units outside the PEU (the group's vehicle
 # loans are not asked; its debts are one item, X6439) or to other units.
-# Elective deferrals (elective_deferrals, since 28 October; settings deferrals): each of the respondent's and the
+# Elective deferrals (elective_deferrals; settings deferrals): each of the respondent's and the
 # spouse's or partner's contributions to up to two plans on the current main job (X11040-X11046, X11140-X11146 for the
 # respondent; X11340-X11346, X11440-X11446 for the spouse or partner; the same items in every wave): a plan's yearly
 # amount is its amount per period times periods per year (aconv) where given, else its percent of pay (hundredths of a
 # percent; above 100% read as a code, not a share) times the person's yearly pay on the main job; traditional and Roth
 # together, as the SCF asks them. The interview year's contributions. Each person's total is held to the legal limit
 # of the tax year (the wave's income year; the catch-up limit from age 50 at the interview), then to the person's own
-# wages (the PEU's wages split by main-job pay, as for split units; decided 27 October). A unit holding the whole PEU
+# wages (the PEU's wages split by main-job pay, as for split units). A unit holding the whole PEU
 # takes both people's, the respondent's part the respondent's, the spouse's or partner's part theirs, as the head's
 # (elective1) and the spouse's (elective2, joint units only); units outside the PEU and other units are not asked:
 # missing (NA), not zero. Each person's amounts before and after the limit and the wage cap are also written to
 # scf_deferral_persons_{wave}.csv.gz (for the checks against SOI's W-2 tables).
-# Gross Social Security alone (gross_ss, since 28 October; decided by John 27 October): the current benefits section,
+# Gross Social Security alone (gross_ss): the current benefits section,
 # not the income section's X5722 (which adds pensions). The respondent's monthly, quarterly, yearly or two-monthly
 # amount X5306 (period X5307) and the spouse's or partner's X5311 (period X5312), before the Medicare premium, put on a
 # yearly basis; counted when the household says it receives benefits (X5301 = 1) and the kind (X5304, X5309) is not
@@ -77,8 +74,8 @@
 # takes both people's, the respondent's part the respondent's, the spouse's or partner's part theirs. Units outside
 # the PEU take their share of the group's Social Security (the Social Security kind, X6406, of the group's other
 # income, divided as roster_scf.py divides its retirement income); dependents and other units none. The current
-# benefit, not last year's: the SCF's timing differs a little from the tax data's (see the decisions record).
-# Schedule E split in two (since 28 October; decided by John 27 October):
+# benefit, not last year's: the SCF's timing differs a little from the tax data's.
+# Schedule E split in two:
 #   rental_income: the household's rental and other real estate income, net: properties 1 and 2 (X1730, X1830), the
 #     remaining vacation homes (X2010) and the remaining other properties (X2020), plus the GROSS rent collected from
 #     part of the home (X1224 at frequency X1225) or from farm or ranch land (X505 at X506); -1 ("nothing") read as 0.
@@ -94,8 +91,7 @@
 #   owns_other_re: owns any real estate other than the home (X1700 = 1, or the summary file's ORESRE or NNRESRE
 #     nonzero), with or without income;
 #   rents_home_part: collects rent from part of the home or from farm or ranch land (X1224 > 0 or X505 > 0).
-# The QBI items (since 29 October, two groups since 6 November; John; scratch explore/2026-11-06/RETRAIN_PLAN.md,
-# section 2), from the household's actively managed businesses 1 and 2, for each of two groups of business by legal form
+# The QBI items, from the household's actively managed businesses 1 and 2, for each of two groups of business by legal form
 # (X3119, X3219), because the SCF's income shows Schedules C and F as one amount (X5704) and partnerships and S
 # corporations inside another (X5714): group cf, Schedules C and F (2 sole proprietorship, 40 not a formal business), and
 # group ps, partnerships and S corporations (1 partnership, 11 and 12 limited partnership, LLP or LLC, 3 S corporation);
@@ -110,14 +106,14 @@
 # Given, as owns_business, to the units holding the household's business equity (else the respondent's unit): the
 # industry to each, the workers in proportion to each unit's business equity (all to the one unit where there is
 # none). Units outside the PEU and other units: none (0; the business section is asked of the PEU only).
-# The retirement accounts' stock share (w_dc_stock_share, since 29 October; John, NEXT_STEPS.md item 1, Q6): the summary
+# The retirement accounts' stock share (w_dc_stock_share): the summary
 # file's equity in quasi-liquid retirement assets (RETEQ: IRAs, Keoghs, thrift-type plans and account-type pensions,
 # each counted as all, half or none stocks by the respondent's answer) over those assets (RETQLIQ = IRAKH + THRIFT +
 # FUTPEN + CURRPEN, the rebuild's value.dc plus value.db; RETEQ never exceeds it, while it exceeds IRAKH + THRIFT alone in
 # about 1,300 rows a wave, so the share is taken over all four). A household ratio, the same on each PEU unit; 0 where
 # the unit has no value.dc (the share multiplies value.dc: non_micro_imputations.unrealized_gains); missing (not asked) on
 # units outside the PEU and other units, whose accounts the SCF does not break down.
-# Inheritances received this year (inheritance, since 3 November; John, 2 November): the household's inheritances and
+# Inheritances received this year (inheritance): the household's inheritances and
 # trusts (gifts left out) counted as received in the wave's income year, in that year's dollars (roster_scf.py,
 # inheritances: each reported inheritance counts with the chance its rounded year code carries, settings
 # inheritance.year_weights, by a draw keyed by the household, implicate and position), read from
@@ -286,7 +282,7 @@ for (wave in settings$paths$raw$scf_waves) {
   cat(sprintf('wave %d: retirement accounts\' stock share: weighted RETEQ / RETQLIQ %.3f; share of rows with accounts %.3f\n',
               wave, sum(scfp$WGT * scfp$RETEQ) / sum(scfp$WGT * scfp$RETQLIQ), mean(scfp$RETQLIQ > 0)))
   stopifnot(setequal(setdiff(names(peu), 'Y1'), c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)))
-  # the balance sheet under Tax-Simulator's names (value.<item>; 29-30 October), the unrealized gains as w_kg_<item>
+  # the balance sheet under Tax-Simulator's names (value.<item>), the unrealized gains as w_kg_<item>
   names(peu)[-1] = if_else(names(peu)[-1] %in% wealth_kg_vars, paste0('w_', names(peu)[-1]), paste0('value.', names(peu)[-1]))
   WCOLS = setdiff(names(peu), 'Y1')
   peu = peu %>% inner_join(hh %>% select(Y1, all_of(unname(INCOME)), auto_int_exp, r_ss, s_ss, rental_hh), by = 'Y1') %>%
@@ -317,7 +313,7 @@ for (wave in settings$paths$raw$scf_waves) {
     elective[[who]] = tot
   }
   limit = lapply(age, function(a) if_else(a >= settings$deferrals$catch_up_age, lim[2], lim[1]))
-  # each person's wages (decided 27 October: each person's deferrals at most their own wages): the PEU's wages
+  # each person's wages (each person's deferrals at most their own wages): the PEU's wages
   # (X5702) split by main-job pay as the split units' wages are (r_share; a half each when both are zero), all to the
   # respondent without a spouse or partner (X102 = 0)
   has_sp = hh$X102 > 0
