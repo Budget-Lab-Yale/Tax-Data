@@ -119,7 +119,6 @@ def grow_dollars(df, s, t, mode='per_return_growth'):
     projection_steps.step2_factor, which applies the series of the column's row in the items table. The columns that
     are computed from others (totals, net worth and so on) are then recomputed from the grown parts."""
     from prep import build_table as BT
-    from scale import maps as MP
     from shared import growth as GR
     # 1. Check that the computed columns of the year-s file equal what their parts give.
     same, done = recombine(df, s)
