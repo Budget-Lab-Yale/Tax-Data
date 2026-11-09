@@ -111,7 +111,8 @@ def read_roster(tax_year):
 
     # --- school and disability (4a) ----------------------------------------------------------------------------
     # in school: enrolled in high school or college and not in the labor force, the nearest to Census's PRNLFSCH
-    # (95% of those Census marks in school match, March 2024). Census's PYRSN (not working because of school) is not in the extract.
+    # (95% of those Census marks in school match, March 2024). Census's PYRSN (not working because of school) is not
+    # in the extract.
     in_school = x.SCHLCOLL.astype(int).isin([1, 2, 3, 4]) & (x.LABFORCE.astype(int) == 1)
     r['in_school'] = in_school.to_numpy()
     r['nilf_school'] = (x.WHYNWLY.astype(int) == 4).to_numpy()      # RSNNOTW 4
