@@ -148,11 +148,7 @@ def _newton(X, t, p, s2, lam, max_steps, tol, soft=None):
     def hessian(lam, e):
         if soft is not None:         # the record term's curvature is e / (1 + c e) above the cap, e below it
             e = np.where(e > U_soft, e / (1.0 + c_soft * e), e)
-        # X.T @ diag(e) @ X as Y.T @ Y with Y = X sqrt(e): one symmetric product instead of two products
-        Y = X * np.sqrt(e)[:, None]
-        H = Y.T @ Y
-        H[np.diag_indices(m)] += s2
-        return H
+        return X.T @ (X * e[:, None]) + np.diag(s2)
 
     D, e = dual(lam)
     if not np.isfinite(D):            # a warm start that overflows: start again from the starting weights
