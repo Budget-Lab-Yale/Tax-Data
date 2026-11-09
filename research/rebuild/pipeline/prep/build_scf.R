@@ -1,11 +1,16 @@
 #-------------------------------------------------------------------------------
-# The SCF waves in tax units, one row per unit and implicate, with each unit's
-# income and balance sheet in nominal dollars. Reads the raw interview files, the
-# summary file, and the units, group dollars and inheritances roster_scf.py
-# writes (run it first). The primary economic unit's dollars are divided between
-# the respondent's and the spouse's or partner's units by Kevin Moore's rules,
-# ported from the production builder. Writes data/scf_units_<wave>.csv.gz. The
-# variables are described in FEATURES.md, "The SCF". Run from the repository root.
+# The SCF waves in tax units: one row per unit and implicate, with each unit's
+# income and balance sheet in nominal dollars.
+#
+# roster_scf.py runs first. It builds the tax units and writes them, each adult's
+# share of the dollars of the group outside the primary economic unit (PEU), and
+# the inheritances received in the income year. This script reads those files,
+# the raw interview file and the summary file. A unit that holds the whole PEU
+# takes all of the PEU's income and balance sheet. When the respondent and the
+# spouse or partner are separate units, each takes a share by Kevin Moore's
+# rules, as production's builder does. A unit outside the PEU takes its members'
+# shares of the group's dollars. Writes data/scf_units_<wave>.csv.gz.
+# FEATURES.md, "The SCF", describes the variables. Run from the repository root.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr); library(readr); library(data.table); library(haven)
@@ -14,54 +19,71 @@ suppressPackageStartupMessages({
 settings = fromJSON(Sys.getenv('REBUILD_SETTINGS', 'research/rebuild/pipeline/settings.json'))
 OUT = file.path(Sys.getenv('REBUILD_OUT', settings$paths$out), 'data')
 dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
-source('src/imputations/wealth_schema.R')       # the component names only
+source('src/imputations/wealth_schema.R')       # only the names of the balance sheet's items
 
-minus_one_to_zero = function(x) if_else(x == -1, 0, x)
-# Business section: owns a private business (X3103), owns a business not actively managed (X3401); legal
-# form of actively managed businesses 1 and 2 (X3119, X3219: 1 partnership, 3 S corporation, 11 and 12
-# limited partnership, LLP or LLC); not actively managed limited partnerships (X3407), other partnerships
-# (X3411), LLCs (X3451) and S corporations (X3415).
+#-------------------------------------------------------------------------------
+# The SCF items read
+#-------------------------------------------------------------------------------
+minus_one_to_zero = function(x) if_else(x == -1, 0, x)   # the SCF's -1 means "nothing"
+# The business section: owns a private business (X3103); owns a business it does not actively manage (X3401); the
+# legal form of actively managed businesses 1 and 2 (X3119, X3219: 1 partnership, 3 S corporation, 11 and 12 limited
+# partnership, LLP or LLC); and, among businesses not actively managed, limited partnerships (X3407), other
+# partnerships (X3411), LLCs (X3451) and S corporations (X3415).
 BUSINESS_ITEMS = c('x3103', 'x3401', 'x3119', 'x3219', 'x3407', 'x3411', 'x3451', 'x3415')
-# The QBI items: per business b (1, 2) the industry group, workers, household members working in it, the household's
-# share and the value of the share. Groups by legal form: cf, sole proprietorship or not a formal business; ps,
-# partnership, limited partnership, LLP or LLC, and S corporation.
+# The items for the deduction for qualified business income (QBI). For each actively managed business b (1, 2): its
+# industry group, its workers, the household members who work in it, the household's share of it and the value of
+# that share. The legal forms are grouped: cf is a sole proprietorship or not a formal business; ps is a
+# partnership, limited partnership, LLP, LLC or S corporation.
 QBI_ITEMS = unlist(lapply(c('31', '32'), function(b) paste0('x', b, c('07', '11', '13', '14', '15', '16', '17', '28', '29'))))
 QBI_GROUPS = list(cf = c(2, 40), ps = c(1, 3, 11, 12))
-K1_FORMS = c(1, 3, 11, 12)
+K1_FORMS = c(1, 3, 11, 12)      # the legal forms that file a Schedule K-1
 INCOME = c(wages = 'X5702', txbl_int = 'X5708', dividends = 'X5710', capital_gains = 'X5712',
            business_income = 'X5704', rent_royalty_estate = 'X5714', ss_pensions_scf = 'X5722',
            exempt_int = 'X5706')
-# Items for the respondent's and the spouse's or partner's own incomes (Moore's code, as production's builder)
+# The items for the own incomes of the respondent and the spouse or partner (Kevin Moore's code, as in production's
+# builder)
 PERSON_ITEMS = c('X4112', 'X4113', 'X4712', 'X4713', 'X4131', 'X4132', 'X4731', 'X4732',
                  'X5315', 'X5317', 'X5318', 'X5319', 'X5323', 'X5325', 'X5326', 'X5327',
                  'X5331', 'X5333', 'X5334', 'X5335', 'X5415', 'X5417', 'X5418', 'X5419',
                  'X6558', 'X6566', 'X6574', 'X6464', 'X6465', 'X6469', 'X6470', 'X6474', 'X6475', 'X6479', 'X6480',
                  'X6965', 'X6966', 'X6971', 'X6972', 'X6977', 'X6978', 'X6983', 'X6984',
                  'X5606', 'X5614', 'X5622', 'X5630', 'X5724', 'X5725')
-AUTO_LOANS = c(x2218 = 'x2219', x2318 = 'x2319', x2418 = 'x2419', x7169 = 'x7170')   # balance = rate
-# Elective deferral items: per person, two plan blocks; in each, contributes? (+40), percent and amount and frequency
-# (+41-43), and the same asked a second way (+44-46)
+AUTO_LOANS = c(x2218 = 'x2219', x2318 = 'x2319', x2418 = 'x2419', x7169 = 'x7170')   # each loan's balance item = its rate item
+# The elective deferral items. Each person has two blocks of items, one per plan. In each block, item +40 asks
+# whether the person contributes; items +41 to +43 give the percent of pay, the amount and the amount's period; and
+# items +44 to +46 ask the same a second way.
 DEFERRAL_BLOCKS = list(r = c(11000, 11100), s = c(11300, 11400))
 DEFERRAL_ITEMS = unlist(lapply(unlist(DEFERRAL_BLOCKS), function(b) sprintf('X%d', b + 40:46)))
-# Social Security (respondent; spouse or partner): receives any (X5301), kind (X5304, X5309), amount (X5306, X5311),
-# period (X5307, X5312: 4 month, 5 quarter, 6 year, 12 every two months)
+# Social Security for the respondent and for the spouse or partner: whether the household receives any (X5301), the
+# kind (X5304, X5309), the amount (X5306, X5311) and its period (X5307, X5312: 4 a month, 5 a quarter, 6 a year,
+# 12 every two months)
 SS_ITEMS = c('X5301', 'X5304', 'X5306', 'X5307', 'X5309', 'X5311', 'X5312')
 ss_factor = function(f) case_when(f == 4 ~ 12, f == 5 ~ 4, f == 6 ~ 1, f == 12 ~ 6, TRUE ~ 0)
-# Real estate: net income of properties 1 and 2, of the remaining vacation homes and other properties, and the
-# income questions; rent from part of the home and from farm or ranch land (amount, frequency); owns other real estate
+# Real estate: the net income of properties 1 and 2 and of the remaining vacation homes and other properties, and
+# the questions whether they have income; rent from part of the home and from farm or ranch land (amount and
+# period); and whether the household owns other real estate
 RENTAL_ITEMS = c('X1730', 'X1830', 'X2010', 'X2020', 'X1729', 'X1829', 'X2009', 'X2019',
                  'X1224', 'X1225', 'X505', 'X506', 'X1700')
+# The balance sheet items that a split couple divides half and half
 HOUSING = c('primary_home', 'other_home', 're_fund', 'primary_mortgage', 'other_mortgage',
             'kg_primary_home', 'kg_other_re')
 
-# Moore's annualizing factor for a period code (codes not listed give 0, as in his code)
+# The factor that turns an amount per period into a yearly amount, for the SCF's period codes. Codes not listed
+# give 0, as in Kevin Moore's code.
 aconv = function(f) {
   case_when(f == 2 ~ 52.18, f == 3 ~ 26.09, f == 4 ~ 12, f == 5 ~ 4, f %in% c(6, 8, 14, 22) ~ 1,
             f == 11 ~ 2, f == 12 ~ 6, f == 31 ~ 24, TRUE ~ 0)
 }
 
-# The respondent's and the spouse's or partner's labor, business and total own income, as in Moore's code: labor
-# X4112/X4712, business from the main job X4131/X4731, regular pensions in four slots, account withdrawals.
+#-------------------------------------------------------------------------------
+# Dividing the PEU's dollars between the respondent and the spouse or partner
+#-------------------------------------------------------------------------------
+
+# The own labor, business and total income of the respondent (r_) and of the
+# spouse or partner (s_), as in Kevin Moore's code. Labor income is the main
+# job's wages (X4112, X4712). Business income is the main job's business income
+# (X4131, X4731). Total income adds regular pensions, in four slots, and
+# withdrawals from retirement accounts.
 person_incomes = function(h) {
   pen = function(who) {
     pmax(0, h$X5318 * aconv(h$X5319) * (h$X5315 == who) * (h$X5317 >= 1)) +
@@ -83,11 +105,18 @@ person_incomes = function(h) {
     mutate(r_tot = r_lab + r_bus + pen(1) + wd(1, h$X6558), s_tot = s_lab + s_bus + pen(2) + wd(2, h$X6566))
 }
 
-# The respondent's share of a split PEU (the spouse's or partner's is 1 minus it); a half when both are 0
+# The respondent's share of a split PEU's dollars, from the two people's
+# incomes r and s. The spouse's or partner's share is 1 minus it. When both
+# incomes are 0, each takes half.
 r_share = function(r, s) if_else(r + s == 0, 0.5, r / pmax(r + s, 1e-9))
 
+#-------------------------------------------------------------------------------
+# Each wave
+#-------------------------------------------------------------------------------
 for (wave in settings$paths$raw$scf_waves) {
-  # the wave's folder: settings paths.raw.scf_wave_dirs for a wave not in the shared folder (the 2025 wave), else paths.raw.scf
+  # 1. Read the wave's summary file and the raw items used. The wave's folder is settings paths.raw.scf_wave_dirs
+  #    for a wave that is not in the shared folder (the 2025 wave), and paths.raw.scf otherwise. Income items' -1
+  #    ("nothing") is read as 0.
   own = settings$paths$raw$scf_wave_dirs[[as.character(wave)]]
   dir = sub('{wave}', wave, if (is.null(own)) settings$paths$raw$scf else own, fixed = TRUE)
   raw_path = file.path(dir, sprintf('p%02di6.dta', wave %% 100))
@@ -101,6 +130,8 @@ for (wave in settings$paths$raw$scf_waves) {
   stopifnot(!anyDuplicated(hh$Y1), !anyNA(hh), nrow(hh) == nrow(scfp))
   hh = hh %>% mutate(across(all_of(unname(INCOME)), minus_one_to_zero))
   stopifnot(all(hh$X5702 >= 0), all(hh$X5706 >= 0), all(hh$X5708 >= 0), all(hh$X5710 >= 0), all(hh$X5722 >= 0))
+
+  # 2. Interest on auto loans: each loan's balance times its interest rate (a rate code below 0 is read as 0).
   hh$auto_int_exp = 0
   for (b in names(AUTO_LOANS)) {
     bal = hh[[toupper(b)]]; rate = hh[[toupper(AUTO_LOANS[[b]])]]
@@ -111,7 +142,8 @@ for (wave in settings$paths$raw$scf_waves) {
               wave, sum(hh$X42001 / 5 * hh$auto_int_exp) / 1e9, sum(hh$X42001[hh$auto_int_exp > 0] / 5) / 1e6,
               sum(sapply(unname(AUTO_LOANS), function(r) sum(hh[[toupper(r)]] < 0)))))
 
-  # gross Social Security per person from the benefits section, made yearly from its period; SSI (kind 7) left out
+  # 3. Gross Social Security per person, from the benefits section, made yearly from its period. SSI (kind 7) is
+  #    left out.
   for (who in list(c('r', 'X5304', 'X5306', 'X5307'), c('s', 'X5309', 'X5311', 'X5312'))) {
     amt = hh[[who[3]]]; per = hh[[who[4]]]
     got = hh$X5301 == 1 & amt > 0
@@ -120,7 +152,8 @@ for (wave in settings$paths$raw$scf_waves) {
                 sum(hh$X42001[got & hh[[who[2]]] == 7] / 5) / 1e6, sum(got & ss_factor(per) == 0)))
     hh[[paste0(who[1], '_ss')]] = if_else(got & hh[[who[2]]] != 7, amt * ss_factor(per), 0)
   }
-  # rental and other real estate income, net, plus gross rent from part of the home or farm; -1 ("nothing") is 0
+  # 4. Rental income: the net income of the properties, plus gross rent from part of the home or from farm land. Also
+  #    the household's real estate flags, which are used only in reports.
   hh = hh %>% mutate(rental_hh = minus_one_to_zero(X1730) + minus_one_to_zero(X1830) + minus_one_to_zero(X2010) +
                        minus_one_to_zero(X2020) + pmax(X1224, 0) * aconv(X1225) + pmax(X505, 0) * aconv(X506))
   re_flags = hh %>% select(Y1) %>% inner_join(scfp %>% select(Y1, ORESRE, NNRESRE), by = 'Y1') %>%
@@ -138,12 +171,15 @@ for (wave in settings$paths$raw$scf_waves) {
               sum(hh$X42001[re_flags$inc_re_narrow] / 5) / 1e6, sum(hh$X42001[re_flags$oth_re] / 5) / 1e6,
               sum(hh$X42001[re_flags$home_part] / 5) / 1e6))
 
-  # the asset price factor: SAVBND / X3902, the same on every household
+  # 5. The asset price factor: savings bonds in the summary file (SAVBND) over the same item in the raw file
+  #    (X3902). It is the same for every household. The summary file's dollars are divided by it below, to put them
+  #    in the raw file's dollars of the interview year.
   fx = scfp %>% select(Y1, SAVBND) %>% inner_join(hh, by = 'Y1') %>% filter(X3902 > 0)
   asset_factor = median(fx$SAVBND / fx$X3902)
   stopifnot(max(abs(fx$SAVBND / fx$X3902 / asset_factor - 1)) < 1e-3)
 
-  # the household's (PEU's) dollars: income items, the 20 components and 4 gains in the interview year's dollars
+  # 6. The PEU's dollars: the income items, the 20 balance sheet items and the 4 unrealized gains, in the interview
+  #    year's dollars.
   peu = scfp %>% transmute(
     Y1, cash = LIQ + CDS, equities = STOCKS + STMUTF + COMUTF, bonds = BOND + SAVBND + TFBMUTF + GBMUTF + OBMUTF,
     dc = IRAKH + THRIFT, db = FUTPEN + CURRPEN, life_ins = CASHLI, annuities = ANNUIT, trusts = TRUSTS,
@@ -152,13 +188,14 @@ for (wave in settings$paths$raw$scf_waves) {
     credit_cards = CCBAL, installment_debt = INSTALL, other_debt = ODEBT, kg_primary_home = KGHOUSE,
     kg_other_re = KGORE, kg_pass_throughs = KGBUS, kg_other = KGSTMF) %>%
     mutate(across(-Y1, ~ .x / asset_factor))
-  # the retirement accounts' stock share, RETEQ over all four quasi-liquid account types: a ratio, no asset factor
+  # The retirement accounts' stock share: RETEQ over all four kinds of retirement account (RETQLIQ). It is a ratio,
+  # so the asset factor does not apply.
   ret = scfp %>% transmute(Y1, ret_stock_share = if_else(RETQLIQ > 0, RETEQ / pmax(RETQLIQ, 1e-9), 0))
   stopifnot(!anyNA(ret$ret_stock_share), all(ret$ret_stock_share >= 0), all(ret$ret_stock_share <= 1 + 1e-9))
   cat(sprintf('wave %d: retirement accounts\' stock share: weighted RETEQ / RETQLIQ %.3f; share of rows with accounts %.3f\n',
               wave, sum(scfp$WGT * scfp$RETEQ) / sum(scfp$WGT * scfp$RETQLIQ), mean(scfp$RETQLIQ > 0)))
   stopifnot(setequal(setdiff(names(peu), 'Y1'), c(wealth_asset_vars, wealth_debt_vars, wealth_kg_vars)))
-  # the balance sheet under Tax-Simulator's names (value.<item>), the unrealized gains as w_kg_<item>
+  # The balance sheet under Tax-Simulator's names (value.<item>), and the unrealized gains as w_kg_<item>
   names(peu)[-1] = if_else(names(peu)[-1] %in% wealth_kg_vars, paste0('w_', names(peu)[-1]), paste0('value.', names(peu)[-1]))
   WCOLS = setdiff(names(peu), 'Y1')
   peu = peu %>% inner_join(hh %>% select(Y1, all_of(unname(INCOME)), auto_int_exp, r_ss, s_ss, rental_hh), by = 'Y1') %>%
@@ -166,8 +203,9 @@ for (wave in settings$paths$raw$scf_waves) {
     inner_join(person_incomes(hh), by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh), !anyNA(peu))
 
-  # elective deferrals per person, up to two plans on the main job (amount per period, else percent of pay), held to
-  # the year's legal limit and then to the person's own wages
+  # 7. Elective deferrals per person, from up to two plans on the main job. Each plan's amount is the amount per
+  #    period, or else the percent of pay. The total is held to the year's legal limit (with the higher catch-up
+  #    limit from the catch-up age) and then to the person's own wages.
   year = wave - 1L
   lim = settings$deferrals$limits[[as.character(year)]]
   stopifnot(length(lim) == 2)
@@ -190,9 +228,9 @@ for (wave in settings$paths$raw$scf_waves) {
     elective[[who]] = tot
   }
   limit = lapply(age, function(a) if_else(a >= settings$deferrals$catch_up_age, lim[2], lim[1]))
-  # each person's wages (each person's deferrals at most their own wages): the PEU's wages
-  # (X5702) split by main-job pay as the split units' wages are (r_share; a half each when both are zero), all to the
-  # respondent without a spouse or partner (X102 = 0)
+  # Each person's wages, so that each person's deferrals are at most their own wages. The PEU's wages (X5702) are
+  # split by main-job pay, as the split units' wages are (r_share; half each when both are zero). Without a spouse
+  # or partner (X102 = 0) they all go to the respondent.
   has_sp = hh$X102 > 0
   r_wage = hh$X5702 * if_else(has_sp, r_share(pay$r, pay$s), 1)
   dper = tibble(Y1 = hh$Y1, weight = hh$X42001 / 5, r_age = hh$X14, s_age = hh$X19, r_pay = pay$r, s_pay = pay$s,
@@ -213,23 +251,27 @@ for (wave in settings$paths$raw$scf_waves) {
   fwrite(dper, file.path(OUT, sprintf('scf_deferral_persons_%d.csv.gz', wave)))
   peu = peu %>% inner_join(dper %>% select(Y1, r_elective, s_elective), by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh))
-  # inheritances received this year, per household (roster_scf.inheritances)
+  # 8. The inheritances received in the income year, per household (roster_scf.inheritances).
   inh = fread(file.path(OUT, sprintf('scf_inheritance_%d.csv.gz', wave))) %>% as_tibble() %>% select(Y1 = hh, inheritance)
   stopifnot(nrow(inh) == nrow(hh), !anyDuplicated(inh$Y1), !anyNA(inh$inheritance), all(inh$inheritance >= 0))
   peu = peu %>% inner_join(inh, by = 'Y1')
   stopifnot(nrow(peu) == nrow(hh))
 
-  # the module's units
+  # 9. Read the units roster_scf.py built, and the group's dollars by unit. Each household has either one unit
+  #    holding the whole PEU, or one unit with the respondent's share ('r') and one with the spouse's or partner's
+  #    ('sp').
   mu = fread(file.path(OUT, sprintf('scf_units_module_%d.csv.gz', wave))) %>% as_tibble()
   nd = fread(file.path(OUT, sprintf('scf_npeu_dollars_%d.csv.gz', wave))) %>% as_tibble()
   stopifnot(!anyDuplicated(mu$uid), all(mu$peu_dollars %in% c('all', 'r', 'sp', 'none')))
-  # each household has one unit holding the whole PEU, or one 'r' and one 'sp' unit
   k = mu %>% filter(source == 'peu') %>% count(hh, peu_dollars) %>%
     pivot_wider(names_from = peu_dollars, values_from = n, values_fill = 0)
   for (v in c('all', 'r', 'sp')) if (!(v %in% names(k))) k[[v]] = 0L
   stopifnot(all((k$all == 1 & k$r == 0 & k$sp == 0) | (k$all == 0 & k$r == 1 & k$sp == 1)), nrow(k) == nrow(hh))
 
-  # PEU units: shares by kind of item
+  # 10. The PEU's units: each takes a share of each item. A unit holding the whole PEU takes all of it. On a split
+  #     PEU, wages are divided by the two people's labor income, Schedules C and F by their business income, the
+  #     home, other real estate, their mortgages and their gains half each, and everything else by their total
+  #     income.
   p = mu %>% filter(source == 'peu') %>% select(uid, hh, peu_dollars, weight, head_pn, filing_status) %>%
     inner_join(peu, by = c('hh' = 'Y1')) %>%
     mutate(sh_lab = case_when(peu_dollars == 'all' ~ 1, peu_dollars == 'r' ~ r_share(r_lab, s_lab),
@@ -243,14 +285,15 @@ for (wave in settings$paths$raw$scf_waves) {
     p[[v]] = p[[INCOME[[v]]]] * (if (v == 'wages') p$sh_lab else if (v == 'business_income') p$sh_bus else p$sh_earn)
   }
   for (v in WCOLS) p[[v]] = p[[v]] * (if (sub('^(w_|value[.])', '', v) %in% HOUSING) p$sh_house else p$sh_earn)
-  p$auto_int_exp = p$auto_int_exp * p$sh_earn     # as installment debt (value.installment_debt)
-  # rental income by X5714's shares; Social Security by person, as elective deferrals below
+  p$auto_int_exp = p$auto_int_exp * p$sh_earn     # divided as installment debt (value.installment_debt) is
+  # Rental income is divided as X5714 is. Social Security goes by person, as elective deferrals do below.
   p$rental_income = p$rental_hh * p$sh_earn
   p$gross_ss = case_when(p$peu_dollars == 'all' ~ p$r_ss + p$s_ss, p$peu_dollars == 'r' ~ p$r_ss, TRUE ~ p$s_ss)
-  # elective deferrals, the unit's head's (elective1) and spouse's (elective2; 0 without a spouse): on a joint unit
-  # holding the whole PEU, each person's own by who heads it; on any other unit holding the whole PEU, both people's
-  # to the head (a partner it claims has no slot of its own); on a split unit, that person's own. Each person's are
-  # at most their own wages, so the unit's are at most its wages (checked)
+  # Elective deferrals: elective1 is the unit's head's, and elective2 the spouse's (0 without a spouse). A joint
+  # unit holding the whole PEU gives each person their own, by who heads the unit. Any other unit holding the whole
+  # PEU gives both people's to the head, because a partner the unit claims has no column of their own. A split unit
+  # takes that person's own. Each person's deferrals are at most their own wages, and the check below confirms
+  # that a unit's are at most its wages.
   joint_all = p$peu_dollars == 'all' & p$filing_status == 'joint'
   stopifnot(all(p$head_pn[joint_all] %in% c(1, 2)))
   p$elective1 = case_when(joint_all & p$head_pn == 2 ~ p$s_elective, joint_all ~ p$r_elective,
@@ -258,21 +301,23 @@ for (wave in settings$paths$raw$scf_waves) {
                           p$peu_dollars == 'r' ~ p$r_elective, TRUE ~ p$s_elective)
   p$elective2 = case_when(joint_all & p$head_pn == 2 ~ p$r_elective, joint_all ~ p$s_elective, TRUE ~ 0)
   p$elective_deferrals = p$elective1 + p$elective2
-  p$inheritance = p$inheritance * if_else(p$peu_dollars == 'all', 1, 0.5)   # a split couple: half each
+  p$inheritance = p$inheritance * if_else(p$peu_dollars == 'all', 1, 0.5)   # a split couple takes half each
   stopifnot(all(p$elective_deferrals <= p$wages * (1 + 1e-9) + 1e-6))
   p$w_dc_stock_share = if_else(p$value.dc > 0, pmin(p$ret_stock_share, 1), 0)
-  # taxunit_code: 0 the whole PEU, 1 the respondent's part, 2 the spouse's or partner's, 8 other, 9 outside the PEU
+  # taxunit_code: 0 the whole PEU, 1 the respondent's part, 2 the spouse's or partner's part, 8 other, 9 outside the PEU
   p = p %>% mutate(taxunit_code = case_when(peu_dollars == 'all' ~ 0L, peu_dollars == 'r' ~ 1L, TRUE ~ 2L)) %>%
     select(uid, all_of(names(INCOME)), gross_ss, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
            elective1, elective2, w_dc_stock_share, inheritance, taxunit_code)
 
-  # units outside the PEU: their members' shares of the group; other units: nothing
+  # 11. Units outside the PEU take their members' shares of the group's dollars. Items the SCF asks only of the PEU
+  #     are missing on these units, not zero. Other units hold nothing. Then net worth, and the rest of Schedule E
+  #     (X5714 less the rental part, held at zero from below).
   npeu = mu %>% filter(source == 'npeu') %>% select(uid) %>% left_join(nd, by = 'uid')
   stopifnot(!anyNA(npeu$wages), 'gross_ss' %in% names(npeu), !anyNA(npeu$gross_ss))
   for (v in setdiff(c(names(INCOME), WCOLS, 'auto_int_exp'), names(npeu))) npeu[[v]] = 0
-  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share', 'inheritance')) npeu[[v]] = NA_real_   # not asked: missing, not zero
-  # the SCF asks the property section of the PEU only: no rental part outside it (the group's real estate income is
-  # all in its rent_royalty_estate, so in sche_rest)
+  for (v in c('elective_deferrals', 'elective1', 'elective2', 'w_dc_stock_share', 'inheritance')) npeu[[v]] = NA_real_   # not asked: missing
+  # The SCF asks its property section of the PEU only. Units outside the PEU have no rental part: the group's real
+  # estate income is all in its rent_royalty_estate, and from there in sche_rest.
   npeu$rental_income = 0
   npeu = npeu %>% mutate(taxunit_code = 9L) %>%
     select(uid, all_of(names(INCOME)), gross_ss, rental_income, all_of(WCOLS), auto_int_exp, elective_deferrals,
@@ -285,10 +330,10 @@ for (wave in settings$paths$raw$scf_waves) {
   stopifnot(nrow(dollars) == nrow(mu), !anyDuplicated(dollars$uid))
   dollars$net_worth = rowSums(as.matrix(dollars[, paste0('value.', wealth_asset_vars)])) -
     rowSums(as.matrix(dollars[, paste0('value.', wealth_debt_vars)]))
-  # the rest of Schedule E: X5714 less the rental part, held at 0 from below
   dollars$sche_rest = pmax(dollars$rent_royalty_estate - dollars$rental_income, 0)
 
-  # Business ownership: to the units holding the household's business equity, else the respondent's unit
+  # 12. Business ownership goes to the units that hold the household's business equity, or else to the respondent's
+  #     unit.
   biz = hh %>% transmute(hh = Y1, owns = X3103 == 1 | X3401 == 1,
                          k1 = X3119 %in% K1_FORMS | X3219 %in% K1_FORMS | X3407 == 1 | X3411 == 1 |
                            X3451 == 1 | X3415 == 1)
@@ -299,7 +344,8 @@ for (wave in settings$paths$raw$scf_waves) {
     mutate(holder = if (any(value.pass_throughs > 0)) value.pass_throughs > 0 else peu_dollars %in% c('all', 'r')) %>%
     ungroup()
   stopifnot(!anyNA(ub$owns), all((ub %>% group_by(hh) %>% summarise(n = sum(holder)))$n >= 1))
-  # Real estate flags (reports only): to the units carrying the household's X5714 share, else the respondent's unit
+  # 13. The real estate flags (used only in reports) go to the units that carry the household's X5714 share, or
+  #     else to the respondent's unit.
   ur = mu %>% filter(source == 'peu') %>% select(uid, hh, peu_dollars) %>%
     inner_join(dollars %>% select(uid, rent_royalty_estate), by = 'uid') %>%
     left_join(re_flags, by = 'hh') %>% group_by(hh) %>%
@@ -307,8 +353,9 @@ for (wave in settings$paths$raw$scf_waves) {
     ungroup()
   stopifnot(!anyNA(ur$inc_re), all((ur %>% group_by(hh) %>% summarise(n = sum(holder)))$n >= 1))
 
-  # The QBI items: per household and group, the largest business's industry group and the owner's share of the
-  # workers, given to the units holding the business equity
+  # 14. The QBI items. For each household and group of legal forms: the industry group of the largest business, and
+  #     the workers counted, in proportion to the household's share of each business. They go to the units that hold
+  #     the business equity, in proportion to each unit's equity.
   qb = tibble(hh = hh$Y1)
   for (k in names(QBI_GROUPS)) {
     ind = rep(0, nrow(hh)); best = rep(-Inf, nrow(hh)); wk = rep(0, nrow(hh))
@@ -316,15 +363,15 @@ for (wave in settings$paths$raw$scf_waves) {
       x = function(i) hh[[paste0('X', b, i)]]
       is_k = x('19') %in% QBI_GROUPS[[k]]
       fam = (x('13') == 1) + (x('14') == 1) + (x('15') == 1) + (x('16') == 1) + (x('17') == 1)
-      # An S corporation pays a working owner W-2 wages, so all its workers count; other forms count outside workers
-      # only, because partners and sole proprietors cannot pay themselves W-2 wages.
+      # An S corporation pays a working owner W-2 wages, and all its workers count. Other legal forms count only
+      # the workers outside the household. Partners and sole proprietors cannot pay themselves W-2 wages.
       counted = if_else(x('19') == 3, pmax(x('11'), 0), pmax(x('11') - fam, 0)) * x('28') / 10000
       wk = wk + if_else(is_k, counted, 0)
       if (k == 'ps') cat(sprintf('wave %d: business %s, S corporations: %d rows, workers X%s11 below 1: %d, one worker: %d, fewer workers than household members working in it: %d\n', wave, b,
                                  sum(x('19') == 3), b, sum(x('19') == 3 & x('11') < 1), sum(x('19') == 3 & x('11') == 1), sum(x('19') == 3 & x('11') < fam)))
       code = if_else(x('07') == 99, 8, x('07'))
       stopifnot(all(code[is_k] %in% 1:8), all(x('28')[is_k] > 0 & x('28')[is_k] <= 10000))
-      take = is_k & x('29') > best          # strictly larger: business 1 on a tie
+      take = is_k & x('29') > best          # strictly larger, so business 1 wins a tie
       ind = if_else(take, code, ind); best = if_else(take, x('29'), best)
     }
     qb[[paste0('biz_industry_', k)]] = ind
@@ -348,6 +395,8 @@ for (wave in settings$paths$raw$scf_waves) {
                 paste(sprintf('%d: %.2f', 1:8, sapply(1:8, function(g) sum(w5[qb[[paste0('biz_industry_', k)]] == g]) / 1e6)), collapse = ', ')))
   }
 
+  # 15. Assemble one row per unit. Units outside the PEU and other units own no business or real estate, because
+  #     the business and property sections are asked of the PEU only.
   units = mu %>% inner_join(dollars, by = 'uid') %>%
     left_join(ub %>% transmute(uid, owns_business = as.integer(owns & holder), k1_owner = as.integer(k1 & holder)),
               by = 'uid') %>%
@@ -355,7 +404,6 @@ for (wave in settings$paths$raw$scf_waves) {
     left_join(ur %>% transmute(uid, owns_income_re = as.integer(inc_re & holder),
                                owns_other_re = as.integer(oth_re & holder), rents_home_part = as.integer(home_part & holder)),
               by = 'uid') %>%
-    # outside the PEU, other units: none (the business and property sections are asked of the PEU only)
     mutate(across(c(owns_business, k1_owner, owns_income_re, owns_other_re, rents_home_part), ~ replace_na(.x, 0L)),
            across(all_of(QBI_COLS), ~ replace_na(.x, 0))) %>%
     transmute(record_id = if_else(separate, uid, uid * 10), household_id = hh %/% 10,
@@ -373,8 +421,8 @@ for (wave in settings$paths$raw$scf_waves) {
               any_income_assumed = as.integer(any_income_assumed),
               any_dep_by_support = as.integer(any_dep_by_support),
               any_claimed_in_group = as.integer(any_claimed_in_group))
-  # sex is allowed missing (not observed outside the respondent and the spouse or partner), and elective deferrals
-  # (not asked outside the PEU)
+  # Sex may be missing: it is observed only for the respondent and the spouse or partner. Elective deferrals, the
+  # stock share and inheritances may be missing: they are asked only of the PEU.
   stopifnot(nrow(units) == nrow(mu), !anyDuplicated(units$record_id),
             !anyNA(select(units, -male1, -male2, -elective_deferrals, -elective1, -elective2, -w_dc_stock_share, -inheritance)),
             all(is.na(units$w_dc_stock_share) == (units$taxunit_code > 2)),
@@ -385,7 +433,7 @@ for (wave in settings$paths$raw$scf_waves) {
             all(units$age2[units$married == 1] >= 0),
             all(units$taxunit_code[is.na(units$male1) | is.na(units$male2)] > 2))
 
-  # the PEU's dollars are divided between units, never created or lost
+  # 16. Check that the PEU's dollars are divided between units, never created or lost.
   for (v in c(names(INCOME), WCOLS, 'auto_int_exp')) {
     a = sum(hh$X42001 / 5 * peu[[if (v %in% names(INCOME)) INCOME[[v]] else v]])
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
@@ -396,7 +444,8 @@ for (wave in settings$paths$raw$scf_waves) {
     z = sum((units$weight * units[[v]])[units$taxunit_code <= 2])
     stopifnot(abs(z - a) <= 1e-6 * max(1, abs(a)))
   }
-  # checks on the new columns (Social Security, the Schedule E split, the real estate flags)
+  # 17. Print checks on Social Security, the two parts of Schedule E, the real estate flags and inheritances, and
+  #     write the units.
   W = sum(units$weight)
   summ = function(x) c(net_b = sum(units$weight * x) / 1e9, income_b = sum((units$weight * x)[x > 0]) / 1e9,
                        losses_b = -sum((units$weight * x)[x < 0]) / 1e9,

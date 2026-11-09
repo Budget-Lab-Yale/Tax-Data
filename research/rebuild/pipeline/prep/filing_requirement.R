@@ -1,9 +1,11 @@
 #-------------------------------------------------------------------------------
-# The statutory filing requirement of every CPS tax unit, the middle step of the
-# filing stage. Reads the cleaned ASEC and the tax-unit roster filing.py wrote;
-# applies production's add_filing_requirement() (Form 1040, Charts A to C,
-# including a row for each dependent aged 15 and over); writes units_<year> and
-# persons_<year> under data/filing/requirement/. Run from the repository root.
+# Whether the law requires each CPS tax unit to file a return. This is the middle
+# step of the filing stage, between filing.py's steps `units` and `calibrate`.
+# For each year it reads the cleaned ASEC and the tax-unit roster that filing.py
+# wrote, and applies production's add_filing_requirement(). That function uses
+# the Form 1040 instructions' Charts A to C, and adds a row for each dependent
+# aged 15 and over. Writes units_<year> and persons_<year> under
+# data/filing/requirement/. Run from the repository root.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)
@@ -20,13 +22,16 @@ dir.create(file.path(DIR, 'requirement'), recursive = TRUE, showWarnings = FALSE
 
 for (yr in YEARS) {
   cat(sprintf('\n=== tax year %d (ASEC %d)\n', yr, yr + 1))
+  # 1. Read the ASEC, clean Social Security income, add production's income concepts, and leave out group quarters.
   x = read_asec(yr)
   ddi = attr(x, 'ddi')
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
   x = add_asec_income_concepts(x, ddi)
   x = x[GQ != 2]
+  # 2. Attach the units filing.py built, and mark each unit's filing requirement.
   built = cbo_tax_units(x, yr, file.path(DIR, 'units', sprintf('roster_%d_cbo_nogq.csv.gz', yr)))
   u = add_filing_requirement(built$units, yr)
+  # 3. Write the units (household units and dependents' rows) and the persons.
   keep = c('unit_id', 'unit_type', 'SERIAL', 'head_pernum', 'weight', 'age_head', 'must_file', 'threshold', 'INCWAGE')
   out = u[, ..keep]
   stopifnot(!anyNA(out))
