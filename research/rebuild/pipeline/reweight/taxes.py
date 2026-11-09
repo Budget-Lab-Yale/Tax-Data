@@ -228,7 +228,7 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
                 'non-filer dollars before ($ billion)': (w * ref)[~filer].sum() / 1e9})
     ctx['refund'] = row
     ctx['notes'].append(
-        f"refund rule (decision 47): taxable state refunds zeroed on records that do not itemize: filer returns with "
+        f"refund rule: taxable state refunds zeroed on records that do not itemize: filer returns with "
         f"a refund {row['returns with a refund before (millions)']:.2f} million -> "
         f"{row['returns with a refund after (millions)']:.2f} million, dollars ${row['dollars before ($ billion)']:.1f} "
         f"billion -> ${row['dollars after ($ billion)']:.1f} billion (start weights)")
@@ -267,7 +267,7 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
     G = S['greedy_schedule_a']
     target = table21_averages(year)
     if target is None:
-        ctx['notes'].append(f'greedy Schedule A step (decision 49): no Table 2.1 for {year}; the declared priors stand')
+        ctx['notes'].append(f'greedy Schedule A step: no Table 2.1 for {year}; the declared priors stand')
         return df
     assert set(target) == set(SCHEDULE_A), f'Table 2.1 {year} categories {sorted(target)}'
     filer = df['filer'].to_numpy() == 1
@@ -307,7 +307,7 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
     pri.to_csv(f'{folder}/schedule_a_factors.csv', index=False)
     ctx['greedy'] = pri
     ctx['greedy_passes'] = tab
-    ctx['notes'].append('greedy Schedule A step (decision 49): multipliers on the priors ' +
+    ctx['notes'].append('greedy Schedule A step: multipliers on the priors ' +
                         ', '.join(f'{c} {v:.3f}' for c, v in s.items()))
     out_df = df.copy()
     for c, (cols, _) in SCHEDULE_A.items():
@@ -387,10 +387,10 @@ def summary_lines(ctx, df, w0, w1):
                     'non-filers, after ($ billion)': (w1 * x)[~filer].sum() / 1e9})
     lines += [pd.DataFrame(tab).to_markdown(index=False, floatfmt=',.2f'), '']
     if 'refund' in ctx:
-        lines += ['Taxable state refunds after the rule (decision 47), start weights:', '',
+        lines += ['Taxable state refunds after the rule, start weights:', '',
                   pd.Series(ctx['refund']).to_frame('').to_markdown(floatfmt=',.3f'), '']
     if 'greedy' in ctx:
-        lines += ['Schedule A factors (decision 49), each against its declared prior:', '',
+        lines += ['Schedule A factors, each against its declared prior:', '',
                   ctx['greedy'].to_markdown(index=False, floatfmt=',.4f'), '',
                   'The passes (dollars per claiming return, start against Table 2.1):', '',
                   ctx['greedy_passes'].to_markdown(index=False, floatfmt=',.4f'), '']

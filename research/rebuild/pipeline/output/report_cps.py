@@ -86,7 +86,7 @@ def overtime_section(src):
             if 'ot_primary' in d:
                 cap = ['### What the cap takes off in the file', '',
                        'Each person\'s drawn overtime is held to the person\'s wages less the person\'s tips (tips are '
-                       'made first; decided 27 October). "Held by wages": the drawn overtime is above the person\'s '
+                       'made first). "Held by wages": the drawn overtime is above the person\'s '
                        'wages. "Further": what subtracting the tips takes off on top (a person can be in both). '
                        'People and dollars weighted by the file\'s weights, dependent filers left out.', '',
                        overtime_cap_table(d), '']

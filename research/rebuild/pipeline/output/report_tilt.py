@@ -276,7 +276,7 @@ LINES = [
     (r'(taxable ira distributions|taxable individual retirement arrangement \(ira\) distributions)',
      lambda d: d['txbl_ira_dist'].to_numpy(float), ['count', 'amount'], ''),
     ('pensions and annuities > total', lambda d: d['gross_pens_dist'].to_numpy(float),
-     ['count', 'amount'], 'taxable pensions plus the drawn non-taxable rest (since 3 November)'),
+     ['count', 'amount'], 'taxable pensions plus the drawn non-taxable rest'),
     ('pensions and annuities > taxable', lambda d: d['txbl_pens_dist'].to_numpy(float), ['count', 'amount'], ''),
     ('total rental and royalty > net income', lambda d: pos(family_net(d, 'rent_royalty')), ['count', 'amount'], ''),
     (r'total rental and royalty > net loss.*', lambda d: neg(family_net(d, 'rent_royalty')), ['count', 'amount'], ''),
@@ -291,7 +291,7 @@ LINES = [
     ('unemployment compensation', lambda d: d['ui'].to_numpy(float), ['count', 'amount'], ''),
     ('social security benefits > total', lambda d: d['gross_ss'].to_numpy(float), ['count', 'amount'], ''),
     ('social security benefits > taxable', lambda d: d['ss_taxable'].to_numpy(float), ['count', 'amount'],
-     'computed by the section 86 worksheet, never targeted (since 3 November)'),
+     'computed by the section 86 worksheet, never targeted'),
     ('(statutory adjustments > total|total statutory adjustments)', lambda d: d['adjustments'].to_numpy(float),
      ['count', 'amount'], '')]
 NOT_COMPARED = ('qualified dividends, rent and royalty separately, other income, net operating loss, gambling, '
