@@ -1,56 +1,9 @@
-"""filing.py: the CPS's filing stage. Which CPS tax units file a return, as a chance per unit from the filing rule,
-calibrated in each tax year to population and SOI counts.
+"""The CPS filing stage: which CPS tax units file a return.
 
-The stage has three steps, run in order by run.py (stage filing), every year of settings cps.years:
-  python -m prep.filing units [year ...]      the CPS's tax units by the shared rules (tax_units.py), people in group
-                                         quarters left out
-  Rscript filing_requirement.R [year ...] each unit's statutory filing requirement (Form 1040, Charts A to C)
-  python -m prep.filing calibrate [year ...]  the rule, its calibration, separate returns, the outputs and checks
-
-The rule. For a household unit (not a dependent's own return):
-  logit(filing chance) = a[age band of the head] + k x (a child under 17 in the unit)
-                         + required x (r + s x z + b x (business or farm income not zero))
-  required   the unit's statutory filing requirement (filing_requirement.R)
-  z          log(max(gi, floor)) - log(weighted median of gi among required units that year); gi is the unit's gross
-             income as tax_units.py builds it (head and spouse: wages, self-employment, interest, dividends, rents,
-             estates and trusts, pensions, unemployment, plus taxable Social Security by the 1040 worksheet), the
-             nearest match to the 1040's total income that Pub 5785 reports; the log is floored at the year's lowest
-             gross income threshold (single, under 65), since about 1.2 m required units have less (mostly required
-             by the $400 self-employment rule); without it they would be all but certain non-filers
-  business   the head's and spouse's business or farm income (selfemp: INCBUS + INCFARM), positive or negative
-  Heads under 18 take the 18-25 band's a. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11
-  targets hold exactly:
-  - non-filing heads and spouses in each of 7 age bands of the head (18-25 ... 75+) = CPS adults in the band (own
-    age, CPS weights) - adults on returns in the band (SOI Table 1.6 as the residual anchor builds it,
-    research/state_weights/nonfiler_residual/resources/nonfiler_age_shape_<year>.csv, column filing_adults) -
-    dependent netting in the band (dependents aged 15+ by the age of the head who claims them, not filing a
-    return of their own). Group quarters are left out, so they enter as zero.
-  - non-filing children under 17 = settings filing.child_share x CPS children under 17
-  - non-filing required units = settings filing.required_nonfiling_share x required units
-  - their gross income = settings filing.income_share x the gross income of all required units
-  - those with business or farm income = settings filing.business_share x non-filing required units
-  Dependents' own returns: a dependent aged 15 or over files (chance 1) when required to (the dependent filing
-  tests) or with any wages, else not (chance 0). Weights never move.
-Separate returns: joint couples taken in the order of a uniform keyed by unit id (salt settings filing.mfs_salt)
-until weight x calibrated chance reaches SOI Table 1.6's separate returns / 2 (tax_units.mfs_split, with chance=);
-each couple becomes two returns, the dependents on person 1's (dep_rule 'primary').
-
-Outputs, under the run's data folder (common.DATA) / settings cps.step1_dir ("filing"):
-  units/        the tax-unit module's persons, units and roster, <year>_cbo_nogq
-  requirement/  units_<year>.csv.gz, persons_<year>.csv.gz (filing_requirement.R)
-  returns/      (settings cps.step1_out) units_<year>.csv.gz and .parquet, one row per return (separate returns
-                included; build_cps.R reads the csv): ids (uid, couple_uid and person for separate returns, hh,
-                head_pn, spouse_pn), weight, p_file_cal (the calibrated chance), must_file, filing_status, ages and
-                sex, dependents in the PUF's terms, n24, n_dep_eitc, eic, has_kid_target_age, reason (required, EITC
-                eligible, or a refundable child credit), the income items, eitc_eligible, year;
-                persons_<year>.parquet, one row per person, with return_uid and p_own_return (a dependent's own
-                return: 1 files, 0 not, -1 no such return)
-  checks/       per year (target_list.py and errors.py read <year>_nonfilers_vs_targets.csv):
-                fit (each target and the miss), shifts (the 11 settings and the median used for z), feasibility,
-                groups_vs_targets, nonfilers_vs_targets, persons_once, people_by_age, filers_nonfilers (against SOI;
-                the PUF in 2015), pub5785_wages, pub5785_required, nonfilers_by_wages, required_by_income,
-                children_by_unit, units_by_group, log.txt
-"""
+Step `units` builds the CPS's tax units (group quarters left out); filing_requirement.R then marks each unit's
+statutory filing requirement; step `calibrate` solves each year's filing chances to population and SOI counts, splits
+some joint couples into separate returns, and writes returns, persons and checks under data/filing/. The rule and its
+targets are in FEATURES.md, "The CPS"."""
 import argparse
 import os
 import sys
@@ -74,10 +27,9 @@ PUF = os.path.dirname(common.RAW['puf'])
 BANDS = ['18_25', '26_34', '35_44', '45_54', '55_64', '65_74', '75p']
 BREAKS = [18, 26, 35, 45, 55, 65, 75, 200]
 AGE_LIM = 17                                   # children: under 17
-# Pub 5785 Table 3, TY2014-16 averages: required non-filing units, those with wages, their wages, those with
-# business or farm income, that income, and total income (millions; billions of dollars)
-# (research/state_weights/nonfiler_residual/resources/pub5785_table3_notfiler_units.csv). The rule's shares in
-# settings "filing" are computed from these; the 2015 run checks that.
+# Pub 5785 Table 3, 2014-16 averages: required non-filing units, those with wages, their wages, those with business
+# or farm income, that income, and total income (millions of units; billions of dollars). The shares in settings
+# "filing" are computed from these.
 PUB5785_T3 = {'units': 11.19, 'wages_n': 6.90, 'wages_bn': 232.1, 'bus_n': 4.99, 'bus_bn': 100.2, 'totinc_bn': 409.4}
 WAGE_BINS = [('$0', -np.inf, 0), ('$1-25k', 0, 25e3), ('$25-50k', 25e3, 50e3), ('$50-100k', 50e3, 100e3),
              ('$100-200k', 100e3, 200e3), ('$200k+', 200e3, np.inf)]
@@ -92,7 +44,7 @@ EITC = {2015: ([14820, 39131, 44454, 47747], [20330, 44651, 49974, 53267], 3400,
 # in 2021
 CTC_FLOOR = {2015: 3000, 2016: 3000, 2017: 3000, 2021: 0}
 AGES = [('under 5', 0, 5), ('5-12', 5, 13), ('13-16', 13, 17), ('17-18', 17, 19), ('19-23', 19, 24), ('24+', 24, 200)]
-# Where the solver starts: near the solutions of 2015-2023 (a's, r, k, s, b)
+# The solver's starting point, near each year's solution (the seven a's, r, k, s, b)
 X0 = [2.0, 0.6, 0.2, 0.5, 0.7, 1.0, 0.8, 2.2, 2.3, 1.6, -3.3]
 
 
@@ -133,7 +85,7 @@ def tag(year):
 
 
 def build_units(year):
-    """Step 1 of the stage: the CPS's units by the shared rules, group quarters left out."""
+    """The CPS's tax units by the shared rules, group quarters left out."""
     from prep import roster_cps
     r = roster_cps.read_roster(year)
     persons, units = T.build_units(r[~r.gq].reset_index(drop=True), year)
@@ -141,7 +93,7 @@ def build_units(year):
 
 
 def calibrate(year):
-    """Step 3 of the stage: the rule, its calibration, separate returns, the outputs and the checks."""
+    """Solve the filing rule for one year, split separate returns, and write the returns, persons and checks."""
     os.makedirs(RETURNS, exist_ok=True); os.makedirs(CHECKS, exist_ok=True)
     log = []
     say = lambda s: (print(s), log.append(s))
@@ -360,7 +312,7 @@ def calibrate(year):
     P[pk].to_parquet(f'{RETURNS}/persons_{year}.parquet')
 
     # ================================ checks ================================================================
-    # 1. every person once
+    # every person once
     c1 = pd.DataFrame([
         ('people', len(P), P.weight.sum() / 1e6),
         ('people in more than one unit', int(P[['hh', 'pn']].duplicated().sum()), 0),
@@ -373,8 +325,8 @@ def calibrate(year):
     ], columns=['check', 'count', 'weighted_millions'])
     c1.to_csv(f'{CHECKS}/{year}_persons_once.csv', index=False)
 
-    # 2. CPS people by age band against Census PEP (resident population, so group quarters included; the CPS frame
-    #    leaves them out)
+    # CPS people by age band against Census population estimates, which include group quarters (the CPS leaves
+    # them out)
     pb = band_of(P.age.to_numpy())
     rows = [(b, P.weight[pb == i].sum() / 1e6, shape.pep_adults[b] / 1e6) for i, b in enumerate(BANDS)]
     rows.append((f'under {AGE_LIM}', P.weight[P.age < AGE_LIM].sum() / 1e6, pep_kids[f'pep_u{AGE_LIM}'] / 1e6))
@@ -382,8 +334,8 @@ def calibrate(year):
     c2['difference'] = c2.cps_people - c2.census_pep
     c2.to_csv(f'{CHECKS}/{year}_people_by_age.csv', index=False)
 
-    # 4. non-filing adults and children against their targets. census_adults holds the CPS's adults (household
-    #    population), the population the targets are built on; the children's row holds Census PEP under 17.
+    # non-filing adults and children against their targets. census_adults holds the CPS's adults, on which the
+    # targets are built; the children's row holds the Census population under 17.
     after = grp7(hs_w * (1 - p_cal[hs_ui]))
     c4 = pd.DataFrame({'band': BANDS, 'census_adults': cps_adults, 'adults_on_returns_T16': shape.filing_adults.to_numpy(),
                        'anchor': A, 'gq_nonfilers': G, 'dependent_netting': dnet, 'target_heads_spouses': T_adult,
@@ -400,11 +352,11 @@ def calibrate(year):
     say(f'partition (CPS adults = adults on returns + non-filing heads and spouses + group quarters non-filers + '
         f'dependent netting): largest gap {part * 1e6:.3f} people')
 
-    # 3. expected filers and non-filers, against SOI (and the PUF in 2015)
+    # expected filers and non-filers against SOI (and the PUF in 2015)
     ttab = tables(year, out, P, sd)
     ttab.to_csv(f'{CHECKS}/{year}_filers_nonfilers.csv')
 
-    # 5. Pub 5785 check: non-filing people with wages
+    # non-filing people with wages against Pub 5785
     hsw = P.tu_rel.isin([1, 2]) & (P.wage > 0)
     hh_earn = (P.weight * (1 - P.p_file_cal))[hsw].sum()
     dep_earn = (w_d * (1 - p_own))[(sd.INCWAGE > 0).to_numpy()].sum()
@@ -479,8 +431,8 @@ def calibrate(year):
 
 
 def rows_for(d, p):
-    """d: returns (weight, filing_status, dependents, ...), p: filing chance. Returns two dicts: expected filers
-    (weight x p) and non-filers (weight x (1 - p)), millions."""
+    """Rows of the filers and non-filers table for returns d with filing chance p: expected filers (weight x p) and
+    non-filers (weight x (1 - p)), in millions."""
     res = []
     for wt in [d.weight.to_numpy() * p / 1e6, d.weight.to_numpy() * (1 - p) / 1e6]:
         s = d.filing_status.to_numpy()
@@ -518,8 +470,8 @@ def soi_column(year):
     d = d[(d.tax_year == str(year)) & d.row_label.str.startswith('All returns') & (d.col_seq == '1')
           & (d['item'] == 'number of returns')]
     s['dependent filers'] = d.value.astype(float).iloc[0] / 1e6 if len(d) else np.nan
-    # Table 1.6 counts dependents' own returns too, nearly all as single: net them out of single and of all, to
-    # match the CPS rows (dependents' own returns are folded into the unit that claims them)
+    # Table 1.6 counts dependents' own returns, nearly all as single. They are netted out of single and of all,
+    # because the CPS rows fold a dependent's own return into the unit that claims the dependent.
     if not np.isnan(s['dependent filers']):
         s['units, single'] -= s['dependent filers']; s['units, all'] -= s['dependent filers']
     if year in (2015, 2017):

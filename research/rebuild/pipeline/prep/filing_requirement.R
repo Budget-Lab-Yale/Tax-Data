@@ -1,31 +1,9 @@
 #-------------------------------------------------------------------------------
-# filing_requirement.R [year ...]: the statutory filing requirement of every CPS
-# tax unit, the second part of the filing stage (filing.py runs the first and the
-# third; run.py, stage filing).
-#
-# The ASEC is cleaned as build_cps.R cleans it, people in group quarters (GQ 2)
-# are left out, and the units are the roster filing.py wrote from the shared
-# tax-unit rules (tax_units.py), turned into production's unit table by
-# cbo_tax_units() (tax_units_cbo.R): head and spouse income summed, and a row for
-# every dependent aged 15 and over, for that dependent's own return. The filing
-# requirement is production's add_filing_requirement()
-# (src/nonfilers/asec_tax_units.R): gross income at or above the threshold for
-# the unit's filing status and age (Form 1040, Chart A), the dependent tests
-# (Chart B) on the dependents' rows, and net self-employment income of $400 or
-# more (Chart C). Nothing else is scored: no outside filing model.
-#
-# Writes, under <run's data folder>/<cps.step1_dir>/requirement/:
-#   units_<year>.csv.gz    one row per unit (household units, unit_type
-#                          'nondependent', and dependents' rows, 'dependent'):
-#                          unit_id, unit_type, SERIAL, head_pernum (the head's
-#                          PERNUM; on a dependent's row, the dependent's),
-#                          weight, age_head, must_file, threshold (the unit's
-#                          Chart A gross income threshold), INCWAGE
-#   persons_<year>.csv.gz  one row per person: SERIAL, PERNUM, unit_id, role,
-#                          AGE, ASECWT, INCWAGE (filing.py checks that these are
-#                          the same people in the same units as its own)
-# Optional arguments name tax years (default settings cps.years). Run from the
-# repository root through Slurm; ipumsr is in John's library, as for build_cps.R.
+# The statutory filing requirement of every CPS tax unit, the middle step of the
+# filing stage. Reads the cleaned ASEC and the tax-unit roster filing.py wrote;
+# applies production's add_filing_requirement() (Form 1040, Charts A to C,
+# including a row for each dependent aged 15 and over); writes units_<year> and
+# persons_<year> under data/filing/requirement/. Run from the repository root.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)

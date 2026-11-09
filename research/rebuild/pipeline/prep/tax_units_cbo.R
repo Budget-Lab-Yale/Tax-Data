@@ -1,15 +1,10 @@
 #-------------------------------------------------------------------------------
-# tax_units_cbo.R: the CBO-rule tax units (pipeline/tax_units.py) in the form production's builder returns, so
-# production's code reads them unchanged: the statutory filing requirement (filing_requirement.R) and build_cps.R's
-# unit table.
-#
-# cbo_tax_units(x, yr, roster_path) takes the cleaned ASEC person table x (as build_cps.R prepares it, group
-# quarters already left out) and the roster tax_units.py wrote (roster_<year>_<variant>_nogq.csv.gz: one row per
-# person, with the head's person number tu_id, the role tu_rel 1 head, 2 spouse, 3 qualifying child, 4 qualifying
-# relative, the dependent's type and the unit's filing status). It returns list(persons, units) with the columns of
-# build_asec_tax_units(): the unit table is made by production's own build_asec_unit_table() (head and spouse
-# income summed; a scoring row for every dependent aged 15 and over), and the filing status is then set to CBO's:
-# joint with a spouse, head of household with any dependent, single otherwise.
+# cbo_tax_units(x, yr, roster_path): the tax units tax_units.py built, in the form
+# production's ASEC builder returns, so that production's filing requirement and
+# build_cps.R read them unchanged. x is the cleaned ASEC person table without
+# group quarters; the unit table comes from build_asec_unit_table(), with CBO's
+# filing status (joint with a spouse, head of household with a dependent, else
+# single).
 #-------------------------------------------------------------------------------
 cbo_tax_units = function(x, yr, roster_path) {
   ro = fread(roster_path)
