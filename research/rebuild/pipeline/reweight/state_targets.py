@@ -1,10 +1,13 @@
 """The targets of the state weights for one year's file, from IRS Historic Table 2, SOI Table 1.7 and the CPS.
 
 Historic Table 2 gives, for each state and AGI group, the number of returns and the amounts of about 50 lines of the
-return. A filer target for an area, AGI group and item is the file's national total of the item in the group times
-the area's share of that total in Historic Table 2. The IRS's table thus sets how the total is divided among the
-areas, and the file sets the total. The non-filer targets are each state's adults by age band, built from the CPS and
-the IRS's counts of adults on returns. The rules are in FEATURES.md, "State weights".
+return. A filer target for an area, AGI group and item is the area's share of the national total in Historic Table 2.
+The integrated solve (state_joint.py) meets it as a share of the file's own national total of the item in the group,
+at the weights it finds. The IRS's table thus sets how the total is divided among the areas, and the file sets the
+total. The target's value in dollars or returns, written in the tables here, is the share times the file's national
+total at the starting weights; it sets the standard error and decides which cells have a target. The non-filer
+targets are each state's adults by age band, built from the CPS and the IRS's counts of adults on returns. The rules
+are in FEATURES.md, "State weights".
 """
 import os
 
@@ -273,9 +276,11 @@ def cell_rule(values, file_total):
 
 def filer_targets(df, group, ht2, items, year):
     """The filer targets of one year, one row per area, AGI group and item, and notes on the cells with no target. df
-    holds the file's filers and group their AGI groups. Example, 2019, wages in the $50,000-75,000 group in
-    Connecticut: the IRS puts 1.141% of the national total there and the file's total is $1,070.2 billion, so the
-    target is $12.21 billion."""
+    holds the file's filers, with their weights at the start of the solve, and group their AGI groups. Each row gives
+    the area's share and the target at the starting weights (the share times the file's national total in the group).
+    Whether a cell has a target is decided at those weights too. Example, 2019, wages in the $50,000-75,000 group in
+    Connecticut: the IRS puts 1.141% of the national total there; with $1,070 billion in the group at the start, the
+    target is about $12.2 billion, and the solve meets 1.141% of the group's final total."""
     w = df['weight'].to_numpy(float)
     x = item_vectors(df, items)
     rows, notes = [], []
@@ -427,9 +432,9 @@ def rake(seed, row, col, steps=200):
 
 def nonfiler_targets(df_nf, ht2, year, data_dir):
     """The non-filer targets: adults by state and age band. The CPS's adults by state and band are raked to the states'
-    residuals and to the file's non-filer adults by band. Each state's target in a band is the file's adults in the
-    band times the state's share of the band. Returns the targets, the table by state, and each record's adults by
-    band (X)."""
+    residuals and to the file's non-filer adults by band, at the weights in df_nf (the starting weights). Each state's
+    target in a band is the state's share of the band; its value in the table is that share times the file's adults in
+    the band at those weights. Returns the targets, the table by state, and each record's adults by band (X)."""
     table = nonfiler_state_table(year, ht2, data_dir)
     a1, a2 = df_nf['age1'].to_numpy(float), df_nf['age2'].to_numpy(float)
     married = df_nf['married'].to_numpy() == 1

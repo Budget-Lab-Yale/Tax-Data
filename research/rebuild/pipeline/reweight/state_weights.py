@@ -92,10 +92,10 @@ LIST_FULL = 0.9     # a cell where the Forbes records hold this share of the tar
 
 def tolerances(tg, tolerance):
     """Each state target's standard error: the tolerance times the larger of the target and CELL_FLOOR times the item's
-    national total in the group. For a count, the error from rounding the IRS's counts to the nearest 10 is added (the
-    two combined as independent errors). Historic Table 2 has no sampling error, so the tolerance is a choice. Example,
-    with a 2% tolerance: Connecticut's 2019 target of $12.21 billion of wages in the $50-75k group has a standard error
-    of $244 million."""
+    national total in the group, both at the starting weights. For a count, the error from rounding the IRS's counts
+    to the nearest 10 is added (the two combined as independent errors). Historic Table 2 has no sampling error, so the
+    tolerance is a choice. Example, with a 2% tolerance: Connecticut's 2019 target of about $12.2 billion of wages in
+    the $50-75k group has a standard error of about $244 million."""
     t = tg['target'].abs().to_numpy()
     total = (tg['target'] / tg['share']).abs().to_numpy()
     se = tolerance * np.maximum(t, CELL_FLOOR * total)
