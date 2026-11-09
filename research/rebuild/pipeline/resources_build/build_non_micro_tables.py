@@ -1,8 +1,10 @@
-"""The published tables the non-microdata imputations read (non_micro_imputations.py), written to the committed
-folder resources/non_micro/ (run.py stage non_micro_tables, when a source changes). Sources: production's resources/
-(SSA life tables, Chetty et al.'s mortality and mobility, Johnson et al.'s marital factors, SOI's sales of capital
-assets, the S&P 500), the Federal Reserve's Z.1, Census population estimates, SOI's Publication 4801, the 2015 PUF and
-the law. sources.csv in the same folder records each table's source and construction.
+"""Builds the published tables that the non-microdata imputations read (scale/non_micro_imputations.py) into the
+committed folder resources/non_micro/. It is run by hand (run.py stage non_micro_tables) when a source changes.
+
+The sources are production's resources/ folder (SSA life tables, Chetty et al.'s mortality and mobility tables,
+Johnson et al.'s marital factors, SOI's sales of capital assets, the S&P 500), the Federal Reserve's Financial Accounts
+(Z.1), Census population estimates, SOI's Publication 4801, the 2015 PUF and the law. Each table has one function
+below. sources.csv, in the same folder, records each table's source and how it was built.
 """
 import io
 import os
@@ -18,19 +20,21 @@ REPO = common.REPO
 PROD = os.path.join(REPO, 'resources')
 OUTDIR = os.path.join(common.RESOURCES, 'non_micro')
 RAW = common.RAW
-SOURCES = []
+SOURCES = []   # the rows of sources.csv, added by note()
 
 
 def note(table, source, how):
+    """Records a table's source and how it was built, for sources.csv."""
     SOURCES.append({'table': table, 'source': source, 'how': how})
 
 
 def write(df, name):
+    """Writes a table to the output folder."""
     df.to_csv(os.path.join(OUTDIR, name), index=False)
     common.say(f'{name}: {len(df)} rows')
 
 
-# ---- the law ---------------------------------------------------------------------------------------------------
+# ---- The law ----
 def dependent_threshold():
     """Chart B's earned income threshold for a dependent (the single standard deduction), as production's
     filing_requirement_params() in src/nonfilers/asec_tax_units.R has it, 2014-2023."""
@@ -51,7 +55,7 @@ def ctc_age_limit():
          '(under 18 for 2021 only)', 'typed in, 2015-2025')
 
 
-# ---- death probabilities ----------------------------------------------------------------------------------------
+# ---- Death probabilities ----
 def life_table():
     """SSA's period life tables of the 2024 Trustees Report: q(x) and L(x) by year, sex and single age 0-119, the
     historical tables to 2021 and the intermediate (alternative 2) projections from 2022, years 2010-2100."""
@@ -72,8 +76,9 @@ def life_table():
 
 def chetty_ratio():
     """Chetty et al. (2016) Table 15: mortality by sex, age at death and household income percentile, 2001-2014.
-    As production's build_chetty_R(): ages put in four bins (under 50, 50-59, 60-69, 70 and over), the rate averaged
-    over ages and years in each bin, then divided by its mean over the 100 percentiles, so it averages 1."""
+    As in production's build_chetty_R(), ages are put in four bins (under 50, 50-59, 60-69, 70 and over), and the rate
+    is averaged over ages and years in each bin, then divided by its mean over the 100 percentiles, so that it
+    averages 1."""
     raw = pd.read_csv(os.path.join(PROD, 'chetty_table_15.csv'))
     assert raw['mortrate'].notna().all()
     a = raw['age_at_d']
@@ -89,6 +94,7 @@ def chetty_ratio():
 
 
 def johnson():
+    """Johnson et al. (2000): mortality factors by marital status, copied from production."""
     shutil.copy(os.path.join(PROD, 'johnson_2000_marital_hr.csv'), os.path.join(OUTDIR, 'johnson_marital_factor.csv'))
     note('johnson_marital_factor.csv', 'Johnson, Backlund, Sorlie and Loveless (2000), Annals of Epidemiology 10(4), '
          'as in Ricco (2020) Table 5; production resources/johnson_2000_marital_hr.csv',
@@ -96,7 +102,8 @@ def johnson():
 
 
 def census_population():
-    """National resident population by sex and single year of age (85 = 85 and over), July 1, 2015-2024."""
+    """The national resident population by sex and single year of age (85 means 85 and over), on July 1 of
+    2015-2024."""
     base = RAW['census_pep']
     parts = []
     for f, years in [('sc-est2020int-alldata6.csv', range(2015, 2020)), ('sc-est2024-alldata6.csv', range(2020, 2025))]:
@@ -113,7 +120,8 @@ def census_population():
          'death probabilities\' check')
 
 
-# ---- yearly unrealized gains ------------------------------------------------------------------------------------
+# ---- Yearly unrealized gains ----
+# Each asset's Z.1 series code and what it is.
 Z1_SERIES = {'equities': ('153064105', 'corporate equities, directly held'),
              'mutual_funds': ('153064205', 'mutual fund shares (shown in the check only)'),
              'pass_throughs': ('152090205', "proprietors' equity in noncorporate business"),
@@ -122,10 +130,10 @@ Z1_SERIES = {'equities': ('153064105', 'corporate equities, directly held'),
 
 
 def z1_rates():
-    """Each year's revaluation rate by asset, households and nonprofit organizations: the year's revaluation (FR
+    """Each year's revaluation rate by asset, for households and nonprofit organizations: the year's revaluation (FR
     series, Z.1 table S1M.i.a, annual) over the amount held at the end of the year before (LM series, same table).
-    The same series production's long-run rates were computed from (Tax-Data docs/wealth_accruals_design.md, then
-    table R.101; the Federal Reserve renamed the tables on 11 June 2026)."""
+    These are the series that production's long-run rates were computed from (Tax-Data docs/wealth_accruals_design.md,
+    which calls the table R.101). Also writes production's long-run rates."""
     with zipfile.ZipFile(RAW['z1']) as z:
         a = pd.read_csv(io.BytesIO(z.read('csv/S1M_i_a.csv')))
     a['year'] = a['date'].astype(str).str[:4].astype(int)
@@ -158,8 +166,11 @@ def z1_rates():
          'data (projections). No year column: one row per asset')
 
 
-# ---- holding period and basis, parents' rank --------------------------------------------------------------------
+# ---- Holding period and basis, and parents' rank ----
+
 def copies():
+    """Tables copied from production as they are: SOI's sales of capital assets, the S&P 500 and the mobility
+    matrix."""
     for src, dst, source, how in [
             ('soca_basis_sales.csv', 'soca_basis_sales.csv',
              'SOI Sales of Capital Assets panel, basis-to-sales ratio of long-term gains by holding period, 1985 and '
@@ -181,10 +192,11 @@ def copies():
         note(dst, source, how)
 
 
-# ---- checks -----------------------------------------------------------------------------------------------------
+# ---- Checks ----
 def soi_children():
-    """Children on returns claiming the additional child tax credit: Schedule 8812 line 4 (the number of qualifying
-    children under 17 with a Social Security number times $1,400) divided by $1,400, Publication 4801, 2018-2020."""
+    """The children on returns claiming the additional child tax credit, 2018-2020: Schedule 8812 line 4 (the number
+    of qualifying children under 17 with a Social Security number, times $1,400) divided by $1,400, from Publication
+    4801."""
     li = pd.read_csv(os.path.join(RAW['soi_mirror'], 'line_items.csv'))
     m = (li.form == 'Schedule 8812') & (li.line.astype(str) == '4') & (li.universe == 'all returns')
     rows = []
@@ -202,13 +214,12 @@ def soi_children():
          'claiming the additional child tax credit, so a lower bound on all the credit\'s children')
 
 
-# ---- blindness --------------------------------------------------------------------------------------------------
+# ---- Blindness ----
 def pub4801_blind():
     """The age and blindness boxes checked on all individual returns, and the returns taking the standard deduction,
-    SOI Publication 4801 (line item estimates), read off the publication's pages:
-    2015 and 2017 the all-forms total of Form 1040 line 39a and Form 1040A line 23a
-    (1040EZ has no boxes); 2018 and 2019 Form 1040 page 1 (the age and blindness boxes) and the summary table's basic
-    standard deduction."""
+    from SOI Publication 4801 (line item estimates), typed in from the publication's pages. For 2015 and 2017 they are
+    the all-forms total of Form 1040 line 39a and Form 1040A line 23a (Form 1040EZ has no boxes); for 2018 and 2019,
+    Form 1040 page 1 (the age and blindness boxes) and the summary table's basic standard deduction."""
     rows = [(2015, 24362239, 256557, 10153231, 81906, 103844288), (2017, 25924675, 260535, 10959898, 83983, 104013115),
             (2018, 26686849, 269239, 11260158, 75785, 134270136), (2019, 27477794, 260291, 11609322, 80564, 138307604)]
     write(pd.DataFrame(rows, columns=['year', 'primary_65_or_older', 'primary_blind', 'spouse_65_or_older', 'spouse_blind',
@@ -221,14 +232,14 @@ def pub4801_blind():
 
 def puf_blindness(puf, age_range):
     """The primary filer's blindness on each PUF record, where the return shows it: 1 blind, 0 not blind, -1 not
-    known. Shown
-    only on unmarried returns taking the standard deduction (filing status single or head of household, FDED 2), not
-    dependent filers (DSI 1, whose deduction is limited), with an age range: there the deduction above the basic amount,
-    in units of the additional amount (settings blindness: $1,550 in 2015), is the number of extra boxes; the boxes are
-    a whole number on 97% of these returns. Blind = the boxes less one at 65 and over (age range 65+). Not known: joint
-    returns (in the 2015 PUF they show only 0, 2 or 4 boxes, the spouses evened out), separate returns, itemizers,
-    dependent filers, records with no age range, boxes that are not a whole number, and boxes that do not fit the age
-    (none at 65 and over, or two under 65). Prints the counts."""
+    known. It is shown only on unmarried returns taking the standard deduction (filing status single or head of
+    household, FDED 2) that are not dependent filers (DSI 1, whose deduction is limited) and have an age range. On
+    those returns, the deduction above the basic amount, in units of the additional amount (settings blindness:
+    $1,550 in 2015), is the number of boxes checked; it is a whole number on 97% of them. Blind is the number of boxes
+    less one at 65 and over (the 65+ age range). It is not known on: joint returns (in the 2015 PUF they show only 0,
+    2 or 4 boxes, the spouses evened out), separate returns, itemizers, dependent filers, records with no age range,
+    returns whose boxes are not a whole number, and returns whose boxes do not fit the age (none at 65 and over, or two
+    under 65). Prints the counts."""
     B = common.SETTINGS['blindness']
     mars, fded, dsi = (puf[c].to_numpy() for c in ('MARS', 'FDED', 'DSI'))
     ded = puf['P04470'].to_numpy(float)
@@ -251,10 +262,10 @@ def puf_blindness(puf, age_range):
 
 
 def puf_blind_rates():
-    """The PUF's blind rate by the primary filer's age range, on the returns where blindness is shown (puf_blindness),
-    weighted (S006). The blindness rule (non_micro_imputations.blindness) applies these rates, times one factor per
-    person type, to every primary filer and spouse in the file. Age ranges as the training table's (ages.py, observed
-    range only; records with no range are left out of the rates)."""
+    """The PUF's weighted (S006) blind rate by the primary filer's age range, on the returns where blindness is shown
+    (puf_blindness). The blindness rule (non_micro_imputations.blindness) applies these rates, times one factor per
+    kind of person, to every primary filer and spouse in the file. The age ranges are the training table's (ages.py),
+    known ranges only; records with no range are left out of the rates."""
     from shared import ages
     from prep import build_table
     puf = build_table.read_puf()
@@ -283,6 +294,7 @@ def puf_blind_rates():
          'filer\'s age range (age_to empty: no upper limit)')
 
 
+# Every table, in the order built.
 TABLES = [dependent_threshold, ctc_age_limit, life_table, chetty_ratio, johnson, census_population, z1_rates, copies,
           soi_children, pub4801_blind, puf_blind_rates]
 
@@ -290,8 +302,8 @@ HAND_BUILT = ['irs_wages_by_business_type.csv']   # by build_irs_wages.py (this 
 
 
 def main(names=None):
-    """Every table; or, with names (python -m resources_build.build_non_micro_tables pub4801_blind ...), only those, their rows of
-    sources.csv replaced and the other rows kept."""
+    """Builds every table, or with names (python -m resources_build.build_non_micro_tables pub4801_blind ...) only
+    those, replacing their rows of sources.csv and keeping the other rows."""
     os.makedirs(OUTDIR, exist_ok=True)
     run = [f for f in TABLES if not names or f.__name__ in names]
     assert not names or len(run) == len(names), f'unknown tables in {names}'
@@ -301,7 +313,7 @@ def main(names=None):
     path = os.path.join(OUTDIR, 'sources.csv')
     if os.path.exists(path):
         old = pd.read_csv(path)
-        # a run of some tables keeps every other table's row; a full run keeps the hand-built table's row, last
+        # A run of some tables keeps every other table's row. A full run keeps the hand-built table's row, placed last.
         if names:
             src = pd.concat([old[~old['table'].isin(src['table'])], src], ignore_index=True)
         else:

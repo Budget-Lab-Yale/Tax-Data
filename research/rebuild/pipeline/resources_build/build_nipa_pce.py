@@ -1,7 +1,9 @@
-"""Builds resources/growth/nipa_pce_categories.csv: nominal PCE in the eight CEX categories, billions of
-dollars, 2010-2025, from BEA NIPA Table 2.4.5U (release of 29 October 2026, as a CSV of series, period and millions).
-The columns are those of production's resources/pce_historical.csv, which starts in 2017. Other services and health is
-total PCE less goods less housing and utilities. Prints the largest difference from production's file. Usage:
+"""Builds resources/growth/nipa_pce_categories.csv: nominal personal consumption expenditures (PCE) in the eight CEX
+categories, in billions of dollars, 2010-2025. It is run by hand. The source is BEA NIPA Table 2.4.5U, release of 29
+October 2026, as a CSV of series, period and millions of dollars. The columns are those of production's
+resources/pce_historical.csv, which starts in 2017. Other services and health is total PCE less goods less housing
+and utilities. The script prints the largest difference from production's file in the years both cover.
+
     python -I research/rebuild/pipeline/resources_build/build_nipa_pce.py <nipa csv> <pce_historical.csv> <out csv>
 """
 import csv
@@ -12,6 +14,7 @@ v = {}
 for r in csv.DictReader(open(src)):
     if r['millions_of_dollars'].strip('. '):   # BEA marks a value it does not publish with dots
         v[(r['series'], int(r['period']))] = float(r['millions_of_dollars']) / 1000
+# Each category's NIPA series, summed; gdp_c is total PCE.
 COLS = {'c_clothing': ['DCLORC'], 'c_motor_vehicles': ['DMOTRC'], 'c_durables': ['DFDHRC', 'DREQRC', 'DODGRC'],
         'c_other_nondurables': ['DONGRC'], 'c_food_off_premises': ['DFXARC'], 'c_gasoline': ['DGOERC'],
         'c_housing_utilities': ['DHUTRC'], 'gdp_c': ['DPCERC']}

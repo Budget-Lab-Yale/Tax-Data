@@ -1,5 +1,6 @@
-"""Builds the Z.1 counterparts of the SCF's balance-sheet categories, fourth-quarter levels, 2010-2075; after 2025 each
-is held at its 2025 ratio to nominal GDP.
+"""Builds the Financial Accounts (Z.1) counterparts of the SCF's balance-sheet categories: fourth-quarter levels,
+2010-2075, one file per category (resources/growth/z1_scf_<category>.csv). After 2025 each is held at its 2025 ratio
+to nominal GDP. It is run by hand.
 
     python -I research/rebuild/pipeline/resources_build/build_z1_scf_categories.py S1M_b.csv macro_directory output_directory
 """
@@ -8,8 +9,9 @@ from pathlib import Path
 import sys
 
 source, macro, output = map(Path, sys.argv[1:])
-# S1M.b, households and nonprofits. Other real estate is total less owner occupied;
-# other assets combine consumer durables, life insurance, loans and miscellaneous assets.
+# The series of Z.1 table S1M.b (households and nonprofits) in each category, with their signs. Other real estate is
+# the total less owner-occupied real estate. Other assets combine consumer durables, life insurance, loans and
+# miscellaneous assets.
 series = {
     'deposits_bonds': {'FL153020005.Q': 1, 'FL153030005.Q': 1, 'LM153030505.Q': 1, 'LM154022005.Q': 1},
     'stocks_funds': {'LM153064105.Q': 1, 'LM153064205.Q': 1},

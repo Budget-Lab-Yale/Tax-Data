@@ -1,8 +1,9 @@
-"""Builds resources/top/forbes_billionaires_<year>.csv: the US billionaires on Forbes's World's Billionaires
-list of the year, one row per entry, from Forbes's own JSON for the list (fetch dates, counts and checksums in
-sources.csv). A US billionaire is an entry with US citizenship and a net worth of $1 billion or more. Married couples
-listed as two entries (SPOUSE_PAIRS, found by reading the entries by hand) are joined as one joint return. The
-columns ending in _later come from production's 2025 Forbes profiles and are not dated to the list's year.
+"""Builds resources/top/forbes_billionaires_<year>.csv: the US billionaires on Forbes's World's Billionaires list
+of the year, one row per entry, from Forbes's own JSON file of the list (the fetch dates, counts and checksums are in
+sources.csv). It is run by hand, once per list. A US billionaire is an entry with US citizenship and a net worth of
+$1 billion or more. A married couple listed as two entries (SPOUSE_PAIRS, found by reading the entries by hand) is
+marked as one joint return. The columns ending in _later come from production's 2025 Forbes profiles and are not
+dated to the list's year.
 
     python -I research/rebuild/pipeline/resources_build/build_forbes.py <year> <forbes json> <production resources/forbes folder> <output csv>
 """
@@ -11,7 +12,8 @@ import datetime as dt
 import json
 import sys
 
-# (first uri, second uri): married couples listed as two entries; joined in a year where both are US entries
+# Married couples listed as two entries, as (first uri, second uri); a uri is Forbes's id of an entry. In a year where
+# both are US entries, each entry names the other in the column joint_with.
 SPOUSE_PAIRS = [('stanley-kroenke', 'ann-walton-kroenke'),   # married 1974
                 ('eren-ozmen', 'fatih-ozmen'),               # "Ozmen and her husband Fatih"
                 ('sehat-sutardja', 'weili-dai'),             # "cofounded ... Marvell Technology with his wife, Weili Dai"
@@ -26,23 +28,26 @@ SPOUSE_PAIRS = [('stanley-kroenke', 'ann-walton-kroenke'),   # married 1974
                 ('jay-z', 'beyonce-knowles-carter'),         # "Her husband Jay-Z is also a billionaire"
                 ('li-ge', 'zhao-ning')]                      # wife and cofounder; she died in 2023 (a joint return that year)
 SPOUSES = {a: b for x, y in SPOUSE_PAIRS for a, b in [(x, y), (y, x)]}
-# entries naming two people: married couples (one joint return) and siblings (one family fortune); a uri counts only
-# in a year whose entry names two people (Judy Love's and Jack Dangermond's entries name one person in 2018-2019)
+# Entries that name two people: married couples (one joint return) and siblings (one family fortune). A uri counts
+# only in a year whose entry names two people (Judy Love's and Jack Dangermond's entries name one person in 2018-2019).
 COUPLES = {'stewart-and-lynda-resnick', 'stewart-lynda-resnick', 'do-won-jin-sook-chang', 'andrew-peggy-cherng',
            'judy-love', 'jack-dangermond', 'mark-robyn-jones'}
 SIBLINGS = {'hank-doug-meijer'}
-# the list month, and the US count and total ($ billion) in the data, checked
+# Each list's month, and the US count and total ($ billion) in the data, which the script checks.
 MONTH = {2015: 3, 2016: 3, 2017: 3, 2018: 3, 2019: 3, 2020: 4, 2021: 4, 2022: 4, 2023: 4, 2024: 4, 2025: 4, 2026: 3}
 COUNTS = {2015: (535, 2564.3), 2016: (541, 2400.1), 2017: (565, 2755.9), 2018: (586, 3098.7), 2019: (607, 3111.0),
           2020: (615, 2948.7), 2021: (724, 4398.4), 2022: (735, 4701.1), 2023: (734, 4489.0), 2024: (813, 5700.8),
           2025: (902, 6750.4), 2026: (991, 8431.4)}
-# Forbes's published US count and total ($ trillion; None where not checked), from Forbes's announcement of each list
+# Forbes's published US count and total ($ trillion; None where not checked), from Forbes's announcement of each
+# list. They are printed beside the data's for comparison.
 PUBLISHED = {2015: (536, None), 2016: (540, None), 2017: (565, None), 2018: (585, None), 2019: (607, 3.1),
              2020: (614, 2.9), 2021: (724, 4.4), 2022: (735, 4.7), 2023: (735, 4.5), 2024: (813, 5.7),
              2025: (902, 6.8), 2026: (989, 8.4)}
 
 
 def main(year, src, prod, out):
+    """Writes the year's US billionaires to out, from Forbes's JSON src and production's Forbes folder prod."""
+    # 1. Keep the US entries worth $1 billion or more, and check their count and total.
     year = int(year)
     d = json.load(open(src))['personList']['personsLists']
     assert all(r['year'] == year and r['month'] == MONTH[year] for r in d), f'not the {MONTH[year]}/{year} list'
@@ -52,16 +57,19 @@ def main(year, src, prod, out):
     us = [r for r in us if r['finalWorth'] >= 1000]
     total = sum(r['finalWorth'] for r in us)
     assert len(us) == COUNTS[year][0] and abs(total / 1e3 - COUNTS[year][1]) < 0.05, (len(us), total)
+    # 2. Production's profiles, and each entry's latest net worth in production's 2022-2025 lists.
     prof = {r['uri']: r for r in csv.DictReader(open(f'{prod}/forbes_profiles.csv'))}
     later = {}
     for r in csv.DictReader(open(f'{prod}/forbes_billionaires_2022_2025.csv')):
         if r['forbes_uri'] and (r['forbes_uri'] not in later or int(r['year']) > later[r['forbes_uri']][0]):
             later[r['forbes_uri']] = (int(r['year']), float(r['net_worth']))
+    # 3. Classify the entries that name two people, and find the spouses listed as two entries.
     named_two = {r['uri'] for r in us if (' & ' in r['personName'] or ' and ' in r['personName'])
                  and '& family' not in r['personName'].lower()}
     assert named_two <= COUPLES | SIBLINGS, f'entries naming two people not classified: {sorted(named_two - COUPLES - SIBLINGS)}'
     uris = {r['uri'] for r in us}
     joined = {u: v for u, v in SPOUSES.items() if u in uris and v in uris}
+    # 4. One row per entry. The public share is the entry's publicly traded equity over its later net worth, at most 1.
     rows = []
     for r in us:
         p = prof.get(r['uri'])

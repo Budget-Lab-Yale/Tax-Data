@@ -1,9 +1,10 @@
-"""The long-run projection years, after CBO's last year used (settings tilt.projection.cbo_last_year) to 2075.
+"""Builds the series of the long-run projection years: from the last CBO year used (settings
+tilt.projection.cbo_last_year) to 2075. It is run by hand.
 
-Every series the projection years read continues at the growth of one Macro-Projections aggregate, as its row of
-resources/projection_long_run_mapping.csv says: in total, per unit (adults, a married couple counted once), per
-person, or as a fading trend. Writes growth/macro_long_run.csv and adds the later rows to the Z.1, population and
-projection_series_*.csv files, keeping the earlier rows byte for byte.
+Every series that the projection years read continues at the growth of one Macro-Projections aggregate, as the
+series' row of resources/projection_long_run_mapping.csv says: in total, per unit (adults, a married couple counted
+once), per person, or as a fading trend. Writes growth/macro_long_run.csv and adds the later rows to the Z.1,
+population and projection_series_*.csv files, keeping the earlier rows byte for byte.
 
     python -m resources_build.build_long_run [<Macro-Projections folder>]
 """
@@ -27,7 +28,7 @@ LAST = 2075
 AGG = ['gdp', 'gdp_c', 'gdp_i', 'gdp_wages', 'gdp_proprietors', 'gdp_rent', 'gdp_interest', 'gdp_div', 'gdp_corp',
        'outlays_mand_oasdi', 'cpiu', 'pce_deflator']
 
-# ---- 1. the aggregates ------------------------------------------------------------------------------------------
+# ---- 1. The aggregates, and the number of units and people, from Macro-Projections ----
 h, p = pd.read_csv(os.path.join(MP, 'historical.csv')), pd.read_csv(os.path.join(MP, 'projections.csv'))
 m = pd.concat([h, p[~p.year.isin(h.year)]]).set_index('year').sort_index()
 married = [c for c in m.columns if c.startswith('married_')]
@@ -46,16 +47,18 @@ lev = lr.set_index('year')
 
 
 def agg(name, y):
-    # a sum of terms, each a product of Macro-Projections columns ('gdp * tsy_3m': nominal GDP times the 3-month bill
-    # rate, the taxable interest series of build_interest_series.py). Read from the whole interface,
-    # so a rate need not be one of AGG; a column of AGG has the same value in both
+    """An aggregate's value in year y. name is a sum of terms, each a product of Macro-Projections columns: 'gdp *
+    tsy_3m' is nominal GDP times the 3-month bill rate, the taxable interest series of build_interest_series.py. The
+    columns are read from the whole Macro-Projections table, so a rate need not be one of AGG; a column of AGG has
+    the same value in both."""
     return float(sum(np.prod([float(m.loc[y, f.strip()]) for f in c.split('*')]) for c in name.split('+')))
 
 
-# ---- 2. the Z.1 and population files past 2060 ------------------------------------------------------------------
+# ---- 2. The Z.1 and population files after 2060 ----
+# The Z.1 series grow with nominal GDP from their 2025 level; the population is Macro-Projections'.
 def extend_lines(path, rows_after):
-    """Keep the file's lines up to 2060 as they are, line ends included (carriage return and line feed, csv's
-    default), and write the later rows the same way."""
+    """Keeps the file's lines up to 2060 as they are, line ends included (a carriage return and line feed, the csv
+    module's default), and writes the later rows the same way."""
     with open(path, newline='') as f:
         raw = f.read()
     eol = '\r\n' if raw.endswith('\r\n') else '\n'
@@ -81,13 +84,15 @@ note = pd.read_csv(path).set_index('year').loc[2060, 'note']
 extend_lines(path, [[y, f'{m.loc[y, "population"]:.0f}', note] for y in range(2061, LAST + 1)])
 print('Z.1 and population files: rows 2061-2075 added')
 
-# ---- 3. the items table's series -----------------------------------------------------------------------------------
+# ---- 3. The series of the projection_series_b and _med files ----
 MAP = pd.read_csv(os.path.join(RES, 'projection_long_run_mapping.csv'), keep_default_na=False)
 assert not MAP.duplicated(['file', 'column']).any(), 'mapping: a column twice'
 
 
 def continued(col, kind, aggregate, per, v):
-    """The column's values L+1..LAST from its value v[L] (v: {year: value})."""
+    """The column's values from L + 1 to LAST, from its value v[L] (v: {year: value}). kind is not read. With the
+    aggregate 'fade', the last year's growth continues; otherwise the value grows with the aggregate, per unit of
+    per if given."""
     out = {}
     for y in range(L + 1, LAST + 1):
         if aggregate == 'fade':
@@ -102,7 +107,8 @@ def continued(col, kind, aggregate, per, v):
 
 
 def write_series(name, base_lines, values):
-    """base_lines: the file's header and rows up to L, kept as they are; values: {column: {year: value}} after L."""
+    """Writes a series file: base_lines, the file's header and rows up to L, kept as they are; then values,
+    {column: {year: value}}, for the years after L."""
     header = base_lines[0].split(',')
     with open(os.path.join(RES, name), 'w', newline='') as f:
         f.write('\n'.join(base_lines) + '\n')
@@ -124,12 +130,13 @@ for name in ('projection_series_b.csv', 'projection_series_med.csv'):
     write_series(name, base, vals)
     print(f'{name}: rows {L + 1}-{LAST} added for {len(d.columns)} columns')
 
-# ---- 4. the series of the items that follow the Z.1 or NIPA, then CBO --------------------------------------------
-# projection_series_current.csv: for each items-table row on series 'current' (the balance sheet, pass-through gains
-# and the consumption categories), the growth in total from 2023. Each year's growth per return is the series' growth
-# over CBO's growth in the number of returns; resources/projection_growth_mapping.csv names the series, by the item's
-# old name where it has one (Z.1 fourth-quarter stocks and NIPA PCE categories through 2025, CBO's GDP and total PCE
-# after). The years' factors are compounded, then multiplied by CBO's growth in returns over the same years.
+# ---- 4. The series of the items that follow the Z.1 or NIPA, then CBO ----
+# projection_series_current.csv holds, for each item on the series 'current' (the balance sheet, the gains of
+# pass-through businesses and the consumption categories), the growth in total from 2023. Each year's growth per
+# return is the series' growth over CBO's growth in the number of returns. resources/projection_growth_mapping.csv
+# names the series, by the item's old name where it has one: Z.1 fourth-quarter stocks and NIPA PCE categories
+# through 2025, and CBO's GDP and total PCE after. The years' factors per return are multiplied together, then
+# multiplied by CBO's growth in returns over the same years.
 from scale.projection_growth import cbo_return_growth  # noqa: E402
 
 GROWTH_MAP = pd.read_csv(os.path.join(RES, 'projection_growth_mapping.csv'))
@@ -140,7 +147,7 @@ with zipfile.ZipFile(common.RAW['z1']) as archive:
 
 
 def z1_level(expr, y):
-    """The fourth-quarter level of a Z.1 expression 'FL... + LM... minus FL...', summed term by term."""
+    """The fourth-quarter level of a Z.1 expression such as 'FL... + LM... minus FL...', summed term by term."""
     parts = re.split(r' (\+|minus) ', expr)
     terms = [(parts[0], 1)] + [(parts[i + 1], 1 if parts[i] == '+' else -1) for i in range(1, len(parts), 2)]
     level = 0.
@@ -152,7 +159,7 @@ def z1_level(expr, y):
 
 
 def per_return(col, y):
-    """The column's growth per return from y - 1 to y."""
+    """The column's growth per return from year y - 1 to year y."""
     if col.startswith('c_'):
         a, b = (float(NIPA_PCE.loc[y - 1, col]), float(NIPA_PCE.loc[y, col])) if y <= 2025 else \
             (float(CBO_ECON[('pce', str(y - 1))]), float(CBO_ECON[('pce', str(y))]))

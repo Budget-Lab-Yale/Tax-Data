@@ -1,10 +1,12 @@
 """Dollars for generated records.
 
-The networks draw each amount as a band. draw_dollars turns a band into dollars by picking one of the band's real
-records in the source's dollar map, with chance proportional to its weight, then builds totals and each person's items
-from the parts. A record's stored uniform number (column u_<variable>) fixes the pick, so the record keeps the same real
-record's amount in every year. Balance-sheet amounts come from the map of the record's SCF wave, and CEX, CPS and SIPP
-amounts from the map of the record's survey year. The rules are in FEATURES.md, "Dollars in the target year".
+The networks draw each amount as a band. draw_dollars turns a band into dollars. The dollar map of an amount lists the
+real records in each band with their dollars, grown to the target year. A generated record takes the dollars of one of
+its band's real records, picked with chance proportional to the real record's weight. A number between 0 and 1 stored
+with the record (column u_<variable>) fixes the pick, so the record keeps the same real record's amount in every year.
+Balance-sheet amounts come from the map of the record's SCF wave, and CEX, CPS and SIPP amounts from the map of the
+record's survey year. draw_dollars then computes the totals from their parts, and each person's items. FEATURES.md,
+"Dollars in the target year", describes the rules.
 """
 import glob
 import os
@@ -15,14 +17,15 @@ import pandas as pd
 from shared import common
 from shared import translate as TR
 
-# The order fixes each amount's random stream and must not change. Amounts that are not drawn (kg_other,
-# retirement_gross, ss_taxable) keep their places, and a new amount goes at the end, so no other amount's stream moves.
+# The order of the amounts. Each amount's random draws come from its own stream, numbered by its place in this
+# order, so the order must not change. Amounts that are not drawn (kg_other, retirement_gross, ss_taxable) keep their
+# places, and a new amount goes at the end, so that no other amount's draws change.
 META = common.meta()
 OVERTIME = list(META['cps_structure'].get('overtime', []))
-# Amounts placed after all others, in this order
+# Amounts placed after all the others, in this order
 TAIL = ['elective_deferrals', 'spouse_deferral_share', *OVERTIME, 'w_dc_stock_share', 'biz_workers_cf', 'biz_workers_ps',
         'nontxbl_pens_dist', 'inheritance']
-# The CPS's amounts other than overtime, with the PUF's shares right after the spouse's wage share
+# The CPS's amounts other than overtime, with the PUF's shares placed right after the spouse's wage share
 _CPS_ORDER = [v for v in META['cps_amounts'] if v not in OVERTIME]
 for _v in reversed(META.get('puf_shares', [])):
     _CPS_ORDER.insert(_CPS_ORDER.index('spouse_wage_share') + 1, _v)
@@ -39,16 +42,16 @@ ORDER = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi', 'net_wo
 ORDER += [v for v in META['items'] if v not in ORDER and v not in META['computed_totals'] and v not in TAIL]
 ORDER += [v for v in TAIL if v in set(META['scf_amounts']) | set(OVERTIME) | set(META['items'])]
 NET_WORTH_PARTS = META['net_worth_parts']
-RATIOS = META['ratios']                           # slot: [dollar item, its base]
-REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
+RATIOS = META['ratios']                           # share slot: [the dollar item it makes, the amount it multiplies]
+REMAINDERS = META['remainders']                   # item: [total, other part]; the item is the total less the other part
 PERSON_CAPS = META.get('person_caps', {})         # slot: [item, its cap, an amount taken off the cap (optional)]
 SUMS = META.get('sums', {})                       # item: its parts (tips = tips1 + tips2)
-FLAGS_WITH = META.get('flags_with', {})           # item: [yes/no slot, the amount it holds with] (0 without it)
-AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: value 0 none, else the age + 1
+FLAGS_WITH = META.get('flags_with', {})           # item: [yes-or-no slot, the amount it needs] (0 without the amount)
+AGE_SLOTS = META['cps_structure']['ages']         # the CPS's exact ages: 0 for none, else the age plus 1
 KG_PIECES = META['kg_pieces']
-FOLD = META['agi_signs']                          # the AGI items folded into other_agi, with their signs
+FOLD = META['agi_signs']                          # the items of AGI added into other_agi, with their signs
 AGI_PARTS = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']
-# What taxable Social Security reads besides AGI and the filing status
+# What the taxable Social Security worksheet reads besides AGI and the filing status
 SS_INPUTS = ['gross_ss', 'exempt_int', 'sl_int_ded']
 
 
@@ -58,9 +61,9 @@ def agi(df):
 
 
 def retirement_items(out, in_agi=False):
-    """In place: gross pensions, the sum of its two parts, where the frame has both; and taxable Social Security by the
-    section 86 worksheet, added to other_agi so that it is in AGI. With in_agi, other_agi already holds the record's
-    ss_taxable, which is taken out before the worksheet runs again. Returns out."""
+    """Adds to out: gross pensions, the sum of its two parts, where out has both; and taxable Social Security by the
+    section 86 worksheet, added to other_agi so that it is part of AGI. With in_agi, other_agi already holds the
+    record's ss_taxable, which is taken out before the worksheet runs again. Returns out."""
     if all(p in out for p in common.PENSION_PARTS):
         parts = out[common.PENSION_PARTS].to_numpy(float)
         assert np.isfinite(parts).all(), 'a pension part missing on a record'
@@ -84,8 +87,8 @@ def signed_sum(df, parts):
 
 
 SCF_SET = set(META['scf_amounts'])
-WAVE_MAPS = 'scf waves'                           # load_maps' key for {wave: {variable: map rows}}
-YEAR_MAPS = 'survey years'                        # load_maps' key for {survey: {tax year: {variable: map rows}}}
+WAVE_MAPS = 'scf waves'                           # load_maps' key of {wave: {variable: map rows}}
+YEAR_MAPS = 'survey years'                        # load_maps' key of {survey: {tax year: {variable: map rows}}}
 YEAR_SURVEYS = {'cex': set(META['cex_amounts']), 'cps': set(META['cps_amounts']), 'sipp': set(META.get('sipp_amounts', []))}
 SURVEY_OF = {v: src for src, vs in YEAR_SURVEYS.items() for v in vs}   # amount: the survey whose year picks its map
 
@@ -111,7 +114,7 @@ def load_maps(year):
 
 
 def by_band(vmap):
-    """{band: (cumulative weights, values)} of the map rows vmap, kept on the frame after the first call."""
+    """{band: (cumulative weights, values)} of the map rows vmap. It is computed once and kept with vmap."""
     by = vmap.attrs.get('by_band')
     if by is None:
         by = {band: (np.cumsum(g['weight'].to_numpy()), g['value'].to_numpy()) for band, g in vmap.groupby('band', sort=True)}
@@ -120,7 +123,9 @@ def by_band(vmap):
 
 
 def draw_one(bands, vmap, rng, u=None):
-    """Dollars for bands from the map rows vmap. u holds each record's stored uniform number; None draws from rng."""
+    """Dollars for the bands from the map rows vmap. Each record takes the value of one real record in its band,
+    picked with chance proportional to weight by the record's number u (between 0 and 1). With u None, the numbers
+    are drawn from rng."""
     u = rng.random(len(bands)) if u is None else np.asarray(u, float)
     values = np.full(len(bands), np.nan)
     by = by_band(vmap)
@@ -135,7 +140,7 @@ def draw_one(bands, vmap, rng, u=None):
 
 
 def _draw_by_group(df, v, column, maps_by_group, rng, u, what):
-    """One amount, each record from the map of its own group (an SCF wave or a survey year, held in column)."""
+    """One amount, each record's from the map of its own group (an SCF wave or a survey year, held in column)."""
     bands, group = df[f'{v}_band'].to_numpy(), df[column].to_numpy()
     assert not pd.isna(group).any(), f'{int(pd.isna(group).sum())} records with no {what}'
     u = rng.random(len(bands)) if u is None else np.asarray(u, float)
@@ -148,23 +153,24 @@ def _draw_by_group(df, v, column, maps_by_group, rng, u, what):
 
 
 def draw_by_wave(df, v, maps, rng, u):
-    """One balance-sheet amount, each record from its own SCF wave's map (column scf_wave)."""
+    """One balance-sheet amount, each record's from the map of its own SCF wave (column scf_wave)."""
     assert WAVE_MAPS in maps, 'no SCF wave maps loaded'
     assert 'scf_wave' in df, f'{v}: the frame says nothing of which SCF wave each record was drawn from (scf_wave)'
     return _draw_by_group(df, v, 'scf_wave', maps[WAVE_MAPS], rng, u, 'SCF wave')
 
 
 def draw_by_year(df, v, maps, rng, u):
-    """One CEX, CPS or SIPP amount, each record from the map of its own year of that survey (column <survey>_year)."""
+    """One CEX, CPS or SIPP amount, each record's from the map of its own year of that survey (column <survey>_year)."""
     src = SURVEY_OF[v]
     assert YEAR_MAPS in maps and src in maps[YEAR_MAPS], f'no {src} maps by year loaded'
     return _draw_by_group(df, v, f'{src}_year', maps[YEAR_MAPS][src], rng, u, f'{src} year')
 
 
 def person_cap(x, cap, less=None):
-    """A person's amount x held to at most cap less `less`, never below zero. Returns (held, by_cap, by_less), where
-    by_cap is what the cap alone takes off and by_less what subtracting `less` takes off on top. Example: wages 50,000,
-    tips 20,000, drawn overtime 40,000: held 30,000, by_cap 0, by_less 10,000."""
+    """A person's amount x held to at most cap less `less`, and never below zero. Returns (held, by_cap, by_less):
+    by_cap is what the cap alone takes off, and by_less is what subtracting `less` takes off on top. Example: with
+    wages of $50,000, tips of $20,000 and drawn overtime of $40,000, overtime is held to $30,000; by_cap is 0 and
+    by_less is $10,000."""
     x, c = np.asarray(x, float), np.maximum(np.asarray(cap, float), 0.0)
     assert (x >= 0).all(), 'a drawn amount below zero'
     by_wages = np.minimum(x, c)
@@ -177,9 +183,10 @@ def person_cap(x, cap, less=None):
 
 
 def person_items(out, df):
-    """In place: each person's tips held to that person's wages, and overtime to wages less tips, since both are part
-    of W-2 wages; then the sums (tips = tips1 + tips2) and the flags that hold only with an amount (tips_lh1 is 0 where
-    tips1 is 0). Prints what the caps take off. An item is made only where the frame has its band."""
+    """Adds to out each person's tips, held to that person's wages, and overtime, held to wages less tips, because both
+    are part of W-2 wages. Then adds the sums (tips = tips1 + tips2) and the yes-or-no items that are 1 only with an
+    amount (tips_lh1 is 0 where tips1 is 0). Prints what the caps take off. An item is made only where df has its
+    band."""
     have = {slot: f'{slot}_band' in df for slot in PERSON_CAPS}
     if not any(have.values()):
         return out
@@ -224,10 +231,10 @@ def person_items(out, df):
 
 
 def deferral_items(out, year):
-    """In place, after the ages are in years: each person's elective deferrals (the drawn unit total split by the
-    drawn spouse share), held to the year's legal limit for that person's age and to that person's wages. Then each
-    person's traditional part, their sum trad_deferrals, and Medicare wages (box 1 wages, which hold the Roth part, plus
-    traditional deferrals). Nothing is made without a year."""
+    """Adds to out, after the ages are in years: each person's elective deferrals (the unit's drawn total split by the
+    drawn spouse's share), held to the year's legal limit for that person's age and to that person's wages. Then each
+    person's traditional part, their sum trad_deferrals, and Medicare wages (box 1 wages, which include the Roth part,
+    plus traditional deferrals). Nothing is made without a year."""
     if 'elective_deferrals' not in out or year is None:
         return out
     D = common.SETTINGS['deferrals']
@@ -271,8 +278,9 @@ SSN_COLUMNS = {'ssn_status_primary': 'ssn1', 'ssn_status_spouse': 'ssn2', 'ssn_s
 
 
 def ssn_items(out):
-    """In place: ssn1, ssn2 and dep_ssn1-3 from the drawn CPS statuses. 1 for a citizen or a noncitizen with a sign of
-    lawful status (status 1 or 2), 0 for other noncitizens (status 3), missing where there is no such person."""
+    """Adds to out ssn1, ssn2 and dep_ssn1 to dep_ssn3, from the drawn CPS statuses: 1 (has a number) for a citizen
+    or a noncitizen with a sign of lawful status (status 1 or 2), 0 for other noncitizens (status 3), and missing where
+    there is no such person."""
     if not all(v in out for v in SSN_COLUMNS):
         return out
     w = out['weight'].to_numpy(float) if 'weight' in out else np.ones(len(out))
@@ -287,13 +295,13 @@ def ssn_items(out):
     return out
 
 
-OWN = 'own_'   # prefix of a real PUF record's own amounts, when the filers are the real PUF records
+OWN = 'own_'   # the prefix of a real PUF record's own amounts, when the filers are the real PUF records
 
 
 def own_values(out, df, year):
-    """In place, when the filers are the real PUF records: each real record's PUF amounts are its own PUF-year amounts
-    grown to year as the PUF's dollar map is grown, in place of the draw from its band. The PUF's four aggregate
-    records are not in the map, so this is how they get their amounts. The own_ columns are dropped."""
+    """When the filers are the real PUF records: replaces each real record's drawn PUF amounts with its own PUF-year
+    amounts, grown to year as the PUF's dollar map is grown. The PUF's four aggregate records are not in the map, so
+    this is how they get their amounts. The own_ columns are then dropped."""
     cols = [c for c in df.columns if c.startswith(OWN)]
     if not cols:
         return out
@@ -319,7 +327,8 @@ def own_values(out, df, year):
 
 def couple_se_earnings(out):
     """Each person's Schedule SE net earnings: the couple's Schedules C and F plus part_se, split by the drawn
-    self-employment share, times 92.35% where that is $400 or more. Returns (primary's, spouse's)."""
+    self-employment share, times 92.35% where the result is $400 or more (else zero). Returns (the primary filer's,
+    the spouse's)."""
     E = META['earn_split']
     x = out['sch_cf_income'].to_numpy(float) + (out['part_se'].to_numpy(float) if 'part_se' in out else 0.0)
     s = out['spouse_se_share'].to_numpy(float) if 'spouse_se_share' in out else np.zeros(len(out))
@@ -329,8 +338,9 @@ def couple_se_earnings(out):
 
 
 def wage_base(year):
-    """The Social Security wage base in year's dollars: the PUF year's, grown as wages are, so a record's wages stand
-    against it as in the PUF year, which is the year its earnings split code describes."""
+    """The Social Security wage base in the dollars of year: the PUF year's wage base, grown as wages are grown. A
+    record's wages then stand against it as they would in the PUF year, which is the year that its earnings split
+    code describes."""
     base = float(META['earn_split']['se_wage_base'])
     if year is None or int(year) == common.PUF_YEAR:
         return base
@@ -339,11 +349,12 @@ def wage_base(year):
 
 
 def wage_share_bounds(wages, e1, e2, code, cap):
-    """The range (low, high, unreachable) of the spouse's share of the couple's wages that puts the primary's share of
-    earnings in the range of the earnings split code. low and high are NaN where there is no bound (code 0, or no
-    wages); where no share reaches the range they are the nearest share (0 or 1), flagged. The PUF's code is built on
-    E30400, so each person's self-employment earnings count only up to the room left under the wage base. Each end is
-    found by bisection, since the primary's share falls as the spouse's wage share rises."""
+    """The range of the spouse's share of the couple's wages that puts the primary filer's share of the couple's
+    earnings inside the range of the earnings split code. Returns (low, high, unreachable). low and high are NaN where
+    there is no bound (code 0, or no wages). Where no share reaches the range, they are the nearest share (0 or 1), and
+    unreachable is true. The PUF's code is built on E30400, so each person's self-employment earnings count only up
+    to the room left under the wage base. Each end of the range is found by bisection (halving an interval 50 times),
+    which works because the primary filer's share falls as the spouse's wage share rises."""
     rng = META['earn_split']['ranges']
     low = np.array([np.nan] + [rng[str(k)][0] for k in (1, 2, 3)])
     high = np.array([np.nan] + [rng[str(k)][1] for k in (1, 2, 3)])
@@ -353,6 +364,7 @@ def wage_share_bounds(wages, e1, e2, code, cap):
     a, b = low[c], high[c]
 
     def primary_share(s):
+        """The primary filer's share of the couple's earnings when the spouse's share of wages is s."""
         w1, w2 = w * (1 - s), w * s
         p1 = w1 + np.minimum(e1, np.maximum(cap - w1, 0.0))
         p2 = w2 + np.minimum(e2, np.maximum(cap - w2, 0.0))
@@ -382,9 +394,10 @@ def wage_share_bounds(wages, e1, e2, code, cap):
 
 
 def wage_share_in_range(out, df, maps, year=None):
-    """In place: the spouse's wage share held inside the range its earnings split code allows (wage_share_bounds). A
-    share outside the range is picked again, with its stored uniform number, among the real shares of its band's map
-    that lie in the range; where the band has none, it is set to the nearest end of the range."""
+    """Holds the spouse's share of wages inside the range that the record's earnings split code allows
+    (wage_share_bounds). A share outside the range is picked again, with the record's stored number, among the real
+    shares in its band's map that lie inside the range. Where the band has none, the share is set to the nearest end
+    of the range."""
     if 'earn_split' not in df or 'spouse_wage_share_band' not in df or 'earn_split' not in META:
         return out
     code = df['earn_split'].to_numpy()
@@ -407,7 +420,7 @@ def wage_share_in_range(out, df, maps, year=None):
         x, wt = g['value'].to_numpy(float), g['weight'].to_numpy(float)
         o = np.argsort(x, kind='stable')
         x, F = x[o], np.concatenate([[0.0], np.cumsum(wt[o])])
-        a = np.searchsorted(x, lo[idx] - 1e-12, side='left')      # the band's real shares inside [lo, hi]
+        a = np.searchsorted(x, lo[idx] - 1e-12, side='left')      # the band's real shares inside [lo, hi] are x[a:b]
         b = np.searchsorted(x, hi[idx] + 1e-12, side='right')
         has = b > a
         pos = F[a] + u[idx] * (F[b] - F[a])
@@ -427,10 +440,11 @@ def wage_share_in_range(out, df, maps, year=None):
 
 
 def draw_dollars(df, maps, year=None):
-    """Dollars for every banded amount, then the totals and each person's items built from them. year is the tax year
-    of the maps' dollars; without it the deferral items are not made."""
+    """Dollars for every banded amount of the records df, then the totals and each person's items built from them.
+    year is the tax year of the maps' dollars; without it, the deferral items are not made."""
     seed = common.SETTINGS['dollars']['seed']
     out = df.copy()
+    # 1. Each amount's dollars from its map, with the amount's own random stream.
     for i, v in enumerate(ORDER):
         if f'{v}_band' in df:
             u = df[f'u_{v}'].to_numpy(float) if f'u_{v}' in df else None
@@ -443,8 +457,10 @@ def draw_dollars(df, maps, year=None):
                 assert v in maps, f'no dollar map for {v}'
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
     own_values(out, df, year)
+    # 2. The totals of AGI from their parts. Gains and losses are drawn before the capital loss limit; the capital
+    #    gain in AGI applies it. The items of AGI are added into other_agi, and the drawn rest of AGI is kept as
+    #    other_agi_remainder.
     remainder = out['other_agi'].to_numpy(float).copy()
-    # Gains and losses are drawn before the loss limit; AGI's capital gain applies it.
     out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
                                                        out['filing_status'] if 'filing_status' in out else None)
     out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
@@ -452,7 +468,7 @@ def draw_dollars(df, maps, year=None):
     parts = META['computed_totals']['business_income']
     out['business_income_drawn'] = out['business_income']
     out['business_income'] = signed_sum(out, parts)
-    for sub in [k for k in META['computed_totals'] if k != 'business_income']:   # the schedules, dividends, adjustments
+    for sub in [k for k in META['computed_totals'] if k != 'business_income']:   # schedules, dividends, adjustments
         sp = META['computed_totals'][sub]
         if sub in ('dividends', 'adjustments') and not all(f'{p}_band' in df for p in sp):
             # A frame with the total's band but not its parts' bands keeps the total's own dollars.
@@ -463,6 +479,7 @@ def draw_dollars(df, maps, year=None):
     out['other_agi'] = out['other_agi'] + signed_sum(out, FOLD)
     assert not out[list(FOLD) + KG_PIECES].isna().any().any(), 'a part is missing on a record'
     retirement_items(out)                          # gross pensions; taxable Social Security into other_agi
+    # 3. Total consumption, the dollar items made from shares, the remainders, and each person's items.
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
         out['total_consumption'] = out[cats].to_numpy(float).sum(1)
@@ -475,7 +492,8 @@ def draw_dollars(df, maps, year=None):
             out[item] = out[total] - out[other]
             assert np.allclose(out[item] + out[other], out[total], rtol=1e-12, atol=1e-6), item
     person_items(out, df)
-    for a in AGE_SLOTS:                            # ages in years, -1 for none
+    # 4. Ages in years (-1 for none), Social Security numbers, elective deferrals and net worth.
+    for a in AGE_SLOTS:
         if a in out:
             out[a] = out[a] - 1
     ssn_items(out)
