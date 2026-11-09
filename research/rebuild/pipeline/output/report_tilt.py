@@ -1,10 +1,13 @@
-"""The run report: one short page per year (report.md) and one table behind each of its sections, in the tilt folder.
+"""The report on one year's reweighting: a short page (report.md) and a full table behind each of its sections, in the
+year's tilt folder. Reads file_<year>.parquet, fit.csv and targets.csv.
 
-The sections are every target and its miss, thin cells, SOI's published numbers that are not targeted, what the
-reweighting moved in the standard statistics, the trained models' disagreement, and the non-microdata imputations'
-checks. Reads file_<year>.parquet, fit.csv and targets.csv. A number the run did not write is reported as missing, never
-filled in. The standard statistics list a cell only if MIN_RECORDS records hold the item, and moves are ranked against
-the cell's gross (the total of absolute values), so a signed item with a total near zero does not rank first.
+The sections: 1. every target and how far the reweighted file misses it; 2. thin cells, the targets that rest on few
+records; 3. SOI's published numbers that are not targets, against the file; 4. what the reweighting moved in a set of
+standard statistics (holders and totals of every dollar item, by AGI group, age and filing); 5. how much the trained
+networks disagree on those statistics; 6. the checks of the non-microdata imputations. A number the run did not write
+is reported as missing, never filled in. The page lists a statistic only if MIN_RECORDS records hold the item. Moves
+are ranked against the cell's gross, the total of the item's absolute values. The reason: for an item that can be
+negative, a total near zero would make a small move look large. FEATURES.md, "6. Output", lists the files.
 """
 import datetime
 import os
@@ -19,16 +22,17 @@ from shared import dollars as D
 from reweight import solver as SV
 from prep import soi as TG
 
-TOP = 8                 # rows of each table shown on the summary page
-MIN_RECORDS = 200       # records holding the item, for a statistic to be listed
-# the solver's thin-cell thresholds (effective records, weight factor), as the page states them
+TOP = 8                 # rows of each table shown on the page
+MIN_RECORDS = 200       # records holding the item, for a statistic to be listed on the page
+# The solver's thin-cell thresholds (effective records, weight factor), as the page states them.
 THIN = {'warning': SV.THIN_WARNING, 'stop': SV.THIN_STOP}
 SOI_CV = f'{common.TARGETS}/soi_cv/soi_cv.csv'   # written by prep/soi_cv.py
 AGI_GROUPS = [(-np.inf, 1, 'AGI below $1'), (1, 25e3, 'AGI $1-25k'), (25e3, 50e3, 'AGI $25k-50k'),
               (50e3, 100e3, 'AGI $50k-100k'), (100e3, 200e3, 'AGI $100k-200k'), (200e3, 1e6, 'AGI $200k-1m'),
               (1e6, np.inf, 'AGI $1m and over')]
 
-# ---- plain names -------------------------------------------------------------------------------------------
+# ---- Plain names ----
+
 LABELS = {
     'agi': 'adjusted gross income', 'wages': 'salaries and wages', 'wages1': "primary filer's wages",
     'wages2': "spouse's wages", 'txbl_int': 'taxable interest', 'exempt_int': 'tax-exempt interest',
@@ -82,6 +86,7 @@ AGE_PLAIN = dict(zip(common.AGE_LABELS, ['primary filer under 26', 'primary file
 
 
 def label(v):
+    """A variable's plain name."""
     return LABELS.get(v, v.replace('_', ' '))
 
 
@@ -135,11 +140,14 @@ def show(v, stat):
 
 
 def table(df, floatfmt=',.2f'):
+    """A data frame as a markdown table, or '(none)'."""
     return df.to_markdown(index=False, floatfmt=floatfmt) if len(df) else '(none)'
 
 
-# ---- reading the run ---------------------------------------------------------------------------------------
+# ---- Reading the run ----
+
 def read_run(run, year):
+    """The year's file (with AGI added), the solver's fit table and the target list."""
     df = pd.read_parquet(f'{run}/file_{year}.parquet')
     fit = pd.read_csv(f'{run}/fit.csv')
     tl = pd.read_csv(f'{run}/targets.csv')
@@ -159,10 +167,12 @@ def read_run(run, year):
 
 
 def as_bool(s):
+    """A column of true and false values as read from a CSV file, as booleans."""
     return s.astype(str).str.strip().str.lower().isin(['true', '1', '1.0'])
 
 
-# ---- 1. every target -----------------------------------------------------------------------------------------
+# ---- Section 1: every target ----
+
 def target_table(fit, tl, notes):
     """Every target: the solver's fit table joined to the target list's other columns."""
     t = fit.copy()
@@ -188,6 +198,7 @@ def target_table(fit, tl, notes):
 
 
 def target_page(t, notes):
+    """Section 1 of the page: misses by kind of target, and the largest misses."""
     by = t.groupby('kind', sort=False).agg(targets=('value', 'size'), over_1_se=('over_1_se', 'sum'),
                                            largest_miss_pct=('miss (%)', lambda s: s.abs().max()),
                                            largest_miss_se=('miss_in_se', lambda s: s.abs().max()))
@@ -206,12 +217,13 @@ def target_page(t, notes):
     return out + [f'- {n}' for n in notes] + ['', 'Full table: report_targets.csv.']
 
 
-# ---- 2. thin cells -------------------------------------------------------------------------------------------
+# ---- Section 2: thin cells ----
+
 def thin_cells(t):
     """Section 2: the solver's thin-cell measures, stops first, then warnings, each thinnest first."""
     th = t.copy()
     th['flag'] = th['flag'].fillna('').astype(str)
-    th['why'] = ''      # blank: the solver's flag_reason names the test behind a flag
+    th['why'] = ''      # left blank; the solver's flag_reason names the test behind a flag
     rank = th['flag'].map({'stop': 0, 'warning': 1}).fillna(2)
     th = th.assign(_r=rank).sort_values(['_r', 'effective_records'])
     return th[['kind', 'group', 'target', 'what', 'cell', 'records', 'effective_records', 'largest_weight_factor',
@@ -219,6 +231,7 @@ def thin_cells(t):
 
 
 def thin_page(th):
+    """Section 2 of the page: the count of stops and warnings, and the thinnest cells."""
     n = th['flag'].value_counts()
     out = [f"{n.get('stop', 0)} stops and {n.get('warning', 0)} warnings among {len(th)} targets "
            f"(warning: fewer than {THIN['warning'][0]} effective records or a weight factor above "
@@ -240,16 +253,19 @@ def thin_page(th):
     return out + ['Full table: report_thin_cells.csv.']
 
 
-# ---- 3. published numbers ------------------------------------------------------------------------------------
+# ---- Section 3: published numbers ----
+
 def family_net(df, fam):
+    """A business family's net income on each record: its income items less its loss items (prep/soi.py FAMILIES)."""
     f = TG.FAMILIES[fam]
     return df[f['income']].to_numpy(float).sum(1) - (df[f['loss']].to_numpy(float).sum(1) if f['loss'] else 0.0)
 
 
-pos = lambda x: np.where(x > 0, x, 0.0)
-neg = lambda x: np.where(x < 0, -x, 0.0)
-# The published lines compared, Tables 1.4 and 1.7: (SOI line, as a pattern on the mirror's item, without
-# ' > number of returns' or ' > amount'; the record's amount for it, positive where SOI's is; statistics; note).
+pos = lambda x: np.where(x > 0, x, 0.0)    # the positive part
+neg = lambda x: np.where(x < 0, -x, 0.0)   # the negative part, as a positive amount
+# The published lines compared, from Tables 1.4 and 1.7: (SOI's line, as a pattern on the item names of the SOI
+# mirror (our copy of SOI's tables), without ' > number of returns' or ' > amount'; the record's amount for it, positive
+# where SOI's is; the statistics compared; a note).
 LINES = [
     ('number of returns', lambda d: np.ones(len(d)), ['count'], ''),
     ('adjusted gross income less deficit', lambda d: d['agi'].to_numpy(float), ['amount'], ''),
@@ -306,16 +322,19 @@ T16_AGE = {'Under 26': 0, '26 under 35': 1, '35 under 45': 2, '45 under 55': 3, 
 
 
 def mirror(file, table_, year):
+    """One table of one year from a file of the SOI mirror."""
     t = pd.read_csv(os.path.join(TG.MIRROR, file), dtype=str, keep_default_na=False)
     return t[(t['tax_year'] == str(year)) & (t['table'] == table_)]
 
 
 def bound(s):
+    """An AGI bound as the mirror writes it, as a number."""
     return -np.inf if s == '-Inf' else np.inf if s == 'Inf' else float(s)
 
 
 def by_size_cells(table_, file, year, pop):
-    """Tables 1.4 and 1.7, all returns: one row per published cell of the compared lines, AGI classes and total."""
+    """Tables 1.4 and 1.7, all returns: one row per published cell of the compared lines, for each AGI class and the
+    total."""
     t = mirror(file, table_, year)
     t = t[t['panel'] == 'All returns']
     items = t['item'].str.lower().str.strip()
@@ -344,8 +363,8 @@ def by_size_cells(table_, file, year, pop):
 
 
 def table_16_cells(year):
-    """Table 1.6: returns by filing status, the primary filer's age and AGI (the all-AGI column too). The All
-    returns panel's under-18 and 18-25 rows are left out: the file does not split filers under 26 at 18."""
+    """Table 1.6: returns by filing status, the primary filer's age and AGI (the all-AGI column too). The All returns
+    panel's under-18 and 18-25 rows are left out, because the file does not split filers under 26 at 18."""
     t = mirror('bysize_returns_marital_age.csv', '1.6', year)
     rows = []
     for r in t[t['panel'].isin(T16_STATUS) & t['row_label'].isin(T16_AGE)].itertuples():
@@ -377,9 +396,9 @@ def file_values(cells, df, weights):
             status = c['_mars']
             inside = inside & (True if status is None else mars == status)
             k = T16_AGE[c['row']]
-            # Dependent filers under 26 count by their range; those 26 and over are spread over the five older ranges
-            # in proportion to this table's counts in the same filing status and AGI column. A blanked cell gets no
-            # share; its neighbours carry its returns, and the merge below joins them.
+            # Dependent filers under 26 count in the under-26 row. Those 26 and over are spread over the five older
+            # rows in proportion to this table's counts in the same filing status and AGI column. A cell SOI left blank
+            # gets no share; its neighbours carry its returns, and merge_combined joins them.
             if k == 0:
                 x = np.isin(rng, [0, common.DEPENDENT_RANGES[0], common.DEPENDENT_RANGES[1]]).astype(float)
             else:
@@ -400,8 +419,9 @@ def file_values(cells, df, weights):
 
 
 def soi_errors(year):
-    """SOI's coefficients of variation for Table 1.4, all returns: {(row label, item): CV in percent}, and the cells
-    other tables borrow from (the Table 1.4 cell nearest in returns and amount)."""
+    """SOI's coefficients of variation (standard error over value) for Table 1.4, all returns: {(row label, item): CV
+    in percent}. Also the cells from which other tables borrow a CV: a cell of another table takes the CV of the Table
+    1.4 cell nearest to it in returns and amount."""
     if not os.path.exists(SOI_CV):
         return {}, None
     cv = pd.read_csv(SOI_CV, dtype=str, keep_default_na=False)
@@ -409,23 +429,23 @@ def soi_errors(year):
     cv = cv.assign(cv=pd.to_numeric(cv['cv_pct'], errors='coerce'), v=pd.to_numeric(cv['value'], errors='coerce'),
                    item=cv['item'].str.lower().str.strip())
     lookup = {(r.row_label, r.item): r.cv for r in cv.itertuples() if np.isfinite(r.cv)}
-    total_row = ~np.isfinite(pd.to_numeric(cv['lo'])) & ~np.isfinite(pd.to_numeric(cv['hi']))   # the panel's total
+    total_row = ~np.isfinite(pd.to_numeric(cv['lo'])) & ~np.isfinite(pd.to_numeric(cv['hi']))   # the table's total row
     d = cv[~total_row & (cv['cv'] > 0) & (cv['v'] > 0)]
     count = d[d['item'].str.endswith('number of returns')]
     n_of = {(r.row_label, r.item[:-len('number of returns')]): r.v for r in count.itertuples()}
     amount = d[d['item'].str.endswith('> amount')]
     paired = [n_of.get((r.row_label, r.item[:-len('amount')])) for r in amount.itertuples()]
-    amount = amount.assign(n=paired).dropna(subset=['n'])     # an amount cell lends only with its count beside it
+    amount = amount.assign(n=paired).dropna(subset=['n'])     # an amount cell lends its CV only if its count is published
     return lookup, {'count': (np.log(count['v'].to_numpy(float)), count['cv'].to_numpy(float)),
                     'amount': (np.log(amount['v'].to_numpy(float) * 1000), np.log(amount['n'].to_numpy(float)),
                                amount['cv'].to_numpy(float))}
 
 
 def series(cells):
-    """The published cells in series along AGI: (the series' AGI classes, lowest first, as indices into cells; the
-    indices of its all-AGI total). Tables 1.4 and 1.7: one series per line and statistic; Table 1.6: per filing
-    status and age."""
-    if not cells:   # a year with no published SOI cells (a projection year): no series
+    """The published cells grouped into series along AGI. Each series is (the indices into cells of its AGI classes,
+    lowest first; the indices of its all-AGI total). Tables 1.4 and 1.7 have one series per line and statistic; Table
+    1.6 one per filing status and age."""
+    if not cells:   # a year with no published SOI cells (a projection year) has no series
         return []
     df = pd.DataFrame([{k: c[k] for k in ('table', 'panel', 'row', 'line', 'statistic', 'lo', 'total')} for c in cells])
     out = []
@@ -448,10 +468,11 @@ def target_matcher(t):
 
 
 def relation_to_targets(cells, is_target):
-    """Each published cell is a target; part of a coarser target (in Table 1.4, a run of neighbouring AGI classes
-    adds up to a target's value, as the merged top brackets and the business groups do; in any table, the cell's
-    all-AGI total is a target); the sum of targets (a total whose classes are all covered); or not targeted. Blank
-    cells count as zero in the runs, as SOI adds them in elsewhere."""
+    """Label each published cell by how it relates to the targets. "targeted": the cell is a target. "part of a
+    coarser target": in Table 1.4, a run of neighbouring AGI classes that includes the cell adds up to a target's
+    value (as the merged top brackets and the business groups do), or, in any table, the cell's all-AGI total is a
+    target. "sum of targets": a total whose classes are all covered. Otherwise "not targeted". Blank cells count as
+    zero in the runs, because SOI adds their amounts into other cells."""
     for idx, tot in series(cells):
         st = cells[(idx or tot)[0]]['statistic']
         v = np.nan_to_num(np.array([cells[i]['published'] for i in idx], float))
@@ -478,9 +499,10 @@ def relation_to_targets(cells, is_target):
 
 
 def merge_combined(cells, weights, is_target):
-    """SOI blanks a cell for disclosure and adds it into a neighbour. Which neighbour is not always marked (Table
-    1.4 marks the receiving cell, Table 1.6 does not), so a blank cell is merged with the cells on both sides along
-    its AGI classes: the merged cell then holds the blank one's returns wherever SOI put them."""
+    """Merge each blank cell with its neighbours. SOI leaves a cell blank to protect taxpayers' privacy and adds its
+    returns into a neighbouring cell. Which neighbour is not always marked (Table 1.4 marks the receiving cell, Table
+    1.6 does not). So a blank cell is merged with the cells on both sides along the AGI classes, and the merged cell
+    holds the blank one's returns wherever SOI put them."""
     out = []
     for idx, tot in series(cells):
         out += [cells[i] for i in tot]
@@ -513,9 +535,9 @@ def merge_combined(cells, weights, is_target):
 
 
 def errors_for(cells, year, notes):
-    """Each published cell's standard error: Table 1.4's from SOI's coefficients of variation (a merged cell's
-    parts combined as independent); Tables 1.6 and 1.7 borrow the CV of the Table 1.4 cell nearest in number of
-    returns (a count) or in amount and returns (an amount)."""
+    """Each published cell's standard error. Table 1.4's come from SOI's coefficients of variation (a merged cell's
+    parts combined as independent errors). Tables 1.6 and 1.7 borrow the CV of the Table 1.4 cell nearest in number of
+    returns (for a count) or in amount and returns (for an amount)."""
     lookup, donors = soi_errors(year)
     if not lookup:
         notes.append(f'No SOI coefficients of variation found ({SOI_CV}): no published cell has an error.')
@@ -583,6 +605,7 @@ def published(df, t, w0, w1, notes):
 
 
 def published_page(p):
+    """Section 3 of the page: misses on the cells that are not targeted, by table, and the largest."""
     names = {'1.4': 'Table 1.4, all returns by AGI', '1.6': 'Table 1.6, returns by filing status, age and AGI',
              '1.7': 'Table 1.7, dependent filers by AGI'}
     nt = p[p['relation'] == 'not targeted']
@@ -608,7 +631,8 @@ def published_page(p):
             table(shown, ',.1f'), '', 'Full table: report_published.csv.']
 
 
-# ---- 4 and 5. the standard statistics -------------------------------------------------------------------------
+# ---- Sections 4 and 5: the standard statistics ----
+
 def dollar_items(df):
     """Every dollar item in the file, in the generation order, then the computed totals."""
     skip = set(D.RATIOS) | set(D.AGE_SLOTS) | {'weeks_primary', 'weeks_spouse', 'hours_primary', 'hours_spouse',
@@ -623,6 +647,7 @@ def dollar_items(df):
 
 
 def standard_cells(df):
+    """The standard cells: all tax units, filers, non-filers, each AGI group and each age range."""
     a, rng = df['agi'].to_numpy(float), df['age_range'].to_numpy()
     filer = df['filer'].to_numpy() == 1
     cells = [('all tax units', np.ones(len(df), bool)), ('filers', filer), ('non-filers', ~filer)]
@@ -631,44 +656,50 @@ def standard_cells(df):
     return cells
 
 
+def add_cell(rows, X, NZ, items, weights, cell, m, cols):
+    """Append to rows the holders and the total of the items cols among the records m, under each set of weights.
+    X holds the records' amounts and NZ whether each is not zero."""
+    Xm, Nm = X[m][:, cols], NZ[m][:, cols]
+    res = {name: (w[m] @ Nm, w[m] @ Xm, w[m] @ np.abs(Xm)) for name, w in weights.items()}
+    rec = Nm.sum(0)
+    for j, c in enumerate(cols):
+        for s, k in (('holders', 0), ('total', 1)):
+            r = {'statistic': s, 'item': label(items[c]), 'variable': items[c], 'cell': cell, 'records': int(rec[j])}
+            r.update({name: v[k][j] for name, v in res.items()})
+            # The gross: the total of the item's absolute values (for holders, the number of holders). A move of an
+            # item that can be negative is measured against it, so that a total near zero does not make a small move
+            # look large.
+            r.update({f'{name} gross': v[0 if k == 0 else 2][j] for name, v in res.items()
+                      if not name.startswith('records')})
+            rows.append(r)
+
+
 def standard_stats(df, weights):
-    """Holders and total of every dollar item in every standard cell, under each set of weights; plus net worth
-    and total consumption by wage group. A weight set whose name starts with 'records' counts records."""
+    """Holders and total of every dollar item in every standard cell, under each set of weights; also net worth and
+    total consumption by wage group. A set of weights whose name starts with 'records' counts records."""
     items = dollar_items(df)
     X = df[items].to_numpy(float)
     NZ = (X != 0).astype(float)
     rows = []
-
-    def add(cell, m, cols):
-        Xm, Nm = X[m][:, cols], NZ[m][:, cols]
-        res = {name: (w[m] @ Nm, w[m] @ Xm, w[m] @ np.abs(Xm)) for name, w in weights.items()}
-        rec = Nm.sum(0)
-        for j, c in enumerate(cols):
-            for s, k in (('holders', 0), ('total', 1)):
-                r = {'statistic': s, 'item': label(items[c]), 'variable': items[c], 'cell': cell, 'records': int(rec[j])}
-                r.update({name: v[k][j] for name, v in res.items()})
-                # the gross: the total of the item's absolute values (for holders, the holders), the scale a move
-                # of a signed item is measured against, so that a total near zero does not make a small move large
-                r.update({f'{name} gross': v[0 if k == 0 else 2][j] for name, v in res.items()
-                          if not name.startswith('records')})
-                rows.append(r)
     allc = list(range(len(items)))
     for cell, m in standard_cells(df):
-        add(cell, m, allc)
+        add_cell(rows, X, NZ, items, weights, cell, m, allc)
     wage = common.wage_group(df['wages'].to_numpy(float))
     some = [items.index(v) for v in ('net_worth', 'total_consumption') if v in items]
     for _, _, g in common.WAGE_GROUPS:
-        add(f'wages {g}', wage == g, some)
+        add_cell(rows, X, NZ, items, weights, f'wages {g}', wage == g, some)
     return pd.DataFrame(rows)
 
 
 def targeted_variables(tl):
-    """The file's variables some target constrains: the target list's variable column (rows with none, such as counts
-    of returns, name no variable)."""
+    """The file's variables that some target constrains: the target list's variable column (rows with none, such as
+    counts of returns, name no variable)."""
     return set(tl['variable'].dropna().astype(str))
 
 
 def moves(st, tv):
+    """Section 4's table: each standard statistic before and after the reweighting, the variables no target constrains
+    first, each group ranked by the move as a share of the gross."""
     m = st.copy()
     with np.errstate(divide='ignore', invalid='ignore'):
         m['change (%)'] = 100 * (m['after'] / m['before'] - 1)
@@ -681,6 +712,7 @@ def moves(st, tv):
 
 
 def moves_page(m):
+    """Section 4 of the page: how many statistics moved by more than 10%, and the largest moves."""
     s = m[(~m['variable targeted somewhere']) & (m['records'] >= MIN_RECORDS)].head(TOP)
     shown = pd.DataFrame({'statistic': s['statistic'], 'item': s['item'], 'cell': s['cell'], 'records': s['records'],
                           'before': [show(v, 'count' if k == 'holders' else 'total') for v, k in zip(s['before'], s['statistic'])],
@@ -695,6 +727,9 @@ def moves_page(m):
 
 
 def model_table(df, w1, tv, notes):
+    """Section 5's table: the standard statistics computed from each network's records alone, each network's records
+    scaled up to the file's total weight, and the gap between the largest and smallest as a share of the gross. None
+    if the file comes from one network."""
     if 'model' not in df:
         notes.append('The file has no model column: it comes from one trained model, so there is nothing to compare.')
         return None
@@ -711,7 +746,7 @@ def model_table(df, w1, tv, notes):
         weights[f'records model {k}'] = mk.astype(float)
     st = standard_stats(df, weights)
     vals = st[[f'model {k}' for k in ks]].to_numpy(float)
-    with np.errstate(divide='ignore', invalid='ignore'):   # measured against the pooled gross, as in section 4
+    with np.errstate(divide='ignore', invalid='ignore'):   # measured against the gross of all the records, as in section 4
         st['gap (% of gross)'] = 100 * (vals.max(1) - vals.min(1)) / st['pooled gross'].to_numpy(float)
     rec = st[[f'records model {k}' for k in ks]].to_numpy(float)
     st['fewest records in a model'] = rec.min(1).astype(int)
@@ -725,6 +760,7 @@ def model_table(df, w1, tv, notes):
 
 
 def models_page(mt, notes):
+    """Section 5 of the page: the median gap between networks, and the largest gaps."""
     if mt is None:
         return [f'- {n}' for n in notes]
     ks = [c for c in mt.columns if c.startswith('model ')]
@@ -739,8 +775,10 @@ def models_page(mt, notes):
         [f'- {n}' for n in notes] + ['', 'Full table: report_models.csv.']
 
 
-# ---- 6. overall ----------------------------------------------------------------------------------------------
+# ---- The overall table ----
+
 def git(*args):
+    """The output of a git command in the pipeline folder, or '' if it fails."""
     try:
         return subprocess.run(['git', '-C', common.PIPELINE, *args], capture_output=True, text=True, timeout=60).stdout.strip()
     except (OSError, subprocess.SubprocessError):
@@ -748,6 +786,8 @@ def git(*args):
 
 
 def overall(df, t, th, w0, w1, run, tl):
+    """The page's first table: the records, units, targets and misses, how far the weights moved, and the run's
+    settings, inputs and code."""
     ess = SV.effective_sample
     f = w1 / w0
     commit = git('rev-parse', 'HEAD')
@@ -776,9 +816,10 @@ def overall(df, t, th, w0, w1, run, tl):
     return pd.DataFrame(rows, columns=['', 'value'])
 
 
-# ---- the page --------------------------------------------------------------------------------------------------
+# ---- The page ----
+
 def non_micro_page(run):
-    """Section 6: the non-microdata imputations' checks, as tilt.py wrote them to non_micro_checks.md."""
+    """Section 6 of the page: the non-microdata imputations' checks, as tilt.py wrote them to non_micro_checks.md."""
     lines = open(f'{run}/non_micro_checks.md').read().split('\n')[2:]   # the page less its title
     return [('#' + x) if x.startswith('## ') else x for x in lines]
 
@@ -787,9 +828,11 @@ def main():
     run = out = common.TILT
     year = common.TARGET_YEAR
     os.makedirs(out, exist_ok=True)
+    # 1. Read the year's file, the fit table and the target list.
     df, fit, tl = read_run(run, year)
     w0, w1 = df['weight_start'].to_numpy(float), df['weight'].to_numpy(float)
 
+    # 2. Build each section's table. n1, n3 and n5 collect notes for sections 1, 3 and 5.
     n1, n3, n5 = [], [], []
     t = target_table(fit, tl, n1)
     th = thin_cells(t)
@@ -799,6 +842,7 @@ def main():
     mt = model_table(df, w1, tv, n5)
     ov = overall(df, t, th, w0, w1, run, tl)
 
+    # 3. Write the tables, then the page.
     t.to_csv(f'{out}/report_targets.csv', index=False)
     th.to_csv(f'{out}/report_thin_cells.csv', index=False)
     p.to_csv(f'{out}/report_published.csv', index=False)
