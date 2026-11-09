@@ -1294,7 +1294,7 @@ def _w2_less_dependents(definition, share, cell, st, published, returns, donors,
     reduction, gap_why = 0.0, ''
     if share is not None and cell['filters'] == [('married', 0)]:
         sh = share[1] if st == 'amount' else share[0]
-        reduction = published * sh   # a non-joint return has one taxpayer, so its workers and returns are the same count
+        reduction = published * sh   # a non-joint return has one taxpayer: its workers and returns are the same count
         gap_why = (f'; less the dependent filers, {100 * sh:.1f}% ({share[2]}); plus '
                    f'{100 * gap_share:g}% of that reduction as a definition gap')
     val = published - reduction

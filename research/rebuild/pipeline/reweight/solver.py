@@ -61,7 +61,8 @@ def _conditions(w0, F, T, averages, offset=None, extra=None, size_of=None):
         Tl[j] = 0.0 if offset is None else offset[j]
         member[j] = mem
         size[j] = abs(m) * (w0[mem].sum() + (0.0 if extra is None else extra[j]))
-    # A condition whose target is zero (an average of zero, a count of zero) is sized by the starting weight it rests on.
+    # A condition whose target is zero (an average of zero, a count of zero) is sized by the starting weight it rests
+    # on.
     zero = size == 0
     size[zero] = np.abs(G[:, zero]).T @ w0
     assert (size > 0).all(), f'targets {np.flatnonzero(size == 0).tolist()}: no record contributes to them'
