@@ -1,34 +1,8 @@
-"""The non-microdata imputations.
-
-Items set from what the model has already drawn plus a published table, with no new microdata: dependent filers' exact
-age and sex, child tax credit eligibility for each dependent, death probabilities, yearly unrealized gains on each
-asset and the cost basis of each asset, the holding period and basis of long-term gains, parents' income rank,
-blindness (the PUF's blind rate by age times a factor that meets Publication 4801's blind boxes), the QBI service flags
-and wage bills from the items the model draws for them and the IRS's totals, and the AMT net operating loss adjustment
-held to at most the record's net operating loss (settings non_micro_imputations, which also says why each item is what
-it is).
-
-How every item works (the settings section registers each one):
-  - it reads columns of the file and published tables, CSVs under research/rebuild/resources/non_micro/ (built by
-    build_non_micro_tables.py from their sources; sources.csv there). A table with a year column is read at the
-    target year's row; with no such row, the last year before it, or the first year for a year before the table
-    starts. Which row each item used is reported;
-  - it writes new columns only: it never changes a drawn item or a weight (impute checks both). Two exceptions: a
-    primary filer with an age and no sex is given one (fill_missing_sex), and an item may change a drawn column it
-    names in its settings writes_back, keeping the drawn value in a new column (the AMT cap: amt_nols, kept as
-    amt_nols_drawn);
-  - every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person): a fixed function of the
-    record, the item's stream and the person (0 the unit, 1 and 2 the primary filer and the spouse, 3 to 5
-    dependents 1 to 3), so a draw never moves when other code or other records change;
-  - the two items that rank records (death probabilities, parents' rank) rank on the weights they are given: the
-    start's, prescaled, inside the tilt stage, and the ranks are then held fixed through the tilt.
-
-Where it runs: tilt.py calls impute() on the start, after every dollar amount is in target-year dollars and the
-weights are prescaled, before the solve, and checks() on the result with the weights after the tilt (reported only,
-never a stop).
-
-Conventions, as in the rest of the file: -1 for an age or a person that does not exist, 0 for no sex; flags are 1 or
-0, -1 where the dependent does not exist; dollars in nominal target-year dollars.
+"""The non-microdata imputations: items set from what the networks drew plus a published table, with no new microdata
+(dependent filers' age and sex, child credit eligibility, death probabilities, yearly unrealized gains and cost basis,
+the holding period of long-term gains, parents' income rank, blindness, the QBI items and the AMT net operating loss).
+tilt.py calls impute() on the prescaled start and checks() on the final weights. Tables are read from
+resources/non_micro/. See FEATURES.md, "The non-microdata imputations".
 """
 import os
 
@@ -63,16 +37,16 @@ def year_used(years, year):
 
 
 def uniform(df, item, person):
-    """Each record's uniform number for an item's stream and a person (module docstring)."""
+    """Each record's uniform number for an item's stream and a person (0 the unit, 1 and 2 the adults, 3 to 5 the
+    dependents). It is a fixed function of the record id, so a draw never moves when other records change."""
     salt = int(S['salt_base']) + 8 * int(ITEMS[item]['stream']) + person
     return uniform_by_id(df['record_id'].to_numpy(), salt)
 
 
 def fill_missing_sex(df):
-    """The one drawn column this module writes back: a primary filer with an age and no sex is given a sex, man or
-    woman with even chances, by the death item's keyed draw (stream 8, person 1). Generation forces the primary filer's
-    sex to a man or a woman (generate.py, cps_structure), so this finds nobody. Returns the frame and the rows
-    changed."""
+    """A primary filer with an age and no sex is given one, man or woman with even chances, by the death item's keyed
+    draw. Generation always draws a sex for the primary filer, so this normally changes nobody. Returns the frame and
+    the rows changed."""
     nosex = (df['age1'].to_numpy() >= 0) & (df['sex_primary'].to_numpy() <= 0)
     df = df.copy()
     if nosex.any():
@@ -98,10 +72,8 @@ def has_spouse(df):
 
 
 def broad_income(df):
-    """Production's broad income (src/imputations/helpers.R, compute_broad_income), on the rebuild's items: wages,
-    Schedules C, E and F (business_income), taxable and tax-exempt interest, dividends, long- and short-term gains,
-    gross Social Security, gross pensions (gross_pens_dist: taxable plus the non-taxable rest; IRA distributions are
-    not in it, as in production), unemployment compensation."""
+    """Production's broad income (compute_broad_income in src/imputations/helpers.R) on the rebuild's items. IRA
+    distributions are left out, as in production."""
     cols = ['wages', 'business_income', 'txbl_int', 'exempt_int', 'dividends', 'kg_lt', 'kg_st', 'gross_ss',
             'gross_pens_dist', 'ui']
     x = df[cols].to_numpy(float).sum(1)
@@ -121,8 +93,7 @@ def cps_dependents(year):
 
 
 # The pool a dependent filer's age and sex are drawn from: the CPS dependents the filing stage counts as filing their
-# own return (p_own_return: required to file, or with any wages). The pools table also shows the year's dependent
-# filing threshold.
+# own return (required to file, or with any wages).
 POOL = "files by the filing stage's rule"
 
 
@@ -170,7 +141,7 @@ def child_credit(df, year, w, ctx):
     under17 = exists & (ages < 17)
     n16u = under17.sum(1)
     anyu = n16u > 0
-    share = float(w[anyu & (n16u > n)].sum() / w[anyu].sum())   # production's share_17yo_ineligible, on the start
+    share = float(w[anyu & (n16u > n)].sum() / w[anyu].sum())   # units whose children under 17 outnumber n_dep_ctc
     flag = under17 & (n[:, None] >= np.arange(1, 4)[None, :])
     by_chance = exists & (ages >= 17) & (ages <= max(17, law - 1))
     u = np.column_stack([uniform(df, 'child_credit', 3 + j) for j in range(3)])
@@ -227,8 +198,7 @@ def death_probabilities(df, year, w, ctx):
     P['w'], P['income'], P['id'] = w[P.rec], inc[P.rec], ids[P.rec]
     P['pctile'] = within_cell_percentile(P.sex.to_numpy(), P.age.to_numpy(), P.income.to_numpy(), P.id.to_numpy(),
                                          P.w.to_numpy())
-    # the billionaires (top_billionaires.py): income percentile 100, set explicitly, as production does, for the primary
-    # filer and the spouse alike
+    # the Forbes list's people are placed at income percentile 100, primary filer and spouse alike, as in production
     n_bil = 0
     if 'billionaire' in df:
         bil = df['billionaire'].to_numpy()[P.rec.to_numpy()] == 1
@@ -307,7 +277,7 @@ def cost_basis(df, year, w, ctx):
     oh, rf = df['value.other_home'].to_numpy(float), df['value.re_fund'].to_numpy(float)
     tot = oh + rf
     s = np.divide(oh, tot, out=np.full(len(df), 0.5), where=tot > 0)
-    def held(g, v):    # a holding's share of the gain, held to its value exactly (the split's rounding can leave a hair over)
+    def held(g, v):    # a holding's share of the gain, held to its value (rounding in the split can leave it just above)
         return np.where(v > 0, np.minimum(g, v), g)
 
     gain = {'equities': df['w_kg_other'].to_numpy(float), 'pass_throughs': df['w_kg_pass_throughs'].to_numpy(float),
@@ -350,8 +320,9 @@ def sp_index(x):
 
 
 def holding_model(year):
-    """Production's pieces (capital_gains.R) at a year: the groups' gain and loss shares, the Weibull, the
-    exponential tail's rate, the representative length of the top group, and the basis-to-sales ratio functions."""
+    """Production's holding-period model (src/imputations/capital_gains.R) at a year: the groups' gain and loss shares,
+    the Weibull, the exponential tail's rate, the representative length of the top group, and the basis-to-sales ratio
+    functions."""
     it = ITEMS['gains_holding_period']
     k, sc = it['weibull']['shape'], it['weibull']['scale']
     W = lambda x: 1 - np.exp(-(np.asarray(x, float) / sc) ** k)
@@ -397,10 +368,8 @@ def gains_holding_period(df, year, w, ctx):
     u1, u2 = uniform(df, 'gains_holding_period', 1), uniform(df, 'gains_holding_period', 2)
     years_held, basis = np.full(len(df), -1.0), np.zeros(len(df))
     group = np.full(len(df), -1)
-    # a holding period is at most the owner's age less 18. The owner is the older of the primary
-    # filer and the spouse (the gain is the couple's; either may hold the asset); no spouse, or none with an age, is
-    # the primary filer's age alone. The cap is held to at least 1 year, the shortest long-term holding period, so a
-    # filer under 19 holds for a year.
+    # A holding period is at most the owner's age less 18, the owner being the older of the primary filer and the
+    # spouse, and at least 1 year, the shortest long-term holding period.
     a1, _ = primary_age_sex(df)
     oldest = np.maximum(a1, df['age2'].to_numpy().astype(int))
     cap = np.maximum(oldest - 18, 1).astype(float)
@@ -491,12 +460,10 @@ def blind_factor(key, filer, w, target):
 
 
 def blindness(df, year, w, ctx):
-    """For each primary filer, and each spouse on a married-joint record (mars 2), a draw keyed by record id and person (stream 6,
-    persons 1 and 2), blind with chance = the PUF's blind rate for the person's age range (puf_blind_rates.csv: the 2015
-    PUF where the return shows blindness) times one factor per person type. Each factor makes the file's weighted count
-    of blind people among filers, at the weights given (the start's, before reweighting), equal Publication 4801's blind
-    boxes for the target year (pub4801_blind_boxes.csv: 'you are blind' for primary filers, 'spouse is blind' for
-    spouses). Non-filers are drawn by the same rule and not counted. 1 blind, 0 not."""
+    """Each primary filer, and each spouse on a joint return, is blind with chance = the 2015 PUF's blind rate for the
+    person's age range times one factor per person type. Each factor makes the weighted count of blind filers at the
+    weights given (the start's) equal Publication 4801's blind boxes for the year. Non-filers are drawn by the same
+    rule and not counted. 1 blind, 0 not."""
     rates = table('puf_blind_rates.csv').sort_values('age_from')
     cuts = rates['age_from'].to_numpy(float)
     rate = rates['blind_rate'].to_numpy(float)
@@ -562,11 +529,9 @@ def irs_wage_totals(year):
 
 
 def carried_qbi_scalars(year, last):
-    """A year past the table's last: the scalars of the table's last year, carried through the projection chain in the
-    file qbi_scalars.csv beside each year's file (write_qbi_scalars), read from the folder of the file this year's start
-    comes from. Returns ({group: last year's scalar}, the growth of average wages from that year: SOI's wages per return,
-    extended by CBO's and then Macro-Projections' wages per return, growth.factors('wages', year)). Stops if they are
-    missing: there is no other source for them."""
+    """For a year past the IRS table's last: the scalars of the table's last year, read from qbi_scalars.csv beside the
+    file this year's start comes from, and the growth of wages per return since that year. Stops if they are missing,
+    as there is no other source for them."""
     from shared import growth as GR
     from reweight import target_list as TLS
     spec = TLS.start_spec(year)
@@ -591,32 +556,19 @@ def write_qbi_scalars(ctx, folder):
 
 
 def qbi(df, year, w, ctx):
-    """The QBI service flags and wage bills. The model draws, per record and group of business (cf: Schedules C
-    and F; ps: partnerships and S corporations), an industry group (biz_industry_<group>, the group's largest business)
-    and a number (biz_workers_<group>, the owner's share of the workers: an S corporation's all, other forms' outside workers only).
+    """The QBI service flags and wage bills. The networks draw, per record and business group (cf: Schedules C and F;
+    ps: partnerships and S corporations), an industry group and a worker count.
 
-    Wages. A group's wages on a filing record = its number x the group's scalar for the year, 0 where the record has no
-    positive income of the types the group's wages go to. A non-filer has none: the IRS tables are of returns. The scalar is computed here, once a year, in the tilt stage: on the start,
-    after the top of the file and with every dollar in target-year dollars, before the taxes and the reweighting, on the
-    weights this function is given (w, the start's prescaled weights, kept in the file as weight_start). Through the IRS
-    table's last year it is the IRS total for the year (irs_wage_totals) over the sum, over filing records with positive income of those types, of weight
-    x number, so the file's total after the zero rule equals the IRS total exactly at the start's weights. The reweighting
-    moves weights only, so the total at the final weights differs (reported in the checks; no target holds it).
-    Past the table's last year (2023) there is no IRS total to match: the scalar is that year's scalar x the growth of
-    average wages since (carried_qbi_scalars), and the file's total follows from the numbers on the year's weights.
-      - cf: all the wages go to wagebill_sole_prop, on records with positive Schedule C income, against SOI's Schedule C
-        payroll. SOI publishes no annual Schedule F wages; farms keep their own rule below.
-      - ps: on records with positive partnership or S corporation income. A record with both splits the wages by its
-        positive income of each; the two add to the group's wages exactly (the smaller part is the group's wages less
-        the larger, whose difference has no rounding error).
-    Farms: never specified service; wage bill = positive farm income, so the wage limit never binds.
+    A group's wages on a filing record are its worker count times the group's scalar for the year, and 0 where the record
+    has no positive income of the group's types; non-filers have none. Through the IRS table's last year the scalar makes
+    the file's wages at the weights given (the prescaled start's) equal the IRS total; after it, the scalar is that
+    year's times the growth of average wages. cf wages go to Schedule C; ps wages are split between partnerships and S
+    corporations by positive income. Farms are never a specified service, and their wage bill is positive farm income,
+    so the wage limit never binds.
 
-    Service flag. The law's list: 1 when the record's keyed draw (stream 7; person 1 for cf, 2 for ps, so a record with
-    both a partnership and an S corporation has one flag for both) is below c(industry group), on a type with positive
-    income. c (settings c_by_scf_group): the share of self-employed people in the SCF group whose detailed industry is on
-    the law's list. For group 8 (no industry code) and none (0,
-    which generation allows only without such income), the average of c over groups 1-7 weighted by the group's positive
-    income at w."""
+    The service flag is 1 when the record's keyed draw is below the share of self-employed people in its SCF industry
+    group whose industry is on the law's list (settings c_by_scf_group). One draw covers a record's partnership and S
+    corporation together. Records with no industry code take the income-weighted average over groups 1-7."""
     it = ITEMS['qbi']
     writes = it['writes']
     missing = [c for k in QBI_GROUP_TYPES for c in (f'biz_industry_{k}', f'biz_workers_{k}') if c not in df]
@@ -710,11 +662,9 @@ def nol(df):
 
 
 def amt_nol_cap(df, year, w, ctx):
-    """The AMT net operating loss adjustment (amt_nols, the PUF's P60100) is held to at most the record's net
-    operating loss (nol), so it is 0 on a record with no loss. A negative amt_nols is left as drawn. The drawn value
-    is kept as amt_nols_drawn and amt_nols is written back: the one item that changes a drawn column (settings
-    writes_back). Both are in target-year dollars: amt_nols grown from the PUF year by its growth line (AGI per
-    return), the loss by other income's."""
+    """The AMT net operating loss adjustment (amt_nols, the PUF's P60100) held to at most the record's net operating
+    loss, so it is 0 on a record with no loss; a negative amt_nols is left as drawn. The drawn value is kept as
+    amt_nols_drawn."""
     drawn = df['amt_nols'].to_numpy(float)
     assert np.isfinite(drawn).all(), f'amt_nols missing on {int((~np.isfinite(drawn)).sum())} records'
     held = np.minimum(drawn, nol(df))
@@ -993,9 +943,8 @@ def check_holding(df, w, ctx):
 
 
 def check_blindness(df, w, ctx):
-    """Blind people in the file by age, filers and all units, against SOI Publication 4801's blind boxes on all returns
-    (pub4801_blind_boxes.csv; the nearest earlier year the table has), before reweighting (the rule's own count, at
-    the start's weights) and after (weights w)."""
+    """Blind people in the file by age, filers and all units, against Publication 4801's blind boxes on all returns,
+    at the start's weights and at weights w."""
     filer = df['filer'].to_numpy() == 1
     a1, _ = primary_age_sex(df)
     a2 = df['age2'].to_numpy()
