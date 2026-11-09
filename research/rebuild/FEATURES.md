@@ -870,9 +870,9 @@ no sex is given one (even chances, keyed draw); and the AMT rule changes `amt_no
 through the calculator. They can be run on a finished file for checks (`python -m scale.non_micro_imputations --run
 <tilt folder> --out <folder>`), which reproduces its columns exactly.
 
-**Random numbers.** Each is a fixed function of the record id, the item's stream and the person (`shared/ages.uniform_by_id`,
-salt = `salt_base` + 8 x stream + person; person 0 the unit, 1-2 the adults, 3-5 the dependents). Streams are never
-renumbered. **Years.** Each item reads its table's row for the target year, or the last year before it; `summary.md`
+**Random numbers.** Each is a fixed function of the record id, the item's stream and the person
+(`shared/ages.uniform_by_id`, salt = `salt_base` + 8 x stream + person; person 0 the unit, 1-2 the adults, 3-5 the
+dependents). Streams are never renumbered. **Years.** Each item reads its table's row for the target year, or the last year before it; `summary.md`
 says which.
 
 | Item | Columns | Method | Published source |
