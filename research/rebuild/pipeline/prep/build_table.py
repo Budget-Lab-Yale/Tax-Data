@@ -241,6 +241,49 @@ def read_puf():
     return raw[raw.RECID < 999996].reset_index(drop=True)
 
 
+def puf_items(f, itemizer, medical_floor):
+    """The PUF amounts the table draws, from the raw fields f (a dict of arrays of whole dollars): wages and interest, the
+    dividend parts, the capital gain pieces, the parts of business income, the items, the adjustments' parts, the other
+    items, Schedule SE earnings outside Schedules C and F, other itemized deductions and the remainder of AGI. The
+    totals (COMPUTED) are the signed sums of these. itemizer says who has other itemized deductions, medical_floor the
+    share of AGI (one number or one per record) below which medical expenses are not deducted."""
+    out = {'wages': f['E00200'], 'txbl_int': f['E00300'], 'div_pref': f['E00650'], 'div_ord': f['E00600'] - f['E00650']}
+    # Disclosure protection perturbs each PUF field on its own, so line 13 (E01000) can fall below the allowed
+    # Schedule D net (P22250 + P23250, a loss held to the limit). The shortfall is put on the short-term piece, so
+    # line 13 is the allowed net again; a gap the other way stays in other_agi.
+    left = f['E01000'] - common.allowed_capital_gain(f['P22250'] + f['P23250'], f['MARS'])
+    out.update(kg_st=f['P22250'] + np.minimum(left, 0), kg_lt=f['P23250'], kg_dist=f['E01100'])
+    out.update({p: f[fld] for p, (fld, _) in PARTS.items() if fld})
+    out['sche_other'] = f['E02000'] - sum(PARTS[p][1] * out[p] for p in SCHE_PARTS)
+    out.update(other_gains=f['E01200'], txbl_ira_dist=f['E01400'], txbl_pens_dist=f['E01700'],
+               nontxbl_pens_dist=np.maximum(f['E01500'] - f['E01700'], 0), ui=f['E02300'], alimony=f['E00800'],
+               state_ref=f['E00700'], gross_ss=f['E02400'], exempt_int=f['E00400'], first_mort_int=f['E19200'],
+               salt_prop=f['E18500'])
+    out.update({p: f[fld] for p, fld in ADJ_PARTS.items()})
+    out.update({v: f[fld] for v, fld in NEW_ITEMS.items() if fld})
+    # part_se: Schedule SE earnings other than Schedules C and F, read from the reported tax (earn_split.py). Not
+    # whole dollars, because of the division by 0.9235.
+    k1_part = (f['E25940'] + f['E25980'] - f['E25920'] - f['E25960']) != 0
+    out['part_se'] = ES.part_se_from_schedule_se(f['E09400'], f['E30400'], f['E00900'] + f['E02100'], k1_part)
+    # other_item_exp, as the production pipeline derives it: on itemizers, total itemized deductions before the
+    # overall limitation (P04470 + E21040) less deductible medical expenses, the two taxes, interest paid, charity,
+    # casualty losses and net limited miscellaneous deductions. The PUF rounds each item on its own, so the remainder
+    # is floored at zero.
+    medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * medical_floor))
+    other_item = np.where(itemizer, f['P04470'] + f['E21040'] - medical - f['E18400'] - f['E18500']
+                          - f['E19200'] - f['E19700'] - f['E20500'] - f['E20800'], 0.0)
+    out['other_item_exp'] = np.maximum(other_item, 0.0)
+    # the remainder of AGI: AGI less wages, interest, dividends, line 13 (the allowed Schedule D net plus distributions)
+    # and the items in AGI. Taxable Social Security (E02500) comes off too: it is not a slot, because the file computes
+    # it by the worksheet
+    items = {'business_income': f['E00900'] + f['E02000'] + f['E02100'], 'adjustments': sum(f[c] for c in ADJ_FIELDS),
+             **{v: out[v] for v in ITEMS if ITEMS[v][0] != 0 and v not in ('business_income', 'adjustments')}}
+    line13_allowed = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'], f['MARS']) + f['E01100']
+    out['other_agi'] = f['E00100'] - out['wages'] - out['txbl_int'] - f['E00600'] - line13_allowed - \
+        sum(ITEMS[v][0] * items[v] for v in items) - f['E02500']
+    return out
+
+
 def puf_rows(puf):
     raw = puf[PUF_FIELDS]
     assert not raw.isna().any().any() and not raw.RECID.duplicated().any()
@@ -254,72 +297,31 @@ def puf_rows(puf):
            'weight': raw.S006 / 100, 'married': (I['MARS'] == 2).astype(np.int64), 'filing_status': I['MARS'],
            'n_dep_ctc': np.minimum(I['N24'], 3).astype(np.int64), 'n_dep_eitc': np.minimum(I['EIC'], 3).astype(np.int64),
            'dep_filer': (puf['DSI'] == 1).astype(np.int64).to_numpy(),
-           'n_dep': np.minimum(n_dep, 3).astype(np.int64), 'filer': 1, 'filer_p': 1.0,
-           'wages': I['E00200'], 'txbl_int': I['E00300'], 'dividends': I['E00600']}
-    # Disclosure protection perturbs each PUF field on its own, so line 13 (E01000) can fall below the allowed
-    # Schedule D net (P22250 + P23250, a loss held to the limit). The shortfall is put on the short-term piece, so
-    # line 13 is the allowed net again; a gap the other way stays in other_agi.
-    left = I['E01000'] - common.allowed_capital_gain(I['P22250'] + I['P23250'], I['MARS'])
-    kg = {'kg_st': I['P22250'] + np.minimum(left, 0).astype(np.int64), 'kg_lt': I['P23250'], 'kg_dist': I['E01100']}
-    out.update(kg, capital_gains=kg['kg_st'] + kg['kg_lt'] + kg['kg_dist'])   # before the loss limit
-    # line 13 in AGI: the allowed Schedule D net plus distributions; the rest of E01000 goes to other_agi below
-    line13_allowed = common.allowed_capital_gain(kg['kg_st'] + kg['kg_lt'], I['MARS']) + I['E01100']
-    assert ((line13_allowed - I['E01100'] == I['E01000']) | (left > 0)).all(), 'line 13 not restored'
-    items = {'business_income': I['E00900'] + I['E02000'] + I['E02100'], 'other_gains': I['E01200'],
-             'txbl_ira_dist': I['E01400'], 'txbl_pens_dist': I['E01700'],
-             'nontxbl_pens_dist': np.maximum(I['E01500'] - I['E01700'], 0),
-             'ui': I['E02300'], 'alimony': I['E00800'], 'state_ref': I['E00700'],
-             'adjustments': sum(I[c] for c in ADJ_FIELDS),
-             'gross_ss': I['E02400'],
-             'exempt_int': I['E00400'], 'first_mort_int': I['E19200'], 'salt_prop': I['E18500']}
-    parts = {p: I[f] for p, (f, _) in PARTS.items() if f}
-    parts['sche_other'] = I['E02000'] - sum(PARTS[p][1] * parts[p] for p in SCHE_PARTS)
-    out.update(parts)
-    assert np.array_equal(sum(PARTS[p][1] * parts[p] for p in PARTS), items['business_income'])
-    items['sch_cf_income'] = sum(PARTS[p][1] * parts[p] for p in CF_PARTS)
-    items['sch_e_income'] = sum(PARTS[p][1] * parts[p] for p in E_PARTS)
-    items['sche_rent'] = sum(PARTS[p][1] * parts[p] for p in RENT_PARTS)
-    items['sche_rest'] = sum(PARTS[p][1] * parts[p] for p in REST_PARTS)
-    assert np.array_equal(items['sche_rent'] + items['sche_rest'], items['sch_e_income'])
-    assert np.array_equal(items['sch_cf_income'], I['E00900'] + I['E02100'])
-    assert np.array_equal(items['sch_e_income'], I['E02000'])
-    out.update(items)
-    out['k1_owner'] = np.column_stack([parts[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)
-    out['owns_business'] = -1                                     # SCF only
-    # the dividend parts and the adjustments' parts add up to the totals exactly (whole dollars)
-    out['div_pref'], out['div_ord'] = I['E00650'], I['E00600'] - I['E00650']
-    assert (out['div_pref'] >= 0).all() and (out['div_ord'] >= 0).all(), 'qualified dividends above ordinary dividends'
-    assert np.array_equal(out['div_pref'] + out['div_ord'], out['dividends'])
-    out.update({p: I[fld] for p, fld in ADJ_PARTS.items()})
-    assert np.array_equal(sum(out[p] for p in ADJ_PARTS), items['adjustments'])
-    out.update({v: I[fld] for v, fld in NEW_ITEMS.items() if fld})
-    # part_se: Schedule SE earnings other than Schedules C and F, read from the reported tax (earn_split.py). Not
-    # whole dollars, because of the division by 0.9235.
-    k1_part = (I['E25940'] + I['E25980'] - I['E25920'] - I['E25960']) != 0
-    out['part_se'] = ES.part_se_from_schedule_se(I['E09400'], I['E30400'], I['E00900'] + I['E02100'], k1_part)
-    # other_item_exp, as the production pipeline derives it: on itemizers, total itemized deductions before the
-    # overall limitation (P04470 + E21040) less deductible medical expenses, the two taxes, interest paid, charity,
-    # casualty losses and net limited miscellaneous deductions. The medical floor is 7.5% of AGI at 65 and over, else
-    # 10%; a record without an age range counts as 65+ when its age-range probabilities give that more than half.
-    # The PUF rounds each item on its own, so the remainder is floored at zero.
+           'n_dep': np.minimum(n_dep, 3).astype(np.int64), 'filer': 1, 'filer_p': 1.0, 'owns_business': -1}
+    # The medical floor is 7.5% of AGI at 65 and over, else 10%; a record without an age range counts as 65+ when its
+    # age-range probabilities give that more than half.
     rng, probs = ages.puf_age_ranges(puf)
     assert np.array_equal(rng.RECID.to_numpy(), raw.RECID.to_numpy())
     old = (rng.age_range.to_numpy() == 5) | (probs[:, 5] > 0.5)
-    medical = np.maximum(0, I['E17500'] - np.maximum(0, I['E00100'].astype(float) * np.where(old, 0.075, 0.1)))
-    other_item = np.where(I['FDED'] == 1, I['P04470'] + I['E21040'] - medical - I['E18400'] - I['E18500']
-                          - I['E19200'] - I['E19700'] - I['E20500'] - I['E20800'], 0.0)
-    out['other_item_exp'] = np.maximum(other_item, 0.0)
-    # taxable Social Security (E02500) comes off too: it is not a slot, because the file computes it by the worksheet
-    out['other_agi'] = I['E00100'] - out['wages'] - out['txbl_int'] - out['dividends'] - line13_allowed - \
-        sum(ITEMS[v][0] * items[v] for v in ITEMS) - I['E02500']
+    f = {c: x.astype(float) for c, x in I.items()}
+    out.update(puf_items(f, I['FDED'] == 1, np.where(old, 0.075, 0.1)))
+    for v, parts in COMPUTED.items():
+        out[v] = sum(sg * out[p] for p, sg in parts.items())
+    out['k1_owner'] = np.column_stack([out[p] != 0 for p in K1_PARTS]).any(1).astype(np.int64)
+    # the parts add up to the PUF's own totals exactly (whole dollars)
+    left = f['E01000'] - common.allowed_capital_gain(f['P22250'] + f['P23250'], f['MARS'])
+    assert ((common.allowed_capital_gain(out['kg_st'] + out['kg_lt'], f['MARS']) == f['E01000']) | (left > 0)).all(), 'line 13 not restored'
+    assert np.array_equal(out['business_income'], f['E00900'] + f['E02000'] + f['E02100'])
+    assert np.array_equal(out['sch_cf_income'], f['E00900'] + f['E02100']) and np.array_equal(out['sch_e_income'], f['E02000'])
+    assert np.array_equal(out['sche_rent'] + out['sche_rest'], out['sch_e_income'])
+    assert (out['div_pref'] >= 0).all() and (out['div_ord'] >= 0).all(), 'qualified dividends above ordinary dividends'
+    assert np.array_equal(out['dividends'], f['E00600']) and np.array_equal(out['adjustments'], sum(f[c] for c in ADJ_FIELDS))
     # gross pensions = taxable + the rest, exactly; the rest below zero (taxable above total pensions) is held at zero
     over = I['E01700'] > I['E01500']
     common.say(f'PUF: taxable pensions above total pensions (the rest held at zero) on {int(over.sum()):,} records, '
                f'{(raw.S006.to_numpy() / 100)[over].sum() / 1e6:,.3f} million returns')
-    assert np.array_equal(items['txbl_pens_dist'] + items['nontxbl_pens_dist'], np.maximum(I['E01500'], I['E01700']))
+    assert np.array_equal(out['txbl_pens_dist'] + out['nontxbl_pens_dist'], np.maximum(f['E01500'], f['E01700']))
     df = pd.DataFrame(out)
-    for v in PUF_AMOUNTS:
-        df[v] = df[v].astype(float)
     df['age_range'] = rng.age_range.to_numpy()
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]

@@ -35,8 +35,7 @@ def agi_group(agi):
     return np.where(a < 0, 0, np.where(a <= 10e6, 1, np.where(a <= 100e6, 2, 3)))
 
 
-# ---- the parts the rebuild draws, from PUF fields (build_table.puf_rows) ----------------------------------------
-SIGNED_ITEMS = {v: s for v, (s, _, _) in BT.ITEMS.items() if s != 0}   # AGI items other than wages through gains
+# ---- the parts the rebuild draws, from PUF fields (build_table.puf_items) ---------------------------------------
 PRIMITIVES = (['wages', 'txbl_int', 'div_pref', 'div_ord'] + BT.KG_PIECES + list(BT.PARTS)
               + ['other_gains', 'txbl_ira_dist', 'txbl_pens_dist', 'nontxbl_pens_dist', 'ui', 'alimony',
                  'state_ref', 'gross_ss', 'exempt_int', 'first_mort_int',
@@ -46,44 +45,13 @@ RESIDUALS = ['div_ord', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_re
 
 
 def puf_items(raw, itemizer=None):
-    """The rebuild's parts from raw PUF fields, by the rules of build_table.puf_rows. itemizer says who gets
-    other_item_exp (default FDED == 1; the aggregate records' FDED is zeroed, so the caller passes True). The medical
-    floor is 10% of AGI."""
+    """The rebuild's parts from raw PUF fields, as the training table's (build_table.puf_items), with the remainder of
+    AGI as other_agi_remainder. itemizer says who gets other_item_exp (default FDED == 1; the aggregate records' FDED
+    is zeroed, so the caller passes True). The medical floor is 10% of AGI."""
     f = {c: raw[c].to_numpy(float) for c in raw.columns}
-    n = len(raw)
-    out = {'wages': f['E00200'], 'txbl_int': f['E00300'], 'div_pref': f['E00650'], 'div_ord': f['E00600'] - f['E00650'],
-           'kg_st': f['P22250'], 'kg_lt': f['P23250'], 'kg_dist': f['E01100']}   # before the loss limit
-    # line 13's shortfall below the allowed net goes on the short-term piece
-    mars = f['MARS'] if 'MARS' in f else None
-    out['kg_st'] = f['P22250'] + np.minimum(f['E01000'] - common.allowed_capital_gain(f['P22250'] + f['P23250'], mars), 0)
-    for p, (fld, _) in BT.PARTS.items():
-        if fld:
-            out[p] = f[fld]
-    out['sche_other'] = f['E02000'] - sum(BT.PARTS[p][1] * out[p] for p in BT.SCHE_PARTS)
-    out.update({'other_gains': f['E01200'], 'txbl_ira_dist': f['E01400'], 'txbl_pens_dist': f['E01700'],
-                'nontxbl_pens_dist': np.maximum(f['E01500'] - f['E01700'], 0.0), 'ui': f['E02300'], 'alimony': f['E00800'],
-                'state_ref': f['E00700'], 'gross_ss': f['E02400'],
-                'exempt_int': f['E00400'], 'first_mort_int': f['E19200'], 'salt_prop': f['E18500']})
-    out.update({p: f[fld] for p, fld in BT.ADJ_PARTS.items()})
-    out.update({v: f[fld] for v, fld in BT.NEW_ITEMS.items() if fld})
-    k1_part = (f['E25940'] + f['E25980'] - f['E25920'] - f['E25960']) != 0
-    out['part_se'] = BT.ES.part_se_from_schedule_se(f['E09400'], f['E30400'], f['E00900'] + f['E02100'], k1_part)
-    itemizer = (f['FDED'] == 1) if itemizer is None else np.broadcast_to(np.asarray(itemizer, bool), (n,))
-    medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * 0.1))
-    out['other_item_exp'] = np.where(itemizer, f['P04470'] + f['E21040'] - medical - f['E18400'] - f['E18500']
-                                     - f['E19200'] - f['E19700'] - f['E20500'] - f['E20800'], 0.0)
-    out['other_item_exp'] = np.maximum(out['other_item_exp'], 0.0)
-    business = f['E00900'] + f['E02000'] + f['E02100']
-    items = {'business_income': business, 'other_gains': out['other_gains'], 'txbl_ira_dist': out['txbl_ira_dist'],
-             'txbl_pens_dist': out['txbl_pens_dist'],
-             'ui': out['ui'], 'alimony': out['alimony'], 'state_ref': out['state_ref'],
-             'adjustments': sum(f[c] for c in BT.ADJ_FIELDS)}
-    assert set(items) == set(SIGNED_ITEMS), (set(items) ^ set(SIGNED_ITEMS))
-    # line 13 in AGI: the allowed Schedule D net plus distributions
-    allowed = common.allowed_capital_gain(out['kg_st'] + f['P23250'], mars)
-    # taxable Social Security (E02500) comes off too: it is computed by the worksheet, not a part
-    out['other_agi_remainder'] = f['E00100'] - f['E00200'] - f['E00300'] - f['E00600'] - allowed - f['E01100'] \
-        - sum(SIGNED_ITEMS[v] * items[v] for v in items) - f['E02500']
+    itemizer = (f['FDED'] == 1) if itemizer is None else np.broadcast_to(np.asarray(itemizer, bool), (len(raw),))
+    out = BT.puf_items(f, itemizer, 0.1)
+    out['other_agi_remainder'] = out.pop('other_agi')
     return pd.DataFrame({v: np.asarray(out[v], float) for v in PRIMITIVES}, index=raw.index)
 
 
@@ -110,11 +78,11 @@ def puf_totals(df, ss_taxable=None):
 
 
 def read_raw():
-    """The raw 2015 PUF: the four aggregate records (by RECID order) and the ordinary records."""
+    """The raw 2015 PUF's four aggregate records, by RECID order."""
     raw = pd.read_csv(common.RAW['puf'])
     agg = raw[raw.RECID >= 999996].set_index('RECID').loc[RECIDS].reset_index()
     assert len(agg) == 4
-    return agg, raw[raw.RECID < 999996].reset_index(drop=True)
+    return agg
 
 
 # Fields blank on all four aggregate records and absent from the booklet: suppressed, not known zeros. Their parts
@@ -144,29 +112,6 @@ def raw_targets(agg):
                                                               f['MARS'].to_numpy() if 'MARS' in f else None)
     nets.index = GROUPS
     return n, means, nets
-
-
-def check_translation(ordinary):
-    """Checks that puf_items equals the training table's PUF rows on every part of the ordinary records
-    (other_item_exp only where there are no medical expenses, whose floor there depends on age). Returns a table of
-    the largest differences."""
-    t = pd.read_parquet(common.TABLE, columns=['source', 'record_id'] + [('other_agi' if v == 'other_agi_remainder' else v)
-                                                                          for v in PRIMITIVES])
-    t = t[t.source == 'puf'].set_index('record_id')
-    mine = puf_items(ordinary).set_index(ordinary['RECID'].astype(float))
-    t = t.loc[mine.index]
-    rows = []
-    no_med = ordinary['E17500'].to_numpy() == 0
-    for v in PRIMITIVES:
-        a = mine[v].to_numpy(float)
-        b = t['other_agi' if v == 'other_agi_remainder' else v].to_numpy(float)
-        m = no_med if v == 'other_item_exp' else np.ones(len(a), bool)
-        d = np.abs(a - b)[m]
-        rows.append({'part': v, 'records compared': int(m.sum()), 'records differing': int((d > 1e-6).sum()),
-                     'largest difference ($)': float(d.max())})
-    out = pd.DataFrame(rows)
-    assert (out['records differing'] == 0).all(), 'puf_items differs from build_table.puf_rows:\n' + out.to_string()
-    return out
 
 
 # ---- the booklet ---------------------------------------------------------------------------------------------
@@ -584,8 +529,7 @@ def build():
     by_seed, note = TB.offset_factors(models)
     common.say(note)
     factors = {m['run']: by_seed[m['seed']] for m in models}   # by run, as generation keys them
-    agg, ordinary = read_raw()
-    common.say('translation check against build_table.puf_rows:\n' + check_translation(ordinary).to_string(index=False))
+    agg = read_raw()
     n_ret, means, nets = raw_targets(agg)
     book = booklet()
     common.say(f'aggregate records: returns {n_ret.tolist()} (total {n_ret.sum():.2f})')

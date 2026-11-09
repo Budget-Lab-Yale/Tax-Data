@@ -912,7 +912,7 @@ def real_puf_records():
         none = o['earn_split'].to_numpy() < 0
         assert np.allclose(o.loc[none, M.ES_PROBS].sum(1), 1), 'earn_split: a PUF row with no code and no probabilities'
     o = o.rename(columns={v: D.OWN + v for v in own})
-    agg_raw, _ = TH.read_raw()
+    agg_raw = TH.read_raw()
     # alimony received and paid (E00800, E03500) are blank on the four records (suppressed): read as zero, so each
     # record's AGI is still its E00100
     sup = list(TH.SUPPRESSED_FIELDS)
