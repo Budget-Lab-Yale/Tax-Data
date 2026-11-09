@@ -496,6 +496,63 @@ def published_25(year, cells, v, stats):
     return rows
 
 
+def published_21(year, cells, v, stats):
+    """Rows from Table 2.1 in the itemized-deduction AGI groups, with errors from its grouped CVs (a missing CV
+    borrowed from the nearest year; the residual 'other' category a 10% judgment)."""
+    (c,) = cells
+    assert c['agi'] == 'itemized_agi_groups'
+    data = pd.read_csv(os.path.join(common.RESOURCES, 'table21_2015_2023.csv'))
+    category = v.removeprefix('itemized_')
+    # the taxes line is Table 2.1's state and local taxes (limited, 2018 on), not the taxes paid total, which adds
+    # other taxes the calculator does not compute (resources/build_table21_state_local.py)
+    source_category = {'other': 'other_residual', 'taxes': 'taxes_state_local'}.get(category, category)
+    source = data[(data.year == year) & (data.category == source_category)]
+    # Table 2.1's published groups, with their lower and upper edges. A group of ours can hold several published groups
+    # (under $25,000 and $25,000-$50,000 are one group, under $50,000): their counts and amounts add, and their standard
+    # errors add in quadrature (the published groups are treated as independent, as the combined source cells already
+    # were).
+    published = [('under $25,000', -np.inf, 25000), ('$25,000–$50,000', 25000, 50000), ('$50,000–$75,000', 50000, 75000),
+                 ('$75,000–$100,000', 75000, 100000), ('$100,000–$200,000', 100000, 200000),
+                 ('$200,000–$500,000', 200000, 500000), ('$500,000 and over', 500000, np.inf)]
+    rows, used = [], []
+    for glo, ghi, label in edge_groups('itemized_agi_groups'):
+        inside = [p for p in published if p[1] >= glo and p[2] <= ghi]
+        assert inside, (label, 'no published group of Table 2.1 inside')
+        used += [p[0] for p in inside]
+        for st in stats:
+            value, var, reasons, srcs = 0.0, 0.0, [], []
+            for published_label, _, _ in inside:
+                matches = source[source.agi_group == published_label]
+                assert len(matches) == 1, (year, category, published_label, len(matches))
+                record = matches.iloc[0]
+                v_ = float(record[st])
+                assert np.isfinite(v_), (year, category, published_label, st, 'missing value')
+                cv = record[st + '_cv']
+                if category == 'other':
+                    assert st == 'amount' and year >= 2018
+                    cv, reason = .10, '10% judgment: residual CV and covariance are unavailable'
+                elif pd.isna(cv):
+                    donors = data[(data.category == category) & (data.agi_group == published_label) & data[st + '_cv'].notna()].copy()
+                    assert len(donors), (category, published_label, st, 'no CV donor')
+                    donors['distance'] = abs(donors.year - year)
+                    donor = donors.sort_values(['distance', 'year']).iloc[0]
+                    cv = float(donor[st + '_cv'])
+                    reason = f'missing grouped CV: borrowed same category and AGI group from {int(donor.year)}'
+                else:
+                    reason = 'Table 2.1 grouped CV; combined source cells treated as independent'
+                assert np.isfinite(cv) and cv >= 0
+                value += v_
+                var += (abs(v_) * cv) ** 2
+                reasons.append(reason)
+                srcs.append(f'SOI Table 2.1 {year}: {category}, {published_label}; {record.source_file}, {record.source_rows}')
+            rows.append({'cell': label, 'agi': (glo, ghi), 'statistic': st, 'value': value, 'se': float(np.sqrt(var)),
+                         'error_kind': 'table21', 'se_reason': '; '.join(dict.fromkeys(reasons))
+                         + ('; groups added, errors in quadrature' if len(inside) > 1 else ''),
+                         'source': ' + '.join(srcs)})
+    assert sorted(used) == sorted(p[0] for p in published), 'our groups do not cover Table 2.1\'s exactly once'
+    return rows
+
+
 def _part_of(c, variables):
     """(grouping, label) of the cell's part whose grouping is on one of the variables."""
     (gname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] in variables]
@@ -696,23 +753,27 @@ def cps_nonfiler_people(year, v):
     return float(q @ record_value(ages, v))
 
 
+def _taxdata_nonfiler_totals(y, v):
+    """The amount of variable v among the non-filers of the tax data of year y, and the weighted number of non-filers
+    with a nonzero amount."""
+    t = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
+    t = t[t['filer'] == 0]
+    x = record_value(t, v); w = t['weight'].to_numpy(float)
+    assert np.isfinite(x).all() and np.isfinite(w).all(), f'tax data {y}: {v} or weight missing on a non-filer'
+    return {'amount': float((w * x).sum()), 'count': float(w[x != 0].sum())}
+
+
 def taxdata_nonfiler_rows(year, cells, v, stats):
     """An item of the non-filers in the pipeline's tax data for the year (data/tax_data_<year>.parquet, the CPS units
     weighted by their chance of not filing, their amounts in PUF terms before the training's fill-in): its amount, or
     the units with it (statistic count). A year with no tax data file takes the geometric mean of the CPS years either
     side, as the non-filer count does. Cells all."""
     assert cells == group_cells('all'), 'tax data non-filers: cells all only'
-    def one(y):
-        t = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
-        t = t[t['filer'] == 0]
-        x = record_value(t, v); w = t['weight'].to_numpy(float)
-        assert np.isfinite(x).all() and np.isfinite(w).all(), f'tax data {y}: {v} or weight missing on a non-filer'
-        return {'amount': float((w * x).sum()), 'count': float(w[x != 0].sum())}
     if os.path.exists(f'{common.DATA}/tax_data_{year}.parquet'):
-        vals, how = one(year), f'tax data {year}'
+        vals, how = _taxdata_nonfiler_totals(year, v), f'tax data {year}'
     else:
         lo, hi = cps_neighbours(year)
-        a, b = one(lo), one(hi)
+        a, b = _taxdata_nonfiler_totals(lo, v), _taxdata_nonfiler_totals(hi, v)
         vals = {k: float(np.sqrt(a[k] * b[k])) if a[k] > 0 and b[k] > 0 else (a[k] + b[k]) / 2 for k in a}
         how = f'geometric mean of the tax data of {lo} and {hi}'
     return [{'cell': 'all', 'statistic': st, 'value': vals[st],
@@ -1035,6 +1096,29 @@ def tax_unit_rules(source):
 
 
 # ---- published grids ----------------------------------------------------------------------------------------
+def _grid_value(selected, c, spec, source, measure, item=None):
+    """The sum of the published cells of one item and measure among the cells selected for cell c, in returns or
+    dollars. An item that SOI names differently in some years (catalog item_aliases: salaries and wages is "total
+    wages" in Table 4.3 from tax year 2022) is read under the name the year publishes."""
+    name = item or spec['item']
+    for alt in [name] + list(CAT.get('item_aliases', {}).get(name, [])):
+        if ((selected.item == alt) & (selected.measure == measure)).any():
+            name = alt
+            break
+    z = selected[(selected.item == name) & (selected.measure == measure)]
+    expected = int(np.prod([len(CAT['groupings'][g]['published_labels'][l]) for g, l in c['parts'].items()]))
+    assert len(z) == expected, f'{source} {c["label"]} {spec["item"]} {measure}: {len(z)} cells, expected {expected}'
+    assert z.value.ne('').all(), f'{source} {c["label"]} {spec["item"]}: {int(z.value.eq("").sum())} missing values: {z.flag.tolist()}'
+    scales = z.unit.map({'returns': 1, '$ thousands': 1000, 'whole dollars': 1})
+    assert scales.notna().all(), f'{source}: unknown units {z.unit.tolist()}'
+    x = pd.to_numeric(z.value) * scales
+    if 'net loss' in name and measure != spec.get('count', 'returns'):
+        # Table 4.3 prints a net loss's amount as a negative number in some years and as a positive one in others.
+        # The file's loss variables are sizes, so the published amount is read as its size.
+        x = x.abs()
+    return float(x.sum())
+
+
 def published_grid(source, year, cells, v, stats, e):
     """A tidy published table, selected by catalog item, measure and group labels.
 
@@ -1067,29 +1151,10 @@ def published_grid(source, year, cells, v, stats, e):
             assert definition.get('cutoff_item'), f'{source}: no cutoff_item for the published lines of {c["label"]}'
             assert cutoff is not None and np.isfinite(cutoff) and cutoff > 0, \
                 f'{source} {year} {c["label"]}: no published AGI cutoff ({definition["cutoff_item"]})'
-        def value(measure, item=None):
-            # an item SOI names differently in some years (catalog item_aliases: salaries and wages is "total wages"
-            # in Table 4.3 from tax year 2022) is read under the name the year publishes
-            name = item or spec['item']
-            for alt in [name] + list(CAT.get('item_aliases', {}).get(name, [])):
-                if ((selected.item == alt) & (selected.measure == measure)).any():
-                    name = alt
-                    break
-            z = selected[(selected.item == name) & (selected.measure == measure)]
-            expected = int(np.prod([len(CAT['groupings'][g]['published_labels'][l]) for g, l in c['parts'].items()]))
-            assert len(z) == expected, f'{source} {c["label"]} {spec["item"]} {measure}: {len(z)} cells, expected {expected}'
-            assert z.value.ne('').all(), f'{source} {c["label"]} {spec["item"]}: {int(z.value.eq("").sum())} missing values: {z.flag.tolist()}'
-            scales = z.unit.map({'returns': 1, '$ thousands': 1000, 'whole dollars': 1})
-            assert scales.notna().all(), f'{source}: unknown units {z.unit.tolist()}'
-            x = pd.to_numeric(z.value) * scales
-            if 'net loss' in name and measure != spec.get('count', 'returns'):
-                # Table 4.3 prints a net loss's amount as a negative number in some years and as a positive one in
-                # others; the file's loss variables are sizes, so the published amount is read as its size
-                x = x.abs()
-            return float(x.sum())
         for st in stats:
-            val = value(spec[st])
-            count = value(spec.get('count', spec.get('units', 'returns')), spec.get('returns_item'))
+            val = _grid_value(selected, c, spec, source, spec[st])
+            count = _grid_value(selected, c, spec, source, spec.get('count', spec.get('units', 'returns')),
+                                spec.get('returns_item'))
             if cutoff is not None and cutoff >= definition.get('full_sample_above', np.inf):
                 se, kind = errors.FULL_SAMPLE_SE * abs(val), 'judgment'
                 reason = (f'{100 * errors.FULL_SAMPLE_SE:g}% of value (errors.full_sample_se): published AGI cutoff '
@@ -1400,63 +1465,6 @@ def _fill(template, cell, v, st, year, line=None):
                            year=year, line=line, **parts)
 
 
-def published_21(year, cells, v, stats):
-    """Rows from Table 2.1 in the itemized-deduction AGI groups, with errors from its grouped CVs (a missing CV
-    borrowed from the nearest year; the residual 'other' category a 10% judgment)."""
-    (c,) = cells
-    assert c['agi'] == 'itemized_agi_groups'
-    data = pd.read_csv(os.path.join(common.RESOURCES, 'table21_2015_2023.csv'))
-    category = v.removeprefix('itemized_')
-    # the taxes line is Table 2.1's state and local taxes (limited, 2018 on), not the taxes paid total, which adds
-    # other taxes the calculator does not compute (resources/build_table21_state_local.py)
-    source_category = {'other': 'other_residual', 'taxes': 'taxes_state_local'}.get(category, category)
-    source = data[(data.year == year) & (data.category == source_category)]
-    # Table 2.1's published groups, with their lower and upper edges. A group of ours can hold several published groups
-    # (under $25,000 and $25,000-$50,000 are one group, under $50,000): their counts and amounts add, and their standard
-    # errors add in quadrature (the published groups are treated as independent, as the combined source cells already
-    # were).
-    published = [('under $25,000', -np.inf, 25000), ('$25,000–$50,000', 25000, 50000), ('$50,000–$75,000', 50000, 75000),
-                 ('$75,000–$100,000', 75000, 100000), ('$100,000–$200,000', 100000, 200000),
-                 ('$200,000–$500,000', 200000, 500000), ('$500,000 and over', 500000, np.inf)]
-    rows, used = [], []
-    for glo, ghi, label in edge_groups('itemized_agi_groups'):
-        inside = [p for p in published if p[1] >= glo and p[2] <= ghi]
-        assert inside, (label, 'no published group of Table 2.1 inside')
-        used += [p[0] for p in inside]
-        for st in stats:
-            value, var, reasons, srcs = 0.0, 0.0, [], []
-            for published_label, _, _ in inside:
-                matches = source[source.agi_group == published_label]
-                assert len(matches) == 1, (year, category, published_label, len(matches))
-                record = matches.iloc[0]
-                v_ = float(record[st])
-                assert np.isfinite(v_), (year, category, published_label, st, 'missing value')
-                cv = record[st + '_cv']
-                if category == 'other':
-                    assert st == 'amount' and year >= 2018
-                    cv, reason = .10, '10% judgment: residual CV and covariance are unavailable'
-                elif pd.isna(cv):
-                    donors = data[(data.category == category) & (data.agi_group == published_label) & data[st + '_cv'].notna()].copy()
-                    assert len(donors), (category, published_label, st, 'no CV donor')
-                    donors['distance'] = abs(donors.year - year)
-                    donor = donors.sort_values(['distance', 'year']).iloc[0]
-                    cv = float(donor[st + '_cv'])
-                    reason = f'missing grouped CV: borrowed same category and AGI group from {int(donor.year)}'
-                else:
-                    reason = 'Table 2.1 grouped CV; combined source cells treated as independent'
-                assert np.isfinite(cv) and cv >= 0
-                value += v_
-                var += (abs(v_) * cv) ** 2
-                reasons.append(reason)
-                srcs.append(f'SOI Table 2.1 {year}: {category}, {published_label}; {record.source_file}, {record.source_rows}')
-            rows.append({'cell': label, 'agi': (glo, ghi), 'statistic': st, 'value': value, 'se': float(np.sqrt(var)),
-                         'error_kind': 'table21', 'se_reason': '; '.join(dict.fromkeys(reasons))
-                         + ('; groups added, errors in quadrature' if len(inside) > 1 else ''),
-                         'source': ' + '.join(srcs)})
-    assert sorted(used) == sorted(p[0] for p in published), 'our groups do not cover Table 2.1\'s exactly once'
-    return rows
-
-
 def entry_rows(e, year, soi, v):
     """The value rows of one entry for one of its variables, from the entry's value source."""
     stats = _as_list(e['statistic'])
@@ -1600,6 +1608,21 @@ def population(df, name):
     return m
 
 
+def _cached_value(values, df, name):
+    """record_value(df, name), computed once and kept in the dict values."""
+    if name not in values:
+        values[name] = record_value(df, name)
+    return values[name]
+
+
+def _put_average(F, T, averages, j, member, v, m):
+    """Writes target j, "the average of v over member is m", as the condition: the sum over member of w (v / m - 1)
+    equals 0."""
+    F[:, j] = member * (v / m - 1.0)
+    T[j] = 0.0
+    averages[j] = (member, v, m)
+
+
 def conditions(df, rows, w_start, check=True):
     """F (records x targets), T, averages for the file df: the target in row j is met when F[:, j] @ w == T[j]. For
     an average or a share, averages[j] = (member, v, published average): the average of v over the records in
@@ -1619,21 +1642,9 @@ def conditions(df, rows, w_start, check=True):
     ws = np.asarray(w_start, float) if w_start is not None else \
         df['weight'].to_numpy(float) if 'weight' in df else np.ones(len(df))
     values = {}
-
-    def value(name):
-        if name not in values:
-            values[name] = record_value(df, name)
-        return values[name]
-
     F = np.zeros((len(df), len(rows)))
     T = rows['value'].to_numpy(float).copy()
     averages = [None] * len(rows)
-
-    def put_average(j, member, v, m):
-        # 'the average of v over member is m': the sum over member of w (v / m - 1) = 0
-        F[:, j] = member * (v / m - 1.0)
-        T[j] = 0.0
-        averages[j] = (member, v, m)
 
     for j, r in enumerate(rows.itertuples(index=False)):
         cell = pops[r.population].copy()
@@ -1647,7 +1658,7 @@ def conditions(df, rows, w_start, check=True):
             cell &= (a >= r.agi_lo) & (a < r.agi_hi)
         if r.range_variable:
             # a dollar range of a variable other than AGI (the unit's wages for the overtime targets), low inclusive
-            xg = value(r.range_variable)
+            xg = _cached_value(values, df, r.range_variable)
             assert np.isfinite(xg[cell]).all(), f'{r.group} {r.target}: {r.range_variable} missing in the cell\'s population'
             cell &= (xg >= r.range_lo) & (xg < r.range_hi)
         if not np.isnan(r.married):
@@ -1657,19 +1668,19 @@ def conditions(df, rows, w_start, check=True):
         if r.rank_variable:
             # the income rank group on the file, by the file's own weighted percentiles among the entry's population
             # on the starting weights; fixed as dollar lines, so the group is the same records through the reweighting
-            xr, pop = value(r.rank_variable), pops[r.population]
+            xr, pop = _cached_value(values, df, r.rank_variable), pops[r.population]
             lo_line, hi_line = rank_dollar_lines(xr[pop], ws[pop], r.rank_lo, r.rank_hi)
             FILE_RANK_LINES[(r.rank_variable, r.population, r.rank_lo)] = lo_line
             FILE_RANK_LINES[(r.rank_variable, r.population, r.rank_hi)] = hi_line
             cell &= (xr >= lo_line) & (xr < hi_line)
-        x = value(r.variable) if r.variable else None
+        x = _cached_value(values, df, r.variable) if r.variable else None
         # the line is on its own variable: net worth above the SCF's 99th percentile, for a target in stocks
         assert (np.isnan(r.line) and np.isnan(r.line_hi)) or r.line_variable, f'{r.group} {r.target}: a line with no variable'
         if np.isnan(r.line_hi):
-            line = None if np.isnan(r.line) else (value(r.line_variable) > r.line).astype(float)
+            line = None if np.isnan(r.line) else (_cached_value(values, df, r.line_variable) > r.line).astype(float)
         else:
             # a band, above the lower line (if any) and at or below the upper one
-            xl = value(r.line_variable)
+            xl = _cached_value(values, df, r.line_variable)
             line = ((xl <= r.line_hi) & ((xl > r.line) if not np.isnan(r.line) else True)).astype(float)
         if r.statistic == 'units':
             F[:, j] = cell
@@ -1687,7 +1698,7 @@ def conditions(df, rows, w_start, check=True):
                 F[:, j] += dep_26 * r.value / rows.loc[same, 'value'].sum()
         elif r.statistic == 'count':
             count_var = variable_def(r.variable).get('count_variable')
-            xc = value(count_var) if count_var else x
+            xc = _cached_value(values, df, count_var) if count_var else x
             # SOI Table 2.1 counts returns claiming a positive category amount.
             pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity',
                                      'itemized_charity_cash', 'itemized_charity_noncash')
@@ -1709,11 +1720,11 @@ def conditions(df, rows, w_start, check=True):
             member = cell & (n_w > 0)
             assert member.any(), f'{r.group} {r.target}: no workers'
             k = ws[member].sum() / (ws * n_w * cell).sum()
-            put_average(j, member, r.value + (n_above - r.value * n_w) * k, r.value)
+            _put_average(F, T, averages, j, member, r.value + (n_above - r.value * n_w) * k, r.value)
         elif r.statistic in ('average', 'share'):
             v = line if r.statistic == 'share' else x
             assert v is not None, f'{r.group} {r.target}: a share needs a line'
-            put_average(j, cell, v, r.value)
+            _put_average(F, T, averages, j, cell, v, r.value)
         else:
             raise NotImplementedError(r.statistic)
     if check:

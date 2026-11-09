@@ -704,6 +704,15 @@ def fs_replaced_columns(year):
     return {c for item in FS_ITEMS if fs_trust()[item] > 0 for c in fs_columns(item)}
 
 
+def _fs_row(out, item, stat, lab, lo, hi, value, se, source):
+    """Adds to out the target row of one item and statistic in one AGI group, with its value, standard error and
+    source."""
+    v = f"{PREFIX['filing_season']}{item}"
+    out.append({'cell': lab, 'statistic': stat, 'value': float(value), 'variable': v, 'source': source,
+                'se': float(se), 'agi': (lo, hi),
+                'cell_spec': {'parts': {}, 'filters': [], 'label': lab, 'agi': None, 'line': None}})
+
+
 def fs_rows(year):
     """The rows of outside source 'projection filing season': each trusted item's blended total by AGI group on filers
     (and for full-trust items the number of returns with it); none outside the filing-season year."""
@@ -717,12 +726,6 @@ def fs_rows(year):
     a0, a1 = D.agi(b), D.agi(df)
     out, table = [], []
 
-    def row(item, stat, lab, lo, hi, value, se, source):
-        v = f"{PREFIX['filing_season']}{item}"
-        out.append({'cell': lab, 'statistic': stat, 'value': float(value), 'variable': v, 'source': source,
-                    'se': float(se), 'agi': (lo, hi),
-                    'cell_spec': {'parts': {}, 'filters': [], 'label': lab, 'agi': None, 'line': None}})
-
     # the number of returns: shares across groups of the total the exact returns cells set
     T = sum(d['filers 2023'] / d['units 2023'] * d['units after step 1'] for d in STATE['return_shares'].values())
     bl = fs_blend('returns')
@@ -734,10 +737,10 @@ def fs_rows(year):
         lp = float(w[lst & fs_ & (a1 >= lo) & (a1 < hi)].sum())
         kind, e = fs_error('returns', 'units', lab)
         val = share * T + lp
-        row('returns', 'units', lab, lo, hi, val, e * val,
-            f"share {share:.5f} of the {T:,.0f} returns the exact returns cells set: the {FS['base_year']} file's "
-            f"{base[lab]:,.0f} returns in the group times the November growth {nov[lab][1] / nov[lab][0]:.5f}, as a "
-            f"share; plus the year's list {lp:,.0f}")
+        _fs_row(out, 'returns', 'units', lab, lo, hi, val, e * val,
+                f"share {share:.5f} of the {T:,.0f} returns the exact returns cells set: the {FS['base_year']} file's "
+                f"{base[lab]:,.0f} returns in the group times the November growth {nov[lab][1] / nov[lab][0]:.5f}, as a "
+                f"share; plus the year's list {lp:,.0f}")
         table.append({'item': 'returns', 'statistic': 'units', 'group': lab, 'base': base[lab],
                       'november growth': nov[lab][1] / nov[lab][0], 'growth': share * T / base[lab] if base[lab] else np.nan,
                       'value': val, 'se': e * val})
@@ -761,11 +764,11 @@ def fs_rows(year):
                 val = base_g * g + lp
                 kind, e = fs_error(item, stat, lab)
                 se = e * nat if kind == 'dollars' else e * abs(val)
-                row(item, stat, lab, lo, hi, val, se,
-                    f"the {FS['base_year']} file's {base_g:,.0f} in the group (filers, Forbes list left out) times "
-                    f"{g:.5f} = {bl['w']:.3f} x November {ng:.5f} + {1 - bl['w']:.3f} x CBO's national "
-                    f"{bl['cbo'] if stat == 'amount' else 1.0:.5f}; plus the year's list {lp:,.0f}; error "
-                    f"{'%.4f of the national total' % e if kind == 'dollars' else '%.4f' % e}")
+                _fs_row(out, item, stat, lab, lo, hi, val, se,
+                        f"the {FS['base_year']} file's {base_g:,.0f} in the group (filers, Forbes list left out) times "
+                        f"{g:.5f} = {bl['w']:.3f} x November {ng:.5f} + {1 - bl['w']:.3f} x CBO's national "
+                        f"{bl['cbo'] if stat == 'amount' else 1.0:.5f}; plus the year's list {lp:,.0f}; error "
+                        f"{'%.4f of the national total' % e if kind == 'dollars' else '%.4f' % e}")
                 table.append({'item': item, 'statistic': stat, 'group': lab, 'base': base_g, 'november growth': ng,
                               'growth': g, 'value': val, 'se': se})
     STATE['fs']['targets'] = table
