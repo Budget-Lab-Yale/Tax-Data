@@ -1,8 +1,8 @@
-"""The top step's network part on a GPU (top_records.network_part: Part A's rebuilt hidden returns and the redraw of
-balance sheets at $1 billion or more), on the year's start built as the reweighting builds it (scale/start.py), written
-to <out>/top_cache.pkl, which reweight/tilt.py reads.
+"""The top stage: the part of the top of the file that needs the network, run on a GPU.
 
-  python -m generate.top
+Builds the year's start as the reweighting does (scale/start.py), adds Part A's rebuilt hidden returns and redraws
+balance sheets at $1 billion or more (top_records.network_part), and writes the result to the top cache, which
+reweight/tilt.py reads.
 """
 import os
 import pickle

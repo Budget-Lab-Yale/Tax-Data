@@ -1,31 +1,10 @@
-"""The very top of the file, added after generation and before the reweighting. tilt.main() runs these steps on the
-start, in target-year dollars, before it saves the population masks, builds the target conditions or does the
-demographic prescaling; the ordinary non-microdata step then runs on the whole file (it may add no rows and change no
-column, so it must come after).
+"""The top of the file, added to the start before the reweighting.
 
-The steps, in order:
-  1. a start from an earlier year's tilted file: its billionaires are removed (the year's own list replaces them);
-  2. Part A, the PUF's hidden top returns rebuilt from generated records (top_hidden.rebuild_hidden_returns), when the
-     start is generated; otherwise skipped, and the summary says so. Its records come in the generated records' weight
-     units, with synthetic_top = 1 and hidden_group; they are scaled with the generated records and free to move in
-     the tilt;
-  3. the redraw of every generated balance sheet at or above the ceiling (top_billionaires.redraw_balance_sheets;
-     the ceiling is catalog population scf_units_below_a_billion's net_worth_below, $1 billion);
-  4. the billionaires (top_billionaires.build_billionaires; add_list). In a year with a Forbes list (2015-2026), the
-     year's own list as records of weight 1, held fixed in the tilt. In a year after the last list, the last list
-     grown to the year (top_billionaires.grow_list), its records starting at weight 1 times the population growth of
-     their demographic cell from the list's year to the year (projection_demographics.population_cells, the start
-     scaling every other record of a projection year gets from 2023) and held fixed at that starting weight: left
-     free, the solver cut the richest to weights near zero.
-  5. in a year with a Forbes list, every other record at or above the ceiling held just below it (hold_below_ceiling):
-     the list is every US billionaire, so no other record may be one. In 2024-2026 these are 2023 records that growth
-     carried past $1 billion; in a generated year, redraw fallbacks.
-Returns the frame, the starting weights (relative importance weights for generated records, as before; the weight in
-returns or units for records whose weight is given), the mask of records whose starting weight is given, the mask of
-records held fixed, and the report (notes and tables, written by write_report).
-
-Steps 1-3 (network_part) draw from the network and want a GPU: the top stage (generate/top.py) writes their result to
-the top cache, which the tilt reads; step 4 (add_list) needs no network and runs in the tilt.
+network_part needs the network and runs in the top stage (top.py): it removes an earlier year's billionaires from a
+start built from that year, adds Part A (the PUF's hidden top returns rebuilt, top_hidden.py), and redraws generated
+balance sheets at or above $1 billion. add_list runs in the reweighting: it adds the year's Forbes list, or the last
+list grown to the year, and holds every other record below $1 billion. FEATURES.md, "The top of the file", has the
+method.
 """
 import os
 
@@ -41,11 +20,9 @@ POPULATION = 'scf_units_below_a_billion'
 
 
 def _hidden_returns(df, year, mode, notes):
-    """Part A's records (see the top), or None. They come in df's units (top_hidden.rebuild_hidden_returns: each
-    rebuilt return's 2015 population weight in the generated filers' own units), so the start's scaling of filers to
-    SOI's returns grows them with the count of returns; they are free in the tilt. Kept with them: hidden_group (0
-    negative AGI, 1 $0-10 million, 2 $10-100 million, 3 over $100 million, in 2015 dollars) and their redraw's fallback
-    flag."""
+    """Part A's records, or None. Their weights are in the generated filers' units, so they are scaled with the filers,
+    and they are free in the reweighting. hidden_group is 0 for negative AGI, 1 for $0-10 million, 2 for $10-100
+    million and 3 for over $100 million, in 2015 dollars."""
     if common.REAL_PUF:   # the four aggregate records are in the file as real records
         notes.append('Part A (the PUF\'s hidden top returns): off, because settings generation.filers is real_puf: the '
                      'PUF\'s four aggregate records are in the file as real records')
@@ -66,9 +43,10 @@ def _hidden_returns(df, year, mode, notes):
 
 
 def network_part(g19, raw, imp, year, mode):
-    """Steps 1-3 (see the top). g19: the start (target-year dollars); raw: the same records with their bands and stored
-    picks (the generated stack, or the start file itself); imp: their starting weights; mode: 'generate' or
-    'from_year'. Returns the frame, starting weights, given and fixed masks (all False) and report."""
+    """Steps 1-3: an earlier year's billionaires removed, Part A added, generated balance sheets redrawn. g19 is the
+    start in target-year dollars; raw the same records with their bands and stored picks; imp their starting weights;
+    mode 'generate' or 'from_year'. Returns the frame, starting weights, given and fixed masks (all False) and the
+    report."""
     notes, rep = [], {}
     ceiling = TLS.net_worth_ceiling(POPULATION)
     assert ceiling is not None, f'population {POPULATION} has no net_worth_below'
@@ -79,14 +57,13 @@ def network_part(g19, raw, imp, year, mode):
         g19, raw, imp = g19.loc[~old].reset_index(drop=True), raw.loc[~old].reset_index(drop=True), imp[~old]
     given = np.zeros(len(g19), bool)
     h = _hidden_returns(g19, year, mode, notes)  # 2. Part A
-    # 3. the redraw, on the generated records (Part A's records were drawn again in its own build, by redraw_records)
+    # 3. the redraw, on the generated records (Part A's records were redrawn when built)
     if mode == 'generate':
         g19, tab = TB.redraw_balance_sheets(g19, raw, year, ceiling, notes)
         rep['redraw'] = tab
     else:
-        # a start from an earlier year's file: its records were redrawn below the ceiling in the year they
-        # were generated; the redraw needs the network and slots the finished file does not keep, so it is not run
-        # again. A record that growth carries to the ceiling stays as it is and is counted below
+        # an earlier year's file was redrawn in the year it was generated, and it lacks the slots the redraw needs; a
+        # record grown past the ceiling stays as it is and is counted below
         notes.append('start from an earlier year\'s file: the redraw at the ceiling is not run again (done in the '
                      'year the records were generated)')
     for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
@@ -106,18 +83,16 @@ def network_part(g19, raw, imp, year, mode):
     return g19, imp, given, np.zeros(len(g19), bool), rep
 
 
-# The balance sheet's dollar columns besides net worth's parts: the unrealized gains (w_kg_*, dollars) and the DC
-# account's stocks (w_dc_stocks = its share x value.dc); the cost bases (basis.*) are taken wherever the file has them.
-# Ratios (w_primary_ltv, w_dc_stock_share) are not dollars and are left as they are.
+# Balance-sheet dollar columns other than net worth's parts, scaled with them, as are the cost bases (basis.*).
+# Ratios are left as they are.
 BALANCE_DOLLARS = ['w_kg_primary_home', 'w_kg_other_re', 'w_kg_pass_throughs', 'w_kg_other', 'w_dc_stocks']
 HOLD_SHARE = 0.999   # a held record's net worth: this share of the ceiling
 
 
 def hold_below_ceiling(g19, imp, ceiling, notes):
-    """Step 5. In a year with a Forbes list the list is every US billionaire, so a record not on
-    it at or above the ceiling has its whole balance sheet (net worth's assets and debts, the unrealized gains, the cost
-    bases, the DC account's stocks) multiplied by one factor that puts its net worth at HOLD_SHARE x the ceiling. Its
-    income, its weight and every other column are unchanged. Returns the frame and a table, one row per record held."""
+    """Step 5. The Forbes list is every US billionaire, so a record not on it at or above the ceiling has its whole
+    balance sheet scaled by one factor that puts its net worth at HOLD_SHARE x the ceiling. Its income and weight are
+    unchanged. Returns the frame and a table with one row per record held."""
     nw = g19['net_worth'].to_numpy(float)
     over = (nw >= ceiling) & (g19['billionaire'].to_numpy() != 1)
     if not over.any():
@@ -147,12 +122,9 @@ def hold_below_ceiling(g19, imp, ceiling, notes):
 
 
 def net_worth_growth(g19, imp, year, list_year):
-    """The one factor by which every fortune on the last list grows to the year: the factor that
-    makes the list's net worth on its starting weights (1 x its cells' population growth from the list's year) grow
-    from the list's year as Z.1 household net worth (resources/growth/z1_household_net_worth.csv, the series of the
-    file's own net worth target), so the list keeps its share of the file's net worth. The weights depend on the
-    records' cells only (ages and marital status), not on their wealth, so a first build with any growth gives them.
-    Returns (factor, source) for top_billionaires.grow_list."""
+    """The one factor by which every fortune on the last list grows to the year, chosen so that the list's net worth on
+    its starting weights grows as Z.1 household net worth from the list's year. The starting weights depend only on
+    the records' age and marital cells, so a first build with any growth gives them. Returns (factor, description)."""
     from shared import growth as GR
     from scale import projection_demographics as PD
     first = TB.grow_list(TB.read_list(list_year), list_year, year)
@@ -172,7 +144,9 @@ def net_worth_growth(g19, imp, year, list_year):
 
 
 def add_list(g19, imp, given, fixed, rep, year):
-    """Step 4 (see the top) on the result of steps 1-3."""
+    """Steps 4 and 5 on the result of steps 1-3. In a year with a Forbes list its records enter at weight 1; after the
+    last list, the last list grown to the year enters at weight 1 times its cells' population growth since the list's
+    year. The weights are held fixed in the reweighting; left free, the solver cuts the richest to near-zero weights."""
     from scale import projection_demographics as PD
     rep = dict(rep)
     notes = list(rep['notes'])
@@ -201,8 +175,7 @@ def add_list(g19, imp, given, fixed, rep, year):
             w_b = np.ones(len(b))
             fix_b = np.ones(len(b), bool)
         else:
-            # weight 1 on the list's date, grown by the population growth of the record's cell from the list's year to
-            # the year, as every projection-year record's weight is grown from 2023 (tilt.main, population_cells)
+            # weight 1 on the list's date, grown by the population growth of the record's cell since the list's year
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
             # the list's net worth on these weights grows as Z.1's from the list's year
@@ -210,7 +183,7 @@ def add_list(g19, imp, given, fixed, rep, year):
             z = GR._csv('z1_household_net_worth.csv')
             want = lst['net_worth_list'].sum() * float(z.loc[year]) / float(z.loc[list_year])
             assert np.isclose((w_b * b['net_worth'].to_numpy(float)).sum(), want, rtol=1e-6), 'list growth off'
-            # held at that starting weight in the solver, as the list years hold theirs at 1
+            # held at that starting weight, as a list year holds its records at 1
             fix_b = np.full(len(b), True)
             notes.append(f'billionaires: starting weights 1 x the population growth of their cell from {list_year} to '
                          f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); '
@@ -233,9 +206,7 @@ def add_list(g19, imp, given, fixed, rep, year):
 
 
 def write_report(rep, folder, year):
-    """The preparation's tables: billionaire_units.csv (one row per tax unit), billionaire_groups.csv, redraw.csv,
-    held_below_ceiling.csv, and
-    top_notes.md (the notes and the item mix)."""
+    """Writes the top step's tables and top_notes.md to folder."""
     if 'units' in rep:
         u = rep['units'].drop(columns=['uri', 'sp_uri'], errors='ignore')
         u.to_csv(os.path.join(folder, 'billionaire_units.csv'), index=False)
