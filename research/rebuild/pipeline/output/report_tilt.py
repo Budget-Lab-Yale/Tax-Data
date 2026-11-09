@@ -1,31 +1,10 @@
-"""The run report (TARGETS.md section 14): one short page per year, and one table behind each of its sections.
+"""The run report: one short page per year (report.md) and one table behind each of its sections, in the tilt folder.
 
-Reads, in the tilt run's folder (common.TILT):
-  file_<year>.parquet  every record, with weight_start (the weight before the tilt), weight (after) and, when the
-                       prior pools several trained models, model (the training seed of the network that drew it)
-  fit.csv              one row per target, keyed by (kind, group, target): value, before, after, and from the
-                       solver se, miss_in_se, over_1_se, effective_records, largest_weight_factor and flag
-  targets.csv          the year's expanded target list (statistic, variable, error_kind, source, ...)
-Writes, in the same folder:
-  report.md                  the summary page
-  report_targets.csv         1. every target: value, error, where the file lands, the miss in standard errors
-  report_thin_cells.csv      2. the effective number of records behind each target and its largest weight factor
-  report_published.csv       3. SOI's published cells (Tables 1.4, 1.6 by AGI, 1.7): the file's value, the miss
-  report_moves.csv           4. the standard statistics before and after the tilt
-  report_models.csv          5. each trained model's value on the standard statistics, after the tilt
-  report_overall.csv         6. effective sample kept, KL move, settings, code commit, vintages
-  (section 6 of report.md is tilt.py's non_micro_checks.md: the non-microdata imputations' published checks)
-
-A piece the run did not write (a target without a standard error, no model column) is said on the page; it is never
-filled in with a made-up number. The thin-cell measures are the solver's own (fit.csv).
-
-The standard statistics (sections 4 and 5): for every dollar item in the file, the number of units holding it
-(nonzero) and its total, over all units, filers, non-filers, seven AGI groups and the primary filer's age ranges;
-and net worth and total consumption by wage group. A statistic is listed only if at least MIN_RECORDS records hold
-the item in the cell. Moves and gaps are ranked as a share of the cell's gross (the total of the
-item's absolute values), so that a signed item whose total is near zero does not rank first on a small move.
-
-Run: python -m output.report_tilt
+The sections are every target and its miss, thin cells, SOI's published numbers that are not targeted, what the
+reweighting moved in the standard statistics, the trained models' disagreement, and the non-microdata imputations'
+checks. Reads file_<year>.parquet, fit.csv and targets.csv. A number the run did not write is reported as missing, never
+filled in. The standard statistics list a cell only if MIN_RECORDS records hold the item, and moves are ranked against
+the cell's gross (the total of absolute values), so a signed item with a total near zero does not rank first.
 """
 import datetime
 import os
@@ -42,8 +21,7 @@ from prep import soi as TG
 
 TOP = 8                 # rows of each table shown on the summary page
 MIN_RECORDS = 200       # records holding the item, for a statistic to be listed
-# the solver's thin-cell thresholds (solver.THIN_WARNING, THIN_STOP: effective records, weight factor), as the page
-# states them
+# the solver's thin-cell thresholds (effective records, weight factor), as the page states them
 THIN = {'warning': SV.THIN_WARNING, 'stop': SV.THIN_STOP}
 SOI_CV = '/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/targets/irs_data/soi_cv.csv'
 AGI_GROUPS = [(-np.inf, 1, 'AGI below $1'), (1, 25e3, 'AGI $1-25k'), (25e3, 50e3, 'AGI $25k-50k'),
@@ -169,8 +147,8 @@ def read_run(run, year):
         assert c in df, f'file_{year}.parquet has no {c} column'
         w = df[c].to_numpy(float)
         assert np.isfinite(w).all() and (w >= 0).all(), f'{c}: {(~np.isfinite(w)).sum()} records not finite or negative'
-    # a start from an earlier year's file carries the records that year's tilt gave no weight (weight 0, they stay 0): the
-    # weight factor is undefined for them and they add nothing to a weighted figure, so the report leaves them out
+    # A start from an earlier year's file carries the records that year gave no weight. They stay at zero, have no
+    # weight factor and add nothing to a weighted figure, so the report leaves them out.
     none = df['weight_start'].to_numpy(float) == 0
     if none.any():
         print(f'report: {int(none.sum()):,} of {len(df):,} records have no starting weight (zero in the previous year\'s file); left out of the report')
@@ -186,8 +164,7 @@ def as_bool(s):
 
 # ---- 1. every target -----------------------------------------------------------------------------------------
 def target_table(fit, tl, notes):
-    """Every target: the solver's fit table (its se, miss_in_se, over_1_se and thin-cell columns) joined to the
-    expanded target list's other columns (statistic, variable, source and the rest); the solver's columns win."""
+    """Every target: the solver's fit table joined to the target list's other columns."""
     t = fit.copy()
     key = ['kind', 'group', 'target']
     extra = [c for c in tl.columns if c not in key and c not in t.columns]
@@ -231,7 +208,7 @@ def target_page(t, notes):
 
 # ---- 2. thin cells -------------------------------------------------------------------------------------------
 def thin_cells(t):
-    """Section 2: the solver's thin-cell measures (fit.csv), stops first, then warnings, each thinnest first."""
+    """Section 2: the solver's thin-cell measures, stops first, then warnings, each thinnest first."""
     th = t.copy()
     th['flag'] = th['flag'].fillna('').astype(str)
     th['why'] = ''      # blank: the solver's flag_reason names the test behind a flag
@@ -400,9 +377,9 @@ def file_values(cells, df, weights):
             status = c['_mars']
             inside = inside & (True if status is None else mars == status)
             k = T16_AGE[c['row']]
-            # dependent filers: under 26 by their range; 26 and over spread over the five older ranges in proportion
-            # to this table's counts in the same filing status and AGI column (TARGETS.md section 10). A cell SOI
-            # blanked gets no share here; its neighbours carry its returns, and the merge below joins them.
+            # Dependent filers under 26 count by their range; those 26 and over are spread over the five older ranges
+            # in proportion to this table's counts in the same filing status and AGI column. A blanked cell gets no
+            # share; its neighbours carry its returns, and the merge below joins them.
             if k == 0:
                 x = np.isin(rng, [0, common.DEPENDENT_RANGES[0], common.DEPENDENT_RANGES[1]]).astype(float)
             else:
@@ -423,8 +400,8 @@ def file_values(cells, df, weights):
 
 
 def soi_errors(year):
-    """SOI's coefficients of variation for Table 1.4, all returns: {(row label, item): CV in percent}, and the
-    cells another table borrows from (section 9: the Table 1.4 cell nearest in returns and amount)."""
+    """SOI's coefficients of variation for Table 1.4, all returns: {(row label, item): CV in percent}, and the cells
+    other tables borrow from (the Table 1.4 cell nearest in returns and amount)."""
     if not os.path.exists(SOI_CV):
         return {}, None
     cv = pd.read_csv(SOI_CV, dtype=str, keep_default_na=False)
@@ -537,7 +514,7 @@ def merge_combined(cells, weights, is_target):
 def errors_for(cells, year, notes):
     """Each published cell's standard error: Table 1.4's from SOI's coefficients of variation (a merged cell's
     parts combined as independent); Tables 1.6 and 1.7 borrow the CV of the Table 1.4 cell nearest in number of
-    returns (a count) or in amount and returns (an amount), section 9's rule."""
+    returns (a count) or in amount and returns (an amount)."""
     lookup, donors = soi_errors(year)
     if not lookup:
         notes.append(f'No SOI coefficients of variation found ({SOI_CV}): no published cell has an error.')
@@ -800,8 +777,7 @@ def overall(df, t, th, w0, w1, run, tl):
 
 # ---- the page --------------------------------------------------------------------------------------------------
 def non_micro_page(run):
-    """Section 6: the non-microdata imputations' checks, as tilt.py wrote them (non_micro_checks.md and its CSVs, on
-    the weights after the tilt; non_micro_imputations.py)."""
+    """Section 6: the non-microdata imputations' checks, as tilt.py wrote them to non_micro_checks.md."""
     lines = open(f'{run}/non_micro_checks.md').read().split('\n')[2:]   # the page less its title
     return [('#' + x) if x.startswith('## ') else x for x in lines]
 
