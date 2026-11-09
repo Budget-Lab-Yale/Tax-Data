@@ -1,7 +1,5 @@
-"""The state weights' report (FEATURES.md, "State weights"): tables in levels from a finished state_weights folder, for RESULTS.md.
-  python -m output.report_state --run <run folder> --out <state weights folder> [--chosen tolerance,tau]
-Writes out/tables.md and the CSVs behind it into <out>/out: the held-out scores of the four starts, the setting-by-result table,
-levels by state and by AGI group on 2019 and 2022, the final files' fit by year, and the non-filers against the CPS rule.
+"""The state weights' report: tables in levels from a finished state weights folder, written to <out>/out/tables.md
+with the CSVs behind them.
 """
 import argparse
 import glob
@@ -66,9 +64,8 @@ def four_starts(s, tolerance, tau):
 
 
 def levels(run, out, year, items=('n_returns', 'agi_amt', 'wages_amt', 'fedtax_amt', 'ss_amt', 'bus_amt', 'kg_amt', 'pens_amt')):
-    """Published against the file, by area and by AGI group: the IRS's level; the file on the CPS start; the file on the final shares.
-    Returns in thousands, dollars in billions, the file's national totals as they are (the IRS's and the file's national totals differ a
-    little). Two frames, by area and by area x group."""
+    """Historic Table 2 against the file on the CPS start and on the final shares, by area and by area and AGI group.
+    Returns in thousands, dollars in billions."""
     from reweight import state_weights as SW
     df = ST.read_file(f'{run}/{year}/tilt/y{year}/file_{year}.parquet')
     filer = df['filer'].to_numpy() == 1
@@ -109,8 +106,8 @@ def levels(run, out, year, items=('n_returns', 'agi_amt', 'wages_amt', 'fedtax_a
 
 
 def nonfilers(out, year, tag='final'):
-    """The non-filers by state, adults in thousands: CPS adults in tax units, adults on returns, dependent returns, the residual; the file's
-    non-filer adults on the start and the final shares, and the target. Totals are in the last row."""
+    """The non-filers by state, in thousands of adults: the parts of the residual, the file's non-filer adults on the
+    start and on the final shares, and the target. Totals are in the last row."""
     t = pd.read_csv(f'{out}/fits/y{year}/{tag}/nonfiler_states.csv', index_col=0)
     f = pd.read_csv(f'{out}/fits/y{year}/{tag}/nonfiler_fit.csv').groupby('state')[['target', 'start', 'final']].sum()
     d = t.join(f)[['cps_adults', 'irs_adults', 'dependent_returns', 'residual', 'target', 'start', 'final']] / 1e3

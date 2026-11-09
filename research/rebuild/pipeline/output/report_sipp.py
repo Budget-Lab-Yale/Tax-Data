@@ -1,14 +1,6 @@
-"""Tips in the target year's file (2019 below) against that year's SIPP.
-
-The SIPP side is the target year's tax units (build_table.sipp_person_slots): every tax unit, the person items in
-primary-filer order by the rule the age range uses, dependent filers folded into the unit that claims them (their own
-tips go nowhere). The file's dependent filers hold no SIPP item (generate.py), so the file side leaves them out. Both
-sides are weighted: the file by its tilted weights, the SIPP by its own. Wage groups: the unit's wages, the file's in
-nominal 2019 dollars and the SIPP's as the translation table gives them (its wages row; dollars throughout by
-default), so the groups mean the same on both sides. Tips: the file's are each adult's drawn tips held to at most
-that adult's wages (dollars.person_items), the SIPP's as reported.
-
-None of this is targeted. Writes common.TILT/sipp_report.md.
+"""Tips in the target year's file against that year's SIPP tax units, both weighted, by wages, age range, marital status
+and person. The file's dependent filers hold no SIPP item and are left out. Nothing here is targeted. Writes
+<tilt>/sipp_report.md.
 """
 import numpy as np
 import pandas as pd

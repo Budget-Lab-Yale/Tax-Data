@@ -1,8 +1,6 @@
-"""The optional calculator stage: every record of the year file through the GPU tax calculator (tax-simulator-gpu at the
-pinned commit, settings taxes), with the converter's input, the column list and the conversion notes beside it. Reads
-<tilt>/file_<year>.parquet; writes <out>/calculator/<run>/. report_calculator.py reports on it.
-
-  python -m output.calculator
+"""The optional calculator stage: every record of the year file through the GPU tax calculator, with the calculator's
+input, the column list and the conversion notes beside it. Reads <tilt>/file_<year>.parquet and writes
+<out>/calculator/<run>/; report_calculator.py reports on it.
 """
 import json
 import os

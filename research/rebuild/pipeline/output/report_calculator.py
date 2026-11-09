@@ -1,32 +1,9 @@
-"""The GPU tax calculator's results on the year file (calculator.py) against SOI, and the AGI check.
+"""The GPU tax calculator's results on the year file against SOI, and the AGI check.
 
-1. The AGI check. The calculator computes AGI itself from the record's items; the rebuild has its own AGI (the sum
-   of its AGI parts, dollars.agi). The gap per record is split into the steps where the calculator computes
-   something the rebuild draws or takes as given:
-     capital gains        the calculator's net gain on the return (short- plus long-term, a net loss held to
-                          $3,000) against the rebuild's line 13 (capital_gains_line13: the rebuild applies the same
-                          limit to kg_st + kg_lt, then adds kg_dist);
-     taxable Social Security  computed from gross benefits, against the rebuild's ss_taxable (the same section 86
-                          worksheet on the file's own items, so the gap is only where the calculator's modified AGI
-                          differs from the file's: its own self-employment tax deduction, the state tax workaround,
-                          the law's caps on adjustments);
-     self-employment tax deduction  half the computed self-employment tax, against the drawn se_tax_ded;
-     state tax workaround the calculator's frame step moves part of some owners' state income tax into the
-                          partnership's or S corporation's loss (75% of eligible owners, a random draw);
-     pass-through losses  the pass-through amount in the calculator's Schedule E against the rebuild's net
-                          partnership and S corporation income (less the workaround);
-     other adjustments    the law's caps on the adjustments (tuition and fees, domestic production activities)
-                          and any other gap in the deductions above the line;
-     rest                 whatever is left (should be rounding only).
-2. Levels by AGI group, filers only, against SOI 2019 Table 1.4 (returns, AGI, taxable income, itemized
-   deductions, the QBI deduction, AMT, income tax before credits) and Table 3.3 (the child tax credit and the
-   additional child tax credit, the EITC, income tax after credits, total income tax), read from the local SOI
-   store (settings paths.raw.soi_tables). AGI groups are SOI's (Table 1.4's rows), by the calculator's AGI; a cell
-   SOI combined with its neighbours is compared as one cell. Weights before the tilt (weight_start) and after
-   (weight). Nominal dollars of the year. Nothing here is a target.
-
-Reads <out>/calculator_<year>.parquet, the converter's input and the year file (calculator.py's paths). Writes
-<out>/agi_check.csv, levels.csv, levels_by_rebuild_agi.csv, report.md.
+The AGI check splits the gap between the calculator's AGI and the file's into its causes (agi_check). The levels compare
+filers by SOI's AGI groups with SOI Tables 1.4 and 3.3, with the weights before and after the reweighting; nothing here
+is a target. Reads calculator.py's outputs and the year file; writes agi_check.csv, levels.csv,
+levels_by_rebuild_agi.csv and report.md beside them.
 """
 import os
 
@@ -40,8 +17,8 @@ from shared import dollars as D
 Y = C.Y
 SOI = common.RAW['soi_tables']
 FILES = {'1.4': 'bysize_income_sources.csv', '3.3': 'bysize_tax_liability.csv'}
-# (table, SOI item without " > number of returns" / " > amount", the file's value per record, what it depends on
-# that is 0 for now). Counts are returns with a value above zero (itemizers: returns that itemize).
+# ITEMS: (table, SOI item without " > number of returns" or " > amount", the calculator's column, the inputs it depends
+# on that are 0). Counts are returns with a value above zero, and itemizers are returns that itemize.
 AGI_ITEM = 'adjusted gross income less deficit'
 SKIP = {('returns', 'amount'), (AGI_ITEM, 'count')}   # SOI publishes neither
 _READ = {}   # each SOI file's rows of the year, read once
@@ -69,8 +46,8 @@ ITEMS = [
 
 
 def soi_cells(table, item, stat):
-    """SOI's cells of one item by AGI, all returns, as (lo, hi, value), lowest first; value in dollars or returns.
-    A non-blank 'combined' cell holds its own bracket and the blank ones after it (targets.published_cells)."""
+    """SOI's cells of one item by AGI, all returns, as (lo, hi, value), lowest first, in dollars or returns. A cell
+    flagged 'combined' holds its own bracket and the blank ones after it."""
     if table not in _READ:
         t = pd.read_csv(os.path.join(SOI, FILES[table]), dtype=str, keep_default_na=False)
         _READ[table] = t[(t.tax_year == str(Y)) & (t.table == table) & (t.panel == 'All returns')
@@ -104,7 +81,11 @@ def label(lo, hi):
 
 
 def agi_check(f, c, inp):
-    """Per-record gap between the calculator's AGI and the rebuild's, split by step (module docstring)."""
+    """The gap per record between the calculator's AGI and the file's, split into the steps where the calculator
+    computes something the file draws: capital gains after the loss limit, taxable Social Security, the deduction for
+    half of self-employment tax, the state tax workaround (part of some owners' state income tax moved into the
+    pass-through's loss), pass-through losses, the law's caps on other adjustments, and the rest, which should be
+    rounding."""
     x = lambda d, k: d[k].to_numpy(float)
     rebuild = D.agi(f)
     line13 = x(f, 'capital_gains_line13')

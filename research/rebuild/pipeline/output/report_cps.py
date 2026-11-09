@@ -1,18 +1,7 @@
-"""The CPS-only items in the target year's file (2019 below) against that year's CPS ASEC.
-
-The CPS side is the tax units of the year mix of the target year's file (survey_mix.py; dollars grown to the target year by SOI wages per return) (build_table.cps_person_slots): every tax unit, filers and non-filers,
-the person items in primary-filer order by the rule the age range uses, dependent filers folded into the unit that
-claims them. The file's dependent filers hold no CPS item (generate.py), so the file side below leaves them out.
-Both sides are weighted: the file by its tilted weights, the CPS by its own. Wage groups: the file's wages (nominal
-2019 dollars) and the CPS's wages after function 1 (the translation table puts them on the tax data's scale by percentile
-among earners), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
-
-None of this is targeted. Sections: the primary filer's and the spouse's age within each age range; dependents'
-ages; the primary filer's sex; for married couples, whether the spouse has wages and the spouse's share of the
-couple's wages, by the couple's wages, and the same for self-employment income; childcare by the number of
-dependents under 13 and by wages; weeks and hours worked; overtime pay (overtime_section).
-
-Writes common.TILT/cps_report.md.
+"""The CPS-only items in the target year's file against that year's CPS tax units, both weighted: ages, sex, the
+spouse's shares of wages and self-employment income, childcare, weeks and hours worked, and overtime pay. The file's
+dependent filers hold no CPS item and are left out. Wage groups use the CPS's translated wages, so a group holds the
+same ranks on both sides. Nothing here is targeted. Writes <tilt>/cps_report.md.
 """
 import numpy as np
 import pandas as pd
@@ -41,8 +30,7 @@ def wq(x, w, p):
 
 
 def side_by_side(sources, rows, stat, floatfmt=',.1f'):
-    """One row per (label, selector); for each source, stat(frame) -> dict of columns. A markdown table (report_sipp.py
-    uses it too)."""
+    """A markdown table with one row per (label, selector) and, for each source, the columns stat(frame) returns."""
     out = []
     for lab, sel in rows:
         r = {'group': lab}
@@ -61,10 +49,8 @@ def shares(d, col, bands):
 
 
 def overtime_cap_table(f):
-    """What the overtime cap takes off in the file: each person's drawn overtime (ot_primary,
-    ot_spouse) is held to the person's wages less the person's tips (dollars.person_cap). For each person and both
-    together: the people with drawn overtime, those the wages alone hold and the dollars that takes off, and those
-    the subtraction of tips holds further and the dollars that takes off on top; weighted by the file's weights."""
+    """What the overtime cap takes off in the file, for each person and both together: the people and dollars held by
+    wages alone, and those held further by subtracting tips."""
     from shared import dollars as D
     rows, tot = [], {}
     for who, slot, wages, tips in [('primary filer', 'ot_primary', 'wages1', 'tips1'),
@@ -85,11 +71,9 @@ def overtime_cap_table(f):
 
 
 def overtime_section(src):
-    """Overtime pay by the unit's wages: units, the share with overtime, the mean over all units
-    and among those with any, and the total. The file: ot = ot1 + ot2 (each held to the person's wages less tips). The
-    CPS: only the units asked the earnings questions have overtime (the rest are missing); within each survey year
-    their weights are scaled up to the year's whole weight, so the totals are for every unit (the asked units are
-    those in months 4 and 8 of the main sample). Then what the cap takes off in the file."""
+    """Overtime pay by the unit's wages, then what the cap takes off in the file. In the CPS only the units asked the
+    earnings questions (months 4 and 8 of the main sample) have overtime; their weights are scaled up to each survey
+    year's whole weight."""
     def ot(m):
         x, w = m['ot'].to_numpy(float), m.w.to_numpy(float)
         return {'units (m)': w.sum() / 1e6, 'with overtime (%)': 100 * w[x > 0].sum() / w.sum() if w.sum() > 0 else np.nan,
@@ -106,7 +90,7 @@ def overtime_section(src):
                        'wages. "Further": what subtracting the tips takes off on top (a person can be in both). '
                        'People and dollars weighted by the file\'s weights, dependent filers left out.', '',
                        overtime_cap_table(d), '']
-        elif 'ot_primary' in d:                               # the CPS side: asked units, scaled up
+        elif 'ot_primary' in d:                               # the CPS: asked units, scaled up
             a = d[d['ot_primary'].notna()].copy()
             if 'survey_year' in d:
                 scale = d.groupby('survey_year')['w'].sum() / a.groupby('survey_year')['w'].sum()
