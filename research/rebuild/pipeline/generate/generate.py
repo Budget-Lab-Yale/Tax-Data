@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 
 from shared import common
+from shared.ages import uniform_by_id
 from pretrain import model as M
 from pretrain import qgroups as Q
 from prep import soi as TG
@@ -944,31 +945,31 @@ def real_puf_records():
     return _REAL
 
 
+def drawn_from_probs(o, column, probs, salt):
+    """The column's values on the real PUF rows o, with a value drawn from the row's probabilities (columns probs) where
+    the PUF has none (-1); one draw per record and copy, keyed by record id. Returns the values and the rows drawn."""
+    x = o[column].to_numpy().astype(np.int64)
+    miss = x < 0
+    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), salt)
+    cp = np.cumsum(o.loc[miss, probs].to_numpy(float), 1)
+    x[miss] = np.minimum((cp < u[:, None]).sum(1), len(probs) - 1)
+    return x, miss
+
+
 def real_puf_part(model, mod, k, n_models, fac):
     """Model k's (of n_models) copy of the real PUF: the ordinary records with every PUF slot preset (a missing age
     range drawn once per record and copy from its probabilities), and the four aggregate records with their amounts
     preset and their filing status, dependents and adult age range drawn; then every survey item drawn given the
     record. Weight: the PUF weight over n_models. Returns the part, the label check's table and the rule counts."""
     from shared import dollars as D
-    from shared.ages import uniform_by_id
     R = real_puf_records()
     o, a, own, slots = R['ord'], R['agg'], R['own'], R['slots']
     seed = int(G['label_seed']) + mod['seed_shift'] + REAL_SEED_SHIFT
-    rng = o['age_range'].to_numpy().astype(np.int64)
-    miss = rng < 0
-    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), REAL_AGE_SALT + k)
-    cp = np.cumsum(o.loc[miss, M.AGE_PROBS].to_numpy(float), 1)
-    rng[miss] = np.minimum((cp < u[:, None]).sum(1), common.N_RANGES - 1)
-    preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v != 'age_range'}
-    preset['age_range'] = torch.as_tensor(rng)
-    # the earnings split code where the PUF has none (joint returns with no demographics): one draw per record and
-    # copy from its probabilities
-    es = o['earn_split'].to_numpy().astype(np.int64)
-    es_miss = es < 0
-    ue = uniform_by_id(o.loc[es_miss, 'record_id'].to_numpy(), REAL_EARN_SPLIT_SALT + k)
-    ce = np.cumsum(o.loc[es_miss, M.ES_PROBS].to_numpy(float), 1)
-    es[es_miss] = np.minimum((ce < ue[:, None]).sum(1), len(M.ES_PROBS) - 1)
-    preset['earn_split'] = torch.as_tensor(es)
+    preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots}
+    # the age range, and the earnings split code on joint returns with no demographics, where the PUF has none
+    rng, miss = drawn_from_probs(o, 'age_range', M.AGE_PROBS, REAL_AGE_SALT + k)
+    es, es_miss = drawn_from_probs(o, 'earn_split', M.ES_PROBS, REAL_EARN_SPLIT_SALT + k)
+    preset['age_range'], preset['earn_split'] = torch.as_tensor(rng), torch.as_tensor(es)
     common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from step 0's probabilities on "
                f"{int(es_miss.sum()):,} joint returns with no demographics (codes {np.bincount(es[es_miss], minlength=len(M.ES_PROBS)).tolist()})")
     part, counts = generate(model, len(o), seed, preset=preset, factors=fac, totals_preset=True)
@@ -976,7 +977,6 @@ def real_puf_part(model, mod, k, n_models, fac):
         c = M.column(v)
         on = preset[v].numpy() >= 0 if P.index(v) in GATED else np.ones(len(part), bool)   # -1: drawn
         assert np.array_equal(part[c].to_numpy()[on], preset[v].numpy()[on]), f'real PUF: the draw moved {c}'
-    for v in slots:
         if P.index(v) in GATED:
             n_drawn = int((preset[v].numpy() < 0).sum())
             n_set = int((part[M.column(v)].to_numpy()[preset[v].numpy() < 0] > 0).sum())

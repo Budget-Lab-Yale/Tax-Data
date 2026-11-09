@@ -63,52 +63,25 @@ def wealth_parts(p):
 
 def list_for_year(year):
     """The list for tax year year and how it is used: ('list', the year's own list, year); after the last list,
-    ('grown', the last list grown to the year, the last list's year); otherwise (None, None, None)."""
+    ('grown', None, the last list's year), the caller growing the last list (grow_list); otherwise (None, None, None)."""
     lst = read_list(year)
     if lst is not None:
         return 'list', lst, year
     last = max((int(y) for y in S['billionaire_lists']), default=None)   # the latest year with a list
     if last is not None and year > last:
-        return 'grown', grow_list(read_list(last), last, year), last
+        return 'grown', None, last
     return None, None, None
 
 
-def growth_factors(s, t):
-    """The growth per return from s to t of the billionaires' three holdings. Public stock (as value.equities) and a
-    private business (as value.pass_throughs) grow by the items table's series over the growth in returns, with no add
-    factors; private real estate (value.re_fund) by the SCF's mean per tax unit between waves, as grow_dollars grows
-    it. Returns {part: (factor, description)}."""
-    from prep import build_table as BT
-    from scale import maps as MP
-    from scale import projection_growth as PG
-    from scale import projection_steps as PS
-    assert 2024 <= s < t, f'billionaires grown from {s} to {t}: only forward from a list year after 2023'
-    tab, add = PS.items_table(), PS.add_factors_table()
-    R = PG.returns_growth(s, t)
-    out = {}
-    for k, c in [('public', 'value.equities'), ('private_pt', 'value.pass_throughs')]:
-        spec = tab.loc[c, 'series']
-        assert spec.startswith('file:') and tab.loc[c, 'kind'] == 'total', f'{c}: the items table row is {spec}, not a file series of kind total'
-        assert not (add['column'] == c).any(), f'{c}: add factors on a column the billionaires are grown by'
-        g, what = PS.series_growth(spec, s, t)
-        out[k] = (g / R, f'{c}: {what} (growth in total) over the growth in returns {R:.5f}')
-    c = 'value.re_fund'
-    scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)   # as grow_dollars: the SCF rows of the training table
-    f = MP.scf_growth(scf[scf.source == 'scf'], s - 1, t - 1)[c]
-    assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
-    out['private_re'] = (float(f), f'{c}: SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
-    return out
-
-
-def grow_list(lst, s, t, factor=None):
+def grow_list(lst, s, t, factor):
     """The year-s list carried to year t. Each person's net worth is split into its three parts as build_billionaires
-    splits it, and each part grown by growth_factors(s, t), or all by factor, a pair (factor, description), if given.
-    The public share becomes the grown public part over grown net worth, and ages are raised by t - s. Income is not
-    carried: build_billionaires computes it from the grown wealth."""
+    splits it, and each part grown by factor, a pair (factor, description). The public share becomes the grown public
+    part over grown net worth, and ages are raised by t - s. Income is not carried: build_billionaires computes it from
+    the grown wealth."""
     units, people = tax_units(lst)
     p = people_attributes(people)
     p, _ = wealth_parts(p)
-    f = growth_factors(s, t) if factor is None else {k: factor for k in ('public', 'private_pt', 'private_re')}
+    f = {k: factor for k in ('public', 'private_pt', 'private_re')}
     grown = {k: p[k].to_numpy(float) * f[k][0] for k in f}
     nw = grown['public'] + grown['private_pt'] + grown['private_re']
     by_uri = pd.DataFrame({'uri': p['uri'].to_numpy(), 'nw': nw, 'share': grown['public'] / nw}).set_index('uri')

@@ -127,7 +127,7 @@ def net_worth_growth(g19, imp, year, list_year):
     the records' age and marital cells, so a first build with any growth gives them. Returns (factor, description)."""
     from shared import growth as GR
     from scale import projection_demographics as PD
-    first = TB.grow_list(TB.read_list(list_year), list_year, year)
+    first = TB.grow_list(TB.read_list(list_year), list_year, year, factor=(1.0, 'no growth: the weights depend on the cells alone'))
     b0, _ = TB.build_billionaires(first, g19, imp, year, [])
     w0, _ = PD.population_cells(b0.assign(weight=1.0), year, from_year=list_year)
     w0 = np.asarray(w0, float)
