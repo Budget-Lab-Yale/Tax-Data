@@ -273,9 +273,9 @@ def cex_replicates(year, units):
 
 def consumption_errors(rows, year):
     """The consumption targets: each category's average per tax unit, over all units and by age range and marital
-    status, over the year's mix of CEX years. Each year's standard error comes from its 44 replicate weights, on spending
-    in target-year dollars; the years are independent samples, so the pooled variance is the sum of share^2 x each
-    year's variance."""
+    status, over the year's mix of CEX years. Each year's standard error comes from its 44 replicate weights, on
+    spending in target-year dollars; the years are independent samples, so the pooled variance is the sum of share^2
+    x each year's variance."""
     from shared import survey_mix
     parts = []
     for y, share in survey_mix.mix('cex', year):

@@ -80,8 +80,8 @@ def scf_growth(scf, y_from, y_to):
         scf = scf.assign(net_worth=scf_net_worth(scf))
     for v in BT.SCF_AMOUNTS:
         if v in BT.SCF_RATIOS:
-            # The mortgage's share of the home's value is not grown between waves (the mortgage moves with the home). After
-            # the last wave it changes so that the home and the mortgage each follow their own Z.1 series.
+            # The mortgage's share of the home's value is not grown between waves (the mortgage moves with the home).
+            # After the last wave it changes so that the home and the mortgage each follow their own Z.1 series.
             last = max(int(y) for y in scf['year'].unique()) + 1
             a, b = max(last, y_from + 1), max(last, y_to + 1)
             out[v] = (GR.scf_extension(a, b, 'value.primary_mortgage') /
@@ -96,8 +96,8 @@ def scf_growth(scf, y_from, y_to):
 
 
 def scf_net_worth(scf):
-    """Net worth of SCF rows: the 14 assets less the 6 debts, the home mortgage being its share of the home's value times
-    the home."""
+    """Net worth of SCF rows: the 14 assets less the 6 debts, the home mortgage being its share of the home's value
+    times the home."""
     nw = np.zeros(len(scf))
     for c, sign in BT.NET_WORTH_PARTS.items():
         x = (scf['w_primary_ltv'] * scf['value.primary_home']) if c == 'value.primary_mortgage' else scf[c]
@@ -118,8 +118,9 @@ def _wave_mean(scf, v, y):
 def scf_mean(scf, v, y):
     """The SCF's weighted mean per tax unit of item v at income year y. A wave's own mean where there is a wave for y;
     between two waves, the geometric interpolation of their means (arithmetic if either is at or below zero); after the
-    last wave, the last wave's mean grown by the item's Financial Accounts (Z.1) series per person (growth.scf_extension).
-    The wave of income year y is interviewed in y + 1, so the growth runs between stock years y + 1."""
+    last wave, the last wave's mean grown by the item's Financial Accounts (Z.1) series per person
+    (growth.scf_extension). The wave of income year y is interviewed in y + 1, so the growth runs between stock years
+    y + 1."""
     have = sorted(int(x) for x in scf['year'].unique())
     if y in have:
         return _wave_mean(scf, v, y)
@@ -170,7 +171,8 @@ def build_maps(t, edges):
     os.makedirs(common.MAPS, exist_ok=True)
     GR.check(TARGET_YEAR)   # stops if a dollar item has no growth line
     pside = t[t.source == 'puf'].reset_index(drop=True)
-    m_puf = build_map(pside, edges, 'puf', BT.PUF_AMOUNTS + BT.PUF_SHARES)   # shares keep the PUF's values for every source
+    # the shares keep the PUF's own values for every source
+    m_puf = build_map(pside, edges, 'puf', BT.PUF_AMOUNTS + BT.PUF_SHARES)
     m_puf.to_parquet(f'{common.MAPS}/map_puf_{PUF_YEAR}.parquet', index=False)
     m_target, g = puf_target_map(m_puf)
     m_target.to_parquet(f'{common.MAPS}/map_puf_{TARGET_YEAR}.parquet', index=False)

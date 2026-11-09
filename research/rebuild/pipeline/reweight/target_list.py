@@ -1663,7 +1663,8 @@ def conditions(df, rows, w_start, check=True):
     rows = rows.assign(line_hi=rows['line_hi'].astype(float))
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
-    from shared import dollars as D   # here: dollars reads band_edges.json on import, which build_table writes after it needs this module
+    # imported here: dollars reads band_edges.json on import, and build_table needs this module before it writes it
+    from shared import dollars as D
     a = D.agi(df)
     rng = df['age_range'].to_numpy()
     assert ((rng >= 0) & (rng < common.N_RANGES)).all(), 'a record with no age range'
@@ -1702,9 +1703,9 @@ def conditions(df, rows, w_start, check=True):
         if not np.isnan(r.age_range):
             cell &= rng == r.age_range
         if r.rank_variable:
-            # the income rank group on the file, by the file's own weighted percentiles among the entry's population on
-            # the starting weights (the frame's weight column for expand's reach check); fixed as dollar lines, so the group
-            # is the same records through the reweighting
+            # the income rank group on the file, by the file's own weighted percentiles among the entry's population
+            # on the starting weights (the frame's weight column for expand's reach check); fixed as dollar lines, so
+            # the group is the same records through the reweighting
             if r.rank_variable not in values:
                 values[r.rank_variable] = record_value(df, r.rank_variable)
             xr, pop = values[r.rank_variable], pops[r.population]

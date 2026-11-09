@@ -261,9 +261,9 @@ def prior_factor(col, year):
 
 
 def greedy_schedule_a(df, year, w, folder, ctx, C):
-    """Multiplies each Schedule A category's inputs by one factor s so that the start's dollars per claiming return match
-    Table 2.1's, over settings passes runs of the calculator, with s held within 1 plus or minus max_move. Returns the
-    frame with the inputs multiplied, or unchanged where the year has no Table 2.1."""
+    """Multiplies each Schedule A category's inputs by one factor s so that the start's dollars per claiming return
+    match Table 2.1's, over settings passes runs of the calculator, with s held within 1 plus or minus max_move.
+    Returns the frame with the inputs multiplied, or unchanged where the year has no Table 2.1."""
     G = S['greedy_schedule_a']
     target = table21_averages(year)
     if target is None:

@@ -67,7 +67,8 @@ def _soft_weights(z, p, c, U):
             w = np.maximum(w - step, 1e-300)
             if np.abs(step / w).max() < 1e-15:
                 break
-        # a record whose unconstrained weight is above the cap but whose root is not (rounding at the kink) stays at the cap
+        # a record whose unconstrained weight is above the cap but whose root is not (rounding at the kink) stays at
+        # the cap
         e[over] = np.maximum(w / c[over], U[over])
     return e
 

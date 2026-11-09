@@ -44,8 +44,8 @@ def recombine(df, year):
         put(total, D.signed_sum(out, totals[total]))
     put('other_agi', out['other_agi_remainder'] + out['kg_dist']
         + D.signed_sum(out, D.FOLD))
-    # Taxable Social Security by the section 86 worksheet on the grown amounts. Its thresholds are not indexed, so growth
-    # moves the taxable share as the law does.
+    # Taxable Social Security by the section 86 worksheet on the grown amounts. Its thresholds are not indexed, so
+    # growth moves the taxable share as the law does.
     D.retirement_items(out)
     done += [c for c in ['ss_taxable', common.GROSS_PENSIONS] if c in out]
     cats = list(D.META['cex_amounts'])
@@ -195,9 +195,9 @@ def start_from_year(spec):
 
 
 def start_nonfilers():
-    """The non-filer count the start's non-filer weights are scaled to: the CPS's expected non-filers in the year. A year
-    between CPS years takes the geometric mean of the nearest CPS years either side, a placeholder used only to scale
-    the start, not a target. Returns the count and a note."""
+    """The non-filer count the start's non-filer weights are scaled to: the CPS's expected non-filers in the year. A
+    year between CPS years takes the geometric mean of the nearest CPS years either side, a placeholder used only to
+    scale the start, not a target. Returns the count and a note."""
     have = TLS.cps_years()
     n = TLS.nonfiler_count(Y)
     if Y in have:

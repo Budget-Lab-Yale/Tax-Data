@@ -277,7 +277,7 @@ def cost_basis(df, year, w, ctx):
     oh, rf = df['value.other_home'].to_numpy(float), df['value.re_fund'].to_numpy(float)
     tot = oh + rf
     s = np.divide(oh, tot, out=np.full(len(df), 0.5), where=tot > 0)
-    def held(g, v):    # a holding's share of the gain, held to its value (rounding in the split can leave it just above)
+    def held(g, v):    # a holding's share of the gain, held to its value (rounding in the split can leave it above)
         return np.where(v > 0, np.minimum(g, v), g)
 
     gain = {'equities': df['w_kg_other'].to_numpy(float), 'pass_throughs': df['w_kg_pass_throughs'].to_numpy(float),
@@ -559,10 +559,10 @@ def qbi(df, year, w, ctx):
     """The QBI service flags and wage bills. The networks draw, per record and business group (cf: Schedules C and F;
     ps: partnerships and S corporations), an industry group and a worker count.
 
-    A group's wages on a filing record are its worker count times the group's scalar for the year, and 0 where the record
-    has no positive income of the group's types; non-filers have none. Through the IRS table's last year the scalar makes
-    the file's wages at the weights given (the prescaled start's) equal the IRS total; after it, the scalar is that
-    year's times the growth of average wages. cf wages go to Schedule C; ps wages are split between partnerships and S
+    A group's wages on a filing record are its worker count times the group's scalar for the year, and 0 where the
+    record has no positive income of the group's types; non-filers have none. Through the IRS table's last year the
+    scalar makes the file's wages at the weights given (the prescaled start's) equal the IRS total; after it, the scalar
+    is that year's times the growth of average wages. cf wages go to Schedule C; ps wages are split between partnerships and S
     corporations by positive income. Farms are never a specified service, and their wage bill is positive farm income,
     so the wage limit never binds.
 
