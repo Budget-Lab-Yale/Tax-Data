@@ -33,7 +33,7 @@ from shared.common import PUF_YEAR, TARGET_YEAR
 # ---- Bands ----
 # Band 0 is exactly zero. Bands 1 to 10 are losses, cut at the shares of the loss weight in NEG_SHARES, counted from
 # the smallest loss. Bands 11 to 83 are positive amounts, cut at the shares of the positive weight in POS_SHARES:
-# steps of 2% up to 90%, then finer steps, so that each of the top bands holds 0.01% of the weight.
+# steps of 2% up to 90%, then steps of 1%, 0.1% and 0.01%. Each of the top ten bands holds 0.01% of the weight.
 N_NEG, NEG0, POS0 = 10, 1, 11
 NEG_SHARES = np.array([0.225, 0.45, 0.675, 0.90, 0.93, 0.96, 0.99, 0.995, 0.999])
 POS_SHARES = np.round(np.concatenate([0.02 * np.arange(1, 46), 0.90 + 0.01 * np.arange(1, 10),
