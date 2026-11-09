@@ -938,8 +938,6 @@ Every record's federal income and payroll taxes under the target year's law come
 
 The reweighting moves weights only, so the taxes stay right after it. With `taxes.target` false the calculator targets
 are only reported. Each run writes `tilt/<run>/taxes/` (inputs, outputs, `taxes_fit.csv`, `taxes_summary.md`).
-`python -m reweight.taxes report <file> <folder>` computes the taxes on a finished file and evaluates the year's
-calculator targets.
 
 Rules applied with the calculator's help before the targets, each recomputing every total built from the item:
 
