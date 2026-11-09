@@ -1045,7 +1045,10 @@ factor of 10, STOP in the summary below 10 or above 100 (the run continues).
 dollars, `weight_start` and `weight`), `fit.csv` (every target before and after, miss in standard errors, thin-cell
 measures), `targets.csv`, `resolved_<year>.yaml`, `summary.md` (convergence, Kullback-Leibler move, effective sample
 kept, weight factors by AGI group, notes), `report.md` and `report_*.csv`, the non-microdata checks, the taxes folder,
-and the top step's files. With `REBUILD_SAVE_SOLVE` set, the solve's inputs are saved for the state solve.
+and the top step's files. For a past year the stage runs in two parts around the integrated solve of the state
+weights: `prepare` (everything before the solve, written as the solve's inputs, `solve_inputs.pkl`, with the file at
+its starting weights) and `finish` (the outputs and `summary.md` on the integrated weights, in the year's final
+folder). With `REBUILD_SAVE_SOLVE` set, a whole run also saves its solve's inputs.
 
 ### State weights
 
@@ -1053,9 +1056,9 @@ A file for each year 2015-2075 splitting every record's national weight across t
 Areas, and Puerto Rico from 2018: `files/state_weights_<year>.parquet` (id, state, weight; Zstandard; about 190 MB and
 24 million rows a year). A record's national weight is the sum of its weights across areas. Settings `state_weights`.
 
-**Past years 2015-2023:** a national-only solve of the year (whose amounts set the state targets), then the
-integrated solve of national and state weights together. **Future years 2024-2075:** the national solve alone, each
-record keeping its 2023 split.
+**Past years 2015-2023:** one solve, of the national and the state weights together, with the state targets as
+shares of the file's own national totals. **Future years 2024-2075:** the national solve alone, each record keeping
+its 2023 split.
 
 - **The start** (`reweight/state_start.py`, GPU, about a minute a year). Each record is read under the CPS label with
   the target year's CPS mix, averaged over the three networks: shown are what the record has that the CPS asks, its
@@ -1067,8 +1070,9 @@ record keeping its 2023 split.
   abroad goes to Other Areas; otherwise as any record in a past year, and the year's pinned records' distribution in a
   projection year). Pinned records enter the solve as fixed amounts.
 - **Filer targets** (`reweight/state_targets.py`). For area s, AGI group g (Historic Table 2's ten, on `calc_agi`) and
-  item v: the file's national total of v in g times the IRS's share of s in g and v. Schedule A items count on records
-  the calculator itemizes. A cell has no target where the IRS merged it (zero in a group whose national total is not),
+  item v: the IRS's share of s in g and v, of the file's national total of v in g (a share condition; see below).
+  Schedule A items count on records the calculator itemizes. A cell has no target where the IRS merged it (zero in a
+  group whose national total is not),
   where the areas' values cancel or the file and the IRS have opposite signs, where the list records hold 90% or more
   of it, or where fewer than 250 effective records stand behind the item in the group (about 5 for each of the 53
   areas). The list is `FINAL_ITEMS` (49-52 items a year, counts and amounts): returns, single, joint and head of
@@ -1086,14 +1090,26 @@ record keeping its 2023 split.
   or below zero stops the run. Example: 2019, Colorado: 1.793% x 230.81 million = 4,138,588 CPS adults, less 3,910,950,
   plus 169,230 = 396,868, 1.364% of the national 29.09 million. A state by age band table, raked to these residuals and
   to the file's non-filer adults by band, gives each target.
+- **A target is a share.** The solve meets, for each area, AGI group and item, the condition that the area's amount
+  less the IRS's share times the file's national amount in the group (the sum over every area, at the weights the solve
+  finds) is zero. The same holds for the non-filer targets by state and age band. The target's value in dollars or
+  returns, in `state_fit.csv.gz` and the notes, is the share times the national amount at the starting weights; that
+  value sets the standard error and decides which cells have a target (`target_final` is the share times the final
+  amount, and the misses are from it).
 - **Standard errors.** Historic Table 2 has no sampling error, so each state target's error is `tolerance` (2%) times
-  the larger of the target and 0.1% of the item's national total in the group, plus the rounding of the IRS's counts
-  to the nearest 10 for a count. Each is divided by the square root of the AGI group's share of the weight.
+  the larger of the target at the starting weights and 0.1% of the item's national total in the group at those
+  weights, plus the rounding of the IRS's counts to the nearest 10 for a count. Each is divided by the square root of
+  the AGI group's share of the weight.
 - **The integrated solve** (`reweight/state_joint.py`, 16 CPUs, about 10 seconds a Newton step). Record-by-area
-  weights w_is = w0_i x p0_is x exp(x_i' lambda_national + x_i' lambda_s), with the solver's cost, tau and soft cap,
-  the year's national targets and the state targets. Two state multipliers interact only within one area and AGI
-  group, so the Newton system reduces to one dense matrix the size of the national targets (about 1,300 rows), about 580
-  small blocks, and a term for records above their cap. Budget 150 Newton steps.
+  weights w_is = w0_i x p0_is x exp(x_i' lambda_national + z_i' (lambda_s - mu_g)), with the solver's cost, tau and
+  soft cap, the year's national targets and the state targets. mu_g is the group's share-weighted sum of its areas'
+  multipliers, one number per item; it is the part of each share condition that subtracts the national amount. Without
+  it, two state multipliers would interact only within one area and AGI group; with it, each group's areas are tied
+  together through 2K extra unknowns (the change in mu_g and in the group's national amounts of the K items), which
+  join the national multipliers in the dense part of the Newton system. The system is then one dense matrix of about
+  2,300 rows (factored by LU decomposition; it is symmetric but not positive definite), about 580 small blocks, and a
+  term for records above their cap. When every area of a group has a target for an item, the item's conditions sum to
+  zero whatever the weights; the standard errors keep the system solvable. Budget 150 Newton steps.
 - **Future years** (`reweight/state_weights.py --carry`): a record's state weight is the year's national weight times
   its 2023 share, by record id (`shares/shares_2023.npz`). Any record other than a Forbes record that lacks a 2023 share
   stops the stage.
@@ -1137,9 +1153,9 @@ report.
 | training, per network | GPU (H200) | about 62 minutes |
 | a past year's folder, targets and dollar maps | CPU | about 3 minutes |
 | draw and top step | GPU, 120 GB | 45-50 minutes (draw 17, top 31) |
-| national solve, past year | 4 CPUs, 72 GB | 11-20 minutes |
+| a past year's solve inputs (the start, prescaling, taxes, targets) | 4 CPUs, 72 GB | about 5 minutes |
 | state chances | GPU | about a minute |
-| integrated state solve | 16 CPUs, 96 GB | 15-42 minutes |
+| integrated state solve, with the outputs and the report | 16 CPUs, 96 GB | 15-45 minutes |
 | projection year (solve and carried split) | 4 CPUs | 3-4 minutes |
 | Tax-Simulator file | 2 CPUs | about a minute |
 | package and round trip | CPU | about 3 minutes |

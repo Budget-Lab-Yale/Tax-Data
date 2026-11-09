@@ -15,8 +15,9 @@ files in the run folder.
    their coefficients of variation; the training table and the side files for every survey year (`prep/`).
 2. **Pretraining** (once, GPU): three networks with different seeds (`pretrain/`).
 3. **Each past year, 2015-2023**: the year's folder, SOI numbers and dollar maps (`scale/`); the draw and the top of the
-   file on a GPU (`generate/`); the national reweighting (`reweight/`); each record's chance of each state (GPU); the
-   integrated solve of national and state weights.
+   file on a GPU (`generate/`); the inputs of the reweighting (the start, the prescaling, the taxes and the targets,
+   `reweight/`); each record's chance of each state (GPU); the integrated solve of national and state weights, and the
+   outputs and report on its weights.
 4. **Each projection year**: 2024 from the 2023 file, then 2025-2075 from the 2024 file, each a reweighting and the
    2023 state split carried forward.
 5. **Every year**: the Tax-Simulator file, and with `generation.filers` `real_puf` the package for PUF holders
@@ -58,9 +59,9 @@ a Python or an R stage, and `REBUILD_R_LIBS`, the R library for the filing and C
 Every setting is in `pipeline/settings.json`; each run folder gets its own copy, which the stages read through
 `REBUILD_SETTINGS`. The PUF year (2015) and the target year are its `years`. The runner sets the other environment
 variables a stage reads: `REBUILD_OUT` (the output folder), `REBUILD_RUN` (the run's subfolder: `y<year>` for a year,
-the network's name for training), `REBUILD_SEED` (the training seed) and `REBUILD_SAVE_SOLVE` (where the national
-solve saves its inputs for the state solve). `REBUILD_PASSES` sets fewer training passes for a quick test, and
-`REBUILD_THREADS` the number of threads for the integrated solve.
+the network's name for training) and `REBUILD_SEED` (the training seed). `REBUILD_SAVE_SOLVE` makes a whole
+reweighting run save its solve's inputs (a past year's `inputs` step always does). `REBUILD_PASSES` sets fewer training
+passes for a quick test, and `REBUILD_THREADS` the number of threads for the integrated solve.
 
 Outside the repository the pipeline needs: the raw data named in settings `paths.raw` (PUF, SCF, CEX, CPS ASEC and its
 March basic file, SIPP, SOI tables and W-2 statistics, Macro-Projections); tax-simulator-gpu at the commit in settings
@@ -77,8 +78,9 @@ The training folder holds `data/` (the survey files, the training table, the dol
 and errors), `model/<network>/` and `sidebuild/` (the side files). The output folder holds, for each year,
 `final/<year>/` with `gen/y<year>/` (the drawn records), `tilt/y<year>/` (the year file `file_<year>.parquet`, every
 target before and after in `fit.csv`, `targets.csv`, `summary.md`, the run report `report.md`) and `taxsim/y<year>/`
-(the Tax-Simulator file); `files/state_weights_<year>.parquet`; and `checks/`. A past year's draw and national solve
-are in `run/<year>/`, the integrated solve in `integrated/y<year>/`. Every dollar is in nominal dollars of the year.
+(the Tax-Simulator file); `files/state_weights_<year>.parquet`; and `checks/`. A past year's draw and the inputs of
+its solve are in `run/<year>/`, the integrated solve in `integrated/y<year>/`. Every dollar is in nominal dollars of
+the year.
 
 The installed run is under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` (`data/`, `targets/`, `model/`, `gen/`,
 `tilt/`, `taxsim/`; `INSTALLED.txt` says where every year's files and the state weights are). It changes only by an
