@@ -110,7 +110,13 @@ class Joint:
             self.groups.append(dict(rows=r, X=Xg[:, cols].copy(), cols=cols, Z=Z, Z2=Z[:, iu] * Z[:, ju], iu=iu, ju=ju, P=(w0_free[r, None] / self.W) * P0[r],
                                     p=self.p_rec[r], mask=mask, pos=pos, t=t, nu=nu, c=c_all[r], U=U_s[r]))
         self.mS = n_state
-        self.nu_N = np.zeros(self.mN)
+        self.t = np.zeros(self.mN + self.mS)                # the targets, national first, then the state targets in order of pos
+        self.t[:self.mN] = self.t_N
+        for g in self.groups:
+            self.t[self.mN + g['pos'][g['mask']]] = g['t'][g['mask']]
+        self.nu = np.zeros_like(self.t)                      # the penalties, in the same order
+        for g in self.groups:
+            self.nu[self.mN + g['pos'][g['mask']]] = g['nu'][g['mask']]
         self.steps, self.calls = 0, 0
         self.timing = {}
 
@@ -123,6 +129,7 @@ class Joint:
     def set_national_penalty(self, s):
         n = self.nat
         self.nu_N = self.tau * s ** 2 / n['rho'] * n['free_target']
+        self.nu[:self.mN] = self.nu_N
 
     # --- the vector of multipliers: national first, then the state targets in order of pos ---
     def split(self, lam):
@@ -151,22 +158,8 @@ class Joint:
                 if not np.isfinite(val):
                     return np.inf, None
                 fields.append((E, e))
-        val += -float(self.t_all(lam)) + 0.5 * float((self.nu_all() * lam ** 2).sum())
+        val += -float(self.t @ lam) + 0.5 * float((self.nu * lam ** 2).sum())
         return val, fields
-
-    def t_all(self, lam):
-        t = np.zeros(self.mN + self.mS)
-        t[:self.mN] = self.t_N
-        for g in self.groups:
-            t[self.mN + g['pos'][g['mask']]] = g['t'][g['mask']]
-        return t @ lam
-
-    def nu_all(self):
-        nu = np.zeros(self.mN + self.mS)
-        nu[:self.mN] = self.nu_N
-        for g in self.groups:
-            nu[self.mN + g['pos'][g['mask']]] = g['nu'][g['mask']]
-        return nu
 
     def gradient(self, lam, fields):
         lN, ls = self.split(lam)
@@ -176,9 +169,20 @@ class Joint:
             R = (g['Z'].T @ E).T - g['t']
             out[self.mN + g['pos'][g['mask']]] = R[g['mask']]
         out[:self.mN] -= self.t_N
-        return out + self.nu_all() * lam
+        return out + self.nu * lam
 
     # --- the Newton step ---
+    @staticmethod
+    def cholesky(M, attempts, first, grow, what):
+        """The Cholesky factor of M, with a jitter on the diagonal where M is not quite positive definite."""
+        jitter = 0.0
+        for attempt in range(attempts):
+            try:
+                return sl.cholesky(M + jitter * np.eye(len(M)), lower=True, check_finite=False), jitter
+            except sl.LinAlgError:
+                jitter = max(first, jitter * grow)
+        raise RuntimeError(what)
+
     def capped(self, g, e):
         """Which records of the group lie above their cap, and kappa, the curvature the cap takes away: E x cE / (1 + cE)."""
         idx = np.flatnonzero(e > g['U'])
@@ -224,7 +228,6 @@ class Joint:
         HN = HN / dN[:, None] / dN[None, :]
         HN[np.diag_indices(mN)] += self.nu_N / dN ** 2 + 1e-12
         B = B / dN[:, None] / dS[None, :]
-        S = HN
         by_group = {}
         for b in blocks:
             D = b['D'] / dS[b['p'], None] / dS[b['p']][None, :]
@@ -236,17 +239,8 @@ class Joint:
             by_group.setdefault(id(b['g']), (cols, []))[1].append(C)
         for cols, Cs in by_group.values():
             C = np.vstack(Cs)
-            S[np.ix_(cols, cols)] -= C.T @ C
-        del by_group
-        jitter = 0.0
-        for attempt in range(6):
-            try:
-                LS = sl.cholesky(S + jitter * np.eye(mN), lower=True, check_finite=False)
-                break
-            except sl.LinAlgError:
-                jitter = max(1e-11, jitter * 100)
-        else:
-            raise RuntimeError('the national part of the Newton system is not positive definite')
+            HN[np.ix_(cols, cols)] -= C.T @ C
+        LS, jitter = self.cholesky(HN, 6, 1e-11, 100, 'the national part of the Newton system is not positive definite')
         t2 = time.time()
         self.F = dict(B=B, blocks=blocks, LS=LS, dN=dN, dS=dS, jitter=jitter)
         self.F['wood'] = self.woodbury(fields)
@@ -315,15 +309,7 @@ class Joint:
         for rows, GG in Gd:
             W[np.ix_(rows, rows)] -= GG
         W[np.diag_indices(r)] += 1.0
-        jitter = 0.0
-        for attempt in range(8):
-            try:
-                LW = sl.cholesky(W + jitter * np.eye(r), lower=True, check_finite=False)
-                break
-            except sl.LinAlgError:
-                jitter = max(1e-10, jitter * 10)
-        else:
-            raise RuntimeError('the soft cap\'s system is not positive definite')
+        LW, jitter = self.cholesky(W, 8, 1e-10, 10, 'the soft cap\'s system is not positive definite')
         return dict(r=r, r_all=r_all, parts=parts, LW=LW, jitter=jitter)
 
     def inverse(self, r):
@@ -363,7 +349,7 @@ class Joint:
             np.add.at(out, g['cols'], g['X'].T @ de.sum(1))
             R = (g['Z'].T @ de).T
             out[self.mN + g['pos'][g['mask']]] = R[g['mask']]
-        return out + self.nu_all() * v
+        return out + self.nu * v
 
     def newton_step(self, g_vec, fields):
         self.factor(fields)
@@ -558,24 +544,21 @@ def main():
     tolerance, tau = c['tolerance'], float(c['tau'])
     t_all = time.time()
     df, inp, ht2, areas, filer, pi = load_year(a.run, year, a.start_dir)
+    w0 = np.asarray(inp['w0'], float)
+    fixed = np.asarray(inp['fixed'], bool)
     P0, specs, fit, tgn, table, notes, items = state_problem(df, inp, ht2, areas, filer, pi, year, ST.FINAL_ITEMS, tolerance, c['nonfiler_tolerance'], f'{a.run}/{year}/data')
     od = f'{a.out}/integrated/y{year}'
     os.makedirs(od, exist_ok=True)
     notes.to_csv(f'{od}/no_target.csv', index=False)
     table.to_csv(f'{od}/nonfiler_states.csv')
     tgn.to_csv(f'{od}/nonfiler_targets.csv', index=False)
-    w0 = np.asarray(inp['w0'], float)
-    fixed = np.asarray(inp['fixed'], bool)
     cfg = inp['reweighting']
     nat = national_setup(w0, inp['F'], np.asarray(inp['T'], float), inp['se'], inp['identity'], inp['averages'], fixed, inp['rho'])
     free = nat['free']
     where_free = -np.ones(len(w0), dtype=np.int64)
     where_free[free] = np.arange(int(free.sum()))
-    groups = []
-    for sp in specs:
-        r = where_free[sp['all_rows']]
-        assert (r >= 0).all()
-        groups.append(dict(rows=r, Z=sp['Z'], T=sp['T'], se=sp['se'], fixed=sp['fixed'], size=sp['size']))
+    groups = [{**sp, 'rows': where_free[sp['all_rows']]} for sp in specs]
+    assert all((g['rows'] >= 0).all() for g in groups)
     n_in = sum(len(g['rows']) for g in groups)
     assert n_in == int((free & (w0 > 0)).sum()), f'{n_in} records in the groups, {int((free & (w0 > 0)).sum())} free with a weight'
     say(f'{year}: {int((free & (w0 == 0)).sum())} free records with no starting weight stay at zero')
@@ -595,7 +578,6 @@ def main():
     if not info['converged']:
         say(f'{year}: REPORT TO JOHN: the solve stopped short of the stopping size {J.tol:.0e}, largest gradient {info["largest_gradient"]:.2e}: ' + ('within 10 times it, the result is used' if within_near else 'beyond 10 times it, this job will fail with the files written'))
     # the weights: free records from the solve, fixed records at their start
-    n = len(w0)
     wis = w0[:, None] * P0
     w1 = w0.copy()
     for g, (E, e) in zip(J.groups, fields):
@@ -616,7 +598,6 @@ def main():
     nfit = SV.fit_table(w0, w1, F, np.asarray(inp['T'], float), np.asarray(inp['se'], float), inp['averages'], inp['rows'], np.asarray(inp['identity'], bool))
     nfit.to_csv(f'{od}/fit.csv', index=False)
     mv = SV.move(w0, w1)
-    rho = np.asarray(inp['rho'], float)
     miss_se = np.nan_to_num(nfit['miss_in_se'].to_numpy(float))
     wf_is, pf_is = wis[free] / J.W, (w0[:, None] * P0)[free] / J.W     # for the move in record-by-state weights, in nats
     on = wf_is > 0
@@ -637,13 +618,13 @@ def main():
     nr = reach[-1][:51]
     nfr = tgn.pivot(index='state', columns='band', values='target').loc[ST.STATES, ST.AGE_BAND_NAMES].to_numpy(float)
     miss_n = np.abs(nr / nfr - 1)
-    r = dict(year=year, tag='integrated', items='final', tolerance=tolerance, tau=tau, national_multipliers=J.mN, state_multipliers=J.mS, records=n, status=info['status'],
+    r = dict(year=year, tag='integrated', items='final', tolerance=tolerance, tau=tau, national_multipliers=J.mN, state_multipliers=J.mS, records=len(w0), status=info['status'],
              converged=info['converged'], within_near=within_near, newton_steps=info['newton_steps'], rounds=info['rounds'],
              solve_minutes=info['solve_minutes'], largest_gradient=info['largest_gradient'], notes=info['notes'], largest_share_sum_error=float(sum_err.max()),
              targets_state=len(fit), within_2pct=100 * float((fit['miss_rel'] <= 0.02).mean()), plain_targeted=100 * float(fit['miss_rel'].mean()),
              largest_miss_se_state=float(fit['miss_se'].abs().max()), nonfiler_mean_miss=100 * float(miss_n.mean()),
              national_over_1se=int((np.abs(miss_se) > 1).sum()), national_over_2se=int((np.abs(miss_se) > 2).sum()), national_largest_miss_se=float(np.abs(miss_se).max()),
-             national_miss_cost=float((0.5 * rho * miss_se ** 2).sum()), kl_national=mv['kl_move'], effective_sample_kept=100 * mv['effective_sample_kept'],
+             national_miss_cost=float((0.5 * np.asarray(inp['rho'], float) * miss_se ** 2).sum()), kl_national=mv['kl_move'], effective_sample_kept=100 * mv['effective_sample_kept'],
              smallest_weight_factor=mv['smallest_weight_factor'], largest_weight_factor=mv['largest_weight_factor_overall'], kl_record_by_state=D_joint,
              income_tax_after_credits_filers=float((f['weight'] * f['calc_liab_after_credits']).sum()),
              **SW.quality(f, Q[filer], areas), **{f'heldout {k}': v for k, v in s.items()})
