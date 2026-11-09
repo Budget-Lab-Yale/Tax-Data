@@ -1,5 +1,5 @@
-"""Tips in the target year's file against that year's SIPP tax units, both weighted, by wages, age range, marital status
-and person. The file's dependent filers hold no SIPP item and are left out. Nothing here is targeted. Writes
+"""Tips in the target year's file against that year's SIPP tax units, both weighted: by wages, age range, marital
+status and person. The file's dependent filers hold no SIPP item and are left out. Nothing here is targeted. Writes
 <tilt>/sipp_report.md.
 """
 import numpy as np
@@ -15,6 +15,8 @@ ADULT = common.AGE_LABELS[:common.ADULT_RANGES]
 
 
 def stat(m):
+    """Units, total tips, units and people with tips, mean tips per unit with tips, and the share of tips from leisure
+    and hospitality jobs."""
     w, t = m.w.to_numpy(float), m.tips.to_numpy(float)
     has = t > 0
     p = ((m.tips1 > 0).astype(float) + (m.tips2 > 0)).to_numpy()
@@ -26,10 +28,13 @@ def stat(m):
 
 
 def table(src, rows):
+    """A markdown table of stat for each row and source."""
     return side_by_side(src, rows, stat, ',.2f')
 
 
 def main():
+    # 1. Read the file (adults only) and the SIPP tax units of the year mix, with the SIPP's tips and wages under the
+    #    file's names. Give both sides their wage groups.
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
     f = f[f['age_range'] < common.ADULT_RANGES].copy()
     f['w'] = f['weight']
@@ -42,6 +47,7 @@ def main():
     src = {'file': f, 'SIPP mix': s}
     for d in src.values():
         d['wg'] = common.groups_by(d['wages'].to_numpy(float), WAGES)
+    # 2. The tables by group, then by person.
     out = [f'# Tips in the {Y} file against the SIPP year mix', '',
            f'SIPP: the year mix of the {Y} file (survey_mix.py), each year in {Y} dollars by SOI wages per return, every tax unit, weighted. File: after the tilt, dependent filers left out (they '
            'hold no SIPP item). Nothing here is targeted. Nominal dollars of the year.', '',
@@ -62,6 +68,7 @@ def main():
                          'with tips mostly from leisure and hospitality (m)': w[(t > 0) & (lh == 1)].sum() / 1e6,
                          'their tips ($bn)': (w * t * lh).sum() / 1e9})
     out += ['## By person', '', pd.DataFrame(rows).to_markdown(index=False, floatfmt=',.2f'), '']
+    # 3. Write the report.
     open(f'{common.TILT}/sipp_report.md', 'w').write('\n'.join(out))
     common.say('\n'.join(out))
 

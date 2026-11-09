@@ -1,6 +1,9 @@
-"""State weights: helpers for the integrated solve (state_joint.py), and two steps. --carry gives a projection year's
-state weights from each record's 2023 shares; --check checks every year's state weights against its file.
-See FEATURES.md, "State weights".
+"""State weights: helper functions for the integrated solve (state_joint.py), and two steps of their own.
+
+--carry makes a projection year's state weights. Each record keeps the shares across the areas that it had in 2023,
+and its weight in an area is its national weight in the projection year times that share. --check checks every year's
+state weights file against the year's file: each record's area weights sum to its national weight, and each past
+year's solve converged. See FEATURES.md, "State weights".
 """
 import argparse
 import json
@@ -13,9 +16,13 @@ from shared import common
 
 from reweight import state_targets as ST
 
-ROUNDING_SE = 10 / np.sqrt(12)     # Historic Table 2's counts are rounded to the nearest 10
+# Historic Table 2's counts are rounded to the nearest 10. An error spread evenly over a width of 10 has a standard
+# deviation of 10 / sqrt(12).
+ROUNDING_SE = 10 / np.sqrt(12)
 BASE_YEAR = 2023                   # the projection years carry this year's shares
 
+
+# ---- Settings and the Forbes records ----
 
 def say(*a):
     print(*a, flush=True)
@@ -27,7 +34,8 @@ def common_settings():
 
 
 def pins_of(df, year, areas):
-    """For each record, the index of the area it is pinned to, or -1 if free. Only Forbes records are pinned."""
+    """For each record, the index of the area it is pinned to, or -1 if it is free. Only Forbes records are pinned: a
+    Forbes record is put wholly in the area of its state of residence (state_targets.forbes_states)."""
     pin = np.full(len(df), -1, dtype=int)
     f = ST.forbes_states(df, year)
     if len(f):
@@ -43,9 +51,11 @@ def pins_of(df, year, areas):
     return pin
 
 
-# ---- the starts ---------------------------------------------------------------------------------------------------------
+# ---- Starting shares ----
+
 def read_start(path, df):
-    """state_start.py's probabilities [n, 51] in the file's record order."""
+    """state_start.py's chances of the 51 states [records, 51], in the file's record order, each row scaled to sum
+    to 1."""
     z = np.load(path)
     idx = pd.Index(z['record_id']).get_indexer(df['record_id'].to_numpy())
     assert (idx >= 0).all(), f'{path}: {int((idx < 0).sum())} records of the file are not in the start'
@@ -55,9 +65,10 @@ def read_start(path, df):
 
 
 def cps_start(pi, group, ht2, areas):
-    """Filers' starting shares: Other Areas and Puerto Rico at the IRS's share of returns in the record's AGI group, and
-    the network's chances pi over the 51 scaled to the rest. Example: in 2019 in the $25-50k group the two hold 0.395% of
-    returns, so a record with a 20.7% chance of California starts at 20.6% there."""
+    """Filers' starting shares across the areas. Other Areas and Puerto Rico start at their share of the IRS's returns
+    in the record's AGI group. The network's chances pi of the 51 states are scaled to fill the rest. Example: in 2019,
+    in the $25-50k group, the two hold 0.395% of returns, so a record with a 20.7% chance of California starts at 20.6%
+    there."""
     v = ST.ht2_values(ht2, 'n_returns')[areas].to_numpy(float)       # [10, A]: each area's returns in each AGI group
     assert (v >= 0).all() and not np.isnan(v).any()
     s = v / v.sum(1, keepdims=True)
@@ -70,18 +81,21 @@ def cps_start(pi, group, ht2, areas):
     return p
 
 
-# ---- the tilt ---------------------------------------------------------------------------------------------------------
-# A cell smaller than this share of the item's national total in the AGI group is held to the tolerance on this share of
-# the total, not on its own size, so that a tiny cell the file cannot reach does not cost as much as a large state.
+# ---- Standard errors and scores ----
+
+# A cell smaller than CELL_FLOOR times the item's national total in the AGI group gets the standard error of a cell of
+# that size, not of its own size. Without this floor, a tiny cell that the file cannot reach would cost as much as a
+# miss in a large state.
 CELL_FLOOR = 0.001
 LIST_FULL = 0.9     # a cell where the Forbes records hold this share of the target or more has no target
 
 
 def tolerances(tg, tolerance):
-    """A state target's standard error: the tolerance times the larger of the target and CELL_FLOOR times the item's
-    national total in the group. For a count, the error from rounding Historic Table 2's counts to the nearest 10 is added
-    in quadrature. Historic Table 2 has no sampling error, so the tolerance is a choice. Example, 2% tolerance: Connecticut's 2019 target of $12.21
-    billion of wages in the $50-75k group has a standard error of $244 million."""
+    """Each state target's standard error: the tolerance times the larger of the target and CELL_FLOOR times the item's
+    national total in the group. For a count, the error from rounding the IRS's counts to the nearest 10 is added (the
+    two combined as independent errors). Historic Table 2 has no sampling error, so the tolerance is a choice. Example,
+    with a 2% tolerance: Connecticut's 2019 target of $12.21 billion of wages in the $50-75k group has a standard error
+    of $244 million."""
     t = tg['target'].abs().to_numpy()
     total = (tg['target'] / tg['share']).abs().to_numpy()
     se = tolerance * np.maximum(t, CELL_FLOOR * total)
@@ -91,8 +105,10 @@ def tolerances(tg, tolerance):
 
 
 def heldout_cells(f, group, P, ht2, areas):
-    """The held-out items' scores by cell: one row per item, AGI group and area with a positive published value, where
-    the target is the file's total times the area's share of the positive published values."""
+    """How well the state weights reproduce Iselin's nine held-out items (state_targets.HELD_OUT), by cell. One row per
+    item, AGI group and area with a positive published value. The cell's target is the file's national total in the
+    group times the area's share of the positive published values; reached is the file's amount in the area under the
+    shares P; miss is the relative gap."""
     items = ST.HELD_OUT
     x = ST.item_vectors(f, items)
     w = f['weight'].to_numpy(float)
@@ -122,8 +138,9 @@ def heldout_cells(f, group, P, ht2, areas):
 
 
 def score(d):
-    """The average miss over all cells; the dollar-weighted miss, sum |reached - target| / sum target over the dollar
-    items' cells; the same over the count items' cells; each in percent, overall and by item."""
+    """The scores of heldout_cells, in percent: the average miss over all cells; the dollar-weighted miss over the
+    dollar items' cells, sum |reached - target| / sum target; the same over the count items' cells; and the first two
+    for each item."""
     weighted = lambda c: 100 * float((c['reached'] - c['target']).abs().sum() / c['target'].abs().sum())
     out = {'cells': len(d), 'plain': 100 * float(d['miss'].mean()), 'dollar_weighted': weighted(d[d['kind'] == 'amount']),
            'return_weighted': weighted(d[d['kind'] == 'count'])}
@@ -134,7 +151,10 @@ def score(d):
 
 
 def quality(f, P, areas):
-    """Largest record shares and each area's effective number of records: (sum w q)^2 / sum (w q)^2."""
+    """How concentrated the shares are. Each area's effective number of records is (sum w q)^2 / sum (w q)^2, with w
+    the national weight and q the record's share in the area: it is the number of equally weighted records that would
+    give the same spread. Reports the smallest among the 51 states, and the share of records and of weight with more
+    than 99% in one area."""
     w = f['weight'].to_numpy(float)
     wq = w[:, None] * P
     ess = wq.sum(0) ** 2 / (wq ** 2).sum(0)
@@ -143,10 +163,11 @@ def quality(f, P, areas):
             float(w[P.max(1) > 0.99].sum() / w.sum())}
 
 
-# ---- the year's file -----------------------------------------------------------------------------------------------------
+# ---- Writing and checking the state weights file ----
+
 def write_long(path, ids, weights, P, areas):
-    """Write id, state and weight, one row per record and area with a share above zero. The weight is the record's
-    national weight times its share."""
+    """Write the state weights file: id, state and weight, one row per record and area with a share above zero. The
+    weight is the record's national weight times its share."""
     import pyarrow as pa
     import pyarrow.parquet as pq
     n, A = P.shape
@@ -158,13 +179,14 @@ def write_long(path, ids, weights, P, areas):
 
 
 def check_written(path, df, items_x):
-    """Read the file back: every record's weights sum to its national weight, and every national total is unchanged."""
+    """Read the state weights file back and check it: every record's area weights sum to its national weight, and
+    every item's national total is unchanged. Returns the largest errors and the file's size."""
     d = pd.read_parquet(path, columns=['id', 'weight'])
     tot = d.groupby('id', sort=False)['weight'].sum()
     w = pd.Series(df['weight'].to_numpy(float), index=df['record_id'].to_numpy())
     assert set(tot.index) == set(w.index), f'{path}: the ids differ from the file'
     tot = tot.reindex(w.index)
-    # weights too small to divide by are left out of the relative error
+    # Weights too small to divide by are left out of the relative error.
     rel = (tot - w).abs() / w.where(w > 1e-300, np.inf)
     out = {'records': len(w), 'rows': len(d), 'largest_share_sum_error': float(rel.max()),
            'bytes': os.path.getsize(path), 'national_weight': float(w.sum()), 'file_weight': float(d['weight'].sum())}
@@ -178,10 +200,13 @@ def check_written(path, df, items_x):
     return out
 
 
+# ---- Projection years and the check of every year ----
+
 def carry(a):
-    """A projection year's state weights: each record's national weight times its 2023 shares, found by record id. Forbes
-    records, whose ids are their ranks on each year's list, are pinned by forbes_uri; one with no state takes the
-    distribution of the year's pinned Forbes records. Any other record missing from the 2023 file stops the run."""
+    """A projection year's state weights: each record's national weight times its 2023 shares, found by record id.
+    Forbes records get new ids each year (their rank on the year's list), so they are pinned by forbes_uri instead.
+    A Forbes record with no known state takes the spread of the year's pinned Forbes records across the areas. Any
+    other record missing from the 2023 file stops the run."""
     year = a.year
     z = np.load(f'{a.out}/shares/shares_{BASE_YEAR}.npz')
     ids0, areas, P0 = z['record_id'], [str(x) for x in z['areas']], z['P']
@@ -215,14 +240,14 @@ def carry(a):
 
 
 def check_all(a):
-    """Check that every year has a file, that shares sum to 1 and national totals are unchanged, and that each past year's
-    solve converged. A year within 10 times the stopping size is named in the log; a year beyond it stops the check.
-    Writes checks/by_year.csv."""
+    """Check that every year has a state weights file, that each record's shares sum to 1, that national totals are
+    unchanged, and that each past year's solve converged. A year that stopped within 10 times the stopping size is
+    named in the log; a year beyond it stops the check. Writes checks/by_year.csv."""
     rows = []
     for y in [int(v) for v in a.years.split(',')]:
         f, c = f'{a.out}/files/state_weights_{y}.parquet', f'{a.out}/checks/check_{y}.json'
         r = dict(json.load(open(c)), file=os.path.exists(f)) if os.path.exists(c) else dict(year=y, file=os.path.exists(f))
-        if r['file']:   # each file read back against the run's own weights
+        if r['file']:   # each file read back against the year file's national weights
             d = pd.read_parquet(f, columns=['id', 'weight']).groupby('id', sort=False)['weight'].sum()
             w = pd.read_parquet(f'{a.run}/{y}/tilt/y{y}/file_{y}.parquet', columns=['record_id', 'weight']).set_index('record_id')['weight']
             assert d.index.nunique() == len(w) and set(d.index) == set(w.index), f'{y}: the ids differ'

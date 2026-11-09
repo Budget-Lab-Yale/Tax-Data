@@ -1,8 +1,8 @@
-"""Consumption in the target year's file against that year's CEX tax units, in nominal target-year dollars.
+"""Consumption in the target year's file against that year's CEX tax units, in nominal dollars of the target year.
 
-Each category's average per tax unit, overall and by the primary filer's age range, is targeted; everything else here
-is not. AGI and CEX income are defined differently (CEX income runs 22-48% below PUF income at the same rank), so
-income is compared by each source's own deciles rather than in dollars. Writes <tilt>/cex_report.md.
+Each consumption category's average per tax unit, overall and by the primary filer's age range, is a target; nothing
+else here is. AGI and CEX income are defined differently: CEX income runs 22-48% below PUF income at the same rank. So
+income is compared by each source's own deciles, not in dollars. Writes <tilt>/cex_report.md.
 """
 import numpy as np
 import pandas as pd
@@ -20,11 +20,11 @@ Y = common.TARGET_YEAR
 groups_by = common.groups_by
 WAGES = common.WAGE_GROUPS
 SS = [(-np.inf, 1, 'none'), (1, 15e3, '$1-15k'), (15e3, 30e3, '$15k-30k'), (30e3, 50e3, '$30k-50k'),
-      (50e3, np.inf, '$50k+')]
+      (50e3, np.inf, '$50k+')]   # groups by gross Social Security benefits
 
 
 def deciles(x, w):
-    """Weighted decile (1-10) of x within its own source."""
+    """Each record's weighted decile (1-10) of x within its own source."""
     o = np.argsort(x, kind='stable')
     cum = np.empty(len(x))
     cum[o] = (np.cumsum(w[o]) - w[o] / 2) / w.sum()
@@ -32,7 +32,7 @@ def deciles(x, w):
 
 
 def compare(sources, key, order):
-    """Units (millions) and mean total consumption ($ thousands) by group, per source."""
+    """A markdown table: units (millions) and mean total consumption ($ thousands) by group, for each source."""
     rows = []
     for g in order:
         r = {'group': g}
@@ -45,6 +45,8 @@ def compare(sources, key, order):
 
 
 def main():
+    # 1. Read the file and the CEX tax units of the year mix. On each side: total consumption, income, the age range,
+    #    the household type, the wage group and the Social Security group. Adults get income deciles.
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
     c = survey_mix.mixed_units('cex')
     f['w'], f['total'] = f['weight'], f['total_consumption']
@@ -65,6 +67,7 @@ def main():
     c_ad = c_ad.assign(dec=deciles(c_ad['income'].to_numpy(float), c_ad.w.to_numpy(float)))
     o_ad = o_ad.assign(dec=deciles(o_ad['income'].to_numpy(float), o_ad.w.to_numpy(float)))
 
+    # 2. The report: totals, the targeted averages by age, then the untargeted tables.
     out = [f'# Consumption in the {Y} file against the CEX year mix', '',
            f'CEX: the year mix of the {Y} file (survey_mix.py), each year in {Y} dollars by NIPA PCE per return (income and Social Security are not grown), all tax units (a shared household\'s spending divided by head count), and the one-unit '
            f'households. Nominal {Y} dollars. The model trains on every CEX tax unit. The tilt targets each category\'s '
@@ -104,6 +107,7 @@ def main():
     out += ['## Units with none of the category', '',
             'Head-count splitting gives every tax unit in a spending household some of each category, so the all-units CEX '
             'column understates zeros; the one-unit column is the cleaner yardstick.', '', z.to_markdown(floatfmt='.1f'), '']
+    # 3. Write it.
     open(f'{common.TILT}/cex_report.md', 'w').write('\n'.join(out))
     common.say('\n'.join(out))
 

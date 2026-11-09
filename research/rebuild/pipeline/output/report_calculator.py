@@ -1,9 +1,9 @@
 """The GPU tax calculator's results on the year file against SOI, and the AGI check.
 
-The AGI check splits the gap between the calculator's AGI and the file's into its causes (agi_check). The levels compare
-filers by SOI's AGI groups with SOI Tables 1.4 and 3.3, with the weights before and after the reweighting; nothing here
-is a target. Reads calculator.py's outputs and the year file; writes agi_check.csv, levels.csv,
-levels_by_rebuild_agi.csv and report.md beside them.
+The AGI check splits the gap between the calculator's AGI and the file's own AGI into its causes (agi_check). The
+levels compare filers, by SOI's AGI groups, with SOI Tables 1.4 and 3.3, under the weights before and after the
+reweighting; nothing here is a target. Reads calculator.py's outputs and the year file; writes agi_check.csv,
+levels.csv, levels_by_rebuild_agi.csv and report.md beside them.
 """
 import os
 
@@ -17,8 +17,8 @@ from shared import dollars as D
 Y = C.Y
 SOI = common.RAW['soi_tables']
 FILES = {'1.4': 'bysize_income_sources.csv', '3.3': 'bysize_tax_liability.csv'}
-# ITEMS: (table, SOI item without " > number of returns" or " > amount", the calculator's column, the inputs it depends
-# on that are 0). Counts are returns with a value above zero, and itemizers are returns that itemize.
+# ITEMS, below: (table, SOI item without " > number of returns" or " > amount", the calculator's column, the inputs it
+# depends on that are 0). Counts are returns with a value above zero, and itemizers are returns that itemize.
 AGI_ITEM = 'adjusted gross income less deficit'
 SKIP = {('returns', 'amount'), (AGI_ITEM, 'count')}   # SOI publishes neither
 _READ = {}   # each SOI file's rows of the year, read once
@@ -46,8 +46,8 @@ ITEMS = [
 
 
 def soi_cells(table, item, stat):
-    """SOI's cells of one item by AGI, all returns, as (lo, hi, value), lowest first, in dollars or returns. A cell
-    flagged 'combined' holds its own bracket and the blank ones after it."""
+    """SOI's cells of one item by AGI, all returns, as (lower edge, upper edge, value), lowest first, in dollars or
+    returns. A cell flagged 'combined' holds its own AGI group and the blank ones after it."""
     if table not in _READ:
         t = pd.read_csv(os.path.join(SOI, FILES[table]), dtype=str, keep_default_na=False)
         _READ[table] = t[(t.tax_year == str(Y)) & (t.table == table) & (t.panel == 'All returns')
@@ -72,6 +72,7 @@ def soi_cells(table, item, stat):
 
 
 def label(lo, hi):
+    """An AGI group's name, from its edges."""
     if lo == -np.inf:
         return 'no AGI'
     if hi == np.inf:
@@ -81,11 +82,11 @@ def label(lo, hi):
 
 
 def agi_check(f, c, inp):
-    """The gap per record between the calculator's AGI and the file's, split into the steps where the calculator
+    """The gap on each record between the calculator's AGI and the file's, split into the steps where the calculator
     computes something the file draws: capital gains after the loss limit, taxable Social Security, the deduction for
     half of self-employment tax, the state tax workaround (part of some owners' state income tax moved into the
     pass-through's loss), pass-through losses, the law's caps on other adjustments, and the rest, which should be
-    rounding."""
+    rounding. Returns the file's AGI, the gap and the terms."""
     x = lambda d, k: d[k].to_numpy(float)
     rebuild = D.agi(f)
     line13 = x(f, 'capital_gains_line13')
@@ -99,7 +100,7 @@ def agi_check(f, c, inp):
         'taxable Social Security': x(c, 'txbl_ss') - x(f, 'ss_taxable'),
         'self-employment tax deduction': -(seca - x(f, 'se_tax_ded')),
         'state tax workaround': -workaround,
-        # the pass-through amount the calculator puts in Schedule E, read as Schedule E less net rent and net estate income
+        # The pass-through amount the calculator puts in Schedule E: Schedule E less net rent and net estate income.
         'pass-through losses': (x(c, 'sch_e') - x(c, 'net_rent') - x(c, 'net_estate')) - (p0 - workaround),
         'other adjustments': -((x(c, 'above_ded') - seca) - (x(f, 'adjustments') - x(f, 'se_tax_ded'))),
     })
@@ -109,6 +110,8 @@ def agi_check(f, c, inp):
 
 
 def summarise_gap(gap, terms, w, filer, tol=1.0):
+    """For filers and non-filers, the AGI gap and each term: the records and units with a gap over tol dollars, and the
+    weighted gap, signed and absolute."""
     rows = []
     for name, sel in [('filers', filer), ('non-filers', ~filer)]:
         d = np.abs(gap) > tol
@@ -129,7 +132,8 @@ def summarise_gap(gap, terms, w, filer, tol=1.0):
 
 
 def levels(v, agi, weights, filer):
-    """Every item's SOI cells against the file's, by the AGI given, filers only. Long form."""
+    """Every item's SOI cells against the file's, by the AGI given, filers only: one row per item, statistic and AGI
+    group (and all returns), under each set of weights."""
     rows = []
     for table, item, col, zero in [('1.4', 'returns', None, '')] + ITEMS:
         for stat in ('count', 'amount'):
@@ -166,6 +170,7 @@ def fmt_table(d, stat):
 
 
 def main():
+    # 1. Read the year file and the calculator's input and output, in the same record order.
     out = C.OUT
     f = pd.read_parquet(C.INPUT)
     c = pd.read_parquet(f'{out}/calculator_{Y}.parquet')
@@ -175,17 +180,20 @@ def main():
     filer = f['filer'].to_numpy() == 1
     weights = {'before the tilt': f['weight_start'].to_numpy(float), 'after the tilt': f['weight'].to_numpy(float)}
     w = weights['after the tilt']
+    # 2. The AGI check, by record and summarized.
     rebuild, gap, terms = agi_check(f, c, inp)
     s = summarise_gap(gap, terms, w, filer)
     s.to_csv(f'{out}/agi_check.csv', index=False)
     per = pd.DataFrame({'id': c['id'], 'filer': filer.astype(int), 'weight': w, 'agi_rebuild': rebuild,
                         'agi_calculator': c['agi'], 'gap': gap}).join(terms)
     per.to_parquet(f'{out}/agi_check_records.parquet', index=False)
+    # 3. The levels against SOI, by the calculator's AGI and by the file's.
     agi = c['agi'].to_numpy(float)
     lv = levels(c, agi, weights, filer)
     lv.to_csv(f'{out}/levels.csv', index=False)
     levels(c, rebuild, weights, filer).to_csv(f'{out}/levels_by_rebuild_agi.csv', index=False)
 
+    # 4. The report: the AGI check, all returns, each item by AGI group, and the non-filers.
     man = pd.read_json(f'{out}/calculator_manifest.json', typ='series')
     lines = [f'# The GPU tax calculator on the {Y} file, against SOI', '',
              f'File: `{C.INPUT}` ({len(f):,} records, {filer.sum():,} filers). Calculator: tax-simulator-gpu at '

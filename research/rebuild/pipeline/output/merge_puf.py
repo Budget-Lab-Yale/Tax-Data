@@ -5,8 +5,8 @@
 Needs Python 3 with numpy, pandas and pyarrow, and about 16 GB of memory. The package folder (written by the Budget
 Lab's pipeline, package.py) holds the files this script reads; its README.md says what each one is. The steps:
 
-  1. From the PUF's own fields, each record's 2015 items as the Budget Lab defines them (items_2015; the definitions
-     are in spec.json, written by the same code that built the file).
+  1. From the PUF's own fields, each record's 2015 items as the Budget Lab defines them (items_2015). The definitions
+     are in spec.json, written by the same code that built the file.
   2. Each PUF record appears once per trained network (column copy, 1 to 3). For each record copy, each PUF item is
      its 2015 amount multiplied, in order, by the item's factors in factors.parquet: one factor for positive amounts
      and one for negative amounts at each step (the growth from 2015 to the year the networks drew the records, the
@@ -19,14 +19,14 @@ Lab's pipeline, package.py) holds the files this script reads; its README.md say
   5. The columns that are sums or simple functions of the above (capital gains after the $3,000 loss limit, business
      income, other income in AGI, taxable Social Security, each spouse's wages, tips, overtime pay and elective
      deferrals), computed by the same rules and in the same order as the Budget Lab's pipeline (derive).
-  6. Two rules of the pipeline that change a PUF item by more than a growth factor, applied here: the taxable state
-     refund is multiplied by the record copy's state_ref_multiplier, between 0 and 1 (0 where the refund is removed,
-     because a refund is taxable only to a return that itemized; 1 where it is kept whole; the share kept where the
-     tax benefit rule keeps part of it; no tax calculation is done here), and AGI's other income and taxable Social
-     Security are computed again with the new refund;
-     the AMT net operating loss adjustment is held to the record's net operating loss, the negative part of its other
-     income (amt_cap). Two added items that are computed from a PUF amount are computed here from the PUF items, so
-     the package ships only their other part (puf_based).
+  6. Two rules of the pipeline that change a PUF item by more than a growth factor. First, the taxable state refund is
+     multiplied by the record copy's state_ref_multiplier, between 0 and 1: 0 where the refund is removed (a refund is
+     taxable only to a return that itemized), 1 where it is kept whole, and the share kept where the tax benefit rule
+     keeps part of it. No tax calculation is done here. AGI's other income and taxable Social Security are then
+     computed again with the new refund (refund_rule). Second, the AMT net operating loss adjustment is held to the
+     record's net operating loss, the negative part of its other income (amt_cap). Two added items that are computed
+     from a PUF amount are also computed here from the PUF items, so that the package ships only their other part
+     (puf_based).
   7. The Tax-Simulator file's columns (tax_simulator_columns), then the records that are not PUF records (non-filers
      and the Forbes list of billionaires, extra_records.parquet), in the file's own order.
 
@@ -42,8 +42,10 @@ import numpy as np
 import pandas as pd
 
 
-# ---- the package --------------------------------------------------------------------------------------------------
+# ---- Reading the package ----
+
 def read_package(pkg):
+    """The package's definitions (spec.json), factors, record copies and other records."""
     spec = json.load(open(os.path.join(pkg, 'spec.json')))
     fac = pd.read_parquet(os.path.join(pkg, 'factors.parquet'))
     rec = pd.read_parquet(os.path.join(pkg, 'records.parquet'))
@@ -51,7 +53,8 @@ def read_package(pkg):
     return spec, fac, rec, extra
 
 
-# ---- step 1: the 2015 items ---------------------------------------------------------------------------------------
+# ---- Step 1: the 2015 items ----
+
 def allowed_capital_gain(sched_d, filing_status):
     """The Schedule D net as it enters AGI: a net loss held to $3,000 ($1,500 on a separate return, status 3)."""
     limit = np.where(np.asarray(filing_status) == 3, 1500.0, 3000.0)
@@ -92,9 +95,9 @@ def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
 
 def items_2015(raw, spec, floor):
     """Each record's 2015 items from the PUF's fields (the pipeline's build_table.puf_rows). raw: the PUF with every
-    field in spec raw_fields; floor: per record, the medical expense floor used for other itemized deductions (0.075
-    or 0.1, as the pipeline chose it from the record's age). The four aggregate records (RECID 999996-999999) are read
-    as every one an itemizer, and their blank alimony fields as zero."""
+    field in spec raw_fields. floor: for each record, the medical expense floor used for other itemized deductions
+    (0.075 or 0.1 of AGI, as the pipeline chose it from the record's age). The four aggregate records (RECID
+    999996-999999) are all read as itemizers, and their blank alimony fields as zero."""
     s = spec['items']
     agg = raw['RECID'].to_numpy() >= 999996
     f = {c: raw[c].to_numpy(float) for c in spec['raw_fields']}
@@ -106,7 +109,7 @@ def items_2015(raw, spec, floor):
     mars = f['MARS']
     out = {'wages': f['E00200'], 'txbl_int': f['E00300'], 'div_pref': f['E00650'], 'div_ord': f['E00600'] - f['E00650'],
            'kg_lt': f['P23250'], 'kg_dist': f['E01100']}
-    # line 13's shortfall below the allowed Schedule D net is put on the short-term piece
+    # Where line 13 is below the allowed Schedule D net, the shortfall is taken off the short-term gain.
     out['kg_st'] = f['P22250'] + np.minimum(f['E01000'] - allowed_capital_gain(f['P22250'] + f['P23250'], mars), 0)
     for p, (fld, _) in s['parts'].items():
         if fld:
@@ -124,11 +127,11 @@ def items_2015(raw, spec, floor):
     medical = np.maximum(0, f['E17500'] - np.maximum(0, f['E00100'] * floor))
     out['other_item_exp'] = np.maximum(np.where(itemizer, f['P04470'] + f['E21040'] - medical - f['E18400'] - f['E18500']
                                                 - f['E19200'] - f['E19700'] - f['E20500'] - f['E20800'], 0.0), 0.0)
-    # business income: the signed sum of its eighteen parts (on an ordinary record E00900 + E02000 + E02100 exactly)
+    # Business income: the signed sum of its eighteen parts (on an ordinary record, exactly E00900 + E02000 + E02100).
     parts = {p: sg for p, (_, sg) in s['parts'].items()}
     out['business_income'] = signed_sum(pd.DataFrame({p: out[p] for p in parts}), parts)
-    # AGI's other income (the remainder): AGI less every item above and less taxable Social Security (E02500), the
-    # items summed in this order (it matters on the aggregate records, whose amounts are not whole dollars)
+    # AGI's other income (the remainder): AGI less every item above and less taxable Social Security (E02500). The
+    # items are summed in this order, which matters on the aggregate records, whose amounts are not whole dollars.
     signs = s['agi_item_signs']
     terms = {'business_income': f['E00900'] + f['E02000'] + f['E02100'], 'other_gains': out['other_gains'],
              'txbl_ira_dist': out['txbl_ira_dist'], 'txbl_pens_dist': out['txbl_pens_dist'], 'ui': out['ui'],
@@ -150,7 +153,8 @@ def puf_categories(raw):
                          'n_dep_eitc': np.minimum(raw['EIC'].to_numpy(), 3)}, index=raw['RECID'].to_numpy())
 
 
-# ---- step 2: the factors ------------------------------------------------------------------------------------------
+# ---- Step 2: the factors ----
+
 def grow(base, fac):
     """{column: amounts}: each item's 2015 amounts (base[puf_item]) multiplied by its factors step by step, the factor
     for positive amounts on positive amounts and the factor for negative amounts on negative ones; zero stays zero."""
@@ -165,11 +169,13 @@ def grow(base, fac):
     return out
 
 
-# ---- step 5: the computed columns ---------------------------------------------------------------------------------
+# ---- Step 5: the computed columns ----
+
 def taxable_social_security(gross_ss, magi, filing_status, sp):
-    """The section 86 worksheet: provisional income p = max(0.5 x benefits + modified AGI, 0); 50% of the part of p
-    between the base and the adjusted amount, 85% of the part above it, each part at most the benefits, the sum at
-    most 85% of the benefits. Base and adjusted amounts $25,000 and $34,000; $32,000 and $44,000 on a joint return."""
+    """Taxable Social Security by the section 86 worksheet. Provisional income is p = max(0.5 x benefits + modified AGI,
+    0). The taxable amount is 50% of the part of p between the base amount and the adjusted base amount, plus 85% of
+    the part above the adjusted base amount, each part at most the benefits, and the sum at most 85% of the benefits.
+    The base and adjusted base amounts are $25,000 and $34,000, or $32,000 and $44,000 on a joint return."""
     ss, magi, joint = np.asarray(gross_ss, float), np.asarray(magi, float), np.asarray(filing_status) == 2
     base = np.where(joint, sp['joint'][0], sp['single'][0])
     adjusted = np.where(joint, sp['joint'][1], sp['single'][1])
@@ -208,7 +214,7 @@ def derive_inputs(spec):
 
 
 def derive(d, spec):
-    """In place: the columns computed from the items, in the pipeline's order (dollars.draw_dollars, and
+    """Add to d the columns computed from the items, in the pipeline's order (dollars.draw_dollars, and
     start.recombine in a projection year)."""
     D = spec['derive']
     fs = d['filing_status'].to_numpy()
@@ -250,12 +256,13 @@ def derive(d, spec):
     return d
 
 
-# ---- step 6: the two rules ----------------------------------------------------------------------------------------
+# ---- Step 6: the two rules ----
+
 def refund_rule(d, multiplier, spec):
-    """In place (the outcome of the pipeline's taxes.apply_refund_rule, shipped): the taxable state refund times the
-    record copy's multiplier (0 removed, 1 kept whole, in between the share the tax benefit rule keeps), other income
-    lowered by the refund removed, then taxable Social Security computed again on the lower AGI, in the pipeline's
-    order, on every record. Only a multiplication: no tax calculation."""
+    """Apply the outcome of the pipeline's refund rule (taxes.apply_refund_rule), in place, on every record and in the
+    pipeline's order. The taxable state refund is multiplied by the record copy's multiplier (0 removed, 1 kept whole,
+    in between the share the tax benefit rule keeps). Other income is lowered by the refund removed, and taxable Social
+    Security is computed again on the lower AGI. This is only a multiplication: no tax calculation."""
     ref = d['state_ref'].to_numpy(float)
     m = np.asarray(multiplier, float)
     assert np.isfinite(m).all() and (m >= 0).all() and (m <= 1).all(), 'state_ref_multiplier: outside 0 to 1'
@@ -271,17 +278,19 @@ def refund_rule(d, multiplier, spec):
 
 
 def amt_cap(d):
-    """In place (the pipeline's non_micro_imputations.amt_nol_cap): the AMT net operating loss adjustment (PUF P60100,
-    grown) held to at most the record's net operating loss, the negative part of its other income (the PUF has no
-    field of its own for the loss), so it is zero on a record with no loss; a negative adjustment is left as it is."""
+    """Hold the AMT net operating loss adjustment (PUF P60100, grown) to at most the record's net operating loss, in
+    place (the pipeline's non_micro_imputations.amt_nol_cap). The loss is the negative part of the record's other
+    income, since the PUF has no field of its own for it. The adjustment is zero on a record with no loss; a negative
+    adjustment is left as it is."""
     loss = np.maximum(0.0, -d['other_agi_remainder'].to_numpy(float))
     d['amt_nols'] = np.minimum(d['amt_nols_drawn'].to_numpy(float), loss)
     return d
 
 
 def lt_basis(kg, r):
-    """The basis of long-term gains: a gain times r / (1 - r), a loss less r / (r - 1) times it, r the basis-to-sales
-    ratio of the record's holding period (the pipeline's non_micro_imputations.gains_holding_period); 0 with none."""
+    """The basis of long-term gains: a gain times r / (1 - r), or minus a loss times r / (r - 1), where r is the
+    basis-to-sales ratio of the record's holding period (the pipeline's non_micro_imputations.gains_holding_period);
+    0 with no gain or loss."""
     kg, r = np.asarray(kg, float), np.asarray(r, float)
     b = np.zeros(len(kg))
     g, l = kg > 0, kg < 0
@@ -291,9 +300,9 @@ def lt_basis(kg, r):
 
 
 def puf_based(d, rec, spec):
-    """In place: the added items computed from a PUF amount (the pipeline's non_micro_imputations), so that the package
-    ships only their other part: the basis of long-term gains from the gain and the shipped ratio r; the farm's wage
-    bill for the qualified business income deduction, the farm income if positive."""
+    """Compute, in place, the added items that are made from a PUF amount (the pipeline's non_micro_imputations), so
+    that the package ships only their other part: the basis of long-term gains, from the gain and the shipped ratio
+    r; and the farm's wage bill for the qualified business income deduction, which is the farm income if positive."""
     if 'kg_lt_basis' in spec['puf_based']:
         d['kg_lt_basis'] = lt_basis(d['kg_lt'], rec['kg_lt_basis_ratio'].to_numpy(float))
     if 'wagebill_farm' in spec['puf_based']:
@@ -301,7 +310,8 @@ def puf_based(d, rec, spec):
     return d
 
 
-# ---- step 7: the Tax-Simulator file's columns ---------------------------------------------------------------------
+# ---- Step 7: the Tax-Simulator file's columns ----
+
 def formula(name, d):
     """The Tax-Simulator columns made from the record's items (the pipeline's calculator_input.convert and
     taxsim_file.build)."""
@@ -317,11 +327,11 @@ def formula(name, d):
         return x('kg_lt') + x('kg_dist')
     if name == 'gross_pens_dist':
         return x('txbl_pens_dist') + x('nontxbl_pens_dist')
-    if name == 'divorce_year':   # 0 where alimony is received or paid, else missing (production's rule)
+    if name == 'divorce_year':   # 0 where alimony is received or paid, else missing (as the current Tax-Data file has it)
         return np.where((x('alimony') != 0) | (x('alimony_exp') != 0), 0.0, np.nan)
     if name in ('kg_lt_years_held', 'kg_lt_basis'):
-        # missing where the long-term gain (with capital gain distributions) is 0; 0 where it is not 0 but the record
-        # has no holding period (capital gain distributions alone)
+        # Missing where the long-term gain (with capital gain distributions) is 0. Zero where it is not 0 but the record
+        # has no holding period (capital gain distributions alone).
         kg = x('kg_lt') + x('kg_dist')
         none = (kg != 0) & (x('kg_lt_years_held') < 0)
         return np.where(kg == 0, np.nan, np.where(none, 0.0, x(name)))
@@ -350,13 +360,15 @@ def tax_simulator_columns(d, rec, spec):
     return pd.DataFrame({c: out[c] for c in spec['taxsim']['columns']})
 
 
-# ---- the merge ----------------------------------------------------------------------------------------------------
-SPEC = {}
+# ---- The merge ----
+
+SPEC = {}   # the package's definitions, kept for write_csv when run as a script
 
 
 def merge(puf_path, pkg, file_frame=False):
-    """The year's Tax-Simulator file from the PUF at puf_path and the package folder pkg. file_frame: also return the
-    merged frame in the pipeline's own column names (the round-trip test reads it)."""
+    """The year's Tax-Simulator file from the PUF at puf_path and the package folder pkg. With file_frame, also return
+    the merged frame in the pipeline's own column names (the round-trip test reads it)."""
+    # Read the package and the PUF records it uses.
     spec, fac, rec, extra = read_package(pkg)
     SPEC.clear()
     SPEC.update(spec)
@@ -365,13 +377,16 @@ def merge(puf_path, pkg, file_frame=False):
     floor = rec.groupby('RECID', sort=False)['medical_floor'].first()
     raw = raw[raw['RECID'].isin(floor.index)].reset_index(drop=True)
     assert len(raw) == len(floor), 'a RECID of the package is not in this PUF'
+    # Step 1: the 2015 items.
     x15 = items_2015(raw, spec, floor.loc[raw['RECID']].to_numpy())
+    # Step 2: one row per record copy, each PUF item grown by its factors.
     rid = rec['RECID'].to_numpy()
     base = x15.loc[rid].reset_index(drop=True)
     d = pd.DataFrame({'RECID': rid, 'copy': rec['copy'].to_numpy()})
     grown = grow(base, fac)
     for c in spec['factor_columns']:
         d[c] = grown[c]
+    # Step 3: the weight. Then the filing status and dependents, and (step 4) the added items and the constants.
     w15 = raw.set_index('RECID')['S006'].loc[rid].to_numpy(float) / 100
     d['weight'] = w15 * rec['weight_factor'].to_numpy(float)
     cats = puf_categories(raw).loc[rid].reset_index(drop=True)
@@ -383,10 +398,12 @@ def merge(puf_path, pkg, file_frame=False):
     for c, v in spec['constants'].items():
         d[c] = v
     d['record_id'] = spec['real_id_base'] + (d['copy'] - 1) * spec['copy_block'] + d['RECID']
+    # Steps 5 and 6: the computed columns and the two rules.
     derive(d, spec)
     refund_rule(d, rec['state_ref_multiplier'].to_numpy(float), spec)
     amt_cap(d)
     puf_based(d, rec, spec)
+    # Step 7: the Tax-Simulator columns; then the other records, in the file's order.
     t = tax_simulator_columns(d, rec, spec)
     t = t[t['weight'] > 0]          # live records only, as the pipeline writes the file
     t.insert(0, 'row', rec['row'].to_numpy()[t.index.to_numpy()])
@@ -397,7 +414,8 @@ def merge(puf_path, pkg, file_frame=False):
 
 
 def write_csv(g, path, spec):
-    """Production's text form: NA for missing, TRUE/FALSE flags, whole numbers without a decimal point."""
+    """Write the file as text in the form the Tax-Simulator file uses: NA for missing, TRUE/FALSE flags, whole numbers
+    without a decimal point."""
     t = g.copy()
     for c in spec['taxsim']['flags']:
         v = t[c].to_numpy(float)

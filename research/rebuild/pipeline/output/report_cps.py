@@ -1,7 +1,8 @@
-"""The CPS-only items in the target year's file against that year's CPS tax units, both weighted: ages, sex, the
-spouse's shares of wages and self-employment income, childcare, weeks and hours worked, and overtime pay. The file's
-dependent filers hold no CPS item and are left out. Wage groups use the CPS's translated wages, so a group holds the
-same ranks on both sides. Nothing here is targeted. Writes <tilt>/cps_report.md.
+"""The items that come only from the CPS, in the target year's file against that year's CPS tax units, both weighted:
+ages, sex, the spouse's shares of wages and self-employment income, childcare, weeks and hours worked, and overtime
+pay. The file's dependent filers hold no CPS item and are left out. Wage groups use the CPS's translated wages (the
+tax data's wages at the same rank), so a group holds the same ranks on both sides. Nothing here is targeted. Writes
+<tilt>/cps_report.md.
 """
 import numpy as np
 import pandas as pd
@@ -21,16 +22,21 @@ SHARE = [(-1, 1e-9, 'none'), (1e-9, 0.25, 'under 25%'), (0.25, 0.5, '25-50%'), (
          (0.75, 1 - 1e-9, '75% to under 100%'), (1 - 1e-9, 2, 'all')]
 
 
+# ---- Tables ----
+
 def wavg(x, w):
+    """The weighted mean, or NaN with no weight."""
     return float(np.average(x, weights=w)) if w.sum() > 0 else np.nan
 
 
 def wq(x, w, p):
+    """The weighted p quantile, or NaN with no records."""
     return float(common.wquantile(np.asarray(x, float), np.asarray(w, float), [p])[0]) if len(x) else np.nan
 
 
 def side_by_side(sources, rows, stat, floatfmt=',.1f'):
-    """A markdown table with one row per (label, selector) and, for each source, the columns stat(frame) returns."""
+    """A markdown table with one row per (label, selector) in rows. For each source, the selector picks the records,
+    and stat(records) gives that source's columns."""
     out = []
     for lab, sel in rows:
         r = {'group': lab}
@@ -43,14 +49,16 @@ def side_by_side(sources, rows, stat, floatfmt=',.1f'):
 
 
 def shares(d, col, bands):
-    """Percent of weight in each band of col."""
+    """The percent of the weight in each band of col."""
     g = groups_by(d[col].to_numpy(float), bands)
     return {lab: 100 * d.w[g == lab].sum() / d.w.sum() if d.w.sum() > 0 else np.nan for _, _, lab in bands}
 
 
+# ---- Overtime ----
+
 def overtime_cap_table(f):
-    """What the overtime cap takes off in the file, for each person and both together: the people and dollars held by
-    wages alone, and those held further by subtracting tips."""
+    """What the overtime cap takes off in the file, for each person and both together: the people and dollars held
+    down by wages alone, and those held down further by subtracting tips."""
     from shared import dollars as D
     rows, tot = [], {}
     for who, slot, wages, tips in [('primary filer', 'ot_primary', 'wages1', 'tips1'),
@@ -70,15 +78,18 @@ def overtime_cap_table(f):
     return pd.DataFrame(rows).set_index('person').to_markdown(floatfmt=',.2f')
 
 
+def overtime_stat(m):
+    """Units, the share with overtime, mean overtime per unit and per unit with any, and total overtime."""
+    x, w = m['ot'].to_numpy(float), m.w.to_numpy(float)
+    return {'units (m)': w.sum() / 1e6, 'with overtime (%)': 100 * w[x > 0].sum() / w.sum() if w.sum() > 0 else np.nan,
+            'mean, all units ($)': wavg(x, w),
+            'mean, those with any ($)': wavg(x[x > 0], w[x > 0]), 'total ($bn)': (w * x).sum() / 1e9}
+
+
 def overtime_section(src):
     """Overtime pay by the unit's wages, then what the cap takes off in the file. In the CPS only the units asked the
     earnings questions (months 4 and 8 of the main sample) have overtime; their weights are scaled up to each survey
     year's whole weight."""
-    def ot(m):
-        x, w = m['ot'].to_numpy(float), m.w.to_numpy(float)
-        return {'units (m)': w.sum() / 1e6, 'with overtime (%)': 100 * w[x > 0].sum() / w.sum() if w.sum() > 0 else np.nan,
-                'mean, all units ($)': wavg(x, w),
-                'mean, those with any ($)': wavg(x[x > 0], w[x > 0]), 'total ($bn)': (w * x).sum() / 1e9}
     frames, cap = {}, []
     for name, d in src.items():
         if 'ot' in d and 'ot1' in d:                          # the file
@@ -106,16 +117,39 @@ def overtime_section(src):
             'times weeks worked), at most the person\'s wages (in the file, wages less tips). CPS: the units asked the '
             'earnings questions, weighted up to every unit of their year. Nominal dollars of the file\'s year.', '',
             side_by_side(frames, [(lab, (lambda lab: lambda d: d['wg'] == lab)(lab)) for _, _, lab in WAGES]
-                         + [('all', lambda d: d['married'] >= 0)], ot), ''] + cap
+                         + [('all', lambda d: d['married'] >= 0)], overtime_stat), ''] + cap
 
+
+# ---- Other statistics ----
+
+def dependent_ages(m):
+    """The number of dependents (the first three of each unit) and the percent in each age group."""
+    x = np.concatenate([m[f'dep_age{k}'].to_numpy(float) for k in (1, 2, 3)])
+    w = np.concatenate([m.w.to_numpy(float)] * 3)
+    x, w = x[x >= 0], w[x >= 0]
+    g = groups_by(x, DEP_AGE_GROUPS)
+    return {'dependents (m)': w.sum() / 1e6,
+            **{f'{lab} (%)': 100 * w[g == lab].sum() / w.sum() for _, _, lab in DEP_AGE_GROUPS}}
+
+
+def spouse_share(m, total, part):
+    """The number of couples and the percent in each band of the spouse's share, part / total."""
+    s = np.where(m[total] != 0, m[part] / np.where(m[total] != 0, m[total], 1), 0)
+    g = groups_by(s, SHARE)
+    return {'couples (m)': m.w.sum() / 1e6, **{f'{lab} (%)': 100 * m.w[g == lab].sum() / m.w.sum()
+                                               for _, _, lab in SHARE}}
+
+
+# ---- The report ----
 
 def main():
+    # 1. Read the file and the CPS tax units of the year mix. Put the CPS side on the file's terms: ages in years (-1 for
+    #    none), the spouse's amounts, and wages both as reported and translated.
     f = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
     c = survey_mix.mixed_units('cps')
     f = f[f['age_range'] < common.ADULT_RANGES].copy()        # dependent filers hold no CPS item
     f['w'] = f['weight']
     c['w'] = c['weight']
-    # the CPS side on the file's terms: ages in years (-1 none), the spouse's amounts, wages as reported
     for a in ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']:
         c[a] = c[a] - 1
     c['wages_reported'] = c['wages_primary_reported'] + c['wages_spouse_reported']
@@ -123,6 +157,7 @@ def main():
     c['wages2'] = c['wages_spouse_reported']        # the spouse's share uses the CPS's own amounts
     c['sch_cf_income'] = c['se_primary_reported'] + c['se_spouse_reported']
     c['se2'] = c['se_spouse_reported']
+    # 2. On both sides: the wage group, the number of dependents under 13, and whether the primary filer is a woman.
     src = {'file': f, 'CPS mix': c}
     for d in src.values():
         d['wg'] = groups_by(d['wages'].to_numpy(float), WAGES)
@@ -133,6 +168,8 @@ def main():
            'left out (they hold no CPS item). Nothing here is targeted. Units in millions; ages in years.', '',
            f'Units: file {f.w.sum() / 1e6:.1f} million; CPS {c.w.sum() / 1e6:.1f} million.', '']
 
+    # 3. The tables, one section at a time: ages, dependents' ages, sex, the spouse's shares, childcare, weeks and
+    #    hours worked, and overtime pay.
     age_stat = lambda col: (lambda m: {'units (m)': m.w.sum() / 1e6, 'mean': wavg(m[col], m.w),
                                        'p10': wq(m[col], m.w, 0.1), 'median': wq(m[col], m.w, 0.5),
                                        'p90': wq(m[col], m.w, 0.9)})
@@ -149,16 +186,9 @@ def main():
                                     'median': wq(m.age2 - m.age1, m.w, 0.5),
                                     'p90': wq(m.age2 - m.age1, m.w, 0.9)}), '']
 
-    def dep_ages(m):
-        x = np.concatenate([m[f'dep_age{k}'].to_numpy(float) for k in (1, 2, 3)])
-        w = np.concatenate([m.w.to_numpy(float)] * 3)
-        x, w = x[x >= 0], w[x >= 0]
-        g = groups_by(x, DEP_AGE_GROUPS)
-        return {'dependents (m)': w.sum() / 1e6,
-                **{f'{lab} (%)': 100 * w[g == lab].sum() / w.sum() for _, _, lab in DEP_AGE_GROUPS}}
     out += ['## Dependents\' ages (the first three of each unit), by the number of dependents', '',
             side_by_side(src, [(f'{k}{"+" if k == 3 else ""} dependents', (lambda k: lambda d: d['n_dep'] == k)(k))
-                               for k in (1, 2, 3)] + [('all', lambda d: d['n_dep'] > 0)], dep_ages), '']
+                               for k in (1, 2, 3)] + [('all', lambda d: d['n_dep'] > 0)], dependent_ages), '']
 
     sex = lambda m: {'units (m)': m.w.sum() / 1e6, 'women (%)': 100 * wavg(m.woman, m.w)}
     out += ['## The primary filer\'s sex: share who are women', '',
@@ -166,22 +196,16 @@ def main():
                          + [(f'not married, {lab}', (lambda k: lambda d: (d['married'] == 0) & (d['age_range'] == k))(k))
                             for k, lab in enumerate(ADULT)], sex), '']
 
-    def split(total, part):
-        def stat(m):
-            s = np.where(m[total] != 0, m[part] / np.where(m[total] != 0, m[total], 1), 0)
-            g = groups_by(s, SHARE)
-            return {'couples (m)': m.w.sum() / 1e6, **{f'{lab} (%)': 100 * m.w[g == lab].sum() / m.w.sum()
-                                                       for _, _, lab in SHARE}}
-        return stat
     couples = lambda extra: (lambda d: (d['married'] == 1) & extra(d))
     out += ['## Married couples: the spouse\'s share of the couple\'s wages, by the couple\'s wages', '',
             'Couples with wages. "none": the spouse has no wages; "all": the spouse earns all of them.', '',
             side_by_side(src, [(lab, couples((lambda lab: lambda d: d['wg'] == lab)(lab))) for _, _, lab in WAGES[1:]]
-                         + [('all with wages', couples(lambda d: d['wages'] > 0))], split('wages', 'wages2')), '',
+                         + [('all with wages', couples(lambda d: d['wages'] > 0))],
+                         lambda m: spouse_share(m, 'wages', 'wages2')), '',
             '## Married couples: the spouse\'s share of the couple\'s self-employment income', '',
             side_by_side(src, [('a net profit', couples(lambda d: d['sch_cf_income'] > 0)),
                                ('a net loss', couples(lambda d: d['sch_cf_income'] < 0))],
-                         split('sch_cf_income', 'se2')), '']
+                         lambda m: spouse_share(m, 'sch_cf_income', 'se2')), '']
 
     care = lambda m: {'units (m)': m.w.sum() / 1e6, 'with any (%)': 100 * m.w[m.care_exp > 0].sum() / m.w.sum(),
                       'mean, all ($)': wavg(m.care_exp, m.w),
@@ -202,6 +226,8 @@ def main():
                     side_by_side(src, [(lab, (lambda lab, cond=cond: lambda d: cond(d) & (d['wg'] == lab))(lab))
                                        for _, _, lab in WAGES] + [('all', cond)], stat), '']
     out += overtime_section(src)
+
+    # 4. Write the report.
     open(f'{common.TILT}/cps_report.md', 'w').write('\n'.join(out))
     common.say('\n'.join(out))
 
