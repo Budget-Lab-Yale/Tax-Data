@@ -1524,11 +1524,10 @@ def primary_age_range(t, puf):
 def age_range_table(t):
     """Weighted shares by age range: PUF filers (step 0's probabilities where no range), SCF waves, CEX and CPS years."""
     labels = common.AGE_LABELS
-    groups = [('PUF filers', (t.source == 'puf') & (t.filer == 1))] + \
-        [(f'SCF {y}', (t.source == 'scf') & (t.year == y)) for y in sorted(t.loc[t.source == 'scf', 'year'].unique())] + \
-        [(f'CEX {y}', (t.source == 'cex') & (t.year == y)) for y in sorted(t.loc[t.source == 'cex', 'year'].unique())] + \
-        [(f'CPS {y}', (t.source == 'cps') & (t.year == y)) for y in sorted(t.loc[t.source == 'cps', 'year'].unique())] + \
-        [(f'SIPP {y}', (t.source == 'sipp') & (t.year == y)) for y in sorted(t.loc[t.source == 'sipp', 'year'].unique())]
+    groups = [('PUF filers', (t.source == 'puf') & (t.filer == 1))]
+    for src in ('scf', 'cex', 'cps', 'sipp'):
+        groups += [(f'{src.upper()} {y}', (t.source == src) & (t.year == y))
+                   for y in sorted(t.loc[t.source == src, 'year'].unique())]
     cols = {}
     for lab, sel in groups:
         d = t[sel]
