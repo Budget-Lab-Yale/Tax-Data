@@ -9,16 +9,17 @@ errors, plus tau times the distance the weights move from the start, plus a pena
 As in solver.py, the solve searches over one multiplier per target rather than over the weights themselves. Given the
 multipliers, record i's weight in area s is
 
-    w_is = w0_i x p0_is x exp(x_i' lambda_national + x_i' lambda_s),
+    w_is = w0_i x p0_is x exp(x_i' lambda_national + z_i' lambda_s),
 
-where w0_i is the starting weight, p0_is the starting share, x_i the record's amounts of the targeted items, lambda_national
-the national targets' multipliers and lambda_s area s's multipliers. Newton's method finds the multipliers. Each Newton
-step solves a linear system with one row per multiplier: about 1,300 national multipliers and about 21,000 state ones.
-A state multiplier for one area and AGI group moves only the weights of that group's records in that area. Two state
-multipliers therefore interact only when they share an area and an AGI group, and the state part of the system breaks
-into 581 small blocks: one for each of the 53 areas and 10 AGI groups, and one for each state's non-filers. The blocks
-are solved one at a time, which leaves a dense system the size of the national targets. Records above their soft cap
-tie their areas together; their terms are added afterward. See FEATURES.md, "State weights".
+where w0_i is the record's starting weight, p0_is its starting share in area s, x_i and z_i its amounts of the items
+of the national and the state targets, lambda_national the national targets' multipliers and lambda_s area s's
+multipliers. Newton's method finds the multipliers. Each Newton step solves a linear system with one row per
+multiplier: about 1,300 national multipliers and about 21,000 state ones. A state multiplier for one area and AGI
+group moves only the weights of that group's records in that area. Two state multipliers therefore interact only when
+they share an area and an AGI group, and the state part of the system breaks into about 580 small blocks: one for each
+area and AGI group, and one for each state's non-filers. The blocks are solved one at a time, which leaves a dense
+system the size of the national targets. Records above their soft cap tie their areas together; their terms are added
+afterward. See FEATURES.md, "State weights".
 """
 import argparse
 import json
