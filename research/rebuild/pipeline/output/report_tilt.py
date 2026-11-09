@@ -234,9 +234,7 @@ def thin_cells(t):
     """Section 2: the solver's thin-cell measures (fit.csv), stops first, then warnings, each thinnest first."""
     th = t.copy()
     th['flag'] = th['flag'].fillna('').astype(str)
-    # the solver names the test behind a flag in flag_reason; this table's own column for it, why, has stayed blank
-    # since the measures moved into the solver (left as it is: filling it would change report_thin_cells.csv)
-    th['why'] = ''
+    th['why'] = ''      # blank: the solver's flag_reason names the test behind a flag
     rank = th['flag'].map({'stop': 0, 'warning': 1}).fillna(2)
     th = th.assign(_r=rank).sort_values(['_r', 'effective_records'])
     return th[['kind', 'group', 'target', 'what', 'cell', 'records', 'effective_records', 'largest_weight_factor',
@@ -449,7 +447,7 @@ def series(cells):
     """The published cells in series along AGI: (the series' AGI classes, lowest first, as indices into cells; the
     indices of its all-AGI total). Tables 1.4 and 1.7: one series per line and statistic; Table 1.6: per filing
     status and age."""
-    if not cells:   # (30 October) a year with no published SOI cells (a projection year): no series
+    if not cells:   # a year with no published SOI cells (a projection year): no series
         return []
     df = pd.DataFrame([{k: c[k] for k in ('table', 'panel', 'row', 'line', 'statistic', 'lo', 'total')} for c in cells])
     out = []
@@ -593,7 +591,7 @@ def published(df, t, w0, w1, notes):
     cells = errors_for(cells, year, notes)
     cols = ['table', 'panel', 'row', 'col', 'line', 'statistic', 'published', 'se', 'error source', 'before', 'after',
             'miss', 'miss (%)', 'miss_in_se', 'records', 'merged', 'relation', 'note']
-    if not cells:   # (30 October) a year with no published SOI cells (a projection year)
+    if not cells:   # a year with no published SOI cells (a projection year)
         return pd.DataFrame(columns=cols)
     p = pd.DataFrame(cells)
     p['miss'] = p['after'] - p['published']
@@ -603,8 +601,6 @@ def published(df, t, w0, w1, notes):
     p['_z'] = p['miss_in_se'].abs()
     p['_o'] = (p['relation'] != 'not targeted').astype(int)
     p = p.sort_values(['_o', '_z'], ascending=[True, False], na_position='last')
-    cols = ['table', 'panel', 'row', 'col', 'line', 'statistic', 'published', 'se', 'error source', 'before', 'after',
-            'miss', 'miss (%)', 'miss_in_se', 'records', 'merged', 'relation', 'note']
     return p[[c for c in cols if c in p]]
 
 

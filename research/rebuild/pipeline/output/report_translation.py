@@ -3,7 +3,7 @@
 For every row of the translation table and every survey year: the survey as
 reported, the link (after the definition fixes), after function 1 (all from
 the table stage, data/translation_report.csv), after function 2, and the tax
-data. First, since 28 October, a wages section: each survey's wages raw, link,
+data. First a wages section: each survey's wages raw, link,
 mapped and tax data, and how far the mapping moved the link wages against the
 size NEXT_STEPS.md expects (about 3% where deferrals come off, about 8% where
 they do not).
@@ -29,7 +29,7 @@ from shared import translate as TR
 STAGES = ['as reported', 'link', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)',
           'CPS (same year)']
 
-# The wages section (since 28 October)
+# The wages section
 WAGE_STAGES = {'as reported': 'raw', 'link': 'link', 'after function 1': 'mapped', 'tax data': 'tax data'}
 WAGE_ROWS = ['units (millions)', 'with a positive amount (%)'] + [f'holders p{p} ($)' for p in TR.PERCENTILES] + \
     ['above $100,000 (millions)', 'above $1,000,000 (millions)', 'mean per unit ($)']

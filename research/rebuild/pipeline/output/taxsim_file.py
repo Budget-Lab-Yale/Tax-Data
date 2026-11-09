@@ -1,18 +1,17 @@
 """The rebuild's year file as the file Tax-Simulator reads: tax_units_<year>.csv in production's form.
 
-NEXT_STEPS item 2 (John, 29 October: "all the way through"). Production's Tax-Data writes one CSV per year with 188
-columns (production vintage 2026100117_review_fixes); Tax-Simulator reads it by name. This script writes the rebuild's
-file with the same 188 columns, in the same order, with production's conventions for what is missing, and the list of
-where each column comes from (COLUMNS below, written as TAXSIM_FILE_COLUMNS.csv beside the output and, from it,
-research/rebuild/TAXSIM_FILE_COLUMNS.csv).
+Production's Tax-Data writes one CSV per year with 188 columns (production vintage 2026100117_review_fixes);
+Tax-Simulator reads it by name. This script writes the rebuild's file with the same 188 columns, in the same order,
+with production's conventions for what is missing, and the list of where each column comes from (written as
+TAXSIM_FILE_COLUMNS.csv beside the output and, from it, research/rebuild/TAXSIM_FILE_COLUMNS.csv).
 
 How each column is made:
 
-1. The 165 columns the GPU tax calculator reads come from the calculator experiment's converter (calculator_input.convert,
-   CALCULATOR_CONTRACT.md). The 27 columns that experiment set to 0 as rules still to build (blindness, Social Security
-   numbers and child credit eligibility of dependents, QBI wage bills and specified-service flags, the basis and
-   holding period of long-term gains, death probabilities, yearly unrealized gains) are now the file's own columns,
-   made by the non-microdata imputations and by dollars.py; the converter takes them from the file.
+1. The 165 columns the GPU tax calculator reads come from the converter (calculator_input.convert,
+   CALCULATOR_CONTRACT.md). The 27 columns the contract sets to 0 (blindness, Social Security numbers and child credit
+   eligibility of dependents, QBI wage bills and specified-service flags, the basis and holding period of long-term
+   gains, death probabilities, yearly unrealized gains) are the file's own columns, made by the non-microdata
+   imputations and by dollars.py; the converter takes them from the file.
 2. The other 23 columns of production's file: male2 (the spouse's sex), n_dep_ctc (the PUF's child credit count),
    parent_rank, part_se and the eight consumption categories come from the file; nols is 0 as production writes it;
    prim_mort_share is computed from the drawn balance sheet. The nine forbes_* columns take production's default for
@@ -79,9 +78,9 @@ PRODUCTION_COLUMNS = (
 ).split()
 assert len(PRODUCTION_COLUMNS) == 188 and len(set(PRODUCTION_COLUMNS)) == 188
 
-# Production columns Tax-Simulator's R model (main, 145a80eb1) never names in its code, comments excluded: a scan of
-# src/ (tests excluded) on 29 October. Every other column of the 188 it reads. Its input step checks each calculation's
-# required columns by name (parse_calc_fn_input), so a run that finishes has found every column it needs.
+# Production columns Tax-Simulator's R model (main, 145a80eb1) never names in its code (a scan of src/, tests excluded).
+# Every other column of the 188 it reads. Its input step checks each calculation's required columns by name
+# (parse_calc_fn_input), so a run that finishes has found every column it needs.
 NOT_READ_BY_R = set(
     'parent_rank part_se nols prim_mort_share c_clothing c_motor_vehicles c_durables c_other_nondurables '
     'c_food_off_premises c_gasoline c_housing_utilities c_other_services_health q_death1 q_death2'.split()
@@ -241,10 +240,10 @@ def build(f):
         out[c] = x(c)
     for c, v in FORBES_DEFAULTS.items():
         out[c] = np.full(n, v, dtype=float)
-    bil = (x('billionaire') == 1) if 'billionaire' in f else np.zeros(n, bool)
+    bil = x('billionaire') == 1
     if bil.any():
-        lists = common.SETTINGS['tilt'].get('top', {}).get('billionaire_lists') or {}
-        # the list's year: the year's own list, or (a year after the last list, 2 November 2026) the last list, grown
+        lists = common.SETTINGS['tilt']['top']['billionaire_lists']
+        # the list's year: the year's own list, or, in a year after the last list, the last list, grown
         last = max((int(y) for y in lists), default=None)
         list_year = float(Y) if str(Y) in lists else (float(last) if last is not None and Y > last else np.nan)
         out['forbes_flag'] = np.where(bil, 1.0, 0.0)
@@ -310,6 +309,19 @@ def write_csv(g, path):
     t.to_csv(path, index=False, na_rep='NA')
 
 
+C_FROM_FILE = {
+    **{c: 'blindness rule, non-microdata imputations' for c in ('blind1', 'blind2')},
+    **{f'dep_ssn{k}': 'the drawn CPS status, dollars.py' for k in (1, 2, 3)},
+    **{f'dep_ctc{k}': 'child credit eligibility, non-microdata imputations' for k in (1, 2, 3)},
+    **{f'{p}_{b}': 'QBI rule, non-microdata imputations'
+       for p in ('wagebill', 'sstb') for b in ('sole_prop', 'part', 'scorp', 'farm')},
+    'kg_lt_basis': 'SOCA basis rule, non-microdata imputations', 'kg_lt_years_held': 'SOCA holding period rule',
+    'q_death1': 'death probabilities, non-microdata imputations', 'q_death2': 'as q_death1',
+    **{f'accruals.{a}': 'yearly unrealized gains, non-microdata imputations'
+       for a in ('equities', 'pass_throughs', 'primary_home', 'other_home', 're_fund', 'dc', 'trusts')},
+}
+
+
 def column_table():
     """One row per production column: where it comes from in the rebuild's file, and whether Tax-Simulator reads it."""
     contract = {c[0]: c for c in C.CONTRACT}
@@ -332,19 +344,6 @@ def column_table():
         rows.append({'column': c, 'status': status, 'from the rebuild': source, 'what it is': what,
                      'read by Tax-Simulator (R, main)': 'no' if c in NOT_READ_BY_R else 'yes'})
     return pd.DataFrame(rows)
-
-
-C_FROM_FILE = {
-    **{c: 'blindness rule, non-microdata imputations' for c in ('blind1', 'blind2')},
-    **{f'dep_ssn{k}': 'the drawn CPS status, dollars.py' for k in (1, 2, 3)},
-    **{f'dep_ctc{k}': 'child credit eligibility, non-microdata imputations' for k in (1, 2, 3)},
-    **{f'{p}_{b}': 'QBI rule, non-microdata imputations'
-       for p in ('wagebill', 'sstb') for b in ('sole_prop', 'part', 'scorp', 'farm')},
-    'kg_lt_basis': 'SOCA basis rule, non-microdata imputations', 'kg_lt_years_held': 'SOCA holding period rule',
-    'q_death1': 'death probabilities, non-microdata imputations', 'q_death2': 'as q_death1',
-    **{f'accruals.{a}': 'yearly unrealized gains, non-microdata imputations'
-       for a in ('equities', 'pass_throughs', 'primary_home', 'other_home', 're_fund', 'dc', 'trusts')},
-}
 
 
 def main():

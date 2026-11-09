@@ -5,12 +5,12 @@ the person items in primary-filer order by the rule the age range uses, dependen
 claims them. The file's dependent filers hold no CPS item (generate.py), so the file side below leaves them out.
 Both sides are weighted: the file by its tilted weights, the CPS by its own. Wage groups: the file's wages (nominal
 2019 dollars) and the CPS's wages after function 1 (the translation table puts them on the tax data's scale by percentile
-among earners since 28 October), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
+among earners), so a group holds the same ranks on both sides; the spouse's share uses the CPS's own amounts.
 
 None of this is targeted. Sections: the primary filer's and the spouse's age within each age range; dependents'
 ages; the primary filer's sex; for married couples, whether the spouse has wages and the spouse's share of the
 couple's wages, by the couple's wages, and the same for self-employment income; childcare by the number of
-dependents under 13 and by wages; weeks and hours worked; overtime pay (since 28 October; overtime_section).
+dependents under 13 and by wages; weeks and hours worked; overtime pay (overtime_section).
 
 Writes common.TILT/cps_report.md.
 """
@@ -61,7 +61,7 @@ def shares(d, col, bands):
 
 
 def overtime_cap_table(f):
-    """What the overtime cap takes off in the file (decided 27 October): each person's drawn overtime (ot_primary,
+    """What the overtime cap takes off in the file: each person's drawn overtime (ot_primary,
     ot_spouse) is held to the person's wages less the person's tips (dollars.person_cap). For each person and both
     together: the people with drawn overtime, those the wages alone hold and the dollars that takes off, and those
     the subtraction of tips holds further and the dollars that takes off on top; weighted by the file's weights."""
@@ -85,7 +85,7 @@ def overtime_cap_table(f):
 
 
 def overtime_section(src):
-    """Overtime pay (since 28 October) by the unit's wages: units, the share with overtime, the mean over all units
+    """Overtime pay by the unit's wages: units, the share with overtime, the mean over all units
     and among those with any, and the total. The file: ot = ot1 + ot2 (each held to the person's wages less tips). The
     CPS: only the units asked the earnings questions have overtime (the rest are missing); within each survey year
     their weights are scaled up to the year's whole weight, so the totals are for every unit (the asked units are

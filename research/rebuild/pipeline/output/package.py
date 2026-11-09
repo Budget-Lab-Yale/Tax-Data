@@ -20,8 +20,8 @@ The package (<out>/package/<run>/; chmod 700), always relative to the 2015 PUF:
         PUF record copy must be exactly its 2015 amount times the factors so far, or the stage stops.
   records.parquet  one row per PUF record copy in the year's Tax-Simulator file: RECID and copy; row, its place in the
         file; weight_factor (the weight over the PUF weight S006 / 100); medical_floor (0.075 or 0.1, the floor the
-        pipeline used for the 2015 value of other itemized deductions); state_ref_multiplier (5 November: the share
-        of the grown taxable state refund the file keeps after the refund rule and the tax benefit rule in every year
+        pipeline used for the 2015 value of other itemized deductions); state_ref_multiplier (the share of the
+        grown taxable state refund the file keeps after the refund rule and the tax benefit rule in every year
         of the chain, between 0 and 1: 0 removed, 1 kept whole; the merge only multiplies); the aggregate records'
         drawn filing status and dependent counts (-1 on the other records); the imputed items the merge needs, as
         values; and the Tax-Simulator columns that are not the merge's own columns, as values (prefix ts.).
@@ -72,9 +72,9 @@ SCHEDULE_A_STEP = 'Schedule A multiplier'
 # (non_micro_imputations.qbi). The other wage bills are the drawn numbers times the year's scalars, shipped as values.
 PUF_BASED = {'kg_lt_basis': ['kg_lt_basis_ratio'], 'wagebill_farm': []}
 TOL_ABS, TOL_REL = 1e-6, 1e-12
-# (John, 5 November) PUF items not shipped: the file's value is the calculator's (taxes.se_tax_ded_from_calculator), no
-# Tax-Simulator column holds it, and the recipient's calculator computes it from the other items. Its factor rows are
-# the plain growth (the merge's working frame carries the PUF's own deduction grown); the factor check skips it.
+# PUF items not shipped: the file's value is the calculator's, no Tax-Simulator column holds it, and the recipient's
+# calculator computes it from the other items. Its factor rows are the plain growth (the merge's working frame carries
+# the PUF's own deduction grown); the factor check skips it.
 NOT_SHIPPED = {'se_tax_ded': 'the deductible half of self-employment tax'}
 REPEAL_STEP = 'repealed from'
 
@@ -334,7 +334,7 @@ def build():
                     fn = nearest_exact(x[x < 0], fy[c].to_numpy(float)[x < 0], fn)
                     steps[-1].update(positive=fp, negative=fn)
                 v = apply(x, fp, fn)
-            # (John, 5 November) a repealed adjustment: one step of factor zero from the repeal year (the pipeline's
+            # a repealed adjustment: one step of factor zero from the repeal year (the pipeline's
             # taxes.apply_repealed_adjustments sets it to zero under that year's law)
             if c in rep and c not in zeroed and int(y) >= rep[c]:
                 steps.append({'column': c, 'puf_item': b, 'what': f'{REPEAL_STEP} {rep[c]}', 'positive': 0.0,
@@ -375,10 +375,10 @@ def build():
     xr = x15.loc[recid]
     w15 = raw.set_index('RECID')['S006'].loc[recid].to_numpy(float) / 100
     wf, n_inexact = exact_factor(w15, Fr['weight'].to_numpy(float))
-    # (John, 5 November) the taxable state refund: one multiplier per record copy, the file's refund over the 2015
-    # refund grown by the factor file exactly as the merge grows it (merge_puf.grow), between 0 and 1 (0 removed, 1
-    # kept whole, in between where the tax benefit rule keeps part); moved by the last binary digit where needed so
-    # that the merge's product is the file's refund exactly
+    # the taxable state refund: one multiplier per record copy, the file's refund over the 2015 refund grown by the
+    # factor file exactly as the merge grows it (merge_puf.grow), between 0 and 1 (0 removed, 1 kept whole, in between
+    # where the tax benefit rule keeps part); moved by the last binary digit where needed so that the merge's product
+    # is the file's refund exactly
     refG = MG.grow(xr.reset_index(drop=True)[['state_ref']], fac[fac.column == 'state_ref'])['state_ref']
     refY = Fr['state_ref'].to_numpy(float)
     assert (refG >= 0).all() and (refY >= 0).all() and (refY <= refG * (1 + TOL_REL)).all(), \
@@ -407,8 +407,6 @@ def build():
 
     def source(c):
         st, src = contract.get(c, (None, None))
-        if c in ('ot', 'ot1', 'ot2'):
-            return c
         if st in (C.SAME, C.RENAMED) and c not in C.NO_AGE_COLUMNS:
             return src.split(' ')[0].rstrip(';')
         if (st == C.ZERO and c in F) or c in TS.BASIS_FROM_FILE or (c in TS.EXTRA and TS.EXTRA[c][0] == 'same'):

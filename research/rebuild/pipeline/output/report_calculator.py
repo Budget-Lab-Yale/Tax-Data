@@ -4,18 +4,17 @@
    of its AGI parts, dollars.agi). The gap per record is split into the steps where the calculator computes
    something the rebuild draws or takes as given:
      capital gains        the calculator's net gain on the return (short- plus long-term, a net loss held to
-                          $3,000) against the rebuild's line 13 (capital_gains_line13: since 29-30 October the
-                          rebuild applies the same limit to kg_st + kg_lt, then adds kg_dist);
-     taxable Social Security  computed from gross benefits, against the rebuild's ss_taxable (drawn until 3 November;
-                          since then the same section 86 worksheet on the file's own items, so the gap is only where
-                          the calculator's modified AGI differs from the file's: its own self-employment tax
-                          deduction, the state tax workaround, the law's caps on adjustments);
+                          $3,000) against the rebuild's line 13 (capital_gains_line13: the rebuild applies the same
+                          limit to kg_st + kg_lt, then adds kg_dist);
+     taxable Social Security  computed from gross benefits, against the rebuild's ss_taxable (the same section 86
+                          worksheet on the file's own items, so the gap is only where the calculator's modified AGI
+                          differs from the file's: its own self-employment tax deduction, the state tax workaround,
+                          the law's caps on adjustments);
      self-employment tax deduction  half the computed self-employment tax, against the drawn se_tax_ded;
      state tax workaround the calculator's frame step moves part of some owners' state income tax into the
                           partnership's or S corporation's loss (75% of eligible owners, a random draw);
      pass-through losses  the pass-through amount in the calculator's Schedule E against the rebuild's net
-                          partnership and S corporation income (less the workaround): before the fix of 29 October
-                          the calculator counted it only when the two net to a gain;
+                          partnership and S corporation income (less the workaround);
      other adjustments    the law's caps on the adjustments (tuition and fees, domestic production activities)
                           and any other gap in the deductions above the line;
      rest                 whatever is left (should be rounding only).
@@ -36,6 +35,7 @@ import pandas as pd
 
 from output import calculator as C
 from shared import common
+from shared import dollars as D
 
 Y = C.Y
 SOI = common.RAW['soi_tables']
@@ -106,7 +106,7 @@ def label(lo, hi):
 def agi_check(f, c, inp):
     """Per-record gap between the calculator's AGI and the rebuild's, split by step (module docstring)."""
     x = lambda d, k: d[k].to_numpy(float)
-    rebuild = C.rebuild_agi(f)
+    rebuild = D.agi(f)
     line13 = x(f, 'capital_gains_line13')
     p0 = (x(inp, 'part_active') + x(inp, 'part_passive') - x(inp, 'part_active_loss') - x(inp, 'part_passive_loss')
           - x(inp, 'part_179') + x(inp, 'scorp_active') + x(inp, 'scorp_passive') - x(inp, 'scorp_active_loss')
@@ -118,8 +118,7 @@ def agi_check(f, c, inp):
         'taxable Social Security': x(c, 'txbl_ss') - x(f, 'ss_taxable'),
         'self-employment tax deduction': -(seca - x(f, 'se_tax_ded')),
         'state tax workaround': -workaround,
-        # calculator_fix work copy (29 October): the pass-through amount the calculator puts in Schedule E, read as
-        # Schedule E less net rent and net estate income, so the step is right with or without the pass-through fix
+        # the pass-through amount the calculator puts in Schedule E, read as Schedule E less net rent and net estate income
         'pass-through losses': (x(c, 'sch_e') - x(c, 'net_rent') - x(c, 'net_estate')) - (p0 - workaround),
         'other adjustments': -((x(c, 'above_ded') - seca) - (x(f, 'adjustments') - x(f, 'se_tax_ded'))),
     })

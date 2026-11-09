@@ -17,11 +17,6 @@ INPUT = f'{common.TILT}/file_{Y}.parquet'
 OUT = f'{common.OUT}/calculator/{common.RUN}'
 
 
-def rebuild_agi(f):
-    """The rebuild's own AGI per record (dollars.agi: wages, interest, dividends, Schedule D net gain, other AGI)."""
-    return f[['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
-
-
 def main():
     from reweight import taxes as TX
     os.makedirs(OUT, exist_ok=True)
