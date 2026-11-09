@@ -1,5 +1,9 @@
-"""Growth of CBO and Macro-Projections series for the projection years: CBO's count of returns, gross Social Security
-per return, and the long-run continuation of the series past CBO's last year."""
+"""Growth factors from CBO and Macro-Projections series for the projection years.
+
+The functions here give CBO's growth in the number of returns, the growth in gross Social Security benefits per return,
+and the growth of each series after CBO's last projection year. In those later years every series grows at the rate of
+one Macro-Projections aggregate. FEATURES.md, "4. Scaling to the target year", "Projection years", describes the rules.
+"""
 import os
 
 import numpy as np
@@ -13,15 +17,15 @@ RESOURCES = common.RESOURCES
 
 
 def cbo_return_growth(year):
-    """CBO's growth in the total number of individual income tax returns from year - 1 to year."""
+    """CBO's growth in the total number of individual income tax returns from year - 1 to year (a ratio)."""
     return cbo_count(year, 'rev_iit_returns_total') / cbo_count(year - 1, 'rev_iit_returns_total')
 
 
 def ssa_per_return(item, year):
-    """Growth in gross Social Security benefits per return in 2024 and 2025: SSA's calendar-year OASDI benefits paid
-    (Annual Statistical Supplement Table 4.A4 and Trustees Report Table III.A5) over CBO's growth in the number of
-    returns, year - 1 to year. CBO's fiscal-year outlays, used from 2026, start at FY2025 and so cannot give these
-    years' growth."""
+    """The growth in gross Social Security benefits per return from year - 1 to year, for 2024 and 2025. It is the
+    growth in SSA's OASDI benefits paid in the calendar year (Annual Statistical Supplement Table 4.A4 and Trustees
+    Report Table III.A5) divided by CBO's growth in the number of returns. Returns the factor and a note on its source.
+    These two years use SSA because CBO's fiscal-year outlays start at FY2025 and so cannot give their growth."""
     year = int(year)
     d = pd.read_csv(os.path.join(RESOURCES, 'ssa_oasdi_benefits.csv')).set_index('year')['oasdi_benefits_paid_millions']
     if year not in d.index or year - 1 not in d.index:
@@ -32,9 +36,10 @@ def ssa_per_return(item, year):
 
 
 def gross_ss_between(a, b):
-    """Growth in gross Social Security benefits per return from year a to year b, both at or after SOI's last year: the
-    product of the yearly factors (SSA through 2025, CBO's outlays to CBO's last year used), then Macro-Projections'
-    OASDI outlays per return. A year with no source stops the run."""
+    """The growth in gross Social Security benefits per return from year a to year b. Both years are at or after SOI's
+    last year. The growth is the product of the yearly factors: SSA's benefits through 2025, then CBO's outlays
+    through CBO's last year used, then Macro-Projections' OASDI outlays per tax unit. A year with no source stops the
+    run."""
     L = cbo_last_year()
     f = 1.0
     for y in range(int(a) + 1, min(int(b), L) + 1):
@@ -44,12 +49,12 @@ def gross_ss_between(a, b):
     return f
 
 
-# ---- the long-run years -------------------------------------------------
-# Past CBO's last projection year used (settings tilt.projection.cbo_last_year) every series continues at the growth
-# of one Macro-Projections aggregate, read from resources/growth/macro_long_run.csv. The functions here continue the
-# series the growth.yaml rules read and the count of returns; the items table's series files carry their own
-# continuation.
-_LR = {}
+# ---- The years after CBO's projection ----
+# After CBO's last projection year used (settings tilt.projection.cbo_last_year), every series grows at the rate of one
+# Macro-Projections aggregate, read from resources/growth/macro_long_run.csv. The functions below extend the series
+# that the growth.yaml rules read, and the count of returns. The series files of the items table
+# (targets_config/projection_items.csv) already include their own extension.
+_LR = {}   # the table macro_long_run.csv, read once
 
 
 def cbo_last_year():
@@ -58,9 +63,9 @@ def cbo_last_year():
 
 
 def long_run_level(name, year):
-    """The level of a long-run aggregate in year: a column of resources/growth/macro_long_run.csv, or a sum 'a + b'.
-    Columns: the Macro-Projections aggregates, 'units' (people aged 18 and over, a married couple counted once) and
-    'population' (every age)."""
+    """The level of a long-run aggregate in year. name is a column of resources/growth/macro_long_run.csv, or a sum
+    of columns written 'a + b'. The columns are the Macro-Projections aggregates, 'units' (people aged 18 and over,
+    with a married couple counted once) and 'population' (people of every age)."""
     if 'd' not in _LR:
         d = pd.read_csv(os.path.join(RESOURCES, 'growth', 'macro_long_run.csv'))
         assert d['year'].is_unique, 'macro_long_run.csv: a year twice'
@@ -79,8 +84,9 @@ def long_run_level(name, year):
 
 
 def long_run_growth(name, a, b, per=None):
-    """Growth of the long-run aggregate name from year a to year b; with per ('units' or 'population'), divided by the
-    growth of that count over the same years (a growth per return or per person)."""
+    """The growth of the long-run aggregate name from year a to year b. When per is 'units' or 'population', the
+    growth is divided by the growth of that count over the same years, which gives a growth per tax unit or per
+    person."""
     g = long_run_level(name, b) / long_run_level(name, a)
     if per is not None:
         g /= long_run_level(per, b) / long_run_level(per, a)
@@ -88,8 +94,8 @@ def long_run_growth(name, a, b, per=None):
 
 
 def returns_growth(a, b):
-    """Growth in the number of returns from year a to year b (a <= b): CBO's count through cbo_last_year, then the
-    growth of adults with a couple counted once ('units')."""
+    """The growth in the number of returns from year a to year b, with a <= b. It follows CBO's count through
+    cbo_last_year, and after that the number of adults with a married couple counted once ('units')."""
     a, b, L = int(a), int(b), cbo_last_year()
     f = 1.0
     for y in range(a + 1, min(b, L) + 1):
@@ -100,9 +106,10 @@ def returns_growth(a, b):
 
 
 def cbo_per_return(item, year):
-    """The year-over-year growth per return of gross Social Security (item 'ss_gross') and its source: SSA's benefits
-    paid through 2025, then CBO's Social Security outlays (fiscal-year levels standing in for the calendar year) over
-    CBO's growth in the number of returns."""
+    """The growth per return of an item from year - 1 to year, and a note on its source. For gross Social Security
+    (item 'ss_gross') through 2025 this is SSA's benefits paid (ssa_per_return). Otherwise it is the growth of the
+    item's CBO series, divided by CBO's growth in the number of returns. CBO's fiscal-year levels stand in for the
+    calendar year."""
     year = int(year)
     if item == 'ss_gross' and year <= 2025:
         return ssa_per_return(item, year)

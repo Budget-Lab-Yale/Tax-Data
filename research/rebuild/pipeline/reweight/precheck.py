@@ -1,14 +1,23 @@
-"""A check before the reweighting that only reports; it drops nothing and changes no weight. A target is flagged when
-the average per return its count and amount targets require lies outside what the cell's records can give, when its
-relative standard error is below min_relative_se, or when the start is more than max_start_gap_se standard errors from
-it (settings tilt.precheck). Writes precheck_flags.csv, precheck_cells.csv and precheck.md.
+"""A check of the targets before the reweighting. It only reports: it drops no target and changes no weight.
+
+A target is flagged by any of three rules (thresholds in settings tilt.precheck):
+
+1. A count target and an amount target of the same variable in the same cell imply an average amount per return. The
+   rule flags the pair when that average lies outside the range of amounts per return that the cell's records hold,
+   by more than min_excess_se standard errors. No reweighting can reach such a pair.
+2. The target's standard error is less than min_relative_se of its value.
+3. The starting weights put the file more than max_start_gap_se standard errors from the target.
+
+Writes precheck_flags.csv, precheck_cells.csv and precheck.md. FEATURES.md, "5. Reweighting", "The solve", describes
+where the check sits.
 """
 import numpy as np
 import pandas as pd
 
 
 def _start_values(F, w0, averages):
-    """Each target's value on the start weights: a total F.T @ w0; an average the group's weighted mean of v."""
+    """Each target's value on the starting weights. For a total this is F.T @ w0. For an average it is the weighted
+    mean of the averaged variable over the target's group."""
     before = F.T @ w0
     for j, a in enumerate(averages):
         if a is not None:
@@ -20,6 +29,11 @@ def _start_values(F, w0, averages):
 
 
 def run(rows, F, w0, averages, value, se, identity, folder, cfg):
+    """Applies the three rules to every target, writes the three files, and returns the flagged targets and the lines
+    for summary.md. The arguments are the targets (rows), their conditions on the weights (F and averages, as in
+    solver.solve), the starting weights, each target's value, standard error and identity flag, the folder to write
+    to, and the settings."""
+    # 1. Each target's value on the starting weights, and rules 2 and 3.
     rows = rows.reset_index(drop=True)
     value, se, identity = (np.asarray(a) for a in (value, se, identity))
     value, se = value.astype(float), se.astype(float)
@@ -34,8 +48,10 @@ def run(rows, F, w0, averages, value, se, identity, folder, cfg):
     t['rule 2: relative se below the floor'] = free & (t['relative_se'] < cfg['min_relative_se'])
     t['rule 3: start gap above the line'] = free & (t['start_gap_se'].abs() > cfg['max_start_gap_se'])
     t['detail'] = ''
-    # rule 1: cells with a count and an amount of the same variable; the tolerance is their two relative standard errors
-    # in quadrature
+
+    # 2. Rule 1. It applies to each cell with exactly one count target and one amount target of the same variable. The
+    #    required average is the amount target over the count target. The tolerance is the two targets' relative
+    #    standard errors combined as the square root of the sum of their squares.
     cells = []
     live = w0 > 0
     for (entry, group, var), idx in rows.groupby(['entry', 'group', 'variable']).groups.items():
@@ -65,6 +81,8 @@ def run(rows, F, w0, averages, value, se, identity, folder, cfg):
                 t.loc[i, 'detail'] = (f'required average {implied:,.2f}, records span {lo:,.2f} to {hi:,.2f}; '
                                       f'{excess / tol:.1f} se beyond')
     cells = pd.DataFrame(cells)
+
+    # 3. Write the flagged targets, the cells checked by rule 1, and the summary lines.
     rules = [c for c in t.columns if c.startswith('rule ')]
     flagged = t[t[rules].any(axis=1)].copy()
     flagged.to_csv(f'{folder}/precheck_flags.csv', index=False)
