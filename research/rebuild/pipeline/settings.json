@@ -1855,8 +1855,6 @@
  },
  "tilt": {
   "_what": "Post-training (tilt.py, solver.py, TARGETS.md): the start's weights scaled, then the weights moved to minimize one cost: the misses on every target in the year's list (targets_config/, expanded by target_list.py, each miss measured in its standard error from errors.py) plus the Kullback-Leibler size of the move (_reweighting says how). Which targets, their values and their errors are in targets_config/, not here.",
-  "prescale": "demographic",
-  "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
   "precheck": {
    "min_relative_se": 0.001,
    "max_start_gap_se": 300,
