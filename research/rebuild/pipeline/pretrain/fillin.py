@@ -411,87 +411,120 @@ class FillIn:
                       'network': ~self.data_ok[k]}
         return out
 
+    def type_average(self, view, w, x):
+        """The weighted average of x over the records of each type of the view; one row per type."""
+        t = view.type_of
+        return (torch.zeros(view.n_types, x.shape[1], dtype=torch.float64, device=self.device)
+                .index_add_(0, t, w[:, None] * x)
+                / torch.zeros(view.n_types, dtype=torch.float64, device=self.device)
+                .index_add_(0, t, w).clamp_min(1e-30)[:, None])
+
+    def report_chances(self, key):
+        """C: each training record's chance of reporting each size range of the row's item, by the network, computed
+        in chunks of records."""
+        s = key[0]
+        return torch.cat([self.by_range(self.report_probs_by_band(self.reported_values(self.recs[s][a:a + self.chunk]), key), key)
+                          for a in range(0, len(self.recs[s]), self.chunk)])
+
+    def fill_in_distribution(self, key, view, sh):
+        """Sets self.dist[key], each zero-reporter's chance of each band of the row's item, by the formula in refit.
+        sh holds the type's shares from type_shares. Returns the quantities the log needs."""
+        s = key[0]
+        t = view.type_of
+        w = self.weight[s]
+        K = self.n_ranges[key]
+        c = self.report_chances(key)                                   # C: [records, ranges]
+        a_bands = sh['mixed']                                          # [types, bands]
+        a_range = self.by_range(a_bands, key)                          # A: [types, ranges]
+        b_range = self.type_average(view, w, c)                        # B: [types, ranges]
+        # The excess of the tax data's share over the survey's, A_k / B_k - 1, is never below zero, and it is zero for
+        # the "none" range and for bands with no PUF record.
+        excess = (a_range / b_range.clamp_min(1e-12) - 1).clamp(min=0)
+        excess[:, 0], excess[:, K - 1] = 0, 0
+        hidden = c * excess[t] / c[:, :1].clamp_min(1e-12)
+        hidden = torch.where(self.active[key][:, None], hidden, torch.zeros_like(hidden))
+        # A unit whose chances of a hidden holding add up to more than 100% has them scaled down to 100%.
+        hidden_total = hidden.sum(1)
+        hidden = hidden / hidden_total.clamp(min=1)[:, None]
+        # Within each range, the chance is spread over the range's bands in proportion to A by band. The rest is the
+        # chance of zero.
+        z = self.zero[key]
+        ab = a_bands[t[z]]
+        dist = ab * (hidden[z] / a_range[t[z]].clamp_min(1e-15))[:, self.band_range[key]]
+        dist[:, 0] = 1 - hidden[z].sum(1)
+        self.dist[key] = dist.clamp(min=0).float()
+        return dict(a_range=a_range, b_range=b_range, hidden=hidden, hidden_total=hidden_total)
+
+    def log_fill_in(self, epoch, key, view, sh, f):
+        """Adds the row's line to fill_log.csv (on the survey year nearest the target year) and its lines by year and
+        size range to fill_ranges.csv. Returns the row's lines for fill_types.csv, one per type. f holds the quantities
+        from fill_in_distribution. A record whose reported item is missing (in a year the row does not fill in) is left
+        out."""
+        s, v = key
+        K = self.n_ranges[key]
+        t = view.type_of
+        w = self.weight[s]
+        z = self.zero[key]
+        a_range, b_range, hidden, hidden_total = f['a_range'], f['b_range'], f['hidden'], f['hidden_total']
+        rb = self.tr['rep_band'][v][self.recs[s]]
+        known = rb >= 0
+        assert bool((known | ~self.active[key]).all()), f'{key}: a negative band index in a year the row fills in'
+        # Each record's size range as reported, and its chance of each range after the fill-in.
+        rep_range = self.band_range[key][rb.clamp(min=0)]
+        rep_onehot = torch.zeros(len(rep_range), K, dtype=torch.float64, device=self.device)
+        rep_onehot[torch.arange(len(rep_range), device=self.device), rep_range] = known.double()
+        after = torch.where(z[:, None], hidden, rep_onehot)
+        after[:, 0] = torch.where(z, 1 - hidden.sum(1), after[:, 0])
+        years = sorted(set(view.year.tolist()))
+        log_year = min(years, key=lambda y: (abs(y - common.TARGET_YEAR), -y))
+        yr = torch.tensor(self.frame[s]['year'].to_numpy(), device=self.device)
+        wm = lambda x, mm: float((w[mm] * x[mm]).sum() / w[mm].sum()) if bool(mm.any()) else float('nan')
+        m = (yr == log_year) & known
+        row = {'pass': epoch, 'survey': s, 'item': v, 'year': log_year,
+               'none, reported (%)': 100 * wm((rep_range == 0).double(), m),
+               'none, after fill (%)': 100 * wm(after[:, 0], m),
+               'none, tax data at survey types (%)': 100 * wm(a_range[t, 0], m),
+               'none, PUF filers at survey types (%)': 100 * wm(self.by_range(sh['filers'], key)[t, 0], m),
+               'none, CPS non-filers at survey types (%)': 100 * wm(self.by_range(sh['nonfilers'], key)[t, 0], m),
+               'non-filers in the tax data at survey types (%)': 100 * wm(1 - sh['share_f'][t], m),
+               'survey units in a type with no tax-data unit (%)': 100 * wm(sh['none_in_tax_data'][t].double(), m),
+               'survey units whose filers\' share is the network\'s (%)': 100 * wm(sh['network'][t].double(), m),
+               'largest gap from 1, sum of mixed shares in a type': float((a_range.sum(1) - 1).abs().max()),
+               'zero-reporters over 100% (%)': 100 * wm((hidden_total > 1).double(), m & z)}
+        self.log.append(row)
+        common.say('  fill ' + '  '.join(f'{a} {x:.2f}' if isinstance(x, float) else f'{a} {x}' for a, x in row.items()))
+        labels = ['none'] + [f'{lo:g} to {hi:g}' for lo, hi in RANGES[key]] + ['band with no PUF record']
+        for y in years:
+            my = (yr == y) & self.active[key]
+            if not bool(my.any()):
+                continue
+            for j in range(K):
+                self.range_log.append({'pass': epoch, 'survey': s, 'item': v, 'year': y, 'range': labels[j],
+                                       'reported (%)': 100 * wm(rep_onehot[:, j], my),
+                                       'after fill-in (%)': 100 * wm(after[:, j], my),
+                                       'tax data at survey types (%)': 100 * wm(a_range[t, j], my)})
+        return view.labels.assign(survey=s, item=v, filers_in_tax_data=view.n_filer, nonfilers_in_tax_data=view.n_nonfiler,
+                                  none_filers=self.by_range(sh['filers'], key)[:, 0].cpu().numpy(),
+                                  none_nonfilers=self.by_range(sh['nonfilers'], key)[:, 0].cpu().numpy(),
+                                  none_mixed=a_range[:, 0].cpu().numpy(),
+                                  none_reported=b_range[:, 0].cpu().numpy())
+
     @torch.no_grad()
     def refit(self, epoch, write_log=True):
-        """Each zero-reporter's fill-in distribution over the PUF-concept bands of each row's item. With C_k the unit's
-        chance of reporting size range k, B_k its average over units of the same type, and A_k the tax data's share in
-        range k for the type, the chance of a hidden holding in range k is C_k x max(A_k / B_k - 1, 0) / C_0, capped at
-        100% in total. Within a range, bands follow A."""
+        """Computes each zero-reporter's fill-in distribution over the bands of each row's item, on the tax-data
+        basis. For a unit and a size range k: C_k is the unit's chance of reporting an amount in range k, B_k is the
+        average of C_k over units of the same type, and A_k is the tax data's share of units of the type in range k.
+        The chance of a hidden holding in range k is C_k x max(A_k / B_k - 1, 0) / C_0, capped at 100% in total.
+        Within a range, the chance is spread over the bands in proportion to the tax data's shares. Writes the logs
+        unless write_log is False."""
         self.model.eval()
         type_rows = []
         for vk in self.views:
             shares = self.type_shares(vk)
             view = self.views[vk]
-            s = vk[0]
-            t = view.type_of
-            w = self.weight[s]
             for k in [k for k in KEYS if self.view_of[k] == vk]:
-                v, K = k[1], self.n_ranges[k]
-                c = torch.cat([self.by_range(self.report_probs_by_band(self.reported_values(self.recs[s][a:a + self.chunk]), k), k)
-                               for a in range(0, len(self.recs[s]), self.chunk)])
-                per_type = lambda x: (torch.zeros(view.n_types, x.shape[1], dtype=torch.float64, device=self.device)
-                                      .index_add_(0, t, w[:, None] * x)
-                                      / torch.zeros(view.n_types, dtype=torch.float64, device=self.device)
-                                      .index_add_(0, t, w).clamp_min(1e-30)[:, None])
-                a_bands = shares[k]['mixed']                                # [types, bands]
-                a_range = self.by_range(a_bands, k)                         # [types, ranges]
-                b_range = per_type(c)                                       # [types, ranges]
-                excess = (a_range / b_range.clamp_min(1e-12) - 1).clamp(min=0)
-                excess[:, 0], excess[:, K - 1] = 0, 0
-                hidden = c * excess[t] / c[:, :1].clamp_min(1e-12)
-                hidden = torch.where(self.active[k][:, None], hidden, torch.zeros_like(hidden))
-                hidden_total = hidden.sum(1)
-                hidden = hidden / hidden_total.clamp(min=1)[:, None]
-                z = self.zero[k]
-                ab = a_bands[t[z]]
-                dist = ab * (hidden[z] / a_range[t[z]].clamp_min(1e-15))[:, self.band_range[k]]
-                dist[:, 0] = 1 - hidden[z].sum(1)
-                self.dist[k] = dist.clamp(min=0).float()
-                # the log, on the survey's year nearest the target year; a record whose reported item is missing (a
-                # year the row does not fill in) is left out
-                rb = self.tr['rep_band'][v][self.recs[s]]
-                known = rb >= 0
-                assert bool((known | ~self.active[k]).all()), f'{k}: a negative band index in a year the row fills in'
-                rep_range = self.band_range[k][rb.clamp(min=0)]
-                rep_onehot = torch.zeros(len(rep_range), K, dtype=torch.float64, device=self.device)
-                rep_onehot[torch.arange(len(rep_range), device=self.device), rep_range] = known.double()
-                after = torch.where(z[:, None], hidden, rep_onehot)
-                after[:, 0] = torch.where(z, 1 - hidden.sum(1), after[:, 0])
-                years = sorted(set(view.year.tolist()))
-                log_year = min(years, key=lambda y: (abs(y - common.TARGET_YEAR), -y))
-                yr = torch.tensor(self.frame[s]['year'].to_numpy(), device=self.device)
-                wm = lambda x, mm: float((w[mm] * x[mm]).sum() / w[mm].sum()) if bool(mm.any()) else float('nan')
-                m = (yr == log_year) & known
-                sh = shares[k]
-                row = {'pass': epoch, 'survey': s, 'item': v, 'year': log_year,
-                       'none, reported (%)': 100 * wm((rep_range == 0).double(), m),
-                       'none, after fill (%)': 100 * wm(after[:, 0], m),
-                       'none, tax data at survey types (%)': 100 * wm(a_range[t, 0], m),
-                       'none, PUF filers at survey types (%)': 100 * wm(self.by_range(sh['filers'], k)[t, 0], m),
-                       'none, CPS non-filers at survey types (%)': 100 * wm(self.by_range(sh['nonfilers'], k)[t, 0], m),
-                       'non-filers in the tax data at survey types (%)': 100 * wm(1 - sh['share_f'][t], m),
-                       'survey units in a type with no tax-data unit (%)': 100 * wm(sh['none_in_tax_data'][t].double(), m),
-                       'survey units whose filers\' share is the network\'s (%)': 100 * wm(sh['network'][t].double(), m),
-                       'largest gap from 1, sum of mixed shares in a type': float((a_range.sum(1) - 1).abs().max()),
-                       'zero-reporters over 100% (%)': 100 * wm((hidden_total > 1).double(), m & z)}
-                self.log.append(row)
-                common.say('  fill ' + '  '.join(f'{a} {x:.2f}' if isinstance(x, float) else f'{a} {x}' for a, x in row.items()))
-                labels = ['none'] + [f'{lo:g} to {hi:g}' for lo, hi in RANGES[k]] + ['band with no PUF record']
-                for y in years:
-                    my = (yr == y) & self.active[k]
-                    if not bool(my.any()):
-                        continue
-                    for j in range(K):
-                        self.range_log.append({'pass': epoch, 'survey': s, 'item': v, 'year': y, 'range': labels[j],
-                                               'reported (%)': 100 * wm(rep_onehot[:, j], my),
-                                               'after fill-in (%)': 100 * wm(after[:, j], my),
-                                               'tax data at survey types (%)': 100 * wm(a_range[t, j], my)})
-                lab = view.labels
-                type_rows.append(lab.assign(survey=s, item=v, filers_in_tax_data=view.n_filer, nonfilers_in_tax_data=view.n_nonfiler,
-                                            none_filers=self.by_range(sh['filers'], k)[:, 0].cpu().numpy(),
-                                            none_nonfilers=self.by_range(sh['nonfilers'], k)[:, 0].cpu().numpy(),
-                                            none_mixed=a_range[:, 0].cpu().numpy(),
-                                            none_reported=b_range[:, 0].cpu().numpy()))
+                f = self.fill_in_distribution(k, view, shares[k])
+                type_rows.append(self.log_fill_in(epoch, k, view, shares[k], f))
         if write_log:
             pd.DataFrame(self.log).to_csv(os.path.join(common.MODEL, 'fill_log.csv'), index=False)
             pd.DataFrame(self.range_log).to_csv(os.path.join(common.MODEL, 'fill_ranges.csv'), index=False)
