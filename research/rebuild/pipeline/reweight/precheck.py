@@ -1,5 +1,4 @@
-"""A check that runs before the reweighting and only reports (1 November 2026, precheck decisions 54 and 55; the
-measurements are in explore/2026-11-01/precheck/RESULTS.md). It drops nothing and changes no weight.
+"""A check that runs before the reweighting and only reports. It drops nothing and changes no weight.
 
 It flags a target when any of three things holds, each found without a solve:
   1. The average the cell's two targets require is outside what the records can give. For a cell with both a count and
@@ -48,34 +47,33 @@ def run(rows, F, w0, averages, value, se, identity, folder, cfg):
     t['detail'] = ''
     # rule 1: cells with a count and an amount of the same variable
     cells = []
-    if 'variable' in rows and 'entry' in rows:
-        live = w0 > 0
-        for (entry, group, var), idx in rows.groupby(['entry', 'group', 'variable']).groups.items():
-            if not isinstance(var, str) or not var:
-                continue
-            st = {rows.statistic[i]: i for i in idx if rows.statistic[i] in ('count', 'amount')}
-            if len(st) < 2 or len([i for i in idx if rows.statistic[i] in ('count', 'amount')]) != 2:
-                continue
-            ia, ic = st['amount'], st['count']
-            if averages[ia] is not None or averages[ic] is not None or value[ic] == 0 or value[ia] == 0:
-                continue
-            cnt = F[:, ic]
-            inside = (cnt != 0) & live
-            if not inside.any():
-                continue
-            per_return = F[inside, ia] / cnt[inside]
-            implied = value[ia] / value[ic]
-            tol = float(np.hypot(se[ia] / abs(value[ia]), se[ic] / abs(value[ic])))
-            lo, hi = float(per_return.min()), float(per_return.max())
-            excess = max(implied - hi, lo - implied, 0.0) / abs(implied)
-            cells.append({'entry': entry, 'group': group, 'variable': var, 'required average': implied,
-                          'smallest per return': lo, 'largest per return': hi, 'excess (share of average)': excess,
-                          'tolerance (share)': tol, 'excess in se': excess / tol})
-            if excess / tol > cfg['min_excess_se']:
-                for i in (ia, ic):
-                    t.loc[i, 'rule 1: required average outside the records'] = True
-                    t.loc[i, 'detail'] = (f'required average {implied:,.2f}, records span {lo:,.2f} to {hi:,.2f}; '
-                                          f'{excess / tol:.1f} se beyond')
+    live = w0 > 0
+    for (entry, group, var), idx in rows.groupby(['entry', 'group', 'variable']).groups.items():
+        if not isinstance(var, str) or not var:
+            continue
+        st = {rows.statistic[i]: i for i in idx if rows.statistic[i] in ('count', 'amount')}
+        if len(st) < 2 or len([i for i in idx if rows.statistic[i] in ('count', 'amount')]) != 2:
+            continue
+        ia, ic = st['amount'], st['count']
+        if averages[ia] is not None or averages[ic] is not None or value[ic] == 0 or value[ia] == 0:
+            continue
+        cnt = F[:, ic]
+        inside = (cnt != 0) & live
+        if not inside.any():
+            continue
+        per_return = F[inside, ia] / cnt[inside]
+        implied = value[ia] / value[ic]
+        tol = float(np.hypot(se[ia] / abs(value[ia]), se[ic] / abs(value[ic])))
+        lo, hi = float(per_return.min()), float(per_return.max())
+        excess = max(implied - hi, lo - implied, 0.0) / abs(implied)
+        cells.append({'entry': entry, 'group': group, 'variable': var, 'required average': implied,
+                      'smallest per return': lo, 'largest per return': hi, 'excess (share of average)': excess,
+                      'tolerance (share)': tol, 'excess in se': excess / tol})
+        if excess / tol > cfg['min_excess_se']:
+            for i in (ia, ic):
+                t.loc[i, 'rule 1: required average outside the records'] = True
+                t.loc[i, 'detail'] = (f'required average {implied:,.2f}, records span {lo:,.2f} to {hi:,.2f}; '
+                                      f'{excess / tol:.1f} se beyond')
     cells = pd.DataFrame(cells)
     rules = [c for c in t.columns if c.startswith('rule ')]
     flagged = t[t[rules].any(axis=1)].copy()
