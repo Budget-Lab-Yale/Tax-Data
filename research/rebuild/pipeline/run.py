@@ -1,6 +1,6 @@
 """The rebuild pipeline's runner. Run it from the repository root, or set REBUILD_ROOT.
 
-The pipeline is a chain of stages connected by files:
+The pipeline is a chain of stages. Each stage reads the files earlier stages wrote and writes its own:
   1. data preparation: the survey tax units, the SOI targets and the training table;
   2. pretraining: the networks, trained on the table;
   3. generation: each past year's records drawn from the networks, with the top of the file added;
@@ -15,7 +15,7 @@ weights) and targets/soi_cv/raw/ (SOI's coefficient-of-variation workbooks).
 On a plain machine, every step runs here, one after another, with python and Rscript from the path. With --slurm,
 each step is submitted as a Slurm job (or one job per year) that waits for the steps it needs, and the sbatch lines are
 written to <folder>/jobs.txt. REBUILD_PY_ENV and REBUILD_R_ENV are shell lines run before each Python or R command, and
-REBUILD_R_LIBS is the R library; slurm/bouchet_env.sh sets all three for Bouchet.
+REBUILD_R_LIBS is the R library; slurm/bouchet_env.sh sets all three for Bouchet. FEATURES.md describes every stage.
 """
 import argparse
 import glob
@@ -26,17 +26,23 @@ import subprocess
 import sys
 
 PIPELINE = 'research/rebuild/pipeline'
+# The last past year (a year with published data), the first projection year, and the year the projections start from.
 PAST_LAST, FUTURE_FIRST, BASE_YEAR = 2023, 2024, 2023
 
 
+# ---- The stages ----
+
 def py(module, *args):
+    """A Python command of a stage: the module to run, and its arguments."""
     return ('py', module, [str(a) for a in args])
 
 
 def r(script, libs=False):
+    """An R command of a stage: the script to run, and whether it needs the R library REBUILD_R_LIBS."""
     return ('r', f'{PIPELINE}/{script}', libs)
 
 
+# Each stage's commands, run in order. 'package' is the CRS package and its two round trips (run_package).
 STAGES = {
     'scf': [py('prep.roster_scf'), r('prep/build_scf.R')],
     'cex': [py('prep.roster_cex'), r('prep/build_cex.R')],
@@ -59,15 +65,19 @@ STAGES = {
     'non_micro_tables': [py('resources_build.build_non_micro_tables')],
     'filing_season': [py('resources_build.build_filing_season')],
 }
+# The stages of the training command, and the steps of each past year in the years command (see Run).
 TRAINING = ['scf', 'cex', 'filing', 'cps', 'sipp', 'soi', 'soi_cv', 'table', 'side_files', 'train']
 PAST_YEAR = ['prep', 'draw', 'national', 'chances', 'integrated']
 
+
+# ---- Running a stage ----
 
 def say(*parts):
     print(*parts, flush=True)
 
 
 def shell(line, env):
+    """Run a shell line in the environment env, and stop if it fails."""
     say(f'+ {line}')
     subprocess.run(['bash', '-c', line], env=env, check=True)
 
@@ -81,6 +91,7 @@ def python_line(module, args):
 
 
 def run_command(cmd, env):
+    """Run one command of a stage (see py and r)."""
     if cmd == 'package':
         return run_package(env)
     kind, what, extra = cmd
@@ -92,8 +103,8 @@ def run_command(cmd, env):
 
 
 def run_package(env):
-    """Build the CRS package and check that its Python merge script rebuilds the file, then do the same for its R merge
-    script."""
+    """Build the CRS package and check that its Python merge script rebuilds the Tax-Simulator file. Then run the R
+    merge script and check its result in the same way."""
     run_command(py('output.package', 'build'), env)
     out = subprocess.run(['bash', '-c', python_line('output.package', ['paths'])], env=env, check=True,
                          capture_output=True, text=True).stdout
@@ -105,6 +116,8 @@ def run_package(env):
 
 
 def stage_env(folder, run=None, **extra):
+    """The environment a stage runs in: the folder it reads and writes (REBUILD_OUT), its settings file, and the run's
+    subfolder name (REBUILD_RUN), plus any extra variables."""
     env = dict(os.environ, REBUILD_OUT=folder, REBUILD_SETTINGS=f'{folder}/settings.json', PYTHONDONTWRITEBYTECODE='1')
     if run:
         env['REBUILD_RUN'] = run
@@ -113,6 +126,8 @@ def stage_env(folder, run=None, **extra):
 
 
 def run_stages(folder, stages, run=None, **extra):
+    """Run the named stages on one folder, in order. On a file built from the real PUF, the Tax-Simulator file stage
+    is followed by the CRS package."""
     env = stage_env(folder, run, **extra)
     filers = json.load(open(env['REBUILD_SETTINGS']))['generation'].get('filers', 'synthetic')
     for s in stages:
@@ -126,8 +141,10 @@ def run_stages(folder, stages, run=None, **extra):
             run_package(env)
 
 
-# ---- folders and settings --------------------------------------------------------------------------------------
+# ---- Folders and settings ----
+
 def link(src, dst):
+    """Make dst a symbolic link to src, replacing whatever is at dst."""
     if os.path.islink(dst) or os.path.exists(dst):
         os.remove(dst)
     os.symlink(src, dst)
@@ -149,12 +166,14 @@ def run_settings(src, dest, out=None, year=None):
 
 
 def training_settings(train):
+    """A new training folder gets a copy of the pipeline's settings.json, with paths.out set to the folder."""
     if not os.path.exists(f'{train}/settings.json'):
         os.makedirs(train, exist_ok=True)
         run_settings(f'{PIPELINE}/settings.json', f'{train}/settings.json', out=os.path.abspath(train))
 
 
 def years_from(text):
+    """The years in a list such as '2015-2023' or '2019,2023'."""
     out = []
     for part in text.split(','):
         lo, _, hi = part.partition('-')
@@ -162,9 +181,18 @@ def years_from(text):
     return out
 
 
+# ---- The steps of the years command ----
+
 class Run:
-    """The steps of the years command. <out>/run/<year> holds a past year's draw and national solve, <out>/final/<year>
-    each year's final file, <out>/starts, integrated and files the state weights, and <out>/checks the checks."""
+    """The steps of the years command, each for one year. The output folder holds: run/<year>, a past year's draw and
+    national-only solve; final/<year>, each year's final file; starts, integrated, shares and files, the state weights;
+    and checks, the checks.
+
+    A past year runs prep (targets and dollar maps), draw (the records and the top of the file), national (the
+    national-only solve), chances (the state chances, state_start.py) and integrated (the integrated solve,
+    state_joint.py). A projection year runs future: the national solve from the 2023 file (or from 2024's), then the
+    state weights from 2023's shares. check checks every year's state weights, and taxsim writes a year's
+    Tax-Simulator file."""
 
     def __init__(self, train, out, side):
         self.train, self.out, self.side = os.path.abspath(train), os.path.abspath(out), os.path.abspath(side)
@@ -181,6 +209,8 @@ class Run:
         getattr(self, 'step_' + name)(y)
 
     def step_prep(self, y):
+        """Make the past year's folder: links to the training data, the side files, the networks, SOI's errors and
+        the tax calculator, and a copy of the settings for the year. Then build the year's targets and dollar maps."""
         R = self.past(y)
         assert not os.path.exists(f'{R}/gen/y{y}'), f'{R} already holds a draw'
         for d in ('data/maps', 'targets', 'gen', 'tilt'):
@@ -214,6 +244,9 @@ class Run:
                        '--out', f'{self.out}/starts/start_{y}.npz'), stage_env(R, f'y{y}'))
 
     def step_integrated(self, y):
+        """Run the integrated solve. If it wrote its check, make the year's final folder: the national solve's files,
+        with the year file and fit.csv from the integrated solve. A solve that fails still gets its final folder when
+        its check was written; the failure is raised afterward."""
         R, F, I = self.past(y), self.final(y), f'{self.out}/integrated/y{y}'
         env = stage_env(R, f'y{y}')
         n = os.environ.get('REBUILD_THREADS') or os.environ.get('SLURM_CPUS_PER_TASK')
@@ -241,6 +274,8 @@ class Run:
             raise failed
 
     def step_future(self, y):
+        """A projection year: link the 2023 file (and 2024's, for a later year) into the year's folder, run the national
+        solve, then give each record its 2023 shares across the areas."""
         B, F = f'{self.out}/final', self.final(y)
         assert os.path.getsize(f'{B}/{BASE_YEAR}/tilt/y{BASE_YEAR}/file_{BASE_YEAR}.parquet') > 0
         assert not os.path.exists(f'{F}/tilt/y{y}'), f'{F} already holds a file'
@@ -267,7 +302,8 @@ class Run:
         run_stages(self.final(y), ['taxsim_file'], run=f'y{y}')
 
 
-# ---- Slurm -----------------------------------------------------------------------------------------------------
+# ---- Slurm ----
+
 CPU = ['--partition=day', '--gres=gpu:0']
 # Memory requests are about twice each step's measured peak.
 RESOURCES = {
@@ -291,6 +327,9 @@ class Slurm:
         os.makedirs(f'{folder}/logs', exist_ok=True)
 
     def submit(self, name, step, args, array=None, after=None, kind='aftercorr'):
+        """Submit one step as a Slurm job (an array of jobs, one per year, when array is given) that waits for the job
+        after. kind is the kind of wait: 'aftercorr' waits for the same year's task, 'afterok' for the whole job to
+        succeed, 'afterany' for it to end. Returns the job id."""
         cmd = ['sbatch', '--parsable', f'--job-name=rb_{name}', f'--output={self.folder}/logs/%x_%A_%a.log',
                '--kill-on-invalid-dep=yes', '--export=ALL,REBUILD_ROOT=' + os.getcwd()]
         cmd += (self.gpu if step in GPU_STEPS else CPU) + RESOURCES[step]
@@ -306,14 +345,16 @@ class Slurm:
         return job
 
 
-# ---- the commands ----------------------------------------------------------------------------------------------
+# ---- The commands ----
+
 def models(train):
+    """The run names of the networks in settings generation.models."""
     return [m['run'] for m in json.load(open(f'{train}/settings.json'))['generation']['models']]
 
 
 def side_files(train, side):
-    """Build the side files: the training table built again with every survey year in place of the year's mix, in a copy
-    of the training data. The years command uses only <side>/data/*_all.parquet."""
+    """Build the side files: the training table built again with every survey year in place of each year's mix, in a
+    copy of the training data. The years command uses only <side>/data/*_all.parquet."""
     shutil.rmtree(side, ignore_errors=True)
     os.makedirs(f'{side}/data/maps')
     for f in sorted(glob.glob(f'{train}/data/*')):
@@ -327,6 +368,7 @@ def side_files(train, side):
 
 
 def training(a):
+    """The training command: data preparation, then one training run per network."""
     train = os.path.abspath(a.folder)
     training_settings(train)
     if a.slurm:
@@ -349,6 +391,9 @@ def train_model(train, m):
 
 
 def years(a):
+    """The years command: every past year's steps, then the projection years, then the check (and, unless left out,
+    the Tax-Simulator files). With --slurm the steps are submitted as jobs, each waiting for the ones it needs."""
+    # 1. Check the inputs and write the list of years.
     run = Run(a.train, a.out, a.side or f'{a.train}/sidebuild')
     past = years_from(a.past)
     future = list(range(FUTURE_FIRST, a.last_year + 1)) if a.last_year >= FUTURE_FIRST else []
@@ -360,6 +405,8 @@ def years(a):
     os.makedirs(run.out, exist_ok=True)
     open(f'{run.out}/years.txt', 'w').write(','.join(str(y) for y in past + future) + '\n')
     every = past + future
+
+    # 2. On a plain machine, run every step here, in order.
     if not a.slurm:
         for y in past:
             for s in PAST_YEAR:
@@ -371,6 +418,9 @@ def years(a):
             for y in every:
                 run.step('taxsim', y)
         return
+
+    # 3. With --slurm: one job array per past-year step, each year's task waiting for the same year's previous step;
+    #    then 2024 (after 2023), the later years (after 2024), the check (after everything) and the Tax-Simulator files.
     sl = Slurm(run.out, a.gpu_partition)
     base = ['year-step', run.train, run.out, '--side', run.side]
     arr = ','.join(str(y) for y in past)
@@ -390,7 +440,7 @@ def years(a):
     say(f'CHECK_JOB {check}')
 
 
-def main():
+def build_parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='command', required=True)
     p = sub.add_parser('training')
@@ -422,10 +472,14 @@ def main():
     p.add_argument('step', choices=PAST_YEAR + ['future', 'check', 'taxsim'])
     p.add_argument('--side', required=True)
     p.add_argument('--year', type=int)
-    a = ap.parse_args()
+    return ap
+
+
+def main():
+    a = build_parser().parse_args()
     os.chdir(os.environ.get('REBUILD_ROOT') or os.getcwd())
     assert os.path.isdir(PIPELINE), f'not a repository root: {os.getcwd()}'
-    os.umask(os.umask(0) | 0o027)
+    os.umask(os.umask(0) | 0o027)        # new files are not writable by the group or readable by others
     if a.command == 'training':
         training(a)
     elif a.command == 'years':
