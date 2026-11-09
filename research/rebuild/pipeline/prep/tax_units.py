@@ -108,6 +108,22 @@ def _parents_of(r, who_mask):
     return m1, m2
 
 
+def _lowest_pn(s, mask):
+    """For each person, the lowest person number among the members of their household selected by mask (NaN if
+    there is none)."""
+    return s.hh.map(s[mask].groupby('hh').pn.min()).to_numpy()
+
+
+def _highest_income_pn(s, mask):
+    """For each person, the person number of the member of their household selected by mask with the highest gross
+    income, the lowest person number on a tie (NaN if there is none)."""
+    t = s[mask]
+    if not len(t):
+        return np.full(len(s), np.nan)
+    mx = t.groupby('hh').gi.transform('max')
+    return s.hh.map(t[t.gi == mx].groupby('hh').pn.min()).to_numpy()
+
+
 def assign_units(r):
     """Assigns every person to one unit, as head, spouse, qualifying child or qualifying relative, by their family
     position (HHDFMX) and relationship to the householder (PERRP). The groups are taken in CBO's order: the primary
@@ -185,19 +201,9 @@ def assign_units(r):
     s = pd.DataFrame({'hh': r.hh, 'pn': pn, 'gi': gi})
     ctg = nofm_ind & np.isin(perrp, [43, 46])
     assert s[ctg].groupby('hh').size().max() <= 1 if ctg.any() else True
-
-    def ptr_min(mask):
-        return s.hh.map(s[mask].groupby('hh').pn.min()).to_numpy()
-
-    def ptr_maxgi(mask):
-        t = s[mask]
-        if not len(t):
-            return np.full(len(s), np.nan)
-        mx = t.groupby('hh').gi.transform('max')
-        return s.hh.map(t[t.gi == mx].groupby('hh').pn.min()).to_numpy()
-
-    ptrs = [ptr_min(ctg), ptr_maxgi(h == 46), ptr_maxgi(nofm_ind & np.isin(perrp, [54, 56])),
-            ptr_maxgi(nofm_ind & (perrp == 58) & ~QC & ~QR)]
+    ptrs = [_lowest_pn(s, ctg), _highest_income_pn(s, h == 46),
+            _highest_income_pn(s, nofm_ind & np.isin(perrp, [54, 56])),
+            _highest_income_pn(s, nofm_ind & (perrp == 58) & ~QC & ~QR)]
     assignee = tu_id == 999
     mom = r.mom_pn.to_numpy(); pop = r.pop_pn.to_numpy()
     for ptr in ptrs:
@@ -285,19 +291,38 @@ def reassign(r, tax_year):
     """CBO's three reassignment routines, applied in order within each household. They change who claims whom,
     never whether anyone files. The unit numbers before and after each routine are kept as tu_id0, tu_id1 and tu_id2,
     and `assignments` records which routines moved the person."""
-    dep_cut, mfs_sd = PARAMS[tax_year]
     r = r.copy()
     r['tu_id0'] = r.tu_id; r['tu_rel0'] = r.tu_rel
+    # 1. A related subfamily whose reference person could be the householder's dependent joins the householder's
+    #    unit.
+    r = _join_related_subfamilies(r, tax_year)
+    r['tu_id1'] = r.tu_id
+    # 2. Spread the youngest qualifying children between the householder's unit and each related subfamily.
+    r = _spread_children_with_subfamilies(r)
+    r['tu_id2'] = r.tu_id
+    # 3. Spread them between the householder and an unmarried partner.
+    r = _spread_children_with_partner(r)
+    # 4. Record which routines moved each person: a code of four digits, '1' followed by one digit per routine
+    #    (1 if the person's unit changed in that routine).
+    f = lambda a, b: pd.Series(np.where(a != b, '1', '0'), index=r.index)
+    r['assignments'] = '1' + f(r.tu_id0, r.tu_id1) + f(r.tu_id1, r.tu_id2) + f(r.tu_id2, r.tu_id)
+    assert ((r.tu_rel >= 1) & (r.tu_rel <= 4)).all() and (r.tu_id >= 1).all()
+    return r
+
+
+def _join_related_subfamilies(r, tax_year):
+    """Routine 1. A related subfamily whose reference person could be the householder's dependent joins the
+    householder's unit.
+
+    This applies when the reference person is the householder's child, grandchild, brother or sister, or other
+    relative. The reference person becomes the householder's qualifying child (or qualifying relative). The
+    subfamily's other members become the householder's dependents if they pass a test, and heads of their own units
+    if not. The reference person cannot be claimed as a qualifying child when their earnings are above the exemption
+    amount and they have qualifying children of their own, or above the separate-filing standard deduction and they
+    have none. They cannot be claimed as a qualifying relative when their earnings are above the exemption amount."""
+    dep_cut, mfs_sd = PARAMS[tax_year]
     g = r.hh.to_numpy()
     grp = lambda v: pd.Series(v).groupby([g, r.ffpos.to_numpy()])
-    # 1. A related subfamily whose reference person could be the householder's dependent joins the householder's
-    #    unit. This applies when the reference person is the householder's child, grandchild, brother or sister, or
-    #    other relative. The reference person becomes the householder's qualifying child (or qualifying relative).
-    #    The subfamily's other members become the householder's dependents if they pass a test, and heads of their
-    #    own units if not. The reference person cannot be claimed as a qualifying child when their earnings are
-    #    above the exemption amount and they have qualifying children of their own, or above the separate-filing
-    #    standard deduction and they have none. They cannot be claimed as a qualifying relative when their earnings
-    #    are above the exemption amount.
     sf_has_ref = grp((r.ftype == 3) & r.in_pf_ref).transform('max').to_numpy()
     n_dep_eitc = pd.Series((r.tu_rel == 3).astype(int)).groupby([g, r.tu_id.to_numpy()]).transform('sum').to_numpy()
     is_fh = (r.fheadidx == r.pn).to_numpy()
@@ -321,12 +346,16 @@ def reassign(r, tax_year):
     tu_id[m & ~QC & QR] = 1; tu_rel[m & ~QC & QR] = 4
     tu_id[m & ~QC & ~QR] = pn[m & ~QC & ~QR]; tu_rel[m & ~QC & ~QR] = 1
     r['tu_id'] = tu_id; r['tu_rel'] = tu_rel
-    r['tu_id1'] = r.tu_id
+    return r
 
-    # 2. Spread the youngest qualifying children between the householder's unit and each related subfamily whose
-    #    reference person still heads a unit. Each side's qualifying children are counted, up to 5. When one side
-    #    has two or more and the other has fewer, up to two of the youngest move across. The number depends on both
-    #    counts, as set out below.
+
+def _spread_children_with_subfamilies(r):
+    """Routine 2. Spreads the youngest qualifying children between the householder's unit and each related
+    subfamily whose reference person still heads a unit.
+
+    Each side's qualifying children are counted, up to 5. When one side has two or more and the other has fewer, up
+    to two of the youngest move across. The number depends on both counts, as set out below."""
+    g = r.hh.to_numpy()
     hsum = lambda v: pd.Series(np.asarray(v, dtype=float)).groupby(g).transform('sum').to_numpy()
     hmax = lambda v: pd.Series(np.asarray(v, dtype=float)).groupby(g).transform('max').to_numpy()
     for j in range(2, int(r.ffpos.max()) + 1):
@@ -350,11 +379,18 @@ def reassign(r, tax_year):
         r = _move_youngest(r, lambda: ((r.tu_rel == 3) & (r.tu_id == 1)).to_numpy(), ok, h2s, dest)
         r = _move_youngest(r, lambda: ((r.tu_rel == 3) & (r.tu_id == fhj)).to_numpy(), ok, s2h,
                            np.ones(len(r), dtype=np.int64))
-    r['tu_id2'] = r.tu_id
+    return r
 
-    # 3. The same spreading between the householder and an unmarried partner who heads their own unit. The number
-    #    moved toward a side is at most the number of the children who are that side's own children. Nothing moves
-    #    toward a side with no wages.
+
+def _spread_children_with_partner(r):
+    """Routine 3. Spreads the youngest qualifying children between the householder and an unmarried partner who
+    heads their own unit, by the same counts as routine 2.
+
+    The number moved toward a side is at most the number of the children who are that side's own children. Nothing
+    moves toward a side with no wages."""
+    g = r.hh.to_numpy()
+    hsum = lambda v: pd.Series(np.asarray(v, dtype=float)).groupby(g).transform('sum').to_numpy()
+    hmax = lambda v: pd.Series(np.asarray(v, dtype=float)).groupby(g).transform('max').to_numpy()
     prt = r.perrp.isin([43, 44, 46, 47]).to_numpy()
     has_partner_hh = hmax(prt & (r.hhdfmx == 50).to_numpy()) == 1
     pt_tu = hmax(np.where(prt, r.tu_id, -np.inf)); pt_rel = hmax(np.where(prt, r.tu_rel, -np.inf))
@@ -385,11 +421,6 @@ def reassign(r, tax_year):
     dest_h = np.where(np.isfinite(hd_tu), hd_tu, 0).astype(np.int64)
     r = _move_youngest(r, lambda: ((r.tu_rel == 3) & (r.tu_id == np.where(has_pt, pt_tu, -1))).to_numpy(),
                        np.ones(len(r), bool), p2h, dest_h)
-    # 4. Record which routines moved each person: a code of four digits, '1' followed by one digit per routine
-    #    (1 if the person's unit changed in that routine).
-    f = lambda a, b: pd.Series(np.where(a != b, '1', '0'), index=r.index)
-    r['assignments'] = '1' + f(r.tu_id0, r.tu_id1) + f(r.tu_id1, r.tu_id2) + f(r.tu_id2, r.tu_id)
-    assert ((r.tu_rel >= 1) & (r.tu_rel <= 4)).all() and (r.tu_id >= 1).all()
     return r
 
 
