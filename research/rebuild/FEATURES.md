@@ -624,8 +624,8 @@ added on every run.
 
 **The PUF's four aggregate records, rebuilt.** The 2015 PUF holds 1,232.78 returns in four records of group means:
 negative AGI (RECID 999996, 140.31 returns), $0 to $10 million (999997, 233.47), over $10 million to $100 million
-(999998, 394) and over $100 million (999999, 465). They are rebuilt from generated records (synthetic filing, 2015
-dollars), then grown to the year:
+(999998, 394) and over $100 million (999999, 465). They are rebuilt from generated records in 2015 dollars, then
+grown to the year (`top_hidden.rebuild_hidden_returns`):
 
 1. Candidates: an extra filer batch from each network, weighted to the 2015 PUF.
 2. Selection, as SOI selected the aggregated returns: the top 400 by AGI, the 30 highest of each income item, the 30
