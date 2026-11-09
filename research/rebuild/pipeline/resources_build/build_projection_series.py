@@ -1,8 +1,9 @@
-"""Builds three series in resources/growth/ for the years after the last SOI tables:
-z1_household_net_worth.csv (Z.1 table S1M.b, release of 11 September 2026, households and nonprofits' net worth at
-each fourth quarter; after the last observed year, held at that year's ratio to nominal GDP), ss_area_population.csv
-(the Social Security area population from Macro-Projections, CBO's January 2026 demographic projections), and
-cbo_individual_income_tax.csv (CBO's February 2026 individual income tax projections, one row per concept and year).
+"""Builds three series in resources/growth/ for the years after the last SOI tables. It is run by hand.
+- z1_household_net_worth.csv: the net worth of households and nonprofits at each fourth quarter (Z.1 table S1M.b,
+  release of 11 September 2026). After the last observed year, it is held at that year's ratio to nominal GDP.
+- ss_area_population.csv: the Social Security area population from Macro-Projections (CBO's January 2026 demographic
+  projections).
+- cbo_individual_income_tax.csv: CBO's February 2026 individual income tax projections, one row per concept and year.
 
     python -I research/rebuild/pipeline/resources_build/build_projection_series.py <Z.1 csv zip> <Macro-Projections folder> <CBO details csv> <out folder>
 """
@@ -16,10 +17,12 @@ z1_zip, mp, cbo, out = sys.argv[1:5]
 
 
 def macro(name):
+    """The rows of a Macro-Projections file."""
     with open(os.path.join(mp, name)) as f:
         return list(csv.DictReader(f))
 
 
+# Nominal GDP, and the population (the sum of every married and unmarried group), by year.
 rows = macro('historical.csv') + macro('projections.csv')
 gdp = {int(float(r['year'])): float(r['gdp']) for r in rows if r.get('gdp') not in ('', 'NA', None)}
 pop = {}
@@ -30,6 +33,7 @@ for r in rows:
     if all(v not in ('', 'NA') for v in vals) and cols:
         pop[y] = sum(float(v) for v in vals)
 
+# Net worth at each fourth quarter, in dollars (Z.1 publishes millions).
 with zipfile.ZipFile(z1_zip) as z:
     text = z.read('csv/S1M_b.csv').decode()
 rd = list(csv.reader(io.StringIO(text)))

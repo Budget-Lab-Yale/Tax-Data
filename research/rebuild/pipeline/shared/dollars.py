@@ -18,8 +18,8 @@ from shared import common
 from shared import translate as TR
 
 # The order of the amounts. Each amount's random draws come from its own stream, numbered by its place in this
-# order, so the order must not change. Amounts that are no longer drawn (kg_other, retirement_gross, ss_taxable) keep
-# their places, and a new amount goes at the end, so that no other amount's draws change.
+# order, so the order must not change. Amounts that are not drawn (kg_other, retirement_gross, ss_taxable) keep their
+# places, and a new amount goes at the end, so that no other amount's draws change.
 META = common.meta()
 OVERTIME = list(META['cps_structure'].get('overtime', []))
 # Amounts placed after all the others, in this order

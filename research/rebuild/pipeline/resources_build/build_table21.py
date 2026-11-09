@@ -1,7 +1,8 @@
-"""Adds a group of categories to resources/table21_2015_2023.csv from SOI Table 2.1, in the file's seven AGI
-groups, replacing that group's rows and keeping every other row byte for byte. The groups: state_local, state and
-local taxes; charity, cash and non-cash contributions as itemizers report them. A grouped CV treats the published
-cells as independent; a group with a missing CV or value is left missing.
+"""Adds a group of categories to resources/table21_2015_2023.csv from SOI Table 2.1 (itemized deductions), in the
+file's seven AGI groups. It replaces that group's rows and keeps every other row byte for byte. It is run by hand.
+The groups are state_local (state and local taxes) and charity (cash and non-cash contributions, as itemizers report
+them). Each AGI group adds up several published cells; its coefficient of variation (CV) treats the cells' sampling
+errors as independent. A group with a missing CV or value is left missing.
 
     python -m resources_build.build_table21 <state_local|charity> <soi_cv.csv written by prep/soi_cv.py>
 """
@@ -23,9 +24,10 @@ GROUPS = [(-np.inf, 25000, 'under $25,000'), (25000, 50000, '$25,000–$50,000')
 
 
 def state_local_lines(year, stat):
-    """The calculator's claimed taxes are state and local taxes only, without 'other taxes'. From 2018 that is the
-    line after the $10,000 cap. Before 2018 SOI has no single line: the amount is the three state and local lines,
-    and the count is all returns deducting taxes, within 0.3% of the state and local count where both exist."""
+    """The Table 2.1 lines of state and local taxes in a year, for stat ('count' or 'amount'). The calculator's
+    deducted taxes are state and local taxes only, without 'other taxes'. From 2018 on that is the line after the
+    $10,000 cap. Before 2018 SOI has no single line: the amount is the sum of the three state and local lines, and the
+    count is all returns deducting taxes, which is within 0.3% of the state and local count where both exist."""
     n = 'number of returns' if stat == 'count' else 'amount'
     if year >= 2018:
         return [TAXES + 'limited state and local taxes > ' + n]
@@ -36,6 +38,7 @@ def state_local_lines(year, stat):
 
 
 def charity_lines(part):
+    """A function giving the Table 2.1 line of one kind of contribution, for any year and stat."""
     def lines(year, stat):
         return [CHARITY + part + ('number of returns' if stat == 'count' else 'amount')]
     return lines
@@ -48,8 +51,9 @@ CATEGORIES = {'state_local': {'taxes_state_local': state_local_lines},
 
 
 def grouped(d, items, stat, lo, hi):
-    """(value, cv, the cells used) of the items' published cells inside the AGI group [lo, hi) (d: the year's cells
-    in that range), the items added up and their standard errors combined as independent."""
+    """The value, the CV and a list of the cells used, for the items' published cells inside the AGI group [lo, hi)
+    (d: the year's cells in that range). The items are added up, and their standard errors are combined as if
+    independent (the square root of the sum of squares)."""
     parts, refs, bad_any, nocv = [], [], False, False
     for item in items:
         sub = d[d.item == item].sort_values('lo')
@@ -71,6 +75,8 @@ def grouped(d, items, stat, lo, hi):
 
 
 def main(group, cv_path):
+    """Replaces the group's rows of the file with rows built from soi_cv.csv (cv_path), one per category, year and AGI
+    group."""
     cats = CATEGORIES[group]
     cv = pd.read_csv(cv_path, keep_default_na=False, na_values=[''], low_memory=False)
     cv = cv[(cv.table.astype(str) == '2.1') & (cv.panel == 'All returns')]

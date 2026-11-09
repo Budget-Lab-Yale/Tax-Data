@@ -1,10 +1,12 @@
-"""Builds resources/non_micro/irs_wages_by_business_type.csv: wages paid by type of business, in thousands of
-dollars as SOI prints them, every year published. Run by hand when SOI posts a new year; each download sits in its own
-empty folder <folder>/<file stem>/ and is read as data only.
+"""Builds resources/non_micro/irs_wages_by_business_type.csv: the wages that businesses pay, by type of business, in
+thousands of dollars as SOI prints them, for every year published. It is run by hand when SOI posts a new year. Each
+download sits in its own empty folder, <folder>/<file stem>/, and is read as data only.
+
     python -I research/rebuild/pipeline/resources_build/build_irs_wages.py <folder with the downloads> <output csv>
 
-  sole_prop  Sole Proprietorship Table 1: payroll (salaries and wages plus labor in cost of sales), all nonfarm
-             industries. Schedule C only: SOI publishes no such line for Schedule F.
+The lines read, by type of business:
+  sole_prop  Sole Proprietorship Table 1: payroll (salaries and wages plus labor in the cost of sales), all nonfarm
+             industries. This covers Schedule C only: SOI publishes no such line for Schedule F.
   part       Partnership Table 1: salaries and wages. Guaranteed payments to partners are kept with used = 0, because
              they are not W-2 wages.
   scorp      Corporation Table 9 (Form 1120-S): salaries and wages, and compensation of officers.
@@ -23,6 +25,7 @@ BASE = 'https://www.irs.gov/pub/irs-soi/'
 
 
 def grid(p):
+    """The rows of a workbook's first sheet, as lists of cell values (.xls or .xlsx)."""
     if p.endswith('.xls'):
         sh = xlrd.open_workbook(p).sheet_by_index(0)
         return [sh.row_values(r) for r in range(sh.nrows)]
@@ -31,21 +34,25 @@ def grid(p):
 
 
 def clean(x):
+    """A cell as text, with its spaces evened out."""
     return re.sub(r'\s+', ' ', str(x if x is not None else '')).strip()
 
 
 def num(x):
+    """A cell as a number. Stops if it is not a number."""
     assert isinstance(x, (int, float)), f'not a number: {x!r}'
     return float(x)
 
 
 def one(g, label, col):
+    """The number in column col of the first row whose label starts with label."""
     r = [r for r in g if clean(r[0]).lower().startswith(label)]
     assert r, f'no row {label}'
     return num(r[0][col])
 
 
 def read(folder, yy):
+    """The rows of tax year 2000 + yy, from whichever of the three downloads exist for that year."""
     y, rows = 2000 + yy, []
     def row(kind, line, value, p, used=1):
         rows.append({'year': y, 'business_type': kind, 'line': line, 'thousands': value, 'used': used,
