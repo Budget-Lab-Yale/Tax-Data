@@ -1,22 +1,9 @@
-"""Every published SOI number the pipeline uses, from the shared mirror of SOI
-cells (settings.json, paths.raw.soi_mirror). Amounts are in dollars (SOI
-publishes thousands).
+"""Every published SOI number the pipeline uses, read from the shared mirror of SOI tables. Amounts are in dollars
+(SOI publishes thousands).
 
-1. Targets: Publication 1304, Tables 1.4 and 1.2 (and Table 3.3's
-   credits and taxes), the PUF year and the target year, all returns, by size of AGI. A cell SOI blanked and merged into its
-   neighbour for disclosure stays blank with flag 'combined'; published_cells()
-   puts it back together. Table 1.2's separate, head-of-household and single
-   returns are added up as 'nonjoint'. Written to common.TARGETS/soi.csv: year,
-   table, filing_status, lo, hi, label, variable, statistic, value, flag (the
-   label of a published total is 'all'); read back with load(), and a return
-   count with returns().
-2. Totals: Table 1.4's all-returns totals for every year, read directly by
-   totals(); soi_item() and per_return_growth() look items up in them by
-   pattern, so a line SOI renamed (wages in tax year 2022) is still found.
-3. Table 1.6: returns by filing status and the primary filer's age, all AGI,
-   every year (table_1_6), for the tax data (translate.py).
-4. FAMILIES: the business families, each with its SOI line and its PUF parts
-   (which families the tilt targets is set in targets_config/catalog.yaml).
+build() writes the Table 1.4, 1.2 and 3.3 targets by size of AGI, for the PUF year and the target year, to
+targets/soi.csv. The rest are lookups: Table 1.4's all-returns totals and growth per return, carried past SOI's last
+year by CBO's projections; Table 1.6's returns by filing status and age; and the business income families.
 """
 import os
 import re
@@ -38,9 +25,7 @@ FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (st
     'estate_trust': {'soi': 'estate and trust', 'income': ['estate'], 'loss': ['estate_loss']},
     'farm': {'soi': 'farm', 'income': ['farm'], 'loss': []},
     'farm_rental': {'soi': 'farm rental', 'income': ['farm_rent'], 'loss': []},
-    # From tax year 2021 Table 1.4 publishes partnership and S corporation income separately, with no combined line:
-    # the two halves of pship_scorp, each netted on its own, for the years that
-    # publish them (targets_config/<year>/targets.yaml names them in business_top from 2021)
+    # the two halves of pship_scorp, which Table 1.4 publishes separately from tax year 2021
     'partnership': {'soi': 'partnership', 'income': ['part_passive', 'part_active'],
                     'loss': ['part_passive_loss', 'part_active_loss', 'part_179']},
     'scorp': {'soi': 's corporation', 'income': ['scorp_passive', 'scorp_active'],
@@ -105,10 +90,8 @@ T14 = {  # SOI item -> (variable, statistic)
     'statutory adjustments > alimony paid > number of returns': ('alimony_paid', 'count'),
     'statutory adjustments > alimony paid > amount': ('alimony_paid', 'amount'),
 }
-# Table 3.3, tax liability, tax credits and tax payments by size of AGI: the credits and taxes
-# the calculator computes (SOI item -> (variable, statistic)). The earned income credit is the whole credit (the part
-# used against tax and the refundable part); income tax after credits is income tax before credits less every credit
-# used against it; total income tax adds the net investment income tax and the other income taxes.
+# Table 3.3 (tax liability, credits and payments by size of AGI): the credits and taxes the calculator computes. The
+# earned income credit is the whole credit, both the part used against tax and the refundable part.
 T33 = {
     'tax credits > child and other dependent tax credit > number of returns': ('ctc_nonrefundable', 'count'),
     'tax credits > child and other dependent tax credit > amount': ('ctc_nonrefundable', 'amount'),
@@ -153,7 +136,7 @@ FILES = {'1.4': 'bysize_income_sources.csv', '1.2': 'bysize_marital_status.csv',
 TABLE_ITEMS = {'1.4': T14, '1.2': T14, '3.3': T33}   # each table's items (Table 1.2: its returns, by T14's name)
 
 
-# ---- 1. the targets -----------------------------------------------------------------------
+# ---- the targets ---------------------------------------------------------------------------
 def read(table, years):
     t = pd.read_csv(os.path.join(MIRROR, FILES[table]), dtype=str, keep_default_na=False)
     t = t[t['tax_year'].isin([str(y) for y in years]) & (t['table'] == table) & (t['panel'] == 'All returns')]
@@ -212,9 +195,8 @@ def returns(soi, year, table='1.4', status='all'):
 
 
 def published_cells(soi, year, variable, stat, table='1.4', status='all'):
-    """An item's cells by AGI as published in a table (Table 1.4 unless said), lowest first, as (lo, hi, value).
-    A non-blank 'combined' cell holds its own bracket and the blank ones after it,
-    so it becomes one cell spanning them."""
+    """An item's cells by AGI as published in a table, lowest first, as (lo, hi, value). A cell SOI blanked for
+    disclosure is merged with the 'combined' cell that holds it, into one cell spanning both."""
     s = soi[(soi['year'] == year) & (soi['table'].astype(str) == table) & (soi['filing_status'] == status)
             & (soi['variable'] == variable) & (soi['statistic'] == stat) & (soi['label'] != 'all')]
     out = []
@@ -240,7 +222,7 @@ def published_cells(soi, year, variable, stat, table='1.4', status='all'):
     return [(lo, hi, v) for lo, hi, v, _ in out]
 
 
-# ---- 2. totals for growth ------------------------------------------------------------------
+# ---- totals for growth ---------------------------------------------------------------------
 NET = lambda name: [(name + ' > net income', 1), (name + r' > net loss.*', -1)]
 SOI_ITEMS = {  # item: list of (SOI item pattern, sign), or (pattern, sign, whether its returns count: default yes)
     'wages': [('(salaries and wages|total wages > total)', 1)],   # SOI's name from tax year 2022
@@ -296,8 +278,8 @@ def total_years():
     return sorted({y for y, _ in totals()})
 
 
-# Lines SOI later published in pieces: from tax year 2021, partnership and S corporation income separately. A year
-# without the combined line adds the pieces up; its return count then counts a return with both twice.
+# Lines SOI publishes in pieces in some years (partnership and S corporation income from tax year 2021). A year
+# without the combined line adds the pieces up, so its return count counts a return with both twice.
 SPLIT = {'partnership and s corporation': ['partnership', 's corporation']}
 _GAPS = set()
 _HELD = set()   # (line, year) pairs per_return_growth held at an earlier year, each said once
@@ -312,7 +294,7 @@ def soi_get(y, pattern, stat):
             if pattern.startswith(whole + ' > '):
                 return sum(soi_get(y, p + pattern[len(whole):], stat) for p in pieces)
         # a line missing in one year only (pensions in 2018, published with IRAs): the geometric mean of the years
-        # either side, a placeholder
+        # either side
         near = [[n for (yy, n) in val if yy == b and re.fullmatch(pattern + ' > ' + stat, n)] for b in (y - 1, y + 1)]
         if all(len(h) == 1 for h in near):
             if (y, pattern, stat) not in _GAPS:
@@ -358,9 +340,8 @@ def soi_item(y, item, base=None, rows=None, absolute=False, combined_counts=Fals
 
 
 def carried(f, y, concept=None):
-    """f(y) for a year in Table 1.4; past its last year, f(last) times CBO's growth of the concept per return (CBO's
-    February 2026 individual income tax projections, cbo_growth: our own last level
-    times an outside change). A concept with no projection series stops instead of repeating a past growth rate."""
+    """f(y) for a year in Table 1.4; past its last year, f(last) times CBO's growth of the concept per return. A
+    concept with no projection series stops the run rather than repeat a past growth rate."""
     last = total_years()[-1]
     if y <= last:
         return f(y)
@@ -371,9 +352,9 @@ def carried(f, y, concept=None):
 
 
 # ---- CBO's projections, past SOI's last year ----------------------------------------------------------------------
-# CBO's February 2026 individual income tax details (Revenue Projections by Category, sheet 3; calendar years 2022-2036;
-# research/rebuild/resources/growth/cbo_individual_income_tax.csv). Each SOI item grows past SOI's last year with the
-# CBO line closest to it, per return (CBO's amount over CBO's number of returns): CBO publishes no number with each item.
+# CBO's February 2026 individual income tax details (Revenue Projections by Category, sheet 3; calendar years
+# 2022-2036; resources/growth/cbo_individual_income_tax.csv). Each SOI item grows with the closest CBO line per
+# return, CBO's amount over its total number of returns, because CBO publishes no count of returns with each item.
 CBO_CONCEPT = {
     'wages': 'Salaries and wages', 'txbl_int': 'Taxable interest and ordinary dividends',
     'div_ord': 'Taxable interest and ordinary dividends', 'dividends': 'Qualified dividends',
@@ -397,9 +378,9 @@ def cbo_level(concept, y):
     return float(d['value'].iloc[0])
 
 
-# Past CBO's last year used (settings tilt.projection.cbo_last_year) each concept
-# continues at the growth of a Macro-Projections aggregate per return (production's long-run mapping, src/project_puf.R
-# income_far), the number of returns at the growth of adults with a couple counted once (projection_growth.long_run_growth)
+# Past CBO's last year used (settings tilt.projection.cbo_last_year), each concept grows with a Macro-Projections
+# aggregate per return, as the production pipeline's long-run projection does; the number of returns grows with adults,
+# a couple counted once.
 CBO_LONG_RUN = {
     'Salaries and wages': 'gdp_wages', 'Taxable interest and ordinary dividends': 'gdp_interest',
     'Qualified dividends': 'gdp_corp', 'Capital gain or loss': 'gdp_corp',
@@ -435,13 +416,12 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
         (a0, c0), (a1, c1) = (soi_item(a, item, b, rows, absolute, combined),
                               soi_item(b, item, a, rows, absolute, combined))
         if not (c1 > 0 and a1 != 0):
-            # a line SOI stopped publishing after the law repealed the item (the domestic production
-            # activities deduction from 2018-2020, the tuition and fees deduction from 2021): not grown past the last
-            # year it was published; the calculator applies the year's law (the item is zero under it)
+            # a line SOI stopped publishing after the item was repealed (the domestic production activities
+            # deduction from 2018, the tuition and fees deduction from 2021): held at its growth to the last year
+            # published; the calculator applies the year's law, under which the item is zero
             prev = [y for y in total_years() if a < y < b and soi_item(y, item, a, rows, absolute)[1] > 0]
             assert prev, f'{item or rows}: no SOI amount in {b} and none between {a} and {b}'
-            # said in the log once per line and year: this path takes any line with no amount
-            # in year b, not only the two repealed deductions it was written for, so it must not pass unseen
+            # logged once per line and year, because any line with no amount in year b takes this path
             if (str(item or rows), b) not in _HELD:
                 _HELD.add((str(item or rows), b))
                 common.say(f'SOI {b}: no amount for {item or rows}; held at its growth to {prev[-1]}, the last year '
@@ -449,9 +429,8 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
             return g(prev[-1])
         return (a1 / c1) / (a0 / c0)
     if item == 'gross_ss':
-        # gross benefits past SOI's last year grow with SSA's and CBO's benefits paid, not CBO's taxable
-        # benefits (taxable grows faster: the thresholds are not indexed); projection_growth.gross_ss_between stops the
-        # run if a year has no source
+        # gross benefits past SOI's last year grow with benefits paid, not CBO's taxable benefits, which grow faster
+        # because the thresholds are not indexed
         from scale import projection_growth as PG
         last = total_years()[-1]
         y = common.TARGET_YEAR if year is None else year
@@ -467,7 +446,7 @@ def all_returns(y):
     return carried(lambda b: totals()[(b, 'number of returns')], y, 'Number of returns')
 
 
-# ---- 3. Table 1.6: returns by filing status and the primary filer's age -----------------------
+# ---- Table 1.6: returns by filing status and the primary filer's age ---------------------------
 T16_PANELS = {'joint': ['Returns of married persons filing jointly and returns of surviving spouses',
                         'Returns of married persons filing jointly', 'Returns of surviving spouses'],   # before 2015: two panels
               'separate': ['Returns of married persons filing separately'],

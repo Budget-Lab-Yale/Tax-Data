@@ -1,38 +1,9 @@
-"""The split of a married couple's earnings (settings "earn_split").
+"""The split of a married couple's earnings, on the PUF and the CPS (settings "earn_split").
 
-The PUF's two Schedule SE fields: E30400 is the couple's net earnings from self-employment (Schedule SE, after the
-92.35% factor), E30500 the spouse's part of it. The PUF demographic booklet says so (the primary's earnings are
-E30400 - E30500), and the data agree: E30400 is never below E30500, E30400 alone equals 0.9235 x Schedules C and F on
-joint returns with no partnership income, and EARNSPLIT is reproduced on 99.9% of joint returns with no wages.
-
-E30400 is read as the booklet defines it: the lesser of net earnings and the room under the Social
-Security wage base. part_se_from_schedule_se reads net earnings from the
-reported tax, E09400, above that cap. EARNSPLIT and E30500 stay on the capped amounts.
-
-The spouse's share of the couple's self-employment income (slot spouse_se_share, build_table.PUF_SHARES): on the PUF,
-E30500 / E30400 on a joint return with E30400 above zero and some Schedule C, F or part_se; missing (not shown, not
-scored) on a joint return with such income and E30400 zero: a loss, under the $400 floor, or wages at the cap (the
-tax is then all Medicare, and a split matters only if one spouse has room under the cap). On the CPS (the non-filers' source), the
-spouse's share of the couple's Schedule SE earnings computed the same way from each person's self-employment income
-(se_earnings); where the couple has self-employment income but no Schedule SE earnings, the spouse's share of the
-income itself, cut to 0-1, as before.
-
-EARNSPLIT (slot earn_split, four codes) is the primary filer's share of the couple's earnings, wages plus Schedule SE
-earnings: 1 the primary earned 75% or more, 2 more than 25% and less than 75%, 3 less than 25%; 0 not present (a
-return that is not joint, or a joint return with no earnings). On the PUF and the CPS, absent on the SCF, CEX and SIPP.
-  PUF: the demographic file's code; 0 on returns that are not joint. Joint returns with no demographics (most with AGI
-       above $400,000): 0 where they have no earnings, else probabilities over codes 1-3 ("step 0" for the split, as
-       ages.py does for the age range), and train.py draws a code from them at the start of every pass: a gradient
-       boosted classifier (scikit-learn's HistGradientBoostingClassifier) fitted on the joint returns with
-       demographics and earnings, on what the return shows about the split (the lowest and highest primary's share
-       its wages and Schedule SE split allow, the wage share of earnings, wages, Schedule SE earnings, AGI, children,
-       Social Security, pensions), then cut to the codes those bounds allow. Trees carry the pattern at the top of
-       the known range (AGI up to about $400,000) flat beyond it; a multinomial logit, linear in log AGI, carried
-       the middle's pattern upward instead. Checked by fitting below AGI $250,000 and predicting the known codes at
-       $250,000-400,000 (data/earn_split_step0_check.csv), and against the booklet's full-sample counts.
-  CPS: the code of the couple's own earnings on the same definition (code_of, se_earnings).
-At generation the wage share is drawn inside the range the code and the drawn self-employment split allow (in bands in
-generate.py, exactly in dollars.py), with each person's earnings capped there as E30400 is (dollars.wage_share_bounds).
+Reads the PUF's Schedule SE fields (E30400, the couple's net earnings up to the Social Security wage base; E30500,
+the spouse's part) and the demographic file's EARNSPLIT code. Gives part_se, the spouse's share of Schedule SE
+earnings and the earnings split code, with probabilities from a classifier where a joint return has no demographics.
+FEATURES.md, "The PUF", has the method.
 """
 import numpy as np
 import pandas as pd
@@ -75,11 +46,11 @@ def half_rounding_unit(x):
 
 
 def schedule_se_earnings(tax, capped):
-    """The couple's Schedule SE net earnings, read from the reported tax. tax: E09400; capped: E30400, the lesser of
-    net earnings and the room under the Social Security wage base. Tax is 12.4% of E30400 plus 2.9% of net earnings, so
-    net earnings are (tax - 12.4% x E30400) / 2.9%; where the tax is within rounding of 15.3% x E30400 the cap does not
-    bind and net earnings are E30400 itself (dividing the tax by 2.9% would blow up its rounding). Example: a partner
-    with no wages in 2015, tax $43,694, E30400 $118,500: (43,694 - 14,694) / 0.029 = $1,000,000."""
+    """The couple's Schedule SE net earnings, read from the reported tax (E09400) and E30400, the lesser of net
+    earnings and the room under the wage base. The tax is 12.4% of E30400 plus 2.9% of net earnings, so net earnings
+    are (tax - 12.4% x E30400) / 2.9%. Where the tax is within rounding of 15.3% x E30400 the cap does not bind and
+    net earnings are E30400, which avoids magnifying the tax's rounding. Example: a partner with no wages, tax $43,694,
+    E30400 $118,500: (43,694 - 14,694) / 0.029 = $1,000,000."""
     tax, capped = np.asarray(tax, float), np.asarray(capped, float)
     both = SE_RATE_SS + SE_RATE_MEDICARE
     same = np.abs(tax - both * capped) <= half_rounding_unit(tax) + both * half_rounding_unit(capped)
@@ -87,14 +58,10 @@ def schedule_se_earnings(tax, capped):
 
 
 def part_se_from_schedule_se(tax, capped, sch_cf, partnership):
-    """part_se: Schedule SE earnings other
-    than Schedules C and F, before the 92.35% factor, so that Schedules C and F plus part_se are the self-employment
-    income whose tax is the reported tax. On a return with any partnership income or loss: net earnings / 0.9235 less
-    C and F. On any other return the same difference where net earnings differ from 92.35% of C and F beyond rounding,
-    else zero; also zero where net earnings are zero and C and F are at most $433 (no tax either way, a loss included).
-    It can be negative: net earnings below 92.35% of C and F (a couple's profit and loss netted the other way, or
-    C and F that Schedule SE did not tax). Not whole dollars. Arguments are E09400, E30400, E00900 + E02100, and whether
-    the return has partnership income or loss."""
+    """part_se: self-employment income other than Schedules C and F, before the 92.35% factor, so that Schedules C
+    and F plus part_se is the income whose tax is the reported tax. It is net earnings / 0.9235 less C and F on a
+    return with partnership income or loss, and on other returns where that difference is beyond rounding; else zero.
+    It can be negative. Arguments: E09400, E30400, E00900 + E02100, and whether the return has partnership income."""
     sch_cf = np.asarray(sch_cf, float)
     net = schedule_se_earnings(tax, capped)
     total = np.where(net > 0, net / SE_FACTOR, 0.0)
@@ -130,7 +97,7 @@ def wage_share_bounds(wages, e1, e2, code):
     return np.where(on, lo, np.nan), np.where(on, hi, np.nan), unreachable
 
 
-# ---- the PUF: observed codes and step 0 ---------------------------------------------------------------------------
+# ---- the PUF: observed codes, and probabilities where there is none ----------------------------------------------
 def _frame(puf):
     p = puf[PUF_FIELDS].copy()
     g = pd.read_csv(common.SETTINGS['ages']['puf_demographics'], usecols=['RECID', 'EARNSPLIT'])
@@ -184,9 +151,9 @@ def _fit_predict(known, target):
 
 
 def puf_codes(puf):
-    """Per PUF record (puf: build_table.read_puf, aggregate records dropped): earn_split's code (-1 where step 0 gives
-    probabilities instead) and an (n, 4) array of probabilities (zero rows where the code is known). Writes the
-    step 0 check (data/earn_split_step0_check.csv) and logs a summary."""
+    """Per PUF record: earn_split's code (-1 where probabilities stand in for it) and an (n, 4) array of
+    probabilities (zero rows where the code is known). Writes a check of the classifier on known codes at higher
+    AGI (data/earn_split_step0_check.csv)."""
     p = _frame(puf)
     joint = (p.MARS == 2).to_numpy()
     have = p.EARNSPLIT.notna().to_numpy()

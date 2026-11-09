@@ -1,8 +1,6 @@
-"""SOI's published coefficients of variation: the CV workbooks in <out>/targets/soi_cv/raw/ (downloaded by hand; see
-reweight/errors.py) parsed into <out>/targets/soi_cv/soi_cv.csv, one row per published cell with its value from the SOI
-mirror and its CV, and soi_cv_parse_log.csv. The standard errors of the reweighting read soi_cv.csv (errors.soi_cells).
-
-  python -m prep.soi_cv
+"""SOI's published coefficients of variation. Parses the CV workbooks in targets/soi_cv/raw/ (downloaded by hand)
+and joins each CV to its published cell in the SOI mirror; writes targets/soi_cv/soi_cv.csv, which the reweighting's
+standard errors read (errors.soi_cells), and a parse log.
 """
 import glob
 import os
@@ -37,10 +35,8 @@ def agi_range(label):
 
 
 def read_cv_workbook(path):
-    """One CV workbook's cells: panel, row_label, lo, hi, col_seq (SOI's column number), cv_pct, cv_flag. The column
-    numbers are the header row that numbers the columns (1), (2), ...; a row labelled '<panel>, total' opens a panel.
-    SOI marks a combined cell by its number format ('** '), as the mirror's reader does; a cell with no number has
-    no CV (cv_pct missing)."""
+    """One CV workbook's cells: panel, row_label, lo, hi, col_seq (SOI's column number), cv_pct, cv_flag. SOI marks a
+    combined cell by its number format ('** '); a cell with no number has no CV."""
     import xlrd
     book = xlrd.open_workbook(path, formatting_info=True)
     sh = book.sheet_by_index(0)
@@ -56,8 +52,8 @@ def read_cv_workbook(path):
         if len(found) > len(cols) and sorted(found.values())[:3] == [1, 2, 3]:
             best, cols = r, found
     assert len(cols) >= 3, f'{path}: no row of column numbers'
-    # SOI's column numbers run 1, 2, 3, ... left to right. One misprint is known (TY2018 Table 3.3 CV prints column
-    # 111 as "11"): a single number out of a run whose neighbours agree on it is set to what they imply.
+    # SOI's column numbers run 1, 2, 3, ... left to right. A single number out of a run whose neighbours agree on it is
+    # a misprint (the 2018 Table 3.3 workbook prints column 111 as "11") and is set to what they imply.
     order = sorted(cols)
     for a, b, c in zip(order, order[1:], order[2:]):
         if cols[b] != cols[a] + 1 and cols[c] == cols[a] + 2:
@@ -94,9 +90,7 @@ def read_cv_workbook(path):
 
 
 def build_soi_cv():
-    """Parses every workbook in <out>/targets/soi_cv/raw and joins each CV to its published cell in the mirror; writes
-    soi_cv.csv (one row per published cell of a year with a CV workbook: tax_year, table, panel, row_label, lo, hi,
-    col_seq, item, statistic, value, value_flag, cv_pct, cv_flag) and soi_cv_parse_log.csv."""
+    """Parse every workbook and join each CV to its published cell in the mirror; write soi_cv.csv and the log."""
     files = sorted(glob.glob(f'{CV_DIR}/raw/[0-9][0-9]in[0-9][0-9]cv.xls'))
     assert files, f'no CV workbooks in {CV_DIR}/raw'
     mirror = {}

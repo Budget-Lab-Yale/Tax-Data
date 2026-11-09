@@ -1,23 +1,8 @@
-"""sipp_read.py: the SIPP public-use person-month files, only the columns the pipeline uses (roster_sipp.py).
+"""The SIPP public-use person-month files, only the columns roster_sipp.py uses.
 
-The files (settings paths.raw.sipp, a folder; sipp.releases maps each reference year to its file) are pipe-delimited,
-one row per person and month of the reference year (MONTHCODE 1-12), several GB each, so only the columns below are
-read (pyarrow, include_columns) and the result is cached as a parquet file in the run's data folder
-(sipp_raw_<year>.parquet); delete the cache to read the file again. The 2014 panel names its columns in mixed case;
-every name is read case-blind and stored in upper case. A zipped release (2023: pu2024_csv.zip) is read from the one
-CSV inside it.
-
-OPTIONAL columns are read where the release has them: the own elective deferrals at the main
-employer (settings deferrals.sipp_item, TSCNTAMT_401, in the 2022 and 2024 releases only). A cached file that lacks an
-optional column the release has is read again.
-
-SHARED columns (roster_sipp.py, the units' dividends, gross Social Security and pensions), required
-in every release (all five have them): income from stocks and mutual funds (TINC_STMF, a yearly amount repeated in
-every month), retirement income items 1-8 (TRET1AMT-TRET8AMT, monthly; TSSSAMT, monthly Social Security, is in INCOME
-already) and the questions that decide who is asked each amount, which explain its missing values: received Social
-Security for oneself this month (ESSSMNYN), received retirement income item k this month (ERET1MNYN-ERET8MNYN), and
-owned stocks or mutual funds in the year, alone, jointly with the spouse or jointly with others (EOWN_ST, EOWN_MF,
-EJSOWNST, EJSOWNMF, EJOOWNST, EJOOWNMF). A cached file that lacks one of them is read again.
+Each release (settings sipp.releases) is a pipe-delimited file of several GB, one row per person and month. Only the
+columns below are read, and the result is cached in the data folder as sipp_raw_<year>.parquet; a cache that lacks a
+column the release has is read again. Column names are matched without regard to case and stored in upper case.
 """
 import os
 import zipfile
@@ -35,15 +20,17 @@ PERSON = ['SSUID', 'PNUM', 'MONTHCODE', 'ERESIDENCEID', 'THHLDSTATUS', 'SPANEL',
           'RFAMREF']
 INCOME = ['TPEARN', 'TSSSAMT', 'TSSI_AMT', 'TUC1AMT', 'TUC2AMT', 'TPPRPINC', 'TPOTHINC', 'TPTOTINC']
 JOBS = 7            # job lines 1-7: earnings (MSUM), industry (IND) and class of worker (CLWRK)
-TIP_JOBS = 4        # tips (TXAMT) are asked of job lines 1-4 only (5-7 are suppressed), as in production's annualize.R
+TIP_JOBS = 4        # tips (TXAMT) are published for job lines 1-4 only
 JOB_COLS = [f'TJB{j}_MSUM' for j in range(1, JOBS + 1)] + [f'TJB{j}_IND' for j in range(1, JOBS + 1)] + \
     [f'EJB{j}_CLWRK' for j in range(1, JOBS + 1)] + [f'TJB{j}_TXAMT' for j in range(1, TIP_JOBS + 1)]
 RET_ITEMS = 8       # retirement income items 1-8 (company or union, federal, state, local, military, railroad, reserve, other)
 OWNERSHIP = ['EOWN_ST', 'EOWN_MF', 'EJSOWNST', 'EJSOWNMF', 'EJOOWNST', 'EJOOWNMF']
+# income from stocks and mutual funds (yearly), retirement income items (monthly), and the questions that decide who
+# is asked each amount: received Social Security, received retirement item k, owned stocks or mutual funds
 SHARED = ['TINC_STMF'] + [f'TRET{k}AMT' for k in range(1, RET_ITEMS + 1)] + \
     ['ESSSMNYN'] + [f'ERET{k}MNYN' for k in range(1, RET_ITEMS + 1)] + OWNERSHIP
 COLUMNS = PERSON + INCOME + JOB_COLS + SHARED
-OPTIONAL = [common.SETTINGS['deferrals']['sipp_item']]   # read where the release has them
+OPTIONAL = [common.SETTINGS['deferrals']['sipp_item']]   # elective deferrals, read where the release has them
 STRINGS = ['SSUID', 'ERESIDENCEID'] + [f'TJB{j}_IND' for j in range(1, JOBS + 1)]
 
 
