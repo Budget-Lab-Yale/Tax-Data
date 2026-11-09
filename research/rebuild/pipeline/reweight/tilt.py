@@ -1,42 +1,38 @@
-"""Post-training: the generated stack reweighted to the target year (settings "years"; 2019 by default).
+"""Post-training: the generated stack reweighted to the target year (settings "years").
 
-One algorithm every year (TARGETS.md S7): build the start, build the targets, tilt.
+One algorithm every year: build the start, build the targets, tilt.
 
-The start. The year's targets.yaml (targets_config/<year>/targets.yaml, read by target_list.start_spec) says which:
-  - start: generate (the default): the run's generated stack, its dollars drawn from the year's maps, each record
-    carrying its importance weight from generation;
-  - start: {from_year: s, run: <name>}: year s's tilted file, <out>/tilt/<name>/file_<s>.parquet, its tilted
-    weights in place of the importance weights, and (start_scaling dollars: per_return_growth) each record's
-    amounts grown item by item from s to the target year (grow_dollars).
-Either way the weights are then scaled (start_scaling weights; default settings tilt.prescale):
-  - filers to SOI's returns for the year and non-filers to the CPS's expected non-filers (the sum over its units of
-    weight x (1 - filer_p); start_nonfilers);
-  - "filing_status" and "demographic": filers within joint and non-joint returns to SOI's counts of each (Table 1.2);
-  - "demographic" (TARGETS.md section 4): then each batch scaled to the year's demographic cells before any other
-    target, by the same solver and the same target rows the tilt uses (prescale_demographic): filers to SOI Table
-    1.6's returns by the primary filer's age range in joint and in non-joint returns, keeping the two totals;
-    non-filers to the non-filer people targets, keeping their total. The cells stay targets in the tilt.
+The start (scale/start.py). The year's targets.yaml (targets_config/<year>/targets.yaml, read by target_list.start_spec)
+says which:
+  - start: generate: the run's generated stack, its dollars drawn from the year's maps, each record carrying its
+    importance weight from generation; the weights are then scaled, filers to SOI's returns for the year and
+    non-filers to the CPS's expected non-filers, then filers within joint and non-joint returns to SOI's counts of
+    each (Table 1.2), then each batch to the year's demographic cells before any other target, by the same solver
+    and the same target rows the tilt uses (prescale_demographic): filers to SOI Table 1.6's returns by the primary
+    filer's age range in joint and in non-joint returns, keeping the two totals; non-filers to the non-filer people
+    targets, keeping their total. The cells stay targets in the tilt;
+  - start: {from_year: s, run: <name>}: year s's tilted file, <out>/tilt/<name>/file_<s>.parquet, its weights
+    calibrated to people by age and marital status (projection_steps.step1) and each record's amounts grown item by
+    item from s to the target year (start.grow_dollars).
 
 The targets. The year's list from targets_config/ (target_list.expand), each with a value and a standard error
 (errors.py); target_list.conditions writes each as a linear condition on the weights.
 
-The non-microdata imputations (non_micro_imputations.py, settings non_micro_imputations; NEXT_STEPS item 1, Q1): run
-on the start after the prescaling, before the solve, they add new columns only (dependent filers' ages and sex, child
-credit flags, death probabilities, yearly unrealized gains, cost basis, the holding period and basis of long-term
-gains, parents' rank, and the placeholders); the ranking items rank on the prescaled start's weights. No target reads
-them yet, so the weights do not depend on them. Their checks, on the weights after the tilt, go to
-non_micro_checks.md and non_micro_check_*.csv.
+The non-microdata imputations (non_micro_imputations.py, settings non_micro_imputations): run on the start after the
+prescaling, before the solve, they add new columns only (dependent filers' ages and sex, child credit flags, death
+probabilities, yearly unrealized gains, cost basis, the holding period and basis of long-term gains, parents' rank);
+the ranking items rank on the prescaled start's weights. No target reads them, so the weights do not depend on them.
+Their checks, on the weights after the tilt, go to non_micro_checks.md and non_micro_check_*.csv.
 
-The taxes (taxes.py, settings taxes; 30 October): after the non-microdata imputations, every record's taxes under the
-year's law from tax-simulator-gpu's batch command, joined by record id (columns calc_*);
-then the year's calculator targets (kind calculator) are expanded on them and, with settings taxes.target, join the
-solve. Their fit before and after is taxes/taxes_fit.csv either way; taxes/taxes_summary.md the totals.
+The taxes (taxes.py, settings taxes): after the non-microdata imputations, every record's taxes under the year's law
+from tax-simulator-gpu's batch command, joined by record id (columns calc_*); then the year's calculator targets (kind
+calculator) are expanded on them and join the solve. Their fit before and after is taxes/taxes_fit.csv;
+taxes/taxes_summary.md the totals.
 
-The tilt. solver.solve, the one-cost reweighting (decisions 57 and 68): the weights that minimize the sum over targets
-of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, identities exact
-(settings tilt.reweighting; tau 1,000; at most 150 Newton steps in all), with a soft cap on each weight (settings
-tilt.soft_cap). The demographic prescaling before it uses the same rule on its own cells. No target has a range and none is
-dropped.
+The tilt. solver.solve, the one-cost reweighting: the weights that minimize the sum over targets of 0.5 x importance x
+(miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, identities exact (settings
+tilt.reweighting), with a soft cap on each weight (settings tilt.soft_cap). The demographic prescaling before it uses
+the same rule on its own cells. No target has a range and none is dropped.
 
 Writes, in common.TILT: file_<target year>.parquet (every record, every dollar column in nominal target-year
 dollars, net worth and its parts included; weight_start and weight, before and after the tilt), fit.csv (every
@@ -46,6 +42,7 @@ and sample households in each wave of the pool, scf_targets.py), summary.md. rep
 from them.
 """
 import os
+import pickle
 import time
 
 import numpy as np
@@ -58,6 +55,8 @@ from reweight import solver as SV
 from reweight import target_list as TLS
 from prep import soi as TG
 from reweight import taxes as TX
+from reweight import precheck as PRE
+from reweight import scf_targets
 from shared.common import TARGET_YEAR as Y, wquantile
 
 S = common.SETTINGS['tilt']
@@ -115,21 +114,44 @@ def weight_factor_table(w0, w1, grp):
     return pd.DataFrame(rows)
 
 
-# ---- the demographic prescaling (TARGETS.md section 4) ------------------------------------------------
+def soft_cap(w0, grp, fixed, folder):
+    """Each record's cap U_i for the solver: settings tilt.soft_cap.k times the mean starting weight of its AGI group
+    (records with a positive starting weight, held records left out); the cost gains 0.5 beta ((w_i - U_i)+ / U_i)^2
+    per record. Writes soft_cap_groups.csv and soft_cap_upper.npy; returns the caps and beta."""
+    soft = S['soft_cap']
+    k = float(soft['k'])
+    upper = np.full(len(w0), np.nan)
+    tab = []
+    for gi, nm in enumerate(AGI_GROUP_NAMES):
+        m_ = (grp == gi) & (w0 > 0) & ~fixed
+        mean_w = float(np.mean(w0[m_]))
+        upper[grp == gi] = k * mean_w
+        tab.append({'group': nm, 'records': int(m_.sum()), 'mean starting weight': mean_w, 'cap U (k x mean)': k * mean_w,
+                    'records starting above U': int((w0[m_] > k * mean_w).sum())})
+    assert np.isfinite(upper).all()
+    tab = pd.DataFrame(tab)
+    tab.to_csv(f'{folder}/soft_cap_groups.csv', index=False)
+    np.save(f'{folder}/soft_cap_upper.npy', upper)
+    common.say(f"soft cap k = {soft['k']:g}, beta = {soft['beta']:g}:\n" + tab.to_string(index=False))
+    return upper, float(soft['beta'])
+
+
+# ---- the demographic prescaling ------------------------------------------------
 PRESCALE_CELLS = {'filers': ['age'], 'non-filers': ['non-filers', 'non-filer people']}   # target kinds per batch
+PRESCALE_KINDS = [k for kinds in PRESCALE_CELLS.values() for k in kinds]
 
 
-def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married, soi, fixed=None):
+def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married, soi, fixed):
     """The starting weights scaled to the year's demographic cells, each batch on its own: filers to SOI Table 1.6's
     returns by primary age range in joint and non-joint returns, keeping the joint and non-joint totals; non-filers
     to the non-filer people targets, keeping their total. Each is the smallest Kullback-Leibler move of that batch's
     weights, at the one cost, that meets its cells (solver.solve on the batch alone, with the target rows' own conditions,
-    standard errors, importances and identities; the status totals are identities). Records in fixed (the billionaires) keep their weights:
-    their part of each cell is a constant (solver.solve's fixed). Returns the new weights and, per batch, a dict for
+    standard errors, importances and identities; the status totals are identities). Records in fixed (the billionaires)
+    keep their weights: their part of each cell is a constant (solver.solve's fixed). rows, F, T, se, identity and
+    averages: the rows of kinds PRESCALE_KINDS and their conditions. Returns the new weights and, per batch, a dict for
     the summary: the solve, the batch's effective sample before and after, the factors, and each cell before and
     after."""
     w = w0.copy()
-    fixed = np.zeros(len(w0), bool) if fixed is None else np.asarray(fixed, bool)
     out = []
     for batch, kinds in PRESCALE_CELLS.items():
         rec = filer if batch == 'filers' else ~filer
@@ -141,16 +163,15 @@ def prescale_demographic(w0, F, T, se, identity, averages, rows, filer, married,
         assert not (F[~rec][:, cols] != 0).any(), f'prescaling {batch}: a cell that records outside the batch reach'
         Fb, Tb, seb, idb = F[rec][:, cols], T[cols], se[cols], identity[cols]
         labels = (rows['kind'] + ' | ' + rows['group']).to_numpy()[cols].tolist()
+        rho = importance(rows['kind'].to_numpy()[cols])
         if batch == 'filers':
-            # keep today's joint and non-joint scaling exactly: the two totals as identities
+            # the joint and non-joint totals as identities
             extra = [((married[rec] == m).astype(float), TG.returns(soi, Y, '1.2', s), f'filers | {s} returns')
                      for m, s in [(1, 'joint'), (0, 'nonjoint')]]
             Fb = np.column_stack([Fb] + [c for c, _, _ in extra])
             Tb = np.append(Tb, [v for _, v, _ in extra])
             seb, idb = np.append(seb, [0.0, 0.0]), np.append(idb, [True, True])
             labels += [lab for _, _, lab in extra]
-        rho = importance(rows['kind'].to_numpy()[cols])
-        if batch == 'filers':
             rho = np.append(rho, [1.0, 1.0])
         wb0 = w[rec]
         wb1, info = SV.solve(wb0, Fb, Tb, seb, idb, [None] * len(Tb), {**S, 'solver_importance': rho}, fixed=fixed[rec])
@@ -203,24 +224,13 @@ def net_worth_table(files):
     return pd.DataFrame(rows)
 
 
-def main():
-    t_start = time.time()
-    os.makedirs(common.TILT, exist_ok=True)
-    soi = TG.load()
-    spec = TLS.start_spec(Y)   # the year file's start and start_scaling (TARGETS.md S7)
-    start_lines = []
-    g19, raw, imp, growth = START.year_start(spec)
-    if growth is not None:   # each column's factors in full precision, read by package.py
-        growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
-    # the top of the file (top_records.py, settings tilt.top; 29 October): Part A's rebuilt hidden returns, the
-    # redraw of balance sheets at $1 billion or more, and the Forbes list's billionaires, before any mask, condition or
-    # prescaling. given: records whose starting weight is given (in returns or units); fixed: records held at it
-    top = None
-    given = fixed = np.zeros(len(g19), bool)
-    # The top step's network part (Part A's hidden returns, the redraw of balance sheets at $1 billion or more) wants a
-    # GPU: for a generated start the top stage (generate/top.py) writes it to the top cache, read here; a start from an
-    # earlier year's file runs it here. The billionaires (top_records.add_list) need no network and are built here.
-    import pickle
+def top_of_file(g19, raw, imp, spec):
+    """The top of the file (top_records.py, settings tilt.top): Part A's rebuilt hidden returns, the redraw of balance
+    sheets at $1 billion or more, and the Forbes list's billionaires, before any mask, condition or prescaling. The
+    network part wants a GPU: for a generated start the top stage (generate/top.py) writes it to the top cache, read
+    here; a start from an earlier year's file runs it here. The billionaires (top_records.add_list) need no network.
+    Returns the frame, the weights, given (records whose starting weight is given, in returns or units), fixed (records
+    held at it) and the report dict."""
     from generate import top_records as TR
     cache = common.TOP_CACHE if spec['mode'] == 'generate' else None
     if common.REAL_PUF and cache:
@@ -232,19 +242,29 @@ def main():
         common.say(f'the top step read from {cache}')
     else:
         base = TR.network_part(g19, raw, imp, Y, spec['mode'])
-    g19, imp, given, fixed, top = TR.add_list(*base, Y)
-    del base
+    return TR.add_list(*base, Y)
+
+
+def main():
+    t_start = time.time()
+    os.makedirs(common.TILT, exist_ok=True)
+    soi = TG.load()
+    spec = TLS.start_spec(Y)
+    g19, raw, imp, growth = START.year_start(spec)
+    if growth is not None:   # each column's factors in full precision, read by package.py
+        growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
+    g19, imp, given, fixed, top = top_of_file(g19, raw, imp, spec)
     del raw
     x = g19['net_worth'].to_numpy(float)
     filer = g19['filer'].to_numpy() == 1
+    prescale = spec['weights']
 
     # the start: the generated records scaled so that, with the records whose weight is given, filers add up to SOI's
     # returns and non-filers to the expected non-filers
     returns = TG.returns(soi, Y)
     n_nonfilers, nf_note = START.start_nonfilers()
     w0 = imp.copy()
-    if spec['weights'] == 'persons':
-        # (3 November, agent A) the step 1 weights as they are (start_from_year); the list's own weights are given
+    if prescale == 'persons':
         from scale import projection_steps as PS
         assert np.isfinite(w0).all() and (w0 >= 0).all()
         common.say(f'projection start (step 1 weights): filers {w0[filer & ~given].sum() / 1e6:,.2f} million, '
@@ -260,8 +280,6 @@ def main():
         gen_f = filer & ~given
         g19.loc[given, 'weight'] = w0[given] * imp[gen_f].sum() / w0[gen_f].sum()
     w_plain = w0.copy()
-    prescale = spec['weights']
-    assert prescale in ('demographic', 'persons'), f"start_scaling weights {prescale!r}"
     if prescale == 'demographic':
         for married, status in [(1, 'joint'), (0, 'nonjoint')]:
             m = filer & (g19['married'].to_numpy() == married)
@@ -275,101 +293,79 @@ def main():
         PS.STATE['start'] = (g19, w0, fixed)   # the projection targets (projection_steps.outside_rows) read it
     rows = TLS.expand(Y, start=g19, which='without calculator')
     TLS.check_nonfiler_bands(g19, rows)   # every non-filer head and spouse in exactly one non-filer people band
-    F, T, averages = TLS.conditions(g19, rows, w0)
-    se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
-    missing = rows.loc[~identity & ~(se > 0), ['kind', 'group', 'target']]
+    missing = rows.loc[~rows['identity'] & ~(rows['se'] > 0), ['kind', 'group', 'target']]
     assert missing.empty, f'targets with no standard error:\n{missing.to_string()}'
     prescaled, w_status = [], w0.copy()
+    F = None
     if prescale == 'demographic':
-        w0, prescaled = prescale_demographic(w0, F, T, se, identity, averages, rows, filer,
-                                             g19['married'].to_numpy(), soi, fixed)
-    # the non-microdata imputations (non_micro_imputations.py; NEXT_STEPS item 1, Q1): on the start, in target-year
-    # dollars and with its prescaled weights, before the solve. New columns only, except amt_nols, which the AMT cap
-    # changes (its drawn value kept as amt_nols_drawn); the ranking items rank on w0, and no target reads their columns
-    # or amt_nols yet
+        # the prescaling needs the conditions of its own cells only; the full matrix is built once, after the taxes
+        sub = rows[rows['kind'].isin(PRESCALE_KINDS)].reset_index(drop=True)
+        Fs, Ts, avs = TLS.conditions(g19, sub, w0)
+        w0, prescaled = prescale_demographic(w0, Fs, Ts, sub['se'].to_numpy(float), sub['identity'].to_numpy(bool), avs,
+                                             sub, filer, g19['married'].to_numpy(), soi, fixed)
+        del Fs
+    else:
+        F, T, averages = TLS.conditions(g19, rows, w0)
+    # the non-microdata imputations (non_micro_imputations.py): on the start, in target-year dollars and with its
+    # prescaled weights, before the solve. New columns only, except amt_nols, which the AMT cap changes (its drawn value
+    # kept as amt_nols_drawn); the ranking items rank on w0, and no target reads their columns or amt_nols
     g19, nmi_ctx = NMI.impute(g19, Y, w0)
-    # the taxes (taxes.py; settings taxes, 30 October): every record's taxes under the year's law on the start; then the
-    # calculator targets, on the computed columns
+    # the taxes (taxes.py; settings taxes): every record's taxes under the year's law on the start; then the calculator
+    # targets, on the computed columns
     g19, tax_ctx = TX.compute(g19, Y, w0, f'{common.TILT}/taxes')
     calc_rows = TLS.expand(Y, start=g19, which='calculator')
     common.say(f'calculator targets: {len(calc_rows)}')
-    targeted_calc = calc_rows
     # income rank groups (the income x net worth grid) are set on the file's starting weights, so their conditions
-    # are written again after the prescaling (a list without them is unchanged)
-    ranked = 'rank_variable' in rows and rows['rank_variable'].fillna('').astype(str).ne('').any()
-    if ranked or len(targeted_calc):
-        if len(targeted_calc):
-            rows = pd.concat([rows, targeted_calc], ignore_index=True)
+    # are written after the prescaling
+    ranked = rows['rank_variable'].fillna('').astype(str).ne('').any()
+    if ranked or len(calc_rows) or F is None:
+        if len(calc_rows):
+            rows = pd.concat([rows, calc_rows], ignore_index=True)
         F, T, averages = TLS.conditions(g19, rows, w0)
-        se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
+    se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     if ranked:
         common.say('income rank lines on the file (starting weights): '
                    + '; '.join(f'{k[0]} {k[1]} p{k[2]:g}: {v:,.0f}' for k, v in TLS.FILE_RANK_LINES.items()))
     t43 = rows[(rows['kind'] == 'soi 4.3') & (rows['target'] == 'returns')]
-    if len(t43):   # (3 November) Table 4.3's groups are at SOI's published AGI cutoffs
+    if len(t43):   # Table 4.3's groups are at SOI's published AGI cutoffs
         common.say('Table 4.3 groups at SOI\'s published AGI cutoffs (returns on the starting weights, SOI): '
                    + '; '.join(f'{r.group} ${r.agi_lo:,.0f} ({float(w0 @ F[:, i]) / 1e3:,.1f} thousand, '
                                f'SOI {r.value / 1e3:,.1f} thousand)' for i, r in t43.iterrows()))
     TLS.write(rows, common.TILT, Y)
-    S_main = S
     feas = None
     if fixed.any():
-        # PLAN.md step 20: before the solve, each target's remainder after the fixed records, and whether the others
-        # alone can reach it (solver.fixed_feasibility); whether they can all be met together is the solve's answer
+        # before the solve, each target's remainder after the fixed records, and whether the others alone can reach it
+        # (solver.fixed_feasibility); whether they can all be met together is the solve's answer
         feas = pd.concat([rows[['kind', 'group', 'target', 'value']].reset_index(drop=True),
                           SV.fixed_feasibility(w0, F, T, se, identity, averages, fixed).drop(columns='target')],
                          axis=1)
         feas.to_csv(f'{common.TILT}/top_feasibility.csv', index=False)
         common.say(f"feasibility with the fixed records: {int(feas['billionaires alone exceed'].sum())} targets the "
                    f"fixed records alone exceed, {int((~feas['reachable by the others']).sum())} the others cannot reach")
-    # (1 November) the check before the reweighting: flags only, nothing dropped (precheck.py; settings tilt.precheck)
-    precheck_lines = []
-    from reweight import errors as ERR
-    from reweight import precheck as PRE
-    _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
-                                common.TILT, S['precheck'])
+    # the check before the reweighting: flags only, nothing dropped (precheck.py; settings tilt.precheck)
+    _, precheck_lines = PRE.run(rows, F, w0, averages, rows['value'].to_numpy(float), se, identity, common.TILT, S['precheck'])
     common.say('\n'.join(precheck_lines))
-    # (1 November, John) settings tilt.soft_cap {k, beta}: each record's cap U_i is k times the MEAN STARTING weight of
-    # its AGI group (agi_groups; records with a positive starting weight, held records left out; decision 73, John, 1 November: it was the median), and the cost gains 0.5 beta ((w_i - U_i)+ / U_i)^2
-    # per record: nothing below the cap, quadratic above it (solver._solve)
     agi_c = g19['calc_agi'].to_numpy(float)
     grp = agi_groups(agi_c, filer)
-    soft = S.get('soft_cap') or {}
-    if soft.get('k'):
-        k = float(soft['k'])
-        upper = np.full(len(w0), np.nan)
-        tab = []
-        for gi, nm in enumerate(AGI_GROUP_NAMES):
-            m_ = (grp == gi) & (w0 > 0) & ~fixed
-            mean_w = float(np.mean(w0[m_]))
-            upper[grp == gi] = k * mean_w
-            tab.append({'group': nm, 'records': int(m_.sum()), 'mean starting weight': mean_w, 'cap U (k x mean)': k * mean_w,
-                        'records starting above U': int((w0[m_] > k * mean_w).sum())})
-        assert np.isfinite(upper).all()
-        tab = pd.DataFrame(tab)
-        tab.to_csv(f'{common.TILT}/soft_cap_groups.csv', index=False)
-        np.save(f'{common.TILT}/soft_cap_upper.npy', upper)
-        common.say(f"soft cap k = {soft['k']:g}, beta = {soft['beta']:g}:\n" + tab.to_string(index=False))
-        S_main = {**S_main, 'solver_soft_upper': upper, 'solver_soft_beta': float(soft['beta'])}
+    upper, beta = soft_cap(w0, grp, fixed, common.TILT)
     # settings tilt.reweighting: the one cost (solver._solve). Each target's importance rho is 1 for the kinds listed in
     # importance_one_kinds and 1 / other_importance_divisor for every other kind (importance())
     cfg = S['reweighting']
     rho = importance(rows['kind'].to_numpy())
-    S_main = {**S_main, 'solver_importance': rho}
+    S_main = {**S, 'solver_soft_upper': upper, 'solver_soft_beta': beta, 'solver_importance': rho}
     pd.DataFrame({'kind': rows['kind'], 'group': rows['group'], 'target': rows['target'], 'importance': rho}).to_csv(
         f'{common.TILT}/importance.csv', index=False)
     common.say(f"one cost: tau {cfg['tau']:g}, importance 1 for kinds {sorted(cfg['importance_one_kinds'])} ({int((rho == 1).sum())} targets), "
                f"{1 / float(cfg['other_importance_divisor']):.4f} for the other {int((rho != 1).sum())}; budget "
                f"{cfg.get('newton_budget', 150)} Newton steps")
-    # (6 November 2026, the joint solve of state weights, state_joint.py) with REBUILD_SAVE_SOLVE set, the solve's inputs are
-    # written to that file, and the solve's multipliers beside it afterwards. Nothing else changes.
+    # with REBUILD_SAVE_SOLVE set (the joint solve of state weights, state_joint.py) the solve's inputs are written to
+    # that file, and the solve's multipliers beside it afterwards
     save_solve = os.environ.get('REBUILD_SAVE_SOLVE')
     if save_solve:
-        import pickle
         with open(save_solve, 'wb') as fh:
             pickle.dump({'record_id': g19['record_id'].to_numpy(), 'w0': w0, 'F': F, 'T': T, 'se': se, 'identity': identity,
-                         'averages': averages, 'rho': rho, 'fixed': fixed, 'soft_upper': S_main.get('solver_soft_upper'),
-                         'soft_beta': S_main.get('solver_soft_beta'), 'rows': rows, 'reweighting': cfg}, fh, protocol=4)
+                         'averages': averages, 'rho': rho, 'fixed': fixed, 'soft_upper': upper,
+                         'soft_beta': beta, 'rows': rows, 'reweighting': cfg}, fh, protocol=4)
     t_solve = time.time()
     w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
@@ -380,10 +376,11 @@ def main():
     common.say(f"the solve: {info['solve_seconds'] / 60:.1f} minutes, {info['newton_steps']} Newton steps in "
                f"{info['newton_calls']} calls ({info['newton_capped_calls']} ended without meeting the stopping size)")
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
-    if top is not None:
-        TR.write_report(top, common.TILT, Y)
+    from generate import top_records as TR
+    TR.write_report(top, common.TILT, Y)
+    start_lines = []
     if spec['mode'] == 'from_year':
-        start_lines = [f"## The start: the {spec['year']} tilted file (TARGETS.md S7)", '',
+        start_lines = [f"## The start: the {spec['year']} tilted file", '',
                        f"- tilt/{spec['run']}/file_{spec['year']}.parquet: {len(g19):,} records; its tilted weights "
                        f"scaled by start_scaling weights '{prescale}'; dollars '{spec['dollars']}'.",
                        f"- non-filers scaled to {n_nonfilers / 1e6:.2f} million"
@@ -403,14 +400,13 @@ def main():
     factors.to_csv(f'{common.TILT}/weight_factors.csv', index=False)
     g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
     NMI.write_qbi_scalars(nmi_ctx, common.TILT)   # beside the file: the projection years read them from their start's folder
-    # the non-microdata imputations' published checks, on the weights after the tilt (Q9: reported only)
+    # the non-microdata imputations' published checks, on the weights after the tilt (reported only)
     NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
     # the calculator targets before and after (targeted or not), the totals
-    tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(targeted_calc) else TX.evaluate(g19, calc_rows, w0, w1)
+    tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(calc_rows) else TX.evaluate(g19, calc_rows, w0, w1)
     tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
     tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
     open(f'{common.TILT}/taxes/taxes_summary.md', 'w').write('\n'.join(tax_lines))
-    from reweight import scf_targets
     if scf_targets.RESULTS:   # the SCF targets by wave (scf_targets.py), for the record
         scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
     scf_path = f'{common.DATA}/scf_units_{Y}.parquet'   # a year with no SCF wave has no column of its own
@@ -420,27 +416,25 @@ def main():
                              if u is not None else {}),
                           **({'SCF, the targets\' waves pooled': pooled} if pooled is not None else {}),
                           'before the tilt': (g19, x, w0), 'after the tilt': (g19, x, w1)})
-    top_lines = []
-    if top is not None:
-        bil = g19['billionaire'].to_numpy() == 1
-        top_lines = ['## The top of the file (top_records.py)', ''] + [f'- {n}' for n in top['notes']] + [
-            f'- records held fixed: {int(fixed.sum())} ({w0[fixed].sum():,.0f} units); their weights after the tilt '
-            f'all exactly as before: {bool(np.array_equal(w1[fixed], w0[fixed]))}',
-            *([f'- the list\'s records, free in the reweighting (a year after the last list): {int(bil.sum())}; '
-               f'weights before the tilt {w0[bil].sum():,.1f} in all ({w0[bil].min():.4f} to {w0[bil].max():.4f}), '
-               f'after {w1[bil].sum():,.1f} ({w1[bil].min():.4f} to {w1[bil].max():.4f}); factor (after over before) '
-               f'{np.min(w1[bil] / w0[bil]):.4f} to {np.max(w1[bil] / w0[bil]):.4f}, median '
-               f'{np.median(w1[bil] / w0[bil]):.4f}'] if (bil & ~fixed).any() else []),
-            f"- free records: effective sample kept {100 * info.get('effective_sample_kept_free', np.nan):.1f}%, "
-            f"Kullback-Leibler move {info.get('kl_move_free', np.nan):.4f} nats",
-            f'- net worth below the ceiling (all records but the list): before the tilt '
-            f'${(w0 * x)[~bil].sum() / 1e12:,.2f} trillion, after ${(w1 * x)[~bil].sum() / 1e12:,.2f} trillion; '
-            f'the list ${(w1 * x)[bil].sum() / 1e12:,.2f} trillion']
-        if feas is not None:
-            top_lines += [f"- targets the fixed records alone exceed: {int(feas['billionaires alone exceed'].sum())}; "
-                          f"targets the others cannot reach on their own: {int((~feas['reachable by the others']).sum())} "
-                          f"(top_feasibility.csv)"]
-        top_lines += ['']
+    bil = g19['billionaire'].to_numpy() == 1
+    top_lines = ['## The top of the file (top_records.py)', ''] + [f'- {n}' for n in top['notes']] + [
+        f'- records held fixed: {int(fixed.sum())} ({w0[fixed].sum():,.0f} units); their weights after the tilt '
+        f'all exactly as before: {bool(np.array_equal(w1[fixed], w0[fixed]))}',
+        *([f'- the list\'s records, free in the reweighting (a year after the last list): {int(bil.sum())}; '
+           f'weights before the tilt {w0[bil].sum():,.1f} in all ({w0[bil].min():.4f} to {w0[bil].max():.4f}), '
+           f'after {w1[bil].sum():,.1f} ({w1[bil].min():.4f} to {w1[bil].max():.4f}); factor (after over before) '
+           f'{np.min(w1[bil] / w0[bil]):.4f} to {np.max(w1[bil] / w0[bil]):.4f}, median '
+           f'{np.median(w1[bil] / w0[bil]):.4f}'] if (bil & ~fixed).any() else []),
+        f"- free records: effective sample kept {100 * info.get('effective_sample_kept_free', np.nan):.1f}%, "
+        f"Kullback-Leibler move {info.get('kl_move_free', np.nan):.4f} nats",
+        f'- net worth below the ceiling (all records but the list): before the tilt '
+        f'${(w0 * x)[~bil].sum() / 1e12:,.2f} trillion, after ${(w1 * x)[~bil].sum() / 1e12:,.2f} trillion; '
+        f'the list ${(w1 * x)[bil].sum() / 1e12:,.2f} trillion']
+    if feas is not None:
+        top_lines += [f"- targets the fixed records alone exceed: {int(feas['billionaires alone exceed'].sum())}; "
+                      f"targets the others cannot reach on their own: {int((~feas['reachable by the others']).sum())} "
+                      f"(top_feasibility.csv)"]
+    top_lines += ['']
     summary = pd.Series({'targets': len(T), **cost(w0, w1),
                          'KL move from the unscaled start (nats)': cost(w_plain, w1)['KL move (nats)'],
                          **({'effective sample kept from the start before the demographic prescaling (%)':
