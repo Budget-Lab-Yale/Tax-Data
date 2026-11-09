@@ -1,38 +1,9 @@
-"""roster_cex.py: the CEX reader for the shared tax-unit rules (tax_units.py). It turns a survey year's CEX interview
-member files into the standard member list the rules read (one row per person; the columns are listed in
-tax_units.py's header), runs the rules, and splits married couples into separate returns by the draw step 1 uses.
+"""The CEX reader for the shared tax-unit rules (tax_units.py), run before build_cex.R.
 
-Sources: the same five quarterly member (MEMI) and family (FMLI) files per survey year as build_cex.R (Q1-Q4 of the
-year and Q1 of the next), interviews with weight 0 dropped (weight FINLWT21 / 4 x MO_SCOPE / 3, as build_cex.R).
-One "household" is one interview (NEWID): the consumer unit, the people sharing major expenses. Other consumer units
-at the same address are other interviews.
-
-What the CEX observes, and the fallbacks:
-  - relationship to the reference person (CU_CODE): 0 roommate or other non-relative, 1 reference person, 2 spouse,
-    3 child, 4 grandchild, 5 in-law, 6 brother or sister, 7 parent, 8 other relative, 9 unmarried partner. Mapped to
-    Census's codes (PERRP, HHDFMX) below.
-  - no parent or spouse pointers. Children and grandchildren go to the reference person's unit (CBO's rule for a
-    child in the primary family with no subfamily). A married child and a married in-law of the opposite sex are
-    paired as a couple when exactly one such pair is in the consumer unit (a related subfamily; link_assumed on both).
-    A grandchild's parent is never known (link_assumed on grandchildren under 24); nor is the parent of a child in a
-    consumer unit where the reference person has an unmarried partner (link_assumed on those children under 24).
-  - exact ages (AGE; seven children in 2015 have none and are given age 8, flagged) and sex; marital status MARITAL (1 married, 2 widowed, 3 divorced, 4 separated, 5 never
-    married). A married person with no spouse found in the consumer unit is "married, spouse absent", as in the CPS.
-  - student: IN_COLL 1 or 2 (enrolled in college full or part time). Not in the labor force is not asked per member,
-    so the CPS's labor-force condition is dropped. Disability: not asked (all False).
-  - income per member: wages SALARYXM, self-employment SEMPFRMM, Social Security and railroad retirement SOCRRXM,
-    SSI SSIXM (missing = not asked = 0, as in build_cex.R). The consumer unit's interest, dividends, rents, pensions
-    and other income are asked of the unit as a whole and are left out of the person's gross income for the income
-    test. Gross income: wages + self-employment + the taxable part of Social Security (CBO's 3a formula).
-  - support answer: none (-1). BLS's own tax unit codes are kept as passthrough columns and as a comparison
-    (bls_unit: BLS's unit after build_cex.R's repairs and folding of dependent filers into the claiming unit).
-
-Run before build_cex.R.
-Usage (through Slurm): python -m prep.roster_cex [year ...] [--out DIR]   (no years: every year in settings cex.years)
-Writes, to the pipeline's data folder ({REBUILD_OUT or paths.out}/data, as common.py resolves it) unless --out names
-another: persons_cex_<year>.parquet and units_cex_<year>.parquet (the rules' output, with BLS's codes as comparison
-columns, read by the checks), mfs_cex_<year>.parquet (the separate returns), and cex_persons_module_<year>.csv.gz,
-the person file build_cex.R reads.
+Reads a survey year's five quarterly member and family files (as build_cex.R does); one interview is one household.
+Builds the standard member list, runs the rules, splits some married couples into separate returns, and writes the
+persons, units and separate returns, with BLS's own tax units for comparison, and the person file build_cex.R reads.
+TAX_UNITS.md, "Each survey", has the CEX's fallbacks.
 """
 import argparse
 import os
@@ -46,7 +17,7 @@ from prep import tax_units as T
 CEX_RAW = common.RAW['cex']
 MEMBER_COLS = ['NEWID', 'MEMBNO', 'AGE', 'SEX', 'CU_CODE', 'MARITAL', 'IN_COLL', 'TAX_UNIT', 'TU_CODE', 'TU_DPNDT',
                'SALARYXM', 'SEMPFRMM', 'SOCRRXM', 'SSIXM']
-MFS_SALT = 20261023        # step 1's salt for the separate-return draw
+MFS_SALT = 20261023        # the separate-return draw's salt, the same as the CPS's
 
 
 def year_files(prefix, year):
