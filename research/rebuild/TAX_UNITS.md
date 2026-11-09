@@ -54,7 +54,9 @@ In order (`tax_units.build_units`):
 4. **Reassignment** (`reassign`, always applied, as in CBO's code). Within a household: a related subfamily whose head qualifies as a dependent joins the householder's unit;
    up to two of the youngest qualifying children move between the householder's unit and a related subfamily, and
    between the householder and an unmarried partner, to spread the children more evenly. It decides who claims whom,
-   never whether anyone files.
+   never whether anyone files. One rule departs from CBO's code. Between the householder and an unmarried partner,
+   the children who move are the receiving side's own children, youngest first. CBO's code moves the youngest
+   qualifying children whoever their parents are. A partner cannot claim a child who is not theirs.
 5. A person CBO's code would leave as a second head in the householder's unit heads a unit of their own.
 6. **One row per unit** (`collapse_units`). Head and spouse incomes are summed. Filing status is joint with a spouse,
    head of household with any dependent, single otherwise. For each unit: the number of dependents (uncapped), the
