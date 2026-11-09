@@ -1971,7 +1971,7 @@
  },
  "taxes": {
   "_what": "Taxes under the target year's law, computed inside the reweighting stage before the solve by tax-simulator-gpu's batch command, from a copy of its repository at commit, run with its own Python (python); the columns join the file as calc_<name>.",
-  "commit": "c89e2729d2ed1b13ac32c7be7951de55aecb001f",
+  "commit": "66a3976c1d426268ccb7db4e19978c586553a5a7",
   "repo": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu",
   "python": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu/.venv/bin/python",
   "draw_seed": 76,
