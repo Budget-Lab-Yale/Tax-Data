@@ -30,6 +30,7 @@ import os
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 from shared import common
 
@@ -111,20 +112,18 @@ FILE_COLUMNS = ['record_id', 'weight', 'filer', 'filing_status', 'n_dep', 'marri
 
 
 def read_file(path, extra=()):
-    cols = [c for c in FILE_COLUMNS]
-    have = set(__import__('pyarrow.parquet').parquet.ParquetFile(path).schema.names)
-    missing = [c for c in cols if c not in have]
+    have = set(pq.ParquetFile(path).schema.names)
+    missing = [c for c in FILE_COLUMNS if c not in have]
     assert not missing, f'{path}: no columns {missing}'
-    df = pd.read_parquet(path, columns=cols + list(extra))
+    df = pd.read_parquet(path, columns=FILE_COLUMNS + list(extra))
     na = df.drop(columns=['forbes_uri']).isna().sum()
     if na.any():
         print(f'{path}: missing values in the columns the targets read: {na[na > 0].to_dict()}', flush=True)
     return df
 
 
-# The items. name: (the Historic Table 2 columns, summed; how the file's side is made; 'count' or 'amount'; a note).
-# Iselin's 21 series (HT2_TARGET_MAP, puf_series_x, HT2_SERIES_FOR; src/nonfilers/state_weights.R) come first. A count is
-# a count of returns with the item not zero, as Historic Table 2's N columns are.
+# The items. name: (the Historic Table 2 columns, summed; how the file's side is made; 'count' or 'amount').
+# Iselin's 21 series come first. A count is a count of returns with the item not zero, as Historic Table 2's N columns are.
 def _item_table():
     nz = lambda v: (lambda d: (d[v].to_numpy(float) != 0).astype(float))
     amt = lambda v: (lambda d: d[v].to_numpy(float))
@@ -150,7 +149,7 @@ def _item_table():
         'n_div': (['N00600'], lambda d: (div(d) != 0).astype(float), 'count'),
         'div_amt': (['A00600'], div, 'amount'),
         'n_kg': (['N01000'], nz('capital_gains_line13'), 'count'),
-        'kg_amt': (['A01000'], amt('capital_gains_line13'), 'amount'),   # not in Iselin's 21: added by the plan
+        'kg_amt': (['A01000'], amt('capital_gains_line13'), 'amount'),
         # Schedule A items are the IRS's among itemizers: the file draws them on other records too (2.3 times the IRS's count of
         # returns with property tax in 2019), so the file's side counts them on records the calculator itemizes
         'n_salt': (['N18425', 'N18450'], lambda d: ((d['salt_inc_sales'].to_numpy(float) != 0) & itm(d)).astype(float), 'count'),
@@ -161,7 +160,7 @@ def _item_table():
         'mort_int_amt': (['A19300'], lambda d: d['first_mort_int'].to_numpy(float) * itm(d), 'amount'),
         'n_eitc': (['N59660'], lambda d: (d['calc_eitc'].to_numpy(float) > 0).astype(float), 'count'),
         'eitc_amt': (['A59660'], amt('calc_eitc'), 'amount'),
-        # the nine held-out items of validate_state_weights.R
+        # the nine held-out items
         'n_bus': (['N00900'], nz('sole_prop'), 'count'),
         'bus_amt': (['A00900'], amt('sole_prop'), 'amount'),
         'n_pens': (['N01700'], nz('txbl_pens_dist'), 'count'),
@@ -171,7 +170,7 @@ def _item_table():
         'n_fedtax': (['N06500'], lambda d: (d['calc_liab_after_credits'].to_numpy(float) > 0).astype(float), 'count'),
         'fedtax_amt': (['A06500'], lambda d: np.maximum(d['calc_liab_after_credits'].to_numpy(float), 0.0), 'amount'),
         'kg_amt_pos': (['A01000'], lambda d: np.maximum(d['kg_st'].to_numpy(float) + d['kg_lt'].to_numpy(float), 0.0), 'amount'),
-        # other items, for the list of what the final files use (state_weights settings; RESULTS.md says which and why)
+        # the other lines of the return the file holds on the IRS's definition
         'n_ira': (['N01400'], nz('txbl_ira_dist'), 'count'),
         'ira_amt': (['A01400'], amt('txbl_ira_dist'), 'amount'),
         'n_ui': (['N02300'], nz('ui'), 'count'),
@@ -216,23 +215,21 @@ HELD_OUT = ['n_bus', 'bus_amt', 'n_pens', 'pens_amt', 'n_ss', 'ss_amt', 'n_fedta
 EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', 'ui_amt', 'n_qdiv', 'qdiv_amt', 'n_pship', 'pship_amt',
                'n_txinc', 'txinc_amt', 'n_itemize', 'itemize_amt', 'n_char', 'char_amt', 'n_setax', 'setax_amt', 'n_refund_state',
                'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt']
-# Three dollar amounts are not state targets (John, 7 November 2026): capital gains, partnership and S corporation income, and
-# itemized deductions. Their counts stay, and their national targets are unchanged. On the long list with them, the integrated
-# solve of 2019 ran out of its 150 Newton steps on the retrained networks; without them all of 2015-2075 converge
-# (explore/2026-11-06/retrain/run/STEP8.md). Iselin's 21 alone stalled in 2015.
+# Three dollar amounts are not state targets: capital gains, partnership and S corporation income, and itemized deductions. Their
+# counts stay, and their national targets are unchanged. With them the integrated solve of 2019 ran out of its Newton steps.
 NOT_STATE_TARGETS = ['kg_amt', 'pship_amt', 'itemize_amt']
 FINAL_ITEMS = [v for v in ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS if v not in NOT_STATE_TARGETS]
-# In the final files an item has no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item (filer_targets, drop_thin=True): (sum |w x|)^2 / sum (w x)^2, the list
-# records left out; 250 is about 5 for each of the 53 areas. State income tax deducted in the group under $1 rests on 4 effective records
-# in 2019 and cannot be spread over 53 areas; with such an item Newton's method takes the whole budget and moves nothing that matters
-# (at 100, the group $10-25k did not converge in 2015 and 2018, on Vermont's state income tax deducted among others).
+# An item has no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item (filer_targets): (sum |w x|)^2 /
+# sum (w x)^2, the list records left out; 250 is about 5 for each of the 53 areas. State income tax deducted in the group under $1 rests
+# on 4 effective records in 2019 and cannot be spread over 53 areas; with such an item Newton's method takes the whole budget and moves
+# nothing that matters.
 MIN_EFFECTIVE = 250
 assert len(ISELIN_21) == 21 and set(ISELIN_21 + HELD_OUT + FINAL_ITEMS) <= set(ITEMS)
 
 
 def ht2_values(ht2, item):
     """A frame: index group (1-10), columns the areas, the item's Historic Table 2 values, in dollars or returns. None if a
-    column the item needs is not in the year's table (the table's columns change by year, NOTES.md)."""
+    column the item needs is not in the year's table (the table's columns change by year)."""
     codes = ITEMS[item][0]
     if any(c not in ht2.columns for c in codes):
         return None
@@ -259,30 +256,31 @@ def cell_rule(values, file_total):
     of the item in the group. Returns the areas' signed shares (NaN where the cell has no target), and a note if the item
     has no targets in the group. Rules: this module's header."""
     v = values.astype(float)
+    none = pd.Series(np.nan, index=v.index)
     n_na = int(v.isna().sum())
     if n_na == len(v):
-        return pd.Series(np.nan, index=v.index), 'blank in the table'
+        return none, 'blank in the table'
     if n_na:
-        return pd.Series(np.nan, index=v.index), f'{n_na} areas blank'
+        return none, f'{n_na} areas blank'
     total, size = v.sum(), v.abs().sum()
     if size == 0:
-        return pd.Series(np.nan, index=v.index), 'zero in every area'
+        return none, 'zero in every area'
     if abs(total) < 0.5 * size:
-        return pd.Series(np.nan, index=v.index), f'areas cancel: sum {total:,.0f} of sizes {size:,.0f}'
+        return none, f'areas cancel: sum {total:,.0f} of sizes {size:,.0f}'
     if file_total == 0:
-        return pd.Series(np.nan, index=v.index), 'zero in the file'
+        return none, 'zero in the file'
     if np.sign(file_total) != np.sign(total):
-        return pd.Series(np.nan, index=v.index), 'opposite signs in the file and the table'
+        return none, 'opposite signs in the file and the table'
     s = v / total
     s[v == 0] = np.nan           # zero in a group with a national total: a merged cell, value unknown
     return s, ''
 
 
-def filer_targets(df, group, ht2, items, year, weight=None, drop_thin=False):
+def filer_targets(df, group, ht2, items, year):
     """The filer targets of one year: one row per area, AGI group and item with a target, columns area, group, item, kind,
     share (the IRS's signed share), target (dollars or returns), published (the IRS's value); and the notes on what has no
     target. df, group: the file's filers and their AGI group."""
-    w = df['weight'].to_numpy(float) if weight is None else np.asarray(weight, float)
+    w = df['weight'].to_numpy(float)
     x = item_vectors(df, items)
     rows, notes = [], []
     for v in items:
@@ -293,7 +291,7 @@ def filer_targets(df, group, ht2, items, year, weight=None, drop_thin=False):
         for g in range(1, 11):
             total = float((w[group == g] * x[v][group == g]).sum())
             s, note = cell_rule(vals.loc[g], total)
-            if drop_thin and not note:
+            if not note:
                 a = np.abs(w * x[v])[(group == g) & (df['billionaire'].to_numpy() != 1)]
                 eff = a.sum() ** 2 / (a ** 2).sum() if a.sum() > 0 else 0.0
                 if eff < MIN_EFFECTIVE:
@@ -374,7 +372,6 @@ def cps_state_counts(data_dir):
     every person aged 15-24 in those households; and [years, 51, bands] adults_by_band, the heads and spouses aged 18 and over by age band."""
     if data_dir in _CPS:
         return _CPS[data_dir]
-    import pyarrow.parquet as pq
     t = pq.read_table(f'{data_dir}/table.parquet', columns=['year', 'household_id', 'weight', 'married', 'state'], filters=[('source', '==', 'cps')]).to_pandas()
     n_na = t.isna().sum()
     assert not n_na.any(), f'{data_dir}: missing values in the CPS rows: {n_na[n_na > 0].to_dict()}'
@@ -403,12 +400,14 @@ def cps_state_counts(data_dir):
 
 
 def nonfiler_state_table(year, ht2, data_dir):
-    """Per state: CPS adults in tax units, adults on returns (Historic Table 2), dependent returns, and the residual. John's rule (6 November 2026):
+    """Per state: CPS adults in tax units, adults on returns (Historic Table 2), dependent returns, and the residual:
         residual(s) = CPS adults(s) - IRS adults on returns(s) + dependent returns(s).
     CPS adults(s): the state's share of the CPS adults, the five CPS years' shares averaged with equal weights, x the CPS adults of the target year
     (the mean of the two neighbouring CPS years in a year the CPS rows do not have). IRS adults: N1 + MARS2. Dependent returns are added back because N1
     counts them and their filers are not CPS heads: SOI Table 1.7's national count, spread by the state's share of CPS people aged 15-24, pooled the same way.
-    Worked example, Colorado, 2019: the pooled share 1.793% x 230.81 million = 4,138,588 CPS adults, less 3,910,950 IRS adults, plus 169,230 dependent returns (its 1.772% of CPS people aged 15-24 x 9,550,878) = 396,868, which is 1.364% of the national 29.09 million. No Census figures and no floor: a residual at or below zero stops the run."""
+    Worked example, Colorado, 2019: the pooled share 1.793% x 230.81 million = 4,138,588 CPS adults, less 3,910,950 IRS adults, plus 169,230 dependent
+    returns (its 1.772% of CPS people aged 15-24 x 9,550,878) = 396,868, which is 1.364% of the national 29.09 million. No floor: a residual at or below
+    zero stops the run."""
     c = cps_state_counts(data_dir)
     years = c['years']
     near = [k for k, y in enumerate(years) if y == year] or [k for k, y in enumerate(years) if abs(y - year) == 1]

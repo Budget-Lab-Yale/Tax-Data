@@ -46,6 +46,7 @@ P = M.PREDICTED
 J_STATE = P.index('state')
 N_STATES = M.N_CHOICES['state'] - 1
 CPS_SLOTS_PACKED = M.SOURCE_SLOTS['cps']
+CPS_ITEMS = [v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED and v != 'state']   # the CPS's slots the file shows
 AGE_COLUMNS = {'age1': 80, 'age2': 80, 'dep_age1': 85, 'dep_age2': 85, 'dep_age3': 85}   # in years in the file; the top code
 PERSON = [v for v in M.EXACT_AGES + M.CPS_SLOTS if v != 'state']
 HIDE_ON_FILERS = ['other_agi', 'rent_loss']   # share holding it, the file's filers against CPS tax units, 2019: 58.7% / 2.7%, 3.0% / 0.3%
@@ -59,27 +60,26 @@ def load_models(device):
 def present_by_year():
     """Per CPS year the slots some row of that year holds (present in training), and the slots zero on every CPS row, from the
     training table."""
-    slots = [v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED]
-    t = pq.read_table(common.TABLE, columns=['source', 'year'] + [M.column(v) for v in slots], filters=[('source', '=', 'cps')]).to_pandas()
-    have = {int(y): {v for v in slots if (g[M.column(v)] >= 0).any()} for y, g in t.groupby('year')}
-    zero = [v for v in slots if (t[M.column(v)] <= 0).all() and v != 'state']
+    t = pq.read_table(common.TABLE, columns=['year'] + [M.column(v) for v in CPS_ITEMS], filters=[('source', '=', 'cps')]).to_pandas()
+    have = {int(y): {v for v in CPS_ITEMS if (g[M.column(v)] >= 0).any()} for y, g in t.groupby('year')}
+    zero = [v for v in CPS_ITEMS if (t[M.column(v)] <= 0).all()]
     return have, zero
 
 
 def file_values(path):
-    """The file's slots as full-width values [n, SLOTS], absent where the CPS does not hold the slot, and the record ids, and which
-    are dependent filers."""
+    """The file's slots as full-width values [n, SLOTS], absent where the CPS does not hold the slot; the record ids; which records
+    are dependent filers; and the PUF-only slots the file holds, as a frame."""
     names = set(pq.ParquetFile(path).schema.names)
-    slots = [v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED and v != 'state']
-    cols = [M.column(v) for v in slots]
+    cols = [M.column(v) for v in CPS_ITEMS]
     missing = [c for c in cols if c not in names]
     assert not missing, f'{path}: no columns {missing}'
-    d = pd.read_parquet(path, columns=['record_id'] + cols)
+    extra = [v for v in P if M.OWNED_BY.get(v) == 'puf' and M.column(v) in names and 'cps' not in M.PRESENT_ON[v]]
+    d = pd.read_parquet(path, columns=['record_id'] + cols + [M.column(v) for v in extra])
     na = d[cols].isna().sum()
     if na.any():
         print(f'{path}: bands or categories missing, shown as absent: {na[na > 0].to_dict()}', flush=True)
     values = torch.full((len(d), len(M.SLOTS)), -1, dtype=torch.long)
-    for v, c in zip(slots, cols):
+    for v, c in zip(CPS_ITEMS, cols):
         x = d[c].to_numpy(float)
         if c in AGE_COLUMNS:
             assert (np.nan_to_num(x, nan=-1) >= -1).all()
@@ -89,7 +89,7 @@ def file_values(path):
         assert not over.any(), f'{c}: {int(over.sum())} values above the slot\'s {M.N_CHOICES[v]} choices'
         values[:, C + P.index(v)] = torch.as_tensor(x)
     dep = d['age_range'].to_numpy() >= common.ADULT_RANGES
-    return values, d['record_id'].to_numpy(), dep
+    return values, d['record_id'].to_numpy(), dep, d[[M.column(v) for v in extra]]
 
 
 def gate_shares_in_view(values):
@@ -130,7 +130,7 @@ def cmd_start(a):
     have, zero = present_by_year()
     print(f'zero on every CPS row, hidden: {zero}', flush=True)
     assert all(y in have for y, _ in mix), f'CPS years {mix} against the table\'s {sorted(have)}'
-    values0, ids, dep = file_values(a.file)
+    values0, ids, dep, ex = file_values(a.file)
     values0[:, C + J_STATE] = 0                             # present and hidden
     for r in M.REPORTED:
         if 'cps' in M.PRESENT_ON[r]:
@@ -155,9 +155,7 @@ def cmd_start(a):
         values0[d, C + j] = values0[d, C + j].clamp(min=0)
     values0 = gate_shares_in_view(values0)
     values0[:, 0] = M.SOURCES.index('cps')
-    fv = {c for c in pq.ParquetFile(a.file).schema.names}
-    extra = [v for v in P if v in M.OWNED_BY and M.OWNED_BY[v] == 'puf' and M.column(v) in fv and 'cps' not in M.PRESENT_ON[v]]
-    ex = pd.read_parquet(a.file, columns=[M.column(v) for v in extra])
+    extra = [v for v in P if M.column(v) in ex]
     for v in extra:
         values0[:, C + P.index(v)] = torch.as_tensor(ex[M.column(v)].to_numpy(float)).long()
     slots = tuple(sorted(set(CPS_SLOTS_PACKED) | {C + P.index(v) for v in extra}))
@@ -168,8 +166,8 @@ def cmd_start(a):
         for y, share in mix:
             v = values0.clone()
             v[:, 1] = M.YEARS.index(y)
-            for s in P:          # a slot this CPS year never holds is absent
-                if 'cps' in M.PRESENT_ON[s] and s not in M.REPORTED and s != 'state' and s not in have[y]:
+            for s in CPS_ITEMS:          # a slot this CPS year never holds is absent
+                if s not in have[y]:
                     v[:, C + P.index(s)] = -1
             p = read_state(m, v.to(device), hidden0.to(device), slots, chunk)
             probs += share * p / len(models)

@@ -1,6 +1,6 @@
 """State weights: the helpers the integrated solve uses (state_joint.py), and two commands:
   python -m reweight.state_weights --run <final folder> --out <folder> --year <y> --carry    a projection year: the 2023 shares
-  python -m reweight.state_weights --run <final folder> --out <folder> --year 2015 --check [--years ...]   every year's file
+  python -m reweight.state_weights --run <final folder> --out <folder> --year 2015 --check --years 2015,...   every year's file
 
 The start (cps_start): the network's probabilities (state_start.py) scaled to 1 - the IRS's share of Other Areas and Puerto
 Rico in the record's AGI group, those two areas at the IRS's share. Worked example: in 2019 in the group $25-50k Other Areas
@@ -26,6 +26,7 @@ from shared import common
 from reweight import state_targets as ST
 
 ROUNDING_SE = 10 / np.sqrt(12)     # Historic Table 2's counts are rounded to the nearest 10
+BASE_YEAR = 2023                   # the projection years carry this year's shares
 
 
 def say(*a):
@@ -55,13 +56,6 @@ def pins_of(df, year, areas):
 
 
 # ---- the starts ---------------------------------------------------------------------------------------------------------
-def irs_return_shares(ht2, areas):
-    """[10, A]: each area's share of the returns in each AGI group."""
-    v = ST.ht2_values(ht2, 'n_returns')[areas].to_numpy(float)
-    assert (v >= 0).all() and not np.isnan(v).any()
-    return v / v.sum(1, keepdims=True)
-
-
 def read_start(path, df):
     """state_start.py's probabilities [n, 51] in the file's record order."""
     z = np.load(path)
@@ -74,7 +68,9 @@ def read_start(path, df):
 
 def cps_start(pi, group, ht2, areas):
     """Filers: pi over the 51 x (1 - the IRS's share of the other areas in the group), the other areas at the IRS's share."""
-    s = irs_return_shares(ht2, areas)
+    v = ST.ht2_values(ht2, 'n_returns')[areas].to_numpy(float)       # [10, A]: each area's returns in each AGI group
+    assert (v >= 0).all() and not np.isnan(v).any()
+    s = v / v.sum(1, keepdims=True)
     p = np.zeros((len(group), len(areas)))
     other = [k for k, a in enumerate(areas) if a in ST.OTHER]
     rest = 1.0 - s[:, other].sum(1)
@@ -106,9 +102,9 @@ def tolerances(tg, tolerance):
     return np.where(cnt, np.sqrt(se ** 2 + (ROUNDING_SE * scale) ** 2), se)
 
 
-def heldout_cells(f, group, P, ht2, areas, items=None):
-    """validate_state_weights.R's --untargeted: one row per item, AGI group and area with a positive published value."""
-    items = ST.HELD_OUT if items is None else items
+def heldout_cells(f, group, P, ht2, areas):
+    """One row per held-out item, AGI group and area with a positive published value."""
+    items = ST.HELD_OUT
     x = ST.item_vectors(f, items)
     w = f['weight'].to_numpy(float)
     rows = []
@@ -200,14 +196,14 @@ def carry(a):
     people to 2026. Every list record is pinned by its forbes_uri (forbes_states); one with no state on any list takes the state
     distribution of the year's pinned list records. A record that is not on the list and not in the 2023 file stops the run."""
     year = a.year
-    z = np.load(f'{a.out}/shares/shares_{a.base_year}.npz')
+    z = np.load(f'{a.out}/shares/shares_{BASE_YEAR}.npz')
     ids0, areas, P0 = z['record_id'], [str(x) for x in z['areas']], z['P']
     df = ST.read_file(f'{a.run}/{year}/tilt/y{year}/file_{year}.parquet')
     assert df['record_id'].is_unique and (df['weight'] >= 0).all()
     idx = pd.Index(ids0).get_indexer(df['record_id'].to_numpy())
     lst = df['billionaire'].to_numpy() == 1
     n_new = int(((idx < 0) & ~lst).sum())
-    assert n_new == 0, f'{year}: {n_new} records neither on the list nor in the {a.base_year} file'
+    assert n_new == 0, f'{year}: {n_new} records neither on the list nor in the {BASE_YEAR} file'
     P = np.zeros((len(df), len(areas)))
     P[~lst] = P0[idx[~lst]]
     pin = pins_of(df, year, areas)
@@ -225,18 +221,18 @@ def carry(a):
     items_x = ST.item_vectors(df, [v for v in ST.ITEMS])
     chk = check_written(path, df, items_x) | {'year': year, 'list_records': int(lst.sum()), 'list_pinned': int(pinned.sum()),
                                               'list_not_in_base': int((lst & (idx < 0)).sum()), 'newton_largest_group': 0,
-                                              'newton_all_groups': 0, 'all_converged': True, 'carried_from': a.base_year}
+                                              'newton_all_groups': 0, 'all_converged': True, 'carried_from': BASE_YEAR}
     say(json.dumps(chk))
     os.makedirs(f'{a.out}/checks', exist_ok=True)
     json.dump(chk, open(f'{a.out}/checks/check_{year}.json', 'w'), indent=1)
 
 
 def check_all(a):
-    """Check 1 and 2: every year asked for (default 2015-2075) has a file; shares sum to 1 and national totals are unchanged, to rounding; each past
-    year's solve finished within the budget. A year that stopped short with its largest gradient within 10 times the stopping size (state_joint.NEAR)
-    is used and reported here. A year beyond that stops the check, and the choice is John's. Writes checks/by_year.csv."""
+    """Every year asked for has a file; shares sum to 1 and national totals are unchanged, to rounding; each past year's solve finished within
+    the budget. A year that stopped short with its largest gradient within 10 times the stopping size (state_joint.NEAR) is used and reported
+    here. A year beyond that stops the check, and the choice is John's. Writes checks/by_year.csv."""
     rows = []
-    for y in (range(2015, 2076) if not a.years else [int(v) for v in a.years.split(',')]):
+    for y in [int(v) for v in a.years.split(',')]:
         f, c = f'{a.out}/files/state_weights_{y}.parquet', f'{a.out}/checks/check_{y}.json'
         r = dict(json.load(open(c)), file=os.path.exists(f)) if os.path.exists(c) else dict(year=y, file=os.path.exists(f))
         if r['file']:   # read every file back here, against the run's own weights
@@ -269,10 +265,9 @@ def main():
     ap.add_argument('--run', required=True, help='the final folders: <run>/<year>/tilt/y<year>/file_<year>.parquet')
     ap.add_argument('--out', required=True, help='the output folder')
     ap.add_argument('--year', type=int, required=True)
-    ap.add_argument('--carry', action='store_true', help='a projection year: the base year\'s shares')
-    ap.add_argument('--base-year', type=int, default=2023)
+    ap.add_argument('--carry', action='store_true', help='a projection year: the 2023 shares')
     ap.add_argument('--check', action='store_true', help='every year\'s file and check')
-    ap.add_argument('--years', default=None, help='with --check: the years, comma-separated (default 2015-2075)')
+    ap.add_argument('--years', help='with --check: the years, comma-separated')
     a = ap.parse_args()
     assert a.check != a.carry, 'one of --carry and --check'
     return check_all(a) if a.check else carry(a)
