@@ -1121,10 +1121,10 @@ def published_grid(source, year, cells, v, stats, e):
 
 # ---- SOI's W-2 tables (openpyxl workbooks) -----------------------------------------------------------------------
 def _w2_sheet(path, sheet, heading):
-    """The rows of a W-2 workbook's sheet and the index of its heading row (the one with a cell starting with
-    heading); amounts must be in thousands."""
+    """The rows of a W-2 workbook's sheet and the index of its heading row (the first row with a cell starting with
+    heading; Table 2.D's sheet holds a second table below); amounts must be in thousands."""
     rows = [list(r) for r in openpyxl.load_workbook(path, read_only=True, data_only=True)[sheet].iter_rows(values_only=True)]
-    (hr,) = [i for i, r in enumerate(rows) if any(isinstance(c, str) and c.startswith(heading) for c in r)]
+    hr = next(i for i, r in enumerate(rows) if any(isinstance(c, str) and c.startswith(heading) for c in r))
     assert any('thousands of dollars' in str(c) for r in rows[:hr] for c in r if c), f'{path}: amounts not in thousands'
     return rows, hr
 
