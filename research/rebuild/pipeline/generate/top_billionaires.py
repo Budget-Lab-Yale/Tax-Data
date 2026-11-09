@@ -723,6 +723,8 @@ def redraw_balance_sheets(df, raw, year, ceiling, notes):
     for c, u in picks.items():
         r[c] = u
     dd = D.draw_dollars(r, maps, year)
+    # net worth one record at a time: the matrix product over its parts rounds differently over many rows at once
+    dd['net_worth'] = np.concatenate([D.signed_sum(dd.iloc[[i]], D.NET_WORTH_PARTS) for i in range(len(dd))])
     after = nw_tries[np.arange(len(r)), kept]
     assert np.allclose(dd['net_worth'].to_numpy(float), after, rtol=1e-9, atol=1e-3), 'a kept try differs'
     # the redraw's other dollars are the records' own
