@@ -40,9 +40,9 @@ import numpy as np
 import pandas as pd
 import scipy.linalg as sl
 
-import solver as SV
-import state_targets as ST
-import state_weights as SW
+from reweight import solver as SV
+from reweight import state_targets as ST
+from reweight import state_weights as SW
 
 
 # A year that runs out of Newton steps with its largest gradient within this many times the stopping size is used and reported to John; beyond that, the job fails

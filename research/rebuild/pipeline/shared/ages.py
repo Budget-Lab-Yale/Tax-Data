@@ -37,7 +37,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-import common
+from shared import common
 
 S = common.SETTINGS['ages']
 N_RANGES = common.N_RANGES

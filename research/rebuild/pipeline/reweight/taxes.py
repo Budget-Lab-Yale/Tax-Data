@@ -6,7 +6,7 @@ The tilt moves weights only, so a record's computed taxes are fixed once compute
 targeted like any drawn item (kind "calculator" in targets_config/; target_list.expand). tilt.py calls compute() on
 the start after the top of the file and the non-microdata imputations.
 
-1. The batch command (run_batch). The file becomes the calculator's input frame (calculator.convert: the contract,
+1. The batch command (run_batch). The file becomes the calculator's input frame (calculator_input.convert: the contract,
    one row per column the calculator reads, with Tax-Simulator's names), written as a parquet file keyed by record
    id. tax-simulator-gpu's batch command (`python -m taxmodel.run.batch`, a local branch taxdata-batch-1103 of that
    repository, not pushed) runs it under the year's law in the calculator's own Python environment, from a copy of
@@ -29,12 +29,12 @@ import subprocess
 import numpy as np
 import pandas as pd
 
-import common
-import dollars as D
+from shared import common
+from shared import dollars as D
 
 Y = common.TARGET_YEAR
 S = common.SETTINGS.get('taxes', {})
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = common.PIPELINE   # settings taxes.greedy_schedule_a.table21 is relative to the pipeline folder
 
 # The columns joined to the file: file column -> (the calculator's column, or a formula on its columns, and meaning).
 # Each is the calculator's own name with calc_ in front, so a computed item is never mistaken for a drawn one.
@@ -106,7 +106,7 @@ def pin():
 
 
 def run_batch(frame, year, folder, tag, wage_increment=0.0, law_sections=()):
-    """The calculator's input frame (calculator.convert's) through tax-simulator-gpu's batch command under year's law.
+    """The calculator's input frame (calculator_input.convert's) through tax-simulator-gpu's batch command under year's law.
     Writes <folder>/taxes_input_<tag>.parquet and taxes_output_<tag>.parquet (with its manifest). Returns the output
     in the input's record order and the manifest."""
     path = pin()
@@ -284,7 +284,7 @@ def table21_averages(year):
 def prior_factor(col, year):
     """The declared growth of a PUF amount from the PUF's year to the target year (growth.yaml), for the report; NaN with a
     reason where the series cannot be read."""
-    import growth as GR
+    from shared import growth as GR
     try:
         spec = GR.line(col, year)['source']
         t, s0 = year, common.PUF_YEAR
@@ -355,7 +355,7 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
 def compute(df, year, w, folder):
     """Every record's computed taxes joined to the file (module docstring). df: the start, after the non-microdata
     imputations; w: the start's weights. Returns the frame with OUTPUTS and a context for the summary."""
-    import calculator as C
+    from shared import calculator_input as C
     ctx = {'notes': [], 'runs': {}}
     # A start from an earlier year's tilted file (targets.yaml start: from_year) carries that year's computed columns,
     # computed under that year's law on that year's dollars. They are dropped and computed again here. Until the
@@ -439,8 +439,8 @@ def summary_lines(ctx, df, w0, w1):
 # ---- the report on a finished file ------------------------------------------------------------------------------
 def evaluate(df, rows, w0, w1):
     """The calculator targets' rows evaluated on the file at weights w0 and w1 (solver.fit_table's columns)."""
-    import solver as SV
-    import target_list as TLS
+    from reweight import solver as SV
+    from reweight import target_list as TLS
     if not len(rows):   # (review, 30 October) a year with no calculator entries (every year but 2019 for now)
         return pd.DataFrame(columns=['group', 'target', 'value', 'kind', 'before', 'after', 'se', 'miss_in_se'])
     F, T, averages = TLS.conditions(df, rows, w0)

@@ -1,7 +1,7 @@
 #-------------------------------------------------------------------------------
 # filing_requirement.R [year ...]: the statutory filing requirement of every CPS
 # tax unit, the second part of the filing stage (filing.py runs the first and the
-# third; run.sbatch, stage filing).
+# third; run.py, stage filing).
 #
 # The ASEC is cleaned as build_cps.R cleans it, people in group quarters (GQ 2)
 # are left out, and the units are the roster filing.py wrote from the shared
@@ -38,7 +38,7 @@ YEARS = if (length(args)) as.integer(args) else as.integer(settings$cps$years)
 stopifnot(all(YEARS %in% settings$cps$years))
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table(), add_filing_requirement()
-source('research/rebuild/pipeline/tax_units_cbo.R')
+source('research/rebuild/pipeline/prep/tax_units_cbo.R')
 dir.create(file.path(DIR, 'requirement'), recursive = TRUE, showWarnings = FALSE)
 
 for (yr in YEARS) {

@@ -131,9 +131,9 @@
 # elsewhere included, at most 3. The module's flags are carried as any_*.
 #
 # Paths and waves from settings.json; the settings file is REBUILD_SETTINGS if
-# set (run.sbatch sets it), else the pipeline's own.
+# set (run.py sets it), else the pipeline's own.
 # Writes {out}/data/scf_units_{wave}.csv.gz, one row per tax unit and
-# implicate. Run from the repository root through Slurm (run.sbatch, stage scf).
+# implicate. Run from the repository root through Slurm (run.py, stage scf).
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr); library(readr); library(data.table); library(haven)

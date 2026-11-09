@@ -177,10 +177,10 @@ import numpy as np
 import pandas as pd
 import torch
 
-import common
-import model as M
-import qgroups as Q
-import targets as TG
+from shared import common
+from pretrain import model as M
+from pretrain import qgroups as Q
+from prep import soi as TG
 
 G = common.SETTINGS['generation']
 C = common.SETTINGS['consistency']
@@ -264,7 +264,7 @@ def filer_records():
 
 def cps_expected_nonfilers(year):
     """The CPS's expected non-filers in year: the sum over its units of weight x (1 - filer_p)."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     return TLS.nonfiler_count(year)   # a year with no CPS units: the geometric mean of the CPS years either side
 
 
@@ -272,8 +272,8 @@ def nonfiler_years():
     """[(CPS year, share)] the non-filer batch is drawn at: the target year alone when the CPS has it; otherwise
     (an even year, 30 October) the year's CPS mix (prior "cps items": the CPS years either side, half each), each
     year's part of the batch drawn under the CPS label at that year."""
-    import survey_mix
-    import target_list as TLS
+    from shared import survey_mix
+    from reweight import target_list as TLS
     if common.TARGET_YEAR in TLS.cps_years():
         return [(common.TARGET_YEAR, 1.0)]
     return survey_mix.mix('cps')
@@ -283,7 +283,7 @@ def nonfiler_years():
 def scf_waves():
     """The waves the balance sheet is drawn from, from the target year's configuration (prior, "balance sheet"):
     [(wave survey year, income year, share)], by survey year."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     prior = TLS.resolve(common.TARGET_YEAR)['prior']['balance sheet']
     where = f'targets_config/{common.TARGET_YEAR}/prior.yaml, prior "balance sheet"'
     out = []
@@ -315,7 +315,7 @@ def survey_years():
     """{survey: [(tax year, share)]} for the CEX, CPS and SIPP, from the target year's configuration (prior,
     "consumption", "cps items", "sipp tips"; survey_mix.py). Every year must be one the model saw: the training table
     must hold rows of that survey in that year, and the year must be one of the model's years."""
-    import survey_mix
+    from shared import survey_mix
     t = pd.read_parquet(common.TABLE, columns=['source', 'year'])
     out = {}
     for src in survey_mix.SOURCES:
@@ -1089,8 +1089,8 @@ _REAL = {}
 def own_items():
     """The PUF amounts a real record carries its own 2015 value of: every PUF amount of the dollar map (the drawn
     items and the totals whose band is drawn), in dollars.ORDER."""
-    import build_table as BT
-    import dollars as D
+    from prep import build_table as BT
+    from shared import dollars as D
     return [v for v in D.ORDER if v in set(BT.PUF_AMOUNTS)]
 
 
@@ -1111,8 +1111,8 @@ def real_puf_records():
     slots are drawn by the networks."""
     if _REAL:
         return _REAL
-    import dollars as D
-    import top_hidden as TH
+    from shared import dollars as D
+    from generate import top_hidden as TH
     own = own_items()
     slots = preset_slots()
     cols = list(dict.fromkeys(['source', 'record_id', 'weight', 'age_range'] + M.AGE_PROBS + M.ES_PROBS
@@ -1172,8 +1172,8 @@ def real_puf_part(model, mod, k, n_models, fac):
     it), and the four aggregate records with their amounts preset and their filing status, dependents and (adult)
     age range drawn; then every survey item drawn given the record. Weight: the PUF weight / n_models. Returns the
     part, the label check's table and the rule counts, as label_part does."""
-    import dollars as D
-    from ages import uniform_by_id
+    from shared import dollars as D
+    from shared.ages import uniform_by_id
     R = real_puf_records()
     o, a, own, slots = R['ord'], R['agg'], R['own'], R['slots']
     seed = int(G['label_seed']) + mod['seed_shift'] + int(G.get('real_puf_seed_shift', 500))
@@ -1239,7 +1239,7 @@ def store_picks(s, k, stream=4242):
     [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the stream (4242 for the stack, 4343 for
     Part A's candidates, top_hidden.py), the model's position k and the variable's position in dollars.ORDER, so the
     same in every offset run."""
-    import dollars as D
+    from shared import dollars as D
     seed = int(common.SETTINGS['dollars']['seed'])
     cols = {f'u_{v}': np.random.default_rng([seed, stream, k, i]).random(len(s), dtype=np.float32)
             for i, v in enumerate(D.ORDER) if f'{v}_band' in s}

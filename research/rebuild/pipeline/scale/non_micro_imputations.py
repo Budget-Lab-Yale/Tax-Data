@@ -26,29 +26,22 @@ How every item works (the settings section registers each one):
 
 Where it runs (Q1): tilt.py calls impute() on the start, after every dollar amount is in target-year dollars and the
 weights are prescaled, before the solve; report_tilt.py calls checks() on the final file with the weights after the
-tilt (Q9: reported only, never a stop). It can also run on a finished file, for checks:
-
-    python non_micro_imputations.py --run <tilt folder> --out <folder> [--year 2019] [--write-file]
-
-which drops any of these columns already in the file (and puts each written-back column back to its drawn value),
-imputes them again with the file's weight_start, writes
-non_micro_checks.md (and the file with the columns, with --write-file) to --out. In a Slurm job, as every stage.
+tilt (Q9: reported only, never a stop).
 
 Conventions, as in the rest of the file: -1 for an age or a person that does not exist, 0 for no sex; flags are 1 or
 0, -1 where the dependent does not exist; dollars in nominal target-year dollars.
 """
-import argparse
 import os
 
 import numpy as np
 import pandas as pd
 
-import common
-from ages import uniform_by_id
+from shared import common
+from shared.ages import uniform_by_id
 
 S = common.SETTINGS.get('non_micro_imputations', {})
 ITEMS = S.get('items', {})
-RES = os.path.abspath(os.path.join(common.HERE, '..', 'resources', 'non_micro'))
+RES = os.path.join(common.RESOURCES, 'non_micro')
 CPS = common.SETTINGS['cps']
 PERSONS = os.path.join(common.DATA, CPS['step1_dir'], CPS['step1_out'], 'persons_{year}.parquet')
 DEP_AGES = ['dep_age1', 'dep_age2', 'dep_age3']
@@ -580,8 +573,8 @@ def carried_qbi_scalars(year, last):
     comes from. Returns ({group: last year's scalar}, the growth of average wages from that year: SOI's wages per return,
     extended by CBO's and then Macro-Projections' wages per return, growth.factors('wages', year)). Stops if they are
     missing: there is no other source for them."""
-    import growth as GR
-    import target_list as TLS
+    from shared import growth as GR
+    from reweight import target_list as TLS
     spec = TLS.start_spec(year)
     assert spec['mode'] == 'from_year', f'QBI {year}: past the IRS table\'s last year {last}, but the start is not an earlier year\'s file'
     path = f"{common.OUT}/tilt/{spec['run']}/{QBI_SCALARS}"
@@ -1140,23 +1133,3 @@ def write_checks(sections, folder, year):
         text += [f'- {x}' for x in lines] + ['']
     open(os.path.join(folder, 'non_micro_checks.md'), 'w').write('\n'.join(text))
     return text
-
-
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--run', default=common.TILT, help='the tilt folder holding file_<year>.parquet')
-    ap.add_argument('--out', required=True, help='where to write the checks (and the file, with --write-file)')
-    ap.add_argument('--year', type=int, default=common.TARGET_YEAR)
-    ap.add_argument('--write-file', action='store_true')
-    a = ap.parse_args(argv)
-    os.makedirs(a.out, exist_ok=True)
-    df = pd.read_parquet(os.path.join(a.run, f'file_{a.year}.parquet'))
-    df = as_drawn(df)
-    df, ctx = impute(df, a.year, df['weight_start'].to_numpy(float))
-    common.say('\n'.join(write_checks(checks(df, a.year, df['weight'].to_numpy(float), ctx), a.out, a.year)))
-    if a.write_file:
-        df.to_parquet(os.path.join(a.out, f'file_{a.year}.parquet'), index=False)
-
-
-if __name__ == '__main__':
-    main()

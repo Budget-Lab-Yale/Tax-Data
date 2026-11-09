@@ -137,7 +137,7 @@
 # cps_overtime_persons_{year}.csv.gz (every person's overtime build, for the checks). Run from the repository root
 # through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
 # hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
-# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.sbatch, stage cps.
+# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.py, stage cps.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)
@@ -153,8 +153,8 @@ stopifnot(all(YEARS %in% settings$cps$years))
 
 source('src/nonfilers/state_weights.R')     # raw_data_root(), age_band()
 source('src/nonfilers/asec_tax_units.R')    # read_asec(), the income cleaning, build_asec_unit_table()
-source('research/rebuild/pipeline/tax_units_cbo.R')
-source('research/rebuild/pipeline/overtime_cps.R')  # cps_overtime(): each person's overtime pay, Tedeschi's rules
+source('research/rebuild/pipeline/prep/tax_units_cbo.R')
+source('research/rebuild/pipeline/prep/overtime_cps.R')  # cps_overtime(): each person's overtime pay, Tedeschi's rules
 # the filing stage's folder inside the run's data folder (cps.step1_dir) and the folder of its returns inside it
 # (cps.step1_out)
 if (is.null(settings$cps$step1_dir) || is.null(settings$cps$step1_out))

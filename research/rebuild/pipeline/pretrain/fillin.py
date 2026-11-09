@@ -56,9 +56,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-import common
-import model as M
-import translate as TR
+from shared import common
+from pretrain import model as M
+from shared import translate as TR
 
 ROWS = TR.filled()
 KEYS = [(r['survey'], r['variable']) for r in ROWS]

@@ -44,10 +44,10 @@ import numpy as np
 import pandas as pd
 import yaml
 
-import common
-import targets as TG
+from shared import common
+from prep import soi as TG
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = common.PIPELINE
 CONFIG = os.path.join(HERE, 'targets_config')
 ROW_COLUMNS = ['kind', 'group', 'target', 'statistic', 'population', 'variable', 'value', 'error_kind', 'se',
                'identity', 'source', 'reason', 'tax_unit_rules']
@@ -172,7 +172,7 @@ def resolve(year):
                 f'entry {e["id"]}: a judgment error needs its number (relative) and a reason'
         for st in _as_list(e['statistic']):
             assert st in CAT['statistics'], f'entry {e["id"]}: no statistic {st}'
-    import growth as GR
+    from shared import growth as GR
     GR.check(year)
     r['growth'] = GR.load(year)
     _RESOLVED[year] = r
@@ -197,7 +197,7 @@ def variable_def(v):
     projection year's people, returns group or item side (projection_steps, 3 November)."""
     if v in CAT['variables']:
         return CAT['variables'][v]
-    import projection_steps as PS
+    from scale import projection_steps as PS
     if PS.handles(v):
         return PS.variable_def(v)
     for fam in CAT['families']:
@@ -234,7 +234,7 @@ def record_value(df, v):
     """A record's value of variable v (in the file's dollars)."""
     d = variable_def(v)
     if 'projection' in d:
-        import projection_steps as PS
+        from scale import projection_steps as PS
         return PS.record_value(df, v)
     if 'family' in d:
         f = TG.FAMILIES[d['family']]
@@ -553,7 +553,7 @@ def published_25(year, cells, v, stats):
     children, all AGI (the mirror's bysize_eitc.csv, row Total): the returns with the credit and its amount in each
     children group (grouping eitc_children on n_dep_eitc). Errors borrow Table 1.4's nearest cells (errors.borrow_cv),
     as the other tables' counts and amounts do."""
-    import errors
+    from reweight import errors
     lab = {'none': 'no qualifying children', 'one': 'one qualifying child', 'two': 'two qualifying children',
            'three or more': 'three or more qualifying children'}
     t = pd.read_csv(os.path.join(TG.MIRROR, 'bysize_eitc.csv'), dtype=str, keep_default_na=False)
@@ -769,11 +769,11 @@ def nonfiler_count(year):
     """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
     the generated non-filer batch is sized by (generate.cps_expected_nonfilers). A year with no CPS units (an even
     year; 30 October) takes the geometric mean of the nearest CPS years either side (cps_neighbours), as the start's
-    scaling does (tilt.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
+    scaling does (start.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
     t = t[t.source == 'cps']
     if year > max(cps_years()):   # past the last CPS year (30 October): grown with the population
-        import growth as GR
+        from shared import growth as GR
         last = max(cps_years())
         return nonfiler_count(last) * GR.population(year) / GR.population(last)
     if year not in set(t['year']):
@@ -794,7 +794,7 @@ def cex_mix_rows(year, cells, v, stats):
     in the target year's dollars (the maps' factors), the statistic computed on each year alone, then pooled, value =
     the sum over years of share x the year's value. Only averages: an average does not depend on a year's number of
     units. The standard error is pooled in errors.consumption_errors (variance = sum of share^2 x the year's)."""
-    import survey_mix
+    from shared import survey_mix
     assert stats == ['average'], f'CEX {year}: the year mix is built for averages, not {stats}'
     per_year = []
     for y, share in survey_mix.mix('cex', year):
@@ -816,7 +816,7 @@ _GROWN_CEX = {}
 def survey_frame_grown(y):
     """The CEX year y's units with spending in the target year's dollars (read once)."""
     if y not in _GROWN_CEX:
-        import survey_mix
+        from shared import survey_mix
         u = survey_mix.grown_units('cex', y)
         assert u['weight'].notna().all() and (u['weight'] > 0).all(), f'CEX {y}: a unit with no positive weight'
         _GROWN_CEX[y] = u
@@ -841,7 +841,7 @@ def cps_overtime_units(y):
     wages_translated (the tax data's wages at the same percentile among earners, so the wage groups mean the same as
     on the file)."""
     if y not in _CPS_OT:
-        import survey_mix
+        from shared import survey_mix
         u = survey_mix.grown_units('cps', y)
         assert u['weight'].notna().all() and (u['weight'] > 0).all(), f'CPS {y}: a unit with no positive weight'
         na1, na2 = u['ot_primary'].isna().to_numpy(), u['ot_spouse'].isna().to_numpy()
@@ -863,7 +863,7 @@ def cps_mix_rows(year, cells, v, stats):
     (cex_mix_rows): each year's asked units in the target year's dollars (cps_overtime_units), the average computed on
     each year alone, value = the sum over years of share x the year's average. The standard error is pooled in
     errors.overtime_errors from the CPS's replicate weights (variance = sum of share^2 x the year's)."""
-    import survey_mix
+    from shared import survey_mix
     assert stats == ['average'], f'CPS {year}: the year mix is built for averages, not {stats}'
     per_year = []
     for y, share in survey_mix.mix('cps', year):
@@ -906,7 +906,7 @@ def cps_age_rows(year, cells, v, stats):
     """(2 November 2026, John) The number of tax units, filers and non-filers, in each cell of the primary's age, from the CPS's
     units over the year's CPS year mix (prior "cps items"; 2022: 2021 and 2023, half each): value = sum over years of
     share x the year's count. The standard error is pooled in errors.cps_age_errors from the CPS's replicate weights."""
-    import survey_mix
+    from shared import survey_mix
     assert stats == ['units'] and v is None, f'CPS units {year}: counts of units only, not {stats} of {v}'
     rows = []
     mix = survey_mix.mix('cps', year)
@@ -935,7 +935,7 @@ def survey_rows(source, year, cells, v, stats, population=None):
     """The statistic computed on the survey's own units in each cell. The SCF's come from the year's mix of SCF
     waves, with their standard errors (scf_targets.py), on the population's units (its net worth ceiling, if any)."""
     if source == 'scf':
-        import scf_targets
+        from reweight import scf_targets
         return scf_targets.rows(cells, v, stats, year, ceiling=net_worth_ceiling(population) if population else None)
     if population and net_worth_ceiling(population) is not None:
         raise NotImplementedError(f'{source}: a net worth ceiling on a survey other than the SCF')
@@ -991,7 +991,7 @@ FILE_RANK_LINES = {}   # (variable, population, percentile) -> the file's dollar
 def pipeline_rows(year, cells, v, stats):
     assert cells == [group_cells('all')[0]] and stats in (['units'], ['amount'])
     if year > max(cps_years()):   # past the last CPS year (30 October): the last year's grown with the population
-        import growth as GR
+        from shared import growth as GR
         last = max(cps_years())
         f = GR.population(year) / GR.population(last)
         if v is None:
@@ -1031,7 +1031,7 @@ def outside_level(src, line, a, b):
     if src == 'cbo individual income tax':
         return TG.cbo_level(line, b) / TG.cbo_level(line, a)
     if src == 'z1 household net worth':
-        import growth as GR
+        from shared import growth as GR
         nw = GR._csv('z1_household_net_worth.csv')
         return float(nw.loc[b]) / float(nw.loc[a])
     raise KeyError(f'outside source {src}')
@@ -1044,7 +1044,7 @@ def outside_rows(src, year, cells, v, stats, e):
     if src == 'cbo counts':
         return cbo_count_rows(year, v, stats, e)
     if src in ('projection persons', 'projection returns', 'projection items', 'projection filing season'):
-        import projection_steps as PS   # (3 November, agent A) the steps of the projection years
+        from scale import projection_steps as PS   # (3 November, agent A) the steps of the projection years
         assert stats == ['amount'], f'entry {e["id"]}: projection targets are amounts'
         return PS.outside_rows(src, year)
     assert cells == [group_cells('all')[0]], f'entry {e["id"]}: an outside target has cells all'
@@ -1075,8 +1075,8 @@ def cbo_count_rows(year, v, stats, e):
     return. After 2036 CBO publishes none, and since 4 November 2026 (the long-run years) no CBO number is used after
     settings tilt.projection.cbo_last_year (2035): no row (the entry is then left out and the file's count follows from
     the demographic cells). The standard error is the entry's, as before."""
-    import projection_demographics as PD
-    import projection_growth as PG
+    from scale import projection_demographics as PD
+    from scale import projection_growth as PG
     series = e['outside_line']
     if year > PG.cbo_last_year():
         return []
@@ -1200,7 +1200,7 @@ def published_grid(source, year, cells, v, stats):
     Table 1.4 cells using the paired holder count. A published AGI cutoff at or above the catalog's full-sample line
     gets errors.full_sample_se instead.
     """
-    import errors
+    from reweight import errors
     definition = CAT['sources'][source]
     t = pd.read_csv(os.path.join(common.RAW['soi_tables'], definition['file']), keep_default_na=False, dtype=str)
     t = t[(t.tax_year == str(year)) & (t.table == str(definition['table']))]
@@ -1296,7 +1296,7 @@ def _w2_less_dependents(definition, share, cell, st, published, returns, donors,
     amount). The error borrows the CV of the nearest Table 1.4 cells (a count by its size; an amount by its size and
     its count of returns), and gap_share of the reduction is added as a definition gap (square root of the sum of
     squares)."""
-    import errors
+    from reweight import errors
     gap_share = definition['dependent_share']['gap_share']
     reduction, gap_why = 0.0, ''
     if share is not None and cell['filters'] == [('married', 0)]:
@@ -1341,7 +1341,7 @@ def w2_dependent_share(source, year):
     (survey_mix.py; TARGETS.md section 7): the sum over years of share x the year's share, for people and for tips
     (a share of the people or the dollars does not depend on a year's population). Returns (share of people, share of
     tips, description)."""
-    import survey_mix
+    from shared import survey_mix
     parts = [(y, s, w2_dependent_share_one(source, y)) for y, s in survey_mix.mix('sipp', year)]
     return (sum(s * r[0] for _, s, r in parts), sum(s * r[1] for _, s, r in parts),
             'pooled over the SIPP year mix, sum of share x the year\'s share; ' + '; '.join(
@@ -1375,7 +1375,7 @@ def published_w2(source, year, cells, v, stats, population):
     population leaves dependent filers out, the non-joint value is reduced by the SIPP's dependent share
     (w2_dependent_share), and gap_share of the reduction is added to the borrowed error (square root of the sum of
     squares)."""
-    import errors
+    from reweight import errors
     definition = CAT['sources'][source]
     path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
     table = _w2_table(path, definition['sheet'])
@@ -1477,7 +1477,7 @@ def published_w2_agi(source, year, cells, v, stats, population):
     the population leaves dependent filers out, the non-joint value is reduced by the SIPP's dependent share
     (w2_deferral_dependent_share) and gap_share of the reduction is added to the borrowed error, as for the tips
     targets (published_w2)."""
-    import errors
+    from reweight import errors
     definition = CAT['sources'][source]
     path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
     table = _w2_by_agi(path, definition['sheet'])
@@ -1528,7 +1528,7 @@ def published_w2_shares(source, year, cells, v, e):
     the workers' number, added in quadrature, times the share (the two are positively related, so this is not
     small); plus half the most the dependent filers could move the share (all of them below the line: s d / (1 - d),
     at most 1 - s, d the dependents' share of all workers, from the SIPP as in w2_dependent_share), in quadrature."""
-    import errors
+    from reweight import errors
     definition = CAT['sources'][source]
     path = os.path.join(common.RAW['soi_w2'], definition['file'].format(year=year))
     item = variable_def(v)['published'][source]['item']
@@ -1566,7 +1566,7 @@ def published_21(year, cells, v, stats):
     """Table 2.1's already combined groups; do not infer errors for its residual."""
     (cell,) = cells
     assert cell['agi'] == 'itemized_agi_groups'
-    path = os.path.join(HERE, '..', 'resources', 'table21_2015_2023.csv')
+    path = os.path.join(common.RESOURCES, 'table21_2015_2023.csv')
     data = pd.read_csv(path)
     category = v.removeprefix('itemized_')
     # (1 November, decision 54) the taxes line is Table 2.1's state and local taxes (limited, 2018 on), not the taxes paid
@@ -1681,7 +1681,7 @@ def expand_entry(e, year, soi):
             vr = r.get('variable', v)   # a row may carry its own variable (projection_steps)
             group, target = _fill(e['key']['group'], c, vr, st, vyear, line), _fill(e['key']['target'], c, vr, st, vyear, line)
             if 'pooled' in r:   # an SCF target: its standard error, computed with its value, for errors.py
-                import scf_targets
+                from reweight import scf_targets
                 scf_targets.RESULTS[(e['kind'], group, target)] = r['pooled']
             out.append({
                 'kind': e['kind'], 'group': group, 'target': target,
@@ -1748,7 +1748,7 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
         rows = rows[reach].reset_index(drop=True)
     keys = rows[['kind', 'group', 'target']].apply(tuple, axis=1)
     assert keys.is_unique, f'two entries give the same target: {keys[keys.duplicated()].tolist()}'
-    import errors
+    from reweight import errors
     e = errors.standard_errors(rows, int(year))
     m = rows[['kind', 'group', 'target']].merge(e, on=['kind', 'group', 'target'], how='left', validate='1:1')
     got = m['se'].notna().to_numpy() & ~rows['identity'].to_numpy()
@@ -1801,7 +1801,7 @@ def conditions(df, rows, w_start, check=True):
     rows = rows.fillna({'range_variable': ''})
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
-    import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
+    from shared import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
     a = D.agi(df)
     rng = df['age_range'].to_numpy()
     assert ((rng >= 0) & (rng < common.N_RANGES)).all(), 'a record with no age range'
@@ -1932,7 +1932,7 @@ def start_spec(year):
     start's weights are scaled to year t before the tilt (demographic, a generated start: filers to SOI's returns and
     non-filers to the year's non-filer count, then joint and non-joint returns to Table 1.2, then the demographic
     cells; persons, a start from an earlier year: projection_steps.step1); its default is settings tilt.prescale.
-    dollars item_factor (from_year only): each record's amounts grown item by item from s to t (tilt.grow_dollars)."""
+    dollars item_factor (from_year only): each record's amounts grown item by item from s to t (start.grow_dollars)."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')
     if st == 'generate':
@@ -1942,7 +1942,7 @@ def start_spec(year):
             f'{year}/targets.yaml: start is generate or {{from_year: <year>, run: <tilt run>}}, not {st!r}'
         assert int(st['from_year']) < int(year), f'{year}/targets.yaml: from_year {st["from_year"]} is not earlier'
         spec = {'mode': 'from_year', 'year': int(st['from_year']), 'run': str(st['run'])}
-        import projection_steps as PS   # (4 November, evening) the jump-off year (settings tilt.projection.filing_season)
+        from scale import projection_steps as PS   # (4 November, evening) the jump-off year (settings tilt.projection.filing_season)
         j = PS.jump_off(year, spec['year'])
         if j != spec['year']:
             spec.update(year=j, run=f'y{j}', jump_off=True)

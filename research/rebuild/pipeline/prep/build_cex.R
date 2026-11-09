@@ -64,7 +64,7 @@
 # used in any file that has it.
 #
 # Paths and years from settings.json ("paths": raw cex; "cex": years); the settings file is
-# REBUILD_SETTINGS if set (run.sbatch sets it), else the pipeline's own.
+# REBUILD_SETTINGS if set (run.py sets it), else the pipeline's own.
 # Writes {out}/data/cex_units_{year}.csv.gz, one row per tax unit per
 # interview; cex_summary.csv (weighted totals beside NIPA PCE);
 # cex_items_by_year.csv (weighted total of every FMLI item used, by year);

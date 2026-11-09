@@ -6,7 +6,7 @@ right, and only three kinds are computed; everything else is a judgment number w
 1. SOI tables that publish coefficients of variation (Tables 1.4, 2.1 and 3.3; error_kind 'soi_cv'). SOI does not
    link the CV workbooks from any page; they sit at https://www.irs.gov/pub/irs-soi/{yy}in14cv.xls, {yy}in21cv.xls
    and {yy}in33cv.xls (found on 22 October 2026, explore/2026-10-22/targets/irs_data/REPORT.md). The workbooks are
-   kept in <out>/targets/soi_cv/raw/ with a manifest of where each came from, and `python errors.py soi_cv` parses them
+   kept in <out>/targets/soi_cv/raw/ with a manifest of where each came from, and prep/soi_cv.py parses them
    into <out>/targets/soi_cv/soi_cv.csv: one row per published cell, its value from the shared SOI mirror (the same cells
    targets.py reads) and its CV. A CV workbook is laid out like its table (same AGI rows, same column numbers), so a
    CV is joined to its cell by tax year, panel, AGI class and column number.
@@ -65,20 +65,16 @@ Data, downloaded once (public; to scratch, never to the shared raw-data folder; 
                           p19_rw1.dta 0cfe01b806045c0fc3abe8b4902804ee05dda47da490c05397b1101f6e221739,
                           p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2.
   The CEX's replicate weights are read from the FMLI files in the shared raw-data folder (settings paths.raw.cex).
-
-Usage (through Slurm, from the repository root):
-  python errors.py soi_cv     parse the CV workbooks into <out>/targets/soi_cv/soi_cv.csv
 """
 import glob
 import os
 import re
-import sys
 
 import numpy as np
 import pandas as pd
 
-import common
-import targets as TG
+from shared import common
+from prep import soi as TG
 
 Y = common.TARGET_YEAR
 CV_DIR = f'{common.TARGETS}/soi_cv'
@@ -98,140 +94,6 @@ AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 INF = np.inf
 
 # ---- 1. SOI's published coefficients of variation ------------------------------------------------
-CV_TABLES = {'14': ('1.4', 'income_sources'), '21': ('2.1', 'itemized_deductions'), '33': ('3.3', 'tax_liability')}
-
-
-def agi_range(label):
-    """(lo, hi) of an SOI row label: 'No adjusted gross income' (-inf, 1); '$1 under $5,000'; 'Under $5,000'
-    (-inf, 5,000); '$10,000,000 or more'; a panel total (-inf, inf). None if the label is not an AGI class."""
-    s = re.sub(r'\[\d+\]|\(\d+\)|\*', '', str(label)).strip().lower()
-    if s.endswith(', total') or s == 'all':
-        return (-INF, INF)
-    s = re.sub(r'\s+', ' ', s.replace('$', '').replace(',', ''))
-    if s.startswith('no adjusted gross income'):
-        return (-INF, 1.0)
-    for pat, f in [(r'(\d+) under (\d+)', lambda a, b: (float(a), float(b))),
-                   (r'under (\d+)', lambda b: (-INF, float(b))),
-                   (r'(\d+) or more', lambda a: (float(a), INF))]:
-        m = re.fullmatch(pat, s)
-        if m:
-            return f(*m.groups())
-    return None
-
-
-def read_cv_workbook(path):
-    """One CV workbook's cells: panel, row_label, lo, hi, col_seq (SOI's column number), cv_pct, cv_flag. The column
-    numbers are the header row that numbers the columns (1), (2), ...; a row labelled '<panel>, total' opens a panel.
-    SOI marks a combined cell by its number format ('** '), as the mirror's reader does; a cell with no number has
-    no CV (cv_pct missing)."""
-    import xlrd
-    book = xlrd.open_workbook(path, formatting_info=True)
-    sh = book.sheet_by_index(0)
-
-    def colnum(v):
-        m = re.fullmatch(r'\(?(\d+)\)?', str(v).strip().replace('.0', ''))
-        return int(m.group(1)) if m else None
-    best, cols = -1, {}
-    for r in range(min(sh.nrows, 30)):
-        found = {c: colnum(sh.cell_value(r, c)) for c in range(1, sh.ncols)
-                 if sh.cell_type(r, c) in (xlrd.XL_CELL_TEXT, xlrd.XL_CELL_NUMBER)}
-        found = {c: n for c, n in found.items() if n is not None}
-        if len(found) > len(cols) and sorted(found.values())[:3] == [1, 2, 3]:
-            best, cols = r, found
-    assert len(cols) >= 3, f'{path}: no row of column numbers'
-    # SOI's column numbers run 1, 2, 3, ... left to right. One misprint is known (TY2018 Table 3.3 CV prints column
-    # 111 as "11"): a single number out of a run whose neighbours agree on it is set to what they imply.
-    order = sorted(cols)
-    for a, b, c in zip(order, order[1:], order[2:]):
-        if cols[b] != cols[a] + 1 and cols[c] == cols[a] + 2:
-            common.say(f'  {os.path.basename(path)}: column number {cols[b]} between {cols[a]} and {cols[c]} read as '
-                       f'{cols[a] + 1}')
-            cols[b] = cols[a] + 1
-    assert len(set(cols.values())) == len(cols), f'{path}: a column number printed twice'
-
-    def flag(r, c):
-        fmt = book.format_map[book.xf_list[sh.cell_xf_index(r, c)].format_key].format_str
-        m = re.match(r'^"(\*+)\s*"', fmt)
-        return '' if not m else ('combined' if len(m.group(1)) >= 2 else 'caution')
-    rows, panel = [], None
-    for r in range(best + 1, sh.nrows):
-        label = str(sh.cell_value(r, 0)).strip()
-        if label.endswith(', total'):
-            panel = label[:-len(', total')]
-        rng = agi_range(label) if panel else None
-        if rng is None:
-            continue
-        for c, n in cols.items():
-            t = sh.cell_type(r, c)
-            if t == xlrd.XL_CELL_NUMBER:
-                v, fl = float(sh.cell_value(r, c)), flag(r, c)
-                # a zero under the combined format is a cell folded into its neighbour: no CV of its own
-                rows.append((panel, label, rng[0], rng[1], n, np.nan if fl == 'combined' and v == 0 else v, fl))
-            elif t == xlrd.XL_CELL_TEXT and str(sh.cell_value(r, c)).strip():
-                txt = str(sh.cell_value(r, c)).strip()
-                try:   # some workbooks (TY2020 Tables 2.1 and 3.3) store the numbers as text
-                    rows.append((panel, label, rng[0], rng[1], n, float(txt.replace(',', '')), ''))
-                except ValueError:
-                    rows.append((panel, label, rng[0], rng[1], n, np.nan, 'combined' if txt.startswith('**') else txt))
-    return pd.DataFrame(rows, columns=['panel', 'row_label', 'lo', 'hi', 'col_seq', 'cv_pct', 'cv_flag'])
-
-
-def build_soi_cv():
-    """Parses every workbook in <out>/targets/soi_cv/raw and joins each CV to its published cell in the mirror; writes
-    soi_cv.csv (one row per published cell of a year with a CV workbook: tax_year, table, panel, row_label, lo, hi,
-    col_seq, item, statistic, value, value_flag, cv_pct, cv_flag) and soi_cv_parse_log.csv."""
-    files = sorted(glob.glob(f'{CV_DIR}/raw/[0-9][0-9]in[0-9][0-9]cv.xls'))
-    assert files, f'no CV workbooks in {CV_DIR}/raw'
-    mirror = {}
-    log, parts = [], []
-    for p in files:
-        f = os.path.basename(p)
-        yy, t = int(f[:2]), f[4:6]
-        year = 1900 + yy if yy > 50 else 2000 + yy
-        table, family = CV_TABLES[t]
-        try:
-            cv = read_cv_workbook(p)
-        except Exception as e:   # one old file (TY1997 1.4) does not open; it is logged, not used
-            log.append({'file': f, 'tax_year': year, 'table': table, 'parsed': False, 'cells': 0, 'joined': 0,
-                        'note': str(e)[:200]})
-            continue
-        if family not in mirror:
-            m = pd.read_csv(f'{TG.MIRROR}/bysize_{family}.csv', dtype={'value': float}, keep_default_na=False,
-                            na_values=[''], low_memory=False)
-            rng = m['row_label'].map(agi_range)
-            m = m[rng.notna()].copy()
-            m['lo'], m['hi'] = [r[0] for r in rng[rng.notna()]], [r[1] for r in rng[rng.notna()]]
-            mirror[family] = m
-        m = mirror[family]
-        m = m[(m.tax_year == year) & (m.table.astype(str) == table)]
-        if not len(m):
-            log.append({'file': f, 'tax_year': year, 'table': table, 'parsed': True, 'cells': len(cv), 'joined': 0,
-                        'note': 'year not in the mirror'})
-            continue
-        j = m.merge(cv[['panel', 'lo', 'hi', 'col_seq', 'cv_pct', 'cv_flag', 'row_label']].rename(
-            columns={'row_label': 'cv_row_label'}), on=['panel', 'lo', 'hi', 'col_seq'], how='left')
-        assert len(j) == len(m), f'{f}: a cell joined twice'
-        j['statistic'] = np.where(j['col_label'].str.lower().str.contains('number of returns'), 'count', 'amount')
-        parts.append(j.assign(table=table)[['tax_year', 'table', 'panel', 'row_label', 'lo', 'hi', 'col_seq', 'item',
-                                            'statistic', 'value', 'flag', 'cv_pct', 'cv_flag']]
-                     .rename(columns={'flag': 'value_flag'}))
-        log.append({'file': f, 'tax_year': year, 'table': table, 'parsed': True, 'cells': len(cv),
-                    'joined': int(j['cv_pct'].notna().sum()),
-                    'note': f"{int((j['value'].notna() & j['cv_pct'].isna()).sum())} published values without a CV"})
-    out = pd.concat(parts, ignore_index=True)
-    out.to_csv(f'{CV_DIR}/soi_cv.csv', index=False)
-    log = pd.DataFrame(log)
-    log.to_csv(f'{CV_DIR}/soi_cv_parse_log.csv', index=False)
-    common.say(log.to_string())
-    v = out['value'].notna() & (out['value'] != 0)
-    common.say(f'{len(out)} published cells; {int(v.sum())} with a nonzero value, of which '
-               f"{int((v & out['cv_pct'].isna()).sum())} have no CV (flags: "
-               f"{out.loc[v & out['cv_pct'].isna(), 'value_flag'].value_counts().to_dict()}) and "
-               f"{int((v & (out['cv_pct'] == 0)).sum())} a CV of 0 "
-               f"({int((v & (out['cv_pct'] == 0) & (out['lo'] >= 1e7)).sum())} of them in the $10,000,000-or-more class)")
-    return out
-
-
 _CV = None
 
 
@@ -314,7 +176,7 @@ def borrow_cv(cells, count=None, amount=None, returns=None):
 def dependent_filer_item_returns(year, variable, lo, hi):
     """Table 1.7's number of returns with an item (the variable's 'soi 1.7' count) in the AGI range [lo, hi), the
     all-AGI row when lo and hi are NaN: the count an amount's borrowed CV is matched on."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     t = TLS.table_17(year)
     t = t[t['item'] == TLS.table_17_item(variable, 'count')]
     x = t[t['lo'].isna()] if np.isnan(lo) else t[t['lo'].notna() & (t['lo'] >= lo) & (t['hi'] <= hi)]
@@ -324,7 +186,7 @@ def dependent_filer_item_returns(year, variable, lo, hi):
 
 def soi_errors(rows, year):
     """Table 1.4 targets (published CVs) and the counts of other SOI tables (borrowed CVs)."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     cells, cv_year = soi_cells(year)
     yr = '' if cv_year == year else f' (the {cv_year} CVs: no CV workbook for {year})'
     out = []
@@ -429,7 +291,7 @@ def scf_replicates(wave, units):
 def scf_errors(rows, year):
     """The SCF targets (kinds 'wealth', 'wealth grid' and 'auto loans'): the standard errors scf_targets.py computed with their
     values, over the year's mix of SCF waves. They are recorded when target_list.expand builds the year's targets."""
-    import scf_targets
+    from reweight import scf_targets
     keys = list(zip(rows['kind'], rows['group'], rows['target']))
     out = []
     for i, k in zip(rows.index, keys):
@@ -444,7 +306,7 @@ def scf_errors(rows, year):
 def cex_replicates(year, units):
     """Each CEX tax unit's 44 replicate weights: its interview's WTREPnn / 4 x MO_SCOPE / 3, the same rule as the main
     weight (build_cex.R's FINLWT21 / 4 x MO_SCOPE / 3), so weight x WTREPnn / FINLWT21."""
-    import roster_cex
+    from prep import roster_cex
     reps = [f'WTREP{i:02d}' for i in range(1, 45)]
     f = roster_cex._read('fmli', year, ['NEWID', 'FINLWT21'] + reps)
     assert not f.NEWID.duplicated().any()
@@ -476,7 +338,7 @@ def consumption_errors(rows, year):
     each year's standard error from its own 44 replicate weights, on its spending in the target year's dollars (the
     maps' factors, so a replicate's average is grown as the full-sample one is); the years are independent samples,
     so the pooled variance is the sum over years of share^2 x the year's variance."""
-    import survey_mix
+    from shared import survey_mix
     parts = []
     for y, share in survey_mix.mix('cex', year):
         u = survey_mix.grown_units('cex', y)
@@ -552,7 +414,7 @@ def cps_replicates(year, units):
     is the last two digits of build_cps.R's record_id), so its replicate weights are the head's REPWTP1-REPWTP160 times
     the unit's weight over the head's ASECWT (1 where they agree; checked and printed). Read from the shared replicate
     weights layer (settings paths.raw.cps_repwt, sample cps<year + 1>_03s: the ASEC of March of the next year)."""
-    import build_table as BT
+    from prep import build_table as BT
     folder = f"{common.RAW['cps_repwt']}/cps{year + 1}_03s"
     reps = [f'REPWTP{i}' for i in range(1, CPS_REPLICATES + 1)]
     f = _ipums_fixed_width(folder, ['SERIAL', 'PERNUM', 'ASECWT'] + reps)
@@ -591,8 +453,8 @@ def overtime_errors(rows, year):
     replicates of (replicate estimate - full-sample estimate)^2; each replicate's average recomputed in full (its
     weights in numerator and denominator). The years are independent samples, so the pooled variance is the sum over
     years of share^2 x the year's variance. The cell is read from the row (range_variable, range_lo, range_hi)."""
-    import survey_mix
-    import target_list as TLS
+    from shared import survey_mix
+    from reweight import target_list as TLS
     parts = []
     for y, share in survey_mix.mix('cps', year):
         u = TLS.cps_overtime_units(y)
@@ -628,8 +490,8 @@ def cps_age_errors(rows, year):
     each CPS year's standard error from the ASEC's 160 person replicate weights (the unit head's, cps_replicates), by
     successive difference replication, variance = 4 / 160 x the sum over the replicates of (replicate count - full-sample
     count)^2; the years are independent samples, so the pooled variance is the sum over years of share^2 x the year's."""
-    import survey_mix
-    import target_list as TLS
+    from shared import survey_mix
+    from reweight import target_list as TLS
     parts = []
     for y, share in survey_mix.mix('cps', year):
         u = TLS.cps_age_units(y)
@@ -665,8 +527,8 @@ def nonfiler_errors(rows, year):
         p = f'{common.DATA}/filing/checks/{y}_nonfilers_vs_targets.csv'   # the filing stage's checks
         if os.path.exists(p):
             return pd.read_csv(p).set_index('band')['census_adults']
-        import growth as GR
-        import target_list as TLS
+        from shared import growth as GR
+        from reweight import target_list as TLS
         have = TLS.cps_years()
         if y > max(have):
             return census(max(have)) * GR.population(y) / GR.population(max(have))
@@ -736,7 +598,3 @@ def standard_errors(rows, year=Y):
         out.loc[m, ['se', 'error_kind', 'se_reason']] = [0.0, 'identity', 'an identity: hit exactly']
     return out
 
-
-if __name__ == '__main__':
-    assert sys.argv[1:] == ['soi_cv'], 'usage: python errors.py soi_cv'
-    build_soi_cv()

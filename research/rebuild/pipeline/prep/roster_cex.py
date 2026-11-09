@@ -28,7 +28,7 @@ What the CEX observes, and the fallbacks (tax_units.FALLBACKS['cex']):
     (bls_unit: BLS's unit after build_cex.R's repairs and folding of dependent filers into the claiming unit).
 
 Run before build_cex.R.
-Usage (through Slurm): python roster_cex.py [year ...] [--out DIR]   (no years: every year in settings cex.years)
+Usage (through Slurm): python -m prep.roster_cex [year ...] [--out DIR]   (no years: every year in settings cex.years)
 Writes, to the pipeline's data folder ({REBUILD_OUT or paths.out}/data, as common.py resolves it) unless --out names
 another: persons_cex_<year>.parquet and units_cex_<year>.parquet (the rules' output, with BLS's codes as comparison
 columns, read by the checks), mfs_cex_<year>.parquet (the separate returns), and cex_persons_module_<year>.csv.gz,
@@ -40,8 +40,8 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
-import tax_units as T
+from shared import common
+from prep import tax_units as T
 
 CEX_RAW = common.RAW['cex']
 MEMBER_COLS = ['NEWID', 'MEMBNO', 'AGE', 'SEX', 'CU_CODE', 'MARITAL', 'IN_COLL', 'TAX_UNIT', 'TU_CODE', 'TU_DPNDT',
@@ -248,7 +248,7 @@ def read_roster(year):
 
 def build(year):
     """Units by the shared rules (with CBO's reassignment pass), the comparison with BLS's units, and the separate returns."""
-    import targets as TG
+    from prep import soi as TG
     r = read_roster(year)
     persons, units = T.build_units(r, year)
     # BLS comparison: a module unit matches when its people are exactly the people of one BLS unit (after the

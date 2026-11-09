@@ -47,7 +47,7 @@ units(wave)         the rules (tax_units.build_units, reassignment on), then sep
 
 The group's income and balance sheet are divided equally among its adults (npeu_shares).
 
-Usage (through Slurm; run.sbatch's scf stage runs it before build_scf.R): python roster_scf.py [wave ...]
+Usage (through Slurm; run.py's scf stage runs it before build_scf.R): python -m prep.roster_scf [wave ...]
 [--out DIR]; by default every wave in the settings, DIR {out}/data. Writes DIR/scf_persons_<wave>.parquet,
 DIR/scf_units_module_<wave>.parquet and DIR/scf_npeu_dollars_<wave>.parquet.
 """
@@ -57,8 +57,8 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
-import tax_units as T
+from shared import common
+from prep import tax_units as T
 
 SALT_AGE = 20261024
 SALT_AWAY = 20261025

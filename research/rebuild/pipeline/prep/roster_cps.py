@@ -16,7 +16,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from tax_units import ASSUMED_FLAGS, taxable_social_security
+from prep.tax_units import ASSUMED_FLAGS, taxable_social_security
 
 RAW = '/nfs/roberts/project/pi_nrs36/shared/raw_data/CPS-ASEC/cps_asec_common'
 

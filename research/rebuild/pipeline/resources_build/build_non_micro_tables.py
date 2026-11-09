@@ -1,7 +1,7 @@
 """The published tables the non-microdata imputations read (non_micro_imputations.py), built once from their sources
 into research/rebuild/resources/non_micro/, which is committed. Run again only when a source changes:
 
-    sbatch research/rebuild/pipeline/run.sbatch non_micro_tables      (no GPU needed)
+    python research/rebuild/pipeline/run.py stage <folder> non_micro_tables      (no GPU needed)
 
 Each table is a CSV with a year column where the published numbers change by year; sources.csv in the same folder
 says, for every table, where its numbers come from and how they were turned into the table. The sources:
@@ -25,11 +25,11 @@ import zipfile
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
-REPO = os.path.abspath(os.path.join(common.HERE, '..', '..', '..'))
+REPO = common.REPO
 PROD = os.path.join(REPO, 'resources')
-OUTDIR = os.path.abspath(os.path.join(common.HERE, '..', 'resources', 'non_micro'))
+OUTDIR = os.path.join(common.RESOURCES, 'non_micro')
 RAW = common.RAW
 SOURCES = []
 
@@ -268,8 +268,8 @@ def puf_blind_rates():
     weighted (S006). The blindness rule (non_micro_imputations.blindness) applies these rates, times one factor per
     person type, to every primary filer and spouse in the file. Age ranges as the training table's (ages.py, observed
     range only; records with no range are left out of the rates)."""
-    import ages
-    import build_table
+    from shared import ages
+    from prep import build_table
     puf = build_table.read_puf()
     rng, _ = ages.puf_age_ranges(puf)
     assert np.array_equal(rng.RECID.to_numpy(), puf.RECID.to_numpy())
@@ -303,7 +303,7 @@ HAND_BUILT = ['irs_wages_by_business_type.csv']   # (6 November) by build_irs_wa
 
 
 def main(names=None):
-    """Every table; or, with names (python build_non_micro_tables.py pub4801_blind ...), only those, their rows of
+    """Every table; or, with names (python -m resources_build.build_non_micro_tables pub4801_blind ...), only those, their rows of
     sources.csv replaced and the other rows kept."""
     os.makedirs(OUTDIR, exist_ok=True)
     run = [f for f in TABLES if not names or f.__name__ in names]

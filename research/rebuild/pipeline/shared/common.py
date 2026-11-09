@@ -1,6 +1,6 @@
 """Paths, settings and small helpers shared by every stage.
 
-Every choice of a run is in one settings file: REBUILD_SETTINGS if set (run.sbatch sets it; every stage, R and
+Every choice of a run is in one settings file: REBUILD_SETTINGS if set (run.py sets it; every stage, R and
 Python, reads it), else the pipeline's own settings.json. A variant run is a copy of that file. Outputs go under OUT
 (scratch), one folder per stage:
   data/     the training table, its band edges, the dollar maps   (build_table.py)
@@ -16,8 +16,10 @@ import os
 
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-SETTINGS = json.load(open(os.environ.get('REBUILD_SETTINGS', os.path.join(HERE, 'settings.json'))))
+PIPELINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))    # research/rebuild/pipeline
+RESOURCES = os.path.join(os.path.dirname(PIPELINE), 'resources')           # research/rebuild/resources
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(PIPELINE)))         # the repository root
+SETTINGS = json.load(open(os.environ.get('REBUILD_SETTINGS', os.path.join(PIPELINE, 'settings.json'))))
 OUT = os.environ.get('REBUILD_OUT', SETTINGS['paths']['out'])
 RAW = SETTINGS['paths']['raw']
 SEED = int(os.environ.get('REBUILD_SEED', SETTINGS['training']['seed']))
@@ -41,6 +43,7 @@ RUN = os.environ.get('REBUILD_RUN', f'seed{SEED}')
 MODEL = f'{OUT}/model/{RUN}'
 GEN = f'{OUT}/gen/{RUN}'
 TILT = f'{OUT}/tilt/{RUN}'
+TOP_CACHE = f'{OUT}/top_cache.pkl'   # the top step's network part (generate/top.py), read by the tilt
 
 # The primary filer's age range (ages.py): six adult ranges, then three for dependent filers.
 AGE_LABELS = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+', 'dep <18', 'dep 18-25', 'dep 26+']

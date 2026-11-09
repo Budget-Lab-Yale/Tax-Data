@@ -23,8 +23,8 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
-import translate as TR
+from shared import common
+from shared import translate as TR
 
 STAGES = ['as reported', 'link', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)',
           'CPS (same year)']
@@ -83,9 +83,9 @@ def wages_section(rep):
 def after_fill_in():
     """The stage after function 2, as long report rows."""
     import torch
-    import fillin
-    import model as M
-    import train
+    from pretrain import fillin
+    from pretrain import model as M
+    from pretrain import train
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     table = M.read_table()
     train_rows = table[table.split == 'train']

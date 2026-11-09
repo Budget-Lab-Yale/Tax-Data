@@ -71,7 +71,7 @@ writes all stages to model/<run>/translation_report.md.
 """
 import numpy as np
 
-import common
+from shared import common
 
 S = common.SETTINGS['translation']
 TABLE = S['table']

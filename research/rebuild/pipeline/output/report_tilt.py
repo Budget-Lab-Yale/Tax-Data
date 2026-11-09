@@ -25,7 +25,7 @@ and net worth and total consumption by wage group. A statistic is listed only if
 the item in the cell. Moves and gaps are ranked as a share of the cell's gross (the total of the
 item's absolute values), so that a signed item whose total is near zero does not rank first on a small move.
 
-Run: python report_tilt.py [--run DIR] [--out DIR] [--year YEAR]   (in a Slurm job, as every stage)
+Run: python -m output.report_tilt
 """
 import datetime
 import os
@@ -35,10 +35,10 @@ import subprocess
 import numpy as np
 import pandas as pd
 
-import common
-import dollars as D
-import solver as SV
-import targets as TG
+from shared import common
+from shared import dollars as D
+from reweight import solver as SV
+from prep import soi as TG
 
 TOP = 8                 # rows of each table shown on the summary page
 MIN_RECORDS = 200       # records holding the item, for a statistic to be listed
@@ -768,7 +768,7 @@ def models_page(mt, notes):
 # ---- 6. overall ----------------------------------------------------------------------------------------------
 def git(*args):
     try:
-        return subprocess.run(['git', '-C', common.HERE, *args], capture_output=True, text=True, timeout=60).stdout.strip()
+        return subprocess.run(['git', '-C', common.PIPELINE, *args], capture_output=True, text=True, timeout=60).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ''
 
@@ -791,7 +791,7 @@ def overall(df, t, th, w0, w1, run, tl):
             ('KL move (nats)', f'{SV.kl_move(w0, w1):.4f}'),
             ('weight factor, 1st and 99th percentiles', f'{np.quantile(f, 0.01):.3f}, {np.quantile(f, 0.99):.3f}'),
             ('records moved more than tenfold up, down', f'{int((f > 10).sum())}, {int((f < 0.1).sum())}'),
-            ('settings file', os.environ.get('REBUILD_SETTINGS', os.path.join(common.HERE, 'settings.json'))),
+            ('settings file', os.environ.get('REBUILD_SETTINGS', os.path.join(common.PIPELINE, 'settings.json'))),
             ('target configuration', str(common.SETTINGS.get('targets_config', common.SETTINGS.get('tilt', {})
                                                              .get('targets_config', 'not named in the settings')))),
             ('expanded target list', f'{run}/targets.csv'),

@@ -5,9 +5,11 @@ import os
 import numpy as np
 import pandas as pd
 
-from projection_demographics import cbo_count
+from shared import common
 
-RESOURCES = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources')
+from scale.projection_demographics import cbo_count
+
+RESOURCES = common.RESOURCES
 
 
 def cbo_return_growth(year):
@@ -56,7 +58,7 @@ _LR = {}
 
 def cbo_last_year():
     """The last year a CBO projection is used (settings tilt.projection.cbo_last_year)."""
-    import common
+    from shared import common
     return int(common.SETTINGS['tilt']['projection']['cbo_last_year'])
 
 

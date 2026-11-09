@@ -37,10 +37,10 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
-import dollars as D
-import target_list as TLS
-import top_billionaires as TB
+from shared import common
+from shared import dollars as D
+from reweight import target_list as TLS
+from generate import top_billionaires as TB
 
 S = common.SETTINGS['tilt'].get('top', {})
 POPULATION = 'scf_units_below_a_billion'
@@ -60,7 +60,7 @@ def _hidden_returns(df, year, mode, notes):
         notes.append('WARNING: Part A (the PUF\'s hidden top returns) is built for a generated start only; this start '
                      'is an earlier year\'s file, so it is skipped')
         return None
-    import top_hidden
+    from generate import top_hidden
     # a stack drawn before the blindness rule (the retrain of 28 October) carries blindness columns Part A's rows do not
     old = [c for c in ['blind', 'blind_drawn1', 'blind_drawn2', 'blind_chance1', 'blind_chance2'] if c in df]
     assert not old, f'the stack has the blindness columns {old} (drawn before 28 October)'
@@ -181,8 +181,8 @@ def net_worth_growth(g19, imp, year, list_year):
     file's own net worth target), so the list keeps its share of the file's net worth. The weights depend on the
     records' cells only (ages and marital status), not on their wealth, so a first build with any growth gives them.
     Returns (factor, source) for top_billionaires.grow_list."""
-    import growth as GR
-    import projection_demographics as PD
+    from shared import growth as GR
+    from scale import projection_demographics as PD
     first = TB.grow_list(TB.read_list(list_year), list_year, year)
     b0, _ = TB.build_billionaires(first, g19, imp, year, [])
     w0, _ = PD.population_cells(b0.assign(weight=1.0), year, from_year=list_year)
@@ -201,7 +201,7 @@ def net_worth_growth(g19, imp, year, list_year):
 
 def add_list(g19, imp, given, fixed, rep, year):
     """Step 4 (see the top) on the result of steps 1-3."""
-    import projection_demographics as PD
+    from scale import projection_demographics as PD
     rep = dict(rep)
     notes = list(rep['notes'])
     ceiling = TLS.net_worth_ceiling(POPULATION)
@@ -234,7 +234,7 @@ def add_list(g19, imp, given, fixed, rep, year):
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
             # the list's net worth on these weights grows as Z.1's from the list's year
-            import growth as GR
+            from shared import growth as GR
             z = GR._csv('z1_household_net_worth.csv')
             want = lst['net_worth_list'].sum() * float(z.loc[year]) / float(z.loc[list_year])
             assert np.isclose((w_b * b['net_worth'].to_numpy(float)).sum(), want, rtol=1e-6), 'list growth off'

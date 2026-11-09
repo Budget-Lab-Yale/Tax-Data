@@ -21,7 +21,9 @@ import os
 import numpy as np
 import pandas as pd
 
-import state_targets as ST
+from shared import common
+
+from reweight import state_targets as ST
 
 ROUNDING_SE = 10 / np.sqrt(12)     # Historic Table 2's counts are rounded to the nearest 10
 
@@ -31,9 +33,8 @@ def say(*a):
 
 
 def common_settings():
-    """settings state_weights, from the pipeline's own settings.json."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    return json.load(open(os.path.join(here, 'settings.json')))['state_weights']
+    """settings state_weights (the run's settings file, as every stage reads it)."""
+    return common.SETTINGS['state_weights']
 
 
 def pins_of(df, year, areas):

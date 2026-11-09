@@ -17,8 +17,8 @@ Writes common.TILT/cps_report.md.
 import numpy as np
 import pandas as pd
 
-import common
-import survey_mix
+from shared import common
+from shared import survey_mix
 
 Y = common.TARGET_YEAR
 ADULT = common.AGE_LABELS[:common.ADULT_RANGES]
@@ -65,7 +65,7 @@ def overtime_cap_table(f):
     ot_spouse) is held to the person's wages less the person's tips (dollars.person_cap). For each person and both
     together: the people with drawn overtime, those the wages alone hold and the dollars that takes off, and those
     the subtraction of tips holds further and the dollars that takes off on top; weighted by the file's weights."""
-    import dollars as D
+    from shared import dollars as D
     rows, tot = [], {}
     for who, slot, wages, tips in [('primary filer', 'ot_primary', 'wages1', 'tips1'),
                                    ('spouse', 'ot_spouse', 'wages2', 'tips2')]:

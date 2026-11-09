@@ -13,9 +13,9 @@ None of this is targeted. Writes common.TILT/sipp_report.md.
 import numpy as np
 import pandas as pd
 
-import common
-import survey_mix
-from report_cps import side_by_side
+from shared import common
+from shared import survey_mix
+from output.report_cps import side_by_side
 
 Y = common.TARGET_YEAR
 WAGES = common.WAGE_GROUPS

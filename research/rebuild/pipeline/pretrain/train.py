@@ -66,10 +66,10 @@ import numpy as np
 import pandas as pd
 import torch
 
-import common
-import fillin
-import model as M
-import qgroups
+from shared import common
+from pretrain import fillin
+from pretrain import model as M
+from pretrain import qgroups
 
 S = common.SETTINGS['translation']
 T = dict(common.SETTINGS['training'], passes=common.PASSES)

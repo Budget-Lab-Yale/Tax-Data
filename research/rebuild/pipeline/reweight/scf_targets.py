@@ -7,7 +7,7 @@ wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%).
 Each wave, on its own:
   - its units are its rows of the training table (source scf, the wave's income year, all five implicates);
   - its balance sheet is grown per tax unit to the target year's wave, item by item, by the factors the dollar
-    maps use (build_table.scf_growth, written to <maps>/scf_growth_factors.csv). The home mortgage moves with the
+    maps use (maps.scf_growth, written to <maps>/scf_growth_factors.csv). The home mortgage moves with the
     home, because the file draws it as a share of the home's value. Net worth is the grown assets less the grown
     debts (the file's net_worth_parts). So the targets and the file have one dollar concept;
   - its weights are scaled so that its units add up to the target year's wave's: growth per tax unit carries
@@ -32,8 +32,8 @@ the tilt's summary.
 import numpy as np
 import pandas as pd
 
-import common
-import dollars as D
+from shared import common
+from shared import dollars as D
 
 RESULTS = {}     # (kind, group, target) -> {'se', 'reason', 'value', 'line', 'line_hi', 'per_wave': [...]}
 _FRAMES = {}
@@ -43,7 +43,7 @@ _TABLE = {}
 def mix(year):
     """[(wave, share)] for the year's SCF targets: the waves and shares of the year's prior "balance sheet", the
     file's own (survey_mix.prior_shares; the shares divided by their sum, as generate.scf_waves does)."""
-    import survey_mix
+    from shared import survey_mix
     return survey_mix.prior_shares(year, 'balance sheet', 'scf')
 
 
@@ -57,7 +57,7 @@ def _table(cols):
 
 
 def growth_factors(wave, year):
-    """{item: factor} from the wave to the target year's wave, as the dollar maps grow it (build_table.build_maps)."""
+    """{item: factor} from the wave to the target year's wave, as the dollar maps grow it (maps.build_maps)."""
     assert year == common.TARGET_YEAR, f'SCF targets for {year}: the maps grow the SCF to {common.TARGET_YEAR} only'
     g = pd.read_csv(f'{common.MAPS}/scf_growth_factors.csv')
     g = g[g['wave'] == wave]
@@ -66,7 +66,7 @@ def growth_factors(wave, year):
     bad = [v for v, x in f.items() if not np.isfinite(x)]
     assert not bad, f'SCF wave {wave}: no growth factor for {bad} (no dollar map either), so it cannot be in the mix'
     # (1 November, decision 76) a projection year's file is its start grown from the 2023 file by the CBO and macro series
-    # per return (tilt.grow_dollars, projection_growth.plan_factors), but the maps hold the factors to 2023 only, so the
+    # per return (start.grow_dollars, projection_growth.plan_factors), but the maps hold the factors to 2023 only, so the
     # SCF targets stayed at 2023's dollars. They are grown on from 2023 to the year by the factors the start's records get.
     ext = projection_extension(year, list(f))
     for v, x in ext.items():
@@ -84,7 +84,7 @@ def jump_off_chain(year):
     year's tilt folder (projection_step2_items.csv, projection_return_groups.csv) exactly as projection_steps.scf_factor
     and unit_growth made them there, so the SCF targets are the base year's SCF frame grown to the jump-off year and on
     from it. (None, 1.0) for any other start."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     spec = TLS.start_spec(year)
     if not spec.get('jump_off'):
         return None, 1.0
@@ -110,10 +110,10 @@ _EXT = {}
 def unit_growth(year):
     """The growth of the file's number of units from the start's year to a projection year: the units after step 1
     (projection_steps)."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     spec = TLS.start_spec(year)
     assert spec['weights'] == 'persons', f'{year}: unit growth needs a start scaled by persons'
-    import projection_steps as PS
+    from scale import projection_steps as PS
     return PS.unit_growth()
 
 
@@ -121,12 +121,12 @@ def projection_extension(year, items):
     """{item: factor} from the start file's year (2023) to a projection year, for the SCF items: the start's step 2
     factors (projection_steps.scf_factor: a 'total' item's growth in total over the units' growth, as the SCF units grow
     with the file's; a 'per_unit' item's own factor). Empty for a year whose start is generated."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     spec = TLS.start_spec(year)
     if spec['mode'] != 'from_year':
         return {}
     assert spec['dollars'] == 'item_factor', f'{year}: the SCF targets are grown for the item_factor start only'
-    import projection_steps as PS
+    from scale import projection_steps as PS
     out = {v: PS.scf_factor(v) for v in items if v in PS.STATE['items']}
     common.say(f'SCF targets grown on from {spec["year"]} to {year} by the start\'s step 2 factors: {len(out)} items')
     return out
@@ -138,14 +138,14 @@ def frame(wave, year):
     key = (wave, year)
     if key in _FRAMES:
         return _FRAMES[key]
-    import errors as E
+    from reweight import errors as E
     f = growth_factors(wave, year)
     # The mortgage is the home times the ltv; the ltv reflects their different growth after 2022. The elective deferrals and the spouse's share of
     # them (since 28 October; build_table.SCF_NOT_ASKED) are missing where the SCF does not ask and no SCF target reads
     # them (their targets are the W-2 statistics'), so they are left out here; so is the retirement accounts' stock share
     # (since 29 October), a share missing outside the PEU that no SCF target reads
     # (3 November) and the inheritances received this year, missing outside the PEU, which no SCF target reads either
-    import build_table as BT
+    from prep import build_table as BT
     not_asked = list(BT.SCF_NOT_ASKED)
     items = [v for v in f if v != 'w_primary_ltv' and v not in not_asked]
     cols = list(dict.fromkeys(items + ['value.primary_mortgage'] + list(D.NET_WORTH_PARTS) + ['wages']))
@@ -166,9 +166,10 @@ def frame(wave, year):
     u['value.primary_mortgage'] = u['value.primary_mortgage'].to_numpy(float) * f['value.primary_home'] * f['w_primary_ltv']
     u['net_worth'] = D.signed_sum(u, D.NET_WORTH_PARTS)
     # the target year's wave's number of units; a year with no wave of its own (30 October): interpolated between the
-    # waves either side, or after the last wave grown with the population (build_table.scf_units_at)
-    import build_table as BT
-    import target_list as TLS
+    # waves either side, or after the last wave grown with the population (maps.scf_units_at)
+    from prep import build_table as BT
+    from scale import maps as MP
+    from reweight import target_list as TLS
     # A projection year (1 November, decision 76): the units of the start's own year (2023's wave) times the growth of the
     # file's units from that year (the start's weights are the file's weights times the population cells' growth,
     # projection_demographics.population_cells), not the Social Security area population: the file's units grow by cells
@@ -176,12 +177,12 @@ def frame(wave, year):
     # on that basis, so targets that scaled units by the population stood 4% too low in total by 2030.
     spec = TLS.start_spec(year)
     if spec.get('jump_off'):   # (4 November) the base year's units, grown to the jump-off year as there, and on
-        import projection_steps as PS
-        units = BT.scf_units_at(_table(['weight']), int(PS.FS['base_year']) - 1) * jump_off_chain(year)[1] * unit_growth(year)
+        from scale import projection_steps as PS
+        units = MP.scf_units_at(_table(['weight']), int(PS.FS['base_year']) - 1) * jump_off_chain(year)[1] * unit_growth(year)
     elif spec['mode'] == 'from_year':
-        units = BT.scf_units_at(_table(['weight']), spec['year'] - 1) * unit_growth(year)
+        units = MP.scf_units_at(_table(['weight']), spec['year'] - 1) * unit_growth(year)
     else:
-        units = BT.scf_units_at(_table(['weight']), year - 1)
+        units = MP.scf_units_at(_table(['weight']), year - 1)
     scale = units / float(u['weight'].sum())
     u['weight'] = u['weight'].to_numpy(float) * scale
     u = u.sort_values(['implicate', 'record_id'], kind='stable').reset_index(drop=True)
@@ -237,7 +238,7 @@ def wave_cell(wave, year, c, v, st, ceiling=None):
     statistic is on the wave's units below it (grown net worth), a domain kept inside the full sample, so the replicate
     weights and implicates are used as they are: the income rank lines and the net worth percentile lines are that
     population's own percentiles, a share's denominator is its units, and the weights are not scaled back up."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     rank, line_var, lo_spec, hi_spec = _cell_spec(c)
     u, rep, first, _ = frame(wave, year)
     w = u['weight'].to_numpy(float)

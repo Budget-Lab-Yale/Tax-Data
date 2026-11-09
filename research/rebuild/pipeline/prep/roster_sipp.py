@@ -1,5 +1,5 @@
 """roster_sipp.py: the SIPP reader for the shared tax-unit rules (tax_units.py), and the SIPP's tax units with each
-adult's wages and tips (settings "sipp"; run.sbatch stage sipp). Everything is in Python: there is no R step.
+adult's wages and tips (settings "sipp"; run.py stage sipp). Everything is in Python: there is no R step.
 
 Sources: one public-use release per reference year (settings sipp.releases; read by sipp_read.py, only the columns it
 names). Each release is one row per person and month of the reference year.
@@ -81,7 +81,7 @@ no value in any month read as none, the person not in a plan there; traditional 
 legal limit of the reference year (the catch-up limit from age 50 at the interview), then to the person's own wages
 (the plan's money comes out of them).
 Also writes persons_sipp_<year>.parquet, units_sipp_<year>.parquet and mfs_sipp_<year>.parquet (the rules' output, for
-check_units.py) and sipp_summary.csv. Usage (through Slurm): python roster_sipp.py [year ...] [--out DIR].
+check_units.py) and sipp_summary.csv. Usage (through Slurm): python -m prep.roster_sipp [year ...] [--out DIR].
 """
 import argparse
 import os
@@ -89,9 +89,9 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
-import sipp_read as R
-import tax_units as T
+from shared import common
+from prep import sipp_read as R
+from prep import tax_units as T
 
 S = common.SETTINGS['sipp']
 LH = [tuple(r) for r in S['lh_industries']]
@@ -460,7 +460,7 @@ def unit_rows(units, persons, mfs, year):
 
 
 def build(year):
-    import targets as TG
+    from prep import soi as TG
     r = read_roster(year)
     persons, units = T.build_units(r, year)
     target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))

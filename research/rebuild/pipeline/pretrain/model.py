@@ -27,9 +27,9 @@ import pyarrow.parquet as pq
 import torch
 import torch.nn as nn
 
-import common
-import qgroups
-import translate as TR
+from shared import common
+from pretrain import qgroups
+from shared import translate as TR
 
 SOURCES = ['puf', 'scf', 'cex', 'cps', 'sipp']   # appended in this order, so each source's held-back slice stays
 CONTEXT = ['source', 'year']

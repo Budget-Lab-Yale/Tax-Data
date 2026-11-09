@@ -51,14 +51,14 @@ import time
 import numpy as np
 import pandas as pd
 
-import common
-import dollars as D
-import non_micro_imputations as NMI
-import solver as SV
-import target_list as TLS
-import targets as TG
-import taxes as TX
-from common import TARGET_YEAR as Y, wquantile
+from shared import common
+from scale import non_micro_imputations as NMI
+from scale import start as START
+from reweight import solver as SV
+from reweight import target_list as TLS
+from prep import soi as TG
+from reweight import taxes as TX
+from shared.common import TARGET_YEAR as Y, wquantile
 
 S = common.SETTINGS['tilt']
 
@@ -181,228 +181,6 @@ def prescale_lines(prescaled):
     return lines
 
 
-# ---- the start from an earlier year's tilted file (TARGETS.md S7) ---------------------------------------------
-def recombine(df, year):
-    """The columns dollars.draw_dollars computes from the drawn amounts, computed again from the (grown) drawn
-    amounts in the same order: the capital gains totals, business income and its two schedules from the eighteen
-    parts, other AGI (the drawn remainder plus capital gain distributions plus the AGI items folded in plus taxable
-    Social Security by the section 86 worksheet, dollars.retirement_items, since 3 November), gross pensions, total
-    consumption, the amounts made from a share (the spouse's wages, the home mortgage), the remainders (the primary
-    filer's wages), net worth, and (with the elective deferrals) the traditional deferrals and Medicare wages of tax year
-    year. Returns the frame and the columns recomputed."""
-    out, done = df.copy(), []
-
-    def put(col, values):
-        out[col] = values
-        done.append(col)
-    # the Schedule D gains and losses before the loss limit; AGI's capital gain applies it (as dollars.draw_dollars)
-    put('capital_gains', common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
-                                                     out['filing_status'] if 'filing_status' in out else None))
-    put('capital_gains_line13', out['capital_gains'] + out['kg_dist'])
-    totals = D.META['computed_totals']
-    for total in ['business_income'] + [k for k in totals if k != 'business_income']:   # then the schedules, dividends, adjustments
-        put(total, D.signed_sum(out, totals[total]))
-    put('other_agi', out['other_agi_remainder'] + out['kg_dist']
-        + D.signed_sum(out, D.FOLD))
-    # (3 November) gross pensions from the two parts, and taxable Social Security by the section 86 worksheet on the
-    # (grown) amounts, into other_agi: the thresholds are not indexed, so growth moves it as the law does
-    D.retirement_items(out)
-    done += [c for c in ['ss_taxable', common.GROSS_PENSIONS] if c in out]
-    cats = list(D.META['cex_amounts'])
-    if all(c in out for c in cats):
-        put('total_consumption', out[cats].to_numpy(float).sum(1))
-    for slot, (item, base) in D.RATIOS.items():
-        if f'{slot}_band' in out:
-            put(item, out[slot] * out[base])
-    for item, (total, other) in D.REMAINDERS.items():
-        if other in out:
-            put(item, out[total] - out[other])
-    have = [slot for slot in D.PERSON_CAPS if f'{slot}_band' in out]   # tips and overtime, each where drawn
-    if have:                                                           # tips1, tips2, tips, the flags, overtime
-        D.person_items(out, out)
-        made = {D.PERSON_CAPS[slot][0] for slot in have}
-        done += sorted(made) + [k for k, parts in D.SUMS.items() if all(p in made for p in parts)] + \
-            [k for k, (_, amount) in D.FLAGS_WITH.items() if amount in made]
-    if all(c in out for c in D.NET_WORTH_PARTS):
-        put('net_worth', D.signed_sum(out, D.NET_WORTH_PARTS))
-    if 'elective_deferrals' in out:                       # the traditional deferrals and Medicare wages (28 October)
-        D.deferral_items(out, year)
-        done += ['elective1', 'elective2', 'trad_contr_er1', 'trad_contr_er2', 'trad_deferrals', 'medicare_wages']
-    return out, done
-
-
-def grow_dollars(df, s, t, mode='per_return_growth'):
-    # (3 November, agent A) mode 'item_factor': each column handed to projection_steps.step2_factor, which applies the
-    # items table's series and makes each 'total' item's start total grow exactly at its series on the step 1 weights
-    # (projection_steps.STATE, set by step1 before this call); a 'current' row's own rule (growth.yaml, the SCF's growth
-    # per unit) is computed here and passed on (4 November: only for 'current' rows, all of kind per_unit)
-    """Each record's amounts grown item by item from year s to year t (TARGETS.md S7, per-return growth), by the
-    series the dollar maps are grown by (build_table.build_maps), each item's line in the target year's growth.yaml
-    (growth.py), as a ratio of year t's factor to year s's:
-      - PUF amounts: SOI Table 1.4's dollars per return with the item where Table 1.4 has it, else the item's declared
-        series (build_table.growth: positive and negative values separately; since 29-30 October capital
-        losses grown with the gains, the loss limit applied again by recombine where AGI is made);
-      - the balance sheet: growth per tax unit, item by item, the mean per unit of the wave of income year t - 1
-        over that of s - 1 (build_table.scf_growth, the maps' rule); when either wave is missing, or an item's mean
-        per unit is not positive in both, the run stops (until 30 October those were left ungrown);
-      - consumption: NIPA PCE per return, by category;
-      - the CPS-only dollars (childcare, overtime) and the SIPP's tips: SOI's wages per return; the CPS shares, weeks
-        and hours not grown.
-    Then every computed column is computed again from the grown parts (recombine; checked first to reproduce the
-    file's own columns). Ages and every category are left as they are. Returns the grown frame and a table of the
-    factors, one row per column."""
-    import build_table as BT
-    import growth as GR
-    same, done = recombine(df, s)
-    for c in done:
-        assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
-            f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
-    out, rows = df.copy(), []
-    # in item mode an items-table row with series 'current' is a per-unit rule (growth.yaml or the SCF's growth per unit)
-    item_mode = mode == 'item_factor'
-    if item_mode:
-        import projection_steps as PS
-        tab = PS.items_table()
-        bad = tab[(tab['series'] == 'current') & (tab['kind'] != 'per_unit')].index.tolist()
-        assert not bad, (f'items table: rows with series current must be kind per_unit (a growth.yaml or SCF rule per '
-                         f'unit); a CBO series goes in a series file (resources/projection_series_current.csv): {bad}')
-        R_total = float('nan')   # read by step2_factor only for a 'current' row of kind total, ruled out above
-        deferred = []
-    drawn_as = {'other_agi': 'other_agi_remainder', 'business_income': 'business_income_drawn'}
-    item_of = {v: k for k, v in drawn_as.items()}   # a drawn column's item: other_agi_remainder is other_agi's
-    puf_cols = [drawn_as.get(v, v) for v in BT.PUF_AMOUNTS
-                if not (v == 'capital_gains' or (v in D.META['computed_totals'] and v != 'business_income'))
-                and drawn_as.get(v, v) in out]
-    scf_cols = [v for v in BT.SCF_AMOUNTS if v in out]
-    other_cols = [v for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS if v in out]
-
-    def grow(col, thunk, series):
-        if item_mode and PS.same_as(col):
-            deferred.append(col)   # the factors of another column, applied after every other column
-            return
-        if item_mode and col in tab.index and tab.loc[col, 'series'] != 'current':
-            fp = fn = 1.0          # not read: the row's own series gives the growth (projection_steps.step2_factor)
-            kind, series = 'per_unit', ''
-        else:
-            fp, fn = thunk()
-            kind = 'per_unit'
-        x = out[col].to_numpy(float)
-        if item_mode:
-            fp, fn, series = PS.step2_factor(col, x, fp, fn, kind, series, s, t, R_total)
-        assert np.isfinite(fp) and fp > 0 and np.isfinite(fn) and fn > 0, f'{col}: growth factor {fp}, {fn}'
-        out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
-        rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn, 'series': series,
-                     'records with a value': int((x != 0).sum())})
-
-    def puf_factors(v):
-        # (positive values, negative values): year t's growth over year s's (build_table.growth)
-        gs, gt = BT.growth(v, s), BT.growth(v, t)
-        return gt[0] / gs[0], gt[1] / gs[1]
-    for col in puf_cols:
-        v = item_of.get(col, col)
-        grow(col, lambda v=v: puf_factors(v), GR.describe(v))
-    # the wave of income year y - 1 is the SCF of year y; growth per tax unit from the table's SCF rows, as the maps
-    scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
-    scf = scf[scf.source == 'scf']
-    # (30 October) every dollar item grown, or the run stops. (30 October, targets for every year) a year with no wave
-    # of its own is interpolated between waves, or after the last wave grown by Z.1 household net worth per person
-    # (build_table.scf_mean), so every year has a factor
-    grown_scf = [v for v in scf_cols if v not in BT.SCF_RATIOS]
-    cache = {}
-
-    def f_scf_of(v):
-        if 'f' not in cache:
-            cache['f'] = BT.scf_growth(scf, s - 1, t - 1)
-            none = [u for u in grown_scf if not np.isfinite(cache['f'][u])]
-            assert not none, f'no growth factor {s} to {t} (a mean per unit at or below zero in the wave of {s - 1} or ' \
-                             f'{t - 1}): {none}'
-        return cache['f'][v]
-    for v in scf_cols:
-        if v in BT.SCF_RATIOS:
-            # a share; the mortgage share changes after the last wave so that the home and the mortgage each follow
-            # their own Z.1 series (rebuild-wealth-cats); every other ratio has factor 1
-            grow(v, lambda v=v: (f_scf_of(v),) * 2,
-                 'ratio adjusted for the mortgage and home growth series' if v == 'w_primary_ltv' else 'a ratio, not grown')
-        else:
-            grow(v, lambda v=v: (f_scf_of(v),) * 2, f'SCF mean per tax unit, wave of {t - 1} over wave of {s - 1}')
-    for v in other_cols:
-        grow(v, lambda v=v: (GR.between(v, s, t),) * 2, GR.describe(v))
-    if item_mode:
-        for col in deferred:
-            other = PS.same_as(col)
-            r = next((q for q in rows if q['column'] == other), None)
-            assert r is not None, f'{col}: same_as {other}, which is not grown'
-            x = out[col].to_numpy(float)
-            A = PS.same_as_add_factor(col, s, t)   # the column's own add factors (exactly 1 with none)
-            fp, fn = r['factor, positive values'], r['factor, negative values']
-            if A != 1.0:
-                fp, fn = fp * A, fn * A
-            out[col] = np.where(x > 0, x * fp, np.where(x < 0, x * fn, x))
-            PS.record_same_as(col, other, x, A)
-            rows.append({'column': col, 'factor, positive values': fp, 'factor, negative values': fn,
-                         'series': f'same as {other}', 'records with a value': int((x != 0).sum())})
-        PS.check_add_factors_applied(t)
-    # the allowed capital loss: since 29-30 October the short and long term pieces are the gains and losses before the
-    # $3,000 limit, grown like any amount, and recombine() applies the nominal limit again in year t (before, a piece
-    # kg_other held the limit and needed a rule here)
-    out, _ = recombine(out, t)
-    return out, pd.DataFrame(rows)
-
-
-def start_from_year(spec):
-    """Year s's tilted file as the start: its records, its tilted weights (kept as weight_<s>), and its dollars grown
-    to the target year (start_scaling dollars). Returns the frame, the weights and the growth table (None if not
-    grown)."""
-    s = spec['year']
-    path = f"{common.OUT}/tilt/{spec['run']}/file_{s}.parquet"
-    df = pd.read_parquet(path)
-    assert df['weight'].notna().all() and (df['weight'] >= 0).all(), f'{path}: a missing or negative weight'
-    # (4 November 2026) a start built on the real PUF carries the PUF's record numbers (puf_recid); settings
-    # generation.filers must say the same, so a real-PUF year never grows from a synthetic file or the reverse
-    real_start = 'puf_recid' in df and bool((df['puf_recid'] >= 0).any())
-    assert real_start == common.REAL_PUF, (f'settings generation.filers is {common.FILERS}, but the start {path} was '
-                                           f'built {"on the real PUF" if real_start else "on synthetic filers"}')
-    w = df['weight'].to_numpy(float)
-    df = df.drop(columns=['weight_start']).rename(columns={'weight': f'weight_{s}'})
-    # (30 October) the year-s file carries the non-microdata imputations' columns; they are made again on this start
-    # (impute below refuses a frame that has them), so they are dropped and the written-back columns put back to
-    # their drawn values first (non_micro_imputations.as_drawn)
-    df = NMI.as_drawn(df)
-    common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
-    # step 1, the calibration to people by age and marital status, then step 2's dollar factors on its weights
-    import projection_steps as PS
-    assert spec['weights'] == 'persons' and spec['dollars'] == 'item_factor', \
-        'a start from an earlier year takes start_scaling {weights: persons, dollars: item_factor}'
-    w, _ = PS.step1(df, w, Y, s)
-    df, growth = grow_dollars(df, s, Y, 'item_factor')
-    df['weight'] = w
-    return df, w, growth
-
-
-def start_nonfilers():
-    """The non-filer count the start's non-filer weights are scaled to: the CPS's expected non-filers in the year
-    (target_list.nonfiler_count). A year with no CPS units (the CPS years are 2015, 2017, ..., 2023) takes the geometric mean of
-    the nearest CPS years either side: a placeholder used only to scale the start, not a target. Returns the count
-    and a note."""
-    t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
-    t = t[t.source == 'cps']
-    have = sorted(t['year'].unique())
-    count = lambda y: float((t.loc[t.year == y, 'weight'] * (1 - t.loc[t.year == y, 'filer_p'])).sum())
-    if Y in have:
-        return TLS.nonfiler_count(Y), ''
-    if Y > max(have):   # past the last CPS year (30 October): the last year's count grown with the population
-        n = TLS.nonfiler_count(Y)
-        return n, f'past the last CPS year ({max(have)}): its expected non-filers grown with the Social Security area population'
-    lo, hi = max([y for y in have if y < Y], default=None), min([y for y in have if y > Y], default=None)
-    assert lo is not None and hi is not None, f'no CPS units for {Y}, and no CPS year on both sides'
-    n = float(np.sqrt(count(lo) * count(hi)))
-    note = (f'no CPS units for {Y}: the geometric mean of the CPS\'s expected non-filers in {lo} '
-            f'({count(lo) / 1e6:.2f} million) and {hi} ({count(hi) / 1e6:.2f} million), a placeholder for scaling the '
-            f'start only')
-    common.say(note)
-    return n, note
-
-
 # ---- net worth summary -------------------------------------------------------------
 def top_share(x, w, p):
     o = np.argsort(-x, kind='stable')
@@ -430,52 +208,30 @@ def main():
     os.makedirs(common.TILT, exist_ok=True)
     soi = TG.load()
     spec = TLS.start_spec(Y)   # the year file's start and start_scaling (TARGETS.md S7)
-    growth, start_lines = None, []
-    if spec['mode'] == 'generate':
-        raw = pd.read_parquet(f'{common.GEN}/stack.parquet')
-        g19 = D.draw_dollars(raw, D.load_maps(Y), Y)   # every dollar amount in target-year dollars
-        imp = g19['weight'].to_numpy(float)
-    else:
-        g19, imp, growth = start_from_year(spec)   # every dollar amount grown to the target year
-        raw = g19
-        if growth is not None:   # (4 November 2026) each column's factors in full precision, read by package.py
-            growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
+    start_lines = []
+    g19, raw, imp, growth = START.year_start(spec)
+    if growth is not None:   # each column's factors in full precision, read by package.py
+        growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
     # the top of the file (top_records.py, settings tilt.top; 29 October): Part A's rebuilt hidden returns, the
     # redraw of balance sheets at $1 billion or more, and the Forbes list's billionaires, before any mask, condition or
     # prescaling. given: records whose starting weight is given (in returns or units); fixed: records held at it
     top = None
     given = fixed = np.zeros(len(g19), bool)
-    # (30 October) The top step draws from the network (Part A's hidden returns, the redraw of balance sheets at $1
-    # billion or more), which wants a GPU, while the rest of the tilt wants none. With REBUILD_TOP_CACHE set, a run
-    # with REBUILD_TOP_ONLY=1 (on a GPU) does that part (top_records.network_part), writes its result to that file
-    # and stops; a later run (on a CPU partition) reads it in place of the step. (2 November) The billionaires
-    # (top_records.add_list) need no network and are built on every run, after the cache; a cache written before
-    # 2 November that holds them has them removed first (top_records.strip_list).
+    # The top step's network part (Part A's hidden returns, the redraw of balance sheets at $1 billion or more) wants a
+    # GPU: for a generated start the top stage (generate/top.py) writes it to the top cache, read here; a start from an
+    # earlier year's file runs it here. The billionaires (top_records.add_list) need no network and are built here.
     import pickle
-    import top_records as TR
-    cache = os.environ.get('REBUILD_TOP_CACHE')
-    if common.REAL_PUF and spec['mode'] == 'generate':
-        # (4 November 2026) settings generation.filers real_puf: the redraw at $1 billion touches about 700 record
-        # copies and takes about 80 seconds a record on a CPU, so it runs on the generate stage's GPU, into the top
-        # cache (default <out>/top_cache.pkl), and the tilt reads it; a tilt with no cache stops here
-        cache = cache or f'{common.OUT}/top_cache.pkl'
-        import torch
-        assert os.path.exists(cache) or (os.environ.get('REBUILD_TOP_ONLY') and torch.cuda.is_available()), \
-            (f'filers real_puf: no top cache at {cache}. The top step\'s redraw at $1 billion runs on a GPU: run the '
-             f'generate stage (which writes it after the draw) or the top stage on a GPU partition first')
-    if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
+    from generate import top_records as TR
+    cache = common.TOP_CACHE if spec['mode'] == 'generate' else None
+    if common.REAL_PUF and cache:
+        assert os.path.exists(cache), (f'filers real_puf: no top cache at {cache}. The top step\'s redraw at $1 billion '
+                                       f'runs on a GPU: run the top stage first')
+    if cache and os.path.exists(cache):
         with open(cache, 'rb') as fh:
             base = TR.strip_list(*pickle.load(fh))
         common.say(f'the top step read from {cache}')
     else:
         base = TR.network_part(g19, raw, imp, Y, spec['mode'])
-        if cache:
-            with open(cache + '.part', 'wb') as fh:
-                pickle.dump(base, fh, protocol=4)
-            os.replace(cache + '.part', cache)
-            common.say(f'the top step written to {cache}')
-    if os.environ.get('REBUILD_TOP_ONLY'):
-        return
     g19, imp, given, fixed, top = TR.add_list(*base, Y)
     del base
     del raw
@@ -485,11 +241,11 @@ def main():
     # the start: the generated records scaled so that, with the records whose weight is given, filers add up to SOI's
     # returns and non-filers to the expected non-filers
     returns = TG.returns(soi, Y)
-    n_nonfilers, nf_note = start_nonfilers()
+    n_nonfilers, nf_note = START.start_nonfilers()
     w0 = imp.copy()
     if spec['weights'] == 'persons':
         # (3 November, agent A) the step 1 weights as they are (start_from_year); the list's own weights are given
-        import projection_steps as PS
+        from scale import projection_steps as PS
         assert np.isfinite(w0).all() and (w0 >= 0).all()
         common.say(f'projection start (step 1 weights): filers {w0[filer & ~given].sum() / 1e6:,.2f} million, '
                    f'non-filers {w0[~filer & ~given].sum() / 1e6:,.2f} million, the list {w0[given].sum():,.1f} units')
@@ -568,8 +324,8 @@ def main():
                    f"fixed records alone exceed, {int((~feas['reachable by the others']).sum())} the others cannot reach")
     # (1 November) the check before the reweighting: flags only, nothing dropped (precheck.py; settings tilt.precheck)
     precheck_lines = []
-    import errors as ERR
-    import precheck as PRE
+    from reweight import errors as ERR
+    from reweight import precheck as PRE
     _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
                                 common.TILT, S['precheck'])
     common.say('\n'.join(precheck_lines))
@@ -654,7 +410,7 @@ def main():
     tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
     tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
     open(f'{common.TILT}/taxes/taxes_summary.md', 'w').write('\n'.join(tax_lines))
-    import scf_targets
+    from reweight import scf_targets
     if scf_targets.RESULTS:   # the SCF targets by wave (scf_targets.py), for the record
         scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
     scf_path = f'{common.DATA}/scf_units_{Y}.parquet'   # a year with no SCF wave has no column of its own

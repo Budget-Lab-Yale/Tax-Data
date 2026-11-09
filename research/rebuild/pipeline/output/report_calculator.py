@@ -34,8 +34,8 @@ import os
 import numpy as np
 import pandas as pd
 
-import calculator as C
-import common
+from output import calculator as C
+from shared import common
 
 Y = C.Y
 SOI = common.RAW['soi_tables']

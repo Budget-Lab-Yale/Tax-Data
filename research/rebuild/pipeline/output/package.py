@@ -5,17 +5,17 @@ drawn given it (generate.real_puf_part). This stage writes the files that let so
 2015 PUF (CRS) rebuild the year's Tax-Simulator file (taxsim_file.py's tax_units_<year>) without receiving any PUF
 value, and tests that they do.
 
-    python package.py build      the package and the round trip of the Python merge script
-    python package.py paths      prints the package folder, the PUF and the check folder (for run.sbatch)
-    python package.py check_r    the round trip of the R merge script, whose output run.sbatch writes to the check
+    python -m output.package build      the package and the round trip of the Python merge script
+    python -m output.package paths      prints the package folder, the PUF and the check folder (for run.py)
+    python -m output.package check_r    the round trip of the R merge script, whose output run.py writes to the check
                                  folder
 
-The package (<out>/package/<run>/, REBUILD_PACKAGE_OUT overrides it; chmod 700), always relative to the 2015 PUF:
+The package (<out>/package/<run>/; chmod 700), always relative to the 2015 PUF:
   factors.parquet (and factors.csv to read)  one row per PUF item and step: the factor for positive amounts and the
         factor for negative amounts, the same for every record. The steps are the year's chain of starts
         (target_list.start_spec): the growth from 2015 to the year the records were drawn (growth.factors, as
         dollars.own_values applies it), that year's Schedule A multipliers on six itemized items (taxes.
-        greedy_schedule_a, one number per category and year), then each projection step's factors (tilt.grow_dollars,
+        greedy_schedule_a, one number per category and year), then each projection step's factors (start.grow_dollars,
         start_growth.csv of each year's tilt folder). Every step is checked against the files: each item of every
         PUF record copy must be exactly its 2015 amount times the factors so far, or the stage stops.
   records.parquet  one row per PUF record copy in the year's Tax-Simulator file: RECID and copy; row, its place in the
@@ -46,14 +46,14 @@ import sys
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 Y = common.TARGET_YEAR
-PKG = os.environ.get('REBUILD_PACKAGE_OUT', f'{common.OUT}/package/{common.RUN}')
+PKG = f'{common.OUT}/package/{common.RUN}'
 CHECK = PKG.rstrip('/') + '_check'
 SUMMARY = os.path.dirname(PKG.rstrip('/'))
-TAXSIM = os.environ.get('REBUILD_TAXSIM_OUT', f'{common.OUT}/taxsim/{common.RUN}')
+TAXSIM = f'{common.OUT}/taxsim/{common.RUN}'
 say = common.say
 
 # The Tax-Simulator columns made by a formula of the record's items (merge_puf.formula), and those that may be shipped
@@ -95,7 +95,7 @@ def chmod_private(path):
 
 def chain():
     """[(year, its tilt folder)] from the year the records were drawn (a generated start) to the target year."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     years, y = [(Y, common.TILT)], Y
     while True:
         spec = TLS.start_spec(y)
@@ -109,7 +109,7 @@ def factor_columns():
     """{file column: 2015 item}: the PUF items carried by a factor (generate.own_items, less the totals the file
     computes from their parts, and less the AMT adjustment, which the merge holds to the loss by its rule; the drawn
     business income, other income's remainder and the AMT adjustment before the cap carry their item's factor)."""
-    import generate as G
+    from generate import generate as G
     totals = ('capital_gains', 'dividends', 'adjustments', 'business_income', 'other_agi', 'amt_nols')
     cols = {v: v for v in G.own_items() if v not in totals}
     cols.update({'business_income_drawn': 'business_income', 'other_agi_remainder': 'other_agi',
@@ -117,7 +117,7 @@ def factor_columns():
     return cols
 
 
-GROWTH_COLUMN = {'amt_nols_drawn': 'amt_nols'}   # the column tilt.grow_dollars grows for a file column
+GROWTH_COLUMN = {'amt_nols_drawn': 'amt_nols'}   # the column start.grow_dollars grows for a file column
 
 
 def apply(v, p, n):
@@ -197,7 +197,7 @@ def compare(m, t, cols):
 def puf_based(Fr, rec, MG):
     """In place: the parts of the PUF_BASED items that are not PUF amounts, into rec, each checked to give the file's
     item exactly by the merge's own function."""
-    import non_micro_imputations as NMI
+    from scale import non_micro_imputations as NMI
     M = NMI.holding_model(Y)
     kg, h = Fr['kg_lt'].to_numpy(float), Fr['kg_lt_years_held'].to_numpy(float)
     r = np.zeros(len(Fr))
@@ -222,15 +222,14 @@ def read_file(path, columns=None):
 def build():
     assert common.REAL_PUF, ('package: settings generation.filers is synthetic; the package is made only for a file '
                              'built on the real PUF (generation.filers real_puf)')
-    import build_table as BT
-    import calculator as C
-    import dollars as D
-    import generate as G
-    import growth as GR
-    import taxsim_file as TS
-    import translate as TR
-    sys.path.insert(0, HERE)
-    import merge_puf as MG
+    from prep import build_table as BT
+    from shared import calculator_input as C
+    from shared import dollars as D
+    from generate import generate as G
+    from shared import growth as GR
+    from output import taxsim_file as TS
+    from shared import translate as TR
+    from output import merge_puf as MG
 
     os.makedirs(SUMMARY, exist_ok=True)
     links = chain()
@@ -531,7 +530,7 @@ def report(name, rt):
 
 def check_r():
     assert common.REAL_PUF, 'package: settings generation.filers is synthetic'
-    import taxsim_file as TS
+    from output import taxsim_file as TS
     path = f'{CHECK}/merged_by_r.parquet'
     m = pd.read_parquet(path)
     T = pd.read_parquet(f'{TAXSIM}/tax_units_{Y}.parquet')

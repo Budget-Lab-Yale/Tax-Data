@@ -60,11 +60,11 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
-import dollars as D
+from shared import common
+from shared import dollars as D
 
 S = common.SETTINGS['tilt'].get('top', {})
-RES = os.path.abspath(os.path.join(common.HERE, '..', 'resources', 'top'))
+RES = os.path.join(common.RESOURCES, 'top')
 ID_BASE = 95_000_000             # Part A's rebuilt returns take 90,000,000 up (top_hidden id_block)
 TOP_AGE = 80                      # the file's top age (age1, age2): 80 means 80 and over
 GROUPS = [('top', 92), ('next', 276)]   # BSYZ's top 0.00005% and next 0.00015% of tax units (IRS study units)
@@ -138,16 +138,17 @@ def growth_factors(s, t):
     """The growth per return from s to t of the three kinds of holding the billionaires have: public stock as
     value.equities and a private business as value.pass_throughs, private real estate as value.re_fund, which keeps
     growth.yaml's rule (the SCF's mean per tax unit, wave of income year t - 1 over that of s - 1, after the last wave
-    by the Financial Accounts per person: build_table.scf_growth). Until 4 November 2026 the first two were
+    by the Financial Accounts per person: maps.scf_growth). Until 4 November 2026 the first two were
     projection_growth.plan_factors (the Financial Accounts series per return through 2025, then CBO's GDP per return,
     2024-2036 only); since then (the long-run years, 2036-2075) they are the items table's series for the column (the
     same growth in total through 2035, resources/projection_series_current.csv, then nominal GDP) over the growth in
     the number of returns (projection_growth.returns_growth: CBO's through settings tilt.projection.cbo_last_year, then
     adults with a couple counted once), which gives the same factors as before through 2035. No add factors apply
     (none may be set on these two columns). Returns {part: (factor, source)}."""
-    import build_table as BT
-    import projection_growth as PG
-    import projection_steps as PS
+    from prep import build_table as BT
+    from scale import maps as MP
+    from scale import projection_growth as PG
+    from scale import projection_steps as PS
     assert 2024 <= s < t, f'billionaires grown from {s} to {t}: only forward from a list year after 2023'
     cols = {'public': 'value.equities', 'private_pt': 'value.pass_throughs', 'private_re': 'value.re_fund'}
     tab, add = PS.items_table(), PS.add_factors_table()
@@ -164,7 +165,7 @@ def growth_factors(s, t):
         if scf is None:   # as grow_dollars: the SCF rows of the training table
             scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
             scf = scf[scf.source == 'scf']
-        f = BT.scf_growth(scf, s - 1, t - 1)[c]
+        f = MP.scf_growth(scf, s - 1, t - 1)[c]
         assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
         out[k] = (float(f), f'{c}: SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
     return out
@@ -502,7 +503,7 @@ def build_billionaires(lst, df, w, year, notes):
     # a Schedule C or F profit (255 against 243). So, in each rank group, the group's Schedule C and farm profits go to
     # the mix group's share of units holding them (units chosen by a draw keyed by record id), shared among those by
     # private holdings; losses the same, with their own share and draw. Group dollars are unchanged.
-    import ages
+    from shared import ages
     rid = ID_BASE + u['unit_rank'].to_numpy()
     privk = u['private'].to_numpy(float)
     cf_amount = {}
@@ -554,13 +555,13 @@ def build_billionaires(lst, df, w, year, notes):
     wages_pos = out['wages'].to_numpy(float) > 0
     put('weeks_primary', np.where(wages_pos, mix['weeks_primary'], 0.0))
     put('hours_primary', np.where(wages_pos, mix['hours_primary'], 0.0))
-    # the totals, from the parts (tilt.recombine), then the items at a ratio to AGI before them (step 17)
-    import tilt as TL
-    out, _ = TL.recombine(out, year)
+    # the totals, from the parts (start.recombine), then the items at a ratio to AGI before them (step 17)
+    from scale import start as START
+    out, _ = START.recombine(out, year)
     agi0 = np.maximum(D.agi(out), 0)
     for c, r in mix['ratio to AGI'].items():
         put(c, agi0 * r)
-    out, _ = TL.recombine(out, year)
+    out, _ = START.recombine(out, year)
     # flags
     put('billionaire', 1)
     put('billionaire_rank', u['unit_rank'].to_numpy())
@@ -600,7 +601,7 @@ def balance_sheet_dollars(rows, maps, salt):
     amount from the row's own wave's map, with a pick keyed by record id (ages.uniform_by_id(record_id, salt + the
     amount's position in the table's SCF amounts); salt may be one number per row); the items made from a share; net
     worth. Returns a frame of the SCF amounts, the share items and net_worth."""
-    import ages
+    from shared import ages
     out = pd.DataFrame(index=rows.index)
     salt = np.asarray(salt, dtype=np.uint64) if np.ndim(salt) else int(salt)
     for i, v in enumerate(D.META['scf_amounts']):
@@ -624,8 +625,8 @@ def redraw_record(network, factors, coded, label, year_idx, scf_year_idx, wave, 
     lowest. Returns (the kept try's SCF slot values as {column: value}, its dollars as a Series, every try's net worth,
     the try kept, whether one was below the ceiling)."""
     import torch
-    import generate as G
-    import model as M
+    from generate import generate as G
+    from pretrain import model as M
     P, NC = M.PREDICTED, len(M.CONTEXT)
     gen_seed = int(np.random.default_rng([int(seed), int(rid)]).integers(2 ** 62))
     cpu_gen = torch.Generator().manual_seed(gen_seed)
@@ -662,7 +663,7 @@ def redraw_record(network, factors, coded, label, year_idx, scf_year_idx, wave, 
 
 def kept_picks(rid, k, salt):
     """The stored picks (u_<amount>) of try k: the same keyed numbers balance_sheet_dollars used."""
-    import ages
+    from shared import ages
     return {f'u_{v}': float(ages.uniform_by_id(np.array([rid]), int(salt) + 100 * int(k) + i)[0])
             for i, v in enumerate(D.META['scf_amounts'])}
 
@@ -678,8 +679,8 @@ def redraw_balance_sheets(df, raw, year, ceiling, notes, check_same=True):
     picks (dollars.draw_dollars on the one record), of which the SCF amounts and the items made from them are kept.
     Returns the new frame and a table, one row per record redrawn."""
     import torch
-    import generate as G
-    import model as M
+    from generate import generate as G
+    from pretrain import model as M
     nw = df['net_worth'].to_numpy(float)
     todo = np.flatnonzero(nw >= ceiling)
     if 'billionaire' in df:

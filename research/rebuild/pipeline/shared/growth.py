@@ -4,9 +4,9 @@ and the series it names (TARGETS.md section 12; NEXT_STEPS.md, 29 October).
 Each dollar item the pipeline grows has one line in the target year's growth.yaml: its source (the series), the
 measure (what the series is per: per return with the item, per holder, per household), how negative values are grown,
 and a one-line reason. The series named there are used for every year the target year's run grows across: the PUF
-year to the target year (the dollar maps, build_table.build_maps), the PUF year to each survey year (the tax data and
+year to the target year (the dollar maps, maps.build_maps), the PUF year to each survey year (the tax data and
 the survey cut points of the translation, build_table.translate_surveys) and, for a start from an earlier year's
-file, that year to the target year (tilt.grow_dollars).
+file, that year to the target year (start.grow_dollars).
 
 The series (SERIES below; their data in research/rebuild/resources/growth/, where sources.csv says where each came
 from):
@@ -22,10 +22,10 @@ from):
                     per year from the resources folder; past its last year grown by personal income per person (BEA, then CBO; level()).
   nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns (the CEX's rule since 22 October).
   scf mean per unit between waves   the SCF's own weighted mean per tax unit, one wave over another
-                    (build_table.scf_growth computes it from the table; nothing here).
+                    (maps.scf_growth computes it from the table; nothing here).
   scf net worth per unit between waves   the SCF's weighted mean net worth per tax unit, one wave over another (after
                     the last wave Z.1 household net worth per person), for an SCF item too lumpy to grow by its own
-                    mean (inheritances received this year, since 3 November; build_table.scf_growth).
+                    mean (inheritances received this year, since 3 November; maps.scf_growth).
   none              not grown, for the reason given (a statutory nominal amount, a share, a count).
 
   load(year)        the year's growth lines, checked
@@ -42,12 +42,11 @@ import numpy as np
 import pandas as pd
 import yaml
 
-import common
-import targets as TG
+from shared import common
+from prep import soi as TG
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG = os.path.join(HERE, 'targets_config')
-RESOURCES = os.path.join(os.path.dirname(HERE), 'resources', 'growth')
+CONFIG = os.path.join(common.PIPELINE, 'targets_config')
+RESOURCES = os.path.join(common.RESOURCES, 'growth')
 LINE_KEYS = {'source', 'negative', 'measure', 'reason'}
 # series: (the measure in words, the data file(s) in RESOURCES)
 SERIES = {
@@ -208,7 +207,7 @@ def income_per_person_growth(a, b):
     then CBO's projection (cbo_personal_income_population.csv, its growth only) through CBO's last year used (settings
     tilt.projection.cbo_last_year), then (4 November 2026, the long-run years) Macro-Projections' nominal GDP per person
     (projection_growth.long_run_growth)."""
-    import projection_growth as PG
+    from scale import projection_growth as PG
     L = PG.cbo_last_year()
     if b > L:
         x = max(a, L)
@@ -299,9 +298,9 @@ def between(v, s, t, year=common.TARGET_YEAR):
     if spec['series'] == 'soi 1.4':
         f = _factor(spec, t) / _factor(spec, s)
     else:
-        assert not spec['series'].startswith('scf '), f'{v}: the SCF is grown by build_table.scf_growth'
+        assert not spec['series'].startswith('scf '), f'{v}: the SCF is grown by maps.scf_growth'
         f = level(spec, t) / level(spec, s)
-    # the maps (build_table.build_maps, build_year_maps) multiply by this with no check of their own: a missing value
+    # the maps (maps.build_maps, build_year_maps) multiply by this with no check of their own: a missing value
     # in a series (a blank cell in the NIPA PCE file) would otherwise reach them as a missing factor
     assert np.isfinite(f) and f > 0, f'{v}: growth factor {s} to {t} is {f} ({describe(v, year)})'
     return f
@@ -330,7 +329,7 @@ def check(year=common.TARGET_YEAR):
     year = int(year)
     if year in _CHECKED:
         return
-    import build_table as BT
+    from prep import build_table as BT
     items = load(year)
     groups = {'PUF': BT.PUF_AMOUNTS, 'SCF': BT.SCF_AMOUNTS, 'CEX': BT.CEX_AMOUNTS, 'CPS': BT.CPS_AMOUNTS,
               'SIPP': BT.SIPP_AMOUNTS, 'PUF and CPS shares': BT.PUF_SHARES}   # (shares: never grown, 4 November)

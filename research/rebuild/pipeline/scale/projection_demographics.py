@@ -9,9 +9,9 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
-RESOURCES = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources')
+RESOURCES = common.RESOURCES
 
 
 def cbo_count(year, series):

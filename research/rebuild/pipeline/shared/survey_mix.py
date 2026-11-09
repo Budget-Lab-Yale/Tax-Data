@@ -9,7 +9,7 @@ prior, one entry per survey (the SCF's are the "balance sheet" entry, read by ge
 This module only reads them; the code does not compute the shares. A survey year here is the tax year, which is
 the year the training table and the model use (the SCF's wave of survey year y is its income year y - 1).
 """
-import common
+from shared import common
 
 ENTRY = {'cex': 'consumption', 'cps': 'cps items', 'sipp': 'sipp tips'}
 SOURCES = list(ENTRY)
@@ -18,7 +18,7 @@ SOURCES = list(ENTRY)
 def prior_shares(year, entry, source):
     """[(year, share)] from one entry of the year's prior (targets_config/<year>/prior.yaml), whose keys are
     '<source> <year>': sorted by year, each share divided by their sum, which must be one."""
-    import target_list as TLS
+    from reweight import target_list as TLS
     prior = TLS.resolve(year).get('prior', {}).get(entry)
     where = f'targets_config/{year}/prior.yaml, prior "{entry}"'
     assert prior, f'{where}: missing (the {source} year mix)'
@@ -49,7 +49,7 @@ import pandas as pd
 
 def growth(source, y):
     """{variable: factor from the survey year y to the target year} for the survey's dollar amounts, the factors the
-    dollar maps use (build_table.build_year_maps, written to data/maps/survey_year_growth_factors.csv)."""
+    dollar maps use (maps.build_year_maps, written to data/maps/survey_year_growth_factors.csv)."""
     g = pd.read_csv(f'{common.MAPS}/survey_year_growth_factors.csv')
     g = g[(g['survey'] == source) & (g['year'] == y)]
     assert len(g), f'no growth factors for {source} {y} in {common.MAPS}/survey_year_growth_factors.csv'

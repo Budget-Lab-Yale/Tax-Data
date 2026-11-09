@@ -3,11 +3,11 @@
 scratch folder (explore/2026-10-23/step1_units: score_units.R and calibrate_v4.py) on 24 October 2026; the results are
 the same, apart from the comparison columns left behind (below).
 
-The stage has three steps, run in order by run.sbatch (stage filing), every year of settings cps.years:
-  python filing.py units [year ...]      the CPS's tax units by the shared rules (tax_units.py, with CBO's
+The stage has three steps, run in order by run.py (stage filing), every year of settings cps.years:
+  python -m prep.filing units [year ...]      the CPS's tax units by the shared rules (tax_units.py, with CBO's
                                          reassignment pass), people in group quarters left out
   Rscript filing_requirement.R [year ...] each unit's statutory filing requirement (Form 1040, Charts A to C)
-  python filing.py calibrate [year ...]  the rule, its calibration, separate returns, the outputs and checks
+  python -m prep.filing calibrate [year ...]  the rule, its calibration, separate returns, the outputs and checks
 
 The rule. For a household unit (not a dependent's own return):
   logit(filing chance) = a[age band of the head] + k x (a child under 17 in the unit)
@@ -64,16 +64,16 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares, root
 
-import common
-import tax_units as T
-import targets as TG
+from shared import common
+from prep import tax_units as T
+from prep import soi as TG
 
 S = common.SETTINGS['filing']
 CPS = common.SETTINGS['cps']
 DIR = os.path.join(common.DATA, CPS['step1_dir'])
 UNITS, REQ, RETURNS, CHECKS = (f'{DIR}/units', f'{DIR}/requirement', os.path.join(DIR, CPS['step1_out']),
                                f'{DIR}/checks')
-REPO = os.path.abspath(os.path.join(common.HERE, '..', '..', '..'))
+REPO = common.REPO
 SOI = common.RAW['soi_mirror']
 PUF = os.path.dirname(common.RAW['puf'])
 BANDS = ['18_25', '26_34', '35_44', '45_54', '55_64', '65_74', '75p']

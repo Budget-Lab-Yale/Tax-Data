@@ -66,7 +66,7 @@ them after generation, without retraining, in 2015 dollars, and then grows them 
      parts, top_billionaires.redraw_record. This is an extrapolation: the network has never seen incomes this large
      (they sit in the top bands either way).
   8. Into the file (rebuild_hidden_returns): each record's PUF amounts grown from 2015 to the target year by the file's
-     per-return growth (tilt.grow_dollars, build_table.growth), every total recomputed (tilt.recombine), the balance
+     per-return growth (start.grow_dollars, build_table.growth), every total recomputed (start.recombine), the balance
      sheet from step 7, every other survey item (ages, consumption, the CPS's and SIPP's items) the donor's own, flagged
      synthetic_top = 1, record ids from settings id_block. Its weight is its share of the 2015 PUF's returns in the
      generated file's own units, so the tilt's scaling of filers to SOI's returns grows it with the count of returns.
@@ -87,16 +87,15 @@ import os
 import numpy as np
 import pandas as pd
 
-import build_table as BT
-import common
-import dollars as D
+from prep import build_table as BT
+from shared import common
+from shared import dollars as D
 
 S = common.SETTINGS['top_hidden']
 Y = common.TARGET_YEAR
 PY = common.PUF_YEAR
 assert PY == 2015, 'the aggregate records rebuilt here are the 2015 PUF\'s'
-HERE = os.path.dirname(os.path.abspath(__file__))
-BOOKLET = os.path.join(HERE, '..', 'resources', 'top_hidden', 'soi_2015_aggregate_booklet.csv')
+BOOKLET = os.path.join(common.RESOURCES, 'top_hidden', 'soi_2015_aggregate_booklet.csv')
 
 # ---- the four aggregate records ---------------------------------------------------------------------------------
 RECIDS = [999996, 999997, 999998, 999999]
@@ -592,7 +591,7 @@ def match_counts(frame, grp, n_ret, book):
     """Step 5: the weights moved as little as possible (solver.solve) so the booklet's combined counts are met within
     their tolerance; each group's returns an identity. Starting weights equal within each group (step 4). Returns the
     weights, the starting weights, and a table of every count before and after."""
-    import solver as SV
+    from reweight import solver as SV
     w0 = np.zeros(len(frame))
     for g in range(N_G):
         m = grp == g
@@ -620,7 +619,7 @@ def folder():
 def draw_candidates(models, factors):
     """Step 1: each model's share of settings candidate_records, by group, through generate.label_part with its own
     seed. Weight: the group's 2015 PUF returns over the records drawn in it, over the number of models."""
-    import generate as G
+    from generate import generate as G
     alloc = np.asarray(S['candidate_records'], int)
     parts = []
     for k, mod in enumerate(models):
@@ -660,7 +659,7 @@ def dollars_2015(stack):
 # ---- step 7: wealth -------------------------------------------------------------------------------------------
 def reband(frame2015):
     """Band of every PUF amount slot from 2015 dollars, on the 2015 PUF cut points (build_table.band_variable)."""
-    import model as M
+    from pretrain import model as M
     out = {}
     for v in M.PREDICTED:
         if v in M.CATEGORICAL or 'puf' not in M.PRESENT_ON[v] or v in M.REPORTED or v in M.PUF_SHARES:
@@ -682,9 +681,9 @@ def redraw_wealth(rows, models, factors, maps):
     PUF bands from their final 2015 dollars, record ids final. Returns the new SCF slot values (stack columns), the
     balance-sheet dollars of the try kept, per record the try accepted (-1: every try at or above the cap, the lowest
     kept), the net worth of every try, and the try kept."""
-    import generate as G
-    import model as M
-    import top_billionaires as TB
+    from generate import generate as G
+    from pretrain import model as M
+    from generate import top_billionaires as TB
     P = M.PREDICTED
     scf_cols = [M.column(v) for v in G.SCF_SLOTS]
     cap, tries = float(S['wealth_cap']), int(S['wealth_tries'])
@@ -714,11 +713,11 @@ def redraw_wealth(rows, models, factors, maps):
 def build():
     """Steps 1 to 8 (see the top). Writes the folder's files and returns the target-year rows."""
     import torch
-    import generate as G
+    from generate import generate as G
     out = folder()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     models = G.load_models(device)
-    import top_billionaires as TB
+    from generate import top_billionaires as TB
     by_seed, note = TB.offset_factors(models)
     common.say(note)
     factors = {m['run']: by_seed[m['seed']] for m in models}
@@ -946,7 +945,7 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
     # booklet: positive and negative counts and dollars of every booklet field the rebuild carries, and the totals
     rows = []
     fields = {**COUNT_FIELDS, **CHECK_FIELDS}
-    import target_list as TLS
+    from reweight import target_list as TLS
     for fld, col in fields.items():
         if fld not in book.index:
             continue
@@ -1007,9 +1006,9 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
 def target_year_rows(h15, donors, models, factors, out):
     """Steps 7 and 8: the balance sheet drawn again, the PUF items grown to the target year, every total recomputed;
     rows in the generated file's schema. Writes hidden_<year>.parquet, check_wealth.csv and growth_<year>.csv."""
-    import tilt as TL
-    import qgroups as Q
-    import model as M
+    from scale import start as START
+    from pretrain import qgroups as Q
+    from pretrain import model as M
     maps = D.load_maps(Y)
     stk = donors.reset_index(drop=True).copy()                    # the donors in the stack's own coding
     # PUF bands from the final 2015 dollars (the network's view of the rebuilt return), the computed flags from them
@@ -1026,7 +1025,7 @@ def target_year_rows(h15, donors, models, factors, out):
     new, dol, accepted, tried, kept = redraw_wealth(stk, models, factors, maps)
     for c in new:
         stk[c] = new[c].to_numpy().astype(stk[c].dtype)
-    import ages
+    from shared import ages
     for i, v in enumerate(M.META['scf_amounts']):
         u = np.array([ages.uniform_by_id(np.array([rid]), int(S['wealth_salt']) + 100 * int(t) + i)[0]
                       for rid, t in zip(stk['record_id'].to_numpy(), kept)])
@@ -1035,20 +1034,20 @@ def target_year_rows(h15, donors, models, factors, out):
     assert np.allclose(rows['net_worth'].to_numpy(float), dol['net_worth'].to_numpy(float), rtol=1e-9, atol=1e-3), \
         'the balance sheet kept differs from its try'
     rows['hidden_wealth_fallback'] = (accepted == -1).astype(np.int64)
-    # 8. the PUF items grown from 2015 (tilt.grow_dollars on the PUF block alone), then every total recomputed
+    # 8. the PUF items grown from 2015 (start.grow_dollars on the PUF block alone), then every total recomputed
     puf15 = h15[PRIMITIVES + ['capital_gains_line13', 'capital_gains', 'business_income', 'business_income_drawn',
                              'other_agi', 'filing_status',   # the filing status: the capital loss limit
                              'ss_taxable', common.GROSS_PENSIONS]   # computed (3 November): recombine checks them
               + [k for k in D.META['computed_totals'] if k != 'business_income']].copy()
     puf15 = puf15.loc[:, ~puf15.columns.duplicated()]
-    grown, growth = TL.grow_dollars(puf15, PY, Y)
+    grown, growth = START.grow_dollars(puf15, PY, Y)
     # since 29-30 October the short and long term pieces are the gains and losses before the loss limit, grown like any
     # amount; recombine() applies the nominal limit in the target year (before, a piece kg_other held the limit and a
     # rule here kept returns at it)
-    grown, _ = TL.recombine(grown, Y)
+    grown, _ = START.recombine(grown, Y)
     for c in grown:
         rows[c] = grown[c].to_numpy()
-    rows, _ = TL.recombine(rows, Y)
+    rows, _ = START.recombine(rows, Y)
     rows['synthetic_top'] = 1
     rows['hidden_group'] = h15['hidden_group'].to_numpy()
     rows['weight_2015'] = h15['weight'].to_numpy()
@@ -1120,7 +1119,7 @@ def rebuild_hidden_returns(g19=None, year=Y, path=None, details=False):
         missing = [c for c in g19.columns if c not in rows.columns]
         assert not missing, f'columns of the generated file the rebuilt returns lack: {missing}'
         assert not set(rows['record_id']) & set(g19['record_id']), 'a rebuilt return\'s record id is in the file'
-        import generate as G
+        from generate import generate as G
         filer = g19['filer'].to_numpy() == 1
         r2015 = float(np.sum(G.LABEL_META['returns']))
         rows['weight'] = rows['weight_2015'] * g19['weight'].to_numpy(float)[filer].sum() / r2015

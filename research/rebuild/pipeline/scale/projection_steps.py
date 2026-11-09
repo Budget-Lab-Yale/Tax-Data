@@ -16,7 +16,7 @@ start_scaling {weights: persons, dollars: item_factor}:
    The dependent filers' own six cells (age range x married) are exact too, each the 2023 count times its population
    growth (projection_demographics.population_cells, the rule used before), because the person counts do not see the
    dependent filers themselves.
-2. One dollar factor per item (step2_factor, called by tilt.grow_dollars). Each item has a row in the items table
+2. One dollar factor per item (step2_factor, called by start.grow_dollars). Each item has a row in the items table
    (settings tilt.projection.items_table; ITEMS_COLUMNS). Its series gives either the growth of the item's total from
    2023 (kind 'total') or the growth per record (kind 'per_unit'). For kind 'total' the factor is that growth times
    the item's 2023 total over the total the step 1 weights give the 2023 amounts, so the item's total on the start
@@ -65,10 +65,10 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-RESOURCES = os.path.join(os.path.dirname(HERE), 'resources')
+HERE = common.PIPELINE   # settings paths in tilt.projection are relative to the pipeline folder
+RESOURCES = common.RESOURCES
 P = common.SETTINGS['tilt'].get('projection', {})
 TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary's and spouse's ages at 80)
 MARRIED_FROM = 18     # married people under 18 counted unmarried, in the file and in CBO's population (John, 4 Nov 2026)
@@ -164,8 +164,8 @@ def step1(df, w, year, s):
     """The step 1 weights of the s file df (weights w) for year: see the module docstring. Records of the s file's
     Forbes list (billionaire == 1) keep their weight (the top step removes them). Returns the weights and a dict for
     the summary; sets STATE."""
-    import projection_demographics as PD
-    import solver as SV
+    from scale import projection_demographics as PD
+    from reweight import solver as SV
     keep = (df['billionaire'].to_numpy() != 1) if 'billionaire' in df else np.ones(len(df), bool)
     M = person_matrix(df)
     lev = w[keep] @ M[keep]
@@ -319,7 +319,7 @@ def series_growth(spec, s, t):
 
 def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
     """Step 2's factors (positive values, negative values) for column col, amounts x of the s file: see the module
-    docstring. fp_cur, fn_cur, kind_cur, series_cur: today's rule for the column (tilt.grow_dollars). R: CBO's growth
+    docstring. fp_cur, fn_cur, kind_cur, series_cur: today's rule for the column (start.grow_dollars). R: CBO's growth
     in the number of returns from s to t (turns today's per-return series back into a growth in total). Returns
     (fp, fn, description); records the item in STATE['items']. A 'same_as' row is handled by the caller."""
     tab = items_table()
@@ -611,7 +611,7 @@ def jump_off(year, s):
 
 
 def fs_e_parts():
-    import build_table as BT
+    from prep import build_table as BT
     return [(p, BT.PARTS[p][1]) for p in BT.E_PARTS]
 
 
@@ -801,7 +801,7 @@ def fs_rows(year):
     the filing-season year."""
     if not (fs_active(year) and int(year) == int(FS['year'])):
         return []
-    import dollars as D
+    from shared import dollars as D
     df, w, fixed = _start()
     lst = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
     b = STATE['df_base']
@@ -932,7 +932,7 @@ def ig_active(s):
 def ig_split(df, w, s):
     """The two parts of the start file's non-qualified dividends (section above, point 2). df, w: the start file and
     its own weights (before step 1)."""
-    import targets as TG
+    from prep import soi as TG
     y0 = int(IG['split_year'])
     assert y0 < int(s), f'interest_growth.split_year {y0} must be before the start year {s}'
     ordinary0, q0 = TG.soi_get(y0, 'ordinary dividends', 'amount'), TG.soi_get(y0, 'qualified dividends', 'amount')

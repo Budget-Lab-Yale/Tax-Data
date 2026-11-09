@@ -1,11 +1,7 @@
-"""The rebuild's year file as the input of the GPU tax calculator, and the calculator run on every record.
+"""The rebuild's year file as the input of the GPU tax calculator (convert, and the column list CONTRACT). taxes.py
+(inside the tilt), taxsim_file.py, package.py and the optional calculator stage (output/calculator.py) use it.
 
-An experiment (John, 28 October): every record's federal income tax under the target year's law, from the GPU tax
-calculator (repository tax-simulator-gpu) used as a library. The stage changes no file and feeds nothing into the tilt;
-since 30 October taxes.py, inside the tilt, uses this file's conversion (convert) for every record, as does
-taxsim_file.py.
-
-Three steps, all run by `main` (stage `calculator` of run.sbatch):
+The calculator in three steps:
 
 1. The pinned calculator. The calculator's code is read from a copy of its repository at one commit (settings
    calculator.commit), written once with `git archive` under <out>/lib/tax-simulator-gpu_<first 12 characters of
@@ -21,22 +17,12 @@ Three steps, all run by `main` (stage `calculator` of run.sbatch):
    preparation (the wage split and the random draws keyed by record id, as its bridge does), its frame steps under
    the year's law and its tax chain; every computed column per record (calculator_<year>.parquet). The same command
    computes the taxes inside the tilt (taxes.py).
-
-Paths: input <tilt>/file_<year>.parquet (REBUILD_CALC_INPUT overrides it); outputs <out>/calculator/<run>/
-(REBUILD_CALC_OUT overrides it).
 """
-import json
-import os
-import sys
-
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
-Y = common.TARGET_YEAR
-INPUT = os.environ.get('REBUILD_CALC_INPUT', f'{common.TILT}/file_{Y}.parquet')
-OUT = os.environ.get('REBUILD_CALC_OUT', f'{common.OUT}/calculator/{common.RUN}')
 
 # ---- the contract ---------------------------------------------------------------------------------------------
 # One row per column: (Tax-Simulator's name, status, where it comes from, what it is / what would fill it).
@@ -365,33 +351,3 @@ def convert(f):
     assert frame['id'].is_unique, 'record_id is not unique'
     assert frame['filing_status'].isin([1, 2, 3, 4]).all(), 'a filing status outside 1-4'
     return frame, notes
-
-
-def rebuild_agi(f):
-    """The rebuild's own AGI per record (dollars.agi: wages, interest, dividends, Schedule D net gain, other AGI)."""
-    return f[['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
-
-
-def main():
-    import taxes as TX
-    os.makedirs(OUT, exist_ok=True)
-    common.say(f'calculator: tax-simulator-gpu at {TX.S["commit"]} (settings taxes)')
-    common.say(f'input {INPUT}\noutputs {OUT}')
-    f = pd.read_parquet(INPUT)
-    frame, notes = convert(f)
-    frame.to_parquet(f'{OUT}/calculator_input_{Y}.parquet', index=False)
-    pd.DataFrame(CONTRACT, columns=['column', 'status', 'from the rebuild', 'what it is, or what would fill it']) \
-        .to_csv(f'{OUT}/calculator_contract.csv', index=False)
-    with open(f'{OUT}/conversion_notes.txt', 'w') as fh:
-        fh.write('\n'.join(notes) + '\n')
-    common.say('conversion:\n  ' + '\n  '.join(notes))
-    counts = pd.Series([c[1] for c in CONTRACT]).value_counts()
-    common.say('columns by status: ' + ', '.join(f'{k} {v}' for k, v in counts.items()))
-    out, man = TX.run_batch(frame, Y, OUT, 'calculator')
-    out.to_parquet(f'{OUT}/calculator_{Y}.parquet', index=False)
-    with open(f'{OUT}/calculator_manifest.json', 'w') as fh:
-        json.dump(man, fh, indent=1)
-
-
-if __name__ == '__main__':
-    sys.exit(main())

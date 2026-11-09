@@ -18,9 +18,9 @@ Writes common.TILT/cex_report.md.
 import numpy as np
 import pandas as pd
 
-import common
-import survey_mix
-import dollars as D
+from shared import common
+from shared import survey_mix
+from shared import dollars as D
 
 CATS = common.meta()['cex_amounts']
 NAMES = dict(zip(CATS, ['clothing', 'motor vehicles', 'durables', 'other nondurables', 'food at home', 'gasoline',

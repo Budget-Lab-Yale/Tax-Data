@@ -37,9 +37,9 @@ import pandas as pd
 import pyarrow.parquet as pq
 import torch
 
-import common
-import model as M
-import survey_mix
+from shared import common
+from pretrain import model as M
+from shared import survey_mix
 
 C = len(M.CONTEXT)
 P = M.PREDICTED

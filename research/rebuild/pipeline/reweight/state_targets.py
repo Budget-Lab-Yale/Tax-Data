@@ -31,10 +31,11 @@ import os
 import numpy as np
 import pandas as pd
 
+from shared import common
+
 HT2_DIR = '/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/state/HT2'
-HERE = os.path.dirname(os.path.abspath(__file__))
-FORBES = os.path.join(HERE, '..', 'resources', 'top', 'forbes_billionaires_{year}.csv')
-DEPENDENT_RETURNS = os.path.join(HERE, '..', 'resources', 'soi_table_1_7_dependent_returns.csv')
+FORBES = os.path.join(common.RESOURCES, 'top', 'forbes_billionaires_{year}.csv')
+DEPENDENT_RETURNS = os.path.join(common.RESOURCES, 'soi_table_1_7_dependent_returns.csv')
 
 # The 50 states and DC by FIPS code: the CPS's 51 values, the order of build_table.STATE_FIPS.
 STATE_FIPS = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,

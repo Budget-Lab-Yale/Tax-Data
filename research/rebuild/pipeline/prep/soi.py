@@ -25,7 +25,7 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
 MIRROR = common.RAW['soi_mirror']
 FAMILIES = {  # family: SOI Table 1.4 line, PUF income parts, PUF loss parts (stored positive)
@@ -404,7 +404,7 @@ def cbo_level(concept, y):
     """CBO's projected level of a concept (its line's name starts with concept) in calendar year y."""
     global _CBO
     if _CBO is None:
-        _CBO = pd.read_csv(os.path.join(os.path.dirname(common.HERE), 'resources', 'growth', 'cbo_individual_income_tax.csv'))
+        _CBO = pd.read_csv(os.path.join(common.RESOURCES, 'growth', 'cbo_individual_income_tax.csv'))
     d = _CBO[_CBO['concept'].str.startswith(concept) & (_CBO['year'] == y)]
     assert len(d) == 1, f'CBO line {concept!r} in {y}: {len(d)} rows (CBO publishes 2022-2036)'
     return float(d['value'].iloc[0])
@@ -423,7 +423,7 @@ CBO_LONG_RUN = {
 def cbo_growth(concept, a, b):
     """CBO's growth of a concept per return from year a to b (a count, 'Number of returns', as itself); past CBO's last
     year used, its long-run aggregate's (CBO_LONG_RUN)."""
-    import projection_growth as PG
+    from scale import projection_growth as PG
     L = PG.cbo_last_year()
     if b > L:
         x = max(a, L)
@@ -465,7 +465,7 @@ def per_return_growth(item, rows=None, absolute=False, year=None):
         # (2 November) gross benefits past SOI's last year grow with SSA's and CBO's benefits paid, not CBO's taxable
         # benefits (taxable grows faster: the thresholds are not indexed); projection_growth.gross_ss_between stops the
         # run if a year has no source
-        import projection_growth as PG
+        from scale import projection_growth as PG
         last = total_years()[-1]
         y = common.TARGET_YEAR if year is None else year
         return g(y) if y <= last else g(last) * PG.gross_ss_between(last, y)

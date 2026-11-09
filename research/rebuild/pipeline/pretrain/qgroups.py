@@ -35,7 +35,7 @@ each group is set in advance; each record is weighted by its group's PUF returns
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
 PUF_LINES = [0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999, 0.9999]
 PUF_LABELS = ['AGI below -$1M', 'AGI -$1M to -$50k', 'AGI -$50k to 0', 'below p50', 'p50-75', 'p75-90', 'p90-95',
@@ -82,7 +82,7 @@ def rep_maps():
 def band_agi(df):
     """AGI from the representative amounts of each record's bands, through the combination dollars.draw_dollars uses.
     PUF-year dollars."""
-    import dollars as D
+    from shared import dollars as D
     # (3 November) and what taxable Social Security reads (gross benefits, tax-exempt interest, the student loan
     # interest deduction, the filing status): it is computed by the section 86 worksheet, not drawn
     need = set(D.AGI_PARTS) | set(D.KG_PIECES) | set(D.FOLD) | set(D.META['computed_totals']['business_income']) \

@@ -27,7 +27,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as pcsv
 
-import common
+from shared import common
 
 PERSON = ['SSUID', 'PNUM', 'MONTHCODE', 'ERESIDENCEID', 'THHLDSTATUS', 'SPANEL', 'SWAVE', 'ERELRPE', 'ESEX', 'TAGE',
           'TAGE_EHC', 'EMS', 'EMS_EHC', 'EPNSPOUSE', 'EPNSPOUS_EHC', 'EPNCOHAB', 'EPNCOHAB_EHC', 'EPNPAR1', 'EPNPAR2',

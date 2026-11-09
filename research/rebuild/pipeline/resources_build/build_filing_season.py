@@ -1,7 +1,7 @@
 """SOI's November filing-season tables, read into one file (plan of 4 November 2026, step 1: scratch
 explore/2026-11-04/nowcast/PLAN.md). Run again when SOI posts a new November table:
 
-    sbatch --partition=day --gres=gpu:0 research/rebuild/pipeline/run.sbatch filing_season      (no GPU needed)
+    python research/rebuild/pipeline/run.py stage <folder> filing_season      (no GPU needed)
 
 What the tables are. Each January SOI posts a table of the individual returns the IRS processed through week 47
 (about 20 November) of the filing year, by size of AGI (https://www.irs.gov/statistics/filing-season-statistics;
@@ -37,9 +37,9 @@ import re
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
-DIR = os.path.abspath(os.path.join(common.HERE, '..', 'resources', 'filing_season'))
+DIR = os.path.join(common.RESOURCES, 'filing_season')
 RAW = os.path.join(DIR, 'raw')
 URL = 'https://www.irs.gov/pub/irs-soi/'
 

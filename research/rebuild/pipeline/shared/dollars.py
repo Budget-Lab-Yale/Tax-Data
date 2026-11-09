@@ -5,12 +5,12 @@ band's real records ("the map", built by build_table.py): the PUF's dollar
 values for PUF variables, the SCF's for the balance sheet, the CEX's for
 consumption, each record's chance of being picked proportional to its weight.
 The target year's maps are the PUF year's grown to the target year
-(build_table.build_maps); negative capital gains are not grown (the $3,000 cap
+(maps.build_maps); negative capital gains are not grown (the $3,000 cap
 is nominal).
 
 The balance sheet has one map per SCF wave (map_scf_wave<wave>_<year>): each
 wave's own records, grown to the target year per tax unit, item by item
-(build_table.build_maps). A record's wave is its column scf_wave (generate.py
+(maps.build_maps). A record's wave is its column scf_wave (generate.py
 draws each record's balance sheet from one wave, by the year's mix), and its
 balance-sheet bands, which are on that wave's band edges, become dollars from
 that wave's map.
@@ -25,7 +25,7 @@ every step that turns its bands into dollars. A frame without the column (the
 PUF's own records, say) draws a fresh number, as before.
 
 The CEX's consumption, the CPS's items and the SIPP's tips have one map per survey year (map_<survey>_from<year>_to
-<target year>, since 28 October): that year's own records, grown to the target year (build_table.build_maps). A record's
+<target year>, since 28 October): that year's own records, grown to the target year (maps.build_maps). A record's
 year of each survey is its column cex_year, cps_year or sipp_year (generate.py draws them with the shares of the year
 file's prior); its bands become dollars from that year's map. A frame without the column draws from the single-year
 map (map_<survey>_<target year>), as before.
@@ -103,7 +103,7 @@ import os
 import numpy as np
 import pandas as pd
 
-import common
+from shared import common
 
 # The order fixes each amount's random stream; it must not change. (kg_other, dropped on 29-30 October, keeps its
 # place so the streams after it do not move; a frame without its band skips it. So do retirement_gross and
@@ -352,7 +352,7 @@ def deferral_items(out, year):
     with no year, gets none of these."""
     if 'elective_deferrals' not in out or year is None:
         return out
-    import translate as TR
+    from shared import translate as TR
     D = common.SETTINGS['deferrals']
     assert str(year) in D['limits'], f'no legal limit for {year} in settings deferrals.limits'
     lim = D['limits'][str(year)]
@@ -417,7 +417,7 @@ OWN = 'own_'   # a real PUF record's own PUF-year amount of an item (filers real
 def own_values(out, df, year):
     """In place (settings generation.filers real_puf, 4 November 2026): on a real PUF record (a frame column own_<item> that is not
     missing), each PUF amount is the record's own PUF-year amount grown to year exactly as the PUF's dollar map is
-    grown (build_table.puf_target_map: positive values times the item's factor for positive values, negative values
+    grown (maps.puf_target_map: positive values times the item's factor for positive values, negative values
     times its factor for negative values, zero left at zero; growth.factors), in place of the draw from its band.
     For an ordinary PUF record this is the value its own row of the map holds; the PUF's four aggregate records are
     not in the map, so this is the only way they get their amounts. Records with no own amounts (generated records)
@@ -425,7 +425,7 @@ def own_values(out, df, year):
     cols = [c for c in df.columns if c.startswith(OWN)]
     if not cols:
         return out
-    import growth as GR
+    from shared import growth as GR
     assert year is not None, 'a frame with real PUF amounts (own_ columns) needs the year of the maps\' dollars'
     for c in cols:
         v = c[len(OWN):]
@@ -463,7 +463,7 @@ def wage_base(year):
     base = float(META['earn_split']['se_wage_base'])
     if year is None or int(year) == common.PUF_YEAR:
         return base
-    import growth as GR
+    from shared import growth as GR
     return base * GR.factors('wages', int(year))[0]
 
 

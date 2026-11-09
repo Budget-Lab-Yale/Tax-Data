@@ -41,7 +41,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-import common
+from shared import common
 
 S = common.SETTINGS['earn_split']
 SE_FACTOR = float(S['se_factor'])          # Schedule SE: net earnings are 92.35% of the self-employment income

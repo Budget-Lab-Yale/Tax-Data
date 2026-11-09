@@ -684,7 +684,7 @@ def build_units(r, tax_year, away=None):
 
 def build(tax_year):
     """The CPS: the member list from roster_cps.py, group quarters left out, then the rules."""
-    import roster_cps
+    from prep import roster_cps
     r = roster_cps.read_roster(tax_year)
     r = r[~r.gq].reset_index(drop=True)
     return build_units(r, tax_year)

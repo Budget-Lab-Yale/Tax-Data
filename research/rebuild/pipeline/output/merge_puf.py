@@ -209,7 +209,7 @@ def derive_inputs(spec):
 
 def derive(d, spec):
     """In place: the columns computed from the items, in the pipeline's order (dollars.draw_dollars, and
-    tilt.recombine in a projection year)."""
+    start.recombine in a projection year)."""
     D = spec['derive']
     fs = d['filing_status'].to_numpy()
     d['capital_gains'] = allowed_capital_gain(d['kg_st'] + d['kg_lt'], fs)
@@ -303,7 +303,7 @@ def puf_based(d, rec, spec):
 
 # ---- step 7: the Tax-Simulator file's columns ---------------------------------------------------------------------
 def formula(name, d):
-    """The Tax-Simulator columns made from the record's items (the pipeline's calculator.convert and
+    """The Tax-Simulator columns made from the record's items (the pipeline's calculator_input.convert and
     taxsim_file.build)."""
     x = lambda c: d[c].to_numpy(float)
     share = x('spouse_se_share')

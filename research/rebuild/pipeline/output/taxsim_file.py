@@ -8,7 +8,7 @@ research/rebuild/TAXSIM_FILE_COLUMNS.csv).
 
 How each column is made:
 
-1. The 165 columns the GPU tax calculator reads come from the calculator experiment's converter (calculator.convert,
+1. The 165 columns the GPU tax calculator reads come from the calculator experiment's converter (calculator_input.convert,
    CALCULATOR_CONTRACT.md). The 27 columns that experiment set to 0 as rules still to build (blindness, Social Security
    numbers and child credit eligibility of dependents, QBI wage bills and specified-service flags, the basis and
    holding period of long-term gains, death probabilities, yearly unrealized gains) are now the file's own columns,
@@ -37,8 +37,8 @@ returns (synthetic_top = 1) that the reweighting gave no weight; their count and
 Every rule that departs from production, and every column set to a constant, is in COLUMNS with its reason, and the
 counts each rule touched are written to taxsim_file_notes.txt.
 
-Paths: input <tilt>/file_<year>.parquet (REBUILD_TAXSIM_INPUT overrides it); output folder
-<out>/taxsim/<run>/ (REBUILD_TAXSIM_OUT overrides it).
+Paths: input <tilt>/file_<year>.parquet; output folder
+<out>/taxsim/<run>/.
 """
 import os
 import sys
@@ -46,12 +46,12 @@ import sys
 import numpy as np
 import pandas as pd
 
-import calculator as C
-import common
+from shared import calculator_input as C
+from shared import common
 
 Y = common.TARGET_YEAR
-INPUT = os.environ.get('REBUILD_TAXSIM_INPUT', f'{common.TILT}/file_{Y}.parquet')
-OUT = os.environ.get('REBUILD_TAXSIM_OUT', f'{common.OUT}/taxsim/{common.RUN}')
+INPUT = f'{common.TILT}/file_{Y}.parquet'
+OUT = f'{common.OUT}/taxsim/{common.RUN}'
 
 # Production's 188 columns, in its order (Tax-Data vintage 2026100117_review_fixes, tax_units_2019.csv).
 PRODUCTION_COLUMNS = (
@@ -102,7 +102,7 @@ FLAGS = ['blind1', 'blind2', 'dep_ssn1', 'dep_ssn2', 'dep_ssn3', 'dep_ctc1', 'de
 INTEGERS = ['id', 'filer', 'dep_status', 'filing_status', 'male1', 'age1', 'parent_rank', 'n_dep', 'n_dep_ctc',
             'n_dep_eitc', 'tips_lh1', 'tips_lh2', 'nols', 'forbes_flag']
 
-# Columns made here (not by calculator.convert), and the rules this script applies on top of the converter.
+# Columns made here (not by calculator_input.convert), and the rules this script applies on top of the converter.
 EXTRA = {
     'male2': ('computed', 'sex_spouse == 1 (1 man, 0 woman); missing without a spouse, as production'),
     'parent_rank': ('same', 'parent_rank (non-microdata imputations, production\'s method)'),

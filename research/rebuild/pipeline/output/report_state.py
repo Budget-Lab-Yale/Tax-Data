@@ -1,5 +1,5 @@
 """The state weights' report (FEATURES.md, "State weights"): tables in levels from a finished state_weights folder, for RESULTS.md.
-  python report_state.py --run <run folder> --out <state weights folder> [--chosen tolerance,tau]
+  python -m output.report_state --run <run folder> --out <state weights folder> [--chosen tolerance,tau]
 Writes out/tables.md and the CSVs behind it into <out>/out: the held-out scores of the four starts, the setting-by-result table,
 levels by state and by AGI group on 2019 and 2022, the final files' fit by year, and the non-filers against the CPS rule.
 """
@@ -11,7 +11,7 @@ import os
 import numpy as np
 import pandas as pd
 
-import state_targets as ST
+from reweight import state_targets as ST
 
 ITEM_NAMES = {'n_bus': 'Schedule C, returns', 'bus_amt': 'Schedule C, net income', 'n_pens': 'Taxable pensions, returns',
               'pens_amt': 'Taxable pensions', 'n_ss': 'Taxable Social Security, returns', 'ss_amt': 'Taxable Social Security',
@@ -69,7 +69,7 @@ def levels(run, out, year, items=('n_returns', 'agi_amt', 'wages_amt', 'fedtax_a
     """Published against the file, by area and by AGI group: the IRS's level; the file on the CPS start; the file on the final shares.
     Returns in thousands, dollars in billions, the file's national totals as they are (the IRS's and the file's national totals differ a
     little). Two frames, by area and by area x group."""
-    import state_weights as SW
+    from reweight import state_weights as SW
     df = ST.read_file(f'{run}/{year}/tilt/y{year}/file_{year}.parquet')
     filer = df['filer'].to_numpy() == 1
     f = df[filer].reset_index(drop=True)
