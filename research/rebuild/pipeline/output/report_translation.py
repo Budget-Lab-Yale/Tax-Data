@@ -1,6 +1,7 @@
 """The translation report of a trained run: for every row of the translation table and every survey year, the survey as
 reported, after the definition fixes, after function 1, after function 2, and the tax data, side by side, with a
-section on wages first. Writes translation_report.csv and translation_report.md to the run's model folder.
+section on wages first. Writes translation_report.csv and translation_report.md to the run's model folder, or, run on
+a year folder, to the year's tilt folder beside the other reports.
 """
 import os
 
@@ -65,7 +66,7 @@ def wages_section(rep):
             pd.DataFrame(summary).to_markdown(index=False, floatfmt=',.1f'), ''] + blocks
 
 
-def after_fill_in():
+def after_fill_in(model_dir):
     """The stage after function 2, as long report rows. The zero-reporters' weight is spread over the bands by the
     trained model's fill-in, each band at its PUF median grown to the survey year, so this stage is approximate within
     a band."""
@@ -77,7 +78,7 @@ def after_fill_in():
     table = M.read_table()
     train_rows = table[table.split == 'train']
     tr = train.encode(train_rows, device)
-    model = M.load_model(device, os.path.join(common.MODEL, 'model.pt'))
+    model = M.load_model(device, os.path.join(model_dir, 'model.pt'))
     fill = fillin.FillIn(model, tr, train_rows, torch.Generator(device=device).manual_seed(common.SEED))
     fill.refit(0, write_log=False)
     edges = common.edges()
@@ -110,10 +111,20 @@ def after_fill_in():
     return rows
 
 
+def folders():
+    """The network's folder and the report's: in a training folder the run's own model folder for both; in a year
+    folder, whose model/ links to the training folder's, the first pooled network of settings generation.models and
+    the year's tilt folder, where the other reports go."""
+    if os.path.exists(os.path.join(common.MODEL, 'model.pt')):
+        return common.MODEL, common.MODEL
+    return f"{common.OUT}/model/{common.SETTINGS['generation']['models'][0]['run']}", common.TILT
+
+
 def main():
+    model_dir, out = folders()
     rep = pd.read_csv(f'{common.DATA}/translation_report.csv')
-    rep = pd.concat([rep, pd.DataFrame(after_fill_in())], ignore_index=True)
-    rep.to_csv(os.path.join(common.MODEL, 'translation_report.csv'), index=False)
+    rep = pd.concat([rep, pd.DataFrame(after_fill_in(model_dir))], ignore_index=True)
+    rep.to_csv(os.path.join(out, 'translation_report.csv'), index=False)
     text = ['# Translation report', '',
             'Each row of the translation table and survey year, against the tax data for that year. After function 2: '
             'filled-in amounts at their band\'s PUF median (approximate within a band). Units in millions.', ''] + \
@@ -122,8 +133,8 @@ def main():
         wide = g.pivot_table(index='statistic', columns='stage', values='value', sort=False)
         wide = wide[[c for c in STAGES if c in wide]]
         text += [f'## {s.upper()} {y}: {v}', '', '```', wide.round(2).to_string(), '```', '']
-    open(os.path.join(common.MODEL, 'translation_report.md'), 'w').write('\n'.join(text))
-    common.say(f'translation report: {len(rep)} rows, {os.path.join(common.MODEL, "translation_report.md")}')
+    open(os.path.join(out, 'translation_report.md'), 'w').write('\n'.join(text))
+    common.say(f'translation report: {len(rep)} rows, {os.path.join(out, "translation_report.md")}')
 
 
 if __name__ == '__main__':
