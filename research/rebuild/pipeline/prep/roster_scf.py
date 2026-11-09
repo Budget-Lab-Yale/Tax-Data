@@ -1,9 +1,12 @@
-"""The SCF reader for the shared tax-unit rules (tax_units.py), and the SCF's units and inheritances.
+"""The SCF reader for the shared tax-unit rules (tax_units.py). It also builds the SCF's tax units and reads the
+inheritances each household received in the year.
 
 The SCF measures in detail only the primary economic unit (PEU): the respondent, a spouse or partner who shares
-finances, and everyone financially dependent on them. The other adults are asked about as a group, whose income and
-balance sheet are divided equally among them. Writes, for build_scf.R, each wave's persons, units, the group's
-dollars per unit and inheritances received this year. TAX_UNITS.md, "Each survey", has the fallbacks.
+finances with them, and everyone financially dependent on them. The other adults who usually live in the household
+are asked about as a group. Their income and balance sheet are reported for the group as a whole, and here they are
+divided equally among the group's adults. For each wave this module writes the persons, the units, each unit's share
+of the group's dollars, and the inheritances received in the income year. build_scf.R reads these files. TAX_UNITS.md,
+"Each survey", describes how the SCF stands in for the inputs it lacks.
 """
 import argparse
 import os
@@ -14,10 +17,13 @@ import pandas as pd
 from shared import common
 from prep import tax_units as T
 
+# Salts for the random draws keyed by household: the exact age within a reported age range, and the age of a child
+# living elsewhere
 SALT_AGE = 20261024
 SALT_AWAY = 20261025
 
-# household listing positions 3-12: relationship, age, marital status, usually lives here, financially dependent
+# The household listing's items for the people in positions 3 to 12: relationship to the respondent, age, marital
+# status, whether the person usually lives here, and whether they are financially dependent on the PEU
 POS = {'rel': ['X108', 'X114', 'X120', 'X126', 'X132', 'X202', 'X208', 'X214', 'X220', 'X226'],
        'age': ['X110', 'X116', 'X122', 'X128', 'X134', 'X204', 'X210', 'X216', 'X222', 'X228'],
        'mar': ['X111', 'X117', 'X123', 'X129', 'X135', 'X205', 'X211', 'X217', 'X223', 'X229'],
@@ -26,24 +32,29 @@ POS = {'rel': ['X108', 'X114', 'X120', 'X126', 'X132', 'X202', 'X208', 'X214', '
 HH = ['Y1', 'YY1', 'X42001', 'X8021', 'X103', 'X14', 'X19', 'X8023', 'X102', 'X7020', 'X106', 'X7050', 'X5744',
       'X5746', 'X7377', 'X7392', 'X5731', 'X5910', 'X5912', 'X4112', 'X4113', 'X4712', 'X4713', 'X4131', 'X4132',
       'X4731', 'X4732',
-      # the group outside the PEU: wages, other income and its kinds, the balance sheet
+      # The group outside the PEU: its wages, its other income and the kinds of that income, and its balance sheet
       'X6403', 'X6415', 'X6406', 'X6407', 'X6408', 'X6409', 'X6410', 'X6411', 'X6412', 'X6413', 'X6414',
       'X6418', 'X6421', 'X6432', 'X6435', 'X6436', 'X6437', 'X6439']
+# The SCF's relationship codes translated into Census's relationship codes (PERRP)
 REL_PERRP = {4: 48, 5: 49, 6: 50, 7: 52, 8: 52, 9: 52, 10: 52, 11: 51, 12: 49, 29: 52, 34: 57, 35: 59, 31: 59,
              32: 59, 36: 59, 39: 59}
-RELATIVES = [4, 5, 6, 7, 8, 9, 10, 11, 12, 29]
+RELATIVES = [4, 5, 6, 7, 8, 9, 10, 11, 12, 29]   # the SCF's relationship codes for the respondent's relatives
 
+
+# ---- Reading the SCF ----
 
 def aconv(f):
-    """Moore's annualizing factor for a period code."""
+    """The factor that turns an amount per period into a yearly amount, for the SCF's period codes (as in Kevin
+    Moore's code)."""
     f = np.asarray(f)
     return np.select([f == 2, f == 3, f == 4, f == 5, np.isin(f, [6, 8, 14, 22]), f == 11, f == 12, f == 31],
                      [52.18, 26.09, 12, 4, 1, 2, 6, 24], 0.0)
 
 
 def bracket(code):
-    """The ages a public-file age code covers (codebook, household listing: 3 = 0-3, 6 = 4-6, 12 = 7-12,
-    17 = 13-17, 25 = 18-27, c = c-2..c+2 from 30, 95 = 93 and over, here 93-97)."""
+    """The lowest and highest age that a public-file age code covers. From the codebook's household listing: 3 means
+    0-3, 6 means 4-6, 12 means 7-12, 17 means 13-17, 25 means 18-27, a code c from 30 on means c-2 to c+2, and 95
+    means 93 and over (taken here as 93-97)."""
     code = np.asarray(code)
     lo = np.select([code <= 3, code <= 6, code <= 12, code <= 17, code <= 25, code >= 95], [0, 4, 7, 13, 18, 93],
                    code - 2)
@@ -53,12 +64,14 @@ def bracket(code):
 
 
 def scf_dir(wave):
-    """The wave's folder of raw files: settings paths.raw.scf_wave_dirs for a wave not in the shared folder, else
-    paths.raw.scf, {wave} filled in."""
+    """The folder of the wave's raw files: settings paths.raw.scf_wave_dirs for a wave that is not in the shared
+    folder, otherwise paths.raw.scf, with {wave} filled in."""
     return common.RAW.get('scf_wave_dirs', {}).get(str(wave), common.RAW['scf']).replace('{wave}', str(wave))
 
 
 def read_raw(wave):
+    """The household items in HH and POS from the wave's full public data set. An item missing from the file is read
+    as 0 and reported."""
     path = os.path.join(scf_dir(wave), f'p{wave % 100:02d}i6.dta')
     want = [c.lower() for c in HH + sum(POS.values(), [])]
     with pd.read_stata(path, iterator=True) as rd:
@@ -75,18 +88,24 @@ def read_raw(wave):
     return d
 
 
+# ---- The member list ----
+
 def read_roster(wave):
-    """The standard member list for one SCF wave (tax year wave - 1), and the household table it came from."""
+    """The standard member list for one SCF wave (tax year wave - 1), the household table it came from, and each
+    group member's share of the group's dollars. Each of the five implicates of a household is read as a separate
+    household, with one fifth of the weight."""
     tax_year = wave - 1
     d = read_raw(wave)
     d['hh'] = d.Y1.astype(np.int64)
     d['w'] = d.X42001 / 5
-    # --- R and the spouse or partner (positions 1 and 2) -------------------------------------------------------
-    # Position 2 holds the spouse or partner (X102 > 0); X8023 says which (1 married, 2 partner).
+
+    # 1. The respondent (position 1) and the spouse or partner (position 2). X102 > 0 means there is a spouse or
+    #    partner, and X8023 says which (1 married, 2 partner). A partner outside the PEU is listed only if they
+    #    live in the household. Earnings are the main job's wages plus its business income, made yearly.
     has_sp = d.X102.to_numpy() > 0
     sp_code = np.where(has_sp, np.where(d.X8023.to_numpy() == 1, 2, 3), 0)
     sp_in_peu = has_sp & (d.X7020.to_numpy() == 2)
-    sp_lives = has_sp & (sp_in_peu | (d.X106.to_numpy() == 1))       # a partner outside the PEU who lives there
+    sp_lives = has_sp & (sp_in_peu | (d.X106.to_numpy() == 1))
     r_earn = np.maximum(0, d.X4112) * aconv(d.X4113) + np.maximum(0, d.X4131) * aconv(d.X4132)
     s_earn = np.maximum(0, d.X4712) * aconv(d.X4713) + np.maximum(0, d.X4731) * aconv(d.X4732)
     R = pd.DataFrame({'hh': d.hh, 'pn': 1, 'age': d.X14.astype(int), 'sex': d.X8021.astype(int), 'rel': 1,
@@ -96,13 +115,17 @@ def read_roster(wave):
                       'mar': np.where(sp_code == 2, 1, 2), 'lw': 1, 'fd': np.where(sp_in_peu, 1, 5),
                       'gi': np.where(sp_in_peu, s_earn, 0.0), 'gi_obs': sp_in_peu,
                       'support': np.where(sp_in_peu, -1, 0), 'age_assumed': False})[sp_lives]
-    # --- positions 3-12 ----------------------------------------------------------------------------------------
+
+    # 2. The people in positions 3 to 12. A person who neither usually lives in the household nor depends on the
+    #    PEU is not a member. A person who depends on the PEU, or is 17 or younger, is in the PEU; the others form the
+    #    group outside it. Their sex is not reported, their income is not measured, and their exact age is drawn
+    #    within the reported age range.
     rows = []
     for i in range(10):
         x = pd.DataFrame({'hh': d.hh, 'yy1': d.YY1, 'pn': i + 3, **{k: d[v[i]] for k, v in POS.items()}})
         rows.append(x[x.rel > 0])
     O = pd.concat(rows, ignore_index=True)
-    member = ~((O.lw == 5) & (O.fd == 5))           # neither usually lives here nor depends on the PEU: not a member
+    member = ~((O.lw == 5) & (O.fd == 5))
     print(f'wave {wave}: listed people who neither live there nor depend on the PEU, left out: '
           f'{O.hh.map(d.set_index("hh").w)[~member].sum() / 1e6:.2f} m')
     O = O[member].copy()
@@ -119,7 +142,9 @@ def read_roster(wave):
     P['group'] = P.group.fillna(0).astype(int)
     P['weight'] = P.hh.map(d.set_index('hh').w)
     P['rel'] = P.rel.astype(int)
-    # --- outside-PEU couples: exactly two group adults who report being married or living with a partner ---------
+
+    # 3. Couples in the group outside the PEU. When exactly two of the group's adults report being married or living
+    #    with a partner, they are paired with each other. The respondent and the spouse are paired too.
     grp = (P.group == 1)
     mar_g = grp & (P.mar == 1)
     nmar = mar_g.groupby(P.hh).transform('sum')
@@ -128,7 +153,6 @@ def read_roster(wave):
     P['sp_pn'] = 0
     pp = P[pair].groupby('hh').pn.agg(['min', 'max'])
     P.loc[pair, 'sp_pn'] = np.where(first[pair], P.hh[pair].map(pp['max']), P.hh[pair].map(pp['min']))
-    # R and the spouse
     is_spouse = (P.pn == 2) & (P.rel == 2)
     hh_sp = set(P.hh[is_spouse])
     P.loc[is_spouse, 'sp_pn'] = 1
@@ -137,7 +161,9 @@ def read_roster(wave):
     P['married_sp'] = (P.sp_pn > 0)
     P['married_absent'] = False
     P['marst'] = np.where(P.married_sp, 1, 6)
-    # --- CBO's Census codes ------------------------------------------------------------------------------------
+
+    # 4. Census's relationship code (PERRP) and family position code (HHDFMX), which CBO's rules read. A household
+    #    is a family household when the respondent has a spouse or a relative in it.
     rel = P.rel.to_numpy()
     relative = np.isin(rel, RELATIVES)
     fam = P.hh.map(pd.Series(relative | (rel == 2)).groupby(P.hh).max()).to_numpy().astype(bool)
@@ -147,7 +173,8 @@ def read_roster(wave):
                       [np.where(fam, 40, 41), 42, 45, 44, 47], P.rel.map(REL_PERRP).fillna(-1).to_numpy())
     assert (perrp > 0).all(), pd.Series(rel[perrp <= 0]).value_counts()
     kin = np.select([rel == 4, np.isin(rel, [5, 12])], ['child', 'grandchild'], 'other')
-    # outside-PEU couples: a related subfamily if the first member is R's relative, else an unrelated subfamily
+    # A paired couple outside the PEU is a related subfamily if its first member is the respondent's relative, and
+    # an unrelated subfamily otherwise.
     pair = pair.to_numpy(); first = first.to_numpy()
     rel_first = P.hh.map(pd.Series(np.where(first, relative, False)).groupby(P.hh).max()).to_numpy().astype(bool)
     in_sf = pair & rel_first
@@ -156,11 +183,13 @@ def read_roster(wave):
           ('grandchild', 'ref'): 23, ('grandchild', 'sp'): 27, ('other', 'none'): 37, ('other', 'ref'): 35,
           ('other', 'sp'): 39}
     posn = np.where(in_sf & first, 'ref', np.where(in_sf, 'sp', 'none'))
-    # a non-relative married to a relative in a related subfamily is coded as that subfamily's spouse (other kin)
+    # A non-relative married to a relative in a related subfamily is coded as that subfamily's spouse, with the
+    # "other relative" codes.
     pf_code = np.array([pf[(k if r else 'other', p)] for k, r, p in zip(kin, relative, posn)])
     hhdfmx = np.select([rel == 1, rel == 2, relative | in_sf, in_uf & first, in_uf],
                        [np.where(fam, 1, 49), 2, pf_code, 46, 47], 50)
-    P['perrp'] = np.where(in_uf & np.isin(perrp, [55, 57, 59]), perrp - 1, perrp)   # "with relatives"
+    # A member of an unrelated subfamily takes the PERRP code for a non-relative "with relatives".
+    P['perrp'] = np.where(in_uf & np.isin(perrp, [55, 57, 59]), perrp - 1, perrp)
     P['hhdfmx'] = hhdfmx
     P['ftype'] = np.select([in_sf, in_uf, fam], [3, 4, 1], np.where(hhdfmx == 49, 2, 5))
     P['famrel'] = np.select([rel == 1, rel == 2, (in_sf | in_uf) & first, in_sf | in_uf, relative], [1, 2, 1, 2, 3], 0)
@@ -169,9 +198,12 @@ def read_roster(wave):
     sf_ref = P.hh.map(P[pair & first].set_index('hh').pn) if (pair & first).any() else pd.Series(np.nan, P.index)
     P['fheadidx'] = np.where(in_sf | in_uf, sf_ref.fillna(1), np.where(hhdfmx == 50, P.pn, 1)).astype(int)
     P['gq'] = False
+    # The SCF has no student or disability items.
     for c in ['in_school', 'nilf_school', 'ill_disabled', 'diff_any', 'has_disab_income']:
         P[c] = False
-    # --- incomes: R and the spouse or partner have their earnings; the group outside the PEU its share -----------
+
+    # 5. Incomes. The respondent and the spouse or partner have their own earnings (as wages). Each adult in the
+    #    group outside the PEU has an equal share of the group's income. Everyone else has none.
     for c in T.INCOME_ITEMS:
         if c != 'gi':
             P[c] = 0.0
@@ -180,9 +212,12 @@ def read_roster(wave):
     g = P.group == 1
     P.loc[g, 'gi'] = shares.loc[P.index[g], 'gi'].to_numpy()
     P.loc[g, 'wage'] = shares.loc[P.index[g], 'wages'].to_numpy()
-    # an adult's own income not measured (a minor's is taken as none, as everywhere); a child's unit uncertain where
-    # another parent may be in the household: a grandchild, niece, nephew or other young relative, or R's child when
-    # R lives with an unmarried partner (the code covers children of either); and the paired couples
+
+    # 6. The flags for assumed inputs. An adult's own income is flagged when it is not measured; a minor's income is
+    #    taken as none, as in every survey. A child's unit is flagged when another parent may be in the household:
+    #    for a grandchild, niece, nephew or other young relative, and for the respondent's child when the respondent
+    #    lives with an unmarried partner (the SCF's code covers the children of either). The paired couples are
+    #    flagged too.
     P['income_assumed'] = ~P.gi_obs & (P.age >= 18)
     r_partner = P.hh.map(P[P.pn == 2].set_index('hh').rel).fillna(0).to_numpy() == 3
     young_rel = (P.age < 24) & (P.pn > 2) & (np.isin(P.rel, [5, 7, 8, 9, 10, 11, 12, 29]) | ((P.rel == 4) & r_partner))
@@ -197,14 +232,18 @@ def read_roster(wave):
 
 
 def npeu_shares(P, d):
-    """Each outside-PEU adult's share of the group's income and balance sheet (interview-year dollars), as columns
-    on P's index. The other income (X6415) is divided equally among the kinds the group reports, as Moore does."""
+    """Each adult's share of the income and balance sheet of the group outside the PEU, in dollars of the interview
+    year, as columns on P's index.
+
+    The group reports its other income (X6415) as one amount and lists the kinds it includes. As in Kevin Moore's
+    code, the amount is divided equally among the kinds reported. Every amount is then divided equally among the
+    group's adults."""
     g = P[P.group == 1]
     h = d.set_index('hh').loc[g.hh]
     n = g.groupby('hh').pn.transform('size').to_numpy()
     pos = lambda c: np.maximum(h[c].to_numpy(), 0)
-    # ss_pensions_scf: the SCF's Social Security plus pensions, used only for the income test and to divide income
-    # among units, not as a model slot
+    # ss_pensions_scf (the SCF's Social Security plus pensions) is used only for the income test and to divide income
+    # among units. It is not a variable of the model.
     kinds = {'ss_pensions_scf': ['X6406', 'X6407', 'X6408'], 'txbl_int': ['X6410'], 'dividends': ['X6411'],
              'business_income': ['X6412'], 'rent_royalty_estate': ['X6413'], 'other_income': ['X6409', 'X6414']}
     flags = {k: sum(((h[c].to_numpy() == 1) if c != 'X6414' else (h[c].to_numpy() > 5)) for c in v)
@@ -216,10 +255,11 @@ def npeu_shares(P, d):
     out['wages'] = pos('X6403') * eq
     for k, f in flags.items():
         out[k] = other * f * eq
-    # gross Social Security alone, the Social Security kind's part of the group's other income. It is not added to gi
-    # below, because ss_pensions_scf already holds it.
+    # Gross Social Security alone: the Social Security kind's part of the group's other income. It is not added to
+    # gross income below, because ss_pensions_scf already includes it.
     out['gross_ss'] = other * (h['X6406'].to_numpy() == 1) * eq
-    # the balance sheet, always equally; the home share is the group's share of R's home, with its mortgage
+    # The balance sheet, divided equally. The group's part of the home is its share of the respondent's home, with
+    # the same share of the mortgage.
     home = np.minimum(pos('X6432'), pos('X6436') * pos('X6435') / 10000)
     out['value.cash'] = pos('X6421') * eq
     out['value.other_nonfin'] = pos('X6418') * eq
@@ -227,25 +267,33 @@ def npeu_shares(P, d):
     out['value.other_fin'] = (pos('X6432') - home) * eq
     out['value.primary_mortgage'] = pos('X6437') * pos('X6435') / 10000 * eq
     out['value.other_debt'] = pos('X6439') * eq
-    # gross income for the income test (CBO's 3a items, Social Security counted as received, a fallback)
+    # Gross income for the income test: CBO's 3a items. Social Security is counted in full here, not only its
+    # taxable part.
     out['gi'] = out[['wages', 'ss_pensions_scf', 'txbl_int', 'dividends', 'business_income',
                      'rent_royalty_estate', 'other_income']].sum(axis=1)
     return out
 
 
+# ---- The units ----
+
 def units(wave):
+    """The SCF's tax units for one wave. Returns the persons, the units, and each unit's share of the dollars of
+    the group outside the PEU."""
     tax_year = wave - 1
     P, d, shares = read_roster(wave)
-    # children living elsewhere: under 18, claimed by R's unit when the family paid alimony or child support
+    # 1. Children living elsewhere. When the family paid alimony or child support, the respondent's unit claims the
+    #    children the family supports outside the household, at ages drawn uniformly from 0 to 17.
     n_away = np.where(d.X5912 > 0, d.X5912, np.where(d.X5912 == -2, np.maximum(d.X5910, 0), 0))
     n_away = np.where(d.X5731 == 1, n_away, 0).astype(int)
     aw = pd.DataFrame({'hh': np.repeat(d.hh.to_numpy(), n_away), 'pn': 1})
     aw['k'] = aw.groupby('hh').cumcount()
     yy1 = np.repeat(d.YY1.to_numpy().astype(np.int64), n_away)
     aw['age'] = np.floor(T.keyed_uniform(yy1 * 100 + aw.k.to_numpy(), SALT_AWAY) * 18).astype(int)
+    # 2. Run the rules.
     persons, U = T.build_units(P, tax_year, away=aw[['hh', 'pn', 'age']])
     U['any_age_assumed'] |= U.uid.isin(aw.hh * 100 + 1) & (U.n_child_away > 0)
-    # separate returns from the couple's own answer, with Moore's prior-marriage condition
+    # 3. Separate returns. A married couple files separately when it says it did and either spouse was married
+    #    before (Kevin Moore's condition). Every such couple is split.
     sep = d.set_index('hh').eval('X5746 == 2 and (X7377 == 2 or X7392 == 2)')
     main = U[~U.dep_return].reset_index(drop=True)
     pick = (main.filing_status == 'joint').to_numpy() & main.hh.map(sep).fillna(False).to_numpy() & \
@@ -258,9 +306,11 @@ def units(wave):
         chosen, mfs = np.array([], dtype=np.int64), pd.DataFrame()
     print(f'wave {wave}: couples filing separately by their own answer: {main.weight[pick].sum() / 1e6:.2f} m couples, '
           f'{2 * main.weight[pick].sum() / 1e6:.2f} m returns')
-    # how each unit takes the PEU's dollars in build_scf.R: 'all' the whole PEU; 'r' and 'sp' the respondent's and
-    # the spouse's or partner's shares when they are separate units; 'none'
-    in_peu = persons.set_index(['hh', 'pn']).support.ne(0)          # R, a spouse or partner in the PEU, dependents
+    # 4. How each unit takes the PEU's dollars in build_scf.R. 'all' means the whole PEU. 'r' and 'sp' mean the
+    #    respondent's share and the spouse's or partner's share, when they are separate units. 'none' means nothing.
+    #    The source column says whether the unit's head is in the PEU ('peu'), in the group outside it ('npeu'), or
+    #    neither ('other'), or whether the row is a dependent's own return.
+    in_peu = persons.set_index(['hh', 'pn']).support.ne(0)          # the respondent, a spouse or partner in the PEU, dependents
     head_in_peu = pd.MultiIndex.from_arrays([U.hh, U.head_pn]).map(in_peu).fillna(False).to_numpy().astype(bool)
     U['source'] = np.where(U.dep_return, 'dependent return',
                            np.where(U.head_pn.isin([1, 2]) & head_in_peu, 'peu', 'other'))
@@ -269,6 +319,8 @@ def units(wave):
     U['peu_dollars'] = np.select([U.source != 'peu', U.head_pn == 2, U.hh.isin(sp_unit)], ['none', 'sp', 'r'], 'all')
     U['group_level'] = U.source == 'npeu'
     U['separate'] = False
+    # 5. Put the separate returns in place of the couples they split. Each return carries the couple's flags, and
+    #    columns that do not apply to it are set to zero or -1 (none).
     if len(mfs):
         mfs = mfs.copy()
         mfs['source'] = 'peu'
@@ -286,7 +338,7 @@ def units(wave):
                 U[c] = U[c].fillna(0)
             elif U[c].isna().any() and c.startswith(('cbo_age', 'dep_age')):
                 U[c] = U[c].fillna(-1)
-    # each unit's share of the group's dollars: its own members' shares, plus those of the people it claims
+    # 6. Each unit's share of the group's dollars: the shares of its own members plus those of the people it claims.
     sh = shares.merge(persons[['hh', 'pn', 'uid']], on=['hh', 'pn'], how='left')
     assert sh.uid.notna().all()
     nd = sh.drop(columns=['hh', 'pn']).groupby('uid').sum()
@@ -294,17 +346,19 @@ def units(wave):
     return persons, U, nd
 
 
-# ---- inheritances received this year (settings "inheritance") ----------------------------------------------------
-INHERIT_SETS = [('X5803', 'X5804', 'X5805'), ('X5808', 'X5809', 'X5810'), ('X5813', 'X5814', 'X5815')]   # type, value, year
+# ---- Inheritances received in the income year (settings "inheritance") ----
+
+# The three reported inheritances: the items for the type, the value and the year received
+INHERIT_SETS = [('X5803', 'X5804', 'X5805'), ('X5808', 'X5809', 'X5810'), ('X5813', 'X5814', 'X5815')]
 
 
 def inheritances(wave):
-    """Each household's inheritances received this year (the wave's income year), in that year's dollars.
+    """Each household's inheritances received in the wave's income year, in that year's dollars.
 
-    Up to three reported inheritances or trusts count, gifts left out. The public file rounds the year received to
-    the nearest 5, so each counts as this year's with the chance its year code carries (settings
-    inheritance.year_weights, calibrated to Gale and Sabelhaus 2024), by a draw keyed by household and position.
-    Returns the households and one row per reported inheritance."""
+    Up to three reported inheritances or trusts count; gifts are left out. The public file rounds the year received
+    to the nearest 5. So each inheritance counts as received in the income year with a chance that depends on its
+    year code (settings inheritance.year_weights, calibrated to Gale and Sabelhaus 2024). The draw is keyed by
+    household and position. Returns one row per household and one row per reported inheritance."""
     cfg = common.SETTINGS['inheritance']
     wts = {int(k): float(v) for k, v in cfg['year_weights'][str(wave)].items()}
     assert all(0 <= v <= 1 for v in wts.values()), f'inheritance year weights of wave {wave}: {wts}'
@@ -340,6 +394,8 @@ def inheritances(wave):
     return out, detail
 
 
+# ---- The whole stage ----
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('waves', type=int, nargs='*', help="default: the settings' SCF waves")
@@ -349,12 +405,13 @@ def main():
     out = a.out
     os.makedirs(out, exist_ok=True)
     for wave in a.waves or common.RAW['scf_waves']:
+        # 1. Build the units and write the persons, the units and the group's dollars by unit.
         persons, U, nd = units(wave)
         persons.to_parquet(f'{out}/scf_persons_{wave}.parquet')
         U.to_parquet(f'{out}/scf_units_module_{wave}.parquet')
         nd.reset_index().to_parquet(f'{out}/scf_npeu_dollars_{wave}.parquet')
-        # for build_scf.R: the units (dependents' own returns left out; they are not SCF records) and the group's
-        # dollars
+        # 2. Write the files build_scf.R reads: the units, without dependents' own returns (they are not SCF
+        #    records), and the group's dollars by unit.
         keep = ['uid', 'hh', 'head_pn', 'spouse_pn', 'head_age', 'head_sex', 'spouse_age', 'spouse_sex', 'weight',
                 'filing_status', 'separate', 'n_dep', 'n_child_home', 'n_child_away', 'n_other', 'n_parent',
                 'puf_n_dep', 'dep_age1', 'dep_age2', 'dep_age3', 'n24', 'n_dep_eitc', 'source', 'peu_dollars',
@@ -362,10 +419,12 @@ def main():
                 'any_dep_by_support', 'any_claimed_in_group']
         U.loc[~U.dep_return, keep].to_csv(f'{out}/scf_units_module_{wave}.csv.gz', index=False)
         nd.reset_index().to_csv(f'{out}/scf_npeu_dollars_{wave}.csv.gz', index=False)
-        # inheritances received this year, per household (build_scf.R gives them to the PEU's units)
+        # 3. Write the inheritances received in the income year, by household. build_scf.R gives them to the PEU's
+        #    units.
         inh, inh_detail = inheritances(wave)
         inh.to_csv(f'{out}/scf_inheritance_{wave}.csv.gz', index=False)
         inh_detail.to_parquet(f'{out}/scf_inheritance_detail_{wave}.parquet')
+        # 4. Print the units by filing status and by source.
         m = U[~U.dep_return]
         w = m.weight / 1e6
         print(f'wave {wave}: {len(persons)} people, {len(m)} unit rows, {w.sum():.2f} m units')
