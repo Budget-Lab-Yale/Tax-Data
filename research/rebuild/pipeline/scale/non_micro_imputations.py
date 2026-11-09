@@ -1,8 +1,18 @@
-"""The non-microdata imputations: items set from what the networks drew plus a published table, with no new microdata
-(dependent filers' age and sex, child credit eligibility, death probabilities, yearly unrealized gains and cost basis,
-the holding period of long-term gains, parents' income rank, blindness, the QBI items and the AMT net operating loss).
-tilt.py calls impute() on the prescaled start and checks() on the final weights. Tables are read from
-resources/non_micro/. See FEATURES.md, "The non-microdata imputations".
+"""The non-microdata imputations: items that no survey provides as microdata. Each is set from what the networks drew
+for the record and a published table. The items are:
+
+1. dependent filers' exact age and sex;
+2. each dependent's eligibility for the child tax credit;
+3. death probabilities;
+4. yearly unrealized gains and cost basis;
+5. the holding period and basis of long-term gains;
+6. parents' income rank;
+7. blindness, the qualified business income (QBI) items, and the cap on the AMT net operating loss adjustment.
+
+Every random number is a fixed function of the record id, so a record's draws do not change when other records do.
+tilt.py calls impute() on the start with its prescaled weights, and checks() on the final weights. The tables are in
+resources/non_micro/. FEATURES.md, "4. Scaling to the target year", "The non-microdata imputations", describes each
+item.
 """
 import os
 
@@ -20,17 +30,20 @@ RES = os.path.join(common.RESOURCES, 'non_micro')
 CPS = common.SETTINGS['cps']
 PERSONS = os.path.join(common.DATA, CPS['step1_dir'], CPS['step1_out'], 'persons_{year}.parquet')
 DEP_AGES = ['dep_age1', 'dep_age2', 'dep_age3']
-RANGE_AGES = {6: (0, 18), 7: (18, 26), 8: (26, 200)}   # the PUF's dependent-filer age ranges (common.AGE_LABELS)
+RANGE_AGES = {6: (0, 18), 7: (18, 26), 8: (26, 200)}   # the PUF's age ranges of dependent filers (common.AGE_LABELS)
 assert sorted(RANGE_AGES) == common.DEPENDENT_RANGES
 
 
-# ---- shared machinery ---------------------------------------------------------------------------------------------
+# ---- Functions every item uses ----
+
 def table(name):
+    """A table of resources/non_micro/."""
     return pd.read_csv(os.path.join(RES, name))
 
 
 def year_used(years, year):
-    """The table year an item reads for a target year: the year itself; else the last year before it; else the first."""
+    """The year of a table that an item reads for a target year: the year itself if the table has it, else the last
+    year before it, else the table's first year."""
     years = sorted(set(int(y) for y in years))
     if year in years:
         return year
@@ -39,16 +52,17 @@ def year_used(years, year):
 
 
 def uniform(df, item, person):
-    """Each record's uniform number for an item's stream and a person (0 the unit, 1 and 2 the adults, 3 to 5 the
-    dependents). It is a fixed function of the record id, so a draw never moves when other records change."""
+    """Each record's uniform random number for an item and a person (0 for the unit, 1 and 2 for the adults, 3 to 5
+    for the dependents). Each item has its own stream of numbers. The number is a fixed function of the record id, so a
+    draw does not change when other records change."""
     salt = int(S['salt_base']) + 8 * int(ITEMS[item]['stream']) + person
     return uniform_by_id(df['record_id'].to_numpy(), salt)
 
 
 def fill_missing_sex(df):
-    """A primary filer with an age and no sex is given one, man or woman with even chances, by the death item's keyed
-    draw. Generation always draws a sex for the primary filer, so this normally changes nobody. Returns the frame and
-    the rows changed."""
+    """Gives a sex to each primary filer who has an age and no sex: man or woman with equal chances, by the death
+    item's random number. Generation always draws a sex for the primary filer, so this normally changes no record.
+    Returns the frame and a mask of the records changed."""
     nosex = (df['age1'].to_numpy() >= 0) & (df['sex_primary'].to_numpy() <= 0)
     df = df.copy()
     if nosex.any():
@@ -69,25 +83,28 @@ def primary_age_sex(df):
 
 
 def has_spouse(df):
+    """Whether the record is married with a spouse who has an age and a sex."""
     return (df['married'].to_numpy() == 1) & (df['age2'].to_numpy() >= 0) & (df['sex_spouse'].to_numpy() > 0)
 
 
 def summed(df, cols, what):
+    """The sum of the columns cols for each record. A missing value stops the run."""
     x = df[cols].to_numpy(float).sum(1)
     assert np.isfinite(x).all(), f'{what}: a missing item'
     return x
 
 
 def broad_income(df):
-    """Production's broad income (compute_broad_income in src/imputations/helpers.R) on the rebuild's items. IRA
-    distributions are left out, as in production."""
+    """Broad income, as the production pipeline defines it (compute_broad_income in src/imputations/helpers.R), on
+    the rebuild's items. IRA distributions are left out, as in production."""
     return summed(df, ['wages', 'business_income', 'txbl_int', 'exempt_int', 'dividends', 'kg_lt', 'kg_st', 'gross_ss',
                        'gross_pens_dist', 'ui'], 'broad income')
 
 
-# ---- 1. dependent filers' exact age and sex ------------------------------------------------------------------
+# ---- 1. Dependent filers' exact age and sex ----
+
 def cps_dependents(year):
-    """The filing stage's persons of a CPS year who are someone's dependent."""
+    """The people of a CPS year, as the filing stage built them, who are someone's dependent."""
     p = pd.read_parquet(PERSONS.format(year=year), columns=['age', 'sex', 'weight', 'dep_type', 'p_own_return'])
     p = p[p['dep_type'].fillna('').astype(str) != ''].copy()
     for c in ('age', 'sex', 'weight', 'p_own_return'):
@@ -96,12 +113,14 @@ def cps_dependents(year):
     return p
 
 
-# The pool a dependent filer's age and sex are drawn from: the CPS dependents the filing stage counts as filing their
-# own return (required to file, or with any wages).
+# The pool from which a dependent filer's age and sex are drawn: the CPS dependents whom the filing stage counts as
+# filing their own return (required to file, or with any wages).
 POOL = "files by the filing stage's rule"
 
 
 def dependent_filer_age_sex(df, year, w, ctx):
+    """Draws each dependent filer's exact age and sex from the CPS dependents of the record's CPS year who file their
+    own return, in the record's age range, by their weights."""
     it = ITEMS['dependent_filer_age_sex']
     rng, cy = df['age_range'].to_numpy(), df['cps_year'].to_numpy()
     dep = np.isin(rng, common.DEPENDENT_RANGES)
@@ -134,8 +153,14 @@ def dependent_filer_age_sex(df, year, w, ctx):
     return {'dep_filer_age': age, 'dep_filer_sex': sex}
 
 
-# ---- 2. child tax credit eligibility for each dependent ----------------------------------------------------------
+# ---- 2. Child tax credit eligibility for each dependent ----
+
 def child_credit(df, year, w, ctx):
+    """Flags each dependent as eligible (1) or not (0) for the child tax credit; -1 where there is no such dependent.
+
+    A dependent under 17 in slot j (1 to 3) is flagged when the PUF's count of child-credit children (n_dep_ctc) is
+    at least j. A dependent aged 17, or older but under the law's age limit, is flagged by chance. That chance is one
+    minus the share of units with children under 17 that have more of them than n_dep_ctc."""
     lim = table('ctc_age_limit.csv').set_index('year')['under_age']
     ly = year_used(lim.index, year)
     law = int(lim[ly])
@@ -145,7 +170,7 @@ def child_credit(df, year, w, ctx):
     under17 = exists & (ages < 17)
     n16u = under17.sum(1)
     anyu = n16u > 0
-    share = float(w[anyu & (n16u > n)].sum() / w[anyu].sum())   # units whose children under 17 outnumber n_dep_ctc
+    share = float(w[anyu & (n16u > n)].sum() / w[anyu].sum())   # units with more children under 17 than n_dep_ctc
     flag = under17 & (n[:, None] >= np.arange(1, 4)[None, :])
     by_chance = exists & (ages >= 17) & (ages <= max(17, law - 1))
     u = np.column_stack([uniform(df, 'child_credit', 3 + j) for j in range(3)])
@@ -156,9 +181,11 @@ def child_credit(df, year, w, ctx):
     return {f'dep_ctc{j + 1}': np.where(exists[:, j], flag[:, j].astype(int), -1) for j in range(3)}
 
 
-# ---- 3. death probabilities ---------------------------------------------------------------------------------------
+# ---- 3. Death probabilities ----
+
 def life_table_q(year, top):
-    """{(sex, age): q} for the table year; age top means top and over: the L-weighted average of q over top-119."""
+    """The SSA life table's probability of death q, as a dict of (sex, age): q, and the table year used. Age top means
+    top and over: the average of q over ages top to 119, weighted by L (the table's person-years lived at each age)."""
     lt = table('ssa_period_life_table.csv')
     ly = year_used(lt['year'], year)
     t = lt[lt.year == ly]
@@ -170,12 +197,13 @@ def life_table_q(year, top):
 
 
 def chetty_bin(age):
+    """The age group of Chetty et al.'s mortality ratios."""
     return np.select([age < 50, age < 60, age < 70], ['<50', '50-59', '60-69'], '70+')
 
 
 def within_cell_percentile(sex, age, income, ids, w):
-    """Each person's percentile (1-100) of income within their sex and single year of age, weighted, as production's
-    build_chetty_pctile (ties broken by record id)."""
+    """Each person's weighted percentile (1-100) of income among people of the same sex and single year of age, as in
+    production's build_chetty_pctile. Ties are broken by record id."""
     d = pd.DataFrame({'sex': sex, 'age': age, 'income': income, 'id': ids, 'w': w, 'i': np.arange(len(sex))})
     d = d.sort_values(['sex', 'age', 'income', 'id'], kind='mergesort')
     cum = d.groupby(['sex', 'age'])['w'].cumsum() / d.groupby(['sex', 'age'])['w'].transform('sum')
@@ -185,6 +213,10 @@ def within_cell_percentile(sex, age, income, ids, w):
 
 
 def death_probabilities(df, year, w, ctx):
+    """Each adult's probability of dying in the year: the SSA life table's rate for their sex and age, times Chetty et
+    al.'s ratio for their income percentile, times Johnson's factor for their marital status. The marital factors are
+    divided by their mean among the file's men, so that they leave the men's average unchanged. q_death2 is -1 where
+    there is no spouse."""
     it = ITEMS['death_probabilities']
     top = int(it['top_age'])
     q, ly = life_table_q(year, top)
@@ -195,14 +227,14 @@ def death_probabilities(df, year, w, ctx):
     s2 = df['sex_spouse'].to_numpy().astype(int)
     married = df['married'].to_numpy() == 1
     inc, ids = broad_income(df), df['record_id'].to_numpy()
-    # one row per person: every primary filer, and every spouse
+    # One row per person: every primary filer, and every spouse.
     P = pd.DataFrame({'rec': np.r_[np.arange(len(df)), np.flatnonzero(sp)], 'person': np.r_[np.ones(len(df), int),
                       np.full(sp.sum(), 2)], 'age': np.r_[a1, a2[sp]], 'sex': np.r_[s1, s2[sp]],
                       'married': np.r_[married, np.ones(sp.sum(), bool)]})
     P['w'], P['income'], P['id'] = w[P.rec], inc[P.rec], ids[P.rec]
     P['pctile'] = within_cell_percentile(P.sex.to_numpy(), P.age.to_numpy(), P.income.to_numpy(), P.id.to_numpy(),
                                          P.w.to_numpy())
-    # the Forbes list's people are placed at income percentile 100, primary filer and spouse alike, as in production
+    # The Forbes list's people are placed at income percentile 100, primary filer and spouse alike, as in production.
     n_bil = 0
     if 'billionaire' in df:
         bil = df['billionaire'].to_numpy()[P.rec.to_numpy()] == 1
@@ -218,7 +250,7 @@ def death_probabilities(df, year, w, ctx):
     men = (P.sex == 1).to_numpy()
     rm = np.ones(len(P))
     rescale = {}
-    for b in ['under_65', 'age_65_plus']:            # rescaled to average 1 among the file's men in the band
+    for b in ['under_65', 'age_65_plus']:            # rescaled to average 1 among the file's men in the age band
         m = men & (band == b)
         rescale[b] = float((P.w[m] * raw[m]).sum() / P.w[m].sum())
         rm[m] = raw[m] / rescale[b]
@@ -238,15 +270,18 @@ def death_probabilities(df, year, w, ctx):
     return {'q_death1': q1, 'q_death2': q2}
 
 
-# ---- 4. yearly unrealized gains and cost basis --------------------------------------------------------------------
+# ---- 4. Yearly unrealized gains and cost basis ----
+
+# Each asset whose value gains with prices: the file's column of its value and the asset class whose rate it gets.
 ACCRUAL_ASSETS = {'equities': ('value.equities', 'equities'), 'pass_throughs': ('value.pass_throughs', 'pass_throughs'),
                   'primary_home': ('value.primary_home', 'real_estate'), 'other_home': ('value.other_home', 'real_estate'),
                   're_fund': ('value.re_fund', 'real_estate')}
 
 
 def accrual_rates(year):
-    """The year's revaluation rates by asset (stocks, businesses, real estate, bonds): Z.1 for a year it covers in full,
-    else production's long-run rates. Returns the rates and where they came from."""
+    """The year's revaluation rates (the holding gain as a share of the value) by asset class: stocks, businesses, real
+    estate and bonds. They are Z.1's for a year it covers in full, and production's long-run rates otherwise. Returns
+    the rates and their source."""
     z = table('z1_revaluation_rates.csv')
     need = ['equities', 'pass_throughs', 'real_estate', 'bonds']
     have = z[z.year == year].set_index('asset')['rate']
@@ -257,9 +292,12 @@ def accrual_rates(year):
 
 
 def unrealized_gains(df, year, w, ctx):
+    """Each asset's unrealized gain in the year: its value times its class's revaluation rate. Retirement accounts
+    gain at a mix of the stock and bond rates set by the account's drawn stock share; trusts by a fixed stock share
+    (settings trust_stock_share)."""
     it = ITEMS['unrealized_gains']
     rate, src = accrual_rates(year)
-    # the retirement accounts' stock share: the SCF's, drawn in generation
+    # The retirement accounts' stock share is the SCF's, drawn in generation.
     assert 'w_dc_stock_share' in df, 'the file has no w_dc_stock_share'
     share = df['w_dc_stock_share'].to_numpy(float)
     assert np.isfinite(share).all() and (share >= 0).all() and (share <= 1 + 1e-9).all(), 'stock share outside 0-1'
@@ -275,12 +313,16 @@ def unrealized_gains(df, year, w, ctx):
     return out
 
 
-# the gain drawn on each holding and the holding's value; other real estate is one gain on two holdings together
+# For each holding, the column of its drawn unrealized gain and the column of its value. The SCF gives one gain for
+# other real estate, which covers two holdings together (other homes and other real estate).
 BASIS_ASSETS = {'equities': ('w_kg_other', 'value.equities'), 'pass_throughs': ('w_kg_pass_throughs', 'value.pass_throughs'),
                 'primary_home': ('w_kg_primary_home', 'value.primary_home'), 'other_re': ('w_kg_other_re', None)}
 
 
 def cost_basis(df, year, w, ctx):
+    """Each holding's cost basis: its value less its drawn unrealized gain, with the gain first held to at most the
+    value so that the basis is never below zero. The one gain on other real estate is split between other homes and
+    other real estate by their values."""
     w = np.asarray(w, float)
     oh, rf = df['value.other_home'].to_numpy(float), df['value.re_fund'].to_numpy(float)
     tot = oh + rf
@@ -288,8 +330,8 @@ def cost_basis(df, year, w, ctx):
     def held(g, v):    # a holding's share of the gain, held to its value (rounding in the split can leave it above)
         return np.where(v > 0, np.minimum(g, v), g)
 
-    # other real estate: one gain on the two holdings together, held to their combined value (each share of it is then
-    # at most that holding's value, because the split is by value)
+    # Other real estate has one gain on the two holdings together, held to their combined value. Each holding's share
+    # of it is then at most that holding's value, because the split is by value.
     gain = {k: df[g].to_numpy(float) for k, (g, _) in BASIS_ASSETS.items()}
     value = {k: tot if v is None else df[v].to_numpy(float) for k, (_, v) in BASIS_ASSETS.items()}
     cut = []
@@ -309,14 +351,16 @@ def cost_basis(df, year, w, ctx):
             'basis.re_fund': rf - held(gain['other_re'] * (1 - s), rf)}
 
 
-# ---- 5. holding period and basis of long-term gains ----------------------------------------------------------
+# ---- 5. Holding period and basis of long-term gains ----
+
+# The holding-period groups of SOI's sales of capital assets panel (SOCA), in years: [BUCKET_LO, BUCKET_HI).
 BUCKET_LO = np.array([1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0])
 BUCKET_HI = np.array([1.5, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, np.inf])
 
 
 def sp_index(x):
-    """The S&P 500 total return index at (fractional) years x: linear between years, the first value before the
-    series, and past its last year the last value grown at the series' geometric mean return."""
+    """The S&P 500 total return index at years x (which may be fractional): linear between years, the first value
+    before the series starts, and after its last year the last value grown at the series' geometric mean return."""
     s = table('sp500_total_return_index.csv')
     yr, ix = s['year'].to_numpy(float), s['index'].to_numpy(float)
     g = (ix[-1] / ix[0]) ** (1 / (yr[-1] - yr[0])) - 1
@@ -325,9 +369,10 @@ def sp_index(x):
 
 
 def holding_model(year):
-    """Production's holding-period model (src/imputations/capital_gains.R) at a year: the groups' gain and loss shares,
-    the Weibull, the exponential tail's rate, the representative length of the top group, and the basis-to-sales ratio
-    functions."""
+    """Production's model of holding periods (src/imputations/capital_gains.R) for a year. Returns, as a dict: each
+    holding-period group's share of gain and of loss dollars (from SOCA), the Weibull distribution of the holding
+    period within groups, the rate of the exponential tail beyond 20 years, the typical length of the top group, and
+    the functions that give the ratio of basis to sales price by holding period, for gains and for losses."""
     it = ITEMS['gains_holding_period']
     k, sc = it['weibull']['shape'], it['weibull']['scale']
     W = lambda x: 1 - np.exp(-(np.asarray(x, float) / sc) ** k)
@@ -338,7 +383,7 @@ def holding_model(year):
     pi_g, pi_l = g['pi_g'].to_numpy(float), lo['pi_l'].to_numpy(float)
     lam = dens19 / (W(19) - W(14)) * pi_g[7] / pi_g[8]
     h_top = 20 + 1 / lam
-    # the regression on SOCA's panel: log(ratio) = a[group] + b x h x log(1 + trailing return), no common constant
+    # The regression on SOCA's panel: log(ratio) = a[group] + b x h x log(1 + trailing return), with no common constant.
     sb = table('soca_basis_sales.csv')
     groups = list(g['h_bucket'])
     assert set(sb['bucket']) == set(groups), 'SOCA panel groups differ from the gain shares\' groups'
@@ -356,6 +401,9 @@ def holding_model(year):
 
 
 def draw_holding(u1, u2, probs, M):
+    """Draws a holding period in years for each record from two uniform numbers: u1 picks the group by its share
+    (probs), and u2 the period within the group (by the Weibull distribution, or the exponential tail for the top
+    group). Returns the periods and the groups."""
     cdf = np.cumsum(probs) / probs.sum()
     b = np.minimum(np.searchsorted(cdf, u1, side='right'), len(probs) - 1)
     lo, hi = BUCKET_LO[b], BUCKET_HI[b]
@@ -367,6 +415,10 @@ def draw_holding(u1, u2, probs, M):
 
 
 def gains_holding_period(df, year, w, ctx):
+    """Each long-term gain's or loss's holding period in years and its basis. The period is drawn with SOCA's shares
+    by group. The basis follows from the ratio of basis to sales price at that period, from production's regression
+    on SOCA's panel at the year's trailing S&P 500 returns. -1 years and basis 0 where there is no long-term gain or
+    loss."""
     w = np.asarray(w, float)
     M = holding_model(year)
     kg = df['kg_lt'].to_numpy(float)
@@ -403,21 +455,22 @@ def gains_holding_period(df, year, w, ctx):
     return {'kg_lt_years_held': years_held, 'kg_lt_basis': basis}
 
 
-# ---- 6. parents' income rank ---------------------------------------------------------------------------------
+# ---- 6. Parents' income rank ----
+
 def mobility_income(df):
-    """Production's income for the rank (src/imputations/mobility.R) on the rebuild's items: wages, interest,
-    dividends, state refunds, taxable IRA and pension distributions, long- and short-term gains, other gains, Schedules
-    C, E and F, unemployment, gross Social Security and other income."""
+    """The income that ranks a unit, as production defines it (src/imputations/mobility.R), on the rebuild's items:
+    wages, interest, dividends, state refunds, taxable IRA and pension distributions, long- and short-term gains, other
+    gains, Schedules C, E and F, unemployment compensation, gross Social Security and other income."""
     return summed(df, ['wages', 'txbl_int', 'dividends', 'state_ref', 'txbl_ira_dist', 'txbl_pens_dist', 'kg_lt', 'kg_st',
                        'other_gains', 'business_income', 'ui', 'gross_ss', 'other_agi_remainder'], 'mobility income')
 
 
 def own_rank(x, w):
-    """Percentile of x among all units (1-100: the share of weight at or below x, times 100, rounded up), the
-    bottom 10 merged into 10, as production's cut() at the weighted percentiles intends."""
+    """Each unit's percentile of x among all units: the share of weight at or below x, times 100, rounded up. Ranks 1
+    to 9 are merged into 10, as production intends with its cut() at the weighted percentiles."""
     o = np.argsort(x, kind='mergesort')
     xs, cw = x[o], np.cumsum(w[o]) / w.sum()
-    last = np.r_[xs[1:] != xs[:-1], True]                 # the cumulative share at the last of each tie
+    last = np.r_[xs[1:] != xs[:-1], True]                 # tied values all get the cumulative share of the last one
     F_sorted = cw[last][np.cumsum(np.r_[0, last[:-1].astype(int)])]
     F = np.empty(len(x))
     F[o] = F_sorted
@@ -425,7 +478,8 @@ def own_rank(x, w):
 
 
 def mobility_rows():
-    """{child rank 10-100: the chances of parent ranks 1-100}: the matrix's row (child ranks under 10 summed into 10)."""
+    """The mobility matrix, as an array with one row per child rank from 10 to 100 and one column per parent rank from
+    1 to 100. Each row holds the chances of the parent ranks. Child ranks under 10 are summed into 10."""
     m = pd.read_csv(os.path.join(RES, 'mobility_matrix.csv'), encoding='utf-8-sig')
     m = m[['child_rank'] + [str(i) for i in range(1, 101)]]
     m['child_rank'] = np.maximum(10, m['child_rank'])
@@ -435,23 +489,26 @@ def mobility_rows():
 
 
 def parents_rank(df, year, w, ctx):
+    """Draws each unit's parents' income rank from the mobility matrix's row for the unit's own rank."""
     child = own_rank(mobility_income(df), w)
     rows = mobility_rows()
     cdf = np.cumsum(rows, 1) / rows.sum(1, keepdims=True)
     u = uniform(df, 'parents_rank', 0)
     parent = np.zeros(len(df), int)
-    for c in np.unique(child):            # the first parent rank whose cumulative chance reaches u, as production
+    for c in np.unique(child):            # the first parent rank whose cumulative chance reaches u, as in production
         m = child == c
         parent[m] = 1 + np.minimum(np.searchsorted(cdf[c - 10], u[m], side='left'), 99)
     ctx['child_rank'] = child
     return {'parent_rank': parent.astype(int)}
 
 
-# ---- 7. blindness, the QBI items and the AMT net operating loss cap -------------------------------------------
+# ---- 7. Blindness, the QBI items and the cap on the AMT net operating loss adjustment ----
+
 def blind_factor(key, filer, w, target):
-    """The factor for one person type: each person is blind when key = u / rate is below the factor (u the person's
-    keyed uniform number), so the chance is rate x factor. The factor is set so the filers' weighted count of blind
-    people comes nearest the target (the drawn count, not only its expectation). Returns the factor and that count."""
+    """The factor for one type of person (primary filer or spouse). A person is blind when key = u / rate is below
+    the factor, where u is the person's random number, so the chance of blindness is rate x factor. The factor is set
+    so that the filers' weighted count of blind people, as drawn (not only its expected value), comes nearest the
+    target. Returns the factor and that count."""
     k, ww = key[filer], w[filer]
     o = np.argsort(k, kind='stable')
     cum = np.cumsum(ww[o])
@@ -462,10 +519,10 @@ def blind_factor(key, filer, w, target):
 
 
 def blindness(df, year, w, ctx):
-    """Each primary filer, and each spouse on a joint return, is blind with chance = the 2015 PUF's blind rate for the
-    person's age range times one factor per person type. Each factor makes the weighted count of blind filers at the
-    weights given (the start's) equal Publication 4801's blind boxes for the year. Non-filers are drawn by the same
-    rule and not counted. 1 blind, 0 not."""
+    """Each primary filer, and each spouse on a joint return, is blind (1) or not (0). The chance is the 2015 PUF's
+    blind rate for the person's age range, times one factor for each type of person. Each factor makes the weighted
+    count of blind filers at the start's weights equal Publication 4801's count of blind boxes for the year.
+    Non-filers are drawn by the same rule and are not counted."""
     rates = table('puf_blind_rates.csv').sort_values('age_from')
     cuts = rates['age_from'].to_numpy(float)
     rate = rates['blind_rate'].to_numpy(float)
@@ -499,23 +556,24 @@ def blindness(df, year, w, ctx):
     return out
 
 
-QBI_KINDS = {  # file kind: the PUF parts whose signed sum is the kind's income
+QBI_KINDS = {  # each kind of business: the PUF parts whose signed sum is its income
     'sole_prop': {'sole_prop': 1},
     'part': {'part_passive': 1, 'part_active': 1, 'part_passive_loss': -1, 'part_active_loss': -1, 'part_179': -1},
     'scorp': {'scorp_passive': 1, 'scorp_active': 1, 'scorp_passive_loss': -1, 'scorp_active_loss': -1, 'scorp_179': -1}}
 IRS_WAGES = 'irs_wages_by_business_type.csv'
 QBI_SCALARS = 'qbi_scalars.csv'
-QBI_GROUP_TYPES = {'cf': ['sole_prop'], 'ps': ['part', 'scorp']}   # group: the table's business types its total adds
+QBI_GROUP_TYPES = {'cf': ['sole_prop'], 'ps': ['part', 'scorp']}   # each group: the IRS table's business types it adds
 
 
 def irs_wage_table():
+    """The rows used from the IRS table of wages paid by type of business."""
     t = table(IRS_WAGES)
     assert not t[['year', 'business_type', 'used', 'thousands']].isna().any().any(), f'{IRS_WAGES}: missing values'
     return t[t['used'] == 1]
 
 
 def irs_wage_totals(year):
-    """Each group's IRS total of wages paid in a year of the table, in dollars: {group: total}."""
+    """Each group's IRS total of wages paid in a year of the table, in dollars, as a dict."""
     t = irs_wage_table()
     assert year in set(t['year']), f'{IRS_WAGES}: no {year}'
     t = t[t['year'] == year]
@@ -526,9 +584,9 @@ def irs_wage_totals(year):
 
 
 def carried_qbi_scalars(year, last):
-    """For a year past the IRS table's last: the scalars of the table's last year, read from qbi_scalars.csv beside the
-    file this year's start comes from, and the growth of wages per return since that year. Stops if they are missing,
-    as there is no other source for them."""
+    """For a year after the IRS table's last year: the scalars of the table's last year, read from qbi_scalars.csv
+    beside the file that this year's start comes from, and the growth of wages per return since that year. Stops the
+    run if they are missing, because there is no other source for them."""
     spec = TLS.start_spec(year)
     assert spec['mode'] == 'from_year', f'QBI {year}: past the IRS table\'s last year {last}, but the start is not an earlier year\'s file'
     path = f"{common.OUT}/tilt/{spec['run']}/{QBI_SCALARS}"
@@ -543,7 +601,8 @@ def carried_qbi_scalars(year, last):
 
 
 def write_qbi_scalars(ctx, folder):
-    """qbi_scalars.csv beside the year's file: the year's scalars and the ones the next years in the chain start from."""
+    """Writes qbi_scalars.csv beside the year's file: the year's scalars, and those that later years in the chain start
+    from."""
     q = ctx['qbi']
     pd.DataFrame([{'group': k, 'year': ctx['year'], 'scalar': q['scalars'][k], 'base_year': q['base_year'],
                    'base_scalar': q['base_scalars'][k], 'average_wages_growth_from_base': q['factor'],
@@ -551,19 +610,25 @@ def write_qbi_scalars(ctx, folder):
 
 
 def qbi(df, year, w, ctx):
-    """The QBI service flags and wage bills. The networks draw, per record and business group (cf: Schedules C and F;
-    ps: partnerships and S corporations), an industry group and a worker count.
+    """The items of the qualified business income (QBI) deduction: whether each business is a specified service
+    business (the service flag), and the wages it pays (the wage bill). For each record and business group (cf:
+    Schedules C and F; ps: partnerships and S corporations), the networks draw an industry group and a number of
+    workers.
 
-    A group's wages on a filing record are its worker count times the group's scalar for the year, and 0 where the
-    record has no positive income of the group's types; non-filers have none. Through the IRS table's last year the
-    scalar makes the file's wages at the weights given (the prescaled start's) equal the IRS total; after it, the scalar
-    is that year's times the growth of average wages. cf wages go to Schedule C; ps wages are split between
-    partnerships and S corporations by positive income. Farms are never a specified service, and their wage bill is
-    positive farm income, so the wage limit never binds.
+    Wages:
+    - A group's wages on a filing record are its number of workers times the group's scalar for the year. They are 0
+      where the record has no positive income of the group's types, and non-filers have none.
+    - Through the IRS table's last year, the scalar makes the file's wages at the start's prescaled weights equal the
+      IRS total. After it, the scalar is that year's times the growth of average wages.
+    - cf wages go to Schedule C. ps wages are split between partnerships and S corporations by positive income.
+    - Farms are never a specified service, and their wage bill is their positive farm income, so the wage limit never
+      binds for them.
 
-    The service flag is 1 when the record's keyed draw is below the share of self-employed people in its SCF industry
-    group whose industry is on the law's list (settings c_by_scf_group). One draw covers a record's partnership and S
-    corporation together. Records with no industry code take the income-weighted average over groups 1-7."""
+    The service flag is 1 when the record's random number is below the share of self-employed people in its SCF
+    industry group whose industry is on the law's list (settings c_by_scf_group). One random number covers a record's
+    partnership and S corporation together. Records with no industry code take the average of those shares over groups
+    1-7, weighted by income."""
+    # 1. Read the drawn industry groups and numbers of workers, and each kind of business's positive income.
     it = ITEMS['qbi']
     missing = [c for k in QBI_GROUP_TYPES for c in (f'biz_industry_{k}', f'biz_workers_{k}') if c not in df]
     assert not missing, f'QBI: the file has no drawn {missing}'
@@ -579,18 +644,21 @@ def qbi(df, year, w, ctx):
     for k in QBI_GROUP_TYPES:
         assert np.isin(grp[k], range(9)).all(), f'{k}: industry group outside 0-8'
         assert (num[k] >= 0).all() and np.isfinite(num[k]).all(), f'biz_workers_{k}: below 0 or missing'
+    # 2. The chance of a specified service for each industry group. For no industry code (and for none), it is the
+    #    average over groups 1-7, weighted by the groups' positive income.
     chance_of = np.array([np.nan] + [c[g] for g in range(1, 8)] + [np.nan])
-    # the chance for no industry code (and none): c over groups 1-7, weighted by the groups' positive income
     known = {k: (grp[k] >= 1) & (grp[k] <= 7) for k in grp}
     num_c = sum((w * group_inc[k] * chance_of[grp[k]])[known[k]].sum() for k in grp)
     den_c = sum((w * group_inc[k])[known[k]].sum() for k in grp)
     assert den_c > 0, 'QBI: no positive income with an industry group'
     c_other = float(num_c / den_c)
+    # 3. Each group's scalar: set on the IRS total through the table's last year, carried forward after it.
     table_last = int(irs_wage_table()['year'].max())
     assert year >= int(irs_wage_table()['year'].min()), f'{IRS_WAGES}: no year as early as {year}'
     past = year <= table_last
     totals = irs_wage_totals(year) if past else None
     base_scalars, factor = (None, 1.0) if past else carried_qbi_scalars(year, table_last)
+    # 4. Each group's wages and service flags.
     out, rows, scalars, file_totals = {}, [], {}, {}
     for k, person in (('cf', 1), ('ps', 2)):
         base = float((w * num[k])[has[k]].sum())
@@ -602,8 +670,8 @@ def qbi(df, year, w, ctx):
             out['wagebill_sole_prop'] = wages
             out['sstb_sole_prop'] = (flagged & (inc['sole_prop'] > 0)).astype(int)
         else:
-            # the split by income; the larger part first, so the smaller = wages - larger has no rounding error and
-            # the two add back to wages exactly
+            # The split by income. The larger part is computed first and the smaller is wages less the larger, so
+            # that the two add up to wages exactly.
             share = np.divide(inc['part'], group_inc['ps'], out=np.zeros(len(df)), where=group_inc['ps'] > 0)
             larger = np.maximum(share, 1.0 - share) * wages
             smaller = wages - larger
@@ -628,6 +696,7 @@ def qbi(df, year, w, ctx):
                      'no industry code (millions)': w[has[k] & (grp[k] == 8)].sum() / 1e6,
                      'industry none where income (millions, generation allows none only without it)': w[has[k] & (grp[k] == 0)].sum() / 1e6,
                      'specified service share of the income (%)': 100 * (w * group_inc[k] * flagged).sum() / max((w * group_inc[k]).sum(), 1)})
+    # 5. Farms, and the summary.
     farm = df['farm'].to_numpy(float)
     out['sstb_farm'] = np.zeros(len(df), int)
     out['wagebill_farm'] = np.maximum(farm, 0.0)
@@ -646,17 +715,17 @@ def qbi(df, year, w, ctx):
 
 
 def nol(df):
-    """The record's net operating loss: the negative part of other_agi_remainder, the AGI remainder where the PUF's
-    other income (Form 1040 line 21, which carries a net operating loss deduction as a negative amount) sits; 0 where
-    the remainder is 0 or more. The PUF has no field of its own for the loss."""
+    """Each record's net operating loss: the negative part of other_agi_remainder, and 0 where the remainder is 0 or
+    more. That remainder holds the PUF's other income (Form 1040 line 21), which carries a net operating loss
+    deduction as a negative amount. The PUF has no field of its own for the loss."""
     rem = df['other_agi_remainder'].to_numpy(float)
     assert np.isfinite(rem).all(), f'other_agi_remainder missing on {int((~np.isfinite(rem)).sum())} records'
     return np.maximum(0.0, -rem)
 
 
 def amt_nol_cap(df, year, w, ctx):
-    """The AMT net operating loss adjustment (amt_nols, the PUF's P60100) held to at most the record's net operating
-    loss, so it is 0 on a record with no loss; a negative amt_nols is left as drawn. The drawn value is kept as
+    """Holds the AMT net operating loss adjustment (amt_nols, the PUF's P60100) to at most the record's net operating
+    loss, so that it is 0 on a record with no loss. A negative amt_nols is left as drawn. The drawn value is kept as
     amt_nols_drawn."""
     drawn = df['amt_nols'].to_numpy(float)
     assert np.isfinite(drawn).all(), f'amt_nols missing on {int((~np.isfinite(drawn)).sum())} records'
@@ -675,6 +744,9 @@ def amt_nol_cap(df, year, w, ctx):
     return {'amt_nols_drawn': drawn, 'amt_nols': held}
 
 
+# ---- Running every item ----
+
+# The function of each item, in the order of settings non_micro_imputations.items.
 FUNCTIONS = {'dependent_filer_age_sex': dependent_filer_age_sex, 'child_credit': child_credit,
              'death_probabilities': death_probabilities,
              'unrealized_gains': unrealized_gains, 'cost_basis': cost_basis,
@@ -683,16 +755,18 @@ FUNCTIONS = {'dependent_filer_age_sex': dependent_filer_age_sex, 'child_credit':
 
 
 def written_columns():
+    """The new columns that the items write (settings writes)."""
     return [c for it in ITEMS.values() for c in it['writes']]
 
 
 def written_back():
-    """The drawn columns an item changes, each with the new column that keeps its drawn value (settings writes_back)."""
+    """The drawn columns that an item changes, each with the new column that keeps its drawn value (settings
+    writes_back)."""
     return {c: keep for it in ITEMS.values() for c, keep in it.get('writes_back', {}).items()}
 
 
 def as_drawn(df):
-    """A finished file with every written-back column restored to its drawn value and the written columns dropped, so
+    """A finished file with every changed column put back to its drawn value and the written columns dropped, so that
     impute can run on it again."""
     df = df.copy()
     for c, keep in written_back().items():
@@ -702,14 +776,15 @@ def as_drawn(df):
 
 
 def impute(df, year, w):
-    """Every registered item on the frame, in the settings' order, with weights w for the ranks. Returns the frame
-    with the new columns and a context (notes for the summary, pieces for the checks)."""
+    """Runs every item on the frame, in the order of the settings, with the weights w for the ranks and counts.
+    Returns the frame with the new columns, and a dict of notes for the summary and results for the checks. Apart from
+    the written-back columns and the filled-in sex, no drawn column may change."""
     assert list(ITEMS) == list(FUNCTIONS), 'settings non_micro_imputations.items and FUNCTIONS differ'
     clash = [c for c in written_columns() if c in df]
     assert not clash, f'columns the non-microdata imputations write are already in the file: {clash}'
     w = np.asarray(w, float)
     assert len(w) == len(df) and np.isfinite(w).all() and (w >= 0).all()
-    out, nosex = fill_missing_sex(df)      # the only drawn column changed: sex_primary, where it was none
+    out, nosex = fill_missing_sex(df)      # changes the drawn sex_primary only where it was missing
     before = {c: out[c].to_numpy(copy=True) for c in df.columns}
     ctx = {'notes': [], 'year': year, 'sex filled': {'records': int(nosex.sum()), 'units': float(w[nosex].sum()),
                                                       'record_ids': df['record_id'].to_numpy()[nosex].tolist()}}
@@ -725,16 +800,18 @@ def impute(df, year, w):
             v = np.asarray(v)
             assert len(v) == len(out) and not pd.isna(v).any(), f'{name}: {c} has missing values'
             out[c] = v
-    for c in [c for c in df.columns if c not in back]:   # nothing drawn changed, except the written-back columns
+    for c in [c for c in df.columns if c not in back]:   # no drawn column changed, except the written-back columns
         assert np.array_equal(before[c], out[c].to_numpy(), equal_nan=before[c].dtype.kind == 'f'), f'{c} changed'
     common.say('non-microdata imputations: ' + ' | '.join(ctx['notes']))
     return out, ctx
 
 
-# ---- checks (reported only) -----------------------------------------------------------------------------------
-# Each check takes the finished file, the weights after the tilt and impute's context, and returns its tables and the
-# lines under them.
+# ---- Checks (reported only) ----
+# Each check takes the finished file, the weights after the reweighting and impute's context, and returns its tables
+# and the lines written under them.
+
 def check_dependent_filers(df, w, ctx):
+    """Dependent filers by exact age: their number, and the share of men, against the CPS pool they were drawn from."""
     dep = np.isin(df['age_range'].to_numpy(), common.DEPENDENT_RANGES)
     a, s = df['dep_filer_age'].to_numpy(), df['dep_filer_sex'].to_numpy()
     bands = [(0, 15, 'under 15'), (15, 16, '15'), (16, 17, '16'), (17, 18, '17'), (18, 20, '18-19'),
@@ -768,6 +845,8 @@ def check_dependent_filers(df, w, ctx):
 
 
 def check_child_credit(df, w, ctx):
+    """Dependents flagged for the child credit, against the Census population under the age limit and SOI's count of
+    children on returns claiming the additional child tax credit."""
     y, law = ctx['year'], ctx['ctc']['law_under_age']
     ages = df[DEP_AGES].to_numpy(float)
     flag = df[['dep_ctc1', 'dep_ctc2', 'dep_ctc3']].to_numpy() == 1
@@ -805,6 +884,7 @@ def check_child_credit(df, w, ctx):
 
 
 def check_deaths(df, w, ctx):
+    """Expected deaths by sex and age band, against SSA's death rates applied to the Census population."""
     P = ctx['deaths'].copy()
     P['w'] = w[P.rec]
     y = ctx['year']
@@ -851,6 +931,7 @@ def check_deaths(df, w, ctx):
 
 
 def check_accruals(df, w, ctx):
+    """Each asset's yearly unrealized gain, against Z.1's holding gains."""
     rate = ctx['accrual rates']
     rows = []
     for k, col in [('equities', 'value.equities'), ('pass_throughs', 'value.pass_throughs'), ('primary_home', 'value.primary_home'),
@@ -884,6 +965,7 @@ def check_accruals(df, w, ctx):
 
 
 def check_basis(df, w, ctx):
+    """Each asset's value, unrealized gain and basis, and the records whose drawn gain was held to the value."""
     rows = []
     for k in ['equities', 'pass_throughs', 'primary_home', 'other_home', 're_fund']:
         b = df[f'basis.{k}'].to_numpy(float)
@@ -900,6 +982,8 @@ def check_basis(df, w, ctx):
 
 
 def check_holding(df, w, ctx):
+    """Long-term gains and losses by holding-period group, against SOCA's shares and the regression's ratio of basis
+    to sales price."""
     M = ctx['holding']['model']
     grp = ctx['holding']['group']
     kg, h = df['kg_lt'].to_numpy(float), df['kg_lt_years_held'].to_numpy(float)
@@ -932,7 +1016,7 @@ def check_holding(df, w, ctx):
 
 def check_blindness(df, w, ctx):
     """Blind people in the file by age, filers and all units, against Publication 4801's blind boxes on all returns,
-    at the start's weights and at weights w."""
+    at the start's weights and at the weights w."""
     filer = df['filer'].to_numpy() == 1
     a1, _ = primary_age_sex(df)
     a2 = df['age2'].to_numpy()
@@ -964,6 +1048,7 @@ def check_blindness(df, w, ctx):
 
 
 def check_qbi(df, w, ctx):
+    """The QBI wages and service flags by group, from impute's table."""
     q = ctx['qbi']
     final = {'cf': df['wagebill_sole_prop'].to_numpy(float), 'ps': df['wagebill_part'].to_numpy(float) + df['wagebill_scorp'].to_numpy(float)}
     return [q['table']], [
@@ -976,6 +1061,7 @@ def check_qbi(df, w, ctx):
 
 
 def check_parents(df, w, ctx):
+    """The mean parents' rank by own rank, against the mean the mobility matrix gives."""
     child = ctx['child_rank']
     par = df['parent_rank'].to_numpy()
     rows_m = mobility_rows()
@@ -991,6 +1077,7 @@ def check_parents(df, w, ctx):
 
 
 def check_amt_nol_cap(df, w, ctx):
+    """The AMT net operating loss adjustment before and after it was held to the loss."""
     drawn, held = df['amt_nols_drawn'].to_numpy(float), df['amt_nols'].to_numpy(float)
     loss = nol(df)
     filer = df['filer'].to_numpy() == 1
@@ -1015,7 +1102,7 @@ def check_amt_nol_cap(df, w, ctx):
 
 
 def check_placeholders(df, w, ctx):
-    # the empty section is kept so that non_micro_checks.md and its numbered tables stay as they are
+    """An empty section, kept so that the sections of non_micro_checks.md keep their numbers."""
     return [pd.DataFrame([])], ['Empty, so that the tables before it keep their numbers.']
 
 
@@ -1033,15 +1120,15 @@ CHECKS = [('Dependent filers\' exact age and sex', check_dependent_filers),
 
 
 def checks(df, year, w, ctx):
-    """Every item's published check, on the weights w (after the tilt). ctx: impute's context. Returns [(title,
-    [tables], [lines])]."""
+    """Every item's check against published figures, on the weights w (after the reweighting). ctx is impute's
+    context. Returns a list of (title, [tables], [lines])."""
     w = np.asarray(w, float)
     ctx['year'] = year
     return [(title, *f(df, w, ctx)) for title, f in CHECKS]
 
 
 def write_checks(sections, folder, year):
-    """non_micro_checks.md (every table) and one CSV per table, in folder. Returns the page's lines."""
+    """Writes non_micro_checks.md (every table) and one CSV per table to folder. Returns the page's lines."""
     text = [f'# The non-microdata imputations: checks, {year}', '',
             f'Weights after the tilt. Counts in millions, dollars in nominal {year} dollars. Reported only.', '']
     for i, (title, tables, lines) in enumerate(sections, 1):
