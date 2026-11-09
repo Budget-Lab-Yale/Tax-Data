@@ -79,30 +79,51 @@ aconv = function(f) {
 # Dividing the PEU's dollars between the respondent and the spouse or partner
 #-------------------------------------------------------------------------------
 
+# A person's regular pensions, made yearly, from the four pension slots of the
+# raw file. who is 1 for the respondent and 2 for the spouse or partner. As in
+# Kevin Moore's code.
+pension_income = function(h, who) {
+  pmax(0, h$X5318 * aconv(h$X5319) * (h$X5315 == who) * (h$X5317 >= 1)) +
+    pmax(0, h$X5326 * aconv(h$X5327) * (h$X5323 == who) * (h$X5325 >= 1)) +
+    pmax(0, h$X5334 * aconv(h$X5335) * (h$X5331 == who) * (h$X5333 >= 1)) +
+    pmax(0, h$X5418 * aconv(h$X5419) * (h$X5415 == who) * (h$X5417 >= 1))
+}
+
+# A person's account withdrawals, made yearly, as in Kevin Moore's code. own is
+# the person's own item (X6558 for the respondent, X6566 for the spouse or
+# partner). The withdrawals tied to the person's pension slots and accounts are
+# added, and two household items (X6574, and X5724 where X5725 is 11) are split
+# half and half.
+withdrawals = function(h, who, own) {
+  own + 0.5 * h$X6574 +
+    pmax(0, h$X6464 * aconv(h$X6465) * (h$X5315 == who)) + pmax(0, h$X6469 * aconv(h$X6470) * (h$X5323 == who)) +
+    pmax(0, h$X6474 * aconv(h$X6475) * (h$X5331 == who)) + pmax(0, h$X6479 * aconv(h$X6480) * (h$X5415 == who)) +
+    pmax(0, h$X6965 * aconv(h$X6966) * (h$X5606 == who)) + pmax(0, h$X6971 * aconv(h$X6972) * (h$X5614 == who)) +
+    pmax(0, h$X6977 * aconv(h$X6978) * (h$X5622 == who)) + pmax(0, h$X6983 * aconv(h$X6984) * (h$X5630 == who)) +
+    0.5 * h$X5724 * (h$X5725 == 11)
+}
+
 # The own labor, business and total income of the respondent (r_) and of the
 # spouse or partner (s_), as in Kevin Moore's code. Labor income is the main
 # job's wages (X4112, X4712). Business income is the main job's business income
-# (X4131, X4731). Total income adds regular pensions, in four slots, and
-# withdrawals from retirement accounts.
+# (X4131, X4731). Total income adds regular pensions and account withdrawals.
 person_incomes = function(h) {
-  pen = function(who) {
-    pmax(0, h$X5318 * aconv(h$X5319) * (h$X5315 == who) * (h$X5317 >= 1)) +
-      pmax(0, h$X5326 * aconv(h$X5327) * (h$X5323 == who) * (h$X5325 >= 1)) +
-      pmax(0, h$X5334 * aconv(h$X5335) * (h$X5331 == who) * (h$X5333 >= 1)) +
-      pmax(0, h$X5418 * aconv(h$X5419) * (h$X5415 == who) * (h$X5417 >= 1))
-  }
-  wd = function(who, own) {
-    own + 0.5 * h$X6574 +
-      pmax(0, h$X6464 * aconv(h$X6465) * (h$X5315 == who)) + pmax(0, h$X6469 * aconv(h$X6470) * (h$X5323 == who)) +
-      pmax(0, h$X6474 * aconv(h$X6475) * (h$X5331 == who)) + pmax(0, h$X6479 * aconv(h$X6480) * (h$X5415 == who)) +
-      pmax(0, h$X6965 * aconv(h$X6966) * (h$X5606 == who)) + pmax(0, h$X6971 * aconv(h$X6972) * (h$X5614 == who)) +
-      pmax(0, h$X6977 * aconv(h$X6978) * (h$X5622 == who)) + pmax(0, h$X6983 * aconv(h$X6984) * (h$X5630 == who)) +
-      0.5 * h$X5724 * (h$X5725 == 11)
-  }
   tibble(Y1 = h$Y1,
          r_lab = pmax(0, h$X4112) * aconv(h$X4113), s_lab = pmax(0, h$X4712) * aconv(h$X4713),
          r_bus = pmax(0, h$X4131) * aconv(h$X4132), s_bus = pmax(0, h$X4731) * aconv(h$X4732)) %>%
-    mutate(r_tot = r_lab + r_bus + pen(1) + wd(1, h$X6558), s_tot = s_lab + s_bus + pen(2) + wd(2, h$X6566))
+    mutate(r_tot = r_lab + r_bus + pension_income(h, 1) + withdrawals(h, 1, h$X6558),
+           s_tot = s_lab + s_bus + pension_income(h, 2) + withdrawals(h, 2, h$X6566))
+}
+
+# The yearly amount a person defers to one plan, from one way the question is
+# asked: the amount per period (items amt and frq), or else the percent of pay
+# (item pct) times the person's yearly main-job pay. item(k) reads the plan
+# block's item k.
+deferral_amount = function(item, pct, amt, frq, pay) {
+  a = pmax(item(amt), 0) * aconv(item(frq))
+  p = pmax(item(pct), 0) / 10000
+  p = if_else(p <= 1, p, 0)                       # a share above all of pay is a code, not a share
+  if_else(a > 0, a, p * pay)
 }
 
 # The respondent's share of a split PEU's dollars, from the two people's
@@ -216,13 +237,7 @@ for (wave in settings$paths$raw$scf_waves) {
     tot = 0
     for (b in DEFERRAL_BLOCKS[[who]]) {
       x = function(k) hh[[sprintf('X%d', b + k)]]
-      path = function(pct, amt, frq) {
-        a = pmax(x(amt), 0) * aconv(x(frq))
-        p = pmax(x(pct), 0) / 10000
-        p = if_else(p <= 1, p, 0)                       # a share above all of pay is a code, not a share
-        if_else(a > 0, a, p * pay[[who]])
-      }
-      p1 = path(41, 42, 43); p2 = path(44, 45, 46)
+      p1 = deferral_amount(x, 41, 42, 43, pay[[who]]); p2 = deferral_amount(x, 44, 45, 46, pay[[who]])
       tot = tot + if_else(x(40) == 1, if_else(p1 > 0, p1, p2), 0)   # 1 yes, 5 no, 3 other (not counted)
     }
     elective[[who]] = tot
