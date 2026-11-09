@@ -1,21 +1,21 @@
-"""The rebuild pipeline, stage by stage. Run from the repository root (or set REBUILD_ROOT).
+"""The rebuild pipeline's runner. Run it from the repository root, or set REBUILD_ROOT.
 
-  python research/rebuild/pipeline/run.py training <training folder>
-      the survey tax units, the SOI numbers, the training table, the side files and the three networks
-  python research/rebuild/pipeline/run.py years <training folder> <output folder> [--past 2015-2023] [--last-year 2075]
-      every year's file with state weights: past years drawn and reweighted, then 2024 from 2023, then the later years
-      from 2024, then the check of every year and each year's Tax-Simulator file
-  python research/rebuild/pipeline/run.py stage <folder> <stage> [<stage> ...] [--run <name>]
-      named stages on one folder (its settings.json); see STAGES
+The pipeline is a chain of stages connected by files:
+  1. data preparation: the survey tax units, the SOI targets and the training table;
+  2. pretraining: the networks, trained on the table;
+  3. generation: each past year's records drawn from the networks, with the top of the file added;
+  4. scaling: each record's dollar amounts put in target-year dollars;
+  5. reweighting: weights solved to each year's national targets, then the state weights;
+  6. output: each year's Tax-Simulator file, the CRS package and the reports.
+The `training` command runs stages 1 and 2 into a training folder. The `years` command runs stages 3 to 6 for the past
+years, then projects 2024 from 2023 and the later years from 2024. The `stage` command runs named stages (see STAGES)
+on one folder. The training folder must hold two downloads made by hand: data/scf_rw/<wave>/ (the SCF replicate
+weights) and targets/soi_cv/raw/ (SOI's coefficient-of-variation workbooks).
 
-The training folder must hold the files downloaded by hand: data/scf_rw/<wave>/ (the SCF replicate weights) and
-targets/soi_cv/raw/ (SOI's CV workbooks). Its settings.json is written from the pipeline's own if it is missing.
-
-Without --slurm every step runs here, one after another. With --slurm, `years` and `training` submit one Slurm job (or
-array of jobs, one per year) per step, each waiting for the steps it needs; the sbatch lines go to <folder>/jobs.txt.
-REBUILD_PY_ENV and REBUILD_R_ENV are shell lines run before each Python or R command (slurm/bouchet_env.sh sets them
-to Bouchet's modules); REBUILD_R_LIBS is the R library for the scripts that need ipumsr or arrow. All three are empty
-on a plain machine, where python and Rscript come from the path.
+On a plain machine, every step runs here, one after another, with python and Rscript from the path. With --slurm,
+each step is submitted as a Slurm job (or one job per year) that waits for the steps it needs, and the sbatch lines are
+written to <folder>/jobs.txt. REBUILD_PY_ENV and REBUILD_R_ENV are shell lines run before each Python or R command, and
+REBUILD_R_LIBS is the R library; slurm/bouchet_env.sh sets all three for Bouchet.
 """
 import argparse
 import glob
@@ -73,7 +73,7 @@ def shell(line, env):
 
 
 def python_line(module, args):
-    """The shell line of a Python stage, after the environment prefix: the pipeline first on the module path."""
+    """The shell line that runs a Python stage, with the pipeline folder first on the module path."""
     prefix = os.environ.get('REBUILD_PY_ENV', '')
     python = 'python' if prefix else sys.executable
     line = f'PYTHONPATH={os.path.abspath(PIPELINE)}${{PYTHONPATH:+:$PYTHONPATH}} {python} -m {module} {" ".join(args)}'
@@ -92,8 +92,8 @@ def run_command(cmd, env):
 
 
 def run_package(env):
-    """The CRS package (settings generation.filers real_puf), its Python round trip, the R merge script on the same PUF
-    and its round trip."""
+    """Build the CRS package and check that its Python merge script rebuilds the file, then do the same for its R merge
+    script."""
     run_command(py('output.package', 'build'), env)
     out = subprocess.run(['bash', '-c', python_line('output.package', ['paths'])], env=env, check=True,
                          capture_output=True, text=True).stdout
@@ -134,8 +134,8 @@ def link(src, dst):
 
 
 def run_settings(src, dest, out=None, year=None):
-    """A copy of the settings src: paths.out set to out (with the PCE table's bare file name made a full path, which the
-    R stages need), or years.target set to year."""
+    """Copy the settings file src to dest with paths.out set to out, or with years.target set to year. A bare PCE file
+    name is made a full path, which the R stages need."""
     s = json.load(open(src))
     if out is not None:
         s['paths']['out'] = out
@@ -163,8 +163,8 @@ def years_from(text):
 
 
 class Run:
-    """The folders of the years command: <out>/run/<year> (a past year's draw and national-only solve), <out>/final/<year>
-    (each year's final file), <out>/starts, integrated, shares, files (the state weights), checks."""
+    """The steps of the years command. <out>/run/<year> holds a past year's draw and national solve, <out>/final/<year>
+    each year's final file, <out>/starts, integrated and files the state weights, and <out>/checks the checks."""
 
     def __init__(self, train, out, side):
         self.train, self.out, self.side = os.path.abspath(train), os.path.abspath(out), os.path.abspath(side)
@@ -269,7 +269,7 @@ class Run:
 
 # ---- Slurm -----------------------------------------------------------------------------------------------------
 CPU = ['--partition=day', '--gres=gpu:0']
-# memory: about twice each step's measured peak
+# Memory requests are about twice each step's measured peak.
 RESOURCES = {
     'train': ['--cpus-per-task=4', '--mem=24G', '--time=08:00:00'],
     'prep': ['--cpus-per-task=4', '--mem=16G', '--time=01:30:00'],
@@ -312,9 +312,8 @@ def models(train):
 
 
 def side_files(train, side):
-    """Every survey year's side files: a second table build, with every survey year in place of the year's mix, in a
-    copy of the training data (less the table and the maps), of which only <side>/data/*_all.parquet is used (the
-    years command's --side)."""
+    """Build the side files: the training table built again with every survey year in place of the year's mix, in a copy
+    of the training data. The years command uses only <side>/data/*_all.parquet."""
     shutil.rmtree(side, ignore_errors=True)
     os.makedirs(f'{side}/data/maps')
     for f in sorted(glob.glob(f'{train}/data/*')):
@@ -411,7 +410,7 @@ def main():
     p.add_argument('folder')
     p.add_argument('stages', nargs='+', choices=sorted(STAGES))
     p.add_argument('--run', help='REBUILD_RUN, the run\'s subfolder name (model/, gen/, tilt/)')
-    # the single steps the Slurm jobs run
+    # The single steps that the Slurm jobs run
     p = sub.add_parser('training-data')
     p.add_argument('train')
     p = sub.add_parser('train-model')
