@@ -1127,6 +1127,15 @@ def checks(df, year, w, ctx):
     return [(title, *f(df, w, ctx)) for title, f in CHECKS]
 
 
+def context_to_save(ctx):
+    """impute's context in a form pickle can write, for checks run in another process (tilt.py finish). The
+    holding-period model keeps its numbers and loses its functions; the checks read only the numbers."""
+    out = dict(ctx)
+    if 'holding' in out:
+        out['holding'] = {**out['holding'], 'model': {k: v for k, v in out['holding']['model'].items() if not callable(v)}}
+    return out
+
+
 def write_checks(sections, folder, year):
     """Writes non_micro_checks.md (every table) and one CSV per table to folder. Returns the page's lines."""
     text = [f'# The non-microdata imputations: checks, {year}', '',

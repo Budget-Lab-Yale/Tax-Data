@@ -10,9 +10,18 @@ possible from their start.
 Writes file_<year>.parquet (every record, with its weights before and after), fit.csv, targets.csv, the tax and
 imputation checks and summary.md to the year's tilt folder. report_tilt.py then writes the report from them.
 FEATURES.md, "5. Reweighting", describes the method.
+
+The stage runs in one of three ways. Run with no argument, it does everything above: this is a projection year, or a
+file built by hand. For a past year, the integrated solve of the national and the state weights (state_joint.py) takes
+the place of the solve here, and the stage runs twice. `prepare` does everything before the solve and writes the
+solve's inputs (solve_inputs.pkl in the year's folder), the file with every weight at its start, and what the outputs
+on the final weights will need (outputs_context.pkl). `finish`, run in the year's final folder after the integrated
+solve, reads the file with the final weights and fit.csv from that solve and writes the outputs and summary.md.
 """
+import json
 import os
 import pickle
+import sys
 import time
 
 import numpy as np
@@ -306,20 +315,26 @@ def solver_settings(g19, filer, w0, fixed, rows):
     return S_main, grp, upper, beta, rho
 
 
-def run_solve(g19, w0, F, T, se, identity, averages, fixed, rows, upper, beta, rho, S_main, t_start):
+def solve_inputs(P):
+    """The solve's inputs as the integrated solve of the state weights (state_joint.py) reads them: the records, their
+    starting weights, every target's condition, standard error and importance, the fixed records, the soft caps and
+    the solver's settings."""
+    return {'record_id': P['g19']['record_id'].to_numpy(), 'w0': P['w0'], 'F': P['F'], 'T': P['T'], 'se': P['se'],
+            'identity': P['identity'], 'averages': P['averages'], 'rho': P['rho'], 'fixed': P['fixed'],
+            'soft_upper': P['upper'], 'soft_beta': P['beta'], 'rows': P['rows'], 'reweighting': S['reweighting']}
+
+
+def run_solve(P, t_start):
     """Runs the main solve and returns the new weights and the solver's description of the solve. When the
     environment variable REBUILD_SAVE_SOLVE names a file, the solve's inputs are written to it beforehand, and the
-    multipliers and new weights beside it afterwards. The joint solve of the state weights (state_joint.py) reads
-    them."""
-    cfg = S['reweighting']
+    multipliers and new weights beside it afterwards."""
+    w0, fixed = P['w0'], P['fixed']
     save_solve = os.environ.get('REBUILD_SAVE_SOLVE')
     if save_solve:
         with open(save_solve, 'wb') as fh:
-            pickle.dump({'record_id': g19['record_id'].to_numpy(), 'w0': w0, 'F': F, 'T': T, 'se': se, 'identity': identity,
-                         'averages': averages, 'rho': rho, 'fixed': fixed, 'soft_upper': upper,
-                         'soft_beta': beta, 'rows': rows, 'reweighting': cfg}, fh, protocol=4)
+            pickle.dump(solve_inputs(P), fh, protocol=4)
     t_solve = time.time()
-    w1, info = SV.solve(w0, F, T, se, identity, averages, S_main, fixed=fixed)
+    w1, info = SV.solve(w0, P['F'], P['T'], P['se'], P['identity'], P['averages'], P['S_main'], fixed=fixed)
     info['solve_seconds'] = time.time() - t_solve
     if save_solve:
         np.savez(save_solve + '.answer.npz', multipliers=info['multipliers'], w1=w1, newton_steps=info['newton_steps'],
@@ -398,25 +413,31 @@ def start_lines(spec, g19, prescale, n_nonfilers, nf_note, growth):
     return lines
 
 
-def write_outputs(g19, w0, w1, F, T, se, averages, rows, identity, grp, nmi_ctx, tax_ctx, calc_rows):
-    """Writes fit.csv, weight_factors.csv, the file itself, the non-microdata imputations' scalars and checks, and the
-    tax checks. The imputations' checks are on the weights after the reweighting and are reported only. Returns the
-    fit table, the weight-factor table and the tax lines for summary.md."""
-    fit = SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
-    fit.to_csv(f'{common.TILT}/fit.csv', index=False)
+def start_outputs(P):
+    """Writes the outputs that depend on the start alone: the top step's report, the non-microdata imputations'
+    scalars (the projection years read them from their start's folder) and the SCF targets by wave. Returns the
+    section of summary.md on the start."""
+    from generate import top_records as TR
+    TR.write_report(P['top'], common.TILT, Y)
+    NMI.write_qbi_scalars(P['nmi_ctx'], common.TILT)
+    if scf_targets.RESULTS:
+        scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
+    return start_lines(P['spec'], P['g19'], P['spec']['weights'], P['n_nonfilers'], P['nf_note'], P['growth'])
+
+
+def weight_outputs(g19, w0, w1, fit, grp, nmi_ctx, tax_ctx, calc_rows):
+    """Writes the outputs on the final weights w1: weight_factors.csv, the non-microdata imputations' checks (reported
+    only), the calculator targets' fit and the taxes summary. fit is the solver's fit table. Returns the weight-factor
+    table and the tax lines for summary.md."""
     factors = weight_factor_table(w0, w1, grp)
     factors.to_csv(f'{common.TILT}/weight_factors.csv', index=False)
-    g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
-    NMI.write_qbi_scalars(nmi_ctx, common.TILT)   # the projection years read them from their start's folder
     NMI.write_checks(NMI.checks(g19, Y, w1, nmi_ctx), common.TILT, Y)
     # The calculator targets before and after the reweighting (whether targeted or not), and the totals.
     tfit = fit[fit['kind'] == TLS.CALCULATOR_KIND] if len(calc_rows) else TX.evaluate(g19, calc_rows, w0, w1)
     tfit.to_csv(f'{common.TILT}/taxes/taxes_fit.csv', index=False)
     tax_lines = TX.summary_lines(tax_ctx, g19, w0, w1)
     open(f'{common.TILT}/taxes/taxes_summary.md', 'w').write('\n'.join(tax_lines))
-    if scf_targets.RESULTS:
-        scf_targets.details().to_csv(f'{common.TILT}/scf_targets_by_wave.csv', index=False)
-    return fit, factors, tax_lines
+    return factors, tax_lines
 
 
 def top_lines(g19, top, w0, w1, x, fixed, info, feas):
@@ -443,20 +464,20 @@ def top_lines(g19, top, w0, w1, x, fixed, info, feas):
     return lines
 
 
-def write_summary(g19, top, w0, w1, w_plain, w_status, x, T, fixed, info, feas, fit, factors, prescaled, precheck_lines,
-                  starts, tax_lines, nmi_ctx):
+def write_summary(g19, top, w0, w1, w_plain, w_status, x, n_targets, fixed, info, feas, fit, factors, prescaled, precheck_lines,
+                  starts, tax_lines, nmi_ctx, scf_pooled):
     """Writes summary.md and prints it to the log. Its net worth table compares the SCF's own wave for the year (when
-    there is one), the SCF waves used by the targets pooled together, and the file before and after the
-    reweighting."""
+    there is one), the SCF waves used by the targets pooled together (when scf_pooled: the year has SCF targets), and
+    the file before and after the reweighting."""
     scf_path = f'{common.DATA}/scf_units_{Y}.parquet'   # a year with no SCF wave has no column of its own
     u = pd.read_parquet(scf_path) if os.path.exists(scf_path) else None
-    pooled = scf_targets.reference(Y) if scf_targets.RESULTS else None
+    pooled = scf_targets.reference(Y) if scf_pooled else None
     nw = net_worth_table({**({f'SCF {Y} wave': (u, u['net_worth'].to_numpy(float), u['weight'].to_numpy(float))}
                              if u is not None else {}),
                           **({'SCF, the targets\' waves pooled': pooled} if pooled is not None else {}),
                           'before the tilt': (g19, x, w0), 'after the tilt': (g19, x, w1)})
     tops = top_lines(g19, top, w0, w1, x, fixed, info, feas)
-    summary = pd.Series({'targets': len(T), **cost(w0, w1),
+    summary = pd.Series({'targets': n_targets, **cost(w0, w1),
                          'KL move from the unscaled start (nats)': cost(w_plain, w1)['KL move (nats)'],
                          **({'effective sample kept from the start before the demographic prescaling (%)':
                              cost(w_status, w1)['effective sample kept (%)']} if prescaled else {})})
@@ -482,9 +503,8 @@ def write_summary(g19, top, w0, w1, w_plain, w_status, x, T, fixed, info, feas, 
 
 # ---- The whole stage ----
 
-def main():
-    t_start = time.time()
-    os.makedirs(common.TILT, exist_ok=True)
+def prepare():
+    """Everything before the solve, in seven steps. Returns a dict of what the solve and the outputs need."""
     soi = TG.load()
 
     # 1. Build the start: the year's records in target-year dollars, with the top of the file added. For a projection
@@ -495,7 +515,6 @@ def main():
         growth.to_csv(f'{common.TILT}/start_growth.csv', index=False)
     g19, imp, given, fixed, top = top_of_file(g19, raw, imp, spec)
     del raw
-    x = g19['net_worth'].to_numpy(float)
     filer = g19['filer'].to_numpy() == 1
     prescale = spec['weights']
 
@@ -517,18 +536,79 @@ def main():
     # 6. The checks before the solve. They only report; no target is dropped.
     feas, precheck_lines = checks_before_solve(rows, F, T, se, identity, averages, w0, fixed)
 
-    # 7. Set the soft caps and the importances, and solve for the new weights.
+    # 7. Set the soft caps and the importances.
     S_main, grp, upper, beta, rho = solver_settings(g19, filer, w0, fixed, rows)
-    w1, info = run_solve(g19, w0, F, T, se, identity, averages, fixed, rows, upper, beta, rho, S_main, t_start)
+    return dict(g19=g19, w0=w0, F=F, T=T, se=se, identity=identity, averages=averages, fixed=fixed, rows=rows, upper=upper,
+                beta=beta, rho=rho, S_main=S_main, grp=grp, top=top, prescaled=prescaled, precheck_lines=precheck_lines,
+                feas=feas, nmi_ctx=nmi_ctx, tax_ctx=tax_ctx, calc_rows=calc_rows, spec=spec, n_nonfilers=n_nonfilers,
+                nf_note=nf_note, growth=growth, w_plain=w_plain, w_status=w_status)
 
-    # 8. Write the top step's report, the file, the fit table and the checks, then summary.md.
-    from generate import top_records as TR
-    TR.write_report(top, common.TILT, Y)
-    starts = start_lines(spec, g19, prescale, n_nonfilers, nf_note, growth)
-    fit, factors, tax_lines = write_outputs(g19, w0, w1, F, T, se, averages, rows, identity, grp, nmi_ctx, tax_ctx,
-                                            calc_rows)
-    write_summary(g19, top, w0, w1, w_plain, w_status, x, T, fixed, info, feas, fit, factors, prescaled, precheck_lines,
-                  starts, tax_lines, nmi_ctx)
+
+def solve_and_write(P, t_start):
+    """The stage run whole: solve for the new weights, then write the file, the fit table, the outputs and
+    summary.md."""
+    g19, w0 = P['g19'], P['w0']
+    w1, info = run_solve(P, t_start)
+    starts = start_outputs(P)
+    fit = SV.fit_table(w0, w1, P['F'], P['T'], P['se'], P['averages'], P['rows'], P['identity'])
+    fit.to_csv(f'{common.TILT}/fit.csv', index=False)
+    g19.assign(weight_start=w0, weight=w1).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    factors, tax_lines = weight_outputs(g19, w0, w1, fit, P['grp'], P['nmi_ctx'], P['tax_ctx'], P['calc_rows'])
+    write_summary(g19, P['top'], w0, w1, P['w_plain'], P['w_status'], g19['net_worth'].to_numpy(float), len(P['T']), P['fixed'],
+                  info, P['feas'], fit, factors, P['prescaled'], P['precheck_lines'], starts, tax_lines, P['nmi_ctx'],
+                  bool(scf_targets.RESULTS))
+
+
+def write_inputs(P, t_start):
+    """The `prepare` run of a past year: write the solve's inputs for the integrated solve, the file with every weight
+    at its start, the outputs that depend on the start alone, and outputs_context.pkl, which holds what `finish`
+    needs to write the outputs on the final weights."""
+    g19, w0 = P['g19'], P['w0']
+    with open(f'{common.OUT}/solve_inputs.pkl', 'wb') as fh:
+        pickle.dump(solve_inputs(P), fh, protocol=4)
+    starts = start_outputs(P)
+    g19.assign(weight_start=w0, weight=w0).to_parquet(f'{common.TILT}/file_{Y}.parquet', index=False)
+    context = dict(top={'notes': P['top']['notes']}, prescaled=P['prescaled'], precheck_lines=P['precheck_lines'], feas=P['feas'],
+                   starts=starts, nmi_ctx=NMI.context_to_save(P['nmi_ctx']), tax_ctx=P['tax_ctx'], calc_rows=P['calc_rows'],
+                   w_plain=P['w_plain'], w_status=P['w_status'], fixed=P['fixed'], n_targets=len(P['T']),
+                   scf_pooled=bool(scf_targets.RESULTS))
+    with open(f'{common.TILT}/outputs_context.pkl', 'wb') as fh:
+        pickle.dump(context, fh, protocol=4)
+    common.say(f'the solve\'s inputs written for the integrated solve: {len(w0):,} records, {len(P["T"]):,} targets; '
+               f'{(time.time() - t_start) / 60:.1f} minutes (the start, the prescaling, the taxes, the targets)')
+
+
+def finish():
+    """The `finish` run of a past year, in the year's final folder: the outputs and summary.md on the final weights.
+    Reads the file with the final weights, fit.csv and solve_info.json from the integrated solve, and
+    outputs_context.pkl from the `prepare` run."""
+    with open(f'{common.TILT}/outputs_context.pkl', 'rb') as fh:
+        C = pickle.load(fh)
+    g19 = pd.read_parquet(f'{common.TILT}/file_{Y}.parquet')
+    w0, w1 = g19['weight_start'].to_numpy(float), g19['weight'].to_numpy(float)
+    fit = pd.read_csv(f'{common.TILT}/fit.csv')
+    info = json.load(open(f'{common.TILT}/solve_info.json'))
+    filer = g19['filer'].to_numpy() == 1
+    grp = agi_groups(g19['calc_agi'].to_numpy(float), filer)
+    factors, tax_lines = weight_outputs(g19, w0, w1, fit, grp, C['nmi_ctx'], C['tax_ctx'], C['calc_rows'])
+    write_summary(g19, C['top'], w0, w1, C['w_plain'], C['w_status'], g19['net_worth'].to_numpy(float), C['n_targets'], C['fixed'],
+                  info, C['feas'], fit, factors, C['prescaled'], C['precheck_lines'], C['starts'], tax_lines, C['nmi_ctx'],
+                  C['scf_pooled'])
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else 'solve'
+    assert what in ('solve', 'prepare', 'finish'), f'reweight.tilt takes no argument, or prepare or finish, not {what}'
+    t_start = time.time()
+    os.makedirs(common.TILT, exist_ok=True)
+    if what == 'finish':
+        finish()
+        return
+    P = prepare()
+    if what == 'prepare':
+        write_inputs(P, t_start)
+    else:
+        solve_and_write(P, t_start)
 
 
 if __name__ == '__main__':

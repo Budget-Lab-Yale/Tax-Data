@@ -5,7 +5,9 @@ The pipeline is a chain of stages. Each stage reads the files earlier stages wro
   2. pretraining: the networks, trained on the table;
   3. generation: each past year's records drawn from the networks, with the top of the file added;
   4. scaling: each record's dollar amounts put in target-year dollars;
-  5. reweighting: weights solved to each year's national targets, then the state weights;
+  5. reweighting: for a past year, one weight per record and area solved to the national and the state targets
+     together; for a projection year, one weight per record solved to the national targets, with the record's 2023
+     split across the areas;
   6. output: each year's Tax-Simulator file, the CRS package and the reports.
 The `training` command runs stages 1 and 2 into a training folder. The `years` command runs stages 3 to 6 for the past
 years, then projects 2024 from 2023 and the later years from 2024. The `stage` command runs named stages (see STAGES)
@@ -58,6 +60,11 @@ STAGES = {
     'draw': [py('generate.generate')],
     'top': [py('generate.top')],
     'reweight': [py('reweight.tilt'), py('output.report_tilt')],
+    # A past year's reweighting in two parts around the integrated solve (state_joint.py, run by Run.step_integrated):
+    # inputs writes the solve's inputs and the file with every weight at its start; finish writes the outputs and the
+    # report on the final weights.
+    'inputs': [py('reweight.tilt', 'prepare')],
+    'finish': [py('reweight.tilt', 'finish'), py('output.report_tilt')],
     'taxsim_file': [py('output.taxsim_file')],
     'package': ['package'],
     'report': [py('output.report_cex'), py('output.report_cps'), py('output.report_sipp'), py('output.report_translation')],
@@ -67,7 +74,7 @@ STAGES = {
 }
 # The stages of the training command, and the steps of each past year in the years command (see Run).
 TRAINING = ['scf', 'cex', 'filing', 'cps', 'sipp', 'soi', 'soi_cv', 'table', 'side_files', 'train']
-PAST_YEAR = ['prep', 'draw', 'national', 'chances', 'integrated']
+PAST_YEAR = ['prep', 'draw', 'inputs', 'chances', 'integrated']
 
 
 # ---- Running a stage ----
@@ -185,14 +192,15 @@ def years_from(text):
 
 class Run:
     """The steps of the years command, each for one year. The output folder holds: run/<year>, a past year's draw and
-    national-only solve; final/<year>, each year's final file; starts, integrated, shares and files, the state weights;
-    and checks, the checks.
+    the inputs of its solve; final/<year>, each year's final file and reports; starts, integrated, shares and files,
+    the state weights; and checks, the checks.
 
-    A past year runs prep (targets and dollar maps), draw (the records and the top of the file), national (the
-    national-only solve), chances (the state chances, state_start.py) and integrated (the integrated solve,
-    state_joint.py). A projection year runs future: the national solve from the 2023 file (or from 2024's), then the
-    state weights from 2023's shares. check checks every year's state weights, and taxsim writes a year's
-    Tax-Simulator file."""
+    A past year runs prep (targets and dollar maps), draw (the records and the top of the file), inputs (the start,
+    the prescaling, the taxes and the targets, written as the solve's inputs), chances (the state chances,
+    state_start.py) and integrated (the integrated solve of the national and the state weights, state_joint.py, then
+    the outputs and the report on its weights). A projection year runs future: the national solve from the 2023 file
+    (or from 2024's), then the state weights from 2023's shares. check checks every year's state weights, and taxsim
+    writes a year's Tax-Simulator file."""
 
     def __init__(self, train, out, side):
         self.train, self.out, self.side = os.path.abspath(train), os.path.abspath(out), os.path.abspath(side)
@@ -231,11 +239,11 @@ class Run:
         assert not os.path.exists(f'{R}/top_cache.pkl'), f'{R}/top_cache.pkl is already there'
         run_stages(R, ['draw', 'top'], run=f'y{y}')
 
-    def step_national(self, y):
+    def step_inputs(self, y):
         R = self.past(y)
         assert os.path.getsize(f'{R}/top_cache.pkl') > 0
         assert not os.path.exists(f'{R}/tilt/y{y}/file_{y}.parquet'), f'{R} already holds a file'
-        run_stages(R, ['reweight'], run=f'y{y}', REBUILD_SAVE_SOLVE=f'{R}/solve_inputs.pkl')
+        run_stages(R, ['inputs'], run=f'y{y}')
 
     def step_chances(self, y):
         R = self.past(y)
@@ -244,9 +252,11 @@ class Run:
                        '--out', f'{self.out}/starts/start_{y}.npz'), stage_env(R, f'y{y}'))
 
     def step_integrated(self, y):
-        """Run the integrated solve. If it wrote its check, make the year's final folder: the national solve's files,
-        with the year file and fit.csv from the integrated solve. A solve that fails still gets its final folder when
-        its check was written; the failure is raised afterward."""
+        """Run the integrated solve. If it wrote its check, make the year's final folder and write the outputs and the
+        report on its weights there. The final folder links the inputs step's files, with the year file, fit.csv and
+        the solve's description from the integrated solve; the finish stage then writes summary.md, the checks and
+        the report beside them. A solve that fails still gets its final folder when its check was written; the failure
+        is raised afterward."""
         R, F, I = self.past(y), self.final(y), f'{self.out}/integrated/y{y}'
         env = stage_env(R, f'y{y}')
         n = os.environ.get('REBUILD_THREADS') or os.environ.get('SLURM_CPUS_PER_TASK')
@@ -259,17 +269,26 @@ class Run:
         except subprocess.CalledProcessError as e:
             failed = e
         if os.path.exists(f'{I}/check.json') and os.path.getsize(f'{I}/check.json') > 0:
-            os.makedirs(f'{F}/tilt/y{y}', exist_ok=True)
+            T = f'{F}/tilt/y{y}'
+            os.makedirs(f'{T}/taxes', exist_ok=True)
             for d in ('files', 'checks'):
                 os.makedirs(f'{self.out}/{d}', exist_ok=True)
             for d in ('data', 'targets', 'model', 'lib', 'gen', 'settings.json'):
                 link(f'{R}/{d}', f'{F}/{d}')
+            # The taxes folder is a real folder, with links to the inputs step's files: the finish stage writes the
+            # taxes' fit and summary into it.
             for f in sorted(glob.glob(f'{R}/tilt/y{y}/*')):
-                link(f, f'{F}/tilt/y{y}/{os.path.basename(f)}')
-            link(f'{I}/tilt/y{y}/file_{y}.parquet', f'{F}/tilt/y{y}/file_{y}.parquet')
-            link(f'{I}/fit.csv', f'{F}/tilt/y{y}/fit.csv')
+                if os.path.basename(f) == 'taxes':
+                    for t in sorted(glob.glob(f'{f}/*')):
+                        link(t, f'{T}/taxes/{os.path.basename(t)}')
+                else:
+                    link(f, f'{T}/{os.path.basename(f)}')
+            link(f'{I}/tilt/y{y}/file_{y}.parquet', f'{T}/file_{y}.parquet')
+            link(f'{I}/fit.csv', f'{T}/fit.csv')
+            link(f'{I}/solve_info.json', f'{T}/solve_info.json')
             link(f'{I}/state_weights_{y}.parquet', f'{self.out}/files/state_weights_{y}.parquet')
             link(f'{I}/check.json', f'{self.out}/checks/check_{y}.json')
+            run_stages(F, ['finish'], run=f'y{y}')
         if failed:
             raise failed
 
@@ -310,7 +329,7 @@ RESOURCES = {
     'train': ['--cpus-per-task=4', '--mem=24G', '--time=08:00:00'],
     'prep': ['--cpus-per-task=4', '--mem=16G', '--time=01:30:00'],
     'draw': ['--cpus-per-task=4', '--mem=32G', '--time=04:00:00'],
-    'national': ['--cpus-per-task=4', '--mem=56G', '--time=04:00:00'],
+    'inputs': ['--cpus-per-task=4', '--mem=56G', '--time=04:00:00'],
     'chances': ['--cpus-per-task=4', '--mem=12G', '--time=01:00:00'],
     'integrated': ['--cpus-per-task=16', '--mem=56G', '--time=06:00:00'],
     'future': ['--cpus-per-task=4', '--mem=40G', '--time=02:00:00'],
