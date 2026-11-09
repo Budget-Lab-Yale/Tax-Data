@@ -211,7 +211,7 @@ class FillIn:
         # 6. The totals that are recomputed after a part is filled in, the chunk size for running the network, and
         #    the logs.
         self.totals_setup(train_rows)
-        self.chunk = M.safe_chunk(len(M.SLOTS))   # sized for all slots, so it is safe for one source's slots too
+        self.chunk = M.safe_chunk(len(M.SLOTS))   # sized for all slots, the most any source has
         self.dist, self.log, self.range_log = {}, [], []
         for s in SURVEYS:
             common.say(f'  fill-in {s}: {len(self.recs[s]):,} training records; rows '
@@ -220,10 +220,10 @@ class FillIn:
 
     def totals_setup(self, train_rows):
         """Sets up the computed totals that have a filled-in part (on the CPS: ordinary dividends, capital gains,
-        Schedules C and F, and business income). They are recomputed after each draw, so that a total agrees with its
-        parts. Each part's band is read as dollars: the survey year's median in the band, or, if the survey year has no
-        record in it, the PUF-year median grown to the year. The signed sum is then cut on the survey year's cut points
-        of the total."""
+        Schedules C and F, and business income). They are recomputed after each draw, to keep each total equal to the
+        sum of its parts. Each part's band is read as dollars: the survey year's median in the band, or, if the survey
+        year has no record in it, the PUF-year median grown to the year. The signed sum is then cut on the survey
+        year's cut points of the total."""
         edges, growth = common.edges(), common.meta()['growth_factors']
         self.totals, self.dollars, self.cuts = {}, {}, {}
         filled_on = {s: {v for ss, v in KEYS if ss == s} for s in SURVEYS}
@@ -398,7 +398,7 @@ class FillIn:
         for j, (_, bases) in M.SHARE_GATES.items():
             if any(bool(hidden[0, b]) for b in bases):
                 vals[:, C + j], hidden[:, j] = -1, False
-        # The earnings split code is made from the reported wages and self-employment income, so it would give a
+        # The earnings split code is made from the reported wages and self-employment income. Shown, it would give a
         # reported zero away.
         je = P.index('earn_split')
         hidden[:, je] = vals[:, C + je] >= 0

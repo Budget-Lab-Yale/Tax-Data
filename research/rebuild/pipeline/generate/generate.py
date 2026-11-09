@@ -5,8 +5,8 @@ has its AGI group set in advance and is weighted by 1 / q of its group (qgroups.
 CPS label at the target year. Each record is drawn one slot at a time, each slot from the network's probabilities given
 the slots drawn so far. The slots come in phases: the record's own PUF items, the computed totals, the exact ages, and
 then the SCF, CEX, CPS and SIPP items, each under that survey's label. Rules on the draw keep the items consistent with
-each other. The consistency rules add holders of some assets, so the whole stack is drawn several times, and each time
-the odds of those holdings are scaled down to offset the added holders. FEATURES.md, "3. Generation", describes the
+each other. The consistency rules add holders of some assets. To offset them, the whole stack is drawn several
+times, and after each draw the odds of those holdings are scaled down. FEATURES.md, "3. Generation", describes the
 method.
 """
 import json
@@ -171,8 +171,8 @@ SURVEY_YEAR_INDEX = {src: np.array([M.YEARS.index(y) for y, _ in m]) for src, m 
 
 def assign_years(src, n, seed):
     """Each of n records' year of the survey src (an index into SURVEY_YEARS[src]), drawn with the years' shares. Each
-    survey has a random generator of its own (settings generation.survey_year_seeds), so these draws change no other
-    draw."""
+    survey has a random generator of its own (settings generation.survey_year_seeds), and these draws leave every other
+    draw unchanged."""
     u = np.random.default_rng([int(G['survey_year_seeds'][src]), int(seed)]).random(n)
     k = np.searchsorted(np.cumsum([s for _, s in SURVEY_YEARS[src]]), u, side='right')
     return np.minimum(k, len(SURVEY_YEARS[src]) - 1)
@@ -364,8 +364,8 @@ def primary_earnings_share(s, W, e1, e2, cap):
 
 def capped_wage_share_range(W, e1, e2, a, b, cap):
     """The lowest and highest spouse's share of wages that put the primary filer's share of earnings between a and b
-    (primary_earnings_share). The primary filer's share falls as the spouse's wage share rises, so each end is found
-    by bisection: the interval is halved 40 times. Where no share reaches the range, the nearest share, 0 or 1, is
+    (primary_earnings_share). The primary filer's share falls as the spouse's wage share rises. Each end is found by
+    bisection: the interval is halved 40 times. Where no share reaches the range, the nearest share, 0 or 1, is
     returned."""
     share = lambda s: primary_earnings_share(s, W, e1, e2, cap)
     s0, s1 = torch.zeros_like(W), torch.ones_like(W)
@@ -570,7 +570,7 @@ class Chunk:
     def gate_shares(self):
         """Makes each share that is not yet drawn present and hidden once married and its bases are drawn, the unit is
         married, and it has some of a base. Otherwise the share stays absent. In the filer batch the base of the
-        spouse's share of self-employment income, Schedules C and F, is a computed total, so the share stays absent
+        spouse's share of self-employment income, Schedules C and F, is a computed total, and the share stays absent
         until the totals are computed."""
         for s, (m, bases) in M.SHARE_GATES.items():
             known = self.filled[:, m].clone()
@@ -1035,7 +1035,7 @@ def aggregate_puf_records(slots, own):
 def real_puf_records():
     """The 2015 PUF's records with their bands, own 2015 amounts and weights, read once. 'ord' holds the ordinary
     records (the training table's PUF rows) and 'agg' the four aggregate records. The aggregate records have zero
-    filing status, dependents and age on the PUF, so the networks draw those."""
+    filing status, dependents and age on the PUF; the networks draw those."""
     if _REAL:
         return _REAL
     own = own_items()
@@ -1129,9 +1129,9 @@ def real_puf_part(model, mod, k, n_models, fac):
 
 def store_picks(s, k, stream=4242):
     """Adds the stored picks: for each record and amount, one uniform number between 0 and 1 in u_<variable>. Every
-    later step uses it to pick the record's dollars within its band, so a record always gets the same dollars. The
+    later step uses it to pick the record's dollars within its band, and a record always gets the same dollars. The
     numbers are seeded by the dollars seed, the stream (4242 for the stack, 4343 for Part A's candidates), the
-    network's position k and the variable's position, so they are the same in every run."""
+    network's position k and the variable's position, and are the same in every run."""
     from shared import dollars as D
     seed = int(common.SETTINGS['dollars']['seed'])
     cols = {f'u_{v}': np.random.default_rng([seed, stream, k, i]).random(len(s), dtype=np.float32)
@@ -1194,7 +1194,7 @@ def nonfiler_part(model, mod, fac, n_nf_k, n_nf, n_models, nf_years):
 
 def assign_record_ids(s, k):
     """Record ids for network k's records: k x ID_BLOCK plus the row number. With the real PUF, a real record's id is
-    made from its RECID and copy instead, so the CRS package can match records by them."""
+    made from its RECID and copy instead; the CRS package matches records by them."""
     assert len(s) < ID_BLOCK
     s['record_id'] = k * ID_BLOCK + np.arange(len(s))
     if REAL_PUF:

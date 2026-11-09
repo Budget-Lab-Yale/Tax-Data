@@ -242,8 +242,8 @@ def earn_draws(table, device):
 
 
 def held_back(table):
-    """Whether each row is in the 2% test set. One uniform number is drawn per household within each source, so all
-    the tax units and implicates of an SCF household fall on the same side."""
+    """Whether each row is in the 2% test set. One uniform number is drawn for each household within each source,
+    and all the tax units and implicates of an SCF household share it."""
     s = common.SETTINGS['training']
     out = np.zeros(len(table), dtype=bool)
     for k, src in enumerate(SOURCES):
@@ -256,8 +256,8 @@ def held_back(table):
 
 
 def training_weights(table, use_q=True):
-    """Each row's survey weight times q, rescaled so that the weights sum to the number of records within each source
-    and split. Without q these are the population weights."""
+    """Each row's survey weight times q, rescaled to sum to the number of records within each source and split.
+    Without q these are the population weights."""
     w = table['weight'].astype(float)
     if use_q:
         w = w * table['q'].astype(float)
@@ -333,9 +333,10 @@ def token_ids(values, hidden, slots):
 
 # ---- Shares, shown only after married and their bases ----
 # The spouse's share of the couple's wages (and of its self-employment income) exists only for a married unit that has
-# some of the item, so the share's presence alone would tell the network that the unit is married and has the item.
-# Generation draws married and the amounts first. So in training, and in every use of the network, a share is absent
-# while married or any of its bases (meta "share_gates") is hidden. A base the source lacks counts as zero.
+# some of the item. If it were shown, its presence alone would tell the network that the unit is married and has the
+# item, but generation draws married and the amounts before the share. In training, and in every use of the network,
+# a share is therefore absent while married or any of its bases (meta "share_gates") is hidden. A base the source
+# lacks counts as zero.
 # SHARE_GATES: {the share's PREDICTED index: (married's index, [its bases' indices])}
 SHARE_GATES = {PREDICTED.index(s): (PREDICTED.index('married'), [PREDICTED.index(b) for b in bases])
                for s, bases in META['share_gates'].items()}
@@ -411,8 +412,8 @@ class SlotTransformer(nn.Module):
     def forward(self, values, hidden, slots):
         """The log-probabilities of every value of every predicted slot: [records, predicted positions of slots,
         MAX_CHOICES]. The batch's output layers run as one multiplication. Each is padded to MAX_CHOICES values, and a
-        padded value gets a bias of minus infinity, so its probability is zero. The output layers of the other sources'
-        slots are not used, so the optimizer (AdamW) leaves them unchanged."""
+        padded value gets a bias of minus infinity and therefore a probability of zero. The output layers of slots the
+        batch's source lacks are not used, and the optimizer (AdamW) leaves them unchanged."""
         h = self.last_layer(values, hidden, slots)
         W, b = self.stacked_heads([self.heads[j] for j in predicted_of(slots)])
         logits = torch.einsum('bjw,jcw->bjc', h[:, len(CONTEXT):], W) + b

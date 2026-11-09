@@ -52,7 +52,7 @@ RESIDUALS = ['div_ord', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_re
 def puf_items(raw, itemizer=None):
     """The rebuild's parts from raw PUF fields, made as the training table's are (build_table.puf_items), with the
     remainder of AGI as other_agi_remainder. itemizer says which records get other_item_exp. The default is FDED == 1;
-    the aggregate records' FDED is zeroed, so the caller passes True for them. The medical floor is 10% of AGI."""
+    the caller passes True for the aggregate records, whose FDED is zeroed. The medical floor is 10% of AGI."""
     f = {c: raw[c].to_numpy(float) for c in raw.columns}
     itemizer = (f['FDED'] == 1) if itemizer is None else np.broadcast_to(np.asarray(itemizer, bool), (len(raw),))
     out = BT.puf_items(f, itemizer, 0.1)
@@ -262,8 +262,8 @@ def candidates(out, models, factors):
 
 def first_groups(a, chosen, w, n_ret):
     """Each selected record's first group, from its AGI a in 2015 dollars. Records with negative AGI go to group 0. The
-    candidates' largest returns fall short of the aggregated ones, so the positive records are not grouped by the
-    AGI lines. Instead they are ranked by AGI and split in the shares of the three positive groups' returns. Returns
+    positive records are ranked by AGI and split in the shares of the three positive groups' returns. They are not
+    grouped by the AGI lines, because the candidates' largest returns fall short of the aggregated ones. Returns
     the group of every candidate (-1 for those not selected) and the AGI at the bottom of groups 3 and 2."""
     grp_all = np.full(len(a), -1)
     neg = chosen[a[chosen] < 0]
@@ -282,7 +282,7 @@ def first_groups(a, chosen, w, n_ret):
 
 def subsample(chosen, grp_all, w, reasons):
     """At most records_per_group selected records per group, drawn by weight without replacement. Each selection rule
-    keeps at least min_per_rule of the records it chose, so the subsample stays varied. Returns the positions kept."""
+    keeps at least min_per_rule of the records it chose. Returns the positions kept."""
     rng = np.random.default_rng(int(S['subsample_seed']))
     keep = []
     cap, floor_n = int(S['records_per_group']), int(S['min_per_rule'])
@@ -475,16 +475,16 @@ def scale_bounded(x, w, grp, T, lo, hi, rounds=400):
     return y, notes
 
 
-# Each group's AGI range in 2015 dollars, set a dollar or two inside the lines, so that rounding cannot carry a record
-# held at a line across it.
+# Each group's AGI range in 2015 dollars, set a dollar or two inside the lines. Rounding then cannot carry a record held
+# at a line across it.
 AGI_RANGE = [(-np.inf, -2.0), (1.0, 10e6 - 1), (10e6 + 2, 100e6 - 1), (100e6 + 2, np.inf)]
 
 
 def agi_without_ss_at(line, d):
     """For each record, the AGI without taxable Social Security, a, at which AGI with it equals line. AGI is
-    a + ss(a), where ss(a) is taxable Social Security. ss rises by at most 85 cents per dollar of a, so AGI rises with
-    a, and bisection between line - 0.85 x gross benefits - 1 and line + 1 finds the answer. An infinite line stays
-    infinite."""
+    a + ss(a), where ss(a) is taxable Social Security. ss rises by at most 85 cents per dollar of a, and AGI therefore
+    rises with a. Bisection between line - 0.85 x gross benefits - 1 and line + 1 finds the answer. An infinite line
+    stays infinite."""
     line = np.asarray(line, float)
     gs = d['gross_ss'].to_numpy(float)
     add = d['exempt_int'].to_numpy(float) + d['sl_int_ded'].to_numpy(float)
@@ -536,8 +536,8 @@ def scale_all(base, w, grp, nets, book, hold=False):
     note = ('held parts short of their nets, moved into it: ' + ', '.join(f'{GROUPS[g]} ${short[g] / 1e6:,.1f}m'
                                                                             for g in range(N_G) if abs(short[g]) > 1))
     # Taxable Social Security comes from the worksheet on each record. The residual therefore moves by the raw
-    # record's E02500 less the group's worksheet total. The worksheet reads AGI, which includes the residual, so the
-    # scaling and the worksheet are repeated until the group totals settle within a dollar.
+    # record's E02500 less the group's worksheet total. The worksheet reads AGI, which includes the residual. The
+    # scaling and the worksheet are therefore repeated until the group totals settle within a dollar.
     raw_ss = nets['ss_taxable'].to_numpy(float)
     out[v] = base[v].to_numpy(float)
     ss = puf_totals(out)['ss_taxable'].to_numpy(float)
@@ -748,7 +748,7 @@ def build():
     keep, added = add_targeted_donors(pool, a, keep, grp_all, lines, nets, reasons)
     base_src, zeroed = zero_by_booklet_sign(pool, keep, book, w)
     grp = grp_all[keep].copy()
-    # The two pension parts are each at least zero, so gross pensions are never below taxable pensions.
+    # Check that the two pension parts are each at least zero; gross pensions are then never below taxable pensions.
     assert (base_src[common.PENSION_PARTS].to_numpy(float) >= 0).all(), 'a pension part below zero on a donor'
 
     # 4-6. Match the weights to the booklet's counts and scale the amounts to the groups' totals, round after round,

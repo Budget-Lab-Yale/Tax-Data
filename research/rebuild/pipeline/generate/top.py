@@ -20,8 +20,7 @@ def main():
     spec = TLS.start_spec(Y)
     g19, raw, imp, _ = START.year_start(spec)
     base = TR.network_part(g19, raw, imp, Y, spec['mode'])
-    # 2. Write the top cache. It is written under a temporary name and then renamed, so a half-written cache is never
-    #    read.
+    # 2. Write the top cache, first under a temporary name and then renamed.
     with open(common.TOP_CACHE + '.part', 'wb') as fh:
         pickle.dump(base, fh, protocol=4)
     os.replace(common.TOP_CACHE + '.part', common.TOP_CACHE)

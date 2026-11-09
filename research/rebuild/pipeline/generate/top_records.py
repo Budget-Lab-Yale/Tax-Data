@@ -133,7 +133,7 @@ def hold_below_ceiling(g19, imp, ceiling, notes):
 def net_worth_growth(g19, imp, year, list_year):
     """The one factor by which every fortune on the last list grows to the year. It is chosen so that the list's net
     worth on its starting weights grows as Z.1 household net worth from the list's year. The starting weights depend
-    only on the records' age and marital cells, so a first build with no growth gives them. Returns the factor and a
+    only on the records' age and marital cells, and a first build with no growth gives them. Returns the factor and a
     description."""
     from shared import growth as GR
     from scale import projection_demographics as PD

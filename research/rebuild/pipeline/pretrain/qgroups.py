@@ -43,7 +43,7 @@ _REP = {}
 def rep_maps():
     """A dollar map with one row per band of each variable ({variable: rows}), read once. Each band's amount is the
     weighted mean of the real PUF-year amounts in it; a band with no real record takes the map's filled value. Every
-    row has weight 1, so dollars.draw_dollars on these maps returns these amounts exactly."""
+    row has weight 1, and dollars.draw_dollars on these maps returns these amounts exactly."""
     if not _REP:
         m = pd.read_parquet(f'{common.MAPS}/map_puf_{common.PUF_YEAR}.parquet')
         for v, g in m.groupby('variable'):
@@ -65,7 +65,7 @@ def band_agi(df):
     """Band-AGI: each record's AGI computed from the representative amounts of its bands (rep_maps), in PUF-year
     dollars."""
     from shared import dollars as D
-    # Taxable Social Security is computed by the section 86 worksheet, so the worksheet's inputs are needed too.
+    # The inputs of the section 86 worksheet, which computes taxable Social Security, are needed too.
     need = set(D.AGI_PARTS) | set(D.KG_PIECES) | set(D.FOLD) | set(D.META['computed_totals']['business_income']) \
         | set(D.SS_INPUTS)
     cols = [f'{v}_band' for v in D.ORDER if v in need]

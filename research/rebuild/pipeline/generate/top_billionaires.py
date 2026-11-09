@@ -450,7 +450,7 @@ def build_billionaires(lst, df, w, year, notes):
     out['div_pref'] = kinds['dividends'] * mix['div_pref share']
     out['div_ord'] = kinds['dividends'] * (1 - mix['div_pref share'])
     out['txbl_int'], out['exempt_int'] = kinds['txbl_int'], kinds['exempt']
-    # The non-taxable rest of pensions is zero, so gross pensions are the taxable pensions. IRA distributions are not
+    # The non-taxable rest of pensions is zero, and gross pensions equal taxable pensions. IRA distributions are not
     # pensions.
     for c, s in mix['wages and pensions'].items():
         out[c] = kinds['wages and pensions'] * s
@@ -565,7 +565,7 @@ def redraw_chunk(network, factors, coded, label_idx, year_idx, scf_year_idx, rid
     """A generation chunk (generate.Chunk) holding `tries` copies of each record, ready to draw the SCF-only slots
     again. Every slot but the survey-only and reported slots is filled in from coded. The exact ages, which
     generation draws before the SCF phase, are kept. Each record's tries get a slot order and a random generator
-    seeded by (seed, its id), so a record's tries come out the same whichever other records are redrawn."""
+    seeded by (seed, its id). A record's tries therefore come out the same whichever other records are redrawn."""
     import torch
     from generate import generate as G
     from pretrain import model as M
