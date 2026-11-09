@@ -4,8 +4,8 @@ scratch folder (explore/2026-10-23/step1_units: score_units.R and calibrate_v4.p
 the same, apart from the comparison columns left behind (below).
 
 The stage has three steps, run in order by run.sbatch (stage filing), every year of settings cps.years:
-  python filing.py units [year ...]      the CPS's tax units by the shared rules (tax_units.py; reassignment by
-                                         settings cps.cbo_variant), people in group quarters left out
+  python filing.py units [year ...]      the CPS's tax units by the shared rules (tax_units.py, with CBO's
+                                         reassignment pass), people in group quarters left out
   Rscript filing_requirement.R [year ...] each unit's statutory filing requirement (Form 1040, Charts A to C)
   python filing.py calibrate [year ...]  the rule, its calibration, separate returns, the outputs and checks
 
@@ -38,7 +38,7 @@ until weight x calibrated chance reaches SOI Table 1.6's separate returns / 2 (t
 each couple becomes two returns, the dependents on person 1's (dep_rule 'primary').
 
 Outputs, under the run's data folder (common.DATA) / settings cps.step1_dir ("filing"):
-  units/        the tax-unit module's persons, units and roster, <year>_<cbo_variant>_nogq
+  units/        the tax-unit module's persons, units and roster, <year>_cbo_nogq
   requirement/  units_<year>.csv.gz, persons_<year>.csv.gz (filing_requirement.R)
   returns/      (settings cps.step1_out) units_<year>.csv.gz and .parquet, one row per return (separate returns
                 included; build_cps.R reads the csv): ids (uid, couple_uid and person for separate returns, hh,
@@ -134,14 +134,12 @@ def eitc_eligible(u, nkids, year):
 
 
 def tag(year):
-    return f'{year}_{CPS["cbo_variant"]}_nogq'
+    return f'{year}_cbo_nogq'
 
 
 def build_units(year):
     """Step 1 of the stage: the CPS's units by the shared rules, group quarters left out."""
-    if CPS['cbo_variant'] not in ('cbo', 'strict'):
-        raise ValueError(CPS['cbo_variant'])
-    persons, units = T.build(year, reassign_pass=CPS['cbo_variant'] == 'cbo')
+    persons, units = T.build(year)
     T.save_cps(persons, units, UNITS, tag(year))
 
 

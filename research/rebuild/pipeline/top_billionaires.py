@@ -129,7 +129,7 @@ def list_for_year(year):
     if lst is not None:
         return 'list', lst, year
     last = last_list_year()
-    if last is not None and year > last and (S.get('after_last_list') or {}).get('grow', False):
+    if last is not None and year > last:
         return 'grown', grow_list(read_list(last), last, year), last
     return None, None, None
 
@@ -282,7 +282,7 @@ def item_mix(df, w, notes):
     hidden = df['synthetic_top'].to_numpy() == 1 if 'synthetic_top' in df else np.zeros(len(df), bool)
     bil = df['billionaire'].to_numpy() == 1 if 'billionaire' in df else np.zeros(len(df), bool)
     line = float(S.get('stand_in_agi', 1e8))
-    if hidden.any() and S.get('mix_from_hidden', True):
+    if hidden.any():
         g = hidden & (df['hidden_group'].to_numpy() == 3)
         what = (f"Part A's rebuilt returns of the over-$100-million aggregate record (hidden_group 3; {int(g.sum())} "
                 f"records, in target-year dollars, weighted by their starting weights)")

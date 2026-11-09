@@ -85,11 +85,6 @@ def repealed():
     return {k: int(v) for k, v in rep.items() if not k.startswith('_')}
 
 
-def law_year(y):
-    import taxes as TX
-    return TX.law_year(y)
-
-
 def chmod_private(path):
     """The folder and everything in it readable by the owner only."""
     for root, dirs, files in os.walk(path):
@@ -342,7 +337,7 @@ def build():
                 v = apply(x, fp, fn)
             # (John, 5 November) a repealed adjustment: one step of factor zero from the repeal year (the pipeline's
             # taxes.apply_repealed_adjustments sets it to zero under that year's law)
-            if c in rep and c not in zeroed and law_year(y) >= rep[c]:
+            if c in rep and c not in zeroed and int(y) >= rep[c]:
                 steps.append({'column': c, 'puf_item': b, 'what': f'{REPEAL_STEP} {rep[c]}', 'positive': 0.0,
                               'negative': 0.0})
                 v = apply(v, 0.0, 0.0) + 0.0     # + 0.0: no negative zero

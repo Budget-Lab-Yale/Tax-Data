@@ -27,7 +27,7 @@ What the CEX observes, and the fallbacks (tax_units.FALLBACKS['cex']):
   - support answer: none (-1). BLS's own tax unit codes are kept as passthrough columns and as a comparison
     (bls_unit: BLS's unit after build_cex.R's repairs and folding of dependent filers into the claiming unit).
 
-Settings: tax_units.reassign (CBO's reassignment pass; true when absent). Run before build_cex.R.
+Run before build_cex.R.
 Usage (through Slurm): python roster_cex.py [year ...] [--out DIR]   (no years: every year in settings cex.years)
 Writes, to the pipeline's data folder ({REBUILD_OUT or paths.out}/data, as common.py resolves it) unless --out names
 another: persons_cex_<year>.parquet and units_cex_<year>.parquet (the rules' output, with BLS's codes as comparison
@@ -47,7 +47,6 @@ CEX_RAW = common.RAW['cex']
 MEMBER_COLS = ['NEWID', 'MEMBNO', 'AGE', 'SEX', 'CU_CODE', 'MARITAL', 'IN_COLL', 'TAX_UNIT', 'TU_CODE', 'TU_DPNDT',
                'SALARYXM', 'SEMPFRMM', 'SOCRRXM', 'SSIXM']
 MFS_SALT = 20261023        # step 1's salt for the separate-return draw
-REASSIGN = bool(common.SETTINGS.get('tax_units', {}).get('reassign', True))
 
 
 def year_files(prefix, year):
@@ -248,10 +247,10 @@ def read_roster(year):
 
 
 def build(year):
-    """Units by the shared rules (reassignment per the settings), the comparison with BLS's units, and the separate returns."""
+    """Units by the shared rules (with CBO's reassignment pass), the comparison with BLS's units, and the separate returns."""
     import targets as TG
     r = read_roster(year)
-    persons, units = T.build_units(r, year, reassign_pass=REASSIGN)
+    persons, units = T.build_units(r, year)
     # BLS comparison: a module unit matches when its people are exactly the people of one BLS unit (after the
     # repairs and the folding of dependent filers); dependents' own returns are not separate units in either
     p = persons

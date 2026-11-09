@@ -28,7 +28,7 @@ Steps, with the Stata module each one translates:
                                outside the primary economic unit) whose highest-income unit claims the group's other
                                relatives who pass the income test (Gale, Joshi, Pulliam and Sabelhaus 2022). Off
                                unless the survey's fallbacks turn it on.
-  reassign                     4c_reassign_relationships.do, the optional reassignment pass (settings: reassign).
+  reassign                     4c_reassign_relationships.do, the reassignment pass.
   collapse_units               4e_collapse_to_tax_units.do: one row per unit, plus a dependent's own return for every
                                dependent with income (gross income, wages or self-employment not zero).
   puf_terms                    the units in the PUF's terms: filing status, dependents by type under the PUF's caps
@@ -39,9 +39,6 @@ Married filing separately (mfs_split, a post-filing step; the CPS's filing stage
 joint filer couples, chosen in the order of a draw keyed by unit id, become two separate returns, so that the count of
 separate returns equals SOI's (Table 1.6), as nonfiler_pool/07_mfs_split.R does with weights. The SCF instead splits
 the couples that say they file separately (roster_scf.py).
-
-Variants: build_units(reassign_pass=True) is CBO's default ("cbo"); False applies the first pass only ("strict rules";
-settings cps.cbo_variant for the CPS).
 
 Inputs IPUMS lacks, and what roster_cps.py uses instead (listed in full in the 2023 reproduction report):
   - PRNLFSCH (in school, asked of people not in the labor force): SCHLCOLL 1-4 (enrolled in high school or college)
@@ -637,7 +634,7 @@ def mfs_split(units, persons, filer, target_returns, salt=20261023, chance=None)
     return chosen, share, out
 
 
-def build_units(r, tax_year, reassign_pass=True, away=None):
+def build_units(r, tax_year, away=None):
     """The rules on one survey's standard member list r (see the module header). away: children living elsewhere
     whom a unit claims, keyed by the claiming person (columns hh, pn, age; the SCF). Returns (persons, units): one
     row per person with unit id (uid), role (tu_rel) and dependent type, and one row per unit, with any_<flag>
@@ -651,10 +648,7 @@ def build_units(r, tax_year, reassign_pass=True, away=None):
     r = assign_units(r)
     if FALLBACKS.loc[survey, 'group_claim'] != 'off':
         r = claim_within_group(r, tax_year)
-    if reassign_pass:
-        r = reassign(r, tax_year)
-    else:
-        r['assignments'] = '1000'
+    r = reassign(r, tax_year)
     # CBO's code can leave a second head in the householder's unit: a nonrelative with relatives who is the parent
     # of the person first chosen to claim them, and fails the income test, is made a head with unit id 999, which
     # becomes the householder's unit at the end (4b, section E). Here that person heads their own unit instead.
@@ -688,12 +682,12 @@ def build_units(r, tax_year, reassign_pass=True, away=None):
     return persons, units
 
 
-def build(tax_year, reassign_pass=True):
+def build(tax_year):
     """The CPS: the member list from roster_cps.py, group quarters left out, then the rules."""
     import roster_cps
     r = roster_cps.read_roster(tax_year)
     r = r[~r.gq].reset_index(drop=True)
-    return build_units(r, tax_year, reassign_pass=reassign_pass)
+    return build_units(r, tax_year)
 
 
 def save_cps(persons, units, out, tag):

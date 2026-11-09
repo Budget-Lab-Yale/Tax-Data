@@ -54,11 +54,7 @@ def _hidden_returns(df, year, mode, notes):
     flag."""
     if common.REAL_PUF:   # (4 November 2026) the four aggregate records are in the file as real records
         notes.append('Part A (the PUF\'s hidden top returns): off, because settings generation.filers is real_puf: the '
-                     'PUF\'s four aggregate records are in the file as real records'
-                     + (' (settings tilt.top.hidden_returns true is overridden)' if S.get('hidden_returns') else ''))
-        return None
-    if not S.get('hidden_returns', False):
-        notes.append('Part A (the PUF\'s hidden top returns): off (settings tilt.top.hidden_returns)')
+                     'PUF\'s four aggregate records are in the file as real records')
         return None
     if mode != 'generate':
         notes.append('WARNING: Part A (the PUF\'s hidden top returns) is built for a generated start only; this start '
@@ -212,9 +208,7 @@ def add_list(g19, imp, given, fixed, rep, year):
     kind, lst, list_year = TB.list_for_year(year)
     g19 = g19.copy()
     g19['billionaire'], g19['billionaire_rank'], g19['forbes_uri'] = 0, -1, ''
-    rule = (S.get('after_last_list') or {}).get('wealth_growth', 'parts')
-    assert rule in ('parts', 'net worth'), f'settings tilt.top.after_last_list.wealth_growth: {rule!r}'
-    if kind == 'grown' and rule == 'net worth':
+    if kind == 'grown':
         lst = TB.grow_list(TB.read_list(list_year), list_year, year,
                            factor=net_worth_growth(g19, imp, year, list_year))
     if lst is None:
@@ -239,21 +233,16 @@ def add_list(g19, imp, given, fixed, rep, year):
             # the year, as every projection-year record's weight is grown from 2023 (tilt.main, population_cells)
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
-            if rule == 'net worth':   # the list's net worth on these weights grows as Z.1's from the list's year
-                import growth as GR
-                z = GR._csv('z1_household_net_worth.csv')
-                want = lst['net_worth_list'].sum() * float(z.loc[year]) / float(z.loc[list_year])
-                assert np.isclose((w_b * b['net_worth'].to_numpy(float)).sum(), want, rtol=1e-6), 'list growth off'
-            # (2 November 2026; the rule since John, 4 November 2026) settings
-            # tilt.top.after_last_list.fixed: true holds them at that starting weight in the solver, as the list years
-            # hold theirs at 1; false leaves them free (the 2 November run: the solver then cut the richest to ~0)
-            hold = S['after_last_list']['fixed']
-            assert isinstance(hold, bool), f'settings tilt.top.after_last_list.fixed must be true or false, not {hold!r}'
-            fix_b = np.full(len(b), hold)
+            # the list's net worth on these weights grows as Z.1's from the list's year
+            import growth as GR
+            z = GR._csv('z1_household_net_worth.csv')
+            want = lst['net_worth_list'].sum() * float(z.loc[year]) / float(z.loc[list_year])
+            assert np.isclose((w_b * b['net_worth'].to_numpy(float)).sum(), want, rtol=1e-6), 'list growth off'
+            # held at that starting weight in the solver, as the list years hold theirs at 1
+            fix_b = np.full(len(b), True)
             notes.append(f'billionaires: starting weights 1 x the population growth of their cell from {list_year} to '
                          f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); '
-                         + ('held fixed at them in the reweighting (settings tilt.top.after_last_list.fixed)' if hold else
-                            'free in the reweighting, under the soft cap'))
+                         + 'held fixed at them in the reweighting (settings tilt.top.after_last_list.fixed)')
         g19 = pd.concat([g19, b], ignore_index=True)
         imp = np.r_[imp, w_b]
         given = np.r_[given, np.ones(len(b), bool)]

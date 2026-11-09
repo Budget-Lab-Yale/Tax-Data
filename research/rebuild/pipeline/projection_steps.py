@@ -598,15 +598,14 @@ def fs_active(year, s=None):
     """The blend is in force for a year at or after FS year whose start is the base_year file (s, else the start of this
     run's step 1). From the jump-off year on the start is the jump-off year's file, which carries the blend already."""
     s = STATE.get('base_year') if s is None else s
-    return bool(FS.get('enabled', False)) and int(year) >= int(FS['year']) and s is not None and \
-        int(s) == int(FS['base_year'])
+    return int(year) >= int(FS['year']) and s is not None and int(s) == int(FS['base_year'])
 
 
 def jump_off(year, s):
     """(John, 4 November 2026, evening; PLAN.md "The jump-off year") The start year of a projection year whose
     targets.yaml says from_year s: the jump-off year, the last year with IRS data (the November table included), for
-    every year after it; s otherwise. With the setting off: s (every year from base_year, as before)."""
-    if FS.get('enabled', False) and int(s) == int(FS['base_year']) and int(year) > int(FS['year']):
+    every year after it; s otherwise."""
+    if int(s) == int(FS['base_year']) and int(year) > int(FS['year']):
         return int(FS['year'])
     return int(s)
 
@@ -875,9 +874,7 @@ def fs_write(folder):
     """The filing-season lines of the summary, and projection_filing_season.csv (the blends) and
     projection_filing_season_targets.csv (the group targets)."""
     if not fs_active(STATE.get('year', 0)):
-        if not FS.get('enabled', False):
-            how = 'off'
-        elif int(STATE.get('base_year', 0)) == int(FS['year']):
+        if int(STATE.get('base_year', 0)) == int(FS['year']):
             how = (f"the start is the jump-off year's file ({FS['year']}), which carries the blend; every item grows "
                    f"from it by its series")
         else:
@@ -927,11 +924,8 @@ def ig_active(s):
     """The rule is in force for a year whose start year is s: on, and s at or after from_year. It never meets the
     filing-season blend: from_year must be after the blend's base year (the blend is applied only from that year's
     start)."""
-    if not IG.get('enabled', False):
-        return False
-    if FS.get('enabled', False):
-        assert int(IG['from_year']) > int(FS['base_year']), \
-            'tilt.projection.interest_growth.from_year must be after the filing-season base year'
+    assert int(IG['from_year']) > int(FS['base_year']), \
+        'tilt.projection.interest_growth.from_year must be after the filing-season base year'
     return int(s) >= int(IG['from_year'])
 
 
@@ -983,7 +977,7 @@ def ig_write(folder):
     if 'interest_growth' not in P:
         return []
     if not ig_active(STATE.get('base_year', 0)):
-        how = 'off' if not IG.get('enabled', False) else f"not used for a start before {IG['from_year']}"
+        how = f"not used for a start before {IG['from_year']}"
         return [f'Interest rule (settings tilt.projection.interest_growth): {how}.', '']
     r = STATE['interest']
     pd.Series(r).to_frame('value').to_csv(f'{folder}/projection_interest.csv')

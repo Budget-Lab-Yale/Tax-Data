@@ -35,7 +35,7 @@ share's base is hidden, so its presence never tells the network what those
 hidden slots hold. Generation needs this to draw non-filers' married flag and
 amounts under the CPS label.
 
-Grouped weighting (qgroups.py; settings "training", q_groups). Each record counts by its survey weight times q, q
+Grouped weighting (qgroups.py). Each record counts by its survey weight times q, q
 constant within a group (12 band-AGI groups on the PUF, 5 band-income classes per SCF wave, 1 on the CEX and CPS), then
 rescaled within each source, so each source's share of training is unchanged. The training log prints the groups and
 their q. Averages meant to describe the population use the survey weights without q: the fill-in's averages over a
@@ -154,11 +154,10 @@ def main():
     gpu = torch.cuda.get_device_name() if device == "cuda" else "cpu"
     common.say(f'device {gpu}; precision bf16; fill-in chunk {fill.chunk} records')
     common.say(f'batches per pass {spe}; weight x expected hidden slots per record {per_record:.3f}')
-    common.say(f'grouped weighting: q_groups {qgroups.Q_GROUPS or None}')
-    if qgroups.Q_GROUPS:
-        common.say(qgroups.describe(table).to_string(index=False, float_format=lambda x: f'{x:.6g}'))
-        common.say('training share by source (unchanged by q): '
-                   + str(train_rows.groupby('source').size().div(len(train_rows)).round(4).to_dict()))
+    common.say("grouped weighting: q_groups {'puf': 'agi12', 'scf': 'income5'}")
+    common.say(qgroups.describe(table).to_string(index=False, float_format=lambda x: f'{x:.6g}'))
+    common.say('training share by source (unchanged by q): '
+               + str(train_rows.groupby('source').size().div(len(train_rows)).round(4).to_dict()))
 
     def batches(order_gen):
         """(slots, row indices) per batch for one pass."""

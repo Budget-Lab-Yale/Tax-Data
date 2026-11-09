@@ -6,7 +6,7 @@
 # Tax units. CBO's rules (tax_units.py, the shared tax-unit module, read
 # through tax_units_cbo.R), as the filing stage (filing.py, run before this
 # script) built and calibrated them, inside the run's data folder: the roster
-# from <step1_dir>/units/roster_<year>_<cps.cbo_variant>_nogq.csv.gz and the
+# from <step1_dir>/units/roster_<year>_cbo_nogq.csv.gz and the
 # returns from <step1_dir>/<step1_out>/units_<year>.csv.gz (step1_returns
 # below; settings cps.step1_dir and cps.step1_out, both required; "step 1" is
 # PLAN_v2.md's name for the filing stage). The returns give the separate
@@ -456,7 +456,7 @@ for (yr in YEARS) {
   # Units, filing status and filing chances: step 1's
   #-----------------------------------------------------------------------------
   built = cbo_tax_units(x, yr, file.path(STEP1, 'units',
-                                         sprintf('roster_%d_%s_nogq.csv.gz', yr, settings$cps$cbo_variant)))
+                                         sprintf('roster_%d_cbo_nogq.csv.gz', yr)))
   # each person's Social Security number status, in the CBO-rule unit (before step 1 splits couples)
   ssn = ssn_status(built$persons)
   built = step1_returns(built, yr)

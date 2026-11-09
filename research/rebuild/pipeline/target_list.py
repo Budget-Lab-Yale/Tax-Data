@@ -1739,11 +1739,6 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
     rows = rows[~zero].reset_index(drop=True)
     must = {(e['id'], str(c)) for e in cfg['targets'] for c in e.get('must_reach', [])}
     is_must = np.array([(en, str(g)) in must for en, g in zip(rows['entry'], rows['group'])], bool)
-    if must and not common.SETTINGS['tilt'].get('top', {}).get('enabled', False):
-        # the top of the file is off: the cells restored with it (must_reach) are left out, as before 29 October
-        excluded = pd.concat([excluded, rows[is_must].assign(why='restored with the top of the file, which is off '
-                                                                 '(settings tilt.top.enabled)')], ignore_index=True)
-        rows, is_must = rows[~is_must].reset_index(drop=True), np.zeros((~is_must).sum(), bool)
     if start is not None and len(rows):   # (review, 30 October) a year with no calculator entries has nothing to reach
         F, _, _ = conditions(start, rows, None, check=False)
         reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
@@ -1768,10 +1763,9 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
 # ---- the conditions on the weights ----------------------------------------------------------------------------
 def net_worth_ceiling(name):
     """A population's net worth ceiling in nominal target-year dollars (catalog net_worth_below; the SCF targets'
-    population, 29 October), or None: none set, or settings tilt.top.enabled false (the population is then its rule
-    alone, as before)."""
+    population, 29 October), or None: none set."""
     c = CAT['populations'][name].get('net_worth_below')
-    if c is None or not common.SETTINGS['tilt'].get('top', {}).get('enabled', False):
+    if c is None:
         return None
     return float(c)
 

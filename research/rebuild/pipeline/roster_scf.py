@@ -45,9 +45,7 @@ units(wave)         the rules (tax_units.build_units, reassignment on), then sep
                     the units outside the PEU carry their share of the group's income and balance sheet
                     (group_level = True).
 
-Settings (settings.json "tax_units"): reassign (CBO's reassignment pass); npeu_split, 'equal' (the group's income
-divided equally among its adults) or 'moore' (wages among the adults under 70 and Social Security and pensions among
-those 62 and over, as Moore's code does); the group's balance sheet is divided equally either way.
+The group's income and balance sheet are divided equally among its adults (npeu_shares).
 
 Usage (through Slurm; run.sbatch's scf stage runs it before build_scf.R): python roster_scf.py [wave ...]
 [--out DIR]; by default every wave in the settings, DIR {out}/data. Writes DIR/scf_persons_<wave>.parquet,
@@ -123,7 +121,7 @@ def read_raw(wave):
     return d
 
 
-def read_roster(wave, npeu_split='equal'):
+def read_roster(wave):
     """The standard member list for one SCF wave (tax year wave - 1), and the household table it came from."""
     tax_year = wave - 1
     d = read_raw(wave)
@@ -225,7 +223,7 @@ def read_roster(wave, npeu_split='equal'):
         if c != 'gi':
             P[c] = 0.0
     P['wage'] = np.where(P.pn <= 2, P.gi, 0.0)
-    shares = npeu_shares(P, d, npeu_split)
+    shares = npeu_shares(P, d)
     g = P.group == 1
     P.loc[g, 'gi'] = shares.loc[P.index[g], 'gi'].to_numpy()
     P.loc[g, 'wage'] = shares.loc[P.index[g], 'wages'].to_numpy()
@@ -245,7 +243,7 @@ def read_roster(wave, npeu_split='equal'):
     return P, d, shares
 
 
-def npeu_shares(P, d, how):
+def npeu_shares(P, d):
     """Each outside-PEU adult's share of the group's income and balance sheet (interview-year dollars), as columns
     on P's index. The other income (X6415) is divided equally among the kinds the group reports, as Moore does."""
     g = P[P.group == 1]
@@ -263,17 +261,7 @@ def npeu_shares(P, d, how):
     other = np.where(nk > 0, pos('X6415') / np.maximum(nk, 1), 0.0)
     out = pd.DataFrame({'hh': g.hh.to_numpy(), 'pn': g.pn.to_numpy()}, index=g.index)
     eq = 1.0 / n
-    if how == 'equal':
-        w_wage = eq
-        w_ret = eq
-    elif how == 'moore':
-        age = g.age.to_numpy()
-        u70 = pd.Series(age < 70, index=g.index).groupby(g.hh).transform('sum').to_numpy()
-        o62 = pd.Series(age >= 62, index=g.index).groupby(g.hh).transform('sum').to_numpy()
-        w_wage = np.where(u70 > 0, (age < 70) / np.maximum(u70, 1), eq)
-        w_ret = np.where(o62 > 0, (age >= 62) / np.maximum(o62, 1), eq)
-    else:
-        raise ValueError(how)
+    w_wage = w_ret = eq
     out['wages'] = pos('X6403') * w_wage
     for k, f in flags.items():
         out[k] = other * f * (w_ret if k == 'ss_pensions_scf' else eq)
@@ -295,9 +283,9 @@ def npeu_shares(P, d, how):
     return out
 
 
-def units(wave, npeu_split='equal', reassign_pass=True):
+def units(wave):
     tax_year = wave - 1
-    P, d, shares = read_roster(wave, npeu_split)
+    P, d, shares = read_roster(wave)
     # children living elsewhere: under 18, claimed by R's unit when the family paid alimony or child support
     n_away = np.where(d.X5912 > 0, d.X5912, np.where(d.X5912 == -2, np.maximum(d.X5910, 0), 0))
     n_away = np.where(d.X5731 == 1, n_away, 0).astype(int)
@@ -305,7 +293,7 @@ def units(wave, npeu_split='equal', reassign_pass=True):
     aw['k'] = aw.groupby('hh').cumcount()
     yy1 = np.repeat(d.YY1.to_numpy().astype(np.int64), n_away)
     aw['age'] = np.floor(T.keyed_uniform(yy1 * 100 + aw.k.to_numpy(), SALT_AWAY) * 18).astype(int)
-    persons, U = T.build_units(P, tax_year, reassign_pass=reassign_pass, away=aw[['hh', 'pn', 'age']])
+    persons, U = T.build_units(P, tax_year, away=aw[['hh', 'pn', 'age']])
     U['any_age_assumed'] |= U.uid.isin(aw.hh * 100 + 1) & (U.n_child_away > 0)
     # separate returns from the couple's own answer, with Moore's prior-marriage condition
     sep = d.set_index('hh').eval('X5746 == 2 and (X7377 == 2 or X7392 == 2)')
@@ -422,10 +410,8 @@ def main():
     a = ap.parse_args()
     out = a.out
     os.makedirs(out, exist_ok=True)
-    tu = common.SETTINGS.get('tax_units', {})
-    split = tu.get('npeu_split', 'equal')
     for wave in a.waves or common.RAW['scf_waves']:
-        persons, U, nd = units(wave, split, reassign_pass=tu.get('reassign', True))
+        persons, U, nd = units(wave)
         persons.to_parquet(f'{out}/scf_persons_{wave}.parquet')
         U.to_parquet(f'{out}/scf_units_module_{wave}.parquet')
         nd.reset_index().to_parquet(f'{out}/scf_npeu_dollars_{wave}.parquet')
@@ -444,7 +430,7 @@ def main():
         inh_detail.to_parquet(f'{out}/scf_inheritance_detail_{wave}.parquet')
         m = U[~U.dep_return]
         w = m.weight / 1e6
-        print(f'wave {wave} (npeu_split {split}): {len(persons)} people, {len(m)} unit rows, {w.sum():.2f} m units')
+        print(f'wave {wave}: {len(persons)} people, {len(m)} unit rows, {w.sum():.2f} m units')
         print((w.groupby(m.filing_status).sum()).round(2).to_string())
         print((w.groupby(m.source).sum()).round(2).to_string())
 

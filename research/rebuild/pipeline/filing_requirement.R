@@ -48,8 +48,7 @@ for (yr in YEARS) {
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
   x = add_asec_income_concepts(x, ddi)
   x = x[GQ != 2]
-  built = cbo_tax_units(x, yr, file.path(DIR, 'units', sprintf('roster_%d_%s_nogq.csv.gz', yr,
-                                                                settings$cps$cbo_variant)))
+  built = cbo_tax_units(x, yr, file.path(DIR, 'units', sprintf('roster_%d_cbo_nogq.csv.gz', yr)))
   u = add_filing_requirement(built$units, yr)
   keep = c('unit_id', 'unit_type', 'SERIAL', 'head_pernum', 'weight', 'age_head', 'must_file', 'threshold', 'INCWAGE')
   out = u[, ..keep]

@@ -218,7 +218,7 @@ def read_table():
     for a in PREDICTED:
         assert (table.loc[~table.source.isin(PRESENT_ON[a]), column(a)] == -1).all(), a
     table['split'] = np.where(held_back(table), 'test', 'train')
-    table['q'] = qgroups.q_of(table)      # grouped weighting: q per row (1 everywhere with q_groups null)
+    table['q'] = qgroups.q_of(table)      # grouped weighting: q per row
     assert (table['q'] > 0).all() and np.isfinite(table['q']).all()
     return table
 

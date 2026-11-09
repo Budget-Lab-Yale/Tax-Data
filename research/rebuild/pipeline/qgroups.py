@@ -24,8 +24,7 @@ value).
     band is the household's reported one (model.REPORTED: every item with the fill-in, wages included since 28 October),
     not the filled-in PUF-concept slot (fillin.py), which changes every pass.
   CEX, CPS: q = 1.
-q is computed on all of a source's rows (training and held back together), so a group has one q. Settings "training",
-q_groups: {"puf": "agi12", "scf": "income5"}; null or missing gives q = 1 everywhere.
+q is computed on all of a source's rows (training and held back together), so a group has one q.
 
 The AGI group label. The PUF record's band-AGI group is also a category in the training table (agi_group,
 build_table.agi_group_label) that the network learns, always shown on PUF rows in training (train.py). Generation
@@ -37,10 +36,6 @@ import numpy as np
 import pandas as pd
 
 import common
-
-Q_GROUPS = common.SETTINGS['training'].get('q_groups') or {}
-assert set(Q_GROUPS) <= {'puf', 'scf'}, Q_GROUPS
-assert Q_GROUPS.get('puf') in (None, 'agi12') and Q_GROUPS.get('scf') in (None, 'income5'), Q_GROUPS
 
 PUF_LINES = [0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999, 0.9999]
 PUF_LABELS = ['AGI below -$1M', 'AGI -$1M to -$50k', 'AGI -$50k to 0', 'below p50', 'p50-75', 'p75-90', 'p90-95',
@@ -181,30 +176,26 @@ def q_of(table):
     """q per row of table (1 where no group applies)."""
     q = np.ones(len(table))
     pos = pd.Series(np.arange(len(table)), index=table.index)
-    if Q_GROUPS.get('puf'):
-        ref = puf_groups(table)
-        g = ref['group']
-        q[pos[g.index].to_numpy()] = np.asarray(ref['q'])[g.to_numpy()]
-    if Q_GROUPS.get('scf'):
-        s = scf_groups(table)
-        key = s['year'].astype(np.int64) * 10 + s['cls']
-        rec = key.groupby(key).transform('size').to_numpy(float)
-        tot = s['weight'].groupby(key).transform('sum').to_numpy(float)
-        q[pos[s.index].to_numpy()] = rec / tot
+    ref = puf_groups(table)
+    g = ref['group']
+    q[pos[g.index].to_numpy()] = np.asarray(ref['q'])[g.to_numpy()]
+    s = scf_groups(table)
+    key = s['year'].astype(np.int64) * 10 + s['cls']
+    rec = key.groupby(key).transform('size').to_numpy(float)
+    tot = s['weight'].groupby(key).transform('sum').to_numpy(float)
+    q[pos[s.index].to_numpy()] = rec / tot
     return q
 
 
 def describe(table):
     """A short table of the groups, records, weighted units and q, for the training log."""
     rows = []
-    if Q_GROUPS.get('puf'):
-        ref = puf_groups(table)
-        for k, lab in enumerate(PUF_LABELS):
-            rows.append({'source': 'puf', 'group': lab, 'records': int(ref['records'][k]),
-                         'weighted (m)': ref['returns'][k] / 1e6, 'q': ref['q'][k]})
-    if Q_GROUPS.get('scf'):
-        s = scf_groups(table)
-        for (y, c), x in s.groupby(['year', 'cls']):
-            rows.append({'source': f'scf {y}', 'group': SCF_LABELS[c], 'records': len(x),
-                         'weighted (m)': x['weight'].sum() / 1e6, 'q': len(x) / x['weight'].sum()})
+    ref = puf_groups(table)
+    for k, lab in enumerate(PUF_LABELS):
+        rows.append({'source': 'puf', 'group': lab, 'records': int(ref['records'][k]),
+                     'weighted (m)': ref['returns'][k] / 1e6, 'q': ref['q'][k]})
+    s = scf_groups(table)
+    for (y, c), x in s.groupby(['year', 'cls']):
+        rows.append({'source': f'scf {y}', 'group': SCF_LABELS[c], 'records': len(x),
+                     'weighted (m)': x['weight'].sum() / 1e6, 'q': len(x) / x['weight'].sum()})
     return pd.DataFrame(rows)

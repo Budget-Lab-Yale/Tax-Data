@@ -105,10 +105,6 @@ def pin():
     return path
 
 
-def law_year(year):
-    return int(S.get('law_year') or year)
-
-
 def run_batch(frame, year, folder, tag, wage_increment=0.0, law_sections=()):
     """The calculator's input frame (calculator.convert's) through tax-simulator-gpu's batch command under year's law.
     Writes <folder>/taxes_input_<tag>.parquet and taxes_output_<tag>.parquet (with its manifest). Returns the output
@@ -120,10 +116,8 @@ def run_batch(frame, year, folder, tag, wage_increment=0.0, law_sections=()):
     env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
     env.update(PYTHONPATH=f'{path}/src', PYTHONUNBUFFERED='1')
     env['JAX_PLATFORMS'] = 'cpu'   # the calculator runs on the CPU, as the whole tilt does
-    cmd = [S['python'], '-m', 'taxmodel.run.batch', '--records', src, '--year', str(law_year(year)), '--out', dst,
+    cmd = [S['python'], '-m', 'taxmodel.run.batch', '--records', src, '--year', str(int(year)), '--out', dst,
            '--seed', str(S['draw_seed']), '--commit', S['commit'], '--wage-increment', str(float(wage_increment))]
-    if S.get('law_alternative'):
-        cmd += ['--alternative', S['law_alternative']]
     if law_sections:
         cmd += ['--law-sections', *law_sections]
     common.say('taxes: ' + ' '.join(cmd))
@@ -218,7 +212,7 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
     # (round 10) a refund received in year t repays year t-1's taxes, so the cap on the deduction bears on it only from
     # 2019 (refunds of 2017 taxes, deducted with no cap, filled 2018: SOI has 7.3 million returns with a refund at AGI
     # $100,000-200,000 that year, and the rule left 1.8 million)
-    if S.get('refund_tax_benefit', False) and law_year(year) >= int(S.get('refund_tax_benefit_from', 2019)):
+    if int(year) >= int(S['refund_tax_benefit_from']):
         # (autoresearch, 4 November) The tax benefit rule (IRS Publication 525, worksheet 2): a refund of state income
         # tax is taxable only to the extent that deducting the tax lowered tax. Two limits on an itemizer: (1) the
         # taxes deduction the return claimed less the one it would have claimed had it paid the refund less tax;
@@ -370,12 +364,10 @@ def compute(df, year, w, folder):
     if stale:
         df = df.drop(columns=stale)
         ctx['notes'].append(f'the start\'s computed columns (from its own year) dropped and computed again under '
-                            f'{law_year(year)} law: {len(stale)} columns')
-    df = apply_repealed_adjustments(df, law_year(year), w, ctx)
-    if S.get('refund_rule', False):
-        df = apply_refund_rule(df, year, w, folder, ctx, C)
-    if S.get('greedy_schedule_a', {}).get('enabled', False):
-        df = greedy_schedule_a(df, year, w, folder, ctx, C)
+                            f'{int(year)} law: {len(stale)} columns')
+    df = apply_repealed_adjustments(df, int(year), w, ctx)
+    df = apply_refund_rule(df, year, w, folder, ctx, C)
+    df = greedy_schedule_a(df, year, w, folder, ctx, C)
     inp, notes = C.convert(df)
     ctx['conversion'] = notes
 
@@ -383,25 +375,24 @@ def compute(df, year, w, folder):
     ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
-    if S.get('se_tax_ded_from_calculator', False):
-        # (autoresearch, 4 November) the deductible half of self-employment tax is the calculator's (liab_seca_er,
-        # computed from each person's self-employment income and wages), not the drawn one: the calculator never reads
-        # the drawn deduction, so the file's adjustments and AGI disagreed with its own (run3's 2019 file: the drawn
-        # deduction $34.6 billion, the calculator's $29.9 billion, on 21 million returns). The adjustments total and
-        # other_agi (adjustments sign -1 in dollars.FOLD) move with it, then taxable Social Security is computed again,
-        # so the file's AGI is the calculator's.
-        new_se = out['liab_seca_er'].to_numpy(float)
-        assert np.isfinite(new_se).all() and (new_se >= 0).all(), 'liab_seca_er: a missing or negative value'
-        old_se = df['se_tax_ded'].to_numpy(float)
-        filer_ = df['filer'].to_numpy() == 1
-        ctx['notes'].append(f'deductible half of self-employment tax from the calculator (start weights): drawn '
-                            f'${(w * old_se)[filer_].sum() / 1e9:.2f} billion, calculator\'s ${(w * new_se)[filer_].sum() / 1e9:.2f} '
-                            f'billion on filers; {int((np.abs(new_se - old_se) > 1).sum()):,} records changed')
-        df = df.copy()
-        df['se_tax_ded'] = new_se
-        df['adjustments'] = df['adjustments'].to_numpy(float) + (new_se - old_se)
-        df['other_agi'] = df['other_agi'].to_numpy(float) - (new_se - old_se)
-        D.retirement_items(df, in_agi=True)
+    # (autoresearch, 4 November) the deductible half of self-employment tax is the calculator's (liab_seca_er,
+    # computed from each person's self-employment income and wages), not the drawn one: the calculator never reads
+    # the drawn deduction, so the file's adjustments and AGI disagreed with its own (run3's 2019 file: the drawn
+    # deduction $34.6 billion, the calculator's $29.9 billion, on 21 million returns). The adjustments total and
+    # other_agi (adjustments sign -1 in dollars.FOLD) move with it, then taxable Social Security is computed again,
+    # so the file's AGI is the calculator's.
+    new_se = out['liab_seca_er'].to_numpy(float)
+    assert np.isfinite(new_se).all() and (new_se >= 0).all(), 'liab_seca_er: a missing or negative value'
+    old_se = df['se_tax_ded'].to_numpy(float)
+    filer_ = df['filer'].to_numpy() == 1
+    ctx['notes'].append(f'deductible half of self-employment tax from the calculator (start weights): drawn '
+                        f'${(w * old_se)[filer_].sum() / 1e9:.2f} billion, calculator\'s ${(w * new_se)[filer_].sum() / 1e9:.2f} '
+                        f'billion on filers; {int((np.abs(new_se - old_se) > 1).sum()):,} records changed')
+    df = df.copy()
+    df['se_tax_ded'] = new_se
+    df['adjustments'] = df['adjustments'].to_numpy(float) + (new_se - old_se)
+    df['other_agi'] = df['other_agi'].to_numpy(float) - (new_se - old_se)
+    D.retirement_items(df, in_agi=True)
     item = out['itemizing'].to_numpy(float) > 0
     for name, (src, _) in OUTPUTS.items():
         if src.startswith('input '):
@@ -413,7 +404,7 @@ def compute(df, year, w, folder):
     assert not bad, f'computed columns with missing or infinite values: {bad}'
     with open(f'{folder}/conversion_notes.txt', 'w') as fh:
         fh.write('\n'.join(notes) + '\n')
-    ctx['notes'].append(f'taxes computed under {law_year(year)} law by tax-simulator-gpu {S["commit"][:12]} '
+    ctx['notes'].append(f'taxes computed under {int(year)} law by tax-simulator-gpu {S["commit"][:12]} '
                         f'({", ".join(man["devices"])}, {man["seconds"]["frame steps and taxes"]} s); columns joined: '
                         + ', '.join(cols.columns))
     return df, ctx

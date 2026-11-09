@@ -445,40 +445,39 @@ def main():
     # prescaling. given: records whose starting weight is given (in returns or units); fixed: records held at it
     top = None
     given = fixed = np.zeros(len(g19), bool)
-    if S.get('top', {}).get('enabled', False):
-        # (30 October) The top step draws from the network (Part A's hidden returns, the redraw of balance sheets at $1
-        # billion or more), which wants a GPU, while the rest of the tilt wants none. With REBUILD_TOP_CACHE set, a run
-        # with REBUILD_TOP_ONLY=1 (on a GPU) does that part (top_records.network_part), writes its result to that file
-        # and stops; a later run (on a CPU partition) reads it in place of the step. (2 November) The billionaires
-        # (top_records.add_list) need no network and are built on every run, after the cache; a cache written before
-        # 2 November that holds them has them removed first (top_records.strip_list).
-        import pickle
-        import top_records as TR
-        cache = os.environ.get('REBUILD_TOP_CACHE')
-        if common.REAL_PUF and spec['mode'] == 'generate':
-            # (4 November 2026) settings generation.filers real_puf: the redraw at $1 billion touches about 700 record
-            # copies and takes about 80 seconds a record on a CPU, so it runs on the generate stage's GPU, into the top
-            # cache (default <out>/top_cache.pkl), and the tilt reads it; a tilt with no cache stops here
-            cache = cache or f'{common.OUT}/top_cache.pkl'
-            import torch
-            assert os.path.exists(cache) or (os.environ.get('REBUILD_TOP_ONLY') and torch.cuda.is_available()), \
-                (f'filers real_puf: no top cache at {cache}. The top step\'s redraw at $1 billion runs on a GPU: run the '
-                 f'generate stage (which writes it after the draw) or the top stage on a GPU partition first')
-        if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
-            with open(cache, 'rb') as fh:
-                base = TR.strip_list(*pickle.load(fh))
-            common.say(f'the top step read from {cache}')
-        else:
-            base = TR.network_part(g19, raw, imp, Y, spec['mode'])
-            if cache:
-                with open(cache + '.part', 'wb') as fh:
-                    pickle.dump(base, fh, protocol=4)
-                os.replace(cache + '.part', cache)
-                common.say(f'the top step written to {cache}')
-        if os.environ.get('REBUILD_TOP_ONLY'):
-            return
-        g19, imp, given, fixed, top = TR.add_list(*base, Y)
-        del base
+    # (30 October) The top step draws from the network (Part A's hidden returns, the redraw of balance sheets at $1
+    # billion or more), which wants a GPU, while the rest of the tilt wants none. With REBUILD_TOP_CACHE set, a run
+    # with REBUILD_TOP_ONLY=1 (on a GPU) does that part (top_records.network_part), writes its result to that file
+    # and stops; a later run (on a CPU partition) reads it in place of the step. (2 November) The billionaires
+    # (top_records.add_list) need no network and are built on every run, after the cache; a cache written before
+    # 2 November that holds them has them removed first (top_records.strip_list).
+    import pickle
+    import top_records as TR
+    cache = os.environ.get('REBUILD_TOP_CACHE')
+    if common.REAL_PUF and spec['mode'] == 'generate':
+        # (4 November 2026) settings generation.filers real_puf: the redraw at $1 billion touches about 700 record
+        # copies and takes about 80 seconds a record on a CPU, so it runs on the generate stage's GPU, into the top
+        # cache (default <out>/top_cache.pkl), and the tilt reads it; a tilt with no cache stops here
+        cache = cache or f'{common.OUT}/top_cache.pkl'
+        import torch
+        assert os.path.exists(cache) or (os.environ.get('REBUILD_TOP_ONLY') and torch.cuda.is_available()), \
+            (f'filers real_puf: no top cache at {cache}. The top step\'s redraw at $1 billion runs on a GPU: run the '
+             f'generate stage (which writes it after the draw) or the top stage on a GPU partition first')
+    if cache and os.path.exists(cache) and not os.environ.get('REBUILD_TOP_ONLY'):
+        with open(cache, 'rb') as fh:
+            base = TR.strip_list(*pickle.load(fh))
+        common.say(f'the top step read from {cache}')
+    else:
+        base = TR.network_part(g19, raw, imp, Y, spec['mode'])
+        if cache:
+            with open(cache + '.part', 'wb') as fh:
+                pickle.dump(base, fh, protocol=4)
+            os.replace(cache + '.part', cache)
+            common.say(f'the top step written to {cache}')
+    if os.environ.get('REBUILD_TOP_ONLY'):
+        return
+    g19, imp, given, fixed, top = TR.add_list(*base, Y)
+    del base
     del raw
     x = g19['net_worth'].to_numpy(float)
     filer = g19['filer'].to_numpy() == 1
@@ -537,9 +536,8 @@ def main():
     # calculator targets, on the computed columns
     g19, tax_ctx = TX.compute(g19, Y, w0, f'{common.TILT}/taxes')
     calc_rows = TLS.expand(Y, start=g19, which='calculator')
-    common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
-                                                          ' (reported only: settings taxes.target is false)'))
-    targeted_calc = calc_rows if TX.S.get('target', True) else pd.DataFrame()
+    common.say(f'calculator targets: {len(calc_rows)}')
+    targeted_calc = calc_rows
     # income rank groups (the income x net worth grid) are set on the file's starting weights, so their conditions
     # are written again after the prescaling (a list without them is unchanged)
     ranked = 'rank_variable' in rows and rows['rank_variable'].fillna('').astype(str).ne('').any()
@@ -570,12 +568,11 @@ def main():
                    f"fixed records alone exceed, {int((~feas['reachable by the others']).sum())} the others cannot reach")
     # (1 November) the check before the reweighting: flags only, nothing dropped (precheck.py; settings tilt.precheck)
     precheck_lines = []
-    if S.get('precheck', {}).get('enabled', False):
-        import errors as ERR
-        import precheck as PRE
-        _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
-                                    common.TILT, S['precheck'])
-        common.say('\n'.join(precheck_lines))
+    import errors as ERR
+    import precheck as PRE
+    _, precheck_lines = PRE.run(rows, F, w0, averages, ERR.published_value(rows).to_numpy(float), se, identity,
+                                common.TILT, S['precheck'])
+    common.say('\n'.join(precheck_lines))
     # (1 November, John) settings tilt.soft_cap {k, beta}: each record's cap U_i is k times the MEAN STARTING weight of
     # its AGI group (agi_groups; records with a positive starting weight, held records left out; decision 73, John, 1 November: it was the median), and the cost gains 0.5 beta ((w_i - U_i)+ / U_i)^2
     # per record: nothing below the cap, quadratic above it (solver._solve)

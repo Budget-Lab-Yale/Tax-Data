@@ -94,7 +94,6 @@ import sipp_read as R
 import tax_units as T
 
 S = common.SETTINGS['sipp']
-REASSIGN = bool(common.SETTINGS.get('tax_units', {}).get('reassign', True))
 LH = [tuple(r) for r in S['lh_industries']]
 WAGE_CLASSES = [1, 2, 3, 4, 5, 6]              # class of worker: for an employer (7, 8 self-employed)
 BLOOD = [7, 8, 9, 10, 13, 14]                  # the householder's relatives by blood (in-laws 11, 12 are not)
@@ -463,7 +462,7 @@ def unit_rows(units, persons, mfs, year):
 def build(year):
     import targets as TG
     r = read_roster(year)
-    persons, units = T.build_units(r, year, reassign_pass=REASSIGN)
+    persons, units = T.build_units(r, year)
     target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
     mu = units[~units.dep_return].reset_index(drop=True)
     chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, salt=int(S['mfs_salt']))

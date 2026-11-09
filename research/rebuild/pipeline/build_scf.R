@@ -23,8 +23,8 @@
 #     half each, and everything else by their labor, business, pension and
 #     account-withdrawal income (a half each when both are 0).
 #   - Units outside the PEU (taxunit_code 9, group_level = 1) take their
-#     members' shares of the group's answers (roster_scf.py, setting
-#     tax_units.npeu_split); capital gains and tax-exempt interest are not asked
+#     members' equal shares of the group's answers (roster_scf.py);
+#     capital gains and tax-exempt interest are not asked
 #     of the group (0), and its public assistance and other income has no
 #     column here.
 #   - Other units (a non-relative in the PEU, a partner outside it;
