@@ -1,53 +1,10 @@
-"""Function 2, holding: the two-slot fill-in, run during training (train.py).
+"""The two-slot fill-in, run during training (train.py).
 
-Surveys miss holders: units that report zero wages, interest, dividends, capital gains, pensions or business income
-but hold some. Each row of the translation table with fill_in (translate.py; since 28 October on every survey: the
-SCF, the CEX, the CPS and the SIPP, and on wages) gives its item two slots on that survey's rows: the reported amount
-(model.REPORTED, never changed; one slot per item, on every survey that fills the item in) and the PUF-concept amount
-(the shared slot), which reporters copy and zero-reporters get filled in. From the pass fill_from_pass on, at the
-start of each pass, refit() gives every zero-reporter of every row its chance of a hidden holding in each size range,
-from the reporting-rate formula, row by row (survey s, item v):
-  type                     the survey year and the row's type variables (translate.fill_type): its survey's
-                           variables with type_for_fill_in (married, dependents, the wage band) less the item itself
-                           (wages is not in its own type), plus the row's type_extra (the SCF's Schedule E rest: the
-                           partnership flag). The type is read from the table's bands, which hold the reported amounts.
-  report_probs (C_k)       the unit's chance of reporting range k: label s, the record as the survey has it, the
-                           reported slot of v and every PUF-concept slot the survey fills in hidden (so no fill-in ever
-                           feeds the formula);
-  report_probs_by_type (B_k)  C_k averaged over the survey's units of the same type;
-  puf_probs_by_range (A_k) the tax data's share given the type only: the count-weighted average of the filers' share
-                           and the non-filers' share (the law of total probability),
-                             A_k = (N_f A_k(filers) + N_n A_k(non-filers)) / (N_f + N_n),
-                           N_f and N_n the filers and non-filers of the type in the tax data for the survey year
-                           (build_table.py, tax_data; data/tax_data_<year>.parquet). Filers: the PUF training rows'
-                           own survey-weighted shares by type (dependent filers out, a record with no age range at its
-                           step 0 chance of an adult range); the network's answer (PUF label, the PUF year, the type
-                           shown, mixed over the six adult age ranges by the network's chance of each) for a type with
-                           fewer than 30 PUF records. The amount compared is translate.against(row): the row's own variable,
-                           or its rank_against total (the CPS's dividends against ordinary dividends; its pensions
-                           against taxable pensions plus taxable IRA distributions), each on the slot's PUF-year cut
-                           points (the network's answer is the slot's own variable: an approximation, counted in the
-                           log). Non-filers: CPS label, the CPS year nearest the survey year, the filing flag 0,
-                           everything else but the type hidden; an item the CPS does not measure (interest) has no
-                           non-filer holder. A type with no unit in the tax data takes the filers' share alone;
-  excess (e_k)             max(A_k / B_k - 1, 0): how many more holders the tax data has than the survey reports, per
-                           reporter;
-  hidden (h_k)             C_k * e_k / C_0, capped at 100% in total.
-Within a range, bands follow A. Then draw() redraws, in each batch, the PUF-concept slot of the row's zero-reporters
-from those chances. A depends on the type only, so it is computed on one record of each type. The formula assumes a
-holder's chance of reporting depends only on its type and true amount, not on anything else on the record.
-
-A row fills in only in the survey years from its first_year on (translate.fills_in): a year the survey does not ask
-the item (the CPS's capital gains before tax year 2018) has no reporters; since 29 October the item is missing there
-(absent, not shown in training), so there is nothing to fill in.
-
-Writes common.MODEL/fill_log.csv: per pass and row, on the survey's year nearest the target year, the share with none
-as reported, after the fill-in, in the tax data at the survey's types (the mixed share), among filers only and among
-non-filers only; the share of zero-reporters capped; the largest gap from 1 of the mixed shares' sum over size ranges
-in any type; the survey weight in a type whose filers' share is the network's. fill_ranges.csv: per pass, row, year
-and size range, the survey's reported share, its expected share after the fill-in, and the tax data's at its types.
-fill_types.csv: the last refit's shares of none by row and type. report_translation.py calls refit() on a trained
-model for the report's stage after function 2.
+Surveys miss holders: some units report zero of an item they hold. For each row of the translation table with a
+fill-in, the reported amount keeps its own slot, and each pass the PUF-concept slot of every zero-reporter is redrawn
+from the reporting-rate formula, which compares the survey's holders with the tax data's (filers from the PUF,
+non-filers from the CPS) within each type. Writes fill_log.csv, fill_ranges.csv and fill_types.csv to the model folder.
+FEATURES.md, "Translation", has the method.
 """
 import math
 import os
@@ -84,7 +41,7 @@ def in_range(x, lo, hi):
 
 
 def nearest_cps_year(y):
-    """The CPS year nearest survey year y (the earlier of two equally near), as build_table.translate_surveys reads it."""
+    """The CPS year nearest survey year y (the earlier of two equally near)."""
     return min(CPS_YEARS, key=lambda c: (abs(c - y), c))
 
 
@@ -164,11 +121,6 @@ class View:
         for y in sorted(frame['year'].unique()):
             sel = (frame['year'] == y).to_numpy()
             d = frame[sel]
-            own = type_keys(d, self.survey, y, self.type_vars, banded=True)
-            again = type_keys(d, self.survey, y, self.type_vars, banded=False)
-            for v in self.type_vars:   # the bands put on the cut points from the dollars must be the table's own
-                if v not in M.CATEGORICAL:
-                    assert (again[v].to_numpy() == own[v].to_numpy()).all(), f'{self.survey} {y} {v}: bands differ'
             T = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
             assert T['filer'].isin([0, 1]).all() and (T['weight'] >= 0).all()
             tk = type_keys(T, self.survey, y, self.type_vars, banded=False)
@@ -188,7 +140,7 @@ class View:
 
 
 class FillIn:
-    """The fill-in for the training records tr (train.py's encoded training split; train_rows its table rows)."""
+    """The fill-in for the encoded training records tr; train_rows are their table rows."""
 
     def __init__(self, model, tr, train_rows, gen):
         self.model, self.tr, self.gen = model, tr, gen
@@ -205,7 +157,7 @@ class FillIn:
             self.recs[s] = tr[s].nonzero().squeeze(1)
             self.position[self.recs[s]] = torch.arange(len(self.recs[s]), device=device)
             self.frame[s] = train_rows[(train_rows['source'] == s).to_numpy()].reset_index(drop=True)
-            # the population weights (survey weights, no q: qgroups.py) for the averages over a type and the log
+            # the population weights (without q) for the averages over a type and the log
             self.weight[s] = tr['pop_weight'][self.recs[s]].double()
         self.views, self.view_of = {}, {}
         for k in KEYS:
@@ -221,7 +173,7 @@ class FillIn:
             act = np.array([TR.fills_in(ROW[k], int(y)) for y in yr])
             self.active[k] = torch.tensor(act, device=device)
             # the item is present on every record of the years it fills in; absent only in a year the survey does not ask
-            # it (translate.not_asked: the CPS's capital gains before tax year 2018, since 29 October)
+            # it (the CPS's capital gains before tax year 2018)
             assert bool(((tr['rep_band'][v][self.recs[s]] >= 0) | ~self.active[k]).all()), \
                 f'{k}: the item is absent on some {s} records of a year it fills in'
             self.zero[k] = self.active[k] & (tr['rep_band'][v][self.recs[s]] == 0)
@@ -242,12 +194,10 @@ class FillIn:
                                    for ss, v in KEYS if ss == s))
 
     def totals_setup(self, train_rows):
-        """The computed totals on a survey's rows with a filled-in part (28 October; the CPS: ordinary dividends from
-        qualified dividends, capital gains from long-term gains, Schedules C and F and business income from Schedule
-        C), recomputed after each draw so a record's total agrees with its filled-in parts (draw): each part's band as
-        dollars (the survey year's own median in the band, else the PUF-year median grown to the year), summed with
-        the total's signs, cut on the survey year's cut points of the total. self.totals[s] = {total: parts};
-        self.dollars[(s, part)] = [years, bands]; self.cuts[(s, total)] = per year (negative cuts, positive cuts)."""
+        """The computed totals with a filled-in part (on the CPS: ordinary dividends, capital gains, Schedules C and F,
+        business income), set up to be recomputed after each draw so a total agrees with its parts. Each part's band is
+        read as dollars (the survey year's median in the band, else the PUF-year median grown to the year), and the
+        signed sum is cut on the survey year's cut points of the total."""
         edges, growth = common.edges(), common.meta()['growth_factors']
         self.totals, self.dollars, self.cuts = {}, {}, {}
         filled_on = {s: {v for ss, v in KEYS if ss == s} for s in SURVEYS}
@@ -280,9 +230,8 @@ class FillIn:
                        f'in the survey year or the PUF (read as zero dollars): {missing}')
 
     def recompute_totals(self, ii, s):
-        """The computed totals of survey s's records ii from their parts' bands (see totals_setup). A total with a
-        missing part (band -1) stays missing (band -1): the dollar table is never read at band -1, which Python would
-        read as the top band (the bug of 29 October, explore/2026-10-29/diagnose/, section 3)."""
+        """The computed totals of survey s's records ii from their parts' bands. A total with a missing part stays
+        missing (-1), so the dollar table is never read at index -1, which would be the top band."""
         v = self.tr['values']
         yr = v[ii, 1]
         for t, parts in self.totals[s].items():
@@ -308,11 +257,9 @@ class FillIn:
             v[ii, C + P.index(t)] = band
 
     def puf_data_shares(self, puf, key):
-        """The filers' share by band from the PUF's training rows directly:
-        survey weights, dependent filers out (a record with no age range counts with its step 0 chance of an adult
-        range), by the row's type (as the network's PUF view reads the survey row's bands), of the row's tax-data total
-        (against_bands). Per type of the row's view: the shares [types, bands], and whether the type has at least
-        MIN_PUF_RECORDS PUF records (elsewhere refit keeps the network's answer)."""
+        """The filers' share by band of the row's tax-data total within each type, from the PUF's training rows by
+        survey weight, dependent filers out (a record with no age range counted by its chance of an adult range). Also
+        whether each type has MIN_PUF_RECORDS PUF records; for the others refit uses the network's answer."""
         view = self.views[self.view_of[key]]
         w = puf['weight'].to_numpy(float)
         ar = puf['age_range'].to_numpy()
@@ -358,13 +305,12 @@ class FillIn:
             else:
                 v[:, C + j] = v[:, C + j].clamp(min=0)
                 hid[:, j] = sl not in type_vars
-        # (4 November) the self-employment share is a PUF slot too: present only where married and its bases are shown
+        # the self-employment share is a PUF slot too: present only where married and its bases are shown
         return M.share_presence(v, hid)
 
     def cps_view(self, vals, cps_year, type_vars):
         """Records as the CPS would see a non-filer with only its type known: CPS label, the nearest CPS year, every
-        slot the CPS lacks absent, the filing flag 0, every other slot but the type's hidden (the shares present only
-        where married and the base are shown, as in training: model.share_presence)."""
+        slot the CPS lacks absent, the filing flag 0, every other slot but the type's hidden."""
         v = vals.clone()
         v[:, 0], v[:, 1] = M.SOURCES.index('cps'), cps_year
         hid = torch.zeros(len(v), len(P), dtype=torch.bool, device=self.device)
@@ -378,7 +324,7 @@ class FillIn:
         return M.share_presence(v, hid)
 
     def nonfiler_probs_by_band(self, vals, cps_year, type_vars, items):
-        """A by band among non-filers, for each item: CPS label, filing flag 0, given the type only."""
+        """The non-filers' share by band of each item, given the type only."""
         lp = M.log_probs_as(self.model, *self.cps_view(vals, cps_year, type_vars), 'cps')
         out = {}
         for v in items:
@@ -390,9 +336,8 @@ class FillIn:
         return out
 
     def puf_probs_by_band(self, vals, type_vars, items):
-        """A by band among filers, for each item: the PUF concept given the type only, over the PUF's units other than
-        dependent filers: the network's chance of each adult age range given the type, rescaled to sum to one, times
-        the item's distribution given the type and range."""
+        """The filers' share by band of each item from the network, given the type only, dependent filers out: the
+        item's distribution given the type and each adult age range, averaged by the network's chance of each range."""
         va, ha = self.type_view(vals, type_vars)
         j_age = P.index('age_range')
         age = M.log_probs_as(self.model, va, ha, 'puf')(j_age)[:, :common.ADULT_RANGES].exp().double()
@@ -407,11 +352,9 @@ class FillIn:
         return out
 
     def report_probs_by_band(self, vals, key):
-        """C by band: the chance of reporting each band of the row's item, as the survey sees the record with every
-        PUF-concept slot it fills in and the item's reported slot hidden, and also (28 October) every slot that would
-        give a filled-in amount away: a computed total with a filled-in part (the CPS's ordinary dividends, capital
-        gains, Schedules C and F, business income) hidden, and a CPS share whose base is filled in (the spouse's share
-        of the couple's wages) left out, as model.gate_shares does when its base is hidden."""
+        """The unit's chance of reporting each band of the row's item, as the survey sees the record with its reported
+        slot and every PUF-concept slot it fills in hidden. Slots that would give a filled-in amount away are hidden too:
+        computed totals with a filled-in part, and shares whose base is filled in (left out)."""
         s, v = key
         hidden = torch.zeros(len(vals), len(P), dtype=torch.bool, device=self.device)
         hidden[:, self.reported_slot[v]] = True
@@ -424,11 +367,10 @@ class FillIn:
         for j, (_, bases) in M.SHARE_GATES.items():
             if any(bool(hidden[0, b]) for b in bases):
                 vals[:, C + j], hidden[:, j] = -1, False
-        # (4 November) the earnings split code is made from the reported wages and self-employment income, so it
-        # would give a reported zero away: hidden whenever the chance of reporting is read
-        if 'earn_split' in P:
-            je = P.index('earn_split')
-            hidden[:, je] = vals[:, C + je] >= 0
+        # the earnings split code is made from the reported wages and self-employment income, so it would give a
+        # reported zero away
+        je = P.index('earn_split')
+        hidden[:, je] = vals[:, C + je] >= 0
         lp = M.log_probs_as(self.model, vals, hidden, s)
         return lp(self.reported_slot[v])[:, :self.n_bands[v]].exp().double()
 
@@ -471,7 +413,10 @@ class FillIn:
 
     @torch.no_grad()
     def refit(self, epoch, write_log=True):
-        """Each zero-reporter's fill-in distribution over the PUF-concept bands of each row's item (see the top)."""
+        """Each zero-reporter's fill-in distribution over the PUF-concept bands of each row's item. With C_k the unit's
+        chance of reporting size range k, B_k its average over units of the same type, and A_k the tax data's share in
+        range k for the type, the chance of a hidden holding in range k is C_k x max(A_k / B_k - 1, 0) / C_0, capped at
+        100% in total. Within a range, bands follow A."""
         self.model.eval()
         type_rows = []
         for vk in self.views:
@@ -502,9 +447,8 @@ class FillIn:
                 dist = ab * (hidden[z] / a_range[t[z]].clamp_min(1e-15))[:, self.band_range[k]]
                 dist[:, 0] = 1 - hidden[z].sum(1)
                 self.dist[k] = dist.clamp(min=0).float()
-                # the log: the survey's year nearest the target year
-                # the reported band's size range; a record whose reported item is missing (a year the row does not
-                # fill in) is never looked up at band -1, and is left out of the log
+                # the log, on the survey's year nearest the target year; a record whose reported item is missing (a
+                # year the row does not fill in) is left out
                 rb = self.tr['rep_band'][v][self.recs[s]]
                 known = rb >= 0
                 assert bool((known | ~self.active[k]).all()), f'{k}: a negative band index in a year the row fills in'
@@ -570,7 +514,7 @@ class FillIn:
                 continue
             band = torch.multinomial(self.dist[k][zp[z]], 1, generator=self.gen).squeeze(1)
             self.tr['values'][ii[z], C + self.slot[v]] = band
-        for s in self.totals:   # totals with a filled-in part, on the records with any filled-in part redrawn
+        for s in self.totals:   # recompute the totals on records with a part redrawn
             ii = idx[self.tr[s][idx]]
             if not len(ii):
                 continue

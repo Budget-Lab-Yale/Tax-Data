@@ -1,174 +1,10 @@
-"""Generation: PUF-style records drawn from the trained model.
+"""Generation: PUF-style records drawn from the trained networks, written to gen/<run>/stack.parquet.
 
-Two batches (step 2, 23 October): filers drawn from the PUF label at the PUF
-year (filing flag 1), and non-filers drawn from the CPS label at the target
-year (filing flag 0). The filing flag is the batch's own: set before anything
-is drawn. Every later phase (exact ages, SCF, CEX, the CPS's person items)
-runs on both batches alike.
-
-One record is drawn slot by slot:
-  1. the batch's own items, every variable the PUF has, each from the model
-     under the batch's label given the slots drawn so far: first the type
-     (married, dependents, the age range) in a random order per record, then
-     full filing status, child credit children and EITC children in that
-     order, then every amount in a random order per record. Full filing
-     status is joint exactly when married (separate returns have married 0,
-     as in the data). In the filer batch the AGI group label is preset
-     before anything is drawn (below). Under the CPS label
-     the age range is one of the six adult ranges (the CPS has no dependent
-     filers). In the filer batch the SCF-only slots are absent meanwhile, as
-     on a real PUF record; in the non-filer batch a PUF amount the CPS does not
-     measure (interest, John's ruling of 23 October) is zero on every record,
-     nothing drawn for it, and every slot the CPS has is present and hidden
-     until its turn, except the CPS's two shares, absent
-     until married and the share's base are drawn (model.gate_shares);
-  2. the computed totals: capital gains from its three pieces (short and long term before the loss limit,
-     distributions; since 29-30 October),
-     business income and its two subtotals (Schedules C and F, Schedule E)
-     from its eighteen parts, and (since 27 October) ordinary dividends from
-     qualified and other dividends and the adjustments from their eleven parts. Each part gets a dollar value inside its band
-     (one of 32 equally spaced weighted quantile points of the PUF records in
-     that band), the signed sum is placed in the total's band on the PUF's
-     cut points. Then the computed flag k1_owner: any partnership or
-     S corporation part nonzero;
-  2b. (since 4 November; earn_split.py) under the batch's label, the spouse's share of the couple's
-     self-employment income (asked only of a married couple with Schedules C or F or part_se:
-     absent until then and where not asked, zero at the end),
-     then the earnings split code (0 unless married; 1-3 where the couple has wages; 0 where it has
-     neither wages nor positive self-employment income), each given everything drawn so far. Neither
-     is drawn among the amounts above, so no PUF item is drawn with them known: the filer batch's
-     share comes from the PUF's own Schedule SE split, the non-filers' from the CPS's;
-  (On a dependent filer, every survey slot below is zero or none: see structural.)
-  3. the exact ages of the primary filer and the spouse (model.EXACT_AGES), in
-     a random order per record, under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out: the CPS covers
-     every tax unit, filers and non-filers, in every year, and its view holds
-     the filing flag. The primary filer's age lies inside its age range; the
-     spouse's exists exactly when married (cps_structure). The SCF, CEX and CPS
-     phases below all see these ages;
-  4. the SCF-only slots (the balance sheet, the unrealized gains and
-     owns_business, and since 28 October the elective deferrals and the
-     spouse's share of them) in a random order per record, except that the
-     home mortgage, carried as a share of the home's value, comes after the
-     home, and the spouse's share of the deferrals after the deferrals.
-     Deferrals are zero without wages, the spouse's share zero unless married
-     (deferral_structure).
-     Each is drawn under the SCF label with the PUF-only slots left out, as
-     the SCF would see the household, at the income year of the record's own
-     SCF wave (below);
-  5. the CEX-only slots (the 8 consumption categories) in a random order per
-     record, each under the CEX label and the record's own CEX year (below) with every slot the CEX lacks left out: given married,
-     dependents, the age range, the exact ages, wages, gross Social Security,
-     self-employment income and the categories drawn so far;
-  6. the CPS-only slots (dependents' ages, sex, the spouse's shares of the couple's
-     wages and self-employment income, weeks and hours worked, childcare) in a
-     random order per record, then (since 28 October) each adult's overtime pay
-     in a random order (the primary filer's zero without wages, the spouse's
-     without a spouse's share of wages above zero; each held to that person's
-     wages less tips when bands become dollars, dollars.py; the tips are drawn
-     later in the order, under the SIPP label), each under the CPS label and the record's own CPS year (below) with every slot the CPS lacks left out. They
-     follow the record's PUF items (cps_structure): the spouse's items only
-     when married, the k-th dependent's age only with k or more dependents.
-     The spouse's share of the couple's wages (since 4 November) only in the bands
-     that reach the range the earnings split code allows given the couple's wages and
-     self-employment split, at each band's median PUF dollars (wage_share_bands);
-     dollars.py then holds the exact share inside the exact range;
-  7. the SIPP-only slots (since 26 October): each adult's tips in dollars,
-     in a random order, then the two leisure and
-     hospitality flags, in a random order, each under the SIPP label and the record's own SIPP year (below) with every slot the SIPP lacks left
-     out: given married, dependents, the age range, the exact ages, wages and
-     the spouse's share of the couple's wages drawn in step 6 (absent where
-     not asked, as on the SIPP's rows). Rules (sipp_structure): the spouse's
-     items are zero unless married; the primary filer's tips are zero
-     without wages, the spouse's without a spouse's share of wages above zero;
-     a flag is 0 where its tips are zero. Each person's tips are then held to
-     at most that person's wages when bands become dollars (dollars.py).
-Blindness is not drawn here: since the second retrain of 29 October it is a rule in the non-microdata step
-(non_micro_imputations.blindness).
-Each step runs the network only on the slots present in its phase and
-computes only the output layers it needs.
-
-The CEX, CPS and SIPP years (TARGETS.md section 7, 27 October; built 28 October). Each record is given one year of
-each of the three surveys at random, with the shares in the target year's configuration (prior, "consumption", "cps
-items", "sipp tips"; for 2019 the 2019 year 73.11% and the 2017 year 26.89%, survey_mix.py), each survey by a random
-generator of its own (settings generation.survey_year_seeds and the batch's generation seed), so no other draw moves.
-Its CPS phases (exact ages and the CPS-only items), its CEX phase and its SIPP phase run under that survey's label at
-that year, and dollars.py turns its bands into dollars with that year's own map, grown to the target year. The stack
-carries cex_year, cps_year and sipp_year. The non-filer batch's own items stay under the CPS label at the target year.
-
-The SCF waves (TARGETS.md section 7). The balance sheet is drawn from a mix of SCF waves: the target year's
-configuration file gives each wave's share (targets_config/<target year>/prior.yaml, "balance sheet"; for 2019
-the 2019 wave 54.65%, the 2022 wave 33.15%, the 2016 wave 12.20%, by the rule of 24 October). Each record, filers and
-non-filers alike, is given one wave at random with those shares, by a random generator of its own (seeded by settings
-generation.scf_wave_seed and the batch's generation seed), so no other draw moves. Its SCF phase runs under the SCF
-label at that wave's income year (the 2019 wave is income year 2018 in the table), and dollars.py turns its balance
-sheet into dollars with that wave's own map. The stack carries scf_wave (the wave's survey year) and scf_year (its
-income year). A dependent filer gets a wave too, but holds no balance sheet.
-
-Consistency rules (settings.json, "consistency"). Each rule: when any of
-its items is nonzero on the record, at least one of its holdings must be
-nonzero. The one that must be nonzero is chosen when the first of them comes
-up, in proportion to the model's own chance that each is nonzero (before the
-offset's factors, below, so the choice does not move with them); the others are drawn
-freely. Ruling out zero sets the chance of zero to nothing and rescales the
-other bands; the model still decides the size. Also: with no home, the
-mortgage share is zero. No rule applies to a dependent filer: it holds no
-survey item at all.
-
-The offset. The rules add holders and take none away, so each ruled holding
-ends with more holders than the model alone would draw. Generation therefore
-runs more than once ("offset_generations"). After each run, for each ruled
-holding, one factor on the odds of holding it is found such that
-
-  forced holders + expected holders among the rest = the model's own expected holders
-
-(all weighted; a record's own expected count is the model's chance that the
-holding is nonzero at its turn, before rules and factors). The next run
-multiplies every record's odds of holding by that factor before the rules
-apply; on a forced record the rule overrides it, so in effect only the
-untouched records are scaled. The last run is the one kept. Items drawn
-later condition on earlier ones, so a run's own figures are reported and
-written to consistency.csv: what is left of the excess after the last run.
-
-The filer batch: the AGI group first (the label design; qgroups.py). The network has learned the
-PUF record's band-AGI group (agi_group, 12 groups) as a category, always shown in training. label_records filer
-records over all models are split across the 12 groups in proportion to the PUF's records per group (which, with
-grouped weighting, are also each group's shares of the PUF's training weight), each model drawing an equal share. Each
-record starts with its group preset; everything else is drawn given it. Its weight is the group's PUF-year returns
-over the records drawn in the group: 1 / q of the group, which undoes the up-counting of training exactly. Every
-drawn record is kept. The label is checked, not trusted: each record's band-AGI group is computed from its drawn bands
-(qgroups.band_agi) and compared with its label; the share that differs, and whether lower or higher, is reported per
-model and group (label_check.csv) and kept in the stack (q_group, label_ok). It is only reported: the weight follows
-the label.
-
-The non-filer batch is one part (stratifier "nonfiler"), every weight 1.
-Its number of records is the filer batch's records
-times the CPS's expected non-filers in the target year (the sum of weight x (1 - filer_p)) over SOI's returns for
-that year, so the stack's weights carry the two batches in their real proportion (the tilt sets their levels).
-
-Several trained models pooled (TARGETS.md section 8; settings "generation",
-models). Every group is drawn in equal shares from each model: with two
-models, each draws half the records of each and half the non-filer batch, so the
-stack has as many records as from one model. Each model's
-records carry an equal share of its batch's weight, so in each batch
-(filers, non-filers) every model carries the same share of the weight. Each
-model has its own draws: its seed_shift is added to every generation seed
-(the label part's and the non-filers'), so its draws are reproducible and differ
-from the other models'. Each record says which model drew it (column model,
-the network's training seed). Record ids are unique across models: model k
-in the list (counting from 0) has the ids from k x 10,000,000. The offset
-below is found for each model on its own records, since it brings each
-model's holders back to that model's own expected holders.
-
-Stored picks (dollars.py). For each record and each amount, one uniform number in [0, 1) is stored in the stack
-(u_<variable>, seeded by the dollars seed, the model's position and the variable's position in dollars.ORDER). It
-picks the record's real dollar amount within its band in every later step, so a record has one set of dollars, and
-its target-year dollars are its PUF-year dollars grown.
-
-Writes common.GEN/stack.parquet (one row per record: the band of every slot, weight, stratifier ('label' or
-'nonfiler'), scf_wave and scf_year, the label check (q_group, label_ok; -1 and true on non-filers), model, record_id
-and the stored picks), common.GEN/label_check.csv (per model and group: records drawn, the PUF's share, the weight
-per record, and the share whose band group differs from the label) and common.GEN/consistency.csv (per run, model
-and ruled holding: the model's own expected holders, the holders with the rules, the factor used and the next one).
+Two batches are drawn in equal shares from each pooled network: filers under the PUF label, each with its AGI group
+preset and weighted by 1 / q of the group, and non-filers under the CPS label at the target year. Each record is drawn
+slot by slot in phases: its own PUF items, the computed totals, the exact ages, then the SCF, CEX, CPS and SIPP items,
+each under that survey's label. Generation runs several times so the consistency rules' extra holders can be offset.
+FEATURES.md, "3. Generation", has the method.
 """
 import json
 import os
@@ -186,92 +22,83 @@ G = common.SETTINGS['generation']
 C = common.SETTINGS['consistency']
 NC = len(M.CONTEXT)
 P = M.PREDICTED
+
+
+def slots_of(names):
+    """The PREDICTED indices of slot names, as a tensor."""
+    return torch.tensor([P.index(v) for v in names], dtype=torch.long)
+
+
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
-# (4 November) drawn after the PUF items and their totals, in this order, under the batch's label (step 2b at the top)
-LATE_SLOTS = [v for v in M.PUF_SHARES + list(M.SHARED_CATEGORIES) if v in P]
-# (29 October; two groups since 6 November) the QBI items under the SCF label (build_table, meta scf_structure): each
-# group's outside workers drawn after its industry group and zero with none; the industry group never none on a record
-# with any of the group's PUF parts nonzero
-SCF_STRUCTURE = M.META.get('scf_structure', {'after': {}, 'industry_parts': {}})
+# drawn after the PUF items and their totals, in this order, under the batch's label
+LATE_SLOTS = M.PUF_SHARES + list(M.SHARED_CATEGORIES)
+# the QBI items under the SCF label: each group's outside workers are drawn after its industry group and are zero with
+# none; the industry group is never none on a record with any of the group's PUF parts nonzero
+SCF_STRUCTURE = M.META['scf_structure']
 SCF_AFTER = {P.index(v): P.index(b) for v, b in SCF_STRUCTURE['after'].items()}
-INDUSTRY_PARTS = {P.index(v): torch.tensor([P.index(q) for q in parts]) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
+INDUSTRY_PARTS = {P.index(v): slots_of(parts) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
 SCF_SLOTS = M.SCF_SLOTS
 CEX_SLOTS = M.CEX_SLOTS
 CPS_SLOTS = M.CPS_SLOTS
 CPS_STRUCTURE = M.META['cps_structure']
 SIPP_SLOTS = M.SIPP_SLOTS
 SIPP_STRUCTURE = M.META['sipp_structure']
-SIPP_SPOUSE = torch.tensor([P.index(v) for v in SIPP_STRUCTURE['spouse']])
+SIPP_SPOUSE = slots_of(SIPP_STRUCTURE['spouse'])
 SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the tips
 SIPP_TIPS = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
-AGE_SLOTS = M.EXACT_AGES                   # drawn after the PUF items, under the CPS label (see the top)
-SPOUSE = torch.tensor([P.index(v) for v in CPS_STRUCTURE['spouse']])
-# (28 October) each adult's overtime: drawn after the other CPS slots, so the spouse's share of wages is in place
-CPS_OVERTIME = [v for v in CPS_STRUCTURE.get('overtime', []) if v in CPS_SLOTS]
+AGE_SLOTS = M.EXACT_AGES                   # drawn after the PUF items, under the CPS label
+SPOUSE = slots_of(CPS_STRUCTURE['spouse'])
+# each adult's overtime: drawn after the other CPS slots, so the spouse's share of wages is in place
+CPS_OVERTIME = CPS_STRUCTURE['overtime']
 CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
-CPS_ZERO_WITHOUT = CPS_STRUCTURE.get('zero_without', {})
+CPS_ZERO_WITHOUT = CPS_STRUCTURE['zero_without']
 DEP_AGES = [P.index(v) for v in CPS_STRUCTURE['dependent_ages']]          # the k-th: present when n_dep >= k
-# (28 October) the dependents' Social Security number status: the k-th present when n_dep >= k, as the ages
-DEP_SSN = [P.index(v) for v in CPS_STRUCTURE.get('dependent_ssn', [])]
-PRIMARY_SSN = [P.index(v) for v in CPS_STRUCTURE.get('primary_ssn', [])]        # the primary filer's: never none
+# the dependents' Social Security number status: the k-th present when n_dep >= k
+DEP_SSN = [P.index(v) for v in CPS_STRUCTURE['dependent_ssn']]
+PRIMARY_SSN = [P.index(v) for v in CPS_STRUCTURE['primary_ssn']]        # the primary filer's: never none
 PRIMARY_AGE = P.index(CPS_STRUCTURE['primary_age'])
 SEX_PRIMARY = P.index('sex_primary')
-# the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is an adult: 18 or
-# over (John, 26 October; cps_structure)
+# the spouse's exact age (value 0 none, value a + 1 age a). A spouse, and a non-filer unit's head, is 18 or over
 SPOUSE_AGE = P.index(next(v for v in CPS_STRUCTURE['spouse'] if v in CPS_STRUCTURE['ages']))
 ADULT_AGE = 18
-CPS_CATEGORICAL = torch.tensor([P.index(v) for v in M.PERSON_CATEGORIES])
-# Every gated share (model.SHARE_GATES; since 4 November also the PUF's self-employment share): {slot index: [base
-# indices]}. A share is asked only of a married couple with some of a base (a band above zero: band 0 is zero, -1 absent)
+CPS_CATEGORICAL = slots_of(M.PERSON_CATEGORIES)
+# {gated share's slot index: [its bases' indices]}. A share is asked only of a married couple with some of a base.
 GATED = {s: list(bases) for s, (_, bases) in M.SHARE_GATES.items()}
-ES_SLOT = P.index('earn_split') if 'earn_split' in P else None
-WAGE_SHARE = P.index('spouse_wage_share') if 'spouse_wage_share' in P else None
+ES_SLOT, WAGE_SHARE, SE_SHARE = P.index('earn_split'), P.index('spouse_wage_share'), P.index('spouse_se_share')
 # the primary filer's age range of each age value (value 0 is none, value a + 1 is age a)
 RANGE_OF_AGE_VALUE = torch.tensor([-1] + [int(r) for r in np.searchsorted([26, 35, 45, 55, 65],
                                                                           np.arange(M.PERSON_CATEGORIES[CPS_STRUCTURE['primary_age']] - 1),
                                                                           side='right')])
-REP_SLOTS = torch.tensor([P.index(v) for v in M.REPORTED])
+REP_SLOTS = slots_of(M.REPORTED)
 RULES = C['rules']
 for _r in RULES:
     assert all(M.OWNED_BY.get(v, 'puf') != 'scf' for v in _r['when_any_nonzero']), _r['name']
     assert all(v in SCF_SLOTS for v in _r['then_at_least_one_nonzero']), _r['name']
-RULE_ITEMS = [torch.tensor([P.index(v) for v in r['when_any_nonzero']]) for r in RULES]
-RULE_HOLDINGS = [torch.tensor([P.index(v) for v in r['then_at_least_one_nonzero']]) for r in RULES]
+RULE_ITEMS = [slots_of(r['when_any_nonzero']) for r in RULES]
+RULE_HOLDINGS = [slots_of(r['then_at_least_one_nonzero']) for r in RULES]
 RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P.index)   # the offset's holdings
 DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
-SURVEY_ONLY = torch.tensor([P.index(v) for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS])
+SURVEY_ONLY = slots_of(AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS)
 POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
 STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_dep_ctc, n_dep_eitc)
 MARS, MARRIED, AGE_RANGE = P.index('filing_status'), P.index('married'), P.index('age_range')
-# The trained models pooled (see the top): each a run under OUT/model and the shift added to its generation seeds.
-# null: the run's own model (common.MODEL) alone, with today's seeds.
+# The pooled networks: each a run under OUT/model and the shift added to its generation seeds.
 MODELS = G['models']
+LABEL_RECORDS = int(G['label_records'])     # the filer batch's records over all models
 ID_BLOCK = 10_000_000                       # model k's record ids start at k x ID_BLOCK
 REAL_PUF = common.REAL_PUF                 # settings generation.filers 'real_puf': real_puf_part in place of the filer batch
-# The filer batch's design (see the top): the AGI group preset on every record.
+# The filer batch presets the AGI group label on every record.
 LABEL = 'agi_group'
 assert M.PUF_LABELS == [LABEL], 'the label design needs the AGI group label in the table (build_table.agi_group_label)'
 LABEL_META = M.META['labels'][LABEL]
 
 
-def filer_records():
-    """The filer batch's records over all models."""
-    return int(G['label_records'])
-
-
-def cps_expected_nonfilers(year):
-    """The CPS's expected non-filers in year: the sum over its units of weight x (1 - filer_p)."""
-    from reweight import target_list as TLS
-    return TLS.nonfiler_count(year)   # a year with no CPS units: the geometric mean of the CPS years either side
-
-
 def nonfiler_years():
-    """[(CPS year, share)] the non-filer batch is drawn at: the target year alone when the CPS has it; otherwise
-    (an even year, 30 October) the year's CPS mix (prior "cps items": the CPS years either side, half each), each
-    year's part of the batch drawn under the CPS label at that year."""
+    """[(CPS year, share)] for the non-filer batch: the target year alone when the CPS has it, otherwise the CPS
+    years either side, half each."""
     from shared import survey_mix
     from reweight import target_list as TLS
     if common.TARGET_YEAR in TLS.cps_years():
@@ -279,7 +106,7 @@ def nonfiler_years():
     return survey_mix.mix('cps')
 
 
-# ---- the SCF waves (TARGETS.md section 7) ------------------------------------------------------
+# ---- the SCF waves -----------------------------------------------------------------------------
 def scf_waves():
     """The waves the balance sheet is drawn from, from the target year's configuration (prior, "balance sheet"):
     [(wave survey year, income year, share)], by survey year."""
@@ -310,11 +137,10 @@ def assign_waves(n, seed):
     return np.minimum(k, len(SCF_WAVES) - 1)
 
 
-# ---- the CEX, CPS and SIPP years (TARGETS.md section 7, 27 October) ----------------------------
+# ---- the CEX, CPS and SIPP years ----------------------------------------------------------------
 def survey_years():
-    """{survey: [(tax year, share)]} for the CEX, CPS and SIPP, from the target year's configuration (prior,
-    "consumption", "cps items", "sipp tips"; survey_mix.py). Every year must be one the model saw: the training table
-    must hold rows of that survey in that year, and the year must be one of the model's years."""
+    """{survey: [(tax year, share)]} for the CEX, CPS and SIPP, from the target year's configuration. Every year must
+    be one the training table holds for that survey."""
     from shared import survey_mix
     t = pd.read_parquet(common.TABLE, columns=['source', 'year'])
     out = {}
@@ -344,7 +170,8 @@ _points = {}
 
 
 def part_points(total, device):
-    """[bands, 32] dollar points per band of each part of a total, and the total's cut points."""
+    """[bands, 32] dollar points per band of each part of a total (weighted quantiles of the PUF records in the band),
+    and the total's cut points."""
     if total in _points:
         return _points[total]
     parts = list(COMPUTED[total])
@@ -370,7 +197,8 @@ def part_points(total, device):
 
 
 def computed_band(values, gen, total):
-    """The band of a computed total from its parts' bands."""
+    """The band of a computed total: each part read as one of its band's dollar points at random, and the signed sum
+    placed on the total's PUF cut points."""
     pts = part_points(total, values.device)
     s = torch.zeros(len(values), dtype=torch.float64, device=values.device)
     for v, sign in COMPUTED[total].items():
@@ -389,21 +217,18 @@ def computed_band(values, gen, total):
 # ---- rules on a draw -------------------------------------------------------------
 def scf_order(size, gen):
     """A random order of the SCF-only slots per record, each ratio slot moved after its base."""
-    scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
+    scf = slots_of(SCF_SLOTS)
     perm = scf[torch.rand(size, len(scf), generator=gen).argsort(1)]
     rows = torch.arange(size)
     pairs = [(P.index(slot), P.index(base)) for slot, (_, base) in M.RATIOS.items() if slot in SCF_SLOTS]
-    # (the CPS's ratios: their base is a PUF slot, drawn earlier); the QBI items' workers after their industry group
+    # (the CPS's ratios have a PUF base, drawn earlier); each QBI group's workers after its industry group
     for i, ib in pairs + list(SCF_AFTER.items()):
         pos, pos_b = (perm == i).int().argmax(1), (perm == ib).int().argmax(1)
         swap = pos < pos_b
         perm[rows[swap], pos[swap]], perm[rows[swap], pos_b[swap]] = ib, i
-    # (autoresearch, round 13) the QBI items (each group's industry group and its outside workers) after every other
-    # SCF slot, keeping their order among themselves. qbi_structure gives an industry group to every record with the
-    # group's PUF parts nonzero, while in the SCF only owners of a business have one; drawn before owns_business and
-    # the balance sheet, a given industry made the record an owner (the 2019 file: 32 million units with a Schedule C
-    # industry against the SCF's 7 million; ownership 16.8% against 11.6%, 13.6% in the bottom income quarter
-    # against 3.4%).
+    # the QBI items after every other SCF slot, keeping their order among themselves: qbi_structure gives an industry
+    # group to every record with the group's PUF parts nonzero, while in the SCF only business owners have one, so drawn
+    # earlier an industry would make the record an owner
     qbi = torch.tensor(sorted(set(INDUSTRY_PARTS) | set(SCF_AFTER)))
     key = torch.arange(perm.shape[1]).expand(size, -1) + perm.shape[1] * torch.isin(perm, qbi).long()
     perm = torch.gather(perm, 1, key.argsort(1))
@@ -416,8 +241,8 @@ def dependent(values):
 
 
 def only(probs, rows, allowed=None):
-    """On rows, the distribution cut to the allowed values ([rows, choices] booleans) and rescaled; allowed None:
-    value 0 for certain. If the model gives every allowed value no chance at all, they are taken as equally likely."""
+    """On rows, the distribution cut to the allowed values ([rows, choices] booleans) and rescaled; with allowed None,
+    value 0 for certain. If every allowed value has no chance, they are taken as equally likely."""
     if allowed is None:
         probs[rows] = 0.0
         probs[rows, 0] = 1.0
@@ -429,39 +254,37 @@ def only(probs, rows, allowed=None):
     return probs
 
 
+def not_none(probs, rows):
+    """On rows, value 0 (none) ruled out and the other values rescaled."""
+    allowed = torch.ones(int(rows.sum()), probs.shape[1], device=probs.device)
+    allowed[:, 0] = 0.0
+    return only(probs, rows, allowed)
+
+
 def cps_structure(values, slot, probs):
-    """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married,
-    and a married couple's spouse has an age and a sex, the age 18 or over (every record, filers and non-filers;
-    ages under 18 get no chance and the other ages are rescaled); the primary filer's sex is a man or a woman, never
-    none (a dependent filer's is set to none after, in structural); the k-th dependent has an age, and a Social
-    Security number status, exactly when there are at least k dependents (the primary filer always has a status); the
-    primary filer's exact age lies in its age range, and a non-filer unit's head (the
-    CPS-label batch, filing flag 0) is 18 or over (a 17-year-old head falls in none of the non-filer people targets'
-    bands, adults from 18 and children under 17). Filers keep their PUF ranges: dependent filers can be teenagers."""
+    """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married, and a
+    married spouse has a sex and an age of 18 or over; the primary filer's sex and Social Security status are never
+    none; the k-th dependent has an age and a status exactly when there are at least k dependents. The primary filer's
+    exact age lies in its age range, and a non-filer head is 18 or over, since the non-filer targets count adults from
+    18 and children under 17."""
     married = values[:, NC + P.index('married')] == 1
     n_dep = values[:, NC + P.index('n_dep')]
     on_spouse = torch.isin(slot, SPOUSE.to(slot.device))
     categorical = torch.isin(slot, CPS_CATEGORICAL.to(slot.device))
-    not_none = torch.ones(probs.shape[1], dtype=torch.bool, device=probs.device)
-    not_none[0] = False
     probs = only(probs, on_spouse & ~married)
-    sel = on_spouse & married & categorical
-    probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
-    sel = slot == SEX_PRIMARY    # the primary filer's sex is a man or a woman, never none (29 October: two records of the 20261019 model had an age and no sex)
-    probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    probs = not_none(probs, on_spouse & married & categorical)
+    probs = not_none(probs, slot == SEX_PRIMARY)    # the primary filer's sex is a man or a woman, never none
     sel = (slot == SPOUSE_AGE) & married
     adult = torch.zeros(probs.shape[1], device=probs.device)
     adult[ADULT_AGE + 1:M.PERSON_CATEGORIES[P[SPOUSE_AGE]]] = 1.0   # value a + 1 is age a
     probs = only(probs, sel, adult.expand(int(sel.sum()), -1))
     for k, j in list(enumerate(DEP_AGES, start=1)) + list(enumerate(DEP_SSN, start=1)):
         probs = only(probs, (slot == j) & (n_dep < k))
-        sel = (slot == j) & (n_dep >= k)
-        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+        probs = not_none(probs, (slot == j) & (n_dep >= k))
     for j in PRIMARY_SSN:
-        sel = slot == j
-        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
-    # overtime (28 October): the primary filer's is zero without wages, the spouse's without a spouse's share of the
-    # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages less tips in dollars (dollars.py)
+        probs = not_none(probs, slot == j)
+    # overtime is zero without wages (the spouse's without a share of the couple's wages above zero); dollars.py then
+    # holds it to the person's wages less tips
     for item, base in CPS_ZERO_WITHOUT.items():
         probs = only(probs, (slot == P.index(item)) & (values[:, NC + P.index(base)] <= 0))
     sel = slot == PRIMARY_AGE
@@ -481,18 +304,16 @@ def positive(values, v):
 
 
 def earn_structure(values, slot, probs):
-    """The earnings split code (4 November; earn_split.py): 0 unless married; on a married couple, 1-3 where it has
-    wages (the PUF has code 0 with earnings on 0.02% of joint returns' weight), 0 where it has neither wages nor
-    positive Schedules C and F or part_se; otherwise as the model draws."""
-    if ES_SLOT is None:
-        return probs
+    """The earnings split code: 0 unless married; on a married couple, 1-3 where it has wages (the PUF has code 0 with
+    earnings on only 0.02% of joint returns' weight) and 0 where it has neither wages nor positive self-employment
+    income; otherwise as the model draws."""
     sel = slot == ES_SLOT
     if not bool(sel.any()):
         return probs
     married = values[:, NC + MARRIED] == 1
     wages = positive(values, 'wages')
     se = torch.zeros_like(married)
-    for b in GATED.get(P.index('spouse_se_share'), []):
+    for b in GATED[SE_SHARE]:
         se = se | (values[:, NC + b] >= M.BAND_LAYOUT[P[b]]['first_positive'])
     probs = only(probs, sel & (~married | (~wages & ~se)))
     some = sel & married & wages
@@ -511,9 +332,9 @@ def se_earnings_t(x):
 
 
 def capped_wage_share_range(W, e1, e2, a, b, cap):
-    """The spouse's wage shares (low, high) that put the primary's share of earnings in [a, b], each person's earnings
-    counted up to the room under the wage base (dollars.wage_share_bounds; the primary's share falls as the spouse's
-    wage share rises, so each end is found by halving). Where no share reaches the range, the nearest share, 0 or 1."""
+    """The spouse's wage shares (low, high) that put the primary filer's share of earnings in [a, b], self-employment
+    earnings counted up to the room under the wage base. The primary's share falls as the spouse's wage share rises,
+    so each end is found by halving. Where no share reaches the range, the nearest share, 0 or 1."""
     def primary_share(s):
         w1, w2 = W * (1 - s), W * s
         p1 = w1 + torch.minimum(e1, (cap - w1).clamp(min=0))
@@ -534,15 +355,14 @@ def capped_wage_share_range(W, e1, e2, a, b, cap):
 
 
 def band_tables(device):
-    """For wage_share_bands: each band's median PUF-year dollars (the band edges' record; an empty band, the middle of
-    its cut points) of wages, the self-employment share's bases and the share itself; the earnings split codes' ranges
-    of the primary's share; and, per year index, each band's range of the spouse's share of wages on that CPS year's
-    cut points (band 0 the share 0; loss bands never)."""
+    """For wage_share_bands: each band's median PUF-year dollars (an empty band: the middle of its cut points) of
+    wages, the self-employment share and its bases; the earnings split codes' ranges of the primary filer's share; and,
+    per year, each band's range of the spouse's wage share on that CPS year's cut points."""
     key = str(device)
     if key in _BAND_TABLES:
         return _BAND_TABLES[key]
     E = common.edges()
-    bases = [P[b] for b in GATED.get(P.index('spouse_se_share'), [])] if 'spouse_se_share' in P else []
+    bases = [P[b] for b in GATED[SE_SHARE]]
     med = {}
     for name in ['wages', 'spouse_se_share'] + bases:
         e = E[f'puf/{common.PUF_YEAR}/{name}']
@@ -588,8 +408,8 @@ def band_tables(device):
 
 def sipp_structure(values, slot, probs):
     """The SIPP's items follow the record's: the spouse's tips and flag are zero unless married; the primary filer's
-    tips are zero without wages, the spouse's without a spouse's share of wages above zero (not asked, -1, or zero); a
-    leisure and hospitality flag is 0 where its tips are zero (the tips are drawn first)."""
+    tips are zero without wages, the spouse's without a share of wages above zero; a leisure and hospitality flag is 0
+    where its tips are zero."""
     married = values[:, NC + MARRIED] == 1
     probs = only(probs, torch.isin(slot, SIPP_SPOUSE.to(slot.device)) & ~married)
     for share, base in SIPP_STRUCTURE['zero_without'].items():
@@ -603,55 +423,38 @@ def sipp_structure(values, slot, probs):
 
 
 def deferral_structure(values, slot, probs):
-    """Elective deferrals (decided 27 October): the unit's are zero without wages (none without wages, as for tips;
-    dollars.py then holds each person's to their own wages and to the legal limit), and the spouse's share of them
-    is zero unless married (with no deferrals it is zero by the ratio rule in structural)."""
-    if 'elective_deferrals' in P:
-        probs = only(probs, (slot == P.index('elective_deferrals')) & (values[:, NC + P.index('wages')] <= 0))
-    if 'spouse_deferral_share' in P:
-        probs = only(probs, (slot == P.index('spouse_deferral_share')) & (values[:, NC + MARRIED] != 1))
-    return probs
+    """Elective deferrals are zero without wages (dollars.py then holds each person's to their wages and the legal
+    limit), and the spouse's share of them is zero unless married."""
+    probs = only(probs, (slot == P.index('elective_deferrals')) & (values[:, NC + P.index('wages')] <= 0))
+    return only(probs, (slot == P.index('spouse_deferral_share')) & (values[:, NC + MARRIED] != 1))
 
 
 def qbi_structure(values, slot, probs):
-    """The QBI items (29 October): a group's outside workers are zero where its industry group is none (drawn first,
-    scf_order); its industry group is not none where any of the group's PUF parts is nonzero (the record has such a
-    business: the model's chances of the 8 groups, rescaled)."""
+    """The QBI items: a group's outside workers are zero where its industry group is none, and its industry group is
+    not none where any of the group's PUF parts is nonzero."""
     for j, ind in SCF_AFTER.items():
         probs = only(probs, (slot == j) & (values[:, NC + ind] == 0))
     for j, parts in INDUSTRY_PARTS.items():
         sel = slot == j
         if not bool(sel.any()):
             continue
-        has = (values[:, NC + parts.to(values.device)] != 0).any(1) & sel
-        not_none = torch.ones(probs.shape[1], device=probs.device)
-        not_none[0] = 0.0
-        probs = only(probs, has, not_none.expand(int(has.sum()), -1))
+        probs = not_none(probs, (values[:, NC + parts.to(values.device)] != 0).any(1) & sel)
     return probs
 
 
 def structural(values, slot, probs):
-    """A ratio slot whose base is zero is zero (no home: no mortgage share; no wages: no spouse's share of them; no
-    deferrals: no spouse's share of them). Elective deferrals follow wages and marriage (deferral_structure).
-    The CPS's person items follow the PUF items (cps_structure). A dependent filer holds no survey-only item
-    (balance sheet, unrealized gains, business ownership, consumption, the CPS's person items and childcare): the
-    surveys count it in the household that claims it, so on its own return every one is zero or none, and its
-    wages and self-employment income are all its own."""
+    """Every rule on a draw: a ratio slot whose base is zero is zero, then the rules above. A dependent filer holds no
+    survey-only item, because the surveys count it in the household that claims it."""
     for slot_name, (_, base) in M.RATIOS.items():
         if P.index(slot_name) in GATED:     # a gated share: zero where not asked (Chunk.not_asked), not by one base
             continue
-        no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
-        probs[no_base] = 0.0
-        probs[no_base, 0] = 1.0
+        probs = only(probs, (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0))
     probs = earn_structure(values, slot, probs)
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
     probs = deferral_structure(values, slot, probs)
     probs = qbi_structure(values, slot, probs)
-    dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
-    probs[dep] = 0.0
-    probs[dep, 0] = 1.0
-    return probs
+    return only(probs, dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device)))
 
 
 def scale_odds(probs, slot, factors):
@@ -665,20 +468,10 @@ def scale_odds(probs, slot, factors):
     return probs
 
 
-def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
-    """The current slot's distribution under the consistency rules (see the top), and which rows were forced.
-    nonzero: every slot's chance of being nonzero, the model's own (before the offset's factors), so which
-    holding a rule forces does not depend on the factors."""
+def apply_must(slot, probs, must):
+    """The current slot's distribution with zero ruled out where a consistency rule says the record must hold it, and
+    which rows that is."""
     rows = torch.arange(len(slot), device=slot.device)
-    for r in range(len(RULES)):
-        g = RULE_HOLDINGS[r].to(slot.device)
-        first = triggered[:, r] & ~resolved[:, r] & torch.isin(slot, g)
-        if not first.any():
-            continue
-        resolved[:, r] |= first
-        weight = (nonzero[:, g] * ~filled[:, g]).double().clamp_min(0) + 1e-12 * (~filled[:, g])
-        pick = torch.multinomial(weight[first], 1, generator=gen).squeeze(1)
-        must[rows[first], g[pick]] = True
     q = probs.clone()
     q[:, 0] = 0
     ok = must[rows, slot] & (q.sum(1) > 1e-12)
@@ -687,17 +480,16 @@ def apply_rules(slot, filled, nonzero, probs, triggered, resolved, must, gen):
 
 # ---- one chunk of records ----------------------------------------------------------
 class Chunk:
-    """size records being drawn: every slot's band (-1 absent), which slots are drawn, and the rules'
-    bookkeeping. Each step runs the network only on the slots present in its phase (model.SOURCE_SLOTS:
-    the PUF's, then the CPS's view for the exact ages, then the SCF's, the CEX's and the CPS's views) and computes only the output layers it needs.
-    scf_year: each record's index into model.YEARS for its SCF phase (its wave's income year); survey_year: the same
-    for the CEX, CPS and SIPP phases, per survey."""
+    """size records being drawn: every slot's band (-1 absent), which slots are drawn, and the consistency rules'
+    bookkeeping. scf_year is each record's index into model.YEARS for its SCF phase (its wave's income year);
+    survey_year the same for the CEX, CPS and SIPP phases."""
 
     def __init__(self, model, size, order, preset, start, factors, gen, scf_year, survey_year, label='puf', year=None,
                  adult_only=False):
         device = order.device
         self.adult_only = adult_only                                 # an adult age range under any label (real PUF)
         self.model, self.order, self.factors, self.gen = model, order, factors, gen
+        self.records = None   # the redraw (top_billionaires.redraw_records): [(rows, generator)] per record; see slot_probs
         self.scf_year = scf_year.to(device)
         self.survey_year = {src: y.to(device) for src, y in survey_year.items()}   # per survey: each record's year index
         self.label = label                                           # the batch's label for its own items
@@ -708,9 +500,9 @@ class Chunk:
         self.values[self.rows[:, None], NC + order] = 0              # present, not yet drawn
         for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS:
             self.values[:, NC + P.index(v)] = -1                      # absent until their turn
-        if label == 'cps':        # the CPS's own slots: present and hidden from the start, as on a CPS training row
+        if label == 'cps':        # the CPS's own and reported slots: present and hidden, as on a CPS training row
             for v in AGE_SLOTS + CPS_SLOTS + [r for r in M.REPORTED if 'cps' in M.PRESENT_ON[r]]:
-                self.values[:, NC + P.index(v)] = 0     # (and the CPS's reported slots of its filled-in items, 28 Oct.)
+                self.values[:, NC + P.index(v)] = 0
         for j in GATED:           # a share is absent until married and its bases are drawn (gate_shares, after_totals)
             self.values[:, NC + j] = -1
         for tot in list(COMPUTED) + list(FLAGS):
@@ -720,9 +512,8 @@ class Chunk:
             self.values[:, NC + P.index(var)] = bands[start:start + size].to(device)
             self.filled[:, P.index(var)] = True
             if P.index(var) in GATED:
-                # (run6, 5 November; filers real_puf) a gated share preset on some records only: -1 is no preset, and
-                # those records are asked or not by the generator's own rule and drawn in step 2b; a preset share
-                # stands, whether or not the rule would ask it
+                # (real PUF) a gated share preset on some records only: -1 means no preset, and those records are
+                # asked or not by the generator's rule; a preset share stands
                 self.filled[:, P.index(var)] = bands[start:start + size].to(device) >= 0
         self.triggered = torch.zeros(size, len(RULES), dtype=torch.bool, device=device)
         self.resolved = self.triggered.clone()
@@ -739,9 +530,9 @@ class Chunk:
         self.gate_shares()
 
     def gate_shares(self):
-        """Own phase: each share not yet drawn present (hidden) once married and its bases are drawn and the unit is
-        married with some of a base; absent before that, and where not asked (model.gate_shares). In the filer batch the
-        self-employment share's base Schedules C and F is a computed total, so the share stays absent until the totals."""
+        """Each share not yet drawn is present (hidden) once married and its bases are drawn and the unit is married
+        with some of a base; absent before that and where not asked. In the filer batch the self-employment share's base
+        Schedules C and F is a computed total, so the share stays absent until the totals."""
         for s, (m, bases) in M.SHARE_GATES.items():
             known = self.filled[:, m].clone()
             some = torch.zeros_like(known)
@@ -753,8 +544,8 @@ class Chunk:
                                                  torch.where(asked, 0, -1))
 
     def own_rules(self, slot, probs):
-        """Full filing status joint exactly when married (separate returns are not married, as in the data); under the
-        CPS label, an adult age range."""
+        """Full filing status is joint exactly when married (separate returns are not married, as in the data); under
+        the CPS label, or with adult_only, the age range is an adult one."""
         sel = slot == MARS
         if sel.any():
             assert self.filled[sel, MARRIED].all(), 'married is drawn before full filing status'
@@ -771,19 +562,51 @@ class Chunk:
         return probs
 
     def last_layer(self, values, hidden, src):
-        """The network on the source's slots, all of which must be present."""
+        """The network on the source's slots."""
         slots = M.SOURCE_SLOTS[src]
-        may_be_absent = [M.SOURCE_SLOTS[src].index(NC + j) for j in GATED if src in M.PRESENT_ON[P[j]]]
-        present = values[:, M.slot_tensor(slots, values.device)] >= 0
-        present[:, may_be_absent] = True
-        assert present.all(), f'a {src} slot is absent'
         return self.model.last_layer(*M.pack(values, hidden, slots), slots)
+
+    def slot_probs(self, h, slot, groups=None):
+        """Each row's distribution of its slot from its last-layer vector. With self.records (the redraw), computed on
+        each record's own rows, because the output layers' last digits depend on how many rows they run on; a record's
+        tries then come out as when it is drawn alone. groups: per record, the rows of each distinct slot."""
+        if self.records is None:
+            return self.model.slot_probs(h, slot)
+        if groups is None:                 # one slot on every row (a ruled holding): each record's rows are one group
+            same = torch.arange(len(self.records[0][0]), device=h.device)
+            groups = [[(int(slot[0]), same)] for _ in self.records]
+        return torch.cat([self.model.slot_probs(h[rows], slot[rows], groups[k]) for k, (rows, _) in enumerate(self.records)])
 
     def take(self, probs, slot):
         """Draw slot from probs, and record it."""
-        draw = torch.multinomial(probs, 1, generator=self.gen).squeeze(1)
+        if self.records is None:
+            draw = torch.multinomial(probs, 1, generator=self.gen).squeeze(1)
+        else:
+            draw = torch.cat([torch.multinomial(probs[rows], 1, generator=gen).squeeze(1) for rows, gen in self.records])
         self.values[self.rows, NC + slot] = draw
         self.filled[self.rows, slot] = True
+
+    def force_picks(self, slot, nonzero):
+        """The consistency rules' picks: a record that first reaches one of a triggered rule's holdings is given one
+        holding it must hold, chosen in proportion to nonzero, the model's own chance that each is nonzero before the
+        offset's factors, so the pick does not depend on the factors."""
+        for r in range(len(RULES)):
+            g = RULE_HOLDINGS[r].to(slot.device)
+            first = self.triggered[:, r] & ~self.resolved[:, r] & torch.isin(slot, g)
+            if self.records is None and not first.any():
+                continue
+            self.resolved[:, r] |= first
+            weight = (nonzero[:, g] * ~self.filled[:, g]).double().clamp_min(0) + 1e-12 * (~self.filled[:, g])
+            if self.records is None:
+                pick = torch.multinomial(weight[first], 1, generator=self.gen).squeeze(1)
+                self.must[self.rows[first], g[pick]] = True
+                continue
+            hit = first.view(len(self.records), -1).any(1).tolist()
+            for (rows, gen), h in zip(self.records, hit):
+                if h:
+                    f = first[rows]
+                    pick = torch.multinomial(weight[rows][f], 1, generator=gen).squeeze(1)
+                    self.must[rows[f], g[pick]] = True
 
     def puf_step(self, slot):
         """One of the batch's own items per record (a PUF variable), under the batch's label, given the slots drawn
@@ -822,41 +645,39 @@ class Chunk:
             some = torch.zeros_like(married)
             for b in bases:
                 some |= v[:, NC + b] > 0
-            self.not_asked[j] = (~married | ~some | dep) & ~self.filled[:, j]   # (run6) a preset share stands
+            self.not_asked[j] = (~married | ~some | dep) & ~self.filled[:, j]   # a preset share stands
             v[~self.not_asked[j] & ~self.filled[:, j], NC + j] = 0   # asked, not yet drawn: present and hidden
         for j, m in self.not_asked.items():
             v[m, NC + j] = -1
         return {r['name']: int(self.triggered[:, k].sum()) for k, r in enumerate(RULES)}
 
-    def survey_step(self, slot, label, year=None):
-        """One survey-only slot per record, as the survey label would see the record, under the rules."""
+    def survey_step(self, slot, label, year=None, groups=None):
+        """One survey-only slot per record, as the survey label would see the record, under the rules. groups: with
+        self.records, per record the rows of each distinct slot (slot_probs)."""
         hidden = (self.values[:, NC:] >= 0) & ~self.filled
         view, view_hidden = M.seen_as(self.values, hidden, label, year)
         h, col = self.last_layer(view, view_hidden, label), self.column[label]
-        slot_p = self.model.slot_probs(h[self.rows, col[NC + slot]], slot)
+        slot_p = self.slot_probs(h[self.rows, col[NC + slot]], slot, groups)
         # each ruled holding's chance of being nonzero, the model's own (no rule applies in the CEX and CPS phases)
         own_nonzero = torch.zeros(len(slot), len(P), device=slot.device)
         for v in (RULED if label == 'scf' else []):
             j = P.index(v)
-            own_nonzero[:, j] = 1 - self.model.slot_probs(h[:, col[NC + j]], torch.full_like(slot, j))[:, 0]
+            own_nonzero[:, j] = 1 - self.slot_probs(h[:, col[NC + j]], torch.full_like(slot, j))[:, 0]
         del h
         own_probs = structural(self.values, slot, slot_p.clone())   # the model's own, before rules
-        probs, ok = apply_rules(slot, self.filled, own_nonzero,
-                                structural(self.values, slot, scale_odds(slot_p.clone(), slot, self.factors)),
-                                self.triggered, self.resolved, self.must, self.gen)
+        probs = structural(self.values, slot, scale_odds(slot_p.clone(), slot, self.factors))
+        self.force_picks(slot, own_nonzero)
+        probs, ok = apply_must(slot, probs, self.must)
         k = (slot[:, None] == self.ruled[None, :])                  # rows whose slot is a ruled holding
         hit = k.any(1)
         col = k.int().argmax(1)
         self.own_chance[self.rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
         self.forced[self.rows[hit], col[hit]] = ok[hit]
         for j, m in self.not_asked.items():                         # no draw where the share is not asked
-            na = m & (slot == j)
-            probs[na] = 0.0
-            probs[na, 0] = 1.0
-        if label == 'cps' and WAGE_SHARE is not None and ES_SLOT is not None:
+            probs = only(probs, m & (slot == j))
+        if label == 'cps':
             probs = self.wage_share_bands(slot, probs)
-        # (run6) a slot preset on some records only (a real PUF record's share) keeps its preset value; in a synthetic
-        # batch no survey step's slot is filled before its own step, so nothing changes there
+        # a slot preset on some records only (a real PUF record's share) keeps its preset value
         keep = self.filled[self.rows, slot]
         before = self.values[self.rows, NC + slot].clone()
         self.take(probs, slot)
@@ -866,13 +687,11 @@ class Chunk:
             self.values[m, NC + j] = -1
 
     def wage_share_bands(self, slot, probs):
-        """The spouse's share of the couple's wages (CPS phase): on a married couple with wages and an earnings split
-        code of 1-3, only the bands of the record's CPS year that reach the shares putting the primary's share of
-        earnings in the code's range (earn_split.wage_share_bounds), with the couple's wages, Schedules C and F,
-        part_se and self-employment share at their bands' median PUF-year dollars, and each person's earnings counted
-        up to the PUF year's wage base, as E30400 counts them. Where the model gives every such band no chance, they are
-        taken as equally likely (only). dollars.py holds the exact share inside the exact range."""
-        sel = (slot == WAGE_SHARE) & ~self.not_asked.get(WAGE_SHARE, torch.zeros_like(slot, dtype=torch.bool))
+        """The spouse's share of the couple's wages, in the CPS phase: on a married couple with wages and an earnings
+        split code of 1-3, only the bands of the record's CPS year that can put the primary filer's share of earnings in
+        the code's range, with the couple's amounts at their bands' median PUF-year dollars and earnings counted up to
+        the PUF year's wage base. dollars.py holds the exact share inside the exact range."""
+        sel = (slot == WAGE_SHARE) & ~self.not_asked[WAGE_SHARE]
         code = self.values[:, NC + ES_SLOT]
         sel = sel & (code >= 1) & (code <= 3)
         if not bool(sel.any()):
@@ -884,7 +703,7 @@ class Chunk:
         X = torch.zeros_like(W)
         for name in B['se_bases']:
             X = X + torch.where(v[:, NC + P.index(name)] >= 0, med(name), torch.zeros_like(W))
-        sh = torch.where(v[:, NC + P.index('spouse_se_share')] >= 0, med('spouse_se_share'), torch.zeros_like(W))
+        sh = torch.where(v[:, NC + SE_SHARE] >= 0, med('spouse_se_share'), torch.zeros_like(W))
         e2, e1 = se_earnings_t(sh * X), se_earnings_t((1 - sh) * X)
         c = code[sel]
         lo, hi = capped_wage_share_range(W, e1, e2, B['low'][c], B['high'][c], float(M.META['earn_split']['se_wage_base']))
@@ -907,16 +726,12 @@ class Chunk:
 @torch.no_grad()
 def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf', year=None, filer=1,
              totals_preset=False, adult_only=False):
-    """n PUF-style records, and how many records each consistency rule applies to. label, year: the batch's label and
-    year for its own items (default the PUF at the PUF year); filer: the batch's filing flag, set before anything is
-    drawn. preset: {variable: bands, one per record} set before anything is drawn (the filer batch: the AGI group
-    label). factors: {ruled holding: factor on its odds of being nonzero}. Each record's SCF wave is drawn first, by a
-    generator of its own (assign_waves). For each ruled holding the table also carries the model's own chance it is
-    nonzero (_own_<v>) and whether a rule forced it (_forced_<v>).
-    totals_preset (filers real_puf, 4 November): the computed totals and flags are in preset (a real PUF record's
-    own bands) and are kept as they are; only the bookkeeping that follows them is done (Chunk.after_totals).
-    adult_only: an age range drawn under the PUF label is one of the six adult ranges (the PUF's aggregate records,
-    which are no one's dependents)."""
+    """n PUF-style records, and how many records each consistency rule applies to. label and year are the batch's
+    label and year for its own items; filer is its filing flag. preset: {variable: bands, one per record}, set before
+    anything is drawn. factors: {ruled holding: factor on its odds of being nonzero}. For each ruled holding the table
+    carries the model's own chance it is nonzero (_own_<v>) and whether a rule forced it (_forced_<v>). totals_preset:
+    the computed totals and flags are preset (a real PUF record's own bands) and kept. adult_only: an age range drawn
+    under the PUF label is an adult one (the PUF's aggregate records)."""
     preset, factors = dict(preset or {}), factors or {}
     if totals_preset:
         missing = [v for v in list(COMPUTED) + list(FLAGS) if v not in preset]
@@ -925,7 +740,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
         'the filer batch presets the AGI group label (the network never sees it hidden on a PUF record)'
     preset['filer'] = torch.full((n,), filer, dtype=torch.long)
     if label != 'puf':
-        # a PUF amount the batch's source does not measure (John, 23 October: interest on the CPS) is zero on every
+        # a PUF amount the batch's source does not measure (interest on the CPS) is zero on every
         # record of the batch, nothing drawn for it; a category must be there
         lacking = [v for v in PUF_SLOTS if label not in M.PRESENT_ON[v] and v not in preset and v not in M.PUF_LABELS]
         assert all(v in M.AMOUNTS for v in lacking), f'the {label} label lacks PUF categories: {lacking}'
@@ -936,44 +751,33 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     device = next(model.parameters()).device
     cpu_gen = torch.Generator().manual_seed(seed)                  # the orders
     gpu_gen = torch.Generator(device=device).manual_seed(seed)     # the draws
-    wave_k = assign_waves(n, seed)                                 # each record's SCF wave (see the top)
+    wave_k = assign_waves(n, seed)                                 # each record's SCF wave
     scf_year = torch.as_tensor(SCF_YEAR_INDEX[wave_k])
     svy_k = {src: assign_years(src, n, seed) for src in SURVEY_YEARS}      # each record's CEX, CPS and SIPP year
     svy_year = {src: torch.as_tensor(SURVEY_YEAR_INDEX[src][k]) for src, k in svy_k.items()}
-    first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
-    then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
-    rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
-                         and v not in STATUS_SLOTS and v not in M.PUF_LABELS and v not in LATE_SLOTS], dtype=torch.long)
-    own = torch.cat([first, then, rest])
-    # step 2b; (run6) a gated share preset on some records only is drawn here for the others
-    late = torch.tensor([P.index(v) for v in LATE_SLOTS if v not in preset or P.index(v) in GATED], dtype=torch.long)
-    cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
-    cps = torch.tensor([P.index(v) for v in CPS_FIRST])
-    cps_ot = torch.tensor([P.index(v) for v in CPS_OVERTIME], dtype=torch.long)
-    sipp_tips = torch.tensor([P.index(v) for v in SIPP_TIPS])
-    sipp_flags = torch.tensor([P.index(v) for v in SIPP_FLAGS])
-    age = torch.tensor([P.index(v) for v in AGE_SLOTS])
-    n_own, n_age, n_scf, n_cex, n_cps = len(own), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
-    n_late = len(late)
+    first = slots_of([v for v in TYPE_SLOTS if v not in preset])
+    then = slots_of([v for v in STATUS_SLOTS if v not in preset])
+    rest = slots_of([v for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
+                     and v not in STATUS_SLOTS and v not in M.PUF_LABELS and v not in LATE_SLOTS])
+    n_own = len(first) + len(then) + len(rest)
+    # the late slots; a gated share preset on some records only is drawn here for the others
+    late = slots_of([v for v in LATE_SLOTS if v not in preset or P.index(v) in GATED])
+    n_late, n_age, n_scf, n_cex, n_cps = len(late), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
     rule_counts = {r['name']: 0 for r in RULES}
 
     def orders(size):
-        return torch.cat([first[torch.rand(size, len(first), generator=cpu_gen).argsort(1)],
-                          then.expand(size, -1),
-                          rest[torch.rand(size, len(rest), generator=cpu_gen).argsort(1)],
-                          late.expand(size, -1),
-                          age[torch.rand(size, len(age), generator=cpu_gen).argsort(1)],
-                          scf_order(size, cpu_gen),
-                          cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
-                          cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)],
-                          cps_ot[torch.rand(size, len(cps_ot), generator=cpu_gen).argsort(1)],
-                          sipp_tips[torch.rand(size, len(sipp_tips), generator=cpu_gen).argsort(1)],
-                          sipp_flags[torch.rand(size, len(sipp_flags), generator=cpu_gen).argsort(1)]], 1).to(device)
+        """Each record's slot order: the phases in sequence, the slots within most phases in a random order per
+        record."""
+        shuffled = lambda x: x[torch.rand(size, len(x), generator=cpu_gen).argsort(1)]
+        return torch.cat([shuffled(first), then.expand(size, -1), shuffled(rest), late.expand(size, -1),
+                          shuffled(slots_of(AGE_SLOTS)), scf_order(size, cpu_gen), shuffled(slots_of(CEX_SLOTS)),
+                          shuffled(slots_of(CPS_FIRST)), shuffled(slots_of(CPS_OVERTIME)),
+                          shuffled(slots_of(SIPP_TIPS)), shuffled(slots_of(SIPP_FLAGS))], 1).to(device)
 
     def finish(d, order):
-        """Steps 2b to 7 on a chunk whose own items and totals are drawn."""
+        """The late slots and every survey phase, on a chunk whose own items and totals are drawn."""
         k = n_own
-        for step in range(k, k + n_late):      # step 2b: the self-employment share and the earnings split code
+        for step in range(k, k + n_late):      # the self-employment share and the earnings split code
             d.survey_step(order[:, step], d.label)
         k += n_late
         for step in range(k, k + n_age):
@@ -994,7 +798,7 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
         return d.values.cpu(), d.own_chance.cpu(), d.forced.cpu()
 
     parts = []
-    for start in range(0, n, chunk):           # steps 1 to 6, chunk by chunk
+    for start in range(0, n, chunk):           # chunk by chunk
         size = min(chunk, n - start)
         order = orders(size)
         d = Chunk(model, size, order, preset, start, factors, gpu_gen, scf_year[start:start + size],
@@ -1024,7 +828,7 @@ def to_table(values):
     return out
 
 
-# ---- the filer batch: the AGI group first (see the top) ---------------------------------------
+# ---- the filer batch, the AGI group preset ----------------------------------------------------
 def label_counts(n, records):
     """n records split across the groups in proportion to records (largest remainders)."""
     share = np.asarray(records, float) / np.sum(records)
@@ -1036,17 +840,13 @@ def label_counts(n, records):
 
 def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     """Model k's (of n_models) filer batch: its share of label_records split across the 12 groups in proportion to the
-    PUF's records per group, each record's group preset and everything else drawn given it; weight = the group's
-    PUF-year returns / records drawn in it (1 / q). Then each record's band-AGI group from its drawn bands (q_group)
-    and label_ok = (q_group == agi_group); every record kept. Returns the part, the check's table and the rule
-    counts.
-    group_records, seed (29 October, for the rebuilt aggregate records, top_hidden.py): a separate allocation of this model's
-    records across the 12 groups (a group with 0 records is not drawn) and its own generation seed, in place of the
-    proportional split and label_seed. The weight rule is the same, so each drawn group still carries its PUF-year
-    returns. Training is unchanged."""
+    PUF's records per group, each record's group preset and everything else drawn given it. The weight is the group's
+    PUF-year returns over the records drawn in it (1 / q). Each record's band-AGI group from its drawn bands is checked
+    against its label (q_group, label_ok). group_records and seed replace the split and label_seed for Part A's
+    candidates (top_hidden.py). Returns the part, the check's table and the rule counts."""
     rec, ret = np.asarray(LABEL_META['records'], float), np.asarray(LABEL_META['returns'], float)
     if group_records is None:
-        n_k = equal_shares(filer_records(), n_models)[k]
+        n_k = equal_shares(LABEL_RECORDS, n_models)[k]
         n_g = label_counts(n_k, rec)
     else:
         n_g = np.asarray(group_records, dtype=int)
@@ -1075,14 +875,15 @@ def label_part(model, mod, k, n_models, fac, group_records=None, seed=None):
     return part, check, counts
 
 
-# ---- the real PUF as the filers (4 November 2026; settings generation.filers 'real_puf') -------------------------
-# In place of the filer batch drawn from the networks, every 2015 PUF record keeps all its own PUF items (their bands
-# preset, so the draw is conditional on them) and each pooled network draws everything else given the record: the
-# exact ages, the balance sheet, consumption, the CPS's and the SIPP's items. Each record so appears once per network
-# (a "copy"), at its PUF weight divided by the number of networks. The record's own 2015 amounts go with it (columns
-# own_<item>); dollars.own_values grows them to the target year in place of a pick from the band's dollar map.
+# ---- the real PUF as the filers (settings generation.filers 'real_puf') ------------------------------------------
+# In place of the filer batch, every 2015 PUF record keeps its own PUF items (their bands preset) and each pooled
+# network draws everything else given the record, so each record appears once per network (a "copy") at its PUF
+# weight over the number of networks. Its own 2015 amounts go with it (own_<item>); dollars.own_values grows them.
 REAL_ID = 50_000_000            # a real record's id: REAL_ID + copy index x REAL_COPY_BLOCK + its PUF RECID
 REAL_COPY_BLOCK = 1_000_000
+REAL_SEED_SHIFT = 500           # added to the filer batch's generation seed for a real-PUF copy
+REAL_AGE_SALT = 2026110401      # the draws of the age range where the PUF has none (uniform_by_id), plus the copy
+REAL_EARN_SPLIT_SALT = 2026110501   # the same for the earnings split code
 _REAL = {}
 
 
@@ -1101,14 +902,10 @@ def preset_slots():
 
 
 def real_puf_records():
-    """The 2015 PUF's records with their bands, their own 2015 amounts and their weights, for filers real_puf.
-    'ord': the training table's PUF rows (the PUF less its four aggregate records), every slot as the table holds it
-    (age_range -1 where the PUF's demographic file has none, with step 0's probabilities age_p*). 'agg': the four
-    aggregate records (top_hidden.RECIDS), which the table leaves out: their amounts translated from the raw fields by
-    the table's rules as Part A reads them (top_hidden.puf_items: every one an itemizer, the 10% medical floor), banded
-    on the 2015 cut points (top_hidden.reband), the AGI group label from those bands (filing status taken as single for
-    the label alone). Their filing status, dependents and age are zero on the PUF (disclosure protection), so those
-    slots are drawn by the networks."""
+    """The 2015 PUF's records with their bands, own 2015 amounts and weights. 'ord' holds the training table's PUF
+    rows; 'agg' the four aggregate records, translated from the raw fields as Part A reads them and banded on the 2015
+    cut points, with the AGI group label from those bands (filing status taken as single for the label alone). Their
+    filing status, dependents and age are zero on the PUF, so the networks draw them."""
     if _REAL:
         return _REAL
     from shared import dollars as D
@@ -1122,10 +919,9 @@ def real_puf_records():
     del t
     na = o[cols].isna().sum()
     assert not na.any(), f'missing values on PUF rows: {na[na > 0].to_dict()}'
-    # (run6, 5 November) the earnings split's two slots (earn_split.py) may be -1 on a PUF row, as in training: the
-    # spouse's share of self-employment income where the PUF does not ask it (not joint, no self-employment income, or
-    # no Schedule SE earnings), kept absent; the earnings split code on joint returns with no demographics, drawn
-    # from step 0's probabilities (real_puf_part), as the age range is
+    # the earnings split's two slots may be -1 on a PUF row, as in training: the spouse's self-employment share where
+    # the PUF does not ask it, kept absent, and the earnings split code on joint returns with no demographics, drawn
+    # from its probabilities (real_puf_part)
     may_lack = {'age_range', 'earn_split'} | set(M.PUF_SHARES)
     bad = {M.column(v): int((o[M.column(v)] < 0).sum()) for v in slots if v not in may_lack and (o[M.column(v)] < 0).any()}
     assert not bad, f'PUF rows with a slot absent: {bad}'
@@ -1134,8 +930,8 @@ def real_puf_records():
         assert np.allclose(o.loc[none, M.ES_PROBS].sum(1), 1), 'earn_split: a PUF row with no code and no probabilities'
     o = o.rename(columns={v: D.OWN + v for v in own})
     agg_raw, _ = TH.read_raw()
-    # alimony received and paid (E00800, E03500) are blank on the four records (disclosure-suppressed; top_hidden
-    # SUPPRESSED_FIELDS): read as zero, so each record's AGI is still its E00100 (a choice of the test, 4 November)
+    # alimony received and paid (E00800, E03500) are blank on the four records (suppressed): read as zero, so each
+    # record's AGI is still its E00100
     sup = list(TH.SUPPRESSED_FIELDS)
     assert agg_raw[sup].isna().all().all(), 'the suppressed fields are not blank on the aggregate records'
     agg_raw = agg_raw.copy()
@@ -1167,38 +963,36 @@ def real_puf_records():
 
 
 def real_puf_part(model, mod, k, n_models, fac):
-    """Model k's (of n_models) copy of the real PUF (see above): the ordinary records with every PUF slot preset (the
-    age range, where the PUF has none, one draw per record and copy from step 0's probabilities, as training draws
-    it), and the four aggregate records with their amounts preset and their filing status, dependents and (adult)
-    age range drawn; then every survey item drawn given the record. Weight: the PUF weight / n_models. Returns the
-    part, the label check's table and the rule counts, as label_part does."""
+    """Model k's (of n_models) copy of the real PUF: the ordinary records with every PUF slot preset (a missing age
+    range drawn once per record and copy from its probabilities), and the four aggregate records with their amounts
+    preset and their filing status, dependents and adult age range drawn; then every survey item drawn given the
+    record. Weight: the PUF weight over n_models. Returns the part, the label check's table and the rule counts."""
     from shared import dollars as D
     from shared.ages import uniform_by_id
     R = real_puf_records()
     o, a, own, slots = R['ord'], R['agg'], R['own'], R['slots']
-    seed = int(G['label_seed']) + mod['seed_shift'] + int(G.get('real_puf_seed_shift', 500))
+    seed = int(G['label_seed']) + mod['seed_shift'] + REAL_SEED_SHIFT
     rng = o['age_range'].to_numpy().astype(np.int64)
     miss = rng < 0
-    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), int(G.get('real_puf_age_salt', 2026110401)) + k)
+    u = uniform_by_id(o.loc[miss, 'record_id'].to_numpy(), REAL_AGE_SALT + k)
     cp = np.cumsum(o.loc[miss, M.AGE_PROBS].to_numpy(float), 1)
     rng[miss] = np.minimum((cp < u[:, None]).sum(1), common.N_RANGES - 1)
     preset = {v: torch.as_tensor(o[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v != 'age_range'}
     preset['age_range'] = torch.as_tensor(rng)
-    if 'earn_split' in preset:
-        # (run6, 5 November) the earnings split code where the PUF has none (joint returns with no demographics): one
-        # draw per record and copy from step 0's probabilities (es_p*, earn_split.py), as training draws it each pass
-        es = o['earn_split'].to_numpy().astype(np.int64)
-        es_miss = es < 0
-        ue = uniform_by_id(o.loc[es_miss, 'record_id'].to_numpy(), int(G.get('real_puf_earn_split_salt', 2026110501)) + k)
-        ce = np.cumsum(o.loc[es_miss, M.ES_PROBS].to_numpy(float), 1)
-        es[es_miss] = np.minimum((ce < ue[:, None]).sum(1), len(M.ES_PROBS) - 1)
-        preset['earn_split'] = torch.as_tensor(es)
-        common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from step 0's probabilities on "
-                   f"{int(es_miss.sum()):,} joint returns with no demographics (codes {np.bincount(es[es_miss], minlength=len(M.ES_PROBS)).tolist()})")
+    # the earnings split code where the PUF has none (joint returns with no demographics): one draw per record and
+    # copy from its probabilities
+    es = o['earn_split'].to_numpy().astype(np.int64)
+    es_miss = es < 0
+    ue = uniform_by_id(o.loc[es_miss, 'record_id'].to_numpy(), REAL_EARN_SPLIT_SALT + k)
+    ce = np.cumsum(o.loc[es_miss, M.ES_PROBS].to_numpy(float), 1)
+    es[es_miss] = np.minimum((ce < ue[:, None]).sum(1), len(M.ES_PROBS) - 1)
+    preset['earn_split'] = torch.as_tensor(es)
+    common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from step 0's probabilities on "
+               f"{int(es_miss.sum()):,} joint returns with no demographics (codes {np.bincount(es[es_miss], minlength=len(M.ES_PROBS)).tolist()})")
     part, counts = generate(model, len(o), seed, preset=preset, factors=fac, totals_preset=True)
     for v in slots:
         c = M.column(v)
-        on = preset[v].numpy() >= 0 if P.index(v) in GATED else np.ones(len(part), bool)   # (run6) -1: drawn
+        on = preset[v].numpy() >= 0 if P.index(v) in GATED else np.ones(len(part), bool)   # -1: drawn
         assert np.array_equal(part[c].to_numpy()[on], preset[v].numpy()[on]), f'real PUF: the draw moved {c}'
     for v in slots:
         if P.index(v) in GATED:
@@ -1208,7 +1002,7 @@ def real_puf_part(model, mod, k, n_models, fac):
                        f"generator's rule then asks or not; {n_set:,} of them drew a share above the first band")
     part['age_range_drawn'] = miss.astype(np.int64)
     part['puf_aggregate'] = 0
-    drawn_a = set(TYPE_SLOTS) | set(STATUS_SLOTS) | set(LATE_SLOTS)   # (run6) the late slots drawn, as the status is
+    drawn_a = set(TYPE_SLOTS) | set(STATUS_SLOTS) | set(LATE_SLOTS)   # the late slots drawn, as the status is
     pre_a = {v: torch.as_tensor(a[M.column(v)].to_numpy().astype(np.int64)) for v in slots if v not in drawn_a}
     part_a, counts_a = generate(model, len(a), seed + 7, preset=pre_a, factors=fac, totals_preset=True,
                                 adult_only=True)
@@ -1235,10 +1029,9 @@ def real_puf_part(model, mod, k, n_models, fac):
 
 
 def store_picks(s, k, stream=4242):
-    """The stored picks (see the top): for each record and each amount with a band column, one uniform number in
-    [0, 1) (float32) in column u_<variable>, seeded by the dollars seed, the stream (4242 for the stack, 4343 for
-    Part A's candidates, top_hidden.py), the model's position k and the variable's position in dollars.ORDER, so the
-    same in every offset run."""
+    """The stored picks: for each record and amount, one uniform number in [0, 1) in u_<variable> that picks the
+    record's dollars within its band in every later step. Seeded by the dollars seed, the stream (4242 for the stack,
+    4343 for Part A's candidates), the model's position k and the variable's position, so the same in every run."""
     from shared import dollars as D
     seed = int(common.SETTINGS['dollars']['seed'])
     cols = {f'u_{v}': np.random.default_rng([seed, stream, k, i]).random(len(s), dtype=np.float32)
@@ -1247,24 +1040,25 @@ def store_picks(s, k, stream=4242):
 
 
 def nonfiler_records():
-    """The non-filer batch's number of records (see the top)."""
-    n_filers = filer_records()
-    nf, returns = cps_expected_nonfilers(common.TARGET_YEAR), TG.returns(TG.load(), common.TARGET_YEAR)
-    n = int(round(n_filers * nf / returns))
-    common.say(f'non-filer batch: {n:,} records = {n_filers:,} x {nf / 1e6:.2f}M CPS {common.TARGET_YEAR} expected '
+    """The non-filer batch's number of records: the filer batch's records times the CPS's expected non-filers over
+    SOI's returns."""
+    from reweight import target_list as TLS
+    # the CPS's expected non-filers in the year, the sum over its units of weight x (1 - filer_p) (a year with no CPS
+    # units: the geometric mean of the CPS years either side)
+    nf, returns = TLS.nonfiler_count(common.TARGET_YEAR), TG.returns(TG.load(), common.TARGET_YEAR)
+    n = int(round(LABEL_RECORDS * nf / returns))
+    common.say(f'non-filer batch: {n:,} records = {LABEL_RECORDS:,} x {nf / 1e6:.2f}M CPS {common.TARGET_YEAR} expected '
                f'non-filers / {returns / 1e6:.2f}M SOI returns')
     return n
 
 
 def load_models(device):
-    """The pooled models (settings "generation", models; see the top): per model its run, network, training seed and
-    generation-seed shift."""
-    entries = MODELS if MODELS is not None else [{'run': os.path.basename(common.MODEL), 'seed_shift': 0}]
-    assert len({e['run'] for e in entries}) == len(entries) and len({e['seed_shift'] for e in entries}) == len(entries), \
+    """The pooled models: per model its run, network, training seed and generation-seed shift."""
+    assert len({e['run'] for e in MODELS}) == len(MODELS) and len({e['seed_shift'] for e in MODELS}) == len(MODELS), \
         'each pooled model is a different run with its own seed shift'
     out = []
-    for e in entries:
-        folder = common.MODEL if MODELS is None else f"{common.OUT}/model/{e['run']}"
+    for e in MODELS:
+        folder = f"{common.OUT}/model/{e['run']}"
         seed = int(json.load(open(os.path.join(folder, 'train_meta.json')))['seed'])
         out.append({'run': e['run'], 'seed': seed, 'seed_shift': int(e['seed_shift']),
                     'network': M.load_model(device, os.path.join(folder, 'model.pt'))})
@@ -1286,11 +1080,11 @@ def build_stack(models, factors):
     stacks, checks = [], []
     for k, (mod, n_nf_k) in enumerate(zip(models, equal_shares(n_nf, len(models)))):
         model, shift, fac = mod['network'], mod['seed_shift'], factors[mod['run']]
-        if REAL_PUF:      # filers real_puf: every 2015 PUF record, its survey items drawn given it (see above)
+        if REAL_PUF:      # every 2015 PUF record, its survey items drawn given it
             part, check, counts = real_puf_part(model, mod, k, len(models), fac)
         else:
             part, check, counts = label_part(model, mod, k, len(models), fac)
-        part['weight'] *= filer_records() / len(models) / part['weight'].sum()   # each model: an equal share
+        part['weight'] *= LABEL_RECORDS / len(models) / part['weight'].sum()   # each model: an equal share
         part['stratifier'] = 'label'
         checks.append(check)
         rule_counts = {r: rule_counts[r] + counts[r] for r in rule_counts}
@@ -1300,7 +1094,7 @@ def build_stack(models, factors):
         sizes = [int(round(n_nf_k * s)) for _, s in nf_years]
         sizes[-1] = n_nf_k - sum(sizes[:-1])
         for j, ((ny, _), size) in enumerate(zip(nf_years, sizes)):
-            # one year (the target year): the seed as before; several (a year with no CPS units): a seed per year
+            # a seed per CPS year of the batch
             part_nf, c = generate(model, size, G['nonfiler_seed'] + shift + 100 * j, factors=fac, label='cps',
                                   year=ny, filer=0)
             if len(nf_years) > 1:
@@ -1394,7 +1188,7 @@ def main():
         check.insert(0, 'run', run)
         check.to_csv(os.path.join(common.GEN, 'label_check.csv'), index=False)   # the last run's is kept
         nxt = {}
-        for m in models:                    # each model's offset on its own records (see the top)
+        for m in models:                    # each model's offset on its own records
             table, nxt[m['run']] = offset(stack[stack['model'] == m['seed']], factors[m['run']], run)
             table.insert(1, 'model', m['seed'])
             report.append(table)

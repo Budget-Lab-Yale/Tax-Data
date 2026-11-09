@@ -1,36 +1,9 @@
-"""Grouped weighting (q) and the AGI group label (agreed 26 October: TARGETS.md S8; the tests are in HISTORY.md).
+"""Grouped weighting (q) and the AGI group label.
 
-Training counts each record by its survey weight times q, q constant within a group:
-  q = (records in the group) / (total survey weight in the group).
-Within a group records count by weight as before; across groups they count by number, so the few records at the top
-of the PUF count as much as the many in the middle. Each source's total share of training is unchanged
-(model.training_weights rescales within each source and split after multiplying by q).
-
-The groups are computed from BANDS, not exact dollars, because the network sees only bands: two records with the same
-bands always fall in the same group. Each band of each amount has one fixed representative amount, the weighted mean
-of the real PUF-year amounts in that band (the PUF year's dollar map; a band with no real record: the map's filled
-value).
-  PUF "agi12": band-AGI, the AGI formula of dollars.draw_dollars (the capital gains pieces, capital gain distributions
-    and the folded items into other AGI, business income from its parts, and since 3 November taxable Social Security
-    by the section 86 worksheet on the representative amounts, dollars.retirement_items) applied to the
-    representative amounts of the record's bands. Positive band-AGI in 9 groups at the weighted rank lines p50, p75, p90, p95, p99, p99.5, p99.9 and
-    p99.99 of band-AGI over the PUF year's returns; band-AGI zero or negative in 3 groups: -$50,000 to 0 (0
-    included), -$1,000,000 to below -$50,000, below -$1,000,000. A record exactly at a line is in the group above.
-  SCF "income5": within each wave, 5 classes cut at the weighted p50, p90, p99 and p99.9 of band-income, the sum of
-    wages, interest, dividends, capital gains, gross Social Security, Schedules C and F and Schedule E's two parts
-    (rental and the rest; before 28 October gross retirement income and Schedule E as one item), each from the
-    representative amount of the household's band. The SCF's bands are the PUF's with the cut points grown to the wave,
-    so a band's representative amount is the PUF one times that growth. For every item with the fill-in the
-    band is the household's reported one (model.REPORTED: every item with the fill-in, wages included since 28 October),
-    not the filled-in PUF-concept slot (fillin.py), which changes every pass.
-  CEX, CPS: q = 1.
-q is computed on all of a source's rows (training and held back together), so a group has one q.
-
-The AGI group label. The PUF record's band-AGI group is also a category in the training table (agi_group,
-build_table.agi_group_label) that the network learns, always shown on PUF rows in training (train.py). Generation
-presets it on every filer record and draws everything else given it (generate.py), so the number of records drawn in
-each group is set in advance; each record is weighted by its group's PUF returns over the records drawn in it, which is
-1 / q of the group and undoes the up-counting exactly.
+Training counts each record by its survey weight times q, the group's records over its total weight, so that across
+groups records count by number. PUF groups are the 12 band-AGI groups and SCF groups 5 band-income classes per wave;
+the other sources have q = 1. Groups are computed from bands, because the network sees only bands. Generation presets
+the group label and weights each record by 1 / q. FEATURES.md, "2. Pretraining", has the method.
 """
 import numpy as np
 import pandas as pd
@@ -42,8 +15,6 @@ PUF_LABELS = ['AGI below -$1M', 'AGI -$1M to -$50k', 'AGI -$50k to 0', 'below p5
               'p95-99', 'p99-99.5', 'p99.5-99.9', 'p99.9-99.99', 'p99.99+']
 SCF_LINES = [0.5, 0.9, 0.99, 0.999]
 SCF_LABELS = ['below p50', 'p50-90', 'p90-99', 'p99-99.9', 'p99.9+']
-# (28 October: gross Social Security in place of Social Security plus pensions, and Schedule E as its two shared
-# parts, rental and the rest, as the translation table shares them)
 SCF_INCOME = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'gross_ss', 'sch_cf_income', 'sche_rent', 'sche_rest']
 
 
@@ -59,9 +30,9 @@ _REP = {}
 
 
 def rep_maps():
-    """{variable: one row per band}: the representative amount of each band of each PUF-map variable, the weighted
-    mean of the real amounts in that band in map_puf_<PUF year>, or the map's filled value for a band with no real
-    record. Weight 1, so dollars.draw_dollars on these maps returns the representative amounts exactly."""
+    """{variable: one row per band}: each band's representative amount, the weighted mean of the real PUF-year
+    amounts in it (the map's filled value for a band with no real record). Weight 1, so dollars.draw_dollars on these
+    maps returns the representative amounts exactly."""
     if not _REP:
         m = pd.read_parquet(f'{common.MAPS}/map_puf_{common.PUF_YEAR}.parquet')
         for v, g in m.groupby('variable'):
@@ -80,25 +51,23 @@ def rep_maps():
 
 
 def band_agi(df):
-    """AGI from the representative amounts of each record's bands, through the combination dollars.draw_dollars uses.
-    PUF-year dollars."""
+    """AGI from the representative amounts of each record's bands, in PUF-year dollars."""
     from shared import dollars as D
-    # (3 November) and what taxable Social Security reads (gross benefits, tax-exempt interest, the student loan
-    # interest deduction, the filing status): it is computed by the section 86 worksheet, not drawn
+    # taxable Social Security is computed by the section 86 worksheet, so its inputs are needed too
     need = set(D.AGI_PARTS) | set(D.KG_PIECES) | set(D.FOLD) | set(D.META['computed_totals']['business_income']) \
         | set(D.SS_INPUTS)
     cols = [f'{v}_band' for v in D.ORDER if v in need]
     bands = df[cols].reset_index(drop=True)
     assert (bands >= 0).all().all(), 'a part with no band on a record'
-    # the capital loss limit is $1,500 on a separate return (29-30 October); the worksheet's base amounts depend on it
+    # the filing status sets the capital loss limit and the worksheet's base amounts
     assert 'filing_status' in df, 'band-AGI needs the filing status (the loss limit and taxable Social Security)'
     bands['filing_status'] = df['filing_status'].to_numpy()
     return D.agi(D.draw_dollars(bands, rep_maps()))
 
 
 def _scale(e_to, e_from, side):
-    """The factor that carries the PUF year's band cuts to another year's (the SCF wave's cuts are the PUF's grown),
-    and the spread of the ratios (zero to rounding)."""
+    """The factor that carries the PUF year's band cuts to another year's, and the spread of the ratios (zero up to
+    rounding)."""
     a, b = np.asarray(e_to[side]['cuts'], float), np.asarray(e_from[side]['cuts'], float)
     if len(a) == 0 or len(b) == 0:
         return 1.0, 0.0
@@ -109,9 +78,8 @@ def _scale(e_to, e_from, side):
 
 
 def scf_band_income(d):
-    """Band-income of SCF rows (see the top): the 7 income items from the representative amounts of each row's bands,
-    each band's PUF amount times the growth of the item's cut points from the PUF year to the wave (positive and
-    negative bands separately)."""
+    """Band-income of SCF rows: the income items from the representative amounts of each row's reported bands, each
+    PUF amount grown to the wave by the growth of the item's cut points."""
     rep, edges = rep_maps(), common.edges()
     inc = np.zeros(len(d))
     yr = d['year'].to_numpy()
@@ -138,8 +106,8 @@ _PUF = {}
 
 
 def puf_groups(table=None):
-    """The PUF's band-AGI lines (PUF-year dollars), groups and q, from the table's PUF rows (computed once).
-    Returns dict(cuts=[8 lines], q=[12], records=[12], returns=[12], group=Series by table index)."""
+    """The PUF's band-AGI lines (PUF-year dollars), and each group's records, returns and q, from the table's PUF
+    rows. Computed once."""
     if not _PUF:
         if table is None:
             table = pd.read_parquet(common.TABLE)
@@ -159,7 +127,7 @@ def puf_groups(table=None):
 
 
 def scf_groups(table):
-    """Per SCF row of table: its band-income class 0..4 within its wave (index aligned to the SCF rows)."""
+    """Each SCF row's band-income class (0 to 4) within its wave."""
     d = table[(table['source'] == 'scf').to_numpy()]
     inc = scf_band_income(d)
     w = d['weight'].to_numpy(float)

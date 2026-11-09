@@ -1,61 +1,9 @@
-"""Pretraining: the transformer on the PUF, SCF, CEX, CPS and SIPP table.
+"""Pretraining: trains one network on the training table and writes it, with its logs, to the model folder.
 
-Masked any-subset training (model.py) on every record but a 2% held-back
-slice, for a fixed number of passes, keeping the last.
-
-Batches. Each batch holds records of one source and carries only that
-source's slots (model.SOURCE_SLOTS). Each pass splits every source's training
-rows into batches of the usual size and shuffles the batches of all sources
-together, so each source gets updates in proportion to its rows. A batch's
-weighted cross-entropy is divided by (records in the batch) x (the average
-over all training records of weight x expected hidden slots), the denominator
-a batch mixing all sources would have on average, so a source's records count
-as much in the objective as they would there.
-
-The fill-in (fillin.py, function 2): from the pass fill_from_pass on, the
-PUF-concept amount of every zero-reporter of every row of the translation table
-with fill_in (since 28 October on all four surveys, wages included) is redrawn
-in each batch. In the held-back slice no fill-in is drawn, so there a
-zero-reporter's PUF-concept slot is absent (unknown: not shown, not scored).
-
-Age range (ages.py). PUF records with no range carry step 0's probabilities;
-a range is drawn from them for every training record at the start of each
-pass, and once for the held-back ones. The earnings split code (earn_split.py,
-since 4 November) the same way: joint returns with no demographics and some
-earnings carry probabilities over EARNSPLIT's three ranges.
-
-The filing flag (step 2). PUF rows are filers (filer = 1). On CPS rows the
-flag is drawn from the unit's filing chance (filer_p) for every training
-record at the start of each pass, and once for the held-back ones, the same
-pattern as the age range.
-
-The CPS's shares (model.gate_shares). The spouse's share of the couple's wages (of
-its self-employment income) is left out of a record whenever married or the
-share's base is hidden, so its presence never tells the network what those
-hidden slots hold. Generation needs this to draw non-filers' married flag and
-amounts under the CPS label.
-
-Grouped weighting (qgroups.py). Each record counts by its survey weight times q, q
-constant within a group (12 band-AGI groups on the PUF, 5 band-income classes per SCF wave, 1 on the CEX and CPS), then
-rescaled within each source, so each source's share of training is unchanged. The training log prints the groups and
-their q. Averages meant to describe the population use the survey weights without q: the fill-in's averages over a
-type (fillin.py) and the per-variable log.
-
-The AGI group label (shown always since 26 October). Generation always presets a filer's AGI group, so on PUF
-rows the label is never hidden in training and never scored: the hidden set is drawn over all of a record's present
-slots, the label included, then the label alone is set back to shown. Which other slots are hidden, and how many, is
-therefore as if the label were an ordinary slot. A record whose only hidden slot was the label has nothing hidden
-(about 0.04% of PUF rows a pass) and adds nothing to the loss. The loss denominator still counts the label among the
-expected hidden slots. The held-back loss in train_log.csv is measured with the label shown too.
-
-Precision of the training steps (bf16, adopted 26 October; fp32 and tf32 were
-tested on 22 October): the forward pass under autocast in bfloat16, the
-log-probabilities, loss, gradients and weight updates in 32-bit. The fill-in,
-the held-back loss and the per-variable log run in 32-bit.
-
-Writes, in common.MODEL: model.pt, train_log.csv (loss per pass),
-var_log.csv (held-back PUF, CEX, CPS and SIPP holder shares per variable, every few
-passes; for a CPS category, the share not in value 0), fill_log.csv (fillin.py), train_meta.json (settings).
+Every record but a 2% held-back slice is used, for a fixed number of passes; each batch holds one source's records and
+only that source's slots. Each pass redraws missing age ranges, earnings split codes and CPS filing flags from their
+probabilities, and from the pass `fill_from_pass` on the fill-in (fillin.py). Records count by survey weight times q
+(qgroups.py). FEATURES.md, "2. Pretraining", has the method.
 """
 import json
 import math
@@ -78,7 +26,8 @@ J_LABEL = [P.index(v) for v in M.PUF_LABELS]       # the AGI group label's posit
 
 
 def show_label(hidden, slots=None):
-    """hidden [N, predicted slots of `slots`] (all of PREDICTED when slots is None), with the label set to shown."""
+    """The hidden mask with the AGI group label set to shown. Generation always presets the label, so training never
+    hides or scores it."""
     cols = list(range(len(P))) if slots is None else M.predicted_of(slots)
     for j in J_LABEL:
         if j in cols:
@@ -86,14 +35,9 @@ def show_label(hidden, slots=None):
     return hidden
 
 
-def autocast():
-    """The training step's forward pass in bfloat16."""
-    return torch.autocast('cuda', dtype=torch.bfloat16)
-
-
 def encode(part, device):
-    """A split's records on the device: values, weights, step 0's age draws, the source masks, and the reported
-    band of each mapped item (on SCF rows the PUF-concept slot starts as a copy of it)."""
+    """A split's records on the device: values, weights, the probabilities for the drawn age ranges, earnings split
+    codes and filing flags, the source masks, and the reported band of each item with a fill-in."""
     d = M.encode(part, device)
     age_rows, age_probs = M.age_draws(part, device)
     es_rows, es_probs = M.earn_draws(part, device)
@@ -121,14 +65,14 @@ def main():
     j_age = C + P.index('age_range')
 
     def draw_ages(d):
-        """A range for every record with none, from step 0's probabilities."""
+        """An age range for every record with none, from its probabilities."""
         if len(d['age_rows']):
             d['values'][d['age_rows'], j_age] = torch.multinomial(d['age_probs'], 1, generator=gen).squeeze(1)
     draw_ages(te)
     j_es = C + P.index('earn_split') if 'earn_split' in P else None
 
     def draw_splits(d):
-        """An earnings split code for every record with none, from step 0's probabilities (earn_split.py)."""
+        """An earnings split code for every record with none, from its probabilities."""
         if j_es is not None and len(d['es_rows']):
             d['values'][d['es_rows'], j_es] = torch.multinomial(d['es_probs'], 1, generator=gen).squeeze(1)
     draw_splits(te)
@@ -147,8 +91,9 @@ def main():
     n, bs = len(tr['values']), T['batch']
     src_rows = {src: tr[src].nonzero().squeeze(1) for src in M.SOURCES}
     spe = sum(math.ceil(len(r) / bs) for r in src_rows.values())   # batches per pass
-    # the average over training records of weight x expected hidden slots (ceil(u n) for u uniform on (0, 1] has
-    # mean (n + 1) / 2): the denominator per record of a batch mixing all sources, on average
+    # Each batch's loss is divided by its records times the average over all training records of weight x expected
+    # hidden slots, so a source's records count as much as in a batch mixing all sources. With n present slots the
+    # expected number hidden is (n + 1) / 2.
     n_present = (tr['values'][:, C:] >= 0).sum(1).double()
     per_record = float((tr['weight'].double() * (n_present + 1) / 2).mean())
     gpu = torch.cuda.get_device_name() if device == "cuda" else "cpu"
@@ -190,7 +135,7 @@ def main():
         floor + (1 - floor) * 0.5 * (1 + math.cos(math.pi * (s - warm) / max(1, total - warm))))
     val_hidden = [show_label(M.draw_hidden(te['values'], gen)) for _ in range(4)]
 
-    # ---- the per-variable log: held-back PUF records for the PUF items, held-back CEX records for consumption
+    # the per-variable log: each source's held-back records, for that source's items
     logged = {'puf': [v for v in M.AMOUNTS if f'puf/{common.PUF_YEAR}/{v}' in common.edges()], 'cex': M.CEX_SLOTS,
               'cps': M.CPS_SLOTS, 'sipp': M.SIPP_SLOTS}
     var_log = []
@@ -243,8 +188,8 @@ def main():
                 fill.draw(idx)
             values, weight = tr['values'][idx][:, M.slot_tensor(slots, device)], tr['weight'][idx]
             values, hidden = M.gate_shares(values, show_label(M.draw_hidden(values, gen), slots), slots)
-            with autocast():
-                loss = M.masked_loss(model, values, weight, hidden, slots, denominator=len(idx) * per_record)
+            with torch.autocast('cuda', dtype=torch.bfloat16):
+                loss = M.masked_loss(model, values, weight, hidden, slots, len(idx) * per_record)
             opt.zero_grad()
             loss.backward()
             opt.step()
