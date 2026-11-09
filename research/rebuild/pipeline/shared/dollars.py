@@ -5,7 +5,7 @@ band's real records ("the map", built by build_table.py): the PUF's dollar
 values for PUF variables, the SCF's for the balance sheet, the CEX's for
 consumption, each record's chance of being picked proportional to its weight.
 The target year's maps are the PUF year's grown to the target year
-(maps.build_maps); negative capital gains are not grown (the $3,000 cap
+(maps.build_maps); negative capital gains are not grown (the $3,000 limit
 is nominal).
 
 The balance sheet has one map per SCF wave (map_scf_wave<wave>_<year>): each
@@ -25,27 +25,27 @@ every step that turns its bands into dollars. A frame without the column (the
 PUF's own records, say) draws a fresh number, as before.
 
 The CEX's consumption, the CPS's items and the SIPP's tips have one map per survey year (map_<survey>_from<year>_to
-<target year>, since 28 October): that year's own records, grown to the target year (maps.build_maps). A record's
+<target year>): that year's own records, grown to the target year (maps.build_maps). A record's
 year of each survey is its column cex_year, cps_year or sipp_year (generate.py draws them with the shares of the year
 file's prior); its bands become dollars from that year's map. A frame without the column draws from the single-year
 map (map_<survey>_<target year>), as before.
 
 After the draws, the pieces are put on the definitions the IRS targets use:
   capital_gains   the Schedule D net as it enters AGI: kg_st + kg_lt, the
-                  gains and losses before the $3,000 limit (since 29-30
-                  October), a net loss held to the limit ($1,500 on a
-                  separate return; common.allowed_capital_gain); with kg_dist
-                  it is Form 1040 line 13, capital_gains_line13
+                  gains and losses before the $3,000 limit, a net loss held
+                  to the limit ($1,500 on a separate return;
+                  common.allowed_capital_gain); with kg_dist it is Form 1040
+                  line 13, capital_gains_line13
   business_income the exact signed sum of its eighteen parts
   dividends       qualified plus other dividends (div_pref + div_ord), exactly
-  adjustments     the exact sum of its eleven parts (since 27 October)
+  adjustments     the exact sum of its eleven parts
   other_agi       AGI minus wages, interest, dividends and capital gains:
                   the drawn remainder plus kg_dist plus the AGI items folded
                   back in (FOLD) plus taxable Social Security; the remainder
                   alone is other_agi_remainder
   gross_pens_dist gross pensions, taxable pensions plus the non-taxable
-                  rest (nontxbl_pens_dist), exactly (3 November; both drawn)
-  ss_taxable      taxable Social Security, never drawn (3 November): the
+                  rest (nontxbl_pens_dist), exactly (both drawn)
+  ss_taxable      taxable Social Security, never drawn: the
                   section 86 worksheet on the record's own amounts, as the
                   tax calculator computes it (retirement_items)
   net_worth       the 14 assets less the 6 debts; the home mortgage is its
@@ -60,21 +60,20 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   tips_lh1, tips_lh2 the leisure and hospitality flags, 0
                   where that adult has no tips
   ot1, ot2        each adult's overtime pay, the whole pay for the hours over
-                  40 (since 28 October; Tax-Simulator's names): the drawn
-                  overtime in dollars (ot_primary, ot_spouse, from the CPS's
-                  map), at most that adult's wages less that adult's tips
-                  (wages1 - tips1, never below zero; decided 27 October: the
-                  tips are made first and the overtime gives way);
-                  ot = ot1 + ot2 exactly
+                  40 (Tax-Simulator's names): the drawn overtime in dollars
+                  (ot_primary, ot_spouse, from the CPS's map), at most that
+                  adult's wages less that adult's tips (wages1 - tips1, never
+                  below zero: the tips are made first and the overtime gives
+                  way); ot = ot1 + ot2 exactly
   auto_int_exp    the auto loan interest drawn (an SCF amount, from the
                   record's own wave's map)
   elective_deferrals  the unit's elective deferrals to 401(k)-type plans,
                   traditional plus Roth, as drawn (an SCF amount, from the
-                  record's own wave's map, grown to the target year's wave;
-                  since 28 October), split between the two people by the
-                  drawn spouse_deferral_share (elective2; elective1 the rest),
-                  then, with the file's year given (draw_dollars' year;
-                  decided 27 October), each person's held to that year's legal
+                  record's own wave's map, grown to the target year's wave),
+                  split between the two people by the drawn
+                  spouse_deferral_share (elective2; elective1 the rest),
+                  then, with the file's year given (draw_dollars' year), each
+                  person's held to that year's legal
                   limit for their age and to their own wages (wages1, wages2:
                   none without wages, as for tips); elective1 and elective2 are
                   the held amounts. trad_contr_er1, trad_contr_er2 (Tax-
@@ -83,8 +82,7 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   settings deferrals); trad_deferrals their sum; medicare_wages
                   wages (box 1, which holds the Roth part) plus trad_deferrals
   CPS ages        age1, age2, dep_age1-3 in years, -1 for none
-  ssn1, ssn2, dep_ssn1-3  (since 28 October; John, NEXT_STEPS.md item 1, Q4)
-                  whether each person has a Social Security number, 1 or 0,
+  ssn1, ssn2, dep_ssn1-3  whether each person has a Social Security number, 1 or 0,
                   from the drawn CPS status (ssn_status_primary, _spouse,
                   _dep1-3: 1 citizen, 2 noncitizen with a sign of lawful
                   status, 3 noncitizen without one): 0 for status 3, else 1.
@@ -94,8 +92,7 @@ After the draws, the pieces are put on the definitions the IRS targets use:
                   as Tax-Simulator expects. ssn2 is missing without a spouse.
                   ssn1 is missing on the dependent filers' records, whose
                   survey items are all none (generate.structural); the non-
-                  microdata imputations give them one. Tax-Simulator has no
-                  column for ssn1 and ssn2 yet (NEXT_STEPS.md step 2).
+                  microdata imputations give them one.
 """
 import glob
 import os
@@ -104,48 +101,32 @@ import numpy as np
 import pandas as pd
 
 from shared import common
+from shared import translate as TR
 
-# The order fixes each amount's random stream; it must not change. (kg_other, dropped on 29-30 October, keeps its
-# place so the streams after it do not move; a frame without its band skips it. So do retirement_gross and
-# ss_taxable, slots until 3 November: gross pensions and taxable Social Security are computed since then.)
+# The order fixes each amount's random stream; it must not change. An amount that is no longer drawn keeps its place (kg_other,
+# retirement_gross, ss_taxable: a frame without its band skips it), and an amount added later goes at the very end, so no
+# earlier stream moves.
+META = common.meta()
+OVERTIME = list(META['cps_structure'].get('overtime', []))
+# the amounts added after the first lists, in the order they were added
+TAIL = ['elective_deferrals', 'spouse_deferral_share', *OVERTIME, 'w_dc_stock_share', 'biz_workers_cf', 'biz_workers_ps',
+        'nontxbl_pens_dist', 'inheritance']
+# the CPS's amounts less the overtime, the shared PUF shares right after the spouse's wage share
+_CPS_ORDER = [v for v in META['cps_amounts'] if v not in OVERTIME]
+for _v in reversed(META.get('puf_shares', [])):
+    _CPS_ORDER.insert(_CPS_ORDER.index('spouse_wage_share') + 1, _v)
 ORDER = ['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi', 'net_worth',
          'kg_st', 'kg_lt', 'kg_dist', 'kg_other',
          'business_income', 'retirement_gross', 'exempt_int', 'other_gains', 'txbl_ira_dist',
          'txbl_pens_dist', 'ss_taxable', 'ui', 'alimony', 'state_ref', 'adjustments',
          'sole_prop', 'part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
          'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179',
-         'rent', 'rent_loss', 'estate', 'estate_loss', 'farm_rent', 'sche_other', 'farm']
-# Added after the first list, so its streams are unchanged ('net_worth' stays as a placeholder): the
-# itemized deductions, then the SCF-only amounts. Net worth is computed from the balance sheet.
-META = common.meta()
-# Amounts added since 26 October go at the very end, so no earlier amount's stream moves: auto loan interest (an SCF
-# amount, but not in the SCF's place in the list) and the SIPP's tips.
-LATER = ['auto_int_exp'] + list(META.get('sipp_amounts', []))
-# Elective deferrals (28 October), an SCF amount, after stage 3's items at the very end, so no earlier stream moves
-NEWEST = ['elective_deferrals', 'spouse_deferral_share']   # the spouse's share since 28 October, after it
-# Overtime (28 October), the CPS's dollar slots for each adult, at the very end after the elective deferrals
-OVERTIME = list(META['cps_structure'].get('overtime', []))
-# The SCF amounts of the retrain of 29 October (the retirement accounts' stock share; the QBI items' outside workers),
-# at the very end after the overtime, so no earlier stream moves
-RETRAIN_1029 = ['w_dc_stock_share', 'biz_workers_cf', 'biz_workers_ps']
-# The SCF amount of the retrain of 3 November (inheritances received this year), at the very end, so no earlier stream moves
-RETRAIN_1103 = ['inheritance']
-# (4 November) the spouse's share of self-employment income, a PUF slot shared with the CPS since then, keeps its place
-# right after the spouse's share of wages among the CPS's amounts, so no stream moves
-_CPS_ORDER = [v for v in META['cps_amounts'] if v not in OVERTIME]
-for _v in reversed(META.get('puf_shares', [])):
-    _CPS_ORDER.insert(_CPS_ORDER.index('spouse_wage_share') + 1, _v)
-ORDER = ORDER + ['first_mort_int', 'salt_prop'] + [v for v in META['scf_amounts']
-                                                   if v not in LATER + NEWEST + RETRAIN_1029 + RETRAIN_1103] \
-    + list(META['cex_amounts']) + ['gross_ss'] + _CPS_ORDER + LATER
-# Stage 3 (27 October): the PUF items added then, at the very end, in the table's item order
-# The non-taxable rest of pensions (3 November), at the very end after the retrain of 29 October's amounts
-PENSIONS_1103 = ['nontxbl_pens_dist']
-ORDER = ORDER + [v for v in META['items'] if v not in ORDER and v not in META['computed_totals'] and v not in PENSIONS_1103]
-ORDER = ORDER + [v for v in NEWEST if v in META['scf_amounts']] + OVERTIME
-ORDER = ORDER + [v for v in RETRAIN_1029 if v in META['scf_amounts']]
-ORDER = ORDER + [v for v in PENSIONS_1103 if v in META['items']]
-ORDER = ORDER + [v for v in RETRAIN_1103 if v in META['scf_amounts']]
+         'rent', 'rent_loss', 'estate', 'estate_loss', 'farm_rent', 'sche_other', 'farm',
+         'first_mort_int', 'salt_prop'] \
+    + [v for v in META['scf_amounts'] if v not in TAIL and v != 'auto_int_exp'] + list(META['cex_amounts']) + ['gross_ss'] \
+    + _CPS_ORDER + ['auto_int_exp'] + list(META.get('sipp_amounts', []))
+ORDER += [v for v in META['items'] if v not in ORDER and v not in META['computed_totals'] and v not in TAIL]
+ORDER += [v for v in TAIL if v in set(META['scf_amounts']) | set(OVERTIME) | set(META['items'])]
 NET_WORTH_PARTS = META['net_worth_parts']
 RATIOS = META['ratios']                           # slot: [dollar item, its base]
 REMAINDERS = META['remainders']                   # item: [total, the other part]: the total less the other part
@@ -167,7 +148,7 @@ def agi(df):
 
 
 def retirement_items(out, in_agi=False):
-    """In place (3 November, John): the two computed retirement items.
+    """In place: the two computed retirement items.
       gross_pens_dist  gross pensions (Form 1040 line 5a) = taxable pensions + the non-taxable rest
                        (common.PENSION_PARTS), exactly; both parts at least zero. Made where the frame has both parts.
       ss_taxable       taxable Social Security by the section 86 worksheet (common.taxable_social_security) on the
@@ -227,16 +208,26 @@ def load_maps(year):
     return maps
 
 
+def by_band(vmap):
+    """{band: (the rows' cumulative weights, their values)} of the map rows vmap, kept on the frame after the first call."""
+    by = vmap.attrs.get('by_band')
+    if by is None:
+        by = {band: (np.cumsum(g['weight'].to_numpy()), g['value'].to_numpy()) for band, g in vmap.groupby('band', sort=True)}
+        vmap.attrs['by_band'] = by
+    return by
+
+
 def draw_one(bands, vmap, rng, u=None):
     """Dollars for bands from the map rows vmap. u: each record's stored pick (see the top); None draws from rng."""
     u = rng.random(len(bands)) if u is None else np.asarray(u, float)
     values = np.full(len(bands), np.nan)
-    for band, g in vmap.groupby('band', sort=True):
-        idx = np.flatnonzero(bands == band)
-        if len(idx):
-            cum = np.cumsum(g['weight'].to_numpy())
+    by = by_band(vmap)
+    for band in np.unique(bands):
+        if band in by:
+            cum, vals = by[band]
+            idx = np.flatnonzero(bands == band)
             pick = np.minimum(np.searchsorted(cum, u[idx] * cum[-1], side='right'), len(cum) - 1)
-            values[idx] = g['value'].to_numpy()[pick]
+            values[idx] = vals[pick]
     assert not (np.isnan(values) & (bands >= 0)).any(), 'records in bands the map lacks'
     return values
 
@@ -340,7 +331,7 @@ def person_items(out, df):
 
 
 def deferral_items(out, year):
-    """In place (since 28 October; the person rules decided 27 October), after the ages are in years: each person's
+    """In place, after the ages are in years: each person's
     elective deferrals, the drawn unit total split by the drawn spouse's share (elective2 = share x total, elective1 the
     rest; all to the primary filer when the frame has no share), each held to the year's legal limit for that
     person's age (settings deferrals.limits; the catch-up limit from catch_up_age, age1 and age2) and to
@@ -352,7 +343,6 @@ def deferral_items(out, year):
     with no year, gets none of these."""
     if 'elective_deferrals' not in out or year is None:
         return out
-    from shared import translate as TR
     D = common.SETTINGS['deferrals']
     assert str(year) in D['limits'], f'no legal limit for {year} in settings deferrals.limits'
     lim = D['limits'][str(year)]
@@ -415,7 +405,7 @@ OWN = 'own_'   # a real PUF record's own PUF-year amount of an item (filers real
 
 
 def own_values(out, df, year):
-    """In place (settings generation.filers real_puf, 4 November 2026): on a real PUF record (a frame column own_<item> that is not
+    """In place (settings generation.filers real_puf): on a real PUF record (a frame column own_<item> that is not
     missing), each PUF amount is the record's own PUF-year amount grown to year exactly as the PUF's dollar map is
     grown (maps.puf_target_map: positive values times the item's factor for positive values, negative values
     times its factor for negative values, zero left at zero; growth.factors), in place of the draw from its band.
@@ -512,7 +502,7 @@ def wage_share_bounds(wages, e1, e2, code, cap):
 
 
 def wage_share_in_range(out, df, maps, year=None):
-    """In place (4 November; earn_split.py): the spouse's share of the couple's wages held inside the range its
+    """In place (earn_split.py): the spouse's share of the couple's wages held inside the range its
     earnings split code allows given the couple's wages and each person's Schedule SE earnings up to the wage base
     (wage_share_bounds).
     A share already inside keeps its value. One outside is picked again inside the range, among the real shares of its
@@ -532,13 +522,13 @@ def wage_share_in_range(out, df, maps, year=None):
     outside = on & ((s < lo - 1e-12) | (s > hi + 1e-12))
     bands = df['spouse_wage_share_band'].to_numpy()
     u = df['u_spouse_wage_share'].to_numpy(float) if 'u_spouse_wage_share' in df else np.full(len(df), 0.5)
-    year = df['cps_year'].to_numpy() if 'cps_year' in df and YEAR_MAPS in maps else None
+    cps_year = df['cps_year'].to_numpy() if 'cps_year' in df and YEAR_MAPS in maps else None
     clipped = np.zeros(len(df), bool)
     idx_all = np.flatnonzero(outside)
-    groups = pd.DataFrame({'y': year[idx_all] if year is not None else 0, 'b': bands[idx_all], 'i': idx_all})
+    groups = pd.DataFrame({'y': cps_year[idx_all] if cps_year is not None else 0, 'b': bands[idx_all], 'i': idx_all})
     for (yy, bb), ii in groups.groupby(['y', 'b'])['i']:
         idx = ii.to_numpy()
-        vmap = maps[YEAR_MAPS]['cps'][int(yy)]['spouse_wage_share'] if year is not None else maps['spouse_wage_share']
+        vmap = maps[YEAR_MAPS]['cps'][int(yy)]['spouse_wage_share'] if cps_year is not None else maps['spouse_wage_share']
         g = vmap[vmap['band'] == bb]
         x, wt = g['value'].to_numpy(float), g['weight'].to_numpy(float)
         o = np.argsort(x, kind='stable')
@@ -581,7 +571,7 @@ def draw_dollars(df, maps, year=None):
                 out[v] = draw_one(df[f'{v}_band'].to_numpy(), maps[v], rng, u)
     own_values(out, df, year)
     remainder = out['other_agi'].to_numpy(float).copy()
-    # the Schedule D gains and losses are drawn before the loss limit; AGI's capital gain applies it (29-30 October)
+    # the Schedule D gains and losses are drawn before the loss limit; AGI's capital gain applies it
     out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
                                                        out['filing_status'] if 'filing_status' in out else None)
     out['capital_gains_line13'] = out['capital_gains'] + out['kg_dist']
@@ -593,7 +583,7 @@ def draw_dollars(df, maps, year=None):
         sp = META['computed_totals'][sub]
         if sub in ('dividends', 'adjustments') and not all(f'{p}_band' in df for p in sp):
             # a frame with the total's band and not its parts' (qgroups.band_agi, whose AGI group label reads the
-            # two totals' bands, as before stage 3) keeps the total's own dollars
+            # two totals' bands) keeps the total's own dollars
             assert f'{sub}_band' in df, f'{sub}: neither its band nor its parts\' bands'
             continue
         out[sub] = signed_sum(out, sp)
@@ -604,7 +594,7 @@ def draw_dollars(df, maps, year=None):
     cats = list(META['cex_amounts'])
     if all(c in out for c in cats):
         out['total_consumption'] = out[cats].to_numpy(float).sum(1)
-    wage_share_in_range(out, df, maps, year)       # (4 November) before the shares multiply their totals
+    wage_share_in_range(out, df, maps, year)       # before the shares multiply their totals
     for slot, (item, base) in RATIOS.items():      # after the totals above, so a share multiplies the final total
         if f'{slot}_band' in df:
             out[item] = out[slot] * out[base]

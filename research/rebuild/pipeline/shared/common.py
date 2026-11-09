@@ -1,13 +1,12 @@
 """Paths, settings and small helpers shared by every stage.
 
 Every choice of a run is in one settings file: REBUILD_SETTINGS if set (run.py sets it; every stage, R and
-Python, reads it), else the pipeline's own settings.json. A variant run is a copy of that file. Outputs go under OUT
-(scratch), one folder per stage:
-  data/     the training table, its band edges, the dollar maps   (build_table.py)
-  targets/  the published SOI numbers and SOI's CVs                 (targets.py, errors.py)
-  model/    the trained network                                    (train.py)
-  gen/      the generated records                                  (generate.py)
-  tilt/     the year's targets, weights, final file and run report (tilt.py, report_tilt.py)
+Python, reads it), else the pipeline's own settings.json. Outputs go under OUT, one folder per stage:
+  data/     the training table, its band edges, the dollar maps   (prep/build_table.py, scale/maps.py)
+  targets/  the published SOI numbers and SOI's CVs                 (prep/soi.py, prep/soi_cv.py)
+  model/    the trained network                                    (pretrain/train.py)
+  gen/      the generated records                                  (generate/generate.py)
+  tilt/     the year's targets, weights, final file and run report (reweight/tilt.py, output/report_tilt.py)
 Environment: REBUILD_OUT overrides OUT; REBUILD_SEED the training seed; REBUILD_RUN names the model/gen/tilt
 subfolder (default seed<n>); REBUILD_PASSES the passes (for a quick test).
 """
@@ -27,9 +26,8 @@ PASSES = int(os.environ.get('REBUILD_PASSES', SETTINGS['training']['passes']))  
 PUF_YEAR = int(SETTINGS['years']['puf'])          # the PUF's tax year: its records, cut points and dollar maps
 TARGET_YEAR = int(SETTINGS['years']['target'])    # the year of the file the tilt makes, and of its targets
 
-# Where the filer records come from (settings generation.filers, 4 November 2026): 'synthetic', the filer batch drawn
-# from the networks (the default, and every run before the setting); 'real_puf', every 2015 PUF record with its own
-# PUF items, the networks drawing the rest (generate.real_puf_part). REAL_PUF is read by every stage that differs.
+# Where the filer records come from (settings generation.filers): 'synthetic', the filer batch drawn from the networks;
+# 'real_puf', every 2015 PUF record with its own PUF items, the networks drawing the rest (generate.real_puf_part).
 FILERS = SETTINGS['generation'].get('filers', 'synthetic')
 assert FILERS in ('synthetic', 'real_puf'), f"settings generation.filers is 'synthetic' or 'real_puf', not {FILERS!r}"
 REAL_PUF = FILERS == 'real_puf'
@@ -57,8 +55,8 @@ WAGE_GROUPS = [(-np.inf, 1, 'none'), (1, 25e3, '$1-25k'), (25e3, 50e3, '$25k-50k
 
 
 # The capital loss limit (section 1211(b)): a net capital loss counts in AGI up to $3,000, $1,500 on a separate return
-# (filing status 3); nominal, not indexed. Since 29-30 October the file draws the Schedule D gains and losses before
-# the limit (kg_st, kg_lt) and the limit is applied here, where AGI is made, and by the calculator (John, 29 October).
+# (filing status 3); nominal, not indexed. The file draws the Schedule D gains and losses before the limit (kg_st,
+# kg_lt); the limit is applied where AGI is made, and by the calculator.
 CAPITAL_LOSS_LIMIT, CAPITAL_LOSS_LIMIT_SEPARATE = 3000.0, 1500.0
 
 
@@ -71,12 +69,11 @@ def allowed_capital_gain(sched_d, filing_status=None):
     return np.maximum(sched_d, -limit)
 
 
-# Social Security and pensions (3 November, John). The network draws three parts: gross Social Security (gross_ss),
-# taxable pensions (txbl_pens_dist) and the non-taxable rest of pensions (nontxbl_pens_dist: on the PUF E01500 less
-# E01700, never below zero). Two items are computed, never drawn: gross pensions (gross_pens_dist, Form 1040 line 5a)
-# = taxable pensions + the rest; and taxable Social Security (ss_taxable) by the section 86 worksheet below, which is
-# part of the file's AGI and is never targeted. Until 3 November the network drew gross Social Security plus total
-# pensions (retirement_gross, E02400 + E01500) and taxable Social Security (E02500) as slots of their own.
+# Social Security and pensions. The network draws three parts: gross Social Security (gross_ss), taxable pensions
+# (txbl_pens_dist) and the non-taxable rest of pensions (nontxbl_pens_dist: on the PUF E01500 less E01700, never below
+# zero). Two items are computed, never drawn: gross pensions (gross_pens_dist, Form 1040 line 5a) = taxable pensions +
+# the rest; and taxable Social Security (ss_taxable) by the section 86 worksheet below, which is part of the file's AGI
+# and is never targeted.
 PENSION_PARTS = ['txbl_pens_dist', 'nontxbl_pens_dist']
 GROSS_PENSIONS = 'gross_pens_dist'
 # Section 86, as tax-simulator-gpu has it (taxes/calc/agi.py, calc_ss; config/scenarios/tax_law/default/ss.yaml):

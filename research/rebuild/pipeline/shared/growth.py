@@ -1,5 +1,5 @@
 """How every dollar item is grown from one year to another: the year's growth.yaml (targets_config/<year>/growth.yaml)
-and the series it names (TARGETS.md section 12; NEXT_STEPS.md, 29 October).
+and the series it names (TARGETS.md section 12).
 
 Each dollar item the pipeline grows has one line in the target year's growth.yaml: its source (the series), the
 measure (what the series is per: per return with the item, per holder, per household), how negative values are grown,
@@ -11,8 +11,8 @@ file, that year to the target year (start.grow_dollars).
 The series (SERIES below; their data in research/rebuild/resources/growth/, where sources.csv says where each came
 from):
   soi 1.4           SOI Table 1.4, all returns: dollars per return with the item, the item given by `item` (a key of
-                    targets.SOI_ITEMS) or by `rows` (SOI lines, with `absolute`), PUF year to y; past SOI's last
-                    year, grown by CBO's closest line per return (targets.carried). This is the series every PUF item used before 29 October.
+                    soi.SOI_ITEMS) or by `rows` (SOI lines, with `absolute`), PUF year to y; past SOI's last
+                    year, grown by CBO's closest line per return (soi.carried).
   agi per return    SOI's total AGI over all returns (Table 1.1; the same totals as Table 1.4's all-returns line, read
                     from the mirror); past SOI's last year, extended by BEA personal income per capita (NIPA Table
                     7.1 line 3: Table 2.1's personal income over population), and past BEA's last year by the growth
@@ -20,12 +20,12 @@ from):
   bea mortgage interest per mortgaged owner, acs real estate tax per paying owner, state and local income tax per
   return, meps out-of-pocket per person with any, cpi tax preparation fees, college board tuition and fees: a level
                     per year from the resources folder; past its last year grown by personal income per person (BEA, then CBO; level()).
-  nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns (the CEX's rule since 22 October).
+  nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns.
   scf mean per unit between waves   the SCF's own weighted mean per tax unit, one wave over another
                     (maps.scf_growth computes it from the table; nothing here).
   scf net worth per unit between waves   the SCF's weighted mean net worth per tax unit, one wave over another (after
                     the last wave Z.1 household net worth per person), for an SCF item too lumpy to grow by its own
-                    mean (inheritances received this year, since 3 November; maps.scf_growth).
+                    mean (inheritances received this year; maps.scf_growth).
   none              not grown, for the reason given (a statutory nominal amount, a share, a count).
 
   load(year)        the year's growth lines, checked
@@ -205,8 +205,7 @@ def agi_per_return(y):
 def income_per_person_growth(a, b):
     """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3) while BEA has both years,
     then CBO's projection (cbo_personal_income_population.csv, its growth only) through CBO's last year used (settings
-    tilt.projection.cbo_last_year), then (4 November 2026, the long-run years) Macro-Projections' nominal GDP per person
-    (projection_growth.long_run_growth)."""
+    tilt.projection.cbo_last_year), then Macro-Projections' nominal GDP per person (projection_growth.long_run_growth)."""
     from scale import projection_growth as PG
     L = PG.cbo_last_year()
     if b > L:
@@ -224,9 +223,8 @@ def income_per_person_growth(a, b):
 
 def level(spec, y):
     """The series' level in year y (a series given as a level; not SOI 1.4, which is a ratio between years). Past the
-    last year its files cover (30 October, years after the data): the last year's level grown with personal income
-    per person (BEA, then CBO's projection; income_per_person_growth), a placeholder recorded in the year's growth
-    report."""
+    last year its files cover: the last year's level grown with personal income per person (BEA, then CBO's
+    projection; income_per_person_growth), a placeholder recorded in the year's growth report."""
     files = SERIES[spec['series']][1]
     if files:
         last = min(int(_csv(f).index.max()) for f in files)
@@ -250,8 +248,8 @@ def _level(spec, y):
         p = _CSV['pce']
         if y in p.index:
             return p.loc[y, spec['category']] / TG.all_returns(y)
-        # past the PCE file's last year (30 October, years after the surveys): the last year's level per return grown
-        # by CBO's personal income per person (the extension agi per return uses past BEA's last year), a placeholder
+        # past the PCE file's last year: the last year's level per return grown by CBO's personal income per person
+        # (the extension agi per return uses past BEA's last year), a placeholder
         last = int(p.index.max())
         assert y > last, f'PCE: no {y}'
         cbo = _csv('cbo_personal_income_population.csv')
@@ -332,7 +330,7 @@ def check(year=common.TARGET_YEAR):
     from prep import build_table as BT
     items = load(year)
     groups = {'PUF': BT.PUF_AMOUNTS, 'SCF': BT.SCF_AMOUNTS, 'CEX': BT.CEX_AMOUNTS, 'CPS': BT.CPS_AMOUNTS,
-              'SIPP': BT.SIPP_AMOUNTS, 'PUF and CPS shares': BT.PUF_SHARES}   # (shares: never grown, 4 November)
+              'SIPP': BT.SIPP_AMOUNTS, 'PUF and CPS shares': BT.PUF_SHARES}   # shares are never grown
     every = [v for vs in groups.values() for v in vs]
     bad = [f'{g} item {v}: no growth line' for g, vs in groups.items() for v in vs if v not in items]
     bad += [f'{v}: a growth line for an item the pipeline does not have' for v in items if v not in every]
