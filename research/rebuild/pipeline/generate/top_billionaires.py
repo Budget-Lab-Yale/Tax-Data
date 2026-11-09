@@ -18,7 +18,7 @@ S = common.SETTINGS['tilt']['top']
 RES = os.path.join(common.RESOURCES, 'top')
 ID_BASE = 95_000_000             # Part A's rebuilt returns take 90,000,000 up (top_hidden id_block)
 TOP_AGE = 80                      # the file's top age (age1, age2): 80 means 80 and over
-GROUPS = [('top', 92), ('next', 276)]   # BSYZ's top 0.00005% and next 0.00015% of tax units (IRS study units)
+GROUPS = [('top', 92), ('next', 276)]   # the IRS study's top 0.00005% and next 0.00015% of tax units
 
 # kinds of income, and the holdings that share each out among a rank group's units
 KINDS = {'gains': ('public'), 'dividends': ('public'), 'txbl_int': ('total'), 'exempt': ('total'),
