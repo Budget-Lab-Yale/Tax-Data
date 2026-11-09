@@ -1,9 +1,10 @@
 """The year file as input to the GPU tax calculator, tax-simulator-gpu.
 
-`convert` turns the year file into a frame with Tax-Simulator's column names, one row per record. CONTRACT lists every
-column and where it comes from; it is written beside the outputs as calculator_contract.csv. The reweighting's tax
-step (reweight/taxes.py), the Tax-Simulator file, the CRS package and the calculator stage use it. The calculator itself
-runs from a copy of its repository at the commit in settings taxes.commit.
+convert() turns the year file into a table with Tax-Simulator's column names, one row per record. CONTRACT lists every
+column of that table and where it comes from; it is written beside the outputs as calculator_contract.csv. The
+reweighting's tax step (reweight/taxes.py), the Tax-Simulator file, the CRS package and the calculator stage all use
+it. The calculator itself runs from a copy of its repository at the commit in settings taxes.commit. FEATURES.md,
+"Taxes from the calculator", describes its use.
 """
 import numpy as np
 import pandas as pd
@@ -11,10 +12,11 @@ import pandas as pd
 from shared import common
 
 
-# ---- the contract ---------------------------------------------------------------------------------------------
-# One row per column: Tax-Simulator's name, status, source, and what the column is. The status is "same" (the
+# ---- The contract ----
+# One row per column: Tax-Simulator's name, its status, its source, and what the column is. The status is "same" (the
 # rebuild's column of the same name), "renamed", "computed" (a formula on the rebuild's columns) or "zero" (0, unless
-# the file has the column, as when the non-microdata imputations add it).
+# the file has the column, as it does when the non-microdata imputations add it). The text is written to
+# calculator_contract.csv as it stands.
 SAME, RENAMED, COMPUTED, ZERO = 'same', 'renamed', 'computed', 'zero'
 NO_AGE = 'NaN where the rebuild has -1 (none), as Tax-Data writes it'
 CONTRACT = [
@@ -48,7 +50,7 @@ CONTRACT = [
     ('divorce_year', COMPUTED, '0 on every record (production: 0 where alimony paid or received, else missing)',
      'year of divorce; before 2019 alimony counts in AGI. 0 and missing differ only in the capital gains module\'s '
      'chance of being a surviving spouse'),
-    # wages and self-employment, in Tax-Data's overlapping form (the calculator splits them itself)
+    # wages and self-employment, in Tax-Data's form, where the totals overlap their parts (the calculator splits them)
     ('wages', SAME, 'wages', 'W-2 wages of the unit, box 1 (tips and overtime included)'),
     ('wages1', SAME, 'wages1', 'primary filer\'s wages; wages1 + wages2 = wages'),
     ('wages2', SAME, 'wages2 = wages x spouse_wage_share (the CPS label\'s draw, held inside the range the earnings '
@@ -180,8 +182,8 @@ CONTRACT = [
     ('other_nonref', SAME, 'other_nonref', 'other nonrefundable credits'),
     ('recapture_tax', SAME, 'recapture_tax', 'recapture taxes'),
     ('ira_penalty', SAME, 'ira_penalty', 'additional tax on IRAs and other plans'),
-    # mortality, the balance sheet and its cost bases (read by the frame steps and the estate and wealth taxes,
-    # not by the income tax)
+    # mortality, the balance sheet and its cost bases (read by the frame steps and the estate and wealth taxes, not
+    # by the income tax)
     ('q_death1', ZERO, '0', 'chance the primary filer dies this year: the non-microdata imputation of death probabilities'),
     ('q_death2', ZERO, '0', 'chance the spouse dies this year: as q_death1'),
     *[(f'value.{c}', SAME, f'value.{c}', f'balance sheet: {c.replace("_", " ")}')
@@ -202,22 +204,24 @@ CONTRACT = [
 ]
 COLUMNS = [c[0] for c in CONTRACT]
 assert len(COLUMNS) == len(set(COLUMNS)), 'a column twice in CONTRACT'
-NO_AGE_COLUMNS = ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']   # -1 in the file becomes missing
+NO_AGE_COLUMNS = ['age1', 'age2', 'dep_age1', 'dep_age2', 'dep_age3']   # -1 (no such person) becomes missing
 
 
 def convert(f):
-    """The year file f as the calculator's input frame, columns in CONTRACT order, and a list of notes with counts of
-    what the conversion found. Every column of f that it reads must be present and have no missing value."""
+    """The year file f as the calculator's input table, with the columns in CONTRACT order, and a list of notes that
+    count what the conversion found. Every column of f that it reads must be present and have no missing value."""
     notes = []
     x = lambda c: f[c].to_numpy(float)
+    # 1. The columns of f that the conversion reads.
     reads = {s.split(' ')[0].rstrip(';') for n, st, s, _ in CONTRACT if st in (SAME, RENAMED)} | set(NO_AGE_COLUMNS) \
         | {'filer', 'age_range', 'filing_status', 'n_dep', 'spouse_se_share', 'married', 'sole_prop', 'farm', 'part_se', 'se2',
            'sex_primary', 'nontxbl_pens_dist', 'gross_ss', 'other_agi_remainder', 'farm_rent', 'sche_other', 'kg_lt',
            'kg_dist', 'value.other_home', 'value.re_fund', 'w_kg_other_re', 'value.equities', 'w_kg_other', 'value.pass_throughs',
            'w_kg_pass_throughs', 'value.primary_home', 'w_kg_primary_home', 'weight', 'ot', 'ot1', 'ot2'} \
         | {n for n, st, _, _ in CONTRACT if st == ZERO and n in f.columns}
-    # dep_ssn1-3 are missing where the record has no k-th dependent, and on a few records whose dependent count and
-    # dependent ages disagree. They are set to 0 and counted.
+    # 2. dep_ssn1 to dep_ssn3 are missing where the record has no k-th dependent, and on a few records whose number of
+    #    dependents and dependent ages disagree. They are set to 0 and counted. No other column the conversion reads
+    #    may be missing.
     f = f.copy()
     for k in (1, 2, 3):
         c = f'dep_ssn{k}'
@@ -232,6 +236,7 @@ def convert(f):
     other = {c: int(f[c].isna().sum()) for c in f.columns if c not in reads and f[c].isna().any()}
     notes.append('missing values in columns the converter does not read (records): '
                  + (', '.join(f'{c} {n:,}' for c, n in other.items()) or 'none'))
+    # 3. The columns taken as they are or renamed, and the ages, with -1 (no such person) as missing.
     out = {}
     for name, status, source, _ in CONTRACT:
         if status in (SAME, RENAMED) and name not in NO_AGE_COLUMNS:
@@ -253,6 +258,8 @@ def convert(f):
         bad = (nd >= k) != ~np.isnan(out[f'dep_age{k}'])
         notes.append(f'dep_age{k} present exactly when n_dep >= {k}: {"yes" if not bad.any() else f"no, {bad.sum():,} records differ"}')
     notes.append('overtime: from the file (ot, ot1, ot2)')
+    # 4. Each spouse's Schedule C, farm and other self-employment income, from the couple's amount and the spouse's
+    #    share of Schedule SE earnings.
     share = x('spouse_se_share')
     assert ((share >= 0) & (share <= 1)).all(), 'spouse_se_share outside [0, 1]'
     married = x('married') == 1
@@ -266,10 +273,12 @@ def convert(f):
     out['part_se1'] = part_se - out['part_se2']
     se2 = out['sole_prop2'] + out['farm2']
     notes.append(f'spouse\'s Schedule C plus F against the file\'s se2: largest gap ${np.abs(se2 - x("se2")).max():,.4f}')
+    # 5. The computed columns: dependent status, the primary filer's sex, gross pensions, other income, long-term gains
+    #    with distributions, and the cost bases of the balance sheet.
     out['dep_status'] = (x('age_range') >= common.ADULT_RANGES).astype(float)
     out['male1'] = (x('sex_primary') == 1).astype(float)
     # Dependent filers have no drawn age or sex (age1 is -1). They take the age and sex that the non-microdata
-    # imputations draw, as in the Tax-Simulator file, so the reweighting's taxes are those of the published file.
+    # imputations draw, as in the Tax-Simulator file, so that the reweighting's taxes are those of the published file.
     dep = (x('age_range') >= common.ADULT_RANGES) & np.isnan(out['age1']) & (x('dep_filer_age') >= 0)
     out['age1'] = np.where(dep, x('dep_filer_age'), out['age1'])
     out['male1'] = np.where(dep, (x('dep_filer_sex') == 1).astype(float), out['male1'])
@@ -298,7 +307,7 @@ def convert(f):
     out['basis.primary_home'] = x('value.primary_home') - x('w_kg_primary_home')
     out['basis.other_home'] = x('value.other_home') - x('w_kg_other_re') * part_home
     out['basis.re_fund'] = x('value.re_fund') - x('w_kg_other_re') * (1 - part_home)
-    # A column the contract sets to 0 is taken from the file when the file has it.
+    # 6. A column that the contract sets to 0 is taken from the file when the file has it.
     from_file = []
     for name, status, _, _ in CONTRACT:
         if status == ZERO:
@@ -309,7 +318,7 @@ def convert(f):
                 out[name] = np.zeros(len(f))
     notes.append('set to 0 in the contract but taken from the file: ' + (', '.join(from_file) or 'none'))
     notes.append('still 0: ' + ', '.join(n for n, st, _, _ in CONTRACT if st == ZERO and n not in from_file))
-    # Each total must equal the sum of its primary and spouse parts; the calculator relies on it.
+    # 7. Checks. Each total must equal the sum of its primary filer's and spouse's parts; the calculator relies on it.
     for tot, a, b in [('wages', 'wages1', 'wages2'), ('tips', 'tips1', 'tips2'), ('ot', 'ot1', 'ot2'),
                       ('sole_prop', 'sole_prop1', 'sole_prop2'), ('farm', 'farm1', 'farm2')]:
         gap = np.abs(out[tot] - out[a] - out[b]).max()
