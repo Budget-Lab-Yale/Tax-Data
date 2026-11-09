@@ -135,7 +135,7 @@ _RESOLVED = {}
 
 def resolve(year):
     """The year's configuration: its targets.yaml and prior.yaml as written, with the growth lines of its growth.yaml
-    (under 'growth'). Checked before any use (TARGETS.md section 12): every entry has its parts and a value source
+    (under 'growth'). Checked before any use: every entry has its parts and a value source
     the catalog defines, and every dollar item has a growth line for the year (growth.check). Stops otherwise."""
     year = int(year)
     if year in _RESOLVED:

@@ -614,7 +614,7 @@ def qbi(df, year, w, ctx):
     Service flag. The law's list: 1 when the record's keyed draw (stream 7; person 1 for cf, 2 for ps, so a record with
     both a partnership and an S corporation has one flag for both) is below c(industry group), on a type with positive
     income. c (settings c_by_scf_group): the share of self-employed people in the SCF group whose detailed industry is on
-    the law's list (scratch explore/2026-10-28/qbi_plan/scripts/cps_bridge.py). For group 8 (no industry code) and none (0,
+    the law's list. For group 8 (no industry code) and none (0,
     which generation allows only without such income), the average of c over groups 1-7 weighted by the group's positive
     income at w."""
     it = ITEMS['qbi']
