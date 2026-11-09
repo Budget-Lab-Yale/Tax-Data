@@ -562,9 +562,9 @@ def qbi(df, year, w, ctx):
     A group's wages on a filing record are its worker count times the group's scalar for the year, and 0 where the
     record has no positive income of the group's types; non-filers have none. Through the IRS table's last year the
     scalar makes the file's wages at the weights given (the prescaled start's) equal the IRS total; after it, the scalar
-    is that year's times the growth of average wages. cf wages go to Schedule C; ps wages are split between partnerships and S
-    corporations by positive income. Farms are never a specified service, and their wage bill is positive farm income,
-    so the wage limit never binds.
+    is that year's times the growth of average wages. cf wages go to Schedule C; ps wages are split between
+    partnerships and S corporations by positive income. Farms are never a specified service, and their wage bill is
+    positive farm income, so the wage limit never binds.
 
     The service flag is 1 when the record's keyed draw is below the share of self-employed people in its SCF industry
     group whose industry is on the law's list (settings c_by_scf_group). One draw covers a record's partnership and S
