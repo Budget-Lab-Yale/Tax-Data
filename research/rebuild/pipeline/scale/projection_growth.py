@@ -18,10 +18,10 @@ def cbo_return_growth(year):
 
 
 def ssa_per_return(item, year):
-    """Gross Social Security benefits, 2024 and 2025: SSA's calendar-year OASDI benefits paid
-    (resources/ssa_oasdi_benefits.csv: the Annual Statistical Supplement Table 4.A4 and the Trustees Report Table III.A5)
-    over CBO's growth in the number of returns, year - 1 to year. CBO's fiscal-year outlays, the rule from 2026,
-    cannot be used here: the repository's CBO file starts at FY2025."""
+    """Growth in gross Social Security benefits per return in 2024 and 2025: SSA's calendar-year OASDI benefits paid
+    (Annual Statistical Supplement Table 4.A4 and Trustees Report Table III.A5) over CBO's growth in the number of
+    returns, year - 1 to year. CBO's fiscal-year outlays, used from 2026, start at FY2025 and so cannot give these
+    years' growth."""
     year = int(year)
     d = pd.read_csv(os.path.join(RESOURCES, 'ssa_oasdi_benefits.csv')).set_index('year')['oasdi_benefits_paid_millions']
     if year not in d.index or year - 1 not in d.index:
@@ -32,10 +32,9 @@ def ssa_per_return(item, year):
 
 
 def gross_ss_between(a, b):
-    """Growth in gross Social Security benefits per return from year a to year b (a < b, both after SOI's last year or
-    equal to it): the product of the adjacent years' factors, SSA through 2025 and CBO's outlays from 2026 to CBO's last
-    year used (settings tilt.projection.cbo_last_year); after it (the long-run years) Macro-Projections'
-    OASDI outlays per return (long_run_growth). A year with no source stops the run."""
+    """Growth in gross Social Security benefits per return from year a to year b, both at or after SOI's last year: the
+    product of the yearly factors (SSA through 2025, CBO's outlays to CBO's last year used), then Macro-Projections'
+    OASDI outlays per return. A year with no source stops the run."""
     L = cbo_last_year()
     f = 1.0
     for y in range(int(a) + 1, min(int(b), L) + 1):
@@ -46,13 +45,10 @@ def gross_ss_between(a, b):
 
 
 # ---- the long-run years -------------------------------------------------
-# Past CBO's last projection year used (settings tilt.projection.cbo_last_year, 2035) every series continues at the
-# growth of one Macro-Projections aggregate (production's long-run mapping, src/project_puf.R income_far). The
-# aggregates are written once, with the counts they are divided by, to resources/growth/macro_long_run.csv
-# (resources/growth/build_long_run.py). The items table's series files carry their own continuation (the same
-# aggregates, resources/projection_long_run_mapping.csv); the functions here continue the series the growth.yaml rules
-# read (targets.cbo_growth, growth.income_per_person_growth, gross_ss_between) and the count of returns
-# (returns_growth, for the Forbes list grown past the last list).
+# Past CBO's last projection year used (settings tilt.projection.cbo_last_year) every series continues at the growth
+# of one Macro-Projections aggregate, read from resources/growth/macro_long_run.csv. The functions here continue the
+# series the growth.yaml rules read and the count of returns; the items table's series files carry their own
+# continuation.
 _LR = {}
 
 
@@ -104,10 +100,9 @@ def returns_growth(a, b):
 
 
 def cbo_per_return(item, year):
-    """The adjacent-year growth per return of gross Social Security (item 'ss_gross') and its source: SSA's benefits
-    paid through 2025 (ssa_per_return), then CBO's Social Security outlays (fiscal-year levels as a proxy for the
-    calendar year; the series resources/projection_growth_mapping.csv names for the item, in cbo_budget_fiscal.csv)
-    over CBO's growth in the number of returns."""
+    """The year-over-year growth per return of gross Social Security (item 'ss_gross') and its source: SSA's benefits
+    paid through 2025, then CBO's Social Security outlays (fiscal-year levels standing in for the calendar year) over
+    CBO's growth in the number of returns."""
     year = int(year)
     if item == 'ss_gross' and year <= 2025:
         return ssa_per_return(item, year)

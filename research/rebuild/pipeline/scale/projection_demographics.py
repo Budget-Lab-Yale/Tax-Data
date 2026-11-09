@@ -14,7 +14,7 @@ RESOURCES = common.RESOURCES
 
 
 def cbo_count(year, series):
-    """Published CBO count in returns; never extrapolate a missing year."""
+    """A published CBO count of returns; a missing year stops the run."""
     allowed = {'rev_iit_returns_total', 'rev_iit_returns_itemized', 'rev_iit_returns_amt'}
     if series not in allowed:
         raise ValueError(f'unknown CBO return-count series {series!r}')
@@ -36,14 +36,14 @@ def population_cells(previous, year, from_year):
     d = previous[required].copy()
     assert not d.record_id.isna().any() and d.record_id.is_unique, 'previous file has missing or duplicate record IDs'
     w = d.weight.to_numpy(float)
-    # a tilted file keeps every record, a weight of exactly zero for those the reweighting dropped; those stay at zero
+    # a reweighted file keeps every record; those the reweighting dropped have weight zero and stay at zero
     assert np.all(np.isfinite(w) & (w >= 0)), f'previous file has {int((~(np.isfinite(w) & (w >= 0))).sum())} negative or missing weights'
     assert (w > 0).any(), 'previous file has no positive weight'
     valid = (d.filer.isin([0, 1]) & d.married.isin([0, 1]) & d.filing_status.isin([1, 2, 3, 4]) &
              (d.married == (d.filing_status == 2).astype(int)) & d.age_range.isin(range(9)))
     age = d.age1
-    # the primary's age band: under 26 holds every primary below 26 (the file has 151 aged 15 to 17); a dependent filer's
-    # primary age is not kept (age1 is -1), its band is the age_range itself, so no age check for bands 6 to 8
+    # The primary's age band: under 26 holds every primary below 26, a few of them under 18. A dependent filer's primary
+    # age is not kept (age1 is -1) and its band is the age_range itself, so bands 6 to 8 have no age check.
     bounds = [(0, 26), (26, 35), (35, 45), (45, 55), (55, 65), (65, 101), (-1, 0), (-1, 0), (-1, 0)]
     age_ok = pd.Series(False, index=d.index)
     for i, (lo, hi) in enumerate(bounds):
