@@ -276,10 +276,10 @@ def puf_items(f, itemizer, medical_floor):
     # the remainder of AGI: AGI less wages, interest, dividends, line 13 (the allowed Schedule D net plus distributions)
     # and the items in AGI. Taxable Social Security (E02500) comes off too: it is not a slot, because the file computes
     # it by the worksheet
-    items = {'business_income': f['E00900'] + f['E02000'] + f['E02100'], 'adjustments': sum(f[c] for c in ADJ_FIELDS),
-             **{v: out[v] for v in ITEMS if ITEMS[v][0] != 0 and v not in ('business_income', 'adjustments')}}
-    line13_allowed = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'], f['MARS']) + f['E01100']
-    out['other_agi'] = f['E00100'] - out['wages'] - out['txbl_int'] - f['E00600'] - line13_allowed - \
+    totals = {'business_income': f['E00900'] + f['E02000'] + f['E02100'], 'adjustments': sum(f[c] for c in ADJ_FIELDS)}
+    items = {v: totals.get(v, out.get(v)) for v in ITEMS if ITEMS[v][0] != 0}   # in ITEMS' order (the aggregate records' means are not whole dollars, so the order matters)
+    allowed = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'], f['MARS'])
+    out['other_agi'] = f['E00100'] - out['wages'] - out['txbl_int'] - f['E00600'] - allowed - f['E01100'] - \
         sum(ITEMS[v][0] * items[v] for v in items) - f['E02500']
     return out
 
