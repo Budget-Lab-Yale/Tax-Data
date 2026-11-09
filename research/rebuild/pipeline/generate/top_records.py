@@ -1,10 +1,10 @@
 """The top of the file, added to the start before the reweighting.
 
-network_part needs the network and runs in the top stage (top.py): it removes an earlier year's billionaires from a
-start built from that year, adds Part A (the PUF's hidden top returns rebuilt, top_hidden.py), and redraws generated
-balance sheets at or above $1 billion. add_list runs in the reweighting: it adds the year's Forbes list, or the last
-list grown to the year, and holds every other record below $1 billion. FEATURES.md, "The top of the file", has the
-method.
+Above $1 billion of net worth the file is the Forbes list; below it, the SCF. network_part needs the networks and runs
+in the top stage (top.py). It removes an earlier year's billionaires from a start built from that year's file, adds
+Part A (the PUF's aggregate records rebuilt, top_hidden.py), and draws again every generated balance sheet at or above
+$1 billion. add_list runs in the reweighting. It adds the year's Forbes list, or the last list grown to the year, and
+holds every other record below $1 billion. FEATURES.md, "The top of the file", describes the method.
 """
 import os
 
@@ -16,14 +16,17 @@ from shared import dollars as D
 from reweight import target_list as TLS
 from generate import top_billionaires as TB
 
-POPULATION = 'scf_units_below_a_billion'
+POPULATION = 'scf_units_below_a_billion'      # the target population whose net worth ceiling is the line
+
+
+# ---- Steps 1 to 3: the part that needs the networks ----
 
 
 def _hidden_returns(df, year, mode, notes):
-    """Part A's records, or None. Their weights are in the generated filers' units, so they are scaled with the filers,
-    and they are free in the reweighting. hidden_group is 0 for negative AGI, 1 for $0-10 million, 2 for $10-100
-    million and 3 for over $100 million, in 2015 dollars."""
-    if common.REAL_PUF:   # the four aggregate records are in the file as real records
+    """Part A's records, or None when Part A does not apply. Their weights are in the same units as the generated
+    filers' weights; they are scaled with the filers and are free in the reweighting. hidden_group is 0 for negative
+    AGI, 1 for $0 to $10 million, 2 for $10 to $100 million and 3 for over $100 million, in 2015 dollars."""
+    if common.REAL_PUF:
         notes.append('Part A (the PUF\'s hidden top returns): off, because settings generation.filers is real_puf: the '
                      'PUF\'s four aggregate records are in the file as real records')
         return None
@@ -43,56 +46,62 @@ def _hidden_returns(df, year, mode, notes):
 
 
 def network_part(g19, raw, imp, year, mode):
-    """Steps 1-3: an earlier year's billionaires removed, Part A added, generated balance sheets redrawn. g19 is the
-    start in target-year dollars; raw the same records with their bands and stored picks; imp their starting weights;
-    mode 'generate' or 'from_year'. Returns the frame, starting weights, given and fixed masks (all False) and the
-    report."""
+    """Steps 1 to 3: remove an earlier year's billionaires, add Part A, and draw the generated balance sheets of $1
+    billion or more again. g19 is the start in target-year dollars; raw holds the same records with their bands and
+    stored picks; imp holds their starting weights; mode is 'generate' or 'from_year'. Returns the records, their
+    starting weights, the masks of records whose weights are given and fixed (all False here), and the report."""
     notes, rep = [], {}
     ceiling = TLS.net_worth_ceiling(POPULATION)
     assert ceiling is not None, f'population {POPULATION} has no net_worth_below'
     imp = np.asarray(imp, float).copy()
-    if 'billionaire' in g19:              # 1. an earlier year's billionaires out
+    # 1. Remove an earlier year's billionaires.
+    if 'billionaire' in g19:
         old = g19['billionaire'].to_numpy() == 1
         notes.append(f'start: {int(old.sum())} billionaire records of the earlier year removed')
         g19, raw, imp = g19.loc[~old].reset_index(drop=True), raw.loc[~old].reset_index(drop=True), imp[~old]
     given = np.zeros(len(g19), bool)
-    h = _hidden_returns(g19, year, mode, notes)  # 2. Part A
-    # 3. the redraw, on the generated records (Part A's records were redrawn when built)
+    # 2. Part A.
+    h = _hidden_returns(g19, year, mode, notes)
+    # 3. Draw the generated balance sheets of $1 billion or more again. Part A's records were drawn again when they
+    #    were built.
     if mode == 'generate':
         g19, tab = TB.redraw_balance_sheets(g19, raw, year, ceiling, notes)
         rep['redraw'] = tab
     else:
-        # an earlier year's file was redrawn in the year it was generated, and it lacks the slots the redraw needs; a
-        # record grown past the ceiling stays as it is and is counted below
+        # An earlier year's file was drawn again in the year it was generated, and it lacks the slots the redraw
+        # needs. A record grown past the ceiling stays as it is and is counted in add_list.
         notes.append('start from an earlier year\'s file: the redraw at the ceiling is not run again (done in the '
                      'year the records were generated)')
     for c in ['wealth_redrawn', 'wealth_redraw_fallback']:
         if c not in g19:
             g19[c] = 0
-    for c, none in [('synthetic_top', 0), ('hidden_group', -1)]:   # an earlier year's file keeps its own labels
+    # The flags of Part A's records; an earlier year's file keeps its own.
+    for c, none in [('synthetic_top', 0), ('hidden_group', -1)]:
         if c not in g19:
             g19[c] = none
     if h is not None:
         assert not (h['net_worth'] >= ceiling).any(), 'Part A: a rebuilt return at or above the ceiling'
         assert not set(h['record_id']) & set(g19['record_id'])
         g19 = pd.concat([g19, h[g19.columns]], ignore_index=True)
-        imp = np.r_[imp, h['weight'].to_numpy(float)]   # in the generated records' units: scaled with them
+        imp = np.r_[imp, h['weight'].to_numpy(float)]
         given = np.r_[given, np.zeros(len(h), bool)]
         rep['hidden'] = h
     rep['notes'] = notes
     return g19, imp, given, np.zeros(len(g19), bool), rep
 
 
-# Balance-sheet dollar columns other than net worth's parts, scaled with them, as are the cost bases (basis.*).
-# Ratios are left as they are.
+# ---- Steps 4 and 5: the Forbes list, and every other record below $1 billion ----
+
+# The balance-sheet dollar columns other than net worth's parts. They are scaled with the parts, as are the cost bases
+# (basis.*). Ratios are left as they are.
 BALANCE_DOLLARS = ['w_kg_primary_home', 'w_kg_other_re', 'w_kg_pass_throughs', 'w_kg_other', 'w_dc_stocks']
-HOLD_SHARE = 0.999   # a held record's net worth: this share of the ceiling
+HOLD_SHARE = 0.999   # a held record's net worth is this share of the ceiling
 
 
 def hold_below_ceiling(g19, imp, ceiling, notes):
-    """Step 5. The Forbes list is every US billionaire, so a record not on it at or above the ceiling has its whole
-    balance sheet scaled by one factor that puts its net worth at HOLD_SHARE x the ceiling. Its income and weight are
-    unchanged. Returns the frame and a table with one row per record held."""
+    """Step 5. The Forbes list is taken to be every US billionaire. A record that is not on the list but is at or
+    above the ceiling has its whole balance sheet scaled by one factor, which puts its net worth at HOLD_SHARE x the
+    ceiling. Its income and weight are unchanged. Returns the records and a table with one row per record held."""
     nw = g19['net_worth'].to_numpy(float)
     over = (nw >= ceiling) & (g19['billionaire'].to_numpy() != 1)
     if not over.any():
@@ -122,9 +131,10 @@ def hold_below_ceiling(g19, imp, ceiling, notes):
 
 
 def net_worth_growth(g19, imp, year, list_year):
-    """The one factor by which every fortune on the last list grows to the year, chosen so that the list's net worth on
-    its starting weights grows as Z.1 household net worth from the list's year. The starting weights depend only on
-    the records' age and marital cells, so a first build with any growth gives them. Returns (factor, description)."""
+    """The one factor by which every fortune on the last list grows to the year. It is chosen so that the list's net
+    worth on its starting weights grows as Z.1 household net worth from the list's year. The starting weights depend
+    only on the records' age and marital cells, and a first build with no growth gives them. Returns the factor and a
+    description."""
     from shared import growth as GR
     from scale import projection_demographics as PD
     first = TB.grow_list(TB.read_list(list_year), list_year, year, factor=(1.0, 'no growth: the weights depend on the cells alone'))
@@ -144,13 +154,15 @@ def net_worth_growth(g19, imp, year, list_year):
 
 
 def add_list(g19, imp, given, fixed, rep, year):
-    """Steps 4 and 5 on the result of steps 1-3. In a year with a Forbes list its records enter at weight 1; after the
-    last list, the last list grown to the year enters at weight 1 times its cells' population growth since the list's
-    year. The weights are held fixed in the reweighting; left free, the solver cuts the richest to near-zero weights."""
+    """Steps 4 and 5, on the result of steps 1 to 3. In a year with a Forbes list, its records enter at weight 1.
+    After the last list, the last list grown to the year enters at weight 1 times its cells' population growth since
+    the list's year. These weights are held fixed in the reweighting. (Left free, the solver cuts the richest records
+    to weights near zero.)"""
     from scale import projection_demographics as PD
     rep = dict(rep)
     notes = list(rep['notes'])
     ceiling = TLS.net_worth_ceiling(POPULATION)
+    # 4. Add the year's list, or the last list grown to the year.
     kind, lst, list_year = TB.list_for_year(year)
     g19 = g19.copy()
     g19['billionaire'], g19['billionaire_rank'], g19['forbes_uri'] = 0, -1, ''
@@ -175,15 +187,15 @@ def add_list(g19, imp, given, fixed, rep, year):
             w_b = np.ones(len(b))
             fix_b = np.ones(len(b), bool)
         else:
-            # weight 1 on the list's date, grown by the population growth of the record's cell since the list's year
+            # Weight 1 on the list's date, grown by the population growth of the record's cell since the list's year.
             w_b, _ = PD.population_cells(b.assign(weight=1.0), year, from_year=list_year)
             w_b = np.asarray(w_b, float)
-            # the list's net worth on these weights grows as Z.1's from the list's year
+            # Check: the list's net worth on these weights grows as Z.1's from the list's year.
             from shared import growth as GR
             z = GR._csv('z1_household_net_worth.csv')
             want = lst['net_worth_list'].sum() * float(z.loc[year]) / float(z.loc[list_year])
             assert np.isclose((w_b * b['net_worth'].to_numpy(float)).sum(), want, rtol=1e-6), 'list growth off'
-            # held at that starting weight, as a list year holds its records at 1
+            # The records are held at these starting weights, as a list year holds its records at 1.
             fix_b = np.full(len(b), True)
             notes.append(f'billionaires: starting weights 1 x the population growth of their cell from {list_year} to '
                          f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); '
@@ -193,7 +205,8 @@ def add_list(g19, imp, given, fixed, rep, year):
         given = np.r_[given, np.ones(len(b), bool)]
         fixed = np.r_[fixed, fix_b]
     assert g19['record_id'].is_unique, 'a tax unit appears twice'
-    if lst is not None and kind == 'list':   # 5. the list is every US billionaire
+    # 5. In a list year, hold every record not on the list below the ceiling.
+    if lst is not None and kind == 'list':
         g19, rep['held below the ceiling'] = hold_below_ceiling(g19, imp, ceiling, notes)
     over = (g19['net_worth'].to_numpy(float) >= ceiling) & (g19['billionaire'].to_numpy() != 1)
     rep['over ceiling, not on the list'] = int(over.sum())
@@ -204,6 +217,8 @@ def add_list(g19, imp, given, fixed, rep, year):
         common.say(f'top: {n}')
     return g19, imp, given, fixed, rep
 
+
+# ---- The report ----
 
 def write_report(rep, folder, year):
     """Writes the top step's tables and top_notes.md to folder."""

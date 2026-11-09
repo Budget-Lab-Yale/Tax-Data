@@ -1,10 +1,12 @@
-"""Part A: the 2015 PUF's four aggregate records rebuilt as synthetic returns made from generated records.
+"""Part A: the 2015 PUF's four aggregate records, rebuilt as synthetic returns made from generated records.
 
-The four records (RECIDs 999996 to 999999, 1,232.78 returns) hold only group means for negative AGI, $0 to $10 million,
-$10 to $100 million and over $100 million of AGI, and are left out of training. build() draws candidate filers, selects
-the top ones by SOI's rule, weights them to the booklet's counts, scales their amounts to each record's group totals,
-redraws their balance sheets and grows them to the target year, writing to gen/<run>/hidden. The method follows PWBM
-(2020), section 2.1; FEATURES.md, "The top of the file", has the details.
+SOI put 1,232.78 of the highest-income returns into four records (RECIDs 999996 to 999999) that hold only the means of
+four AGI groups: negative AGI, $0 to $10 million, $10 to $100 million, and over $100 million. These records are left
+out of training. build() draws candidate filers from the networks and selects the top ones by SOI's selection rule. It
+weights them to the counts in SOI's booklet for the aggregate records and scales their amounts so that each group's
+totals equal the raw record's. It then draws their balance sheets again and grows them to the target year. The output
+is written to gen/<run>/hidden. The method follows PWBM (2020), section 2.1; FEATURES.md, "The top of the file",
+describes it in detail.
 """
 import os
 
@@ -21,33 +23,36 @@ PY = common.PUF_YEAR
 assert PY == 2015, 'the aggregate records rebuilt here are the 2015 PUF\'s'
 BOOKLET = os.path.join(common.RESOURCES, 'top_hidden', 'soi_2015_aggregate_booklet.csv')
 
-# ---- the four aggregate records ---------------------------------------------------------------------------------
+# ---- The four aggregate records ----
+
 RECIDS = [999996, 999997, 999998, 999999]
 GROUPS = ['negative AGI', '$0 to $10 million', '$10 million to $100 million', 'over $100 million']
 N_G = len(GROUPS)
 
 
 def agi_group(agi):
-    """The aggregate record group (0-3) of AGI in 2015 dollars: below 0; $0 to $10,000,000; $10,000,001 to
-    $100,000,000; above $100,000,000. The lines are the booklet's disclosure text; its AGIR1 code labels, with a
-    $1 million line, are a misprint."""
+    """The aggregate record's group (0 to 3) of each AGI in 2015 dollars: below 0; $0 to $10,000,000; $10,000,001 to
+    $100,000,000; above $100,000,000. The lines are those of the booklet's disclosure text. Its labels for the AGIR1
+    code, which show a $1 million line, are a misprint."""
     a = np.asarray(agi, float)
     return np.where(a < 0, 0, np.where(a <= 10e6, 1, np.where(a <= 100e6, 2, 3)))
 
 
-# ---- the parts the rebuild draws, from PUF fields (build_table.puf_items) ---------------------------------------
+# ---- The parts the rebuild uses, from PUF fields (build_table.puf_items) ----
+
 PRIMITIVES = (['wages', 'txbl_int', 'div_pref', 'div_ord'] + BT.KG_PIECES + list(BT.PARTS)
               + ['other_gains', 'txbl_ira_dist', 'txbl_pens_dist', 'nontxbl_pens_dist', 'ui', 'alimony',
                  'state_ref', 'gross_ss', 'exempt_int', 'first_mort_int',
                  'salt_prop'] + list(BT.ADJ_PARTS) + list(BT.NEW_ITEMS) + ['other_agi_remainder'])
-# Parts that are residuals in the PUF's translation (no PUF field or booklet line of their own) and may take both signs
+# Parts that are residuals in the PUF's translation (with no PUF field or booklet line of their own) and may take both
+# signs.
 RESIDUALS = ['div_ord', 'sche_other', 'part_se', 'other_item_exp', 'other_agi_remainder']
 
 
 def puf_items(raw, itemizer=None):
-    """The rebuild's parts from raw PUF fields, as the training table's (build_table.puf_items), with the remainder of
-    AGI as other_agi_remainder. itemizer says who gets other_item_exp (default FDED == 1; the aggregate records' FDED
-    is zeroed, so the caller passes True). The medical floor is 10% of AGI."""
+    """The rebuild's parts from raw PUF fields, made as the training table's are (build_table.puf_items), with the
+    remainder of AGI as other_agi_remainder. itemizer says which records get other_item_exp. The default is FDED == 1;
+    the caller passes True for the aggregate records, whose FDED is zeroed. The medical floor is 10% of AGI."""
     f = {c: raw[c].to_numpy(float) for c in raw.columns}
     itemizer = (f['FDED'] == 1) if itemizer is None else np.broadcast_to(np.asarray(itemizer, bool), (len(raw),))
     out = BT.puf_items(f, itemizer, 0.1)
@@ -56,8 +61,8 @@ def puf_items(raw, itemizer=None):
 
 
 def puf_totals(df, ss_taxable=None):
-    """The totals and AGI from the parts, as dollars.draw_dollars computes them. ss_taxable, if given, replaces the
-    worksheet's taxable Social Security (held fixed while the residual is scaled)."""
+    """The totals and AGI from the parts, computed as dollars.draw_dollars computes them. ss_taxable, if given,
+    replaces the worksheet's taxable Social Security; it is held fixed while the residual is scaled."""
     out = df.copy()
     out['capital_gains'] = common.allowed_capital_gain(out['kg_st'] + out['kg_lt'],
                                                        out['filing_status'] if 'filing_status' in out else None)
@@ -78,22 +83,24 @@ def puf_totals(df, ss_taxable=None):
 
 
 def read_raw():
-    """The raw 2015 PUF's four aggregate records, by RECID order."""
+    """The raw 2015 PUF's four aggregate records, in order of RECID."""
     raw = pd.read_csv(common.RAW['puf'])
     agg = raw[raw.RECID >= 999996].set_index('RECID').loc[RECIDS].reset_index()
     assert len(agg) == 4
     return agg
 
 
-# Fields blank on all four aggregate records and absent from the booklet: suppressed, not known zeros. Their parts
-# keep the donors' own 2015 amounts, and the residual moves so each group's AGI still equals the raw record's.
+# Fields that are blank on all four aggregate records and absent from the booklet. SOI suppressed them; they are not
+# known zeros. Their parts keep the donors' own 2015 amounts, and the residual moves so that each group's AGI still
+# equals the raw record's.
 SUPPRESSED_FIELDS = {'E00800': 'alimony', 'E03500': 'alimony_exp'}
-UNUSED_BLANK = {'E87521'}                                  # blank too, and not read here
+UNUSED_BLANK = {'E87521'}                                  # also blank, and not read here
 
 
 def raw_targets(agg):
-    """Per group: population returns (S006 / 100) and the net amount of every part (mean x returns), 2015 dollars. A
-    suppressed field is read as 0 for the residual and its part's target is missing."""
+    """For each group: the population returns (S006 / 100), the mean of every part, and the net amount of every part
+    (mean x returns), in 2015 dollars. A suppressed field is read as 0 for the residual, and its part's net amount is
+    missing."""
     n = agg['S006'].to_numpy(float) / 100
     blank = {c for c in agg.columns if agg[c].isna().any()}
     assert blank <= set(SUPPRESSED_FIELDS) | UNUSED_BLANK, f'blank fields on the aggregate records: {sorted(blank)}'
@@ -104,9 +111,10 @@ def raw_targets(agg):
         if fld in blank:
             means[part] = np.nan
     nets = means.mul(n, axis=0)
-    # the raw record's taxable Social Security, which its AGI includes
+    # The raw record's taxable Social Security, which its AGI includes.
     nets['ss_taxable'] = n * agg['E02500'].fillna(0.0).to_numpy(float)
-    # each raw record's allowed Schedule D net (the loss limit on its mean), as its residual was made
+    # Each raw record's allowed Schedule D net (the capital loss limit applied to its mean), as SOI made its
+    # residual.
     f = agg.fillna({c: 0.0 for c in blank})
     nets['sched_d_allowed'] = n * common.allowed_capital_gain(means['kg_st'].to_numpy(float) + means['kg_lt'].to_numpy(float),
                                                               f['MARS'].to_numpy() if 'MARS' in f else None)
@@ -114,17 +122,18 @@ def raw_targets(agg):
     return n, means, nets
 
 
-# ---- the booklet ---------------------------------------------------------------------------------------------
+# ---- The booklet ----
+
 def booklet():
-    """SOI's booklet table for the aggregate records, 2015 (printed pp. 32-36), in dollars and returns."""
+    """SOI's booklet table for the 2015 aggregate records (printed pages 32 to 36), in dollars and returns."""
     b = pd.read_csv(BOOKLET).set_index('field')
     for c in [c for c in b if c.endswith('_thousands')]:
         b[c.replace('_thousands', '')] = b[c] * 1000.0
     return b
 
 
-# Booklet fields the rebuild carries, each as a column with the field's sign (a loss stored positive is the booklet's
-# positive loss). Their counts are matched.
+# The booklet fields the rebuild carries, each with the column that holds it with the field's sign (a loss stored as a
+# positive number is the booklet's positive loss). The weights are matched to these fields' counts.
 COUNT_FIELDS = {**{fld: p for p, (fld, _) in BT.PARTS.items() if fld},
                 **{fld: p for p, fld in BT.ADJ_PARTS.items()},
                 **{fld: v for v, fld in BT.NEW_ITEMS.items() if fld},
@@ -133,16 +142,18 @@ COUNT_FIELDS = {**{fld: p for p, (fld, _) in BT.PARTS.items() if fld},
                 'E01200': 'other_gains', 'E01400': 'txbl_ira_dist', 'E01700': 'txbl_pens_dist',
                 'E02300': 'ui', 'E02400': 'gross_ss', 'E18500': 'salt_prop',
                 'E19200': 'first_mort_int', 'P22250': 'kg_st', 'P23250': 'kg_lt'}
-# Booklet fields that are totals computed from the parts: checks only, since their signs can move with scaling
+# Booklet fields that are totals computed from the parts. They are only checked, not matched, because their signs can
+# change when the parts are scaled.
 CHECK_FIELDS = {'E00100': 'agi', 'E01000': 'capital_gains', 'E02000': 'sch_e_income', 'E26270': 'pship_scorp_net',
                 'E00900': 'sole_prop', 'E02100': 'farm', 'E02500': 'ss_taxable', 'E01500': 'gross_pens_dist'}
-# Parts with both signs whose booklet line splits the combined amount into positive and negative dollars
+# Parts with both signs whose booklet line splits the combined amount into positive and negative dollars.
 SPLIT_PARTS = {'sole_prop': 'E00900', 'farm': 'E02100', 'other_gains': 'E01200', 'kg_st': 'P22250', 'kg_lt': 'P23250',
                'amt_nols': 'P60100'}
 
-# ---- SOI's selection rule --------------------------------------------------------------------------------------
-# SOI's rule (Bryant, Czajka, Ivsin and Nunns 2014), approximated: SOI does not publish it in full.
-# (column, side, rule): side +1 takes the highest positive amounts, -1 the lowest negative ones.
+# ---- SOI's selection rule ----
+# An approximation of SOI's rule (Bryant, Czajka, Ivsin and Nunns 2014), which SOI does not publish in full. Each entry
+# is (column, side, rule): side +1 takes the highest positive amounts and -1 the lowest negative ones, and rule names
+# the setting that gives how many returns to take.
 SELECT = ([('agi', 1, 'top_agi')]
           + [(v, 1, 'income_items') for v in ['wages', 'txbl_int', 'dividends', 'state_ref', 'alimony', 'sole_prop',
                                                'capital_gains', 'other_gains', 'txbl_ira_dist', 'txbl_pens_dist',
@@ -156,7 +167,7 @@ SELECT = ([('agi', 1, 'top_agi')]
                 'amt_nols', 'amt_ftc', 'ftc', 'gbc', 'prior_yr_cred', 'other_nonref', 'recapture_tax', 'ira_penalty',
                 'res_energy_cred']]
           + [(v, -1, 'other_fields') for v in ['kg_st', 'kg_lt', 'amt_nols']])
-# capped, income-limited and derived fields are left out of the rule, as SOI does
+# Capped, income-limited and derived fields are left out of the rule, as SOI leaves them out.
 EXCLUDED_FROM_SELECTION = {
     'capped or income-limited': ['gross_ss', 'ss_taxable (computed by the worksheet)', 'trad_contr_ira', 'sl_int_ded', 'ed_exp', 'tuition_ded',
                                  'hsa_contr', 'keogh_contr', 'aoc_exp', 'llc_exp', 'savers_cred', 'old_cred', 'net_ptc',
@@ -168,8 +179,8 @@ EXCLUDED_FROM_SELECTION = {
 
 
 def top_by_weight(x, w, n, side):
-    """Indices of the n highest (side 1) or lowest (side -1) returns counted in weight: records in order until their
-    weight reaches n, the record that crosses n included."""
+    """The positions of the n highest (side 1) or lowest (side -1) returns, counted by weight: the records in order
+    until their weight reaches n, including the record that crosses n."""
     idx = np.flatnonzero(x > 0 if side > 0 else x < 0)
     if not len(idx):
         return idx
@@ -179,7 +190,7 @@ def top_by_weight(x, w, n, side):
 
 
 def select(pool, w):
-    """SOI's rule on the pool: {record position: [rules that chose it]}."""
+    """SOI's rule applied to the pool. Returns {record position: [the rules that chose it]}."""
     sel = S['selection']
     reasons = {}
     for col, side, rule in SELECT:
@@ -188,10 +199,166 @@ def select(pool, w):
     return reasons
 
 
-# ---- scaling one part ------------------------------------------------------------------------------------------
+# ---- The candidates ----
+
+def folder():
+    """The output folder, gen/<run>/hidden, made if needed."""
+    f = f'{common.GEN}/hidden'
+    os.makedirs(f, exist_ok=True)
+    return f
+
+
+def draw_candidates(models, factors):
+    """The candidate records: each network's share of the number set for each AGI group (candidate_records), drawn
+    as generation draws filers but with a seed of their own. A record's weight is its group's 2015 PUF returns
+    divided by the records drawn in the group, divided by the number of networks."""
+    from generate import generate as G
+    alloc = np.asarray(S['candidate_records'], int)
+    parts = []
+    for k, mod in enumerate(models):
+        n_k = np.array([G.equal_shares(int(a), len(models))[k] for a in alloc])
+        part, _, _ = G.label_part(mod['network'], mod, k, len(models), factors[mod['run']], group_records=n_k,
+                                  seed=int(S['candidate_seed']) + mod['seed_shift'])
+        part['weight'] = part['weight'] / len(models)
+        part['stratifier'] = 'label'
+        part['model'] = mod['seed']
+        part['record_id'] = k * G.ID_BLOCK + np.arange(len(part))
+        parts.append(G.store_picks(part, k, stream=4343))   # the candidates' picks come from a stream of their own
+        common.say(f"{mod['run']}: {len(part):,} candidates")
+    return pd.concat(parts, ignore_index=True)
+
+
+def dollars_2015(stack):
+    """The PUF items of the records in stack in 2015 dollars, from the 2015 dollar map and the stored picks, with
+    their totals."""
+    maps = {v: g for v, g in pd.read_parquet(f'{common.MAPS}/map_puf_{PY}.parquet').groupby('variable')}
+    cols = [c for v in D.ORDER if v in maps for c in (f'{v}_band', f'u_{v}') if c in stack] + ['filing_status']
+    d = D.draw_dollars(stack[cols].reset_index(drop=True), maps)   # the filing status sets the capital loss limit
+    missing = [v for v in PRIMITIVES if v not in d]
+    assert not missing, f'parts with no 2015 dollars: {missing}'
+    out = d[PRIMITIVES].copy()
+    out['filing_status'] = stack['filing_status'].to_numpy()
+    t = puf_totals(out)
+    for c in ['capital_gains', 'capital_gains_line13', 'business_income', 'other_agi', 'dividends', 'adjustments']:
+        assert np.allclose(t[c].to_numpy(float), d[c].to_numpy(float), rtol=1e-12, atol=1e-6), \
+            f'{c}: puf_totals differs from dollars.draw_dollars'
+    return t
+
+
+# ---- Selecting the donors ----
+
+def candidates(out, models, factors):
+    """The candidate records, read from candidates.parquet if they were drawn in an earlier run, otherwise drawn and
+    saved there."""
+    cpath = f'{out}/candidates.parquet'
+    if os.path.exists(cpath):
+        cand = pd.read_parquet(cpath)
+        common.say(f'candidates: {cpath} ({len(cand):,} records), reused')
+    else:
+        cand = draw_candidates(models, factors)
+        cand.to_parquet(cpath, index=False)
+    return cand
+
+
+def first_groups(a, chosen, w, n_ret):
+    """Each selected record's first group, from its AGI a in 2015 dollars. Records with negative AGI go to group 0. The
+    positive records are ranked by AGI and split in the shares of the three positive groups' returns. They are not
+    grouped by the AGI lines, because the candidates' largest returns fall short of the aggregated ones. Returns
+    the group of every candidate (-1 for those not selected) and the AGI at the bottom of groups 3 and 2."""
+    grp_all = np.full(len(a), -1)
+    neg = chosen[a[chosen] < 0]
+    pos = chosen[a[chosen] >= 0]
+    grp_all[neg] = 0
+    o = pos[np.argsort(-a[pos], kind='stable')]
+    share = (np.cumsum(w[o]) - w[o]) / w[o].sum()
+    up = n_ret[1:][::-1]                                  # over $100M, $10-100M, $0-10M
+    cut = np.cumsum(up) / up.sum()
+    grp_all[o] = np.where(share < cut[0], 3, np.where(share < cut[1], 2, 1))
+    lines = {3: a[o][share < cut[0]].min(), 2: a[o][(share >= cut[0]) & (share < cut[1])].min()}
+    common.say(f'first groups by rank: candidates\' AGI lines {lines[3]:,.0f} (over $100M) and {lines[2]:,.0f} '
+               f'($10-100M); records per group {np.bincount(grp_all[chosen], minlength=4).tolist()}')
+    return grp_all, lines
+
+
+def subsample(chosen, grp_all, w, reasons):
+    """At most records_per_group selected records per group, drawn by weight without replacement. Each selection rule
+    keeps at least min_per_rule of the records it chose. Returns the positions kept."""
+    rng = np.random.default_rng(int(S['subsample_seed']))
+    keep = []
+    cap, floor_n = int(S['records_per_group']), int(S['min_per_rule'])
+    for g in range(N_G):
+        ids = chosen[grp_all[chosen] == g]
+        if len(ids) > cap:
+            # Drawing without replacement in proportion to weight: keep the records with the largest u ** (1 / w),
+            # u uniform.
+            key = rng.random(len(ids)) ** (1 / w[ids])
+            take = set(ids[np.argsort(-key)[:cap]].tolist())
+            rules = {}
+            for i in ids:
+                for r_ in reasons[int(i)]:
+                    rules.setdefault(r_, []).append(int(i))
+            for r_, members in rules.items():
+                if not take.intersection(members):
+                    take.update(rng.permutation(members)[:floor_n].tolist())
+            ids = np.array(sorted(take))
+        keep.append(ids)
+    return np.concatenate(keep)
+
+
+def add_targeted_donors(pool, a, keep, grp_all, lines, nets, reasons):
+    """Where a group's raw record has a positive (or negative) net amount of a part but none of the group's kept
+    records has an amount of that sign, adds up to targeted_per_gap candidates that do, taken from the candidates in
+    the group's AGI range. Updates grp_all and reasons in place. Returns the kept positions and a table of the
+    records added."""
+    added = []
+    lines_pool = np.where(a < 0, 0, np.where(a >= lines[3], 3, np.where(a >= lines[2], 2, 1)))
+    for v in PRIMITIVES:
+        x = pool[v].to_numpy(float)
+        for g in range(N_G):
+            T = nets[v].iloc[g]
+            m = keep[grp_all[keep] == g]
+            need = (T > 0 and not (x[m] > 0).any()) or (T < 0 and not (x[m] < 0).any())
+            if not need:
+                continue
+            side = 1 if T > 0 else -1
+            pool_g = np.setdiff1d(np.flatnonzero((lines_pool == g) & (side * x > 0)), keep)
+            top = pool_g[np.argsort(-side * x[pool_g])[:int(S['targeted_per_gap'])]]
+            grp_all[top] = g
+            for i in top:
+                reasons.setdefault(int(i), []).append(f'targeted:{v}:{"positive" if side > 0 else "negative"}')
+            keep = np.concatenate([keep, top])
+            added.append({'part': v, 'group': GROUPS[g], 'sign': 'positive' if side > 0 else 'negative',
+                          'added': len(top), 'note': '' if len(top) else 'no candidate in the pool has it'})
+    added = pd.DataFrame(added, columns=['part', 'group', 'sign', 'added', 'note'])
+    common.say('targeted donors:\n' + (added.to_string(index=False) if len(added) else 'none needed'))
+    return np.unique(keep), added
+
+
+def zero_by_booklet_sign(pool, keep, book, w):
+    """The kept donors' parts in 2015 dollars, with an amount set to zero where the booklet has no return with an
+    amount of that sign. Returns the parts and a table of what was set to zero."""
+    base = pool.iloc[keep][PRIMITIVES + ['filing_status']].reset_index(drop=True)
+    zeroed = []
+    for v in PRIMITIVES:
+        x = base[v].to_numpy(float)
+        fld = next((f for f, c in COUNT_FIELDS.items() if c == v), None)
+        no_pos = fld in book.index and book.loc[fld, 'returns_positive'] == 0
+        no_neg = fld in book.index and book.loc[fld, 'returns_negative'] == 0
+        by_sign = ((x > 0) & no_pos) | ((x < 0) & no_neg)
+        if by_sign.any():
+            zeroed.append({'part': v, 'records set to zero, booklet has no return with that sign': int(by_sign.sum()),
+                           'weighted dollars of the donors set to zero (candidate weights)':
+                           float((w[keep] * np.abs(x))[by_sign].sum())})
+            base.loc[by_sign, v] = 0.0
+    return base, zeroed
+
+
+# ---- Scaling the amounts ----
+
 def _one_group(P, N, T):
-    """The positive and negative factors (a, b) of one group with both signs, a P + b N = T (P > 0 > N), closest in
-    logs to one common factor c = |T| / (P - N)."""
+    """For one group that has both positive dollars P and negative dollars N of a part, the factors a on the positive
+    and b on the negative amounts with a P + b N = T. Among such factors, the pair closest in logs to one common
+    factor c = |T| / (P - N)."""
     from scipy.optimize import minimize_scalar
     c = abs(T) / (P - N)
     lc = np.log(c)
@@ -206,18 +373,19 @@ def _one_group(P, N, T):
 
 
 def solve_field(P, N, T, B=None):
-    """Scale factors for one part across the four groups: a[g] on positive amounts, b[g] on negative amounts, so that
-    a P + b N = T in every group and, given B (the booklet's combined positive dollars), sum a P = B. P[g] and N[g] are
-    the group's weighted positive and negative dollars, T[g] its net target. Among such factors, the closest in logs to
-    one common factor per group. Returns a, b and notes on any target not met."""
+    """Scale factors for one part across the four groups: a[g] on positive amounts and b[g] on negative amounts, so
+    that a P + b N = T in every group and, if B (the booklet's positive dollars over all groups) is given, so that the
+    sum of a P is B. P[g] and N[g] are the group's weighted positive and negative dollars and T[g] its net amount.
+    Among such factors, those closest in logs to one common factor per group are chosen. Returns a, b and notes on
+    any amount that could not be met."""
     P, N, T = (np.asarray(x, float) for x in (P, N, T))
     assert np.isfinite(P).all() and np.isfinite(N).all() and np.isfinite(T).all(), (P, N, T)
-    P, N = np.where(P < 1.0, 0.0, P), np.where(N > -1.0, 0.0, N)   # under a dollar of weighted amount: none
+    P, N = np.where(P < 1.0, 0.0, P), np.where(N > -1.0, 0.0, N)   # under a dollar of weighted amount counts as none
     a, b = np.zeros(N_G), np.zeros(N_G)
     notes, free = [], []
     for g in range(N_G):
         if T[g] == 0:
-            continue                                          # nothing in the group: zero
+            continue                                          # the group's net is zero: both factors stay zero
         if P[g] > 0 and N[g] < 0:
             a[g], b[g] = _one_group(P[g], N[g], T[g])
             free.append(g)
@@ -235,7 +403,8 @@ def solve_field(P, N, T, B=None):
         if abs(fixed - B) > 1e-6 * max(abs(B), 1):
             notes.append(f'booklet positive total {B:,.0f} not met: the groups\' nets fix it at {fixed:,.0f}')
         return a, b, notes
-    # positives of a free group can be anything above max(0, T): the combined total must be at least their sum
+    # In a group with both signs, the positive dollars can be any amount above max(0, T). The booklet's positive total
+    # must be at least the sum of these floors.
     floor = fixed + sum(max(0.0, T[g]) for g in free)
     B_use = B
     if B <= floor:
@@ -262,15 +431,17 @@ def solve_field(P, N, T, B=None):
 
 
 def apply_factors(x, grp, a, b):
+    """Each amount scaled by its group's factor: a for positive amounts and b for negative ones."""
     return np.where(x > 0, x * a[grp], np.where(x < 0, x * b[grp], 0.0))
 
 
-SS_ROUNDS = 50   # rounds of the residual against the worksheet's taxable Social Security
+SS_ROUNDS = 50   # the most rounds of scaling the residual against the worksheet's taxable Social Security
 
 
 def scale_bounded(x, w, grp, T, lo, hi, rounds=400):
-    """One part scaled group by group with each record held inside [lo, hi]: records outside are set to their bound
-    and the rest scaled to the remaining net, until no record leaves its bound."""
+    """One part scaled group by group with each record held between its lo and hi. Records that would fall outside
+    are set to their bound, and the rest are scaled to the remaining net amount. This is repeated until no record
+    leaves its bound."""
     y = np.zeros(len(x))
     notes = []
     for g in range(N_G):
@@ -304,15 +475,16 @@ def scale_bounded(x, w, grp, T, lo, hi, rounds=400):
     return y, notes
 
 
-# Each group's AGI range in 2015 dollars, a dollar or two inside the lines so that rounding cannot carry a record
-# held at a line across it
+# Each group's AGI range in 2015 dollars, set a dollar or two inside the lines. Rounding then cannot carry a record held
+# at a line across it.
 AGI_RANGE = [(-np.inf, -2.0), (1.0, 10e6 - 1), (10e6 + 2, 100e6 - 1), (100e6 + 2, np.inf)]
 
 
 def agi_without_ss_at(line, d):
-    """Per record, the AGI without taxable Social Security, a, at which AGI with it equals line. AGI = a + ss(a), and
-    ss rises by at most 85 cents a dollar, so AGI increases in a and bisection between line - 0.85 x gross benefits - 1
-    and line + 1 finds it. An infinite line stays infinite."""
+    """For each record, the AGI without taxable Social Security, a, at which AGI with it equals line. AGI is
+    a + ss(a), where ss(a) is taxable Social Security. ss rises by at most 85 cents per dollar of a, and AGI therefore
+    rises with a. Bisection between line - 0.85 x gross benefits - 1 and line + 1 finds the answer. An infinite line
+    stays infinite."""
     line = np.asarray(line, float)
     gs = d['gross_ss'].to_numpy(float)
     add = d['exempt_int'].to_numpy(float) + d['sl_int_ded'].to_numpy(float)
@@ -328,22 +500,23 @@ def agi_without_ss_at(line, d):
 
 
 def scale_all(base, w, grp, nets, book, hold=False):
-    """Every part of base (2015 dollars) scaled to each group's net, then the totals. The residual other_agi_remainder
-    (the PUF's AGI less every identified item) is scaled last; with hold, each record's residual is held so its AGI
-    stays inside its group. Returns the scaled frame with totals and a table of factors per part."""
+    """Every part of base (2015 dollars) scaled to each group's net amount, then the totals. The residual
+    other_agi_remainder (the PUF's AGI less every identified item) is scaled last. With hold, each record's residual
+    is held so that its AGI stays inside its group. Returns the scaled records with their totals, and a table of the
+    factors for each part."""
     out = base.copy()
     rows = []
     nets = nets.copy()
     by_group = lambda x: np.array([(w * x)[grp == g].sum() for g in range(N_G)])
-    signed = lambda x: (by_group(np.where(x > 0, x, 0)), by_group(np.where(x < 0, x, 0)))   # positive and negative dollars
+    signed = lambda x: (by_group(np.where(x > 0, x, 0)), by_group(np.where(x < 0, x, 0)))   # positive, negative dollars
     for part in [p for p in SUPPRESSED_FIELDS.values() if nets[p].isna().all()]:
         own = by_group(base[part].to_numpy(float))
-        sign = D.FOLD[part] if part in D.FOLD else -1.0      # alimony paid is an adjustment, subtracted from AGI
+        sign = D.FOLD[part] if part in D.FOLD else -1.0      # alimony paid is an adjustment, which reduces AGI
         nets['other_agi_remainder'] = nets['other_agi_remainder'] - sign * own
         rows.append({'part': part, 'notes': 'suppressed on the aggregate records: the donors\' own amounts, unscaled '
                      f'(${own.sum() / 1e6:,.1f} million); the residual moved to keep AGI'})
     suppressed = {r['part'] for r in rows}
-    last = ['other_agi_remainder']                       # the residual: scaled last, after every other part
+    last = ['other_agi_remainder']                       # the residual is scaled last, after every other part
     for v in [p for p in PRIMITIVES if p not in suppressed and p not in last]:
         x = base[v].to_numpy(float)
         P, N = signed(x)
@@ -354,24 +527,24 @@ def scale_all(base, w, grp, nets, book, hold=False):
         out[v] = apply_factors(x, grp, a, b)
         rows.append({'part': v, **{f'positive factor, {GROUPS[g]}': a[g] for g in range(N_G)},
                      **{f'negative factor, {GROUPS[g]}': b[g] for g in range(N_G)}, 'notes': '; '.join(notes)})
-    # each record's Schedule D net is held to the allowed loss; the gap between the group's allowed total and the raw
-    # record's moves into the residual
+    # Each record's Schedule D net is held to the allowed loss. The gap between the group's allowed total and the raw
+    # record's moves into the residual.
     v = 'other_agi_remainder'
     fs = out['filing_status'] if 'filing_status' in out else None
     got = common.allowed_capital_gain(out['kg_st'].to_numpy(float) + out['kg_lt'].to_numpy(float), fs)
     short = nets['sched_d_allowed'].to_numpy(float) - by_group(got)
     note = ('held parts short of their nets, moved into it: ' + ', '.join(f'{GROUPS[g]} ${short[g] / 1e6:,.1f}m'
                                                                             for g in range(N_G) if abs(short[g]) > 1))
-    # taxable Social Security comes from the worksheet on each record, so the residual moves by the raw record's
-    # E02500 less the group's worksheet total. The worksheet reads AGI, which includes the residual, so the two are
-    # repeated until the group totals settle within a dollar
+    # Taxable Social Security comes from the worksheet on each record. The residual therefore moves by the raw
+    # record's E02500 less the group's worksheet total. The worksheet reads AGI, which includes the residual. The
+    # scaling and the worksheet are therefore repeated until the group totals settle within a dollar.
     raw_ss = nets['ss_taxable'].to_numpy(float)
     out[v] = base[v].to_numpy(float)
     ss = puf_totals(out)['ss_taxable'].to_numpy(float)
     for k in range(SS_ROUNDS):
         T = nets[v].to_numpy(float) + short + (raw_ss - by_group(ss))
         if hold:
-            # the residual's bounds that keep each record's AGI, with taxable Social Security, inside its group
+            # The bounds on the residual that keep each record's AGI, with taxable Social Security, inside its group.
             without = D.agi(puf_totals(out.assign(other_agi_remainder=0.0), ss_taxable=np.zeros(len(out))))
             lo = agi_without_ss_at(np.array([AGI_RANGE[g][0] for g in grp]), out) - without
             hi = agi_without_ss_at(np.array([AGI_RANGE[g][1] for g in grp]), out) - without
@@ -398,10 +571,12 @@ def scale_all(base, w, grp, nets, book, hold=False):
     return puf_totals(out), pd.DataFrame(rows)
 
 
-# ---- the counts -----------------------------------------------------------------------------------------------
+# ---- Matching the booklet's counts ----
+
 def count_targets(book, frame):
-    """(label, indicator column on frame, published count, tolerance) for the positive and negative count of each
-    field in COUNT_FIELDS. The tolerance is the larger of a number of returns and a share of the count."""
+    """The booklet's count of returns with a positive and with a negative amount of each field in COUNT_FIELDS, as
+    (label, indicator for each record of frame, published count, tolerance). The tolerance is the larger of a number
+    of returns and a share of the count."""
     tol = S['count_tolerance']
     out = []
     for fld, col in COUNT_FIELDS.items():
@@ -412,15 +587,15 @@ def count_targets(book, frame):
             c = float(book.loc[fld, cnt])
             ind = (x > 0) if side == 'positive' else (x < 0)
             if c == 0 and not ind.any():
-                continue                                       # nothing to match: zero and zero
+                continue                                       # nothing to match: the booklet and the records have none
             out.append((f'{fld} {col} {side}', ind.astype(float), c, max(float(tol['returns']), float(tol['share']) * c)))
     return out
 
 
 def match_counts(frame, grp, n_ret, book):
-    """Weights moved as little as possible from equal weights within each group so the booklet's counts are met
-    within their tolerance, each group's returns exactly. Returns the weights, the starting weights, a table of every
-    count before and after, and the solver's report."""
+    """Weights moved as little as possible from equal weights within each group, so that the booklet's counts are
+    met within their tolerance and each group's returns exactly (the reweighting solver, reweight/solver.py). Returns
+    the weights, the starting weights, a table of every count before and after, and the solver's report."""
     from reweight import solver as SV
     w0 = np.zeros(len(frame))
     for g in range(N_G):
@@ -435,60 +610,80 @@ def match_counts(frame, grp, n_ret, book):
     w1, info = SV.solve(w0, F, T, se, ident, [None] * len(T), {'reweighting': {'tau': 1.0, 'newton_budget': 100}})
     tab = pd.DataFrame({'count': [f'returns, {g}' for g in GROUPS] + [c[0] for c in cts], 'booklet': T,
                         'tolerance': se, 'equal weights': F.T @ w0, 'after matching': F.T @ w1})
-    tab['met'] = np.abs(tab['after matching'] - tab['booklet']) <= tab['tolerance'] * 1.001 + 1e-6   # solver rounding
+    # A small allowance for the solver's rounding.
+    tab['met'] = np.abs(tab['after matching'] - tab['booklet']) <= tab['tolerance'] * 1.001 + 1e-6
     return w1, w0, tab, info
 
 
-# ---- the candidates ----------------------------------------------------------------------------------------------
-def folder():
-    f = f'{common.GEN}/hidden'
-    os.makedirs(f, exist_ok=True)
-    return f
+# ---- Weighting, scaling and placing the donors in their groups ----
+
+def zero_groups(src, grp, nets):
+    """The donors' parts with a part set to zero on every record of a group whose raw record has none of it. This is
+    redone in every round, because records move between groups."""
+    out_ = src.copy()
+    for v in PRIMITIVES:
+        kill = (nets[v].to_numpy(float)[grp] == 0) & (out_[v].to_numpy(float) != 0)
+        out_.loc[kill, v] = 0.0
+    return out_
 
 
-def draw_candidates(models, factors):
-    """Each model's share of the candidate records by AGI group, drawn as generation draws filers but with a seed of
-    their own. Each weight is the group's 2015 PUF returns over the records drawn in it, over the number of models."""
-    from generate import generate as G
-    alloc = np.asarray(S['candidate_records'], int)
-    parts = []
-    for k, mod in enumerate(models):
-        n_k = np.array([G.equal_shares(int(a), len(models))[k] for a in alloc])
-        part, _, _ = G.label_part(mod['network'], mod, k, len(models), factors[mod['run']], group_records=n_k,
-                                  seed=int(S['candidate_seed']) + mod['seed_shift'])
-        part['weight'] = part['weight'] / len(models)
-        part['stratifier'] = 'label'
-        part['model'] = mod['seed']
-        part['record_id'] = k * G.ID_BLOCK + np.arange(len(part))
-        parts.append(G.store_picks(part, k, stream=4343))   # the candidates' picks: a stream of their own
-        common.say(f"{mod['run']}: {len(part):,} candidates")
-    return pd.concat(parts, ignore_index=True)
+def one_round(base_src, grp, hold, nets, n_ret, book, history):
+    """Steps 4 to 6 once: set the group zeros, match the weights to the booklet's counts, and scale the amounts to the
+    groups' totals. Then find each record's group by its final AGI. With hold, each record's residual is held so that
+    its AGI stays inside its group. Appends a row to history. Returns the results as a dictionary."""
+    base = zero_groups(base_src, grp, nets)
+    wts, w_start, counts, info = match_counts(puf_totals(base), grp, n_ret, book)
+    scaled, factors_tab = scale_all(base, wts, grp, nets, book, hold=hold)
+    g_final = agi_group(scaled['agi'].to_numpy(float))
+    history.append({'round': len(history) + 1, 'held in group by other income': hold, 'records': len(base),
+                    **{f'records, {GROUPS[g]}': int((grp == g).sum()) for g in range(N_G)},
+                    'outside their group after scaling': int((g_final != grp).sum()),
+                    'counts met': int(counts['met'].sum()), 'counts': len(counts)})
+    return dict(wts=wts, w_start=w_start, counts=counts, info=info, scaled=scaled, factors_tab=factors_tab,
+                g_final=g_final)
 
 
-def dollars_2015(stack):
-    """The PUF items of stack in 2015 dollars, from the 2015 map and the stored picks."""
-    maps = {v: g for v, g in pd.read_parquet(f'{common.MAPS}/map_puf_{PY}.parquet').groupby('variable')}
-    cols = [c for v in D.ORDER if v in maps for c in (f'{v}_band', f'u_{v}') if c in stack] + ['filing_status']
-    d = D.draw_dollars(stack[cols].reset_index(drop=True), maps)   # filing status sets the capital loss limit
-    missing = [v for v in PRIMITIVES if v not in d]
-    assert not missing, f'parts with no 2015 dollars: {missing}'
-    out = d[PRIMITIVES].copy()
-    out['filing_status'] = stack['filing_status'].to_numpy()
-    t = puf_totals(out)
-    for c in ['capital_gains', 'capital_gains_line13', 'business_income', 'other_agi', 'dividends', 'adjustments']:
-        assert np.allclose(t[c].to_numpy(float), d[c].to_numpy(float), rtol=1e-12, atol=1e-6), \
-            f'{c}: puf_totals differs from dollars.draw_dollars'
-    return t
+def place_in_groups(base_src, grp, donor, nets, n_ret, book):
+    """Repeats one_round until every record's final AGI lies inside its group. In the first move_iterations rounds a
+    record outside its group is moved to the group of its final AGI. In the later rounds the residual holds each record
+    inside its group, and a record still outside is dropped. After group_iterations rounds, any record still outside
+    is dropped and the round is redone, until none is outside. Returns the donors' parts, groups and candidate
+    positions after the last round, the last round's results, and the table of rounds."""
+    history = []
+    for it in range(int(S['group_iterations'])):
+        hold = it >= int(S['move_iterations'])
+        r = one_round(base_src, grp, hold, nets, n_ret, book, history)
+        mis = r['g_final'] != grp
+        common.say(f'round {it + 1}: {int(mis.sum())} records outside their group; counts met '
+                   f'{int(r["counts"]["met"].sum())} of {len(r["counts"])}')
+        if not mis.any() or it == int(S['group_iterations']) - 1:
+            break
+        if it < int(S['move_iterations']):
+            grp = np.where(mis, r['g_final'], grp)
+        else:
+            base_src, grp, donor = base_src[~mis].reset_index(drop=True), grp[~mis], donor[~mis]
+    extra = 0
+    while mis.any():
+        extra += 1
+        assert extra <= 30, f'{int(mis.sum())} records still outside their group after 30 rounds of dropping'
+        common.say(f'{int(mis.sum())} records still outside their group: dropped, weights and scaling done again '
+                   f'(groups {grp[mis].tolist()}, AGI {np.round(r["scaled"]["agi"].to_numpy()[mis] / 1e6, 3).tolist()} million; '
+                   f'other income: {r["factors_tab"].loc[r["factors_tab"].part == "other_agi_remainder", "notes"].tolist()})')
+        base_src, grp, donor = base_src[~mis].reset_index(drop=True), grp[~mis], donor[~mis]
+        r = one_round(base_src, grp, True, nets, n_ret, book, history)
+        mis = r['g_final'] != grp
+    return base_src, grp, donor, r, pd.DataFrame(history)
 
 
-# ---- wealth ---------------------------------------------------------------------------------------------------
+# ---- Bands and wealth for the rebuilt returns ----
+
 def reband(frame2015):
-    """Band of every PUF amount slot from 2015 dollars, on the 2015 PUF cut points."""
+    """The band of every PUF amount slot, from 2015 dollars on the 2015 PUF cut points."""
     from pretrain import model as M
     out = {}
     for v in M.PREDICTED:
         if v in M.CATEGORICAL or 'puf' not in M.PRESENT_ON[v] or v in M.REPORTED or v in M.PUF_SHARES:
-            continue   # a share keeps the donor's own band
+            continue   # a share, like the categories, keeps the donor's own value
         col = 'other_agi_remainder' if v == 'other_agi' else v
         assert col in frame2015, f'{v}: no 2015 dollars to band'
         x = frame2015[col].to_numpy(float)
@@ -499,9 +694,9 @@ def reband(frame2015):
 
 def redraw_wealth(rows, models, by_seed, maps):
     """Each rebuilt return's balance sheet drawn again given its final income items (top_billionaires.redraw_records),
-    keeping the first try below wealth_cap, else the lowest. rows are the rebuilt returns in the stack's coding, with
-    PUF bands from their final 2015 dollars. Returns the new SCF slot values, the kept try's dollars, the try accepted
-    (-1 where every try reached the cap), every try's net worth, and the try kept."""
+    keeping the first try below wealth_cap, otherwise the lowest. rows holds the rebuilt returns in the stack's
+    coding, with PUF bands from their final 2015 dollars. Returns the new SCF slot values, the kept try's dollars, the
+    try accepted (-1 where every try reached the cap), every try's net worth, and the try kept."""
     from pretrain import model as M
     from generate import top_billionaires as TB
     n = len(rows)
@@ -516,10 +711,11 @@ def redraw_wealth(rows, models, by_seed, maps):
     return new, dol, np.where(ok, kept, -1), tried, kept
 
 
-# ---- the build -------------------------------------------------------------------------------------------------
+# ---- The build ----
+
 def build():
-    """Rebuilds the four records in 2015 dollars and then in the target year, in the numbered steps below. Writes the
-    folder's files and returns the target-year rows."""
+    """Rebuilds the four aggregate records in 2015 dollars and then in the target year, in the numbered steps below.
+    Writes the folder's files and returns the target-year rows."""
     import torch
     from generate import generate as G
     out = folder()
@@ -534,159 +730,40 @@ def build():
     book = booklet()
     common.say(f'aggregate records: returns {n_ret.tolist()} (total {n_ret.sum():.2f})')
 
-    # 1. candidates (reused if already drawn)
-    cpath = f'{out}/candidates.parquet'
-    if os.path.exists(cpath):
-        cand = pd.read_parquet(cpath)
-        common.say(f'candidates: {cpath} ({len(cand):,} records), reused')
-    else:
-        cand = draw_candidates(models, factors)
-        cand.to_parquet(cpath, index=False)
+    # 1. Draw the candidates (or reuse them) and compute their amounts in 2015 dollars.
+    cand = candidates(out, models, factors)
     pool = dollars_2015(cand)
     w = cand['weight'].to_numpy(float)
 
-    # 2. selection
+    # 2. Select the candidates that SOI's rule would have put in the aggregate records.
     reasons = select(pool, w)
     chosen = np.array(sorted(reasons))
     common.say(f'selected {len(chosen):,} candidates, {w[chosen].sum():,.1f} returns in population weight')
 
-    # 3. first groups by rank of the candidates' AGI: their largest returns fall short of the aggregated ones, so the
-    # positive records are split in the shares of the three positive groups' returns
+    # 3. Give each selected record its first group, keep a subsample of each group, add donors where a group needs an
+    #    amount of a sign its records lack, and set to zero the amounts of a sign the booklet has no return with.
     a = pool['agi'].to_numpy(float)
-    grp_all = np.full(len(pool), -1)
-    neg = chosen[a[chosen] < 0]
-    pos = chosen[a[chosen] >= 0]
-    grp_all[neg] = 0
-    o = pos[np.argsort(-a[pos], kind='stable')]
-    share = (np.cumsum(w[o]) - w[o]) / w[o].sum()
-    up = n_ret[1:][::-1]                                  # over $100M, $10-100M, $0-10M
-    cut = np.cumsum(up) / up.sum()
-    grp_all[o] = np.where(share < cut[0], 3, np.where(share < cut[1], 2, 1))
-    lines = {3: a[o][share < cut[0]].min(), 2: a[o][(share >= cut[0]) & (share < cut[1])].min()}
-    common.say(f'first groups by rank: candidates\' AGI lines {lines[3]:,.0f} (over $100M) and {lines[2]:,.0f} '
-               f'($10-100M); records per group {np.bincount(grp_all[chosen], minlength=4).tolist()}')
-
-    # a varied subsample per group, keeping some records chosen by every rule
-    rng = np.random.default_rng(int(S['subsample_seed']))
-    keep = []
-    cap, floor_n = int(S['records_per_group']), int(S['min_per_rule'])
-    for g in range(N_G):
-        ids = chosen[grp_all[chosen] == g]
-        if len(ids) > cap:
-            key = rng.random(len(ids)) ** (1 / w[ids])        # weighted sampling without replacement
-            take = set(ids[np.argsort(-key)[:cap]].tolist())
-            rules = {}
-            for i in ids:
-                for r_ in reasons[int(i)]:
-                    rules.setdefault(r_, []).append(int(i))
-            for r_, members in rules.items():
-                if not take.intersection(members):
-                    take.update(rng.permutation(members)[:floor_n].tolist())
-            ids = np.array(sorted(take))
-        keep.append(ids)
-    keep = np.concatenate(keep)
-
-    # targeted donors where a group must hold a sign its records lack
-    base_all = pool.copy()
-    added = []
-    lines_pool = np.where(a < 0, 0, np.where(a >= lines[3], 3, np.where(a >= lines[2], 2, 1)))
-    for v in PRIMITIVES:
-        x = base_all[v].to_numpy(float)
-        for g in range(N_G):
-            T = nets[v].iloc[g]
-            m = keep[grp_all[keep] == g]
-            need = (T > 0 and not (x[m] > 0).any()) or (T < 0 and not (x[m] < 0).any())
-            if not need:
-                continue
-            side = 1 if T > 0 else -1
-            pool_g = np.setdiff1d(np.flatnonzero((lines_pool == g) & (side * x > 0)), keep)
-            top = pool_g[np.argsort(-side * x[pool_g])[:int(S['targeted_per_gap'])]]
-            grp_all[top] = g
-            for i in top:
-                reasons.setdefault(int(i), []).append(f'targeted:{v}:{"positive" if side > 0 else "negative"}')
-            keep = np.concatenate([keep, top])
-            added.append({'part': v, 'group': GROUPS[g], 'sign': 'positive' if side > 0 else 'negative',
-                          'added': len(top), 'note': '' if len(top) else 'no candidate in the pool has it'})
-    added = pd.DataFrame(added, columns=['part', 'group', 'sign', 'added', 'note'])
-    common.say('targeted donors:\n' + (added.to_string(index=False) if len(added) else 'none needed'))
-    keep = np.unique(keep)
-
-    # structural zeros: a part a group's raw record has none of, or a sign the booklet has no return with
-    base = pool.iloc[keep][PRIMITIVES + ['filing_status']].reset_index(drop=True)
+    grp_all, lines = first_groups(a, chosen, w, n_ret)
+    keep = subsample(chosen, grp_all, w, reasons)
+    keep, added = add_targeted_donors(pool, a, keep, grp_all, lines, nets, reasons)
+    base_src, zeroed = zero_by_booklet_sign(pool, keep, book, w)
     grp = grp_all[keep].copy()
-    zeroed = []
-    for v in PRIMITIVES:
-        x = base[v].to_numpy(float)
-        fld = next((f for f, c in COUNT_FIELDS.items() if c == v), None)
-        no_pos = fld in book.index and book.loc[fld, 'returns_positive'] == 0
-        no_neg = fld in book.index and book.loc[fld, 'returns_negative'] == 0
-        by_sign = ((x > 0) & no_pos) | ((x < 0) & no_neg)
-        if by_sign.any():
-            zeroed.append({'part': v, 'records set to zero, booklet has no return with that sign': int(by_sign.sum()),
-                           'weighted dollars of the donors set to zero (candidate weights)':
-                           float((w[keep] * np.abs(x))[by_sign].sum())})
-            base.loc[by_sign, v] = 0.0
+    # Check that the two pension parts are each at least zero; gross pensions are then never below taxable pensions.
+    assert (base_src[common.PENSION_PARTS].to_numpy(float) >= 0).all(), 'a pension part below zero on a donor'
 
-    # the two pension parts are each at least zero, so gross pensions are never below taxable pensions
-    assert (base[common.PENSION_PARTS].to_numpy(float) >= 0).all(), 'a pension part below zero on a donor'
-    base_src = base                       # the donors before the per-group zeros, which follow each record's group
-
-    def zero_groups(src, grp):
-        """A part a group's raw record has none of is zero on the group's records (redone every round, as records
-        move between groups)."""
-        out_ = src.copy()
-        for v in PRIMITIVES:
-            kill = (nets[v].to_numpy(float)[grp] == 0) & (out_[v].to_numpy(float) != 0)
-            out_.loc[kill, v] = 0.0
-        return out_
-
-    # 4-6. weights matched to the booklet's counts, amounts scaled to the groups' totals; a record whose final AGI is
-    # outside its group is moved for move_iterations rounds, then held by the residual, and dropped if still outside
-    donor = keep.copy()
-    history = []
-
-    def one_round(base_src, grp, hold):
-        """Steps 4 to 6 once: the group zeros, the weights, the scaling; each record's group by its final AGI."""
-        base = zero_groups(base_src, grp)
-        wts, w_start, counts, info = match_counts(puf_totals(base), grp, n_ret, book)
-        scaled, factors_tab = scale_all(base, wts, grp, nets, book, hold=hold)
-        g_final = agi_group(scaled['agi'].to_numpy(float))
-        history.append({'round': len(history) + 1, 'held in group by other income': hold, 'records': len(base),
-                        **{f'records, {GROUPS[g]}': int((grp == g).sum()) for g in range(N_G)},
-                        'outside their group after scaling': int((g_final != grp).sum()),
-                        'counts met': int(counts['met'].sum()), 'counts': len(counts)})
-        return base, wts, w_start, counts, info, scaled, factors_tab, g_final
-    for it in range(int(S['group_iterations'])):
-        hold = it >= int(S['move_iterations'])
-        base, wts, w_start, counts, info, scaled, factors_tab, g_final = one_round(base_src, grp, hold)
-        mis = g_final != grp
-        common.say(f'round {it + 1}: {int(mis.sum())} records outside their group; counts met '
-                   f'{int(counts["met"].sum())} of {len(counts)}')
-        if not mis.any() or it == int(S['group_iterations']) - 1:
-            break
-        if it < int(S['move_iterations']):
-            grp = np.where(mis, g_final, grp)
-        else:
-            base_src, grp, donor = base_src[~mis].reset_index(drop=True), grp[~mis], donor[~mis]
-    extra = 0
-    while mis.any():          # the records still outside their group are dropped, and steps 4-6 done again
-        extra += 1
-        assert extra <= 30, f'{int(mis.sum())} records still outside their group after 30 rounds of dropping'
-        common.say(f'{int(mis.sum())} records still outside their group: dropped, weights and scaling done again '
-                   f'(groups {grp[mis].tolist()}, AGI {np.round(scaled["agi"].to_numpy()[mis] / 1e6, 3).tolist()} million; '
-                   f'other income: {factors_tab.loc[factors_tab.part == "other_agi_remainder", "notes"].tolist()})')
-        base_src, grp, donor = base_src[~mis].reset_index(drop=True), grp[~mis], donor[~mis]
-        base, wts, w_start, counts, info, scaled, factors_tab, g_final = one_round(base_src, grp, True)
-        mis = g_final != grp
-    history = pd.DataFrame(history)
-
+    # 4-6. Match the weights to the booklet's counts and scale the amounts to the groups' totals, round after round,
+    #      until every record's final AGI lies inside its group.
+    base_src, grp, donor, r, history = place_in_groups(base_src, grp, keep.copy(), nets, n_ret, book)
+    wts, w_start, counts, info, scaled, factors_tab = (r[k] for k in ('wts', 'w_start', 'counts', 'info', 'scaled',
+                                                                      'factors_tab'))
     for v in PRIMITIVES:
         x = base_src[v].to_numpy(float)
         kill = (nets[v].to_numpy(float)[grp] == 0) & (x != 0)
         if kill.any():
             zeroed.append({'part': v, 'records set to zero, the group\'s raw record has none': int(kill.sum()),
                            'groups': ', '.join(GROUPS[g] for g in sorted(set(grp[kill])))})
-    # the rebuilt 2015 returns
+
+    # Save the rebuilt 2015 returns and their donors' own 2015 amounts.
     h15 = scaled.copy()
     h15.insert(0, 'hidden_group', grp)
     h15.insert(1, 'weight', wts)
@@ -700,7 +777,7 @@ def build():
     h15.to_parquet(f'{out}/hidden_2015.parquet', index=False)
     donor_2015.assign(hidden_group=grp, weight=wts).to_parquet(f'{out}/donors_2015.parquet', index=False)
 
-    # checks in 2015 terms
+    # Write the checks in 2015 terms.
     checks_2015(h15, donor_2015, wts, grp, nets, n_ret, book, counts, out, agg)
     history.to_csv(f'{out}/check_rounds.csv', index=False)
     factors_tab.to_csv(f'{out}/check_factors.csv', index=False)
@@ -713,20 +790,20 @@ def build():
                'smallest weight factor of the count matching': info['smallest_weight_factor']}
               ).to_csv(f'{out}/check_selection.csv', header=['value'])
 
-    # 7-8: the target year
+    # 7-8. Draw the balance sheets again and carry the returns to the target year.
     rows = target_year_rows(h15, cand.iloc[donor].reset_index(drop=True), models, by_seed, out)
     return rows
 
 
 def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
-    """Checks in 2015 dollars: counts and dollars against the booklet and the four raw records, the accounting rules,
-    and each record inside its group."""
+    """Writes the checks in 2015 dollars: counts and dollars against the booklet and the four raw records, the
+    accounting rules, and whether each record lies inside its group."""
     counts.to_csv(f'{out}/check_counts.csv', index=False)
-    # dollars by group against the raw records, every part and the totals
+    # Dollars by group against the raw records, for every part and the totals.
     rows = []
     tot = puf_totals(pd.DataFrame({v: nets[v].to_numpy() for v in PRIMITIVES}).fillna(0.0).assign(filing_status=0),
                      ss_taxable=nets['ss_taxable'].to_numpy(float))
-    for part in SUPPRESSED_FIELDS.values():          # suppressed: no raw amount (the totals read them as 0)
+    for part in SUPPRESSED_FIELDS.values():          # suppressed fields have no raw amount (the totals read 0)
         if nets[part].isna().all():
             tot[part] = np.nan
     for v in PRIMITIVES + ['capital_gains', 'business_income', 'sch_e_income', 'dividends', 'adjustments', 'other_agi',
@@ -739,7 +816,8 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
     t = pd.DataFrame(rows)
     t['difference'] = t['rebuilt'] - t['raw record (mean x returns)']
     t.to_csv(f'{out}/check_dollars_by_group.csv', index=False)
-    # booklet: positive and negative counts and dollars of every booklet field the rebuild carries, and the totals
+    # The booklet: positive and negative counts and dollars of every booklet field the rebuild carries, and of the
+    # totals.
     rows = []
     fields = {**COUNT_FIELDS, **CHECK_FIELDS}
     from reweight import target_list as TLS
@@ -756,7 +834,7 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
                      'negative $bn, booklet': book.loc[fld, 'amount_negative'] / 1e9,
                      'negative $bn, rebuilt': (w * np.minimum(x, 0)).sum() / 1e9})
     pd.DataFrame(rows).to_csv(f'{out}/check_booklet.csv', index=False)
-    # accounting rules and groups
+    # The accounting rules, and each record inside its group.
     cap = np.where(h15['filing_status'].to_numpy() == 3, -1500, -3000)
     rules = {
         'every record inside its AGI group (2015 dollars)': agi_group(h15['agi']) == grp,
@@ -777,14 +855,15 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
     for v in PRIMITIVES:
         if v not in two_signed:
             rules['no negative amount in a positive-only part'] &= h15[v].to_numpy() >= 0
-    # the long-term gain pieces against the long-term gain (reported, not enforced: no strict rule in the law)
+    # The long-term gain pieces against the long-term gain. This is reported, not enforced, because the law has no
+    # strict rule.
     for v in ['kg_1250', 'kg_collect']:
         rules[f'{v} at most the long-term gain, where positive (reported only)'] = \
             (h15[v] <= np.maximum(h15['kg_lt'], 0) + 1e-6) | (h15[v] == 0)
     rows = [{'rule': k, 'records breaking it': int((~np.asarray(v, bool)).sum()),
              'returns breaking it': float(w[~np.asarray(v, bool)].sum())} for k, v in rules.items()]
     pd.DataFrame(rows).to_csv(f'{out}/check_rules.csv', index=False)
-    # charity: gifts against the deduction (E19700), by group
+    # Charity: gifts against the deduction (E19700), by group.
     rows = []
     for g in range(N_G):
         m = grp == g
@@ -801,14 +880,15 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
 
 
 def target_year_rows(h15, donors, models, by_seed, out):
-    """Steps 7 and 8: the balance sheet drawn again, the PUF items grown to the target year and every total
-    recomputed, as rows in the generated file's schema."""
+    """Steps 7 and 8: draw the balance sheets again, grow the PUF items to the target year and recompute every total.
+    Returns the rebuilt returns as rows in the generated file's schema, and writes them with checks of their
+    wealth."""
     from scale import start as START
     from pretrain import qgroups as Q
     from pretrain import model as M
     maps = D.load_maps(Y)
     stk = donors.reset_index(drop=True).copy()                    # the donors in the stack's own coding
-    # PUF bands from the final 2015 dollars, and the computed flags from them
+    # The PUF bands from the final 2015 dollars, the computed flags from them, the AGI group label, and new ids.
     bands = reband(h15)
     for c in bands:
         stk[c] = bands[c].to_numpy().astype(stk[c].dtype)
@@ -818,25 +898,25 @@ def target_year_rows(h15, donors, models, by_seed, out):
     stk['agi_group'], stk['q_group'], stk['label_ok'] = qg.astype(stk['agi_group'].dtype), qg, True
     stk['record_id'] = int(S['id_block']) + np.arange(len(stk))
     nw_before = D.draw_dollars(donors.reset_index(drop=True), maps, Y)['net_worth'].to_numpy(float)   # the donors' own
-    # 7. wealth: the SCF slots drawn again; their stored picks are the kept try's (keyed by record id)
+    # 7. Wealth: draw the SCF slots again. Their stored picks become the kept try's, which are keyed by record id.
     new, dol, accepted, tried, kept = redraw_wealth(stk, models, by_seed, maps)
     for c in new:
         stk[c] = new[c].to_numpy().astype(stk[c].dtype)
     from generate import top_billionaires as TB
     for c, u in TB.kept_picks(stk['record_id'].to_numpy(), kept, int(S['wealth_salt'])).items():
-        stk[c] = u                                                # float64: the exact picks the try used
+        stk[c] = u                                                # kept in full precision: the exact picks of the try
     rows = D.draw_dollars(stk, maps, Y)                           # target-year dollars from the new bands and picks
     assert np.allclose(rows['net_worth'].to_numpy(float), dol['net_worth'].to_numpy(float), rtol=1e-9, atol=1e-3), \
         'the balance sheet kept differs from its try'
     rows['hidden_wealth_fallback'] = (accepted == -1).astype(np.int64)
-    # 8. the PUF items grown from 2015 (start.grow_dollars on the PUF block alone), then every total recomputed
+    # 8. Grow the PUF items from 2015 (start.grow_dollars on the PUF items alone), then recompute every total.
     puf15 = h15[PRIMITIVES + ['capital_gains_line13', 'capital_gains', 'business_income', 'business_income_drawn',
-                             'other_agi', 'filing_status',   # filing status sets the capital loss limit
-                             'ss_taxable', common.GROSS_PENSIONS]   # computed: recombine checks them
+                             'other_agi', 'filing_status',   # the filing status sets the capital loss limit
+                             'ss_taxable', common.GROSS_PENSIONS]   # computed totals, which recombine checks
               + [k for k in D.META['computed_totals'] if k != 'business_income']].copy()
     puf15 = puf15.loc[:, ~puf15.columns.duplicated()]
     grown, growth = START.grow_dollars(puf15, PY, Y)
-    # the gain pieces are before the loss limit, grown like any amount; recombine applies the limit
+    # The capital gain pieces are before the loss limit and are grown like any amount; recombine applies the limit.
     grown, _ = START.recombine(grown, Y)
     for c in grown:
         rows[c] = grown[c].to_numpy()
@@ -845,10 +925,10 @@ def target_year_rows(h15, donors, models, by_seed, out):
     rows['hidden_group'] = h15['hidden_group'].to_numpy()
     rows['weight_2015'] = h15['weight'].to_numpy()
     rows['donor_record_id'] = h15['donor_record_id'].to_numpy()
-    rows['weight'] = rows['weight_2015']                          # set in the file's units by rebuild_hidden_returns
+    rows['weight'] = rows['weight_2015']                          # rebuild_hidden_returns puts it in the file's units
     rows.to_parquet(f'{out}/hidden_{Y}.parquet', index=False)
     growth.to_csv(f'{out}/growth_{Y}.csv', index=False)
-    # the income-wealth pattern, the new draws against the donors' own
+    # The pattern of income and wealth by group: the new balance sheets against the donors' own.
     agi19 = D.agi(rows)
     w = h15['weight'].to_numpy(float)
     nw_after = rows['net_worth'].to_numpy(float)
@@ -874,8 +954,8 @@ def target_year_rows(h15, donors, models, by_seed, out):
 
 
 def item_mix(h15, out):
-    """The rebuilt returns' item mix by group, in 2015 dollars: every part's positive and negative dollars, their
-    shares of the group's AGI, and the returns holding each. Writes item_mix_2015.csv."""
+    """Writes item_mix_2015.csv: the rebuilt returns' item mix by group, in 2015 dollars. For every part, its
+    positive and negative dollars, their shares of the group's AGI, and the returns holding each."""
     w = h15['weight'].to_numpy(float)
     rows = []
     cols = PRIMITIVES + ['capital_gains', 'dividends', 'business_income', 'sch_cf_income', 'sch_e_income', 'adjustments',
@@ -892,11 +972,13 @@ def item_mix(h15, out):
     pd.DataFrame(rows).to_csv(f'{out}/item_mix_2015.csv', index=False)
 
 
-# ---- the entry point ----------------------------------------------------------------------------------------------
+# ---- The entry point ----
+
 def rebuild_hidden_returns(g19):
-    """The rebuilt aggregate records as rows to append to the generated file g19, in target-year dollars; built first
-    if hidden_<year>.parquet is not there. Each weight is the return's 2015 population weight times g19's filer weight
-    over the 2015 PUF's retained returns, so scaling filers to SOI's returns gives it its share of returns."""
+    """The rebuilt aggregate records as rows to append to the generated file g19, in target-year dollars. They are
+    built first if hidden_<year>.parquet is not there. Each weight is the return's 2015 population weight times g19's
+    total filer weight divided by the 2015 PUF's returns outside the aggregate records. Scaling the filers to SOI's
+    returns then gives the rebuilt returns their share of returns."""
     path = f'{folder()}/hidden_{Y}.parquet'
     rows = pd.read_parquet(path) if os.path.exists(path) else build()
     missing = [c for c in g19.columns if c not in rows.columns]
@@ -908,7 +990,7 @@ def rebuild_hidden_returns(g19):
     rows['weight'] = rows['weight_2015'] * g19['weight'].to_numpy(float)[filer].sum() / r2015
     rows = rows[list(g19.columns) + ['synthetic_top', 'hidden_group', 'weight_2015', 'donor_record_id',
                                      'hidden_wealth_fallback']].copy()
-    # missing values only where the file has them too (ssn2 without a spouse, dep_ssn without dependents)
+    # Missing values are allowed only where the file has them too (ssn2 without a spouse, dep_ssn without dependents).
     bad = sorted(set(rows.columns[rows.isna().any()]) - set(g19.columns[g19.isna().any()]))
     assert not bad, f'missing values in the rebuilt returns in columns the file has none in: {bad}'
     for c in g19.columns:
