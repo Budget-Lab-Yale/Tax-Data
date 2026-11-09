@@ -50,14 +50,13 @@ targets:
   # The November filing-season tables: each trusted item's total by AGI group on filers (and, for items of full
   # trust, the returns with it), and the number of returns as shares across the groups; these replace the items'
   # national totals above. Errors from the backtest (targets_config/filing_season_errors.csv), at least 1%.
-  # Nothing when settings tilt.projection.filing_season.enabled is false
   - id: filing_season_groups
     kind: projection filing season
     statistic: amount
     population: filers
     cells: all
     value: {outside: projection filing season}
-    error: {kind: judgment, relative: 0.01, reason: 'the backtest of the November tables against final SOI (scratch explore/2026-11-04/nowcast/BACKTEST.md); each row carries its own error'}
+    error: {kind: judgment, relative: 0.01, reason: 'the backtest of the November tables against final SOI; each row carries its own error (filing_season_errors.csv)'}
     key: {group: '{cell}', target: 'November {variable} {statistic}'}
 
   # AMT payers, indexed: the start file's count times CBO's growth in the count, error 5%; no row past CBO's last
@@ -72,7 +71,7 @@ targets:
     needs_calculator: true
     value: {outside: cbo counts}
     outside_line: rev_iit_returns_amt
-    error: {kind: judgment, relative: 0.05, reason: 'the 2023 file count times CBO growth in the count from 2023; 5% (John, 3 November)'}
+    error: {kind: judgment, relative: 0.05, reason: 'the 2023 file count times CBO growth in the count from 2023; 5%'}
     key: {group: all, target: amt returns}
 
   # Household net worth: the start's level grown by the Financial Accounts' growth
