@@ -1,346 +1,210 @@
-# Tax units in the surveys: plan
+# Tax units in the surveys
 
-Written 23 October 2026. It covers how every survey (the CPS, SCF and CEX,
-and later others) is turned into tax units before training, and how we test
-that it was done well. The shared module of section 4 was built on 24 October
-(section 4, "What was built") and is now the only way the pipeline builds
-units; the latest run was trained before it, on the old units. Checking the
-training table and the tilt on the new units is the next step, after John has
-seen the tests.
+Every survey in training (the CPS ASEC, the SCF, the CEX interview survey and the SIPP) is split into tax units by
+one set of rules before it enters the training table. The rules are CBO's public algorithm for CPS tax filing units
+(US-CBO/CPS-tax-filing-units), translated rule by rule into Python. Each survey has a reader that turns its person
+records into a standard member list; the rules run on that list; where a survey lacks an input, a named fallback
+stands in and the person and unit are flagged. The model learns how survey items relate to tax items through what
+the two share (marital and filing status, dependents, the primary filer's age range, wages), so the survey's units
+must be built the way returns are.
 
-## 1. Why it matters
+The rules build units only. Only the CPS needs a filing decision: the filing stage (`prep/filing.py`, described in
+`FEATURES.md`) gives each CPS unit a filing chance and makes the non-filers.
 
-The model learns how survey items relate to tax items through what the two
-sides share: marital status and filing status, the number and ages of
-dependents, the primary filer's age range, wages. A survey record only means
-the same thing as a return if its tax unit is built the way returns are. If
-the survey's units differ (a parent claimed in one source and a separate
-unit in the other, a head of household counted as single), every
-relationship learned through those shared items is off, and nothing
-downstream can tell.
+## Files and stages
 
-There are two separate steps, and they should stay separate:
+| Survey | Years | Reader | Units built by | File the table stage reads |
+|---|---|---|---|---|
+| CPS ASEC | tax years 2015, 2017, 2019, 2021, 2023 | `prep/roster_cps.py` | `prep/filing.py units`; separate returns in `filing.py calibrate` | `cps_units_<year>.csv.gz` (`prep/build_cps.R`) |
+| SCF | waves 2013, 2016, 2019, 2022, 2025 | `prep/roster_scf.py` | `roster_scf.py` | `scf_units_<wave>.csv.gz` (`prep/build_scf.R`) |
+| CEX | survey years 2015, 2017, 2019, 2021, 2023, 2024 | `prep/roster_cex.py` | `roster_cex.py` | `cex_units_<year>.csv.gz` (`prep/build_cex.R`) |
+| SIPP | reference years 2015, 2017, 2019, 2021, 2023 | `prep/roster_sipp.py` | `roster_sipp.py` | `sipp_units_<year>.csv.gz` |
 
-1. **Building the units.** Who is in which unit, who is the primary filer and
-   the spouse, who is claimed as a dependent and by whom, the filing status,
-   which dependents have returns of their own.
-2. **The filing decision.** Which units file. Since 24 October: the filing
-   rule v4 (`pipeline/filing.py`, FEATURES.md), a filing chance from the
-   head's age band, children, the statutory filing requirement, income and
-   business income, its settings solved each year so that non-filing adults
-   by age band equal CPS adults less adults on filed returns less dependents
-   not filing, with Pub 5785's shares for required non-filers. Before that:
-   Mok's filing probits below the filing threshold, the Pub 5785 hazard above
-   it, then the non-filer pool's calibration
-   (`research/state_weights/nonfiler_pool/04_calibrate.R`); none of these is
-   used now. Only the CPS needs this step for training; it is also what makes
-   the non-filers.
+The rules are in `prep/tax_units.py`. Settings: `tax_units` (`reassign`, `npeu_split`), `cps` (`years`,
+`cbo_variant`), `cex.years`, `sipp`, `paths.raw.scf_waves`.
 
-CBO's public algorithm (below) does step 1 only. It treats every unit as a
-potential return, and adds a separate dependent return for every dependent
-with any income. CBO decides filing elsewhere: it matches the units to the
-IRS sample, and units that match a return are filers. We have no IRS file
-to match to, so our filing step stays.
+## The member list
 
-The two steps still interact. Rules that decide who claims a child (CBO's
-reassignment pass, Iselin's strategic claiming; section 3) assume people
-claim the way filers would, to get the most credits; and the filing model
-uses the unit's children and income, so moving a child between units
-changes both units' chances of filing.
+One row per person, in CBO's Census codes, into which each reader translates its own: household, person number,
+weight, age, sex; `perrp` (the detailed relationship to the household's reference person) and `hhdfmx` (the detailed
+family position) with the family pointers; spouse and parent pointers and marital status; student and disability
+inputs; income items and gross income by CBO's definition (wages, self-employment, interest, dividends, rents, estates
+and trusts, pensions, unemployment, other income, and the taxable part of Social Security by the Form 1040
+worksheet); the survey's own answer on support where it has one (the SCF's financial dependence); and three flags for
+assumed inputs: an exact age drawn within a reported bracket (`age_assumed`), a child placed or a couple paired with
+no pointer to say so (`link_assumed`), own income not measured or measured only for a group (`income_assumed`).
+Every unit carries `any_<flag>` columns.
 
-## 2. What we do today, and what is wrong
+## The rules
 
-Three surveys, three different methods:
+In order (`tax_units.build_units`):
 
-| Survey | Method | Origin |
+1. **Dependent tests** (`flag_dependents`). A qualifying child is under 19, or under 24 and a student, or disabled. A
+   qualifying relative has gross income below the personal exemption amount. A married person whose own or spouse's
+   gross income is above the standard deduction for married filing separately cannot be either. The two amounts by
+   tax year are in `tax_units.PARAMS` (2012-2025).
+2. **First assignment** (`assign_units`). Every person goes to one unit as head, spouse, qualifying child or
+   qualifying relative, by family position: the primary family, other relatives, unrelated subfamilies, group
+   quarters, people living with no relatives, subfamily heads and spouses, children in subfamilies. An unmarried
+   partner who passes the qualifying-relative test is the householder's dependent when the householder's gross
+   income is more than twice the partner's.
+3. **Group claim** (SCF only, `claim_within_group`). Within the SCF's members outside the primary economic unit, the
+   unit with the highest income claims the group's other relatives of the respondent who are on their own, pass the
+   income test and are not married (Gale, Joshi, Pulliam and Sabelhaus 2022).
+4. **Reassignment** (`reassign`, always applied, as in CBO's code). Within a household: a related subfamily whose head qualifies as a dependent joins the householder's unit;
+   up to two of the youngest qualifying children move between the householder's unit and a related subfamily, and
+   between the householder and an unmarried partner, to spread the children more evenly. It decides who claims whom,
+   never whether anyone files.
+5. A person CBO's code would leave as a second head in the householder's unit heads a unit of their own.
+6. **One row per unit** (`collapse_units`). Head and spouse incomes are summed. Filing status is joint with a spouse,
+   head of household with any dependent, single otherwise. For each unit: the number of dependents (uncapped), the
+   number by type (child at home, child away (SCF only), other dependent, parent), child credit children (qualifying
+   children under 17), EITC children (qualifying children), and the dependents the PUF would show (its caps by filing
+   status and its type order, then youngest first). Every dependent with any gross income, wages or self-employment income also gets a
+   return of their own, linked to the claiming unit.
+
+## Fallbacks by survey
+
+| Input | CPS | SCF | CEX | SIPP |
+|---|---|---|---|---|
+| Relationship | observed | observed; the public file merges some codes | observed | observed |
+| Parent links | observed | none: a child goes to the respondent's unit | none: the same | observed |
+| Spouse links | observed | outside the PEU, the only two married adults are paired | a married child with a married in-law of the other sex; else the only two other married adults of the other sex | observed |
+| Exact age | observed | drawn within the bracket for members other than the couple | observed (seven 2015 children with none are given 8) | observed |
+| Student test | observed | the support answer, ages 18-24 | enrolled in college | enrolled in December with no earnings that month |
+| Disability | observed | none | none | any of six core disability items |
+| Income test | observed | the support answer where own income is not measured; a non-relative adult is never claimed | member income only: wages, self-employment, Social Security, SSI | observed |
+| Group claim | none | the highest-income unit outside the PEU | none | none |
+| Children living elsewhere | none | dependents of the respondent's unit if the family paid alimony or child support | none | none |
+
+## Each survey
+
+**CPS ASEC** (`roster_cps.py`). The ASEC of March of year Y+1 asks about tax year Y. The reader uses the IPUMS
+extract and rebuilds the Census codes CBO's code reads (`hhdfmx`, `perrp`, the family pointers) from IPUMS's
+relationship, family and pointer variables; the few inputs IPUMS lacks and their stand-ins are noted in
+`prep/roster_cps.py`, beside the code that uses them. People in group quarters are left out. Ages are as the ASEC reports them, at the
+March interview. The filing stage builds the units, gives each a filing chance, and splits joint couples into separate
+returns: couples are taken in the order of a uniform keyed by unit id (settings `filing.mfs_salt`) until their weight
+times filing chance reaches half of SOI Table 1.6's separate returns, and each couple becomes a return for person 1,
+with all the dependents, and one for person 2. `build_cps.R` then writes one row per unit:
+- dependents' own returns are dropped: the dependent is counted once, in the claiming unit's `n_dep`, and their income
+  goes nowhere;
+- `n_dep` is the number of dependents, capped at 3; `dep_age1-3` are the three youngest dependents' ages; `n_dep_ctc`
+  counts qualifying children under 17 and `n_dep_eitc` qualifying children on units eligible for the EITC, each
+  capped at 3; `mars` is the filing status (1 single, 2 joint, 3 separate, 4 head of household);
+- person 1 is the man in a mixed-sex couple and the older partner in a same-sex couple (`AGES.md`);
+- `record_id` is the IPUMS household serial times 100 plus the head's person number; `household_id` is the serial.
+
+**SCF** (`roster_scf.py`, `build_scf.R`). The SCF lists everyone in the household but measures in detail only the
+primary economic unit (PEU): the respondent, a spouse or partner who shares finances, and everyone financially
+dependent on them. Other adults who usually live there and are financially independent are asked about as a group:
+their total wages, other income by kind, vehicles, accounts, other assets and debts. Members who neither usually live
+there nor depend on the PEU are left out, as in the SCF's own household count. Each implicate is a household.
+- Dependents' own returns are not written as units.
+- Members other than the respondent and the spouse or partner are reported in age brackets (0-3, 4-6, 7-12, 13-17,
+  18-27, then five-year groups, 93 and over); an exact age is drawn uniformly within the bracket, keyed by household
+  and position.
+- A married couple living together files separately when it says it did and either spouse was married before.
+- The PEU's income and balance sheet: a unit holding the whole PEU takes all of it. When the respondent and the spouse
+  or partner are separate units, each takes a share: wages by the two people's labor income, Schedules C and F by
+  their business income from the main job, the home, other real estate, their mortgages and their unrealized gains
+  half each, everything else by their labor, business, pension and account-withdrawal income (half each when both
+  are zero).
+- Units outside the PEU take their members' shares of the group's answers: the group's income divided equally among
+  its adults, and the balance sheet equally too (`roster_scf.npeu_shares`). Capital gains and tax-exempt
+  interest are not asked of the group. Items the SCF asks only of the PEU (elective deferrals, the retirement
+  accounts' stock share, inheritances) are missing on these units, not zero.
+- Other units (a non-relative in the PEU, a partner outside it) and dependents hold no PEU dollars.
+- Column `taxunit_code`: 0 the whole PEU, 1 the respondent's part, 2 the spouse's or partner's part, 8 other, 9
+  outside the PEU.
+
+**CEX** (`roster_cex.py`, `build_cex.R`). A household is one interview, the consumer unit: the people sharing major
+expenses. Other consumer units at the same address are other interviews. Relationship to the reference person is
+observed; there are no pointers, so children and grandchildren go to the reference person's unit. Joint couples are
+split into separate returns by the same keyed draw as the CPS, with no filing chance, until their weight reaches half
+of SOI Table 1.6's separate returns; on those rows married is 0. Dependents who would file their own return stay
+people of the claiming unit, with their income. The consumer unit's interest, dividends, rents, pensions and other
+income, asked of the unit as a whole, are divided among its tax units in proportion to each unit's positive member
+income (equally when none has any); spending is divided by the number of people on each return.
+
+**SIPP** (`roster_sipp.py`). The household is everyone present at the interview, with their relationship to the
+householder then; people who left before the interview are not members. A sample unit holding more than one
+householder at the interview is divided into one household per householder, each person going with their December
+residence's householder. Census's family codes are rebuilt from the spouse and parent pointers. Income is summed over
+the reference year's twelve months. Separate returns are drawn as for the CEX (settings `sipp.mfs_salt`). Dependent
+filers are folded into the claiming unit, their own income going nowhere, as in the CPS.
+
+## Separate returns
+
+| Survey | How a couple files separately | Count |
 |---|---|---|
-| CPS | production's non-filer builder, `src/nonfilers/asec_tax_units.R`, called by `pipeline/build_cps.R` | written in 2026 for the non-filer pool; follows Mok's construction on purpose, so her filing coefficients keep their meaning |
-| SCF | production's `src/imputations/stage1_scf_tax_units.R`, called by `pipeline/build_scf.R` | a port of part of Kevin Moore's (Federal Reserve) SCF-to-TAXSIM SAS code |
-| CEX | BLS's own tax unit codes (TAX_UNIT, TU_CODE, TU_DPNDT) with repairs, `pipeline/build_cex.R` | BLS; taken as given, not tested against returns |
+| CPS | keyed draw among joint couples, by weight times filing chance | half of SOI Table 1.6's separate returns, in couples |
+| SCF | the couple says it files separately and either spouse was married before | as the survey answers |
+| CEX | keyed draw among joint couples, by weight | half of SOI Table 1.6's separate returns, in couples |
+| SIPP | as the CEX | as the CEX |
 
-**The CPS builder against the PUF, tax year 2015** (Codex review,
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/tax_units_review/REPORT.md`):
+The SCF's count against SOI Table 1.6, in millions of separate returns: 3.1 against 2.7 (2012), 3.9 against 3.0
+(2015), 2.9 against 3.3 (2018), 3.3 against 3.9 (2021).
 
-| Millions | CPS filers | CPS, all units | PUF |
-|---|---:|---:|---:|
-| Dependents (capped as the PUF caps them) | 73.4 | 81.8 | 91.7 |
-| Head of household | 11.8 | 14.5 | 22.3 |
-| Married filing separately | 0 | 0 | 2.9 |
-| Joint | 58.5 | 62.6 | 54.4 |
+## Dependent filers
 
-Of the 18.3 million missing dependents, 8.4 million sit on CPS units the
-filing model calls non-filers; 9.9 million are missing even if every unit
-filed. Specific faults found in the code:
-- The support test is not the TRIM3 test it cites: it compares a person's
-  income with half of household income per person, and rejects 2.8 million
-  otherwise eligible people, 1.5 million of them students aged 19–23.
-- A child attaches only through a parent in the household, so grandchildren
-  with no parent present (1.2 million), siblings and foster children are
-  missed as qualifying children.
-- Head of household is given only to units with a qualifying child.
-- No married filing separately.
+No survey contributes dependent-filer rows to training: the CPS and the SIPP drop dependents' own returns (their
+income goes nowhere), the CEX keeps the dependents and their income in the claiming unit, and the SCF writes only the
+main units. The dependent filers in the year file come from the PUF. The CPS's dependents' own returns are used twice:
+the filing stage decides which of them file (a dependent aged 15 or over files when required to or with any wages),
+and the dependent filers' exact ages and sex are drawn from those who file (`AGES.md`).
 
-**The CBO algorithm against ours, tax year 2023** (March 2024 CPS; our run of
-CBO's code reproduces CBO's published tabulation exactly;
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/cbo_units/`):
+## Group quarters
 
-| Millions, all units | CBO | Ours | SOI 2023, filed returns |
-|---|---:|---:|---:|
-| Single | 84.4 | 101.2 | 80.3 |
-| Joint | 64.3 | 64.8 | 54.6 |
-| Head of household | 20.1 | 13.1 | 21.6 |
-| Dependents, all | 89.0 | 78.4 | |
-| Dependents, first three | 84.5 | 78.4 | |
-| of which under 17 | 62.1 | 61.0 | |
-| of which 17–23 | 13.0 | 11.8 | |
-| of which 24 and over | 9.4 | 5.5 | |
-| Dependents' own returns (with income) | 11.0 | dropped | |
+No survey's units include people in group quarters. The CPS units leave them out (the ASEC covers only non-institutional
+group quarters); the SCF, CEX and SIPP sample households only. The filing stage's calibration counts them
+as zero.
 
-CBO gets head of household right and finds more adult dependents (parents,
-other relatives). Neither finds the children that returns claim from
-outside the household: on 2015 returns, 67.4 million children qualified
-for the child tax credit (N24), against about 61–62 million under 17 in
-either CPS method. CBO's linked study (Mok) found about 11 million more
-dependents on returns than in CPS units in 2006, from claims across
-households and changes between December and March.
+## Standing checks
 
-**The SCF and CEX, tested on 24 October** (explore/2026-10-24/scf_units and
-spending_age). The SCF as built has 143.2 million units in 2019 against 168
-million in the tax data: `build_scf.R` drops the 23.6 million financially
-independent adults outside the primary economic unit (PEU), and the builder
-counts a child up to three times on a split couple, gives the one child of a
-split couple to both units, reads bracketed ages as exact, and adds a "child
-living elsewhere" to 10.7 million households. The CEX as built has 152.5
-million units: BLS's codes make 4.7 million earning adults dependents, and
-dependent filers are folded into the claiming unit. Both are rebuilt by the
-shared module (section 4).
+- Built into the rules on every run: every person in exactly one unit; one head and at most one spouse per unit;
+  every spouse and dependent pointing at a unit with a head; every dependent's own return pointing at a claiming unit.
+- `build_cps.R` stops unless the filing stage's returns and its units match one for one, wages and self-employment
+  income split exactly between the two people, and the dependents' ages agree with `n_dep`.
+- The filing stage writes, per year, its fit to each target and checks against SOI and, for 2015, the PUF (filers and
+  non-filers by filing status, people by age, persons counted once, required filers by income), in `filing/checks/`.
 
-Earlier notes: the SCF
-builder counts children under 19 plus one possible child elsewhere, and on a
-household split into two units can count a child twice; only the primary
-economic unit's finances are measured. The CEX uses BLS's units, which
-code many elderly couples as dependents of their own unit (repaired) and,
-from 2024, roommates and partners the same way.
+## Units by source, 2019
 
-## 3. John Iselin's questions, per survey
+Millions of units under the shared rules. The primary filer here is the unit's head. The SCF is its 2019 wave (tax
+year 2018). The tax data are SOI Table 1.6 by the primary filer's age, less dependent filers, plus the CPS's
+expected non-filers.
 
-From a conversation on 23 October. Iselin (Budget Lab) builds CPS tax units
-with his own method, loosely based on the Tax Policy Center's, in three
-variants: rules applied strictly; income-aware choice of which parent claims
-a child within the household; and strategic EITC claiming allowed. His view
-is that the third is closest to what returns show, which is what merging
-needs.
+| | SCF | CEX | CPS | Tax data |
+|---|---:|---:|---:|---:|
+| All units | 162.8 | 162.8 | 166.5 | 168.5 |
+| Primary under 26 | 17.1 | 17.1 | 20.1 | 16.4 |
+| Primary 26-34 | 28.3 | 29.1 | 29.3 | 31.7 |
+| Primary 35-44 | 26.3 | 26.8 | 27.4 | 29.8 |
+| Primary 45-54 | 26.1 | 26.1 | 26.3 | 27.9 |
+| Primary 55-64 | 27.4 | 27.8 | 27.6 | 28.2 |
+| Primary 65 and over | 37.5 | 36.0 | 35.9 | 34.8 |
+| Joint | 58.5 | 64.6 | 64.3 | 60.3 |
+| Separate returns | 2.9 | 3.7 | after filing | 3.7 |
 
-CBO's optional reassignment pass is the same idea (`docs/algorithm.md`,
-"Reassignment Routines"). After the first pass, within a household, it:
-1. folds a related subfamily into the main unit when the subfamily's head
-   qualifies as a dependent (a young mother with no income living with her
-   parents becomes their dependent, with her child);
-2. moves up to two of the youngest qualifying children between the main
-   unit and a related subfamily, to spread children more evenly and lower
-   the household's tax (the grandmother claims one grandchild, the mother
-   the other);
-3. does the same between unmarried partners.
-It decides who claims whom, never whether anyone files. The 2023
-comparison in section 2 ran with it on (CBO's default).
+Under these units the SCF's median net worth per unit in the 2019 wave is $63,570 (2019 dollars).
 
-| Question | CPS ASEC | SCF | CEX interview |
-|---|---|---|---|
-| What is a household? | everyone living at the address in March; group quarters excluded from the ASEC (the pool adds them from the ACS) | the primary economic unit (PEU): the economically dominant person or couple and everyone financially dependent on them; others in the home are the non-PEU, asked far less | the consumer unit: people sharing major expenses; one address can hold several |
-| Which relationships are stored? | each person's relationship to the householder, and pointers to spouse, mother and father (second parents from 2019), cohabiting partner, family and subfamily | each roster member's relationship to the respondent, age and sex; whether dependents are claimed; little on the non-PEU's links | each member's relationship to the reference person, age, sex; BLS's own tax unit, role and claimant |
-| What period? | income for the previous calendar year; people and ages as of the March interview | income for the previous calendar year; people and wealth at the interview (spread over the year) | income for the last 12 months; spending for the last 3 months; interviews every quarter |
-| Whose income is measured? | every person 15 and over, by source | the PEU's in detail, by person for head and spouse; the non-PEU's in a few summary items | each member's earnings and some transfers; other income for the consumer unit as a whole |
-| How far from the law? | to decide (section 4) | to decide | BLS's rules, unknown in detail |
-| Dependents' own returns? | built and scored, then dropped in the rebuild today | not built | BLS marks them; dropped today |
+## Limitations
 
-Two consequences. The SCF and CEX cannot support the CPS's detail (who
-claims whom, students, support), so a single algorithm cannot be applied
-identically to all three; what can be identical is the definitions and the
-output. And the SCF's and CEX's own units are measured only for the
-economic unit they survey, so their tests must use matching benchmark
-subsets.
-
-## 4. The proposal
-
-1. **One Python module of tax unit rules, run on a standard person roster.**
-   Each survey has its own reader that produces the roster: person, household,
-   age, sex, relationship to the household's reference person, pointers to
-   spouse and parents where the survey has them, student and disability where
-   it has them, income items, and any claim the survey itself records (the
-   CEX's TU_DPNDT, the SCF's dependents). The rules run on the roster; where a
-   survey lacks an input, the rule falls back in a documented way, and the
-   output says which fields were observed and which assumed.
-2. **The rules start from CBO's algorithm,** translated into Python. Check:
-   the Python version reproduces CBO's published tabulations
-   (`outputs/Kinships_in_Tax_Units_CPS_CY_20YY.csv`) and our Stata run of
-   their code exactly, for 2022–2024.
-3. **Variants as settings, chosen by the tests after the filing step.**
-   Strict legal rules; income-aware claiming within the household; strategic
-   claiming (Iselin's three, and CBO's reassignment pass). Strategic claiming
-   is a guess about how filers behave, so each variant is judged on its
-   filers, after the filing step: filers by filing status, number of
-   children and income against SOI, above all head of household and EITC
-   returns by number of children (section 5). The units before the filing
-   step are tested too, against population counts, but those tests cannot
-   tell the variants apart on claiming. The choice is John's.
-4. **Dependents' own returns kept,** as separate records linked to the unit
-   that claims them, counted once as people. The PUF has dependent filers;
-   the surveys should too.
-5. **Output in the PUF's terms:** full filing status (including head of
-   household, and married filing separately where it can be assigned),
-   dependents by type (child at home, child away, other, parent) under the
-   PUF's caps and type order, child credit and EITC child counts, the
-   primary filer by the rebuild's rule (`AGES.md`, step 2), the earnings split
-   on the PUF's definition.
-6. **The filing step stays separate** and runs after construction, on the
-   new CPS units: the filing rule v4, calibrated on them each year (stage
-   filing, `pipeline/filing.py`; Mok's probits were planned here at first
-   and dropped). The rule's inputs include the unit's children and income,
-   so the construction variant feeds into it directly; changing the units
-   changes which units it picks as non-filers even when the calibration
-   holds the counts by age.
-
-### What was built (24 October 2026; uncommitted, branch rebuild-step2)
-
-John's decisions of 24 October: one shared module with CBO's rules for all
-three surveys; the SCF's financially independent adults outside the PEU
-become units and training rows; Gale, Joshi, Pulliam and Sabelhaus (2022) where
-the SCF lacks inputs; no reweighting of any survey to fix its mix; separate
-returns by step 1's draw in the CPS and CEX and by the couple's own answer in
-the SCF.
-
-| File | What it does |
-|---|---|
-| `pipeline/tax_units.py` | the rules only: `flag_dependents`, `assign_units`, `claim_within_group` (new), `reassign`, `collapse_units`, `mfs_split`, and `build_units(member list)`; the fallback table `FALLBACKS` and the assumed-input flags `ASSUMED_FLAGS`. Its script mode was taken out on 3 November; `filing.py units` builds the CPS's units with it. |
-| `pipeline/roster_cps.py` | the CPS reader, moved out of `tax_units.py` unchanged. Step 1's units for 2015-2023 come out identical, unit for unit. |
-| `pipeline/roster_scf.py` | the SCF reader and the SCF's units, with separate returns from the couple's own answer |
-| `pipeline/roster_cex.py` | the CEX reader and the CEX's units, with separate returns by step 1's draw to SOI's count |
-| `pipeline/build_scf.R` | units from the module; the PEU's income and balance sheet divided between the respondent's and the spouse's or partner's units by Moore's shares (ported from production's builder, which is no longer called); units outside the PEU take their share of the group's answers |
-| `pipeline/build_cex.R` | units from the module; spending by head count. BLS's own unit codes are only a comparison column in the checks (`roster_cex.py`). |
-| `pipeline/run.sbatch` | the scf and cex stages run the reader (Python) before the R script |
-
-There is no setting to go back to the old builders (John, 24 October); they
-are in git history. Settings that are choices inside the rules are in
-`settings.json` under `tax_units`: `reassign` (CBO's reassignment pass) and
-`npeu_split` (how the SCF's outside-PEU group's income is divided).
-| `pipeline/check_units.py` | the standing tests of section 5, every survey and year |
-
-**The member list.** One row per person, with CBO's Census codes (PERRP,
-HHDFMX and the family pointers) as the shared code list; each reader
-translates its own relationship codes into them. Added to CBO's inputs: the
-survey's own support answer (the SCF's financial dependence), whether the
-person's own income is measured, and three flags for assumed inputs (an age
-drawn within a bracket, a child or couple placed without a pointer, income not
-measured). Every unit carries `any_<flag>` columns.
-
-**Fallbacks, by survey** (`tax_units.FALLBACKS`):
-
-| Input | CPS | SCF | CEX |
-|---|---|---|---|
-| Relationship | observed | observed, merged codes | observed |
-| Parent links | observed | a child goes to the reference person's unit | the same |
-| Couples beyond the reference person's | observed | the only two married adults outside the PEU are paired, filing jointly | a married child with a married in-law; else the only two other married adults |
-| Exact age | observed | drawn within the bracket for members other than the couple | observed |
-| Student test | observed | the support answer, ages 18-24 | college enrolment |
-| Income test | observed | the support answer where own income is not measured; a non-relative adult is never claimed | member income only |
-| Group claim | none | the highest-income unit outside the PEU claims the group's relatives who pass the income test | none |
-| Children living elsewhere | none | dependents of the reference person's unit if the family paid alimony or child support | none |
-| Separate returns | step 1's draw to SOI (after filing) | the couple's own answer, with Moore's prior-marriage condition | step 1's draw to SOI |
-
-**Results, 2019** (millions of units; primary filer = the unit's head; the
-SCF is its 2019 wave, tax year 2018; details in
-`explore/2026-10-24/unified_units/checks/`):
-
-| | SCF as built | SCF, shared rules | CEX, BLS units | CEX, shared rules | CPS, shared rules | Tax data |
-|---|---:|---:|---:|---:|---:|---:|
-| All units | 143.2 | 162.8 | 152.5 | 162.8 | 166.5 | 168.5 |
-| Primary under 26 | 10.2 | 17.1 | 13.6 | 17.1 | 20.1 | 16.4 |
-| Primary 26-34 | 23.6 | 28.3 | 26.2 | 29.1 | 29.3 | 31.7 |
-| Primary 35-44 | 24.2 | 26.3 | 25.1 | 26.8 | 27.4 | 29.8 |
-| Primary 45-54 | 24.1 | 26.1 | 25.3 | 26.1 | 26.3 | 27.9 |
-| Primary 55-64 | 26.0 | 27.4 | 26.9 | 27.8 | 27.6 | 28.2 |
-| Primary 65+ | 35.2 | 37.5 | 35.3 | 36.0 | 35.9 | 34.8 |
-| Joint | 56.7 | 58.5 | 66.8 | 64.6 | 64.3 | 60.3 |
-| Separate returns | (2.0 couples split) | 2.9 (SOI, 2018: 3.3) | 0 | 3.7 | after filing | 3.7 |
-
-The SCF's median net worth per unit falls from $91,050 to $63,570 (2019
-dollars); total net worth is unchanged apart from the $0.5 trillion of the
-group outside the PEU. The CEX's spending per unit falls by about 5% in
-every age range; total spending is unchanged.
-
-## 5. Standing tests, every survey and year, before training
-
-From the Codex review, section 4. A failed test keeps the affected variable
-from being shared with the PUF.
-
-| Test | Benchmark |
-|---|---|
-| Every person counted once; every spouse and claimant link valid; no one claimed twice | exact |
-| Units by full filing status, primary age range and income | SOI Table 1.6; the PUF (2015) |
-| Dependents by age range and type, under the PUF's caps | the PUF (2015: XOCAH, XOCAWH, XOODEP, XOPAR, AGEDP1–3) |
-| Child credit and EITC children | the PUF's N24 and EIC; SOI's credit tables |
-| After the filing step (CPS): filers by filing status, number of children and income; head of household returns; EITC returns by number of children | SOI; the PUF (2015). This is the test that tells the claiming variants apart |
-| Dependents' own returns | SOI and the PUF's dependent filers |
-| People by age and sex | Census population estimates |
-| All units, filers and non-filers | returns plus the non-filer pool's counts |
-
-Sampling error and documented differences set the tolerances. Targets used
-to calibrate cannot also serve as tests.
-
-## 6. Years
-
-- **Building units.** CBO's code reads the Census Bureau's CSV files, which
-  start with the 2019 survey. A Python version reading IPUMS works for every
-  year IPUMS covers, since IPUMS keeps the same layout; the relationship
-  detail is cruder further back (cohabiting partners from the mid-1990s,
-  second parents only from 2019). The CPS ASEC files on disk cover survey
-  years 2015–2026; John will pull earlier ones.
-- **The filing step.** It needs, per year: the CPS's adults by age, adults
-  on returns by age (SOI, back to 2000) and each unit's statutory filing
-  requirement. Pub 5785's shares (published for 2014–2016 only) are held
-  at their 2015 values in every year. 2000 on is workable; earlier is thin.
-- **Testing.** Only 2015 has a PUF; other years are tested against SOI's
-  published tables.
-
-## 7. Open decisions
-
-1. How far from the law: strict rules, income-aware claiming, or strategic
-   claiming (section 4, item 3). The shared module runs CBO's reassignment
-   pass on every survey by default.
-2. ~~Whether the SCF and CEX keep their own constructions~~ Decided 24
-   October: rebuilt from their member lists by the shared module.
-3. ~~Whether the filing model moves to Python with the units, or stays in
-   R~~ 24 October: the rule and its calibration are in Python
-   (`pipeline/filing.py`); the statutory filing requirement is still
-   production's R function (`pipeline/filing_requirement.R`).
-4. ~~Married filing separately~~ Decided 24 October: the CPS and CEX by step
-   1's draw to SOI's count, the SCF by the couple's own answer. The SCF's
-   count against SOI Table 1.6, millions of separate returns: 3.1 against 2.7
-   (2012), 3.9 against 3.0 (2015), 2.9 against 3.3 (2018), 3.3 against 3.9
-   (2021). Within a million either way, with no steady direction.
-5. Iselin's code: get it and run it through the same comparison as CBO's.
-6. Wiring the module's SCF and CEX units into the training table
-   (`build_table.py`: the SCF's units outside the PEU enter as SCF rows, their
-   balance sheet flagged as group-level) and the tilt (the SCF's wealth
-   targets recomputed on the new units). Not done; after John sees the tests.
-7. The CEX's extra married couples (about 4 million more than the tax data in
-   2019, in the data, not in BLS's coding) are not fixed by reweighting
-   (John, 24 October). The consumption targets will move from averages by age
-   range to averages by age range and married or not; that needs the CEX's
-   units by age range and married (built here) and the file's married flag on
-   the same definition (joint returns plus non-filing married couples, with
-   separate returns counted as not married or as married, to decide).
-8. Children of unmarried partners in the SCF and CEX: no parent pointer, so
-   all go to the reference person's unit (flagged). CBO's reassignment pass
-   moves children between partners only where the pointers say whose they are.
-
-## 8. Sources
-
-- CBO, CPS tax filing units: <https://github.com/US-CBO/CPS-tax-filing-units>
-  (`docs/algorithm.md`, `docs/data.md`).
-- Codex review of the CPS builder and other methods (NBER/Feenberg, IPUMS and
-  Census, PSL taxdata, PolicyEngine, TRIM3, TPC, Piketty–Saez–Zucman), with
-  links: `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-23/tax_units_review/REPORT.md`.
-- Mok, CBO working paper 2017-06 (filing model and linked study):
-  `research/state_weights/nonfiler_residual/resources/mok2017_cbo_wp2017-06.pdf`.
-- The current CPS builder's design: `research/state_weights/nonfiler_residual/10_asec_tax_unit_design.md`.
+- **Children claimed from outside the household are missed.** The rules attach dependents only among the people of a
+  household. On 2015 returns 67.4 million children qualified for the child tax credit (PUF N24); CBO's algorithm,
+  run on the CPS, finds about 62 million dependents under 17. CBO's linked study (Mok 2017) found about 11 million more
+  dependents on returns than in CPS units in 2006, from claims across households and changes between December and
+  March.
+- **No child living away.** The CPS counts college students at their parents' home, so the type "child away" is never
+  assigned there; only the SCF adds children living elsewhere, and only where the family paid alimony or child support.
+- **More married and fewer dependents than returns.** In the CPS 36-38% of units are married against 32-34% of the tax
+  data's units, and 72-75% claim no dependent against 66-69%. The CEX has about 4 million more married couples than the
+  tax data in 2019; no survey is reweighted to correct its mix.
+- **SCF and CEX links are assumed.** With no parent pointers, children of an unmarried partner go to the reference
+  person's unit, and couples outside the reference person's are paired by rule. These units are flagged.
+- **SCF members outside the PEU** have their income measured only as a group and divided by rule, and their ages
+  drawn within brackets.
+- **Separate returns** in the CPS, CEX and SIPP are a random set of couples sized to SOI's count, not couples that
+  look like those who file separately.
+- **Group quarters** are not in any survey's units.

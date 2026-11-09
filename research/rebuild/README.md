@@ -1,108 +1,110 @@
 # The Tax-Data rebuild
 
-A general method for building a synthetic tax file for any year: one generative model of tax units, pretrained on the
-PUF and household surveys (the SCF, the CEX, the CPS and the SIPP), then reweighted to each year's published totals.
-It builds a file for every year 2015-2075. Nothing here feeds `src/main.R` yet.
+The rebuild makes a synthetic file of tax units, filers and non-filers, for every year 2015-2075. One generative model
+of tax units is pretrained on the 2015 PUF and four household surveys (the SCF, the CEX, the CPS and the SIPP);
+records drawn from it are then reweighted to each year's published totals, with taxes computed by tax-simulator-gpu
+inside the reweighting. Each year's file comes with state weights and as Tax-Simulator's `tax_units_<year>.csv`.
+Nothing here feeds `src/main.R` yet.
 
-| Read | For |
-|---|---|
-| `GOAL.md` | what we are building and why |
-| `FEATURES.md` | what the pipeline does now, section by section |
-| `NEXT_STEPS.md` | the next pieces of work in John's order, and the open questions |
-| `ROADMAP.md` | the larger items between the pipeline and the goal, and where each stands |
-| `HISTORY.md` | how we got here, day by day, and the paths tried and dropped |
-| `TARGETS.md` | the reweighting: the process on one page, then each decision and how it was reached |
-| `AGES.md`, `TAX_UNITS.md`, `PERFORMANCE.md` | reference: ages for every person in a unit; how each survey is turned into tax units; training and generation time and memory |
-| `CALCULATOR_CONTRACT.md`, `TAXSIM_FILE_COLUMNS.csv` | the columns the tax calculator reads, and where each column of the Tax-Simulator file comes from |
-| `PACKAGE.md` | what a holder of the 2015 PUF (CRS) receives when the file is built on the real PUF, and how they turn their PUF into our Tax-Simulator file |
+## Stages
 
-The full record up to 20 October 2026 (every experiment, report and decision) is in
-`research/archive/rebuild_2026-10/`. Work since then is in scratch
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/<date>/`; the entry point is
-`explore/2026-11-01/START_HERE.md`.
+The runner, `pipeline/run.py`, runs the stages in this order. Each stage is a separate process that reads and writes
+files in the run folder.
+
+1. **Training data** (once): survey tax units for the SCF, CEX, CPS (with its filing stage) and SIPP; SOI's tables and
+   their coefficients of variation; the training table and the side files for every survey year (`prep/`).
+2. **Pretraining** (once, GPU): three networks with different seeds (`pretrain/`).
+3. **Each past year, 2015-2023**: the year's folder, SOI numbers and dollar maps (`scale/`); the draw and the top of the
+   file on a GPU (`generate/`); the national reweighting (`reweight/`); each record's chance of each state (GPU); the
+   integrated solve of national and state weights.
+4. **Each projection year**: 2024 from the 2023 file, then 2025-2075 from the 2024 file, each a reweighting and the
+   2023 state split carried forward.
+5. **Every year**: the Tax-Simulator file, and with `generation.filers` `real_puf` the package for PUF holders
+   (`output/`). Then a check of every year's state weights.
+
+`FEATURES.md` describes each stage.
 
 ## Running it
 
-Every stage runs through Slurm, from the repository root (the job runs the code of the repository it is submitted
-from, so a worktree runs its own):
+From the repository root. On Bouchet each step is a Slurm job, submitted with dependencies so that a year's steps
+wait only for that year's earlier steps:
 
-    sbatch research/rebuild/pipeline/run.sbatch                  # every stage
-    sbatch research/rebuild/pipeline/run.sbatch generate tilt    # some stages
+    python3 research/rebuild/pipeline/run.py training <training folder> --slurm
+    python3 research/rebuild/pipeline/run.py years <training folder> <output folder> --slurm
 
-The target year is `years.target` in the settings file. A year's run is a run folder (`REBUILD_OUT`) with its own copy
-of the settings (`REBUILD_SETTINGS`) and links to the draw it reweights. A past year (2015-2023) runs `targets tilt
-taxsim_file` on its own draw; the top step's network part, which needs a GPU, is read from a cache
-(`REBUILD_TOP_CACHE`) so the tilt can run on a CPU partition. A projection year (2024-2035) runs `tilt taxsim_file`
-and starts from the 2023 file of the same run (decision 74), so the projection years can run in parallel once 2023 is
-done. The scripts that ran every year on 2 November are in scratch `explore/2026-11-02/integration/jobs/` (`year.sh`
-for one year, `seq_devel.sbatch` for all 21 in one job). The GPU is used only to train and to draw.
+On a plain machine the same commands without `--slurm` run the steps one after another, with `python` and `Rscript`
+from the path; GPU steps fall back to the CPU, slowly.
 
-Settings `generation.filers` says where the filer records come from: `synthetic` (the default) draws them from the
-networks; `real_puf` uses every 2015 PUF record, its own PUF items kept and the networks drawing the rest
-(FEATURES.md, "The real PUF as the filers"). With `real_puf`, a past year's generate stage also runs the top step's
-redraw at $1 billion on its GPU into the top cache (`<out>/top_cache.pkl`), and the taxsim_file stage is followed by
-the package stage (`PACKAGE.md`). Scripts that ran it for 2019, 2023, 2024, 2030 and 2075 on 4 November are in
-scratch `explore/2026-11-04/realpuf_setting/scripts/`.
+- `training` prepares the training data (stages `scf`, `cex`, `filing`, `cps`, `sipp`, `soi`, `soi_cv`, `table`,
+  `side_files`) and then trains the networks listed in settings `generation.models`. The training folder must already
+  hold two downloads made by hand: the SCF replicate weights in `data/scf_rw/<wave>/` and SOI's coefficient-of-variation
+  workbooks in `targets/soi_cv/raw/`. If the folder has no `settings.json`, the pipeline's is copied in.
+- `years` makes every year's file: each past year (`--past`, default 2015-2023), then 2024 from 2023 and the later
+  years (`--last-year`, default 2075) from 2024, the check of every year's state weights, and each year's
+  Tax-Simulator file (`--no-taxsim` leaves it out). `--past 2019,2023 --last-year 2030` makes a short test. `--side`
+  names the folder of side files (default `<training folder>/sidebuild`). The output folder must not already hold a
+  run.
+- `stage <folder> <stage> ... [--run y2019]` runs named stages on one folder, for example `report`, `calculator`,
+  `package`, `non_micro_tables` or `filing_season` (the full list is `STAGES` in `run.py`). The `years` command makes
+  the synthetic file only; for a real-PUF file (settings `generation.filers` `real_puf`) the stage `taxsim_file` is
+  followed by the package and its checks of both merge scripts.
+- `--gpu-partition` sets the Slurm partitions for the GPU steps (default `gpu_h100,gpu_h200`). With `--slurm` the
+  submitted lines are written to `<folder>/jobs.txt` and the logs to `<folder>/logs/`.
 
-| Stage | Script | What it does | Time |
-|---|---|---|---|
-| scf | `roster_scf.py`, `build_scf.R` | SCF waves split into tax units by the shared rules (`tax_units.py`), with their income (gross Social Security from the benefits section, Schedule E as rental income and the rest), balance sheet, elective deferrals and auto loan interest | minutes |
-| cex | `roster_cex.py`, `build_cex.R` | CEX survey years split into tax units by the shared rules, with their spending | a few minutes |
-| filing | `filing.py`, `filing_requirement.R` | the CPS's tax units by the shared rules, each unit's statutory filing requirement, and its filing chance by the filing rule (v4), calibrated each year; separate returns; checks | about 7 minutes |
-| cps | `build_cps.R`, `overtime_cps.R` | CPS ASEC tax years as tax units (the filing stage's returns), with each person's items, childcare and overtime pay (Tedeschi's rules; hours and missing pay from the March basic file) | minutes |
-| sipp | `roster_sipp.py`, `sipp_read.py` | SIPP reference years split into tax units by the shared rules, with each adult's wages, elective deferrals (2021 and 2023) and tips, and the unit's dividends, gross Social Security and pensions | a few minutes (the first read of each release about a minute) |
-| targets | `targets.py` | every published SOI number: the targets, and the totals that grow dollars and cut points | seconds |
-| errors | `errors.py soi_cv` | SOI's published coefficients of variation, parsed from the downloaded workbooks | seconds |
-| table | `build_table.py` | the training table (every source, the PUF with all its items) with the AGI group label, its bands, and the dollar maps (one per SCF wave for the balance sheet, other debt held to each wave's 99.9th percentile among holders; one per survey year for the CEX, CPS and SIPP) | about 3 minutes |
-| train | `train.py` (and `fillin.py`, `qgroups.py`) | the model, with grouped weighting and the two-slot fill-in on every survey; train each pooled model with REBUILD_RUN set to its name in `generation.models` (`label_seed20261017`, `label_seed20261018`, `label_seed20261019`) and REBUILD_SEED to its seed | about 95-105 minutes on an H100 (batches of 512) |
-| generate | `generate.py` | 400,000 filer records drawn AGI group by AGI group, and the non-filer batch, a third from each of three trained models, each record's balance sheet from one SCF wave and its CEX, CPS and SIPP items from one survey year. With settings `generation.filers` `real_puf`: every 2015 PUF record once per model in place of the filer batch, then (a past year) the top step's redraw at $1 billion on the same GPU, into the top cache | about 16 minutes; real_puf about 12 minutes for the draw and 17 for the redraw on an H100 |
-| top | `tilt.py` with REBUILD_TOP_ONLY | not in the default list: the top step's network part alone (the redraw of every balance sheet at $1 billion or more) into the top cache (REBUILD_TOP_CACHE; with real_puf, default `<out>/top_cache.pkl`), on a GPU; the tilt then reads it on a CPU | about 17 minutes on an H100 for the real PUF |
-| tilt | `tilt.py`, then `report_tilt.py` | the year's targets (`targets_config/<year>/`, `target_list.py`, `errors.py`; 862-929 in a past year, 108 in a projection year), the start (the draw, or the 2023 file for a projection year), the top of the file (`top_records.py`), the non-microdata imputations (`non_micro_imputations.py`), every record's taxes from tax-simulator-gpu (`taxes.py`), the one-cost reweighting (`solver.py`) and the run report | 10-15 minutes for a past year on 4 CPUs, about 4 for a projection year |
-| filing_season | `build_filing_season.py` | SOI's November filing-season tables into `research/rebuild/resources/filing_season/` (committed; not in the default list, run when SOI posts a new one); the first projection year's growth blends them with CBO's (FEATURES.md) | seconds |
-| non_micro_tables | `build_non_micro_tables.py` | the published tables the non-microdata imputations read, into `research/rebuild/resources/non_micro/` (committed; not in the default list, run only when a source changes) | a minute |
-| report | `report_cex.py`, `report_cps.py`, `report_sipp.py`, `report_translation.py` | consumption, the CPS's person items and overtime, and tips in the file against the target year's CEX, CPS and SIPP year mix; the translation report | seconds |
-| calculator | `calculator.py`, `report_calculator.py` | not in the default stages: each record of a finished file through the GPU tax calculator (tax-simulator-gpu's batch command at the commit in settings `taxes`), the AGI check and the levels against SOI 2019 (`CALCULATOR_CONTRACT.md`). Since 30 October the tilt computes the taxes itself (`taxes.py`) | under a minute, a few minutes for the report |
-| taxsim_file | `taxsim_file.py` | not in the default stages (29 October): the year file as Tax-Simulator's `tax_units_<year>.csv`, production's 188 columns in its order and with its conventions for missing values; where each column comes from is `TAXSIM_FILE_COLUMNS.csv` (written beside the output, copied to `research/rebuild/`). With real_puf it is followed by package | a few minutes on a CPU node |
-| state weights: state_start, state_joint, state_tilt, state_carry, state_check | one command `run_state_weights.sh <training folder> <output folder>` (`state_year.sbatch`; `state_start.py`, `state_joint.py`, `state_weights.py`, `state_targets.py`, `state_tilt.py`, `report_state.py`) | not in the default list: every year's final file with its state weights. Past years: draw, national-only solve, integrated solve. Future years: national solve, each record keeping its 2023 split (FEATURES.md, "State weights") | a few hours for 2015-2075, with the queue |
-| package | `package.py`, `merge_puf.py`, `merge_puf.R` | real_puf only (4 November): the files that turn a holder's own 2015 PUF into the year's Tax-Simulator file (factors per PUF item and step, the weight factor, the added items as values, the other records, the merge scripts in Python and R; `<out>/package/<run>/`, chmod 700), then the round trip: both scripts run on our PUF must give the Tax-Simulator file, or the stage fails (`PACKAGE.md`) | about 3 minutes on a CPU node |
+The runner reads three optional environment variables: `REBUILD_PY_ENV` and `REBUILD_R_ENV`, shell lines run before
+a Python or an R stage, and `REBUILD_R_LIBS`, the R library for the filing and CPS R scripts. On Bouchet,
+`slurm/bouchet_env.sh` sets all three, and `slurm/stage.sbatch` runs one step as a job.
 
-Names: every variable that Tax-Simulator's calculator reads has the calculator's name (29-30 October); the list is
-`pipeline/tools/rename_map.csv`, and `research/archive/rebuild_2026-10/tools/apply_rename.py` (archived 3 November)
-applies it to a branch made before (`FEATURES.md`).
+Every setting is in `pipeline/settings.json`; each run folder gets its own copy, which the stages read through
+`REBUILD_SETTINGS`. The PUF year (2015) and the target year are its `years`. The runner sets the other environment
+variables a stage reads: `REBUILD_OUT` (the output folder), `REBUILD_RUN` (the run's subfolder: `y<year>` for a year,
+the network's name for training), `REBUILD_SEED` (the training seed) and `REBUILD_SAVE_SOLVE` (where the national
+solve saves its inputs for the state solve). `REBUILD_PASSES` sets fewer training passes for a quick test, and
+`REBUILD_THREADS` the number of threads for the integrated solve.
 
-Shared code: `common.py` (paths, settings, the PUF year and target year,
-age ranges, wage groups), `model.py` (the network, and every call of it),
-`fillin.py` (the two-slot fill-in, run by training), `qgroups.py` (grouped
-weighting and the AGI group label), `dollars.py` (bands to dollars), `ages.py` (the primary filer's age range, used by the table),
-`tax_units.py` (the shared tax-unit rules), `target_list.py` (the year's
-targets from `targets_config/<year>/`, checked before every run), `growth.py` (how every dollar item is grown between
-years, from `targets_config/<year>/growth.yaml` and the series in `resources/growth/`), `config_overview.py` (the
-table of every setting by year, `targets_config/OVERVIEW.md`), `scf_targets.py` (the SCF targets' values and standard errors over the year's
-mix of SCF waves), `survey_mix.py` (the CEX, CPS and SIPP year mix), `errors.py` (their standard errors),
-`solver.py` (the reweighting), `non_micro_imputations.py` (the non-microdata imputations: items set from the drawn
-items and a published table, and their checks).
-Every setting is in one settings file: `settings.json`, or the file named by
-`REBUILD_SETTINGS` (every stage, R and Python, reads it; a variant run is a
-copy). The PUF year (2015) and the target year (2019) are its "years". The
-training seed can be changed with `REBUILD_SEED`, the output folder with
-`REBUILD_OUT`, the run's subfolder with `REBUILD_RUN`, and the number of
-passes, for a quick test, with `REBUILD_PASSES`.
+Outside the repository the pipeline needs: the raw data named in settings `paths.raw` (PUF, SCF, CEX, CPS ASEC and its
+March basic file, SIPP, SOI tables and W-2 statistics, Macro-Projections); tax-simulator-gpu at the commit in settings
+`taxes.commit` with its own Python (`taxes.python`); R with ipumsr, arrow and data.table; production files
+`src/nonfilers/*.R` and `src/imputations/wealth_schema.R`; and
+`research/state_weights/nonfiler_residual/resources/` (the filing stage).
 
-Outputs. The folders `data/`, `targets/`, `model/`, `gen/`, `tilt/` and `taxsim/` under
-`/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` are the installed run's 2019 (since 8 November, the 6 November retrain: every year
-2015-2075 in `explore/2026-11-06/retrain/run/list_A/final/<year>/`, state weights in `explore/2026-11-06/retrain/run/list_A/files/`,
-on the networks of `explore/2026-11-06/retrain/run/train/model/`; before it run7, `explore/2026-11-05/interest_growth/run/`; `INSTALLED.txt` says what is where). They are changed only by an
-install John approves. The real-PUF files and packages in `explore/2026-11-05/run6/confidential/`
-(readable by John only) are run6's; none were made for the retrain. Runs since then live in their own folders under `explore/`. A year's tilt folder (`tilt/y<year>/`) holds the file
-(`file_<year>.parquet`, every dollar in nominal dollars of the year), the targets (`targets.csv`), every target before
-and after (`fit.csv`), the summary (`summary.md`), the run report (`report.md`, `report_*.csv`) and the top step's
-notes; the Tax-Simulator file is in `taxsim/y<year>/`.
+Time and memory per step are in `FEATURES.md`, section 7. Every year takes about 3 GPU hours of training plus about 4
+hours of wall time on Bouchet.
+
+## Outputs
+
+The training folder holds `data/` (the survey files, the training table, the dollar maps), `targets/` (SOI numbers
+and errors), `model/<network>/` and `sidebuild/` (the side files). The output folder holds, for each year,
+`final/<year>/` with `gen/y<year>/` (the drawn records), `tilt/y<year>/` (the year file `file_<year>.parquet`, every
+target before and after in `fit.csv`, `targets.csv`, `summary.md`, the run report `report.md`) and `taxsim/y<year>/`
+(the Tax-Simulator file); `files/state_weights_<year>.parquet`; and `checks/`. A past year's draw and national solve
+are in `run/<year>/`, the integrated solve in `integrated/y<year>/`. Every dollar is in nominal dollars of the year.
+
+The installed run is under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` (`data/`, `targets/`, `model/`, `gen/`,
+`tilt/`, `taxsim/`; `INSTALLED.txt` says where every year's files and the state weights are). It changes only by an
+install John approves. No real-PUF files or packages exist for the installed networks.
+
+## Other documents
+
+| File | What it holds |
+|---|---|
+| `FEATURES.md` | the method of record: every stage, its rules and settings, time and memory, known limitations |
+| `TARGETS.md` | the reweighting's targets: principles, how a year's targets are written, standard errors, the solve |
+| `TAX_UNITS.md` | how each survey is split into tax units |
+| `AGES.md` | how every age and sex in a unit is set |
+| `CALCULATOR_CONTRACT.md`, `CALCULATOR_CONTRACT.csv` | the columns tax-simulator-gpu reads and where each comes from |
+| `TAXSIM_FILE_COLUMNS.csv` | where each column of the Tax-Simulator file comes from |
+| `PACKAGE.md` | what a holder of the 2015 PUF receives and how they rebuild the Tax-Simulator file |
+| `ROADMAP.md` | the goal, and the open work between the pipeline and it |
+| `HISTORY.md` | the record of how the pipeline was built, day by day |
+
+The record of every experiment before 20 October 2026 is in `research/archive/rebuild_2026-10/`; work since then is in
+scratch, `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/<date>/`.
 
 ## Working rules
 
 - Plain English for John: tables and real numbers, no jargon.
 - Nothing launched, and no design rule changed, without his go.
-- Heavy compute through Slurm, never on the login node.
-- A new feature is a change to this pipeline and its settings, with
-  `FEATURES.md` updated and a line in `HISTORY.md`. Experiments that do
-  not become features are not kept here.
+- Heavy compute through Slurm, never on a login node.
+- A new feature is a change to the pipeline and its settings, with `FEATURES.md` updated and a line in `HISTORY.md`.
+  Experiments that do not become features are not kept here.

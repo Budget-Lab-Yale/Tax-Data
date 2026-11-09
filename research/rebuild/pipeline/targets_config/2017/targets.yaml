@@ -1,45 +1,27 @@
-# 2017: the targets of the year's file, written out in full (TARGETS.md section 12). Nothing is inherited: this
-# file, prior.yaml and growth.yaml in this folder are the whole of the year's configuration, with the catalog
-# (targets_config/catalog.yaml), which says what the words mean. A new year starts as a copy of the nearest year's
-# folder; config_overview.py writes the table of every setting by year (OVERVIEW.md), marking what differs from the
-# neighbouring year. Until 29 October this year was years/2019.yaml on top of historical.yaml and defaults.yaml; this
-# file is what they resolved to, with each entry's comment kept (target_list.resolve checks every entry has a value
-# source the catalog defines, and growth.check every dollar item a growth line, before any run).
+# 2017: the targets of the year's file, written out in full. With prior.yaml and growth.yaml in this folder and the
+# catalog (targets_config/catalog.yaml, which says what the words mean), this is the whole of the year's
+# configuration. Every value is 2017's: SOI's 2017 tables, the SCF waves and CEX and CPS years of the year's prior,
+# and the CPS filing stage's non-filers.
 #
-# The 383 targets of the 24 October run (tilt/seed20261016, tilt/seed20261017), Table 1.7 (24 October), the S2 targets
-# at the top (25 October: the five top AGI brackets with their composition, the SCF's 99.9th percentile line and the
-# top net worth by kind of asset), and the later additions dated in their comments. The values are the year's own (below).
+# Each entry is a block of targets: every statistic x every variable x every cell, with its population, the source
+# of its value and the kind of its error. "key" gives the strings that name each target, (kind, group, target), as
+# in the run's fit.csv; in a key, {cell} is the cell's label, {<grouping>} the label of that grouping's part of the
+# cell, {variable} the variable's short name, {label} its label, {statistic} the statistic and {year} the year of
+# the value. A value's year is the target year unless the entry says otherwise. reason, where present, says why an
+# entry departs from the general rule in this year; it fills targets.csv's reason column.
 #
-# Each entry is a block of targets: every statistic x every variable x every cell. It states the parts of
-# TARGETS.md section 2 in full words: statistic, population, variable, cells, value (where it comes from) and error
-# (its kind, TARGETS.md section 9). "key" gives the strings that name each target, (kind, group, target), the same
-# strings as the tilt's fit.csv; in a key, {cell} is the cell's label, {<grouping>} the label of that grouping's
-# part of the cell, {variable} the variable's short name, {label} its label, {statistic} the statistic and {year}
-# the year of the value. A value's year is the target year unless the entry says otherwise.
-#
-# reason: why an entry is as it is in this year where it departs from the general rule (it fills targets.csv's reason
-# column; before 29 October, the override reason of the year file).
-#
-# 2017 (30 October 2026, piece 4 of the overnight plan, targets for every year): copied from 2019's folder and edited
-# for 2017. Every value is 2017's, read when the run expands the list: SOI 2017 Tables 1.2, 1.3, 1.4, 1.6, 1.7 and
-# 4.3, the SCF waves, CEX and CPS years of 2017's prior (prior.yaml), and the CPS filing stage's 2017 non-filers.
-# Numbers quoted in the comments below are 2019's, from the folder this one was copied from. What differs from 2019:
-#   - Left out: the W-2 tips and elective deferral targets (tips_w2, tips_w2_workers, tips_w2_spread,
-#     deferrals_w2_joint, deferrals_w2_nonjoint; 46 targets in 2019). SOI publishes its Form W-2 statistics for tax
-#     years before 2019 as one workbook per year in another layout (w2_all_<year>.xls), which the readers
-#     (target_list._w2_table, _w2_by_agi, _w2_percentiles) do not handle. A gap, not a judgment: adding a reader for
-#     the older layout would restore them.
-#   - Run of 30 October (installed networks, scratch explore/2026-10-30/targets/run/2017): 774 targets after
-#     expansion, every one inside its range; effective sample kept 95.3%. No block dropped.
+# In 2017:
+#   - No W-2 tips or elective deferral targets: SOI publishes the W-2 statistics for years before 2019 in a workbook
+#     layout the readers do not handle.
 
 year: 2017
 kind: historical
 
-# What every run reports (TARGETS.md section 14; report_tilt.py writes it).
+# What every run reports (report_tilt.py writes it).
 report:
   - every target with its value, standard error, where the file lands, and the miss in standard errors
   - thin cells, the effective records behind each target and the largest weight factor
-  - published numbers not targeted (SOI Table 1.7, dependent filers, today) and the file's miss on each
+  - SOI's published cells in Tables 1.4, 1.6 and 1.7 and the file's miss on each, cells not targeted first
   - untargeted statistics before and after the tilt, largest moves first
   - each trained model's value on untargeted statistics
   - the year's resolved configuration and its expanded target list (targets.csv), the code commit, the vintages read
@@ -47,8 +29,8 @@ report:
 targets:
 
   # SOI Table 1.4 by AGI bracket: the number of returns, and the number with and the amount of the four income
-  # items. Filers only. The five top brackets are each their own cell (soi_agi_brackets, kept_separate), so these
-  # two entries give the returns and the income composition of each top bracket (TARGETS.md S2).
+  # items. Filers only. The five top brackets are each their own cell, so these entries give the returns and the
+  # income composition of each top bracket.
   - id: irs_returns
     kind: IRS
     statistic: units
@@ -88,8 +70,8 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: all, target: joint returns}
 
-  # The number of non-filer units, the CPS filing stage's expected non-filers. With the returns it fixes the number
-  # of units in the file, which every share and average condition is written against (target_list.average_condition).
+  # The number of non-filer units, the CPS filing stage's expected non-filers. With the returns it fixes the
+  # number of units in the file.
   - id: non_filers
     kind: non-filers
     statistic: units
@@ -104,9 +86,7 @@ targets:
     key: {group: all, target: non-filers}
 
   # The people in non-filer units, counted on the CPS units of the filing stage by the file's own rule (heads and
-  # spouses by their own age, children among the head, spouse and three dependents the file carries). The
-  # calibration's numbers by the head's band (Census adults less the adults on SOI returns less claimed dependents;
-  # Census children under 17 not on returns) are kept as a check, in each target's source.
+  # spouses by their own age; children among the head, spouse and three dependents the file carries).
   - id: nonfiler_people
     kind: non-filer people
     statistic: amount
@@ -118,16 +98,14 @@ targets:
       kind: judgment
       relative: 0.02
       reason: >-
-        today's fallback tolerance; the true error is likely larger in the youngest band, where the value is a
+        a fallback tolerance; the true error is likely larger in the youngest band, where the value is a
         small difference of large numbers (2019, 18-25: 33.8 million adults less 24.7 million on returns less 8.1
         million claimed dependents)
     key: {group: 'non-filers, {label}', target: people}
 
-  # (autoresearch, round 9) Non-filers' dividends, against the non-filers of the pipeline's own tax data, with a wide
-  # error: the CPS-label draw puts large dividends on non-filers the source does not have (run3's 2019 file $30.0 billion
-  # on 3.1 million non-filers, $13.8 billion of it on 46,000 units with $100,000 or more, against $7.1 billion on 2.1
-  # million in the source; 2023 $51 billion against $7.7 billion). The source is before the fill-in of holders the CPS
-  # misses, so the error is half the value (amount) and a quarter (holders).
+  # Non-filers' dividends, against the non-filers of the pipeline's own tax data. The generated non-filers carry
+  # large dividends the source does not have, and the source is before the fill-in of holders the CPS misses, so
+  # the error is wide: half the value for the amount and a quarter for the holders.
   - id: nonfiler_dividends
     kind: non-filer items
     statistic: amount
@@ -148,10 +126,8 @@ targets:
     error: {kind: judgment, relative: 0.25, reason: 'the source is before the fill-in of the dividend holders the CPS misses'}
     key: {group: all, target: 'non-filers, {variable} {statistic}'}
 
-  # SOI Table 1.7: dependent filers' returns by AGI bracket. Dependent filers are real returns, counted in every SOI
-  # table (TARGETS.md section 10), but nothing else fixes how many there are, so the tilt could fill the Table 1.6
-  # age counts with them: in the first run with consumption hit exactly (24 October) they rose from 9.85 to 21.92
-  # million (SOI: 9.55 million). Section 6 had found they need a target of their own.
+  # SOI Table 1.7: dependent filers' returns by AGI bracket. Nothing else fixes how many dependent filers there
+  # are, and without this the reweighting fills Table 1.6's age counts with them.
   - id: dependent_filer_returns
     kind: dependent filers
     statistic: units
@@ -161,14 +137,10 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: returns}
 
-  # (2 November 2026, John; explore/2026-11-02/dependent_filers/RESULTS.md) More of Table 1.7: dependent filers' net
-  # capital gain (Table 1.7's "sales of capital assets, taxable net gain", Form 1040's capital gain line where
-  # positive, as for Table 1.3's net gain), all AGI; and their returns and net capital gain in Table 1.7's two top
-  # brackets, $50,000 under $200,000 and $200,000 or more. Dependent filers are outside Table 4.3 and the SCF targets,
-  # and the one returns cell above $20,000 did not limit how far the reweighting raised those with large AGI: in the
-  # run of 1 November 2026 the 2023 file had $10.7 billion of their net gain against SOI's $1.7 billion. Errors are
-  # borrowed from Table 1.4 as for the returns above: a count by its number of returns, an amount by its amount and
-  # its number of returns with a gain (errors.py).
+  # More of Table 1.7: dependent filers' net capital gain (Form 1040's capital gain line where positive), all AGI,
+  # and their returns and net capital gain in Table 1.7's two top brackets, $50,000 under $200,000 and $200,000 or
+  # more. Dependent filers are outside Table 4.3 and the SCF targets, so without these the reweighting can raise
+  # those with large AGI far above SOI's. Errors borrowed from Table 1.4 as for the returns above.
   - id: dependent_filer_gains
     kind: dependent filers
     statistic: amount
@@ -179,11 +151,9 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: all, target: net capital gain}
 
-  # (autoresearch, 4 November) Dependent filers' taxable interest and ordinary dividends, Table 1.7, all AGI
-  # (round 7: also their tax-exempt interest, capital gain distributions, capital losses and Schedule C income and loss).
-  # Untargeted in run3, the 2019 file had $2.1 billion of their taxable interest against SOI's $0.38 billion and
-  # $3.2 billion of their dividends against $2.2 billion (2023: $2.6 against $0.69 billion of interest); this income
-  # is what the tax on a child's unearned income falls on.
+  # Dependent filers' investment and other income, Table 1.7, all AGI: taxable interest, ordinary dividends,
+  # tax-exempt interest, capital gain distributions, capital losses and Schedule C income and loss. This income is
+  # what the tax on a child's unearned income falls on.
   - id: dependent_filer_investment_income
     kind: dependent filers
     statistic: [count, amount]
@@ -214,9 +184,9 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: net capital gain}
 
-  # SOI Table 1.6: returns by the primary filer's age range, 26-34 to 65+, in joint and non-joint returns. Under 26
-  # is not a target of its own: the bracket returns and the joint count leave it, and a sixth target would repeat
-  # them. Table 1.6 counts a dependent filer's return under its own age (TARGETS.md section 10).
+  # SOI Table 1.6: returns by the primary filer's age range, 26-34 to 65+, in joint and non-joint returns. Under
+  # 26 is not a target of its own: the bracket returns and the joint count leave it, and a sixth target would
+  # repeat them. Table 1.6 counts a dependent filer's return under its own age.
   - id: age_returns
     kind: age
     statistic: units
@@ -229,10 +199,9 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{joint_or_not}, primary {adult_age_ranges}', target: returns}
 
-  # (autoresearch, round 8) SOI Table 1.2: returns of single filers, married people filing separately and heads of
-  # household in each group of the standard AGI grid (joint returns follow from these, Table 1.4's returns and the joint
-  # total). Untargeted, run3's 2019 file had 0.63-0.70 of SOI's single returns at AGI $1-10 million and 1.8 times its
-  # joint returns at $10,000-15,000. Errors borrowed as for Table 1.6 by AGI (Table 1.4's count cells in the same group).
+  # SOI Table 1.2: returns of single filers, married people filing separately and heads of household in each group
+  # of the standard AGI grid (joint returns follow from these, Table 1.4's returns and the joint total). Errors
+  # borrowed as for Table 1.6 by AGI.
   - id: status_returns_by_agi
     kind: status by AGI
     statistic: units
@@ -242,13 +211,11 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: returns}
 
-  # (autoresearch, 4 November) SOI Table 1.6: returns of heads of household and of married people filing separately
-  # by the primary filer's age range, all six ranges, all AGI. The entry above leaves the split of non-joint returns
-  # between single filers and heads of household free within each age, and the draw puts heads of household too young:
-  # run3's 2019 file had 4.06 million heads of household under 26 against SOI's 3.46 million, and 8.80 million aged
-  # 45-54 against 9.79 million (2023: 4.35 against 3.06 million under 26). With the entry above and Table 1.3's
-  # returns by status these also fix single filers by age. Dependent filers are not heads of household; the few
-  # married dependent filers filing separately are left out of these cells (the file has no exact age for them).
+  # SOI Table 1.6: returns of heads of household and of married people filing separately by the primary filer's
+  # age range, all six ranges, all AGI. The entry above leaves the split of non-joint returns between single
+  # filers and heads of household free within each age, and the draw puts heads of household too young. With the
+  # entry above and Table 1.3's returns by status these also fix single filers by age. The few married dependent
+  # filers filing separately are left out of these cells, as the file has no exact age for them.
   - id: age_returns_by_status
     kind: age by status
     statistic: units
@@ -258,15 +225,11 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{filing_four}, primary {adult_age_ranges}', target: returns}
 
-  # (3 November 2026, John; explore/2026-11-03/age_by_agi/RESULTS.md) SOI Table 1.6 by AGI: returns by the primary
-  # filer's age range, 26-34 to 65+, within each group of the standard AGI grid, from the table's All returns panel.
-  # The totals by age above leave the age mix within AGI free, and the SCF's wealth by age (2 November) moved
-  # high-income returns from primaries under 55 to 55-64: in 2015's $2m-5m class, 22% with a primary aged 45-54
-  # against SOI's 30%. Summed over AGI these cells are the totals by age above (joint plus non-joint, to a few
-  # returns), so the two entries agree; both are kept, because the demographic prescaling uses the totals (kind
-  # age) and this entry is a kind of its own. Under 26 is not a target, as above. Errors borrowed by number of
-  # returns from Table 1.4's count cells in the same AGI group (John, 3 November), except in the $10m-and-over group,
-  # which SOI samples in full (errors.py).
+  # SOI Table 1.6 by AGI: returns by the primary filer's age range, 26-34 to 65+, within each group of the
+  # standard AGI grid, from the table's All returns panel; the totals by age leave the age mix within AGI free.
+  # Summed over AGI these cells equal the totals by age above, to a few returns; both are kept, because the
+  # demographic prescaling uses the totals. Errors borrowed from Table 1.4's count cells in the same AGI group,
+  # except in the $10m-and-over group, which SOI samples in full.
   - id: age_returns_by_agi
     kind: age by AGI
     statistic: units
@@ -280,14 +243,8 @@ targets:
     key: {group: 'all returns, {standard_agi_groups}, primary {adult_age_ranges}', target: returns}
 
   # Business income: each family's net income and net loss, returns and dollars, in six AGI groups (merged where
-  # SOI's published cells cross a group edge). Schedule C and partnership and S corporation income are in
-  # business_top instead, the same five groups below $1M and SOI's five top brackets above it.
-  # In 2019 (since 22 October) estates and trusts are left out: the family list business_other less estate_trust.
-  # (autoresearch, 4 November) estates and trusts back, and Form 4797's gain and loss added: with standard errors
-  # (the one-cost rule of 1 November) a cell that conflicts gives way instead of stopping the solve. In run3's 2019
-  # file, untargeted, estate and trust net income was $51.9 billion against SOI's $36.2 billion ($6.5 billion at no
-  # AGI against $0.5 billion), Form 4797 net gain $56.3 billion against $37.9 billion and net loss $52.3 billion
-  # against $18.5 billion.
+  # SOI's published cells cross a group edge): rent and royalty, estates and trusts, and Form 4797's gain and
+  # loss. Schedule C and partnership and S corporation income are in business_top instead.
   - id: business
     kind: business
     statistic: [count, amount]
@@ -299,17 +256,13 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
     reason: >-
-      variable: estates and trusts, left out on 22 and 24 October because their tiny cells could not always be met,
-      are back under standard errors (autoresearch, 4 November), with Form 4797's gain and loss
+      variable: estates and trusts are targeted under standard errors, as is Form 4797's gain and loss, although
+      their cells are tiny and cannot always be met
 
-  # (autoresearch, 4 November) Taxable state income tax refunds, Table 1.4, in the six business AGI groups. The
-  # tax benefit rule (settings taxes.refund_tax_benefit) takes the refunds off itemizers whose taxes paid exceed the
-  # cap by more than the refund; on its own it left too few (2019: $2.3 billion on 3.0 million returns against SOI's
-  # $5.6 billion on 4.3 million), because the reweighting cuts the 2015 itemizers who carry them and because some
-  # refunds repay taxes deducted before the cap. Round 3: the rule alone left too few refunds at the top to meet the
-  # $1 million and over cell (2019: $0.27 billion against SOI's $0.66 billion); settings taxes.refund_reported_anyway
-  # keeps a share of the refunds the rule would take off (John, 4 November 2026, evening: kept, as it rests on SOI's
-  # refunds on about 5% of returns at AGI $2-5 million; every AGI group a target, $1 million and over included).
+  # Taxable state income tax refunds, Table 1.4, in the six business AGI groups. The tax benefit rule (settings
+  # taxes) takes refunds off itemizers whose taxes paid exceed the cap by more than the refund; settings
+  # taxes.refund_reported_anyway keeps a share of them, as SOI shows refunds on about 5% of returns at AGI $2-5
+  # million.
   - id: state_refunds
     kind: IRS
     statistic: [count, amount]
@@ -320,11 +273,8 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # (autoresearch, round 7) More of Table 1.4 in the business AGI groups: statutory adjustments, tax-exempt interest,
-  # unemployment compensation, taxable IRA distributions and taxable pensions. After round 6 these were the
-  # untargeted Table 1.4 lines with the most cells beyond 3 standard errors (2023 statutory adjustments: 41.6 million
-  # returns in run3's file against SOI's 35.8 million; 2019 tax-exempt interest at $5-10 million $4.3 billion against
-  # $3.0 billion).
+  # More of Table 1.4 in the business AGI groups: statutory adjustments, tax-exempt interest, unemployment
+  # compensation, taxable IRA distributions and taxable pensions.
   - id: irs_more_items
     kind: IRS
     statistic: [count, amount]
@@ -335,9 +285,8 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # (autoresearch, 4 November) Alimony received and paid, Table 1.4, all AGI. The draw carries 2015's alimony into
-  # every year; the 2017 law ends the inclusion and the deduction for divorces from 2019, so the payments run off
-  # (SOI: 344,000 returns with alimony received in 2019, 184,000 in 2023; run3's files 538,000 and 577,000).
+  # Alimony received and paid, Table 1.4, all AGI. The draw carries 2015's alimony into every year, while the 2017
+  # law ends the inclusion and the deduction for divorces from 2019, so the payments run off.
   - id: alimony
     kind: IRS
     statistic: [count, amount]
@@ -348,8 +297,8 @@ targets:
     error: {kind: soi_cv}
     key: {group: all, target: '{variable} {statistic}'}
 
-  # Farm and farm rental income (1 November, decision 71): one overall target each, net income and net loss, returns and
-  # dollars, no AGI groups; the cells by AGI group held 1,200 to 140,000 returns.
+  # Farm and farm rental income: one overall target each, net income and net loss, returns and dollars, no AGI
+  # groups, as the cells by AGI group held 1,200 to 140,000 returns.
   - id: business_farm
     kind: business
     statistic: [count, amount]
@@ -361,8 +310,7 @@ targets:
     key: {group: all, target: '{variable} {statistic}'}
 
   # Schedule C and partnership and S corporation income, net income and net loss, returns and dollars: the six
-  # groups of the entry above with "$1m and over" cut into $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over
-  # (TARGETS.md S2: the composition of each top bracket).
+  # groups of the entry above with "$1m and over" cut into $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over.
   - id: business_top
     kind: business
     statistic: [count, amount]
@@ -373,17 +321,13 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # The SCF targets' population is the SCF's units below $1 billion of net worth (29 October, PLAN.md step 10 of
-  # explore/2026-10-29/top_research; catalog population scf_units_below_a_billion): amounts, shares, the income x net
-  # worth grid, the percentile lines and their standard errors all on that population, in the SCF and in the file. The
-  # Forbes list supplies the units above (top_billionaires.py). The restricted SCF is not scaled back up to its full count.
-  # Every SCF target (kinds wealth and wealth grid) is computed on the year's mix of SCF waves, the year file's prior
-  # "balance sheet", each wave's balance sheet grown per tax unit to the target year's wave, each wave with its own
-  # lines; value = sum of share x the wave's value, variance = sum of share^2 x the wave's variance (scf_targets.py,
-  # TARGETS.md S9). Their ranges are half a standard error (settings tilt.range_in_se_by_kind).
-  # SCF wealth: the share of units above the SCF's 99.9th, 99th, 90th and 50th
-  # percentile lines and above $1 million, and net worth above each percentile line and in total. Among units other
-  # than dependent filers, who hold no wealth in the file.
+  # The SCF targets are computed on the year's mix of SCF waves (the prior's "balance sheet"), each wave's balance
+  # sheet grown per tax unit to the target year's wave, among the SCF's units below $1 billion of net worth (the
+  # Forbes list supplies the units above). Value = sum of share x the wave's value; variance = sum of share^2 x
+  # the wave's variance (scf_targets.py).
+  # SCF wealth: the share of units above the SCF's 99.9th, 99th, 90th and 50th percentile lines and above $1
+  # million, and net worth above each percentile line and in total. Among units other than dependent filers, who
+  # hold no wealth in the file.
   - id: wealth_shares
     kind: wealth
     statistic: share
@@ -405,9 +349,8 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable}'}
 
-  # SCF top wealth by kind of asset (TARGETS.md S2): the dollars of stocks, business equity, real estate and
-  # retirement accounts held by the units above the SCF's 99.9th, 99th and 90th percentile net worth lines (the
-  # lines on net worth, the amounts of the asset). The same columns on both sides (catalog variables).
+  # SCF top wealth by kind of asset: the dollars of stocks, business equity, real estate and retirement accounts
+  # held by the units above the SCF's 99.9th, 99th and 90th percentile net worth lines.
   - id: wealth_by_asset
     kind: wealth
     statistic: amount
@@ -419,15 +362,12 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable}'}
 
-  # The income x net worth grid (26 October; TARGETS.md S9, HISTORY.md). Four income groups
-  # (below p90, p90-99, p99-99.9, p99.9+ of the seven shared income items, each side's own percentiles) by four net worth classes (below the SCF's p90 line,
-  # p90-99, p99-99.9, above p99.9, the SCF's dollar lines). In each cell: the share of the income group's units in
-  # the net worth class (the count of units, stated within the income group, whose size is fixed by rank on both
-  # sides), and the class's net worth in the group (dollars). The share of the lowest class is left out in each
-  # income group: it is one minus the others exactly.
-  # Thin cells merged (a cell resting on fewer than 10 SCF households of the 2019 wave, in any implicate, is merged
-  # into the next richer net worth class of the same income group until it has 10 or more; counted before the waves
-  # were pooled, which roughly triples each cell's households, and kept since):
+  # The income by net worth grid: four income groups (below p90, p90-99, p99-99.9, p99.9+ of the seven shared
+  # income items, each side's own percentiles) by four net worth classes (the SCF's dollar lines at p90, p99 and
+  # p99.9). In each cell: the share of the income group's units in the net worth class, and the class's net worth
+  # in the group. The share of the lowest class is left out in each income group, as it is one minus the others.
+  # Thin cells merged (fewer than 10 households of the 2019 SCF wave, in any implicate, merged into the next
+  # richer class of the same income group):
   #   income p99-99.9: below p90 (3 households) + p90-99 (132) -> at or below p99 (135);
   #   income p99.9+: below p90 (0) + p90-99 (7) + p99-99.9 (83) -> at or below p99.9 (86: a household can sit in
   #   different cells in different implicates, so the merged count is not the sum).
@@ -486,9 +426,9 @@ targets:
     error: {kind: survey_replicate}
     key: {group: 'CEX {year}, age {adult_age_ranges}, {married_or_not}', target: '{variable}, average'}
 
-  # SOI Table 1.3 (27 October; run G2 of explore_targets_13_43_RESULTS.md, approved by John): returns, and the
-  # number with and the amount of 22 income items (AGI its amount only), in each of the four filing statuses. Filers
-  # (dependent filers included, as SOI counts them). Errors borrowed from the nearest Table 1.4 cells.
+  # SOI Table 1.3: returns, and the number with and the amount of the income items (AGI its amount only), in each
+  # of the four filing statuses. Filers, dependent filers included as SOI counts them. Errors borrowed from the
+  # nearest Table 1.4 cells.
   - id: soi_1_3_returns
     kind: soi 1.3
     statistic: units
@@ -518,15 +458,11 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # SOI Table 4.3 (27 October; run G2): returns, AGI, and the number with and the amount of eight income items, in the
-  # top 0.001%, the top 0.01%, the top 0.1% and the top 1% of AGI. Returns other than dependent filers' with AGI at
-  # or above SOI's published cutoff for the group and year (3 November, John; before, the file's own percentile lines
-  # on its starting weights), held fixed through the tilt, so the count of returns above each cutoff is a target the
-  # weights must meet (its error as the other counts: borrowed from Table 1.4's cells, or 1% of the value where the
-  # cutoff is $10 million or more). The top 0.001% was folded
-  # into the top 0.01% from 26 October (John) because the file lacked the PUF's aggregate records; it is restored with
-  # them (29 October, PLAN.md Part A step 9: top_hidden.py rebuilds them), and expand must keep it (must_reach). With
-  # settings tilt.top.enabled false, expand leaves the must_reach cells out, as before 29 October.
+  # SOI Table 4.3: returns, AGI, and the number with and the amount of eight income items, in the top 0.001%,
+  # 0.01%, 0.1% and 1% of AGI. Returns other than dependent filers' with AGI at or above SOI's published cutoff
+  # for the group and year, held fixed through the reweighting, so the count above each cutoff is a target (its
+  # error borrowed from Table 1.4's cells, or 1% of the value where the cutoff is $10 million or more). The top
+  # 0.001% rests on the PUF's rebuilt aggregate records, so expand must keep it (must_reach).
   - id: soi_4_3_returns
     kind: soi 4.3
     statistic: units
@@ -559,12 +495,9 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # Auto loan interest from the SCF (27 October, candidate): in the four income groups of the wealth grid, the share
-  # of the group's units with any auto loan interest and its dollars per unit, on the year's mix of SCF waves
-  # (scf_targets.py), each wave's amounts grown per tax unit to the target year's wave. Stated per unit, not as
-  # totals: the SCF's units add to 162.76 million in 2019, the file's units other than dependent filers to about
-  # 169.5 million, and the dollars per unit are what carries over (TARGETS.md S9). Half a standard error, as the
-  # other SCF targets (settings tilt.range_in_se_by_kind).
+  # Auto loan interest from the SCF: in the four income groups of the wealth grid, the share of units with any and
+  # the dollars per unit, on the year's mix of SCF waves. Stated per unit rather than as totals, because the SCF's
+  # units are fewer than the file's.
   - id: auto_loans
     kind: auto loans
     statistic: average
@@ -575,22 +508,12 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{income_rank_groups}', target: '{variable}, average'}
 
-  # ---- entries of 2019 alone until 29 October (years/2019.yaml) -------------------------------------------------
-  # (W-2 tips and elective deferral entries left out for this year: see the note at the top.)
 
-  # Overtime pay (28 October; decided by John 27 October, so overtime does not drift): from the CPS's own tax units,
-  # as the CEX consumption targets are. The share of units with any overtime pay and overtime dollars per unit
-  # (the catalog's variable list "overtime": any_ot, ot), over all units and in four groups of the unit's wages
-  # (catalog wage_groups_4, since 29 October: wage_groups_5 with $100,000-200,000 and $200,000 and over merged, John
-  # 28 October): 10 targets. The file's ot is ot1 + ot2, each person's held to their wages less their
-  # tips (dollars.py); the CPS's is Tedeschi's rules per person (overtime_cps.R), held to the person's own wages.
-  # Universe: overtime is known only for the units asked the earnings questions (months 4 and 8 of the main sample;
-  # the rest have it missing), so each average is over the asked units in the cell, with their own weights
-  # (target_list.cps_overtime_units). Population: units other than dependent filers, the rule of every survey target
-  # (the CPS folds dependent filers into the unit that claims them; the file's dependent filers hold no CPS item).
-  # Value: the CPS year mix of the prior's "cps items" (2019 73.11%, 2017 26.89%), the 2017 units' overtime and wages
-  # grown to 2019 by SOI's wages per return (survey_mix.py). Error: the ASEC's 160 replicate weights
-  # (errors.overtime_errors).
+  # Overtime pay from the CPS's own tax units, as the CEX consumption targets are: the share of units with any
+  # overtime pay and overtime dollars per unit, over all units and in four groups of the unit's wages. The file's
+  # ot is ot1 + ot2, each person's held to their wages less tips; the CPS's follows Tedeschi's rules per person
+  # (overtime_cps.R). Overtime is known only for the units asked the earnings questions, so each average is over
+  # those units. Value: the year's CPS mix; error: the ASEC's 160 replicate weights.
   - id: overtime_all
     kind: overtime
     statistic: average
@@ -610,7 +533,10 @@ targets:
     error: {kind: survey_replicate}
     key: {group: 'CPS {year}, {wage_groups_4}', target: '{variable}, average'}
 
-  # Calculator targets; QBI by AGI is omitted as in 2019.
+  # Taxes computed by the calculator (taxes.py): items tax-simulator-gpu computes under the year's law for every
+  # record of the start, before the reweighting. Filers; AGI groups by the file's own AGI, as every IRS target.
+  # Values: SOI Tables 1.4 and 3.3 of the year; errors: their published CVs. One entry per item, so an item can be
+  # dropped alone.
   - id: calc_itemizers
     kind: calculator
     statistic: [count, amount]
@@ -656,9 +582,8 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
-  # (autoresearch, 4 November) Table 3.3's education credits: the draw carries 2015's claims, and the number of
-  # returns claiming them fell after 2015 (run3's 2019 file: 9.18 million returns with the refundable American
-  # opportunity credit against SOI's 6.94 million; 2023: 8.72 against 5.82 million)
+  # Table 3.3's education credits: the draw carries 2015's claims, and the number of returns claiming them fell
+  # after 2015.
   - id: calc_education_credits
     kind: calculator
     statistic: [count, amount]
@@ -668,10 +593,9 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
-  # (autoresearch, 4 November) Table 3.3's self-employment tax, in the business AGI groups. The draw splits a
-  # couple's wages and self-employment income between the spouses with too little of the CPS's pattern (in the CPS a
-  # spouse with most of the wages has most of the self-employment income in 7% of such couples, in run3's 2019
-  # file 12%), so more of it sits above the Social Security wage base and the tax comes out at 0.89 of SOI's.
+  # Table 3.3's self-employment tax, in the business AGI groups. The draw splits a couple's wages and
+  # self-employment income between the spouses with too little of the CPS's pattern, so too much of it sits above
+  # the Social Security wage base and the tax comes out low.
   - id: calc_se_tax
     kind: calculator
     statistic: [count, amount]
@@ -681,10 +605,8 @@ targets:
     value: {published: soi 3.3}
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
-  # (autoresearch, 4 November) Table 2.5: the returns with the earned income credit and its amount by the number of
-  # qualifying children, all AGI. The EITC by AGI below leaves the mix of children free: run3's 2019 file had $1.5
-  # billion of the credit without children against SOI's $2.3 billion, and $25.1 billion with one child against
-  # $22.7 billion. Table 2.5 in the mirror stops at tax year 2020.
+  # Table 2.5: the returns with the earned income credit and its amount by the number of qualifying children, all
+  # AGI. The EITC by AGI below leaves the mix of children free. Table 2.5 in the mirror stops at tax year 2020.
   - id: calc_eitc_children
     kind: calculator
     statistic: [count, amount]
@@ -695,13 +617,8 @@ targets:
     error: {kind: soi_borrowed}
     key: {group: '{eitc_children} qualifying children', target: '{variable} {statistic}'}
 
-  # (autoresearch, 4 November) Table 3.3's credit for child and dependent care and the retirement savings
-  # contributions credit, used against tax, by AGI. Untargeted, run3's 2019
-  # file had $4.3 billion of the child care credit against SOI's $3.8 billion and 8.0 million returns with the
-  # saver's credit against 9.6 million (2023: $4.1 against $3.5 billion; 8.2 against 9.8 million).
-  # (John's rule of 4 November 2026, evening; applied 5 November) The child and dependent care credit is no longer a
-  # target: with it, the held-out check of mean child care spending among payers by wage group was more than twice
-  # run3's (run5 2019: 26.5 against 7.9; 2023: 12.7 against 4.4). The saver's credit stays.
+  # Table 3.3's retirement savings contributions credit, used against tax, by AGI. The child and dependent care
+  # credit is not targeted, as targeting it pushed mean child care spending among payers far above the CPS's.
   - id: calc_small_credits
     kind: calculator
     statistic: [count, amount]
@@ -761,9 +678,8 @@ targets:
     error: {kind: soi_cv}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # (autoresearch, 4 November) Table 2.1's cash gifts and gifts other than cash on itemizing returns, as reported
-  # (before the deduction's limits). The deduction itself is the next entry; its split was free, and run3's 2019
-  # file had $156 billion of cash and $98 billion of other gifts against SOI's $130 and $75 billion.
+  # Table 2.1's cash gifts and gifts other than cash on itemizing returns, as reported (before the deduction's
+  # limits). The deduction itself, the next entry, leaves the split free.
   - id: calc_itemized_charity_split
     kind: calculator
     statistic: [count, amount]
@@ -795,13 +711,10 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # (2 November 2026, John; explore/2026-11-02/age_targets/) The SCF's balance sheet and unrealized gains by the primary
-  # filer's age. Before these, no wealth target had an age in it, and the reweighting took net worth from units aged
-  # 65-79 rather than from the young (2022, the run of 1 November: net worth under 55 $48.8 trillion against the SCF
-  # tax units' $38.9 trillion; 65-79 $42.9 trillion against $49.7 trillion; 80 and over $9.3 trillion against $13.3
-  # trillion). Same form, population and standard errors as wealth_categories above (the year's SCF wave mix, the
-  # replicate weights and the five implicates, scf_targets.py): holders and dollars of the nine categories in four
-  # groups of the primary's age (under 55, 55-64, 65-79, 80 and over).
+  # The SCF's balance sheet by the primary filer's age: holders and dollars of the nine categories in four age
+  # groups (under 55, 55-64, 65-79, 80 and over), on the same waves, population and errors as wealth_categories.
+  # Without an age in any wealth target the reweighting took net worth from units aged 65-79 rather than from the
+  # young.
   - id: wealth_categories_by_age
     kind: wealth
     statistic: [count, amount]
@@ -812,9 +725,9 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # Unrealized capital gains by kind (stocks and funds, businesses, the primary home, other real estate) in the same
-  # age groups, each gain held to its asset's value and never below zero, as tax-simulator-gpu has them (catalog
-  # kg_*): the holders (units with a gain above zero) and the dollars.
+  # Unrealized capital gains by kind (stocks and funds, businesses, the primary home, other real estate) in the
+  # same age groups, each gain held to its asset's value and never below zero, as tax-simulator-gpu has them: the
+  # holders (units with a gain above zero) and the dollars.
   - id: unrealized_gains_by_age
     kind: wealth
     statistic: [count, amount]
@@ -825,10 +738,10 @@ targets:
     error: {kind: survey_replicate}
     key: {group: '{cell}', target: '{variable} {statistic}'}
 
-  # The number of tax units, filers and non-filers, whose primary filer is 65-69, 70-74, 75-79 and 80 and over, from
-  # the CPS's tax units over the year's CPS year mix (a large sample with ages measured well; SOI's Table 1.6 stops at
-  # 65 and over), standard errors from the ASEC's replicate weights (errors.cps_age_errors). Units other than
-  # dependent filers, as the CPS's units fold them into the unit that claims them.
+  # The number of tax units, filers and non-filers, whose primary filer is 65-69, 70-74, 75-79 and 80 and over,
+  # from the CPS's tax units over the year's CPS mix (SOI's Table 1.6 stops at 65 and over), standard errors from
+  # the ASEC's replicate weights. Units other than dependent filers, as the CPS's units fold them into the unit
+  # that claims them.
   - id: units_by_older_age
     kind: older ages
     statistic: units

@@ -1,28 +1,17 @@
-# 2071: how every dollar item is grown from the year it was measured in to another year (TARGETS.md section 12;
-# NEXT_STEPS.md, 29 October). Written out in full, one line per item; nothing is inherited. growth.py reads it, and
-# target_list.resolve stops before any run if a dollar item the pipeline grows has no line here.
-#
-# The series named here are used for every year this year's run grows across: the PUF year (2015) to 2019 (the dollar
-# maps, build_table.build_maps), the PUF year to each survey year (the tax data and the survey cut points of the
-# translation, build_table.translate_surveys) and, for a start from an earlier year's file, that year to 2019
-# (tilt.grow_dollars).
-#
-# Each line:
-#   source    the series that grows positive values (growth.SERIES; the data in research/rebuild/resources/growth/,
-#             sources.csv there says where each came from), or "none: <reason>";
+# 2071: how every dollar item is grown from the year it was measured in to another year, one line per item.
+# growth.py reads it, and target_list.resolve stops before any run if a dollar item has no line here.
+#   source    the series that grows positive values (growth.SERIES; data in resources/growth/), or "none: <reason>";
 #   negative  how negative values are grown: same (the same series), another series, or "none: <reason>";
 #   measure   what the series is per: per return with the item, per holder, per household, a price;
 #   reason    one line.
-# The rule (John, 29 October): every dollar item needs a source in every year; the source must be exogenous to tax
-# policy, so SOI's itemized deduction tables (Table 2.1) are ruled out (the 2017 law's collapse in itemizers moves their
-# totals and means); a series on the underlying spending or tax, per holder where a clean one exists, else per
-# household when the share of holders is steady, else AGI per return as a rough prior. The Table 1.4 lines are today's
-# lines as they were (build_table.growth before 29 October). Until 29 October the 26 items with no Table 1.4 line
-# (mortgage interest, real estate tax, the other itemized deductions, the AMT items, the credits and two other taxes)
-# were not grown at all; the research behind their sources is scratch explore/2026-10-29/growth_sources/REPORT.md.
+# Every source is exogenous to tax policy: a series on the underlying spending or tax, per holder where a clean one
+# exists, else per household, else AGI per return as a rough prior. SOI's itemized deduction tables are not used, as
+# the 2017 law moved their totals and means. See FEATURES.md, "Dollars in the target year".
+# Past a series' last year the pipeline extends it: Table 1.4 items by CBO's growth per return of the closest line,
+# the direct series by personal income per person, PCE by CBO's personal income per person.
+# Past CBO's last projection year each CBO series continues at the growth of its long-run Macro-Projections
+# aggregate (projection_growth.long_run_growth).
 
-#
-# 2071 (4 November 2026, long-run years, branch rebuild-longrun): copied from 2035's folder, whose lines are 2019's. Past each series' last year the pipeline extends it: Table 1.4 items by CBO's growth per return of the closest line (targets.carried), the direct series by personal income per person (growth.level), PCE by CBO's personal income per person. Past CBO's last projection year (settings tilt.projection.cbo_last_year, 2035) each CBO series continues at the growth of its long-run Macro-Projections aggregate, per return over the growth of adults with a couple counted once, per person over the population (projection_growth.long_run_growth; resources/growth/macro_long_run.csv).
 year: 2071
 items:
 
@@ -31,549 +20,549 @@ items:
     source: {series: soi 1.4, item: wages}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   txbl_int:
     source: {series: soi 1.4, item: txbl_int}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   dividends:
     source: {series: soi 1.4, item: dividends}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   capital_gains:
     source: {series: soi 1.4, item: sch_d_net_gain}
     negative: same
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains and, since 29-30 October, losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit (John, 29 October), which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator. Until 29-30 October losses were held near the limit and not grown'
+    reason: 'gains and losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit, which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
   kg_st:
     source: {series: soi 1.4, item: sch_d_net_gain}
     negative: same
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains and, since 29-30 October, losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit (John, 29 October), which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator. Until 29-30 October losses were held near the limit and not grown'
+    reason: 'gains and losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit, which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
   kg_lt:
     source: {series: soi 1.4, item: sch_d_net_gain}
     negative: same
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains and, since 29-30 October, losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit (John, 29 October), which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator. Until 29-30 October losses were held near the limit and not grown'
+    reason: 'gains and losses grow with Schedule D net gain per return with one: the losses are the Schedule D losses before the $3,000 limit, which move with asset prices as the gains do; the limit, nominal and not indexed, is applied where AGI is made (common.allowed_capital_gain) and by the calculator'
   kg_dist:
     source: {series: soi 1.4, item: kg_dist}
-    negative: 'none: capital gain distributions are not negative (as before 29 October)'
+    negative: 'none: capital gain distributions are not negative'
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   business_income:
     source: {series: soi 1.4, item: business_income}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   sch_cf_income:
     source: {series: soi 1.4, item: sch_cf_income}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   sch_e_income:
     source: {series: soi 1.4, item: sch_e_income}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   sche_rent:
     source: {series: soi 1.4, item: sche_rent}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   sche_rest:
     source: {series: soi 1.4, item: sche_rest}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   other_gains:
     source: {series: soi 1.4, item: other_gains}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   txbl_ira_dist:
     source: {series: soi 1.4, item: txbl_ira_dist}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   txbl_pens_dist:
     source: {series: soi 1.4, item: txbl_pens_dist}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   nontxbl_pens_dist:
     source: {series: soi 1.4, item: nontxbl_pens_dist}
     negative: same
     measure: 'dollars per return with total pensions (SOI Table 1.4, all returns: total less taxable pensions and annuities, over the returns with total pensions)'
-    reason: 'the non-taxable rest of pensions, a slot since 3 November (John); SOI publishes total and taxable pensions, not the rest, so the rest is their difference; taxable Social Security (computed by the worksheet) and gross Social Security plus pensions (no longer a slot) have no line'
+    reason: 'the non-taxable rest of pensions; SOI publishes total and taxable pensions, not the rest, so the rest is their difference; taxable Social Security (computed by the worksheet) has no line'
   ui:
     source: {series: soi 1.4, item: ui}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   alimony:
     source: {series: soi 1.4, item: alimony}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   state_ref:
     source: {series: soi 1.4, item: state_ref}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   adjustments:
     source: {series: soi 1.4, item: adjustments}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   exempt_int:
     source: {series: soi 1.4, item: exempt_int}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   first_mort_int:
     source: {series: bea mortgage interest per mortgaged owner}
     negative: same
     measure: 'dollars per owner-occupied home with a mortgage'
-    reason: 'the mortgage interest owner-occupants pay, measured apart from who itemizes (John, 29 October)'
+    reason: 'the mortgage interest owner-occupants pay, measured apart from who itemizes'
   salt_prop:
     source: {series: acs real estate tax per paying owner}
     negative: same
     measure: 'dollars per owner-occupied home paying real estate tax'
-    reason: 'the tax owners pay on their homes, measured apart from who itemizes (John, 29 October)'
+    reason: 'the tax owners pay on their homes, measured apart from who itemizes'
   gross_ss:
     source: {series: soi 1.4, item: gross_ss}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   sole_prop:
     source: {series: soi 1.4, rows: ['business or profession > net income'], absolute: true}
     negative: {series: soi 1.4, rows: ['business or profession > net loss.*'], absolute: true}
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values, net loss for negative values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   part_passive:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   part_active:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   part_passive_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   part_active_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   part_179:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   scorp_passive:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   scorp_active:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   scorp_passive_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   scorp_active_loss:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   scorp_179:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   rent:
     source: {series: soi 1.4, rows: ['total rental and royalty > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   rent_loss:
     source: {series: soi 1.4, rows: ['total rental and royalty > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   estate:
     source: {series: soi 1.4, rows: ['estate and trust > net income'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   estate_loss:
     source: {series: soi 1.4, rows: ['estate and trust > net loss.*'], absolute: true}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net loss; the item is a loss stored as a positive amount)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   farm_rent:
     source: {series: soi 1.4, rows: ['farm rental > net income'], absolute: true}
     negative: {series: soi 1.4, rows: ['farm rental > net loss.*'], absolute: true}
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values, net loss for negative values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   sche_other:
     source: {series: soi 1.4, item: business_income}
     negative: same
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   farm:
     source: {series: soi 1.4, rows: ['farm > net income'], absolute: true}
     negative: {series: soi 1.4, rows: ['farm > net loss.*'], absolute: true}
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values, net loss for negative values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   div_pref:
     source: {series: soi 1.4, item: div_pref}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   div_ord:
     source: {series: soi 1.4, item: div_ord}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   trad_contr_ira:
     source: {series: soi 1.4, item: trad_contr_ira}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   sl_int_ded:
     source: {series: soi 1.4, item: sl_int_ded}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   ed_exp:
     source: {series: soi 1.4, item: ed_exp}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   tuition_ded:
     source: {series: soi 1.4, item: tuition_ded}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   dpad:
     source: {series: soi 1.4, item: dpad}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   se_tax_ded:
     source: {series: soi 1.4, item: se_tax_ded}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   se_health:
     source: {series: soi 1.4, item: se_health}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   hsa_contr:
     source: {series: soi 1.4, item: hsa_contr}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   keogh_contr:
     source: {series: soi 1.4, item: keogh_contr}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   early_penalty:
     source: {series: soi 1.4, item: early_penalty}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   alimony_exp:
     source: {series: soi 1.4, item: alimony_exp}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
   kg_1250:
     source: {series: soi 1.4, item: sch_d_net_gain}
     negative: 'none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed)'
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown (as before 29 October)'
+    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown'
   kg_collect:
     source: {series: soi 1.4, item: sch_d_net_gain}
     negative: 'none: statutory nominal amount (the net capital loss allowed on a return, $3,000, $1,500 married filing separately, is fixed in law and not indexed)'
     measure: 'dollars per return with a Schedule D net gain (SOI Table 1.4)'
-    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown (as before 29 October)'
+    reason: 'gains grow with Schedule D net gain per return with one; losses are held near the statutory limit, so they are not grown'
   part_se:
     source: {series: soi 1.4, rows: ['partnership and s corporation > net income'], absolute: true}
     negative: {series: soi 1.4, rows: ['partnership and s corporation > net loss.*'], absolute: true}
     measure: 'dollars per return with the line (SOI Table 1.4: net income for positive values, net loss for negative values)'
-    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the business line; each part grown per return with it'
   med_exp:
     source: {series: meps out-of-pocket per person with any}
     negative: same
     measure: 'dollars per person with any out-of-pocket health spending'
-    reason: 'the spending itself, measured apart from who itemizes and from the AGI floor (John, 29 October)'
+    reason: 'the spending itself, measured apart from who itemizes and from the AGI floor'
   salt_inc_sales:
     source: {series: state and local income tax per return}
     negative: same
     measure: 'dollars per return, all returns (SOI Table 1.1)'
-    reason: 'state and local income tax collected, measured apart from who itemizes; the PUF item is income or sales tax, grown here by the income tax (John, 29 October)'
+    reason: 'state and local income tax collected, measured apart from who itemizes; the PUF item is income or sales tax, grown here by the income tax'
   char_cash:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   char_noncash:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   casualty_exp:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   job_exp:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   tax_prep_exp:
     source: {series: cpi tax preparation fees}
     negative: same
     measure: 'a price index: the same preparation service, its price'
-    reason: 'the price of the service, apart from who deducts it (John, 29 October)'
+    reason: 'the price of the service, apart from who deducts it'
   other_misc_exp:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   other_item_exp:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   amt_nols:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   amt_ftc:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   ftc:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   aoc_exp:
     source: {series: college board tuition and fees}
     negative: same
     measure: 'published tuition and fees per full-time undergraduate'
-    reason: 'qualified expenses follow tuition; measured apart from who claims the credit (John, 29 October)'
+    reason: 'qualified expenses follow tuition; measured apart from who claims the credit'
   llc_exp:
     source: {series: college board tuition and fees}
     negative: same
     measure: 'published tuition and fees per full-time undergraduate'
-    reason: 'qualified expenses follow tuition (undergraduate tuition stands in for graduate and part-time study); measured apart from who claims the credit (John, 29 October)'
+    reason: 'qualified expenses follow tuition (undergraduate tuition stands in for graduate and part-time study); measured apart from who claims the credit'
   old_cred:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   savers_cred:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   res_energy_cred:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   gbc:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   prior_yr_cred:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   other_nonref:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   net_ptc:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   excess_ptc:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   recapture_tax:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   ira_penalty:
     source: {series: agi per return}
     negative: same
     measure: 'AGI per return, all returns (SOI Table 1.1), extended past SOI by BEA personal income per capita'
-    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior (John, 29 October)'
+    reason: 'no series measures the item apart from the tax law that defines it; AGI per return as a rough prior'
   other_agi:
     source: {series: soi 1.4, item: other_agi}
     negative: same
     measure: 'dollars per return with the item (SOI Table 1.4, all returns: its amount over its number of returns)'
-    reason: 'SOI Table 1.4 publishes the item; grown per return with it, as before 29 October'
+    reason: 'SOI Table 1.4 publishes the item; grown per return with it'
 
   # ---- SCF balance sheet and SCF-only items (build_table.SCF_AMOUNTS): each wave's map grown to the target year's wave
   value.cash:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
   value.equities:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 stocks_funds per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 stocks_funds per person (past 2025 its ratio to nominal GDP is fixed)'
   value.bonds:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 deposits_bonds per person (past 2025 its ratio to nominal GDP is fixed)'
   value.dc:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
   value.db:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 retirement per person (past 2025 its ratio to nominal GDP is fixed)'
   value.life_ins:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.annuities:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.trusts:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_fin:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   value.pass_throughs:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 business per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 business per person (past 2025 its ratio to nominal GDP is fixed)'
   value.primary_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 primary_home per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 primary_home per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
   value.re_fund:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_real_estate per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_nonfin:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_assets per person (past 2025 its ratio to nominal GDP is fixed)'
   w_primary_ltv:
     source: 'none: a share, not dollars'
     negative: same
     measure: 'a share'
-    reason: 'held between SCF waves; after the last wave (2025 since 3 November) adjusted for mortgage and primary-home Z.1 growth'
+    reason: 'held between SCF waves; after the last wave (2025) adjusted for mortgage and primary-home Z.1 growth'
   value.other_mortgage:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 mortgages per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 mortgages per person (past 2025 its ratio to nominal GDP is fixed)'
   value.credit_lines:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   value.credit_cards:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   value.installment_debt:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   value.other_debt:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'between SCF waves use the SCF means; after the last wave (2025 since 3 November) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
+    reason: 'between SCF waves use the SCF means; after the last wave (2025) use Z.1 other_debt per person (past 2025 its ratio to nominal GDP is fixed)'
   w_kg_primary_home:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
+    reason: 'the SCF''s own growth per tax unit between its waves (maps.scf_growth)'
   w_kg_other_re:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
+    reason: 'the SCF''s own growth per tax unit between its waves (maps.scf_growth)'
   w_kg_pass_throughs:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
+    reason: 'the SCF''s own growth per tax unit between its waves (maps.scf_growth)'
   w_kg_other:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
+    reason: 'the SCF''s own growth per tax unit between its waves (maps.scf_growth)'
   auto_int_exp:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
+    reason: 'the SCF''s own growth per tax unit between its waves (maps.scf_growth)'
   elective_deferrals:
     source: {series: scf mean per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean per tax unit, the target year''s wave over the record''s wave'
-    reason: 'the SCF''s own growth per tax unit between its waves (as since 24 October; build_table.scf_growth)'
+    reason: 'the SCF''s own growth per tax unit between its waves (maps.scf_growth)'
   spouse_deferral_share:
     source: 'none: a share, not dollars'
     negative: same
@@ -598,49 +587,49 @@ items:
     source: {series: scf net worth per unit between waves}
     negative: same
     measure: 'the SCF''s weighted mean net worth per tax unit, the target year''s wave over the record''s wave (after the last wave, Z.1 household net worth per person)'
-    reason: 'inheritances received this year (3 November; John, 2 November): grown with household net worth per tax unit, the wealth inheritances come from, not by their own mean, which a handful of large inheritances move (build_table.scf_growth)'
+    reason: 'inheritances received this year: grown with household net worth per tax unit, the wealth inheritances come from, not by their own mean, which a handful of large inheritances move (maps.scf_growth)'
 
   # ---- CEX consumption categories (build_table.CEX_AMOUNTS) -----------------------------------------------------
   c_clothing:
     source: {series: nipa pce per return, category: c_clothing}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_motor_vehicles:
     source: {series: nipa pce per return, category: c_motor_vehicles}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_durables:
     source: {series: nipa pce per return, category: c_durables}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_other_nondurables:
     source: {series: nipa pce per return, category: c_other_nondurables}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_food_off_premises:
     source: {series: nipa pce per return, category: c_food_off_premises}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_gasoline:
     source: {series: nipa pce per return, category: c_gasoline}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_housing_utilities:
     source: {series: nipa pce per return, category: c_housing_utilities}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
   c_other_services_health:
     source: {series: nipa pce per return, category: c_other_services_health}
     negative: same
     measure: 'the category''s NIPA PCE over SOI''s number of returns'
-    reason: 'the CEX category grown with the matching national accounts spending per return (as since 22 October)'
+    reason: 'the CEX category grown with the matching national accounts spending per return'
 
   # ---- CPS-only items (build_table.CPS_AMOUNTS; settings cps.dollar_amounts are the ones in dollars) -------------
   spouse_wage_share:
