@@ -331,43 +331,42 @@ def build_billionaires(lst, df, w, year, notes):
             out[c] = 0
         else:
             out[c] = ''
-    put = lambda c, v: out.__setitem__(c, v)
-    put('source', 'puf'); put('year', common.PUF_YEAR); put('filer', 1); put('stratifier', 'forbes'); put('model', 0)
-    put('weight', 1.0); put('agi_group', -1); put('q_group', -1); put('label_ok', True)
-    put('record_id', ID_BASE + u['unit_rank'].to_numpy())
-    put('scf_wave', year); put('scf_year', year - 1)
-    put('hidden_group', -1)           # Part A's group label: none (-1) on every record not rebuilt by Part A
+    out['source'], out['year'], out['filer'], out['stratifier'], out['model'] = 'puf', common.PUF_YEAR, 1, 'forbes', 0
+    out['weight'], out['agi_group'], out['q_group'], out['label_ok'] = 1.0, -1, -1, True
+    out['record_id'] = ID_BASE + u['unit_rank'].to_numpy()
+    out['scf_wave'], out['scf_year'] = year, year - 1
+    out['hidden_group'] = -1           # Part A's group label: none (-1) on every record not rebuilt by Part A
     for src in ['cex', 'cps', 'sipp']:
-        put(f'{src}_year', year)
+        out[f'{src}_year'] = year
     # people
-    put('married', u['married'].to_numpy())
-    put('n_dep', u['n_dep'].to_numpy())
-    put('filing_status', np.where(u['married'] == 1, 2, np.where(u['n_dep'] > 0, 4, 1)))
-    put('n_dep_ctc', u['n_dep'].to_numpy()); put('n_dep_eitc', 0)
+    out['married'] = u['married'].to_numpy()
+    out['n_dep'] = u['n_dep'].to_numpy()
+    out['filing_status'] = np.where(u['married'] == 1, 2, np.where(u['n_dep'] > 0, 4, 1))
+    out['n_dep_ctc'], out['n_dep_eitc'] = u['n_dep'].to_numpy(), 0
     age = u['age_used'].to_numpy()
-    put('age1', age)
-    put('age_range', np.searchsorted([26, 35, 45, 55, 65], age, side='right'))
-    put('age2', u['age2'].to_numpy())
-    put('sex_primary', u['sex'].to_numpy()); put('sex_spouse', u['sex_spouse'].to_numpy())
+    out['age1'] = age
+    out['age_range'] = np.searchsorted([26, 35, 45, 55, 65], age, side='right')
+    out['age2'] = u['age2'].to_numpy()
+    out['sex_primary'], out['sex_spouse'] = u['sex'].to_numpy(), u['sex_spouse'].to_numpy()
     for k, a in enumerate([12, 9, 6], start=1):
         has = u['n_dep'].to_numpy() >= k
-        put(f'dep_age{k}', np.where(has, a, -1))
-        put(f'ssn_status_dep{k}', np.where(has, 1, 0))
-        put(f'dep_ssn{k}', np.where(has, 1.0, np.nan))
-    put('ssn_status_primary', 1); put('ssn_status_spouse', np.where(u['married'] == 1, 1, 0))
-    put('ssn1', 1.0)
-    put('ssn2', np.where(u['married'] == 1, 1.0, np.nan))
+        out[f'dep_age{k}'] = np.where(has, a, -1)
+        out[f'ssn_status_dep{k}'] = np.where(has, 1, 0)
+        out[f'dep_ssn{k}'] = np.where(has, 1.0, np.nan)
+    out['ssn_status_primary'], out['ssn_status_spouse'] = 1, np.where(u['married'] == 1, 1, 0)
+    out['ssn1'] = 1.0
+    out['ssn2'] = np.where(u['married'] == 1, 1.0, np.nan)
     # income items
     g = mix['gains']
     for c in D.KG_PIECES:
-        put(c, kinds['gains'] * g[c])
-    put('kg_1250', np.maximum(out['kg_lt'], 0) * mix['kg_1250 per kg_lt'])
-    put('kg_collect', np.maximum(out['kg_lt'], 0) * mix['kg_collect per kg_lt'])
-    put('div_pref', kinds['dividends'] * mix['div_pref share'])
-    put('div_ord', kinds['dividends'] * (1 - mix['div_pref share']))
-    put('txbl_int', kinds['txbl_int']); put('exempt_int', kinds['exempt'])
+        out[c] = kinds['gains'] * g[c]
+    out['kg_1250'] = np.maximum(out['kg_lt'], 0) * mix['kg_1250 per kg_lt']
+    out['kg_collect'] = np.maximum(out['kg_lt'], 0) * mix['kg_collect per kg_lt']
+    out['div_pref'] = kinds['dividends'] * mix['div_pref share']
+    out['div_ord'] = kinds['dividends'] * (1 - mix['div_pref share'])
+    out['txbl_int'], out['exempt_int'] = kinds['txbl_int'], kinds['exempt']
     for c, s in mix['wages and pensions'].items():
-        put(c, kinds['wages and pensions'] * s)
+        out[c] = kinds['wages and pensions'] * s
     # the non-taxable rest of pensions is zero, so gross pensions are the taxable pensions; IRA distributions are not
     # pensions
     # business: partnership against S corporation from the IRS study (by group), Schedule C and farm from the mix
@@ -379,13 +378,13 @@ def build_billionaires(lst, df, w, year, notes):
     part_p = irs('partnership profits') / (irs('partnership profits') + irs('scorp profits'))
     part_l = irs('partnership losses') / (irs('partnership losses') + irs('scorp losses'))
     for c, s in mix['partnership profits'].items():
-        put(c, pr * (1 - cf_p) * part_p * s)
+        out[c] = pr * (1 - cf_p) * part_p * s
     for c, s in mix['scorp profits'].items():
-        put(c, pr * (1 - cf_p) * (1 - part_p) * s)
+        out[c] = pr * (1 - cf_p) * (1 - part_p) * s
     for c, s in mix['partnership losses'].items():
-        put(c, ls * (1 - cf_l) * part_l * s)
+        out[c] = ls * (1 - cf_l) * part_l * s
     for c, s in mix['scorp losses'].items():
-        put(c, ls * (1 - cf_l) * (1 - part_l) * s)
+        out[c] = ls * (1 - cf_l) * (1 - part_l) * s
     # Schedule C and farm: shared by private holdings alone, every unit would hold a small profit and loss, more
     # holders than Table 4.3's count of top-0.001% returns with a Schedule C or F profit. So in each rank group the
     # profits go to the mix group's share of units (chosen by a draw keyed by record id), shared among those by private
@@ -406,26 +405,26 @@ def build_billionaires(lst, df, w, year, notes):
             amt[h_] = total[m_].sum() * privk[h_] / privk[h_].sum()
         cf_amount[side] = amt
     for c in ['sole_prop', 'farm']:
-        put(c, cf_amount['profits'] * mix['schedule C and farm profits'][c]
-            - cf_amount['losses'] * mix['schedule C and farm losses'][c])
-    put('rent', kinds['rent profits']); put('rent_loss', -kinds['rent losses'])
-    put('estate', np.maximum(kinds['estate'], 0)); put('estate_loss', np.maximum(-kinds['estate'], 0))
+        out[c] = (cf_amount['profits'] * mix['schedule C and farm profits'][c]
+                  - cf_amount['losses'] * mix['schedule C and farm losses'][c])
+    out['rent'], out['rent_loss'] = kinds['rent profits'], -kinds['rent losses']
+    out['estate'], out['estate_loss'] = np.maximum(kinds['estate'], 0), np.maximum(-kinds['estate'], 0)
     for c, s in mix['other income'].items():
-        put(c, kinds['other income'] * s)
+        out[c] = kinds['other income'] * s
     assert (out['rent_loss'] >= 0).all()
     # the computed business total, as drawn (no draw here)
     parts = D.META['computed_totals']['business_income']
-    put('business_income_drawn', D.signed_sum(out, parts))
+    out['business_income_drawn'] = D.signed_sum(out, parts)
     # charity
     rate = np.where(grp == 'top', float(S['gift_rate_top']), float(S['gift_rate_rest']))
     gifts = rate * u['net_worth'].to_numpy(float)
-    put('char_cash', gifts * mix['char_cash share']); put('char_noncash', gifts * (1 - mix['char_cash share']))
+    out['char_cash'], out['char_noncash'] = gifts * mix['char_cash share'], gifts * (1 - mix['char_cash share'])
     # the balance sheet and basis as accumulated gains
-    put('value.equities', u['public'].to_numpy(float)); put('value.pass_throughs', u['private_pt'].to_numpy(float))
-    put('value.re_fund', u['private_re'].to_numpy(float))
-    put('w_kg_other', u['gain_public'].to_numpy(float)); put('w_kg_pass_throughs', u['gain_private_pt'].to_numpy(float))
-    put('w_kg_other_re', u['gain_private_re'].to_numpy(float))
-    put('owns_business', (u['private_pt'] > 0).astype(int).to_numpy())
+    out['value.equities'], out['value.pass_throughs'] = u['public'].to_numpy(float), u['private_pt'].to_numpy(float)
+    out['value.re_fund'] = u['private_re'].to_numpy(float)
+    out['w_kg_other'], out['w_kg_pass_throughs'] = u['gain_public'].to_numpy(float), u['gain_private_pt'].to_numpy(float)
+    out['w_kg_other_re'] = u['gain_private_re'].to_numpy(float)
+    out['owns_business'] = (u['private_pt'] > 0).astype(int).to_numpy()
     # QBI groups: an industry where the group has income, workers per dollar of its profits
     kp = {'cf': np.maximum(out['sole_prop'] + out['farm'], 0),
           'ps': out['part_passive'] + out['part_active'] + out['scorp_passive'] + out['scorp_active']}
@@ -433,26 +432,26 @@ def build_billionaires(lst, df, w, year, notes):
             'ps': (out[['part_passive', 'part_active', 'part_passive_loss', 'part_active_loss', 'part_179',
                         'scorp_passive', 'scorp_active', 'scorp_passive_loss', 'scorp_active_loss', 'scorp_179']] != 0).any(axis=1)}
     for k in kp:
-        put(f'biz_industry_{k}', np.where(anyk[k], mix['industry'][k], 0))
-        put(f'biz_workers_{k}', np.where(anyk[k], kp[k] * mix['workers per dollar'][k], 0.0))
-    put('k1_owner', anyk['ps'].astype(int).to_numpy())
+        out[f'biz_industry_{k}'] = np.where(anyk[k], mix['industry'][k], 0)
+        out[f'biz_workers_{k}'] = np.where(anyk[k], kp[k] * mix['workers per dollar'][k], 0.0)
+    out['k1_owner'] = anyk['ps'].astype(int).to_numpy()
     # consumption and work
     for c, v in mix['consumption'].items():
-        put(c, v)
+        out[c] = v
     wages_pos = out['wages'].to_numpy(float) > 0
-    put('weeks_primary', np.where(wages_pos, mix['weeks_primary'], 0.0))
-    put('hours_primary', np.where(wages_pos, mix['hours_primary'], 0.0))
+    out['weeks_primary'] = np.where(wages_pos, mix['weeks_primary'], 0.0)
+    out['hours_primary'] = np.where(wages_pos, mix['hours_primary'], 0.0)
     # the totals, from the parts (start.recombine), then the items at a ratio to AGI before them
     from scale import start as START
     out, _ = START.recombine(out, year)
     agi0 = np.maximum(D.agi(out), 0)
     for c, r in mix['ratio to AGI'].items():
-        put(c, agi0 * r)
+        out[c] = agi0 * r
     out, _ = START.recombine(out, year)
     # flags
-    put('billionaire', 1)
-    put('billionaire_rank', u['unit_rank'].to_numpy())
-    put('forbes_uri', u['unit_uri'].to_numpy())
+    out['billionaire'] = 1
+    out['billionaire_rank'] = u['unit_rank'].to_numpy()
+    out['forbes_uri'] = u['unit_uri'].to_numpy()
     # checks: nothing missing that the file never has missing; dtypes as the file's
     for c in df.columns:
         may_be_missing = c.startswith('u_') or bool(df[c].isna().any())
