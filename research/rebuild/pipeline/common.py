@@ -32,17 +32,7 @@ TARGET_YEAR = int(SETTINGS['years']['target'])    # the year of the file the til
 # PUF items, the networks drawing the rest (generate.real_puf_part). REAL_PUF is read by every stage that differs.
 FILERS = SETTINGS['generation'].get('filers', 'synthetic')
 assert FILERS in ('synthetic', 'real_puf'), f"settings generation.filers is 'synthetic' or 'real_puf', not {FILERS!r}"
-assert 'real_puf' not in SETTINGS['generation'], \
-    "settings generation.real_puf (the test of 4 November) is replaced by generation.filers: 'real_puf'"
 REAL_PUF = FILERS == 'real_puf'
-# (exploration of 5 November 2026, branch rebuild-real-aggregates; absent from settings.json, so the default is the rule
-# as it stands) What a real-PUF file does with the PUF's four aggregate records. 'keep': they stay in the file and count
-# as whole returns everywhere. 'rebuilt': they leave the file and Part A's rebuilt returns take their place
-# (top_records.replace_aggregates). 'holder_share': they stay, and in a count target each copy counts as a share of a
-# holder (aggregate_counts.py).
-REAL_AGGREGATES = SETTINGS['generation'].get('real_puf_aggregates', 'keep')
-assert REAL_AGGREGATES in ('keep', 'rebuilt', 'holder_share'), f'settings generation.real_puf_aggregates: {REAL_AGGREGATES!r}'
-assert REAL_AGGREGATES == 'keep' or REAL_PUF, 'settings generation.real_puf_aggregates applies to filers real_puf only'
 
 DATA = f'{OUT}/data'
 TABLE = f'{DATA}/table.parquet'

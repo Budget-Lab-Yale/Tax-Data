@@ -105,69 +105,31 @@ def jump_off_chain(year):
 
 
 _EXT = {}
-_UG = {}
 
 
 def unit_growth(year):
-    """The growth of the file's number of units from the start's year to a projection year: the start's own units over
-    their weighted count in the start year, as population_cells scales them (the start's weights; tilt.py)."""
+    """The growth of the file's number of units from the start's year to a projection year: the units after step 1
+    (projection_steps)."""
     import target_list as TLS
-    import projection_demographics as PD
     spec = TLS.start_spec(year)
-    if spec['weights'] == 'persons':   # (3 November, agent A) the units after step 1 (projection_steps)
-        import projection_steps as PS
-        return PS.unit_growth()
-    assert spec['mode'] == 'from_year' and spec['weights'] == 'population_cells', f'{year}: unit growth needs population_cells'
-    if year not in _UG:
-        prev = pd.read_parquet(f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet",
-                               columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
-        scaled, _ = PD.population_cells(prev, year, from_year=spec['year'])
-        _UG[year] = float(np.asarray(scaled).sum() / prev['weight'].sum())
-        common.say(f'the file\'s units grow {_UG[year]:.5f} from {spec["year"]} to {year} (the SCF targets\' units follow)')
-    return _UG[year]
+    assert spec['weights'] == 'persons', f'{year}: unit growth needs a start scaled by persons'
+    import projection_steps as PS
+    return PS.unit_growth()
 
 
 def projection_extension(year, items):
-    """{item: factor} from the start file's year (2023) to a projection year, for the SCF items, exactly the factors
-    tilt.grow_dollars gives the same columns of the start: CBO's and the macro series per return (the Financial Accounts'
-    category per return for the balance sheet), and for an item with no such rule the SCF's own growth per tax unit
-    (build_table.scf_growth, as grow_dollars's fallback). Empty for a year whose start is generated.
-    The mortgage's share of the home (w_primary_ltv) takes the factor the start's share gets (the mortgage's Financial
-    Accounts series over the home's), so the target frame's mortgage (home times share) moves as the start's does."""
+    """{item: factor} from the start file's year (2023) to a projection year, for the SCF items: the start's step 2
+    factors (projection_steps.scf_factor: a 'total' item's growth in total over the units' growth, as the SCF units grow
+    with the file's; a 'per_unit' item's own factor). Empty for a year whose start is generated."""
     import target_list as TLS
     spec = TLS.start_spec(year)
     if spec['mode'] != 'from_year':
         return {}
-    if spec['dollars'] == 'item_factor':
-        # (3 November, agent A) the start's step 2 factors (projection_steps.scf_factor: a 'total' item's growth in total
-        # over the units' growth, as the SCF units grow with the file's; a 'per_unit' item's own factor); the mortgage's
-        # share as the start's
-        import projection_steps as PS
-        out = {v: PS.scf_factor(v) for v in items if v in PS.STATE['items']}
-        common.say(f'SCF targets grown on from {spec["year"]} to {year} by the start\'s step 2 factors: {len(out)} items')
-        return out
-    assert spec['dollars'] == 'cbo_per_return', f'{year}: the SCF targets are grown for the cbo_per_return start only, not {spec["dollars"]!r}'
-    assert year <= 2036, f'{year}: CBO per-return growth ends in 2036; the SCF targets past it need the demographic return growth'
-    s = spec['year']
-    if (s, year) not in _EXT:
-        import build_table as BT
-        import projection_growth as PG
-        names = [v for v in BT.SCF_AMOUNTS if v not in BT.SCF_RATIOS]
-        got, problems = PG.plan_factors(names, year, None, strict=False, from_year=s)
-        out = dict(zip(got['column'], got['factor'].astype(float)))
-        late = [v for v in names if v not in out]
-        t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
-        fb = BT.scf_growth(t[t.source == 'scf'], s - 1, year - 1)
-        for v in late:
-            out[v] = float(fb[v])
-        bad = [v for v, x in out.items() if not (np.isfinite(x) and x > 0)]
-        assert not bad, f'SCF targets {s} to {year}: no growth factor for {bad}'
-        # the file's mortgage is its home times the share, grown by the SCF extension's ratio (grow_dollars, SCF_RATIOS)
-        out['w_primary_ltv'] = float(fb['w_primary_ltv'])
-        _EXT[(s, year)] = out
-        common.say(f'SCF targets grown on from {s} to {year} as the start is: {len(names) - len(late)} items by the projection '
-                   f'series per return, {len(late)} by the SCF growth per tax unit ({", ".join(late)})')
-    return {v: _EXT[(s, year)][v] for v in items if v in _EXT[(s, year)]}
+    assert spec['dollars'] == 'item_factor', f'{year}: the SCF targets are grown for the item_factor start only'
+    import projection_steps as PS
+    out = {v: PS.scf_factor(v) for v in items if v in PS.STATE['items']}
+    common.say(f'SCF targets grown on from {spec["year"]} to {year} by the start\'s step 2 factors: {len(out)} items')
+    return out
 
 
 def frame(wave, year):
@@ -223,7 +185,7 @@ def frame(wave, year):
     scale = units / float(u['weight'].sum())
     u['weight'] = u['weight'].to_numpy(float) * scale
     u = u.sort_values(['implicate', 'record_id'], kind='stable').reset_index(drop=True)
-    u1, rep = E.scf_replicates(wave, u)   # settings errors.scf_replicate_dir, one folder per wave
+    u1, rep = E.scf_replicates(wave, u)   # <out>/data/scf_rw/<wave>
     first = (u['implicate'] == 1).to_numpy()
     assert np.array_equal(u1['record_id'].to_numpy(), u.loc[first, 'record_id'].to_numpy()), 'implicate 1 out of order'
     rep = rep * scale

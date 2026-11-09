@@ -46,7 +46,7 @@ import common
 import targets as TG
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG = common.SETTINGS.get('targets_config', os.path.join(HERE, 'targets_config'))
+CONFIG = os.path.join(HERE, 'targets_config')
 RESOURCES = os.path.join(os.path.dirname(HERE), 'resources', 'growth')
 LINE_KEYS = {'source', 'negative', 'measure', 'reason'}
 # series: (the measure in words, the data file(s) in RESOURCES)

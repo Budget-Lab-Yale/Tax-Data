@@ -6,8 +6,8 @@ right, and only three kinds are computed; everything else is a judgment number w
 1. SOI tables that publish coefficients of variation (Tables 1.4, 2.1 and 3.3; error_kind 'soi_cv'). SOI does not
    link the CV workbooks from any page; they sit at https://www.irs.gov/pub/irs-soi/{yy}in14cv.xls, {yy}in21cv.xls
    and {yy}in33cv.xls (found on 22 October 2026, explore/2026-10-22/targets/irs_data/REPORT.md). The workbooks are
-   kept in <soi_cv_dir>/raw/ with a manifest of where each came from, and `python errors.py soi_cv` parses them
-   into <soi_cv_dir>/soi_cv.csv: one row per published cell, its value from the shared SOI mirror (the same cells
+   kept in <out>/targets/soi_cv/raw/ with a manifest of where each came from, and `python errors.py soi_cv` parses them
+   into <out>/targets/soi_cv/soi_cv.csv: one row per published cell, its value from the shared SOI mirror (the same cells
    targets.py reads) and its CV. A CV workbook is laid out like its table (same AGI rows, same column numbers), so a
    CV is joined to its cell by tax year, panel, AGI class and column number.
    - A target that adds up published cells (an AGI bracket merged from several of SOI's, a business group of several
@@ -17,13 +17,13 @@ right, and only three kinds are computed; everything else is a judgment number w
      its dollars and returns are in the receiving cell, whose CV is taken to be the CV of the combined estimate.
    - A CV of exactly 0 is kept as 0 where SOI samples every return (the $10,000,000-or-more class): there is no
      sampling error there. A target resting only on such cells (the $10M-and-over bracket, kept separate from 25
-     October) gets a judgment error instead, settings full_sample_se (default 1%) of its value, since a target
+     October) gets a judgment error instead, 1% of its value (FULL_SAMPLE_SE), since a target
      with no error could never give way.
 2. Other SOI tables from the same sample (Table 1.6, Table 1.2's joint returns, any 1.4-like table without CVs;
    'soi_borrowed'): each cell borrows the CV of the Table 1.4 cells of the same year closest to it. For a count, the
    Table 1.4 count cells (number of returns with an item, any AGI class or the total row) closest in number of
    returns; for an amount, the amount cells closest in amount and in their number of returns (distance in logs). The
-   CV used is the median of the closest few (settings borrow_neighbours), not the single closest, so one odd cell
+   CV used is the median of the closest five (BORROW_K), not the single closest, so one odd cell
    does not decide it. Cells sampled in full (CV 0) and cells without a CV are not lent.
 3. Survey targets ('survey_replicate'): the sampling error from the survey's own replicate weights, carried to the
    tax units by the same rule as the main weight (a tax unit's replicate weight is its household's or interview's,
@@ -53,10 +53,9 @@ fit.csv, with se in the units of the published statistic (on the average itself 
 share, in dollars or returns for a total), error_kind and se_reason.
 
 Data, downloaded once (public; to scratch, never to the shared raw-data folder; the login node has the network):
-  <soi_cv_dir>/raw/       the CV workbooks, with manifest.csv (file, URL, sha256):
+  <out>/targets/soi_cv/raw/       the CV workbooks, with manifest.csv (file, URL, sha256):
                           curl -sSLO https://www.irs.gov/pub/irs-soi/19in14cv.xls   (and so on for each year and table)
-  <scf_replicate_dir>/    each SCF wave's replicate weights, one folder per wave in the year's mix ({wave} in the
-                          path; default <out>/data/scf_rw/<wave>): p16_rw1.dta, p19_rw1.dta, p22_rw1.dta for the
+  <out>/data/scf_rw/<wave>/ each SCF wave's replicate weights, one folder per wave in the year's mix: p16_rw1.dta, p19_rw1.dta, p22_rw1.dta for the
                           2016, 2019 and 2022 waves:
                           curl -sSLO https://www.federalreserve.gov/econres/files/scf2019rw1s.zip; unzip scf2019rw1s.zip
                           (and scf2016rw1s.zip, scf2022rw1s.zip). Check that unzip succeeds: one download of the
@@ -66,11 +65,9 @@ Data, downloaded once (public; to scratch, never to the shared raw-data folder; 
                           p19_rw1.dta 0cfe01b806045c0fc3abe8b4902804ee05dda47da490c05397b1101f6e221739,
                           p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2.
   The CEX's replicate weights are read from the FMLI files in the shared raw-data folder (settings paths.raw.cex).
-Settings (section errors, each with a default): soi_cv_dir, scf_replicate_dir ({wave} in the path), borrow_neighbours,
-nonfiler_people_population_se.
 
 Usage (through Slurm, from the repository root):
-  python errors.py soi_cv     parse the CV workbooks into <soi_cv_dir>/soi_cv.csv
+  python errors.py soi_cv     parse the CV workbooks into <out>/targets/soi_cv/soi_cv.csv
 """
 import glob
 import os
@@ -84,20 +81,19 @@ import common
 import targets as TG
 
 Y = common.TARGET_YEAR
-S = common.SETTINGS.get('errors', {})
-CV_DIR = S.get('soi_cv_dir', f'{common.TARGETS}/soi_cv')
-BORROW_K = int(S.get('borrow_neighbours', 5))
-SCF_RW_DIR = S.get('scf_replicate_dir', f'{common.OUT}/data/scf_rw/{{wave}}')
+CV_DIR = f'{common.TARGETS}/soi_cv'
+BORROW_K = 5   # the CV borrowed is the median of this many closest Table 1.4 cells
+SCF_RW_DIR = f'{common.OUT}/data/scf_rw/{{wave}}'
 # the people in non-filer units: a share of the population they are counted in (nonfiler_errors)
-NONFILER_PEOPLE_SE = S.get('nonfiler_people_population_se', 0.005)
+NONFILER_PEOPLE_SE = 0.005
 # A Table 1.4 target resting only on cells SOI samples in full (the $10,000,000-or-more bracket, CV 0): a judgment
 # share of the value, since a target with no error cannot give way (TARGETS.md section 9, "everything else").
-FULL_SAMPLE_SE = float(S.get('full_sample_se', 0.01))
+FULL_SAMPLE_SE = 0.01
 # (1 November, decision 55) A published CV below this many percent is treated like the printed 0.00: SOI samples every
 # return in the cell, so there is no sampling error to give a standard error from. SOI printed 0.01 for the
 # $10,000,000-or-more cells of 2022 and 0.00 in the other years; taken literally, 0.01% of the value was about 3 returns
 # on 30,108, and no weights could meet it. 0 or less turns the rule off.
-FULL_SAMPLE_CV_BELOW = float(S.get('full_sample_cv_below_pct', 0.1))
+FULL_SAMPLE_CV_BELOW = 0.1
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 INF = np.inf
 
@@ -181,7 +177,7 @@ def read_cv_workbook(path):
 
 
 def build_soi_cv():
-    """Parses every workbook in <soi_cv_dir>/raw and joins each CV to its published cell in the mirror; writes
+    """Parses every workbook in <out>/targets/soi_cv/raw and joins each CV to its published cell in the mirror; writes
     soi_cv.csv (one row per published cell of a year with a CV workbook: tax_year, table, panel, row_label, lo, hi,
     col_seq, item, statistic, value, value_flag, cv_pct, cv_flag) and soi_cv_parse_log.csv."""
     files = sorted(glob.glob(f'{CV_DIR}/raw/[0-9][0-9]in[0-9][0-9]cv.xls'))
@@ -287,7 +283,7 @@ def sum_error(cells, parts, lo, hi):
 
 
 def borrow_cv(cells, count=None, amount=None, returns=None):
-    """The CV a cell of another SOI table borrows from Table 1.4 (same year): the median CV of the borrow_neighbours
+    """The CV a cell of another SOI table borrows from Table 1.4 (same year): the median CV of the BORROW_K
     closest count cells in log number of returns (a count), or the closest amount cells in log amount and log number
     of returns of the same item (an amount; without returns, in amount alone). Cells with a CV of 0 or none are not
     lent. Returns (cv_pct, description of the donors)."""

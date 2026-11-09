@@ -23,8 +23,6 @@ Settings targets_config can name an isolated copy of this directory for an exper
   write(rows, folder, year)     targets.csv and the resolved configuration, saved with the run
   start_spec(year)              how the year's start is built (TARGETS.md S7): the year file's start and
                                 start_scaling, with their defaults
-  hold_rows(year, df, w)        the year's hold_distribution targets, built from the start file df and its weights
-                                w (TARGETS.md S7)
 
 Values. Published values come from the run's SOI numbers (targets.py: Tables 1.4 and 1.2 in targets/soi.csv, Table
 1.6 by targets.table_1_6); survey values from the survey's own tax units in the run's data folder, the SCF's from
@@ -50,7 +48,7 @@ import common
 import targets as TG
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG = common.SETTINGS.get('targets_config', os.path.join(HERE, 'targets_config'))
+CONFIG = os.path.join(HERE, 'targets_config')
 ROW_COLUMNS = ['kind', 'group', 'target', 'statistic', 'population', 'variable', 'value', 'error_kind', 'se',
                'identity', 'source', 'reason', 'tax_unit_rules']
 # Columns after the contract's, which conditions() reads: the entry, the year of the value, the cell in machine
@@ -70,7 +68,7 @@ CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'li
 # A year's folder (TARGETS.md section 12; 29 October): targets_config/<year>/targets.yaml, prior.yaml and growth.yaml,
 # each fully written out; nothing is inherited. targets.yaml holds the keys below, prior.yaml the year and its prior,
 # growth.yaml the year and its growth lines (growth.py reads and checks those).
-TARGETS_KEYS = {'year', 'kind', 'targets', 'report', 'start', 'start_scaling', 'hold_distribution'}
+TARGETS_KEYS = {'year', 'kind', 'targets', 'report', 'start', 'start_scaling'}
 PRIOR_KEYS = {'year', 'prior'}
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key', 'outside_line',
               'dependent_filers', 'note', 'reason', 'percentiles', 'must_reach', 'needs_calculator'}
@@ -153,7 +151,7 @@ def resolve(year):
     if year in _RESOLVED:
         return copy.deepcopy(_RESOLVED[year])
     t, p = read(year, 'targets'), read(year, 'prior')
-    r = {k: t[k] for k in ['year', 'kind', 'report', 'start', 'start_scaling', 'hold_distribution'] if k in t}
+    r = {k: t[k] for k in ['year', 'kind', 'report', 'start', 'start_scaling'] if k in t}
     r['prior'] = p['prior']
     r['targets'] = t.get('targets') or []
     ids = [e.get('id') for e in r['targets']]
@@ -1043,8 +1041,6 @@ def outside_rows(src, year, cells, v, stats, e):
     """A target from outside information that comes only as a change (TARGETS.md section 3, 30 October): the start
     year's own file's total (its final weights, its dollars of that year) times the outside series' growth from that
     year to this one. Only for a year whose start is an earlier year's file (from_year); cells all."""
-    if src == 'population cells':
-        return population_cell_rows(year, e)
     if src == 'cbo counts':
         return cbo_count_rows(year, v, stats, e)
     if src in ('projection persons', 'projection returns', 'projection items', 'projection filing season'):
@@ -1067,30 +1063,6 @@ def outside_rows(src, year, cells, v, stats, e):
         out.append({'cell': 'all', 'statistic': st, 'value': lev * f,
                     'source': f'{src}: {e["outside_line"]!r}, {s} to {year}, growth {f:.4f}, on the {s} file\'s own level '
                               f'{lev:,.0f} ({os.path.relpath(path, common.OUT)})'})
-    return out
-
-
-def population_cell_rows(year, e):
-    """(30 October, projection years) The demographic cells as identity targets: the previous year's final weighted
-    count of the cell's units times its population growth (projection_demographics.population_cells; filers by joint
-    status x the primary's age band, non-filers likewise, both joint statuses growing alike). Built from the unscaled
-    previous file. A cell with no units in the previous file is zero (left out and listed by expand)."""
-    import projection_demographics as PD
-    spec = start_spec(year)
-    assert spec['mode'] == 'from_year' and spec['weights'] == 'population_cells', \
-        f'entry {e["id"]}: population cells need a from_year start scaled by population_cells'
-    path = f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet"
-    prev = pd.read_parquet(path, columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
-    _, table = PD.population_cells(prev, year, from_year=spec['year'])
-    want = 1 if e['population'] == 'filers' else 0
-    out = []
-    for r in table[table.filer == want].itertuples():
-        label = f"{'married' if r.married else 'not married'}, {common.AGE_LABELS[int(r.age_range)]}"
-        out.append({'cell': label, 'statistic': 'units', 'value': float(r.target),
-                    'source': f'{spec["year"]} file\'s {r.previous_weight:,.0f} units in the cell times the growth of its '
-                              f'population, {r.target / r.previous_weight if r.previous_weight else float("nan"):.5f}',
-                    'cell_spec': {'parts': {}, 'filters': [('married', int(r.married)), ('age_range', int(r.age_range))],
-                                  'label': label, 'agi': None, 'line': None}})
     return out
 
 
@@ -1842,10 +1814,6 @@ def conditions(df, rows, w_start, check=True):
     married = df['married'].to_numpy()
     pops = {p: population(df, p) for p in rows['population'].unique()}
     values = {}
-    holder = None
-    if common.REAL_AGGREGATES == 'holder_share':
-        import aggregate_counts
-        holder = aggregate_counts.Holders(df)
     F = np.zeros((len(df), len(rows)))
     T = rows['value'].to_numpy(float).copy()
     averages = [None] * len(rows)
@@ -1924,10 +1892,6 @@ def conditions(df, rows, w_start, check=True):
             pos = r.variable in ('itemized_medical', 'itemized_taxes', 'itemized_interest', 'itemized_charity',
                                      'itemized_charity_cash', 'itemized_charity_noncash')
             F[:, j] = cell * ((xc > 0) if pos else (xc != 0)) * (1.0 if line is None else line)
-            if holder is not None and holder.has(r.variable):
-                # (settings generation.real_puf_aggregates 'holder_share', aggregate_counts.py) an aggregate record copy
-                # in the cell counts as the share of a holder, whatever the sign of its own mean
-                F[holder.rows, j] = (cell * (1.0 if line is None else line))[holder.rows] * holder.share(r.variable)
         elif r.statistic == 'amount':
             F[:, j] = cell * x * (1.0 if line is None else line)
         elif r.statistic == 'workers':
@@ -1938,7 +1902,7 @@ def conditions(df, rows, w_start, check=True):
             # With n the record's workers and a those above the line, the share s is met when sum w (a - s n) = 0.
             # In the solver's average form (member, v, m = s) that is member = the records with workers and
             # v = s + (a - s n) W_member / W_workers, W the starting weights' totals, so the average of v over member
-            # is the share itself on the starting weights and moves with the miss on the share (as 'share of total').
+            # is the share itself on the starting weights and moves with the miss on the share.
             assert not np.isnan(r.line), f'{r.group} {r.target}: a worker share needs a line'
             px = person_values(df, r.variable)
             n_w, n_above = (px > 0).sum(1).astype(float), (px > r.line).sum(1).astype(float)
@@ -1947,22 +1911,6 @@ def conditions(df, rows, w_start, check=True):
             assert member.any(), f'{r.group} {r.target}: no workers'
             k = ws[member].sum() / (ws * n_w * cell).sum()
             v = r.value + (n_above - r.value * n_w) * k
-            put_average(j, member, v, r.value)
-        elif r.statistic == 'share of total':
-            # a hold_distribution target (hold_rows): the item's share of its total in an AGI rank group, s =
-            # sum over the group of w x / sum over the population of w x, written sum over the population of
-            # w x (1[in the group] - s) = 0. In the solver's average form (averages[j] = (member, v, m), the condition
-            # sum over member of w (v - m) = 0) that is member = the population's holders of the item, m = s and
-            # v = s + x (1[in the group] - s) / xbar, xbar the item's average over member on the starting weights.
-            # The solver's "average" of v is then the share itself on the starting weights, and after the tilt the
-            # share up to the change in xbar (a few percent where the totals move), so it measures the miss on the
-            # share as it does on any average. The thin-cell measures see every holder of the item.
-            pop = pops[r.population]
-            member = pop & (x != 0)
-            w_avg = np.ones(len(df)) if w_start is None else np.asarray(w_start, float)
-            xbar = (w_avg[member] * x[member]).sum() / w_avg[member].sum()
-            assert member.any() and xbar != 0, f'{r.group} {r.target}: no holders, or the item averages zero'
-            v = r.value + x * (cell.astype(float) - r.value) / xbar
             put_average(j, member, v, r.value)
         elif r.statistic in ('average', 'share'):
             v = line if r.statistic == 'share' else x
@@ -1979,21 +1927,18 @@ def conditions(df, rows, w_start, check=True):
 
 
 # ---- the start and the targets built from it (TARGETS.md S7) ----------------------------------------------------
-START_SCALING = {'weights': ('none', 'filing_status', 'demographic', 'population_cells', 'persons'),
-                 'dollars': ('per_return_growth', 'cbo_per_return', 'item_factor', 'none')}
+START_SCALING = {'weights': ('demographic', 'persons'), 'dollars': ('item_factor', 'none')}
 
 
 def start_spec(year):
     """How the year's start is built, from the year file (TARGETS.md S7):
       start: generate                      the run's generated stack (the default)
       start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet
-    and start_scaling: {weights: none | filing_status | demographic | population_cells, dollars: per_return_growth |
-    cbo_per_return | none} (START_SCALING). weights: how the start's weights are scaled to year t before the tilt
-    (tilt.py: filers to SOI's returns and non-filers to the year's non-filer count, then joint and non-joint returns
-    to Table 1.2, then the demographic cells; population_cells, for a projection year: each record's previous weight
-    times its population cell's growth); its default is settings tilt.prescale. dollars (from_year only): each
-    record's amounts grown item by item from s to t (tilt.grow_dollars), by SOI's growth per return with the item
-    (per_return_growth) or by CBO's and the macro series per return (cbo_per_return)."""
+    and start_scaling: {weights: demographic | persons, dollars: item_factor | none} (START_SCALING). weights: how the
+    start's weights are scaled to year t before the tilt (demographic, a generated start: filers to SOI's returns and
+    non-filers to the year's non-filer count, then joint and non-joint returns to Table 1.2, then the demographic
+    cells; persons, a start from an earlier year: projection_steps.step1); its default is settings tilt.prescale.
+    dollars item_factor (from_year only): each record's amounts grown item by item from s to t (tilt.grow_dollars)."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')
     if st == 'generate':
@@ -2011,75 +1956,12 @@ def start_spec(year):
     bad = set(sc) - set(START_SCALING)
     assert not bad, f'{year}/targets.yaml: unknown keys in start_scaling {bad}'
     spec['weights'] = sc.get('weights', common.SETTINGS['tilt']['prescale'])
-    spec['dollars'] = sc.get('dollars', 'per_return_growth' if spec['mode'] == 'from_year' else 'none')
+    spec['dollars'] = sc.get('dollars', 'item_factor' if spec['mode'] == 'from_year' else 'none')
     for k, allowed in START_SCALING.items():
         assert spec[k] in allowed, f'{year}/targets.yaml: start_scaling {k} {spec[k]!r} is not one of {allowed}'
     assert spec['mode'] == 'from_year' or spec['dollars'] == 'none', \
         f'{year}/targets.yaml: a generated start has its dollars from the year\'s maps; start_scaling dollars is for from_year'
     return spec
-
-
-HOLD_KEYS = {'population', 'ranks', 'items', 'statistic', 'error', 'note'}
-
-
-def hold_rows(year, df, w):
-    """The year's hold_distribution targets (TARGETS.md S7), built from the start file df with its weights w (after
-    the start's scaling). The year file says:
-      hold_distribution:
-        population: filers                     whose records are ranked and whose totals are shared out
-        ranks: {variable: agi, groups: [[0, 50, p0-50], ..., [99.9, 100, p99.9+]]}   percentile ranges of the
-                                               variable on the start's weights, lower edge inclusive
-        items: [agi, wages, ...]               catalog variables
-        statistic: share of total
-        error: {kind: judgment, relative: 0.01, reason: ...}   or absolute: <share points>, with a reason
-    Each item's share of its total in each rank group is a target at its value on the start (kind 'hold
-    distribution'). The groups are fixed as AGI ranges at the start's percentile lines (agi_lo, agi_hi), so they stay
-    the same records through the tilt. Empty when the year has no hold_distribution."""
-    cfg = resolve(year)
-    h = cfg.get('hold_distribution')
-    cols = ROW_COLUMNS + CELL_COLUMNS + ['se_reason']
-    if not h:
-        return pd.DataFrame(columns=cols)
-    bad = set(h) - HOLD_KEYS
-    assert not bad, f'{year}/targets.yaml: unknown keys in hold_distribution {bad}'
-    assert h.get('statistic', 'share of total') == 'share of total', 'hold_distribution: statistic share of total only'
-    assert h['ranks']['variable'] == 'agi', 'hold_distribution: ranks by AGI only (the groups are stored as AGI ranges)'
-    err = h['error']
-    assert err['kind'] == 'judgment' and err.get('reason') and (('relative' in err) != ('absolute' in err)), \
-        'hold_distribution: a judgment error with relative or absolute (not both) and a reason'
-    pop_name = h.get('population', 'filers')
-    pop = population(df, pop_name)
-    w = np.asarray(w, float)
-    import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
-    a = D.agi(df)
-    assert not np.isnan(a[pop]).any(), 'hold_distribution: a record with no AGI'
-    groups = h['ranks']['groups']
-    assert groups[0][0] == 0 and groups[-1][1] == 100 and all(g[1] == n[0] for g, n in zip(groups, groups[1:])), \
-        'hold_distribution: the rank groups must run from 0 to 100 without gaps'
-    lines = [float(x) for x in common.wquantile(a[pop], w[pop], [g[0] / 100 for g in groups[1:]])]
-    edges = [-np.inf] + lines + [np.inf]
-    out = []
-    for v in h['items']:
-        d = variable_def(v) if v in CAT['variables'] else {'short': v}
-        x = record_value(df, v)
-        total = (w[pop] * x[pop]).sum()
-        assert total > 0, f'hold_distribution, {v}: its total on the start is not positive ({total:,.0f})'
-        for (p_lo, p_hi, lab), lo, hi in zip(groups, edges[:-1], edges[1:]):
-            g = pop & (a >= lo) & (a < hi)
-            s = float((w[g] * x[g]).sum() / total)
-            se = err['relative'] * abs(s) if 'relative' in err else float(err['absolute'])
-            assert se > 0, f'hold_distribution, {v} in {lab}: a share of 0 with a relative error'
-            out.append({
-                'kind': 'hold distribution', 'group': f'AGI {lab}', 'target': f'{d.get("short", v)} share of total',
-                'statistic': 'share of total', 'population': pop_name, 'variable': v, 'value': s,
-                'error_kind': 'judgment', 'se': se, 'identity': False,
-                'source': f'the start file, {pop_name} ranked by AGI on its weights: percentiles {p_lo}-{p_hi}, AGI '
-                          f'{lo:,.0f} to {hi:,.0f}',
-                'reason': '', 'tax_unit_rules': '', 'entry': 'hold_distribution', 'year': int(year),
-                'agi_lo': lo, 'agi_hi': hi, 'married': np.nan, 'age_range': np.nan, 'line': np.nan,
-                'line_variable': '', 'dependent_filers': '', 'error_reason': err['reason'],
-                'se_reason': f'judgment ({err["reason"]})'})
-    return pd.DataFrame(out, columns=cols)
 
 
 # ---- saving with the run --------------------------------------------------------------------------------------

@@ -277,8 +277,6 @@ populations:
 #   amount   sum of the variable over the cell
 #   average  the variable's average over the cell's units, zeros included
 #   share    the share of the cell's units above a line (the average of a 0/1 indicator)
-#   share of total  an item's share of its total that falls in the cell (an AGI rank group); only in the targets
-#            hold_distribution builds from the start file (target_list.hold_rows, TARGETS.md S7)
 # An average or a share is written as a condition that holds whatever the reweighting does to the number of units
 # in the cell (target_list.average_condition).
 # ---------------------------------------------------------------------------------------------------------------

@@ -78,51 +78,6 @@ def _hidden_returns(df, year, mode, notes):
     return h
 
 
-# The columns a real-PUF start has and Part A's rows do not, and what a record that is not a PUF record holds in them
-# (generate.py gives the non-filers the same); the four the caller sets itself are dropped before the rows are made
-REAL_ONLY = {'puf_recid': -1, 'puf_copy': -1, 'puf_aggregate': 0, 'age_range_drawn': 0}
-MADE_BY_NETWORK_PART = ['synthetic_top', 'hidden_group', 'wealth_redrawn', 'wealth_redraw_fallback']
-
-
-def replace_aggregates(g19, imp, given, fixed, rep, year, mode):
-    """(Exploration of 5 November 2026; settings generation.real_puf_aggregates 'rebuilt') On the result of steps 1-3 of
-    a real-PUF past year: the copies of the PUF's four aggregate records leave the file, and Part A's rebuilt returns
-    take their place, with the same share of the filers' weight in the same units (top_hidden.rebuild_hidden_returns
-    reads the rows from <gen>/hidden/hidden_<year>.parquet). The rows' group totals are the four records' own means times
-    their weights, so the copies must go or those dollars are in the file twice. A start from an earlier year's file
-    already holds whatever its first year chose, so nothing happens there, as for Part A in a synthetic run. Otherwise
-    the arguments come back unchanged."""
-    if common.REAL_AGGREGATES != 'rebuilt' or mode != 'generate':
-        return g19, imp, given, fixed, rep
-    import top_hidden
-    agg = g19['puf_aggregate'].to_numpy() == 1
-    assert agg.sum() == 4 * len(common.SETTINGS['generation']['models']), f'{int(agg.sum())} aggregate record copies'
-    assert not given[agg].any() and not fixed[agg].any()
-    notes = [n for n in rep['notes'] if not n.startswith('Part A')]
-    removed = np.asarray(imp, float)[agg].sum()
-    keep = ~agg
-    g19, imp, given, fixed = g19.loc[keep].reset_index(drop=True), np.asarray(imp, float)[keep], given[keep], fixed[keep]
-    h = top_hidden.rebuild_hidden_returns(g19.drop(columns=list(REAL_ONLY) + MADE_BY_NETWORK_PART), year, details=True)
-    assert (h['synthetic_top'] == 1).all() and h['weight'].notna().all() and (h['weight'] > 0).all()
-    h = h.drop(columns=['weight_2015', 'donor_record_id']).rename(columns={'hidden_wealth_fallback': 'wealth_redraw_fallback'})
-    h['wealth_redrawn'] = 1
-    for c, v in REAL_ONLY.items():
-        h[c] = v
-    ceiling = TLS.net_worth_ceiling(POPULATION)
-    assert not (h['net_worth'] >= ceiling).any(), 'Part A: a rebuilt return at or above the ceiling'
-    assert not set(h['record_id']) & set(g19['record_id'])
-    added = h['weight'].to_numpy(float)
-    assert np.isclose(added.sum(), removed, rtol=1e-9), f'the rebuilt returns weigh {added.sum()}, the copies {removed}'
-    notes.append(f"Part A: the {int(agg.sum())} copies of the four aggregate records removed and {len(h)} rebuilt returns added "
-                 f"({', '.join(f'group {g}: {n}' for g, n in h['hidden_group'].value_counts().sort_index().items())}), "
-                 f"{added.sum():,.6f} on the start's own scale against {removed:,.6f} removed; "
-                 f"{int(h['wealth_redraw_fallback'].sum())} balance-sheet fallbacks")
-    g19 = pd.concat([g19, h[g19.columns]], ignore_index=True)
-    imp = np.r_[imp, added]
-    given, fixed = np.r_[given, np.zeros(len(h), bool)], np.r_[fixed, np.zeros(len(h), bool)]
-    return g19, imp, given, fixed, {**rep, 'notes': notes, 'hidden': h}
-
-
 def network_part(g19, raw, imp, year, mode):
     """Steps 1-3 (see the top). g19: the start (target-year dollars); raw: the same records with their bands and stored
     picks (the generated stack, or the start file itself); imp: their starting weights; mode: 'generate' or

@@ -16,8 +16,6 @@ Either way the weights are then scaled (start_scaling weights; default settings 
     target, by the same solver and the same target rows the tilt uses (prescale_demographic): filers to SOI Table
     1.6's returns by the primary filer's age range in joint and in non-joint returns, keeping the two totals;
     non-filers to the non-filer people targets, keeping their total. The cells stay targets in the tilt.
-With hold_distribution in the year file, the start's distribution of each listed item across AGI rank groups
-becomes targets too (target_list.hold_rows), built after the scaling from the scaled start.
 
 The targets. The year's list from targets_config/ (target_list.expand), each with a value and a standard error
 (errors.py); target_list.conditions writes each as a linear condition on the weights.
@@ -233,7 +231,7 @@ def recombine(df, year):
     return out, done
 
 
-def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
+def grow_dollars(df, s, t, mode='per_return_growth'):
     # (3 November, agent A) mode 'item_factor': each column handed to projection_steps.step2_factor, which applies the
     # items table's series and makes each 'total' item's start total grow exactly at its series on the step 1 weights
     # (projection_steps.STATE, set by step1 before this call); a 'current' row's own rule (growth.yaml, the SCF's growth
@@ -260,13 +258,7 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
         assert np.allclose(same[c].to_numpy(float), df[c].to_numpy(float), rtol=1e-9, atol=1e-6, equal_nan=True), \
             f'{c}: the year-{s} file\'s column is not what its parts give (dollars.draw_dollars changed?)'
     out, rows = df.copy(), []
-    # (4 November 2026, the long-run years) item mode no longer reads CBO's projections here (before: the CBO planner,
-    # projection_growth.plan_factors, and CBO's growth in returns for a 'current' row of kind total). Every items-table
-    # row whose 'current' rule was a CBO or Federal Reserve series is a 'file:' row since then, the same growth in
-    # 2024-2035 and continued to 2075 (resources/projection_series_current.csv); a 'current' row left is a per-unit rule
-    # of growth.yaml or the SCF's growth per unit, and a 'file:', 'none' or 'same_as' row needs no rule of today's code.
-    # So the code path is the same for every projection year, and no year needs a CBO number at this step.
-    cbo_mode = mode == 'cbo_per_return'
+    # in item mode an items-table row with series 'current' is a per-unit rule (growth.yaml or the SCF's growth per unit)
     item_mode = mode == 'item_factor'
     if item_mode:
         import projection_steps as PS
@@ -283,49 +275,17 @@ def grow_dollars(df, s, t, mode='per_return_growth', return_growth=None):
                 and drawn_as.get(v, v) in out]
     scf_cols = [v for v in BT.SCF_AMOUNTS if v in out]
     other_cols = [v for v in BT.CEX_AMOUNTS + BT.CPS_AMOUNTS + BT.SIPP_AMOUNTS if v in out]
-    plan, fallback = {}, {}
-    if cbo_mode:
-        # (30 October, projection years as production builds them, DESIGN.md of explore/2026-10-30/demog; since decision
-        # 74 every projection year starts from the 2023 file, s = 2023): each amount grown by its source's growth from s
-        # to t divided by CBO's growth in the number of returns (projection_growth.plan_factors; from 2037, by the
-        # demographic cells' growth in returns, return_growth). An item with no rule there (the mortgage interest, real estate tax, medical
-        # expenses and other itemized items, some balance sheet items, the shares, weeks and hours) keeps the rule of
-        # the year file's growth.yaml, as before, and is listed in the factors table as "fallback"; settings
-        # tilt.projection_strict makes the run stop on such an item instead (decision 40)
-        import projection_growth as PG
-        assert t > s, f'a projection start grows forward, not {s} to {t}'
-        names = {c: item_of.get(c, c) for c in puf_cols + [v for v in scf_cols if v not in BT.SCF_RATIOS] + other_cols}
-        got, problems = PG.plan_factors(list(dict.fromkeys(names.values())), t, return_growth, strict=False, from_year=s)
-        assert not (problems and S.get('projection_strict', False)), \
-            f'{len(problems)} dollar items with no projection rule:\n  ' + '\n  '.join(problems)
-        by_name = got.set_index('column')
-        # (2 November) gross Social Security has no fallback: the growth.yaml rule is SOI's per return, carried by
-        # nothing past 2023, so a missing rule here must stop the run, not pass as the taxable-benefit growth
-        for need in ('gross_ss',):
-            assert need not in names.values() or need in by_name.index, \
-                f'{need}: no projection rule for {t}: ' + '; '.join(q for q in problems if q.startswith(need))
-        plan = {c: (float(by_name.loc[n, 'factor']), by_name.loc[n, 'source']) for c, n in names.items() if n in by_name.index}
-        fallback = {c: next(q.split(': ', 1)[1] for q in problems if q.split(': ', 1)[0] == n) for c, n in names.items()
-                    if n not in by_name.index}
-        common.say(f'projection growth {s} to {t}: {len(plan)} amounts by the CBO or macro series per return, '
-                   f'{len(fallback)} by the growth.yaml rule (fallback)')
 
     def grow(col, thunk, series):
         if item_mode and PS.same_as(col):
             deferred.append(col)   # the factors of another column, applied after every other column
             return
-        if col in plan:
-            fp = fn = plan[col][0]
-            series = plan[col][1]
-            kind = 'total'
-        elif item_mode and col in tab.index and tab.loc[col, 'series'] != 'current':
+        if item_mode and col in tab.index and tab.loc[col, 'series'] != 'current':
             fp = fn = 1.0          # not read: the row's own series gives the growth (projection_steps.step2_factor)
             kind, series = 'per_unit', ''
         else:
             fp, fn = thunk()
             kind = 'per_unit'
-            if cbo_mode:
-                series = f'fallback (no projection rule: {fallback.get(col, "a ratio")[:80]}); {series}'
         x = out[col].to_numpy(float)
         if item_mode:
             fp, fn, series = PS.step2_factor(col, x, fp, fn, kind, series, s, t, R_total)
@@ -409,29 +369,12 @@ def start_from_year(spec):
     # their drawn values first (non_micro_imputations.as_drawn)
     df = NMI.as_drawn(df)
     common.say(f'start: {path}, {len(df):,} records, {w.sum() / 1e6:,.2f} million units')
-    if spec['weights'] == 'persons':
-        # (3 November, agent A; projection_steps.py) step 1, the calibration to people by age and marital status, then
-        # step 2's dollar factors on its weights; the start's weights are step 1's
-        import projection_steps as PS
-        assert spec['dollars'] == 'item_factor', 'start_scaling weights persons goes with dollars item_factor'
-        w, _ = PS.step1(df, w, Y, s)
-    if spec['dollars'] == 'item_factor':
-        assert spec['weights'] == 'persons', 'dollars item_factor needs the step 1 weights (weights persons)'
-        df, growth = grow_dollars(df, s, Y, 'item_factor')
-    elif spec['dollars'] == 'per_return_growth':
-        df, growth = grow_dollars(df, s, Y)
-    elif spec['dollars'] == 'cbo_per_return':
-        rg = None
-        if Y > 2036:   # CBO's returns end in 2036: the growth in returns is the demographic cells' own (DESIGN.md)
-            import projection_demographics as PD
-            cols = ['record_id', 'filer', 'married', 'filing_status', 'age_range', 'age1']
-            scaled, _ = PD.population_cells(df[cols].assign(weight=w), Y)
-            f = df['filer'].to_numpy() == 1
-            rg = float(scaled[f].sum() / w[f].sum())
-            common.say(f'returns grow {rg:.5f} from {s} to {Y}: the previous file\'s filer cells grown by population')
-        df, growth = grow_dollars(df, s, Y, 'cbo_per_return', rg)
-    else:
-        growth = None
+    # step 1, the calibration to people by age and marital status, then step 2's dollar factors on its weights
+    import projection_steps as PS
+    assert spec['weights'] == 'persons' and spec['dollars'] == 'item_factor', \
+        'a start from an earlier year takes start_scaling {weights: persons, dollars: item_factor}'
+    w, _ = PS.step1(df, w, Y, s)
+    df, growth = grow_dollars(df, s, Y, 'item_factor')
     df['weight'] = w
     return df, w, growth
 
@@ -458,21 +401,6 @@ def start_nonfilers():
             f'start only')
     common.say(note)
     return n, note
-
-
-def hold_table(rows, df, w0, w1):
-    """The hold_distribution targets' shares, on the starting and the final weights, computed directly (the fit
-    table's are the solver's average form, equal on the start and close after)."""
-    out, a = [], D.agi(df)
-    for r in rows[rows['kind'] == 'hold distribution'].itertuples(index=False):
-        x = TLS.record_value(df, r.variable)
-        pop = TLS.population(df, r.population)
-        g = pop & (a >= r.agi_lo) & (a < r.agi_hi)
-        sh = lambda w: (w[g] * x[g]).sum() / (w[pop] * x[pop]).sum()
-        out.append({'item': r.variable, 'group': r.group, 'share at the start (target, %)': 100 * r.value,
-                    'after the tilt (%)': 100 * sh(w1), 'miss (share points)': 100 * (sh(w1) - r.value),
-                    'error (share points)': 100 * r.se})
-    return pd.DataFrame(out)
 
 
 # ---- net worth summary -------------------------------------------------------------
@@ -549,7 +477,6 @@ def main():
                 common.say(f'the top step written to {cache}')
         if os.environ.get('REBUILD_TOP_ONLY'):
             return
-        base = TR.replace_aggregates(*base, Y, spec['mode'])   # settings generation.real_puf_aggregates 'rebuilt' only
         g19, imp, given, fixed, top = TR.add_list(*base, Y)
         del base
     del raw
@@ -561,25 +488,7 @@ def main():
     returns = TG.returns(soi, Y)
     n_nonfilers, nf_note = start_nonfilers()
     w0 = imp.copy()
-    if spec['weights'] == 'population_cells':
-        # (30 October, projection years as production builds them) each record's previous weight times the population
-        # growth of its cell (filers: joint status x the primary's age band, from the married or unmarried population;
-        # non-filers: the age band), no scaling to SOI's or CBO's returns; the cells are identity targets (target_list)
-        import projection_demographics as PD
-        path = f"{common.OUT}/tilt/{spec['run']}/file_{spec['year']}.parquet"
-        prev = pd.read_parquet(path, columns=['record_id', 'weight', 'filer', 'married', 'filing_status', 'age_range', 'age1'])
-        scaled, cell_table = PD.population_cells(prev, Y, from_year=spec['year'])
-        by_id = pd.Series(scaled, index=prev['record_id'].to_numpy())
-        take = ~given
-        ids = g19['record_id'].to_numpy()[take]
-        assert pd.Index(ids).isin(by_id.index).all(), 'a record of the start is not in the previous year\'s file'
-        w0[take] = by_id.loc[ids].to_numpy()
-        common.say(f'population cells {spec["year"]} to {Y}: filers {w0[filer].sum() / 1e6:,.2f} million (previous '
-                   f'{prev.weight[prev.filer == 1].sum() / 1e6:,.2f}), non-filers {w0[~filer].sum() / 1e6:,.2f} million '
-                   f'(previous {prev.weight[prev.filer == 0].sum() / 1e6:,.2f}); zero cells: '
-                   f'{int((cell_table.previous_weight == 0).sum())}')
-        cell_table.to_csv(f'{common.TILT}/population_cells_{Y}.csv', index=False)
-    elif spec['weights'] == 'persons':
+    if spec['weights'] == 'persons':
         # (3 November, agent A) the step 1 weights as they are (start_from_year); the list's own weights are given
         import projection_steps as PS
         assert np.isfinite(w0).all() and (w0 >= 0).all()
@@ -597,8 +506,8 @@ def main():
         g19.loc[given, 'weight'] = w0[given] * imp[gen_f].sum() / w0[gen_f].sum()
     w_plain = w0.copy()
     prescale = spec['weights']
-    assert prescale in ('none', 'filing_status', 'demographic', 'population_cells', 'persons'), f"start_scaling weights {prescale!r}"
-    if prescale in ('filing_status', 'demographic'):
+    assert prescale in ('demographic', 'persons'), f"start_scaling weights {prescale!r}"
+    if prescale == 'demographic':
         for married, status in [(1, 'joint'), (0, 'nonjoint')]:
             m = filer & (g19['married'].to_numpy() == married)
             g = m & ~given
@@ -631,16 +540,12 @@ def main():
     common.say(f'calculator targets: {len(calc_rows)}' + ('' if TX.S.get('target', True) else
                                                           ' (reported only: settings taxes.target is false)'))
     targeted_calc = calc_rows if TX.S.get('target', True) else pd.DataFrame()
-    # hold_distribution: built from the start as scaled, so its rank groups and shares are the scaled start's
-    hold = TLS.hold_rows(Y, g19, w0)
     # income rank groups (the income x net worth grid) are set on the file's starting weights, so their conditions
     # are written again after the prescaling (a list without them is unchanged)
     ranked = 'rank_variable' in rows and rows['rank_variable'].fillna('').astype(str).ne('').any()
-    if len(hold) or ranked or len(targeted_calc):
+    if ranked or len(targeted_calc):
         if len(targeted_calc):
             rows = pd.concat([rows, targeted_calc], ignore_index=True)
-        if len(hold):
-            rows = pd.concat([rows, hold], ignore_index=True)
         F, T, averages = TLS.conditions(g19, rows, w0)
         se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     if ranked:
@@ -737,9 +642,6 @@ def main():
         start_lines = [f'- non-filers scaled to {n_nonfilers / 1e6:.2f} million ({nf_note}).', '']
     if prescale == 'persons':
         start_lines += PS.write(common.TILT)
-    if len(hold):
-        start_lines += ['## Held distribution (hold_distribution targets): shares of each total by AGI rank group', '',
-                        hold_table(rows, g19, w0, w1).to_markdown(index=False, floatfmt='.3f'), '']
 
     # outputs
     fit = SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
