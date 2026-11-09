@@ -143,8 +143,8 @@ def scf_mean(scf, v, y):
     - In a year with a wave: that wave's mean.
     - Between two waves: the geometric interpolation of the two waves' means (arithmetic if either is at or below zero).
     - After the last wave: the last wave's mean, grown by the item's Financial Accounts (Z.1) series per person
-      (growth.scf_extension). The wave of income year y is interviewed in year y + 1, and balance sheets are stocks at
-      the interview, so this growth runs between the years after the income years."""
+      (growth.scf_extension). The wave of income year y is interviewed in year y + 1, and its balance sheets are values at
+      the interview. This growth therefore runs between the years after the income years."""
     have = sorted(int(x) for x in scf['year'].unique())
     if y in have:
         return _wave_mean(scf, v, y)

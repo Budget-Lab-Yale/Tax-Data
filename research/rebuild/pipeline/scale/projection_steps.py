@@ -25,7 +25,7 @@ RESOURCES = common.RESOURCES
 P = common.SETTINGS['tilt']['projection']
 TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary filer's and spouse's ages at 80)
 # Married people under 18 count as unmarried, in the file and in CBO's population. CBO's population has no married
-# person under 16, so those cells could not be met.
+# person under 16, and those cells could not be met.
 MARRIED_FROM = 18
 ITEMS_COLUMNS = ['column', 'series', 'kind', 'target', 'error', 'note']
 ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
@@ -533,7 +533,7 @@ def write(folder):
 # ---- The filing-season blend for the first projection year ----
 # The growth from the last year of final SOI tables to the first projection year blends two sources: SOI's November
 # filing-season tables and the item's national series. Each item has a trust weight on the November tables. Step 2
-# gives each column one more national factor, so that its total grows at the blended rate. Step 3 replaces each
+# gives each column one more national factor, which makes its total grow at the blended rate. Step 3 replaces each
 # trusted item's national total with targets by AGI group. FEATURES.md, "The first projection year from SOI's November
 # filing-season tables", describes the rule.
 FS = P['filing_season']
@@ -783,8 +783,8 @@ def fs_rows(year):
     a0, a1 = D.agi(b), D.agi(df)
     out, table = [], []
 
-    # 1. The number of returns. Its total is set by the exact targets of the return groups, so here the blend only
-    #    shares that total across AGI groups.
+    # 1. The number of returns. The exact targets of the return groups set its total. Here the blend only shares that
+    #    total across AGI groups.
     T = sum(d['filers 2023'] / d['units 2023'] * d['units after step 1'] for d in STATE['return_shares'].values())
     bl = fs_blend('returns')
     nov = fs_november('returns', 'units')
@@ -875,7 +875,7 @@ IG_COLUMNS = ('txbl_int', 'div_ord')
 
 def ig_active(s):
     """Whether the rule applies: to a year whose start year s is at or after from_year. from_year must be after the
-    filing-season base year, so that the rule and the blend never apply to the same year."""
+    filing-season base year. The rule and the blend then never apply to the same year."""
     assert int(IG['from_year']) > int(FS['base_year']), \
         'tilt.projection.interest_growth.from_year must be after the filing-season base year'
     return int(s) >= int(IG['from_year'])

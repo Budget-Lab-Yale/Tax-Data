@@ -2,7 +2,7 @@
 
 The taxes come from the batch command of tax-simulator-gpu, the Budget Lab's tax calculator, run on a pinned copy of
 its code. They are computed on the start, before the reweighting, and joined to the file by record id as the calc_*
-columns. The reweighting changes only the weights, so the taxes remain correct after it.
+columns. The reweighting changes only the weights, and the taxes remain correct after it.
 
 Three rules are applied before the final calculator run, each using the calculator's results:
 
@@ -28,8 +28,8 @@ from shared import dollars as D
 S = common.SETTINGS['taxes']
 
 # The columns joined to the file. Each entry is: the file's column, then (the calculator's column or a formula on its
-# columns, and what the column means). Each file column is the calculator's own name with calc_ in front, so that a
-# computed amount is never mistaken for a drawn one.
+# columns, and what the column means). Each file column is the calculator's own name with calc_ in front, which marks
+# it as computed rather than drawn.
 OUTPUTS = {
     'calc_claimed_medical': ('claimed_medical', 'medical deductions on itemizers'),
     'calc_claimed_taxes': ('claimed_taxes', 'taxes paid deductions on itemizers'),
@@ -216,7 +216,7 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
         #       has no taxable refund;
         #   (b) the itemized deductions less the standard deduction.
         # The current year's taxes paid and deductions stand in for last year's. The cap enters through the
-        # calculator's own claimed taxes, so the rule needs no parameter of the year's law.
+        # calculator's own claimed taxes, and the rule needs no parameter of the year's law.
         paid = df['salt_inc_sales'].to_numpy(float) + df['salt_prop'].to_numpy(float)
         claimed = out['claimed_taxes'].to_numpy(float)
         excess = np.maximum(out['item_ded'].to_numpy(float) - out['std_ded'].to_numpy(float), 0.0)
@@ -226,8 +226,8 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
         kept = np.where(item, np.minimum(ref, np.minimum(benefit, excess)), 0.0)
         # Some returns report refunds that the rule would remove: SOI shows taxable refunds on about 5% of returns
         # with AGI of $2-5 million, where taxes paid are far above the cap. An itemizer therefore keeps its whole
-        # refund with probability refund_reported_anyway. The random number comes from the record id, so it is the
-        # same on every run.
+        # refund with probability refund_reported_anyway. The random number comes from the record id and is the same
+        # on every run.
         share = float(S['refund_reported_anyway'])
         if share > 0:
             rid = df['record_id'].to_numpy().astype(np.uint64)
@@ -288,8 +288,8 @@ def prior_factor(col, year):
 
 
 def greedy_schedule_a(df, year, w, folder, ctx, C):
-    """The greedy Schedule A step. Multiplies each Schedule A category's inputs by one factor s, so that the start's
-    dollars per claiming return come close to Table 2.1's. Each pass runs the calculator with the current factors and
+    """The greedy Schedule A step. Multiplies each Schedule A category's inputs by one factor s, chosen to bring the
+    start's dollars per claiming return close to Table 2.1's. Each pass runs the calculator with the current factors and
     sets each category's next factor to s times Table 2.1's average over the start's. The factor is held between 1 -
     max_move and 1 + max_move. Returns the frame with the inputs multiplied, or unchanged when the year has no
     Table 2.1."""

@@ -1,5 +1,5 @@
-"""Each target's standard error. The reweighting measures each target's miss in standard errors, so a target with a
-smaller standard error is held closer.
+"""Each target's standard error. The reweighting measures each target's miss in standard errors. A target with a
+smaller standard error is therefore held closer to its value.
 
 Standard errors come from four sources:
 
@@ -170,8 +170,7 @@ def soi_errors(rows, year):
         elif r.kind in ('age by AGI', 'status by AGI'):   # Tables 1.6 and 1.2 by AGI
             # Where SOI samples every return in the AGI group, the error is the judgment number FULL_SAMPLE_SE.
             # Elsewhere the CV is borrowed only from Table 1.4's count cells in the same AGI group. SOI's sampling rate
-            # rises with income, so 3,000 returns at $2-5 million are measured far better than 3,000 returns at
-            # $20,000.
+            # rises with income: 3,000 returns at $2-5 million are measured far better than 3,000 returns at $20,000.
             assert not np.isnan(r.agi_lo), f'{r.group}: an age-by-AGI target with no AGI group'
             lo, hi = float(r.agi_lo), float(r.agi_hi)
             se14, _, _, _ = sum_error(cells, [('returns', 'count', 1)], lo, hi)
@@ -420,8 +419,8 @@ def _consumption_cell(r, u, y):
 def consumption_errors(rows, year):
     """The standard errors of the consumption targets: each category's average per tax unit, over all units and by
     age range and marital status, over the year's mix of CEX years. Each year's standard error comes from its 44
-    replicate weights, on spending in target-year dollars. The years are independent samples, so the pooled variance
-    is the sum over years of share squared times the year's variance."""
+    replicate weights, on spending in target-year dollars. The pooled variance is the sum over years of share squared
+    times the year's variance, because the years are independent samples."""
     out = []
     for r, per in year_mix_estimates(rows, year, 'cex', lambda y: survey_mix.grown_units('cex', y), cex_replicates,
                                      _consumption_cell):
@@ -465,7 +464,7 @@ def overtime_errors(rows, year):
 
 
 def _older_age_cell(r, u, y):
-    """The CPS units in an older-ages target's age range. The target is a count of units, so there is no value."""
+    """The CPS units in an older-ages target's age range. The target is a count of units and has no value per unit."""
     assert r.range_variable, f'older ages target {r.group}: no age range'
     xg = TLS.record_value(u, r.range_variable)
     return (xg >= r.range_lo) & (xg < r.range_hi), None

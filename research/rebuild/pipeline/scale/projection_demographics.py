@@ -2,7 +2,7 @@
 
 Each record's weight is multiplied by the population growth of its cell. A filer's cell is its marital status and the
 primary filer's age band; the factors are in resources/population_factors.csv. A non-filer's cell is its age band; the
-factors are in resources/nonfiler_factors.csv. Each factor is a population level relative to 2023, so the growth from
+factors are in resources/nonfiler_factors.csv. Each factor is a population level relative to 2023. The growth from
 one year to another is the ratio of the two years' factors. A record whose cell has no factor stops the run; no cell
 gets a default. The module also reads CBO's published counts of returns. FEATURES.md, "4. Scaling to the target year",
 "Projection years", describes the projection.
@@ -58,7 +58,7 @@ def population_cells(previous, year, from_year):
              (d.married == (d.filing_status == 2).astype(int)) & d.age_range.isin(range(9)))
     age = d.age1
     # The age bands of the primary filer. The band "under 26" holds every primary filer below 26, a few of them under
-    # 18. Bands 6 to 8 are the dependent filers' ranges. A dependent filer's own age is not kept (age1 is -1), so
+    # 18. Bands 6 to 8 are the dependent filers' ranges. A dependent filer's own age is not kept (age1 is -1), and
     # those bands have no age check.
     bounds = [(0, 26), (26, 35), (35, 45), (45, 55), (55, 65), (65, 101), (-1, 0), (-1, 0), (-1, 0)]
     age_ok = pd.Series(False, index=d.index)

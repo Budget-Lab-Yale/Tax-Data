@@ -394,8 +394,8 @@ def published_14(soi, year, cells, v, stats, table='1.4'):
     edge between them (merge_groups)."""
     (c,) = cells
     rows = []
-    # Every line the variable names must be in the year's table. A line not found would give zero in every AGI group,
-    # and expand leaves out cells published as zero, so a misnamed line would otherwise drop all its targets unseen.
+    # Every line the variable names must be in the year's table. A line not found would give zero in every AGI group.
+    # expand leaves out cells published as zero, and a misnamed line would otherwise drop all its targets unseen.
     t14 = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == 'all')]
     have = set(zip(t14['variable'], t14['statistic']))
     for st in stats:
@@ -675,7 +675,7 @@ def published_12_agi(soi, year, cells, stats):
 def published_16_agi(year, cells, stats):
     """Target rows of returns by the primary filer's age range (26 and over) within AGI groups, from Table 1.6's All
     returns panel. Each AGI group is the sum of the published columns inside it. Table 1.6's columns are Table 1.4's
-    brackets, so the standard grid's edges fall on them.
+    brackets, and the standard grid's edges fall on them.
 
     When a row's columns do not add up to its own all-AGI total, the misprint is taken to be the run of adjacent cells
     the row flags 'combined'. The groups that run touches are merged for every age (as when a published cell crosses an
@@ -905,9 +905,9 @@ def cex_units(y):
 def cps_overtime_units(y):
     """The tax units of CPS year y for the overtime targets, with every dollar column in target-year dollars, limited
     to the units asked the earnings questions. The CPS asks weekly pay and hours only of households in months 4 and 8
-    of its sample, so overtime is missing on every other unit. Each statistic is an average over the units asked, with
+    of its sample. Overtime is missing on every other unit. Each statistic is an average over the units asked, with
     their own weights. Adds the columns ot (the unit's overtime) and wages (the wages translated to the PUF's
-    definition, so that the wage groups mean the same as on the file)."""
+    definition, which gives the wage groups the same meaning as on the file)."""
     u = survey_mix.grown_units('cps', y)
     assert u['weight'].notna().all() and (u['weight'] > 0).all(), f'CPS {y}: a unit with no positive weight'
     na1, na2 = u['ot_primary'].isna().to_numpy(), u['ot_spouse'].isna().to_numpy()
@@ -1164,7 +1164,7 @@ def _grid_value(selected, c, spec, source, measure, item=None):
     x = pd.to_numeric(z.value) * scales
     if 'net loss' in name and measure != spec.get('count', 'returns'):
         # Table 4.3 prints a net loss's amount as a negative number in some years and as a positive one in others.
-        # The file's loss variables are sizes, so the published amount is read as its size.
+        # The file's loss variables are sizes, and the published amount is read as its size.
         x = x.abs()
     return float(x.sum())
 
@@ -1486,7 +1486,7 @@ def published_w2_shares(source, year, cells, v, stats, e):
     The standard error has two parts, combined as the square root of the sum of squares:
     - the share times the borrowed CVs (as for any count) of the number of workers above the line and of the number
       of all workers, themselves combined as the square root of the sum of squares. The two counts are positively
-      related, so this part is not small;
+      related, which makes this part larger than for independent counts;
     - half the most the dependent filers could move the share, which is when all of them are below the line:
       s d / (1 - d), at most 1 - s, where d is the dependents' share of all workers, from the SIPP as in
       w2_dependent_share."""
@@ -1614,7 +1614,7 @@ def expand(year, start, which):
 
     A cell published as zero is left out, and so is a cell that no record of the start can reach (start is a
     DataFrame with the file's columns). Both are listed in LAST['excluded']. The resolved configuration is kept in
-    LAST['config']. They are kept outside the returned table, so that pandas operations on the rows never carry them.
+    LAST['config']. They are kept outside the returned table, where pandas operations on the rows cannot carry them.
 
     which is 'without calculator' or 'calculator'. The first gives every entry except those of kind calculator, whose
     columns the reweighting computes after the non-microdata imputations (taxes.py). The second gives those entries
@@ -1748,8 +1748,8 @@ def conditions(df, rows, w_start, check=True):
             cell &= rng == r.age_range
         if r.rank_variable:
             # The income rank group on the file, by the file's own weighted percentiles among the entry's population,
-            # on the starting weights. The percentiles are fixed as dollar lines, so the group holds the same records
-            # throughout the reweighting.
+            # on the starting weights. The percentiles are fixed as dollar lines. The group therefore holds the same
+            # records throughout the reweighting.
             xr, pop = _cached_value(values, df, r.rank_variable), pops[r.population]
             lo_line, hi_line = rank_dollar_lines(xr[pop], ws[pop], r.rank_lo, r.rank_hi)
             FILE_RANK_LINES[(r.rank_variable, r.population, r.rank_lo)] = lo_line

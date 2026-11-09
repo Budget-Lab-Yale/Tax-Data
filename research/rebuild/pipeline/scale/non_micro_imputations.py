@@ -9,7 +9,7 @@ for the record and a published table. The items are:
 6. parents' income rank;
 7. blindness, the qualified business income (QBI) items, and the cap on the AMT net operating loss adjustment.
 
-Every random number is a fixed function of the record id, so a record's draws do not change when other records do.
+Every random number is a fixed function of the record id. A record's draws do not change when other records do.
 tilt.py calls impute() on the start with its prescaled weights, and checks() on the final weights. The tables are in
 resources/non_micro/. FEATURES.md, "4. Scaling to the target year", "The non-microdata imputations", describes each
 item.
@@ -53,15 +53,15 @@ def year_used(years, year):
 
 def uniform(df, item, person):
     """Each record's uniform random number for an item and a person (0 for the unit, 1 and 2 for the adults, 3 to 5
-    for the dependents). Each item has its own stream of numbers. The number is a fixed function of the record id, so a
-    draw does not change when other records change."""
+    for the dependents). Each item has its own stream of numbers. The number is a fixed function of the record id. A draw
+    does not change when other records change."""
     salt = int(S['salt_base']) + 8 * int(ITEMS[item]['stream']) + person
     return uniform_by_id(df['record_id'].to_numpy(), salt)
 
 
 def fill_missing_sex(df):
     """Gives a sex to each primary filer who has an age and no sex: man or woman with equal chances, by the death
-    item's random number. Generation always draws a sex for the primary filer, so this normally changes no record.
+    item's random number. Generation always draws a sex for the primary filer, and this normally changes no record.
     Returns the frame and a mask of the records changed."""
     nosex = (df['age1'].to_numpy() >= 0) & (df['sex_primary'].to_numpy() <= 0)
     df = df.copy()
@@ -215,7 +215,7 @@ def within_cell_percentile(sex, age, income, ids, w):
 def death_probabilities(df, year, w, ctx):
     """Each adult's probability of dying in the year: the SSA life table's rate for their sex and age, times Chetty et
     al.'s ratio for their income percentile, times Johnson's factor for their marital status. The marital factors are
-    divided by their mean among the file's men, so that they leave the men's average unchanged. q_death2 is -1 where
+    divided by their mean among the file's men in each age band. They then leave the men's average unchanged. q_death2 is -1 where
     there is no spouse."""
     it = ITEMS['death_probabilities']
     top = int(it['top_age'])
@@ -506,9 +506,9 @@ def parents_rank(df, year, w, ctx):
 
 def blind_factor(key, filer, w, target):
     """The factor for one type of person (primary filer or spouse). A person is blind when key = u / rate is below
-    the factor, where u is the person's random number, so the chance of blindness is rate x factor. The factor is set
-    so that the filers' weighted count of blind people, as drawn (not only its expected value), comes nearest the
-    target. Returns the factor and that count."""
+    the factor, where u is the person's random number. The chance of blindness is then rate x factor. The factor is
+    the one at which the filers' weighted count of blind people, as drawn (not only its expected value), comes
+    nearest the target. Returns the factor and that count."""
     k, ww = key[filer], w[filer]
     o = np.argsort(k, kind='stable')
     cum = np.cumsum(ww[o])
@@ -621,7 +621,7 @@ def qbi(df, year, w, ctx):
     - Through the IRS table's last year, the scalar makes the file's wages at the start's prescaled weights equal the
       IRS total. After it, the scalar is that year's times the growth of average wages.
     - cf wages go to Schedule C. ps wages are split between partnerships and S corporations by positive income.
-    - Farms are never a specified service, and their wage bill is their positive farm income, so the wage limit never
+    - Farms are never a specified service. Their wage bill is their positive farm income, and the wage limit never
       binds for them.
 
     The service flag is 1 when the record's random number is below the share of self-employed people in its SCF
@@ -670,8 +670,8 @@ def qbi(df, year, w, ctx):
             out['wagebill_sole_prop'] = wages
             out['sstb_sole_prop'] = (flagged & (inc['sole_prop'] > 0)).astype(int)
         else:
-            # The split by income. The larger part is computed first and the smaller is wages less the larger, so
-            # that the two add up to wages exactly.
+            # The split by income. The larger part is computed first and the smaller is wages less the larger. The
+            # two then add up to wages exactly.
             share = np.divide(inc['part'], group_inc['ps'], out=np.zeros(len(df)), where=group_inc['ps'] > 0)
             larger = np.maximum(share, 1.0 - share) * wages
             smaller = wages - larger
@@ -725,7 +725,7 @@ def nol(df):
 
 def amt_nol_cap(df, year, w, ctx):
     """Holds the AMT net operating loss adjustment (amt_nols, the PUF's P60100) to at most the record's net operating
-    loss, so that it is 0 on a record with no loss. A negative amt_nols is left as drawn. The drawn value is kept as
+    loss. It is then 0 on a record with no loss. A negative amt_nols is left as drawn. The drawn value is kept as
     amt_nols_drawn."""
     drawn = df['amt_nols'].to_numpy(float)
     assert np.isfinite(drawn).all(), f'amt_nols missing on {int((~np.isfinite(drawn)).sum())} records'
@@ -766,8 +766,8 @@ def written_back():
 
 
 def as_drawn(df):
-    """A finished file with every changed column put back to its drawn value and the written columns dropped, so that
-    impute can run on it again."""
+    """A finished file with every changed column put back to its drawn value and the written columns dropped. impute
+    can then run on it again."""
     df = df.copy()
     for c, keep in written_back().items():
         if keep in df:

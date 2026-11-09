@@ -207,7 +207,7 @@ def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, 
         minimize   sum_j 0.5 rho_j (m_j / s_j)^2  +  tau x D(w),    with the identities met exactly,
         D(w) = sum_i [w_i log(w_i / w0_i) - w_i + w0_i],
 
-    on weights divided by sum(w0), so that D is measured in nats. The answer is w_i = w0_i exp((X lambda)_i), where
+    on weights divided by sum(w0). D is then measured in nats. The answer is w_i = w0_i exp((X lambda)_i), where
     X holds each record's contributions to the conditions and lambda the multipliers. lambda minimizes the dual
 
         phi(lambda) = sum_i p_i exp((X lambda)_i) - t . lambda + (1/2) sum_j (tau s_j^2 / rho_j) lambda_j^2,
@@ -345,8 +345,8 @@ def solve(w0, F, T, se, identity, averages, settings, fixed=None):
 def fixed_feasibility(w0, F, T, se, identity, averages, fixed):
     """A check before the solve, one row per target: what the fixed records contribute, what is left for the other
     records, and whether the other records alone could reach it with nonnegative weights. The other records can add any
-    amount with the signs their contributions have, so the target is reachable when what is left has one of those signs
-    or is zero. 'billionaires alone exceed' marks a total that the other records can only add to and that the fixed
+    amount with the signs their contributions have. The target is reachable when what is left has one of those signs or
+    is zero. 'billionaires alone exceed' marks a total that the other records can only add to and that the fixed
     records alone already put above its value. Each target is checked on its own."""
     w0, F, T = (np.asarray(a, float) for a in (w0, F, T))
     fixed = np.asarray(fixed, bool)
@@ -417,7 +417,7 @@ def thin_cells(w0, w1, F, averages, factors=True):
 
     - the effective number of records behind it, (sum w |f|)^2 / sum (w f)^2, with f a record's contribution;
     - the largest weight factor among the records that hold at least THIN_FACTOR_MIN_SHARE of the cell's weighted
-      total (a record with a small share is left out, so that one record moved far does not flag every large cell it
+      total (a record with a small share is left out; otherwise one record moved far would flag every large cell it
       is in);
     - the number of records with a contribution;
     - the flag ('', 'warning' or 'stop');

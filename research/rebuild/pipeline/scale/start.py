@@ -202,7 +202,7 @@ def start_from_year(spec):
     to the target year (year s's weights kept in the column weight_<s>), the weights calibrated by
     projection_steps.step1, and the table of growth factors."""
     # 1. Read year s's file. A file built on the real PUF carries the PUF's record numbers. Settings generation.filers
-    #    must agree with the file, so that a real-PUF year never grows from a synthetic file or the reverse.
+    #    must agree with the file: a real-PUF year never grows from a synthetic file, nor the reverse.
     s = spec['year']
     path = f"{common.OUT}/tilt/{spec['run']}/file_{s}.parquet"
     df = pd.read_parquet(path)

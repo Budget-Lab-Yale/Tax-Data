@@ -11,8 +11,8 @@ shares. For each wave:
    of weights published to measure sampling error). The imputation part comes from the SCF's five implicates (five
    copies of each household, with its missing answers filled in differently each time).
 
-The pooled value is the sum over waves of share times the wave's value. The waves are independent samples, so the
-pooled variance is the sum of squared share times the wave's variance. TARGETS.md, "SCF targets", describes the
+The pooled value is the sum over waves of share times the wave's value. The pooled variance is the sum over waves of
+squared share times the wave's variance, because the waves are independent samples. TARGETS.md, "SCF targets", describes the
 targets.
 """
 import numpy as np
