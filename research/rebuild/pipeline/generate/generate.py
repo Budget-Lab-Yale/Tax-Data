@@ -1,11 +1,12 @@
 """Generation: draws PUF-style records from the trained networks and writes them to gen/<run>/stack.parquet.
 
-Two batches are drawn, each in equal shares from every pooled network. The filers are drawn under the PUF label; each
-has its AGI group set in advance and is weighted by 1 / q of its group (qgroups.py). The non-filers are drawn under the
-CPS label at the target year. Each record is drawn one slot at a time, each slot from the network's probabilities given
-the slots drawn so far. The slots come in phases: the record's own PUF items, the computed totals, the exact ages, and
-then the SCF, CEX, CPS and SIPP items, each under that survey's label. Rules on the draw keep the items consistent with
-each other. The consistency rules add holders of some assets. To offset them, the whole stack is drawn several
+Two batches are drawn, each in equal shares from every pooled network. Every record carries a source label, the slot
+that tells the network which source (PUF, SCF, CEX, CPS or SIPP) to imitate. The filers are drawn under the PUF label;
+each has its AGI group set in advance and is weighted by 1 / q of its group (qgroups.py). The non-filers are drawn under
+the CPS label at the target year. Each record is drawn one slot at a time, each slot from the network's probabilities
+given the slots drawn so far. The slots come in phases: the record's own PUF items, the computed totals, the exact ages,
+and then the SCF, CEX, CPS and SIPP items, each under that survey's label. Rules on the draw keep the items consistent
+with each other. The consistency rules add holders of some assets. To offset them, the whole stack is drawn several
 times, and after each draw the odds of those holdings are scaled down. FEATURES.md, "3. Generation", describes the
 method.
 """

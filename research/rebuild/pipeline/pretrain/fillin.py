@@ -1,13 +1,13 @@
 """The fill-in: surveys' missing holders, filled in during training (train.py).
 
-Some survey units report zero of an item that they hold. Each survey item with a fill-in has two slots on that
-survey's rows: the amount the unit reported, which never changes, and the amount on the PUF's definition. A unit that
-reports an amount keeps it in both slots. For a unit that reports zero (a "zero-reporter"), the second slot is filled
-in. At the start of each pass from the pass fill_from_pass on, refit computes each zero-reporter's chance of holding
-the item, in each size range. It compares the survey's holders with the tax data's (filers from the PUF, non-filers
-from the CPS) among units of the same type. In each batch, draw then draws the filled-in amounts from those chances.
-Writes fill_log.csv, fill_ranges.csv and fill_types.csv to the model folder. FEATURES.md, "Translation: putting the
-surveys on the PUF's terms", function 2, describes the method.
+Some survey units report zero of an item that they hold. Each survey item with a fill-in has two slots on that survey's
+rows: the amount the unit reported, which never changes, and the amount on the PUF's definition. A unit that reports an
+amount keeps it in both slots. For a unit that reports zero (a "zero-reporter"), the second slot is filled in. Training
+goes over every record many times, and each time is a "pass". At the start of each pass from the pass fill_from_pass on,
+refit computes each zero-reporter's chance of holding the item, in each size range. It compares the survey's holders
+with the tax data's (filers from the PUF, non-filers from the CPS) among units of the same type. In each batch, draw
+then draws the filled-in amounts from those chances. Writes fill_log.csv, fill_ranges.csv and fill_types.csv to the
+model folder. FEATURES.md, "Translation: putting the surveys on the PUF's terms", function 2, describes the method.
 """
 import math
 import os
