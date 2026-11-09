@@ -465,33 +465,10 @@ def save_model(model, path):
                 'slots': SLOTS}, path)
 
 
-_RENAMES = None
-
-
-def renamed(name):
-    """A slot name as the rename of 29-30 October has it (tools/rename_map.csv, the rows of kind renamed): an old name,
-    or its reported form, becomes the new one. Networks trained before the rename saved their names the old way; their
-    slot positions are unchanged, only the names."""
-    global _RENAMES
-    if _RENAMES is None:
-        rows = pd.read_csv(f'{common.HERE}/tools/rename_map.csv')
-        ren = rows[rows.kind == 'renamed']
-        _RENAMES = dict(zip(ren.old_name, ren.new_name))
-    if name in _RENAMES:
-        return _RENAMES[name]
-    if name.endswith('_reported') and name[:-len('_reported')] in _RENAMES:
-        return _RENAMES[name[:-len('_reported')]] + '_reported'
-    return name
-
-
 def load_model(device, path):
-    """A trained network. One saved before the rename of 29-30 October has no slot list; its band layout's names are
-    read through renamed(), and the layout, names and order, must then equal today's."""
+    """A trained network; its slots and band layout (names and order) must equal today's."""
     saved = torch.load(path, map_location=device)
-    if 'slots' in saved:
-        assert saved['slots'] == SLOTS, 'the slots changed since training'
-    else:
-        saved['band_layout'] = {renamed(k): v for k, v in saved['band_layout'].items()}
+    assert saved['slots'] == SLOTS, 'the slots changed since training'
     assert saved['band_layout'] == BAND_LAYOUT, 'the band edges changed since training'
     assert list(saved['band_layout']) == list(BAND_LAYOUT), 'the amounts\' order changed since training'
     model = SlotTransformer(**saved['settings']).to(device)

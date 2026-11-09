@@ -79,12 +79,10 @@ candidates.parquet (the pool, bands and 2015 dollars), hidden_2015.parquet (the 
 their group, weight, the rules that chose them and the donor's record id), hidden_<year>.parquet (the rows in the
 generated file's schema, target-year dollars), and the check tables (check_*.csv).
 
-Entry point for tilt.main: rebuild_hidden_returns(g19) -> the rows to append (see its docstring).
-Run: python top_hidden.py build    (the whole build; a GPU node; the candidate pool is reused if it is already there)
-     python top_hidden.py check    (the Table 4.3 checks for 2015 and the target year, on the run's generated stack)
+Entry point: rebuild_hidden_returns(g19) -> the rows to append (see its docstring); it runs build() when the year's rows
+are not there yet (a GPU; the candidate pool is reused if it is already there).
 """
 import os
-import sys
 
 import numpy as np
 import pandas as pd
@@ -92,7 +90,6 @@ import pandas as pd
 import build_table as BT
 import common
 import dollars as D
-import targets as TG
 
 S = common.SETTINGS['top_hidden']
 Y = common.TARGET_YEAR
@@ -1108,8 +1105,8 @@ def item_mix(h15, out):
 def rebuild_hidden_returns(g19=None, year=Y, path=None, details=False):
     """The rebuilt aggregate records as rows to append to the generated file (see the top). g19: the generated file
     as tilt.main has it after dollars.draw_dollars (target-year dollars, importance weights in column weight). Reads
-    hidden_<year>.parquet from the folder (folder(); built by `python top_hidden.py build`, which needs the
-    trained networks and is best run on a GPU node); builds it first if it is not there.
+    hidden_<year>.parquet from the folder (folder(); built by build(), which needs the trained networks and is best
+    run on a GPU node); builds it first if it is not there.
     Returns a frame with exactly g19's columns plus synthetic_top (1), in target-year dollars, its weight in g19's
     units: each rebuilt return's 2015 population weight times g19's total filer weight over the 2015 PUF's retained
     returns (the population the generated filers stand for), so tilt.main's scaling of filers to SOI's returns gives
@@ -1136,121 +1133,3 @@ def rebuild_hidden_returns(g19=None, year=Y, path=None, details=False):
             if rows[c].dtype != g19[c].dtype and g19[c].dtype != object and not rows[c].isna().any():
                 rows[c] = rows[c].astype(g19[c].dtype)
     return rows
-
-
-# ---- the Table 4.3 checks -----------------------------------------------------------------------------------------
-T43_ITEMS = {'returns': None, 'agi': 'adjusted gross income less deficit', 'wages': 'salaries and wages',
-             'taxable_interest': 'taxable interest', 'ordinary_dividends': 'ordinary dividends',
-             'capital_gain_total': 'sales of capital assets, net gain less loss',
-             'pship_scorp_net_income': 'partnership and s corporation > net income',
-             'pship_scorp_net_loss': 'partnership and s corporation > net loss'}
-T43_GROUPS = {'top 0.001 percent': 99.999, 'top 0.01 percent': 99.99, 'top 0.1 percent': 99.9}
-
-
-def table_43(year):
-    """SOI Table 4.3 for the year: per group, the AGI floor, returns and the items' amounts."""
-    t = pd.read_csv(f"{common.RAW['soi_tables']}/pctile_top_items.csv")
-    t = t[(t.tax_year == year) & (t['table'].astype(str) == '4.3') & t.pctile_group.isin(T43_GROUPS)]
-    out = {}
-    for gname in T43_GROUPS:
-        x = t[t.pctile_group == gname]
-        r = {'returns': float(x[(x.item == 'all') & (x.measure == 'returns')]['value'].iloc[0]),
-             'AGI floor': float(x[x.item.str.startswith('adjusted gross income floor')]['value'].iloc[0])}
-        for k, item in T43_ITEMS.items():
-            if item is None:
-                continue
-            meas = 'value' if k == 'agi' else 'amount'
-            r[k] = 1000.0 * float(x[(x.item == item) & (x.measure == meas)]['value'].iloc[0])
-        out[gname] = r
-    return out
-
-
-def top_groups(df, w, label, pub):
-    """The file's top 0.001%, 0.01% and 0.1% among returns other than dependent filers, each at SOI's published AGI
-    floor for the year (pub, table_43's; the groups' lines in the tilt since 3 November): returns, the floor, AGI and
-    the items (target_list.record_value, the tilt's own definitions), and the file's own percentile line beside it."""
-    import target_list as TLS
-    pop = (df['filer'].to_numpy() == 1) & (df['age_range'].to_numpy() < common.ADULT_RANGES)
-    a = D.agi(df)
-    rows = []
-    for gname, p in T43_GROUPS.items():
-        line = pub[gname]['AGI floor']
-        m = pop & (a >= line)
-        r = {'file': label, 'group': gname, 'returns': w[m].sum(), 'AGI floor': line, 'agi': (w * a)[m].sum(),
-             'file percentile line': float(common.wquantile(a[pop], w[pop], [p / 100])[0])}
-        for k in T43_ITEMS:
-            if k in ('returns', 'agi'):
-                continue
-            r[k] = (w * TLS.record_value(df, k))[m].sum()
-        rows.append(r)
-    return pd.DataFrame(rows)
-
-
-def check():
-    """The top 0.001%, 0.01% and 0.1% against Table 4.3: in 2015 (the run's generated filers in 2015 dollars at their
-    2015 population weights, before and after adding the rebuilt returns at theirs), and in the target year at the
-    tilt's starting scaling (filers to SOI's returns), before any reweighting. Then target_list.expand with the file
-    plus the rebuilt returns as the start: the top 0.001% must be kept."""
-    import generate as G
-    import target_list as TLS
-    out = folder()
-    stack = pd.read_parquet(f'{common.GEN}/stack.parquet')
-    h15 = pd.read_parquet(f'{out}/hidden_2015.parquet')
-    # 2015
-    filers = stack[stack['filer'] == 1].reset_index(drop=True)
-    d15 = dollars_2015(filers)
-    for c in ['filer', 'age_range', 'filing_status']:
-        d15[c] = filers[c].to_numpy()
-    w15 = filers['weight'].to_numpy(float) * float(np.sum(G.LABEL_META['returns'])) / filers['weight'].sum()
-    h = h15.assign(filer=1)
-    both = pd.concat([d15, h[d15.columns]], ignore_index=True)
-    wb = np.concatenate([w15, h15['weight'].to_numpy(float)])
-    pub = table_43(PY)
-    res = [top_groups(d15, w15, 'generated filers', pub), top_groups(both, wb, 'with the rebuilt returns', pub)]
-    res.append(pd.DataFrame([{'file': f'SOI Table 4.3, {PY}', 'group': k, **v} for k, v in pub.items()]))
-    t15 = pd.concat(res, ignore_index=True)
-    t15.to_csv(f'{out}/check_table43_{PY}.csv', index=False)
-    common.say(f'Table 4.3, {PY}:\n' + t15.to_string(index=False))
-    # the target year, the tilt's starting scaling
-    maps = D.load_maps(Y)
-    g19 = D.draw_dollars(stack, maps, Y)
-    have = pd.read_parquet(f'{out}/hidden_{Y}.parquet').columns
-    lack = [c for c in g19.columns if c not in have]
-    if lack:   # a stack drawn by older code (the retrain of 29 October drew blindness in generation)
-        common.say(f'the run\'s stack has columns the rebuilt returns lack (older generation code), left out of this '
-                   f'check: {lack}')
-        g19 = g19.drop(columns=lack)
-    hid = rebuild_hidden_returns(g19)
-    soi = TG.load()
-    full = pd.concat([g19, hid.drop(columns=['synthetic_top'])], ignore_index=True)
-    res = []
-    pub = table_43(Y)
-    for name, df in [('generated file', g19), ('with the rebuilt returns', full)]:
-        imp = df['weight'].to_numpy(float)
-        filer = df['filer'].to_numpy() == 1
-        w0 = np.where(filer, imp * TG.returns(soi, Y) / imp[filer].sum(), imp)
-        res.append(top_groups(df, w0, name, pub))
-    res.append(pd.DataFrame([{'file': f'SOI Table 4.3, {Y}', 'group': k, **v} for k, v in pub.items()]))
-    t19 = pd.concat(res, ignore_index=True)
-    t19.to_csv(f'{out}/check_table43_{Y}.csv', index=False)
-    common.say(f'Table 4.3, {Y}, before any reweighting:\n' + t19.to_string(index=False))
-    # the restored target is kept by expand
-    rows = TLS.expand(Y, start=full)
-    top = rows[(rows['kind'] == 'soi 4.3') & (rows['group'] == 'top 0.001 percent')]
-    ex = TLS.LAST['excluded']
-    common.say(f'target_list.expand: {len(top)} top 0.001% targets kept; excluded among them: '
-               f'{int(((ex["kind"] == "soi 4.3") & (ex["group"] == "top 0.001 percent")).sum()) if len(ex) else 0}')
-    top[['kind', 'group', 'target', 'value', 'se', 'error_kind']].to_csv(f'{out}/check_top_targets_{Y}.csv', index=False)
-    hid.to_parquet(f'{out}/hidden_{Y}_rows.parquet', index=False)
-
-
-if __name__ == '__main__':
-    what = sys.argv[1] if len(sys.argv) > 1 else 'build'
-    if what == 'build':
-        build()
-    elif what == 'check':
-        check()
-    elif what == 'mix':
-        item_mix(pd.read_parquet(f'{folder()}/hidden_2015.parquet'), folder())
-    else:
-        raise SystemExit(f'unknown: {what} (build or check)')

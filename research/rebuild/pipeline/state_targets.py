@@ -242,13 +242,6 @@ def ht2_values(ht2, item):
     return v
 
 
-def us_values(ht2, item):
-    """The item in Historic Table 2's US row, by group."""
-    codes = ITEMS[item][0]
-    d = ht2[(ht2['state'] == 'US') & (ht2['group'] > 0)].set_index('group')
-    return sum(d[c] for c in codes).astype(float)
-
-
 def item_vectors(df, items):
     """{item: one value per record}, every value finite."""
     out = {}

@@ -9,9 +9,7 @@ Python, reads it), else the pipeline's own settings.json. A variant run is a cop
   gen/      the generated records                                  (generate.py)
   tilt/     the year's targets, weights, final file and run report (tilt.py, report_tilt.py)
 Environment: REBUILD_OUT overrides OUT; REBUILD_SEED the training seed; REBUILD_RUN names the model/gen/tilt
-subfolder (default seed<n>); REBUILD_MODEL_RUN generates from another run's model; REBUILD_TILT_RUN writes the tilt
-of the run's generated stack to another subfolder of tilt/ (a reweighting variant of the same records); REBUILD_PASSES the passes
-(for a quick test).
+subfolder (default seed<n>); REBUILD_PASSES the passes (for a quick test).
 """
 import json
 import os
@@ -40,9 +38,9 @@ EDGES = f'{DATA}/band_edges.json'
 MAPS = f'{DATA}/maps'
 TARGETS = f'{OUT}/targets'
 RUN = os.environ.get('REBUILD_RUN', f'seed{SEED}')
-MODEL = f'{OUT}/model/{os.environ.get("REBUILD_MODEL_RUN", RUN)}'
+MODEL = f'{OUT}/model/{RUN}'
 GEN = f'{OUT}/gen/{RUN}'
-TILT = f'{OUT}/tilt/{os.environ.get("REBUILD_TILT_RUN", RUN)}'
+TILT = f'{OUT}/tilt/{RUN}'
 
 # The primary filer's age range (ages.py): six adult ranges, then three for dependent filers.
 AGE_LABELS = ['under 26', '26-34', '35-44', '45-54', '55-64', '65+', 'dep <18', 'dep 18-25', 'dep 26+']

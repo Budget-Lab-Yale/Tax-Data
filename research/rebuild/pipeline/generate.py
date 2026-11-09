@@ -223,11 +223,6 @@ SEX_PRIMARY = P.index('sex_primary')
 SPOUSE_AGE = P.index(next(v for v in CPS_STRUCTURE['spouse'] if v in CPS_STRUCTURE['ages']))
 ADULT_AGE = 18
 CPS_CATEGORICAL = torch.tensor([P.index(v) for v in M.PERSON_CATEGORIES])
-# The CPS's shares (the spouse's share of the couple's wages, of its self-employment income) are recorded only on
-# married couples with some of the item; elsewhere the slot is absent on the training rows. Absence is itself seen by
-# the network (a present slot, even hidden, says "a couple with some of this"), so generation leaves the slot absent
-# on the same records, and gives them a share of zero once the CPS phase is over.
-CPS_SHARES = {slot: base for slot, (_, base) in M.RATIOS.items() if slot in CPS_SLOTS}
 # Every gated share (model.SHARE_GATES; since 4 November also the PUF's self-employment share): {slot index: [base
 # indices]}. A share is asked only of a married couple with some of a base (a band above zero: band 0 is zero, -1 absent)
 GATED = {s: list(bases) for s, (_, bases) in M.SHARE_GATES.items()}

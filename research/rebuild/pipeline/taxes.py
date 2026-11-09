@@ -21,14 +21,10 @@ the start after the top of the file and the non-microdata imputations.
 Writes in <tilt>/taxes/: the calculator's input and output files of the run with their manifests, the conversion
 notes and taxes_summary.md. (Until 6 November a search for two QBI dials ran here, against Treasury's share and SOI's
 deduction, with a second calculator run; the QBI columns are now set before the calculator, non_micro_imputations.qbi.)
-The command `python taxes.py report <file> <folder>` (run by hand; not a stage of run.sbatch) computes the taxes on a finished file with its own columns,
-and evaluates the year's calculator targets on its weights before and after the tilt
-(report()); it is how a file made before this stage is compared.
 """
 import json
 import os
 import subprocess
-import sys
 
 import numpy as np
 import pandas as pd
@@ -459,27 +455,3 @@ def evaluate(df, rows, w0, w1):
     F, T, averages = TLS.conditions(df, rows, w0)
     se, identity = rows['se'].to_numpy(float), rows['identity'].to_numpy(bool)
     return SV.fit_table(w0, w1, F, T, se, averages, rows, identity)
-
-
-def report(path, folder):
-    """Taxes on a finished file (its own columns) and the year's calculator targets evaluated on
-    its weights before and after the tilt: <folder>/taxes_fit.csv."""
-    import target_list as TLS
-    os.makedirs(folder, exist_ok=True)
-    df = pd.read_parquet(path)
-    if 'calc_txbl_inc' not in df:
-        import calculator as C
-        inp, notes = C.convert(df)
-        out, man = run_batch(inp, Y, folder, 'report')
-        cols = joined_columns(out)
-        cols.index = df.index
-        df = pd.concat([df, cols], axis=1)
-    rows = TLS.expand(Y, start=df, which='calculator')
-    fit = evaluate(df, rows, df['weight_start'].to_numpy(float), df['weight'].to_numpy(float))
-    fit.to_csv(f'{folder}/taxes_fit.csv', index=False)
-    common.say(fit[['group', 'target', 'value', 'before', 'after', 'se', 'miss_in_se']].to_string())
-
-
-if __name__ == '__main__':
-    assert sys.argv[1] == 'report', 'usage: python taxes.py report <file> <folder>'
-    report(sys.argv[2], sys.argv[3])

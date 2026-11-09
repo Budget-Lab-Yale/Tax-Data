@@ -1,12 +1,12 @@
 """The run report (TARGETS.md section 14): one short page per year, and one table behind each of its sections.
 
-Reads, in the tilt run's folder (common.TILT, or --run):
+Reads, in the tilt run's folder (common.TILT):
   file_<year>.parquet  every record, with weight_start (the weight before the tilt), weight (after) and, when the
                        prior pools several trained models, model (the training seed of the network that drew it)
   fit.csv              one row per target, keyed by (kind, group, target): value, before, after, and from the
                        solver se, miss_in_se, over_1_se, effective_records, largest_weight_factor and flag
   targets.csv          the year's expanded target list (statistic, variable, error_kind, source, ...)
-Writes, in the same folder or --out (REBUILD_REPORT_OUT):
+Writes, in the same folder:
   report.md                  the summary page
   report_targets.csv         1. every target: value, error, where the file lands, the miss in standard errors
   report_thin_cells.csv      2. the effective number of records behind each target and its largest weight factor
@@ -27,7 +27,6 @@ item's absolute values), so that a signed item whose total is near zero does not
 
 Run: python report_tilt.py [--run DIR] [--out DIR] [--year YEAR]   (in a Slurm job, as every stage)
 """
-import argparse
 import datetime
 import os
 import re
@@ -811,15 +810,11 @@ def non_micro_page(run):
     return [('#' + x) if x.startswith('## ') else x for x in lines]
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--run', default=common.TILT, help='the tilt run folder (default common.TILT)')
-    ap.add_argument('--out', default=os.environ.get('REBUILD_REPORT_OUT'), help='where to write (default: --run)')
-    ap.add_argument('--year', type=int, default=common.TARGET_YEAR)
-    a = ap.parse_args(argv)
-    out = a.out or a.run
+def main():
+    run = out = common.TILT
+    year = common.TARGET_YEAR
     os.makedirs(out, exist_ok=True)
-    df, fit, tl = read_run(a.run, a.year)
+    df, fit, tl = read_run(run, year)
     w0, w1 = df['weight_start'].to_numpy(float), df['weight'].to_numpy(float)
 
     n1, n3, n5 = [], [], []
@@ -829,7 +824,7 @@ def main(argv=None):
     tv = targeted_variables(tl)
     mv = moves(standard_stats(df, {'before': w0, 'after': w1}), tv)
     mt = model_table(df, w1, tv, n5)
-    ov = overall(df, t, th, w0, w1, a.run, tl)
+    ov = overall(df, t, th, w0, w1, run, tl)
 
     t.to_csv(f'{out}/report_targets.csv', index=False)
     th.to_csv(f'{out}/report_thin_cells.csv', index=False)
@@ -839,14 +834,14 @@ def main(argv=None):
         mt.to_csv(f'{out}/report_models.csv', index=False)
     ov.to_csv(f'{out}/report_overall.csv', index=False)
     notes = lambda ns: ([''] + [f'- {n}' for n in ns]) if ns else []
-    text = [f'# The {a.year} run', '', f'Written {datetime.date.today()} from {a.run}. Dollars are nominal {a.year} '
+    text = [f'# The {year} run', '', f'Written {datetime.date.today()} from {run}. Dollars are nominal {year} '
             f'dollars. Each section has a full table beside this page.', '',
             '## Overall', '', ov.to_markdown(index=False), '',
             '## 1. Targets', ''] + target_page(t, n1) + ['', '## 2. Thin cells', ''] + thin_page(th) + \
         ['', '## 3. Published numbers not targeted', ''] + published_page(p) + notes(n3) + \
         ['', '## 4. What the tilt moved', ''] + moves_page(mv) + \
         ['', '## 5. Model disagreement', ''] + models_page(mt, n5) + \
-        ['', '## 6. Non-microdata imputations: published checks (reported only)', ''] + non_micro_page(a.run) + ['']
+        ['', '## 6. Non-microdata imputations: published checks (reported only)', ''] + non_micro_page(run) + ['']
     open(f'{out}/report.md', 'w').write('\n'.join(text))
     common.say('\n'.join(text))
 

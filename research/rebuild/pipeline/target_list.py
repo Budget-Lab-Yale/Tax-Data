@@ -1976,11 +1976,3 @@ def write(rows, folder, year=common.TARGET_YEAR):
     ex = LAST.get('excluded') if LAST.get('year') == int(year) else None
     if ex is not None and len(ex):
         ex.to_csv(f'{folder}/targets_excluded.csv', index=False)
-
-
-if __name__ == '__main__':
-    rows = expand(common.TARGET_YEAR)
-    out = os.environ.get('REBUILD_TARGETS_OUT', common.TILT)
-    write(rows, out)
-    common.say(f'{len(rows)} targets for {common.TARGET_YEAR} written to {out}/targets.csv')
-    common.say(rows.groupby(['kind', 'error_kind']).size().to_string())
