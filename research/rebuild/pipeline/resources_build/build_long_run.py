@@ -9,7 +9,9 @@ projection_series_*.csv files, keeping the earlier rows byte for byte.
 """
 import csv
 import os
+import re
 import sys
+import zipfile
 
 import numpy as np
 import pandas as pd
@@ -122,19 +124,60 @@ for name in ('projection_series_b.csv', 'projection_series_med.csv'):
     write_series(name, base, vals)
     print(f'{name}: rows {L + 1}-{LAST} added for {len(d.columns)} columns')
 
-# projection_series_current.csv: the growth in total of the items-table rows that follow a CBO or Federal Reserve
-# series. This section calls projection_growth.plan_factors, which the pipeline does not have, so it stops here; the
-# pipeline reads the committed projection_series_current.csv.
-from scale import projection_growth as PG  # noqa: E402
+# ---- 4. the series of the items that follow the Z.1 or NIPA, then CBO --------------------------------------------
+# projection_series_current.csv: for each items-table row on series 'current' (the balance sheet, pass-through gains
+# and the consumption categories), the growth in total from 2023. Each year's growth per return is the series' growth
+# over CBO's growth in the number of returns; resources/projection_growth_mapping.csv names the series, by the item's
+# old name where it has one (Z.1 fourth-quarter stocks and NIPA PCE categories through 2025, CBO's GDP and total PCE
+# after). The years' factors are compounded, then multiplied by CBO's growth in returns over the same years.
+from scale.projection_growth import cbo_return_growth  # noqa: E402
+
+GROWTH_MAP = pd.read_csv(os.path.join(RES, 'projection_growth_mapping.csv'))
+CBO_ECON = pd.read_csv(os.path.join(RES, 'cbo_economic.csv'), dtype={'date': str}).set_index(['variable', 'date'])['value']
+NIPA_PCE = pd.read_csv(os.path.join(RES, 'growth', 'nipa_pce_categories.csv')).set_index('year')
+with zipfile.ZipFile(common.RAW['z1']) as archive:
+    Z1 = [pd.read_csv(archive.open(n)).set_index('date') for n in ('csv/S1M_b.csv', 'csv/F4_3_s.csv')]
+
+
+def z1_level(expr, y):
+    """The fourth-quarter level of a Z.1 expression 'FL... + LM... minus FL...', summed term by term."""
+    parts = re.split(r' (\+|minus) ', expr)
+    terms = [(parts[0], 1)] + [(parts[i + 1], 1 if parts[i] == '+' else -1) for i in range(1, len(parts), 2)]
+    level = 0.
+    for series, sign in terms:
+        frames = [d for d in Z1 if series in d.columns and f'{y}:Q4' in d.index]
+        assert frames, f'Z.1 series {series} is absent for {y}'
+        level += sign * float(frames[0].loc[f'{y}:Q4', series])
+    return level
+
+
+def per_return(col, y):
+    """The column's growth per return from y - 1 to y."""
+    if col.startswith('c_'):
+        a, b = (float(NIPA_PCE.loc[y - 1, col]), float(NIPA_PCE.loc[y, col])) if y <= 2025 else \
+            (float(CBO_ECON[('pce', str(y - 1))]), float(CBO_ECON[('pce', str(y))]))
+    else:
+        key = GROWTH_MAP.loc[(GROWTH_MAP.renamed_item == col) | (GROWTH_MAP.old_item == col), 'old_item'].unique()
+        assert len(key) == 1, f'{col}: {len(key)} mapping keys {list(key)}'
+        rule = GROWTH_MAP[(GROWTH_MAP.old_item == key[0]) & (GROWTH_MAP.source == 'Federal Reserve Z.1 and CBO')]
+        assert len(rule) == 1, f'{col}: expected one Z.1 rule, found {len(rule)}'
+        expr = rule.iloc[0]['series'].split(' through 2025; then CBO gdp')[0]
+        a, b = (z1_level(expr, y - 1), z1_level(expr, y)) if y <= 2025 else \
+            (float(CBO_ECON[('gdp', str(y - 1))]), float(CBO_ECON[('gdp', str(y))]))
+    assert np.isfinite(a) and np.isfinite(b) and a > 0 and b > 0, f'{col} {y}: levels {a}, {b}'
+    return (b / a) / cbo_return_growth(y)
+
+
 rows = MAP[MAP.file == 'projection_series_current.csv'].set_index('column')
 cols = list(rows.index)
 g = {c: {2023: 1.0} for c in cols}
 for t in range(2024, L + 1):
-    got, probs = PG.plan_factors(cols, t, None, strict=False, from_year=2023)
-    assert not probs, f'{t}: today\'s rule does not resolve {probs}'
-    R = float(np.prod([PG.cbo_return_growth(y) for y in range(2024, t + 1)]))   # as tilt.grow_dollars, item mode
-    for r in got.itertuples():
-        g[r.column][t] = float(r.factor) * R
+    R = float(np.prod([cbo_return_growth(y) for y in range(2024, t + 1)]))
+    for c in cols:
+        f = per_return(c, 2024)
+        for y in range(2025, t + 1):
+            f = f * per_return(c, y)
+        g[c][t] = f * R
 vals = {c: continued(c, rows.loc[c, 'kind'], rows.loc[c, 'aggregate'], rows.loc[c, 'per'], g[c]) for c in cols}
 with open(os.path.join(RES, 'projection_series_current.csv'), 'w', newline='') as f:
     f.write(','.join(['year'] + cols) + '\n')
