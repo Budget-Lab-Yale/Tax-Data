@@ -1,66 +1,24 @@
-"""The reweighting solver (the one-cost rule) and the fit table with its thin-cell measures.
-
-The rule. The new weights minimize one cost,
-
-    sum over targets of 0.5 x importance x (miss / standard error)^2  +  tau x D(w),
-
-where a target's miss is where the file lands less the target's value, and D(w) is the Kullback-Leibler move of the
-weights from the starting weights, in nats (on the weights divided by the sum of the starting weights). Identities
-(targets exact by definition, such as the total number of units) are met exactly. Every other target is pulled toward
-its value with a force that grows with the miss measured in its own standard errors, and the pull is balanced against
-the move of the weights. tau (settings tilt.reweighting.tau) is the weight of the move against the misses: the
-larger it is, the closer the file stays to the start and the larger the misses. A target's importance is 1 for the
-published figures of the IRS and for the calculator's columns against them, and less for every other kind of target
-(settings tilt.reweighting). No target is dropped and no target has a range: every one is in the cost, each at its own
-scale.
-
-Optionally a soft cap on each record's final weight: the cost gains 0.5 x beta x ((w_i - U_i)+ / U_i)^2 for each
-record, where U_i is the record's cap (solver_soft_upper), nothing below U_i and a quadratic above it. beta = x^2
-makes a record at twice its cap cost as much as an x standard-error miss on a target of importance 1.
-
-How it is solved. Every target is a linear condition on the weights, F.T @ w = T. The weights closest to the start
-that meet a set of linear conditions have the form w = w0 x exp(F @ lambda), one multiplier per condition, and with the
-misses in the cost the multipliers minimize a smooth, strictly convex function (the dual) by Newton's method; the
-miss on target j is then minus tau x s_j^2 x lambda_j / rho_j. An identity has a standard error of zero, so its
-miss is zero. Newton's method is given a budget of steps in all (settings tilt.reweighting.newton_budget). With the
-soft cap, a record's weight solves a one-variable equation (_soft_weights) and the dual's curvature changes above the
-cap.
-
-Averages and shares. The standard error of an average is on the average itself. The condition "the group's average of
-v is m" is written as sum over the group of w (v - m) = 0, whose miss is the group's weight times the miss on the
-average, so the standard error used is the average's standard error times the group's weight AFTER the reweighting, so
-that a miss of one standard error costs exactly 0.5. That weight is not known in advance: the solve is taken at the
-start's group weight and, if any group moved by more than the settings' average_weight_change, once more at the first
-answer's. The solver writes average conditions this way itself, from averages[j] = (member, v, m), in place of F[:, j]
-and T[j].
-
-Thin cells. For each target, after the reweighting: the effective number of records behind it,
-(sum_i w_i |f_i|)^2 / sum_i (w_i f_i)^2 over the records with f_i != 0, where f_i is the record's contribution (its
-column of F; for an average, the record's v within the group, which is what the group's total of v rests on); and
-the largest weight factor, final over starting weight, among those records that hold at least 1% of the cell's
-weighted total after the reweighting (THIN_FACTOR_MIN_SHARE; without it, one record moved far flags every large cell
-it sits in, though none of them rests on it). A warning below 30 effective records or above a factor of 10; a stop
-below 10 or above 100 (THIN_WARNING and THIN_STOP). A stop does not stop the run: the summary says STOP at the top.
+"""The reweighting solver and the fit table. The new weights minimize the sum over targets of 0.5 x importance x
+(miss / standard error)^2 plus tau times the Kullback-Leibler move from the starting weights, with identities met
+exactly and an optional soft cap on each weight; _solve describes the method. fit_table measures each target's fit and
+how thin its cell is. See FEATURES.md, "The solve".
 """
 import numpy as np
 import pandas as pd
 
 
-# What Newton's method did in the last solve. 'steps': Newton steps taken over every call of _newton in the solve (the
-# budget is on this number); 'calls': the number of calls; 'capped_calls': calls that ended without meeting the
-# stopping size. Set by _solve.
+# What Newton's method did in the last solve: steps over every call (the budget is on this number), calls, and calls
+# that ended without meeting the stopping size.
 NEWTON = {'steps': 0, 'calls': 0, 'capped_calls': 0}
 
 
 # ---- the conditions --------------------------------------------------------------------
 def _conditions(w0, F, T, averages, offset=None, extra=None, size_of=None):
-    """The linear conditions the solver works with: F and T as given, except that an average or share is rewritten
-    as sum over its group of w (v - m) = 0. Also each condition's size (to put every condition on a scale of about
-    1), and for averages the group (member) whose weight converts the standard error.
-    With records held fixed (solve's fixed), the conditions are on the other records only: T is then the
-    target less the fixed records' contribution, offset[j] the right-hand side of an average's condition (minus the
-    fixed members' sum of w (v - m)), extra[j] the fixed members' weight in an average's group, and size_of the
-    full targets, so each condition keeps the size it has on the whole file."""
+    """The linear conditions the solver works with: F and T as given, except that an average or share is rewritten as
+    sum over its group of w (v - m) = 0. Also each condition's size, which puts every condition on a scale of about 1,
+    and for averages the group whose weight converts the standard error. With records held fixed, T is the target less
+    the fixed records' contribution, offset[j] the right-hand side of an average's condition, extra[j] the fixed
+    members' weight in an average's group, and size_of the full targets, so each condition keeps its whole-file size."""
     G, Tl = F.copy(), T.copy()
     member = [None] * len(T)
     size = np.abs(T if size_of is None else size_of).astype(float)
@@ -109,8 +67,8 @@ def _soft_weights(z, p, c, U):
             w = np.maximum(w - step, 1e-300)
             if np.abs(step / w).max() < 1e-15:
                 break
+        # a record whose unconstrained weight is above the cap but whose root is not (rounding at the kink) stays at the cap
         e[over] = np.maximum(w / c[over], U[over])
-        # a record whose unconstrained weight is above the cap and whose root is not (rounding at the kink): keep it at the cap
     return e
 
 
@@ -195,26 +153,19 @@ def _newton(X, t, p, s2, lam, max_steps, tol, soft=None):
 
 
 def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, size_of=None):
-    """The one cost (module docstring) on the records given (solve without fixed records, or the free records of solve
-    with them: offset, extra and size_of as in _conditions). With m_j the miss of target j, s_j its standard error and
-    rho_j its importance:
+    """The one cost on the records given: all records, or the free ones when solve holds some fixed (offset, extra and
+    size_of as in _conditions). With m_j the miss of target j, s_j its standard error and rho_j its importance:
 
         minimize   sum_j 0.5 rho_j (m_j / s_j)^2  +  tau x D(w),    identities exact,
         D(w) = sum_i [w_i log(w_i / w0_i) - w_i + w0_i]   on weights divided by sum(w0), so D is in nats.
 
-    The answer is w_i = w0_i exp((X lambda)_i), with lambda the minimizer of the smooth, strictly convex function
+    The answer is w_i = w0_i exp((X lambda)_i), with lambda the minimizer of the smooth, strictly convex dual
         phi(lambda) = sum_i p_i exp((X lambda)_i) - t . lambda + (1/2) sum_j (tau s_j^2 / rho_j) lambda_j^2,
-    whose gradient X'w - t + tau (s^2 / rho) lambda is zero when m_j = - tau s_j^2 lambda_j / rho_j (X, t and p are the
-    conditions and weights on the solver's scale, as in _newton). An identity has s = 0, so its penalty term vanishes
-    and the condition is met exactly. Settings read: 'reweighting' {tau, newton_budget (150), gradient_tolerance (1e-8),
-    average_weight_change (1e-3)}; solver_importance (one positive number per target, 1 if absent); and, for the soft cap,
-    solver_soft_upper (each record's cap U_i, a weight; one per record of this call) with solver_soft_beta. In the dual
-    the soft cap's record term is the conjugate of h(e) = e log(e/p) - e + p + (c/2)((e - U)+)^2 with
-    c = beta / (tau U^2) (shares of the starting total), solved record by record (_soft_weights).
-    An average's standard error is on the average itself, so its penalty carries the group's weight after the
-    reweighting: it is taken at the start's group weight, then once more at the first answer's if that moved any group
-    by more than average_weight_change (and steps are left).
-    The budget is the number of Newton steps in all, over every call."""
+    whose gradient is zero when m_j = - tau s_j^2 lambda_j / rho_j (X, t and p on the solver's scale). An identity has
+    s = 0 and is met exactly. With the soft cap the record term is the conjugate of the capped cost, solved record by
+    record (_soft_weights). An average's standard error is on the average itself, so its penalty carries the group's
+    weight after the reweighting: the solve is taken at the start's group weights, then again at the first answer's if
+    any group moved by more than average_weight_change. The Newton budget counts steps over every call."""
     cfg = settings['reweighting']
     tau = float(cfg['tau'])
     assert tau > 0, "settings 'reweighting' with tau above 0"
@@ -285,19 +236,12 @@ def _solve(w0, F, T, se, identity, averages, settings, offset=None, extra=None, 
 
 
 def solve(w0, F, T, se, identity, averages, settings, fixed=None):
-    """The one-cost reweighting (module docstring). w0: starting weights (records). F: records x targets, so that target j
-    is met when F[:, j] @ w == T[j]. se: each target's standard error in the published statistic's units (on the
-    average itself for an average or share; ignored for identities). identity: True where the target is exact by
-    definition. averages[j]: (member, v, m) for 'the average of v over the group member is m' (F[:, j] and T[j] are
-    then not used), else None. settings: see _solve.
-    fixed (the billionaires): None, or a mask of records whose weights stay exactly at w0. Their contribution is a
-    constant: a total's target becomes T less the fixed records' F.T @ w0; an average's condition, sum over the group
-    of w (v - m) = 0, becomes sum over the free members = minus the fixed members' sum, and its standard error counts
-    the fixed members' weight in the group's weight too. Only the other weights are solved for; every measure below is
-    on the whole file.
-    Returns the new weights and a dict: converged, how (a sentence), newton_steps, newton_calls, the Kullback-Leibler
-    move and effective sample kept (with fixed records, also the same two on the free records alone: kl_move_free,
-    effective_sample_kept_free). The per-target measures are fit_table's."""
+    """The reweighting. w0: starting weights. F: records x targets, so that target j is met when F[:, j] @ w == T[j].
+    se: each target's standard error in the published statistic's units (on the average itself for an average or
+    share). identity: True where the target is exact by definition. averages[j]: (member, v, m) for 'the average of v
+    over the group member is m' (F[:, j] and T[j] are then not used), else None. settings: see _solve. fixed: None, or
+    a mask of records whose weights stay exactly at w0; their contribution enters each condition as a constant and only
+    the other weights are solved for. Returns the new weights and a dict describing the solve and the move."""
     w0 = np.asarray(w0, float)
     F = np.asarray(F, float)
     T = np.asarray(T, float)
@@ -339,14 +283,11 @@ def solve(w0, F, T, se, identity, averages, settings, fixed=None):
 
 
 def fixed_feasibility(w0, F, T, se, identity, averages, fixed):
-    """Before the solve, for every target: what the fixed records (the billionaires) contribute, what is left for the
-    others, and whether the others alone could reach it exactly with nonnegative weights. A total: the free records'
-    sum of w x F can be any number of the signs their contributions have (0 or more if every contribution is 0 or
-    more; any number if both signs occur; only 0 if none contributes), so the remainder must meet that set. An average m
-    over a group: the free members' sum of w (v - m) must equal minus the fixed members' sum, which is checked the same
-    way on the signs of v - m among the free members. 'billionaires alone exceed': a total whose free contributions are
-    all 0 or more, which the fixed records alone put above its value. Each target on its own; whether they can all be
-    met together is the solve's own answer. Returns one row per target."""
+    """Before the solve, for every target: what the fixed records contribute, what is left for the others, and whether
+    the others alone could reach it with nonnegative weights. The free records can add any amount of the signs their
+    contributions have, so the remainder must have one of those signs or be zero. 'billionaires alone exceed': a total
+    the free records can only add to, which the fixed records alone already put above its value. Each target is checked
+    on its own. Returns one row per target."""
     w0, F, T = (np.asarray(a, float) for a in (w0, F, T))
     fixed = np.asarray(fixed, bool)
     free = ~fixed
@@ -388,7 +329,7 @@ def kl_move(w0, w1):
 
 
 def move(w0, w1):
-    """How far the tilt moved the weights: Kullback-Leibler divergence of the new weights' shares from the starting
+    """How far the weights moved: Kullback-Leibler divergence of the new weights' shares from the starting
     shares, the share of the effective sample kept, and the smallest and largest weight factors."""
     on = w0 > 0
     f = w1[on] / w0[on]
@@ -400,7 +341,7 @@ def move(w0, w1):
 # ---- per-target measures and the fit table -----------------------------------------------------
 # Thin cells (thin_cells): a cell is flagged 'warning' with fewer than THIN_WARNING[0] effective records or a weight
 # factor above THIN_WARNING[1] among its material records, 'stop' with fewer than THIN_STOP[0] or above THIN_STOP[1];
-# a record is material when it holds at least THIN_FACTOR_MIN_SHARE of the cell's weighted total after the tilt.
+# a record is material when it holds at least THIN_FACTOR_MIN_SHARE of the cell's weighted total after the reweighting.
 THIN_WARNING = (30, 10)
 THIN_STOP = (10, 100)
 THIN_FACTOR_MIN_SHARE = 0.01
@@ -408,12 +349,11 @@ BLOCK = 50   # targets per block in thin_cells: the records x targets temporarie
 
 
 def thin_cells(w0, w1, F, averages, factors=True):
-    """Per target: the effective records behind it after the tilt; the largest weight factor among the records that
-    hold at least THIN_FACTOR_MIN_SHARE (1%) of the cell's weighted total after the tilt (one record moved far that
-    holds a sliver of a large cell does not make the cell thin; its factor is still in the run's overall measures);
-    the number of records behind it (contribution != 0); the flag; and which test tripped it ('effective records',
-    'weight factor', 'both', or 'no records'). A record's contribution is its column of F, or for an average its v
-    within the group. With factors False only the effective records are computed (the others are NaN or empty)."""
+    """Per target: the effective records behind it, (sum w |f|)^2 / sum (w f)^2 with f a record's contribution; the
+    largest weight factor among the records holding at least THIN_FACTOR_MIN_SHARE of the cell's weighted total, so that
+    one record moved far does not flag every large cell it is in; the number of records with a contribution; the flag;
+    and which test raised it. A record's contribution is its column of F, or for an average its v within the group.
+    With factors False only the effective records are computed."""
     n, m = F.shape
     eff, largest, records = np.zeros(m), np.full(m, np.nan), np.zeros(m, int)
     w1sq = w1 ** 2
@@ -486,12 +426,9 @@ def _per_target(w0, w1, F, T, se, identity, averages):
 
 def suggest_merges(cells, eff, flag):
     """For each flagged target, a merge that might fix it: a neighbouring cell of the same kind and variable. The
-    candidates are the other rows of that kind and variable whose group label differs from this one in exactly one
-    part, parts being separated by a comma and a space: 'age 26-34, married' has 'age under 26, married', 'age 35-44,
-    married' and 'age 26-34, not married'; an AGI bracket has every other bracket. The neighbours are the candidates
-    just before and after it in the rows' order, and the thinner of the two is suggested. Totals over everything
-    ('all', or a group ending ', all') are not merge partners. Empty when there is no candidate. Only a suggestion:
-    for nested cells (above the 99th percentile, above the 90th) it means widening the cell."""
+    candidates are the rows whose group label differs from this one in exactly one comma-separated part ('age 26-34,
+    married' has 'age 35-44, married' and 'age 26-34, not married'); of the candidates just before and after it in row
+    order, the thinner is suggested. Totals ('all', or a group ending ', all') are not merge partners."""
     var = 'variable' if 'variable' in cells.columns else 'target'
     groups = cells['group'].astype(str).to_numpy()
     parts = [g.split(', ') for g in groups]     # comma and space: '$1,000,000 or more' is one part
@@ -512,12 +449,9 @@ def suggest_merges(cells, eff, flag):
 
 
 def fit_table(w0, w1, F, T, se, averages, cells, identity=None):
-    """fit.csv: group, target, value, kind, average, before, after, after / target (for a share or an average the
-    value, before and after are the share or average itself), se (in the published statistic's units), miss_in_se
-    (empty for identities), over_1_se (the miss is more than one standard error), effective_records,
-    largest_weight_factor (among the records holding at least 1% of the cell, see thin_cells), flag ('', 'warning',
-    'stop'), flag_reason, records (the number carrying the cell), effective_records_before (the same measure on the
-    starting weights: a cell thin before the reweighting is thin in the prior, not stretched by it) and suggested_merge.
+    """fit.csv: one row per target with its value, before and after (for a share or an average, the share or average
+    itself), standard error, miss in standard errors, the thin-cell measures, the effective records on the starting
+    weights (a cell thin before the reweighting is thin in the prior, not made thin by it) and a suggested merge.
     Identities are the targets with se 0 unless identity is given."""
     w0, w1, F, T, se = (np.asarray(a, float) for a in (w0, w1, F, T, se))
     averages = list(averages) if averages is not None else [None] * len(T)
