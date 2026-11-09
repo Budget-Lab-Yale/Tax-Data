@@ -1,8 +1,19 @@
-"""Each record's federal income and payroll taxes under the target year's law, from tax-simulator-gpu's batch command,
-computed on the start before the reweighting and joined by record id as the calc_* columns. Also the rules applied with
-the calculator's help first: repealed adjustments, the refund rule and the Schedule A step. The reweighting moves
-weights only, so the taxes stay right after it. Writes the calculator's inputs and outputs and taxes_summary.md to
-<tilt>/taxes/. See FEATURES.md, "Taxes from the calculator".
+"""Each record's federal income and payroll taxes under the target year's law.
+
+The taxes come from the batch command of tax-simulator-gpu, the Budget Lab's tax calculator, run on a pinned copy of
+its code. They are computed on the start, before the reweighting, and joined to the file by record id as the calc_*
+columns. The reweighting changes only the weights, so the taxes remain correct after it.
+
+Three rules are applied before the final calculator run, each using the calculator's results:
+
+1. Adjustments to income that the year's law has repealed are set to zero.
+2. Taxable refunds of state income tax are kept only on returns that itemize, and only as far as the tax benefit rule
+   allows.
+3. Each Schedule A category's inputs are scaled by one factor so that the dollars per claiming return match SOI
+   Table 2.1 (the "greedy Schedule A step").
+
+Writes the calculator's inputs and outputs and taxes_summary.md to the year's tilt folder, under taxes/. FEATURES.md,
+"5. Reweighting", "Taxes from the calculator", describes the rules.
 """
 import json
 import os
@@ -16,8 +27,9 @@ from shared import dollars as D
 
 S = common.SETTINGS['taxes']
 
-# The columns joined to the file: file column -> (the calculator's column, or a formula on its columns, and meaning).
-# Each is the calculator's own name with calc_ in front, so a computed item is never mistaken for a drawn one.
+# The columns joined to the file. Each entry is: the file's column, then (the calculator's column or a formula on its
+# columns, and what the column means). Each file column is the calculator's own name with calc_ in front, so that a
+# computed amount is never mistaken for a drawn one.
 OUTPUTS = {
     'calc_claimed_medical': ('claimed_medical', 'medical deductions on itemizers'),
     'calc_claimed_taxes': ('claimed_taxes', 'taxes paid deductions on itemizers'),
@@ -41,8 +53,8 @@ OUTPUTS = {
     'calc_ed_ref': ('ed_ref', 'the refundable part of the American opportunity credit'),
     'calc_cdctc_nonref': ('cdctc_nonref', 'credit for child and dependent care, used against tax'),
     'calc_savers_nonref': ('savers_nonref', 'retirement savings contributions credit, used against tax'),
-    # itemizers' cash gifts and gifts other than cash as reported on Schedule A (before the deduction's limits), for
-    # Table 2.1's targets; set in compute from the calculator's input and its itemizing flag
+    # Itemizers' gifts to charity, in cash and other than cash, as reported on Schedule A before the deduction's
+    # limits. They are for Table 2.1's targets, and compute sets them from the calculator's input and itemizing flag.
     'calc_char_cash_itemizers': ('input char_cash x itemizing', 'cash gifts to charity on itemizing returns, as reported'),
     'calc_char_noncash_itemizers': ('input char_noncash x itemizing', 'gifts to charity other than cash on itemizing returns, as reported'),
     'calc_eitc': ('eitc', 'earned income tax credit, all of it (refundable and used against tax)'),
@@ -64,13 +76,16 @@ OUTPUTS = {
 }
 
 
-# ---- 1. the batch command ------------------------------------------------------------------------------------
+# ---- Running the calculator ----
+
 def lib():
+    """The folder of the pinned copy of tax-simulator-gpu."""
     return f'{common.OUT}/lib/tax-simulator-gpu_{S["commit"][:12]}'
 
 
 def pin():
-    """The pinned copy of tax-simulator-gpu: written once from the repository with git archive; checked every run."""
+    """The pinned copy of tax-simulator-gpu at the commit in settings taxes.commit. It is written once from the
+    repository with git archive, and its commit is checked on every run. Returns its folder."""
     path = lib()
     stamp = f'{path}/PINNED_COMMIT'
     if not os.path.exists(stamp):
@@ -85,16 +100,17 @@ def pin():
 
 
 def run_batch(frame, year, folder, tag, wage_increment=0.0):
-    """The calculator's input frame (calculator_input.convert's) through tax-simulator-gpu's batch command under year's law.
-    Writes <folder>/taxes_input_<tag>.parquet and taxes_output_<tag>.parquet (with its manifest). Returns the output
-    in the input's record order and the manifest."""
+    """Runs the calculator's input frame (made by calculator_input.convert) through tax-simulator-gpu's batch command
+    under year's law. With a wage increment, the calculator also computes marginal tax rates on wages. Writes
+    <folder>/taxes_input_<tag>.parquet and taxes_output_<tag>.parquet, with the output's manifest (a JSON file that
+    describes the run). Returns the output, in the input's record order, and the manifest."""
     path = pin()
     os.makedirs(folder, exist_ok=True)
     src, dst = f'{folder}/taxes_input_{tag}.parquet', f'{folder}/taxes_output_{tag}.parquet'
     frame.to_parquet(src, index=False)
     env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'LD_LIBRARY_PATH', 'PYTHONHOME')}
     env.update(PYTHONPATH=f'{path}/src', PYTHONUNBUFFERED='1')
-    env['JAX_PLATFORMS'] = 'cpu'   # the calculator runs on the CPU, as the whole tilt does
+    env['JAX_PLATFORMS'] = 'cpu'   # the calculator runs on the CPU, as the whole reweighting stage does
     cmd = [S['python'], '-m', 'taxmodel.run.batch', '--records', src, '--year', str(int(year)), '--out', dst,
            '--seed', str(S['draw_seed']), '--commit', S['commit'], '--wage-increment', str(float(wage_increment))]
     common.say('taxes: ' + ' '.join(cmd))
@@ -110,7 +126,9 @@ def run_batch(frame, year, folder, tag, wage_increment=0.0):
 
 
 def joined_columns(out):
-    """OUTPUTS from a batch output, in the output's record order."""
+    """The columns in OUTPUTS, computed from a batch output, in the output's record order. The marginal rates are left
+    out of a run without a wage increment, and the columns taken from the calculator's input are set later, in
+    compute."""
     x = lambda c: out[c].to_numpy(float)
     cols = {}
     for name, (src, _) in OUTPUTS.items():
@@ -129,8 +147,9 @@ def joined_columns(out):
     return pd.DataFrame(cols)
 
 
-# ---- the refund rule and the greedy Schedule A step ----------------------------
-SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculator's claimed column)
+# ---- The rules applied before the final run ----
+
+SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculator's column of the amount claimed)
     'medical': (['med_exp'], 'claimed_medical'),
     'taxes': (['salt_inc_sales', 'salt_prop'], 'claimed_taxes'),
     'interest': (['first_mort_int'], 'claimed_interest'),
@@ -139,10 +158,11 @@ SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculat
 
 
 def apply_repealed_adjustments(df, year, w, ctx):
-    """Adjustments the law has repealed by the year set to zero (settings taxes.repealed_adjustments: item -> first tax
-    year without it). The draw carries 2015's claims into every year and the calculator ignores them under the year's
-    law, so without this the file's adjustments and AGI would disagree with the calculator's. The adjustments total and
-    other_agi move by the removed dollars, and taxable Social Security is computed again on the new AGI."""
+    """Sets to zero the adjustments to income that the law has repealed by the year (settings
+    taxes.repealed_adjustments gives each item and the first tax year without it). The draw carries the PUF's 2015
+    claims into every year, and the calculator ignores them under the year's law. Without this rule the file's
+    adjustments and AGI would differ from the calculator's. The adjustments total and other_agi change by the dollars
+    removed, and taxable Social Security is computed again on the new AGI."""
     rep = {k: int(v) for k, v in S['repealed_adjustments'].items() if not k.startswith('_')}
     gone = [k for k, y0 in rep.items() if year >= y0 and k in df]
     if not gone:
@@ -164,10 +184,13 @@ def apply_repealed_adjustments(df, year, w, ctx):
 
 
 def apply_refund_rule(df, year, w, folder, ctx, C):
-    """Taxable state refunds set to zero on records the calculator says do not itemize under the year's law, and the
-    total built from them (other_agi) lowered by the same dollars; then taxable Social Security, which depends on AGI,
-    computed again. One calculator run on the grown start gives the flag. Returns the frame; the counts go to
-    ctx['refund']."""
+    """The refund rule. A refund of state income tax is taxable only if the tax was deducted the year before. The rule
+    sets taxable state refunds to zero on records that the calculator says do not itemize under the year's law. From
+    the year in settings taxes.refund_tax_benefit_from, an itemizer's refund is also limited by the tax benefit rule.
+    other_agi, which includes the refund, falls by the dollars removed, and taxable Social Security, which depends on
+    AGI, is computed again. One calculator run on the start gives the itemizing flag. Returns the frame and puts the
+    counts in ctx['refund']."""
+    # 1. Run the calculator once to find which records itemize.
     inp, _ = C.convert(df)
     out, man = run_batch(inp, year, folder, 'refund', wage_increment=0.0)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
@@ -180,17 +203,20 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
            'dollars before ($ billion)': (w * ref)[filer].sum() / 1e9,
            'records zeroed (unweighted)': int(zero.sum()),
            'itemizing filers (millions)': w[filer & item].sum() / 1e6}
+    # 2. Keep the refund on itemizers only. A refund received in year t repays year t-1's taxes. The cap on the
+    #    deduction of state and local taxes therefore bears on refunds only from 2019; refunds of 2017 taxes were
+    #    deducted with no cap.
     df = df.copy()
     kept = np.where(item, ref, 0.0)
-    # a refund received in year t repays year t-1's taxes, so the cap on the deduction bears on it only from 2019
-    # (refunds of 2017 taxes were deducted with no cap)
     if int(year) >= int(S['refund_tax_benefit_from']):
         # The tax benefit rule (IRS Publication 525, worksheet 2): a refund of state income tax is taxable only to the
-        # extent that deducting the tax lowered tax. Two limits on an itemizer: (1) the taxes deduction the return
-        # claimed less the one it would have claimed had it paid the refund less tax, so under the cap a return whose
-        # taxes paid exceed the cap by more than the refund has no taxable refund; (2) the itemized deductions less the
-        # standard deduction. The current year's taxes paid and deductions stand in for last year's. The cap is read
-        # from the calculator's own result, so the rule needs no parameter of the year's law.
+        # extent that deducting the tax lowered tax. An itemizer's taxable refund has two limits:
+        #   (a) the taxes deduction the return claimed, less the deduction it would have claimed had it paid the refund
+        #       less in tax. Under the cap, a return whose taxes paid exceed the cap by more than the refund therefore
+        #       has no taxable refund;
+        #   (b) the itemized deductions less the standard deduction.
+        # The current year's taxes paid and deductions stand in for last year's. The cap enters through the
+        # calculator's own claimed taxes, so the rule needs no parameter of the year's law.
         paid = df['salt_inc_sales'].to_numpy(float) + df['salt_prop'].to_numpy(float)
         claimed = out['claimed_taxes'].to_numpy(float)
         excess = np.maximum(out['item_ded'].to_numpy(float) - out['std_ded'].to_numpy(float), 0.0)
@@ -198,9 +224,10 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
             'refund rule: a missing taxes paid, claimed taxes or deduction'
         benefit = np.maximum(claimed - np.maximum(paid - ref, 0.0), 0.0)
         kept = np.where(item, np.minimum(ref, np.minimum(benefit, excess)), 0.0)
-        # Returns still report part of the refunds the rule takes off: SOI has taxable refunds on about 5% of returns
-        # at AGI $2-5 million, where taxes paid are far above the cap. A record keeps its whole refund with this
-        # chance, drawn from its record id (the same draw every run).
+        # Some returns report refunds that the rule would remove: SOI shows taxable refunds on about 5% of returns
+        # with AGI of $2-5 million, where taxes paid are far above the cap. An itemizer therefore keeps its whole
+        # refund with probability refund_reported_anyway. The random number comes from the record id, so it is the
+        # same on every run.
         share = float(S['refund_reported_anyway'])
         if share > 0:
             rid = df['record_id'].to_numpy().astype(np.uint64)
@@ -209,15 +236,14 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
         row.update({'itemizer refunds cut by the tax benefit rule (unweighted)': int((item & (kept < ref - 1e-6)).sum()),
                     'itemizer refund dollars removed by the tax benefit rule, filers ($ billion)':
                         (w * (np.where(item, ref, 0.0) - kept))[filer].sum() / 1e9})
+    # 3. Lower other_agi, which includes the refund with sign +1 (dollars.FOLD), by the dollars the rule removed.
     df['state_ref'] = kept
     ref2 = df['state_ref'].to_numpy(float)
-    # every total built from the refund is recomputed with it: other_agi holds the refund (dollars.FOLD, sign +1), so
-    # it falls by what the rule removed
     assert (ref2 <= ref + 1e-9).all(), 'the refund rule only removes refunds'
     assert D.FOLD['state_ref'] == 1, 'other_agi is built from state_ref with sign +1 (dollars.FOLD)'
     df['other_agi'] = df['other_agi'].to_numpy(float) + D.FOLD['state_ref'] * (ref2 - ref)
-    # taxable Social Security, computed by the section 86 worksheet on AGI, is computed again on the lower AGI
-    # (dollars.retirement_items: the old amount is taken out of other_agi first)
+    # 4. Compute taxable Social Security again on the lower AGI by the section 86 worksheet
+    #    (dollars.retirement_items takes the old amount out of other_agi first).
     ss_before = df['ss_taxable'].to_numpy(float).copy()
     D.retirement_items(df, in_agi=True)
     ss_after = df['ss_taxable'].to_numpy(float)
@@ -236,11 +262,12 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
 
 
 def table21_averages(year):
-    """Table 2.1's dollars per claiming return, all AGI groups, by category: sum of amounts over sum of counts."""
+    """SOI Table 2.1's amount and number of claiming returns for each Schedule A category, over all AGI groups, as
+    (amount, count). None for a year without the table."""
     t = pd.read_csv(os.path.join(common.PIPELINE, S['greedy_schedule_a']['table21']))
-    # taxes paid is Table 2.1's state and local line (category taxes_state_local), as the targets use
+    # Taxes paid is Table 2.1's state and local line (category taxes_state_local), as in the targets.
     t = t.assign(category=t.category.replace({'taxes_state_local': 'taxes'}))[t.category != 'taxes']
-    t = t[(t.year == year) & t.category.isin(list(SCHEDULE_A))]   # the other residual has an amount only
+    t = t[(t.year == year) & t.category.isin(list(SCHEDULE_A))]   # the residual category has an amount only
     if not len(t):
         return None
     assert t[['count', 'amount']].notna().all().all(), f'Table 2.1 {year}: a missing count or amount'
@@ -248,8 +275,8 @@ def table21_averages(year):
 
 
 def prior_factor(col, year):
-    """The declared growth of a PUF amount from the PUF's year to the target year (growth.yaml), for the report; NaN with a
-    reason where the series cannot be read."""
+    """The growth of a PUF amount from the PUF's year to the target year declared in growth.yaml, for the report, and
+    its series. NaN, with the reason, where the series cannot be read."""
     from shared import growth as GR
     try:
         spec = GR.line(col, year)['source']
@@ -261,9 +288,11 @@ def prior_factor(col, year):
 
 
 def greedy_schedule_a(df, year, w, folder, ctx, C):
-    """Multiplies each Schedule A category's inputs by one factor s so that the start's dollars per claiming return
-    match Table 2.1's, over settings passes runs of the calculator, with s held within 1 plus or minus max_move.
-    Returns the frame with the inputs multiplied, or unchanged where the year has no Table 2.1."""
+    """The greedy Schedule A step. Multiplies each Schedule A category's inputs by one factor s, so that the start's
+    dollars per claiming return come close to Table 2.1's. Each pass runs the calculator with the current factors and
+    sets each category's next factor to s times Table 2.1's average over the start's. The factor is held between 1 -
+    max_move and 1 + max_move. Returns the frame with the inputs multiplied, or unchanged when the year has no
+    Table 2.1."""
     G = S['greedy_schedule_a']
     target = table21_averages(year)
     if target is None:
@@ -275,6 +304,7 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
     s = {c: 1.0 for c in SCHEDULE_A}
     lo, hi = 1.0 - G['max_move'], 1.0 + G['max_move']
     rows = []
+    # 1. The passes (settings greedy_schedule_a.passes).
     for p in range(int(G['passes'])):
         cur = base.copy()
         for c, (cols, _) in SCHEDULE_A.items():
@@ -295,6 +325,7 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
                          'Table 2.1 returns (millions)': target[c][1] / 1e6, 'next factor': new,
                          'held at the limit': bool(new in (lo, hi))})
             s[c] = new
+    # 2. Report each category's factor against the growth declared for it, and multiply the inputs by the factors.
     tab = pd.DataFrame(rows)
     pri = []
     for c, (cols, _) in SCHEDULE_A.items():
@@ -316,32 +347,36 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
     return out_df
 
 
-# ---- the stage inside the tilt ---------------------------------------------------------------------------------
+# ---- Computing the taxes ----
+
 def compute(df, year, w, folder):
-    """Every record's computed taxes joined to the file. df: the start, after the non-microdata imputations; w: the
-    start's weights. Returns the frame with OUTPUTS and a context for the summary."""
+    """Computes every record's taxes and joins them to the file. df is the start, after the non-microdata imputations,
+    and w is the start's weights. Returns the frame with the columns in OUTPUTS, and a dict of notes for the
+    summary."""
     from shared import calculator_input as C
     ctx = {'notes': [], 'runs': {}}
-    # A start from an earlier year's file carries that year's computed columns, under that year's law and dollars; they
-    # are dropped and computed again.
+    # 1. Drop the computed columns that a start from an earlier year's file carries. They were computed under that
+    #    year's law and dollars.
     stale = [c for c in OUTPUTS if c in df]
     if stale:
         df = df.drop(columns=stale)
         ctx['notes'].append(f'the start\'s computed columns (from its own year) dropped and computed again under '
                             f'{int(year)} law: {len(stale)} columns')
+    # 2. Apply the three rules: repealed adjustments, the refund rule and the greedy Schedule A step.
     df = apply_repealed_adjustments(df, int(year), w, ctx)
     df = apply_refund_rule(df, year, w, folder, ctx, C)
     df = greedy_schedule_a(df, year, w, folder, ctx, C)
+    # 3. The final calculator run, with marginal tax rates on wages.
     inp, notes = C.convert(df)
     ctx['conversion'] = notes
-
     out, man = run_batch(inp, year, folder, 'final', wage_increment=float(S['wage_increment']))
     ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
-    # The deductible half of self-employment tax is the calculator's, computed from each person's self-employment
-    # income and wages; the calculator never reads the drawn deduction. The adjustments total and other_agi move with
-    # it and taxable Social Security is computed again, so the file's AGI is the calculator's.
+    # 4. Replace the drawn deductible half of self-employment tax with the calculator's, which it computes from each
+    #    person's self-employment income and wages; the calculator never reads the drawn deduction. The adjustments
+    #    total and other_agi change with it, and taxable Social Security is computed again. The file's AGI then equals
+    #    the calculator's.
     new_se = out['liab_seca_er'].to_numpy(float)
     assert np.isfinite(new_se).all() and (new_se >= 0).all(), 'liab_seca_er: a missing or negative value'
     old_se = df['se_tax_ded'].to_numpy(float)
@@ -354,6 +389,7 @@ def compute(df, year, w, folder):
     df['adjustments'] = df['adjustments'].to_numpy(float) + (new_se - old_se)
     df['other_agi'] = df['other_agi'].to_numpy(float) - (new_se - old_se)
     D.retirement_items(df, in_agi=True)
+    # 5. Join the computed columns to the file, with the charity columns taken from the calculator's input.
     item = out['itemizing'].to_numpy(float) > 0
     for name, (src, _) in OUTPUTS.items():
         if src.startswith('input '):
@@ -372,7 +408,9 @@ def compute(df, year, w, folder):
 
 
 def summary_lines(ctx, df, w0, w1):
-    """The taxes section of the tilt's summary.md, also written to <tilt>/taxes/taxes_summary.md."""
+    """The taxes section of the reweighting's summary.md, also written to taxes/taxes_summary.md: the notes, each main
+    computed column's returns and dollars before and after the reweighting, the refund rule's counts and the Schedule A
+    factors."""
     filer = df['filer'].to_numpy() == 1
     lines = ['## Taxes computed inside the model (taxes.py)', ''] + [f'- {n}' for n in ctx['notes']] + ['']
     tab = []
@@ -397,9 +435,11 @@ def summary_lines(ctx, df, w0, w1):
     return lines
 
 
-# ---- the report on a finished file ------------------------------------------------------------------------------
+# ---- The calculator targets on a finished file ----
+
 def evaluate(df, rows, w0, w1):
-    """The calculator targets' rows evaluated on the file at weights w0 and w1 (solver.fit_table's columns)."""
+    """The targets on the calculator's columns, evaluated on the file under the weights w0 and w1, with the columns of
+    solver.fit_table. A year with no calculator targets gets an empty table."""
     from reweight import solver as SV
     from reweight import target_list as TLS
     if not len(rows):   # a year with no calculator entries
