@@ -23,7 +23,7 @@ TOP = 8                 # rows of each table shown on the summary page
 MIN_RECORDS = 200       # records holding the item, for a statistic to be listed
 # the solver's thin-cell thresholds (effective records, weight factor), as the page states them
 THIN = {'warning': SV.THIN_WARNING, 'stop': SV.THIN_STOP}
-SOI_CV = '/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-22/targets/irs_data/soi_cv.csv'
+SOI_CV = f'{common.TARGETS}/soi_cv/soi_cv.csv'   # written by prep/soi_cv.py
 AGI_GROUPS = [(-np.inf, 1, 'AGI below $1'), (1, 25e3, 'AGI $1-25k'), (25e3, 50e3, 'AGI $25k-50k'),
               (50e3, 100e3, 'AGI $50k-100k'), (100e3, 200e3, 'AGI $100k-200k'), (200e3, 1e6, 'AGI $200k-1m'),
               (1e6, np.inf, 'AGI $1m and over')]
@@ -409,7 +409,8 @@ def soi_errors(year):
     cv = cv.assign(cv=pd.to_numeric(cv['cv_pct'], errors='coerce'), v=pd.to_numeric(cv['value'], errors='coerce'),
                    item=cv['item'].str.lower().str.strip())
     lookup = {(r.row_label, r.item): r.cv for r in cv.itertuples() if np.isfinite(r.cv)}
-    d = cv[(cv['row_agi_lo'] != '') & (cv['cv'] > 0) & (cv['v'] > 0)]
+    total_row = ~np.isfinite(pd.to_numeric(cv['lo'])) & ~np.isfinite(pd.to_numeric(cv['hi']))   # the panel's total
+    d = cv[~total_row & (cv['cv'] > 0) & (cv['v'] > 0)]
     count = d[d['item'].str.endswith('number of returns')]
     n_of = {(r.row_label, r.item[:-len('number of returns')]): r.v for r in count.itertuples()}
     amount = d[d['item'].str.endswith('> amount')]
