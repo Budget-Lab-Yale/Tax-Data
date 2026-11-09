@@ -160,20 +160,6 @@ sources:
       (the table's age plus 1, less 1)
   # Outside series that come only as a change (30 October, years after the data; TARGETS.md section 3): a target is
   # the start year's own level times the series' growth (target_list.outside_rows); the entry names the line.
-  cbo individual income tax:
-    kind: outside
-    file: research/rebuild/resources/growth/cbo_individual_income_tax.csv
-    what: >-
-      CBO's February 2026 projections of individual income tax items, calendar years 2022-2036 (Revenue Projections
-      by Category, sheet 3); a line is named by the start of its name (outside_line)
-  # Projection years chained from the previous year's file (30 October; explore/2026-10-30/demog/DESIGN.md)
-  population cells:
-    kind: outside
-    file: research/rebuild/resources/population_factors.csv
-    what: >-
-      the previous year's final weighted units in each cell (filer or not, joint or not, the primary's age band) times
-      the cell's population growth (Macro-Projections demographics; resources/population_factors.csv and
-      nonfiler_factors.csv); target_list.population_cell_rows
   # (3 November, agent A) the projection years' three steps (projection_steps.py; explore/2026-11-02/projection_design/DESIGN.md)
   projection persons:
     kind: outside
@@ -923,15 +909,6 @@ groupings:
       - [100000, 200000, $100k-200k]
       - [200000, 500000, $200k-500k]
       - [500000, null, $500k and over]
-  soi_agi_brackets:
-    variable: agi
-    as_published: soi 1.4
-    merge_top_until: {records: 500, in_a_file_of: 200000}
-    # The five top brackets, $1M-1.5M, $1.5M-2M, $2M-5M, $5M-10M and $10M and over, each its own cell (TARGETS.md
-    # S2). The merge rule would join them into one "$1,000,000 or more" cell (in 2019 the $10M+ bracket is 20,876
-    # returns, 26 records in a 200,000-record file); generation, with the AGI group drawn first (qgroups.py), puts
-    # thousands of records there.
-    kept_separate: [1000000, 1500000, 2000000, 5000000, 10000000]
   business_agi_groups:
     variable: agi
     merge_across_published: true
@@ -1021,14 +998,6 @@ groupings:
   # wages (the PUF's, Form W-2 box 1, primary filer plus spouse) and, on the CPS's units, their wages after function
   # 1 (the tax data's wages at the same percentile among earners), so a group holds the same ranks on both sides.
   # "under $25k" includes the units with no wages.
-  wage_groups_5:
-    variable: wages
-    edges:
-      - [null, 25000, wages under $25k]
-      - [25000, 50000, wages $25k-50k]
-      - [50000, 100000, wages $50k-100k]
-      - [100000, 200000, wages $100k-200k]
-      - [200000, null, wages $200k and over]
   # The overtime targets' wage groups since 29 October (John, 28 October): wage_groups_5 with its top two groups merged,
   # $100,000 and over, because the $200,000-and-over group rested on about 430 asked CPS units a year.
   wage_groups_4:
