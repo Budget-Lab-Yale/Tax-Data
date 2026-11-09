@@ -72,7 +72,7 @@ Where the range is used after step 0:
 - Generation of synthetic filers draws the range under the PUF label, with married and the number of dependents, in
   a random order per record. The rebuilt aggregate records at the top draw only the six adult ranges.
 - With settings `generation.filers` set to `real_puf`, a real record with no range draws one per record and network
-  copy from step 0's probabilities (salt `generation.real_puf_age_salt`), and keeps the observed range otherwise.
+  copy from step 0's probabilities (a draw keyed by record id and copy), and keeps the observed range otherwise.
 
 ## The primary filer in a survey couple
 

@@ -8,8 +8,8 @@ it comes from, and what it is. `convert` in the same file turns a year file into
 per record, in that order. Three steps use it:
 - the taxes computed inside the reweighting stage (`reweight/taxes.py`), on the start of every year;
 - the Tax-Simulator file (`output/taxsim_file.py`), which adds 23 columns and a few rules of its own (below);
-- the optional calculator report (`output/report_calculator.py`), which also writes the list as
-  `calculator_contract.csv` beside its outputs. `CALCULATOR_CONTRACT.csv` beside this file is a copy.
+- the optional calculator stage (`output/calculator.py`, with its report `output/report_calculator.py`), which also
+  writes the list as `calculator_contract.csv` beside its outputs. `CALCULATOR_CONTRACT.csv` beside this file is a copy.
 
 The calculator's batch command (`python -m taxmodel.run.batch`) checks the frame at every run: it stops if a column
 its tax chain or frame steps read is missing, and it lists the supplied columns it does not read. The contract

@@ -59,7 +59,7 @@ that; each is shipped in the form that says least about any record.
 2. **The Schedule A multipliers**: six numbers per year, a step in the factor file.
 3. **Repealed deductions**: a step of factor zero in the factor file.
 4. **The deductible half of self-employment tax** (E03260) is not shipped. The pipeline's file holds the calculator's
-   amount (settings `taxes.se_tax_ded_from_calculator`), no Tax-Simulator column holds it, and the recipient's tax
+   amount, no Tax-Simulator column holds it, and the recipient's tax
    calculator computes it from the self-employment income and wages. Its factor rows are the plain growth, so the
    merge's working items carry the PUF's own amount grown, which no output column reads.
 5. **The AMT net operating loss adjustment** (P60100) is a rule the merge applies, not values: the adjustment, grown
