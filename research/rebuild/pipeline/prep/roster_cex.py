@@ -278,6 +278,33 @@ def build(year):
     return persons, units, mfs, target
 
 
+# ---- The person file for build_cex.R ----
+
+def module_person_file(persons, units):
+    """The person file build_cex.R reads. It gives each person's return (ret_tu, a unit number below 100 within the
+    interview) and role on it (1 primary filer, 2 spouse, 3 dependent). On a couple split into separate returns,
+    person 1 and the dependents are on person 1's return, and person 2 is the primary filer of their own."""
+    p = persons
+    ret = p.tu_id.to_numpy().copy()
+    role = np.where(p.tu_rel == 1, 1, np.where(p.tu_rel == 2, 2, 3))
+    split = p.uid.isin(units.loc[units.mfs_split, 'uid']).to_numpy()
+    p1, p2 = T.primary_and_spouse(p, units.loc[units.mfs_split, 'uid'])
+    k2 = set(zip(p2.hh, p2.pn))
+    is2 = np.array([s and (h, n) in k2 for s, h, n in zip(split, p.hh, p.pn)])
+    p1pn = p.uid.map(p1.pn).to_numpy()
+    ret = np.where(split & ~is2, p1pn, ret)
+    ret = np.where(is2, p.pn, ret)
+    role = np.where(split & ~is2 & (p.tu_rel.isin([1, 2])), 1, np.where(is2, 1, role))
+    assert (ret < 100).all() and not pd.isna(ret).any()
+    u = units.set_index('uid')
+    out = pd.DataFrame({'NEWID': p.NEWID, 'MEMBNO': p.MEMBNO, 'ret_tu': ret.astype(int), 'role': role,
+                        'married': ((p.uid.map(u.filing_status) == 'joint') & ~split).astype(int).to_numpy(),
+                        'mfs': split.astype(int), 'any_link_assumed': p.uid.map(u.any_link_assumed).astype(int)})
+    assert not out.isna().any().any()
+    assert not out.duplicated(['NEWID', 'MEMBNO']).any()
+    return out
+
+
 # ---- The whole stage ----
 
 def main():
@@ -292,28 +319,8 @@ def main():
         persons.to_parquet(f'{a.out}/persons_cex_{y}.parquet')
         units.to_parquet(f'{a.out}/units_cex_{y}.parquet')
         mfs.to_parquet(f'{a.out}/mfs_cex_{y}.parquet')
-        # 2. Write the person file build_cex.R reads. It gives each person's return (ret_tu, a unit number below 100
-        #    within the interview) and role on it (1 primary filer, 2 spouse, 3 dependent). On a couple split into
-        #    separate returns, person 1 and the dependents are on person 1's return, and person 2 is the primary
-        #    filer of their own.
-        p = persons
-        ret = p.tu_id.to_numpy().copy()
-        role = np.where(p.tu_rel == 1, 1, np.where(p.tu_rel == 2, 2, 3))
-        split = p.uid.isin(units.loc[units.mfs_split, 'uid']).to_numpy()
-        p1, p2 = T.primary_and_spouse(p, units.loc[units.mfs_split, 'uid'])
-        k2 = set(zip(p2.hh, p2.pn))
-        is2 = np.array([s and (h, n) in k2 for s, h, n in zip(split, p.hh, p.pn)])
-        p1pn = p.uid.map(p1.pn).to_numpy()
-        ret = np.where(split & ~is2, p1pn, ret)
-        ret = np.where(is2, p.pn, ret)
-        role = np.where(split & ~is2 & (p.tu_rel.isin([1, 2])), 1, np.where(is2, 1, role))
-        assert (ret < 100).all() and not pd.isna(ret).any()
-        u = units.set_index('uid')
-        out = pd.DataFrame({'NEWID': p.NEWID, 'MEMBNO': p.MEMBNO, 'ret_tu': ret.astype(int), 'role': role,
-                            'married': ((p.uid.map(u.filing_status) == 'joint') & ~split).astype(int).to_numpy(),
-                            'mfs': split.astype(int), 'any_link_assumed': p.uid.map(u.any_link_assumed).astype(int)})
-        assert not out.isna().any().any()
-        assert not out.duplicated(['NEWID', 'MEMBNO']).any()
+        # 2. Write the person file build_cex.R reads.
+        out = module_person_file(persons, units)
         out.to_csv(f'{a.out}/cex_persons_module_{y}.csv.gz', index=False)
         # 3. Print a summary of the year's units.
         m = units[~units.dep_return]
