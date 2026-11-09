@@ -1260,3 +1260,13 @@ law). Details are in `FEATURES.md` and in the scratch `LOG.md`.
 **5-6 November: state weights (branch `rebuild-state-weights`).** A supplement on run7: the CPS's state as a training slot, the networks' chances of state as the start, a tilt of each record's split to Historic Table 2. On held-out items it beats Iselin's AGI-group start under the same tilt by about half a point of average miss in 2019 and a third of a point in 2022. Results and what was tried: `explore/2026-11-05/state_weights/RESULTS.md`.
 
 **6 November: QBI wages in two groups of business (branch `retrain-qbi`).** The SCF gives two numbers per row (Schedules C and F; partnerships and S corporations); a group's wages are its number × a yearly scalar set on the start's weights to SOI's wages paid by type of business (2019: $144.0 billion and $1,977.6 billion), then the 2023 scalar × average wages growth after 2023. Flag from the law's list. Dials a and b, industry pay and the owners' own wages rule deleted (John).
+
+**6-8 November: the retrain, installed (branch `rebuild-retrain-1106`; John approved the install 8 November).** Three new
+networks (80 passes) with state in pretraining, the QBI change and self-employment fix B, then every year 2015-2075: past
+years the draw, a national-only solve and the integrated state solve; future years the national solve with each record
+keeping its 2023 state split. On the long list of state targets 2019 ran out of its 150 Newton steps and on Iselin's 21
+2015 stalled; on the long list less the dollars of capital gains, partnership and S corporation income and itemized
+deductions (John, 7 November) every year converges. Against run7: tax after credits 0.10-0.27% lower in 2015-2023,
+national misses about the same; 99.75-99.89% of state targets within 2%; self-employment tax before reweighting $69.7
+billion in 2019 against SOI's $67.3 billion (run7 $56.6 billion); the QBI deduction within $0.5 billion of SOI in each AGI
+group after reweighting, 59% of the 20% kept. Report: `explore/2026-11-06/retrain/run/STEP8.md`.

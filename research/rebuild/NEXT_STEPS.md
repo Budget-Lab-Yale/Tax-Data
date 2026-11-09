@@ -1,11 +1,12 @@
-# Next steps (as of 5 November 2026, evening)
+# Next steps (as of 8 November 2026)
 
 The pipeline builds a file for every year 2015-2075 from one branch, `rebuild-joint-model` (`FEATURES.md`). The latest
-installed run is run7 (John, 5 November, evening; `explore/2026-11-05/interest_growth/run/`, every year 2015-2075):
-run6's 2015-2024 (links to `explore/2026-11-05/run6/run/`) and 2025-2075 rerun with the interest rule (FEATURES.md,
-"Taxable interest after the jump-off year"). Run6 itself is version A's rules and target breakdowns, the part_se fix,
-the real-PUF setting and package, and the earnings split from the PUF, on the earnings-split networks (items 8 and 9);
-its own 2025-2075 stay in `explore/2026-11-05/run6/run/`. The run installed before run6 (run3 for 2015-2023, run4 for
+installed run is the 6 November retrain (John, 8 November; `explore/2026-11-06/retrain/run/list_A/final/<year>/`, every
+year 2015-2075, with state weights in `explore/2026-11-06/retrain/run/list_A/files/`): new networks with state in
+pretraining, the integrated state solve on the long list less three dollar amounts, the non-filer state rule, QBI wages
+from two worker numbers matched to IRS totals, and self-employment fix B (plan `explore/2026-11-06/RETRAIN_PLAN.md`,
+report `explore/2026-11-06/retrain/run/STEP8.md`). The run installed before it, run7, is in
+`explore/2026-11-05/interest_growth/run/` (2015-2024 link to `explore/2026-11-05/run6/run/`). The run installed before run6 (run3 for 2015-2023, run4 for
 2024-2075) is in `explore/2026-11-04/run3/run/`. Paths starting
 `explore/` are under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/`. Each piece of work below is one branch,
 a run of the years it touches, a comparison with the run before it, and John's approval.

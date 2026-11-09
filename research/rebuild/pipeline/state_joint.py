@@ -594,7 +594,7 @@ def main():
     ap.add_argument('--out', required=True, help='the output folder')
     ap.add_argument('--year', type=int, required=True)
     ap.add_argument('--start-dir', required=True, help='the folder of start_<year>.npz (state_start.py)')
-    ap.add_argument('--items', default=c['items'], help='final: state_targets.FINAL_ITEMS, the long list; comparison: Iselin\'s 21; or a comma-separated list')
+    ap.add_argument('--items', default=c['items'], help='final: state_targets.FINAL_ITEMS, the long list less three dollar amounts (NOT_STATE_TARGETS); comparison: Iselin\'s 21; or a comma-separated list')
     ap.add_argument('--tolerance', type=float, default=c['tolerance'])
     ap.add_argument('--nonfiler-tolerance', type=float, default=c['nonfiler_tolerance'])
     ap.add_argument('--tau', type=float, default=float(c['tau']))

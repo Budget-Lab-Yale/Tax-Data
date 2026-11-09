@@ -215,7 +215,12 @@ HELD_OUT = ['n_bus', 'bus_amt', 'n_pens', 'pens_amt', 'n_ss', 'ss_amt', 'n_fedta
 EXTRA_ITEMS = ['kg_amt', 'n_ira', 'ira_amt', 'n_retire', 'retire_amt', 'n_ui', 'ui_amt', 'n_qdiv', 'qdiv_amt', 'n_pship', 'pship_amt',
                'n_txinc', 'txinc_amt', 'n_itemize', 'itemize_amt', 'n_char', 'char_amt', 'n_setax', 'setax_amt', 'n_refund_state',
                'refund_state_amt', 'n_qbi', 'qbi_amt', 'n_niit', 'niit_amt', 'n_actc', 'actc_amt', 'n_exempt', 'exempt_amt']
-FINAL_ITEMS = ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS
+# Three dollar amounts are not state targets (John, 7 November 2026): capital gains, partnership and S corporation income, and
+# itemized deductions. Their counts stay, and their national targets are unchanged. On the long list with them, the integrated
+# solve of 2019 ran out of its 150 Newton steps on the retrained networks; without them all of 2015-2075 converge
+# (explore/2026-11-06/retrain/run/STEP8.md). Iselin's 21 alone stalled in 2015.
+NOT_STATE_TARGETS = ['kg_amt', 'pship_amt', 'itemize_amt']
+FINAL_ITEMS = [v for v in ISELIN_21 + [v for v in HELD_OUT if v != 'kg_amt_pos'] + EXTRA_ITEMS if v not in NOT_STATE_TARGETS]
 # In the final files an item has no targets in an AGI group where fewer than MIN_EFFECTIVE records stand behind the item (filer_targets, drop_thin=True): (sum |w x|)^2 / sum (w x)^2, the list
 # records left out; 250 is about 5 for each of the 53 areas. State income tax deducted in the group under $1 rests on 4 effective records
 # in 2019 and cannot be spread over 53 areas; with such an item Newton's method takes the whole budget and moves nothing that matters
