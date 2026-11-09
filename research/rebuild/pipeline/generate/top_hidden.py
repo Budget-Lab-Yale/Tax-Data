@@ -424,16 +424,12 @@ def scale_bounded(x, w, grp, T, lo, hi, rounds=400):
             Pg[g], Ng[g] = P, N
             a, b, nt = solve_field(Pg, Ng, Tg)
             yg = np.where(free, apply_factors(x, np.full(len(x), g), a, b), val)
-            below = free & (yg < lo - 1e-6) if lo is not None else np.zeros(len(x), bool)
-            above = free & (yg > hi + 1e-6) if hi is not None else np.zeros(len(x), bool)
+            below, above = free & (yg < lo - 1e-6), free & (yg > hi + 1e-6)
             if not (below | above).any():
                 y[m] = yg[m]
                 notes += nt
                 break
-            if lo is not None:
-                val[below] = lo[below]
-            if hi is not None:
-                val[above] = hi[above]
+            val[below], val[above] = lo[below], hi[above]
             fixed |= below | above
         else:
             y[m] = yg[m]

@@ -184,6 +184,13 @@ G = common.SETTINGS['generation']
 C = common.SETTINGS['consistency']
 NC = len(M.CONTEXT)
 P = M.PREDICTED
+
+
+def slots_of(names):
+    """The PREDICTED indices of slot names, as a tensor."""
+    return torch.tensor([P.index(v) for v in names], dtype=torch.long)
+
+
 COMPUTED = M.COMPUTED                     # {total: {part: sign}}
 FLAGS = M.COMPUTED_FLAGS                  # {flag: parts}
 PUF_SLOTS = [v for v in P if 'puf' in M.PRESENT_ON[v] and v not in COMPUTED and v not in FLAGS]
@@ -194,18 +201,18 @@ LATE_SLOTS = M.PUF_SHARES + list(M.SHARED_CATEGORIES)
 # with any of the group's PUF parts nonzero
 SCF_STRUCTURE = M.META['scf_structure']
 SCF_AFTER = {P.index(v): P.index(b) for v, b in SCF_STRUCTURE['after'].items()}
-INDUSTRY_PARTS = {P.index(v): torch.tensor([P.index(q) for q in parts]) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
+INDUSTRY_PARTS = {P.index(v): slots_of(parts) for v, parts in SCF_STRUCTURE['industry_parts'].items()}
 SCF_SLOTS = M.SCF_SLOTS
 CEX_SLOTS = M.CEX_SLOTS
 CPS_SLOTS = M.CPS_SLOTS
 CPS_STRUCTURE = M.META['cps_structure']
 SIPP_SLOTS = M.SIPP_SLOTS
 SIPP_STRUCTURE = M.META['sipp_structure']
-SIPP_SPOUSE = torch.tensor([P.index(v) for v in SIPP_STRUCTURE['spouse']])
+SIPP_SPOUSE = slots_of(SIPP_STRUCTURE['spouse'])
 SIPP_FLAGS = list(SIPP_STRUCTURE['lh_of'])                    # drawn after the tips
 SIPP_TIPS = [v for v in SIPP_SLOTS if v not in SIPP_FLAGS]
 AGE_SLOTS = M.EXACT_AGES                   # drawn after the PUF items, under the CPS label (see the top)
-SPOUSE = torch.tensor([P.index(v) for v in CPS_STRUCTURE['spouse']])
+SPOUSE = slots_of(CPS_STRUCTURE['spouse'])
 # each adult's overtime: drawn after the other CPS slots, so the spouse's share of wages is in place
 CPS_OVERTIME = CPS_STRUCTURE['overtime']
 CPS_FIRST = [v for v in CPS_SLOTS if v not in CPS_OVERTIME]
@@ -220,7 +227,7 @@ SEX_PRIMARY = P.index('sex_primary')
 # over (cps_structure)
 SPOUSE_AGE = P.index(next(v for v in CPS_STRUCTURE['spouse'] if v in CPS_STRUCTURE['ages']))
 ADULT_AGE = 18
-CPS_CATEGORICAL = torch.tensor([P.index(v) for v in M.PERSON_CATEGORIES])
+CPS_CATEGORICAL = slots_of(M.PERSON_CATEGORIES)
 # Every gated share (model.SHARE_GATES): {slot index: [base
 # indices]}. A share is asked only of a married couple with some of a base (a band above zero: band 0 is zero, -1 absent)
 GATED = {s: list(bases) for s, (_, bases) in M.SHARE_GATES.items()}
@@ -229,16 +236,16 @@ ES_SLOT, WAGE_SHARE, SE_SHARE = P.index('earn_split'), P.index('spouse_wage_shar
 RANGE_OF_AGE_VALUE = torch.tensor([-1] + [int(r) for r in np.searchsorted([26, 35, 45, 55, 65],
                                                                           np.arange(M.PERSON_CATEGORIES[CPS_STRUCTURE['primary_age']] - 1),
                                                                           side='right')])
-REP_SLOTS = torch.tensor([P.index(v) for v in M.REPORTED])
+REP_SLOTS = slots_of(M.REPORTED)
 RULES = C['rules']
 for _r in RULES:
     assert all(M.OWNED_BY.get(v, 'puf') != 'scf' for v in _r['when_any_nonzero']), _r['name']
     assert all(v in SCF_SLOTS for v in _r['then_at_least_one_nonzero']), _r['name']
-RULE_ITEMS = [torch.tensor([P.index(v) for v in r['when_any_nonzero']]) for r in RULES]
-RULE_HOLDINGS = [torch.tensor([P.index(v) for v in r['then_at_least_one_nonzero']]) for r in RULES]
+RULE_ITEMS = [slots_of(r['when_any_nonzero']) for r in RULES]
+RULE_HOLDINGS = [slots_of(r['then_at_least_one_nonzero']) for r in RULES]
 RULED = sorted({v for r in RULES for v in r['then_at_least_one_nonzero']}, key=P.index)   # the offset's holdings
 DEPENDENT_RANGES = torch.tensor(common.DEPENDENT_RANGES)
-SURVEY_ONLY = torch.tensor([P.index(v) for v in AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS])
+SURVEY_ONLY = slots_of(AGE_SLOTS + SCF_SLOTS + CEX_SLOTS + CPS_SLOTS + SIPP_SLOTS)
 POINTS = 32
 TYPE_SLOTS = M.TYPE_SLOTS                  # drawn first, in a random order per record
 STATUS_SLOTS = list(M.TAX_STATUS)          # then these, in this order (mars, n_dep_ctc, n_dep_eitc)
@@ -375,7 +382,7 @@ def computed_band(values, gen, total):
 # ---- rules on a draw -------------------------------------------------------------
 def scf_order(size, gen):
     """A random order of the SCF-only slots per record, each ratio slot moved after its base."""
-    scf = torch.tensor([P.index(v) for v in SCF_SLOTS])
+    scf = slots_of(SCF_SLOTS)
     perm = scf[torch.rand(size, len(scf), generator=gen).argsort(1)]
     rows = torch.arange(size)
     pairs = [(P.index(slot), P.index(base)) for slot, (_, base) in M.RATIOS.items() if slot in SCF_SLOTS]
@@ -413,6 +420,13 @@ def only(probs, rows, allowed=None):
     return probs
 
 
+def not_none(probs, rows):
+    """On rows, value 0 (none) ruled out and the other values rescaled."""
+    allowed = torch.ones(int(rows.sum()), probs.shape[1], device=probs.device)
+    allowed[:, 0] = 0.0
+    return only(probs, rows, allowed)
+
+
 def cps_structure(values, slot, probs):
     """The CPS's person items follow the record's PUF items: the spouse's items are none or zero unless married,
     and a married couple's spouse has an age and a sex, the age 18 or over (every record, filers and non-filers;
@@ -426,24 +440,18 @@ def cps_structure(values, slot, probs):
     n_dep = values[:, NC + P.index('n_dep')]
     on_spouse = torch.isin(slot, SPOUSE.to(slot.device))
     categorical = torch.isin(slot, CPS_CATEGORICAL.to(slot.device))
-    not_none = torch.ones(probs.shape[1], dtype=torch.bool, device=probs.device)
-    not_none[0] = False
     probs = only(probs, on_spouse & ~married)
-    sel = on_spouse & married & categorical
-    probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
-    sel = slot == SEX_PRIMARY    # the primary filer's sex is a man or a woman, never none
-    probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+    probs = not_none(probs, on_spouse & married & categorical)
+    probs = not_none(probs, slot == SEX_PRIMARY)    # the primary filer's sex is a man or a woman, never none
     sel = (slot == SPOUSE_AGE) & married
     adult = torch.zeros(probs.shape[1], device=probs.device)
     adult[ADULT_AGE + 1:M.PERSON_CATEGORIES[P[SPOUSE_AGE]]] = 1.0   # value a + 1 is age a
     probs = only(probs, sel, adult.expand(int(sel.sum()), -1))
     for k, j in list(enumerate(DEP_AGES, start=1)) + list(enumerate(DEP_SSN, start=1)):
         probs = only(probs, (slot == j) & (n_dep < k))
-        sel = (slot == j) & (n_dep >= k)
-        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+        probs = not_none(probs, (slot == j) & (n_dep >= k))
     for j in PRIMARY_SSN:
-        sel = slot == j
-        probs = only(probs, sel, not_none.expand(int(sel.sum()), -1).float())
+        probs = not_none(probs, slot == j)
     # overtime: the primary filer's is zero without wages, the spouse's without a spouse's share of the
     # couple's wages above zero (absent, -1, or zero); each is then held to the person's wages less tips in dollars (dollars.py)
     for item, base in CPS_ZERO_WITHOUT.items():
@@ -602,10 +610,7 @@ def qbi_structure(values, slot, probs):
         sel = slot == j
         if not bool(sel.any()):
             continue
-        has = (values[:, NC + parts.to(values.device)] != 0).any(1) & sel
-        not_none = torch.ones(probs.shape[1], device=probs.device)
-        not_none[0] = 0.0
-        probs = only(probs, has, not_none.expand(int(has.sum()), -1))
+        probs = not_none(probs, (values[:, NC + parts.to(values.device)] != 0).any(1) & sel)
     return probs
 
 
@@ -619,18 +624,13 @@ def structural(values, slot, probs):
     for slot_name, (_, base) in M.RATIOS.items():
         if P.index(slot_name) in GATED:     # a gated share: zero where not asked (Chunk.not_asked), not by one base
             continue
-        no_base = (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0)
-        probs[no_base] = 0.0
-        probs[no_base, 0] = 1.0
+        probs = only(probs, (slot == P.index(slot_name)) & (values[:, NC + P.index(base)] == 0))
     probs = earn_structure(values, slot, probs)
     probs = cps_structure(values, slot, probs)
     probs = sipp_structure(values, slot, probs)
     probs = deferral_structure(values, slot, probs)
     probs = qbi_structure(values, slot, probs)
-    dep = dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device))
-    probs[dep] = 0.0
-    probs[dep, 0] = 1.0
-    return probs
+    return only(probs, dependent(values) & torch.isin(slot, SURVEY_ONLY.to(values.device)))
 
 
 def scale_odds(probs, slot, factors):
@@ -855,9 +855,7 @@ class Chunk:
         self.own_chance[self.rows[hit], col[hit]] = 1 - own_probs[hit, 0].double()
         self.forced[self.rows[hit], col[hit]] = ok[hit]
         for j, m in self.not_asked.items():                         # no draw where the share is not asked
-            na = m & (slot == j)
-            probs[na] = 0.0
-            probs[na, 0] = 1.0
+            probs = only(probs, m & (slot == j))
         if label == 'cps':
             probs = self.wage_share_bands(slot, probs)
         # a slot preset on some records only (a real PUF record's share) keeps its preset value; in a synthetic
@@ -945,35 +943,24 @@ def generate(model, n, seed, preset=None, factors=None, chunk=50_000, label='puf
     scf_year = torch.as_tensor(SCF_YEAR_INDEX[wave_k])
     svy_k = {src: assign_years(src, n, seed) for src in SURVEY_YEARS}      # each record's CEX, CPS and SIPP year
     svy_year = {src: torch.as_tensor(SURVEY_YEAR_INDEX[src][k]) for src, k in svy_k.items()}
-    first = torch.tensor([P.index(v) for v in TYPE_SLOTS if v not in preset], dtype=torch.long)
-    then = torch.tensor([P.index(v) for v in STATUS_SLOTS if v not in preset], dtype=torch.long)
-    rest = torch.tensor([P.index(v) for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
-                         and v not in STATUS_SLOTS and v not in M.PUF_LABELS and v not in LATE_SLOTS], dtype=torch.long)
-    own = torch.cat([first, then, rest])
+    first = slots_of([v for v in TYPE_SLOTS if v not in preset])
+    then = slots_of([v for v in STATUS_SLOTS if v not in preset])
+    rest = slots_of([v for v in PUF_SLOTS if v not in preset and v not in TYPE_SLOTS
+                     and v not in STATUS_SLOTS and v not in M.PUF_LABELS and v not in LATE_SLOTS])
+    n_own = len(first) + len(then) + len(rest)
     # step 2b; a gated share preset on some records only is drawn here for the others
-    late = torch.tensor([P.index(v) for v in LATE_SLOTS if v not in preset or P.index(v) in GATED], dtype=torch.long)
-    cex = torch.tensor([P.index(v) for v in CEX_SLOTS])
-    cps = torch.tensor([P.index(v) for v in CPS_FIRST])
-    cps_ot = torch.tensor([P.index(v) for v in CPS_OVERTIME], dtype=torch.long)
-    sipp_tips = torch.tensor([P.index(v) for v in SIPP_TIPS])
-    sipp_flags = torch.tensor([P.index(v) for v in SIPP_FLAGS])
-    age = torch.tensor([P.index(v) for v in AGE_SLOTS])
-    n_own, n_age, n_scf, n_cex, n_cps = len(own), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
-    n_late = len(late)
+    late = slots_of([v for v in LATE_SLOTS if v not in preset or P.index(v) in GATED])
+    n_late, n_age, n_scf, n_cex, n_cps = len(late), len(AGE_SLOTS), len(SCF_SLOTS), len(CEX_SLOTS), len(CPS_SLOTS)
     rule_counts = {r['name']: 0 for r in RULES}
 
     def orders(size):
-        return torch.cat([first[torch.rand(size, len(first), generator=cpu_gen).argsort(1)],
-                          then.expand(size, -1),
-                          rest[torch.rand(size, len(rest), generator=cpu_gen).argsort(1)],
-                          late.expand(size, -1),
-                          age[torch.rand(size, len(age), generator=cpu_gen).argsort(1)],
-                          scf_order(size, cpu_gen),
-                          cex[torch.rand(size, len(cex), generator=cpu_gen).argsort(1)],
-                          cps[torch.rand(size, len(cps), generator=cpu_gen).argsort(1)],
-                          cps_ot[torch.rand(size, len(cps_ot), generator=cpu_gen).argsort(1)],
-                          sipp_tips[torch.rand(size, len(sipp_tips), generator=cpu_gen).argsort(1)],
-                          sipp_flags[torch.rand(size, len(sipp_flags), generator=cpu_gen).argsort(1)]], 1).to(device)
+        """Each record's slot order: the phases in sequence (see the top), the slots of most in a random order per
+        record."""
+        shuffled = lambda x: x[torch.rand(size, len(x), generator=cpu_gen).argsort(1)]
+        return torch.cat([shuffled(first), then.expand(size, -1), shuffled(rest), late.expand(size, -1),
+                          shuffled(slots_of(AGE_SLOTS)), scf_order(size, cpu_gen), shuffled(slots_of(CEX_SLOTS)),
+                          shuffled(slots_of(CPS_FIRST)), shuffled(slots_of(CPS_OVERTIME)),
+                          shuffled(slots_of(SIPP_TIPS)), shuffled(slots_of(SIPP_FLAGS))], 1).to(device)
 
     def finish(d, order):
         """Steps 2b to 7 on a chunk whose own items and totals are drawn."""
