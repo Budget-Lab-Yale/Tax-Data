@@ -1,31 +1,27 @@
-"""The year's targets, from the configuration in targets_config/ (TARGETS.md section 12).
+"""The year's targets, from the configuration in targets_config/.
 
 The configuration says what to target in words: each entry is a block of targets, every statistic x every variable
 x every cell, with its population, where its value comes from and the kind of its error. The catalog
 (targets_config/catalog.yaml) says what the words mean; it is a dictionary shared by every year. Each year has a
-folder of its own, targets_config/<year>/, with three files written out in full (since 29 October; nothing is
-inherited): targets.yaml (the entries), prior.yaml (the year's prior) and growth.yaml (how every dollar item is grown,
-growth.py). A new year starts as a copy of the nearest year's folder. config_overview.py writes one table of every
-setting by year (targets_config/OVERVIEW.md).
-Settings targets_config can name an isolated copy of this directory for an experiment.
+folder of its own, targets_config/<year>/, with three files written out in full (nothing is inherited): targets.yaml
+(the entries), prior.yaml (the year's prior) and growth.yaml (how every dollar item is grown, growth.py). A new year
+starts as a copy of the nearest year's folder.
 
   resolve(year)                 the year's entries, prior and growth lines, checked: every entry has a value source
                                 the catalog defines, every dollar item a growth line (growth.check); stops otherwise
-  expand(year, start=None)      one row per target (the columns in ROW_COLUMNS): its key (kind, group, target),
-                                the parts of TARGETS.md section 2 in words, its value, its error kind and standard
-                                error, whether it is an identity, its source lines, the entry's reason, and
-                                for a survey target the tax-unit rules its value was computed on. With a starting
-                                file, a cell no record can reach is left out (listed, with the cells published as zero, in
-                                LAST['excluded'])
+  expand(year, start, which)    one row per target (the columns in ROW_COLUMNS): its key (kind, group, target),
+                                its parts in words, its value, its error kind and standard error, whether it is an
+                                identity, its source lines, the entry's reason, and for a survey target the tax-unit
+                                rules its value was computed on. A cell no record of the starting file can reach is
+                                left out (listed, with the cells published as zero, in LAST['excluded'])
   conditions(df, rows, w_start) the linear condition each row puts on the file's weights: F (records x targets) and
                                 T, so that the target is met when F.T @ w == T; and for an average or a share,
                                 averages[j] = (member, v, the published average), else None
   write(rows, folder, year)     targets.csv and the resolved configuration, saved with the run
-  start_spec(year)              how the year's start is built (TARGETS.md S7): the year file's start and
-                                start_scaling, with their defaults
+  start_spec(year)              how the year's start is built: the year file's start and start_scaling
 
-Values. Published values come from the run's SOI numbers (targets.py: Tables 1.4 and 1.2 in targets/soi.csv, Table
-1.6 by targets.table_1_6); survey values from the survey's own tax units in the run's data folder, the SCF's from
+Values. Published values come from the run's SOI numbers (prep/soi.py: Tables 1.4 and 1.2 in targets/soi.csv, Table
+1.6 by soi.table_1_6); survey values from the survey's own tax units in the run's data folder, the SCF's from
 the year's mix of SCF waves (scf_targets.py, which computes their standard errors with them); the non-filer values
 from the CPS filing stage of the same run.
 
@@ -47,8 +43,7 @@ import yaml
 from shared import common
 from prep import soi as TG
 
-HERE = common.PIPELINE
-CONFIG = os.path.join(HERE, 'targets_config')
+CONFIG = os.path.join(common.PIPELINE, 'targets_config')
 ROW_COLUMNS = ['kind', 'group', 'target', 'statistic', 'population', 'variable', 'value', 'error_kind', 'se',
                'identity', 'source', 'reason', 'tax_unit_rules']
 # Columns after the contract's, which conditions() reads: the entry, the year of the value, the cell in machine
@@ -62,22 +57,17 @@ CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'li
                 # a band's upper line (net worth at or below it), on line_variable; NaN for none. A
                 # band's lower line is 'line' (net worth above it), NaN for a band with no lower line.
                 'line_hi',
-                # (28 October) a dollar range of a variable other than AGI (catalog groupings with edges): the unit
+                # a dollar range of a variable other than AGI (catalog groupings with edges): the unit
                 # is in the cell when range_lo <= the variable < range_hi; '' and NaN for none
                 'range_variable', 'range_lo', 'range_hi']
-# A year's folder (TARGETS.md section 12; 29 October): targets_config/<year>/targets.yaml, prior.yaml and growth.yaml,
-# each fully written out; nothing is inherited. targets.yaml holds the keys below, prior.yaml the year and its prior,
-# growth.yaml the year and its growth lines (growth.py reads and checks those).
 TARGETS_KEYS = {'year', 'kind', 'targets', 'report', 'start', 'start_scaling'}
 PRIOR_KEYS = {'year', 'prior'}
 ENTRY_KEYS = {'id', 'kind', 'statistic', 'population', 'variable', 'cells', 'value', 'error', 'key', 'outside_line',
               'dependent_filers', 'note', 'reason', 'percentiles', 'must_reach', 'needs_calculator'}
-# reason: why the entry is as it is in this year where it departs from the general rule or from other years (before
-# 29 October, the override reason of a year file); it fills targets.csv's reason column.
-# must_reach (29 October): an entry's cell labels that expand(start=...) must keep; a cell among them that no record
-# can reach is an error, not a quiet drop (Table 4.3's top 0.001%, restored with the rebuilt aggregate records). These
-# cells belong to the top of the file: with settings tilt.top.enabled false, expand leaves them out, as before 29
-# October, so the pipeline with the top step off is unchanged.
+# reason: why the entry is as it is in this year where it departs from the general rule or from other years; it fills
+# targets.csv's reason column.
+# must_reach: an entry's cell labels that expand must keep; a cell among them that no record can reach is an error,
+# not a quiet drop (Table 4.3's top 0.001%).
 VALUE_KINDS = {'published', 'survey', 'pipeline', 'outside'}
 ERROR_KEYS = {'kind', 'relative', 'reason'}
 
@@ -193,8 +183,8 @@ def variable_names(spec):
 
 
 def variable_def(v):
-    """The catalog's definition of a variable; a business family's net income or loss from targets.FAMILIES; a
-    projection year's people, returns group or item side (projection_steps, 3 November)."""
+    """The catalog's definition of a variable; a business family's net income or loss from soi.FAMILIES; a
+    projection year's people, returns group or item side (projection_steps)."""
     if v in CAT['variables']:
         return CAT['variables'][v]
     from scale import projection_steps as PS
@@ -264,7 +254,7 @@ def record_value(df, v):
             n += (a >= p['from']) & (a < hi)
         return n
     if 'gain_held_to_value' in d:
-        # (2 November 2026) an unrealized gain held to its asset's value and never below zero, as the simulator has it
+        # an unrealized gain held to its asset's value and never below zero, as the simulator has it
         g = df[d['gain_held_to_value']['gain']].to_numpy(float)
         val = df[d['gain_held_to_value']['value']].to_numpy(float).sum(1)
         assert np.isfinite(g).all() and np.isfinite(val).all(), \
@@ -303,9 +293,9 @@ def group_cells(spec):
             per_dim.append([{'parts': {name: ln[2]}, 'filters': [], 'agi': None, 'line': (g['variable'], *ln)}
                             for ln in lines])
         elif 'ranks' in g and g.get('cutoffs') == 'published':
-            # (3 November, John) a published percentile group at the source's own published dollar line for the
-            # year: the AGI cutoff the source prints for the group (catalog cutoff_item), not the file's percentile.
-            # The percentiles name the group only; published_grid sets the cell's AGI range from the cutoff.
+            # a published percentile group at the source's own published dollar line for the year: the AGI cutoff the
+            # source prints for the group (catalog cutoff_item), not the file's percentile. The percentiles name the
+            # group only; published_grid sets the cell's AGI range from the cutoff.
             assert g['variable'] == 'agi', f'{name}: published lines are AGI cutoffs'
             ranks = [rk for rk in g['ranks'] if sel == 'all' or rk[2] in sel]
             assert sel == 'all' or len(ranks) == len(sel), f'{name}: unknown cells in {sel}'
@@ -328,8 +318,8 @@ def group_cells(spec):
             per_dim.append([{'parts': {name: bd[2]}, 'filters': [], 'agi': None, 'line': None,
                              'band': (g['variable'], bd[0], bd[1])} for bd in bands])
         elif 'edges' in g:
-            # (28 October) dollar ranges of a variable other than AGI, [low, high, label], low inclusive, null for
-            # no limit: each range is a cell, on the file and on a survey's units alike (record_value)
+            # dollar ranges of a variable other than AGI, [low, high, label], low inclusive, null for no limit: each
+            # range is a cell, on the file and on a survey's units alike (record_value)
             ranges = [ed for ed in g['edges'] if sel == 'all' or ed[2] in sel]
             assert sel == 'all' or len(ranges) == len(sel), f'{name}: unknown cells in {sel}'
             per_dim.append([{'parts': {name: ed[2]}, 'filters': [], 'agi': None, 'line': None,
@@ -354,32 +344,6 @@ def group_cells(spec):
     for c in out:
         c['label'] = ', '.join(c['parts'].values()) or 'all'
     return out
-
-
-def soi_brackets(soi, year, rule, kept_separate=()):
-    """SOI's Table 1.4 AGI brackets, the top ones merged until each would hold enough records (rule: records in a
-    file of in_a_file_of). Brackets whose lower edge is in kept_separate are never merged; each
-    must be published that year, they must be the top brackets, and the rule applies to the brackets below them,
-    each counted on its own records."""
-    t = soi[(soi.year == year) & (soi.table.astype(str) == '1.4') & (soi.filing_status == 'all') & (soi.label != 'all')]
-    ret = t[t.variable == 'returns'].sort_values('lo')
-    out = list(ret[['lo', 'hi', 'label']].itertuples(index=False, name=None))
-    kept = sorted(float(x) for x in kept_separate)
-    top = [b for b in out if b[0] in kept]
-    assert [b[0] for b in top] == kept, f'Table 1.4 {year}: brackets kept separate {kept} not all published'
-    assert not kept or out[-len(top):] == top, f'Table 1.4 {year}: the brackets kept separate are not the top ones'
-    out = out[:len(out) - len(top)]
-    ceiling = kept[0] if kept else np.inf
-    count, total = dict(zip(ret['lo'], ret['value'])), ret['value'].sum()
-    while len(out) > 1:
-        lo, hi, label = out[-1]
-        if sum(c for l_, c in count.items() if lo <= l_ < ceiling) / total * rule['in_a_file_of'] >= rule['records']:
-            break
-        lo2, _, label2 = out[-2]
-        # below brackets kept separate a merged bracket still has a top: "$200,000 under $1,000,000"
-        end = f' under {label.split(" under ")[1]}' if kept and ' under ' in label else ' or more'
-        out = out[:-2] + [(lo2, hi, f'{label2.split(" under")[0]}{end}')]
-    return out + top, t
 
 
 def merge_groups(groups, cells):
@@ -416,14 +380,12 @@ def soi_table_lines(v, st):
 
 
 def published_14(soi, year, cells, v, stats, table='1.4'):
-    """Rows from Table 1.4 (or Table 3.3, table '3.3') by AGI: our groups summed from the published cells.
-    As-published brackets (Table 1.4 only) sum the non-blank cells inside each bracket; edge groups are merged where a
-    published cell crosses an edge, over all the variable's statistics (merge_groups)."""
+    """Rows from Table 1.4 (or Table 3.3, table '3.3') by AGI: our groups summed from the published cells, the groups
+    merged where a published cell crosses an edge, over all the variable's statistics (merge_groups)."""
     (c,) = cells
     rows = []
-    # (30 October, review of rebuild-names-gains) every line the variable names must be in the year's table (Table
-    # 1.4, or 3.3). A line not found used to give zero in every AGI group, and a cell published as zero is left out
-    # (expand), so a name that did not match (the Schedule C family after the rename) silently dropped all its targets.
+    # every line the variable names must be in the year's table: a line not found would give zero in every AGI group,
+    # and a cell published as zero is left out (expand), so a misnamed line would silently drop all its targets
     t14 = soi[(soi.year == year) & (soi.table.astype(str) == table) & (soi.filing_status == 'all')]
     have = set(zip(t14['variable'], t14['statistic']))
     for st in stats:
@@ -441,25 +403,6 @@ def published_14(soi, year, cells, v, stats, table='1.4'):
                              f'{"minus " if sg < 0 else ""}{var} {stt}' for var, stt, sg in ln)})
         return rows
     g = CAT['groupings'][c['agi']]
-    if 'as_published' in g:
-        assert table == '1.4', f'{c["agi"]}: as-published brackets are those of Table 1.4'
-        brackets, t = soi_brackets(soi, year, g['merge_top_until'], g.get('kept_separate', ()))
-        # a cell SOI combined with its neighbour must lie inside one of our brackets, or the bracket's sum would hold
-        # dollars of the next one (none does in 2019; the top brackets kept separate make it possible)
-        for st in stats:
-            for var, stt, _ in soi_lines(v, st):
-                for l_, h_, _ in TG.published_cells(soi, year, var, stt):
-                    assert any(lo <= l_ and h_ <= hi for lo, hi, _ in brackets), \
-                        f'Table 1.4 {year}, {var} {stt}: a combined cell [{l_}, {h_}) crosses a bracket edge'
-        for lo, hi, lab in brackets:
-            s = t[(t.lo >= lo) & (t.hi <= hi)].groupby(['variable', 'statistic'])['value'].sum()
-            for st in stats:
-                ln = soi_lines(v, st)
-                rows.append({'cell': lab, 'agi': (lo, hi), 'statistic': st,
-                             'value': sum(sg * s[(var, stt)] for var, stt, sg in ln),
-                             'source': f'soi 1.4 {year}: ' + ' | '.join(f'{"minus " if sg < 0 else ""}{var} {stt}'
-                                                                       for var, stt, sg in ln)})
-        return rows
     groups = [(-np.inf if lo is None else lo, np.inf if hi is None else hi, lab) for lo, hi, lab in g['edges']]
     pc = {st: [(sg, TG.published_cells(soi, year, var, stt, table)) for var, stt, sg in soi_lines(v, st, table)]
           for st in stats}
@@ -490,7 +433,7 @@ def table_17(year):
 
 def table_17_item(v, st):
     """The Table 1.7 mirror item behind statistic st of variable v: the number of returns for 'units', else the
-    item the variable's catalog entry names under 'soi 1.7' (2 November 2026: the net capital gain's count and amount)."""
+    item the variable's catalog entry names under 'soi 1.7'."""
     if st == 'units':
         return 'number of returns'
     items = variable_def(v).get('soi 1.7')
@@ -500,10 +443,9 @@ def table_17_item(v, st):
 
 def published_17(soi, year, cells, v, stats):
     """Table 1.7, dependent filers by AGI, read from the SOI mirror (targets/soi.csv has Tables 1.4 and 1.2 only):
-    the number of returns (statistic units) and, from 2 November 2026, the amount (and count) of an item the variable
-    names under "soi 1.7" in the catalog (the net capital gain). Amounts are published in thousands and returned in
-    dollars. A blank or flagged cell would need joining to its neighbour; none is blank among the cells targeted in the
-    years seen, so one is an error."""
+    the number of returns (statistic units) and the amount (and count) of an item the variable names under "soi 1.7"
+    in the catalog (the net capital gain). Amounts are published in thousands and returned in dollars. A blank or
+    flagged cell would need joining to its neighbour; none is blank among the cells targeted, so one is an error."""
     (c,) = cells
     t = table_17(year)
     out = []
@@ -519,10 +461,9 @@ def published_17(soi, year, cells, v, stats):
             out.append({'cell': 'all', 'statistic': st, 'value': float(val) * scale,
                         'source': f'soi 1.7 {year}: dependent filers, {what}, all AGI'})
             continue
-        # (1 November, decision 57 d) our own AGI groups (dependent_agi_groups): each sums the published brackets
-        # inside it, merged where a published bracket crosses an edge (merge_groups), as Table 1.4's groups are.
-        # A grouping that covers part of the AGI range (covers_part: dependent_agi_top_groups, 2 November) uses
-        # the published brackets inside its span, which must each lie in one group.
+        # our own AGI groups: each sums the published brackets inside it, merged where a published bracket crosses an
+        # edge (merge_groups), as Table 1.4's groups are. A grouping that covers part of the AGI range (covers_part)
+        # uses the published brackets inside its span, which must each lie in one group.
         g = CAT['groupings'][c['agi']]
         assert 'edges' in g, f'Table 1.7: the AGI grouping {c["agi"]} has no edges'
         cell = ti[ti['lo'].notna()].sort_values('lo')
@@ -549,10 +490,10 @@ def published_17(soi, year, cells, v, stats):
 
 
 def published_25(year, cells, v, stats):
-    """(Autoresearch, 4 November) SOI Table 2.5, returns with the earned income credit by the number of qualifying
-    children, all AGI (the mirror's bysize_eitc.csv, row Total): the returns with the credit and its amount in each
-    children group (grouping eitc_children on n_dep_eitc). Errors borrow Table 1.4's nearest cells (errors.borrow_cv),
-    as the other tables' counts and amounts do."""
+    """SOI Table 2.5, returns with the earned income credit by the number of qualifying children, all AGI (the
+    mirror's bysize_eitc.csv, row Total): the returns with the credit and its amount in each children group (grouping
+    eitc_children on n_dep_eitc). Errors borrow Table 1.4's nearest cells (errors.borrow_cv), as the other tables'
+    counts and amounts do."""
     from reweight import errors
     lab = {'none': 'no qualifying children', 'one': 'one qualifying child', 'two': 'two qualifying children',
            'three or more': 'three or more qualifying children'}
@@ -585,7 +526,6 @@ def published_status(soi, year, source, cells, stats):
     assert stats == ['units'], f'{source}: returns only'
     rows = []
     t16 = TG.table_1_6(year) if source == 'soi 1.6' else None
-    # (autoresearch, 4 November) Table 1.6 by the four filing statuses too (grouping filing_four), not only joint or not
     four = {'single': ['single'], 'joint': ['joint'], 'separate': ['separate'], 'head of household': ['head_of_household']}
     for c in cells:
         (gname,) = [n for n in c['parts'] if CAT['groupings'][n]['variable'] in ('married', 'filing_status')]
@@ -606,10 +546,10 @@ def published_status(soi, year, source, cells, stats):
     return rows
 
 
-# (3 November 2026, John; explore/2026-11-03/age_by_agi) Table 1.6 by AGI: the All returns panel's returns by the
-# primary filer's age range within each AGI group. A row whose AGI columns do not add to its own all-AGI total by more
-# than this many returns has a misprinted cell (2018, 26 under 35: SOI's workbook prints $40,000-50,000 and
-# $50,000-75,000 2.21 million too high, both flagged combined in the mirror; the four filing-status panels confirm it).
+# Table 1.6 by AGI: the All returns panel's returns by the primary filer's age range within each AGI group. A row whose
+# AGI columns do not add to its own all-AGI total by more than this many returns has a misprinted cell (2018, 26 under
+# 35: SOI's workbook prints $40,000-50,000 and $50,000-75,000 2.21 million too high, both flagged combined in the
+# mirror; the four filing-status panels confirm it).
 T16_ROW_SLACK = 50
 
 
@@ -633,9 +573,9 @@ def table_16_by_agi(year):
 
 
 def published_12_agi(soi, year, cells, stats):
-    """(Autoresearch, round 8) Table 1.2's returns by filing status within AGI groups (targets/soi.csv's Table 1.2
-    rows, read by targets.read): each group sums the published cells inside it, the groups merged where a published
-    cell of any of the entry's statuses crosses an edge (merge_groups), as Table 1.4's groups are."""
+    """Table 1.2's returns by filing status within AGI groups (targets/soi.csv's Table 1.2 rows): each group sums the
+    published cells inside it, the groups merged where a published cell of any of the entry's statuses crosses an edge
+    (merge_groups), as Table 1.4's groups are."""
     assert stats == ['units'], 'Table 1.2 by AGI: returns only'
     four = {'single': 'single', 'joint': 'joint', 'separate': 'separate', 'head of household': 'head_of_household'}
     (gname,) = {c['agi'] for c in cells}
@@ -732,8 +672,8 @@ def cps_years():
 
 
 def cps_neighbours(year):
-    """For a year with no CPS units (an even year, 30 October): the nearest CPS years either side, (lo, hi). A year
-    with CPS units, or one outside their range, is an error: the caller handles those."""
+    """For a year with no CPS units (an even year): the nearest CPS years either side, (lo, hi). A year with CPS
+    units, or one outside their range, is an error: the caller handles those."""
     have = cps_years()
     lo, hi = max([y for y in have if y < year], default=None), min([y for y in have if y > year], default=None)
     assert year not in have and lo is not None and hi is not None, \
@@ -742,10 +682,10 @@ def cps_neighbours(year):
 
 
 def taxdata_nonfiler_rows(year, cells, v, stats):
-    """(Autoresearch, round 9) An item of the non-filers in the pipeline's tax data for the year (data/tax_data_<year>
-    .parquet, the CPS units weighted by their chance of not filing, their amounts in PUF terms before the training's
-    fill-in): its amount, or the units with it (statistic count). A year with no tax data file takes the geometric mean
-    of the CPS years either side, as the non-filer count does. Cells all."""
+    """An item of the non-filers in the pipeline's tax data for the year (data/tax_data_<year>.parquet, the CPS units
+    weighted by their chance of not filing, their amounts in PUF terms before the training's fill-in): its amount, or
+    the units with it (statistic count). A year with no tax data file takes the geometric mean of the CPS years either
+    side, as the non-filer count does. Cells all."""
     assert cells == [group_cells('all')[0]], 'tax data non-filers: cells all only'
     def one(y):
         t = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
@@ -768,11 +708,11 @@ def taxdata_nonfiler_rows(year, cells, v, stats):
 def nonfiler_count(year):
     """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
     the generated non-filer batch is sized by (generate.cps_expected_nonfilers). A year with no CPS units (an even
-    year; 30 October) takes the geometric mean of the nearest CPS years either side (cps_neighbours), as the start's
-    scaling does (start.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
+    year) takes the geometric mean of the nearest CPS years either side (cps_neighbours), as the start's scaling does
+    (start.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
     t = t[t.source == 'cps']
-    if year > max(cps_years()):   # past the last CPS year (30 October): grown with the population
+    if year > max(cps_years()):   # past the last CPS year: grown with the population
         from shared import growth as GR
         last = max(cps_years())
         return nonfiler_count(last) * GR.population(year) / GR.population(last)
@@ -790,7 +730,7 @@ def filing_checks(year):
 
 
 def cex_mix_rows(year, cells, v, stats):
-    """The CEX's statistics over the year's mix of CEX years (survey_mix.py; TARGETS.md section 7): each year's units
+    """The CEX's statistics over the year's mix of CEX years (survey_mix.py): each year's units
     in the target year's dollars (the maps' factors), the statistic computed on each year alone, then pooled, value =
     the sum over years of share x the year's value. Only averages: an average does not depend on a year's number of
     units. The standard error is pooled in errors.consumption_errors (variance = sum of share^2 x the year's)."""
@@ -859,7 +799,7 @@ def cps_overtime_units(y):
 
 
 def cps_mix_rows(year, cells, v, stats):
-    """The CPS overtime targets over the year's mix of CPS years (survey_mix.py; TARGETS.md section 7), as the CEX's
+    """The CPS overtime targets over the year's mix of CPS years (survey_mix.py), as the CEX's
     (cex_mix_rows): each year's asked units in the target year's dollars (cps_overtime_units), the average computed on
     each year alone, value = the sum over years of share x the year's average. The standard error is pooled in
     errors.overtime_errors from the CPS's replicate weights (variance = sum of share^2 x the year's)."""
@@ -884,7 +824,7 @@ _CPS_AGE = {}
 
 
 def cps_age_units(y):
-    """(2 November 2026) The CPS year y's tax units of the training table, filers and non-filers, for the counts of units by
+    """The CPS year y's tax units of the training table, filers and non-filers, for the counts of units by
     the primary's age (catalog source cps units): record_id, weight, age_range and age1, the primary filer's age in years
     (the table stores age plus 1; ages 80 and over held at 80, as on the file). Dependent filers are folded into the
     unit that claims them, as in every survey, so the count matches the file's units other than dependent filers."""
@@ -903,8 +843,8 @@ def cps_age_units(y):
 
 
 def cps_age_rows(year, cells, v, stats):
-    """(2 November 2026, John) The number of tax units, filers and non-filers, in each cell of the primary's age, from the CPS's
-    units over the year's CPS year mix (prior "cps items"; 2022: 2021 and 2023, half each): value = sum over years of
+    """The number of tax units, filers and non-filers, in each cell of the primary's age, from the CPS's units over the
+    year's CPS year mix (prior "cps items"; 2022: 2021 and 2023, half each): value = sum over years of
     share x the year's count. The standard error is pooled in errors.cps_age_errors from the CPS's replicate weights."""
     from shared import survey_mix
     assert stats == ['units'] and v is None, f'CPS units {year}: counts of units only, not {stats} of {v}'
@@ -936,9 +876,8 @@ def survey_rows(source, year, cells, v, stats, population=None):
     waves, with their standard errors (scf_targets.py), on the population's units (its net worth ceiling, if any)."""
     if source == 'scf':
         from reweight import scf_targets
-        return scf_targets.rows(cells, v, stats, year, ceiling=net_worth_ceiling(population) if population else None)
-    if population and net_worth_ceiling(population) is not None:
-        raise NotImplementedError(f'{source}: a net worth ceiling on a survey other than the SCF')
+        return scf_targets.rows(cells, v, stats, year, ceiling=net_worth_ceiling(population))
+    assert net_worth_ceiling(population) is None, f'{source}: a net worth ceiling on a survey other than the SCF'
     if source == 'cex':
         return cex_mix_rows(year, cells, v, stats)
     if source == 'cps':
@@ -990,7 +929,7 @@ FILE_RANK_LINES = {}   # (variable, population, percentile) -> the file's dollar
 
 def pipeline_rows(year, cells, v, stats):
     assert cells == [group_cells('all')[0]] and stats in (['units'], ['amount'])
-    if year > max(cps_years()):   # past the last CPS year (30 October): the last year's grown with the population
+    if year > max(cps_years()):   # past the last CPS year: the last year's grown with the population
         from shared import growth as GR
         last = max(cps_years())
         f = GR.population(year) / GR.population(last)
@@ -1002,7 +941,7 @@ def pipeline_rows(year, cells, v, stats):
                  'source': f'past the last CPS year: the filing stage\'s people among the expected non-filers in {last}, '
                            f'counted as the file counts them, times the growth of the Social Security area population, '
                            f'{f:.4f}'}]
-    if year not in cps_years():   # an even year (30 October): the geometric mean of the CPS years either side
+    if year not in cps_years():   # an even year: the geometric mean of the CPS years either side
         lo, hi = cps_neighbours(year)
         if v is None:
             return [{'cell': 'all', 'statistic': 'units', 'value': nonfiler_count(year),
@@ -1025,28 +964,18 @@ def pipeline_rows(year, cells, v, stats):
                        f'{band})'}]
 
 
-def outside_level(src, line, a, b):
-    """An outside series' ratio from year a to year b (catalog sources of kind outside): CBO's individual income tax
-    projections (a line by the start of its name; targets.cbo_level), or Z.1 household net worth (growth.py)."""
-    if src == 'cbo individual income tax':
-        return TG.cbo_level(line, b) / TG.cbo_level(line, a)
-    if src == 'z1 household net worth':
-        from shared import growth as GR
-        nw = GR._csv('z1_household_net_worth.csv')
-        return float(nw.loc[b]) / float(nw.loc[a])
-    raise KeyError(f'outside source {src}')
-
-
 def outside_rows(src, year, cells, v, stats, e):
-    """A target from outside information that comes only as a change (TARGETS.md section 3, 30 October): the start
-    year's own file's total (its final weights, its dollars of that year) times the outside series' growth from that
-    year to this one. Only for a year whose start is an earlier year's file (from_year); cells all."""
+    """A target from outside information that comes only as a change: the start year's own file's total (its final
+    weights, its dollars of that year) times the outside series' growth from that year to this one (Z.1 household net
+    worth, growth.py). Only for a year whose start is an earlier year's file (from_year); cells all. The projection
+    years' own sources are projection_steps.outside_rows, CBO's counts cbo_count_rows."""
     if src == 'cbo counts':
         return cbo_count_rows(year, v, stats, e)
     if src in ('projection persons', 'projection returns', 'projection items', 'projection filing season'):
-        from scale import projection_steps as PS   # (3 November, agent A) the steps of the projection years
+        from scale import projection_steps as PS
         assert stats == ['amount'], f'entry {e["id"]}: projection targets are amounts'
         return PS.outside_rows(src, year)
+    assert src == 'z1 household net worth', f'outside source {src}'
     assert cells == [group_cells('all')[0]], f'entry {e["id"]}: an outside target has cells all'
     spec = start_spec(year)
     assert spec['mode'] == 'from_year', f'entry {e["id"]}: an outside target needs a start from an earlier year\'s file'
@@ -1055,7 +984,9 @@ def outside_rows(src, year, cells, v, stats, e):
     df = pd.read_parquet(path)
     w = df['weight'].to_numpy(float)
     pop = population(df, e['population'])
-    f = outside_level(src, e['outside_line'], s, year)
+    from shared import growth as GR
+    nw = GR._csv('z1_household_net_worth.csv')
+    f = float(nw.loc[year]) / float(nw.loc[s])
     out = []
     for st in stats:
         assert st in ('units', 'amount'), f'entry {e["id"]}: outside targets are units or amounts'
@@ -1067,14 +998,12 @@ def outside_rows(src, year, cells, v, stats, e):
 
 
 def cbo_count_rows(year, v, stats, e):
-    """(1 November, projection years) CBO's published counts of returns (all returns, itemizers, returns affected by
-    the AMT; February 2026, to 2036), anchored to our own level like every other projection target: the start file's
-    (since 1 November, decision 74, always the 2023 file) count (its final weights; the count as the targets count it: filers, and for itemizers and AMT
-    returns the filers with a nonzero calculator value) times CBO's growth in that count from the previous year to
-    this one. Until 31 October the target was CBO's level itself, which differs from the file's by the definition of a
-    return. After 2036 CBO publishes none, and since 4 November 2026 (the long-run years) no CBO number is used after
-    settings tilt.projection.cbo_last_year (2035): no row (the entry is then left out and the file's count follows from
-    the demographic cells). The standard error is the entry's, as before."""
+    """CBO's published counts of returns (all returns, itemizers, returns affected by the AMT), anchored to our own
+    level like every other projection target: the start file's count (its final weights; the count as the targets
+    count it: filers, and for itemizers and AMT returns the filers with a nonzero calculator value) times CBO's growth
+    in that count from the start year to this one. After settings tilt.projection.cbo_last_year no CBO number is
+    used: no row (the entry is then left out and the file's count follows from the demographic cells). The standard
+    error is the entry's."""
     from scale import projection_demographics as PD
     from scale import projection_growth as PG
     series = e['outside_line']
@@ -1194,11 +1123,11 @@ def published_grid(source, year, cells, v, stats):
     """A tidy published table, selected by catalog item, measure and group labels.
 
     Group labels map to one or several published panels (several panels are added). Rank cells map to published
-    cumulative groups. A cell of a grouping with published lines (catalog cutoffs: published; Table 4.3's top groups
-    since 3 November) is the returns with AGI at or above the group's published cutoff for the year (catalog
-    cutoff_item), in nominal dollars of the year; a missing cutoff is an error. Errors borrow errors.py's nearest
-    Table 1.4 cells using the paired holder count. A published AGI cutoff at or above the catalog's full-sample line
-    gets errors.full_sample_se instead.
+    cumulative groups. A cell of a grouping with published lines (catalog cutoffs: published; Table 4.3's top groups)
+    is the returns with AGI at or above the group's published cutoff for the year (catalog cutoff_item), in nominal
+    dollars of the year; a missing cutoff is an error. Errors borrow errors.py's nearest Table 1.4 cells using the
+    paired holder count. A published AGI cutoff at or above the catalog's full-sample line gets errors.FULL_SAMPLE_SE
+    instead.
     """
     from reweight import errors
     definition = CAT['sources'][source]
@@ -1219,7 +1148,7 @@ def published_grid(source, year, cells, v, stats):
             if cut.iloc[0].value:
                 cutoff = float(cut.iloc[0].value)
         if c.get('published_line'):
-            # (3 November, John) the group is the returns at or above SOI's published AGI cutoff for the year
+            # the group is the returns at or above SOI's published AGI cutoff for the year
             assert definition.get('cutoff_item'), f'{source}: no cutoff_item for the published lines of {c["label"]}'
             assert cutoff is not None and np.isfinite(cutoff) and cutoff > 0, \
                 f'{source} {year} {c["label"]}: no published AGI cutoff ({definition["cutoff_item"]})'
@@ -1241,8 +1170,7 @@ def published_grid(source, year, cells, v, stats):
             assert scales.notna().all(), f'{source}: unknown units {z.unit.tolist()}'
             x = pd.to_numeric(z.value) * scales
             if 'net loss' in name and measure != spec.get('count', 'returns'):
-                # (30 October) Table 4.3 prints a net loss's amount as a negative number in some years (partnership
-                # and S corporation losses in 2020 and 2023, Schedules C and F losses in 2023) and as a positive one in
+                # Table 4.3 prints a net loss's amount as a negative number in some years and as a positive one in
                 # others; the file's loss variables are sizes, so the published amount is read as its size
                 x = x.abs()
             return float(x.sum())
@@ -1254,11 +1182,9 @@ def published_grid(source, year, cells, v, stats):
                 reason = (f'{100 * errors.FULL_SAMPLE_SE:g}% of value (errors.full_sample_se): published AGI cutoff '
                           f'${cutoff:,.0f} is in the fully sampled AGI range; allowance for definition differences')
             elif c.get('published_line') and st in ('count', 'units'):
-                # (4 November 2026, John) the count above a published AGI cutoff borrows only from Table 1.4's count
-                # cells in the AGI classes at or above the cutoff (a class reaching above it counts), as Table 1.6's
-                # age-by-AGI cells do (errors.soi_errors): SOI samples the top far more densely than the middle, and
-                # borrowing by count alone gave the top 0.1% (141,000 returns in 2015) the 8% CV of cells such as
-                # partnership income at $15,000-$20,000 of AGI
+                # the count above a published AGI cutoff borrows only from Table 1.4's count cells in the AGI classes
+                # at or above the cutoff (a class reaching above it counts), as Table 1.6's age-by-AGI cells do
+                # (errors.soi_errors): SOI samples the top far more densely than the middle
                 same = donors[~donors.total_row & (donors.hi > cutoff)]
                 cv, what = errors.borrow_cv(same, count=abs(val))
                 assert np.isfinite(cv), f'{source} {year} {c["label"]}: no Table 1.4 count cell with a CV above ${cutoff:,.0f}'
@@ -1338,7 +1264,7 @@ def _w2_table(path, sheet):
 
 def w2_dependent_share(source, year):
     """The SIPP's share of dependents among the year's non-joint people with tips, over the year's mix of SIPP years
-    (survey_mix.py; TARGETS.md section 7): the sum over years of share x the year's share, for people and for tips
+    (survey_mix.py): the sum over years of share x the year's share, for people and for tips
     (a share of the people or the dollars does not depend on a year's population). Returns (share of people, share of
     tips, description)."""
     from shared import survey_mix
@@ -1403,7 +1329,7 @@ def published_w2(source, year, cells, v, stats, population):
     return out
 
 
-# ---- W-2 Table 2.D: elective deferrals by AGI and return type (28 October) -------------------------------------------
+# ---- W-2 Table 2.D: elective deferrals by AGI and return type -------------------------------------------
 def _agi_bounds(label):
     """(lo, hi) of a W-2 table's AGI row label: 'No adjusted gross income', '$1 under $5,000', '$10,000,000 and over'."""
     s = label.replace(',', '').replace('$', '').strip()
@@ -1569,15 +1495,15 @@ def published_21(year, cells, v, stats):
     path = os.path.join(common.RESOURCES, 'table21_2015_2023.csv')
     data = pd.read_csv(path)
     category = v.removeprefix('itemized_')
-    # (1 November, decision 54) the taxes line is Table 2.1's state and local taxes (limited, 2018 on), not the taxes paid
-    # total, which adds other taxes the calculator does not compute (resources/build_table21_state_local.py)
+    # the taxes line is Table 2.1's state and local taxes (limited, 2018 on), not the taxes paid total, which adds
+    # other taxes the calculator does not compute (resources/build_table21_state_local.py)
     source_category = {'other': 'other_residual', 'taxes': 'taxes_state_local'}.get(category, category)
     source = data[(data.year == year) & (data.category == source_category)]
     groups = CAT['groupings']['itemized_agi_groups']['edges']
-    # Table 2.1's published groups, with their lower and upper edges. Since 30 October (decision 48) a group of ours
-    # can hold several published groups (under $25,000 and $25,000-$50,000 are one group, under $50,000): their
-    # counts and amounts add, and their standard errors add in quadrature (the published groups are treated as
-    # independent, as the combined source cells already were).
+    # Table 2.1's published groups, with their lower and upper edges. A group of ours can hold several published groups
+    # (under $25,000 and $25,000-$50,000 are one group, under $50,000): their counts and amounts add, and their standard
+    # errors add in quadrature (the published groups are treated as independent, as the combined source cells already
+    # were).
     published = [('under $25,000', -np.inf, 25000), ('$25,000–$50,000', 25000, 50000), ('$50,000–$75,000', 50000, 75000),
                  ('$75,000–$100,000', 75000, 100000), ('$100,000–$200,000', 100000, 200000),
                  ('$200,000–$500,000', 200000, 500000), ('$500,000 and over', 500000, np.inf)]
@@ -1711,35 +1637,34 @@ def expand_entry(e, year, soi):
 LAST = {}   # the last expand(): the cells left out and the resolved configuration
 
 
-CALCULATOR_KIND = 'calculator'   # targets on columns the tax calculator computes (taxes.py), 30 October
+CALCULATOR_KIND = 'calculator'   # targets on columns the tax calculator computes (taxes.py)
 
 
-def expand(year=common.TARGET_YEAR, start=None, which='all'):
-    """One row per target for the year (ROW_COLUMNS, then CELL_COLUMNS). A cell published as zero is left out; with
-    a starting file (a DataFrame with the file's columns), so is a cell no record can reach. Both are listed in
+def expand(year, start, which):
+    """One row per target for the year (ROW_COLUMNS, then CELL_COLUMNS). A cell published as zero is left out, and so
+    is a cell no record of the starting file (a DataFrame with the file's columns) can reach. Both are listed in
     LAST['excluded'], and the resolved configuration is LAST['config'] (kept outside the frame, so pandas operations
     on the rows never carry them).
-    which (30 October): 'all', 'without calculator' (every entry but those of kind calculator, whose columns the tilt
-    computes after the non-microdata imputations, taxes.py) or 'calculator' (those alone; LAST['excluded'] then keeps
-    what the call before left out and adds to it)."""
+    which: 'without calculator' (every entry but those of kind calculator, whose columns the tilt computes after the
+    non-microdata imputations, taxes.py) or 'calculator' (those alone; LAST['excluded'] then keeps what the call
+    before left out and adds to it)."""
     cfg = resolve(year)
     soi = TG.load()
-    assert which in ('all', 'without calculator', 'calculator'), which
+    assert which in ('without calculator', 'calculator'), which
     is_calc = lambda e: e['kind'] == CALCULATOR_KIND or bool(e.get('needs_calculator'))   # needs_calculator: a CBO count of the calculator's itemizers or AMT
-    entries = {'all': cfg['targets'], 'calculator': [e for e in cfg['targets'] if is_calc(e)],
-               'without calculator': [e for e in cfg['targets'] if not is_calc(e)]}[which]
+    entries = [e for e in cfg['targets'] if is_calc(e) == (which == 'calculator')]
     expanded = [r for e in entries for r in expand_entry(e, int(year), soi)]
     # Save additional discrete groupings only when a configuration uses them. The default list keeps its schema.
     extra = ['filters'] if any(r.get('filters', '[]') != '[]' for r in expanded) else []
     rows = pd.DataFrame(expanded, columns=ROW_COLUMNS + CELL_COLUMNS + extra)
     zero = (rows['value'] == 0) & rows['statistic'].isin(['count', 'amount', 'units'])
     excluded = rows[zero].assign(why='published as zero').reset_index(drop=True)
-    if which == 'calculator' and LAST.get('year') == int(year) and LAST.get('excluded') is not None:
+    if which == 'calculator':
         excluded = pd.concat([LAST['excluded'], excluded], ignore_index=True)
     rows = rows[~zero].reset_index(drop=True)
     must = {(e['id'], str(c)) for e in cfg['targets'] for c in e.get('must_reach', [])}
     is_must = np.array([(en, str(g)) in must for en, g in zip(rows['entry'], rows['group'])], bool)
-    if start is not None and len(rows):   # (review, 30 October) a year with no calculator entries has nothing to reach
+    if len(rows):   # a year with no calculator entries has nothing to reach
         F, _, _ = conditions(start, rows, None, check=False)
         reach = (F != 0).any(0) | rows['statistic'].isin(['average', 'share', 'worker share']).to_numpy()
         excluded = pd.concat([excluded, rows[~reach].assign(why='no record can reach it')], ignore_index=True)
@@ -1763,11 +1688,9 @@ def expand(year=common.TARGET_YEAR, start=None, which='all'):
 # ---- the conditions on the weights ----------------------------------------------------------------------------
 def net_worth_ceiling(name):
     """A population's net worth ceiling in nominal target-year dollars (catalog net_worth_below; the SCF targets'
-    population, 29 October), or None: none set."""
+    population), or None: none set."""
     c = CAT['populations'][name].get('net_worth_below')
-    if c is None:
-        return None
-    return float(c)
+    return None if c is None else float(c)
 
 
 def population(df, name):
@@ -1786,19 +1709,7 @@ def conditions(df, rows, w_start, check=True):
     an average or a share, averages[j] = (member, v, published average): the average of v over the records in
     member, written as the sum over member of w (v / m - 1) = 0 (a share is the average of a 0/1 indicator); else
     None. With check, a target no record with a positive starting weight can reach is an error."""
-    rows = rows.fillna({'variable': '', 'dependent_filers': ''})   # as read back from targets.csv
-    if 'line_variable' not in rows:   # a target list written before 25 October: every line was on the target's variable
-        rows = rows.assign(line_variable=np.where(rows['line'].notna(), rows['variable'], ''))
-    rows = rows.fillna({'line_variable': ''})
-    if 'rank_variable' not in rows:   # a target list with no income rank groups
-        rows = rows.assign(rank_variable='', rank_lo=np.nan, rank_hi=np.nan)
-    rows = rows.fillna({'rank_variable': ''})
-    if 'line_hi' not in rows:   # a target list with no bands
-        rows = rows.assign(line_hi=np.nan)
     rows = rows.assign(line_hi=rows['line_hi'].astype(float))
-    if 'range_variable' not in rows:   # a target list with no dollar ranges of a variable other than AGI
-        rows = rows.assign(range_variable='', range_lo=np.nan, range_hi=np.nan)
-    rows = rows.fillna({'range_variable': ''})
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
     from shared import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
@@ -1869,7 +1780,7 @@ def conditions(df, rows, w_start, check=True):
             F[:, j] = cell
             if r.dependent_filers:
                 # Table 1.6's dependent filers 26 and over: spread over this status's ranges by the entry's own values;
-                # (3 November 2026) for an entry by AGI group and not by status, over the ranges of the same AGI group
+                # for an entry by AGI group and not by status, over the ranges of the same AGI group
                 same = rows['entry'] == r.entry
                 dep_26 = pops[r.population] & (rng == common.DEPENDENT_RANGES[-1])
                 if not np.isnan(r.married):
@@ -1920,41 +1831,36 @@ def conditions(df, rows, w_start, check=True):
     return F, T, averages
 
 
-# ---- the start and the targets built from it (TARGETS.md S7) ----------------------------------------------------
-START_SCALING = {'weights': ('demographic', 'persons'), 'dollars': ('item_factor', 'none')}
-
-
+# ---- the start and the targets built from it ----------------------------------------------------
 def start_spec(year):
-    """How the year's start is built, from the year file (TARGETS.md S7):
-      start: generate                      the run's generated stack (the default)
-      start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet
-    and start_scaling: {weights: demographic | persons, dollars: item_factor | none} (START_SCALING). weights: how the
-    start's weights are scaled to year t before the tilt (demographic, a generated start: filers to SOI's returns and
-    non-filers to the year's non-filer count, then joint and non-joint returns to Table 1.2, then the demographic
-    cells; persons, a start from an earlier year: projection_steps.step1); its default is settings tilt.prescale.
-    dollars item_factor (from_year only): each record's amounts grown item by item from s to t (start.grow_dollars)."""
+    """How the year's start is built, from the year file:
+      start: generate                      the run's generated stack (the default): start_scaling {weights:
+                                           demographic, dollars: none}: filers scaled to SOI's returns and non-filers
+                                           to the year's non-filer count, then joint and non-joint returns to Table
+                                           1.2, then the demographic cells (tilt.prescale_demographic); dollars from
+                                           the year's maps
+      start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet: start_scaling
+                                           {weights: persons, dollars: item_factor}: the weights calibrated to people
+                                           by age and marital status (projection_steps.step1), each record's amounts
+                                           grown item by item from s to the year (start.grow_dollars)
+    A start_scaling in the year file must say the same."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')
     if st == 'generate':
-        spec = {'mode': 'generate'}
+        spec = {'mode': 'generate', 'weights': 'demographic', 'dollars': 'none'}
     else:
         assert isinstance(st, dict) and set(st) == {'from_year', 'run'}, \
             f'{year}/targets.yaml: start is generate or {{from_year: <year>, run: <tilt run>}}, not {st!r}'
         assert int(st['from_year']) < int(year), f'{year}/targets.yaml: from_year {st["from_year"]} is not earlier'
-        spec = {'mode': 'from_year', 'year': int(st['from_year']), 'run': str(st['run'])}
-        from scale import projection_steps as PS   # (4 November, evening) the jump-off year (settings tilt.projection.filing_season)
+        spec = {'mode': 'from_year', 'year': int(st['from_year']), 'run': str(st['run']), 'weights': 'persons',
+                'dollars': 'item_factor'}
+        from scale import projection_steps as PS   # the jump-off year (settings tilt.projection.filing_season)
         j = PS.jump_off(year, spec['year'])
         if j != spec['year']:
             spec.update(year=j, run=f'y{j}', jump_off=True)
     sc = dict(cfg.get('start_scaling') or {})
-    bad = set(sc) - set(START_SCALING)
-    assert not bad, f'{year}/targets.yaml: unknown keys in start_scaling {bad}'
-    spec['weights'] = sc.get('weights', common.SETTINGS['tilt']['prescale'])
-    spec['dollars'] = sc.get('dollars', 'item_factor' if spec['mode'] == 'from_year' else 'none')
-    for k, allowed in START_SCALING.items():
-        assert spec[k] in allowed, f'{year}/targets.yaml: start_scaling {k} {spec[k]!r} is not one of {allowed}'
-    assert spec['mode'] == 'from_year' or spec['dollars'] == 'none', \
-        f'{year}/targets.yaml: a generated start has its dollars from the year\'s maps; start_scaling dollars is for from_year'
+    for k, v in sc.items():
+        assert spec.get(k) == v, f'{year}/targets.yaml: start_scaling {k} is {spec.get(k)!r} for this start, not {v!r}'
     return spec
 
 
@@ -1964,9 +1870,8 @@ def write(rows, folder, year=common.TARGET_YEAR):
     out, if any, in targets_excluded.csv."""
     os.makedirs(folder, exist_ok=True)
     rows.to_csv(f'{folder}/targets.csv', index=False)
+    assert LAST['year'] == int(year), 'write before expand'
     with open(f'{folder}/resolved_{year}.yaml', 'w') as f:
-        yaml.safe_dump(LAST['config'] if LAST.get('year') == int(year) else resolve(year), f, sort_keys=False,
-                       width=110, allow_unicode=True)
-    ex = LAST.get('excluded') if LAST.get('year') == int(year) else None
-    if ex is not None and len(ex):
-        ex.to_csv(f'{folder}/targets_excluded.csv', index=False)
+        yaml.safe_dump(LAST['config'], f, sort_keys=False, width=110, allow_unicode=True)
+    if len(LAST['excluded']):
+        LAST['excluded'].to_csv(f'{folder}/targets_excluded.csv', index=False)
