@@ -187,7 +187,7 @@ def add_list(g19, imp, given, fixed, rep, year):
             fix_b = np.full(len(b), True)
             notes.append(f'billionaires: starting weights 1 x the population growth of their cell from {list_year} to '
                          f'{year}: {w_b.min():.4f} to {w_b.max():.4f} (sum {w_b.sum():,.1f} for {len(b)} records); '
-                         + 'held fixed at them in the reweighting (settings tilt.top.after_last_list.fixed)')
+                         + 'held fixed at them in the reweighting')
         g19 = pd.concat([g19, b], ignore_index=True)
         imp = np.r_[imp, w_b]
         given = np.r_[given, np.ones(len(b), bool)]

@@ -42,8 +42,8 @@ after generation (section 3, "The top of the file").
 
 Every survey is split into tax units by one module of CBO's rules (`prep/tax_units.py`), run on a member list that
 each survey's reader builds (`prep/roster_cps.py`, `roster_scf.py`, `roster_cex.py`, `roster_sipp.py`). Where a
-survey lacks an input the rule uses a named fallback (`tax_units.FALLBACKS`), and every unit carries flags for the
-inputs that were assumed. CBO's reassignment pass is on (settings `tax_units.reassign`). Dependents with income of
+survey lacks an input the rule uses a fallback, and every unit carries flags for the inputs that were assumed
+(`tax_units.ASSUMED_FLAGS`). CBO's reassignment pass is always applied. Dependents with income of
 their own stay people of the claiming unit; dependent filers are not separate survey units. Group quarters are left
 out. `TAX_UNITS.md` has the rules and each survey's treatment.
 
@@ -216,8 +216,7 @@ elsewhere). Weeks, hours, childcare and overtime are amounts cut within each yea
 
 Waves 2013-2025 (`prep/roster_scf.py`, then `prep/build_scf.R`, which sources production's
 `src/imputations/wealth_schema.R`). The financially independent adults outside the primary economic unit (PEU) are
-units of their own, with their share of the group's income and balance sheet (settings `tax_units.npeu_split`:
-equal, or Moore's rule for wages and Social Security), flagged `group_level`; married couples among them file
+units of their own, each with an equal share of the group's income and balance sheet, flagged `group_level`; married couples among them file
 jointly; the SCF's support answer stands in for the student and income tests; children living elsewhere count only
 where the family paid alimony or child support; separate returns from the couple's own answer. The PEU's income and
 balance sheet go to the respondent's unit, or are divided between the respondent's and the spouse's or partner's
@@ -492,7 +491,7 @@ adds the stage after function 2 from the trained network: `model/<run>/translati
   record counts as much as in a mixed batch. Output layers are computed in one batched multiplication, only for the
   batch's own source.
 - **Precision.** Training steps run in bfloat16; the fill-in, the held-back loss and the logs run in 32-bit.
-- **Grouped weighting** (settings `training.q_groups`). Each record counts by its survey weight times q, where q =
+- **Grouped weighting** (`pretrain/qgroups.py`). Each record counts by its survey weight times q, where q =
   records / survey weight within the record's group. Within a group records count by weight; across groups they count
   by number. Each source's share of training is unchanged. Groups: on the PUF the 12 AGI groups (a record at p99.99
   and over counts about 1.6 returns' worth of weight, one below p50 about 1,390; the top group, 0.02% of returns, is
@@ -545,7 +544,7 @@ across networks):
    primary filer's age lies inside its age range; the spouse's exists exactly when married and is 18 or over; a
    non-filer head is 18 or over;
 4. the SCF-only items in random order (the mortgage share after the home; the spouse's deferral share after the
-   deferrals; with `generation.qbi_items_last` the QBI workers and industry after every other SCF item), under the SCF
+   deferrals; the QBI workers and industry after every other SCF item), under the SCF
    label at the income year of the record's SCF wave, PUF-only variables left out;
 5. the 8 consumption categories in random order, under the CEX label at the record's CEX year;
 6. the CPS person items, childcare, Social Security number status and state in random order, then the two adults'
@@ -606,21 +605,20 @@ Settings `generation.filers`: `synthetic` (the default) or `real_puf`. With `rea
 PUF record, the four aggregate records included: all its PUF slots and computed totals preset, each network drawing
 everything else given the record, so each record appears once per network ("copy" 1-3) at its PUF weight over the
 number of networks. Where the PUF has no age range or earnings split code, each copy draws one from the record's
-probabilities (salt `generation.real_puf_earn_split_salt` for the code). The aggregate records' filing status,
+probabilities, a draw keyed by record id and copy. The aggregate records' filing status,
 dependents, age range and earnings split are drawn (adult ranges only); their blank alimony fields read as zero. A
 real record's own 2015 amounts are carried as `own_<item>` and grown exactly as the dollar map is grown. Record ids are
 50,000,000 + (copy - 1) x 1,000,000 + RECID. The non-filer batch and the Forbes list are as in a synthetic run.
 
-Choosing `real_puf` also: turns off the rebuild of the aggregate records (they are in the file as real records); runs
-the top step's redraw on the same GPU after the draw in a past year, into the top cache; adds the package stage after
-the Tax-Simulator file; and requires a projection year's start file to be of the same kind (the reweighting stops
-otherwise). A projection year writes its growth factors in full precision (`start_growth.csv`) for the package.
+Choosing `real_puf` also: turns off the rebuild of the aggregate records (they are in the file as real records); adds
+the package stage after the Tax-Simulator file; and requires a projection year's start file to be of the same kind (the
+reweighting stops otherwise). A projection year writes its growth factors in full precision (`start_growth.csv`) for the package.
 
 ### The top of the file
 
 `generate/top_hidden.py`, `top_billionaires.py`, `top_records.py`; settings `tilt.top` and `top_hidden`. The steps run
 on the start in target-year dollars, before the prescaling and the targets. The part that needs the networks (the
-rebuilt aggregate records and every redraw) runs on a GPU into the top cache (`REBUILD_TOP_CACHE`); the Forbes list is
+rebuilt aggregate records and every redraw) runs on a GPU in the stage `top` (`generate/top.py`) into the top cache, `<out>/top_cache.pkl`; the Forbes list is
 added on every run.
 
 **The PUF's four aggregate records, rebuilt.** The 2015 PUF holds 1,232.78 returns in four records of group means:
@@ -692,7 +690,7 @@ multiplied by one factor that puts its net worth at 0.999 times the ceiling; its
 unchanged (`held_below_ceiling.csv`).
 
 **After the last list (2027 on).** The 2026 list is grown: every fortune by one factor, chosen so that the list's net
-worth on its starting weights grows as Z.1 household net worth (settings `tilt.top.after_last_list`), so the list keeps
+worth on its starting weights grows as Z.1 household net worth (`top_records.py`), so the list keeps
 its 2026 share of the file's net worth (4.5% in 2026, 4.3% in 2075). Ages are raised; income is computed from the IRS
 study's ratios as in a list year. Each record's weight starts at its demographic cell's population growth from 2026 and
 is held fixed in the solve. Records grown past $1 billion stay, as the people who become billionaires after the list.
@@ -766,7 +764,7 @@ The year's `targets.yaml` names the start (`scale/start.py`, called by the rewei
   item by item from s to the target year (projection years, below).
 
 Weights are then scaled: filers to SOI's returns and non-filers to the CPS's expected non-filers; filers within joint
-and non-joint returns to Table 1.2; then (settings `tilt.prescale` `demographic`) filers to SOI Table 1.6's returns by
+and non-joint returns to Table 1.2; then filers to SOI Table 1.6's returns by
 the primary's age range in joint and non-joint returns, and non-filers to the non-filer people targets, each keeping
 its total, by the same solver as the reweighting. These cells stay targets.
 
@@ -867,8 +865,7 @@ They run in the reweighting stage on the start, after the dollars are in target-
 prescaled, before the taxes and the solve. They add columns only, with two exceptions: a primary filer with an age and
 no sex is given one (even chances, keyed draw); and the AMT rule changes `amt_nols`, keeping the drawn value as
 `amt_nols_drawn`. The two ranking items rank on the prescaled start's weights. No target reads these columns except
-through the calculator. They can be run on a finished file for checks (`python -m scale.non_micro_imputations --run
-<tilt folder> --out <folder>`), which reproduces its columns exactly.
+through the calculator.
 
 **Random numbers.** Each is a fixed function of the record id, the item's stream and the person
 (`shared/ages.uniform_by_id`, salt = `salt_base` + 8 x stream + person; person 0 the unit, 1-2 the adults, 3-5 the
@@ -936,16 +933,15 @@ Every record's federal income and payroll taxes under the target year's law come
    net investment income tax, total income tax, income tax net of refundable credits, self-employment and payroll tax,
    and the marginal rates of income and payroll tax on the primary earner's wages ($100 more, `wage_increment`).
 
-The reweighting moves weights only, so the taxes stay right after it. With `taxes.target` false the calculator targets
-are only reported. Each run writes `tilt/<run>/taxes/` (inputs, outputs, `taxes_fit.csv`, `taxes_summary.md`).
+The reweighting moves weights only, so the taxes stay right after it. Each run writes `tilt/<run>/taxes/` (inputs, outputs, `taxes_fit.csv`, `taxes_summary.md`).
 
 Rules applied with the calculator's help before the targets, each recomputing every total built from the item:
 
 - **Repealed adjustments** (`taxes.repealed_adjustments`): the domestic production activities deduction from 2018 and
   the tuition and fees deduction from 2021 are set to zero.
-- **The deductible half of self-employment tax** is taken from the calculator (`taxes.se_tax_ded_from_calculator`), so
+- **The deductible half of self-employment tax** is taken from the calculator, so
   the file's adjustments equal the calculator's.
-- **The refund rule** (`taxes.refund_rule`): taxable state refunds are zero on records the calculator says do not
+- **The refund rule**: taxable state refunds are zero on records the calculator says do not
   itemize. From 2019 (`refund_tax_benefit_from`; a 2018 refund repays uncapped 2017 taxes) the tax benefit rule
   (Publication 525) also holds an itemizer's refund to the benefit the deduction gave: the taxes deduction claimed less
   the one it would have claimed had it paid the refund less tax, and at most the itemized deductions less the standard

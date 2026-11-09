@@ -235,7 +235,7 @@ def check_all(a):
     d.to_csv(f'{a.out}/checks/by_year.csv', index=False)
     short = d[(d['all_converged'] == False) & d['within_near'].fillna(False).astype(bool)] if 'within_near' in d else d.iloc[:0]    # noqa: E712
     for _, r in short.iterrows():
-        say(f"REPORT TO JOHN: {int(r['year'])} stopped short of the stopping size after {int(r['newton_largest_group'])} Newton steps, largest gradient {r['largest_gradient']:.2e}, "
+        say(f"WARNING: {int(r['year'])} stopped short of the stopping size after {int(r['newton_largest_group'])} Newton steps, largest gradient {r['largest_gradient']:.2e}, "
             f"within 10 times the stopping size; the result is used")
     fin = d.drop(short.index)
     ok = {'every file there': bool(d['file'].all()), 'shares sum to 1 (largest error under 1e-9)': bool((d['largest_share_sum_error'] < 1e-9).all()),

@@ -1050,14 +1050,14 @@ def checks(df, year, w, ctx):
         t, ln = check_amt_nol_cap(df, w, ctx)
         out.append(('AMT net operating loss adjustment held to the loss', [t], ln))
     # the empty section is kept so that non_micro_checks.md and its numbered tables stay as they are
-    out.append(('Placeholders', [pd.DataFrame([])], ['Each is replaced by its own item (NEXT_STEPS.md item 1).']))
+    out.append(('Placeholders', [pd.DataFrame([])], ['Empty, so that the tables before it keep their numbers.']))
     return out
 
 
 def write_checks(sections, folder, year):
     """non_micro_checks.md (every table) and one CSV per table, in folder. Returns the page's lines."""
     text = [f'# The non-microdata imputations: checks, {year}', '',
-            f'Weights after the tilt. Counts in millions, dollars in nominal {year} dollars. Reported only (Q9).', '']
+            f'Weights after the tilt. Counts in millions, dollars in nominal {year} dollars. Reported only.', '']
     for i, (title, tables, lines) in enumerate(sections, 1):
         text += [f'## {i}. {title}', '']
         for j, t in enumerate(tables):

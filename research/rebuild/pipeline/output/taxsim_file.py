@@ -293,7 +293,7 @@ def column_table():
         if c in contract:
             _, status, source, what = contract[c]
             if status == C.ZERO and c in C_FROM_FILE:
-                status, source = 'same', f'{c} (made in the file since 29 October: {C_FROM_FILE[c]})'
+                status, source = 'same', f'{c} (made in the file: {C_FROM_FILE[c]})'
             elif status == C.ZERO:
                 source = '0, as production writes it'
         else:

@@ -958,7 +958,7 @@ def real_puf_records():
     _REAL.update({'ord': o, 'agg': a, 'own': own, 'slots': slots})
     common.say(f'real PUF: {len(o):,} ordinary records ({o.weight.sum() / 1e6:,.3f} million returns), '
                f'{len(a)} aggregate records ({a.weight.sum():,.2f} returns); {int((o.age_range < 0).sum()):,} ordinary '
-               f'records with no age range (drawn from step 0\'s probabilities); {len(own)} own amounts per record')
+               f'records with no age range (drawn from the age-range probabilities); {len(own)} own amounts per record')
     return _REAL
 
 
@@ -987,7 +987,7 @@ def real_puf_part(model, mod, k, n_models, fac):
     ce = np.cumsum(o.loc[es_miss, M.ES_PROBS].to_numpy(float), 1)
     es[es_miss] = np.minimum((ce < ue[:, None]).sum(1), len(M.ES_PROBS) - 1)
     preset['earn_split'] = torch.as_tensor(es)
-    common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from step 0's probabilities on "
+    common.say(f"{mod['run']}: real PUF copy {k + 1}: earnings split code drawn from its probabilities on "
                f"{int(es_miss.sum()):,} joint returns with no demographics (codes {np.bincount(es[es_miss], minlength=len(M.ES_PROBS)).tolist()})")
     part, counts = generate(model, len(o), seed, preset=preset, factors=fac, totals_preset=True)
     for v in slots:

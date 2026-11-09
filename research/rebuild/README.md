@@ -29,20 +29,38 @@ files in the run folder.
 From the repository root. On Bouchet each step is a Slurm job, submitted with dependencies so that a year's steps
 wait only for that year's earlier steps:
 
-    PLACEHOLDER: the commands from the restructure (cleanup/restructure/RESULT.md) go here.
-    Expected form:
-    python research/rebuild/pipeline/run.py training <run folder> --slurm
-    python research/rebuild/pipeline/run.py years <run folder> 2015-2075 --slurm
+    python3 research/rebuild/pipeline/run.py training <training folder> --slurm
+    python3 research/rebuild/pipeline/run.py years <training folder> <output folder> --slurm
 
-On a plain machine the same commands without `--slurm` run the steps one after another; GPU steps fall back to the
-CPU, slowly. The runner reads two optional environment variables, `REBUILD_PY_ENV` and `REBUILD_R_ENV`, shell lines
-run before a Python or an R stage (on Bouchet, `slurm/bouchet_env.sh` sets them to the module lines).
+On a plain machine the same commands without `--slurm` run the steps one after another, with `python` and `Rscript`
+from the path; GPU steps fall back to the CPU, slowly.
 
-Every setting is in `pipeline/settings.json`; a variant run is a copy named by `REBUILD_SETTINGS`. The PUF year (2015)
-and the target year are its `years`. Other environment variables: `REBUILD_OUT` (the output folder), `REBUILD_RUN`
-(the run's subfolder: `y<year>` for a year, the network's name for training), `REBUILD_SEED` (the training seed),
-`REBUILD_PASSES` (fewer passes, for a quick test), `REBUILD_TOP_CACHE` (the top step's cache), `REBUILD_SAVE_SOLVE`
-(save the national solve's inputs for the state solve).
+- `training` prepares the training data (stages `scf`, `cex`, `filing`, `cps`, `sipp`, `soi`, `soi_cv`, `table`,
+  `side_files`) and then trains the networks listed in settings `generation.models`. The training folder must already
+  hold two downloads made by hand: the SCF replicate weights in `data/scf_rw/<wave>/` and SOI's coefficient-of-variation
+  workbooks in `targets/soi_cv/raw/`. If the folder has no `settings.json`, the pipeline's is copied in.
+- `years` makes every year's file: each past year (`--past`, default 2015-2023), then 2024 from 2023 and the later
+  years (`--last-year`, default 2075) from 2024, the check of every year's state weights, and each year's
+  Tax-Simulator file (`--no-taxsim` leaves it out). `--past 2019,2023 --last-year 2030` makes a short test. `--side`
+  names the folder of side files (default `<training folder>/sidebuild`). The output folder must not already hold a
+  run.
+- `stage <folder> <stage> ... [--run y2019]` runs named stages on one folder, for example `report`, `calculator`,
+  `package`, `non_micro_tables` or `filing_season` (the full list is `STAGES` in `run.py`). The `years` command makes
+  the synthetic file only; for a real-PUF file (settings `generation.filers` `real_puf`) the stage `taxsim_file` is
+  followed by the package and its checks of both merge scripts.
+- `--gpu-partition` sets the Slurm partitions for the GPU steps (default `gpu_h100,gpu_h200`). With `--slurm` the
+  submitted lines are written to `<folder>/jobs.txt` and the logs to `<folder>/logs/`.
+
+The runner reads three optional environment variables: `REBUILD_PY_ENV` and `REBUILD_R_ENV`, shell lines run before
+a Python or an R stage, and `REBUILD_R_LIBS`, the R library for the filing and CPS R scripts. On Bouchet,
+`slurm/bouchet_env.sh` sets all three, and `slurm/stage.sbatch` runs one step as a job.
+
+Every setting is in `pipeline/settings.json`; each run folder gets its own copy, which the stages read through
+`REBUILD_SETTINGS`. The PUF year (2015) and the target year are its `years`. The runner sets the other environment
+variables a stage reads: `REBUILD_OUT` (the output folder), `REBUILD_RUN` (the run's subfolder: `y<year>` for a year,
+the network's name for training), `REBUILD_SEED` (the training seed) and `REBUILD_SAVE_SOLVE` (where the national
+solve saves its inputs for the state solve). `REBUILD_PASSES` sets fewer training passes for a quick test, and
+`REBUILD_THREADS` the number of threads for the integrated solve.
 
 Outside the repository the pipeline needs: the raw data named in settings `paths.raw` (PUF, SCF, CEX, CPS ASEC and its
 March basic file, SIPP, SOI tables and W-2 statistics, Macro-Projections); tax-simulator-gpu at the commit in settings
@@ -55,11 +73,12 @@ hours of wall time on Bouchet.
 
 ## Outputs
 
-A run folder holds, for the training data, `data/` (the survey files, the training table, dollar maps), `targets/`
-(SOI numbers and errors) and `model/<network>/`; for each year, `final/<year>/` with `gen/y<year>/` (the drawn
-records), `tilt/y<year>/` (the year file `file_<year>.parquet`, every target before and after in `fit.csv`,
-`targets.csv`, `summary.md`, the run report `report.md`) and `taxsim/y<year>/` (the Tax-Simulator file); and
-`files/state_weights_<year>.parquet`. Every dollar is in nominal dollars of the year.
+The training folder holds `data/` (the survey files, the training table, the dollar maps), `targets/` (SOI numbers
+and errors), `model/<network>/` and `sidebuild/` (the side files). The output folder holds, for each year,
+`final/<year>/` with `gen/y<year>/` (the drawn records), `tilt/y<year>/` (the year file `file_<year>.parquet`, every
+target before and after in `fit.csv`, `targets.csv`, `summary.md`, the run report `report.md`) and `taxsim/y<year>/`
+(the Tax-Simulator file); `files/state_weights_<year>.parquet`; and `checks/`. A past year's draw and national solve
+are in `run/<year>/`, the integrated solve in `integrated/y<year>/`. Every dollar is in nominal dollars of the year.
 
 The installed run is under `/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/` (`data/`, `targets/`, `model/`, `gen/`,
 `tilt/`, `taxsim/`; `INSTALLED.txt` says where every year's files and the state weights are). It changes only by an

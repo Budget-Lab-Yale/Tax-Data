@@ -101,8 +101,7 @@ file's side is a column the tax calculator computes (`calc_*`): itemizers and ea
 income tax before credits, the QBI deduction, the child tax credits, the education credits, the saver's credit, the
 EITC, self-employment tax and the AMT. Reweighting does not change records, so the calculator runs once per year, on
 the start after the prescaling, and the solve only adds up its outputs. An entry marked `needs_calculator` (the CBO
-count of AMT returns) waits for the taxes in the same way. With settings `taxes.target` false the calculator targets
-are reported but not targeted.
+count of AMT returns) waits for the taxes in the same way.
 
 **Non-filer values.** From the CPS filing stage:
 
@@ -340,7 +339,7 @@ table suggests a neighbouring cell to merge with.
    $1 billion or more drawn again below that line, and the year's Forbes list added with weight 1, held fixed.
 3. Filers are scaled to SOI's number of returns and non-filers to the CPS's expected non-filers. Filers are then
    scaled within joint and non-joint returns to Table 1.2's counts.
-4. The demographic prescaling (`start_scaling: {weights: demographic}`, the default from settings `tilt.prescale`):
+4. The demographic prescaling (`start_scaling: {weights: demographic}`, always used for a start drawn from the networks):
    filers are moved to Table 1.6's returns by the primary filer's age range within joint and non-joint returns,
    keeping the two totals exact; non-filers are moved to the non-filer people targets, keeping their total. Each batch
    takes the smallest move under the same cost. These cells stay targets in the main solve.

@@ -25,7 +25,7 @@ _READ = {}   # each SOI file's rows of the year, read once
 ZERO_QBI = 'QBI deduction above the income threshold (W-2 wages paid and specified-service flags are 0)'
 ZERO_STD = 'blindness (0: no extra standard deduction for the blind)'
 DOLLARS_2015 = ('itemized deduction items, AMT items and credits taken from the PUF are grown from 2015 by their growth.yaml '
-                'lines (until 29 October they stayed in 2015 dollars)')
+                'lines')
 ITEMS = [
     ('1.4', 'adjusted gross income less deficit', 'agi', ''),
     ('1.4', 'total itemized deductions', 'item_ded', DOLLARS_2015 + '; mortgage balances 0 (no $750,000 limit)'),
@@ -193,7 +193,7 @@ def main():
              'groups by the calculator\'s AGI. Returns in millions, dollars in billions.', '',
              '## The AGI check', '',
              'The calculator\'s AGI against the rebuild\'s own (the sum of its AGI parts), split by the step where '
-             'they part (the docstring of report_calculator.py says what each step is). Weighted by the weights '
+             'they part (agi_check in report_calculator.py says what each step is). Weighted by the weights '
              'after the tilt.', '',
              s.to_markdown(index=False, floatfmt=',.3f'), '']
     tot = lv[lv['AGI group'] == 'all returns']
@@ -205,7 +205,7 @@ def main():
     t['after / SOI'] = t['after the tilt'] / t['SOI']
     t['depends on columns set to 0'] = tot['depends on 0 columns'].str.len().gt(0).map({True: 'yes', False: ''})
     lines += ['## All returns', '', t.to_markdown(index=False, floatfmt=',.3f'), '',
-              'What each line depends on that is 0 for now:', '']
+              'What each line depends on that is 0:', '']
     lines += [f'- {item}: {zero}' for _, item, _, zero in ITEMS if zero]
     lines += ['']
     for table, item, col, zero in [('1.4', 'returns', None, '')] + ITEMS:

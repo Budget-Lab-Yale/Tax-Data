@@ -593,7 +593,7 @@ def main():
     within_near = info['largest_gradient'] <= NEAR * J.tol
     say(f'{year}: {info["status"]} in {info["newton_steps"]} Newton steps ({info["rounds"]} rounds), {info["solve_minutes"]:.1f} minutes, largest gradient {info["largest_gradient"]:.2e}')
     if not info['converged']:
-        say(f'{year}: REPORT TO JOHN: the solve stopped short of the stopping size {J.tol:.0e}, largest gradient {info["largest_gradient"]:.2e}: ' + ('within 10 times it, the result is used' if within_near else 'beyond 10 times it, this job will fail with the files written'))
+        say(f'{year}: WARNING: the solve stopped short of the stopping size {J.tol:.0e}, largest gradient {info["largest_gradient"]:.2e}: ' + ('within 10 times it, the result is used' if within_near else 'beyond 10 times it, this job will fail with the files written'))
     # the weights: free records from the solve, fixed records at their start
     n = len(w0)
     wis = w0[:, None] * P0

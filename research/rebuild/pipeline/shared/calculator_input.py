@@ -3,7 +3,7 @@
 `convert` turns the year file into a frame with Tax-Simulator's column names, one row per record. CONTRACT lists every
 column and where it comes from; it is written beside the outputs as calculator_contract.csv. The reweighting's tax
 step (reweight/taxes.py), the Tax-Simulator file, the CRS package and the calculator stage use it. The calculator itself
-runs from a copy of its repository at the commit named in settings "calculator".
+runs from a copy of its repository at the commit in settings taxes.commit.
 """
 import numpy as np
 import pandas as pd
@@ -31,18 +31,18 @@ CONTRACT = [
     ('age2', SAME, f'age2; {NO_AGE}', 'age of the spouse'),
     ('male1', COMPUTED, 'sex_primary == 1; dependent filers dep_filer_sex == 1 where the file has it (else 0)',
      'primary filer is a man; the frame steps read it (chance of being a surviving spouse), not the tax chain'),
-    ('blind1', ZERO, '0', 'primary filer is blind: the blindness rule (NEXT_STEPS step 1)'),
-    ('blind2', ZERO, '0', 'spouse is blind: the blindness rule (NEXT_STEPS step 1)'),
+    ('blind1', ZERO, '0', 'primary filer is blind: the non-microdata imputation of blindness'),
+    ('blind2', ZERO, '0', 'spouse is blind: the non-microdata imputation of blindness'),
     ('n_dep', SAME, 'n_dep (the rebuild caps it at 3)', 'number of dependents'),
     ('n_dep_eitc', SAME, 'n_dep_eitc (PUF EIC, capped at 3)', 'number of EITC qualifying children'),
     ('dep_age1', SAME, f'dep_age1; {NO_AGE}', 'age of the first dependent'),
     ('dep_age2', SAME, f'dep_age2; {NO_AGE}', 'age of the second dependent'),
     ('dep_age3', SAME, f'dep_age3; {NO_AGE}', 'age of the third dependent'),
-    ('dep_ssn1', ZERO, '0', 'dependent 1 has a Social Security number: the dependents\' SSN rule (NEXT_STEPS step 1)'),
+    ('dep_ssn1', ZERO, '0', 'dependent 1 has a Social Security number: from the drawn CPS status (dollars.py)'),
     ('dep_ssn2', ZERO, '0', 'dependent 2 has a Social Security number: as dep_ssn1'),
     ('dep_ssn3', ZERO, '0', 'dependent 3 has a Social Security number: as dep_ssn1'),
-    ('dep_ctc1', ZERO, '0', 'dependent 1 qualifies for the child tax credit apart from age and SSN: the child credit '
-     'eligibility rule (NEXT_STEPS step 1)'),
+    ('dep_ctc1', ZERO, '0', 'dependent 1 qualifies for the child tax credit apart from age and SSN: the '
+     'non-microdata imputation of child credit eligibility'),
     ('dep_ctc2', ZERO, '0', 'dependent 2 qualifies for the child tax credit: as dep_ctc1'),
     ('dep_ctc3', ZERO, '0', 'dependent 3 qualifies for the child tax credit: as dep_ctc1'),
     ('divorce_year', COMPUTED, '0 on every record (production: 0 where alimony paid or received, else missing)',
@@ -66,14 +66,14 @@ CONTRACT = [
     ('sole_prop', SAME, 'sole_prop', 'Schedule C net income of the unit'),
     ('sole_prop1', COMPUTED, 'sole_prop - sole_prop2', 'primary filer\'s Schedule C income'),
     ('sole_prop2', COMPUTED, 'sole_prop x spouse_se_share (one self-employment share, as production; on filers the PUF '
-     'label\'s draw, learned from E30500 / E30400, since 4 November)', 'spouse\'s Schedule C income'),
+     'label\'s draw, learned from E30500 / E30400)', 'spouse\'s Schedule C income'),
     ('farm', SAME, 'farm', 'Schedule F net farm income of the unit'),
     ('farm1', COMPUTED, 'farm - farm2', 'primary filer\'s farm income'),
     ('farm2', COMPUTED, 'farm x spouse_se_share', 'spouse\'s farm income'),
     ('part_se1', COMPUTED, 'part_se - part_se2', 'primary filer\'s Schedule SE earnings other than Schedules C and F'),
     ('part_se2', COMPUTED, 'part_se x spouse_se_share', 'spouse\'s Schedule SE earnings other than Schedules C and F'),
     ('ei_prior_yr', ZERO, '0 (production writes 0 too)', 'earned income last year (child credit look-back; off under '
-     '2019 law): no source planned'),
+     '2019 law): no source'),
     # Schedule E
     ('part_active', SAME, 'part_active', 'nonpassive partnership income'),
     ('part_active_loss', SAME, 'part_active_loss', 'nonpassive partnership loss, stored positive'),
@@ -89,13 +89,13 @@ CONTRACT = [
     ('rent_loss', SAME, 'rent_loss', 'rents and royalties, net loss, stored positive'),
     ('estate', SAME, 'estate', 'estate and trust net income'),
     ('estate_loss', SAME, 'estate_loss', 'estate and trust net loss, stored positive'),
-    ('wagebill_sole_prop', ZERO, '0', 'W-2 wages paid by the sole proprietorship (QBI wage limit): the QBI wage rule '
-     '(NEXT_STEPS step 1)'),
+    ('wagebill_sole_prop', ZERO, '0', 'W-2 wages paid by the sole proprietorship (QBI wage limit): the '
+     'non-microdata imputation of QBI'),
     ('wagebill_part', ZERO, '0', 'W-2 wages paid by the partnership (QBI): with wagebill_scorp the group\'s wages, split by income'),
     ('wagebill_scorp', ZERO, '0', 'W-2 wages paid by the S corporation (QBI): with wagebill_part the group\'s wages, split by income'),
     ('wagebill_farm', ZERO, '0', 'W-2 wages paid by the farm (QBI): positive farm income, so the wage limit never binds'),
-    ('sstb_sole_prop', ZERO, '0', 'the sole proprietorship is a specified service business (QBI): the QBI '
-     'specified-service rule (NEXT_STEPS step 1)'),
+    ('sstb_sole_prop', ZERO, '0', 'the sole proprietorship is a specified service business (QBI): the '
+     'non-microdata imputation of QBI'),
     ('sstb_part', ZERO, '0', 'the partnership is a specified service business: as sstb_sole_prop'),
     ('sstb_scorp', ZERO, '0', 'the S corporation is a specified service business: as sstb_sole_prop'),
     ('sstb_farm', ZERO, '0', 'the farm is a specified service business: never'),
@@ -108,7 +108,7 @@ CONTRACT = [
     ('txbl_ira_dist', SAME, 'txbl_ira_dist', 'taxable IRA distributions'),
     ('txbl_pens_dist', SAME, 'txbl_pens_dist', 'taxable pensions and annuities'),
     ('gross_pens_dist', COMPUTED, 'txbl_pens_dist + nontxbl_pens_dist (the non-taxable rest of pensions, the PUF\'s '
-     'E01500 - E01700, never below zero; since 3 November, before: retirement_gross - gross_ss)',
+     'E01500 - E01700, never below zero)',
      'gross pensions and annuities'),
     ('gross_ss', SAME, 'gross_ss', 'gross Social Security benefits (the calculator computes the taxable part)'),
     ('ui', SAME, 'ui', 'unemployment compensation'),
@@ -124,8 +124,8 @@ CONTRACT = [
      'reported on Form 1040 (PUF E01100), which are long-term gains'),
     ('kg_1250', SAME, 'kg_1250', 'unrecaptured section 1250 gain'),
     ('kg_collect', SAME, 'kg_collect', '28 percent rate (collectibles) gain'),
-    ('kg_lt_basis', ZERO, '0', 'cost basis of long-term gains (indexing reforms only): basis from SOI\'s Sales of '
-     'Capital Assets tables (NEXT_STEPS step 1)'),
+    ('kg_lt_basis', ZERO, '0', 'cost basis of long-term gains (indexing reforms only): the non-microdata '
+     'imputation of cost basis, from SOI\'s Sales of Capital Assets tables'),
     ('kg_lt_years_held', ZERO, '0', 'holding period of long-term gains (indexing reforms only): as kg_lt_basis'),
     # above-the-line deductions
     ('ed_exp', SAME, 'ed_exp', 'educator expenses'),
@@ -137,16 +137,16 @@ CONTRACT = [
     ('alimony_exp', SAME, 'alimony_exp', 'alimony paid'),
     ('tuition_ded', SAME, 'tuition_ded', 'tuition and fees deduction (the law caps and repeals it)'),
     ('dpad', SAME, 'dpad', 'domestic production activities deduction (the law repeals it from 2018)'),
-    ('other_above_ded', ZERO, '0 (production writes 0 too)', 'other adjustments: none planned'),
+    ('other_above_ded', ZERO, '0 (production writes 0 too)', 'other adjustments: no source'),
     ('sl_int_ded', SAME, 'sl_int_ded', 'student loan interest deduction'),
     ('auto_int_exp', SAME, 'auto_int_exp', 'auto loan interest (deductible only from 2025)'),
     # Schedule A
     ('med_exp', SAME, 'med_exp', 'medical expenses before the AGI floor'),
     ('salt_inc_sales', SAME, 'salt_inc_sales', 'state and local income or sales tax'),
     ('salt_prop', SAME, 'salt_prop', 'real estate tax'),
-    ('salt_pers', ZERO, '0 (production writes 0 too)', 'personal property tax: none planned'),
+    ('salt_pers', ZERO, '0 (production writes 0 too)', 'personal property tax: no source'),
     ('first_mort_bal', ZERO, '0 (production writes 0 too)', 'first mortgage balance (the $750,000 limit): the '
-     'balance sheet\'s value.primary_mortgage could fill it (a decision)'),
+     'balance sheet\'s value.primary_mortgage could fill it'),
     ('second_mort_bal', ZERO, '0 (production writes 0 too)', 'second mortgage balance: as first_mort_bal'),
     ('first_mort_year', ZERO, '0 (production writes 0 too)', 'year the first mortgage was taken out; the '
      'calculator overrides it'),
@@ -182,7 +182,7 @@ CONTRACT = [
     ('ira_penalty', SAME, 'ira_penalty', 'additional tax on IRAs and other plans'),
     # mortality, the balance sheet and its cost bases (read by the frame steps and the estate and wealth taxes,
     # not by the income tax)
-    ('q_death1', ZERO, '0', 'chance the primary filer dies this year: the death probabilities rule (NEXT_STEPS 1)'),
+    ('q_death1', ZERO, '0', 'chance the primary filer dies this year: the non-microdata imputation of death probabilities'),
     ('q_death2', ZERO, '0', 'chance the spouse dies this year: as q_death1'),
     *[(f'value.{c}', SAME, f'value.{c}', f'balance sheet: {c.replace("_", " ")}')
       for c in ['cash', 'equities', 'bonds', 'dc', 'db', 'life_ins', 'annuities', 'trusts', 'other_fin',
@@ -197,7 +197,7 @@ CONTRACT = [
     ('basis.re_fund', COMPUTED, 'value.re_fund - w_kg_other_re x value.re_fund / (value.other_home + value.re_fund)',
      'cost basis of other real estate'),
     *[(f'accruals.{c}', ZERO, '0', f'yearly unrealized gain on {c.replace("_", " ")} (reporting only): the '
-       'yearly unrealized gains rule (NEXT_STEPS step 1)')
+       'non-microdata imputation of unrealized gains')
       for c in ['equities', 'pass_throughs', 'primary_home', 'other_home', 're_fund', 'dc', 'trusts']],
 ]
 COLUMNS = [c[0] for c in CONTRACT]

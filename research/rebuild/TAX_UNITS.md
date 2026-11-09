@@ -51,12 +51,10 @@ In order (`tax_units.build_units`):
 3. **Group claim** (SCF only, `claim_within_group`). Within the SCF's members outside the primary economic unit, the
    unit with the highest income claims the group's other relatives of the respondent who are on their own, pass the
    income test and are not married (Gale, Joshi, Pulliam and Sabelhaus 2022).
-4. **Reassignment** (`reassign`, settings `tax_units.reassign` and `cps.cbo_variant`; on by default, as in CBO's
-   code). Within a household: a related subfamily whose head qualifies as a dependent joins the householder's unit;
+4. **Reassignment** (`reassign`, always applied, as in CBO's code). Within a household: a related subfamily whose head qualifies as a dependent joins the householder's unit;
    up to two of the youngest qualifying children move between the householder's unit and a related subfamily, and
    between the householder and an unmarried partner, to spread the children more evenly. It decides who claims whom,
-   never whether anyone files. With it off (`cbo_variant` `strict`, `reassign` false) only the first assignment
-   applies.
+   never whether anyone files.
 5. A person CBO's code would leave as a second head in the householder's unit heads a unit of their own.
 6. **One row per unit** (`collapse_units`). Head and spouse incomes are summed. Filing status is joint with a spouse,
    head of household with any dependent, single otherwise. For each unit: the number of dependents (uncapped), the
@@ -83,8 +81,8 @@ In order (`tax_units.build_units`):
 
 **CPS ASEC** (`roster_cps.py`). The ASEC of March of year Y+1 asks about tax year Y. The reader uses the IPUMS
 extract and rebuilds the Census codes CBO's code reads (`hhdfmx`, `perrp`, the family pointers) from IPUMS's
-relationship, family and pointer variables; the few inputs IPUMS lacks and their stand-ins are listed in
-`prep/tax_units.py`'s header. People in group quarters are left out. Ages are as the ASEC reports them, at the
+relationship, family and pointer variables; the few inputs IPUMS lacks and their stand-ins are noted in
+`prep/roster_cps.py`, beside the code that uses them. People in group quarters are left out. Ages are as the ASEC reports them, at the
 March interview. The filing stage builds the units, gives each a filing chance, and splits joint couples into separate
 returns: couples are taken in the order of a uniform keyed by unit id (settings `filing.mfs_salt`) until their weight
 times filing chance reaches half of SOI Table 1.6's separate returns, and each couple becomes a return for person 1,
@@ -113,8 +111,7 @@ there nor depend on the PEU are left out, as in the SCF's own household count. E
   half each, everything else by their labor, business, pension and account-withdrawal income (half each when both
   are zero).
 - Units outside the PEU take their members' shares of the group's answers: the group's income divided equally among
-  its adults (settings `tax_units.npeu_split`, `equal`; `moore` divides wages among those under 70 and Social
-  Security and pensions among those 62 and over), the balance sheet equally either way. Capital gains and tax-exempt
+  its adults, and the balance sheet equally too (`roster_scf.npeu_shares`). Capital gains and tax-exempt
   interest are not asked of the group. Items the SCF asks only of the PEU (elective deferrals, the retirement
   accounts' stock share, inheritances) are missing on these units, not zero.
 - Other units (a non-relative in the PEU, a partner outside it) and dependents hold no PEU dollars.

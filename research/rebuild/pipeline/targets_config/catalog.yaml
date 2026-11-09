@@ -36,7 +36,7 @@ sources:
     file: bysize_dependent_returns.csv
     what: >-
       SOI Publication 1304, Table 1.7, returns of dependents (dependent filers) by size of AGI, read from the mirror:
-      the number of returns, and (2 November 2026) the items a variable names under "soi 1.7" (the net capital gain)
+      the number of returns, and the items a variable names under "soi 1.7" (the net capital gain)
   soi 2.5:
     kind: published
     file: bysize_eitc.csv
@@ -44,9 +44,8 @@ sources:
   soi 1.6:
     kind: published
     what: >-
-      SOI Publication 1304, Table 1.6, returns by filing status and age of the primary taxpayer, all AGI; and
-      (3 November 2026) by AGI group in the All returns panel (target_list.published_16_agi), when the cells have an
-      AGI grouping
+      SOI Publication 1304, Table 1.6, returns by filing status and age of the primary taxpayer, all AGI; and by AGI
+      group in the All returns panel (target_list.published_16_agi), when the cells have an AGI grouping
   # Tables 1.3 and 4.3, read from the tidy files of the IRS-Ind store (settings paths.raw.soi_tables): one row per
   # published cell, selected by the variable's item and measure and the grouping's published labels. Errors are
   # borrowed from the nearest Table 1.4 cells; a Table 4.3 group whose published AGI cutoff is at or above
@@ -205,7 +204,7 @@ sources:
 tax_unit_rules:
   shared_cbo:
     module: tax_units.py
-    what: CBO's public tax-unit algorithm (US-CBO/CPS-tax-filing-units) translated rule by rule, TAX_UNITS.md section 4
+    what: CBO's public tax-unit algorithm (US-CBO/CPS-tax-filing-units) translated rule by rule, TAX_UNITS.md, "The rules"
     settings:
       scf: [tax_units.reassign, tax_units.npeu_split]
       cex: [tax_units.reassign]
@@ -225,8 +224,7 @@ populations:
   dependent_filers:                   {rule: filer == 1 and age_range >= 6, why: "the PUF's three dependent age ranges (common.DEPENDENT_RANGES)"}
   independent_filers:                 {rule: filer == 1 and age_range < 6, why: "returns other than dependent filers' (Table 4.3's population; the W-2 tips targets)"}
   # The SCF targets' population: above $1 billion of net worth the file is the Forbes list alone, below it the SCF.
-  # The ceiling, in nominal target-year dollars, applies to the SCF's units and to the file's records while settings
-  # tilt.top.enabled is true; with it false the population is the rule alone.
+  # The ceiling, in nominal target-year dollars, applies to the SCF's units and to the file's records.
   scf_units_below_a_billion:          {rule: age_range < 6, net_worth_below: 1000000000, why: "the SCF's units below $1 billion of net worth, dependent filers left out as for every survey target; the Forbes list supplies the units above"}
 
 # ---------------------------------------------------------------------------------------------------------------
