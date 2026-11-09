@@ -61,7 +61,6 @@ STAGES = {
 }
 TRAINING = ['scf', 'cex', 'filing', 'cps', 'sipp', 'soi', 'soi_cv', 'table', 'side_files', 'train']
 PAST_YEAR = ['prep', 'draw', 'national', 'chances', 'integrated']
-FUTURE_YEAR = ['future']
 
 
 def say(*parts):
@@ -125,13 +124,6 @@ def run_stages(folder, stages, run=None, **extra):
             run_command(cmd, env)
         if s == 'taxsim_file' and filers == 'real_puf':
             run_package(env)
-
-
-def threads(env):
-    n = os.environ.get('REBUILD_THREADS') or os.environ.get('SLURM_CPUS_PER_TASK')
-    if n:
-        env.update(OMP_NUM_THREADS=n, OPENBLAS_NUM_THREADS=n, MKL_NUM_THREADS=n)
-    return env
 
 
 # ---- folders and settings --------------------------------------------------------------------------------------
@@ -223,7 +215,10 @@ class Run:
 
     def step_integrated(self, y):
         R, F, I = self.past(y), self.final(y), f'{self.out}/integrated/y{y}'
-        env = threads(stage_env(R, f'y{y}'))
+        env = stage_env(R, f'y{y}')
+        n = os.environ.get('REBUILD_THREADS') or os.environ.get('SLURM_CPUS_PER_TASK')
+        if n:
+            env.update(OMP_NUM_THREADS=n, OPENBLAS_NUM_THREADS=n, MKL_NUM_THREADS=n)
         failed = None
         try:
             run_command(py('reweight.state_joint', '--run', f'{self.out}/run', '--out', self.out, '--year', y,
@@ -274,17 +269,18 @@ class Run:
 
 # ---- Slurm -----------------------------------------------------------------------------------------------------
 CPU = ['--partition=day', '--gres=gpu:0']
+# memory: about twice each step's measured peak
 RESOURCES = {
-    'train': ['--cpus-per-task=4', '--mem=96G', '--time=08:00:00'],
-    'prep': ['--cpus-per-task=4', '--mem=48G', '--time=01:30:00'],
-    'draw': ['--cpus-per-task=4', '--mem=120G', '--time=04:00:00'],
-    'national': ['--cpus-per-task=4', '--mem=72G', '--time=04:00:00'],
-    'chances': ['--cpus-per-task=4', '--mem=64G', '--time=01:00:00'],
-    'integrated': ['--cpus-per-task=16', '--mem=96G', '--time=06:00:00'],
-    'future': ['--cpus-per-task=4', '--mem=64G', '--time=02:00:00'],
-    'check': ['--cpus-per-task=1', '--mem=32G', '--time=01:00:00'],
-    'taxsim': ['--cpus-per-task=2', '--mem=48G', '--time=01:00:00'],
-    'data': ['--cpus-per-task=4', '--mem=96G', '--time=08:00:00'],
+    'train': ['--cpus-per-task=4', '--mem=24G', '--time=08:00:00'],
+    'prep': ['--cpus-per-task=4', '--mem=16G', '--time=01:30:00'],
+    'draw': ['--cpus-per-task=4', '--mem=32G', '--time=04:00:00'],
+    'national': ['--cpus-per-task=4', '--mem=56G', '--time=04:00:00'],
+    'chances': ['--cpus-per-task=4', '--mem=12G', '--time=01:00:00'],
+    'integrated': ['--cpus-per-task=16', '--mem=56G', '--time=06:00:00'],
+    'future': ['--cpus-per-task=4', '--mem=40G', '--time=02:00:00'],
+    'check': ['--cpus-per-task=1', '--mem=20G', '--time=01:00:00'],
+    'taxsim': ['--cpus-per-task=2', '--mem=16G', '--time=01:00:00'],
+    'data': ['--cpus-per-task=4', '--mem=32G', '--time=08:00:00'],
 }
 GPU_STEPS = {'train', 'draw', 'chances'}
 
@@ -424,7 +420,7 @@ def main():
     p = sub.add_parser('year-step')
     p.add_argument('train')
     p.add_argument('out')
-    p.add_argument('step', choices=PAST_YEAR + FUTURE_YEAR + ['check', 'taxsim'])
+    p.add_argument('step', choices=PAST_YEAR + ['future', 'check', 'taxsim'])
     p.add_argument('--side', required=True)
     p.add_argument('--year', type=int)
     a = ap.parse_args()
