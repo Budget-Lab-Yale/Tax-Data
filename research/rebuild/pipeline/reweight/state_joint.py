@@ -1,33 +1,14 @@
-"""The integrated solve of national and state weights, the method for past years 2015-2023 (FEATURES.md, "State weights"). One solve over record-by-state weights:
+"""The integrated solve of national and state weights for a past year. One solve over record-by-area weights
 
     w_is = w0_i x p0_is x exp(x_i' lambda_national + x_i' lambda_s),
 
-with the year's national targets (tilt.py's list, each with its standard error) and the state targets of state_targets.py. A record's
-national weight is the sum of its weights over areas, so the file's national totals are those weights' totals by construction.
+with solver.py's cost, tau and soft cap, the year's national targets and the state targets of state_targets.py. A
+record's national weight is the sum of its weights over areas. See FEATURES.md, "State weights".
 
-The rule. The same cost as solver.py:
-
-    minimize  sum over targets of 0.5 x importance x (miss / standard error)^2  +  tau x D(w),
-    D(w) = sum over records and areas of [w_is log(w_is / (w0_i p0_is)) - w_is + w0_i p0_is],  on weights divided by the sum of w0, in nats,
-
-with solver.py's soft cap on each record's national weight, and national identities exact. Tau is the one number of the national solve,
-applied to the whole file, so a group holding 10% of the returns has one tenth of that tau on its own move: the same 2% tolerance is held
-more tightly in the smaller groups.
-
-Why the size is small. The multipliers minimize a smooth convex function by Newton's method, and there are about 1,300 national multipliers and
-11,000 to 23,000 state multipliers. The Hessian has a form that makes the step cheap. A state multiplier (area s, AGI group g, item k) touches
-only record-by-state weights in s and g, so two state multipliers meet only when they share s and g. The state-by-state part is therefore made
-of about 580 blocks of at most 21 (or 55) rows, and only the national part is dense. Eliminating the blocks leaves a dense system of the size of
-the national targets, about 1,300 rows. No matrix of size 12,000 or 24,000 is factored.
-
-The one exception is the soft cap. A record above its cap has a weight that does not respond one for one, which ties its areas together: the
-Hessian loses kappa_i y_i y_i' for each such record, where y_i is the record's average condition across areas. This is a small number of terms
-(a few thousand records) and is handled by the Woodbury identity on top of the blocks. If more than MAX_CAPPED records are above their cap at
-an iterate, only the largest terms are kept for that step; the step is then a slightly overcautious one, and the line search still holds.
-
-Worked example of the record's weight with the soft cap. Below its cap a record's weight is the sum over areas of w0 p0_s exp(z_s). Above it, with
-A the same sum, the national weight E solves log(E / A) + c (E - U) = 0, the one-variable equation of solver._soft_weights, and each area keeps its
-share of A: a record with p0 exp(z) of 30, 10 and 0 in three areas has shares 75%, 25% and 0 whatever E is.
+The Newton system is solved without factoring a matrix of full size. Two state multipliers interact only when they share
+an area and an AGI group, so the state part is about 580 small blocks; eliminating them leaves a dense system the size of
+the national targets, about 1,300 rows. Records above their soft cap tie their areas together, and their terms are added
+by the Woodbury identity.
 """
 import argparse
 import json
@@ -47,18 +28,18 @@ from reweight import state_targets as ST
 from reweight import state_weights as SW
 
 
-# A year that runs out of Newton steps with its largest gradient within this many times the stopping size is used and reported to John; beyond that, the job fails
-# with the year's files written, and the choice is John's.
+# A year that runs out of Newton steps with its largest gradient within this many times the stopping size is used and
+# named in the log; beyond that, the job fails with the year's files written.
 NEAR = 10.0
-MAX_CAPPED = 20000   # at most this many capped records' terms kept in one Newton step (see the top)
+MAX_CAPPED = 20000   # at most this many capped records' terms kept in one Newton step; the line search still holds
 BORDER_ITEMS = 12    # items per product when the Hessian's border is assembled (bounds the temporary at records x items x areas)
 say = SW.say
 
 
 # ---- the problem ---------------------------------------------------------------------------------------------------------
 def national_setup(w0, F, T, se, identity, averages, fixed, rho):
-    """solver.solve's treatment of records held fixed, and solver._conditions: the conditions on the free records. Returns a dict of the free
-    records' conditions on the solver's scale, the same scale as solver._solve, so its multipliers can start this solve."""
+    """The national targets' conditions on the free records, with the fixed records taken out as solver.solve does, on
+    the same scale as solver._solve."""
     fixed = np.asarray(fixed, bool)
     free = ~fixed
     m = len(T)
@@ -89,10 +70,10 @@ def national_setup(w0, F, T, se, identity, averages, fixed, rho):
 
 
 class Joint:
-    """The dual and its Newton step. nat: national_setup's dict. P0 [n, A]: the free records' starting shares. groups: one dict per AGI group and
-    one for the non-filers: rows (into the free records), Z [n_g, K] the items in the targets' own units, T, se, fixed [A, K] targets (NaN: none),
-    standard errors and fixed amounts on the left side, size [K] the item's national total in the group, the scale of its targets. soft: (U, beta),
-    each free record's cap and the cap's strength, as the national solve had them."""
+    """The dual problem and its Newton step. P0 [n, A] holds the free records' starting shares. groups has one dict per
+    AGI group and one for the non-filers: rows (into the free records), Z [n_g, K] the items, T, se and fixed [A, K]
+    (targets, NaN for none; standard errors; amounts from fixed records), and size [K], the scale of the item's targets.
+    soft is (U, beta), each free record's cap and the cap's strength."""
 
     def __init__(self, w0_free, P0, nat, groups, tau, tol, soft):
         self.W, self.tau, self.tol, self.nat = nat['W'], float(tau), float(tol), nat
@@ -217,7 +198,7 @@ class Joint:
             X, Z, cols, mask, pos, nu = g['X'], g['Z'], g['cols'], g['mask'], g['pos'], g['nu']
             HN[np.ix_(cols, cols)] += X.T @ (X * e[:, None])
             K = Z.shape[1]
-            # the border: for a block of items, one product over the columns (item, area), then the targeted ones placed
+            # the border between national and state multipliers, built a few items at a time to bound memory
             for k0 in range(0, K, BORDER_ITEMS):
                 k1 = min(k0 + BORDER_ITEMS, K)
                 m = mask[:, k0:k1].T
@@ -389,7 +370,8 @@ class Joint:
         d = np.concatenate([self.F['dN'], self.F['dS']])
         r0 = -g_vec / d
         x = self.inverse(r0)
-        # the elimination subtracts nearly equal numbers, since a national target on a group's total is the sum of its state targets: clean the answer
+        # The elimination subtracts nearly equal numbers, since a national total is the sum of its state targets, so a few
+        # refinement steps on the residual correct the step.
         res_size = np.inf
         for _ in range(3):
             res = r0 - self.hess_vec(x / d, fields) / d
@@ -440,7 +422,8 @@ class Joint:
         return lam, fields, 'converged' if np.abs(g).max() < self.tol else 'out of steps'
 
     def solve(self, budget, avg_change):
-        """solver._solve's outer loop: the average targets' standard errors are taken at the start's group weights, then again at the answer's."""
+        """solver._solve's outer loop: the standard errors of averages are set at the start's group weights, then again at
+        the answer's."""
         n = self.nat
         lam = np.zeros(self.mN + self.mS)
         wf = self.p_rec * self.W
@@ -474,7 +457,8 @@ class Joint:
 
 # ---- the year ------------------------------------------------------------------------------------------------------------
 def load_year(run, year, start_dir):
-    """The national-only solve's file (its weights set the state targets' national totals), the solve's inputs, the starting shares."""
+    """The national-only solve's file, whose weights set the state targets' national totals; its inputs; and the starting
+    shares."""
     path = f'{run}/{year}/tilt/y{year}/file_{year}.parquet'
     df = ST.read_file(path, extra=['weight_start'])
     inp = pickle.load(open(f'{run}/{year}/solve_inputs.pkl', 'rb'))
@@ -488,13 +472,10 @@ def load_year(run, year, start_dir):
 
 
 def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfiler_tolerance, data_dir):
-    """The starting shares [n, A] and the state targets, from the national-only solve's totals. A record the national solve holds
-    fixed keeps its starting weight and shares and enters as a fixed amount.
-    The move is on the whole file, so a group holding share h of the weight has tau x h on its own move; each state target's standard
-    error is multiplied by 1 / sqrt(h), which gives each group the balance between its misses and its move that a tilt of the group
-    alone would have. Worked example: the group $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 2% / sqrt(0.11) = 6.0%.
-    Only tau x tolerance^2 matters.
-    data_dir: the run's data folder, for the non-filers' CPS counts."""
+    """The starting shares [n, A] and the state targets. A record the national solve holds fixed enters as a fixed amount.
+    tau applies to the whole file, so a group holding share h of the weight has tau x h on its own move. Dividing each
+    state target's standard error by sqrt(h) gives each group the balance between misses and move that reweighting it
+    alone would have. Example: $50-75k holds about 11% of 2019's units, so a 2% tolerance becomes 6.0%."""
     f = df[filer].reset_index(drop=True)
     nf = df[~filer].reset_index(drop=True)
     group = ST.agi_group(f['calc_agi'])
@@ -535,7 +516,7 @@ def state_problem(df, inp, ht2, areas, filer, pi, year, items, tolerance, nonfil
         se[c['a'].to_numpy(), c['k'].to_numpy()] = c['se'].to_numpy()
         fx_rows = rows[fixf[rows]]
         fixed_amt = ((wf[fx_rows, None] * X[fx_rows]).T @ p_f[fx_rows]).T if len(fx_rows) else np.zeros((A, K))
-        # a cell the list records already fill has no target
+        # a cell the Forbes records already fill has no target
         full = np.isfinite(T) & (np.abs(fixed_amt) >= SW.LIST_FULL * np.abs(np.nan_to_num(T))) & (fixed_amt != 0)
         if full.any():
             note = pd.DataFrame({'year': year, 'item': [items[k] for k in np.nonzero(full)[1]], 'group': g, 'note': 'the list records hold 90% or more of the target, no target'})
@@ -622,8 +603,8 @@ def main():
         wis[r] = E * J.W
         w1[r] = e * J.W
     assert np.array_equal(w1[fixed], w0[fixed]), 'a fixed weight moved'
-    # The solve can take a record's weight to a number so small that every area's part underflows to zero (national weights of the order of
-    # 1e-316 occur). Such a record keeps its starting shares, which multiply nothing. A missing value here would drop whole cells from the scores.
+    # The solve can take a record's weight so close to zero that every area's part underflows to zero. Such a record keeps
+    # its starting shares, which multiply nothing.
     lost = wis.sum(1) == 0
     say(f'{year}: {int(lost.sum())} records whose areas all underflow to zero, largest national weight among them {w1[lost].max() if lost.any() else 0.0:.2e}; {int((w1 == 0).sum())} national weights of zero')
     w1[lost] = 0.0
@@ -637,7 +618,7 @@ def main():
     mv = SV.move(w0, w1)
     rho = np.asarray(inp['rho'], float)
     miss_se = np.nan_to_num(nfit['miss_in_se'].to_numpy(float))
-    wf_is, pf_is = wis[free] / J.W, (w0[:, None] * P0)[free] / J.W     # the move in record-by-state weights, on the free records, in nats
+    wf_is, pf_is = wis[free] / J.W, (w0[:, None] * P0)[free] / J.W     # for the move in record-by-state weights, in nats
     on = wf_is > 0
     D_joint = float((wf_is[on] * np.log(wf_is[on] / pf_is[on])).sum() - wf_is.sum() + pf_is.sum())
     # the state fit
@@ -669,7 +650,7 @@ def main():
     say(json.dumps({k: (round(v, 4) if isinstance(v, float) else v) for k, v in r.items() if not k.startswith('heldout plain ') and not k.startswith('heldout weighted ')}))
     json.dump(r, open(f'{od}/summary.json', 'w'), indent=1)
     np.savez_compressed(f'{od}/multipliers.npz', lam=lam)
-    # the file for the held-out national score, the national weights only, and the year's file of id, state, weight
+    # the year's file with the new national weights, and the state weights file of id, state and weight
     tb = pq.read_table(f'{a.run}/{year}/tilt/y{year}/file_{year}.parquet')
     tb = tb.set_column(tb.schema.get_field_index('weight'), 'weight', pa.array(w1))
     fd = f'{od}/tilt/y{year}'
@@ -679,7 +660,7 @@ def main():
     ids = df['record_id'].to_numpy()
     path = f'{od}/state_weights_{year}.parquet'
     SW.write_long(path, ids, w1, Q, areas)
-    # each record's shares in full, for the future years (state_weights.carry): the file above loses them where a weight is zero or underflows
+    # Each record's shares in full, for the future years. The state weights file loses them where a weight is zero.
     os.makedirs(f'{a.out}/shares', exist_ok=True)
     np.savez(f'{a.out}/shares/shares_{year}.npz', record_id=ids, areas=np.array(areas), P=Q)
     df['weight'] = w1

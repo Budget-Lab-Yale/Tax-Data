@@ -1,32 +1,9 @@
-"""The starting shares of the state weights (FEATURES.md, "State weights"): for each record of a finished year's file, the chance of
-each of the 51 states, read from the networks trained with the state slot (build_table.py's CPS-only category 'state').
-A GPU stage, and the only one of the state weights.
+"""The starting shares of the state weights: for each record of a finished year's file, the chance of each of the 51
+states, read from the networks' state slot. The only GPU step of the state weights.
 
-  python -m reweight.state_start --file <file_<year>.parquet> --year <year> --out <start_<year>.npz>
-
-How a record is read. The network sees the record as a CPS row would look: the source is the CPS, the year is one of the target
-year's CPS years (survey_mix.py), and each slot the CPS has is either shown or hidden:
-  - shown: every item the record has that the CPS has (married, dependents, age range, filing flag and status, wages, dividends,
-    pensions, Social Security, the person items ...). Bands and categories are the file's own, except the five ages, which the file
-    holds in years and the network as categories (0 none, else the age plus 1; the primary filer's and spouse's held at 80).
-  - hidden: state, the one slot read; the CPS's reported slots (what a survey unit reported before the fill-in), as at generation:
-    a file record is on the PUF's concepts and has no report; and a slot that is zero on every CPS row (the CPS does not ask it:
-    mortgage interest, property tax, partnership income and others; translation table): the network has only ever seen zero there,
-    so a record's real amount is not shown to it, and neither is a false zero.
-  - absent: PUF-only items; a slot the CPS year never holds (capital gains before tax year 2018: a slot absent on every CPS row of
-    the year is never shown there); the spouse's shares where training would leave them out (not married, or none of the base).
-On filers, the slots HIDE_ON_FILERS are hidden as well: slots with no fill-in in training whose holders are far more common on the file's
-filers than on CPS rows, so that a holder means something else. Other income is the case that matters: 2.7% of CPS tax units hold it in 2019,
-and 44% in Alaska (the Permanent Fund dividend), while 58.7% of the file's filers hold it (the remainder of AGI on the PUF). Shown, it put
-1.46 million returns in Alaska in the 2019 start against the IRS's 0.36 million. Non-filers are drawn under the CPS label and keep these slots.
-A dependent filer has no person items on its return (the surveys count it in the household that claims it), and the CPS has no
-dependent filers: its age range and every person item are hidden rather than shown as none.
-The chances over the 51 are the network's over the slot's 52 values, the value none left out and the rest rescaled. The record's
-chance of a state is the average over the three networks and over the target year's CPS years with the year mix's shares. Worked
-example: a 2018 file's CPS mix is 2017 and 2019; a record read as 0.11 for California at 2017 and 0.13 at 2019 with shares 0.5 and
-0.5 under each network has 0.12.
-
-The record's PUF-only items and AGI group label are shown as well, a combination the network never saw with state in training.
+The network sees each record as a CPS row: the items the CPS has are shown, the state and the CPS's reported slots are
+hidden, and PUF-only items are shown as well. A record's chance of a state is averaged over the networks and over the
+target year's CPS years with the year mix's shares. Writes start_<year>.npz. See FEATURES.md, "State weights".
 """
 import argparse
 import os
@@ -46,10 +23,13 @@ P = M.PREDICTED
 J_STATE = P.index('state')
 N_STATES = M.N_CHOICES['state'] - 1
 CPS_SLOTS_PACKED = M.SOURCE_SLOTS['cps']
-CPS_ITEMS = [v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED and v != 'state']   # the CPS's slots the file shows
-AGE_COLUMNS = {'age1': 80, 'age2': 80, 'dep_age1': 85, 'dep_age2': 85, 'dep_age3': 85}   # in years in the file; the top code
+CPS_ITEMS = [v for v in P if 'cps' in M.PRESENT_ON[v] and v not in M.REPORTED and v != 'state']   # the CPS slots shown
+AGE_COLUMNS = {'age1': 80, 'age2': 80, 'dep_age1': 85, 'dep_age2': 85, 'dep_age3': 85}   # each age's top code, in years
 PERSON = [v for v in M.EXACT_AGES + M.CPS_SLOTS if v != 'state']
-HIDE_ON_FILERS = ['other_agi', 'rent_loss']   # share holding it, the file's filers against CPS tax units, 2019: 58.7% / 2.7%, 3.0% / 0.3%
+# Slots hidden on filers: their holders are far more common on the file's filers than on CPS units, so a holder means
+# something else to the network. In 2019, 58.7% of filers hold other income against 2.7% of CPS units (44% in Alaska,
+# from the Permanent Fund dividend), and 3.0% hold a rental loss against 0.3%.
+HIDE_ON_FILERS = ['other_agi', 'rent_loss']
 
 
 def load_models(device):
@@ -58,8 +38,8 @@ def load_models(device):
 
 
 def present_by_year():
-    """Per CPS year the slots some row of that year holds (present in training), and the slots zero on every CPS row, from the
-    training table."""
+    """For each CPS year, the slots some row of that year holds; and the slots that are zero on every CPS row, which the
+    CPS does not ask and which are therefore hidden."""
     t = pq.read_table(common.TABLE, columns=['year'] + [M.column(v) for v in CPS_ITEMS], filters=[('source', '=', 'cps')]).to_pandas()
     have = {int(y): {v for v in CPS_ITEMS if (g[M.column(v)] >= 0).any()} for y, g in t.groupby('year')}
     zero = [v for v in CPS_ITEMS if (t[M.column(v)] <= 0).all()]
@@ -67,8 +47,8 @@ def present_by_year():
 
 
 def file_values(path):
-    """The file's slots as full-width values [n, SLOTS], absent where the CPS does not hold the slot; the record ids; which records
-    are dependent filers; and the PUF-only slots the file holds, as a frame."""
+    """The file's slots as values [n, SLOTS], absent where the CPS does not hold the slot; the record ids; which records
+    are dependent filers; and the file's PUF-only slots, as a frame. Ages become categories: 0 none, else the age plus 1."""
     names = set(pq.ParquetFile(path).schema.names)
     cols = [M.column(v) for v in CPS_ITEMS]
     missing = [c for c in cols if c not in names]
@@ -93,8 +73,7 @@ def file_values(path):
 
 
 def gate_shares_in_view(values):
-    """The spouse's shares present exactly where training has them on a CPS row: married, and some of a base the CPS has. (The file
-    holds a share of zero elsewhere.)"""
+    """Show the spouse's shares only where training has them on a CPS row: married, with some of a base the CPS has."""
     for s, (m, bases) in M.SHARE_GATES.items():
         if 'cps' not in M.PRESENT_ON[P[s]]:
             continue
@@ -110,7 +89,7 @@ def gate_shares_in_view(values):
 
 @torch.no_grad()
 def read_state(model, values, hidden, slots, chunk):
-    """The chance of each of the 51 states, [n, 51], on the given full-width values and hidden flags."""
+    """The chance of each of the 51 states, [n, 51], given the values and hidden flags."""
     pos = list(slots).index(C + J_STATE)
     st = M.slot_tensor(slots, values.device)
     keep = st[C:] - C
@@ -118,7 +97,7 @@ def read_state(model, values, hidden, slots, chunk):
     head = model.heads[J_STATE]
     for i in range(0, len(values), chunk):
         h = model.last_layer(values[i:i + chunk][:, st], hidden[i:i + chunk][:, keep], slots)[:, pos]
-        out.append(head(h)[:, 1:].float().softmax(-1).cpu())   # the value none left out: the rest rescaled
+        out.append(head(h)[:, 1:].float().softmax(-1).cpu())   # the value none left out, the rest rescaled
     return torch.cat(out).numpy().astype(np.float64)
 
 
@@ -148,6 +127,8 @@ def cmd_start(a):
         j = P.index(v)
         hidden0[on_filers, j] = True
         values0[on_filers, C + j] = values0[on_filers, C + j].clamp(min=0)
+    # A dependent filer has no person items on its return and the CPS has no dependent filers, so its age range and
+    # person items are hidden rather than shown as none.
     d = torch.as_tensor(dep)
     for v in PERSON + ['age_range']:
         j = P.index(v)
