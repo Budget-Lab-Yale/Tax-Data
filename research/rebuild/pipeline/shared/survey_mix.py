@@ -1,18 +1,20 @@
-"""The years of the CEX, the CPS and the SIPP that a target year's file is drawn from, and their shares.
+"""The years of the CEX, the CPS and the SIPP that a target year's file is drawn from, and the share of each year.
 
-The shares are written by hand in the prior of targets_config/<year>/prior.yaml, one entry per survey; this module
-only reads them. A survey year here is the tax year the survey's income refers to.
+The shares are set by hand in the prior of targets_config/<year>/prior.yaml, one entry per survey; this module only
+reads them. A survey year here is the tax year that the survey's income refers to. The module also stacks a survey's
+units over its years, in target-year dollars, for the targets and the reports.
 """
 import pandas as pd
 
 from shared import common
 
-ENTRY = {'cex': 'consumption', 'cps': 'cps items', 'sipp': 'sipp tips'}
+ENTRY = {'cex': 'consumption', 'cps': 'cps items', 'sipp': 'sipp tips'}   # each survey's entry in the prior
 SOURCES = list(ENTRY)
 
 
 def prior_shares(year, entry, source):
-    """[(year, share)] from one entry of the year's prior, whose keys are '<source> <year>', sorted by year."""
+    """[(year, share)] from one entry of the year's prior, whose keys are '<source> <year>', sorted by year. The
+    shares are checked to be positive and to sum to one."""
     from reweight import target_list as TLS
     prior = TLS.resolve(year).get('prior', {}).get(entry)
     where = f'targets_config/{year}/prior.yaml, prior "{entry}"'
@@ -34,20 +36,21 @@ def mix(source, year=None):
 
 
 def years(source, year=None):
+    """The tax years of the survey in the target year's file, in order."""
     return [y for y, _ in mix(source, year)]
 
 
-# ---- the surveys' units in the year mix (targets and reports) ----------------------------------------------------
+# ---- The surveys' units in the year mix (for the targets and the reports) ----
 def growth(source, y):
-    """{variable: factor from survey year y to the target year} for the survey's dollar amounts, as the dollar maps
-    use them."""
+    """{variable: the factor from survey year y to the target year} for the survey's dollar amounts, the same factors
+    that the dollar maps use."""
     g = pd.read_csv(f'{common.MAPS}/survey_year_growth_factors.csv')
     g = g[(g['survey'] == source) & (g['year'] == y)]
     assert len(g), f'no growth factors for {source} {y} in {common.MAPS}/survey_year_growth_factors.csv'
     return dict(zip(g['variable'], g['factor to the target year'].astype(float)))
 
 
-# Dollar columns of a survey's unit file that have no map, grown by the wage factor
+# The dollar columns of a survey's unit file that have no map. They are grown by the wage factor.
 EXTRA_DOLLARS = {'cps': ['wages_translated', 'wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
                          'se_spouse_reported'],
                  'sipp': ['wages_translated', 'wages_primary_reported', 'wages_spouse_reported', 'tips_primary_reported',
@@ -56,9 +59,9 @@ EXTRA_DOLLARS = {'cps': ['wages_translated', 'wages_primary_reported', 'wages_sp
 
 
 def grown_units(source, y):
-    """The survey's tax units of year y with every dollar column in target-year dollars: the map amounts by the maps'
-    factors, and the other dollar columns by SOI's wages per return, which is the factor of every CPS and SIPP map
-    amount (read from the CPS's childcare line)."""
+    """The survey's tax units of year y with every dollar column in target-year dollars. The amounts with a map are
+    grown by the maps' factors. The other dollar columns are grown by SOI's wages per return, which is the factor of
+    every CPS and SIPP map amount; for the CPS it is read from the childcare line."""
     u = pd.read_parquet(f'{common.DATA}/{source}_units_{y}_all.parquet')
     f = growth(source, y)
     for c, x in f.items():
@@ -73,9 +76,9 @@ def grown_units(source, y):
 
 
 def mixed_units(source, year=None):
-    """The survey's units over its year mix as one frame in target-year dollars, with columns 'share' and
-    'survey_year'. Each year's weights are scaled to the same total, then multiplied by the year's share, so the
-    shares do not depend on the size of a year's population."""
+    """The survey's units over its year mix as one table in target-year dollars, with the columns 'share' and
+    'survey_year'. Each year's weights are scaled to the same total, then multiplied by the year's share, so that the
+    shares do not depend on the size of each year's population."""
     m = mix(source, year)
     frames = [(y, s, grown_units(source, y)) for y, s in m]
     ref = sum(s * u['weight'].sum() for _, s, u in frames)
