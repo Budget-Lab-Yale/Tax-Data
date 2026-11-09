@@ -1,33 +1,11 @@
-"""The long-run projection years, 2036-2075 (4 November 2026, branch rebuild-longrun; scratch
-explore/2026-11-04/longrun/). Usage, through Slurm, from the repository root with the pipeline on PYTHONPATH:
+"""The long-run projection years, after CBO's last year used (settings tilt.projection.cbo_last_year) to 2075.
 
-    python research/rebuild/resources/growth/build_long_run.py [<Macro-Projections folder>]
+Every series the projection years read continues at the growth of one Macro-Projections aggregate, as its row of
+resources/projection_long_run_mapping.csv says: in total, per unit (adults, a married couple counted once), per
+person, or as a fading trend. Writes growth/macro_long_run.csv and adds the later rows to the Z.1, population and
+projection_series_*.csv files, keeping the earlier rows byte for byte.
 
-(default: settings tilt.projection.population_dir, the Macro-Projections interface the person counts come from).
-Every series the projection years read continues past CBO's last year used (settings tilt.projection.cbo_last_year,
-2035) at the growth of one Macro-Projections aggregate (production's long-run mapping, src/project_puf.R income_far).
-Writes, all from the same interface:
-
-  growth/macro_long_run.csv      the aggregates, 2026-2075, with 'units' (people aged 18 and over, a married couple
-                                 counted once: unmarried people 18 and over plus half of all married people) and
-                                 'population' (every age). Read by projection_growth.long_run_growth, which continues
-                                 the series the growth.yaml rules read and the count of returns.
-  growth/z1_household_net_worth.csv, growth/z1_scf_*.csv, growth/ss_area_population.csv
-                                 rows 2061-2075 added by each file's own rule (past 2025 the Z.1 levels at their 2025
-                                 ratio to nominal GDP; the population summed from the interface); rows to 2060 kept
-                                 as they are.
-  projection_series_b.csv, projection_series_med.csv
-                                 rows 2036-2075 added; the rows 2023-2035 are kept byte for byte. (Column
-                                 int_gdp_bill is written for every year by build_interest_series.py; its mapping row,
-                                 gdp * tsy_3m, continues it here by the same rule.)
-  projection_series_current.csv  one column per items-table row whose rule was 'current' and resolved, in every year
-                                 2024-2035, to a CBO or Federal Reserve series (projection_growth.plan_factors): its
-                                 growth in total from 2023 exactly as tilt.grow_dollars computed it (the factor per
-                                 return times CBO's growth in returns), then continued like the others.
-Each column's aggregate is its row of resources/projection_long_run_mapping.csv: kind 'total', the column's 2035 value
-times the aggregate's growth from 2035; kind 'per_unit', divided by the growth of 'units' or 'population' (column
-per) when the series is per return or per person, or by nothing for a price; 'fade' continues the column's own
-yearly decline (alimony, John's decision 2 of 3 November).
+    python -m resources_build.build_long_run [<Macro-Projections folder>]
 """
 import csv
 import os
@@ -36,11 +14,10 @@ import sys
 import numpy as np
 import pandas as pd
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-RES = os.path.dirname(HERE)
-sys.path.insert(0, os.path.join(os.path.dirname(RES), 'pipeline'))
-from shared import common  # noqa: E402
+from shared import common
 
+RES = common.RESOURCES
+HERE = os.path.join(RES, 'growth')
 P = common.SETTINGS['tilt']['projection']
 MP = sys.argv[1] if len(sys.argv) > 1 else P['population_dir']
 L = int(P['cbo_last_year'])
@@ -68,15 +45,15 @@ lev = lr.set_index('year')
 
 def agg(name, y):
     # a sum of terms, each a product of Macro-Projections columns ('gdp * tsy_3m': nominal GDP times the 3-month bill
-    # rate, the taxable interest series of build_interest_series.py; 5 November 2026). Read from the whole interface,
+    # rate, the taxable interest series of build_interest_series.py). Read from the whole interface,
     # so a rate need not be one of AGG; a column of AGG has the same value in both
     return float(sum(np.prod([float(m.loc[y, f.strip()]) for f in c.split('*')]) for c in name.split('+')))
 
 
 # ---- 2. the Z.1 and population files past 2060 ------------------------------------------------------------------
 def extend_lines(path, rows_after):
-    """Keep the file's lines up to its year 2060 as they are (their line ends too: these files were written by csv's
-    default, carriage return and line feed) and write the rows after it the same way."""
+    """Keep the file's lines up to 2060 as they are, line ends included (carriage return and line feed, csv's
+    default), and write the later rows the same way."""
     with open(path, newline='') as f:
         raw = f.read()
     eol = '\r\n' if raw.endswith('\r\n') else '\n'
@@ -145,7 +122,9 @@ for name in ('projection_series_b.csv', 'projection_series_med.csv'):
     write_series(name, base, vals)
     print(f'{name}: rows {L + 1}-{LAST} added for {len(d.columns)} columns')
 
-# today's 'current' rows that resolve to a CBO or Federal Reserve series in every year 2024-L: their growth in total
+# projection_series_current.csv: the growth in total of the items-table rows that follow a CBO or Federal Reserve
+# series. This section calls projection_growth.plan_factors, which the pipeline does not have, so it stops here; the
+# pipeline reads the committed projection_series_current.csv.
 from scale import projection_growth as PG  # noqa: E402
 rows = MAP[MAP.file == 'projection_series_current.csv'].set_index('column')
 cols = list(rows.index)

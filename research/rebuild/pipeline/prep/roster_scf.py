@@ -1,55 +1,9 @@
-"""roster_scf.py: the SCF reader for the shared tax-unit rules (tax_units.py), and the SCF's units.
+"""The SCF reader for the shared tax-unit rules (tax_units.py), and the SCF's units and inheritances.
 
-The SCF lists everyone in the household (positions 1-12 of the household listing) but measures in detail only the
-primary economic unit (PEU): the respondent (R), a spouse or partner who shares finances, and everyone financially
-dependent on them. The other adults who usually live there and are financially independent (outside the PEU) are
-asked about as a group: their total wages, other income by kind, vehicles, bank accounts, other assets and debts.
-
-read_roster(wave)   the standard member list (columns in tax_units.py's header) for one wave, every implicate a
-                    household (hh = Y1). CBO's Census codes from the SCF's relationship codes:
-                      R: the householder (hhdfmx 1 and perrp 40 when a relative lives there, else 49 and 41);
-                      spouse (position 2 coded spouse): hhdfmx 2, perrp 42 (45 same sex), spouse pointers both ways;
-                      partner (position 2 coded partner): a nonfamily member, perrp 44 (47 same sex), so CBO's
-                        partner test applies, on the couple's earnings;
-                      child (including in-law) 48 and hhdfmx 4; grandchild 49 and 25; parent 50; sibling 51;
-                        grandparent, aunt or uncle and other relatives (cousins, nieces and nephews merged in the
-                        public file) 52; all with hhdfmx 37;
-                      boarder 57, paid help and other non-relatives (roommates, friends and foster children merged
-                        in the public file) 59, hhdfmx 50.
-                    Members who neither usually live there nor depend on the PEU are not household members (left
-                    out, as the SCF's own household count does).
-                    Fallbacks (tax_units.FALLBACKS['scf']), each flagged on the person:
-                      age: members other than R and the spouse or partner are reported in brackets (0-3, 4-6, 7-12,
-                        13-17, 18-27, then five-year groups, 93 and over); an exact age is drawn uniformly within the
-                        bracket by a draw keyed by the household and position, the same in every implicate
-                        (age_assumed);
-                      support: the SCF's financial-dependence answer (1 for PEU members, 0 outside it) stands in for
-                        the student and income tests (tax_units.flag_dependents), as Gale, Joshi, Pulliam and
-                        Sabelhaus (2022) do; members other than the couple have no income of their own measured
-                        (income_assumed, on adults);
-                      links: no parent pointers, so every child goes to R's unit (link_assumed where another parent
-                        may be present: grandchildren and other young relatives under 24, and R's children when R
-                        lives with a partner); outside the PEU, two adults who both report being married or
-                        living with a partner, and are the only two who do, are paired as a married couple filing
-                        jointly (Gale and coauthors), as a related subfamily when one is R's relative, else an
-                        unrelated one (link_assumed);
-                      the group outside the PEU (column group = 1): its highest-income unit claims the group's other
-                        relatives who pass the income test (tax_units.claim_within_group);
-                      children living elsewhere: the number under 18 counts as dependents of R's unit only if the
-                        family paid alimony or child support (X5731; the SCF does not separate the two), ages drawn
-                        uniformly over 0-17.
-units(wave)         the rules (tax_units.build_units, reassignment on), then separate returns from the couple's own
-                    answer: a married couple living together files separately when it says it did (X5746 = 2) and
-                    either spouse was married before (X7377 or X7392 = 2), Moore's condition. Each unit also says
-                    how it takes the PEU's dollars in build_scf.R (peu_dollars: 'all', 'r', 'sp' or 'none'), and
-                    the units outside the PEU carry their share of the group's income and balance sheet
-                    (group_level = True).
-
-The group's income and balance sheet are divided equally among its adults (npeu_shares).
-
-Usage (through Slurm; run.py's scf stage runs it before build_scf.R): python -m prep.roster_scf [wave ...]
-[--out DIR]; by default every wave in the settings, DIR {out}/data. Writes DIR/scf_persons_<wave>.parquet,
-DIR/scf_units_module_<wave>.parquet and DIR/scf_npeu_dollars_<wave>.parquet.
+The SCF measures in detail only the primary economic unit (PEU): the respondent, a spouse or partner who shares
+finances, and everyone financially dependent on them. The other adults are asked about as a group, whose income and
+balance sheet are divided equally among them. Writes, for build_scf.R, each wave's persons, units, the group's
+dollars per unit and inheritances received this year. TAX_UNITS.md, "Each survey", has the fallbacks.
 """
 import argparse
 import os
@@ -81,7 +35,7 @@ RELATIVES = [4, 5, 6, 7, 8, 9, 10, 11, 12, 29]
 
 
 def aconv(f):
-    """Moore's annualizing factor for a period code (production builder's aconv)."""
+    """Moore's annualizing factor for a period code."""
     f = np.asarray(f)
     return np.select([f == 2, f == 3, f == 4, f == 5, np.isin(f, [6, 8, 14, 22]), f == 11, f == 12, f == 31],
                      [52.18, 26.09, 12, 4, 1, 2, 6, 24], 0.0)
@@ -128,8 +82,7 @@ def read_roster(wave):
     d['hh'] = d.Y1.astype(np.int64)
     d['w'] = d.X42001 / 5
     # --- R and the spouse or partner (positions 1 and 2) -------------------------------------------------------
-    # Position 2 holds the spouse or partner (X102 > 0; 1 when that person, not the reference person, answered the
-    # interview). Married or partner from the reference person's living arrangement (X8023: 1 married, 2 partner).
+    # Position 2 holds the spouse or partner (X102 > 0); X8023 says which (1 married, 2 partner).
     has_sp = d.X102.to_numpy() > 0
     sp_code = np.where(has_sp, np.where(d.X8023.to_numpy() == 1, 2, 3), 0)
     sp_in_peu = has_sp & (d.X7020.to_numpy() == 2)
@@ -250,9 +203,8 @@ def npeu_shares(P, d):
     h = d.set_index('hh').loc[g.hh]
     n = g.groupby('hh').pn.transform('size').to_numpy()
     pos = lambda c: np.maximum(h[c].to_numpy(), 0)
-    # ss_pensions_scf: the SCF's own Social Security plus pensions (here the group's kinds X6406-X6408; X5722 in the
-    # PEU), used only for the units' gross income test and the division of the PEU's income (build_scf.R's INCOME); not
-    # a slot of the model (named retirement_gross until 3 November, when the model's slot of that name was taken out)
+    # ss_pensions_scf: the SCF's Social Security plus pensions, used only for the income test and to divide income
+    # among units, not as a model slot
     kinds = {'ss_pensions_scf': ['X6406', 'X6407', 'X6408'], 'txbl_int': ['X6410'], 'dividends': ['X6411'],
              'business_income': ['X6412'], 'rent_royalty_estate': ['X6413'], 'other_income': ['X6409', 'X6414']}
     flags = {k: sum(((h[c].to_numpy() == 1) if c != 'X6414' else (h[c].to_numpy() > 5)) for c in v)
@@ -261,14 +213,12 @@ def npeu_shares(P, d):
     other = np.where(nk > 0, pos('X6415') / np.maximum(nk, 1), 0.0)
     out = pd.DataFrame({'hh': g.hh.to_numpy(), 'pn': g.pn.to_numpy()}, index=g.index)
     eq = 1.0 / n
-    w_wage = w_ret = eq
-    out['wages'] = pos('X6403') * w_wage
+    out['wages'] = pos('X6403') * eq
     for k, f in flags.items():
-        out[k] = other * f * (w_ret if k == 'ss_pensions_scf' else eq)
-    # gross Social Security alone (build_scf.R's gross_ss): the Social Security kind's (X6406) part of the group's
-    # retirement income, divided as retirement income is; kept apart from ss_pensions_scf, which also holds
-    # pensions (X6407) and disability (X6408). Not added to gi below: ss_pensions_scf already holds it.
-    out['gross_ss'] = other * (h['X6406'].to_numpy() == 1) * w_ret
+        out[k] = other * f * eq
+    # gross Social Security alone, the Social Security kind's part of the group's other income. It is not added to gi
+    # below, because ss_pensions_scf already holds it.
+    out['gross_ss'] = other * (h['X6406'].to_numpy() == 1) * eq
     # the balance sheet, always equally; the home share is the group's share of R's home, with its mortgage
     home = np.minimum(pos('X6432'), pos('X6436') * pos('X6435') / 10000)
     out['value.cash'] = pos('X6421') * eq
@@ -308,8 +258,8 @@ def units(wave):
         chosen, mfs = np.array([], dtype=np.int64), pd.DataFrame()
     print(f'wave {wave}: couples filing separately by their own answer: {main.weight[pick].sum() / 1e6:.2f} m couples, '
           f'{2 * main.weight[pick].sum() / 1e6:.2f} m returns')
-    # how each unit takes the PEU's dollars (build_scf.R): 'all' the whole PEU (R alone, a joint couple, R with the
-    # partner claimed); 'r' and 'sp' R's and the spouse's or partner's shares when they are separate units; 'none'
+    # how each unit takes the PEU's dollars in build_scf.R: 'all' the whole PEU; 'r' and 'sp' the respondent's and
+    # the spouse's or partner's shares when they are separate units; 'none'
     in_peu = persons.set_index(['hh', 'pn']).support.ne(0)          # R, a spouse or partner in the PEU, dependents
     head_in_peu = pd.MultiIndex.from_arrays([U.hh, U.head_pn]).map(in_peu).fillna(False).to_numpy().astype(bool)
     U['source'] = np.where(U.dep_return, 'dependent return',
@@ -344,30 +294,18 @@ def units(wave):
     return persons, U, nd
 
 
-# ---- inheritances received this year (3 November 2026; John, 2 November; settings "inheritance") ----------------------
+# ---- inheritances received this year (settings "inheritance") ----------------------------------------------------
 INHERIT_SETS = [('X5803', 'X5804', 'X5805'), ('X5808', 'X5809', 'X5810'), ('X5813', 'X5814', 'X5815')]   # type, value, year
 
 
-def inheritances(wave, s):
-    """Each household's (Y1's) inheritances received this year, in dollars of the wave's income year (wave - 1).
+def inheritances(wave):
+    """Each household's inheritances received this year (the wave's income year), in that year's dollars.
 
-    The SCF asks the respondent and the spouse or partner, as one household, about up to three inheritances, trusts
-    or gifts received (type X5803/X5808/X5813, value when received X5804/X5809/X5814, year received X5805/X5810/
-    X5815). Gifts (type 3) are left out; inheritances (1, with inherited trusts, 6, merged into it in the public
-    file), trusts (2) and the 'other' code (-7, mostly a programming error that skipped the verbatim answer) are kept,
-    as the Estate-Tax-Distribution model keeps them. A value of -1 (no market value) or 0 holds nothing. The public
-    file rounds the year to the nearest 5 (years that would round past the interview are set to the survey year), so
-    each reported inheritance counts as this year's (the wave's income year) with the chance its year code carries
-    (settings inheritance.year_weights: the Estate-Tax-Distribution model's weights calibrated to Gale and Sabelhaus
-    (2024) for 2013-2022; the 2025 wave's by Gale and Sabelhaus's rule, 1.25 over the years its code covers),
-    realised by a uniform draw keyed by the wave, the household and implicate (Y1) and the inheritance's position
-    (rule S23: independent across the five implicates, never dependent on which other records are present). An
-    inheritance counted as this year's was, on that premise, received in the income year, so its value when received
-    is already in the income year's dollars and is not grown (as Gale and Sabelhaus treat it). The others reported
-    (X5818, no year asked) are left out.
-
-    Returns (households: hh, inheritance, n_this_year, expected; detail: one row per reported inheritance)."""
-    cfg = s['inheritance']
+    Up to three reported inheritances or trusts count, gifts left out. The public file rounds the year received to
+    the nearest 5, so each counts as this year's with the chance its year code carries (settings
+    inheritance.year_weights, calibrated to Gale and Sabelhaus 2024), by a draw keyed by household and position.
+    Returns the households and one row per reported inheritance."""
+    cfg = common.SETTINGS['inheritance']
     wts = {int(k): float(v) for k, v in cfg['year_weights'][str(wave)].items()}
     assert all(0 <= v <= 1 for v in wts.values()), f'inheritance year weights of wave {wave}: {wts}'
     path = os.path.join(scf_dir(wave), f'p{wave % 100:02d}i6.dta')
@@ -425,7 +363,7 @@ def main():
         U.loc[~U.dep_return, keep].to_csv(f'{out}/scf_units_module_{wave}.csv.gz', index=False)
         nd.reset_index().to_csv(f'{out}/scf_npeu_dollars_{wave}.csv.gz', index=False)
         # inheritances received this year, per household (build_scf.R gives them to the PEU's units)
-        inh, inh_detail = inheritances(wave, common.SETTINGS)
+        inh, inh_detail = inheritances(wave)
         inh.to_csv(f'{out}/scf_inheritance_{wave}.csv.gz', index=False)
         inh_detail.to_parquet(f'{out}/scf_inheritance_detail_{wave}.parquet')
         m = U[~U.dep_return]

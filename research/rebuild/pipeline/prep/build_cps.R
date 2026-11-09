@@ -1,143 +1,12 @@
 #-------------------------------------------------------------------------------
-# build_cps.R: the CPS ASEC split into tax units, tax years 2015, 2017, 2019,
-# 2021 and 2023 (settings "cps"). The ASEC asking about tax year Y is the
-# survey of March Y+1 (read_asec(Y) maps this).
-#
-# Tax units. CBO's rules (tax_units.py, the shared tax-unit module, read
-# through tax_units_cbo.R), as the filing stage (filing.py, run before this
-# script) built and calibrated them, inside the run's data folder: the roster
-# from <step1_dir>/units/roster_<year>_cbo_nogq.csv.gz and the
-# returns from <step1_dir>/<step1_out>/units_<year>.csv.gz (step1_returns
-# below; settings cps.step1_dir and cps.step1_out, both required; "step 1" is
-# PLAN_v2.md's name for the filing stage). The returns give the separate
-# returns split from joint couples and each return's filing status, statutory
-# filing requirement and calibrated filing chance. A year with no such file
-# stops. The frame is the household population: people
-# in group quarters (GQ 2) are left out, and their weighted count is printed.
-#
-# Dependent filers. The unit table (production's build_asec_unit_table) also
-# makes a scoring row for every dependent aged 15 and over. Those rows are
-# dropped here: the dependent is counted once, in the n_dep of the unit that
-# claims them, and their own income goes nowhere (it belongs on their own
-# return). A unit's income is the primary filer's plus the spouse's.
-#
-# Filing. p_file is step 1's calibrated probability (the training table's
-# filer_p, which training draws the filing flag from in every pass); filer = 1
-# when a uniform draw is below it (kept for the table's checks and reports,
-# which need a 0/1 value on every row) (one draw per unit, seeded by settings
-# cps.filer_seed + the year, in record_id order). must_file is step 1's
-# statutory filing requirement.
-#
-# Primary filer and spouse. Person 1 is the person the rebuild's rule makes the
-# primary filer before its one random step: in a mixed-sex couple the man, in a
-# same-sex couple the older partner (the builder's head on a tie), otherwise
-# the unit's only adult. The rule's random step (the woman is the primary with
-# a chance by the man's age range, set from the PUF in build_table.py, ages.py)
-# happens in the table stage, keyed by household_id as for the CEX: where it
-# makes the woman the primary, the table stage swaps every pair of person
-# columns (age, sex, wages, se, weeks, hours). The age range does not depend on
-# the order in this file.
-#
-# Ids. record_id = SERIAL x 100 + the PERNUM of the builder's unit head
-# (the builder's unit_id), unique within the year. household_id = SERIAL.
-#
-# Columns, one row per tax unit, no NA except ot1 and ot2 (below). Dollars are nominal dollars of the tax
-# year as reported (the ASEC asks about the previous calendar year).
-#   year, record_id, household_id, weight (the head's ASECWT)
-#   statefip: the household's STATEFIP (5 November 2026; build_table.py's CPS-only category state)
-#   married (1 joint unit), n_dep (dependents claimed, capped at 3 as the SCF
-#     builder does), dep_filer (0 on every row: dependent filers are folded),
-#     head_of_household (1 unmarried with a qualifying-child dependent)
-#   filer, p_file, must_file (above)
-#   age1, age2, sex1, sex2, male1, male2: person 1 and person 2 (the spouse).
-#     Ages as the ASEC reports them (top-coded: 80 is 80-84, 85 is 85 and over
-#     in these years). No spouse: age2 = -1, sex2 = 0, male2 = -1. sex 1 male,
-#     2 female; male 1 or 0.
-#   dep_age1..dep_age3: ages of up to three dependents, youngest first; -1
-#     where there is none. n_dep_under13, n_dep_under6: dependents under 13 and
-#     under 6, capped at 3 like n_dep.
-#   Unit amounts (person 1 plus person 2), ASEC items with their not-in-universe
-#   code set to 0 (clean_asec_income):
-#     wages               INCWAGE
-#     sch_cf_income       INCBUS + INCFARM (non-farm business and farm
-#                         self-employment income, can be negative)
-#     interest            INCINT
-#     dividends           INCDIVID
-#     gross_ss            INCSS (gross Social Security)
-#     unemployment        INCUNEMP
-#     retirement_income   the builder's harmonised retirement series (S16):
-#                         INCRETIR through tax year 2017; from 2018 (the
-#                         redesigned survey) INCRET1 + INCRET2 + INCPEN1 +
-#                         INCPEN2 + INCRANN. INCRETIR alone is not comparable
-#                         across the redesign.
-#     rent_royalty_estate INCRENT (net rent, roomers and boarders, estates,
-#                         trusts and royalties; can be negative)
-#     survivor_disability INCSURV + INCDISAB (survivor and disability
-#                         pensions other than Social Security), the sum of
-#                         the next two, exactly
-#     survdis_pension     the part of it from sources that are pensions or
-#                         annuities on a return (Form 1099-R): survivor and
-#                         disability amounts from sources of class "pension"
-#                         in SURVDIS_SOURCES below
-#     survdis_other       the rest: workers' compensation, black lung, estates
-#                         and trusts, accident or disability insurance, state
-#                         temporary sickness, other or don't know (class
-#                         "other" in SURVDIS_SOURCES)
-#                         The split reads the ASEC's source items: the first
-#                         and second source of survivor benefits (SRCSURV1,
-#                         SRCSURV2, amounts INCSURV1, INCSURV2) and of
-#                         disability benefits (SRCDISA1, SRCDISA2, INCDISA1,
-#                         INCDISA2). The two amounts must add to INCSURV and
-#                         INCDISAB after cleaning, and a year without the items
-#                         stops. Per year and source, the people, the dollars
-#                         and the class are written to
-#                         cps_survivor_disability_sources.csv.
-#     other_income        INCOTHER (includes alimony)
-#   ot1, ot2 (since 28 October; Tax-Simulator's names): the primary filer's and the
-#     spouse's overtime pay in the tax year, by Tedeschi's rules
-#     (overtime_cps.R), at most the person's wages (INCWAGE); missing (NA),
-#     not zero, on every unit whose adults were not asked the earnings
-#     questions (about three quarters of units: only months 4 and 8 in sample
-#     are asked), and on the few asked workers with no pay. ot2 is 0 on
-#     an asked unit with no spouse. The only columns that can be NA.
-#   CPS-only, per person: wages1, wages2 (INCWAGE); se1, se2 (INCBUS +
-#     INCFARM); weeks_worked1/2 (WKSWORK1, weeks worked last year);
-#     usual_hours1/2 (UHRSWORKLY, usual weekly hours last year, its
-#     not-in-universe code 999 set to 0). Person 2 is 0 where there is none.
-#     wages1 + wages2 = wages and se1 + se2 = sch_cf_income exactly.
-#   childcare: the SPM unit's child care expenses (SPMCHXPNS), given to the tax
-#     units that claim the SPM unit's children (dependents under 18 who belong
-#     to that SPM unit), in proportion to the number each claims; where no unit
-#     claims one of its children, to the unit of the SPM unit's reference
-#     person (the householder when in the SPM unit, else its lowest PERNUM).
-#     Each SPM unit's expenses are kept in full.
-#     capital_gains       INCCAPG, from tax year 2018 (the redesigned survey); missing (NA) in earlier years, which
-#                         do not ask it (since 29 October; 0 before), so the training table shows it as not asked
-#                         there, as the translation table's row says (first_year, settings "translation")
-#   mars: filing status as step 1's returns carry it, 1 single, 2 joint, 3 separate, 4 head of household
-#   n_dep_ctc, n_dep_eitc: child credit and EITC children, capped at 3: dependents who are qualifying children (role 3
-#     in tax_units.py), under 17 for the child credit; the approximation tax_units.py makes. n_dep_eitc counts them
-#     only when the unit is eligible for the EITC under the year's law (step 1's eitc_eligible), as the PUF's EIC
-#     counts children only on returns that get the credit
-#   eitc_eligible: 1 or 0, step 1's (filing.py)
-#   ssn_status1, ssn_status2 (person 1 and person 2) and dep_ssn_status1..3 (the dependents of dep_age1..3, youngest
-#     first), since 28 October (John, NEXT_STEPS.md item 1, Q4): each person's status, 1 citizen, 2 noncitizen with
-#     a sign of lawful status, 3 noncitizen without one (taken to lack a Social Security number); 0 where there is
-#     no such person. Rule "B2" of scratch explore/2026-10-28/rules_framework/ssn/RESULTS.md, as its size_check.py
-#     codes it (ssn_status() below). Each person's status is set in the CBO-rule unit before step 1 splits couples
-#     into separate returns, so a split spouse keeps the status the couple gave. Per person, every year built, the
-#     items and the status are written to cps_ssn_persons_{year}.csv.gz, for the checks.
-#
-# Paths and years from settings.json ("cps"); the settings file is
-# REBUILD_SETTINGS if set, else the pipeline's own; output to
-# REBUILD_OUT/data. Optional arguments name tax years to build (default: all
-# of settings cps.years). Writes {out}/data/cps_units_{year}.csv.gz,
-# cps_summary.csv (the printed totals per year) and
-# cps_survivor_disability_sources.csv (the sources' table, every year built), and per year
-# cps_overtime_persons_{year}.csv.gz (every person's overtime build, for the checks). Run from the repository root
-# through Slurm. The R modules lack ipumsr; it is installed (ipumsr 0.10.0,
-# hipread 0.2.6) in John's library for R/4.4.1-foss-2022b,
-# R_LIBS=$HOME/R/4.4.1-foss-2022b (~jar335); run.py, stage cps.
+# The CPS ASEC in tax units, one row per unit, for each tax year in settings
+# cps.years (the ASEC of March Y+1 asks about tax year Y). Units, separate
+# returns, filing status and filing chances come from the filing stage, run
+# first. A dependent's own return is dropped: the dependent counts in the
+# claiming unit's n_dep and their income goes nowhere. Person 1 is the man in a
+# mixed-sex couple, the older partner in a same-sex one. Writes
+# data/cps_units_<year>.csv.gz and per-person check files. Needs ipumsr
+# (REBUILD_R_LIBS). Run from the repository root.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(data.table); library(ipumsr); library(stringr); library(dplyr); library(yaml); library(jsonlite)
@@ -164,12 +33,9 @@ STEP1_OUT = settings$cps$step1_out
 cat(sprintf('tax units: step 1\'s CBO-rule units and calibrated chances (%s, %s)\n', STEP1, STEP1_OUT))
 step1_units_path = function(yr) file.path(STEP1, STEP1_OUT, sprintf('units_%d.csv.gz', yr))
 
-# Step 1's returns for one year, from the CBO-rule units cbo_tax_units() made from the roster. Step 1's units file
-# (filing.py: one row per return, separate returns included) gives each return's head (hh, head_pn), filing status,
-# calibrated chance (p_file_cal) and statutory requirement (must_file). A joint couple step 1 split into two separate
-# returns (couple_uid, person 1 and 2) becomes two units here: the head of return 2 leaves with nobody, return 1 keeps
-# the dependents (step 1's rule, dep_rule 'primary'). Unit ids stay SERIAL x 100 + the head's PERNUM. Every household
-# unit must match one return of step 1's file and the reverse, or the build stops.
+# The filing stage's returns for one year, matched to the units cbo_tax_units() built: each return's filing status,
+# calibrated chance and statutory requirement. A couple split into separate returns becomes two units, person 1's
+# keeping the dependents. Every household unit must match one return and the reverse, or the build stops.
 step1_returns = function(built, yr) {
   su = fread(step1_units_path(yr))
   need = c('hh', 'head_pn', 'couple_uid', 'person', 'filing_status', 'p_file_cal', 'must_file', 'n24', 'n_dep_eitc',
@@ -220,12 +86,9 @@ report_na = function(df, label) {
 }
 bn = function(w, x) sum(w * x) / 1e9
 
-# Survivor and disability benefits by source (the ASEC's codes 1-10; 0 is not in universe). Class "pension": a
-# pension or annuity on the return's pension lines (Form 1099-R). Class "other": not a pension on the return. The
-# label must match the DDI's, or the build stops. "MIXED" marks a source whose tax treatment is split; it sits in the
-# class judged closer. Publications: IRS Pub 525 (Taxable and Nontaxable Income), 575 (Pension and Annuity Income),
-# 915 (Social Security and Equivalent Railroad Retirement Benefits), 721 (Civil Service Retirement Benefits), 559
-# (Survivors, Executors and Administrators), 907 (Persons with Disabilities).
+# Survivor and disability benefits by source (the ASEC's codes 1-10). Class "pension": a pension or annuity on the
+# return's pension lines (Form 1099-R); class "other": the rest. "MIXED" marks a source whose tax treatment is split,
+# put in the closer class. Sources: IRS Publications 525, 575, 915, 721, 559 and 907.
 SURVDIS_SOURCES = rbind(
   data.table(benefit = 'survivor', code = 1:10, label = c(
     'Company or union survivor pension', 'Federal government pension', 'US military retirement survivor pension',
@@ -264,11 +127,9 @@ SURVDIS_SOURCES = rbind(
 stopifnot(all(SURVDIS_SOURCES$class %in% c('pension', 'other')))
 SURVDIS_ITEMS = c('SRCSURV1', 'SRCSURV2', 'INCSURV1', 'INCSURV2', 'SRCDISA1', 'SRCDISA2', 'INCDISA1', 'INCDISA2')
 
-# Splits each person's survivor and disability benefits by the class of their source. Adds survdis_pension and
-# survdis_other to x (per person; their sum is INCSURV + INCDISAB exactly) and returns the table by source of the
-# people in x (people with an amount from that source, weighted by ASECWT; their dollars; and the dollars of people
-# aged under 62, the earliest age most pension plans pay without a disability, as a rough guide to the disability
-# pensions reported with wages). The caller has checked that x has every item SURVDIS_ITEMS names.
+# Splits each person's survivor and disability benefits by the class of their source into survdis_pension and
+# survdis_other (summing to INCSURV + INCDISAB), and returns a table by source of people and dollars, with the
+# dollars of people under 62 as a rough guide to disability pensions.
 split_survivor_disability = function(x, ddi, yr) {
   stopifnot(!anyNA(x[, ..SURVDIS_ITEMS]))
   for (v in c('INCSURV1', 'INCSURV2', 'INCDISA1', 'INCDISA2')) set(x, j = v, value = clean_asec_income(x, ddi, v))
@@ -283,12 +144,9 @@ split_survivor_disability = function(x, ddi, yr) {
       stopifnot(all(x[[v]] %in% 0:10))
     }
   }
-  # The two sources add to the totals. In the 2016-2024 ASECs they do for every person but one in some years (one
-  # survivor in tax years 2015, 2021 and 2023, checked 27 October 2026: totals of $47,892, $86,838 and $30,410
-  # against sources adding to $25,092, $50,400 and $30,309), presumably the Census Bureau's disclosure protection
-  # applied to the total and the sources separately. There the total is kept (survivor_disability does not change)
-  # and shared between the two sources in proportion to their amounts. More than 5 such people in a year, or a
-  # total with no source amount, stops.
+  # The two sources add to the total for all but at most one person a year, presumably because disclosure
+  # protection perturbs the total and the sources separately. There the total is kept and shared between the sources
+  # in proportion to their amounts. More than 5 such people in a year, or a total with no source amount, stops.
   for (b in c('survivor', 'disability')) {
     tot = if (b == 'survivor') 'INCSURV' else 'INCDISAB'
     a1 = if (b == 'survivor') 'INCSURV1' else 'INCDISA1'
@@ -345,22 +203,11 @@ RAW_USED = c('SERIAL', 'PERNUM', 'AGE', 'SEX', 'RELATE', 'MARST', 'SPLOC', 'MOML
              'INCTOT', 'INCSS', ASEC_GROSS_INCOME_ITEMS, 'WKSWORK1', 'UHRSWORKLY', 'SPMFAMUNIT', 'SPMCHXPNS',
              'SPMWT', 'FILESTAT', 'CITIZEN', 'INCSSI', 'HIMCARELY', 'HICHAMP', 'VETSTAT', 'CLASSWKR', 'PUBHOUS', 'STATEFIP')
 
-# Social Security number status (since 28 October; John's decision, NEXT_STEPS.md item 1, Q4): rule "B2" of scratch
-# explore/2026-10-28/rules_framework/ssn/RESULTS.md, coded as its size_check.py codes it, so that it gives that
-# check's counts (1.03 million dependents under 17 without a number in 2019). Every person gets one of three values:
-#   1 a citizen (CITIZEN 1-4: born in the US, in outlying areas, abroad to American parents, or naturalized);
-#   2 a noncitizen (CITIZEN 5) with a sign of lawful status;
-#   3 a noncitizen without one, taken to lack a Social Security number.
-# The signs. The unit is the CBO-rule unit (before step 1 splits a couple into separate returns); "parents" are its
-# primary filer and spouse.
-#   An adult's own sign (the primary filer's or the spouse's): Social Security or SSI received, Medicare, military
-#   health cover (TRICARE or CHAMPVA), veteran status, a government or armed forces job (CLASSWKR 24-28),
-#   unemployment insurance received, public housing, or Medicaid (federal Medicaid for adults requires qualified
-#   status); or being married to a citizen (the other adult of the unit is one; Borjas's edit).
-#   A dependent's sign: its own Social Security, SSI, Medicare or military cover (its own Medicaid is not a sign:
-#   several states cover children whatever their status); or a citizen parent in the unit; or a noncitizen parent in
-#   the unit with a sign of their own as above. The same rule for dependents of every age, as in the size check.
-# The rule is fixed: no yearly scaling to a published total (the DHS comparison is reported only).
+# Social Security number status: 1 a citizen (CITIZEN 1-4); 2 a noncitizen with a sign of lawful status; 3 a
+# noncitizen without one, taken to lack a number. An adult's signs: Social Security or SSI, Medicare, military health
+# cover, veteran status, a government job, unemployment insurance, public housing, Medicaid, or marriage to a citizen
+# (Borjas's edit). A dependent's: its own Social Security, SSI, Medicare or military cover (children's Medicaid does
+# not need lawful status in several states), or a parent in the unit who is a citizen or has a sign.
 SSN_STATUS_ITEMS = c('CITIZEN', 'INCSS', 'INCSSI', 'INCUNEMP', 'HIMCARELY', 'HICHAMP', 'HIMCAIDLY', 'VETSTAT',
                      'CLASSWKR', 'PUBHOUS')
 ssn_status = function(p) {
@@ -419,7 +266,7 @@ for (yr in YEARS) {
   cat('  named industry codes, people with the code (a zero would mean the code is not in this year\'s scheme):\n')
   print(otp[IND %in% OT_IND_NAMED, .N, by = IND][order(IND)][, paste(IND, N, sep = ':')], quote = FALSE)
 
-  # Income concepts and the filing model's inputs, cleaned as the pool's driver (01_build_units.R) does
+  # income concepts, cleaned by the production pipeline's ASEC functions (src/nonfilers/asec_tax_units.R)
   x[, INCSS := clean_asec_income(x, ddi, 'INCSS')]
   x[, INCSSI := clean_asec_income(x, ddi, 'INCSSI')]   # for the Social Security number status only (ssn_status)
   x = add_asec_income_concepts(x, ddi)
@@ -429,7 +276,7 @@ for (yr in YEARS) {
     x[, capital_gains := clean_asec_income(x, ddi, 'INCCAPG')]
   } else {
     if ('INCCAPG' %in% names(x)) cat('  INCCAPG is in this year\'s extract but the survey did not ask it: not used\n')
-    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing (29 October; zero before)
+    x[, capital_gains := NA_real_]   # not asked before tax year 2018: missing
   }
   # Work: weeks 0-52 (0 did not work); usual hours, 999 not in universe (did not work) -> 0
   stopifnot(all(x$WKSWORK1 >= 0 & x$WKSWORK1 <= 52), all(x$UHRSWORKLY %in% c(0:99, 999)))
@@ -453,11 +300,11 @@ for (yr in YEARS) {
   sources_rows[[as.character(yr)]] = sv
 
   #-----------------------------------------------------------------------------
-  # Units, filing status and filing chances: step 1's
+  # Units, filing status and filing chances, from the filing stage
   #-----------------------------------------------------------------------------
   built = cbo_tax_units(x, yr, file.path(STEP1, 'units',
                                          sprintf('roster_%d_cbo_nogq.csv.gz', yr)))
-  # each person's Social Security number status, in the CBO-rule unit (before step 1 splits couples)
+  # each person's Social Security number status, set before the filing stage's separate returns split couples
   ssn = ssn_status(built$persons)
   built = step1_returns(built, yr)
   p = built$persons
@@ -477,7 +324,6 @@ for (yr in YEARS) {
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 1),
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 2),
               sw(ssn_out$role == 'dependent' & ssn_out$AGE < 17 & ssn_out$ssn_status == 3)))
-  calibrated = TRUE   # step 1's chances are calibrated (the summary's calibrated_filing_model)
 
   #-----------------------------------------------------------------------------
   # Persons 1 and 2 of each unit
@@ -554,9 +400,7 @@ for (yr in YEARS) {
   #-----------------------------------------------------------------------------
   # Assemble
   #-----------------------------------------------------------------------------
-  # EITC eligibility under the tax year's law: step 1's (filing.py, eitc_eligible: earned income and AGI below
-  # the phase-out end for the number of children and filing status, investment income under the limit, the age
-  # range for no children, none on separate returns)
+  # EITC eligibility under the tax year's law, from the filing stage (filing.py's eitc_eligible)
   stopifnot(!anyNA(units$eitc_eligible))
   units[, eitc_ok := as.integer(eitc_eligible)]
   out = units[, .(unit_id, SERIAL, weight, filing_status, must_file, p_file = p_file_cal, eitc_ok,
@@ -592,7 +436,7 @@ for (yr in YEARS) {
   stopifnot(identical(out$wages1 + out$wages2, out$wages), identical(out$se1 + out$se2, out$sch_cf_income),
             identical(out$survdis_pension + out$survdis_other, out$survivor_disability))
 
-  # the unit's state: its household's (STATEFIP; 5 November 2026, the state weights). A household has one state.
+  # the unit's state: its household's (STATEFIP). A household has one state.
   hh_state = p[, .(statefip = STATEFIP[1], n_states = uniqueN(STATEFIP)), by = SERIAL]
   stopifnot(all(hh_state$n_states == 1), !anyNA(hh_state$statefip))
   out[hh_state, on = 'SERIAL', statefip := i.statefip]
@@ -608,8 +452,7 @@ for (yr in YEARS) {
                 head_of_household = as.integer(filing_status == 'hoh'),
                 filing_status = fcase(filing_status == 'single', 1L, filing_status == 'joint', 2L,
                              filing_status == 'separate', 3L, filing_status == 'hoh', 4L),
-                # EITC children as the PUF's EIC means them: the qualifying children of a unit eligible for the
-                # credit (step 1's eligibility)
+                # EITC children as the PUF's EIC counts them: only on units eligible for the credit
                 n_dep_ctc = pmin(n_ctc_raw, 3L), n_dep_eitc = pmin(n_eitc_raw, 3L) * eitc_ok,
                 eitc_eligible = eitc_ok,
                 filer = as.integer(draw < p_file), p_file, must_file = as.integer(must_file),
@@ -660,15 +503,13 @@ for (yr in YEARS) {
               sum(w * out$filer) / 1e6, sum(w * out$p_file) / 1e6, sum(w * (1 - out$filer)) / 1e6,
               sum(w * (1 - out$p_file)) / 1e6, if (is.na(pool_hh)) 'n/a' else sprintf('%.2f', pool_hh / 1e6)))
   cat(sprintf('  Census tax model (FILESTAT) simulated returns %.2f m, for comparison only\n', fs_returns / 1e6))
-  if (all(out$eitc_eligible >= 0)) {
-    ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
-                 eitc_children_expected_filers_m = sum(weight * p_file * n_dep_eitc) / 1e6), by = .(children = n_dep_eitc)]
-    setorder(ef, children)
-    cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
-                sum(out$weight * out$p_file * out$n_dep_eitc) / 1e6))
-    print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
-    fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
-  }
+  ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
+               eitc_children_expected_filers_m = sum(weight * p_file * n_dep_eitc) / 1e6), by = .(children = n_dep_eitc)]
+  setorder(ef, children)
+  cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
+              sum(out$weight * out$p_file * out$n_dep_eitc) / 1e6))
+  print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
+  fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
   cat(sprintf('  units with person 1 under 18: %d rows, %.2f m weighted; dependents claimed, counted by the claiming unit\'s weight, capped at 3: %.2f m\n',
               sum(out$age1 < 18), sum(w[out$age1 < 18]) / 1e6, sum(w * out$n_dep) / 1e6))
   spm_total_spmwt = sum(spm$chx * spm$spmwt) / 1e9
@@ -688,7 +529,7 @@ for (yr in YEARS) {
                                    'calibrated_filing_model'),
                billions = c(sum(w) / 1e6, sum(w * out$married) / sum(w), sum(w * out$filer) / sum(w),
                             sum(w * out$p_file) / sum(w), sum(w * out$must_file) / sum(w), fs_returns / 1e6,
-                            pool_hh / 1e6, as.numeric(calibrated)),
+                            pool_hh / 1e6, 1),
                recipients_m = NA_real_))
 }
 

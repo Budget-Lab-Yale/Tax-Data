@@ -1,35 +1,10 @@
-"""SOI's November filing-season tables, read into one file (plan of 4 November 2026, step 1: scratch
-explore/2026-11-04/nowcast/PLAN.md). Run again when SOI posts a new November table:
+"""SOI's November filing-season tables, read into one file (run.py stage filing_season, when SOI posts a new one).
 
-    python research/rebuild/pipeline/run.py stage <folder> filing_season      (no GPU needed)
-
-What the tables are. Each January SOI posts a table of the individual returns the IRS processed through week 47
-(about 20 November) of the filing year, by size of AGI (https://www.irs.gov/statistics/filing-season-statistics;
-the file https://www.irs.gov/pub/irs-soi/<yy>inweek47.xls or .xlsx, where <yy> is the filing year, one more than the
-tax year). The tables are a count of every processed return, not a sample, but they miss the returns processed after
-November, amended returns and SOI's later corrections, so their levels sit 2-8% below final SOI's (Table 1.4).
-They come in two layouts:
-  - the short layout (filing years 2016-2018, tax years 2015-2017): by AGI class, the number of returns, AGI, income
-    tax after credits and the share of AGI that is capital gains. It counts every Form 1040 processed in the year,
-    including some returns for earlier tax years.
-  - the long layout (from filing year 2018, tax year 2017; called "expanded" until filing year 2019): one line per
-    item (wages, interest, dividends, retirement distributions, capital gains, Schedules C, E and F, deductions,
-    credits, taxes), each with its number of returns and amount, by AGI class. It counts only returns for the tax year.
-Tax year 2017 has both. There is no November table for tax years 2019 and 2020 (SOI posted a table to the end of
-December for 2019 and none after July for 2020).
-
-The files are in research/rebuild/resources/filing_season/raw/ (downloaded 4 November 2026). This writes, in
-research/rebuild/resources/filing_season/:
-  - november_tables.csv: one row per tax year, table layout, line, statistic and AGI class: tax_year, filing_year,
-    source_file, layout, cutoff (the processing date in the title), line (the table's own label), item (the
-    pipeline's name, where the line is mapped), statistic (returns, count or amount), agi_class, agi_lo, agi_hi,
-    value, cells (how many published cells were added), note. Dollars are in dollars (the tables publish thousands).
-    AGI classes are the standard AGI grid (catalog groupings standard_agi_groups: no AGI, $1-10k, $10k-20k, ...,
-    $200k-500k, $500k-1m), with the top class $1 million and over, never split; agi_class 'all' is the table's total.
-  - line_mapping.csv: which line of each year's table is which pipeline item, with its definition and any change in
-    its label across years.
-  - sources.csv: where each file came from.
-Every published cell must be a number; the reader stops on anything else, and on a class total that does not add up.
+Each table counts every individual return the IRS processed through week 47 of the filing year, by size of AGI, so
+its levels sit 2-8% below final SOI's. The short layout (tax years 2015-2017) has returns, AGI, tax after credits and
+the capital gains share; the long layout (from tax year 2017) has one line per item. Reads the downloads in
+resources/filing_season/raw/; writes november_tables.csv (in dollars, on the standard AGI grid), line_mapping.csv and
+sources.csv there.
 """
 import os
 import re

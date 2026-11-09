@@ -1,19 +1,14 @@
-"""irs_wages_by_business_type.csv: wages paid by type of business, from three SOI tables, every year published. Not a
-stage; run by hand when SOI posts a new year (6 November 2026: 2015-2023, all three tables).
+"""Builds resources/non_micro/irs_wages_by_business_type.csv: wages paid by type of business, in thousands of
+dollars as SOI prints them, every year published. Run by hand when SOI posts a new year; each download sits in its own
+empty folder <folder>/<file stem>/ and is read as data only.
+    python -I research/rebuild/pipeline/resources_build/build_irs_wages.py <folder with the downloads> <output csv>
 
-Data only: each file is downloaded into its own new empty folder <folder>/<file stem>/, and read as data; nothing in a
-download is run. Run with python -I from another folder, with the Python modules on PYTHONPATH:
-    python -I build_irs_wages.py <folder with the downloads> <output csv>
-
-  sole_prop  SOI Sole Proprietorship Table 1 (<yy>sp01br.xls): Payroll, all nonfarm industries, businesses with and
-             without net income. Payroll is salaries and wages plus the cost of labor in cost of sales (SOI's footnote).
-             Schedule C only: SOI publishes no such line for Schedule F.
-  part       SOI Partnership Table 1 (<yy>pa01.xlsx): Salaries and wages, all industries. Guaranteed payments to
-             partners are a separate line in the table, kept in the CSV with used = 0: they are not W-2 wages.
-  scorp      SOI Corporation Table 9 (<yy>co09ccr.xlsx, Form 1120-S): Salaries and wages, and Compensation of officers,
-             the total column.
-Amounts in thousands of dollars, as SOI prints them. Each cell is checked by its row label and its table's title and
-tax year."""
+  sole_prop  Sole Proprietorship Table 1: payroll (salaries and wages plus labor in cost of sales), all nonfarm
+             industries. Schedule C only: SOI publishes no such line for Schedule F.
+  part       Partnership Table 1: salaries and wages. Guaranteed payments to partners are kept with used = 0, because
+             they are not W-2 wages.
+  scorp      Corporation Table 9 (Form 1120-S): salaries and wages, and compensation of officers.
+"""
 import csv
 import glob
 import os

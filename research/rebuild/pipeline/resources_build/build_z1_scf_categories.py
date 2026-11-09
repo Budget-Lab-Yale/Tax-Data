@@ -1,6 +1,7 @@
-"""Build SCF-category Z.1 proxies, Q4 levels; after 2025 hold each proxy's ratio to GDP fixed.
+"""Builds the Z.1 counterparts of the SCF's balance-sheet categories, fourth-quarter levels, 2010-2075; after 2025 each
+is held at its 2025 ratio to nominal GDP.
 
-Usage: python build_z1_scf_categories.py S1M_b.csv macro_directory output_directory
+    python -I research/rebuild/pipeline/resources_build/build_z1_scf_categories.py S1M_b.csv macro_directory output_directory
 """
 import csv
 from pathlib import Path
@@ -40,6 +41,6 @@ for name in series:
     with (output / f'z1_scf_{name}.csv').open('w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['year', 'value', 'note'])
-        for y in range(2010, 2076):   # to 2075 since 4 November 2026 (the long-run years; build_long_run.py added 2061-2075 by the same rule)
+        for y in range(2010, 2076):
             value = observed[y][name] if y <= 2025 else observed[2025][name] * gdp[y] / gdp[2025]
             w.writerow([y, f'{value:.0f}', '' if y <= 2025 else 'projection: 2025 ratio to nominal GDP held fixed'])

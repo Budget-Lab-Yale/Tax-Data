@@ -1,87 +1,9 @@
-"""roster_sipp.py: the SIPP reader for the shared tax-unit rules (tax_units.py), and the SIPP's tax units with each
-adult's wages and tips (settings "sipp"; run.py stage sipp). Everything is in Python: there is no R step.
+"""The SIPP reader for the shared tax-unit rules (tax_units.py), and the SIPP's tax units (settings "sipp").
 
-Sources: one public-use release per reference year (settings sipp.releases; read by sipp_read.py, only the columns it
-names). Each release is one row per person and month of the reference year.
-
-Households and people (the CPS's convention: the people at the interview, income for the calendar year before):
-  - the household is the sample unit (SSUID) as interviewed: everyone present at the interview (THHLDSTATUS 1
-    returning or 2 new member), with ERELRPE, their relationship to the householder at the interview. People who
-    left before the interview (partial-year members, movers, THHLDSTATUS 3-6) have no relationship code and are not
-    household members (the CPS has no such people either);
-  - a sample unit whose interview people hold more than one householder (ERELRPE 1 or 2: the unit split into two
-    households by the interview) is divided into one household per householder, each person going with their
-    December residence's householder (ERESIDENCEID); the count is printed;
-  - each person's age is TAGE (at the interview, as the CPS's ages); weight, the person's December final weight
-    (WPFINWGT, month 12; the reference year's last month), or their last month's weight if they have no December row.
-
-What the SIPP observes, and the fallbacks (tax_units.FALLBACKS['sipp']):
-  - relationship to the householder (ERELRPE, the same codes in every release from the 2014 panel): 1 householder
-    with relatives, 2 householder without, 3 opposite-sex spouse, 4 opposite-sex partner, 5 same-sex spouse,
-    6 same-sex partner, 7 child, 8 grandchild, 9 parent, 10 sibling, 11 parent or child in law, 12 brother or sister
-    in law, 13 aunt, uncle, niece or nephew, 14 other relative, 15 foster child, 16 housemate or roommate, 17 roomer
-    or boarder, 18 other nonrelative. Mapped to Census's PERRP below ("with relatives" for nonrelatives: a spouse,
-    parent or child pointer links them to someone else in the household);
-  - spouse pointer (EPNSPOUSE), parent pointers (EPNPAR1, EPNPAR2), all at the interview, each kept only when the
-    person pointed to is in the household. Census's family codes (HHDFMX, family head and position) are rebuilt
-    from them: a related subfamily is a married couple, or a parent with own children under 18 who have never
-    married, among the householder's relatives other than the householder's own couple; an unrelated subfamily is
-    the same among nonrelatives and partners; its reference person is the householder's blood relative, else the
-    man, else the parent;
-  - marital status EMS (1 married spouse present, 2 married spouse absent, 3 widowed, 4 divorced, 5 separated,
-    6 never married) in the CPS's MARST codes; people under 15 never married;
-  - student: enrolled (RENROLL 1) in the reference year's December and no earnings that month (the CPS's rule asks
-    "in school and not in the labor force"); disability: any of the six core disability items (RDIS 1, the same six
-    questions as the CPS's DIFFANY);
-  - income per person over the reference year's 12 months (person-month rows summed): wages (TJBn_MSUM on jobs for
-    an employer, class of worker 1-6), self-employment (TPEARN, all earnings, less those wages), investment and
-    property income (TPPRPINC), unemployment (TUC1AMT + TUC2AMT), Social Security (TSSSAMT), SSI (TSSI_AMT), other
-    income including pensions (TPOTHINC). Gross income is CBO's 3a formula (the taxable part of Social Security as
-    the CEX's reader computes it);
-  - support answer: none (-1). Every input observed; no assumed-input flag is set.
-
-Tips (production's definition, src/imputations/tips.R and Kendall's SIPP-Data/annualize.R): each person's tips on jobs
-for an employer (TJBn_TXAMT, job lines 1-4, class of worker 1-6), summed over the 12 months; tips on
-self-employment are left out. Leisure and hospitality (tips_lh): more than settings sipp.lh_share of those tips from
-jobs whose industry (TJBn_IND) is in settings sipp.lh_industries. The SIPP's job earnings (TJBn_MSUM) include the
-job's tips (checked in every release: a job-month's tips are never above its earnings), so tips are a part of wages,
-as on Form W-2.
-
-Separate returns: joint couples split by the CEX's rule (tax_units.mfs_split, a keyed draw with settings
-sipp.mfs_salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns. Dependent
-filers are folded into the unit that claims them: their own income goes nowhere (build_cps.R's rule).
-
-Units file (sipp_units_<year>.csv.gz, one row per tax unit, read by build_table.py), no missing values except the
-elective deferrals in years the release does not ask them:
-  year, record_id (the unit's uid; a separate return's uid x 10 + person), household_id, weight (the head's),
-  married (1 joint), n_dep (capped at 3), dep_filer (0), age1, age2, sex1, sex2, male1, male2 (person 1 and person 2;
-  person 1 the man in a mixed-sex couple, the older in a same-sex one, as tax_units.primary_and_spouse; no spouse:
-  age2 -1, sex2 0, male2 -1), wages1, wages2, wages (= wages1 + wages2), tips1, tips2, tips_lh1, tips_lh2 (0 or 1;
-  0 without tips), elective1, elective2, elective_deferrals (= elective1 + elective2; since 28 October): each adult's
-  elective deferrals, missing on every unit in a year the release does not ask them (2015-2019); dividends, gross_ss,
-  pensions (since 28 October): the primary filer's plus the spouse's (below).
-
-The shared non-wage items (since 28 October; shared_items), per person, then the primary filer's plus the spouse's on
-the unit, as wages (a dependent's own amounts go nowhere; a separate return carries its one person's):
-  - dividends: income from stocks and mutual funds (TINC_STMF), a yearly amount repeated in every month row, read
-    once (checked: the run stops if more than 1% of the people with any have different values in different months);
-  - gross_ss: Social Security received for oneself (TSSSAMT), monthly, before Medicare premiums, summed over the 12
-    months; benefits received on behalf of children (TSSCAMT) are left out. The same dollars as the person's ssb;
-  - pensions: retirement income items 1-8 (TRET1AMT-TRET8AMT: company or union, federal, state, local, military,
-    railroad, reserve and other retirement income), monthly, summed over the months and the items. No IRA or 401(k)
-    withdrawals (the public file has only whether, not how much), no lump sums or rollovers.
-A missing amount on a person-month is read as none only with an explanation, and each kind is counted in the log: the
-person is under 15, or did not say they received it (ESSSMNYN and ERETkMNYN, 1 for a month received and blank
-otherwise; for dividends the six questions on owning stocks or mutual funds, alone or jointly). A missing amount where
-the person said they received it stops the run.
-
-Elective deferrals (settings deferrals): each person's own contributions to 401(k), 403(b), 503(b) and Thrift Savings
-Plan accounts at the main employer (TSCNTAMT_401, a yearly amount repeated in every month: the largest monthly value;
-no value in any month read as none, the person not in a plan there; traditional and Roth together), held to the
-legal limit of the reference year (the catch-up limit from age 50 at the interview), then to the person's own wages
-(the plan's money comes out of them).
-Also writes persons_sipp_<year>.parquet, units_sipp_<year>.parquet and mfs_sipp_<year>.parquet (the rules' output, for
-check_units.py) and sipp_summary.csv. Usage (through Slurm): python -m prep.roster_sipp [year ...] [--out DIR].
+Reads one public-use release per reference year (sipp_read.py), one row per person and month; the household is the
+sample unit as interviewed, and income is summed over the reference year's 12 months, as in the CPS. Builds the
+standard member list, runs the rules, splits some couples into separate returns, and writes sipp_units_<year>.csv.gz
+(one row per unit, with each adult's wages, tips and elective deferrals) for build_table.py, plus the rules' output.
 """
 import argparse
 import os
@@ -99,9 +21,8 @@ WAGE_CLASSES = [1, 2, 3, 4, 5, 6]              # class of worker: for an employe
 BLOOD = [7, 8, 9, 10, 13, 14]                  # the householder's relatives by blood (in-laws 11, 12 are not)
 RELATIVES = [3, 5, 7, 8, 9, 10, 11, 12, 13, 14]
 SHARED_ITEMS = ['dividends', 'gross_ss', 'pensions']   # the units file's shared non-wage items (shared_items)
-# Items a release publishes as a wholly blank column although some people say they received them: their amounts are
-# unknown and read as zero, counted in the log (28 October). Reference year 2021 (the 2022 release): National Guard or
-# reserve retirement, TRET7AMT, blank for all; 3 people (36 person-months, about 20,000 people weighted) say received.
+# Items a release leaves wholly blank although some people say they received them; their amounts are read as zero.
+# In reference year 2021, National Guard or reserve retirement is blank for all and 3 people say they received it.
 UNPUBLISHED = {(2021, 'TRET7AMT')}
 
 
@@ -111,11 +32,9 @@ def in_lh(codes):
 
 
 def explained(d, item, asked, label, unpublished=False):
-    """The person-month values of `item` with every missing value explained, counted and printed, then read as no
-    income: the person is under 15 (the SIPP asks income of people 15 and over), the receipt questions (`asked`:
-    1 = received; the monthly ones are 1 or blank in every release, never "no") have no answer for that row, or an
-    answer other than "received". A missing amount where the person said they received it has no explanation: the
-    run stops, saying whether the release left the whole column blank (the item not published)."""
+    """The person-month values of `item`, a missing value read as none when it is explained: the person is under 15,
+    or did not say they received it (`asked`, the receipt questions). A missing amount where the person said they
+    received it stops the run."""
     v = d[item].to_numpy(float)
     na = np.isnan(v)
     q = d[asked].to_numpy(float)
@@ -143,12 +62,9 @@ def explained(d, item, asked, label, unpublished=False):
 
 
 def shared_items(d, year):
-    """Per person: the shared non-wage items (since 28 October). Dividends: income from stocks and mutual funds
-    (TINC_STMF), a yearly amount repeated in every month row, read once (the person's largest monthly value; the run
-    stops if more than 1% of the people with any have different values in different months). Gross Social Security:
-    TSSSAMT, monthly, before Medicare premiums, summed over the months (benefits received on behalf of children,
-    TSSCAMT, are left out). Pensions: retirement income items 1-8 (TRET1AMT-TRET8AMT), monthly, summed over the months
-    and the items."""
+    """Per person, the non-wage items shared with the PUF: dividends (income from stocks and mutual funds, a yearly
+    amount repeated in every month), gross Social Security for oneself before Medicare premiums, and pensions
+    (retirement income items 1-8; the public file has no IRA or 401(k) withdrawal amounts)."""
     common.say(f'SIPP {year}: the shared items\' missing values, by person-month row')
     key = [d.SSUID, d.PNUM]
     div = pd.Series(explained(d, 'TINC_STMF', R.OWNERSHIP, 'dividends'), index=d.index)
@@ -177,9 +93,9 @@ def shared_items(d, year):
 
 
 def person_year(d, year):
-    """Per person (SSUID, PNUM): the year's income items, wages and tips on jobs for an employer, leisure and
-    hospitality tips, December enrolment and earnings, the checks of tips against job earnings, and the shared items
-    (shared_items)."""
+    """Per person (SSUID, PNUM): the year's income items, December enrolment, earnings and weight, and wages and tips
+    on jobs for an employer. Job earnings include the job's tips, so tips are a part of wages, as on Form W-2;
+    leisure and hospitality tips are those from jobs in the industries in settings sipp.lh_industries."""
     wages = np.zeros(len(d)); tips = np.zeros(len(d)); tips_lh = np.zeros(len(d))
     over = 0
     for j in range(1, R.JOBS + 1):
@@ -200,7 +116,7 @@ def person_year(d, year):
     y = y.join(shared_items(d, year))
     assert np.abs(y.own_gross_ss - y.ssb).max() < 0.005, 'gross Social Security differs from ssb'
     item = common.SETTINGS['deferrals']['sipp_item']
-    if item in d:   # elective deferrals (28 October): a yearly amount, repeated by month
+    if item in d:   # elective deferrals: a yearly amount, repeated by month
         g = d.groupby(['SSUID', 'PNUM'], sort=False)[item]
         y['elective_reported'] = g.max().clip(lower=0).reindex(y.index).fillna(0.0).to_numpy()
         y['elective_no_value'] = g.count().reindex(y.index).eq(0).to_numpy()   # no value in any month: none
@@ -236,7 +152,8 @@ def read_roster(year):
     p, per = p[~w0.to_numpy()], per[~w0.to_numpy()]
     zero = (per.weight <= 0).to_numpy()
     common.say(f'  interview members with weight 0 (kept, they count for nothing): {int(zero.sum())}')
-    # households: the sample unit, split by householder where it holds more than one (see the top)
+    # households: the people present at the interview, a sample unit with more than one householder split into one
+    # household per householder, each person going with their December residence's householder
     P = p.reset_index()
     P = pd.concat([P, per.reset_index(drop=True)[[c for c in per.columns if c not in P]]], axis=1)
     hh_flag = P.ERELRPE.isin([1, 2])
@@ -390,7 +307,7 @@ def read_roster(year):
         r['elective'] = 0.0
         r['elective_reported'] = 0.0
     r['elective_asked'] = asked
-    # passthrough: the shared items (since 28 October; shared_items)
+    # passthrough: the shared items (shared_items)
     for c in ['own_dividends', 'own_gross_ss', 'own_pensions']:
         r[c] = P[c].to_numpy(float)
     r['SSUID'] = P.SSUID.to_numpy(); r['PNUM'] = P.PNUM.astype(int).to_numpy()
@@ -402,9 +319,8 @@ def read_roster(year):
 
 
 def unit_rows(units, persons, mfs, year):
-    """The units file (see the top): joint couples split into separate returns replaced by their two returns;
-    dependents' own returns dropped (folded into the claiming unit). Person 1 and person 2 by
-    tax_units.primary_and_spouse; each person's wages and tips."""
+    """The units file: one row per unit, separate returns in place of the couples they split, dependents' own returns
+    dropped (their income goes nowhere). Person 1 and person 2 as tax_units.primary_and_spouse orders them."""
     main = units[~units.dep_return].copy()
     split = set(mfs.couple_uid) if len(mfs) else set()
     keep = main[~main.uid.isin(split)]
@@ -450,7 +366,7 @@ def unit_rows(units, persons, mfs, year):
     out['elective_deferrals'] = out.elective1 + out.elective2
     if not asked:
         out[['elective1', 'elective2', 'elective_deferrals']] = np.nan
-    for c in SHARED_ITEMS:        # the primary filer's plus the spouse's (since 28 October)
+    for c in SHARED_ITEMS:        # the primary filer's plus the spouse's
         out[c] = shared[c]
     assert (out.loc[out.married == 0, ['wages2', 'tips2', 'tips_lh2']] == 0).all().all()
     assert ((out.age2 >= 0) == (out.married == 1)).all()
@@ -486,9 +402,8 @@ def summary(u, year):
 
 
 def shared_check(u, persons, year):
-    """The shared items per year: weighted total, share of units with any, the holders' median, units at $10,000
-    and over and at $100,000 and over; and the people's total (every person in a unit, by the person's own weight),
-    whose difference from the units' total is mostly dependents' own amounts, which go nowhere."""
+    """A summary of the shared items per year, for units and for people; the difference between the two totals is
+    mostly dependents' own amounts, which go nowhere."""
     w = u.weight.to_numpy(float)
     out = []
     for c in SHARED_ITEMS:

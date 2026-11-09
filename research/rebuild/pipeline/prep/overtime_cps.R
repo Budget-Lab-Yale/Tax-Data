@@ -1,99 +1,11 @@
 #-------------------------------------------------------------------------------
-# overtime_cps.R: each CPS ASEC person's overtime pay in the tax year, by Ernie
-# Tedeschi's rules (Reports/2024/Overtime/src/overtime_PUBLIC.do, The Budget
-# Lab, September 2024), with each tax year's salary thresholds. Sourced by
-# build_cps.R; cps_overtime(yr, ...) returns one row per person.
-#
-# The data. The earnings questions (weekly pay, hourly wage, paid by the hour)
-# are asked only of the households in their 4th and 8th month in the survey,
-# about a quarter of the March sample, and are answered for the current job in
-# March of the year after the tax year. They are read from the ASEC extract that
-# carries them (settings paths.raw.cps_earnings, the "cps_asec_common_v2" pull of
-# 27 October), which has the same records as the common extract build_cps.R
-# reads (checked: the same SERIAL and PERNUM). Weeks worked and wages are the
-# tax year's (WKSWORK1, INCWAGE).
-#
-# Who is asked. A person is "asked" when the person's household is in the
-# earnings group (EARNWT > 0) and the group of their month in sample still has
-# its pay in this year's file. In the March 2024 ASEC (tax year 2023) the
-# month-4 group lost its pay (WEEKPAY_GAP.md): a month group whose workers have
-# weekly pay on fewer than half of them counts as not asked, unless settings
-# paths.raw.cps_march_basic gives the March basic file, which holds the same
-# people's pay (linked by MARBASECIDP; scratch explore/2026-10-28/overtime,
-# RESULTS.md part 1), in which case the pay is taken from there. The basic file
-# also gives hours last week at the main job. A person not asked has overtime missing (NA), not zero; build_cps.R
-# makes a unit's overtime missing when either adult's is. A worker in an asked
-# group with no weekly pay and no hourly wage (a few per year) is missing too.
-#
-# Tedeschi's rules, person by person (his variable names in brackets):
-#   employed            EMPSTAT 10 or 12 [emp]
-#   not covered [inelig] employed but not a private, state or local government
-#                       employee (CLASSWKR 21-23, 27, 28): federal workers,
-#                       the armed forces, the self-employed, unpaid family
-#                       workers; and clergy (OCC2010 2040, 2050, 2060). Put back:
-#                       the postal service (IND 6370); federal workers in
-#                       electric power (IND 570) in AL, GA, KY, MS, NC, TN, VA
-#                       (the TVA); federal workers in libraries (IND 6770) in DC
-#                       (the Library of Congress)
-#   exempt by occupation [exempt] physicians (OCC2010 3010, 3040, 3060, 3120),
-#                       lawyers (2100), teachers (2200-2550) and education
-#                       administrators and counselors (230, 2000) in schools and
-#                       colleges (IND 7860, 7870), outside sales (4950),
-#                       agriculture (IND 170, 180, 290), fishermen (IND 280 and
-#                       OCC2010 6100, 9310), media workers outside metro areas
-#                       (2810-2860, CBSASZ 0), companions (3600, 4610 in IND
-#                       8170, 8370, 9290), computer workers paid at least $27.63
-#                       an hour or the year's salary threshold a week (110, 1005-
-#                       1107, 5800, 7900), motor carrier workers (IND 6170 and
-#                       7110, 7200, 7210, 7220, 9130), rail workers (9200, 9230,
-#                       9240, 9260), seamen (IND 6090 and 9300, 9310, 9570), and
-#                       salesmen and mechanics at vehicle dealers (IND 4670, 4680
-#                       and 4750, 4760, 7110, 7150, 7160, 7200-7260)
-#   paid by the hour    PAIDHOUR 2 [hourly]
-#   white-collar duties [eap_prob] a salaried worker paid at least the year's
-#                       salary threshold a week, covered and not exempt, passes
-#                       the duties test with a chance set from the occupation's
-#                       class in DOL's 2016 table (eap_codes.dta, classes 0-4)
-#                       and the person's weekly pay: within each class a gamma
-#                       distribution fitted to the weekly pay of salaried
-#                       workers above the threshold (EARNWT-weighted), its
-#                       cumulative chance at the person's pay, rescaled to the
-#                       class's range (1: 0.9-1, 2: 0.5-0.9, 3: 0.1-0.5, 4:
-#                       0-0.1; class 0 never passes). Highly compensated (weekly
-#                       pay at least the year's HCE line / 52): 1, 0.95, 0.592,
-#                       0.15 by class. One draw per worker, seeded (settings
-#                       cps.overtime.seed + the year), in SERIAL, PERNUM order.
-#                       Passing makes the worker exempt.
-#   overtime categories [otalways, otsome] covered, not exempt, and hourly, or
-#                       salaried below the threshold or not passing the duties
-#                       test; usual hours at the main job over 40 (always), or
-#                       usual 40 or less and hours last week over 40 (some).
-#                       Usual hours that vary (UHRSWORK1 997) fall in neither,
-#                       as in Tedeschi's code.
-#   hours [finalhours]  hours last week at the main job (AHRSWORK1, from the
-#                       March basic file: the ASEC has only hours at all jobs,
-#                       AHRSWORKT, used where no basic file is given), else
-#                       usual hours at the main job
-#   wage [wage]         hourly workers: the hourly wage (HOURWAGE2, without
-#                       overtime, tips and commissions), else weekly pay over
-#                       usual hours; salaried: weekly pay over usual hours at
-#                       the main job (hours last week when usual hours vary)
-#   weekly overtime     1.5 x wage x (hours - 40) in an overtime category with
-#                       hours over 40 [ot_weekly_earnings]: the whole pay for
-#                       the hours over 40, base and premium, as Tedeschi counts
-#                       it (the premium alone is a third of it)
-#   ot                  overtime pay in the year: weekly overtime x weeks worked
-#                       in the tax year (WKSWORK1), at most the person's wages
-#                       (INCWAGE). Tax-Simulator's name (ot1, ot2, ot on the unit)
-#
-# The occupation codes. Tedeschi's code lists, and DOL's table of classes, are
-# in the Census 2002/2010 occupation codes; the ASEC's own OCC changes to the 2018
-# codes from March 2020. Every year is read on IPUMS's OCC2010 (each year's
-# occupation put on the 2010 codes), so one set of lists serves every year. A
-# 2010 code missing from DOL's table takes the class of the nearest lower code in
-# it (Tedeschi's carry-forward). Industry codes (IND, the 2012 and 2017 Census
-# codes) are the same for every industry the rules name; build_cps.R prints the
-# count of each named code per year.
+# Each CPS ASEC person's overtime pay in the tax year, by Ernie Tedeschi's rules
+# (Reports/2024/Overtime/src/overtime_PUBLIC.do, The Budget Lab, 2024), with each
+# tax year's salary thresholds. Sourced by build_cps.R; cps_overtime(yr, x_keys)
+# returns one row per person. Pay is asked only of households in their 4th and
+# 8th month in the survey; everyone else's overtime is missing (NA), not zero.
+# Occupations are read on IPUMS's OCC2010 codes in every year. FEATURES.md, "The
+# CPS", has the method.
 #-------------------------------------------------------------------------------
 
 OT_VARS = c('SERIAL', 'PERNUM', 'MISH', 'EARNWT', 'ELIGORG', 'PAIDHOUR', 'EARNWEEK2', 'HOURWAGE2', 'UHRSWORK1',
@@ -174,6 +86,8 @@ cps_overtime = function(yr, x_keys) {
   }
   x[, asked := grp & !(MISH %in% lost)]
 
+  # not covered: federal workers, the armed forces, the self-employed, unpaid family workers and clergy; put back:
+  # the postal service, federal workers in electric power in the TVA's states, and the Library of Congress
   emp = x$EMPSTAT %in% c(10, 12)
   covered_cow = x$CLASSWKR %in% c(21, 22, 23, 27, 28)
   x[, inelig := emp & (!covered_cow | OCC2010 %in% c(2040, 2050, 2060))]
@@ -190,6 +104,10 @@ cps_overtime = function(yr, x_keys) {
   denom = fifelse(!is.na(usual), usual, lastwk)
   x[, wage := fifelse(hourly & HOURWAGE2 > 0 & HOURWAGE2 < 999, as.numeric(HOURWAGE2), weekpay / denom)]
   o = x$OCC2010; i = x$IND
+  # exempt by occupation: physicians, lawyers, teachers and education administrators in schools and colleges,
+  # outside sales, agriculture, fishermen, media workers outside metro areas, companions, computer workers paid at
+  # least the hourly line or the salary threshold, motor carrier, rail and sea workers, and salesmen and mechanics at
+  # vehicle dealers
   comp = o %in% c(110, 1005, 1006, 1007, 1010, 1020, 1030, 1050, 1060, 1105, 1106, 1107, 5800, 7900)
   x[, exempt := (o %in% c(3010, 3040, 3060, 3120)) | (o == 2100) |
         (o >= 2200 & o <= 2550 & i %in% c(7860, 7870)) | (o %in% c(2000, 230) & i %in% c(7860, 7870)) |
@@ -229,6 +147,7 @@ cps_overtime = function(yr, x_keys) {
     lo = ranges[[as.character(cl)]][1]; span = ranges[[as.character(cl)]][2]
     x[eap_code == cl & !is.na(eap_prob), eap_prob := lo + (eap_prob - r[1]) * span / (r[2] - r[1])]
   }
+  # highly compensated workers (weekly pay at least the HCE line / 52) pass with these chances by class
   hce_p = c(`1` = 1, `2` = 0.95, `3` = 0.592, `4` = 0.15)
   x[!is.na(eap_prob) & weekpay >= hce / 52 & eap_code %in% 1:4, eap_prob := hce_p[as.character(eap_code)]]
   x[eap_code == 0 & sal_above & !inelig & !exempt, eap_prob := 0]
@@ -246,6 +165,7 @@ cps_overtime = function(yr, x_keys) {
                       nonexempt, 'eligible, no overtime',
                       emp & x$ELIGORG == 1, 'not covered or exempt',
                       default = 'not a wage worker now')]
+  # weekly overtime is the whole pay for the hours over 40, base and premium; the premium alone is a third of it
   x[, ot_week := fifelse(ot_cat %in% c('always', 'some') & !is.na(finalhours) & finalhours > 40 & !is.na(wage),
                          1.5 * wage * (finalhours - 40), 0)]
   # pay missing on an asked worker who could have overtime: the person's overtime is missing

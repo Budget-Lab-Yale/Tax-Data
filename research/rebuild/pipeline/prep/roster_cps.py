@@ -1,15 +1,8 @@
-"""roster_cps.py: the CPS reader for the shared tax-unit rules (tax_units.py). It turns an IPUMS CPS ASEC person file
-into the standard member list the rules read (one row per person; the columns are listed in tax_units.py's header).
+"""The CPS reader for the shared tax-unit rules (tax_units.py): the IPUMS CPS ASEC as the standard member list.
 
-The CPS observes every input the rules use, so it needs no fallbacks (tax_units.FALLBACKS['cps']); the stand-ins for
-the few Census variables IPUMS lacks are listed in tax_units.py's header and below. Moved out of tax_units.py on
-24 October 2026 without any change to what it computes: step 1's units come out identical, unit for unit.
-
-read_roster(tax_year)  the member list for one tax year (the ASEC of March tax_year + 1). CBO reads the Census Bureau's
-                       CSV files; the member list rebuilds the Census codes CBO's rules read (HHDFMX, the detailed
-                       family position; PERRP, the detailed relationship to the reference person; the family head and
-                       family position pointers) from IPUMS's RELATE, FTYPE, FAMREL, FAMID and the spouse and parent
-                       pointers. Incomes follow 3a_compute_incomes.do as far as IPUMS carries the source codes.
+CBO's rules read the Census Bureau's own files. This reader rebuilds the Census codes they use (HHDFMX, PERRP, the
+family pointers) from IPUMS's relationship and family variables, and computes incomes as CBO's 3a_compute_incomes.do
+does as far as IPUMS carries the source codes. The comments below note each input IPUMS lacks and its stand-in.
 """
 import re
 
@@ -46,12 +39,8 @@ def _clean_income(z):
 
 
 def read_roster(tax_year):
-    """The standard person roster for one tax year (the ASEC of March tax_year + 1).
-
-    Columns: hh, pn (person number, the pointers' key), age, sex, weight (ASECWT), gq, relate, ftype, famrel, famid,
-    sp_pn, mom_pn, pop_pn, marst; CBO's codes hhdfmx, perrp, fheadidx (person number of the family's reference
-    person), ffpos (= FAMID); student and disability flags; CBO's income items and gross income gi.
-    """
+    """The member list for one tax year, from the ASEC of March tax_year + 1. Ages are as reported at the March
+    interview, as in CBO's code. IPUMS's parent pointers agree with Census's as sets for 98% of people in 2024."""
     x = _read_fixed_width(tax_year + 1)
     r = pd.DataFrame({'hh': x.SERIAL.astype(np.int64), 'pn': x.PERNUM.astype(int), 'age': x.AGE.astype(int),
                       'sex': x.SEX.astype(int), 'weight': x.ASECWT.astype(float), 'gq': (x.GQ == 2),
@@ -65,10 +54,12 @@ def read_roster(tax_year):
 
     # --- CBO's family codes from IPUMS -------------------------------------------------------------------------
     # PERRP. RELATE 1114 (unmarried partner, before the 2020 survey) is split by sex as Census does (43/44 opposite
-    # sex, 46/47 same sex); "with relatives" as described in the module header.
+    # sex, 46/47 same sex). IPUMS lacks Census's "with relatives" split for partners, housemates, roomers and other
+    # nonrelatives: a person has relatives when a spouse or parent pointer links them to someone else in the
+    # household, or they are in an unrelated subfamily (exact for partners in March 2024, about 90% for the others).
     head_sex = r.hh.map(r[r.pn == 1].set_index('hh').sex)
     linked = set()
-    # IPUMS's SPLOC also points at unmarried partners (March 2024); a partner is not a relative, so only spouses count
+    # IPUMS's SPLOC also points at unmarried partners, who are not relatives, so only spouses count
     for c in ['sp_pn', 'mom_pn', 'pop_pn']:
         t = r[(r[c] > 0) & ((c != 'sp_pn') | (r.marst == 1))]
         linked |= set(zip(t.hh, t.pn)) | set(zip(t.hh, t[c]))
@@ -88,10 +79,9 @@ def read_roster(tax_year):
         raise ValueError(f'RELATE codes without a PERRP equivalent: {pd.Series(rel[bad]).value_counts().to_dict()}')
     r['perrp'] = perrp
 
-    # HHDFMX: family type and position (FTYPE, FAMREL) and relationship to the householder. Codes stand for CBO's
-    # groups (the young/adult and single/married splits are not used by any rule, so one code per group is used:
-    # child 4 / subfamily reference 3 / its spouse 6; grandchild 25 / 23 / 27 / child of subfamily 24; other relative
-    # 37 / 35 / 39 / 36). Measured on March 2024: every person's group matches Census's HHDFMX.
+    # HHDFMX from family type and position (FTYPE, FAMREL) and relationship to the householder. No rule uses the
+    # young/adult and single/married splits, so one code stands for each of CBO's groups. In March 2024 every
+    # person's group matches Census's HHDFMX.
     ft, fr = r.ftype.to_numpy(), r.famrel.to_numpy()
     kin = np.select([np.isin(rel, [301, 303]), rel == 901], ['child', 'grandchild'], 'other')
     in_sf = ft == 3
@@ -120,8 +110,9 @@ def read_roster(tax_year):
     r['married_absent'] = r.marst == 2
 
     # --- school and disability (4a) ----------------------------------------------------------------------------
-    # in school: enrolled in high school or college and not in the labor force, nearest to Census's PRNLFSCH (asked of
-    # people not in the labor force)
+    # in school: enrolled in high school or college and not in the labor force, the nearest to Census's PRNLFSCH
+    # (95% of those Census marks in school match, March 2024). Census's PYRSN (not working because of school) is not
+    # in the extract.
     in_school = x.SCHLCOLL.astype(int).isin([1, 2, 3, 4]) & (x.LABFORCE.astype(int) == 1)
     r['in_school'] = in_school.to_numpy()
     r['nilf_school'] = (x.WHYNWLY.astype(int) == 4).to_numpy()      # RSNNOTW 4
@@ -136,15 +127,15 @@ def read_roster(tax_year):
     disa = [(z('INCDISA1'), src('SRCDISA1')), (z('INCDISA2'), src('SRCDISA2'))]
     by = lambda pairs, codes: sum(v * s.isin(codes) for v, s in pairs)
     wage = z('INCWAGE'); farm = z('INCFARM'); selfemp = z('INCBUS') + farm
-    # from March 2019 IPUMS's INCINT includes interest earned inside retirement accounts (INCRINT1/2), which CBO's
-    # interest (TRDINT_VAL) leaves out
+    # from the March 2019 survey on, IPUMS's INCINT includes interest earned inside retirement accounts
+    # (INCRINT1/2), which CBO's interest (TRDINT_VAL) leaves out
     interest = z('INCINT') - z('INCRINT1') - z('INCRINT2'); dividends = z('INCDIVID'); rents = z('INCRENT')
     est_trust = by(surv, [8])
     if 'INCPEN1' in inc:            # the redesigned survey (March 2019 on)
         pens = [(z('INCPEN1'), src('SRCPEN1')), (z('INCPEN2'), src('SRCPEN2'))]
         annuity = z('INCRANN') + by(surv, [9])
-        # CBO's distributions (DST_VAL1/2) leave out the early distributions of people 57 and under (DST_VAL*_YNG),
-        # which IPUMS's INCRET1/2 include: here, distributions count from age 58
+        # CBO leaves out the early distributions of people 57 and under, which IPUMS does not report separately,
+        # so distributions count from age 58
         distributions = (z('INCRET1') + z('INCRET2')) * (x.AGE >= 58)
         pension_items = by(pens, [1, 2, 3, 4, 5, 6, 8])
         rr_pen = by(pens, [7])
@@ -159,6 +150,7 @@ def read_roster(tax_year):
     uc = z('INCUNEMP') + by(disa, [9])
     ssb = z('INCSS'); ssi = z('INCSSI'); vet = z('INCVET')
     wc = z('INCWKCOM') + by(disa, [1, 7, 8]) + by(surv, [6, 7])
+    # IPUMS's other income has no source code, so the pieces CBO moves into wages, interest and the like stay out
     gi0 = wage + selfemp + interest + dividends + rents + est_trust + pension + uc
     ss_rr = ssb + rr_pension
     taxable = taxable_social_security(gi0, ss_rr, r.marst.to_numpy() == 1)
@@ -174,8 +166,7 @@ def read_roster(tax_year):
                     + z('INCDISAB') * (z('INCDISAB') > 0) * ((src('SRCDISA1') > 0) | (src('SRCDISA2') > 0)))
     r['has_disab_income'] = np.asarray(disab_income > 0)
     r['year'] = tax_year
-    # the standard member list's survey columns: the CPS has no support answer of its own (-1, not asked), and
-    # every input is observed, so no person carries an assumed input
+    # the CPS has no support question (-1, not asked) and observes every input, so nothing is assumed
     r['survey'] = 'cps'
     r['support'] = -1
     r['gi_obs'] = True

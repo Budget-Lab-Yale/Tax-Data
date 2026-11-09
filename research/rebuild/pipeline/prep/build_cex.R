@@ -1,76 +1,10 @@
 #-------------------------------------------------------------------------------
-# build_cex.R: the CEX interview survey, survey years 2015, 2017, 2019, 2021,
-# 2023 and 2024, in tax units, with each unit's income and its share of the
-# consumer unit's spending in the 8 PCE categories.
-#
-# Tax units come from the shared rules (pipeline/tax_units.py, CBO's rules, the
-# same as the CPS and SCF), run by roster_cex.py on the CEX member files. That
-# script writes cex_persons_module_<year>.csv.gz to this script's data folder:
-# one row per person (NEWID, MEMBNO) with the return the person is on (ret_tu,
-# a number below 100 within the interview) and their role on it (1 primary
-# filer, 2 spouse, 3 dependent), the return's married and mfs flags, and
-# any_link_assumed (a child placed, or a couple paired, with no pointer in the
-# survey to say so). Run roster_cex.py first.
-#   - Every person in the consumer unit is on exactly one return.
-#   - Dependents who would file a return of their own stay people of the
-#     claiming unit: no separate rows, and their income stays with the unit.
-#     dep_filer is kept in the output, always 0.
-#   - Married couples drawn to file separately (roster_cex.py, to match SOI
-#     Table 1.6's separate returns) are two rows: person 1 with the dependents,
-#     and person 2. On those rows married is 0 and mfs is 1.
-#   - The primary filer (age1, male1) is the unit's head and age2/male2 its
-#     spouse; ages.py later picks which of a couple is primary.
-#
-# Follows production's reader (src/cex.R, build_cex_training) for income and
-# spending, with three deliberate differences:
-#   - nominal dollars of the survey year (production deflates to 2017);
-#   - each year's weights sum to that year's population (production divides
-#     by the number of years pooled);
-#   - every consumer unit is kept, with complete_income = 1 where BLS imputed
-#     none of the unit's income (FINCBTXI == 100); production keeps only those.
-#
-# Sources. A survey year N uses five quarterly files of interviews: Q1, Q2,
-# Q3 and Q4 of N, and Q1 of N+1 (whose interviews still cover the last months
-# of N). Releases up to 2019 hold all five, the first as {yy}1x. From 2020 a
-# release holds Q2 of N to Q1 of N+1, so Q1 of N is read from the previous
-# release's folder (2021's 211 files from 2020/, and so on). Production's
-# read_cex reads only four files and so misses Q1 of N.
-#
-# Weights. FINLWT21 / 4 x MO_SCOPE / 3. MO_SCOPE is the number of the
-# interview's three reference months that fall in year N, so the five files
-# together represent the year's population once. Interviews with weight 0
-# (January interviews of N, which cover only months of N-1) are dropped.
-#
-# Ids. record_id = year x 1e10 + NEWID x 100 + ret_tu, unique across all
-# files (the interviews of Q1 of N+1 sit in both year N's and year N+1's file).
-# household_id = NEWID %/% 10, the consumer unit across its interviews and years.
-#
-# Income, nominal annual dollars as reported (last 12 months).
-#   Member items, summed over the people on the return (filer, spouse,
-#   dependents): wages SALARYXM, se_income SEMPFRMM, social_security SOCRRXM,
-#   ssi SSIXM. A missing member item means BLS did not ask it (no such income)
-#   and is 0, as in production.
-#   Consumer-unit items, split across the CU's tax units in proportion to each
-#   unit's positive member income, or equally when no unit has any (production's
-#   rule): int_div INTRDVXM, net_rent NETRENTM, pensions RETSURVM,
-#   other_regular OTHREGXM, roy_est ROYESTXM. The CU totals carry suffix _cu.
-#
-# Consumption, nominal annual dollars. Each FMLI summary item is CQ + PQ (the
-# two parts of the three-month reference period) times 4, and the items map
-# to the 8 categories as in production. Each category is floored at 0 for the
-# consumer unit (refunds can make an item negative) and then split across tax
-# units by tu_share = people on the return / FAM_SIZE. From the 2024 release
-# (files 242 on) BLS renamed food at home FDHOMECQ/PQ to GROCERCQ/PQ; GROCER is
-# used in any file that has it.
-#
-# Paths and years from settings.json ("paths": raw cex; "cex": years); the settings file is
-# REBUILD_SETTINGS if set (run.py sets it), else the pipeline's own.
-# Writes {out}/data/cex_units_{year}.csv.gz, one row per tax unit per
-# interview; cex_summary.csv (weighted totals beside NIPA PCE);
-# cex_items_by_year.csv (weighted total of every FMLI item used, by year);
-# cex_age_check_<target year>.csv (weighted units and spending by the primary
-# filer's age). Prints diagnostics: NA counts, units per consumer unit.
-# Run from the repository root through Slurm.
+# The CEX interview survey in tax units: one row per tax unit and interview, with
+# the unit's income and its share of the consumer unit's spending in the 8 PCE
+# categories, in nominal dollars of the survey year. Reads the CEX member and
+# family files and the person file roster_cex.py writes (run it first); writes
+# data/cex_units_<year>.csv.gz and summary checks. Income and spending follow the
+# production reader (src/cex.R). Run from the repository root.
 #-------------------------------------------------------------------------------
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(purrr); library(readr); library(data.table); library(jsonlite)
@@ -219,7 +153,7 @@ read_fmli = function(year) {
              QINTRVYR == year + 1 & QINTRVMO == 2 ~ 2L,
              QINTRVYR == year + 1 & QINTRVMO == 3 ~ 1L,
              TRUE                                 ~ 0L),
-           weight = FINLWT21 / 4 * MO_SCOPE / 3)
+           weight = FINLWT21 / 4 * MO_SCOPE / 3)    # MO_SCOPE: the interview's reference months in year N
 }
 
 #-------------------------------------------------------------------------------
@@ -251,7 +185,7 @@ for (year in YEARS) {
   cu = bind_cols(fmli %>% select(NEWID, weight, FAM_SIZE, FINCBTXI, all_of(unname(CU_INC))), cu_cats)
   names(cu)[match(CU_INC, names(cu))] = paste0(names(CU_INC), '_cu')
 
-  # this must be computed before the floors would matter: check the floor's bite at CU level
+  # interviews with a negative category, before the floor at zero
   raw_neg = map_int(CATS, ~ sum(rowSums(as.matrix(fmli[, .x])) < 0))
   cat('  interviews with a negative category before the floor:\n'); print(raw_neg[raw_neg > 0])
 
@@ -261,6 +195,8 @@ for (year in YEARS) {
   cat(sprintf('  interviews where the people attached to units differ from FAM_SIZE: %d\n', nrow(size_gap)))
   if (nrow(size_gap) > 0) print(count(size_gap, gap = FAM_SIZE - cu_members))
 
+  # the consumer unit's income is split across its tax units by positive member income (equally if none), its
+  # spending by the number of people
   units = units %>%
     group_by(NEWID) %>%
     mutate(
