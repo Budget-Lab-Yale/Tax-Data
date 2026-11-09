@@ -1,10 +1,6 @@
-"""The dollar maps: for each band of each amount, the dollars a drawn record in that band gets, in target-year dollars
-(the PUF's map grown by each item's growth line; one map per SCF wave grown per tax unit to the target year's wave; the
-CEX, CPS and SIPP maps of the generation year and of each survey year in the target year's mix). The training table
-build (prep/build_table.py) writes them for its own year; each target year runs this stage alone, from the table and
-band edges already built.
-
-  python -m scale.maps
+"""The dollar maps for one target year: for each band of each amount, the dollars a drawn record in that band gets, in
+target-year dollars. Reads the training table and its band edges; writes one map for the PUF, one per SCF wave, and one
+per CEX, CPS and SIPP year to data/maps, with the growth factors used. See FEATURES.md, "Dollars in the target year".
 """
 import json
 import os
@@ -58,8 +54,7 @@ def build_map(df, edges, source, variables, year=PUF_YEAR):
 
 def cap_scf_map(m, base, wave):
     """The wave's dollar map with each item in settings dollars.scf_caps held to that percentile among the wave's
-    holders (weighted, the wave's own dollars, before growth). Only the dollars a drawn band turns into change; the
-    training table and its bands do not. Prints the cap and how many map values it lowers."""
+    holders (weighted, in the wave's own dollars). Only the map changes; the training table and its bands do not."""
     for v, q in common.SETTINGS['dollars'].get('scf_caps', {}).items():
         x, w = base[v].to_numpy(float), base['weight'].to_numpy(float)
         assert np.isfinite(x).all(), f'SCF wave {wave}: {v} missing or not finite'
@@ -76,21 +71,17 @@ def cap_scf_map(m, base, wave):
 
 
 def scf_growth(scf, y_from, y_to):
-    """{balance-sheet item: its growth per tax unit from the SCF wave of income year y_from to that of y_to}: the ratio
-    of the two waves' weighted means per tax unit, each in its own dollars (all units and all five implicates, zeros
-    included; scf: SCF rows with year, weight and the items in dollars). It carries price change and the change in
-    holdings per unit together. The mortgage's share of the home's value (w_primary_ltv) is a ratio and is not grown:
-    the mortgage in dollars moves with the home. An amount the SCF does not ask of some units (SCF_NOT_ASKED: elective
-    deferrals, not asked outside the PEU): the mean over the units asked. An item whose growth.yaml line names 'scf net
-    worth per unit between waves' (inheritance) takes the growth of net worth per tax unit (all units),
-    net worth computed from the balance sheet where the frame has no net_worth column (the home mortgage as its share of
-    the home's value times the home)."""
+    """{balance-sheet item: its growth per tax unit from the SCF wave of income year y_from to that of y_to}, the ratio
+    of the two waves' weighted means per tax unit over all units and implicates, zeros included. It carries price change
+    and the change in holdings together. An item whose growth line names 'scf net worth per unit between waves'
+    (inheritance) grows with net worth per tax unit."""
     out = {}
     if 'net_worth' not in scf:
         scf = scf.assign(net_worth=scf_net_worth(scf))
     for v in BT.SCF_AMOUNTS:
         if v in BT.SCF_RATIOS:
-            # The mortgage share changes after the final wave so that the home and mortgage each follow their own Z.1 series.
+            # The mortgage's share of the home's value is not grown between waves (the mortgage moves with the home). After
+            # the last wave it changes so that the home and the mortgage each follow their own Z.1 series.
             last = max(int(y) for y in scf['year'].unique()) + 1
             a, b = max(last, y_from + 1), max(last, y_to + 1)
             out[v] = (GR.scf_extension(a, b, 'value.primary_mortgage') /
@@ -99,14 +90,14 @@ def scf_growth(scf, y_from, y_to):
         src = GR.line(v)['source']
         by = 'net_worth' if isinstance(src, dict) and src.get('series') == 'scf net worth per unit between waves' else v
         mean = {y: scf_mean(scf, by, y) for y in (y_from, y_to)}
-        # a mean at or below zero (possible for the unrealized gains) makes the ratio meaningless: no factor
+        # a mean at or below zero (possible for unrealized gains) makes the ratio meaningless, so there is no factor
         out[v] = mean[y_to] / mean[y_from] if mean[y_from] > 0 and mean[y_to] > 0 else np.nan
     return out
 
 
 def scf_net_worth(scf):
-    """Net worth of SCF rows from the balance sheet: the 14 assets less the 6 debts, the home mortgage as its share of the
-    home's value times the home (loan_to_value; the same as the units' own net worth)."""
+    """Net worth of SCF rows: the 14 assets less the 6 debts, the home mortgage being its share of the home's value times
+    the home."""
     nw = np.zeros(len(scf))
     for c, sign in BT.NET_WORTH_PARTS.items():
         x = (scf['w_primary_ltv'] * scf['value.primary_home']) if c == 'value.primary_mortgage' else scf[c]
@@ -118,20 +109,17 @@ def scf_net_worth(scf):
 def _wave_mean(scf, v, y):
     d = scf[scf.year == y]
     assert len(d), f'no SCF wave of income year {y}'
-    if v in BT.SCF_NOT_ASKED:     # the units asked only: the others are missing by design, not zero
+    if v in BT.SCF_NOT_ASKED:     # units asked only; the others are missing by design, not zero
         d = d[d[v].notna()]
     assert not d[[v, 'weight']].isna().any().any(), f'SCF {y}: {v} or the weight missing on some unit'
     return float(np.average(d[v].to_numpy(float), weights=d['weight'].to_numpy(float)))
 
 
 def scf_mean(scf, v, y):
-    """The SCF's weighted mean per tax unit of item v at income year y: a wave's
-    own mean where the table has a wave of income year y; between two waves, the geometric interpolation of their means
-    (y = a + l (b - a): mean_a^(1 - l) mean_b^l; the arithmetic one if either mean is at or below zero); after the last
-    wave, the last wave's mean grown by household net worth per person (the Federal Reserve's Financial Accounts, Z.1,
-    over the Social Security area population; stock years y + 1 over the last wave's, the wave of income year y being
-    interviewed in year y + 1; past 2025 Z.1 is held at its ratio to nominal GDP; growth.scf_extension). Before the
-    first wave: an error."""
+    """The SCF's weighted mean per tax unit of item v at income year y. A wave's own mean where there is a wave for y;
+    between two waves, the geometric interpolation of their means (arithmetic if either is at or below zero); after the
+    last wave, the last wave's mean grown by the item's Financial Accounts (Z.1) series per person (growth.scf_extension).
+    The wave of income year y is interviewed in y + 1, so the growth runs between stock years y + 1."""
     have = sorted(int(x) for x in scf['year'].unique())
     if y in have:
         return _wave_mean(scf, v, y)
@@ -144,9 +132,8 @@ def scf_mean(scf, v, y):
 
 
 def scf_units_at(scf, y):
-    """The SCF's number of tax units (sum of weights, as the wave's rows carry them) at income year y, by the rule of
-    scf_mean: a wave's own; between waves geometric interpolation; after the last wave grown with the Social Security
-    area population (stock years y + 1 over the last wave's)."""
+    """The SCF's number of tax units (sum of weights) at income year y, interpolated as in scf_mean; after the last wave
+    it grows with the Social Security area population."""
     have = sorted(int(x) for x in scf['year'].unique())
     n = lambda w: float(scf.loc[scf.year == w, 'weight'].sum())
     if y in have:
@@ -181,15 +168,14 @@ def puf_target_map(m_puf, y=TARGET_YEAR):
 
 def build_maps(t, edges):
     os.makedirs(common.MAPS, exist_ok=True)
-    GR.check(TARGET_YEAR)   # every dollar item has a growth line (stops otherwise)
+    GR.check(TARGET_YEAR)   # stops if a dollar item has no growth line
     pside = t[t.source == 'puf'].reset_index(drop=True)
-    m_puf = build_map(pside, edges, 'puf', BT.PUF_AMOUNTS + BT.PUF_SHARES)   # (the shares: the PUF's own values, every source)
+    m_puf = build_map(pside, edges, 'puf', BT.PUF_AMOUNTS + BT.PUF_SHARES)   # shares keep the PUF's values for every source
     m_puf.to_parquet(f'{common.MAPS}/map_puf_{PUF_YEAR}.parquet', index=False)
-    m_target, g = puf_target_map(m_puf)   # to the target year, by each item's growth line
+    m_target, g = puf_target_map(m_puf)
     m_target.to_parquet(f'{common.MAPS}/map_puf_{TARGET_YEAR}.parquet', index=False)
-    # the balance sheet: one map per wave, from the wave's own records on its own band edges, each item grown per tax
-    # unit to the target year's wave (scf_growth). Generation draws each record's balance sheet from one wave
-    # (generate.py), and dollars.py turns its bands into dollars with that wave's map.
+    # The balance sheet: one map per wave, from the wave's own records and band edges, each item grown per tax unit to
+    # the target year's wave. Generation draws each record's balance sheet from one wave and uses that wave's map.
     scf = t[t.source == 'scf']
     rows = []
     for y in sorted(scf['year'].unique()):
@@ -211,11 +197,8 @@ def build_maps(t, edges):
     common.say('SCF balance sheet, growth per tax unit to the target year\'s wave, by wave:\n'
                + pd.DataFrame(rows).pivot(index='variable', columns='wave', values='factor to the target year')
                .to_string(float_format=lambda x: f'{x:.4f}'))
-    # the CEX's categories, the CPS-only amounts and the SIPP's tips: the generation year's real records, and the same
-    # grown to the target year by their growth lines (the CEX's by NIPA PCE per return, the category's PCE over SOI's
-    # return count; the CPS's childcare and overtime and the SIPP's tips by SOI's growth in wages per return with wages,
-    # a placeholder: no series measures them per unit; the CPS's shares, weeks and hours not grown; no growth when the
-    # generation year is the target year)
+    # The CEX categories, the CPS-only amounts and the SIPP tips: the generation year's records, and the same grown to
+    # the target year by each item's growth line.
     for src, sec, amounts in [('cex', BT.CX, BT.CEX_AMOUNTS), ('cps', BT.CP, BT.CPS_AMOUNTS), ('sipp', BT.SP, BT.SIPP_AMOUNTS)]:
         yg = sec['generation_year']
         m = build_map(t[(t.source == src) & (t.year == yg)].reset_index(drop=True), edges, src, amounts, year=yg)
@@ -229,18 +212,14 @@ def build_maps(t, edges):
 
 
 def build_year_maps(t, edges):
-    """One map per survey year of the CEX, the CPS and the SIPP in the target year's file (survey_mix.py): that year's
-    own records, every value grown from that year to the target year, by the same rules the single-year maps above use
-    (each item's growth line, growth.yaml). The CEX's categories: NIPA PCE per return, the category's PCE over SOI's
-    return count, target year over the survey year. The CPS's childcare and the SIPP's tips: SOI's wages per return
-    with wages, target year over the survey year (a placeholder: no series measures them per unit); the CPS's shares,
-    weeks and hours are not grown. For the target year itself the factor is 1. Files
-    map_<survey>_from<year>_to<target>.parquet; the factors are in survey_year_growth_factors.csv."""
+    """One map per year of the CEX, the CPS and the SIPP in the target year's survey mix: that year's records, grown to
+    the target year by each item's growth line. The CPS's childcare and the SIPP's tips grow with wages per return with
+    wages, as no series measures them per unit."""
     rows = []
     for src, amounts in [('cex', BT.CEX_AMOUNTS), ('cps', BT.CPS_AMOUNTS), ('sipp', BT.SIPP_AMOUNTS)]:
         for y in BT.mix_years(src):
             m = build_map(t[(t.source == src) & (t.year == y)].reset_index(drop=True), edges, src, amounts, year=y)
-            gs = {v: (GR.between(v, y, TARGET_YEAR),) * 2 for v in amounts}   # the item's growth line (growth.yaml)
+            gs = {v: (GR.between(v, y, TARGET_YEAR),) * 2 for v in amounts}
             rows += [{'survey': src, 'year': y, 'variable': v, 'factor to the target year': f[0]} for v, f in gs.items()]
             grown(m, gs).to_parquet(f'{common.MAPS}/map_{src}_from{y}_to{TARGET_YEAR}.parquet', index=False)
     f = pd.DataFrame(rows)
@@ -251,9 +230,8 @@ def build_year_maps(t, edges):
 
 
 def main():
-    """The target year's dollar maps alone, from the table and band edges already
-    built (common.TABLE, common.EDGES): the networks trained on that table stay valid, and each target year gets its
-    maps by the same build_maps the full build runs."""
+    """The target year's dollar maps alone, from the table and band edges already built, so the networks trained on that
+    table stay valid."""
     t = pd.read_parquet(common.TABLE)
     edges = json.load(open(common.EDGES))
     build_maps(t, edges)
