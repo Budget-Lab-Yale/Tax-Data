@@ -163,7 +163,7 @@ def step1(df, w, year, s):
     keep = (df['billionaire'].to_numpy() != 1) if 'billionaire' in df else np.ones(len(df), bool)
     M = person_matrix(df)
     lev = w[keep] @ M[keep]
-    cells, T, F_cols, labels = [], [], [], []
+    cells = []
     for k in range(M.shape[1]):
         if lev[k] == 0:
             continue

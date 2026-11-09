@@ -1087,9 +1087,9 @@ def cps_nonfiler_people(year, v):
 # ---- the tax-unit rules a survey value was computed on -------------------------------------------------------------
 def _commit():
     try:
-        h = subprocess.run(['git', '-C', HERE, 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True,
+        h = subprocess.run(['git', '-C', common.PIPELINE, 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True,
                            check=True).stdout.strip()
-        dirty = subprocess.run(['git', '-C', HERE, 'status', '--porcelain', '--', '.'], capture_output=True,
+        dirty = subprocess.run(['git', '-C', common.PIPELINE, 'status', '--porcelain', '--', '.'], capture_output=True,
                                text=True, check=True).stdout.strip()
         return h + (' with uncommitted changes' if dirty else '')
     except (OSError, subprocess.CalledProcessError):
