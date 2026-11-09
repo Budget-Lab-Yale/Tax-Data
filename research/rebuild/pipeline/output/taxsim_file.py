@@ -1,7 +1,10 @@
-"""The year file as the file Tax-Simulator reads: tax_units_<year>.csv (and .parquet) with production's 188 columns, in
-its order and with its conventions for missing values. Records with a weight of 0 or less are left out, as in
-production. Reads <tilt>/file_<year>.parquet and writes <out>/taxsim/<run>/, with TAXSIM_FILE_COLUMNS.csv (where each
-column comes from) and taxsim_file_notes.txt (the counts each rule touched).
+"""The year file written as the file Tax-Simulator reads: tax_units_<year>.csv (and .parquet). "Production" is the
+Tax-Data pipeline that Tax-Simulator reads today; this file has production's 188 columns, in its order and with its
+conventions for missing values. Most columns come from the tax calculator's input converter
+(shared/calculator_input.py); the rest are made here, and a few rules follow production's conventions. Records with a
+weight of 0 or less are left out, as in production. Reads <tilt>/file_<year>.parquet and writes <out>/taxsim/<run>/,
+with TAXSIM_FILE_COLUMNS.csv (where each column comes from) and taxsim_file_notes.txt (how many records each rule
+touched). FEATURES.md, "6. Output", describes the file.
 """
 import os
 import sys
@@ -15,6 +18,8 @@ from shared import common
 Y = common.TARGET_YEAR
 INPUT = f'{common.TILT}/file_{Y}.parquet'
 OUT = f'{common.OUT}/taxsim/{common.RUN}'
+
+# ---- The columns ----
 
 # Production's 188 columns, in its order (Tax-Data vintage 2026100117_review_fixes, tax_units_2019.csv).
 PRODUCTION_COLUMNS = (
@@ -43,7 +48,7 @@ PRODUCTION_COLUMNS = (
 assert len(PRODUCTION_COLUMNS) == 188 and len(set(PRODUCTION_COLUMNS)) == 188
 
 # Production columns that Tax-Simulator's R model (main, 145a80eb1) never names in its code. It reads every other
-# column, and checks each calculation's required columns by name.
+# column, and checks by name the columns each calculation requires.
 NOT_READ_BY_R = set(
     'parent_rank part_se nols prim_mort_share c_clothing c_motor_vehicles c_durables c_other_nondurables '
     'c_food_off_premises c_gasoline c_housing_utilities c_other_services_health q_death1 q_death2'.split()
@@ -54,17 +59,18 @@ CONSUMPTION = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurab
 FORBES_DEFAULTS = {'forbes_flag': 0, 'forbes_source_year': np.nan, 'forbes_rank': np.nan, 'forbes_name': np.nan,
                    'forbes_source_category': np.nan, 'forbes_rank_group': np.nan, 'forbes_donor_id': np.nan,
                    'forbes_net_worth': np.nan, 'forbes_fiscal_income': np.nan}
-# The forbes_* columns on the Forbes records (billionaire = 1), filled as production fills them.
+# The forbes_* columns on the Forbes records (billionaire = 1), filled as production fills them: what each holds.
 FORBES_ON_LIST = {'forbes_flag': '1', 'forbes_source_year': 'the list\'s year (settings tilt.top.billionaire_lists; '
                                                             'after the last list, the last list\'s year)',
                   'forbes_rank': 'billionaire_rank, the unit\'s rank on the list',
                   'forbes_name': 'forbes_uri, the list\'s identifier of the unit', 'forbes_net_worth': 'net_worth'}
 FLAGS = ['blind1', 'blind2', 'dep_ssn1', 'dep_ssn2', 'dep_ssn3', 'dep_ctc1', 'dep_ctc2', 'dep_ctc3',
-         'sstb_sole_prop', 'sstb_part', 'sstb_scorp', 'sstb_farm']   # written TRUE/FALSE, as production writes them
+         'sstb_sole_prop', 'sstb_part', 'sstb_scorp', 'sstb_farm']   # 0/1 flags, written TRUE/FALSE as production writes them
 INTEGERS = ['id', 'filer', 'dep_status', 'filing_status', 'male1', 'age1', 'parent_rank', 'n_dep', 'n_dep_ctc',
             'n_dep_eitc', 'tips_lh1', 'tips_lh2', 'nols', 'forbes_flag']
 
-# EXTRA: the columns made here rather than by calculator_input.convert. RULES: the rules applied on top of the converter.
+# EXTRA: the columns made here rather than by calculator_input.convert, as (status, where the column comes from).
+# RULES: the rules applied on top of the converter. Both are written into TAXSIM_FILE_COLUMNS.csv.
 EXTRA = {
     'male2': ('computed', 'sex_spouse == 1 (1 man, 0 woman); missing without a spouse, as production'),
     'parent_rank': ('same', 'parent_rank (non-microdata imputations, production\'s method)'),
@@ -103,8 +109,11 @@ RULES = {
 }
 
 
+# The cost bases taken from the year file in place of the converter's.
 BASIS_FROM_FILE = ['basis.equities', 'basis.pass_throughs', 'basis.primary_home', 'basis.other_home', 'basis.re_fund']
 
+
+# ---- Building the frame ----
 
 def flag(v):
     """1/0/NaN as TRUE/FALSE/NA text."""
@@ -112,7 +121,9 @@ def flag(v):
 
 
 def build(f):
-    """The 188-column frame, flags still 1/0/NaN, and a list of notes."""
+    """The 188-column frame, with the flags still 1/0/NaN, and a list of notes on how many records each rule touched.
+    f holds the year file's live records."""
+    # 1. Convert the file with the calculator's input converter.
     frame, notes = C.convert(f)
     x = lambda c: f[c].to_numpy(float)
     n = len(f)
@@ -120,7 +131,7 @@ def build(f):
     w = x('weight')
     wm = lambda m: f'{int(m.sum()):,} records, {w[m].sum() / 1e6:,.3f} million units'
 
-    # The primary filer has an age and a sex on every record; dependent filers take the imputed ones.
+    # 2. The primary filer has an age and a sex on every record; dependent filers take the imputed ones.
     dep = x('age_range') >= common.ADULT_RANGES
     assert (dep == (x('age1') == -1)).all(), 'age1 is -1 exactly on the dependent filers: not so'
     a1 = np.where(dep, x('dep_filer_age'), x('age1'))
@@ -132,7 +143,7 @@ def build(f):
     notes.append(f'dependent filers given dep_filer_age and dep_filer_sex: {wm(dep)}; ages {a1[dep].min():.0f} to '
                  f'{a1[dep].max():.0f}')
 
-    # The spouse's columns are missing without a spouse, as in production.
+    # 3. The spouse's columns are missing without a spouse, as in production.
     spouse = x('age2') >= 0
     joint = x('filing_status') == 2
     notes.append(f'joint returns with no spouse age: {wm(joint & ~spouse)} (age2, male2, blind2, q_death2 missing '
@@ -151,7 +162,7 @@ def build(f):
     qd1 = x('q_death1')
     assert ((qd1 >= 0) & (qd1 <= 1)).all(), 'q_death1 outside 0-1'
 
-    # A dependent's columns are missing where there is no such dependent.
+    # 4. A dependent's columns are missing where there is no such dependent.
     nd = x('n_dep')
     for k in (1, 2, 3):
         has = ~np.isnan(out[f'dep_age{k}'])
@@ -169,12 +180,12 @@ def build(f):
     for c in ('n_dep_ctc', 'n_dep_eitc'):   # the PUF allows more credit children than dependents; kept
         notes.append(f'{c} above n_dep (left as drawn): {wm(out[c] > nd)}')
 
-    # divorce year: 0 with alimony, else missing, as in production
+    # 5. The divorce year: 0 with alimony, else missing, as in production.
     al = (x('alimony') != 0) | (x('alimony_exp') != 0)
     out['divorce_year'] = np.where(al, 0.0, np.nan)
     notes.append(f'divorce_year 0 (alimony received or paid): {wm(al)}')
 
-    # Long-term gains' holding period and basis are missing where the long-term gain is 0, as in production.
+    # 6. Long-term gains' holding period and basis are missing where the long-term gain is 0, as in production.
     kg_lt = out['kg_lt']
     yrs, basis = x('kg_lt_years_held'), x('kg_lt_basis')
     none = (kg_lt != 0) & (yrs < 0)
@@ -186,11 +197,12 @@ def build(f):
     out['kg_lt_years_held'] = np.where(kg_lt == 0, np.nan, np.where(none, 0.0, yrs))
     out['kg_lt_basis'] = np.where(kg_lt == 0, np.nan, np.where(none, 0.0, basis))
 
-    # flags: 0/1 in the file
+    # 7. Check that the flags are 0 or 1 in the file.
     for c in ('blind1', 'sstb_sole_prop', 'sstb_part', 'sstb_scorp', 'sstb_farm'):
         assert np.isin(out[c], [0, 1]).all(), f'{c}: a value other than 0/1'
 
-    # the rest of production's columns
+    # 8. The rest of production's columns: parent rank, partnership self-employment income, net operating losses,
+    #    the primary mortgage's share, consumption and the Forbes columns.
     out['parent_rank'] = x('parent_rank')
     assert ((out['parent_rank'] >= 1) & (out['parent_rank'] <= 100)).all()
     out['part_se'] = x('part_se')
@@ -206,7 +218,7 @@ def build(f):
     bil = x('billionaire') == 1
     if bil.any():
         lists = common.SETTINGS['tilt']['top']['billionaire_lists']
-        # the list's year: the year's own list, or after the last list, the last list's year
+        # The list's year: the year's own list or, after the last list, the last list's year.
         last = max((int(y) for y in lists), default=None)
         list_year = float(Y) if str(Y) in lists else (float(last) if last is not None and Y > last else np.nan)
         out['forbes_flag'] = np.where(bil, 1.0, 0.0)
@@ -216,7 +228,7 @@ def build(f):
         out['forbes_net_worth'] = np.where(bil, x('net_worth'), np.nan)
     notes.append(f'Forbes list records (billionaire = 1), forbes_* columns filled: {wm(bil)}')
 
-    # cost bases: the file's own, which hold each drawn gain to the asset's value first
+    # 9. The cost bases: the file's own, which hold each drawn gain to at most the asset's value.
     for c in BASIS_FROM_FILE:
         notes.append(f'{c}: the file\'s column in place of the converter\'s; records that differ: '
                      f'{wm(np.abs(out[c] - x(c)) > 0.5)}')
@@ -226,8 +238,11 @@ def build(f):
     return g, notes
 
 
+# ---- Checking and writing ----
+
 def check(g):
-    """Checks on the finished frame: codes, identities, and missing values only where production has them."""
+    """Checks on the finished frame: codes, identities (each total equals the sum of its two people's parts), and
+    missing values only where production has them. Returns notes."""
     msgs = []
     allowed_missing = {'male2', 'age2', 'blind2', 'q_death2', 'divorce_year', 'kg_lt_years_held', 'kg_lt_basis',
                        *[f'dep_{p}{k}' for p in ('age', 'ssn', 'ctc') for k in (1, 2, 3)],
@@ -272,6 +287,8 @@ def write_csv(g, path):
     t.to_csv(path, index=False, na_rep='NA')
 
 
+# Columns the converter writes as 0 that the year file holds (made by the non-microdata imputations or the draw), and
+# what makes each.
 C_FROM_FILE = {
     **{c: 'blindness rule, non-microdata imputations' for c in ('blind1', 'blind2')},
     **{f'dep_ssn{k}': 'the drawn CPS status, dollars.py' for k in (1, 2, 3)},
@@ -310,6 +327,7 @@ def column_table():
 
 
 def main():
+    # 1. Read the year file and leave out the records with a weight of 0 or less.
     os.makedirs(OUT, exist_ok=True)
     common.say(f'taxsim file: input {INPUT}\noutput {OUT}')
     f = pd.read_parquet(INPUT)
@@ -322,9 +340,11 @@ def main():
             + (f'; their AGI (calc_agi) from ${f.loc[dropped, "calc_agi"].min() / 1e6:,.1f} million to '
                f'${f.loc[dropped, "calc_agi"].max() / 1e6:,.1f} million' if dropped.any() and 'calc_agi' in f else '')]
     f = f.loc[~dropped].reset_index(drop=True)
+    # 2. Build the frame and check it.
     g, notes = build(f)
     notes = head + notes
     notes += check(g)
+    # 3. Write the column table, the file as CSV and Parquet, and the notes.
     table = column_table()
     table.to_csv(f'{OUT}/TAXSIM_FILE_COLUMNS.csv', index=False)
     common.say('columns by status: ' + ', '.join(f'{k} {v}' for k, v in table['status'].value_counts().items()))
