@@ -228,7 +228,7 @@ def main():
                                        f'runs on a GPU: run the top stage first')
     if cache and os.path.exists(cache):
         with open(cache, 'rb') as fh:
-            base = TR.strip_list(*pickle.load(fh))
+            base = pickle.load(fh)
         common.say(f'the top step read from {cache}')
     else:
         base = TR.network_part(g19, raw, imp, Y, spec['mode'])

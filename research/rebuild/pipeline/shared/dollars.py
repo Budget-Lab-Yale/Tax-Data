@@ -227,16 +227,23 @@ def load_maps(year):
     return maps
 
 
+def by_band(vmap):
+    """{band: (cumulative weights, values)} of the map rows vmap, computed once and kept on the frame."""
+    if 'by_band' not in vmap.attrs:
+        vmap.attrs['by_band'] = {band: (np.cumsum(g['weight'].to_numpy()), g['value'].to_numpy())
+                                 for band, g in vmap.groupby('band', sort=True)}
+    return vmap.attrs['by_band']
+
+
 def draw_one(bands, vmap, rng, u=None):
     """Dollars for bands from the map rows vmap. u: each record's stored pick (see the top); None draws from rng."""
     u = rng.random(len(bands)) if u is None else np.asarray(u, float)
     values = np.full(len(bands), np.nan)
-    for band, g in vmap.groupby('band', sort=True):
+    for band, (cum, val) in by_band(vmap).items():
         idx = np.flatnonzero(bands == band)
         if len(idx):
-            cum = np.cumsum(g['weight'].to_numpy())
             pick = np.minimum(np.searchsorted(cum, u[idx] * cum[-1], side='right'), len(cum) - 1)
-            values[idx] = g['value'].to_numpy()[pick]
+            values[idx] = val[pick]
     assert not (np.isnan(values) & (bands >= 0)).any(), 'records in bands the map lacks'
     return values
 
