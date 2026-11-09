@@ -526,7 +526,7 @@ class Chunk:
         self.records = None
         self.scf_year = scf_year.to(device)
         self.survey_year = {src: y.to(device) for src, y in survey_year.items()}
-        self.label = label                                           # the label under which the batch's own items are drawn
+        self.label = label                                           # the label for the batch's own items
         # 2. The starting values. The slots to be drawn are present and hidden (0, not yet filled). The survey-only
         #    slots are absent until their phase, except that under the CPS label the CPS's own and reported slots are
         #    present and hidden, as on a CPS training row. A share is absent until married and its bases are drawn
