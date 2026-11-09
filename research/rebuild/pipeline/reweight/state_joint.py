@@ -247,6 +247,7 @@ class Joint:
         blocks = []
         for g, (E, e) in zip(self.groups, fields):
             X, Z, cols, mask, pos, nu = g['X'], g['Z'], g['cols'], g['mask'], g['pos'], g['nu']
+            # The national part of the Hessian, X' diag(e) X, computed as Y'Y as in solver.py.
             Y = X * np.sqrt(e)[:, None]
             HN[np.ix_(cols, cols)] += Y.T @ Y
             K = Z.shape[1]

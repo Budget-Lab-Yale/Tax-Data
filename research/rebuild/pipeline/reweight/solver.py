@@ -150,9 +150,13 @@ def _newton(X, t, p, s2, lam, max_steps, tol, soft=None):
         return X.T @ e - t + s2 * lam
 
     def hessian(lam, e):
-        if soft is not None:         # the record term's curvature is e / (1 + c e) above the cap, e below it
+        # A record above its soft cap enters the Hessian with e / (1 + c e) in place of its weight e.
+        if soft is not None:
             e = np.where(e > U_soft, e / (1.0 + c_soft * e), e)
-        Y = X * np.sqrt(e)[:, None]      # X.T diag(e) X as Y.T Y, so numpy uses its symmetric product
+        # The Hessian is X' diag(e) X, plus s2 on the diagonal. The first part is computed as Y'Y, where Y is X with
+        # each record's row multiplied by the square root of its e. The two are the same matrix. Numpy computes the
+        # product of a matrix with itself faster than a general product.
+        Y = X * np.sqrt(e)[:, None]
         H = Y.T @ Y
         H[np.diag_indices(m)] += s2
         return H
