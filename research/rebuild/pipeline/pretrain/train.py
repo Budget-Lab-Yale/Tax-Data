@@ -14,17 +14,16 @@ as much in the objective as they would there.
 
 The fill-in (fillin.py, function 2): from the pass fill_from_pass on, the
 PUF-concept amount of every zero-reporter of every row of the translation table
-with fill_in (since 28 October on all four surveys, wages included) is redrawn
-in each batch. In the held-back slice no fill-in is drawn, so there a
+with fill_in is redrawn in each batch. In the held-back slice no fill-in is drawn, so there a
 zero-reporter's PUF-concept slot is absent (unknown: not shown, not scored).
 
 Age range (ages.py). PUF records with no range carry step 0's probabilities;
 a range is drawn from them for every training record at the start of each
-pass, and once for the held-back ones. The earnings split code (earn_split.py,
-since 4 November) the same way: joint returns with no demographics and some
+pass, and once for the held-back ones. The earnings split code (earn_split.py)
+the same way: joint returns with no demographics and some
 earnings carry probabilities over EARNSPLIT's three ranges.
 
-The filing flag (step 2). PUF rows are filers (filer = 1). On CPS rows the
+The filing flag. PUF rows are filers (filer = 1). On CPS rows the
 flag is drawn from the unit's filing chance (filer_p) for every training
 record at the start of each pass, and once for the held-back ones, the same
 pattern as the age range.
@@ -41,15 +40,14 @@ rescaled within each source, so each source's share of training is unchanged. Th
 their q. Averages meant to describe the population use the survey weights without q: the fill-in's averages over a
 type (fillin.py) and the per-variable log.
 
-The AGI group label (shown always since 26 October). Generation always presets a filer's AGI group, so on PUF
+The AGI group label. Generation always presets a filer's AGI group, so on PUF
 rows the label is never hidden in training and never scored: the hidden set is drawn over all of a record's present
 slots, the label included, then the label alone is set back to shown. Which other slots are hidden, and how many, is
 therefore as if the label were an ordinary slot. A record whose only hidden slot was the label has nothing hidden
 (about 0.04% of PUF rows a pass) and adds nothing to the loss. The loss denominator still counts the label among the
 expected hidden slots. The held-back loss in train_log.csv is measured with the label shown too.
 
-Precision of the training steps (bf16, adopted 26 October; fp32 and tf32 were
-tested on 22 October): the forward pass under autocast in bfloat16, the
+Precision of the training steps: the forward pass under autocast in bfloat16, the
 log-probabilities, loss, gradients and weight updates in 32-bit. The fill-in,
 the held-back loss and the per-variable log run in 32-bit.
 
@@ -84,11 +82,6 @@ def show_label(hidden, slots=None):
         if j in cols:
             hidden[:, cols.index(j)] = False
     return hidden
-
-
-def autocast():
-    """The training step's forward pass in bfloat16."""
-    return torch.autocast('cuda', dtype=torch.bfloat16)
 
 
 def encode(part, device):
@@ -243,8 +236,8 @@ def main():
                 fill.draw(idx)
             values, weight = tr['values'][idx][:, M.slot_tensor(slots, device)], tr['weight'][idx]
             values, hidden = M.gate_shares(values, show_label(M.draw_hidden(values, gen), slots), slots)
-            with autocast():
-                loss = M.masked_loss(model, values, weight, hidden, slots, denominator=len(idx) * per_record)
+            with torch.autocast('cuda', dtype=torch.bfloat16):
+                loss = M.masked_loss(model, values, weight, hidden, slots, len(idx) * per_record)
             opt.zero_grad()
             loss.backward()
             opt.step()

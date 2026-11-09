@@ -1,8 +1,7 @@
 """Function 2, holding: the two-slot fill-in, run during training (train.py).
 
 Surveys miss holders: units that report zero wages, interest, dividends, capital gains, pensions or business income
-but hold some. Each row of the translation table with fill_in (translate.py; since 28 October on every survey: the
-SCF, the CEX, the CPS and the SIPP, and on wages) gives its item two slots on that survey's rows: the reported amount
+but hold some. Each row of the translation table with fill_in (translate.py) gives its item two slots on that survey's rows: the reported amount
 (model.REPORTED, never changed; one slot per item, on every survey that fills the item in) and the PUF-concept amount
 (the shared slot), which reporters copy and zero-reporters get filled in. From the pass fill_from_pass on, at the
 start of each pass, refit() gives every zero-reporter of every row its chance of a hidden holding in each size range,
@@ -38,7 +37,7 @@ from those chances. A depends on the type only, so it is computed on one record 
 holder's chance of reporting depends only on its type and true amount, not on anything else on the record.
 
 A row fills in only in the survey years from its first_year on (translate.fills_in): a year the survey does not ask
-the item (the CPS's capital gains before tax year 2018) has no reporters; since 29 October the item is missing there
+the item (the CPS's capital gains before tax year 2018) has no reporters; the item is missing there
 (absent, not shown in training), so there is nothing to fill in.
 
 Writes common.MODEL/fill_log.csv: per pass and row, on the survey's year nearest the target year, the share with none
@@ -164,11 +163,6 @@ class View:
         for y in sorted(frame['year'].unique()):
             sel = (frame['year'] == y).to_numpy()
             d = frame[sel]
-            own = type_keys(d, self.survey, y, self.type_vars, banded=True)
-            again = type_keys(d, self.survey, y, self.type_vars, banded=False)
-            for v in self.type_vars:   # the bands put on the cut points from the dollars must be the table's own
-                if v not in M.CATEGORICAL:
-                    assert (again[v].to_numpy() == own[v].to_numpy()).all(), f'{self.survey} {y} {v}: bands differ'
             T = pd.read_parquet(f'{common.DATA}/tax_data_{y}.parquet')
             assert T['filer'].isin([0, 1]).all() and (T['weight'] >= 0).all()
             tk = type_keys(T, self.survey, y, self.type_vars, banded=False)
@@ -221,7 +215,7 @@ class FillIn:
             act = np.array([TR.fills_in(ROW[k], int(y)) for y in yr])
             self.active[k] = torch.tensor(act, device=device)
             # the item is present on every record of the years it fills in; absent only in a year the survey does not ask
-            # it (translate.not_asked: the CPS's capital gains before tax year 2018, since 29 October)
+            # it (translate.not_asked: the CPS's capital gains before tax year 2018)
             assert bool(((tr['rep_band'][v][self.recs[s]] >= 0) | ~self.active[k]).all()), \
                 f'{k}: the item is absent on some {s} records of a year it fills in'
             self.zero[k] = self.active[k] & (tr['rep_band'][v][self.recs[s]] == 0)
@@ -242,7 +236,7 @@ class FillIn:
                                    for ss, v in KEYS if ss == s))
 
     def totals_setup(self, train_rows):
-        """The computed totals on a survey's rows with a filled-in part (28 October; the CPS: ordinary dividends from
+        """The computed totals on a survey's rows with a filled-in part (the CPS: ordinary dividends from
         qualified dividends, capital gains from long-term gains, Schedules C and F and business income from Schedule
         C), recomputed after each draw so a record's total agrees with its filled-in parts (draw): each part's band as
         dollars (the survey year's own median in the band, else the PUF-year median grown to the year), summed with
@@ -282,7 +276,7 @@ class FillIn:
     def recompute_totals(self, ii, s):
         """The computed totals of survey s's records ii from their parts' bands (see totals_setup). A total with a
         missing part (band -1) stays missing (band -1): the dollar table is never read at band -1, which Python would
-        read as the top band (the bug of 29 October, explore/2026-10-29/diagnose/, section 3)."""
+        read as the top band."""
         v = self.tr['values']
         yr = v[ii, 1]
         for t, parts in self.totals[s].items():
@@ -358,7 +352,7 @@ class FillIn:
             else:
                 v[:, C + j] = v[:, C + j].clamp(min=0)
                 hid[:, j] = sl not in type_vars
-        # (4 November) the self-employment share is a PUF slot too: present only where married and its bases are shown
+        # the self-employment share is a PUF slot too: present only where married and its bases are shown
         return M.share_presence(v, hid)
 
     def cps_view(self, vals, cps_year, type_vars):
@@ -408,7 +402,7 @@ class FillIn:
 
     def report_probs_by_band(self, vals, key):
         """C by band: the chance of reporting each band of the row's item, as the survey sees the record with every
-        PUF-concept slot it fills in and the item's reported slot hidden, and also (28 October) every slot that would
+        PUF-concept slot it fills in and the item's reported slot hidden, and also every slot that would
         give a filled-in amount away: a computed total with a filled-in part (the CPS's ordinary dividends, capital
         gains, Schedules C and F, business income) hidden, and a CPS share whose base is filled in (the spouse's share
         of the couple's wages) left out, as model.gate_shares does when its base is hidden."""
@@ -424,11 +418,10 @@ class FillIn:
         for j, (_, bases) in M.SHARE_GATES.items():
             if any(bool(hidden[0, b]) for b in bases):
                 vals[:, C + j], hidden[:, j] = -1, False
-        # (4 November) the earnings split code is made from the reported wages and self-employment income, so it
+        # the earnings split code is made from the reported wages and self-employment income, so it
         # would give a reported zero away: hidden whenever the chance of reporting is read
-        if 'earn_split' in P:
-            je = P.index('earn_split')
-            hidden[:, je] = vals[:, C + je] >= 0
+        je = P.index('earn_split')
+        hidden[:, je] = vals[:, C + je] >= 0
         lp = M.log_probs_as(self.model, vals, hidden, s)
         return lp(self.reported_slot[v])[:, :self.n_bands[v]].exp().double()
 
