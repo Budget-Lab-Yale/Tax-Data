@@ -30,7 +30,7 @@ if (is.null(settings$cps$step1_dir) || is.null(settings$cps$step1_out))
   stop('settings cps.step1_dir and cps.step1_out are required')
 STEP1 = file.path(OUT, settings$cps$step1_dir)
 STEP1_OUT = settings$cps$step1_out
-cat(sprintf('tax units: step 1\'s CBO-rule units and calibrated chances (%s, %s)\n', STEP1, STEP1_OUT))
+cat(sprintf('tax units: the filing stage\'s CBO-rule units and calibrated chances (%s, %s)\n', STEP1, STEP1_OUT))
 step1_units_path = function(yr) file.path(STEP1, STEP1_OUT, sprintf('units_%d.csv.gz', yr))
 
 # The filing stage's returns for one year, matched to the units cbo_tax_units() built: each return's filing status,
@@ -57,7 +57,7 @@ step1_returns = function(built, yr) {
     p[sp, `:=`(unit_id = as.numeric(SERIAL) * 100 + fifelse(PERNUM == h2, h2, h1),
                role = fifelse(role == 'dependent', 'dependent', 'primary'))]
     p[, c('h1', 'h2') := NULL]
-    cat(sprintf('  step 1\'s separate returns: %d couples split, %.2f m weighted couples\n',
+    cat(sprintf('  the filing stage\'s separate returns: %d couples split, %.2f m weighted couples\n',
                 uniqueN(sep$couple_uid), sep[person == 1, sum(weight)] / 1e6))
   }
   chk = p[role == 'primary', .N, by = unit_id]
@@ -65,13 +65,13 @@ step1_returns = function(built, yr) {
   units = build_asec_unit_table(p, yr)
   hh_ids = units[unit_type == 'nondependent', unit_id]
   if (!setequal(hh_ids, su$unit_id))
-    stop(sprintf('step 1\'s returns and the units here differ: %d units with no return, %d returns with no unit',
+    stop(sprintf('the filing stage\'s returns and the units here differ: %d units with no return, %d returns with no unit',
                  sum(!hh_ids %in% su$unit_id), sum(!su$unit_id %in% hh_ids)))
   units[su, on = 'unit_id', `:=`(filing_status = i.filing_status, p_file_cal = i.p_file_cal,
                                  must_file = as.logical(i.must_file), n24_step1 = i.n24, n_eitc_step1 = i.n_dep_eitc,
                                  eitc_eligible = as.logical(i.eitc_eligible))]
   units[unit_type == 'dependent', `:=`(p_file_cal = NA_real_, must_file = NA)]   # scoring rows, dropped below
-  cat(sprintf('  step 1\'s calibrated chances: filers %.2f m of %.2f m household units\n',
+  cat(sprintf('  the filing stage\'s calibrated chances: filers %.2f m of %.2f m household units\n',
               units[unit_type == 'nondependent', sum(weight * p_file_cal)] / 1e6,
               units[unit_type == 'nondependent', sum(weight)] / 1e6))
   list(persons = p[], units = units)
@@ -243,7 +243,7 @@ summary_rows = list()
 for (yr in YEARS) {
   cat(sprintf('\n=== tax year %d (ASEC %d)\n', yr, yr + 1))
   if (!file.exists(step1_units_path(yr)))
-    stop(sprintf('step 1 has no returns with calibrated filing chances for %d (%s)', yr, step1_units_path(yr)))
+    stop(sprintf('the filing stage has no returns with calibrated filing chances for %d (%s)', yr, step1_units_path(yr)))
   x = read_asec(yr)
   ddi = attr(x, 'ddi')
   ret_cols = if (yr <= 2017) 'INCRETIR' else ASEC_RETIREMENT_COMPONENTS
@@ -506,7 +506,7 @@ for (yr in YEARS) {
   ef = out[, .(eitc_returns_expected_filers_m = sum(weight * p_file * eitc_eligible) / 1e6,
                eitc_children_expected_filers_m = sum(weight * p_file * n_dep_eitc) / 1e6), by = .(children = n_dep_eitc)]
   setorder(ef, children)
-  cat(sprintf('  EITC (step 1\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
+  cat(sprintf('  EITC (the filing stage\'s eligibility): EITC children on expected filers %.2f m (capped at 3 per unit); EITC returns, expected filers, by children:\n',
               sum(out$weight * out$p_file * out$n_dep_eitc) / 1e6))
   print(ef[, .(children, eitc_returns_m = round(eitc_returns_expected_filers_m, 2))])
   fwrite(cbind(year = yr, ef), file.path(OUT, sprintf('cps_eitc_%d.csv', yr)))
