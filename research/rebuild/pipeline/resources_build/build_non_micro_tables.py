@@ -1,21 +1,8 @@
-"""The published tables the non-microdata imputations read (non_micro_imputations.py), built once from their sources
-into research/rebuild/resources/non_micro/, which is committed. Run again only when a source changes:
-
-    python research/rebuild/pipeline/run.py stage <folder> non_micro_tables      (no GPU needed)
-
-Each table is a CSV with a year column where the published numbers change by year; sources.csv in the same folder
-says, for every table, where its numbers come from and how they were turned into the table. The sources:
-  - production's resources/ (the SSA life tables, Chetty et al.'s mortality by income, Johnson et al.'s marital
-    factors, SOI's Sales of Capital Assets tables, the S&P 500 index, Chetty et al.'s mobility matrix);
-  - the Federal Reserve's Financial Accounts of the United States (Z.1), the CSV files of the release of 10 September
-    2026 (settings paths.raw.z1);
-  - the Census Bureau's population estimates by single year of age and sex (settings paths.raw.census_pep);
-  - SOI's Publication 4801 line items (settings paths.raw.soi_mirror, line_items.csv);
-  - SOI's Publication 4801 blind boxes, typed in from the pages;
-  - the 2015 PUF: the share of primary filers who are blind, by age range, where the return shows it (the blindness
-    rule in non_micro_imputations reads it);
-  - the law: the dependent filing threshold (Form 1040 instructions, Chart B, as production's
-    src/nonfilers/asec_tax_units.R has it) and the child tax credit's age limit (IRC section 24(c)).
+"""The published tables the non-microdata imputations read (non_micro_imputations.py), written to the committed
+folder resources/non_micro/ (run.py stage non_micro_tables, when a source changes). Sources: production's resources/
+(SSA life tables, Chetty et al.'s mortality and mobility, Johnson et al.'s marital factors, SOI's sales of capital
+assets, the S&P 500), the Federal Reserve's Z.1, Census population estimates, SOI's Publication 4801, the 2015 PUF and
+the law. sources.csv in the same folder records each table's source and construction.
 """
 import io
 import os

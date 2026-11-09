@@ -1,43 +1,10 @@
-"""Builds resources/top/forbes_billionaires_<year>.csv: the US billionaires on one of Forbes's World's Billionaires
-lists (the March or April list of the year), one row per list entry, every year 2015-2026.
-
-Usage (a plain script, run with python -I, the downloaded file passed as an argument, never imported):
+"""Builds resources/top/forbes_billionaires_<year>.csv: the US billionaires on Forbes's World's Billionaires
+list of the year, one row per entry, from Forbes's own JSON for the list (fetch dates, counts and checksums in
+sources.csv). A US billionaire is an entry with US citizenship and a net worth of $1 billion or more. Married couples
+listed as two entries (SPOUSE_PAIRS, found by reading the entries by hand) are joined as one joint return. The
+columns ending in _later come from production's 2025 Forbes profiles and are not dated to the list's year.
 
     python -I research/rebuild/pipeline/resources_build/build_forbes.py <year> <forbes json> <production resources/forbes folder> <output csv>
-
-<forbes json> is Forbes's own data for the list, from
-https://www.forbes.com/forbesapi/person/billionaires/<year>/position/true.json?limit=<n> (fetch dates, entry counts
-and SHA-256 in sources.csv). Every entry must carry the year; the month is 3 (2015-2019, 2026) or 4 (2020-2025), the
-month Forbes published the list. The 2025 and 2026 lists have more than 3,000 entries, so they were fetched with
-limit=5000 (with limit=3000 the list is cut at 3,000 entries).
-
-The US billionaires are the entries whose country of citizenship is the United States and whose net worth is $1
-billion or more (Forbes's data keep one 2017 entry, Wilbur Ross, at $0.6 billion, after Forbes found in November 2017
-that he was not a billionaire; he is left out). COUNTS gives each year's count and total in the data, checked here,
-and PUBLISHED Forbes's own published US count (and total where Forbes gave one) for comparison: the data differ from
-the published figures by at most two entries, from Forbes's later corrections.
-
-Columns from the list itself: forbes_rank (the world rank; ties share a rank), uri, name, net_worth (dollars), age and
-birth_date (Forbes's, at the list date), gender, self_made, category, industries, source (the fortune's source),
-residence_country, residence_state, family_entry (the name says "& family", or two siblings named in one entry, Hank
-& Doug Meijer: one fortune for a family, one record), couple_entry (a married couple named in one entry; one joint
-return). joint_with: the uri of a spouse listed separately (one joint return).
-
-Spouses: every
-same-surname group of US entries, every biography naming another US entry next to a word for a spouse, and every set
-of US entries with the same fortune and source (from 2023 Forbes lists a couple's shared fortune as two entries of
-half each) were read by hand. SPOUSE_PAIRS are the married couples found; a pair is joined in every year both are on
-the list. Not joined: ex-spouses (the Grosses, the Wynns, Bezos and Scott, Gates and French Gates, Koguan and Thai Lee,
-Glenn and Penny Sanford, George and Gloria Joseph, Robert and Sheila Johnson) and couples whose divorce was filed before
-the list date (Kanye West and Kim Kardashian, filed February 2021; Dan and Jennifer Gilbert, filed September 2025).
-COUPLES and SIBLINGS: the entries naming two people.
-
-Columns from production's later Forbes profiles (resources/forbes/forbes_profiles.csv, pulled once at Forbes's latest
-date in 2025; NOT dated to the list's year, used because the lists have neither): profile_matched,
-marital_status_later, children_later, and public_share_later = the profile's public holdings (Forbes's tracked share
-holdings, public_equity_interactive, else public_equity_all) over the person's latest net worth in
-forbes_billionaires_2022_2025.csv (the 2025 row, else the latest year present), held to at most 1; empty where the
-profile has no public holdings or no later net worth (unknown, not zero).
 """
 import csv
 import datetime as dt

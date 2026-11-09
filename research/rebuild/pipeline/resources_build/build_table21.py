@@ -1,31 +1,9 @@
-"""Adds a group of categories to resources/table21_2015_2023.csv from SOI Table 2.1, in the same seven AGI groups and
-the same layout as the other categories. The file is changed in place: the group's rows are replaced, every other row
-is kept byte for byte.
+"""Adds a group of categories to resources/table21_2015_2023.csv from SOI Table 2.1, in the file's seven AGI
+groups, replacing that group's rows and keeping every other row byte for byte. The groups: state_local, state and
+local taxes; charity, cash and non-cash contributions as itemizers report them. A grouped CV treats the published
+cells as independent; a group with a missing CV or value is left missing.
 
-    python -m resources_build.build_table21 state_local <soi_cv.csv>
-    python -m resources_build.build_table21 charity <soi_cv.csv>
-
-<soi_cv.csv> is the file prep/soi_cv.py writes (the reweighting's standard errors read it).
-
-state_local: the category 'taxes_state_local', Table 2.1's state and local taxes, the line the taxes-paid targets use.
-  Table 2.1's 'taxes paid deduction, total' is the state and local deduction plus 'other taxes' (foreign and similar,
-  $2 to $3 billion a year). The calculator's claimed_taxes holds state and local taxes only, so the amounts at
-  $500,000 and over could not be met together with the counts (SOI's average there, about $10,400, is above the
-  $10,000 cap). Which line:
-    2018 to 2023: 'limited state and local taxes' (count and amount): the state and local deduction after the
-    $10,000 cap, with no other taxes. This is what the calculator's claimed_taxes is.
-    2015 to 2017: there is no cap, and SOI publishes no single state and local line. Amount: the sum of the three
-    state and local lines (income or general sales taxes, real estate taxes, personal property taxes), which equals
-    the total taxes paid less 'other taxes'. Count: the 'taxes paid deduction, total' count (there is no state and
-    local count; in 2018 to 2023 the two counts differ by 0.3% or less, the returns that deduct only other taxes).
-charity: the categories 'charity_cash' and 'charity_noncash', Table 2.1's cash contributions and contributions other
-  than cash, as itemizers report them on Schedule A (before the limits on the deduction and without carryovers). The
-  charitable deduction itemizers claim is a target (category charity), but its split between cash and other gifts
-  is not.
-
-The grouped CV: the published cells inside the group taken as independent, the square root of the sum of squared
-standard errors over the absolute sum; for a multi-line amount the lines' standard errors too. A group with a missing
-CV or value is left missing (target_list.published_21 then borrows).
+    python -m resources_build.build_table21 <state_local|charity> <soi_cv.csv written by prep/soi_cv.py>
 """
 import os
 import sys
@@ -45,6 +23,9 @@ GROUPS = [(-np.inf, 25000, 'under $25,000'), (25000, 50000, '$25,000–$50,000')
 
 
 def state_local_lines(year, stat):
+    """The calculator's claimed taxes are state and local taxes only, without 'other taxes'. From 2018 that is the
+    line after the $10,000 cap. Before 2018 SOI has no single line: the amount is the three state and local lines,
+    and the count is all returns deducting taxes, within 0.3% of the state and local count where both exist."""
     n = 'number of returns' if stat == 'count' else 'amount'
     if year >= 2018:
         return [TAXES + 'limited state and local taxes > ' + n]

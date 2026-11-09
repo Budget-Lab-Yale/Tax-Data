@@ -1,4 +1,5 @@
-"""Build SCF-category Z.1 proxies, Q4 levels; after 2025 hold each proxy's ratio to GDP fixed. A plain script:
+"""Builds the Z.1 counterparts of the SCF's balance-sheet categories, fourth-quarter levels, 2010-2075; after 2025 each
+is held at its 2025 ratio to nominal GDP.
 
     python -I research/rebuild/pipeline/resources_build/build_z1_scf_categories.py S1M_b.csv macro_directory output_directory
 """
