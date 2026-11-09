@@ -1,18 +1,7 @@
-"""A check that runs before the reweighting and only reports. It drops nothing and changes no weight.
-
-It flags a target when any of three things holds, each found without a solve:
-  1. The average the cell's two targets require is outside what the records can give. For a cell with both a count and
-     an amount target, the amount divided by the count is the average per return the targets require. The records in
-     the cell (those counted by the count's column) have a smallest and a largest amount per return. If the required
-     average is above the largest or below the smallest by more than one standard error (the cell's two relative
-     standard errors in quadrature), no weights can meet both. Both targets of the cell are flagged.
-  2. The target's relative standard error (standard error over value) is below min_relative_se (0.1% today), for a
-     target that is not an identity: a standard error so narrow that the cost's pull on it is enormous and no solve in a few hundred steps can reach it.
-  3. The start is more than max_start_gap_se (300 today) standard errors from the target, for a target that is not
-     an identity.
-The three numbers are settings tilt.precheck (min_relative_se, max_start_gap_se and min_excess_se, the line of rule 1 in
-standard errors; 1 today), passed to run() as cfg. Returns the flags table (one row per flagged target, with the reason)
-and the summary lines; writes precheck_flags.csv and precheck.md to the folder.
+"""A check before the reweighting that only reports; it drops nothing and changes no weight. A target is flagged when
+the average per return its count and amount targets require lies outside what the cell's records can give, when its
+relative standard error is below min_relative_se, or when the start is more than max_start_gap_se standard errors from
+it (settings tilt.precheck). Writes precheck_flags.csv, precheck_cells.csv and precheck.md.
 """
 import numpy as np
 import pandas as pd
@@ -45,7 +34,8 @@ def run(rows, F, w0, averages, value, se, identity, folder, cfg):
     t['rule 2: relative se below the floor'] = free & (t['relative_se'] < cfg['min_relative_se'])
     t['rule 3: start gap above the line'] = free & (t['start_gap_se'].abs() > cfg['max_start_gap_se'])
     t['detail'] = ''
-    # rule 1: cells with a count and an amount of the same variable
+    # rule 1: cells with a count and an amount of the same variable; the tolerance is their two relative standard errors
+    # in quadrature
     cells = []
     live = w0 > 0
     for (entry, group, var), idx in rows.groupby(['entry', 'group', 'variable']).groups.items():

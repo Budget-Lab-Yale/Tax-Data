@@ -1,66 +1,7 @@
-"""errors.py: each target's standard error.
-
-Errors matter only when the targets cannot all be hit: they decide which target gives way. So they need to be roughly
-right, and only three kinds are computed; everything else is a judgment number with a written reason.
-
-1. SOI tables that publish coefficients of variation (Tables 1.4, 2.1 and 3.3; error_kind 'soi_cv'). The CV
-   workbooks sit at https://www.irs.gov/pub/irs-soi/{yy}in14cv.xls, {yy}in21cv.xls and {yy}in33cv.xls. They are
-   kept in <out>/targets/soi_cv/raw/ with a manifest of where each came from, and prep/soi_cv.py parses them
-   into <out>/targets/soi_cv/soi_cv.csv: one row per published cell, its value from the shared SOI mirror (the same cells
-   prep/soi.py reads) and its CV. A CV workbook is laid out like its table (same AGI rows, same column numbers), so a
-   CV is joined to its cell by tax year, panel, AGI class and column number.
-   - A target that adds up published cells (an AGI bracket merged from several of SOI's, a business group of several
-     classes, the capital gains net of gains and losses) gets the standard error of the sum, the cells taken as
-     independent: the square root of the sum of the cells' squared standard errors (value x CV / 100).
-   - A cell SOI blanked and folded into its neighbour for disclosure ('combined') has no value and no CV of its own;
-     its dollars and returns are in the receiving cell, whose CV is taken to be the CV of the combined estimate.
-   - A CV of exactly 0 is kept as 0 where SOI samples every return (the $10,000,000-or-more class): there is no
-     sampling error there. A target resting only on such cells gets a judgment error instead, 1% of its value
-     (FULL_SAMPLE_SE), since a target with no error could never give way.
-2. Other SOI tables from the same sample (Table 1.6, Table 1.2's joint returns, any 1.4-like table without CVs;
-   'soi_borrowed'): each cell borrows the CV of the Table 1.4 cells of the same year closest to it. For a count, the
-   Table 1.4 count cells (number of returns with an item, any AGI class or the total row) closest in number of
-   returns; for an amount, the amount cells closest in amount and in their number of returns (distance in logs). The
-   CV used is the median of the closest five (BORROW_K), not the single closest, so one odd cell
-   does not decide it. Cells sampled in full (CV 0) and cells without a CV are not lent.
-3. Survey targets ('survey_replicate'): the sampling error from the survey's own replicate weights, carried to the
-   tax units by the same rule as the main weight (a tax unit's replicate weight is its household's or interview's,
-   as its weight is).
-   - SCF (the wealth and wealth grid targets): computed with their values by scf_targets.py, over the year's mix of
-     SCF waves. Within each wave, the Federal Reserve's method (codebook, "Replicate weights and
-     multiplicity factors"): the replicate weights are WT1Bi x MMi (missing values are 0, as in the Fed's own
-     program; scf_replicates below), for the first implicate only; sampling variance = sum over the 999
-     replicates of (estimate - mean of the replicate estimates)^2 / 998, on the first implicate; imputation
-     variance = the variance of the five implicates' estimates (divisor 4); total variance = sampling + (1 + 1/5)
-     x imputation. The percentile lines the targets are defined by are held at their full-sample values, because
-     the file is asked for the share above those dollar lines. The waves are independent samples, so the pooled
-     variance is the sum over waves of share^2 x the wave's variance.
-   - CEX (the consumption averages): the BLS's balanced repeated replication with 44 replicate weights
-     (WTREP01-WTREP44 in the FMLI files, standard method up to the 2024 data): variance = sum over the 44 replicates
-     of (replicate estimate - full-sample estimate)^2 / 44.
-   - CPS (the overtime averages and the counts of units by age): Census's successive difference replication with the
-     ASEC's 160 person replicate weights (REPWTP1-REPWTP160, the unit head's, from settings paths.raw.cps_repwt):
-     variance = 4 / 160 x the sum over the replicates of (replicate estimate - full-sample estimate)^2; over the
-     year's mix of CPS years, as the CEX's.
-4. Everything else ('judgment'): the people in non-filer units, which come from the filing stage's calibration
-   (NONFILER_PEOPLE_SE); the non-filer count's error is set in the year's targets.yaml.
-Identities (a row with identity true) have error 0 ('identity').
-
-Interface: standard_errors(rows, year) -> one row per target, keyed by (kind, group, target) as in the run's
-fit.csv, with se in the units of the published statistic (on the average itself for an average, on the share for a
-share, in dollars or returns for a total), error_kind and se_reason.
-
-Data, downloaded once (public; to scratch, never to the shared raw-data folder; the login node has the network):
-  <out>/targets/soi_cv/raw/       the CV workbooks, with manifest.csv (file, URL, sha256):
-                          curl -sSLO https://www.irs.gov/pub/irs-soi/19in14cv.xls   (and so on for each year and table)
-  <out>/data/scf_rw/<wave>/ each SCF wave's replicate weights, one folder per wave in the year's mix: p16_rw1.dta, p19_rw1.dta, p22_rw1.dta for the
-                          2016, 2019 and 2022 waves:
-                          curl -sSLO https://www.federalreserve.gov/econres/files/scf2019rw1s.zip; unzip scf2019rw1s.zip
-                          (and scf2016rw1s.zip, scf2022rw1s.zip). Check that unzip succeeds. sha256 of the .dta files:
-                          p16_rw1.dta 936201623d499a61d39461c5383f1b62fee9411f0d208c719298952e3b56ab0e,
-                          p19_rw1.dta 0cfe01b806045c0fc3abe8b4902804ee05dda47da490c05397b1101f6e221739,
-                          p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2.
-  The CEX's replicate weights are read from the FMLI files in the shared raw-data folder (settings paths.raw.cex).
+"""Each target's standard error. Three kinds are computed: SOI's published coefficients of variation (Tables 1.4, 2.1
+and 3.3), CVs borrowed from nearby Table 1.4 cells for other SOI tables, and survey replicate weights (SCF, CEX, CPS).
+Everything else is a judgment number with a written reason, and identities have error 0. standard_errors(rows, year)
+returns se in the published statistic's units, with error_kind and se_reason. See TARGETS.md, "Standard errors".
 """
 import glob
 import os
@@ -72,6 +13,15 @@ import pandas as pd
 from shared import common
 from prep import soi as TG
 
+# Inputs downloaded once (public) to scratch:
+#   <out>/targets/soi_cv/raw/: SOI's CV workbooks, https://www.irs.gov/pub/irs-soi/{yy}in14cv.xls, {yy}in21cv.xls and
+#     {yy}in33cv.xls, with manifest.csv (file, URL, sha256); prep/soi_cv.py parses them into soi_cv.csv.
+#   <out>/data/scf_rw/<wave>/: each SCF wave's replicate weights, unzipped from
+#     https://www.federalreserve.gov/econres/files/scf<year>rw1s.zip. sha256 of the .dta files:
+#     p16_rw1.dta 936201623d499a61d39461c5383f1b62fee9411f0d208c719298952e3b56ab0e
+#     p19_rw1.dta 0cfe01b806045c0fc3abe8b4902804ee05dda47da490c05397b1101f6e221739
+#     p22_rw1.dta 1f0222848253ec9d42ad614f1a28bb215d3ae8de3b17a66c53308d81066e91c2
+# The CEX and CPS replicate weights are read from the shared raw-data folder.
 CV_DIR = f'{common.TARGETS}/soi_cv'
 BORROW_K = 5   # the CV borrowed is the median of this many closest Table 1.4 cells
 SCF_RW_DIR = f'{common.OUT}/data/scf_rw/{{wave}}'
@@ -80,10 +30,9 @@ NONFILER_PEOPLE_SE = 0.005
 # A Table 1.4 target resting only on cells SOI samples in full (the $10,000,000-or-more bracket, CV 0): a judgment
 # share of the value, since a target with no error cannot give way.
 FULL_SAMPLE_SE = 0.01
-# A published CV below this many percent is treated like the printed 0.00: SOI samples every return in the cell, so
-# there is no sampling error to give a standard error from. SOI printed 0.01 for the $10,000,000-or-more cells of 2022
-# and 0.00 in the other years; taken literally, 0.01% of the value was about 3 returns on 30,108, and no weights could
-# meet it. 0 or less turns the rule off.
+# A published CV below this many percent is treated like a printed 0.00, as SOI samples every return in the cell.
+# SOI printed 0.01 for the $10,000,000-or-more cells of 2022; taken literally, that is about 3 returns of 30,108, which
+# no weights could meet. 0 or less turns the rule off.
 FULL_SAMPLE_CV_BELOW = 0.1
 AGES = common.AGE_LABELS[:common.ADULT_RANGES]
 
@@ -106,7 +55,7 @@ def soi_cells(year, table='1.4'):
     known = c['item'].map(TG.TABLE_ITEMS[table])   # soi.T14 names a renamed line under both its names
     c['variable'] = [k[0] if isinstance(k, tuple) else i for k, i in zip(known, c['item'])]
     c['value'] = c['value'] * np.where(c['statistic'] == 'amount', 1000.0, 1.0)   # SOI publishes thousands
-    # a published CV below the line is the same as 0.00 (FULL_SAMPLE_CV_BELOW); the published figure is kept in cv_pct_published
+    # a published CV below FULL_SAMPLE_CV_BELOW counts as 0; the published figure is kept in cv_pct_published
     c['cv_pct_published'] = c['cv_pct']
     c['cv_pct'] = c['cv_pct'].mask((c['cv_pct'] > 0) & (c['cv_pct'] < FULL_SAMPLE_CV_BELOW), 0.0)
     c['se'] = c['value'] * c['cv_pct'] / 100
@@ -123,7 +72,7 @@ def sum_error(cells, parts, lo, hi):
         s = t[(t.variable == v) & (t.statistic == st) & (t.lo >= lo) & (t.hi <= hi) & t.value.notna()]
         assert len(s), f'no published cell for {v} {st} in [{lo}, {hi})'
         miss = s[s.cv_pct.isna() & (s.value != 0)]
-        if len(miss):   # a published value without a CV: it borrows one (none in 2019's targets)
+        if len(miss):   # a published value without a CV borrows one
             for r in miss.itertuples():
                 cv, _ = borrow_cv(cells, r.value if st == 'count' else None, r.value if st == 'amount' else None)
                 var += (r.value * cv / 100) ** 2
@@ -186,9 +135,8 @@ def soi_errors(rows, year):
     out = []
     for r in rows.itertuples():
         if r.kind == 'dependent filers' and r.statistic == 'amount':
-            # a Table 1.7 amount (dependent filers' net capital gain): the median CV of the Table 1.4 amount cells
-            # closest in amount and in their number of returns, the cell's own count of returns with the item (Table
-            # 1.7 publishes it beside the amount)
+            # a Table 1.7 amount borrows from the Table 1.4 amount cells closest in amount and in the number of returns
+            # with the item, which Table 1.7 publishes beside the amount
             n = dependent_filer_item_returns(year, r.variable, r.agi_lo, r.agi_hi)
             cv, what = borrow_cv(cells, amount=r.value, returns=n)
             out.append((r.Index, r.value * cv / 100, 'soi_borrowed',
@@ -196,11 +144,9 @@ def soi_errors(rows, year):
                         f'amount and in returns with the item ({n:,.0f}){yr}: {what}'))
             continue
         if r.kind in ('age by AGI', 'status by AGI'):   # Tables 1.6 and 1.2 by AGI
-            # In an AGI group where SOI samples every return (Table 1.4's number of returns there has no sampling
-            # error: the $10,000,000-or-more class), the judgment number Table 1.4's and Table 4.3's fully sampled
-            # cells get. Elsewhere the CV is borrowed by count as for the totals by age, but only from Table 1.4's
-            # count cells in the same AGI group: SOI's sampling rate depends on income, so a cell of 3,000 returns at
-            # $2-5 million is measured far better than one of 3,000 returns at $20,000
+            # Where SOI samples every return in the AGI group, the full-sample judgment number. Elsewhere the CV is
+            # borrowed only from Table 1.4's count cells in the same AGI group, because SOI's sampling rate rises with
+            # income: 3,000 returns at $2-5 million are measured far better than 3,000 returns at $20,000.
             assert not np.isnan(r.agi_lo), f'{r.group}: an age-by-AGI target with no AGI group'
             lo, hi = float(r.agi_lo), float(r.agi_hi)
             se14, _, _, _ = sum_error(cells, [('returns', 'count', 1)], lo, hi)
@@ -326,11 +272,10 @@ def cex_replicates(year, units):
 
 
 def consumption_errors(rows, year):
-    """The consumption targets (target_list's consumption entries): each category's average per tax unit over all units and in
-    each cell of the primary filer's adult age range by married, over the year's mix of CEX years (survey_mix.py):
-    each year's standard error from its own 44 replicate weights, on its spending in the target year's dollars (the
-    maps' factors, so a replicate's average is grown as the full-sample one is); the years are independent samples,
-    so the pooled variance is the sum over years of share^2 x the year's variance."""
+    """The consumption targets: each category's average per tax unit, over all units and by age range and marital
+    status, over the year's mix of CEX years. Each year's standard error comes from its 44 replicate weights, on spending
+    in target-year dollars; the years are independent samples, so the pooled variance is the sum of share^2 x each
+    year's variance."""
     from shared import survey_mix
     parts = []
     for y, share in survey_mix.mix('cex', year):
@@ -414,10 +359,9 @@ CPS_REPLICATES = 160   # the ASEC's person replicate weights, successive differe
 
 
 def cps_replicates(year, units):
-    """Each CPS tax unit's 160 replicate weights. A unit's weight is its head's ASECWT (build_cps.R; the head's PERNUM
-    is the last two digits of build_cps.R's record_id), so its replicate weights are the head's REPWTP1-REPWTP160 times
-    the unit's weight over the head's ASECWT (1 where they agree; checked and printed). Read from the shared replicate
-    weights layer (settings paths.raw.cps_repwt, sample cps<year + 1>_03s: the ASEC of March of the next year)."""
+    """Each CPS tax unit's 160 replicate weights: its head's REPWTP1-REPWTP160 times the unit's weight over the head's
+    ASECWT (1 where they agree). The head's PERNUM is the last two digits of the unit's record id. Read from the shared
+    replicate-weights extract of the ASEC of March of the next year (settings paths.raw.cps_repwt)."""
     from prep import build_table as BT
     folder = f"{common.RAW['cps_repwt']}/cps{year + 1}_03s"
     reps = [f'REPWTP{i}' for i in range(1, CPS_REPLICATES + 1)]
@@ -450,13 +394,10 @@ def cps_replicates(year, units):
 
 
 def overtime_errors(rows, year):
-    """The CPS overtime targets (kind 'overtime'): the share of units with overtime and overtime per unit, over all
-    units and by the unit's wages, over the year's mix of CPS years (target_list.cps_mix_rows), on the units asked
-    the earnings questions. Each year's standard error from the ASEC's 160 person replicate weights (the head's,
-    cps_replicates), by Census's successive difference replication formula: variance = 4 / 160 x the sum over the
-    replicates of (replicate estimate - full-sample estimate)^2; each replicate's average recomputed in full (its
-    weights in numerator and denominator). The years are independent samples, so the pooled variance is the sum over
-    years of share^2 x the year's variance. The cell is read from the row (range_variable, range_lo, range_hi)."""
+    """The CPS overtime targets: the share of units with overtime and overtime per unit, over all units and by the
+    unit's wages, among units asked the earnings questions, over the year's mix of CPS years. Each year's variance is
+    Census's successive difference replication formula, 4 / 160 x the sum over the replicates of (replicate estimate -
+    full-sample estimate)^2; the years pool as independent samples."""
     from shared import survey_mix
     from reweight import target_list as TLS
     parts = []
@@ -490,10 +431,7 @@ def overtime_errors(rows, year):
 
 
 def cps_age_errors(rows, year):
-    """The counts of units by the primary's age from the CPS (kind 'older ages', target_list.cps_age_rows):
-    each CPS year's standard error from the ASEC's 160 person replicate weights (the unit head's, cps_replicates), by
-    successive difference replication, variance = 4 / 160 x the sum over the replicates of (replicate count - full-sample
-    count)^2; the years are independent samples, so the pooled variance is the sum over years of share^2 x the year's."""
+    """The CPS counts of units by the primary's age (kind 'older ages'), with standard errors as in overtime_errors."""
     from shared import survey_mix
     from reweight import target_list as TLS
     parts = []
