@@ -1,12 +1,7 @@
-# The catalog: definitions that do not change from year to year (TARGETS.md section 12).
+# The catalog: definitions shared by every year. Each year's targets.yaml names things defined here: sources,
+# populations, statistics, kinds of error, variables and groupings of units into cells. target_list.py reads it.
 #
-# A year's file (years/<year>.yaml) and the files it inherits from (historical.yaml or projection.yaml, then
-# defaults.yaml) name things defined here: sources, populations, variables, groupings of units into cells, kinds of
-# standard error and the tax-unit rules a survey's units were built with. The year files say what to target; this
-# file says what the words mean. target_list.py reads all of them. Edited rarely: when a source, variable or
-# grouping is added.
-#
-# Writing rules for every file in this folder (target_list.py checks them when it reads the files):
+# Writing rules for every file in this folder:
 #   - no YAML anchors, aliases or tags;
 #   - numbers written out (1000000, 0.02), never 1e6 (YAML reads 1e6 as text);
 #   - text containing a comma is quoted inside [ ] or { } (unquoted, the comma splits it);
@@ -14,13 +9,13 @@
 #   - an unknown key is an error, so a misspelt key cannot be silently ignored.
 
 # ---------------------------------------------------------------------------------------------------------------
-# Sources: where a target's value comes from (TARGETS.md section 3 and 13).
-#   published  a table in the SOI mirror (settings paths.raw.soi_mirror), as published, read through targets.py
-#              (Tables 1.4 and 1.2 from the run's targets/soi.csv; Table 1.6 from settings ages.table_1_6)
+# Sources: where a target's value comes from.
+#   published  a table in the SOI mirror (settings paths.raw.soi_mirror), as published (Tables 1.4, 1.2 and 3.3 from
+#              the run's targets/soi.csv; Table 1.6 from settings ages.table_1_6)
 #   survey     a survey's tax units, one row per unit with a weight; the value is the same statistic computed on the
-#              survey's own units. Each names the tax-unit rules its units were built with (tax_unit_rules below).
-#   pipeline   a number computed fresh by an earlier stage of the same run, versioned by the code commit
-#              (TARGETS.md section 13, item 1)
+#              survey's own units, built with the tax-unit rules the source names (tax_unit_rules below)
+#   pipeline   a number computed by an earlier stage of the same run
+#   outside    a series that comes only as a change: the start year's own level times the series' growth
 # ---------------------------------------------------------------------------------------------------------------
 sources:
   soi 2.1:
@@ -32,8 +27,7 @@ sources:
   soi 1.2:
     kind: published
     what: SOI Publication 1304, Table 1.2, all returns by size of AGI and filing status
-  # (30 October, taxes computed inside the model) Table 3.3, read like Table 1.4 into the run's targets/soi.csv
-  # (targets.T33): the credits and the tax after credits, by size of AGI
+  # Table 3.3, read like Table 1.4 into the run's targets/soi.csv: the credits and the tax after credits
   soi 3.3:
     kind: published
     what: SOI Publication 1304, Table 3.3, all returns by size of AGI, tax liability, tax credits and tax payments
@@ -43,7 +37,6 @@ sources:
     what: >-
       SOI Publication 1304, Table 1.7, returns of dependents (dependent filers) by size of AGI, read from the mirror:
       the number of returns, and (2 November 2026) the items a variable names under "soi 1.7" (the net capital gain)
-  # (autoresearch, 4 November) Table 2.5, the earned income credit by the number of qualifying children
   soi 2.5:
     kind: published
     file: bysize_eitc.csv
@@ -54,12 +47,10 @@ sources:
       SOI Publication 1304, Table 1.6, returns by filing status and age of the primary taxpayer, all AGI; and
       (3 November 2026) by AGI group in the All returns panel (target_list.published_16_agi), when the cells have an
       AGI grouping
-  # Tables 1.3 and 4.3 (27 October; run G2 of explore_targets_13_43_RESULTS.md, approved by John), read from the tidy
-  # files of the local IRS-Ind store (settings paths.raw.soi_tables): one row per published cell, selected by the
-  # variable's item and measure (variables, "published") and the grouping's published labels (groupings). Errors are
-  # borrowed from the nearest Table 1.4 cells (target_list.published_grid); a Table 4.3 group whose published AGI
-  # cutoff is at or above full_sample_above gets errors.full_sample_se instead (SOI samples every such return).
-  # Since 3 November the same cutoff is the group's AGI line in the file (grouping agi_cumulative, cutoffs: published).
+  # Tables 1.3 and 4.3, read from the tidy files of the IRS-Ind store (settings paths.raw.soi_tables): one row per
+  # published cell, selected by the variable's item and measure and the grouping's published labels. Errors are
+  # borrowed from the nearest Table 1.4 cells; a Table 4.3 group whose published AGI cutoff is at or above
+  # full_sample_above gets errors.full_sample_se instead, as SOI samples every such return.
   soi 1.3:
     kind: published
     layout: tidy_grid
@@ -78,14 +69,11 @@ sources:
     what: >-
       SOI Table 4.3, returns other than dependent filers' by cumulative AGI percentile group (top 0.001% to top 50%),
       selected income items
-  # SOI's Form W-2 statistics (27 October, candidate): Table 4.B, the summary of W-2 items for taxpayers on
-  # individual returns, by joint and non-joint returns (settings paths.raw.soi_w2, w2_t4_<year>.xlsx). W-2s of
-  # people who file no return are not in it. Box 7 is Social Security tips: tips the employee reported to the
-  # employer, with box 3 (Social Security wages) plus box 7 at most that year's Social Security wage base.
-  # Non-joint returns include dependent filers, who hold no tips in the file (stage 1, decision 11): for a target
-  # whose population leaves them out, the non-joint value is reduced by the SIPP's share of non-joint tipped people
-  # (for a count) or tips (for an amount) who are dependents (target_list.published_w2), and half of that reduction
-  # is added to the error as a definition gap.
+  # SOI's Form W-2 statistics, Table 4.B: W-2 items for taxpayers on individual returns, by joint and non-joint
+  # returns. Box 7 is Social Security tips; box 3 (Social Security wages) plus box 7 is at most the year's wage base.
+  # Non-joint returns include dependent filers, who hold no tips in the file: for a population that leaves them out,
+  # the non-joint value is reduced by the SIPP's share of dependents among non-joint tipped people (for a count) or
+  # tips (for an amount), and half of the reduction is added to the error as a definition gap.
   soi w2:
     kind: published
     layout: w2_summary
@@ -93,10 +81,9 @@ sources:
     sheet: Table 4.B
     dependent_share: {survey: sipp, persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}_all.parquet', gap_share: 0.5}
     what: SOI Form W-2 statistics, Table 4.B, summary of items for taxpayers with Form W-2, by joint and non-joint returns
-  # The same workbook's Table 4.C (28 October, candidate): the percentiles of box 7 among individuals with a box 7
-  # value (all individuals on filed returns, dependent filers included). A target is the share of workers above a
-  # percentile's dollar line, one minus the percentile; the dependent filers' share of workers (Table 4.B, the SIPP)
-  # sets part of its error (target_list.published_w2_shares).
+  # The same workbook's Table 4.C: percentiles of box 7 among all individuals with a box 7 value, dependent filers
+  # included. A target is the share of workers above a percentile's dollar line; the dependent filers' share of
+  # workers sets part of its error.
   soi w2 pctiles:
     kind: published
     layout: w2_percentiles
@@ -105,13 +92,10 @@ sources:
     summary_sheet: Table 4.B
     dependent_share: {survey: sipp, persons: 'data/persons_sipp_{year}.parquet', units: 'data/sipp_units_{year}_all.parquet', gap_share: 0.5}
     what: SOI Form W-2 statistics, Table 4.C, values of selected items by percentile, box 7 (Social Security tips)
-  # The W-2 statistics' Table 2.D (28 October; decided by John 27 October): taxpayers with elective retirement
-  # contributions (traditional plus Roth) and the contributions, by size of AGI and by return and earner type
-  # (w2_t2_<year>.xlsx; the 2019 and 2020 layout). Every AGI row of the table must fall inside one of the entry's AGI
-  # groups (target_list.published_w2_agi). Non-joint returns include dependent filers, who hold no survey items in the
-  # file: for a population that leaves them out, the non-joint value is reduced by the SIPP's share of dependents
-  # among non-joint people with deferrals (people for a count, dollars for an amount; the SIPP year nearest the target
-  # year that asks deferrals), and half of that reduction is added to the error, as for the tips targets.
+  # The W-2 statistics' Table 2.D: taxpayers with elective retirement contributions (traditional plus Roth) and the
+  # contributions, by size of AGI and by return and earner type. Every AGI row must fall inside one of the entry's AGI
+  # groups. The non-joint value is reduced for dependent filers as for the tips targets, from the SIPP year nearest
+  # the target year that asks about deferrals.
   soi w2 2.d:
     kind: published
     layout: w2_by_agi
@@ -132,12 +116,9 @@ sources:
     built_by: [roster_cex.py, build_cex.R]
     tax_unit_rules: shared_cbo
     what: every tax unit of the CEX year (build_table.cex_target_units); dependent filers folded into the unit that claims them
-  # The CPS ASEC's tax units (28 October, for the overtime targets): the filing stage's units with build_cps.R's
-  # items, written by the table stage for each year of the CPS's mix in the target year's file
-  # (build_table.cps_person_slots), with their wages after function 1 (wages_translated: the tax data's wages at the
-  # same percentile among earners). Dependent filers are folded into the unit that claims them, as in the CEX.
-  # Overtime pay is known only for the units asked the earnings questions (months 4 and 8 of the main sample); the
-  # overtime targets are computed over those units with their own weights (target_list.cps_mix_rows).
+  # The CPS's tax units for the overtime targets, for each year of the CPS mix, with wages translated to the tax
+  # data's wages at the same percentile among earners. Overtime pay is known only for the units asked the earnings
+  # questions (months 4 and 8 of the main sample), so the overtime targets are averages over those units.
   cps:
     kind: survey
     file: data/cps_units_{year}_all.parquet
@@ -146,10 +127,8 @@ sources:
     what: >-
       every tax unit of the CPS year, filers and non-filers (build_table.cps_person_slots); dependent filers folded
       into the unit that claims them; the overtime statistics over the units asked the earnings questions
-  # (2 November 2026, John) The CPS's tax units as the training table holds them (filers and non-filers; dependent filers
-  # folded into the unit that claims them), for the number of units by the primary's age within 65 and over: a large
-  # sample with ages measured well. Over the year's CPS year mix (prior "cps items"), standard errors from the ASEC's
-  # replicate weights (target_list.cps_age_rows, errors.cps_age_errors). SOI's Table 1.6 stops at "65 and over".
+  # The CPS's tax units as the training table holds them, filers and non-filers, for the number of units by the
+  # primary's age within 65 and over (SOI's Table 1.6 stops at "65 and over").
   cps units:
     kind: survey
     file: data/table.parquet
@@ -158,9 +137,8 @@ sources:
     what: >-
       every tax unit of the CPS year in the training table, filers and non-filers, with the primary filer's exact age
       (the table's age plus 1, less 1)
-  # Outside series that come only as a change (30 October, years after the data; TARGETS.md section 3): a target is
-  # the start year's own level times the series' growth (target_list.outside_rows); the entry names the line.
-  # (3 November, agent A) the projection years' three steps (projection_steps.py; explore/2026-11-02/projection_design/DESIGN.md)
+  # Outside series that come only as a change: a target is the start year's own level times the series' growth; the
+  # entry names the line. The projection sources are the targets built by projection_steps.py.
   projection persons:
     kind: outside
     file: Macro-Projections v3 2026022522 baseline, historical.csv and projections.csv (married_<age>, unmarried_<age>)
@@ -181,7 +159,7 @@ sources:
     what: >-
       each targeted dollar item's total (gains and losses separately) on the start after step 2, which grows the item's
       2023 total by its series; projection_steps.outside_rows
-  # (4 November 2026, John) the first projection year's growth from SOI's November filing-season tables
+  # the first projection year's growth from SOI's November filing-season tables
   projection filing season:
     kind: outside
     file: research/rebuild/resources/filing_season/november_tables.csv (build_filing_season.py)
@@ -202,7 +180,6 @@ sources:
     what: >-
       the Federal Reserve's Financial Accounts, households and nonprofit organizations, net worth (S1M.b,
       FL152090005), fourth quarter; past 2025 held at its 2025 ratio to nominal GDP
-  # (autoresearch, round 9) the non-filers of the pipeline's tax data (target_list.taxdata_nonfiler_rows)
   tax_data_nonfilers:
     kind: pipeline
     built_by: [filing.py, build_cps.R, build_table.py]
@@ -221,9 +198,9 @@ sources:
       <year>_nonfilers_vs_targets.csv, column target_heads_spouses (millions of people).
 
 # ---------------------------------------------------------------------------------------------------------------
-# The tax-unit rules a survey's units are built with. Moving the SCF to the shared rules changed its median net
-# worth from $91,050 to $63,570, so every survey target names the rules its value was computed on. The row of the
-# expanded list records the module, the settings that select its variant, and the code commit.
+# The tax-unit rules a survey's units are built with. The rules move survey statistics a good deal, so every survey
+# target names the rules its value was computed on: targets.csv records the module, the settings that select its
+# variant, and the code commit.
 # ---------------------------------------------------------------------------------------------------------------
 tax_unit_rules:
   shared_cbo:
@@ -247,30 +224,29 @@ populations:
   units_other_than_dependent_filers:  {rule: age_range < 6, why: the surveys count dependent filers inside the unit that claims them}
   dependent_filers:                   {rule: filer == 1 and age_range >= 6, why: "the PUF's three dependent age ranges (common.DEPENDENT_RANGES)"}
   independent_filers:                 {rule: filer == 1 and age_range < 6, why: "returns other than dependent filers' (Table 4.3's population; the W-2 tips targets)"}
-  # The SCF targets' population (29 October; PLAN.md of explore/2026-10-29/top_research, step 10, John's choice): above
-  # $1 billion of net worth the file is the Forbes list alone, below it the SCF. Net worth in nominal target-year
-  # dollars, the SCF's after each wave is grown to the target year. The ceiling applies on both sides, the SCF's units
-  # (scf_targets.py, the same lines and percentiles computed among units below it) and the file's records
-  # (target_list.population), while settings tilt.top.enabled is true; with it false the population is the rule alone.
+  # The SCF targets' population: above $1 billion of net worth the file is the Forbes list alone, below it the SCF.
+  # The ceiling, in nominal target-year dollars, applies to the SCF's units and to the file's records while settings
+  # tilt.top.enabled is true; with it false the population is the rule alone.
   scf_units_below_a_billion:          {rule: age_range < 6, net_worth_below: 1000000000, why: "the SCF's units below $1 billion of net worth, dependent filers left out as for every survey target; the Forbes list supplies the units above"}
 
 # ---------------------------------------------------------------------------------------------------------------
 # Statistics. Each is a linear condition on the file's weights.
 #   units    number of units in the cell (no variable)
 #   count    number of units in the cell with the variable nonzero
-#   workers  (variables defined person by person: ss_tips) the number of people, primary and spouse, with a positive value
+#   workers  (variables defined person by person: ss_tips) the number of people, primary and spouse, with a positive
+#            value
 #   worker share  the share of those people whose value is above a dollar line (the row's line)
 #   amount   sum of the variable over the cell
 #   average  the variable's average over the cell's units, zeros included
 #   share    the share of the cell's units above a line (the average of a 0/1 indicator)
 # An average or a share is written as a condition that holds whatever the reweighting does to the number of units
-# in the cell (target_list.average_condition).
+# in the cell.
 # ---------------------------------------------------------------------------------------------------------------
 statistics: [units, count, amount, average, share, workers, worker share]
 
 # ---------------------------------------------------------------------------------------------------------------
-# Kinds of error (TARGETS.md section 9). errors.py computes the first three; a judgment number is written in the
-# configuration with a one-line reason; an identity has no error and is hit exactly.
+# Kinds of error. errors.py computes the first three; a judgment number is written in the configuration with a
+# one-line reason; an identity has no error and is hit exactly.
 #   soi_cv            SOI's published coefficient of variation for the cell (Tables 1.4, 2.1, 3.3)
 #   soi_borrowed      another SOI table: the coefficient of variation of the nearest Table 1.4 cell
 #   survey_replicate  sampling error from the survey's replicate weights
@@ -286,7 +262,7 @@ error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
 #   record:      a column of the file
 #   parts:       the sum of these columns of the file (the same columns on a survey's units)
 #   family:      a business family's net income (its net where positive) or net loss (minus its net where
-#                negative); the net is the signed sum of the family's PUF parts (targets.FAMILIES)
+#                negative); the net is the signed sum of the family's PUF parts (soi.FAMILIES)
 #   people:      the number of people in the unit, among the given members, whose exact age is in [from, to);
 #                members: head, spouse, dep1-dep3 (columns age1, age2, dep_age1-3; -1 for none)
 #   family with side net: the family's signed net (income less loss)
@@ -298,9 +274,10 @@ error_kinds: [soi_cv, soi_borrowed, survey_replicate, judgment, identity]
 #   count_variable: the variable whose nonzero values the count statistic counts, where a published count and
 #                amount have different definitions (Table 4.3's capital gains: returns with a gain, net gain less loss)
 #   published:   the variable's item and measures in a tidy published table (sources soi 1.3, soi 4.3)
+#   soi 1.7:     the mirror's items for Table 1.7, dependent filers
 #   gain_held_to_value: {gain: column, value: [columns]}: the gain held to the value and never below zero,
-#                max(0, min(gain, sum of the value columns)) (2 November 2026, the unrealized gains by kind)
-# The SOI lines are the variable names of the run's targets/soi.csv (targets.T14).
+#                max(0, min(gain, sum of the value columns))
+# The SOI lines are the variable names of the run's targets/soi.csv (soi.T14 and soi.T33).
 # ---------------------------------------------------------------------------------------------------------------
 variables:
   itemized_medical:
@@ -309,22 +286,19 @@ variables:
   itemized_taxes:
     record: calc_claimed_taxes
     short: taxes paid deductions
-    # (autoresearch, 4 November) Table 4.3's line in the top AGI groups
     published:
       soi 4.3: {item: 'itemized deductions > total taxes paid deduction', count: returns, amount: amount}
   itemized_interest:
     record: calc_claimed_interest
     short: interest deductions
-    # (autoresearch, 4 November) Table 4.3's line in the top AGI groups
     published:
       soi 4.3: {item: 'itemized deductions > total interest paid deduction', count: returns, amount: amount}
   itemized_charity:
     record: calc_claimed_charity
     short: charitable deductions
-    # (autoresearch, 4 November) Table 4.3's line in the top AGI groups
     published:
       soi 4.3: {item: 'itemized deductions > total contributions deduction', count: returns, amount: amount}
-  # (autoresearch, 4 November) itemizers' cash gifts and other gifts as reported on Schedule A (Table 2.1)
+  # itemizers' cash gifts and other gifts as reported on Schedule A (Table 2.1)
   itemized_charity_cash:
     record: calc_char_cash_itemizers
     short: cash gifts to charity, itemizers
@@ -348,19 +322,16 @@ variables:
     published:
       soi 1.3: {item: taxable interest, count: returns, amount: amount}
       soi 4.3: {item: taxable interest, count: returns, amount: amount}
-    # (autoresearch, 4 November) Table 1.7's line for dependent filers
     soi 1.7:
       count: taxable interest > number of returns
       amount: taxable interest > amount
-  # (autoresearch, 4 November) qualified dividends, Table 1.4 and Table 4.3: run3's 2023 file had 1.16-1.19 times SOI's
-  # qualified dividends in each top group of Table 4.3 with ordinary dividends met
   qualified_dividends:
     record: div_pref
     short: qualified dividends
     soi 1.4: {count: [qualified_dividends], amount: [qualified_dividends]}
     published:
       soi 4.3: {item: qualified dividends, count: returns, amount: amount}
-  # (autoresearch, 4 November) capital gain distributions reported on Form 1040 without Schedule D (the PUF's E01100)
+  # capital gain distributions reported on Form 1040 without Schedule D (the PUF's E01100)
   capital_gain_distributions:
     record: kg_dist
     short: capital gain distributions
@@ -375,7 +346,6 @@ variables:
     published:
       soi 1.3: {item: ordinary dividends, count: returns, amount: amount}
       soi 4.3: {item: ordinary dividends, count: returns, amount: amount}
-    # (autoresearch, 4 November) Table 1.7's line for dependent filers
     soi 1.7:
       count: ordinary dividends > number of returns
       amount: ordinary dividends > amount
@@ -384,20 +354,17 @@ variables:
     short: capital_gains
     what: returns with a Schedule D net gain or net loss, and the net gain less the net loss
     soi 1.4: {count: [sch_d_net_gain, sch_d_net_loss], amount: [sch_d_net_gain, minus sch_d_net_loss]}
-  # AGI and business income on the file's definitions (dollars.py), for hold_distribution (TARGETS.md S7): AGI is
-  # wages + interest + dividends + Schedule D net capital gain + the rest (dollars.AGI_PARTS); business income the
-  # signed sum of its eighteen parts (Schedules C, E and F).
+  # AGI and business income on the file's definitions (dollars.py): AGI is wages + interest + dividends + Schedule D
+  # net capital gain + the rest; business income is the signed sum of its eighteen parts (Schedules C, E and F).
   agi:
     parts: [wages, txbl_int, dividends, capital_gains, other_agi]
     short: agi
     published:
       soi 1.3: {item: adjusted gross income less deficit, count: returns, amount: amount}
       soi 4.3: {item: adjusted gross income less deficit, count: returns, amount: value, returns_item: all}
-  # Table 1.3's and Table 4.3's income items on the file's definitions (dollars.py), 27 October (run G2 of
-  # explore_targets_13_43_RESULTS.md). Total income is AGI plus the adjustments. Capital gains: Form 1040 line 13
-  # (capital_gains_line13, distributions included); Table 1.3's net gain is its positive part, its net loss the loss
-  # allowed on the return (run G2: the file's Schedule D pieces are drawn separately, so their sum can pass the cap;
-  # SOI's loss is the allowed loss). Table 4.3's capital gains amount is the net gain less the loss, its count the
+  # Table 1.3's and Table 4.3's income items on the file's definitions. Total income is AGI plus the adjustments.
+  # Capital gains are Form 1040 line 13, distributions included; Table 1.3's net gain is its positive part and its net
+  # loss the loss allowed on the return. Table 4.3's capital gains amount is the net gain less the loss, its count the
   # returns with a gain. Its business item is Schedules C and F together.
   total_income:
     parts: [wages, txbl_int, dividends, capital_gains, other_agi, adjustments]
@@ -409,17 +376,15 @@ variables:
     short: exempt_int
     published:
       soi 1.3: {item: tax exempt interest, count: returns, amount: amount}
-    # (autoresearch, 4 November) Table 1.7's line for dependent filers
     soi 1.7:
       count: tax exempt interest > number of returns
       amount: tax exempt interest > amount
     soi 1.4: {count: [tax_exempt_interest], amount: [tax_exempt_interest]}
-  # (autoresearch round 12) gross pensions and annuities (Form 1040 line 4c/5a), taxable plus the non-taxable rest
+  # gross pensions and annuities, taxable plus the non-taxable rest
   total_pensions:
     record: gross_pens_dist
     short: pensions and annuities, total
     soi 1.4: {count: [total_pensions], amount: [total_pensions]}
-  # (autoresearch round 7) the statutory adjustments' total, Table 1.4
   statutory_adjustments:
     record: adjustments
     short: statutory adjustments
@@ -436,7 +401,7 @@ variables:
     soi 1.4: {count: [alimony_received], amount: [alimony_received]}
     published:
       soi 1.3: {item: alimony received, count: returns, amount: amount}
-  # (autoresearch, 4 November) alimony paid, Table 1.4's statutory adjustment
+  # alimony paid, a statutory adjustment
   alimony_paid:
     record: alimony_exp
     short: alimony_paid
@@ -453,8 +418,8 @@ variables:
     short: capital_gain_positive
     published:
       soi 1.3: {item: sales of capital assets net gain, count: returns, amount: amount}
-    # (2 November 2026, John) Table 1.7's "sales of capital assets, taxable net gain" for dependent filers: the same
-    # line as Table 1.3's net gain (Form 1040 line 7, line 13 in the file's terms, where positive). The mirror's items.
+    # Table 1.7's "sales of capital assets, taxable net gain": the same line as Table 1.3's net gain (Form 1040 line 7,
+    # line 13 in the file's terms, where positive)
     soi 1.7:
       count: sales of capital assets > taxable net gain > number of returns
       amount: sales of capital assets > taxable net gain > amount
@@ -464,7 +429,6 @@ variables:
     short: capital_gain_loss
     published:
       soi 1.3: {item: sales of capital assets net loss, count: returns, amount: amount}
-    # (autoresearch, 4 November) Table 1.7's line for dependent filers
     soi 1.7:
       count: sales of capital assets > taxable net loss > number of returns
       amount: sales of capital assets > taxable net loss > amount
@@ -473,7 +437,7 @@ variables:
     short: other_gains
     published:
       soi 1.3: {item: 'sales of property other than capital assets, net gain less loss', count: returns, amount: amount}
-  # (autoresearch, 4 November) Form 4797's net gain and net loss, Table 1.4's two lines (the loss stored positive)
+  # Form 4797's net gain and net loss, Table 1.4's two lines (the loss stored positive)
   other_gains_net_gain:
     base: other_gains
     transform: positive
@@ -495,20 +459,19 @@ variables:
     short: txbl_pens_dist
     published:
       soi 1.3: {item: taxable pensions and annuities, count: returns, amount: amount}
-  # (30 October) Table 1.3 for tax year 2018 publishes taxable IRA distributions and taxable pensions as one line
     soi 1.4: {count: [taxable_pensions], amount: [taxable_pensions]}
+  # Table 1.3 for tax year 2018 publishes taxable IRA distributions and taxable pensions as one line
   ira_pensions_taxable:
     parts: [txbl_ira_dist, txbl_pens_dist]
     short: ira_pensions_taxable
     published:
       soi 1.3: {item: 'taxable individual retirement arrangement (ira) distributions, pensions, and annuities', count: returns, amount: amount}
-  # (2 November, John) gross Social Security benefits, Table 1.4 on the same grid as interest and dividends
   gross_ss:
     record: gross_ss
     short: gross_ss
     soi 1.4: {count: [gross_ss], amount: [gross_ss]}
-  # (3 November, John) taxable Social Security is computed by the section 86 worksheet on each record's own items
-  # (dollars.retirement_items), as the tax calculator computes it; never drawn and never targeted. Defined for reports.
+  # taxable Social Security is computed by the section 86 worksheet on each record's own items, as the tax calculator
+  # computes it; never drawn and never targeted, defined for reports
   ss_taxable:
     record: ss_taxable
     short: ss_taxable
@@ -527,7 +490,6 @@ variables:
     soi 1.4: {count: [sole_prop_net_income], amount: [sole_prop_net_income]}
     published:
       soi 1.3: {item: business or profession net income, count: returns, amount: amount}
-    # (autoresearch, 4 November) Table 1.7's line for dependent filers
     soi 1.7:
       count: business or profession > net income > number of returns
       amount: business or profession > net income > amount
@@ -538,7 +500,6 @@ variables:
     soi 1.4: {count: [sole_prop_net_loss], amount: [sole_prop_net_loss]}
     published:
       soi 1.3: {item: business or profession net loss, count: returns, amount: amount}
-    # (autoresearch, 4 November) Table 1.7's line for dependent filers
     soi 1.7:
       count: business or profession > net loss > number of returns
       amount: business or profession > net loss > amount
@@ -609,10 +570,9 @@ variables:
     short: sch_cf_loss
     published:
       soi 4.3: {item: business or profession (from schedules c and f) > net loss, count: returns, amount: amount}
-  # Tips as Form W-2 box 7 has them (27 October, candidate): each person's tips (tips1, tips2, drawn from the SIPP)
-  # held so that the person's wages other than tips plus the tips are at most the Social Security wage base, as box 3
-  # plus box 7 are (Form W-2 instructions); a person whose other wages pass the base has no box 7 tips. The base by
-  # year is the SSA's contribution and benefit base.
+  # Tips as Form W-2 box 7 has them: each person's tips held so that the person's wages other than tips plus the tips
+  # are at most the Social Security wage base, as box 3 plus box 7 are. The base by year is SSA's contribution and
+  # benefit base.
   ss_tips:
     ss_tips: [[wages1, tips1], [wages2, tips2]]
     wage_base: {2015: 118500, 2016: 118500, 2017: 127200, 2018: 128400, 2019: 132900, 2020: 137700,
@@ -621,18 +581,16 @@ variables:
     published:
       soi w2: {item: 'Box 7: Social security tips'}
       soi w2 pctiles: {item: 'Box 7: Social security tips'}
-  # Elective deferrals as the W-2 statistics count them (28 October): each person's elective contributions,
-  # traditional plus Roth, after the legal limit for their age and their own wages (dollars.deferral_items), summed
-  # over the primary filer and the spouse. A count is returns with any (on non-joint returns, one taxpayer each).
+  # Elective deferrals as the W-2 statistics count them: each person's elective contributions, traditional plus Roth,
+  # after the legal limit for their age and their own wages, summed over the primary filer and the spouse. A count is
+  # returns with any (on non-joint returns, one taxpayer each).
   w2_elective_deferrals:
     parts: [elective1, elective2]
     short: elective deferrals
     published:
       soi w2 2.d: {count: Number of taxpayers, amount: Contributions}
-  # Auto loan interest (27 October, candidate): the SCF's auto_int_exp, the amount still owed on each of up to four
-  # vehicle loans times its current rate (build_scf.R), the same column on the SCF's units and on the file (drawn in
-  # the SCF phase and grown per tax unit to the target year's wave, as the balance sheet). The share of units with
-  # any is the average of the 0/1 indicator.
+  # Auto loan interest: the SCF's auto_int_exp, the amount owed on each of up to four vehicle loans times its current
+  # rate, the same column on the SCF's units and on the file.
   auto_loan_interest:
     record: auto_int_exp
     short: auto loan interest
@@ -655,26 +613,20 @@ variables:
   wealth_other_assets: {parts: [value.life_ins, value.annuities, value.trusts, value.other_fin, value.other_nonfin], short: other assets}
   wealth_mortgages: {parts: [value.primary_mortgage, value.other_mortgage], short: mortgages}
   wealth_other_debt: {parts: [value.credit_lines, value.credit_cards, value.installment_debt, value.other_debt], short: other debt}
-  # (2 November 2026, John) The primary filer's exact age in years, for the targets by age group. On the file, age1 in
-  # years (ages 80 and over held at 80; -1 for none: dependent filers, outside every population that uses it). On a
-  # survey's units the same: the training table stores age plus 1 (build_table.AGE_SLOTS), so scf_targets.frame and
-  # target_list.cps_age_units take 1 off; every survey holds ages 80 and over at 80 too (build_table.EXACT_AGE_TOP).
+  # The primary filer's exact age in years (80 and over held at 80; -1 for none), the same on the file and on the
+  # survey units.
   primary_age:
     record: age1
     short: primary's age
-  # (2 November 2026, John) Unrealized capital gains by kind, in tax-simulator-gpu's concept: each class's gain held to
-  # the class's value and never below zero, max(0, min(gain, value)), as non_micro_imputations.cost_basis gives the
-  # simulator the basis (value less the held gain) and explore/2026-11-02/kg_split/c1_tables.py measures it. Other real
-  # estate has one gain on other homes and real estate funds together, held to their combined value. The same columns
-  # on the SCF's units (each wave's gain and value grown to the target year by their own factors, scf_targets.frame) and
-  # on the file.
+  # Unrealized capital gains by kind, as tax-simulator-gpu has them: each class's gain held to the class's value and
+  # never below zero. Other real estate has one gain on other homes and real estate funds together, held to their
+  # combined value. The same columns on the SCF's units and on the file.
   kg_stocks_funds: {gain_held_to_value: {gain: w_kg_other, value: [value.equities]}, short: unrealized gain on stocks and funds}
   kg_business: {gain_held_to_value: {gain: w_kg_pass_throughs, value: [value.pass_throughs]}, short: unrealized gain on businesses}
   kg_primary_home: {gain_held_to_value: {gain: w_kg_primary_home, value: [value.primary_home]}, short: unrealized gain on the primary home}
   kg_other_real_estate: {gain_held_to_value: {gain: w_kg_other_re, value: [value.other_home, value.re_fund]}, short: unrealized gain on other real estate}
-  # Four kinds of asset on the balance sheet (TARGETS.md S2), the same columns on the SCF's units (build_scf.R, from
-  # the SCF summary extract) and on the generated file (dollars.py draws each from the SCF's map). Gross values:
-  # the debts against them (mortgages) are not taken off.
+  # Four kinds of asset, the same columns on the SCF's units and on the file. Gross values: the mortgages against them
+  # are not taken off.
   stocks:
     parts: [value.equities]
     short: stocks
@@ -696,12 +648,9 @@ variables:
       IRAs and Keoghs, account-type plans at current jobs, and account-type plans from past jobs or now paying out
       (SCF IRAKH + THRIFT + FUTPEN + CURRPEN, the SCF's quasi-liquid retirement assets, RETQLIQ); defined-benefit
       pensions are not in the SCF's net worth and not here
-  # The seven income items the SCF and the file share, for ranking units by income (the income x net worth grid,
-  # historical.yaml). On the file: wages, interest, dividends, line-13 capital gains, gross Social Security,
-  # Schedules C and F, Schedule E. On the SCF's units: the same items as the training table carries them after
-  # translation. Since 28 October gross Social Security in place of Social Security plus pensions, and the SCF's
-  # Schedule E as its two shared parts (rental and the rest), as the translation table now shares them: the SCF no
-  # longer carries the old two items.
+  # The seven income items the SCF and the file share, for ranking units by income (the income by net worth grid). On
+  # the file: wages, interest, dividends, line-13 capital gains, gross Social Security, Schedules C and F, Schedule E;
+  # on the SCF's units the same items as the training table carries them, Schedule E as its two parts.
   income_7_items:
     parts: [wages, txbl_int, dividends, capital_gains_line13, gross_ss, sch_cf_income, sch_e_income]
     survey_parts: [wages, txbl_int, dividends, capital_gains, gross_ss, sch_cf_income, sche_rent, sche_rest]
@@ -714,9 +663,8 @@ variables:
   c_gasoline:              {record: c_gasoline, short: c_gasoline}
   c_housing_utilities:     {record: c_housing_utilities, short: c_housing_utilities}
   c_other_services_health: {record: c_other_services_health, short: c_other_services_health}
-  # Overtime pay (28 October): the unit's overtime pay, the whole pay for the hours over 40 (Tax-Simulator's ot, the
-  # primary filer's ot1 plus the spouse's ot2, each held to the person's wages less tips; dollars.py). On the CPS's
-  # units the same sum, ot_primary + ot_spouse, over the units asked the earnings questions (target_list.cps_mix_rows).
+  # Overtime pay: the unit's pay for hours over 40, ot1 + ot2, each held to the person's wages less tips. On the
+  # CPS's units the same sum, over the units asked the earnings questions.
   ot:
     record: ot
     short: overtime pay
@@ -725,11 +673,9 @@ variables:
     base: ot
     transform: any
     short: units with overtime pay
-  # The people in non-filer units, counted on the CPS units of the training table by the file's own rule
-  # (target_list.cps_nonfiler_people, weighted by each unit's chance of not filing): heads and spouses by their own
-  # exact age; children under 17 among the head, the spouse and the three dependents the file carries (the youngest
-  # three). The filing stage calibration's own numbers, by the head's band and every child, are kept as a check in
-  # each target's source.
+  # The people in non-filer units, counted on the CPS units of the training table by the file's own rule, weighted
+  # by each unit's chance of not filing: heads and spouses by their own exact age; children under 17 among the head,
+  # the spouse and the three dependents the file carries.
   heads_spouses_18_25:     {people: {members: [head, spouse], from: 18, to: 26}, label: heads and spouses aged 18_25, filing_band: '18_25'}
   heads_spouses_26_34:     {people: {members: [head, spouse], from: 26, to: 35}, label: heads and spouses aged 26_34, filing_band: '26_34'}
   heads_spouses_35_44:     {people: {members: [head, spouse], from: 35, to: 45}, label: heads and spouses aged 35_44, filing_band: '35_44'}
@@ -742,10 +688,9 @@ variables:
     label: children under 17
     filing_band: children under 17
 
-  # Columns the tax calculator computes (30 October, piece 3 of the overnight plan; taxes.py): each record's value from
-  # tax-simulator-gpu under the target year's law, computed on the start and joined by record id before the
-  # reweighting (the tilt moves weights only, so the values stay right). A count is the returns with a value other
-  # than zero. Each names its line in Table 1.4 or 3.3 (the run's targets/soi.csv, targets.T14 and T33).
+  # Columns the tax calculator computes (taxes.py), from tax-simulator-gpu under the target year's law, on the start
+  # before the reweighting. A count is the returns with a value other than zero. Each names its line in Table 1.4 or
+  # 3.3.
   itemized_deductions_claimed:
     record: calc_item_ded_claimed
     short: itemized deductions
@@ -771,7 +716,7 @@ variables:
     record: calc_liab_amt
     short: AMT
     soi 1.4: {count: [alternative_minimum_tax], amount: [alternative_minimum_tax]}
-  # (autoresearch, 4 November) the child and dependent care credit and the saver's credit, used against tax
+  # the child and dependent care credit and the saver's credit, used against tax
   child_care_credit:
     record: calc_cdctc_nonref
     short: child and dependent care credit
@@ -780,7 +725,6 @@ variables:
     record: calc_savers_nonref
     short: retirement savings contributions credit
     soi 3.3: {count: [savers_credit], amount: [savers_credit]}
-  # (autoresearch, 4 November) the education credits from the calculator, against Table 3.3
   education_credit_nonrefundable:
     record: calc_ed_nonref
     short: nonrefundable education credits
@@ -791,7 +735,6 @@ variables:
     short: refundable American opportunity credit
     what: the refundable part of the American opportunity credit
     soi 3.3: {count: [aotc_refundable], amount: [aotc_refundable]}
-  # (autoresearch, 4 November) self-employment tax from the calculator, against Table 3.3
   self_employment_tax:
     record: calc_liab_seca
     short: self-employment tax
@@ -819,31 +762,26 @@ variables:
     what: income tax before credits less the nonrefundable credits and the refundable credits used against tax
     soi 3.3: {count: [income_tax_after_credits], amount: [income_tax_after_credits]}
 
-# Business families: each gives two variables, <family>_net_income and <family>_net_loss, short name
-# "<family> net_income" / "<family> net_loss", SOI lines <family>_net_income / <family>_net_loss in targets/soi.csv.
-# Their PUF parts and SOI line names are targets.FAMILIES; they are not repeated here.
-# partnership and scorp (30 October): the two halves of pship_scorp, which Table 1.4 publishes separately from tax year
-# 2021 with no combined line (targets.FAMILIES)
+# Business families: each gives two variables, <family>_net_income and <family>_net_loss, with SOI lines of the same
+# names in targets/soi.csv; their PUF parts are soi.FAMILIES. partnership and scorp are the two halves of
+# pship_scorp, which Table 1.4 publishes separately from tax year 2021.
 families: [sole_prop, pship_scorp, rent_royalty, estate_trust, farm, farm_rental, partnership, scorp]
 
-# Item names a tidy SOI table uses in some years only (30 October, targets for every year): a variable's published
-# item is looked up under its own name first, then under each alias (target_list.published_grid).
+# Item names a tidy SOI table uses in some years only: a variable's published item is looked up under its own name
+# first, then under each alias.
 item_aliases:
   salaries and wages: [total wages]                     # Table 4.3 from tax year 2022
 
 # Named lists of variables, so an entry can say "the income items".
 variable_lists:
-  # (1 November, decision 57 d) Table 1.4's wages on the standard AGI grid, its interest, dividends and capital gains
-  # on the broad one
-  # (autoresearch, round 10) the Schedule D net capital gain on the standard grid too: on the broad grid its cells inside
-  # the broad groups were off (2019: 5 of 20 Table 1.4 cells beyond 3 standard errors, gain and loss)
+  # Table 1.4's wages and Schedule D net capital gain on the standard AGI grid; interest, dividends and the other
+  # income items on the broad one
   income_items_standard: [wages, sch_d_net_capital_gain]
   income_items_broad: [taxable_interest, ordinary_dividends, qualified_dividends, capital_gain_distributions, gross_ss]
-  # The business families targeted in the five top AGI brackets (TARGETS.md S2), and the rest, which keep one
-  # "$1m and over" group: their top cells are small (in 2019 SOI folds farm net income and farm rental net loss at
-  # $1M and over into the $500,000-$1,000,000 cell) and S2 does not ask for them.
+  # The business families targeted in the five top AGI brackets, and the rest, which keep one "$1m and over" group
+  # because their top cells are small (SOI folds some of them into the $500,000-$1,000,000 cell).
   business_top: [sole_prop_net_income, sole_prop_net_loss, pship_scorp_net_income, pship_scorp_net_loss]
-  # from tax year 2021 (30 October): Table 1.4 publishes partnership and S corporation income separately
+  # from tax year 2021 Table 1.4 publishes partnership and S corporation income separately
   business_top_split: [sole_prop_net_income, sole_prop_net_loss, partnership_net_income, partnership_net_loss,
                        scorp_net_income, scorp_net_loss]
   business_other: [rent_royalty_net_income, rent_royalty_net_loss, estate_trust_net_income, estate_trust_net_loss,
@@ -852,23 +790,21 @@ variable_lists:
                 c_gasoline, c_housing_utilities, c_other_services_health]
   nonfiler_people: [heads_spouses_18_25, heads_spouses_26_34, heads_spouses_35_44, heads_spouses_45_54,
                     heads_spouses_55_64, heads_spouses_65_74, heads_spouses_75_up, children_under_17]
-  # The SCF's balance sheet by kind of asset, for the top net worth lines (TARGETS.md S2)
+  # The SCF's balance sheet by kind of asset, for the top net worth lines
   scf_top_assets: [stocks, business_equity, real_estate, retirement_accounts]
   scf_wealth_categories: [wealth_deposits_bonds, wealth_stocks_funds, wealth_retirement, wealth_business,
                           wealth_primary_home, wealth_other_real_estate, wealth_other_assets, wealth_mortgages,
                           wealth_other_debt]
-  # (2 November 2026, John) Unrealized capital gains by kind, each held to its value (variables above)
+  # Unrealized capital gains by kind, each held to its value
   scf_unrealized_gains: [kg_stocks_funds, kg_business, kg_primary_home, kg_other_real_estate]
-  # Table 1.3's items with a count and an amount (AGI has its amount only), and Table 4.3's (27 October, run G2)
-  # (1 November, decision 57 d, John) eight of Table 1.3's items are no longer targeted: total income, other gains,
-  # tax-exempt interest, state refunds, estate and trust net, farm net, farm rental net and alimony (64 targets a year);
-  # the variables stay defined above
-  # (3 November, John) taxable Social Security left out: it is computed, never targeted
+  # Table 1.3's items with a count and an amount, and Table 4.3's. Total income, other gains, tax-exempt interest,
+  # state refunds, estate and trust net, farm net, farm rental net, alimony and taxable Social Security are defined
+  # above but not targeted.
   soi_1_3_items: [wages, taxable_interest, ordinary_dividends,
                   sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss, txbl_ira_dist,
                   txbl_pens_dist, ui, rent_royalty_net_income, rent_royalty_net_loss,
                   pship_scorp_net]
-  # tax year 2018 (30 October): taxable IRA distributions and pensions published as one line
+  # tax year 2018: taxable IRA distributions and pensions published as one line
   soi_1_3_items_2018: [wages, taxable_interest, ordinary_dividends,
                        sole_prop_net_income, sole_prop_net_loss, capital_gain_positive, capital_gain_loss,
                        ira_pensions_taxable, ui, rent_royalty_net_income, rent_royalty_net_loss,
@@ -877,25 +813,23 @@ variable_lists:
                   pship_scorp_net_income, pship_scorp_net_loss]
   # Auto loan interest from the SCF: the share of units with any and the dollars per unit
   auto_loans: [any_auto_loan_interest, auto_loan_interest]
-  # Overtime pay from the CPS (28 October): the share of units with any and the dollars per unit
+  # Overtime pay from the CPS: the share of units with any and the dollars per unit
   overtime: [any_ot, ot]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Groupings: named ways of cutting units into cells. An entry's cells are "all", one grouping (all its cells or a
 # list of their labels), or several groupings crossed. A cell's label in a target's key is the grouping's label.
 #   edges:         dollar ranges [low, high, label] of a variable, low inclusive, null for no limit. On AGI they are
-#                  matched to published cells; on any other variable (since 28 October) each range is a cell on the
-#                  file and on a survey's units alike, the variable computed the same way on both (record_value)
-#   as_published:  the published table's own AGI brackets in the target year, the top ones merged until each would
-#                  hold enough records (merge_top_until); brackets whose lower edge is listed in kept_separate are
-#                  never merged (each must be published that year), and the merge rule applies to those below them
+#                  matched to published cells; on any other variable each range is a cell on the file and on a
+#                  survey's units alike
 #   values:        category values [value, label] of a column of the file
 #   lines:         units above a line on a variable: [percentile, p, label] (the survey's own weighted percentile)
 #                  or [dollars, x, label]; nested, not a partition
-# Rules for published cells (not settings; applied to every published value):
-#   - a cell SOI left blank and combined into its neighbour is joined to it (targets.published_cells);
+#   ranks, bands:  described at the groupings that use them
+# Rules for published cells, applied to every published value:
+#   - a cell SOI left blank and combined into its neighbour is joined to it (soi.published_cells);
 #   - with merge_across_published: true, where one published cell crosses the edge between two of our cells, the
-#     two are merged for that variable (over all its statistics), labelled "<first> to <second>" (target_list.merge_groups);
+#     two are merged for that variable (over all its statistics), labelled "<first> to <second>";
 #   - a cell published as zero is left out (a reweighting cannot make positive contributions add to zero);
 #   - a cell no record of the starting file can reach is left out, never forced.
 # ---------------------------------------------------------------------------------------------------------------
@@ -919,10 +853,8 @@ groupings:
       - [100000, 200000, $100k-200k]
       - [200000, 1000000, $200k-1m]
       - [1000000, null, $1m and over]
-  # (30 October, decision 48: under $25k and $25k-50k are one group, $1-50k, 'no AGI' staying its own)
-  # The calculator targets' AGI groups (30 October, taxes.py): the file's AGI, as every IRS target, in groups whose
-  # edges are Table 1.4's and 3.3's bracket edges, so a group sums whole published cells; merged where a published
-  # cell SOI combined crosses an edge. The five top brackets are four groups ($1m-2m joins two).
+  # The calculator targets' AGI groups: edges at Table 1.4's and 3.3's bracket edges, so a group sums whole published
+  # cells; under $25k and $25k-50k are one group, and the five top brackets are four groups.
   calc_agi_groups:
     variable: agi
     merge_across_published: true
@@ -938,10 +870,9 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
-  # (1 November, decisions 71 and 72) The credits' AGI groups, each as fine as its credit's counts allow. They start from the
-  # standard grid with $1m-1.5m and $1.5m-2m merged into $1m-2m (decision 72 a).
-  # The nonrefundable child credit (child and other dependent credit): no AGI, $1-10k and $10-20k are one group, under
-  # $20k, whose cells are tiny (2,000 to 7,000 returns); the folding stays inside this SOI line.
+  # The credits' AGI groups, each as fine as its credit's counts allow, starting from the standard grid with $1m-1.5m
+  # and $1.5m-2m merged. The nonrefundable child credit (child and other dependent credit): no AGI, $1-10k and
+  # $10-20k are one group, under $20k, whose cells are tiny (2,000 to 7,000 returns).
   nonref_credit_agi_groups:
     variable: agi
     merge_across_published: true
@@ -974,7 +905,8 @@ groupings:
       - [50000, 75000, $50k-75k]
       - [75000, 100000, $75k-100k]
       - [100000, null, $100k and over]
-  # The EITC: $50k-75k (few qualify) joins $40k-50k and everything above, which becomes $40k and over, the EITC's top group
+  # The EITC: $50k-75k (few qualify) joins $40k-50k and everything above, which becomes $40k and over, the EITC's top
+  # group
   eitc_agi_groups:
     variable: agi
     merge_across_published: true
@@ -985,8 +917,7 @@ groupings:
       - [20000, 30000, $20k-30k]
       - [30000, 40000, $30k-40k]
       - [40000, null, $40k and over]
-  # The AMT's AGI groups (30 October): few returns below $200,000 owe it, so since 1 November (decision 71) under $200k and
-  # $200k-500k are one group, under $500k
+  # The AMT's AGI groups: few returns below $200,000 owe it, so everything under $500k is one group
   amt_agi_groups:
     variable: agi
     merge_across_published: true
@@ -994,12 +925,10 @@ groupings:
       - [null, 500000, under $500k]
       - [500000, 1000000, $500k-1m]
       - [1000000, null, $1m and over]
-  # The unit's wages in five groups (28 October, the CPS overtime targets; decided by John 27 October): the file's
-  # wages (the PUF's, Form W-2 box 1, primary filer plus spouse) and, on the CPS's units, their wages after function
-  # 1 (the tax data's wages at the same percentile among earners), so a group holds the same ranks on both sides.
-  # "under $25k" includes the units with no wages.
-  # The overtime targets' wage groups since 29 October (John, 28 October): wage_groups_5 with its top two groups merged,
-  # $100,000 and over, because the $200,000-and-over group rested on about 430 asked CPS units a year.
+  # The unit's wages in four groups, for the CPS overtime targets: the file's wages (Form W-2 box 1, primary filer plus
+  # spouse) and, on the CPS's units, the translated wages, so a group holds the same ranks on both sides. "under
+  # $25k" includes the units with no wages. The top group starts at $100,000, as a $200,000-and-over group would rest
+  # on about 430 asked CPS units a year.
   wage_groups_4:
     variable: wages
     edges:
@@ -1007,8 +936,8 @@ groupings:
       - [25000, 50000, wages $25k-50k]
       - [50000, 100000, wages $50k-100k]
       - [100000, null, wages $100k and over]
-  # The AGI groups of the W-2 elective deferral targets (Table 2.D; 28 October): the table's AGI rows summed into
-  # eight groups, so no cell rests on the table's thin rows below $25,000 or above $1 million.
+  # The AGI groups of the W-2 elective deferral targets (Table 2.D): the table's AGI rows summed into eight groups, so
+  # no cell rests on the table's thin rows below $25,000 or above $1 million.
   w2_agi_groups:
     variable: agi
     edges:
@@ -1021,7 +950,7 @@ groupings:
       - [500000, 1000000, $500k-1m]
       - [1000000, null, $1m and over]
   # From tax year 2021 Table 2.D has finer AGI rows that cross $75,000 and $500,000 ($70,000-80,000, $400,000-1
-  # million), so its eight groups move those two edges (30 October)
+  # million), so its eight groups move those two edges
   w2_agi_groups_2021:
     variable: agi
     edges:
@@ -1033,12 +962,10 @@ groupings:
       - [200000, 400000, $200k-400k]
       - [400000, 1000000, $400k-1m]
       - [1000000, null, $1m and over]
-  # (1 November, decision 57 d, John) The standard AGI grid: Table 1.4 returns and wages, the calculator's taxable income,
-  # tax before and after credits, itemizers, EITC and the child credit. Sixteen groups; every edge is an edge of
-  # Table 1.4's own brackets, so a group sums whole published cells ($1-10k is $1-5k and $5-10k; $20-30k is
-  # $20-25k and $25-30k; the standard error of a group is the cells' errors added in quadrature). Where a table's own
-  # brackets cross an edge (Table 3.3 joins $1m-2m, for example) the two groups are merged for that variable
-  # (merge_across_published) and the group's label says so.
+  # The standard AGI grid: Table 1.4 returns and wages, the calculator's taxable income, tax before and after credits,
+  # itemizers, EITC and the child credit. Every edge is an edge of Table 1.4's own brackets, so a group sums whole
+  # published cells, their standard errors added in quadrature. Where a table's own brackets cross an edge (Table 3.3
+  # joins $1m-2m, for example) the two groups are merged for that variable and the group's label says so.
   standard_agi_groups:
     variable: agi
     merge_across_published: true
@@ -1058,9 +985,8 @@ groupings:
       - [2000000, 5000000, $2m-5m]
       - [5000000, 10000000, $5m-10m]
       - [10000000, null, $10m and over]
-  # (1 November, decision 57 d) The broad AGI grid is business_agi_groups above (no AGI, under $50k, $50k-100k,
-  # $100k-200k, $200k-1m, $1m and over): Table 1.4 interest, dividends and capital gains and the whole business block.
-  # Dependent filers (Table 1.7): the low part of the standard grid, then one group.
+  # The broad AGI grid is business_agi_groups above: Table 1.4 interest, dividends and capital gains and the whole
+  # business block. Dependent filers (Table 1.7): the low part of the standard grid, then one group.
   dependent_agi_groups:
     variable: agi
     merge_across_published: true
@@ -1069,8 +995,8 @@ groupings:
       - [1, 10000, $1-10k]
       - [10000, 20000, $10k-20k]
       - [20000, null, $20k and over]
-  # (2 November 2026, John) Table 1.7's two top brackets, as published every year 2012-2023: the dependent filers'
-  # returns and net capital gain there (the $20k-and-over cell above keeps the returns from $20,000 up).
+  # Table 1.7's two top brackets: the dependent filers' returns and net capital gain there (the $20k-and-over cell
+  # above keeps the returns from $20,000 up).
   dependent_agi_top_groups:
     variable: agi
     merge_across_published: true
@@ -1082,7 +1008,7 @@ groupings:
     variable: married
     values: [[1, joint], [0, non-joint]]
     in soi 1.2: {joint: [joint], non-joint: [nonjoint]}                       # targets/soi.csv filing_status
-    in soi 1.6: {joint: [joint], non-joint: [single, separate, head_of_household]}   # targets.table_1_6 statuses
+    in soi 1.6: {joint: [joint], non-joint: [single, separate, head_of_household]}   # soi.table_1_6 statuses
     # Table 4.B of the W-2 statistics: the column groups of each cell (returns or taxpayers, amount)
     in soi w2: {joint: 'Joint returns, total', non-joint: 'Nonjoint returns, wage earner'}
     in soi w2 2.d: {joint: 'Joint returns, total', non-joint: 'Nonjoint returns, wage earner'}   # Table 2.D's column groups
@@ -1096,11 +1022,10 @@ groupings:
       joint: [Returns of married persons filing jointly and returns of surviving spouses]
       separate: [Returns of married persons filing separately]
       head of household: [Returns of heads of households]
-  # Table 4.3's cumulative AGI percentile groups among returns other than dependent filers'. Since 3 November (John)
-  # each group is the returns with AGI at or above SOI's published cutoff for the group and year (cutoffs: published;
-  # the source's cutoff_item, "adjusted gross income floor on percentiles"), in nominal dollars of the year, fixed
-  # through the tilt. Before, the lines were the file's own percentiles on its starting weights. The percentiles
-  # here name the groups. [low percentile, high percentile, label].
+  # Table 4.3's cumulative AGI percentile groups among returns other than dependent filers'. Each group is the
+  # returns with AGI at or above SOI's published cutoff for the group and year (the source's cutoff_item), in
+  # nominal dollars, fixed through the reweighting; the percentiles name the groups. [low percentile, high
+  # percentile, label].
   agi_cumulative:
     variable: agi
     cutoffs: published
@@ -1125,15 +1050,14 @@ groupings:
     variable: married
     values: [[1, married], [0, not married]]
     what: a joint unit is married; a separate return is not married, on the survey's units as on the file's
-  # (autoresearch, 4 November) the earned income credit's qualifying children, for Table 2.5
+  # the earned income credit's qualifying children, for Table 2.5
   eitc_children:
     variable: n_dep_eitc
     values: [[0, none], [1, one], [2, two], [3, three or more]]
   adult_age_ranges:
     variable: age_range
     values: [[0, under 26], [1, 26-34], [2, 35-44], [3, 45-54], [4, 55-64], [5, 65+]]
-  # (2 November 2026, John) The primary filer's age in four groups, for the SCF targets by age (balance sheet
-  # categories and unrealized gains), on the SCF's units and the file's alike (variable primary_age)
+  # The primary filer's age in four groups, for the SCF targets by age, on the SCF's units and the file's alike
   scf_age_groups:
     variable: primary_age
     edges:
@@ -1141,7 +1065,7 @@ groupings:
       - [55, 65, primary 55-64]
       - [65, 80, primary 65-79]
       - [80, null, primary 80 and over]
-  # (2 November 2026, John) Within 65 and over, five-year groups and 80 and over, for the counts of units from the CPS
+  # Within 65 and over, five-year groups and 80 and over, for the counts of units from the CPS
   older_age_groups:
     variable: primary_age
     edges:
@@ -1157,9 +1081,9 @@ groupings:
       - [percentile, 90, above the SCF 90th percentile]
       - [percentile, 50, above the SCF 50th percentile]
       - [dollars, 1000000, above $1 million]
-  # Four income groups by the seven shared income items, each side by its own weighted percentiles
-  # among the entry's population (the SCF on its own units; the file on its starting weights after the demographic
-  # prescaling, then held fixed in dollars through the tilt). [low percentile, high percentile, label], low inclusive.
+  # Four income groups by the seven shared income items, each side by its own weighted percentiles among the entry's
+  # population (the SCF on its own units; the file on its prescaled starting weights, then held fixed in dollars
+  # through the reweighting). [low percentile, high percentile, label], low inclusive.
   income_rank_groups:
     variable: income_7_items
     ranks:
@@ -1177,7 +1101,7 @@ groupings:
       - [[percentile, 90], [percentile, 99], net worth SCF p90-99]
       - [[percentile, 99], [percentile, 99.9], net worth SCF p99-99.9]
       - [[percentile, 99.9], null, net worth above SCF p99.9]
-      # merged classes for the thin cells (historical.yaml, wealth_grid_*): a class resting on fewer than 10 SCF
-      # households is merged into the next richer class of the same income group until it has 10 or more
+      # merged classes for thin cells: a class resting on fewer than 10 SCF households is merged into the next richer
+      # class of the same income group until it has 10 or more
       - [null, [percentile, 99], net worth at or below SCF p99]
       - [null, [percentile, 99.9], net worth at or below SCF p99.9]
