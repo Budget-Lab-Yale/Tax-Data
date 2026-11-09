@@ -146,6 +146,14 @@ SURVDIS_SOURCES = rbind(
 stopifnot(all(SURVDIS_SOURCES$class %in% c('pension', 'other')))
 SURVDIS_ITEMS = c('SRCSURV1', 'SRCSURV2', 'INCSURV1', 'INCSURV2', 'SRCDISA1', 'SRCDISA2', 'INCDISA1', 'INCDISA2')
 
+# Whether each source code of benefit b ('survivor' or 'disability') is in the
+# pension class of SURVDIS_SOURCES.
+is_pension_source = function(b, code) {
+  s = SURVDIS_SOURCES[benefit == b]
+  k = s$class[match(code, s$code)]
+  !is.na(k) & k == 'pension'   # code 0 (not in universe; no amount, checked above) is not a pension
+}
+
 # Splits each person's survivor and disability benefits by the class of their
 # source into survdis_pension and survdis_other, which sum to INCSURV + INCDISAB.
 # Returns a table by source of people and dollars. The dollars of people under
@@ -190,13 +198,10 @@ split_survivor_disability = function(x, ddi, yr) {
              (INCDISA1 != 0 & SRCDISA1 == 0) | (INCDISA2 != 0 & SRCDISA2 == 0), .N]
   if (no_src > 0) stop(sprintf('%d: %d people have a survivor or disability amount with no source', yr, no_src))
   # 3. Split each person's benefits into the pension class and the rest.
-  is_p = function(b, code) {
-    s = SURVDIS_SOURCES[benefit == b]
-    k = s$class[match(code, s$code)]
-    !is.na(k) & k == 'pension'   # code 0 (not in universe; no amount, checked above) is not a pension
-  }
-  x[, survdis_pension := INCSURV1 * is_p('survivor', SRCSURV1) + INCSURV2 * is_p('survivor', SRCSURV2) +
-                         INCDISA1 * is_p('disability', SRCDISA1) + INCDISA2 * is_p('disability', SRCDISA2)]
+  x[, survdis_pension := INCSURV1 * is_pension_source('survivor', SRCSURV1) +
+                         INCSURV2 * is_pension_source('survivor', SRCSURV2) +
+                         INCDISA1 * is_pension_source('disability', SRCDISA1) +
+                         INCDISA2 * is_pension_source('disability', SRCDISA2)]
   x[, survdis_other := (INCSURV + INCDISAB) - survdis_pension]
   stopifnot(!anyNA(x$survdis_pension), all(x$survdis_pension + x$survdis_other == x$INCSURV + x$INCDISAB))
   # 4. The table: one row per person and source with an amount. A person who names one source twice counts once.
