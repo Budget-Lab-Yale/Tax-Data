@@ -1,11 +1,11 @@
-"""Pretraining: trains one network on the training table and writes it, with its logs, to the model folder.
+"""Pretraining: trains one network on the training table and saves it, with its logs, in the model folder.
 
-How the network learns. Each row of the training table is a tax unit from one source (PUF, SCF, CEX, CPS or SIPP),
-its items coded as dollar bands or categories, one per "slot". In each batch some of a record's known slots are hidden,
-the network guesses them from the others, and the loss scores the guesses. Repeated over every record for a fixed
-number of passes, this teaches the network how the items go together. 2% of the records are held back and never
-trained on; their loss shows whether the network is learning or memorizing. FEATURES.md, "2. Pretraining", has the
-method.
+Each row of the training table is a tax unit from one source (PUF, SCF, CEX, CPS or SIPP). Its variables are stored
+as dollar bands or categories, one per "slot". In each batch, some of a record's known values are hidden and the
+network predicts them from the values that are shown. The loss measures how far the predictions are from the hidden
+values, and each batch adjusts the network to reduce it. Training goes over every record a fixed number of times
+("passes"). A random 2% of the records form a test set that is not used for training; its loss is reported after
+each pass. FEATURES.md, "2. Pretraining", describes the method.
 """
 import json
 import math
@@ -31,8 +31,8 @@ J_AGE, J_ES, J_FILER = (C + P.index(v) for v in ('age_range', 'earn_split', 'fil
 # ---- Reading the training table ----
 
 def show_label(hidden, slots=None):
-    """The hidden mask with the AGI group label set to shown. Generation always presets the label, so training never
-    hides or scores it."""
+    """The mask of hidden values, with the AGI group label always shown. Generation always sets the label in advance,
+    so training never hides it or scores it."""
     cols = list(range(len(P))) if slots is None else M.predicted_of(slots)
     for j in J_LABEL:
         if j in cols:
@@ -41,8 +41,9 @@ def show_label(hidden, slots=None):
 
 
 def encode(part, device):
-    """A split's records on the device: values, weights, the probabilities for the drawn age ranges, earnings split
-    codes and filing flags, the source masks, and the reported band of each item with a fill-in."""
+    """The records of one split (training or test) as tensors: their values and weights, the probabilities used to
+    draw missing age ranges, earnings split codes and filing flags, an indicator for each source, and the reported
+    band of each item that has a fill-in."""
     d = M.encode(part, device)
     age_rows, age_probs = M.age_draws(part, device)
     es_rows, es_probs = M.earn_draws(part, device)
@@ -54,13 +55,14 @@ def encode(part, device):
 
 
 def read_splits(device):
-    """The training table; the training records as a frame; the training and held-back records on the device."""
+    """Reads the training table. Returns the table, the training records as a data frame, and the training and test
+    records as tensors."""
     table = M.read_table()
     train_rows = table[table.split == 'train']
     tr = encode(train_rows, device)
     te = encode(table[table.split == 'test'], device)
-    # A held-back survey record that reports zero for an item the fill-in covers has no known amount in the tax
-    # data's terms, so that slot is made absent and is not scored.
+    # When a survey's test record reports zero for an item that the fill-in covers, its amount on a tax-data basis is
+    # unknown. That value is marked missing and is not scored.
     te_year = torch.tensor(table.loc[table.split == 'test', 'year'].to_numpy(), device=device)
     for s, v in fillin.KEYS:
         act = torch.tensor([fillin.TR.fills_in(fillin.ROW[(s, v)], int(y)) for y in M.YEARS], device=device)
@@ -69,10 +71,10 @@ def read_splits(device):
     return table, train_rows, tr, te
 
 
-# ---- Drawing what the data does not say ----
-# Some records lack an age range (PUF returns with no demographics), an earnings split code (joint PUF returns with no
-# demographics) or a filing flag (every CPS record: the CPS does not say who files). Each is drawn from its
-# probabilities. The training records get new draws on every pass, so the network never treats one draw as fact.
+# ---- Drawing missing values ----
+# Some records have no age range (PUF returns without demographic information), no earnings split code (joint PUF
+# returns without demographic information) or no filing flag (every CPS record; the CPS does not report filing).
+# These values are drawn from their probabilities. The training records get a new draw at the start of every pass.
 
 def draw_ages(d, gen):
     if len(d['age_rows']):
@@ -98,8 +100,9 @@ def draw_unknowns(d, gen):
 # ---- One pass of training ----
 
 def batches(src_rows, bs, gen, device):
-    """One pass's batches as (slots, record indices): each source's records shuffled and cut into batches of bs, then
-    all batches shuffled together. A batch holds one source's records and only that source's slots."""
+    """The batches for one pass, as (slots, record indices). Each source's records are shuffled and cut into batches of
+    bs records, and then all the batches are shuffled together. A batch holds records from one source only, with only
+    the slots that source has."""
     out = []
     for src, rows in src_rows.items():
         rows = rows[torch.randperm(len(rows), generator=gen, device=device)]
@@ -108,15 +111,16 @@ def batches(src_rows, bs, gen, device):
 
 
 def weight_per_record(tr):
-    """The average over the training records of weight x the expected number of hidden slots. Each batch's loss is
-    divided by its records times this, so a source's records count as much as they would in a batch mixing all
-    sources. With n slots present, the expected number hidden is (n + 1) / 2."""
+    """The average, over the training records, of weight times the expected number of hidden slots. Each batch's loss
+    is divided by the batch's number of records times this average, which gives a record the same influence it would
+    have in a batch that mixed all sources. With n slots present, the expected number hidden is (n + 1) / 2."""
     n_present = (tr['values'][:, C:] >= 0).sum(1).double()
     return float((tr['weight'].double() * (n_present + 1) / 2).mean())
 
 
 def learning_rate(opt, batches_per_pass):
-    """The learning rate rises linearly over the warm-up passes, then falls along a half cosine to its final share."""
+    """The learning rate rises linearly during the warm-up passes, then declines along a half cosine curve to its
+    final share of the peak rate."""
     total, warm = T['passes'] * batches_per_pass, T['warmup_passes'] * batches_per_pass
     floor = T['final_learning_rate_share']
     return torch.optim.lr_scheduler.LambdaLR(
@@ -125,9 +129,9 @@ def learning_rate(opt, batches_per_pass):
 
 
 def train_batches(model, opt, sched, fill, tr, plan, gen, per_record, device):
-    """The game, once over every training record: in each batch, hide some known slots, have the network guess them,
-    score the guesses and adjust the network. fill is the fill-in, or None before its first pass. Returns the
-    average loss."""
+    """One pass over the training records. For each batch: hide some known values, have the network predict them,
+    compute the loss, and update the network. fill is the fill-in, or None in the passes before it starts. Returns
+    the average loss."""
     tot, seen = 0.0, 0
     for slots, idx in plan:
         if fill is not None:
@@ -145,10 +149,10 @@ def train_batches(model, opt, sched, fill, tr, plan, gen, per_record, device):
     return tot / seen
 
 
-# ---- Checking on the held-back records ----
+# ---- Test loss and logs ----
 
 def held_back_loss(model, te, hidden_draws):
-    """The held-back records' loss, overall and by source, averaged over the given draws of which slots are hidden."""
+    """The test records' loss, overall and by source, averaged over the given choices of which values are hidden."""
     overall, by_src = [], {s: [] for s in M.SOURCES}
     for h in hidden_draws:
         num, den = {}, {}
@@ -168,8 +172,9 @@ def held_back_loss(model, te, hidden_draws):
 
 @torch.no_grad()
 def log_variables(model, te, logged, var_log, epoch, device):
-    """For each source's held-back records and each of its items: the share holding the item, actual and as the
-    network predicts it, first with only that item hidden and then with every slot hidden. Writes var_log.csv."""
+    """For each source's test records and each of its items: the weighted share of records with a nonzero amount,
+    actual and predicted. The prediction is made twice, once with only that item hidden and once with every item
+    hidden. Writes var_log.csv."""
     model.eval()
     for src, names in logged.items():
         hb = te[src].nonzero().squeeze(1)
@@ -201,8 +206,8 @@ def main():
     gen = torch.Generator(device=device).manual_seed(common.SEED)
     os.makedirs(common.MODEL, exist_ok=True)
 
-    # 1. Read the records. The held-back records' unknowns are drawn once and kept, so their loss is comparable from
-    #    pass to pass. The training records' filing flags are drawn now too, before the fill-in is set up.
+    # 1. Read the records and split them into training and test sets. Draw the test records' missing values (once;
+    #    they are not redrawn). The training records' filing flags are also drawn here, before the fill-in is set up.
     table, train_rows, tr, te = read_splits(device)
     draw_unknowns(te, gen)
     draw_filers(tr, gen)
@@ -224,8 +229,9 @@ def main():
                + str(train_rows.groupby('source').size().div(len(train_rows)).round(4).to_dict()))
     sched = learning_rate(opt, batches_per_pass)
 
-    # 3. Fix four draws of which held-back slots are hidden, used for the held-back loss on every pass, and choose the
-    #    items whose share of holders is logged (each source's own items).
+    # 3. Choose which values of each test record are hidden when the test loss is computed. Four such choices are made
+    #    here and kept for every pass, and the test loss is the average over the four. Then list the items that
+    #    var_log.csv reports (each source's own items).
     val_hidden = [show_label(M.draw_hidden(te['values'], gen)) for _ in range(4)]
     logged = {'puf': [v for v in M.AMOUNTS if f'puf/{common.PUF_YEAR}/{v}' in common.edges()], 'cex': M.CEX_SLOTS,
               'cps': M.CPS_SLOTS, 'sipp': M.SIPP_SLOTS}
@@ -233,8 +239,8 @@ def main():
     cuda = device == 'cuda'
     sync = (lambda: torch.cuda.synchronize()) if cuda else (lambda: None)
 
-    # 4. The passes. Each one: shuffle the batches, draw the unknowns again, refit the fill-in (from its first pass on),
-    #    train on every batch, then score the held-back records and write the logs.
+    # 4. The passes. In each pass: shuffle the batches, redraw the training records' missing values, refit the fill-in
+    #    (once it has started), train on every batch, compute the test loss, and write the logs.
     for epoch in range(1, T['passes'] + 1):
         model.train()
         if cuda:
@@ -267,7 +273,7 @@ def main():
         if epoch == 1 or epoch % T['log_every_passes'] == 0 or epoch == T['passes']:
             log_variables(model, te, logged, var_log, epoch, device)
 
-    # 5. Save the network and a record of how it was trained.
+    # 5. Save the network and a record of the run (settings, seed, timing).
     pd.DataFrame(log).to_csv(os.path.join(common.MODEL, 'train_log.csv'), index=False)
     M.save_model(model, os.path.join(common.MODEL, 'model.pt'))
     meta = dict(seed=common.SEED, settings=common.SETTINGS, precision='bf16', shares_gated=True, gpu=gpu,
