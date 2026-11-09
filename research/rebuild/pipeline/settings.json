@@ -1855,8 +1855,6 @@
  },
  "tilt": {
   "_what": "Reweighting: the start's weights are scaled, then moved to minimize the misses on the year's targets plus the size of the move. The targets are in targets_config/.",
-  "prescale": "demographic",
-  "_prescale": "The default start scaling when the year's targets.yaml gives none. 'demographic' scales filers to SOI's returns, joint and non-joint returns and returns by age range, and non-filers to the CPS's expected non-filers and the non-filer people targets; 'filing_status' stops after joint and non-joint returns; 'none' scales to totals only.",
   "precheck": {
    "min_relative_se": 0.001,
    "max_start_gap_se": 300,

@@ -1,17 +1,17 @@
-# 2030: the prior the year's file is drawn under (TARGETS.md section 7), written out in full. Read by generate.py
-# (the balance sheet's SCF waves), survey_mix.py (the CEX, CPS and SIPP years) and scf_targets.py (the SCF targets'
-# waves). Copied from 2019's folder on 30 October (targets for every year, piece 4 of the overnight plan) and the
-# shares recomputed by section 7's rule for 2023; what the entries mean is said in 2019's prior.yaml.
-# Section 7's rule for the SCF in 2030 (past the last wave, income year 2024: the mix of 2024, fixed; recomputed 3 November with the 2025 wave, income year 2024): weights
-# exp(-|2024 - t| / 2) over the waves' income years t = 2024, 2021, 2018, 2015, 2012 give 1.0000, 0.2231, 0.0498, 0.0111, 0.0025; as
-# shares of their sum 77.7%, 17.3%, 3.9%, 0.9%, 0.2%; the 2019 wave (3.9%), the 2016 wave (0.9%), the 2013 wave (0.2%) under 5% and dropped; the
-# rest rescaled to 81.76%, 18.24% (exactly 0.817574, 0.182426; rounded so they sum to 1).
-# Section 7's rule for the CEX, CPS and SIPP in 2023 (an odd year takes its own year and the one two years before):
-# weights exp(-|2023 - t| / 2) over t = 2023, 2021 give 1.0000, 0.3679; as shares of their sum 73.11%, 26.89% (exactly
+# 2030: the prior the year's file is drawn under: the SCF waves and CEX, CPS and SIPP years each record is drawn
+# from, with their shares, which the SCF and survey targets use too. Read by generate.py and survey_mix.py. See
+# TARGETS.md, "The year's mix of survey years".
+# SCF shares for 2030 (past the last wave, income year 2024: the mix of 2024, fixed): weights exp(-|2024 - t| / 2)
+# over the waves' income years t = 2024, 2021, 2018, 2015, 2012 give 1.0000, 0.2231, 0.0498, 0.0111, 0.0025; as
+# shares of their sum 77.7%, 17.3%, 3.9%, 0.9%, 0.2%; the 2019 wave (3.9%), the 2016 wave (0.9%), the 2013 wave
+# (0.2%) under 5% and dropped; the rest rescaled to 81.76%, 18.24% (exactly 0.817574, 0.182426; rounded so they sum
+# to 1).
+# CEX, CPS and SIPP shares for 2023 (an odd year takes its own year and the one two years before): weights
+# exp(-|2023 - t| / 2) over t = 2023, 2021 give 1.0000, 0.3679; as shares of their sum 73.11%, 26.89% (exactly
 # 0.731059, 0.268941).
-# The PUF variables are drawn under the PUF 2015 label in every year (the only PUF year).
+# Past the last SCF wave and survey year the mix stays fixed. Generation does not read the prior of a year that
+# starts from an earlier year's file.
 
-# 2030: 2023's prior, unchanged (past the last wave and survey year the mix stays fixed, TARGETS.md section 7). A start from an earlier year's file draws nothing, so generation does not read it.
 year: 2030
 prior:
   puf variables: {puf 2015: 1.0}
