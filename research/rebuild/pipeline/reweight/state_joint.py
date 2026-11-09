@@ -247,7 +247,8 @@ class Joint:
         blocks = []
         for g, (E, e) in zip(self.groups, fields):
             X, Z, cols, mask, pos, nu = g['X'], g['Z'], g['cols'], g['mask'], g['pos'], g['nu']
-            HN[np.ix_(cols, cols)] += X.T @ (X * e[:, None])
+            Y = X * np.sqrt(e)[:, None]
+            HN[np.ix_(cols, cols)] += Y.T @ Y
             K = Z.shape[1]
             # the border between national and state multipliers, built a few items at a time to bound memory
             for k0 in range(0, K, BORDER_ITEMS):

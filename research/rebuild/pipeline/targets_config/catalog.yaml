@@ -206,12 +206,12 @@ tax_unit_rules:
     module: tax_units.py
     what: CBO's public tax-unit algorithm (US-CBO/CPS-tax-filing-units) translated rule by rule, TAX_UNITS.md, "The rules"
     settings:
-      scf: [tax_units.reassign, tax_units.npeu_split]
-      cex: [tax_units.reassign]
-      cps: [cps.cbo_variant, filing.mfs_salt]
-      cps units: [cps.cbo_variant, filing.mfs_salt]
-      filing_stage: [cps.cbo_variant, filing.mfs_salt]
-      tax_data_nonfilers: [cps.cbo_variant, filing.mfs_salt]
+      scf: []
+      cex: []
+      cps: [filing.mfs_salt]
+      cps units: [filing.mfs_salt]
+      filing_stage: [filing.mfs_salt]
+      tax_data_nonfilers: [filing.mfs_salt]
 
 # ---------------------------------------------------------------------------------------------------------------
 # Populations: which units a target is about. A share or an average is over the population's units in the cell.
