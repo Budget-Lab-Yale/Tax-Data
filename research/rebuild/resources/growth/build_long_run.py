@@ -39,7 +39,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(os.path.dirname(RES), 'pipeline'))
-import common  # noqa: E402
+from shared import common  # noqa: E402
 
 P = common.SETTINGS['tilt']['projection']
 MP = sys.argv[1] if len(sys.argv) > 1 else P['population_dir']
@@ -146,7 +146,7 @@ for name in ('projection_series_b.csv', 'projection_series_med.csv'):
     print(f'{name}: rows {L + 1}-{LAST} added for {len(d.columns)} columns')
 
 # today's 'current' rows that resolve to a CBO or Federal Reserve series in every year 2024-L: their growth in total
-import projection_growth as PG  # noqa: E402
+from scale import projection_growth as PG  # noqa: E402
 rows = MAP[MAP.file == 'projection_series_current.csv'].set_index('column')
 cols = list(rows.index)
 g = {c: {2023: 1.0} for c in cols}

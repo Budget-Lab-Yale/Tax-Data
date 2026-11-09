@@ -30,7 +30,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(os.path.dirname(RES), 'pipeline'))
-import common  # noqa: E402
+from shared import common  # noqa: E402
 
 P = common.SETTINGS['tilt']['projection']
 MP = sys.argv[1] if len(sys.argv) > 1 else P['population_dir']
