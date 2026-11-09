@@ -1,14 +1,10 @@
-"""survey_mix.py: the years of the CEX, the CPS and the SIPP that a target year's file is drawn from (TARGETS.md
-section 7, "the two nearest of their years, weighted by distance").
+"""The years of the CEX, the CPS and the SIPP that a target year's file is drawn from, and their shares.
 
-The shares are written by hand in the target year's configuration, targets_config/<year>/prior.yaml, in the
-prior, one entry per survey (the SCF's are the "balance sheet" entry, read by generate.scf_waves):
-    consumption: {cex 2019: 0.7311, cex 2017: 0.2689}      the CEX
-    cps items:   {cps 2019: 0.7311, cps 2017: 0.2689}      the CPS
-    sipp tips:   {sipp 2019: 0.7311, sipp 2017: 0.2689}    the SIPP
-This module only reads them; the code does not compute the shares. A survey year here is the tax year, which is
-the year the training table and the model use (the SCF's wave of survey year y is its income year y - 1).
+The shares are written by hand in the prior of targets_config/<year>/prior.yaml, one entry per survey; this module
+only reads them. A survey year here is the tax year the survey's income refers to.
 """
+import pandas as pd
+
 from shared import common
 
 ENTRY = {'cex': 'consumption', 'cps': 'cps items', 'sipp': 'sipp tips'}
@@ -16,8 +12,7 @@ SOURCES = list(ENTRY)
 
 
 def prior_shares(year, entry, source):
-    """[(year, share)] from one entry of the year's prior (targets_config/<year>/prior.yaml), whose keys are
-    '<source> <year>': sorted by year, each share divided by their sum, which must be one."""
+    """[(year, share)] from one entry of the year's prior, whose keys are '<source> <year>', sorted by year."""
     from reweight import target_list as TLS
     prior = TLS.resolve(year).get('prior', {}).get(entry)
     where = f'targets_config/{year}/prior.yaml, prior "{entry}"'
@@ -33,8 +28,7 @@ def prior_shares(year, entry, source):
 
 
 def mix(source, year=None):
-    """[(tax year, share)] for the survey in the target year's file, sorted by year, shares summing to one. Every year
-    must be one the training table holds for that survey (checked by the callers that read the table)."""
+    """[(tax year, share)] for the survey in the target year's file, sorted by year, shares summing to one."""
     year = common.TARGET_YEAR if year is None else year
     return prior_shares(year, ENTRY[source], source)
 
@@ -44,25 +38,16 @@ def years(source, year=None):
 
 
 # ---- the surveys' units in the year mix (targets and reports) ----------------------------------------------------
-import pandas as pd
-
-
 def growth(source, y):
-    """{variable: factor from the survey year y to the target year} for the survey's dollar amounts, the factors the
-    dollar maps use (maps.build_year_maps, written to data/maps/survey_year_growth_factors.csv)."""
+    """{variable: factor from survey year y to the target year} for the survey's dollar amounts, as the dollar maps
+    use them."""
     g = pd.read_csv(f'{common.MAPS}/survey_year_growth_factors.csv')
     g = g[(g['survey'] == source) & (g['year'] == y)]
     assert len(g), f'no growth factors for {source} {y} in {common.MAPS}/survey_year_growth_factors.csv'
     return dict(zip(g['variable'], g['factor to the target year'].astype(float)))
 
 
-def wage_growth(source, y):
-    """The factor SOI's wages per return gives, survey year y to the target year (the CPS and SIPP maps' rule)."""
-    f = growth(source, y)
-    return f['care_exp'] if source == 'cps' else next(iter(f.values()))
-
-
-# columns of a survey's unit file that are dollars but not map amounts, grown by the wage factor in reports
+# Dollar columns of a survey's unit file that have no map, grown by the wage factor
 EXTRA_DOLLARS = {'cps': ['wages_translated', 'wages_primary_reported', 'wages_spouse_reported', 'se_primary_reported',
                          'se_spouse_reported'],
                  'sipp': ['wages_translated', 'wages_primary_reported', 'wages_spouse_reported', 'tips_primary_reported',
@@ -71,16 +56,16 @@ EXTRA_DOLLARS = {'cps': ['wages_translated', 'wages_primary_reported', 'wages_sp
 
 
 def grown_units(source, y):
-    """The survey's tax units of year y (data/<survey>_units_<y>_all.parquet) with every dollar column in the target
-    year's dollars: the map amounts by the maps' factors, and the unit files' other dollar columns (wages, the
-    reported amounts) by SOI's wages per return."""
+    """The survey's tax units of year y with every dollar column in target-year dollars: the map amounts by the maps'
+    factors, and the other dollar columns by SOI's wages per return, which is the factor of every CPS and SIPP map
+    amount (read from the CPS's childcare line)."""
     u = pd.read_parquet(f'{common.DATA}/{source}_units_{y}_all.parquet')
     f = growth(source, y)
     for c, x in f.items():
         if c in u:
             u[c] = u[c].to_numpy(float) * x
     if source != 'cex':
-        wf = wage_growth(source, y)
+        wf = f['care_exp'] if source == 'cps' else next(iter(f.values()))
         for c in EXTRA_DOLLARS[source]:
             assert c in u, f'{source} {y}: no column {c}'
             u[c] = u[c].to_numpy(float) * wf
@@ -88,9 +73,8 @@ def grown_units(source, y):
 
 
 def mixed_units(source, year=None):
-    """The survey's units over its year mix as one frame, dollars in the target year's, with the column 'share' (the
-    year's share) and 'survey_year'. weight is the unit's survey weight times the year's share, with each year's units
-    scaled to the same total (the share-weighted mean of the years' totals), as scf_targets scales the SCF's waves, so
+    """The survey's units over its year mix as one frame in target-year dollars, with columns 'share' and
+    'survey_year'. Each year's weights are scaled to the same total, then multiplied by the year's share, so the
     shares do not depend on the size of a year's population."""
     m = mix(source, year)
     frames = [(y, s, grown_units(source, y)) for y, s in m]

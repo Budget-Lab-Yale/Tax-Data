@@ -1,40 +1,8 @@
-"""How every dollar item is grown from one year to another: the year's growth.yaml (targets_config/<year>/growth.yaml)
-and the series it names (TARGETS.md section 12; NEXT_STEPS.md, 29 October).
+"""How each dollar item is grown from one year to another.
 
-Each dollar item the pipeline grows has one line in the target year's growth.yaml: its source (the series), the
-measure (what the series is per: per return with the item, per holder, per household), how negative values are grown,
-and a one-line reason. The series named there are used for every year the target year's run grows across: the PUF
-year to the target year (the dollar maps, maps.build_maps), the PUF year to each survey year (the tax data and
-the survey cut points of the translation, build_table.translate_surveys) and, for a start from an earlier year's
-file, that year to the target year (start.grow_dollars).
-
-The series (SERIES below; their data in research/rebuild/resources/growth/, where sources.csv says where each came
-from):
-  soi 1.4           SOI Table 1.4, all returns: dollars per return with the item, the item given by `item` (a key of
-                    targets.SOI_ITEMS) or by `rows` (SOI lines, with `absolute`), PUF year to y; past SOI's last
-                    year, grown by CBO's closest line per return (targets.carried). This is the series every PUF item used before 29 October.
-  agi per return    SOI's total AGI over all returns (Table 1.1; the same totals as Table 1.4's all-returns line, read
-                    from the mirror); past SOI's last year, extended by BEA personal income per capita (NIPA Table
-                    7.1 line 3: Table 2.1's personal income over population), and past BEA's last year by the growth
-                    of CBO's projected personal income per person (TARGETS.md section 3's rule for a change).
-  bea mortgage interest per mortgaged owner, acs real estate tax per paying owner, state and local income tax per
-  return, meps out-of-pocket per person with any, cpi tax preparation fees, college board tuition and fees: a level
-                    per year from the resources folder; past its last year grown by personal income per person (BEA, then CBO; level()).
-  nipa pce per return   a CEX category's NIPA PCE over SOI's number of returns (the CEX's rule since 22 October).
-  scf mean per unit between waves   the SCF's own weighted mean per tax unit, one wave over another
-                    (maps.scf_growth computes it from the table; nothing here).
-  scf net worth per unit between waves   the SCF's weighted mean net worth per tax unit, one wave over another (after
-                    the last wave Z.1 household net worth per person), for an SCF item too lumpy to grow by its own
-                    mean (inheritances received this year, since 3 November; maps.scf_growth).
-  none              not grown, for the reason given (a statutory nominal amount, a share, a count).
-
-  load(year)        the year's growth lines, checked
-  factors(v, y)     (factor for positive values, for negative values) of PUF amount v from the PUF year to year y
-  between(v, s, t)  the factor of a CEX, CPS or SIPP amount from year s to year t
-  line(v)           the target year's line for item v
-  check(year)       every dollar item has a line, every line a known series, and every PUF item a positive factor
-                    to the target year; stops with a list of what is missing otherwise
-  describe(v)       the line in words, for reports
+Each item has one line in the target year's targets_config/<year>/growth.yaml: the series it grows with, what the
+series is measured per (return with the item, holder, household), how negative values are grown, and a reason. The
+series' data are in research/rebuild/resources/growth/. The rules are in FEATURES.md, "Dollars in the target year".
 """
 import os
 
@@ -48,7 +16,7 @@ from prep import soi as TG
 CONFIG = os.path.join(common.PIPELINE, 'targets_config')
 RESOURCES = os.path.join(common.RESOURCES, 'growth')
 LINE_KEYS = {'source', 'negative', 'measure', 'reason'}
-# series: (the measure in words, the data file(s) in RESOURCES)
+# series: (the measure in words, its data files in RESOURCES)
 SERIES = {
     'soi 1.4': ('dollars per return with the item, SOI Table 1.4', None),
     'agi per return': ('AGI per return, all returns (SOI Table 1.1), extended by BEA personal income per capita',
@@ -144,8 +112,7 @@ def _csv(name):
         assert os.path.exists(f), f'growth series file missing: {f}'
         d = pd.read_csv(f)
         assert not d['year'].isna().any() and d['year'].is_unique, f'{f}: a year missing or twice'
-        # a year with no value is allowed only with a note saying why (2026 of the Census revenue: two quarters
-        # published); it is not in the series, so asking for it stops with "no value"
+        # A year with no value is allowed only with a note saying why. It is left out of the series.
         gap = d['value'].isna()
         note = d['note'].fillna('').astype(str).str.strip() if 'note' in d else pd.Series('', index=d.index)
         assert not (gap & (note == '')).any(), f'{f}: a value missing with no note: {d.loc[gap & (note == ""), "year"].tolist()}'
@@ -161,8 +128,7 @@ def _at(s, y, name):
 
 
 def population(y):
-    """The Social Security area population in year y (resources/growth/ss_area_population.csv: Macro-Projections, CBO's
-    January 2026 demographic projections; build_projection_series.py)."""
+    """The Social Security area population in year y, from CBO's demographic projections."""
     return _at(_csv('ss_area_population.csv'), y, 'Social Security area population')
 
 
@@ -180,11 +146,8 @@ SCF_Z1_CATEGORIES = {
 
 
 def scf_extension(a, b, item=None):
-    """Growth per person after the last SCF wave, by the item's Z.1 category where available.
-
-    Q4 levels through 2025; thereafter each category's 2025 ratio to nominal GDP is held fixed.
-    Items outside the nine balance-sheet categories use household net worth as before.
-    """
+    """Growth per person of an SCF item from year a to b, after the last SCF wave, by the item's Financial Accounts
+    (Z.1) category. Items outside the nine categories grow with household net worth."""
     category = SCF_Z1_CATEGORIES.get(item)
     name = f'z1_scf_{category}.csv' if category else 'z1_household_net_worth.csv'
     series = _csv(name)
@@ -199,14 +162,12 @@ def agi_per_return(y):
     if y <= last:
         assert y in years, f'SOI: no totals for {y}'
         return lev(y)
-    return lev(last) * income_per_person_growth(last, y)   # past SOI's last year
+    return lev(last) * income_per_person_growth(last, y)   # after SOI's last year
 
 
 def income_per_person_growth(a, b):
-    """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3) while BEA has both years,
-    then CBO's projection (cbo_personal_income_population.csv, its growth only) through CBO's last year used (settings
-    tilt.projection.cbo_last_year), then (4 November 2026, the long-run years) Macro-Projections' nominal GDP per person
-    (projection_growth.long_run_growth)."""
+    """Growth of personal income per person from year a to b: BEA's (NIPA Table 7.1 line 3), then CBO's projection
+    through the last CBO year used, then nominal GDP per person from Macro-Projections."""
     from scale import projection_growth as PG
     L = PG.cbo_last_year()
     if b > L:
@@ -223,10 +184,8 @@ def income_per_person_growth(a, b):
 
 
 def level(spec, y):
-    """The series' level in year y (a series given as a level; not SOI 1.4, which is a ratio between years). Past the
-    last year its files cover (30 October, years after the data): the last year's level grown with personal income
-    per person (BEA, then CBO's projection; income_per_person_growth), a placeholder recorded in the year's growth
-    report."""
+    """The level of a series in year y (not SOI 1.4, which is a ratio between years). After the last year its files
+    cover, the last level is grown with personal income per person."""
     files = SERIES[spec['series']][1]
     if files:
         last = min(int(_csv(f).index.max()) for f in files)
@@ -250,8 +209,7 @@ def _level(spec, y):
         p = _CSV['pce']
         if y in p.index:
             return p.loc[y, spec['category']] / TG.all_returns(y)
-        # past the PCE file's last year (30 October, years after the surveys): the last year's level per return grown
-        # by CBO's personal income per person (the extension agi per return uses past BEA's last year), a placeholder
+        # After the PCE file's last year, the last level per return is grown by CBO's personal income per person.
         last = int(p.index.max())
         assert y > last, f'PCE: no {y}'
         cbo = _csv('cbo_personal_income_population.csv')
@@ -290,7 +248,7 @@ def factors(v, y, year=common.TARGET_YEAR):
 
 
 def between(v, s, t, year=common.TARGET_YEAR):
-    """The factor of a CEX, CPS or SIPP amount v from year s to year t (both signs: these amounts are not negative)."""
+    """The factor of a CEX, CPS or SIPP amount v from year s to year t. These amounts are never negative."""
     ln = line(v, year)
     spec = ln['source']
     if _is_none(spec):
@@ -300,8 +258,7 @@ def between(v, s, t, year=common.TARGET_YEAR):
     else:
         assert not spec['series'].startswith('scf '), f'{v}: the SCF is grown by maps.scf_growth'
         f = level(spec, t) / level(spec, s)
-    # the maps (maps.build_maps, build_year_maps) multiply by this with no check of their own: a missing value
-    # in a series (a blank cell in the NIPA PCE file) would otherwise reach them as a missing factor
+    # The dollar maps multiply by this without a check of their own.
     assert np.isfinite(f) and f > 0, f'{v}: growth factor {s} to {t} is {f} ({describe(v, year)})'
     return f
 
@@ -323,20 +280,19 @@ _CHECKED = set()
 
 
 def check(year=common.TARGET_YEAR):
-    """Every dollar item the growth code touches has a line in the year's growth.yaml, no line names an item the
-    pipeline does not have, the SCF, CEX, CPS and SIPP lines name the series their code applies, and every PUF item
-    has a finite, positive factor for each sign from the PUF year to the year. Stops with the full list otherwise."""
+    """Check the year's growth.yaml: every dollar item has a line, no line names an unknown item, each survey's lines
+    name a series its code applies, and every PUF item has a positive factor to the year. Stops with the full list."""
     year = int(year)
     if year in _CHECKED:
         return
     from prep import build_table as BT
     items = load(year)
     groups = {'PUF': BT.PUF_AMOUNTS, 'SCF': BT.SCF_AMOUNTS, 'CEX': BT.CEX_AMOUNTS, 'CPS': BT.CPS_AMOUNTS,
-              'SIPP': BT.SIPP_AMOUNTS, 'PUF and CPS shares': BT.PUF_SHARES}   # (shares: never grown, 4 November)
+              'SIPP': BT.SIPP_AMOUNTS, 'PUF and CPS shares': BT.PUF_SHARES}   # shares are never grown
     every = [v for vs in groups.values() for v in vs]
     bad = [f'{g} item {v}: no growth line' for g, vs in groups.items() for v in vs if v not in items]
     bad += [f'{v}: a growth line for an item the pipeline does not have' for v in items if v not in every]
-    last_wave = max(int(w) for w in common.SETTINGS['paths']['raw']['scf_waves'])   # the stock year of the last wave
+    last_wave = max(int(w) for w in common.SETTINGS['paths']['raw']['scf_waves'])
     if year > last_wave:
         for v in SCF_Z1_CATEGORIES:
             try:
@@ -371,8 +327,7 @@ def check(year=common.TARGET_YEAR):
             if not all(np.isfinite(x) and x > 0 for x in f):
                 bad.append(f'PUF item {v}: factor {f} to {year} is not positive')
         except (KeyError, AssertionError, ValueError, ArithmeticError) as e:
-            # ArithmeticError: an SOI line with no amount in the year (the domestic production activities deduction
-            # from 2020, the tuition deduction from 2021, after their repeal) gives 0 / 0
+            # An SOI line with no amount in the year, such as a repealed deduction, gives 0 / 0.
             bad.append(f'PUF item {v}: no factor to {year} ({type(e).__name__}: {e})')
     assert not bad, f'{path(year)}: the growth configuration is not complete:\n  ' + '\n  '.join(bad)
     _CHECKED.add(year)

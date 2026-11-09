@@ -1,73 +1,10 @@
-"""Translation: the table, function 1 and the report (settings "translation").
+"""The translation table, function 1 and the translation report.
 
-The table has one row per survey and variable it shares with the PUF. Every
-row is compared with, and translated against, the tax data for the survey's
-year (build_table.py, tax_data): PUF filers other than dependent filers, their
-weights scaled by SOI Table 1.6 (filing status x age range, year y's returns
-over the PUF year's in each cell), every dollar item grown per return with the
-item, and the CPS units of that year (or the nearest CPS year), each weighted by
-its chance of not filing.
-
-  items             the survey's columns, summed; none (an empty list) is zero:
-                    an item the survey does not ask.
-  in_training       false: the row serves the tax data only (its non-filers'
-                    amounts); the survey's training rows have the item
-                    missing in every year (since the second retrain of 29
-                    October: the CPS's capital gains).
-  definition fixes  in this order: first_year, the survey asks the item from
-                    this tax year (earlier years are missing, since 29
-                    October: not shown in training, as any item a survey does
-                    not ask; zero before; the tax data's non-filers of those
-                    years still read them as zero, build_table.tax_data); part, the
-                    positive part ("positive") or the size of the loss
-                    ("loss", stored positive as the PUF's loss fields are);
-                    loss_cap, losses read as no more than this (capital losses
-                    past $3,000 are not on the return); less_traditional_
-                    deferrals (since 28 October), the link wage: the column of
-                    each unit's elective deferrals (traditional plus Roth),
-                    whose traditional part, elective x (1 - the Roth share of
-                    the year and of joint or non-joint returns, settings
-                    deferrals), is subtracted; missing where the survey does
-                    not ask (nothing subtracted).
-  function 1        amounts (amounts()): the dollar line, in PUF-year dollars
-                    grown to the survey's year as the tax data is, and the
-                    match beyond it. An amount between minus the line and the
-                    line keeps its dollars. Beyond the line, match "count" (the
-                    default): a positive amount above the line gets the tax
-                    data's positive amount with the same number of units
-                    (weighted) above it; a loss below minus the line, the tax
-                    data's loss with the same number of units below it. Match
-                    "percentile" (since 28 October; wages): the survey's unit at
-                    the p-th percentile of its units beyond the line gets the
-                    tax data's p-th percentile of its units beyond the line, so
-                    the survey's share beyond the line is kept, the order of
-                    units is kept and the map is continuous at the line (the
-                    count match with a line above zero counts a unit's place
-                    among all the survey's holders, so it can put a unit just
-                    above the line below the line: explore/2026-10-27/mapping/
-                    AUDIT.md). Equal survey amounts get one value. No line is
-                    dollars throughout; a line of zero is rank throughout. The
-                    result is in the survey year's tax-data dollars, cut on
-                    the PUF's band cut points grown to that year.
-  function 2        holding: the two-slot fill-in (fillin.py), run in training
-                    on function 1's bands, for rows with fill_in.
-
-Rows shared between two surveys and not with the PUF (shared_with: the survey that owns the slot; the SIPP's
-spouse_wage_share, which the CPS owns) have no tax data to be translated against: they are taken as reported and cut
-on the owner's cut points of the nearest year (build_table.shared_between_surveys), and the report compares the two
-surveys (describe_share). rows(amounts_only=True) leaves them out.
-
-The report (report_rows()): for each row and survey year, the survey as
-reported (its items summed), the link (after the definition fixes: for wages,
-gross wages less the traditional deferrals the survey reports), after function
-1 and the tax data, each as: units, the share with none, the share with a loss,
-millions of units in size ranges (report_lines), millions above the positive
-lines, the mean per unit, holders' amounts at percentiles (p10 to p99), and the
-top 1% and 10% of units' shares of the positive dollars; after function 1 also
-how far function 1 moved the link amounts (move()). Categories: the share in
-each value. Written by build_table.py to common.DATA/translation_report.csv;
-report_translation.py adds the stage after function 2 from a trained run and
-writes all stages to model/<run>/translation_report.md.
+The table (settings "translation") has one row per survey variable shared with the PUF. Each row's survey amount is
+compared with the tax data for the survey's year: the PUF filers reweighted and grown to that year, plus the CPS's
+non-filers. Function 1 (`amounts`) keeps an amount within the row's dollar line and, beyond it, gives it the tax data's
+amount at the same count or percentile; function 2, the fill-in, is pretrain/fillin.py. The method is in FEATURES.md,
+"Translation: putting the surveys on the PUF's terms".
 """
 import numpy as np
 
@@ -78,8 +15,8 @@ TABLE = S['table']
 MATCHES = ('count', 'percentile', 'percentile_from_top')
 CATEGORY_VARIABLES = ['married', 'n_dep', 'age_range', 'k1_owner', 'filer', 'age1', 'age2', 'filing_status', 'n_dep_ctc',
                       'n_dep_eitc']
-# Exact ages (value 0 none, else the age plus 1, 80 and over as 80): the tax data has none, so the report compares each
-# survey year with the CPS of the nearest year, in the groups AGE_GROUPS (lower edge inclusive, years).
+# Exact ages (0 for none, else the age plus 1, with 80 meaning 80 and over). The tax data has none, so the report
+# compares each survey year with the CPS of the nearest year, in AGE_GROUPS (lower edge inclusive).
 EXACT_AGES = ['age1', 'age2']
 AGE_GROUPS = [(0, 26, 'under 26'), (26, 35, '26-34'), (35, 45, '35-44'), (45, 55, '45-54'), (55, 65, '55-64'),
               (65, 70, '65-69'), (70, 75, '70-74'), (75, 80, '75-79'), (80, 200, '80 and over')]
@@ -95,33 +32,28 @@ for _r in TABLE:
         assert not {'dollar_line', 'loss_cap', 'fill_in'} & set(_r), f'{_key}: a category has no amount settings'
     else:
         assert {'dollar_line', 'loss_cap', 'fill_in'} <= set(_r), f'{_key}: an amount row needs all three settings'
-        # a type variable with the fill-in (wages, since 28 October) is left out of its own type (fill_type)
         if _r['fill_in']:
             assert set(_r['fill_in']) <= {'size_ranges', 'type_extra'}, f'{_key}: fill_in has size_ranges, type_extra'
             assert all(v in CATEGORY_VARIABLES for v in _r['fill_in'].get('type_extra', [])), \
                 f'{_key}: type_extra names categories'
         assert _r.get('part') in (None, 'positive', 'loss'), f'{_key}: part is positive, loss or absent'
-        # rank_against (stage 3, 27 October): function 1 matches the survey's amount to the tax data's amount of this
-        # PUF variable, a computed total, instead of the row's own: a survey that reports only a total puts it in one
-        # of the total's parts (the CPS's dividends, in qualified dividends) without changing its translated dollars.
-        # Since 28 October also a list of PUF variables, summed (the CPS's pensions against taxable pensions plus
-        # taxable IRA distributions), and function 2 reads the same: its tax-data shares are the named total's.
+        # rank_against: the PUF variable, or list of variables summed, that the survey amount is matched against in
+        # place of the row's own. A survey that reports only a total (the CPS's dividends) is matched against the PUF
+        # total and stored in one of its parts.
         _ra = _r.get('rank_against')
         assert _ra is None or isinstance(_ra, str) or (isinstance(_ra, list) and all(isinstance(x, str) for x in _ra)), \
             f'{_key}: rank_against is a name or a list of names'
-        # match (28 October): how amounts beyond the dollar line are matched; a match needs a line
+        # match: how amounts beyond the dollar line are matched
         assert _r.get('match', 'count') in MATCHES, f'{_key}: match is one of {MATCHES}'
         assert _r.get('match') is None or _r['dollar_line'] is not None, f'{_key}: a match with no dollar line'
-        # the fix of 28 October (explore/2026-10-27/mapping/AUDIT.md, "a flaw in function 1"): a line above zero is
-        # matched by percentile among the units beyond it in each data set, never by count from the top
+        # Beyond a line above zero, amounts are matched by percentile, since a count from the top can break the order
         assert not (_r['dollar_line'] and _r.get('match', 'count') == 'count'), \
             f'{_key}: a dollar line above zero needs a percentile match (count from the top breaks the order at the line)'
-        # loss_line (29-30 October): the dollar line for losses, in plain dollars (a statutory amount, not grown), in
-        # place of dollar_line; losses past it are matched with the row's match. The SCF's capital gains: losses on the
-        # return stop at the $3,000 limit, while the slot holds the loss before the limit
+        # loss_line: the dollar line for losses, in nominal dollars, in place of dollar_line. The SCF's capital gains use
+        # it because losses on the return stop at the $3,000 limit, while the slot holds the loss before the limit.
         assert _r.get('loss_line') is None or (_r['dollar_line'] is not None and _r['loss_line'] >= 0), \
             f'{_key}: loss_line is a number of dollars at or above 0, with a dollar line'
-        # less_traditional_deferrals (28 October): a column name, the unit's elective deferrals
+        # less_traditional_deferrals: the column of the unit's elective deferrals, whose traditional part is subtracted
         assert _r.get('less_traditional_deferrals') is None or isinstance(_r['less_traditional_deferrals'], str), \
             f'{_key}: less_traditional_deferrals is a column name'
     assert _r.get('reason'), f'{_key}: no reason'
@@ -130,7 +62,7 @@ DEFERRALS = common.SETTINGS['deferrals']
 
 
 def rows(survey=None, amounts_only=False):
-    """The table's rows (of one survey); amounts_only: the amounts shared with the PUF."""
+    """The table's rows, of one survey if given; with amounts_only, only the amounts shared with the PUF."""
     return [r for r in TABLE if (survey is None or r['survey'] == survey)
             and not (amounts_only and (r['variable'] in CATEGORY_VARIABLES or r.get('shared_with')))]
 
@@ -141,15 +73,13 @@ def shared_rows(survey=None):
 
 
 def filled():
-    """The rows with function 2 (a row kept out of training, in_training false, has none)."""
+    """The rows with function 2, the fill-in."""
     return [r for r in TABLE if r.get('fill_in') and in_training(r)]
 
 
 def fill_type(row):
-    """The variables function 2 conditions on for a row with the fill-in (and the survey year): its survey's variables
-    with type_for_fill_in less the row's own variable (wages, filled in since 28 October, is in the type of every
-    other item of its survey but not in its own), plus the row's type_extra (the SCF's Schedule E rest: the
-    partnership flag)."""
+    """The variables function 2 conditions on for a row, besides the survey year: its survey's variables marked
+    type_for_fill_in other than the row's own, plus the row's type_extra."""
     own = [r['variable'] for r in TABLE if r['survey'] == row['survey'] and r['type_for_fill_in']
            and r['variable'] != row['variable']]
     return list(dict.fromkeys(own + list(row['fill_in'].get('type_extra', []))))
@@ -167,28 +97,25 @@ def against_name(row):
 
 
 def not_asked(row, year):
-    """Whether survey year year is before the row's first_year: the survey did not ask the item that year (the CPS's
-    capital gains before tax year 2018). Its amount is then missing (not shown in training), not zero (29 October)."""
+    """Whether year is before the row's first_year, so the survey did not ask the item. The amount is then missing in
+    training, not zero."""
     return row.get('first_year') is not None and year < row['first_year']
 
 
 def in_training(row):
-    """Whether the row's item is shown in training at all (row key in_training, default true). A row with in_training
-    false (the CPS's capital gains, since the second retrain of 29 October: all four pieces) still gives the tax data's
-    non-filers their amounts (build_table.survey_puf_amounts), but the survey's training rows have it missing in every
-    year, with no function 1 and no fill-in."""
+    """Whether the row's item is shown in training at all. A row with in_training false still gives the tax data's
+    non-filers their amounts, but is missing on the survey's training rows in every year."""
     return bool(row.get('in_training', True))
 
 
 def not_shown(row, year):
-    """Whether the row's item is missing on the survey's training rows of year year: a year the survey does not ask it
-    (not_asked), or a row kept out of training (in_training false)."""
+    """Whether the row's item is missing on the survey's training rows of the year."""
     return not_asked(row, year) or not in_training(row)
 
 
 def fills_in(row, year):
-    """Whether the row's fill-in runs in survey year year: from its first_year on, and only on a row shown in training.
-    A year the survey does not ask the item has no reporters, so its zeros hide no holders."""
+    """Whether the row's fill-in runs in the survey year: from its first_year on, and only on a row shown in
+    training."""
     return bool(row.get('fill_in')) and in_training(row) and (row.get('first_year') is None or year >= row['first_year'])
 
 
@@ -198,8 +125,8 @@ def columns(row):
 
 
 def roth_share(year, married):
-    """The Roth share of elective deferrals in tax year year (settings deferrals.roth_share, SOI's W-2 statistics; the
-    W-2 year nearest year, the earlier on a tie), for each unit: joint returns where married is 1, else non-joint."""
+    """The Roth share of elective deferrals for each unit, from SOI's W-2 statistics for the nearest year (the earlier
+    on a tie): the joint share where married is 1, else the non-joint share."""
     have = sorted(int(y) for y in DEFERRALS['roth_share'])
     wy = str(min(have, key=lambda c: (abs(c - year), c)))
     r = DEFERRALS['roth_share'][wy]
@@ -207,14 +134,13 @@ def roth_share(year, married):
 
 
 def traditional_deferrals(elective, year, married):
-    """The traditional part of elective deferrals (traditional plus Roth): elective x (1 - the Roth share). Missing
-    (not asked) stays missing."""
+    """The traditional part of elective deferrals (traditional plus Roth). Missing stays missing."""
     return np.asarray(elective, float) * (1 - roth_share(year, married))
 
 
 def reported_amount(d, row, year):
-    """The row's items (d's raw_<item> columns) summed, as the survey reports them; zero with no items; missing (NaN)
-    in a year the survey does not ask the item (not_asked)."""
+    """The row's items summed as the survey reports them: zero with no items, missing in a year the survey does not
+    ask the item."""
     if not_asked(row, year):
         return np.full(len(d), np.nan)
     x = np.zeros(len(d))
@@ -225,8 +151,8 @@ def reported_amount(d, row, year):
 
 
 def deferrals_subtracted(d, row, year):
-    """The traditional deferrals the row's definition fix subtracts from each unit (zero where the survey does not ask:
-    the deferral column is missing there), and the units not asked (a boolean array). None for a row without the fix."""
+    """The traditional deferrals subtracted from each unit (zero where the survey does not ask), and which units were
+    not asked. (None, None) for a row without the subtraction."""
     c = row.get('less_traditional_deferrals')
     if not c:
         return None, None
@@ -238,8 +164,8 @@ def deferrals_subtracted(d, row, year):
 
 
 def survey_amount(d, row, year):
-    """The row's amount on the survey's records d (one survey year): its items (d's raw_<item> columns) summed, zero
-    with no items, then the definition fixes; missing (NaN) in a year the survey does not ask the item (not_asked)."""
+    """The row's amount on the survey's records d of one year: its items summed, less traditional deferrals, then the
+    definition fixes."""
     if not_asked(row, year):
         return np.full(len(d), np.nan)
     x = reported_amount(d, row, year)
@@ -251,8 +177,7 @@ def survey_amount(d, row, year):
 
 
 def definition_fixes(x, row, year):
-    """The row's definition fixes applied to the survey's amount (its items summed, less any traditional deferrals) in
-    tax year year."""
+    """The row's definition fixes: the positive part or the size of the loss, then losses held to loss_cap."""
     if not_asked(row, year):
         return np.full(len(x), np.nan)
     if row.get('part') == 'positive':
@@ -292,11 +217,10 @@ def _at_percentile(p, tx, tw):
 
 
 def amounts(x, w, tax_x, tax_w, line, match='count', loss_line=None):
-    """Function 1: x (one survey year, survey-year dollars) on the tax data's scale beyond the dollar line (in the
-    same year's dollars; None: unchanged), by match (count from the top; percentile among the units beyond the line;
-    or percentile_from_top, the same counted as shares of all units from the top). loss_line: the line for losses,
-    if not line (the row's loss_line). Also the weighted count of units placed past the tax data's last holder of
-    their sign (count and percentile_from_top: they get its smallest amount)."""
+    """Function 1: survey amounts x, in survey-year dollars, put on the tax data's scale beyond the dollar line (None
+    leaves them unchanged). match is a count from the top, a percentile among the units beyond the line, or a
+    percentile counted as a share of all units from the top. Also returns the weighted count of units placed past the
+    tax data's last holder of their sign, which get its smallest amount."""
     out = x.astype(float).copy()
     beyond = 0.0
     if line is None:
@@ -308,18 +232,15 @@ def amounts(x, w, tax_x, tax_w, line, match='count', loss_line=None):
         if not sel.any():
             continue
         if match in ('percentile', 'percentile_from_top'):
-            # among the units beyond the line in each data set: the survey's share beyond the line is kept, and the
-            # order of units and continuity at the line with it
+            # Percentiles among the units beyond the line in each data set keep the survey's share beyond the line,
+            # the order of units, and continuity at the line.
             tsel = sign * tax_x > line
             assert tsel.any(), 'survey amounts beyond a line the tax data has none beyond'
             p = _mid_percentile(sign * x[sel], w[sel])
             if match == 'percentile_from_top':
-                # (28 October, wages) the units the survey is missing beyond the line are taken to be the smallest:
-                # each survey unit keeps its share of ALL the survey's units above it, and gets the tax data's amount
-                # with the same share of all the tax data's units above it. A survey with a smaller share beyond the
-                # line leaves the tax data's smallest amounts to function 2, which fills them in during training: the
-                # percentile rule among all holders once the missing ones are in. A unit past the tax data's share
-                # gets its smallest amount beyond the line (counted in beyond).
+                # The units the survey is missing beyond the line are taken to be the smallest. Each survey unit gets
+                # the tax data's amount with the same share of all units above it; the tax data's smallest amounts
+                # are left to function 2.
                 s_share, t_share = w[sel].sum() / w.sum(), tax_w[tsel].sum() / tax_w.sum()
                 p = 1 - (1 - p) * s_share / t_share
                 beyond += float(w[sel][p < 0].sum())
@@ -331,7 +252,7 @@ def amounts(x, w, tax_x, tax_w, line, match='count', loss_line=None):
             continue
         tsel = sign * tax_x > 0
         assert tsel.any(), 'survey amounts of a sign the tax data does not have'
-        # rank over all of the survey's units of this sign, so a unit's count includes those within the line
+        # Count over all the survey's units of this sign, including those within the line.
         mine = sign * x > 0
         val, past = _by_count(sign * x[mine], w[mine], sign * tax_x[tsel], tax_w[tsel])
         new = np.zeros(len(x))
@@ -371,7 +292,7 @@ def describe(x, w):
         d[f'above {_dollars(l)} (millions)'] = w[x >= l].sum() / 1e6
     d['mean per unit ($)'] = float((w * x).sum() / W)
     d['with a positive amount (%)'] = 100 * w[x > 0].sum() / W
-    # holders' amounts: percentiles among the units with a positive amount (since 28 October)
+    # percentiles among the units with a positive amount
     h = x > 0
     hq = common.wquantile(x[h], w[h], [p / 100 for p in PERCENTILES]) if h.any() else [np.nan] * len(PERCENTILES)
     for p, q in zip(PERCENTILES, hq):
@@ -387,11 +308,9 @@ def describe(x, w):
 
 
 def shortfall(row, year, x, w, tx, tw, fp, fn):
-    """Function 2's task for a row with the fill-in, at the table stage: in each of its size ranges (settings, PUF-year
-    dollars; here grown to the survey year, positive edges by fp, negative by fn) the survey's share of units after
-    function 1 (x, w) and the tax data's (tx, tw), and the shortfall, the tax data's share less the survey's. Function 2
-    fills a shortfall from the survey's zeros; it cannot remove a surplus. Overall, not by type (function 2 works type
-    by type, so its fill can exceed the sum of the positive shortfalls here). Long rows."""
+    """What function 2 has to fill for a row: in each of its size ranges (PUF-year dollars grown by fp for positive
+    edges and fn for negative), the survey's share of units after function 1, the tax data's share, and the shortfall
+    between them. Function 2 fills a shortfall from the survey's zeros and cannot remove a surplus."""
     grow = lambda e: e * (fp if e > 0 else fn)
     out = [('none', x == 0, tx == 0)]
     for lo, hi in row['fill_in']['size_ranges']:
@@ -423,8 +342,8 @@ def move(link, mapped, w):
 
 
 def describe_share(x, w):
-    """A share from 0 to 1, recorded on some units only (absent, NaN, elsewhere): units, the share of units with it
-    recorded, and among those the share at 0 and at 1, the mean, and the 10th, 50th and 90th percentiles."""
+    """Statistics of a share from 0 to 1 that is missing on some units: the share recorded, and among those the
+    shares at 0 and at 1, the mean, and the 10th, 50th and 90th percentiles."""
     x, w = np.asarray(x, float), np.asarray(w, float)
     ok = ~np.isnan(x)
     d = {'units (millions)': w.sum() / 1e6, 'recorded (%)': 100 * w[ok].sum() / w.sum()}

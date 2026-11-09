@@ -1,22 +1,6 @@
-"""The translation report of a run, every stage side by side (translate.py).
-
-For every row of the translation table and every survey year: the survey as
-reported, the link (after the definition fixes), after function 1 (all from
-the table stage, data/translation_report.csv), after function 2, and the tax
-data. First, since 28 October, a wages section: each survey's wages raw, link,
-mapped and tax data, and how far the mapping moved the link wages against the
-size NEXT_STEPS.md expects (about 3% where deferrals come off, about 8% where
-they do not).
-
-After function 2: reporters keep their amounts after function 1; the
-zero-reporters' weight is spread over the bands by the run's fill-in, from
-the trained model (fillin.FillIn.refit once, on the training rows, as at the
-start of a pass), each band at its PUF median grown to the survey's year. So
-the statistics of this stage are approximate within a band.
-
-Writes common.MODEL/translation_report.csv (long: survey, variable, year,
-stage, statistic, value) and translation_report.md (one block per row and
-year).
+"""The translation report of a trained run: for every row of the translation table and every survey year, the survey as
+reported, after the definition fixes, after function 1, after function 2, and the tax data, side by side, with a
+section on wages first. Writes translation_report.csv and translation_report.md to the run's model folder.
 """
 import os
 
@@ -29,7 +13,7 @@ from shared import translate as TR
 STAGES = ['as reported', 'link', 'after function 1', 'after function 2', 'tax data', 'survey', 'CPS (nearest year)',
           'CPS (same year)']
 
-# The wages section (since 28 October)
+# The wages section
 WAGE_STAGES = {'as reported': 'raw', 'link': 'link', 'after function 1': 'mapped', 'tax data': 'tax data'}
 WAGE_ROWS = ['units (millions)', 'with a positive amount (%)'] + [f'holders p{p} ($)' for p in TR.PERCENTILES] + \
     ['above $100,000 (millions)', 'above $1,000,000 (millions)', 'mean per unit ($)']
@@ -37,13 +21,14 @@ DEFERRAL_ROWS = ['traditional deferrals subtracted ($ billion)', 'units with def
                  'units not asked about deferrals (millions)', 'wages of units not asked ($ billion)']
 MOVE_ROWS = ['move: total, mapped over link (%)', 'move: median unit, mapped over link (%)',
              'move: units down by more than 10% (%)', 'move: units up by more than 10% (%)']
-EXPECTED = {True: -3.0, False: -8.0}   # NEXT_STEPS.md: what the link wage leaves in, as a move in percent
+# The expected move from the link wage to box 1 wages, in percent: about -3% where deferrals come off (health premiums
+# and other cafeteria-plan items remain) and about -8% where they do not.
+EXPECTED = {True: -3.0, False: -8.0}
 
 
 def wages_section(rep):
-    """Every survey year's wages: raw (as reported), link (gross less the traditional deferrals the survey reports),
-    mapped (after function 1) and the tax data; and how far the mapping moved the link wages, against the size
-    NEXT_STEPS.md expects."""
+    """Every survey year's wages as reported, less reported traditional deferrals (the link wage), after function 1,
+    and in the tax data; and how far function 1 moved the link wages against the expected move."""
     w = rep[rep.variable == 'wages']
     if w.empty:
         return []
@@ -81,7 +66,9 @@ def wages_section(rep):
 
 
 def after_fill_in():
-    """The stage after function 2, as long report rows."""
+    """The stage after function 2, as long report rows. The zero-reporters' weight is spread over the bands by the
+    trained model's fill-in, each band at its PUF median grown to the survey year, so this stage is approximate within
+    a band."""
     import torch
     from pretrain import fillin
     from pretrain import model as M
@@ -107,7 +94,7 @@ def after_fill_in():
         for y in sorted(set(year)):
             if not TR.fills_in(r, int(y)):
                 continue
-            # the shares of the zero-reporters' weight in each band, over the training rows
+            # the zero-reporters' weight share in each band, over the training rows
             m = (year == y) & zero
             share = (w[m, None] * dist[m]).sum(0) / w[m].sum()
             fp, fn = growth[str(y)][v]

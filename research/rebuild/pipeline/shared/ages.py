@@ -1,36 +1,9 @@
-"""The primary filer's age range on every source (settings.json, "ages").
+"""The primary filer's age range on every source: six ranges for filers who are not someone's dependent and three for
+dependent filers, as on the PUF demographic file.
 
-The slot age_range has nine categories: the PUF demographic file's six ranges
-for filers who are not someone's dependent (0 under 26, 1 26-34, 2 35-44,
-3 45-54, 4 55-64, 5 65+), and its three for dependent filers (6 under 18,
-7 18-25, 8 26 and over), kept apart.
-
-PUF. The observed range where the demographic file gives one. The records with
-none (no demographics, or coded "not present") get probabilities instead, from
-step 0, and train.py draws a range from them at the start of every pass:
-  1. a prior: a multinomial logit of the range on what the return shows about
-     age (filing status, AGI, wages, Social Security, pensions, IRA
-     distributions, the early-withdrawal penalty, the standard deduction's
-     65+/blind additions, children at home, other dependents; no capital or
-     business income), fitted on the known ranges, one fit for joint returns
-     and one for the rest;
-  2. in each SOI Table 1.6 cell (filing status x AGI bracket) where at least
-     min_missing_share of the weight has no range, one factor per range
-     multiplies the prior until the missing records' weight in each range is
-     the table's count less the known-range weight (negative residuals set to
-     zero, the rest rescaled to the missing weight; where the table merges
-     under 26 into 26-34, the pair has one target). Elsewhere the residual is
-     mostly sampling noise and the prior stands;
-  3. "not present" records lie outside Table 1.6 and keep the prior;
-     dependent filers with no range get the known dependent filers' shares.
-
-Surveys and non-filers. The range of the primary filer's age. Couples: in a
-mixed-sex couple the man is the primary, except the woman with a chance that
-depends on the man's range, set so the surveys' share of female primaries by
-the primary's range is the PUF's (joint returns with demographics); in a
-same-sex couple the older partner. The draw is keyed by household (SCF) or
-record id (non-filers). Ages are taken as the survey reports them (no
-adjustment for the interview date).
+PUF records with no range get probabilities instead: a logit on what the return shows about age, calibrated in each SOI
+Table 1.6 cell to the table's counts. In the surveys and non-filers the range is that of the primary filer's age. The
+rules are in FEATURES.md, "Ages".
 """
 import numpy as np
 import pandas as pd
@@ -60,7 +33,7 @@ def adult_range(age):
 
 
 def uniform_by_id(ids, salt):
-    """A uniform draw per id (SplitMix64 of the id), the same on every run."""
+    """A uniform draw per id (the SplitMix64 hash of the id), the same on every run."""
     with np.errstate(over='ignore'):           # the arithmetic wraps on purpose
         x = np.asarray(ids, dtype=np.float64).astype(np.uint64) + np.uint64(salt) * np.uint64(0x9E3779B97F4A7C15)
         x = (x ^ (x >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
@@ -69,7 +42,7 @@ def uniform_by_id(ids, salt):
     return (x >> np.uint64(11)).astype(np.float64) / 2.0 ** 53
 
 
-# ---- PUF: observed ranges and step 0 ------------------------------------------------------------
+# ---- PUF: observed ranges and probabilities -----------------------------------------------------
 def _puf_frame(puf):
     p = puf[PUF_FIELDS].copy()
     g = pd.read_csv(S['puf_demographics'])
@@ -138,24 +111,24 @@ def _calibrate(prior, w, groups, targets, iters=1000):
 
 
 def puf_age_ranges(puf):
-    """Per PUF record (puf: build_table.read_puf, RECID order as the PUF file, aggregate records dropped): the observed range (-1 where
-    missing) and an (n, 9) array of probabilities (zero rows where observed). Logs a cell table."""
+    """For each PUF record (aggregate records dropped), the observed range (-1 where missing) and an (n, 9) array of
+    probabilities (zero rows where the range is observed)."""
     p = _puf_frame(puf)
     t = pd.read_csv(S['table_1_6'])
     t = t[(t.tax_year == common.PUF_YEAR) & t.panel.isin(PANEL.values()) & t.row_label.isin(ROWS) & t.col_seq.between(2, 20)]
     probs = np.zeros((len(p), N_RANGES))
     missing = (p.age_range < 0).to_numpy()
     dep = (p.DSI == 1).to_numpy()
-    # dependent filers with no range: the known dependent filers' weighted shares
+    # Dependent filers with no range get the known dependent filers' weighted shares.
     kd = p[dep & ~missing]
     shares = np.array([kd.w[kd.age_range == k].sum() for k in range(6, 9)])
     probs[np.ix_(dep & missing, range(6, 9))] = shares / shares.sum()
-    # adults: prior, then Table 1.6
+    # Other filers get the logit's probabilities, then the Table 1.6 calibration.
     known = p[~dep & ~missing]
     adult = ~dep & missing
     prior = _prior(known, p[adult])
     probs[np.ix_(adult, range(6))] = prior
-    in_table = adult & (p.AGERANGE != 0).to_numpy()            # "not present" lies outside Table 1.6
+    in_table = adult & (p.AGERANGE != 0).to_numpy()            # records coded "not present" lie outside Table 1.6
     log = []
     for mars, panel in PANEL.items():
         for c in range(2, 21):
@@ -207,8 +180,8 @@ def puf_female_primary_share(puf):
 
 
 def woman_first_chance(man_age, woman_age, weight, target, iters=200):
-    """By the man's range: the chance the woman is the primary, so that the weighted share of female
-    primaries by the primary's range equals target. Fixed point on mixed-sex couples."""
+    """The chance, by the man's range, that the woman in a mixed-sex couple is the primary filer, set so that the
+    weighted share of female primaries by the primary's range equals target."""
     mr, fr, w = adult_range(man_age), adult_range(woman_age), np.asarray(weight, float)
     pi = target.copy()
     for _ in range(iters):
@@ -221,7 +194,8 @@ def woman_first_chance(man_age, woman_age, weight, target, iters=200):
 
 
 def primary_age(age1, age2, male1, male2, couple, key, pi):
-    """The primary filer's age: age1 for one-adult units; in couples, the rule above."""
+    """The primary filer's age: age1 for one-adult units. In a mixed-sex couple the man, or the woman with chance pi by
+    the man's range, drawn by key; in a same-sex couple the older partner."""
     age1, age2 = np.asarray(age1, float), np.asarray(age2, float)
     male1, male2 = np.asarray(male1, float), np.asarray(male2, float)
     mixed = couple & (male1 != male2)

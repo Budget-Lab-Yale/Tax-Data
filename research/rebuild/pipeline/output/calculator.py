@@ -1,8 +1,6 @@
-"""The optional calculator stage: every record of the year file through the GPU tax calculator (tax-simulator-gpu at the
-pinned commit, settings taxes), with the converter's input, the column list and the conversion notes beside it. Reads
-<tilt>/file_<year>.parquet; writes <out>/calculator/<run>/. report_calculator.py reports on it.
-
-  python -m output.calculator
+"""The optional calculator stage: every record of the year file through the GPU tax calculator, with the calculator's
+input, the column list and the conversion notes beside it. Reads <tilt>/file_<year>.parquet and writes
+<out>/calculator/<run>/; report_calculator.py reports on it.
 """
 import json
 import os
@@ -15,11 +13,6 @@ from shared.calculator_input import CONTRACT, convert
 Y = common.TARGET_YEAR
 INPUT = f'{common.TILT}/file_{Y}.parquet'
 OUT = f'{common.OUT}/calculator/{common.RUN}'
-
-
-def rebuild_agi(f):
-    """The rebuild's own AGI per record (dollars.agi: wages, interest, dividends, Schedule D net gain, other AGI)."""
-    return f[['wages', 'txbl_int', 'dividends', 'capital_gains', 'other_agi']].to_numpy(float).sum(1)
 
 
 def main():

@@ -1,41 +1,10 @@
-"""The package for a holder of the 2015 PUF (stage package; settings generation.filers real_puf; PACKAGE.md).
+"""The package for a holder of the 2015 PUF: the files that let someone with their own copy of the 2015 PUF (CRS) rebuild
+the year's Tax-Simulator file without receiving any PUF value, and the check that they do.
 
-With filers real_puf every 2015 PUF record is in the year's file, its own PUF items grown and the networks' items
-drawn given it (generate.real_puf_part). This stage writes the files that let someone with their own copy of the
-2015 PUF (CRS) rebuild the year's Tax-Simulator file (taxsim_file.py's tax_units_<year>) without receiving any PUF
-value, and tests that they do.
-
-    python -m output.package build      the package and the round trip of the Python merge script
-    python -m output.package paths      prints the package folder, the PUF and the check folder (for run.py)
-    python -m output.package check_r    the round trip of the R merge script, whose output run.py writes to the check
-                                 folder
-
-The package (<out>/package/<run>/; chmod 700), always relative to the 2015 PUF:
-  factors.parquet (and factors.csv to read)  one row per PUF item and step: the factor for positive amounts and the
-        factor for negative amounts, the same for every record. The steps are the year's chain of starts
-        (target_list.start_spec): the growth from 2015 to the year the records were drawn (growth.factors, as
-        dollars.own_values applies it), that year's Schedule A multipliers on six itemized items (taxes.
-        greedy_schedule_a, one number per category and year), then each projection step's factors (start.grow_dollars,
-        start_growth.csv of each year's tilt folder). Every step is checked against the files: each item of every
-        PUF record copy must be exactly its 2015 amount times the factors so far, or the stage stops.
-  records.parquet  one row per PUF record copy in the year's Tax-Simulator file: RECID and copy; row, its place in the
-        file; weight_factor (the weight over the PUF weight S006 / 100); medical_floor (0.075 or 0.1, the floor the
-        pipeline used for the 2015 value of other itemized deductions); state_ref_multiplier (5 November: the share
-        of the grown taxable state refund the file keeps after the refund rule and the tax benefit rule in every year
-        of the chain, between 0 and 1: 0 removed, 1 kept whole; the merge only multiplies); the aggregate records'
-        drawn filing status and dependent counts (-1 on the other records); the imputed items the merge needs, as
-        values; and the Tax-Simulator columns that are not the merge's own columns, as values (prefix ts.).
-  extra_records.parquet  the file's records that are not PUF records (non-filers, the Forbes list), every column.
-  spec.json, merge_puf.py, merge_puf.R, README.md.
-The repealed adjustments (settings taxes.repealed_adjustments: the domestic production activities deduction from 2018,
-tuition and fees from 2021) are a step of factor zero in the factor file from the repeal year. The deductible half of
-self-employment tax is not shipped (NOT_SHIPPED): the file's is the calculator's, and the recipient's calculator
-computes it from the other items; it is no Tax-Simulator column, its factor rows are the plain growth and are not
-checked. The AMT net operating loss is shipped as the cap rule the merge applies (merge_puf.amt_cap), not as values;
-capital gains after the loss limit, other income and taxable Social Security are computed by the merge. Outside the package,
-with counts only (no record values): <out>/package/roundtrip_<run>_python.csv and _r.csv, factors_<run>.csv,
-summary_<run>.md. The round trip fails the stage unless every column of the merged file equals the Tax-Simulator file
-on every record, or differs by rounding only (at most one millionth of a dollar, or one part in 10^12).
+Only with settings generation.filers real_puf. Step `build` writes the package (per-item growth factors, one row per
+PUF record copy with its weight factor and imputed values, the records that are not PUF records, and the two merge
+scripts) to <out>/package/<run>/ and checks the Python merge script; step `check_r` checks the R merge script, which
+run.py runs. Every merged column must equal the Tax-Simulator file on every record, to rounding. See PACKAGE.md.
 """
 import json
 import os
@@ -56,31 +25,28 @@ SUMMARY = os.path.dirname(PKG.rstrip('/'))
 TAXSIM = f'{common.OUT}/taxsim/{common.RUN}'
 say = common.say
 
-# The Tax-Simulator columns made by a formula of the record's items (merge_puf.formula), and those that may be shipped
-# as values because they depend only on imputed items (the dependent filers' and spouses' ages and flags, the
-# dependents' columns, the mortgage share): any other column that is not one of the merge's own columns stops the stage
+# FORMULAS: the Tax-Simulator columns the merge computes from the record's items. SHIPPED_OK: columns that may be shipped
+# as values because they depend only on imputed items. Any other column that is not the merge's own stops the stage.
 FORMULAS = ['id', 'weight', 'sole_prop1', 'sole_prop2', 'farm1', 'farm2', 'part_se1', 'part_se2', 'other_inc', 'kg_lt',
             'gross_pens_dist', 'divorce_year', 'kg_lt_years_held', 'kg_lt_basis']
 FORMULA_INPUTS = ['spouse_se_share', 'kg_lt_years_held', 'kg_lt_basis', 'record_id']
 SHIPPED_OK = {'age1', 'male1', 'male2', 'age2', 'blind2', 'q_death2', 'dep_status', 'prim_mort_share'} | \
     {f'dep_{p}{k}' for p in ('age', 'ssn', 'ctc') for k in (1, 2, 3)}
 SCHEDULE_A_STEP = 'Schedule A multiplier'
-# Imputed items that are a PUF amount times or plus a part that is not one: shipped as values they would carry a grown
-# PUF amount, so the merge computes them from the PUF items (merge_puf.puf_based) and the package ships only the other
-# part (the columns listed). kg_lt_basis = the long-term gain times r / (1 - r), r the basis-to-sales ratio of the
-# drawn holding period (non_micro_imputations.gains_holding_period); wagebill_farm = the farm income, at least 0
-# (non_micro_imputations.qbi). The other wage bills are the drawn numbers times the year's scalars, shipped as values.
+# Imputed items built from a PUF amount. Shipped as values they would reveal the grown PUF amount, so the merge computes
+# them from the PUF items and the package ships only the other part (the columns listed): kg_lt_basis is the long-term
+# gain times r / (1 - r), with r the basis-to-sales ratio of the drawn holding period; wagebill_farm is farm income,
+# at least 0.
 PUF_BASED = {'kg_lt_basis': ['kg_lt_basis_ratio'], 'wagebill_farm': []}
 TOL_ABS, TOL_REL = 1e-6, 1e-12
-# (John, 5 November) PUF items not shipped: the file's value is the calculator's (taxes.se_tax_ded_from_calculator), no
-# Tax-Simulator column holds it, and the recipient's calculator computes it from the other items. Its factor rows are
-# the plain growth (the merge's working frame carries the PUF's own deduction grown); the factor check skips it.
+# PUF items not shipped: the file holds the calculator's value, no Tax-Simulator column holds it, and the recipient's
+# calculator computes it from the other items. Its factor rows are the plain growth and are not checked.
 NOT_SHIPPED = {'se_tax_ded': 'the deductible half of self-employment tax'}
 REPEAL_STEP = 'repealed from'
 
 
 def repealed():
-    """{item: first tax year without it} (settings taxes.repealed_adjustments), the items the pipeline sets to zero."""
+    """{item: first tax year without it}, for the repealed adjustments the pipeline sets to zero."""
     rep = common.SETTINGS.get('taxes', {}).get('repealed_adjustments', {})
     return {k: int(v) for k, v in rep.items() if not k.startswith('_')}
 
@@ -106,9 +72,9 @@ def chain():
 
 
 def factor_columns():
-    """{file column: 2015 item}: the PUF items carried by a factor (generate.own_items, less the totals the file
-    computes from their parts, and less the AMT adjustment, which the merge holds to the loss by its rule; the drawn
-    business income, other income's remainder and the AMT adjustment before the cap carry their item's factor)."""
+    """{file column: 2015 item}: the PUF items carried by a factor. Totals the file computes from their parts are left
+    out; the drawn business income, other income's remainder and the AMT adjustment before the cap carry their item's
+    factor."""
     from generate import generate as G
     totals = ('capital_gains', 'dividends', 'adjustments', 'business_income', 'other_agi', 'amt_nols')
     cols = {v: v for v in G.own_items() if v not in totals}
@@ -117,7 +83,7 @@ def factor_columns():
     return cols
 
 
-GROWTH_COLUMN = {'amt_nols_drawn': 'amt_nols'}   # the column start.grow_dollars grows for a file column
+GROWTH_COLUMN = {'amt_nols_drawn': 'amt_nols'}   # file column: the column the projection steps grow for it
 
 
 def apply(v, p, n):
@@ -154,8 +120,8 @@ def nearest_exact(x, y, f):
 
 
 def medical_floor(recid):
-    """The floor build_table.puf_rows used for other itemized deductions: 7.5% for the 65+ range (or no range and step
-    0's 65+ chance over one half), 10% otherwise; the aggregate records 10%, as Part A reads them."""
+    """The medical expense floor the training table used for other itemized deductions: 7.5% for the 65+ range (or no
+    range and a 65+ chance over one half), 10% otherwise and on the aggregate records."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'record_id', 'age_range', 'age_p5'])
     t = t[(t.source == 'puf').to_numpy()].set_index('record_id')
     old = ((t['age_range'] == 5) | (t['age_p5'] > 0.5)).reindex(np.asarray(recid, float)).to_numpy()
@@ -329,13 +295,12 @@ def build():
                               'positive': fp, 'negative': fn})
                 assert prev[c].index.is_unique and np.isin(ids, prev[c].index).all(), f'{y}: a PUF record copy not in {links[k - 1][0]}'
                 x = prev[c].loc[ids].to_numpy(float)
-                if c not in NOT_SHIPPED:    # the factor as the pipeline applied it (a not-shipped item keeps the plain growth)
+                if c not in NOT_SHIPPED:    # the factor exactly as the pipeline applied it
                     fp = nearest_exact(x[x > 0], fy[c].to_numpy(float)[x > 0], fp)
                     fn = nearest_exact(x[x < 0], fy[c].to_numpy(float)[x < 0], fn)
                     steps[-1].update(positive=fp, negative=fn)
                 v = apply(x, fp, fn)
-            # (John, 5 November) a repealed adjustment: one step of factor zero from the repeal year (the pipeline's
-            # taxes.apply_repealed_adjustments sets it to zero under that year's law)
+            # a repealed adjustment: one step of factor zero from the repeal year
             if c in rep and c not in zeroed and int(y) >= rep[c]:
                 steps.append({'column': c, 'puf_item': b, 'what': f'{REPEAL_STEP} {rep[c]}', 'positive': 0.0,
                               'negative': 0.0})
@@ -346,14 +311,14 @@ def build():
             bad = v != got
             row = {'year': y, 'column': c, 'records checked': len(v)}
             if c == 'state_ref':
-                # the refund rule and the tax benefit rule remove a refund or keep part of it: the file's refund is
-                # then between 0 and the grown amount, and records.parquet carries the share kept (state_ref_multiplier)
+                # The refund rule and the tax benefit rule remove a refund or keep part of it, so the file's refund
+                # lies between 0 and the grown amount; records.parquet carries the share kept.
                 cut = bad & (got >= 0) & (got < v)
                 bad = bad & ~cut
                 row.update({'refunds removed by the rules': int((cut & (got == 0)).sum()),
                             'refunds kept in part by the tax benefit rule': int((cut & (got > 0)).sum())})
             if c in NOT_SHIPPED:
-                # not shipped: the file holds the calculator's value; counted, not checked
+                # the file holds the calculator's value: counted, not checked
                 row.update({'not shipped: record copies that differ from the grown PUF amount': int(bad.sum())})
                 bad = np.zeros(len(v), bool)
             row['records that differ'] = int(bad.sum())
@@ -375,10 +340,8 @@ def build():
     xr = x15.loc[recid]
     w15 = raw.set_index('RECID')['S006'].loc[recid].to_numpy(float) / 100
     wf, n_inexact = exact_factor(w15, Fr['weight'].to_numpy(float))
-    # (John, 5 November) the taxable state refund: one multiplier per record copy, the file's refund over the 2015
-    # refund grown by the factor file exactly as the merge grows it (merge_puf.grow), between 0 and 1 (0 removed, 1
-    # kept whole, in between where the tax benefit rule keeps part); moved by the last binary digit where needed so
-    # that the merge's product is the file's refund exactly
+    # The taxable state refund has one multiplier per record copy between 0 and 1: the file's refund over the grown 2015
+    # refund, adjusted in the last binary digit where needed so that the merge's product is exactly the file's.
     refG = MG.grow(xr.reset_index(drop=True)[['state_ref']], fac[fac.column == 'state_ref'])['state_ref']
     refY = Fr['state_ref'].to_numpy(float)
     assert (refG >= 0).all() and (refY >= 0).all() and (refY <= refG * (1 + TOL_REL)).all(), \
@@ -407,8 +370,6 @@ def build():
 
     def source(c):
         st, src = contract.get(c, (None, None))
-        if c in ('ot', 'ot1', 'ot2'):
-            return c
         if st in (C.SAME, C.RENAMED) and c not in C.NO_AGE_COLUMNS:
             return src.split(' ')[0].rstrip(';')
         if (st == C.ZERO and c in F) or c in TS.BASIS_FROM_FILE or (c in TS.EXTRA and TS.EXTRA[c][0] == 'same'):

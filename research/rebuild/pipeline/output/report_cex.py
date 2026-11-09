@@ -1,19 +1,8 @@
-"""Consumption in the target year's file (2019 below) against that year's CEX.
+"""Consumption in the target year's file against that year's CEX tax units, in nominal target-year dollars.
 
-The CEX side is the target year's tax units (build_table.cex_target_units): all of them, a shared household's
-spending divided among its tax units by head count, as the tilt's targets and the training rows are; and, for
-reference, only those whose household is one tax unit, whose spending needs no dividing. Both are in nominal target-year dollars, as is
-the file, so no conversion stands between them.
-
-Targeted (the tilt): each category's average per tax unit, overall and by the primary filer's adult age range.
-Dependent filers have no consumption of their own: the CEX folds them into the unit that claims them, and the file
-gives them zero.
-Not targeted: everything else below. Income groups: wages and gross Social Security mean the same on both
-sides; AGI and CEX income do not (the CEX's income before taxes, summed from its items, is a survey concept;
-production found it 22-48% below PUF income at the same rank), so income is compared by each source's own
-deciles, not in dollars.
-
-Writes common.TILT/cex_report.md.
+Each category's average per tax unit, overall and by the primary filer's age range, is targeted; everything else here
+is not. AGI and CEX income are defined differently (CEX income runs 22-48% below PUF income at the same rank), so
+income is compared by each source's own deciles rather than in dollars. Writes <tilt>/cex_report.md.
 """
 import numpy as np
 import pandas as pd
