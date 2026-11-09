@@ -82,7 +82,7 @@ def scf_growth(scf, y_from, y_to):
     holdings per unit together. The mortgage's share of the home's value (w_primary_ltv) is a ratio and is not grown:
     the mortgage in dollars moves with the home. An amount the SCF does not ask of some units (SCF_NOT_ASKED: elective
     deferrals, not asked outside the PEU): the mean over the units asked. An item whose growth.yaml line names 'scf net
-    worth per unit between waves' (inheritance, since 3 November) takes the growth of net worth per tax unit (all units),
+    worth per unit between waves' (inheritance) takes the growth of net worth per tax unit (all units),
     net worth computed from the balance sheet where the frame has no net_worth column (the home mortgage as its share of
     the home's value times the home)."""
     out = {}
@@ -96,8 +96,6 @@ def scf_growth(scf, y_from, y_to):
             out[v] = (GR.scf_extension(a, b, 'value.primary_mortgage') /
                       GR.scf_extension(a, b, 'value.primary_home')) if v == 'w_primary_ltv' else 1.0
             continue
-        # an item whose growth.yaml line names 'scf net worth per unit between waves' (inheritance, 3 November) is grown
-        # by the SCF's net worth per tax unit, not by its own mean
         src = GR.line(v)['source']
         by = 'net_worth' if isinstance(src, dict) and src.get('series') == 'scf net worth per unit between waves' else v
         mean = {y: scf_mean(scf, by, y) for y in (y_from, y_to)}
@@ -127,7 +125,7 @@ def _wave_mean(scf, v, y):
 
 
 def scf_mean(scf, v, y):
-    """The SCF's weighted mean per tax unit of item v at income year y (30 October, targets for every year): a wave's
+    """The SCF's weighted mean per tax unit of item v at income year y: a wave's
     own mean where the table has a wave of income year y; between two waves, the geometric interpolation of their means
     (y = a + l (b - a): mean_a^(1 - l) mean_b^l; the arithmetic one if either mean is at or below zero); after the last
     wave, the last wave's mean grown by household net worth per person (the Federal Reserve's Financial Accounts, Z.1,
@@ -161,6 +159,16 @@ def scf_units_at(scf, y):
     return n(lo) ** (1 - lam) * n(hi) ** lam
 
 
+def grown(m, g):
+    """The map m with every value multiplied by its variable's factor in g, {variable: (factor for positive values,
+    factor for negative values)}; zeros stay zero."""
+    x = m['value'].to_numpy(float)
+    fp = m['variable'].map({v: f[0] for v, f in g.items()}).to_numpy(float)
+    fn = m['variable'].map({v: f[1] for v, f in g.items()}).to_numpy(float)
+    assert np.isfinite(fp).all() and np.isfinite(fn).all(), 'a map variable with no growth factor'
+    return m.assign(value=np.where(x > 0, x * fp, np.where(x < 0, x * fn, x)))
+
+
 def puf_target_map(m_puf, y=TARGET_YEAR):
     """The PUF year's map with every value grown to year y by its item's growth line (positive and negative values
     each by their own factor); and the factors."""
@@ -168,14 +176,7 @@ def puf_target_map(m_puf, y=TARGET_YEAR):
     g.update({v: (1.0, 1.0) for v in BT.PUF_SHARES if v in set(m_puf['variable'])})   # a share is not grown
     bad = {k: f for k, f in g.items() if not all(np.isfinite(x) and x > 0 for x in f)}
     assert not bad, f'growth factors missing or not positive (growth.yaml): {bad}'
-    m_target = m_puf.copy()
-    for v, (fp, fn) in g.items():
-        r = (m_target['variable'] == v).to_numpy()
-        x = m_target.loc[r, 'value'].to_numpy(float).copy()
-        x[x > 0] *= fp
-        x[x < 0] *= fn
-        m_target.loc[r, 'value'] = x
-    return m_target, g
+    return grown(m_puf, g), g
 
 
 def build_maps(t, edges):
@@ -219,35 +220,29 @@ def build_maps(t, edges):
         yg = sec['generation_year']
         m = build_map(t[(t.source == src) & (t.year == yg)].reset_index(drop=True), edges, src, amounts, year=yg)
         m.to_parquet(f'{common.MAPS}/map_{src}_{yg}.parquet', index=False)
-        for v in amounts:
-            f = GR.between(v, yg, TARGET_YEAR)
-            g[v] = (f, f)
-            r = (m['variable'] == v).to_numpy()
-            m.loc[r, 'value'] = m.loc[r, 'value'] * f
-        m.to_parquet(f'{common.MAPS}/map_{src}_{TARGET_YEAR}.parquet', index=False)
+        gs = {v: (GR.between(v, yg, TARGET_YEAR),) * 2 for v in amounts}
+        g.update(gs)
+        grown(m, gs).to_parquet(f'{common.MAPS}/map_{src}_{TARGET_YEAR}.parquet', index=False)
     pd.DataFrame([{'variable': v, 'factor, positive values': fp, 'factor, negative values': fn}
                   for v, (fp, fn) in g.items()]).to_csv(f'{common.MAPS}/growth_factors.csv', index=False)
     build_year_maps(t, edges)
 
 
 def build_year_maps(t, edges):
-    """One map per survey year of the CEX, the CPS and the SIPP in the target year's file (TARGETS.md section 7,
-    survey_mix.py): that year's own records, every value grown from that year to the target year, by the same rules
-    the single-year maps above use (each item's growth line, growth.yaml). The CEX's categories: NIPA PCE per return,
-    the category's PCE over SOI's return count, target year over the survey year. The CPS's childcare and the SIPP's tips: SOI's wages per return with
-    wages, target year over the survey year (a placeholder: no series measures them per unit); the CPS's shares, weeks
-    and hours are not grown. For the target year itself the factor is 1. Files map_<survey>_from<year>_to<target>.parquet;
-    the factors are in survey_year_growth_factors.csv."""
+    """One map per survey year of the CEX, the CPS and the SIPP in the target year's file (survey_mix.py): that year's
+    own records, every value grown from that year to the target year, by the same rules the single-year maps above use
+    (each item's growth line, growth.yaml). The CEX's categories: NIPA PCE per return, the category's PCE over SOI's
+    return count, target year over the survey year. The CPS's childcare and the SIPP's tips: SOI's wages per return
+    with wages, target year over the survey year (a placeholder: no series measures them per unit); the CPS's shares,
+    weeks and hours are not grown. For the target year itself the factor is 1. Files
+    map_<survey>_from<year>_to<target>.parquet; the factors are in survey_year_growth_factors.csv."""
     rows = []
     for src, amounts in [('cex', BT.CEX_AMOUNTS), ('cps', BT.CPS_AMOUNTS), ('sipp', BT.SIPP_AMOUNTS)]:
         for y in BT.mix_years(src):
             m = build_map(t[(t.source == src) & (t.year == y)].reset_index(drop=True), edges, src, amounts, year=y)
-            for v in amounts:
-                f = GR.between(v, y, TARGET_YEAR)   # the item's growth line (growth.yaml)
-                r = (m['variable'] == v).to_numpy()
-                m.loc[r, 'value'] = m.loc[r, 'value'].to_numpy(float) * f
-                rows.append({'survey': src, 'year': y, 'variable': v, 'factor to the target year': f})
-            m.to_parquet(f'{common.MAPS}/map_{src}_from{y}_to{TARGET_YEAR}.parquet', index=False)
+            gs = {v: (GR.between(v, y, TARGET_YEAR),) * 2 for v in amounts}   # the item's growth line (growth.yaml)
+            rows += [{'survey': src, 'year': y, 'variable': v, 'factor to the target year': f[0]} for v, f in gs.items()]
+            grown(m, gs).to_parquet(f'{common.MAPS}/map_{src}_from{y}_to{TARGET_YEAR}.parquet', index=False)
     f = pd.DataFrame(rows)
     f.to_csv(f'{common.MAPS}/survey_year_growth_factors.csv', index=False)
     common.say('CEX, CPS and SIPP maps by year, growth factor to the target year (wages per return for the CPS and SIPP '
@@ -255,10 +250,8 @@ def build_year_maps(t, edges):
                .to_string(float_format=lambda x: f'{x:.4f}'))
 
 
-
-
 def main():
-    """The target year's dollar maps alone (30 October, targets for every year), from the table and band edges already
+    """The target year's dollar maps alone, from the table and band edges already
     built (common.TABLE, common.EDGES): the networks trained on that table stay valid, and each target year gets its
     maps by the same build_maps the full build runs."""
     t = pd.read_parquet(common.TABLE)

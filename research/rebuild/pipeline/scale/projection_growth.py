@@ -18,7 +18,7 @@ def cbo_return_growth(year):
 
 
 def ssa_per_return(item, year):
-    """Gross Social Security benefits, 2024 and 2025 (John, 2 November 2026): SSA's calendar-year OASDI benefits paid
+    """Gross Social Security benefits, 2024 and 2025: SSA's calendar-year OASDI benefits paid
     (resources/ssa_oasdi_benefits.csv: the Annual Statistical Supplement Table 4.A4 and the Trustees Report Table III.A5)
     over CBO's growth in the number of returns, year - 1 to year. CBO's fiscal-year outlays, the rule from 2026,
     cannot be used here: the repository's CBO file starts at FY2025."""
@@ -34,7 +34,7 @@ def ssa_per_return(item, year):
 def gross_ss_between(a, b):
     """Growth in gross Social Security benefits per return from year a to year b (a < b, both after SOI's last year or
     equal to it): the product of the adjacent years' factors, SSA through 2025 and CBO's outlays from 2026 to CBO's last
-    year used (settings tilt.projection.cbo_last_year); after it (4 November 2026, the long-run years) Macro-Projections'
+    year used (settings tilt.projection.cbo_last_year); after it (the long-run years) Macro-Projections'
     OASDI outlays per return (long_run_growth). A year with no source stops the run."""
     L = cbo_last_year()
     f = 1.0
@@ -45,7 +45,7 @@ def gross_ss_between(a, b):
     return f
 
 
-# ---- the long-run years (4 November 2026, branch rebuild-longrun) -------------------------------------------------
+# ---- the long-run years -------------------------------------------------
 # Past CBO's last projection year used (settings tilt.projection.cbo_last_year, 2035) every series continues at the
 # growth of one Macro-Projections aggregate (production's long-run mapping, src/project_puf.R income_far). The
 # aggregates are written once, with the counts they are divided by, to resources/growth/macro_long_run.csv
@@ -58,7 +58,6 @@ _LR = {}
 
 def cbo_last_year():
     """The last year a CBO projection is used (settings tilt.projection.cbo_last_year)."""
-    from shared import common
     return int(common.SETTINGS['tilt']['projection']['cbo_last_year'])
 
 
@@ -105,7 +104,10 @@ def returns_growth(a, b):
 
 
 def cbo_per_return(item, year):
-    """Return the adjacent-year factor and its source for an explicit CBO mapping."""
+    """The adjacent-year growth per return of gross Social Security (item 'ss_gross') and its source: SSA's benefits
+    paid through 2025 (ssa_per_return), then CBO's Social Security outlays (fiscal-year levels as a proxy for the
+    calendar year; the series resources/projection_growth_mapping.csv names for the item, in cbo_budget_fiscal.csv)
+    over CBO's growth in the number of returns."""
     year = int(year)
     if item == 'ss_gross' and year <= 2025:
         return ssa_per_return(item, year)
@@ -113,32 +115,14 @@ def cbo_per_return(item, year):
         raise ValueError(f'{item}: CBO-series growth is unavailable for {year - 1} to {year}')
     mapping = pd.read_csv(os.path.join(RESOURCES, 'projection_growth_mapping.csv'))
     rows = mapping[(mapping.old_item == item) & (mapping.source == 'CBO February 2026')]
-    if len(rows) != 1:
-        raise ValueError(f'{item}: expected one explicit CBO mapping; found {len(rows)}')
-    series = rows.iloc[0]['series']
-    if not isinstance(series, str) or not series.replace('_', '').isalnum():
-        raise ValueError(f'{item}: CBO mapping is composite or unspecified: {series!r}')
-    source_path = rows.iloc[0]['path']
-    if source_path.endswith('revenue_detail__annual_cy_iit_2026-02.csv') and series.startswith('rev_iit_'):
-        filename, prefix = 'cbo_revenue_detail.csv', 'CY'
-    elif source_path.endswith('revenue_detail__annual_cy_2026-02.csv') and series == 'rev_capgains_realizations':
-        filename, prefix = 'cbo_revenue_other.csv', 'CY'
-    elif source_path.endswith('economic__economic_projections__calendar_2026-02.csv') and series in ('rental_inc_adj', 'interest_inc_pers'):
-        filename, prefix = 'cbo_economic.csv', ''
-    elif source_path.endswith('budget__ten_year_budget__annual_fy_2026-02.csv') and series in (
-            'proj_mand_premium_tax_credits_timing_adj', 'proj_mand_social_security_timing_adj',
-            'proj_mand_unemployment_timing_adj'):
-        # The mapping explicitly uses fiscal-year levels as a proxy for calendar-year inputs.
-        filename, prefix = 'cbo_budget_fiscal.csv', 'FY'
-    else:
-        raise ValueError(f'{item}: CBO source or aggregate units need a rule: {source_path}, {series}')
-    data = pd.read_csv(os.path.join(RESOURCES, filename), dtype={'date': str})
-    observations = data[(data.variable == series) & data.date.isin([f'{prefix}{year - 1}', f'{prefix}{year}'])]
-    if len(observations) != 2 or observations.date.nunique() != 2:
-        raise ValueError(f'{item}: {series} lacks unique observations for {year - 1} and {year}')
-    values = observations.set_index('date')['value']
-    a, b = float(values[f'{prefix}{year - 1}']), float(values[f'{prefix}{year}'])
-    if not np.isfinite(a) or not np.isfinite(b) or a <= 0 or b <= 0:
-        raise ValueError(f'{item}: {series} has a missing or nonpositive level ({a}, {b})')
+    assert len(rows) == 1, f'{item}: expected one explicit CBO mapping; found {len(rows)}'
+    series, source_path = rows.iloc[0]['series'], rows.iloc[0]['path']
+    assert source_path.endswith('budget__ten_year_budget__annual_fy_2026-02.csv'), \
+        f'{item}: CBO source {source_path} needs a rule'
+    data = pd.read_csv(os.path.join(RESOURCES, 'cbo_budget_fiscal.csv'), dtype={'date': str})
+    values = data[(data.variable == series) & data.date.isin([f'FY{year - 1}', f'FY{year}'])].set_index('date')['value']
+    assert len(values) == 2, f'{item}: {series} lacks unique observations for {year - 1} and {year}'
+    a, b = float(values[f'FY{year - 1}']), float(values[f'FY{year}'])
+    assert np.isfinite(a) and np.isfinite(b) and a > 0 and b > 0, f'{item}: {series} has a missing or nonpositive level ({a}, {b})'
     factor = (b / a) / cbo_return_growth(year)
-    return factor, f'{series} {"fiscal-year proxy" if prefix == "FY" else "calendar-year"} aggregate growth / CBO total return growth, {year - 1} to {year}'
+    return factor, f'{series} fiscal-year proxy aggregate growth / CBO total return growth, {year - 1} to {year}'

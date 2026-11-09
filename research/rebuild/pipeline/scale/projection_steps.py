@@ -1,7 +1,6 @@
-"""The projection years (2024-2035) as John designed them on 3 November 2026 (scratch
-explore/2026-11-02/projection_design/DESIGN.md, "Agreed on 3 November"). Every projection year starts from the 2023 file
-and the years are independent of one another. Three steps, switched on by a year's targets.yaml with
-start_scaling {weights: persons, dollars: item_factor}:
+"""The projection years. Every projection year starts from the 2023 file (or, after the jump-off year, from the
+jump-off year's file) and the years are independent of one another. Three steps, for a year whose targets.yaml names
+a start from an earlier year's file:
 
 1. A calibration to exact person counts (step1). The 2023 weights are moved, as little as possible (the smallest
    Kullback-Leibler move, solver.solve with every count an identity), so that the people in the file match exact counts
@@ -9,8 +8,8 @@ start_scaling {weights: persons, dollars: item_factor}:
    weight: the primary filer and, on a joint return, the spouse (married), the primary of any other unit (unmarried),
    and every dependent with an age (unmarried). A dependent filer's own record counts only its dependents: the filer
    himself is counted on the return that claims him. A married person under 18 is counted unmarried, in the file and in
-   CBO's population (whose married and unmarried counts at those ages are added; John, 4 November 2026: CBO's
-   population has no married person under 16, and none aged 16 in 2070-2072, which made that cell unreachable). Each
+   CBO's population (whose married and unmarried counts at those ages are added: CBO's population has no married person
+   under 16, and none aged 16 in 2070-2072, which made that cell unreachable). Each
    count is the 2023 file's own count times CBO's growth of the same people
    (the Social Security area population of the Macro-Projections interface, settings tilt.projection.population_dir).
    The dependent filers' own six cells (age range x married) are exact too, each the 2023 count times its population
@@ -34,31 +33,26 @@ The Forbes list. The 2023 file's list records are left out of every step (the to
 list, whose weights are held fixed). Each target is then the 2023 file's level without them, grown, plus the year's
 list's own fixed contribution, so the start meets it exactly before the main reweighting.
 
-How a series is swapped (for agent B and later work): edit the item's row of the items table, or point settings
-tilt.projection.items_table at a copy. series is 'current' (the rule of today's code: the CBO or macro series per
-return of projection_growth.plan_factors, turned back into a growth in total by CBO's growth in returns, kind
-'total'; or, for an item with no such rule, growth.yaml's per-return rule, kind 'per_unit'), 'file:<csv>:<column>'
-(a csv under research/rebuild/resources with a 'year' column; the growth is the column's value in the year over its
-value in 2023, both present and positive, never extended past the data), 'same_as:<column>' (the factors of another
-item), or 'none' (not grown). kind is 'auto' (with 'current': today's kind; with 'same_as' kind is not used), 'total'
-or 'per_unit'. target is 1 or 0; error is
-the relative standard error of the item's total target.
+How a series is swapped: edit the item's row of the items table, or point settings tilt.projection.items_table at a
+copy. series is 'current' (growth.yaml's per-return rule, or the SCF's growth per unit, as start.grow_dollars computes
+it; kind 'per_unit'), 'file:<csv>:<column>' (a csv under research/rebuild/resources with a 'year' column; the growth is
+the column's value in the year over its value in 2023, both present and positive, never extended past the data),
+'same_as:<column>' (the factors of another item), or 'none' (not grown). kind is 'total', 'per_unit', or 'auto' for a
+'same_as' row (kind is not used). target is 1 or 0; error is the relative standard error of the item's total target.
 
-Add factors (John, 3 November; add_factors_table, add_factor). A second table (settings
+Add factors (add_factors_table, add_factor). A second table (settings
 tilt.projection.add_factors_table) adds extra growth, in percent a year, on top of an item's series: one row per item
 and range of years (column, first_year, last_year, percent, note). The item's growth from the base year s to year t is
 its series' growth times the product of (1 + percent / 100) over the years s + 1 to t that the item's rows cover. It
 enters step 2 as part of the series' growth, so the step 2 factor, the item's total target in step 3 and the SCF
 targets' growth (scf_factor) all include it. A same_as item takes the other column's factors, add factors included,
-times its own add factors. The table may be empty (a header only): every item's add factor is then exactly 1 and the
-year is what it was without the table. Every row with a non-zero percent needs a note saying who set it, when and why;
-the year's report lists the rows in force.
+times its own add factors. The table may be empty (a header only): every item's add factor is then exactly 1. Every
+row with a non-zero percent needs a note saying who set it, when and why; the year's report lists the rows in force.
 
-Taxable interest after the jump-off year (John, 5 November 2026; settings tilt.projection.interest_growth; the section
-"Taxable interest and the rate-like part of non-qualified dividends" below). With the setting on, every year whose start
-is the jump-off year or later grows taxable interest by nominal GDP times the 3-month Treasury bill rate, and
-non-qualified dividends by a blend of that series and their items-table series, in place of their items-table rows'
-series. Off, or absent, the items table alone decides, as before.
+Taxable interest after the jump-off year (settings tilt.projection.interest_growth; the section "Taxable interest and
+the rate-like part of non-qualified dividends" below). Every year whose start is the jump-off year or later grows
+taxable interest by nominal GDP times the 3-month Treasury bill rate, and non-qualified dividends by a blend of that
+series and their items-table series, in place of their items-table rows' series.
 """
 import os
 
@@ -69,9 +63,9 @@ from shared import common
 
 HERE = common.PIPELINE   # settings paths in tilt.projection are relative to the pipeline folder
 RESOURCES = common.RESOURCES
-P = common.SETTINGS['tilt'].get('projection', {})
+P = common.SETTINGS['tilt']['projection']
 TOP_AGE = 80          # ages 80 and over are one cell (the file caps the primary's and spouse's ages at 80)
-MARRIED_FROM = 18     # married people under 18 counted unmarried, in the file and in CBO's population (John, 4 Nov 2026)
+MARRIED_FROM = 18     # married people under 18 counted unmarried, in the file and in CBO's population
 ITEMS_COLUMNS = ['column', 'series', 'kind', 'target', 'error', 'note']
 ADD_COLUMNS = ['column', 'first_year', 'last_year', 'percent', 'note']
 PREFIX = {'persons': 'pp__', 'returns': 'pr__', 'item_pos': 'pi+__', 'item_neg': 'pi-__', 'filing_season': 'fs__'}
@@ -230,7 +224,7 @@ def step1(df, w, year, s):
     if fs_active(year, s):   # the November filing-season tables (below): the base year file's own items by its AGI groups
         STATE['df_base'] = df
         STATE['fs'] = {'blend': {}, 'columns': {}}
-    if ig_active(s):         # (John, 5 November 2026) the split of non-qualified dividends on the start file (below)
+    if ig_active(s):         # the split of non-qualified dividends on the start file (below)
         STATE['interest'] = ig_split(df, w, s)
     return w1, out
 
@@ -252,8 +246,11 @@ def items_table():
         assert t['target'].isin([0, 1]).all(), f'{p}: target is 0 or 1'
         bad = t[(t.target == 1) & ~(pd.to_numeric(t['error'], errors='coerce') > 0)]
         assert bad.empty, f'{p}: targeted items with no positive error: {bad.column.tolist()}'
-        bad = t[(t.kind == 'auto') & ~((t.series == 'current') | t.series.str.startswith('same_as:'))]
-        assert bad.empty, f'{p}: kind auto is only for series current or same_as: {bad.column.tolist()}'
+        bad = t[(t.kind == 'auto') & ~t.series.str.startswith('same_as:')]
+        assert bad.empty, f'{p}: kind auto is only for series same_as: {bad.column.tolist()}'
+        bad = t[(t.series == 'current') & (t.kind != 'per_unit')]
+        assert bad.empty, (f'{p}: rows with series current must be kind per_unit (a growth.yaml or SCF rule per unit); '
+                           f'a CBO series goes in a series file: {bad.column.tolist()}')
         _TABLE['t'] = t.set_index('column')
         _TABLE['path'] = p
     return _TABLE['t']
@@ -294,8 +291,8 @@ def add_factor(col, s, t):
     t covered by its rows of the add factors table (exactly 1 with none). Returns (factor, rows in force)."""
     tab = add_factors_table()
     rows = tab[tab.column == col]
-    # (4 November, the jump-off year) a row covering years up to the start year s counts only its years after s: the
-    # start's file already carries the earlier years' add factors
+    # a row covering years up to the start year s counts only its years after s: the start's file already carries the
+    # earlier years' add factors
     f, used = 1.0, []
     for r in rows.itertuples():
         n = len(range(max(r.first_year, s + 1), min(r.last_year, t) + 1))
@@ -317,23 +314,16 @@ def series_growth(spec, s, t):
     return float(d.loc[t] / d.loc[s]), f'{path}: {col}, {s} to {t}'
 
 
-def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
+def step2_factor(col, x, fp_cur, fn_cur, series_cur, s, t):
     """Step 2's factors (positive values, negative values) for column col, amounts x of the s file: see the module
-    docstring. fp_cur, fn_cur, kind_cur, series_cur: today's rule for the column (start.grow_dollars). R: CBO's growth
-    in the number of returns from s to t (turns today's per-return series back into a growth in total). Returns
-    (fp, fn, description); records the item in STATE['items']. A 'same_as' row is handled by the caller."""
+    docstring. fp_cur, fn_cur, series_cur: the per-unit rule for the column (start.grow_dollars), read for a 'current'
+    row. Returns (fp, fn, description); records the item in STATE['items']. A 'same_as' row is handled by the caller."""
     tab = items_table()
     assert col in tab.index, f'{col}: grown by the projection start but not in the items table {_TABLE["path"]}'
     row = tab.loc[col]
     series, kind = row['series'], row['kind']
     if series == 'current':
-        kind = kind_cur if kind == 'auto' else kind
-        if kind == 'total':
-            G = (fp_cur * R, fn_cur * R)
-            what = f'{series_cur}; times CBO growth in returns {R:.5f} = growth in total'
-        else:
-            G = (fp_cur, fn_cur)
-            what = series_cur
+        G, what = (fp_cur, fn_cur), series_cur
     elif series == 'none':
         assert kind == 'per_unit', f'{col}: series none is kind per_unit'
         G, what = (1.0, 1.0), 'not grown'
@@ -342,12 +332,12 @@ def step2_factor(col, x, fp_cur, fn_cur, kind_cur, series_cur, s, t, R):
         G = (g, g)
     else:
         raise ValueError(f'{col}: unknown series {series!r}')
-    if ig_active(s) and col in IG_COLUMNS:   # (John, 5 November 2026) in place of the row's series (section below)
+    if ig_active(s) and col in IG_COLUMNS:   # in place of the row's series (section below)
         assert kind == 'total' and series.startswith('file:'), f'{col}: the interest rule needs a file series of kind total'
         g, what = ig_growth(col, s, t)
         G = (g, g)
     fsm = fs_column_factor(col, int(t))
-    if fsm is not None:   # (4 November, John) the November table's blend for 2024, carried to every later year
+    if fsm is not None:   # the November table's blend for 2024, carried to every later year
         assert kind == 'total' and series.startswith('file:'), f'{col}: the filing-season blend needs a file series of kind total'
         G = (G[0] * fsm[0], G[1] * fsm[0])
         what = f'{what}; times the filing-season blend {fsm[0]:.5f} ({fsm[1]})'
@@ -508,7 +498,7 @@ def outside_rows(src, year):
         replaced = fs_replaced_columns(year)
         for col, r in STATE['items'].items():
             if not r['target'] or col in replaced:
-                continue   # (4 November) replaced: the item's targets by AGI group (projection filing season)
+                continue   # replaced: the item's targets by AGI group (projection filing season)
             for nm, pre in (('positive', 'item_pos'), ('negative', 'item_neg')):
                 if r[f'records {nm}'] < mn_rec or abs(r[f'2023 total {nm}']) < mn_usd:
                     continue
@@ -556,9 +546,8 @@ def write(folder):
     return lines
 
 
-# ---- the November filing-season tables for the first projection year (John, 4 November 2026) -----------------------
-# Scratch explore/2026-11-04/nowcast/PLAN.md, with "Decisions after the backtest"; the backtest is BACKTEST.md there.
-# Settings tilt.projection.filing_season: enabled; base_year (the last year of final SOI tables, 2023); year (the
+# ---- the November filing-season tables for the first projection year -----------------------
+# Settings tilt.projection.filing_season: base_year (the last year of final SOI tables, 2023); year (the
 # first projection year, 2024, whose growth comes from SOI's November tables for base_year and year); tables (the
 # November tables as read, build_filing_season.py); trust_table and errors_table (targets_config); min_error; series
 # (CBO's national series for items with no items-table column of their own: capital gains).
@@ -581,7 +570,7 @@ def write(folder):
 #      Errors from the backtest (errors_table), at least min_error; Schedule E's lowest group in dollars.
 #   5. Groups: the standard AGI grid with no AGI and $1-10,000 as one group, under $10,000, and $1 million and over as
 #      the top group; for Schedule E every group below $75,000 is one group.
-FS = P.get('filing_season', {})
+FS = P['filing_season']
 FS_LEVELS = {'full': 1.0, 'mostly trust': 2.0 / 3.0, 'mostly not trust': 1.0 / 3.0, 'none': 0.0}
 # item -> the items-table columns it grows (returns: none, its targets are shares)
 FS_ITEMS = ['returns', 'wages', 'txbl_int', 'dividends', 'div_pref', 'txbl_ira_dist', 'txbl_pens_dist',
@@ -602,9 +591,8 @@ def fs_active(year, s=None):
 
 
 def jump_off(year, s):
-    """(John, 4 November 2026, evening; PLAN.md "The jump-off year") The start year of a projection year whose
-    targets.yaml says from_year s: the jump-off year, the last year with IRS data (the November table included), for
-    every year after it; s otherwise."""
+    """The start year of a projection year whose targets.yaml says from_year s: the jump-off year, the last year with
+    IRS data (the November table included), for every year after it; s otherwise."""
     if int(s) == int(FS['base_year']) and int(year) > int(FS['year']):
         return int(FS['year'])
     return int(s)
@@ -896,27 +884,27 @@ def fs_write(folder):
     return lines
 
 
-# ---- taxable interest and the rate-like part of non-qualified dividends (John, 5 November 2026) ----------------------
-# Scratch explore/2026-11-05/interest_check/FINDINGS.md (why) and explore/2026-11-05/interest_growth/ (the run). The
-# interest on tax returns behaves like short-term money: taxable interest tripled from 2022 to 2024 while short rates
-# rose, so the high rate is already in the 2024 file. Growing it after 2024 by CBO's combined interest and dividend line
-# (the items table's int_remainder) counts the high rate again every later year, while CBO's own bill rate falls from
-# 4.97% in 2024 to 3.12% in 2035. Settings tilt.projection.interest_growth: enabled; from_year (the first start year the
-# rule applies to: the jump-off year, 2024, so every year 2025-2075 and no year before); rate_series (nominal GDP times
-# the 3-month bill rate, resources/growth/build_interest_series.py); split_year (the SOI year of the split, 2022).
+# ---- taxable interest and the rate-like part of non-qualified dividends ----------------------
+# The interest on tax returns behaves like short-term money: taxable interest tripled from 2022 to 2024 while short
+# rates rose, so the high rate is already in the 2024 file. Growing it after 2024 by CBO's combined interest and
+# dividend line (the items table's int_remainder) counts the high rate again every later year, while CBO's own bill
+# rate falls from 4.97% in 2024 to 3.12% in 2035. Settings tilt.projection.interest_growth: from_year (the first start
+# year the rule applies to: the jump-off year, 2024, so every year 2025-2075 and no year before); rate_series (nominal
+# GDP times the 3-month bill rate, resources/growth/build_interest_series.py); split_year (the SOI year of the split,
+# 2022).
 #   1. Taxable interest (txbl_int) grows from the start year s to year t by rate_series: the assets grow with nominal
 #      GDP and their yield follows the bill rate.
 #   2. Non-qualified dividends (div_ord) are two parts on the start file. The stock-like part is SOI's split_year
 #      non-qualified dividends (Table 1.4, ordinary less qualified, all returns) grown to s by the growth of qualified
 #      dividends from split_year to s (SOI's split_year, the start file's filers in s, Forbes list included, as SOI
 #      counts every return); the rate-like part is the rest of the start file's non-qualified dividends on filers. The
-#      stock-like part keeps the column's items-table series (CBO's qualified dividend line, John's decision 5); the
+#      stock-like part keeps the column's items-table series (CBO's qualified dividend line); the
 #      rate-like part grows as taxable interest. The column grows by one index, the start-share-weighted blend of the
 #      two, so every record's div_ord is scaled by one factor as before and no column is added.
 #   3. Tax-exempt interest (exempt_int) and every other item keep their items-table rows (int_remainder is a fixed
 #      series in resources/projection_series_b.csv; nothing here recomputes it).
 # The year's summary.md and projection_interest.csv give the share, the parts and their growth.
-IG = P.get('interest_growth', {})
+IG = P['interest_growth']
 IG_COLUMNS = ('txbl_int', 'div_ord')
 
 
@@ -951,7 +939,7 @@ def ig_split(df, w, s):
            f'{s} file non-qualified dividends, all units': d1_all,
            f'growth of qualified dividends {y0}-{s}': q1 / q0,
            f'{s} stock-like part': stock, f'{s} rate-like part': d1 - stock, 'stock-like share': share}
-    common.say(f"interest rule (John, 5 November 2026): non-qualified dividends {s}, ${d1 / 1e9:,.1f} billion on filers: "
+    common.say(f"interest rule: non-qualified dividends {s}, ${d1 / 1e9:,.1f} billion on filers: "
                f"stock-like ${stock / 1e9:,.1f} billion (SOI {y0} ${d0 / 1e9:,.1f} billion times qualified dividends' "
                f"growth {q1 / q0:.5f}), share {share:.5f}; rate-like ${(d1 - stock) / 1e9:,.1f} billion")
     return out
@@ -974,15 +962,12 @@ def ig_growth(col, s, t):
 
 def ig_write(folder):
     """The summary lines of the rule, and projection_interest.csv."""
-    if 'interest_growth' not in P:
-        return []
     if not ig_active(STATE.get('base_year', 0)):
         how = f"not used for a start before {IG['from_year']}"
         return [f'Interest rule (settings tilt.projection.interest_growth): {how}.', '']
     r = STATE['interest']
     pd.Series(r).to_frame('value').to_csv(f'{folder}/projection_interest.csv')
-    return ["## Taxable interest and non-qualified dividends (John, 5 November 2026; settings "
-            "tilt.projection.interest_growth)", '',
+    return ["## Taxable interest and non-qualified dividends (settings tilt.projection.interest_growth)", '',
             f"Taxable interest grows from {r['start year']} by {IG['rate_series']} (nominal GDP times the 3-month "
             f"Treasury bill rate). Non-qualified dividends grow by the blend of their items-table series (the "
             f"stock-like part) and that series (the rate-like part), weighted by the start file's split "
