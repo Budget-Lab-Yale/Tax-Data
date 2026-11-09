@@ -1,35 +1,8 @@
-"""The year's targets, from the configuration in targets_config/.
-
-The configuration says what to target in words: each entry is a block of targets, every statistic x every variable
-x every cell, with its population, where its value comes from and the kind of its error. The catalog
-(targets_config/catalog.yaml) says what the words mean; it is a dictionary shared by every year. Each year has a
-folder of its own, targets_config/<year>/, with three files written out in full (nothing is inherited): targets.yaml
-(the entries), prior.yaml (the year's prior) and growth.yaml (how every dollar item is grown, growth.py). A new year
-starts as a copy of the nearest year's folder.
-
-  resolve(year)                 the year's entries, prior and growth lines, checked: every entry has a value source
-                                the catalog defines, every dollar item a growth line (growth.check); stops otherwise
-  expand(year, start, which)    one row per target (the columns in ROW_COLUMNS): its key (kind, group, target),
-                                its parts in words, its value, its error kind and standard error, whether it is an
-                                identity, its source lines, the entry's reason, and for a survey target the tax-unit
-                                rules its value was computed on. A cell no record of the starting file can reach is
-                                left out (listed, with the cells published as zero, in LAST['excluded'])
-  conditions(df, rows, w_start) the linear condition each row puts on the file's weights: F (records x targets) and
-                                T, so that the target is met when F.T @ w == T; and for an average or a share,
-                                averages[j] = (member, v, the published average), else None
-  write(rows, folder, year)     targets.csv and the resolved configuration, saved with the run
-  start_spec(year)              how the year's start is built: the year file's start and start_scaling
-
-Values. Published values come from the run's SOI numbers (prep/soi.py: Tables 1.4 and 1.2 in targets/soi.csv, Table
-1.6 by soi.table_1_6); survey values from the survey's own tax units in the run's data folder, the SCF's from
-the year's mix of SCF waves (scf_targets.py, which computes their standard errors with them); the non-filer values
-from the CPS filing stage of the same run.
-
-Standard errors. errors.standard_errors(rows, year) (errors.py) gives each target's standard error, in the units of
-the published statistic (on an average, on the average itself); 0 for an identity.
-
-Averages and shares. "The average of x over the group is m" is written as the sum over the group of w (x / m - 1) = 0;
-solver.py takes a zero target.
+"""The year's targets, from targets_config/: the catalog (catalog.yaml, the definitions shared by every year) and the
+year's folder (targets.yaml, prior.yaml and growth.yaml, written out in full). resolve checks the folder; expand turns
+it into one row per target with its value and standard error; conditions writes each row as a linear condition on the
+weights; write saves targets.csv and the resolved configuration with the run. See TARGETS.md, "How a year's targets
+are written down".
 """
 import copy
 import json
@@ -51,8 +24,8 @@ ROW_COLUMNS = ['kind', 'group', 'target', 'statistic', 'population', 'variable',
 # reason.
 CELL_COLUMNS = ['entry', 'year', 'agi_lo', 'agi_hi', 'married', 'age_range', 'line', 'line_variable',
                 'dependent_filers', 'error_reason',
-                # an income rank group (its variable, its percentiles, and the survey's dollar
-                # lines at those percentiles, for the record; the file's lines are its own, set in conditions())
+                # an income rank group: its variable, its percentiles, and the survey's dollar lines at those
+                # percentiles (reported only; the file's lines are its own, set in conditions())
                 'rank_variable', 'rank_lo', 'rank_hi', 'rank_line_lo', 'rank_line_hi',
                 # a band's upper line (net worth at or below it), on line_variable; NaN for none. A
                 # band's lower line is 'line' (net worth above it), NaN for a band with no lower line.
@@ -134,9 +107,9 @@ _RESOLVED = {}
 
 
 def resolve(year):
-    """The year's configuration: its targets.yaml and prior.yaml as written, with the growth lines of its growth.yaml
-    (under 'growth'). Checked before any use: every entry has its parts and a value source
-    the catalog defines, and every dollar item has a growth line for the year (growth.check). Stops otherwise."""
+    """The year's configuration: its targets.yaml and prior.yaml as written, with its growth lines under 'growth'.
+    Stops unless every entry has its parts and a value source the catalog defines, and every dollar item has a growth
+    line for the year."""
     year = int(year)
     if year in _RESOLVED:
         return copy.deepcopy(_RESOLVED[year])
@@ -546,10 +519,8 @@ def published_status(soi, year, source, cells, stats):
     return rows
 
 
-# Table 1.6 by AGI: the All returns panel's returns by the primary filer's age range within each AGI group. A row whose
-# AGI columns do not add to its own all-AGI total by more than this many returns has a misprinted cell (2018, 26 under
-# 35: SOI's workbook prints $40,000-50,000 and $50,000-75,000 2.21 million too high, both flagged combined in the
-# mirror; the four filing-status panels confirm it).
+# Table 1.6 by AGI: a row whose AGI columns miss its own all-AGI total by more than this many returns has a misprinted
+# cell (as in 2018, ages 26-34, where SOI's workbook prints two columns 2.21 million too high).
 T16_ROW_SLACK = 50
 
 
@@ -706,10 +677,9 @@ def taxdata_nonfiler_rows(year, cells, v, stats):
 
 
 def nonfiler_count(year):
-    """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the same count
-    the generated non-filer batch is sized by (generate.cps_expected_nonfilers). A year with no CPS units (an even
-    year) takes the geometric mean of the nearest CPS years either side (cps_neighbours), as the start's scaling does
-    (start.start_nonfilers); its targets.yaml gives the count a judgment error instead of identity."""
+    """The CPS's expected non-filers in the year: the sum over its units of weight x (1 - filer_p), the count the
+    generated non-filer batch is sized by. A year between CPS years takes the geometric mean of the nearest CPS years
+    either side, and a year after the last one the last count grown with the population."""
     t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'])
     t = t[t.source == 'cps']
     if year > max(cps_years()):   # past the last CPS year: grown with the population
@@ -730,10 +700,9 @@ def filing_checks(year):
 
 
 def cex_mix_rows(year, cells, v, stats):
-    """The CEX's statistics over the year's mix of CEX years (survey_mix.py): each year's units
-    in the target year's dollars (the maps' factors), the statistic computed on each year alone, then pooled, value =
-    the sum over years of share x the year's value. Only averages: an average does not depend on a year's number of
-    units. The standard error is pooled in errors.consumption_errors (variance = sum of share^2 x the year's)."""
+    """The CEX's averages over the year's mix of CEX years: each year's units in target-year dollars, the average
+    computed on each year alone, then pooled as the sum over years of share x the year's value. Only averages, which do
+    not depend on a year's number of units."""
     from shared import survey_mix
     assert stats == ['average'], f'CEX {year}: the year mix is built for averages, not {stats}'
     per_year = []
@@ -767,19 +736,11 @@ _CPS_OT = {}
 
 
 def cps_overtime_units(y):
-    """The CPS year y's tax units for the overtime targets (read once): survey_mix.grown_units('cps', y), every dollar
-    column in the target year's dollars (the overtime slots and the translated wages by SOI's wages per return, the
-    maps' factors), restricted to the units asked the earnings questions.
-
-    Universe. Overtime pay needs weekly pay and hours, asked only of the households in months 4 and 8 of the CPS's
-    main sample (not of the ASEC's extra sample); on every other unit, and on the few asked units with a worker's pay
-    missing, build_cps.R leaves it missing. Those units are left out here and counted in the printout; each statistic
-    is an average over the asked units in the cell, with their own ASEC weights (the head's ASECWT), so it does not
-    depend on how many units were asked. Dependent filers are folded into the unit that claims them (build_cps.R), as
-    in the CEX, so the population matches the file's units other than dependent filers.
-    Columns added: ot = ot_primary + ot_spouse (the unit's overtime, as the file's ot = ot1 + ot2) and wages =
-    wages_translated (the tax data's wages at the same percentile among earners, so the wage groups mean the same as
-    on the file)."""
+    """The CPS year y's tax units for the overtime targets (read once), every dollar column in target-year dollars,
+    restricted to the units asked the earnings questions. Weekly pay and hours are asked only of households in months 4
+    and 8 of the CPS's main sample, so overtime is missing on every other unit; each statistic is an average over the
+    asked units with their own weights. Adds ot (the unit's overtime) and wages (the translated wages, so the wage
+    groups mean the same as on the file)."""
     if y not in _CPS_OT:
         from shared import survey_mix
         u = survey_mix.grown_units('cps', y)
@@ -791,7 +752,7 @@ def cps_overtime_units(y):
         common.say(f'CPS {y} overtime targets: {int((~na1).sum()):,} of {len(u):,} units asked the earnings questions '
                    f'({100 * w[~na1].sum() / w.sum():.1f}% of the weight); the other {int(na1.sum()):,} have overtime '
                    'missing (not asked, or a worker\'s pay missing) and are left out')
-        a = u[~na1].copy()   # the universe: the units asked the earnings questions (see above)
+        a = u[~na1].copy()   # the units asked the earnings questions
         a['ot'] = a['ot_primary'].to_numpy(float) + a['ot_spouse'].to_numpy(float)
         a['wages'] = a['wages_translated'].to_numpy(float)
         _CPS_OT[y] = a
@@ -799,10 +760,7 @@ def cps_overtime_units(y):
 
 
 def cps_mix_rows(year, cells, v, stats):
-    """The CPS overtime targets over the year's mix of CPS years (survey_mix.py), as the CEX's
-    (cex_mix_rows): each year's asked units in the target year's dollars (cps_overtime_units), the average computed on
-    each year alone, value = the sum over years of share x the year's average. The standard error is pooled in
-    errors.overtime_errors from the CPS's replicate weights (variance = sum of share^2 x the year's)."""
+    """The CPS overtime averages over the year's mix of CPS years, pooled as the CEX's are (cex_mix_rows)."""
     from shared import survey_mix
     assert stats == ['average'], f'CPS {year}: the year mix is built for averages, not {stats}'
     per_year = []
@@ -824,10 +782,8 @@ _CPS_AGE = {}
 
 
 def cps_age_units(y):
-    """The CPS year y's tax units of the training table, filers and non-filers, for the counts of units by
-    the primary's age (catalog source cps units): record_id, weight, age_range and age1, the primary filer's age in years
-    (the table stores age plus 1; ages 80 and over held at 80, as on the file). Dependent filers are folded into the
-    unit that claims them, as in every survey, so the count matches the file's units other than dependent filers."""
+    """The CPS year y's tax units of the training table, filers and non-filers, for the counts of units by the
+    primary's age: record_id, weight, age_range and age1 in years (80 and over held at 80, as on the file)."""
     if y not in _CPS_AGE:
         t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'record_id', 'weight', 'age_range', 'age1'])
         u = t[(t.source == 'cps') & (t.year == y)].reset_index(drop=True)
@@ -844,8 +800,7 @@ def cps_age_units(y):
 
 def cps_age_rows(year, cells, v, stats):
     """The number of tax units, filers and non-filers, in each cell of the primary's age, from the CPS's units over the
-    year's CPS year mix (prior "cps items"; 2022: 2021 and 2023, half each): value = sum over years of
-    share x the year's count. The standard error is pooled in errors.cps_age_errors from the CPS's replicate weights."""
+    year's mix of CPS years: the sum over years of share x the year's count."""
     from shared import survey_mix
     assert stats == ['units'] and v is None, f'CPS units {year}: counts of units only, not {stats} of {v}'
     rows = []
@@ -1037,10 +992,10 @@ _CPS_AGES = {}
 
 
 def check_nonfiler_bands(df, rows):
-    """Every non-filer head and spouse in the file (filer 0; a member with an age) must fall in exactly one of the
-    non-filer people targets' bands (rows of kind 'non-filer people'). A head or spouse in no band (a 17-year-old:
-    adults are counted from 18, children under 17) or in two would let the tilt move the non-filer count through
-    records the people targets cannot see. Fails loudly, with the ages that break it."""
+    """Every non-filer head and spouse in the file must fall in exactly one of the non-filer people targets' bands. A
+    head or spouse in no band (a 17-year-old: adults are counted from 18, children under 17) or in two would let the
+    reweighting move the non-filer count through records the people targets cannot see. Stops with the ages that break
+    it."""
     people = rows.loc[rows['kind'] == 'non-filer people', 'variable'].unique()
     if not len(people):
         return
@@ -1063,13 +1018,9 @@ def check_nonfiler_bands(df, rows):
 
 def cps_nonfiler_people(year, v):
     """The people of variable v (a catalog "people" variable) among the CPS's expected non-filers in the year: the sum
-    over its units in the training table of weight x (1 - filer_p) x the unit's count of them by record_value, the
-    rule the file's records are counted by, so target and file count people one way. Heads and spouses by their own
-    exact age; children under 17 among the head, the spouse and the three dependents the table carries (the youngest
-    three of those kept under the PUF's caps). The filing stage's calibration hit its own numbers, with heads and
-    spouses in the band of the unit's CPS head and with every child; the file can do neither (its primary filer is
-    not always the CPS head, and it carries at most three dependents). In 2019 the two ways differ by up to 0.09
-    million people in a band, and by 0.20 million children (2.16 million against 1.96 million)."""
+    over its units of weight x (1 - filer_p) x the unit's count of them by record_value, the rule the file's records are
+    counted by. This differs a little from the filing stage's own calibration, which counts heads and spouses in the
+    band of the unit's CPS head and every child; the file carries at most three dependents."""
     if year not in _CPS_AGES:
         t = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight', 'filer_p'] + list(AGE_COLUMNS.values()))
         t = t[(t.source == 'cps') & (t.year == year)]
@@ -1100,9 +1051,8 @@ _COMMIT = None
 
 
 def tax_unit_rules(source):
-    """The rules a source's units were built with, the settings that select their variant, and the code commit (the
-    rules as the settings and code name them now; the units on disk were built by the run's own scf, cex and filing
-    stages)."""
+    """The rules a source's units were built with, the settings that select their variant, and the code commit, for
+    targets.csv."""
     global _COMMIT
     s = CAT['sources'][source]
     if 'tax_unit_rules' not in s:
@@ -1489,7 +1439,8 @@ def _fill(template, cell, v, st, year, line=None):
 
 
 def published_21(year, cells, v, stats):
-    """Table 2.1's already combined groups; do not infer errors for its residual."""
+    """Rows from Table 2.1 in the itemized-deduction AGI groups, with errors from its grouped CVs (a missing CV
+    borrowed from the nearest year; the residual 'other' category a 10% judgment)."""
     (cell,) = cells
     assert cell['agi'] == 'itemized_agi_groups'
     path = os.path.join(common.RESOURCES, 'table21_2015_2023.csv')
@@ -1654,7 +1605,7 @@ def expand(year, start, which):
     is_calc = lambda e: e['kind'] == CALCULATOR_KIND or bool(e.get('needs_calculator'))   # needs_calculator: a CBO count of the calculator's itemizers or AMT
     entries = [e for e in cfg['targets'] if is_calc(e) == (which == 'calculator')]
     expanded = [r for e in entries for r in expand_entry(e, int(year), soi)]
-    # Save additional discrete groupings only when a configuration uses them. The default list keeps its schema.
+    # the filters column is written only when some entry uses it, so targets.csv otherwise keeps its usual columns
     extra = ['filters'] if any(r.get('filters', '[]') != '[]' for r in expanded) else []
     rows = pd.DataFrame(expanded, columns=ROW_COLUMNS + CELL_COLUMNS + extra)
     zero = (rows['value'] == 0) & rows['statistic'].isin(['count', 'amount', 'units'])
@@ -1712,7 +1663,7 @@ def conditions(df, rows, w_start, check=True):
     rows = rows.assign(line_hi=rows['line_hi'].astype(float))
     years = rows['year'].unique()
     assert len(years) == 1, f'rows of several years: {years}'
-    from shared import dollars as D   # here, not at the top: dollars reads band_edges.json on import, and build_table needs this module (through survey_mix) before it writes that file
+    from shared import dollars as D   # here: dollars reads band_edges.json on import, which build_table writes after it needs this module
     a = D.agi(df)
     rng = df['age_range'].to_numpy()
     assert ((rng >= 0) & (rng < common.N_RANGES)).all(), 'a record with no age range'
@@ -1751,10 +1702,9 @@ def conditions(df, rows, w_start, check=True):
         if not np.isnan(r.age_range):
             cell &= rng == r.age_range
         if r.rank_variable:
-            # the income rank group on the file, by the file's own weighted percentiles
-            # among the entry's population on the starting weights w_start (the importance weights when there are
-            # none, for expand's reach check only); fixed as dollar lines, so the group is the same records through
-            # the tilt
+            # the income rank group on the file, by the file's own weighted percentiles among the entry's population on
+            # the starting weights (the frame's weight column for expand's reach check); fixed as dollar lines, so the group
+            # is the same records through the reweighting
             if r.rank_variable not in values:
                 values[r.rank_variable] = record_value(df, r.rank_variable)
             xr, pop = values[r.rank_variable], pops[r.population]
@@ -1833,17 +1783,10 @@ def conditions(df, rows, w_start, check=True):
 
 # ---- the start and the targets built from it ----------------------------------------------------
 def start_spec(year):
-    """How the year's start is built, from the year file:
-      start: generate                      the run's generated stack (the default): start_scaling {weights:
-                                           demographic, dollars: none}: filers scaled to SOI's returns and non-filers
-                                           to the year's non-filer count, then joint and non-joint returns to Table
-                                           1.2, then the demographic cells (tilt.prescale_demographic); dollars from
-                                           the year's maps
-      start: {from_year: s, run: <name>}   year s's tilted file, <out>/tilt/<name>/file_<s>.parquet: start_scaling
-                                           {weights: persons, dollars: item_factor}: the weights calibrated to people
-                                           by age and marital status (projection_steps.step1), each record's amounts
-                                           grown item by item from s to the year (start.grow_dollars)
-    A start_scaling in the year file must say the same."""
+    """How the year's start is built, from targets.yaml's start: 'generate' (the generated stack, its weights
+    prescaled to the demographic cells, dollars from the year's maps) or {from_year: s, run: <name>} (year s's
+    reweighted file, weights calibrated by projection_steps.step1, dollars grown item by item). A year after the
+    jump-off year starts from the jump-off year's file. A start_scaling in the year file must agree."""
     cfg = resolve(year)
     st = cfg.get('start', 'generate')
     if st == 'generate':
