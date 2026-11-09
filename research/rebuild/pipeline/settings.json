@@ -1,12 +1,12 @@
 {
- "_what": "Every choice of the current run. FEATURES.md says what each means.",
+ "_what": "Every setting of the run; FEATURES.md says what each means.",
  "years": {
-  "_what": "puf: the PUF's tax year (its records, cut points and dollar maps); target: the year of the file the tilt makes and of its targets (SOI, SCF wave, CEX year, non-filer pool).",
+  "_what": "puf is the PUF's tax year; target is the tax year of the file being built.",
   "puf": 2015,
   "target": 2019
  },
  "paths": {
-  "_what": "out: the scratch folder every stage writes under (common.py; REBUILD_OUT overrides it). raw: the input files, read only.",
+  "_what": "out is the folder every stage writes under (REBUILD_OUT overrides it); raw holds the input files, which are only read.",
   "out": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild",
   "raw": {
    "puf": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-PUF/v1/2023091310/historical/puf_2015.csv",
@@ -19,39 +19,39 @@
     2025
    ],
    "scf_wave_dirs": {"2025": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-11-03/scf2025/raw/{wave}/historical"},
-   "_scf_wave_dirs": "A wave whose files are not (yet) in the shared raw-data folder: its own folder, in place of the scf path above ({wave} in the path). The 2025 wave (released by the Federal Reserve in October 2026) was downloaded on 2 November 2026 to the scf2025 piece's scratch folder: scf2025s.zip (p25i6.dta), scfp2025excel.zip (SCFP2025.csv), scf2025rw1s.zip (p25_rw1.dta), codebk2025.txt. Remove the entry once the files are copied into the shared folder.",
+   "_scf_wave_dirs": "The folder of an SCF wave whose files are not yet in the shared raw-data folder, used in place of the scf path.",
    "nonfiler_pool": "/nfs/roberts/project/pi_nrs36/shared/model_data/ASEC-Nonfilers/v1/2026091201/historical/nonfiler_pool_{year}.csv.gz",
    "soi_mirror": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned",
    "soi_tables": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/IRS-Ind/aligned",
-   "_soi_tables": "The local IRS-Ind store, built 26 October 2026 (its README.md): the shared mirror plus SOI Tables 1.3 (every item by filing status) and 4.3 (items of the top AGI percentile groups) as tidy files, bystatus_all_items.csv and pctile_top_items.csv (targets_config/catalog.yaml, sources soi 1.3 and soi 4.3).",
+   "_soi_tables": "The local copy of SOI's tables: the shared mirror plus Tables 1.3 and 4.3 as tidy files.",
    "soi_w2": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/IRS-Ind/national/w2",
-   "_soi_w2": "SOI's Form W-2 statistics as published (irs.gov/pub/irs-soi/{yy}in0{n}w2all.xlsx; the store's manifest.csv): w2_t4_{year}.xlsx, Table 4.B, the summary of W-2 items by filing status, read for the tips targets (catalog source soi w2). Built for the 2019 and 2020 layout.",
+   "_soi_w2": "SOI's Form W-2 statistics (Table 4.B, by filing status), read for the tips targets.",
    "pce": "nipa_pce_categories.csv",
-   "_pce": "NIPA PCE by the CEX's eight categories, billions of dollars, a file in research/rebuild/resources/growth (30 October: build_nipa_pce.py, from BEA Table 2.4.5U, 2010-2025; until then production's resources/pce_historical.csv, which starts in 2017). A name with no folder is read from research/rebuild/resources/growth.",
+   "_pce": "NIPA personal consumption expenditures by the CEX's eight categories, in billions of dollars; a bare file name is read from research/rebuild/resources/growth.",
    "cex": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CEX",
    "sipp": "/nfs/roberts/project/pi_nrs36/shared/raw_data/SIPP/v2/20260927",
    "cps_earnings": "/nfs/roberts/project/pi_nrs36/jar335/raw_data/CPS-ASEC/cps_asec_common_v2",
-   "_cps_earnings": "The CPS ASEC pull of 27 October with the earnings questions (weekly pay, hourly wage, paid by the hour, hours, the earnings weight), occupation (OCC2010), industry, class of worker and metro size; the same records as the common extract read_asec() reads. overtime_cps.R reads it (build_cps.R, ot1 and ot2).",
+   "_cps_earnings": "The CPS ASEC extract with the earnings questions, occupation, industry and class of worker, read by overtime_cps.R.",
    "cps_march_basic": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Tax-Data/inputs/CPS-March-Basic/overtime_extract",
-   "_cps_march_basic": "A small IPUMS pull of 28 October (common_ipums_download; the parameter files parameters.cps.marbasic*.yaml sit next to it): the March basic monthly samples (cpsYYYY_03b) and the ASEC samples (cpsYYYY_03s) of the CPS years, with the link key MARBASECIDP. overtime_cps.R takes from it hours last week at the main job (AHRSWORK1, not in the ASEC) and, in the March 2024 ASEC (tax year 2023), the weekly pay and hourly wage of the month-4 group, which that ASEC lost (RESULTS.md there, part 1). Kept in the repo's local inputs folder (gitignored) for now; to move to raw_data later (John, 27 October). null: none (hours at all jobs; the lost group missing).",
+   "_cps_march_basic": "The CPS March basic monthly and ASEC samples linked by MARBASECIDP, for hours last week at the main job and for the earnings of the month-4 group missing from the March 2024 ASEC; null leaves both out.",
    "eap_codes": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/Reports/2024/Overtime/resources/eap_codes.dta",
-   "_eap_codes": "DOL's 2016 table of white-collar duties classes by occupation (Census 2002/2010 codes), from Tedeschi's overtime report (The Budget Lab, September 2024).",
+   "_eap_codes": "The Department of Labor's 2016 white-collar duties classes by occupation, from Tedeschi's overtime report (The Budget Lab, September 2024).",
    "cps_repwt": "/nfs/roberts/project/pi_nrs36/shared/raw_data/CPS-ASEC/cps_asec_common_repwt",
-   "_cps_repwt": "The CPS ASEC's replicate weights (the shared IPUMS layer of 4 September 2026, one folder per March sample cpsYYYY_03s: SERIAL, PERNUM, ASECWT and the 160 person replicate weights REPWTP1-REPWTP160, Census's successive difference replication). errors.py reads them for the standard errors of the CPS overtime targets (28 October).",
+   "_cps_repwt": "The CPS ASEC's 160 person replicate weights, for the standard errors of the CPS overtime targets.",
    "z1": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-10-28/nonmicro/z1_download/z1_csv_files.zip",
-   "_z1": "The Federal Reserve's Financial Accounts of the United States (Z.1), the CSV files of the release of 10 September 2026 (data to 2026Q2), downloaded 28 October 2026 from https://www.federalreserve.gov/releases/z1/current/z1_csv_files.zip. build_non_micro_tables.py reads table S1M.i.a for the yearly revaluation rates. Kept in scratch for now; to move to raw_data.",
+   "_z1": "The Federal Reserve's Financial Accounts (Z.1) CSV files, read for the yearly revaluation rates (table S1M.i.a).",
    "census_pep": "/nfs/roberts/project/pi_nrs36/shared/raw_data/Census-PEP",
-   "_census_pep": "Census Bureau population estimates by state, sex, race, Hispanic origin and single year of age (sc-est2020int-alldata6.csv, sc-est2024-alldata6.csv). build_non_micro_tables.py sums them to national counts for the death probabilities' check."
+   "_census_pep": "Census population estimates by state, sex, race, Hispanic origin and single year of age, summed to national counts for the death probabilities' check."
   }
  },
  "inheritance": {
-  "_what": "Inheritances received this year, an SCF-only slot (since 3 November; John, 2 November; roster_scf.inheritances, build_scf.R, build_table.SCF_AMOUNTS). The SCF's up to three reported inheritances, trusts and gifts (gift_type left out); the year received is rounded to the nearest 5 in the public file (years that would round past the interview set to the survey year), so each counts as received in the wave's income year with the chance its year code carries (year_weights: {wave: {year code: chance}}; codes not listed have chance 0), by a uniform draw keyed by the wave, the household and implicate and the inheritance's position, seeded by salt. 2013-2022: the Estate-Tax-Distribution model's weights (src/house_obbba.R), calibrated to Gale and Sabelhaus (2024). 2025: Gale and Sabelhaus's rule (their section F: the chance that an inheritance with a rounded year code was received in the income year is 1.25 over the statistical years the code covers, the survey taken at mid-year): the 2025 wave's code 2025 holds 2023, 2024 and 2025 to the interview, 2.5 years, so 1.25 / 2.5 = 0.5; code 2020 (2018-2022) does not hold 2024. The value is the value when received, taken as income-year dollars (scratch explore/2026-11-03/scf2025/DECISIONS.md).",
+  "_what": "Inheritances received in the income year, an SCF-only slot. The SCF rounds the year received to the nearest 5, so each reported inheritance counts as received in the income year with the chance year_weights gives its year code ({wave: {year code: chance}}, 0 for codes not listed), following Gale and Sabelhaus (2024); gifts of gift_type are left out, and salt seeds the keyed draws.",
   "year_weights": {"2013": {"2013": 1.0, "2010": 0.1}, "2016": {"2015": 0.36}, "2019": {"2019": 0.82}, "2022": {"2022": 1.0, "2020": 0.28}, "2025": {"2025": 0.5}},
   "gift_type": 3,
   "salt": 2026110301
  },
  "network": {
-  "_what": "The network (model.py, SlotTransformer): width of each slot's vector, layers, attention heads, ffn (the width inside each layer's feed-forward block), dropout.",
+  "_what": "The network's size: the width of each slot's vector, layers, attention heads, the width inside each layer's feed-forward block (ffn), and dropout.",
   "width": 128,
   "layers": 4,
   "heads": 4,
@@ -59,7 +59,7 @@
   "dropout": 0.0
  },
  "training": {
-  "_what": "Training (train.py): seed (REBUILD_SEED overrides it), passes over the table (REBUILD_PASSES overrides it), batch (records per step; 512 since 26 October, 4,096 before: about 1,780 steps a pass, an hour of training on an H100), the learning rate's peak, warm-up passes and final share of the peak, weight_decay, the share of the table held back to measure the fit (holdback_share, holdback_seed), and how often the log reports (log_every_passes).",
+  "_what": "Training: seed and passes (REBUILD_SEED and REBUILD_PASSES override them), records per step (batch), the learning rate's schedule, weight decay, and the share of the table held back to measure the fit.",
   "seed": 20261017,
   "passes": 80,
   "batch": 512,
@@ -72,7 +72,7 @@
   "log_every_passes": 10
  },
  "translation": {
-  "_what": "Translation (translate.py): one row per survey and variable it shares with the PUF; a variable not here is not shared. Every comparison is against the tax data for the survey's year: PUF filers other than dependent filers, weights scaled by SOI Table 1.6 (filing status x age), dollars grown per return with the item, and the CPS units of that year (or the nearest CPS year) weighted by their chance of not filing. items: the survey's columns, summed; an empty list is zero (an item the survey does not ask). Definition fixes: first_year (asked from this tax year; earlier years zero), part (positive: the positive part; loss: the size of the loss, stored positive), loss_cap. loss_cap: a definition fix, losses read as no more than this. Function 1, dollar_line (PUF-year dollars, grown to the survey's year per return): amounts within the line of zero keep their dollars; amounts beyond it get the tax data's amount at the same count from the top (losses: from the bottom); null is dollars throughout, 0 is rank throughout. Function 2, fill_in (fillin.py): the two-slot fill-in on function 1's bands, on any survey (since 28 October the SCF, the CEX, the CPS and the SIPP), with size_ranges (PUF-year dollars) where reporting rates are read, and optionally type_extra (categories added to this row's type: the SCF's Schedule E rest, the partnership flag); it conditions on its survey's variables with type_for_fill_in (and the survey year) less the row's own variable (wages has the fill-in and is in every other item's type). A row with first_year fills in from that year only. Default: dollars, no fill-in; a departure gives its reason. report_lines: the dollar lines (survey-year dollars) of the report's size ranges. rank_against (optional, since 27 October): function 1 (and since 28 October function 2) compares the survey's amount with the tax data's amount of the named PUF variable (a computed total), or the sum of a list of them, instead of the row's own, for a survey that reports only a total and puts it in one of the total's parts. match (optional, since 28 October): how amounts beyond the dollar line are put on the tax data's scale: \"count\" (the default; a line of zero only) by the same count from the top (losses: from the bottom); \"percentile_from_top\" (wages) by the same share of ALL units counted from the top, so a survey missing small holders leaves the tax data's smallest amounts to function 2; \"percentile\" (required with a line above zero) by the same percentile among the units beyond the line in each data set (the survey's unit at the p-th percentile of its units beyond the line gets the tax data's p-th percentile of its units beyond the line; equal amounts get one value), so the order of units is kept and the map is continuous at the line. less_traditional_deferrals (optional, since 28 October): a definition fix, the survey column of each unit's elective deferrals (traditional plus Roth; missing where the survey does not ask), whose traditional part (settings deferrals: x (1 - the Roth share)) is subtracted from the amount: the link wage.",
+  "_what": "The translation table: one row per survey variable shared with the PUF, with how the survey's amount is defined (items, first_year, part, loss_cap, less_traditional_deferrals), how function 1 maps it beyond the dollar line (dollar_line, loss_line, match, rank_against; a null line keeps dollars throughout, a line of 0 maps by rank throughout), and whether function 2 fills in (fill_in). Each row's reason says why it departs from the default of dollars and no fill-in. report_lines are the dollar lines of the report's size ranges. See FEATURES.md, \"Translation: putting the surveys on the PUF's terms\".",
   "table": [
    {
     "survey": "scf",
@@ -260,7 +260,7 @@
     "dollar_line": 50000,
     "loss_cap": -3000,
     "loss_line": 2999,
-    "_loss_line": "29-30 October (capital gains drawn before the loss limit; John, 29 October): the slot holds the Schedule D gain or loss before the $3,000 limit, the SCF asks the amount on the return, where a loss stops at the limit. Losses held at the limit (loss_cap) are the units with a loss past it; past a loss line of $2,999 they are put on the tax data's losses past $3,000 by the row's match (percentile among the units past the line in each data set). Smaller losses keep their dollars. DECISIONS_FOR_JOHN.md (explore/2026-10-30).",
+    "_loss_line": "The slot holds the capital gain or loss before the $3,000 limit, while the SCF reports it as on the return, where a loss stops at the limit; losses past the $2,999 line are matched to the tax data's losses past $3,000.",
     "fill_in": {
      "size_ranges": [
       [
@@ -835,7 +835,7 @@
     "survey": "cps",
     "variable": "kg_st",
     "in_training": false,
-    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
+    "_in_training": "The 2015 and 2017 CPS do not ask capital gains, so the item is kept out of training in every year; the row still gives the tax data's non-filers their amounts.",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -847,7 +847,7 @@
     "survey": "cps",
     "variable": "kg_lt",
     "in_training": false,
-    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
+    "_in_training": "The 2015 and 2017 CPS do not ask capital gains, so the item is kept out of training in every year; the row still gives the tax data's non-filers their amounts.",
     "items": [
      "capital_gains"
     ],
@@ -894,7 +894,7 @@
     "survey": "cps",
     "variable": "kg_dist",
     "in_training": false,
-    "_in_training": "The CPS carries no capital gains item in training, in any year (John, second retrain of 29 October): the 2015 and 2017 CPS do not ask it, and a total with a missing part had written an enormous gain onto those rows (explore/2026-10-29/diagnose/). The row still gives the tax data's non-filers their amounts.",
+    "_in_training": "The 2015 and 2017 CPS do not ask capital gains, so the item is kept out of training in every year; the row still gives the tax data's non-filers their amounts.",
     "items": [],
     "dollar_line": null,
     "loss_cap": null,
@@ -1496,10 +1496,10 @@
   "cps_zero_in_tax_data": [
    "txbl_int"
   ],
-  "_cps_zero_in_tax_data": "PUF amounts the CPS has no row for (absent on CPS rows) that the CPS units in the tax data carry as zero. interest (John, 23 October): the CPS has no interest item lined up with the PUF's taxable interest."
+  "_cps_zero_in_tax_data": "PUF amounts the CPS does not have that the CPS units in the tax data carry as zero; the CPS's interest does not line up with the PUF's taxable interest."
  },
  "cex": {
-  "_what": "The CEX interview survey as a third source (build_cex.R, build_table.py): survey years 2015, 2017, 2019, 2021, 2023 and 2024, one row per tax unit and quarterly interview; every tax unit trains, a shared household's spending divided by head count (build_cex.R); dependent filers are folded into the unit that claims them, and the file's own dependent filers get no consumption. The 8 consumption categories are CEX-only slots, drawn last at generation under the CEX label at the record's own CEX year (drawn from the year file's prior, see _generation_year); dollars from that year's records, grown to the target year. Shared with the PUF: married, dependents, age range, wages, gross Social Security (gross_ss) and self-employment income. The tilt's consumption targets come from the target year's CEX, all tax units.",
+  "_what": "The CEX interview survey, one row per tax unit and quarterly interview, a shared household's spending divided among its tax units by head count. Its eight consumption categories are drawn last at generation, at the record's own CEX year.",
   "years": [
    2015,
    2017,
@@ -1509,10 +1509,10 @@
    2024
   ],
   "generation_year": 2019,
-  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column."
+  "_generation_year": "The year of the single-year dollar maps, used only for frames without a survey year column."
  },
  "cps": {
-  "_what": "The CPS ASEC as a fourth source (build_cps.R): TAX years (the ASEC of March of the next year), every tax unit of the household population by CBO's rules (tax_units.py, the shared tax-unit module) as the filing stage built them (filing.py), filers and non-filers; dependent filers folded into the unit that claims them. p_file (the table's filer_p) is the return's calibrated filing chance from the filing stage (its separate returns, filing status and statutory requirement come from there too); training draws the filing flag from it in every pass. filer is one draw from it, one uniform per unit seeded by filer_seed plus the year, kept for the table's checks and reports. generation_year: see _generation_year. The CPS-only slots (build_table.py, CPS_AMOUNTS and CPS_CATEGORIES): exact ages and sex of the primary filer and spouse, dependents' ages, the spouse's share of the couple's wages and of its self-employment income, weeks and usual hours worked, childcare; drawn last at generation under the CPS label at the record's own CPS year (generate.py says how). dollar_amounts: the CPS-only amounts in dollars, grown from that year to the target year by SOI's wages per return.",
+  "_what": "The CPS ASEC by tax year: every tax unit as the filing stage built them, filers and non-filers. Training draws the filing flag from p_file in every pass; filer is one fixed draw (filer_seed plus the year) for checks and reports; dollar_amounts are grown to the target year by SOI's wages per return.",
   "years": [
    2015,
    2017,
@@ -1521,7 +1521,7 @@
    2023
   ],
   "generation_year": 2019,
-  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
+  "_generation_year": "The year of the single-year dollar maps, used only for frames without a survey year column.",
   "filer_seed": 20261023,
   "dollar_amounts": [
    "care_exp",
@@ -1529,11 +1529,11 @@
    "ot_spouse"
   ],
   "step1_dir": "filing",
-  "_step1_dir": "The filing stage's folder, inside the run's data folder (filing.py): the CPS's tax units and roster in <step1_dir>/units/ (roster_<year>_<cbo_variant>_nogq.csv.gz, which build_cps.R reads), the filing requirement in <step1_dir>/requirement/, the returns in <step1_dir>/<step1_out>/ and the checks in <step1_dir>/checks/. The name is from PLAN_v2.md's step 1, where the stage was built.",
+  "_step1_dir": "The filing stage's folder inside the data folder: the CPS's tax units, the filing requirement, the returns and the checks.",
   "step1_out": "returns",
-  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns (units_<year>.csv.gz, one row per return, separate returns included, with the calibrated filing chance p_file_cal), which build_cps.R reads.",
+  "_step1_out": "The folder inside step1_dir that holds the filing stage's returns, read by build_cps.R.",
   "overtime": {
-   "_what": "Each person's overtime pay (overtime_cps.R, Tedeschi's rules; build_cps.R ot1 and ot2; the table's ot_primary and ot_spouse, CPS dollar slots; in the file, Tax-Simulator's ot1, ot2 and ot = ot1 + ot2, each person's held to their wages less their tips). salary_threshold: the FLSA weekly salary level of each tax year ($455 from 2004 through 2019; $684 from 1 January 2020; the 2024 rule's $844, in force July to November 2024, was vacated). hce_annual: the highly compensated employee line ($100,000 through 2019, $107,432 from 2020). computer_hourly: the computer-employee hourly line, $27.63. seed: the duties-test draw, plus the year.",
+   "_what": "Each person's overtime pay by the FLSA rules (overtime_cps.R): salary_threshold is the weekly salary level by tax year, hce_annual the highly compensated employee line, computer_hourly the computer-employee hourly line, and seed the duties-test draw (plus the year).",
    "salary_threshold": {
     "2015": 455,
     "2017": 455,
@@ -1553,7 +1553,7 @@
   }
  },
  "sipp": {
-  "_what": "The SIPP as a fifth source (roster_sipp.py, build_table.py): the Survey of Income and Program Participation's public-use files, one per reference (tax) year, its households as of the interview split into tax units by CBO's rules (tax_units.py, the shared module), every tax unit, dependent filers folded into the unit that claims them. Shared with the PUF (translation table): married, dependents, the primary filer's age range, wages, and the exact ages of the primary filer and the spouse; shared with the CPS: the spouse's share of the couple's wages. SIPP only: each adult's tips in dollars, and whether that adult's tips are mostly from leisure and hospitality (tips_primary, tips_spouse, tips_lh_primary, tips_lh_spouse), drawn last at generation under the SIPP label at the record's own SIPP year; the tips' dollar map is that year's records, grown to the target year by SOI's wages per return with wages, as the CPS's childcare. The file's tips1 and tips2 are each person's drawn tips held to at most that person's wages (wages1, wages2: tips are part of wages, as on Form W-2), and tips their sum.",
+  "_what": "The SIPP by reference year, its households split into tax units by the shared rules. Its tips slots (each adult's tips, and whether they are mostly from leisure and hospitality) are drawn last at generation; the file holds each person's tips to at most that person's wages.",
   "years": [
    2015,
    2017,
@@ -1561,7 +1561,7 @@
    2021,
    2023
   ],
-  "_years": "Reference years, chosen as the CPS's (settings cps.years): every other year from the PUF year to the last year with a release. 2015 is the 2014 panel's wave 3; 2017-2023 the annual releases of 2018, 2020, 2022 and 2024 (NOTES.md in paths.raw.sipp: the 2018 release in the older folder is truncated, this one is complete).",
+  "_years": "Reference years, the same as the CPS's: 2015 is the 2014 panel's wave 3, and later years are the annual releases.",
   "releases": {
    "2015": "pu2014w3.csv.gz",
    "2017": "pu2018.csv.gz",
@@ -1570,21 +1570,21 @@
    "2023": "pu2024_csv.zip"
   },
   "generation_year": 2019,
-  "_generation_year": "Since 28 October generation draws each record's year of this survey from the year file's prior (survey_mix.py, TARGETS.md section 7), and this year is used only for the single-year maps map_<survey>_<year>, kept for frames without a year column.",
+  "_generation_year": "The year of the single-year dollar maps, used only for frames without a survey year column.",
   "lh_industries": [
    [
     8560,
     8690
    ]
   ],
-  "_lh_industries": "Leisure and hospitality: Census industry codes 8560-8690 (arts, entertainment and recreation; accommodation and food services; NAICS 71 and 72). Production (tips.R) uses 8561-8690, the 2017 and later Census codes; the 2014 panel's codes (2012 Census codes) put performing arts, spectator sports and independent artists in 8560, so the range starts at 8560 here to cover both codings.",
+  "_lh_industries": "Leisure and hospitality: Census industry codes 8560-8690 (NAICS 71 and 72). The range starts at 8560 to cover the 2014 panel's older codes.",
   "lh_share": 0.5,
-  "_lh_share": "A person's tips are from leisure and hospitality when more than this share of the person's tips on jobs for an employer is from such jobs (production's tips.R).",
+  "_lh_share": "A person's tips count as leisure and hospitality when more than this share of them comes from such jobs.",
   "mfs_salt": 20261023,
-  "_mfs_salt": "Separate returns: joint couples are split by the CEX's rule (tax_units.mfs_split, keyed draw with this salt, dependents with person 1) until their weight reaches SOI Table 1.6's separate returns."
+  "_mfs_salt": "The salt of the keyed draw that splits joint couples into separate returns until they reach SOI Table 1.6's separate returns."
  },
  "deferrals": {
-  "_what": "Elective deferrals to 401(k)-type plans (since 28 October; NEXT_STEPS.md, wages and pre-tax deductions). Each person's elective contributions (traditional plus Roth, as the SCF and the SIPP report them and as SOI's W-2 Tables 2.x count them) are held to the legal limit of the row's tax year (limits: [under 50, 50 and over], the section 402(g) limit and the catch-up; age at the interview), then to the person's own wages (build_scf.R, roster_sipp.py; decided 27 October). The traditional part is elective x (1 - the Roth share), the share from SOI's W-2 statistics by joint and non-joint returns (roth_share), the W-2 year nearest the row's year. A survey's link wage is its gross wages less the traditional part (translate.py, the definition fix less_traditional_deferrals); the Roth part stays in box 1 wages. The SCF's elective deferrals are also an SCF-only slot (elective_deferrals), with the spouse's share of them (spouse_deferral_share), drawn at generation (none without wages, the share 0 unless married); in the file each person's are held to the file year's legal limit for their age and to their own wages, and each person's traditional part is Tax-Simulator's trad_contr_er1 and trad_contr_er2, with Medicare wages = wages plus both (dollars.py; decided 27 October).",
+  "_what": "Elective deferrals to 401(k)-type plans. Each person's are held to the legal limit for their age (limits: [under 50, 50 and over]) and to their wages. The traditional part, elective x (1 - roth_share), is subtracted from a survey's gross wages to give the link wage, and in the file it is Tax-Simulator's trad_contr_er1 and trad_contr_er2.",
   "limits": {
    "2012": [17000, 22500],
    "2013": [17500, 23000],
@@ -1651,7 +1651,7 @@
    "2074": [76000, 100500],
    "2075": [78000, 103500]
   },
-  "_limits": "2012-2026 as published by the IRS (2024 $23,000 and a $7,500 catch-up; 2025 $23,500 and $7,500, the age 60-63 catch-up of SECURE 2.0 left out; 2026 $24,500 and $8,000). 2027-2035 (30 October, placeholders): the 2026 limit and catch-up grown 2.4% a year (about CBO's CPI-U projection) and rounded down to $500, as the law indexes them; 2036-2075 (4 November 2026, the long-run years) by the same rule.",
+  "_limits": "The section 402(g) limit and catch-up by tax year, as published through 2026 (SECURE 2.0's age 60-63 catch-up left out); later years grow 2.4% a year, rounded down to $500 as the law indexes them.",
   "catch_up_age": 50,
   "roth_share": {
    "2012": {"joint": 0.0328, "nonjoint": 0.0363},
@@ -1664,39 +1664,39 @@
    "2019": {"joint": 0.0799, "nonjoint": 0.0990},
    "2020": {"joint": 0.0927, "nonjoint": 0.1021}
   },
-  "_roth_share": "Roth (box 12 codes AA, BB, EE) over all elective contributions (codes D, E, F, G, H, S plus the Roth codes), dollars, joint returns and non-joint returns: SOI W-2 statistics, Table 5.A of w2_all_2018.xls for 2012-2018 and Table 4.B of w2_t4_<year>.xlsx for 2019 and 2020 (paths.raw.soi_w2; all taxpayers 2019: $30.3 billion of $352.9 billion, 8.6%). Years after 2020 take 2020's.",
+  "_roth_share": "The Roth share of elective contributions, joint and non-joint returns, from SOI's W-2 statistics; years after 2020 take 2020's.",
   "sipp_item": "TSCNTAMT_401",
-  "_sipp_item": "The SIPP's own contributions to 401(k), 403(b), 503(b) and Thrift Savings Plan accounts at the main employer, asked in the 2022 and 2024 releases (reference years 2021 and 2023); the earlier releases do not have it, so their units' deferrals are missing (not asked) and their link wage is gross wages."
+  "_sipp_item": "The SIPP's own 401(k), 403(b), 503(b) and Thrift Savings Plan contributions, asked only for reference years 2021 and 2023; in earlier years they are missing and the link wage is gross wages."
  },
  "filing": {
-  "_what": "The CPS's filing stage (filing.py, filing_requirement.R; run.sbatch stage filing): every CPS tax unit's chance of filing, by the filing rule v4 (John, 24 October 2026): logit(chance) = a(age band of the head) + k x (a child under 17) + required x (r + s x log gross income, centred on the year's weighted median among required units + b x (business or farm income not zero)), required being the statutory filing requirement. The 11 settings (7 a's, k, r, s, b) are solved each year so that 11 targets hold exactly: non-filing heads and spouses in 7 age bands = CPS adults - adults on returns (SOI Table 1.6, age_shape's filing_adults) - dependents aged 15+ not filing their own return (group quarters left out, so zero); and the four shares below. Dependents' own returns: file if required to or with any wages. No outside filing model.",
+  "_what": "The CPS filing stage: each tax unit's chance of filing, logit(chance) = a(age band of the head) + k x (child under 17) + required x (r + s x log gross income + b x (business or farm income)), with log income centred on the weighted median among required units. The 11 parameters are solved each year to hit non-filing adults in 7 age bands and the shares below. Dependents file their own return if required to or if they have wages.",
   "child_share": 0.030802154688937832,
-  "_child_share": "Non-filing children under 17 as a share of the CPS's children under 17, every year: the 2015 share, (Census PEP under 17, 69,494,950, less the 2015 PUF's N24 on returns other than dependent filers, 67,354,355.8) / 69,494,950 = 2,140,594.2 / 69,494,950. Child credit counts are not used after 2015 because the age limit, the Social Security number rule and refundability changed (John, 23 October 2026).",
+  "_child_share": "Non-filing children under 17 as a share of CPS children under 17, held at the 2015 share: Census PEP children less the 2015 PUF's child credit children, over Census PEP children.",
   "required_nonfiling_share": 0.09440432886830093,
-  "_required_nonfiling_share": "Non-filing household units among units required to file, every year: 11.19 million (Pub 5785 Table 3, required non-filing units, TY2014-16 average; research/state_weights/nonfiler_residual/resources/pub5785_table3_notfiler_units.csv) / 118.53 million required units in the 2015 CPS (by this stage's units and requirement). The 2015 run checks the ratio.",
+  "_required_nonfiling_share": "Non-filing units among units required to file: Pub 5785 Table 3's 11.19 million (tax years 2014-16) over 118.53 million required units in the 2015 CPS.",
   "income_share": 0.04555193010617859,
-  "_income_share": "The gross income of required non-filers as a share of all required units' gross income, every year: $409.4 billion (Pub 5785 Table 3, total income of required non-filers, TY2014-16 average) / $8,987.5 billion (required units' gross income, 2015 CPS). The 2015 run checks the ratio.",
+  "_income_share": "Required non-filers' gross income as a share of all required units' gross income: Pub 5785 Table 3's $409.4 billion over $8,987.5 billion in the 2015 CPS.",
   "business_share": 0.4459338695263629,
-  "_business_share": "Required non-filers with business or farm income (head and spouse, INCBUS + INCFARM, positive or negative) as a share of required non-filers, every year: 4.99 / 11.19 million (Pub 5785 Table 3, TY2014-16 average).",
+  "_business_share": "Required non-filers with business or farm income as a share of required non-filers: 4.99 of 11.19 million (Pub 5785 Table 3).",
   "mfs_salt": 20261023,
-  "_mfs_salt": "Separate returns: joint couples are taken in the order of a uniform keyed by unit id with this salt (tax_units.mfs_split) until weight x calibrated chance reaches SOI Table 1.6's separate returns / 2.",
+  "_mfs_salt": "The salt of the keyed order in which joint couples are split into separate returns, until weight times calibrated chance reaches half of SOI Table 1.6's separate returns.",
   "age_shape": "research/state_weights/nonfiler_residual/resources/nonfiler_age_shape_{year}.csv",
-  "_age_shape": "Adults on returns by age band (column filing_adults: SOI Pub 1304 Table 1.6 as the non-filer pool's residual anchor builds it) and Census PEP adults (pep_adults, used only in a check), per year; tracked in the repository.",
+  "_age_shape": "Adults on returns by age band (SOI Pub 1304 Table 1.6) and Census PEP adults (checks only), per year.",
   "pep_children": "research/rebuild/resources/pep_children.csv",
-  "_pep_children": "Census PEP resident population under 17 and under 18 on 1 July of each tax year, the national sum of the state rows (SEX 0, ORIGIN 0, all races): 2015, 2017 and 2019 from the 2010-2020 intercensal estimates (sc-est2020int-alldata6.csv), 2021 and 2023 from Vintage 2024 (sc-est2024-alldata6.csv), both in /nfs/roberts/project/pi_nrs36/shared/raw_data/Census-PEP/ (manifest.csv gives the Census URLs). Used in the checks only (people by age, and the children's row of nonfilers_vs_targets)."
+  "_pep_children": "Census PEP national population under 17 and under 18 by tax year, used in the checks only."
  },
  "ages": {
-  "_what": "The primary filer's age range (ages.py). Step 0 for PUF records with no range: a logit prior from the return, calibrated to SOI Table 1.6 less the known-range weight in each filing status x AGI cell where at least min_missing_share of the weight has no range. Survey couples: the man is the primary, except the woman with a chance by the man's range that reproduces the PUF's female-primary share by range; same-sex couples, the older partner.",
+  "_what": "The primary filer's age range. PUF records with no range get probabilities calibrated to SOI Table 1.6 in cells where at least min_missing_share of the weight has none; in survey couples the primary is chosen to match the PUF's share of female primaries by range.",
   "puf_demographics": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-PUF/v1/2023091310/historical/demographics_2015.csv",
   "table_1_6": "/nfs/roberts/project/pi_nrs36/shared/raw_data/IRS-Ind/aligned/bysize_returns_marital_age.csv",
   "min_missing_share": 0.1,
   "primary_rule_salt": 20261021
  },
  "earn_split": {
-  "_what": "The split of a married couple's earnings (earn_split.py; branch rebuild-earnsplit, 4 November 2026). E30400 is the couple's Schedule SE net earnings, E30500 the spouse's part. spouse_se_share on the PUF is E30500 / E30400; earn_split is the PUF demographic file's EARNSPLIT (the primary's share of wages plus Schedule SE earnings: 1 75% or more, 2 25-75%, 3 under 25%, 0 none), on the CPS the same code of the couple's own earnings. Joint returns with no demographics and some earnings carry probabilities over codes 1-3 from a gradient boosted classifier fitted on the joint returns with demographics and earnings (model: scikit-learn HistGradientBoostingClassifier settings), redrawn at each training pass. check_agi: the step 0 check fits below the first line and predicts the known codes between the two. booklet_full_less_public: the demographic booklet's weighted counts (millions) of codes 1-3 in SOI's full sample less the public file's, a check only. se_factor and se_floor: Schedule SE's 92.35% and $400. The wage share is drawn inside the range the code allows (generate.py in bands, dollars.py exactly).",
+  "_what": "The split of a married couple's earnings. spouse_se_share is E30500 / E30400 on the PUF, and earn_split is the demographic file's EARNSPLIT code (1 primary 75% or more, 2 25-75%, 3 under 25%, 0 none), predicted by a gradient boosted classifier (model) where demographics are missing. se_factor and se_floor are Schedule SE's 92.35% and $400; check_agi and booklet_full_less_public are for checks only.",
   "se_factor": 0.9235,
   "se_floor": 400,
-  "_part_se": "How part_se is read from the PUF's reported tax (earn_split.part_se_from_schedule_se; fix B, explore/2026-11-05/se_tax_gap/RESULTS.md; John, 6 November 2026). se_rate_social_security and se_rate_medicare: the two rates of Schedule SE. se_wage_base: the Social Security wage base of the PUF year, 2015's $118,500, which caps E30400 and is used for the wage share's range. se_beyond_share and se_beyond_dollars: on a return with no partnership, the earnings differ from 92.35% of Schedules C and F beyond rounding when the gap is above the larger of this share of that amount and these dollars.",
+  "_part_se": "How part_se is read from the PUF's self-employment tax: the two Schedule SE rates, the 2015 Social Security wage base ($118,500), and the share and dollar gap beyond which earnings differ from 92.35% of Schedules C and F by more than rounding.",
   "se_rate_social_security": 0.124,
   "se_rate_medicare": 0.029,
   "se_wage_base": 118500,
@@ -1707,24 +1707,24 @@
   "booklet_full_less_public": {"1": 1.362377, "2": 0.634738, "3": 0.394848}
  },
  "blindness": {
-  "_what": "The blindness rule's PUF reading (since the second retrain of 29 October; John; build_non_micro_tables.puf_blind_rates, non_micro_imputations.blindness). On unmarried returns taking the standard deduction (single, head of household; not dependent filers) the deduction above the basic amount, in units of the additional amount for the aged or blind, is the number of extra boxes; blind = the boxes less one at 65 and over. The rates by age range where the return shows it go to resources/non_micro/puf_blind_rates.csv. The 2015 PUF's amounts: the basic standard deduction by filing status (1 single, 4 head of household) and the additional amount for an unmarried filer. whole_tolerance: how far from a whole number the boxes may be (97% of these returns are within it). Blindness was a PUF slot learned in pretraining on 29 October; it drew 2.95 million blind primary filers against 260 thousand boxes, so it is now a rule.",
+  "_what": "The PUF reading behind the blindness rule: on unmarried returns taking the standard deduction, the deduction above the 2015 basic amount, in units of the additional amount, is the number of extra boxes; whole_tolerance is how far from a whole number that may be.",
   "puf_basic_standard_deduction": {"1": 6300, "4": 9250},
   "puf_additional_amount_unmarried": 1550,
   "whole_tolerance": 0.02
  },
  "generation": {
-  "_what": "The filer batch and the non-filer batch (generate.py says how). Since 26 October the AGI group label is preset on every filer record and everything else is drawn given it.",
+  "_what": "The filer batch and the non-filer batch; every filer record's AGI group label is preset and everything else is drawn given it.",
   "filers": "synthetic",
-  "_filers": "Where the filer records come from (4 November 2026, John). synthetic (the default): the filer batch drawn from the pooled networks, as every run before this setting. real_puf: every 2015 PUF record in place of the filer batch, its own PUF items kept and each pooled network drawing everything else given it, so each record appears once per network at a third of its PUF weight (generate.real_puf_part); the non-filer batch and the Forbes list as in a synthetic run. Choosing real_puf also sets what goes with it: the PUF's four aggregate records are kept as real records, so Part A (settings tilt.top.hidden_returns) is off whatever that setting says; in a past year the generate stage then runs the top step's redraw of every balance sheet at $1 billion or more on its GPU and writes it to the top cache (REBUILD_TOP_CACHE, default <out>/top_cache.pkl), which the tilt reads on a CPU (the redraw on a CPU takes about 80 seconds a record); and the taxsim_file stage is followed by the package stage (package.py), the files that let a holder of the 2015 PUF rebuild the year's Tax-Simulator file (PACKAGE.md). Replaces generation.real_puf (true), the test of 4 November.",
+  "_filers": "synthetic draws the filer records from the networks. real_puf uses every 2015 PUF record with its own PUF items and the networks drawing the rest, keeps the PUF's aggregate records (so hidden_returns is off), and runs the package stage after taxsim_file.",
   "label_records": 400000,
   "label_seed": 61,
-  "_label": "label_records: the filer records over all pooled models (each draws an equal share), split across the 12 band-AGI groups (qgroups.py) in proportion to the PUF's records per group (about 18,400 at p99.99 and over, 30,500 at p99.9-99.99). Each record's group is preset; its weight is the group's 2015 PUF returns over the records drawn in it (1 / q). Every drawn record is kept; the share whose drawn bands fall in another group is only reported (label_check.csv). label_seed: the batch's draws (plus each model's seed_shift).",
+  "_label": "label_records filer records over all models, split across the 12 band-AGI groups in proportion to the PUF's records, each weighted by its group's 2015 PUF returns over the records drawn in it; label_seed seeds the draws.",
   "scf_wave_seed": 20261026,
-  "_scf_wave_seed": "TARGETS.md section 7: each record's SCF wave is drawn with the shares in the target year's configuration (targets_config/<year>/prior.yaml, 'balance sheet'), by a random generator seeded by this and the batch's generation seed, so no other draw moves.",
+  "_scf_wave_seed": "The seed of each record's SCF wave draw, made with the shares in the year's prior.yaml.",
   "survey_year_seeds": {"cex": 20261028, "cps": 20261029, "sipp": 20261030},
-  "_survey_year_seeds": "TARGETS.md section 7 (27 October): each record's CEX year, CPS year and SIPP year are drawn with the shares in the target year's configuration (prior, 'consumption', 'cps items', 'sipp tips'), each by a random generator of its own, seeded by the survey's number here and the batch's generation seed, so no other draw moves (as scf_wave_seed does for the SCF's waves).",
+  "_survey_year_seeds": "The seeds of each record's CEX, CPS and SIPP year draws, made with the shares in the year's prior.yaml.",
   "nonfiler_seed": 35,
-  "_nonfiler_records": "Step 2: the non-filer batch, drawn from the CPS label at the target year with the filing flag 0, no oversampling, every weight 1. Its number of records is the filer batch's (label_records) times the CPS's expected non-filers in the target year (sum of weight x (1 - filer_p)) over SOI's returns that year. nonfiler_seed fixes its draws.",
+  "_nonfiler_records": "The non-filer batch, drawn under the CPS label with the filing flag 0 and every weight 1; its size is label_records times the CPS's expected non-filers over SOI's returns, and nonfiler_seed seeds it.",
   "models": [
    {
     "run": "label_seed20261017",
@@ -1739,10 +1739,10 @@
     "seed_shift": 2000
    }
   ],
-  "_models": "The trained models pooled into each year's file (TARGETS.md section 8): equal shares of every batch, each model with its own generation seeds (seed_shift added to every seed), record ids from k x 10,000,000 for model k. Train each with REBUILD_RUN set to its run name (and REBUILD_SEED to its seed). null draws from the run's own model alone, with today's seeds; set it to null for a fresh single-seed train-then-generate run. Three seeds, 20261017-19, since 28 October (John): the seed-20261016 network was a much worse fit (explore/2026-10-28/model_variability/RESULTS.md)."
+  "_models": "The trained models pooled into each year's file, each drawing an equal share with its own seeds (seed_shift added) and record ids from k x 10,000,000; null uses the run's own model alone."
  },
  "top_hidden": {
-  "_what": "Part A of the top-of-file plan (explore/2026-10-29/top_research/PLAN.md, approved by John 29 October): the 2015 PUF's four aggregate records rebuilt as synthetic returns made from generated records (top_hidden.py says how). Nothing here changes training or the ordinary generation.",
+  "_what": "The rebuild of the 2015 PUF's four aggregate records as synthetic returns made from generated records (top_hidden.py).",
   "candidate_records": [
    60000,
    30000,
@@ -1757,40 +1757,40 @@
    90000,
    300000
   ],
-  "_candidate_records": "The extra batch of candidate filer records, by the 12 band-AGI label groups (qgroups.PUF_LABELS: below -$1M, -$1M to -$50k, -$50k to 0, below p50, ..., p99.5-99.9, p99.9-99.99, p99.99+), over all pooled models (each draws an equal share). Each candidate's weight is its group's 2015 PUF returns over the records drawn in it, so ranks counted in weight are population ranks. Groups left at 0 are not drawn: the aggregate records are returns with extreme items, which sit in the top three positive groups and the two loss groups.",
+  "_candidate_records": "Candidate filer records for the rebuild by the 12 band-AGI groups, each weighted by its group's 2015 PUF returns over the records drawn in it; groups at 0 are not drawn.",
   "candidate_seed": 7101,
-  "_candidate_seed": "The candidates' generation seed (plus each model's seed_shift), apart from label_seed so no draw of the file moves.",
+  "_candidate_seed": "The candidates' generation seed, separate from label_seed so no draw of the file moves.",
   "selection": {
    "top_agi": 400,
    "income_items": 30,
    "loss_items": 30,
    "other_fields": 10
   },
-  "_selection": "SOI's rule (Bryant, Czajka, Ivsin and Nunns 2014), counted in population weight: the top 400 returns by AGI; the 30 highest of each income item; the 30 lowest of each loss; the 10 highest (and, for fields with both signs, lowest) of most other amount fields. The fields of each rule are listed in top_hidden.py.",
+  "_selection": "SOI's rule for the aggregate records (Bryant, Czajka, Ivsin and Nunns 2014), in population weight: the top 400 returns by AGI, the 30 highest of each income item and lowest of each loss, and the 10 highest or lowest of most other fields.",
   "records_per_group": 750,
   "min_per_rule": 5,
   "subsample_seed": 7102,
-  "_records_per_group": "At most this many chosen records per aggregate group: a random sample with chance in proportion to the population weight, plus up to min_per_rule records of every selection rule the sample would otherwise lack.",
+  "_records_per_group": "At most this many chosen records per aggregate group, sampled in proportion to weight, plus up to min_per_rule records for each selection rule the sample lacks.",
   "targeted_per_gap": 5,
-  "_targeted_per_gap": "Where a group must have a sign of a field (its raw record's net amount needs it) and its chosen records have none, this many candidates outside the chosen set that have it (the largest first) are added.",
+  "_targeted_per_gap": "Where a group needs a sign of a field that its chosen records lack, this many candidates that have it are added, largest first.",
   "count_tolerance": {
    "returns": 2,
    "share": 0.02
   },
-  "_count_tolerance": "Each booklet count (returns with a positive, and with a negative, amount) is pulled toward the booklet's figure by the one-cost reweighting at tau 1 (solver.solve; top_hidden.py step 5), with the larger of this many returns and this share of the count as its standard error; each group's count of returns is an identity. The table of counts reports whether each count ends within that tolerance.",
+  "_count_tolerance": "The standard error of each booklet count in the reweighting at tau 1: the larger of this many returns and this share of the count.",
   "group_iterations": 8,
   "move_iterations": 6,
-  "_group_iterations": "After the dollars are scaled, a record whose AGI has left its group is moved to the group its AGI is in (the first move_iterations rounds) or dropped (the later rounds), and the weights and the scaling are done again.",
+  "_group_iterations": "After scaling, a record whose AGI has left its group is moved (the first move_iterations rounds) or dropped (later rounds), and the weights and scaling are done again.",
   "wealth_cap": 1000000000.0,
   "wealth_tries": 20,
   "wealth_seed": 7103,
   "wealth_salt": 2026102900,
-  "_wealth": "Step 7: every rebuilt return's balance sheet is drawn again under the SCF label given its final income items, up to wealth_tries times, until net worth in target-year dollars is below wealth_cap. Each try has its own network draws (wealth_seed and the try) and its own dollar picks keyed by record id (ages.uniform_by_id, wealth_salt). A record whose every try lands at or above the cap keeps its lowest try and is flagged (hidden_wealth_fallback).",
+  "_wealth": "Each rebuilt return's balance sheet is drawn again under the SCF label, up to wealth_tries times, until net worth is below wealth_cap; a record that never gets below keeps its lowest try and is flagged.",
   "id_block": 90000000,
-  "_id_block": "Record ids of the rebuilt returns: id_block + 0, 1, ... (the generated file's models use 0 to 29,999,999)."
+  "_id_block": "The first record id of the rebuilt returns."
  },
  "consistency": {
-  "_what": "Consistency rules at generation: when any item in when_any_nonzero is nonzero on the record, at least one holding in then_at_least_one_nonzero must be nonzero (generate.py says how). offset_generations: how many times generation runs; after each run but the last, each ruled holding's odds of being nonzero are scaled by one factor so that, with the rules, its expected holders equal the model's own. 1 means no offset.",
+  "_what": "When an item in when_any_nonzero is nonzero, at least one holding in then_at_least_one_nonzero must be; offset_generations is how many times generation runs to offset the rule's effect on holders (1 means no offset).",
   "rules": [
    {
     "name": "rental income or loss",
@@ -1846,23 +1846,23 @@
   "offset_generations": 3
  },
  "dollars": {
-  "_what": "seed: the seed of the draws that pick each record's dollars within its drawn band from the dollar map (dollars.py).",
+  "_what": "seed: the seed of the draws that pick each record's dollars within its band.",
   "seed": 20261104,
   "scf_caps": {
    "value.other_debt": 0.999
   },
-  "_scf_caps": "Balance-sheet items whose dollar map is held to a percentile among the wave's holders (weighted), in each SCF wave before it is grown to the target year (build_table.build_maps). Other debt: the SCF's largest amounts ($15-69 million) landed on ordinary records and one such record carried $0.27-0.92 trillion after the tilt; held to the 99.9th percentile among holders, $0.5-2.0 million (John, 28 October). The training table is unchanged, so the models are unaffected."
+  "_scf_caps": "Balance-sheet items whose dollar map is held to a percentile among the wave's holders, so that the SCF's largest amounts do not land on ordinary records."
  },
  "tilt": {
-  "_what": "Post-training (tilt.py, solver.py, TARGETS.md): the start's weights scaled, then the weights moved to minimize one cost: the misses on every target in the year's list (targets_config/, expanded by target_list.py, each miss measured in its standard error from errors.py) plus the Kullback-Leibler size of the move (_reweighting says how). Which targets, their values and their errors are in targets_config/, not here.",
+  "_what": "Reweighting: the start's weights are scaled, then moved to minimize the misses on the year's targets plus the size of the move. The targets are in targets_config/.",
   "prescale": "demographic",
-  "_prescale": "The default start_scaling weights, when the year file gives none (target_list.start_spec): 'demographic' (TARGETS.md section 4): filers scaled to SOI's returns, then to Table 1.2's joint and non-joint returns, then to Table 1.6's returns by age range in each, and non-filers to the CPS's expected non-filers, then to the non-filer people targets, before the tilt; 'filing_status' stops after the joint and non-joint returns; 'none' scales filers and non-filers to their totals only.",
+  "_prescale": "The default start scaling when the year's targets.yaml gives none. 'demographic' scales filers to SOI's returns, joint and non-joint returns and returns by age range, and non-filers to the CPS's expected non-filers and the non-filer people targets; 'filing_status' stops after joint and non-joint returns; 'none' scales to totals only.",
   "precheck": {
    "min_relative_se": 0.001,
    "max_start_gap_se": 300,
    "min_excess_se": 1.0
   },
-  "_precheck": "precheck.py (1 November 2026): a check before the reweighting that only reports (precheck_flags.csv, precheck.md, the summary): a target is flagged when the average its count and amount require is outside the records' range by more than min_excess_se standard errors (rule 1), its relative standard error is below min_relative_se (rule 2), or the start is more than max_start_gap_se standard errors from it (rule 3). Nothing is dropped.",
+  "_precheck": "A check before the reweighting that only reports: a target is flagged when the average it requires lies outside the records' range by more than min_excess_se standard errors, its relative standard error is below min_relative_se, or the start is more than max_start_gap_se standard errors from it.",
   "reweighting": {
    "tau": 1000.0,
    "newton_budget": 150,
@@ -1871,11 +1871,11 @@
    "importance_one_kinds": ["IRS", "business", "soi 1.3", "soi 4.3", "age", "age by AGI", "age by status", "status by AGI", "dependent filers", "tips", "deferrals", "calculator"],
    "other_importance_divisor": 1.5
   },
-  "_reweighting": "The reweighting is one cost and no other rule (1 November 2026, decisions 57, 63, 64 and 68; solver.py). The file minimizes the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move of the weights from the start (in nats, on weights divided by the sum of the starting weights); identities are met exactly; no target has a range and none is dropped. The demographic prescaling uses the same rule on its cells. tau (1,000): the weight of the move against the misses; chosen in decision 63 (median miss 0.04 standard errors, 7 targets above 2 in 2022 on the new targets; the effective sample kept 62.5%). newton_budget: the most Newton steps in all (150 since 3 November, raised from 100 by John for 2023 with its Forbes list); never raised without John. gradient_tolerance: the solver's stopping size for the gradient of the dual, on the solver's scale (a miss as a share of the target's size). average_weight_change: an average's standard error is solved again at the first answer's group weight if a group moved by more than this share. importance_one_kinds: the target kinds with importance 1 (SOI's published tables, W-2 statistics, and the calculator's columns against SOI's); every other kind has importance 1 / other_importance_divisor.",
+  "_reweighting": "The cost: the sum over targets of 0.5 x importance x (miss / standard error)^2 plus tau x the Kullback-Leibler move from the start, with identities exact. newton_budget is the most Newton steps in all, gradient_tolerance the stopping size, average_weight_change the move in a group's weight that triggers a second solve for the standard errors of averages, and importance_one_kinds the target kinds with importance 1 (the others 1 / other_importance_divisor).",
   "soft_cap": {"k": 10, "beta": 1.0},
-  "projection": {"cbo_last_year": 2035, "population_dir": "/nfs/roberts/project/pi_nrs36/shared/model_data/Macro-Projections/v3/2026022522/baseline", "items_table": "targets_config/projection_items.csv", "add_factors_table": "targets_config/projection_add_factors.csv", "return_age_edges": [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80], "item_min_records": 500, "item_min_dollars": 500000000, "filing_season": {"base_year": 2023, "year": 2024, "tables": "../resources/filing_season/november_tables.csv", "trust_table": "targets_config/filing_season_trust.csv", "errors_table": "targets_config/filing_season_errors.csv", "min_error": 0.01, "series": {"capital_gains_line13": "file:projection_series_b.csv:rev_iit_capital_gain_loss"}}, "interest_growth": {"from_year": 2024, "rate_series": "file:projection_series_b.csv:int_gdp_bill", "split_year": 2022, "_what": "(John, 5 November 2026; projection_steps.py, its last section; FEATURES.md, \"Taxable interest after the jump-off year\") Every year whose start is from_year (the jump-off year, 2024) or later: taxable interest grows by rate_series, nominal GDP times CBO's 3-month Treasury bill rate (resources/growth/build_interest_series.py: CBO's February 2026 economic projections to 2035, then Macro-Projections), in place of int_remainder; non-qualified dividends grow by the blend of their items-table series (the stock-like part: SOI's split_year non-qualified dividends grown by qualified dividends' growth to the start year) and rate_series (the rest), weighted by the start file's split, computed in each run and written to summary.md and projection_interest.csv. Tax-exempt interest and every other item keep their rows. enabled false (or no entry): every year exactly as before."}},
-  "_projection": "(3 November 2026, agent A; projection_steps.py) The projection years' three steps, used by a year whose targets.yaml has start_scaling {weights: persons, dollars: item_factor}. population_dir: CBO's Social Security area population by marital status and single year of age (Macro-Projections). items_table: one row per grown column, its growth series, kind, whether its total is targeted and its relative error (relative to the pipeline folder). add_factors_table (John, 3 November 2026): extra growth in percent a year on top of an item's series, one row per item and range of years (column, first_year, last_year, percent, note), compounding from the base year; applied in step 2, so the item's target total includes it; every non-zero percent needs a note (who, when, why); a header only means no add factors and the year is unchanged (relative to the pipeline folder). return_age_edges: the primary filer's age bands of the returns targets (under 20, 20-24, ..., 75-79, 80 and over). cbo_last_year (4 November 2026, the long-run years 2036-2075): the last year a CBO projection is used; after it every series continues at the growth of its long-run Macro-Projections aggregate (the items table's series files, resources/projection_long_run_mapping.csv; the growth.yaml rules and the count of returns, projection_growth.long_run_growth and returns_growth, resources/growth/macro_long_run.csv; resources/growth/build_long_run.py writes them), and CBO's counts of returns give no AMT target. item_min_records, item_min_dollars: a targeted item's gains (or losses) are a target only with at least this many records and this many 2023 dollars (Forbes list left out). filing_season (John, 4 November 2026; scratch explore/2026-11-04/nowcast/PLAN.md and BACKTEST.md; projection_steps.py, its last section): the first projection year (year) takes each item's growth from base_year (the last year of final SOI tables) from SOI's November filing-season tables (tables, build_filing_season.py) blended with CBO's national growth by the item's trust (trust_table: full 1, mostly trust 2/3, mostly not trust 1/3, none 0): step 2 grows the item nationally at the blend, which carries into every later year (the blend to year times the series from year on); in year itself step 3 targets the item's blended total in each AGI group on filers (and the returns with it for items of full trust) in place of its national total, and the number of returns as shares across the groups; errors from errors_table, at least min_error. series: CBO's national series for an item with no column of its own (Form 1040's net capital gain or loss). enabled false: every year exactly as without it. When SOI publishes final tables for year, year becomes a past year and base_year and year move on by one.",
-  "_soft_cap": "A soft cap on each record's final weight (1 November 2026, decision 62, John). U_i is k times the mean starting weight of the record's AGI group (nine groups, non-filers their own; records with a positive starting weight, held records left out; the mean since decision 73, John, 1 November: it was the median), and the cost gains 0.5 x beta x ((w_i - U_i)+ / U_i)^2 per record: no cost below U_i, quadratic above it. beta = x^2 makes a record at twice its cap cost as much as an x standard-error miss on a target of importance 1. beta = 1 is the mild strength (decision 68); beta = 100 held every record within 1.06 U in 2022 (decision 65). k null: no cap.",
+  "projection": {"cbo_last_year": 2035, "population_dir": "/nfs/roberts/project/pi_nrs36/shared/model_data/Macro-Projections/v3/2026022522/baseline", "items_table": "targets_config/projection_items.csv", "add_factors_table": "targets_config/projection_add_factors.csv", "return_age_edges": [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80], "item_min_records": 500, "item_min_dollars": 500000000, "filing_season": {"base_year": 2023, "year": 2024, "tables": "../resources/filing_season/november_tables.csv", "trust_table": "targets_config/filing_season_trust.csv", "errors_table": "targets_config/filing_season_errors.csv", "min_error": 0.01, "series": {"capital_gains_line13": "file:projection_series_b.csv:rev_iit_capital_gain_loss"}}, "interest_growth": {"from_year": 2024, "rate_series": "file:projection_series_b.csv:int_gdp_bill", "split_year": 2022, "_what": "From from_year on, taxable interest grows with rate_series (nominal GDP times CBO's 3-month Treasury bill rate), and non-qualified dividends with a blend of their own series and rate_series weighted by the start file's split; enabled false turns this off."}},
+  "_projection": "The projection years' steps (projection_steps.py): population_dir is CBO's population by marital status and age; items_table each grown column's series and target; add_factors_table extra growth by item and years, each non-zero row with a note; return_age_edges the age bands of the returns targets; cbo_last_year the last year of CBO projections, with long-run Macro-Projections growth after it; item_min_records and item_min_dollars the floors for an item's target; filing_season the blend of SOI's November filing-season tables with CBO's growth for the first projection year. See FEATURES.md, \"Projection years\".",
+  "_soft_cap": "A soft cap on each record's weight: U is k times the mean starting weight of the record's AGI group, and the cost adds 0.5 x beta x ((w - U) / U)^2 above U; k null means no cap.",
   "top": {
    "billionaire_lists": {"2015": "forbes_billionaires_2015.csv", "2016": "forbes_billionaires_2016.csv", "2017": "forbes_billionaires_2017.csv", "2018": "forbes_billionaires_2018.csv", "2019": "forbes_billionaires_2019.csv", "2020": "forbes_billionaires_2020.csv", "2021": "forbes_billionaires_2021.csv", "2022": "forbes_billionaires_2022.csv", "2023": "forbes_billionaires_2023.csv", "2024": "forbes_billionaires_2024.csv", "2025": "forbes_billionaires_2025.csv", "2026": "forbes_billionaires_2026.csv"},
    "redraw_tries": 20,
@@ -1886,12 +1886,12 @@
    "gift_rate_top": 0.007,
    "gift_rate_rest": 0.006
   },
-  "_top": "The very top of the file (PLAN.md of explore/2026-10-29/top_research, approved by John 29 October; top_records.py, top_billionaires.py). enabled: the preparation step runs in tilt.main before any mask, condition or prescaling, and the SCF targets' population (catalog scf_units_below_a_billion) is the units below $1 billion of net worth, in the SCF and in the file; false: none of it, the SCF targets on every unit and Table 4.3's top 0.001% left out (target_list.expand drops the must_reach cells), as before. billionaire_lists: the year's Forbes list in research/rebuild/resources/top (tax year t uses the March or April list of year t, 2015-2026 since 2 November 2026, built by resources/top/build_forbes.py; its records have weight 1, held fixed; a year with none: no billionaires, and a warning). after_last_list.grow (John, 2 November 2026): a year after the last list takes the last list grown to the year (top_billionaires.grow_list: each fortune's public stock, private business and real estate grown as the projection start grows value.equities, value.pass_throughs and value.re_fund; income from the IRS study's ratios as in a list year; ages raised), its records starting at weight 1 times their cell's population growth from the list's year. after_last_list.wealth_growth (John, 4 November 2026): 'net worth', every fortune on the grown list by one factor, so that the list's net worth on its starting weights grows from the list's year as Z.1 household net worth (the file's own net worth target) and the list keeps its share of the file's net worth (top_records.net_worth_growth); 'parts', each part by the rule of its balance sheet item as below (2 November to 4 November 2026; the list's share of net worth then rose from 4.5% in 2026 to 5.8% in 2075). after_last_list.fixed (2 November 2026; kept as the rule by John, 4 November 2026: after the last list they are records like any other, aged naively and not moved by the solver): true holds those records at their starting weight in the solver, as the list years hold theirs at 1; false leaves them free under the soft cap, which in the 2 November run (explore/2026-11-02/billionaires/RESULTS.md) sent the ten richest to weights near zero. hidden_returns: Part A (top_hidden.py, merged 29 October; generated starts only; its build is cached in <gen>/hidden). redraw_tries: tries per generated record whose net worth comes out at $1 billion or more (top_billionaires.redraw_record, the same function Part A's rebuilt returns use with settings top_hidden.wealth_*; the tries drawn as one batch from generators seeded by redraw_seed and the record id, the dollar picks keyed by the record id and redraw_salt); if every try is at or above $1 billion the lowest is kept and flagged (open question 2: 20 chosen, the fallback rate reported). stand_in_agi, stand_in_min_records: without Part A's rebuilt over-$100-million group (hidden_group 3; mix_from_hidden), the billionaires' item mix comes from the generated filers with AGI at or above this (target-year dollars), or the top 0.01% if fewer records. gift_rate_top, gift_rate_rest: gifts as a share of wealth, BSYZ (2025) Table 2's top 100 and next 300."
+  "_top": "The top of the file: enabled adds the Forbes records and limits the SCF targets to units below $1 billion; billionaire_lists are the Forbes lists by year (weight 1, held fixed) and after_last_list says how later years grow the last list; hidden_returns turns on the rebuild of the PUF's aggregate records; redraw_tries and its seeds redraw a generated balance sheet of $1 billion or more; stand_in_agi and stand_in_min_records set the billionaires' item mix without the rebuilt top group; gift_rate_top and gift_rate_rest are gifts as a share of wealth (BSYZ 2025, Table 2). See FEATURES.md, \"The top of the file\"."
  },
  "non_micro_imputations": {
-  "_what": "The non-microdata imputations (non_micro_imputations.py; NEXT_STEPS.md item 1, John's decisions Q1-Q9 of 28 October; FEATURES.md): items set from what the model has drawn plus a published table, no new microdata. Each item: the columns it reads, the published tables it reads (research/rebuild/resources/non_micro/, built by build_non_micro_tables.py; sources.csv there), the columns it writes and its random stream. They run inside the tilt stage on the start (target-year dollars, prescaled weights), before the solve; the two ranking items rank on the start's weights. Each item writes new columns only and never changes a drawn item or a weight, except that a primary filer with an age and no sex is given a sex first (fill_missing_sex), and an item may change a drawn column it lists in writes_back (column: the new column that keeps the drawn value; only amt_nol_cap does). Their published checks are reported only (Q9), in report.md section 6 and non_micro_checks.md.",
+  "_what": "Items set from what the model has drawn plus a published table, with no new microdata, run inside the reweighting stage on the start before the solve. Each item lists the columns it reads and writes, its tables in resources/non_micro/ and its random stream; an item changes a drawn column only if it lists it in writes_back.",
   "salt_base": 2026102800,
-  "_salt_base": "Every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person), person 0 for the unit, 1 and 2 for the primary filer and the spouse, 3 to 5 for dependents 1 to 3: a fixed function of the record, the stream and the person, so it never moves when other code or other records change. Streams are numbered once in the items below and never renumbered. Stream 3 (the placeholder for dependents' Social Security numbers until 29 October) is no longer used: the numbers come from the model's draws (dollars.py).",
+  "_salt_base": "Every random number is ages.uniform_by_id(record_id, salt_base + 8 x stream + person), person 0 for the unit, 1 and 2 for the adults and 3 to 5 for dependents, so a draw never moves when other records change. Streams are never renumbered; stream 3 is unused.",
   "items": {
    "dependent_filer_age_sex": {
     "reads": ["record_id", "age_range", "cps_year"],
@@ -1899,14 +1899,14 @@
     "writes": ["dep_filer_age", "dep_filer_sex"],
     "stream": 1,
     "top_age": 80,
-    "_why": "Q2 (John, 28 October): each dependent filer (the PUF's three dependent-filer age ranges) gets an exact age and a sex drawn from the CPS dependents the filing stage counts as filing their own return (p_own_return 1), in the record's own CPS year, within the record's age range; the draw keyed by record id. This pool dates from 2 November 2026 (John; explore/2026-11-02/dependent_filers/RESULTS.md). Before then the pool was the dependents with earnings (wages and self-employment) above the year's dependent filing threshold, with the filing stage's rule as a fallback for a range with fewer than 30 sample people (26 and over); that pool was 64-83% age 18 within 18-25, because under the CPS tax-unit rule few dependents aged 19-23 earn above the threshold, while the filing pool is 37-46% age 18. The old rule was taken out of the code on 3 November 2026 (the simplification; it is in the git history). Ages above top_age are put at top_age (80 means 80 and over, as for the primary filer). dep_filer_age is -1 and dep_filer_sex 0 on every other record."
+    "_why": "Each dependent filer gets an exact age and sex drawn from the CPS dependents who file their own return, in the record's CPS year and age range, keyed by record id; ages above top_age are set to top_age."
    },
    "child_credit": {
     "reads": ["dep_age1", "dep_age2", "dep_age3", "n_dep_ctc"],
     "tables": ["ctc_age_limit.csv"],
     "writes": ["dep_ctc1", "dep_ctc2", "dep_ctc3"],
     "stream": 2,
-    "_why": "Production's rule (src/imputations/ages.R): dependent k (youngest first) passes every child credit test except age and Social Security number when it is under 17 and the record's n_dep_ctc (the PUF's count of child credit children, 2015 law) is at least k; dependents from 17 to the year's law age less one (17 alone in every year but 2021) pass by chance, 1 - the share of units with dependents under 17 whose count of them exceeds n_dep_ctc (start weights), as production. 1 passes, 0 not, -1 no such dependent. Tax-Simulator applies the age limit of the law it simulates."
+    "_why": "Dependent k passes every child credit test except age and Social Security number when under 17 and n_dep_ctc is at least k; dependents from 17 to the law's age limit less one pass by chance, as in production. 1 passes, 0 not, -1 no such dependent."
    },
    "death_probabilities": {
     "reads": ["age1", "age2", "sex_primary", "sex_spouse", "married", "dep_filer_age", "dep_filer_sex", "the broad income items"],
@@ -1914,7 +1914,7 @@
     "writes": ["q_death1", "q_death2"],
     "stream": 8,
     "top_age": 80,
-    "_why": "Production's three layers (src/mortality_ledger.R), no draw: the SSA period life table for the year, age and sex (80 means 80 and over: the average of q over ages 80-119 weighted by the table's L); times Chetty et al.'s mortality ratio at the person's percentile of broad income within sex and single age (start weights); times, for men only, Johnson et al.'s married or unmarried factor, rescaled to average 1 on the file within under 65 and 65 and over. Dependent filers use their ages and sex from dependent_filer_age_sex. q_death2 is -1 without a spouse. Stream 8 only for primary filers whom generation gave an age but no sex (2 records on 28 October): a sex with even chances, written back to sex_primary before any item runs (fill_missing_sex; the one drawn column this module changes; generate.py now forces the primary filer's sex to a man or a woman)."
+    "_why": "The SSA period life table by year, age and sex, times Chetty et al.'s mortality ratio at the person's income percentile, times for men Johnson et al.'s marital factor, as in production; no draw. Stream 8 gives a sex to a primary filer with an age but no sex."
    },
    "unrealized_gains": {
     "reads": ["value.equities", "value.pass_throughs", "value.primary_home", "value.other_home", "value.re_fund", "value.dc", "value.trusts", "w_dc_stock_share", "age1", "age2", "dep_filer_age"],
@@ -1922,14 +1922,14 @@
     "writes": ["accruals.equities", "accruals.pass_throughs", "accruals.primary_home", "accruals.other_home", "accruals.re_fund", "accruals.dc", "accruals.trusts"],
     "stream": null,
     "trust_stock_share": 0.6,
-    "_why": "Q6 (John, 28 October): one column per asset, value x the year's Z.1 revaluation rate (households and nonprofits): stocks at the corporate equities rate, businesses at noncorporate business equity's, the three kinds of real estate at real estate's, trusts at 60% stocks and 40% bonds (debt securities), retirement accounts at a stock share x the stocks rate + the rest x the bonds rate. Years with no full year of Z.1 data take production's long-run rates (bonds 0). The retirement accounts' stock share is the SCF's (w_dc_stock_share, RETEQ / RETQLIQ, learned in pretraining and drawn with the balance sheet since 29 October). A file from a model before then has no such draw, and the stage stops on it (until 3 November 2026 such a file used production's age rule, 1.10 - age of the older adult / 100 held to 0.20-0.95)."
+    "_why": "Each asset's value times the year's Z.1 revaluation rate for its kind; retirement accounts use the drawn stock share, and years without a full year of Z.1 data use production's long-run rates."
    },
    "cost_basis": {
     "reads": ["value.equities", "value.pass_throughs", "value.primary_home", "value.other_home", "value.re_fund", "w_kg_other", "w_kg_pass_throughs", "w_kg_primary_home", "w_kg_other_re"],
     "tables": [],
     "writes": ["basis.equities", "basis.pass_throughs", "basis.primary_home", "basis.other_home", "basis.re_fund"],
     "stream": null,
-    "_why": "Production's rule (src/imputations/wealth.R, to_output_schema): basis = value - the SCF's unrealized gain; the gain on other real estate is split between other homes and other real estate by value (half each when both are zero). Each gain is first held to no more than the value, so a basis is never below 0 (John, 28 October; the gain and the value are drawn separately, so a gain could exceed the value)."
+    "_why": "Basis is value less the SCF's unrealized gain, each gain first held to the value; other real estate's gain is split between other homes and other real estate by value, as in production."
    },
    "gains_holding_period": {
     "reads": ["kg_lt"],
@@ -1937,21 +1937,21 @@
     "writes": ["kg_lt_years_held", "kg_lt_basis"],
     "stream": 4,
     "weibull": {"shape": 0.7711, "scale": 9.1458},
-    "_why": "Q7 (John, 28 October): production's method (src/imputations/capital_gains.R). A holding-period group drawn with SOCA's share of long-term gain dollars (loss dollars for losses), an exact period in the group from a Weibull shape (an exponential tail above 20 years); basis from production's regression on SOCA's panel, log(basis/sales) = a constant per group + b x years x log(1 + trailing S&P 500 return), evaluated at the target year's trailing returns (past the index's last year, the index grows at its 1926-last geometric mean). Person 1 picks the group, person 2 the period. kg_lt_years_held is -1 and kg_lt_basis 0 where kg_lt is 0. Each period is held to at most the older adult's age less 18, and at least 1 year (John, 28 October; the basis is computed at the held period)."
+    "_why": "A holding-period group drawn with SOCA's shares of long-term gain dollars, an exact period from a Weibull shape, and basis from production's regression on SOCA's panel; each period is held between 1 year and the older adult's age less 18."
    },
    "parents_rank": {
     "reads": ["the income items of production's measure", "the start's weights"],
     "tables": ["mobility_matrix.csv"],
     "writes": ["parent_rank"],
     "stream": 5,
-    "_why": "Q8 (John, 28 October): production's method (src/imputations/mobility.R): each unit's income ranked among all units in percentiles (start weights), the bottom 10 merged into rank 10, then a parent rank drawn from Chetty et al.'s matrix. Production's code sends the bottom 9% to rank 100 (cut() gives them no group, replace_na(100)); the rebuild follows the code's stated intent (rank 10)."
+    "_why": "Each unit's income percentile (the bottom 10 merged into rank 10), then a parent rank drawn from Chetty et al.'s matrix, as production intends."
    },
    "blindness": {
     "reads": ["age1", "dep_filer_age", "age2", "married", "filing_status", "filer", "record_id", "the start's weights"],
     "tables": ["puf_blind_rates.csv", "pub4801_blind_boxes.csv"],
     "writes": ["blind1", "blind2"],
     "stream": 6,
-    "_why": "Q3 as a rule (John, second retrain of 29 October): for each primary filer, and each spouse on a married-joint record, a draw keyed by record id and person, blind with chance = the 2015 PUF's blind rate for the person's age range (where the return shows it) times one factor per person type; each factor makes the filers' weighted count at the start's weights equal Publication 4801's blind boxes for the target year. Non-filers are drawn by the same rule and not counted. Replaces the PUF slot learned in pretraining (29 October), whose draws were ten times too many."
+    "_why": "Each primary filer, and each spouse on a joint return, is blind with the 2015 PUF's rate for their age range times one factor per person type, set so that the filers' count matches Publication 4801's blind boxes for the year."
    },
    "qbi": {
     "reads": ["biz_industry_cf", "biz_industry_ps", "biz_workers_cf", "biz_workers_ps", "sole_prop", "the partnership and S corporation parts", "farm", "filer"],
@@ -1959,7 +1959,7 @@
     "writes": ["sstb_sole_prop", "sstb_part", "sstb_scorp", "sstb_farm", "wagebill_sole_prop", "wagebill_part", "wagebill_scorp", "wagebill_farm"],
     "stream": 7,
     "c_by_scf_group": {"1": 0.0188, "2": 0.0, "3": 0.4144, "4": 0.0, "5": 0.1024, "6": 0.2914, "7": 0.0},
-    "_why": "John, 6 November (scratch explore/2026-11-06/RETRAIN_PLAN.md, section 2; 28 October for the items' first version). Wages, in the tilt stage on the start's weights, before the taxes and the reweighting: a filing record's wages in a group = its drawn number (the owner's share of outside workers) x a scalar set each year so that the file's wages, after the rule that a record with no positive income of the type gets none, equal the IRS total; a non-filer has none, because the IRS tables are of returns for the year (resources/non_micro/irs_wages_by_business_type.csv). Schedule C and F group: all to wagebill_sole_prop, against SOI's Schedule C payroll. Partnership and S corporation group: split by each type's positive income, the two adding to the group's wages exactly; guaranteed payments are out of the partnership total and officers' compensation is in the S corporation total. Past the table's last year there is no IRS total to match: the scalar is the 2023 scalar x the growth of SOI's wages per return since (growth.factors('wages', year)), carried through the chain in qbi_scalars.csv beside each year's file; the run stops if it is missing. Service flag: the law's list, no dial. c_by_scf_group is the share of self-employed people in each SCF industry group whose detailed industry is on the law's list (CPS ASEC 2017-2019, scratch explore/2026-10-28/qbi_plan/scripts/cps_bridge.py, statutory_sstb_share); one keyed draw per group, so a record with both a partnership and a S corporation has one flag for both. Group 8 (no industry code): the average of groups 1-7 weighted by positive income on the file. Farms: never specified service, wage bill = positive farm income, so the wage limit never binds. Dropped on 6 November: the dials a and b, the CPS's industry pay, and the rule adding S corporation owners' own wages (the IRS total has officers' pay in it). No QBI targets. A change here needs only a rerun of the tilt stage."
+    "_why": "QBI wages: a filing record's wages in a business group are its drawn number of outside workers times a yearly scalar that makes the file's total equal the IRS total (grown with wages per return after the table's last year). Schedule C and F wages go to wagebill_sole_prop; partnership and S corporation wages are split by positive income. The specified-service flag is one draw per SCF industry group, c_by_scf_group being the share of self-employed people there in the law's listed industries; farms are never specified service and their wage bill is positive farm income."
    },
    "amt_nol_cap": {
     "reads": ["amt_nols", "other_agi_remainder", "filer"],
@@ -1967,33 +1967,33 @@
     "writes": ["amt_nols_drawn"],
     "writes_back": {"amt_nols": "amt_nols_drawn"},
     "stream": null,
-    "_why": "John, 29 October. The AMT net operating loss adjustment (amt_nols, the PUF's P60100) is held to at most the record's net operating loss, and is 0 on a record with no loss. The loss is the negative part of other_agi_remainder: the PUF has no field of its own for it, and a net operating loss deduction is reported as a negative amount in other income (Form 1040 line 21), which is in the AGI remainder. A negative amt_nols is left as drawn. The model draws amt_nols and the remainder separately, so a record could carry a large AMT adjustment with no loss behind it (the calculator experiment of 28 October: AMT five times SOI's from such records). The rule changes a drawn column (writes_back); the drawn value is kept as amt_nols_drawn. amt_nols is in PUF-year dollars (no Table 1.4 line), the loss in target-year dollars; they are compared as they are. No target reads amt_nols, so the rule moves no weight."
+    "_why": "The AMT net operating loss adjustment is held to the record's net operating loss, the negative part of other_agi_remainder (Form 1040 line 21), since the model draws the two separately; the drawn value is kept as amt_nols_drawn."
    }
   }
  },
  "taxes": {
-  "_what": "Taxes computed inside the model (taxes.py; piece 3 of the overnight plan of 29-30 October; design: scratch explore/2026-10-22/targets/calculator_api/REPORT.md). Inside the tilt stage, on the start after the top of the file and the non-microdata imputations and before the reweighting, every record's taxes under the target year's law from tax-simulator-gpu's batch command (python -m taxmodel.run.batch, on its local branch taxdata-batch-1103: master 080b8dbb of 3 November with the batch command and the itemized deduction categories added, not pushed), from a copy of that repository at commit (git archive into <out>/lib/tax-simulator-gpu_<first 12 characters>), run with its own Python environment (python). The computed columns (taxes.OUTPUTS, each the calculator's name with calc_ in front) join the file by record id, and the year's calculator targets (kind calculator in targets_config/) read them. Replaces the calculator experiment's own runner (calculator_run.py, 28 October); the stage calculator now calls the same command.",
+  "_what": "Taxes under the target year's law, computed inside the reweighting stage before the solve by tax-simulator-gpu's batch command, from a copy of its repository at commit, run with its own Python (python); the columns join the file as calc_<name>.",
   "commit": "c89e2729d2ed1b13ac32c7be7951de55aecb001f",
   "repo": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu",
   "python": "/nfs/roberts/project/pi_nrs36/jar335/Repositories/tax-simulator-gpu/.venv/bin/python",
   "draw_seed": 76,
-  "_draw_seed": "The seed of the calculator's random draws keyed by record id (its default run seed, 76): the child care credit's take-up, the state tax workaround's owners and the others.",
+  "_draw_seed": "The seed of the calculator's draws keyed by record id, such as child care credit take-up and the state tax workaround's owners.",
   "wage_increment": 100,
-  "_wage_increment": "Dollars added to the primary earner's wages for the marginal rates on wages (calc_mtr_wages_iit, calc_mtr_wages_payroll); 0: not computed.",
-  "repealed_adjustments": {"dpad": 2018, "tuition_ded": 2021, "_what": "Autoresearch, 4 November: each adjustment and the first tax year the law no longer allows it (the domestic production activities deduction, repealed by the 2017 law; the tuition and fees deduction, ended after 2020). taxes.apply_repealed_adjustments sets it to zero and moves the adjustments total and other_agi with it."},
+  "_wage_increment": "Dollars added to the primary earner's wages for the marginal tax rates on wages; 0 skips them.",
+  "repealed_adjustments": {"dpad": 2018, "tuition_ded": 2021, "_what": "Each adjustment and the first tax year the law no longer allows it; taxes.py sets it to zero and moves the adjustments total and other_agi with it."},
   "refund_reported_anyway": 0.15,
   "refund_tax_benefit_from": 2019,
-  "_refund_tax_benefit_from": "(Autoresearch round 10.) The first tax year the tax benefit rule applies: a refund received in year t repays year t-1's taxes, and the cap on the taxes deduction began in 2018, so 2018's refunds (of 2017 taxes) are left to decision 47 alone.",
-  "_refund_reported_anyway": "(Autoresearch round 3.) The chance that an itemizer whose refund the tax benefit rule would take off reports it anyway (drawn from the record id): SOI has taxable refunds on about 5% of returns at AGI $2-5 million, where taxes paid are far above the cap. 0: the rule alone.",
+  "_refund_tax_benefit_from": "The first tax year the tax benefit rule applies to state refunds: a refund received in year t repays year t-1's taxes, and the cap on the taxes deduction began in 2018.",
+  "_refund_reported_anyway": "The chance that an itemizer whose refund the tax benefit rule removes reports it anyway, as SOI shows on about 5% of returns at AGI $2-5 million; 0 applies the rule alone.",
  "greedy_schedule_a": {
   "passes": 3,
   "max_move": 0.25,
-  "_what": "Decision 49 (John, 30 October; design ALGO_GROWTH_SEARCH.md, the simple version): in a year with a Table 2.1 (2015-2023), after the growth by the declared priors and the refund rule, each category's input factor s (medical: med_exp; taxes paid: salt_inc_sales and salt_prop; interest: first_mort_int; charity: char_cash and char_noncash) is set so that the start's dollars per claiming return (the calculator's claimed amount over the filer returns claiming it, at the start's weights, all AGI) match Table 2.1's (its amounts over its counts, all AGI groups). passes: calculator runs, each followed by a multiplicative update of s; max_move: s stays within one plus or minus this of the prior (s = 1). Other itemized deductions keep the prior (Table 2.1 has no count for the residual). Years without a Table 2.1 (the chained years from 2024) keep the priors.",
+  "_what": "In a year with SOI Table 2.1, each Schedule A category's input factor is set so that the start's dollars per claiming return match Table 2.1's; passes is the number of calculator runs, and max_move bounds the factor's distance from 1.",
   "table21": "../resources/table21_2015_2023.csv"
  }
  },
  "state_weights": {
-  "_what": "The file with state weights (FEATURES.md, State weights; run.py years). soi_cv and lib: what each past year's folder links to, SOI's coefficients of variation ({year} in the path) and the pinned calculator copy (taxes.py writes a new commit's copy there on its first run). The items are state_targets.FINAL_ITEMS. tolerance: a target's standard error as a share of the larger of the target and 0.1% of the item's national total in the AGI group. tau: the weight of the move, as in tilt.reweighting. nonfiler_tolerance: the same for the non-filers' state by age band targets. newton_budget: Newton steps a year in the integrated solve.",
+  "_what": "State weights for every year: soi_cv and lib are the folders each past year links to (SOI's coefficients of variation, the pinned calculator); tolerance and nonfiler_tolerance set the state targets' standard errors; tau is as in tilt.reweighting, and newton_budget is the integrated solve's Newton steps a year. See FEATURES.md, \"State weights\".",
   "soi_cv": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-11-01/fixes/run/{year}/targets/soi_cv",
   "lib": "/nfs/roberts/scratch/pi_nrs36/jar335/rebuild/explore/2026-11-03/pin1103/lib",
   "tolerance": 0.02,
