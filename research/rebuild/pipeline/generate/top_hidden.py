@@ -84,8 +84,7 @@ def puf_items(raw, itemizer=None):
     # taxable Social Security (E02500) comes off too: it is computed by the worksheet, not a part
     out['other_agi_remainder'] = f['E00100'] - f['E00200'] - f['E00300'] - f['E00600'] - allowed - f['E01100'] \
         - sum(SIGNED_ITEMS[v] * items[v] for v in items) - f['E02500']
-    df = pd.DataFrame({v: np.asarray(out[v], float) for v in PRIMITIVES}, index=raw.index)
-    return df
+    return pd.DataFrame({v: np.asarray(out[v], float) for v in PRIMITIVES}, index=raw.index)
 
 
 def puf_totals(df, ss_taxable=None):
@@ -390,8 +389,10 @@ def scale_all(base, w, grp, nets, book, hold=False):
     out = base.copy()
     rows = []
     nets = nets.copy()
+    by_group = lambda x: np.array([(w * x)[grp == g].sum() for g in range(N_G)])
+    signed = lambda x: (by_group(np.where(x > 0, x, 0)), by_group(np.where(x < 0, x, 0)))   # positive and negative dollars
     for part in [p for p in SUPPRESSED_FIELDS.values() if nets[p].isna().all()]:
-        own = np.array([(w * base[part].to_numpy(float))[grp == g].sum() for g in range(N_G)])
+        own = by_group(base[part].to_numpy(float))
         sign = D.FOLD[part] if part in D.FOLD else -1.0      # alimony paid is an adjustment, subtracted from AGI
         nets['other_agi_remainder'] = nets['other_agi_remainder'] - sign * own
         rows.append({'part': part, 'notes': 'suppressed on the aggregate records: the donors\' own amounts, unscaled '
@@ -400,8 +401,7 @@ def scale_all(base, w, grp, nets, book, hold=False):
     last = ['other_agi_remainder']                       # the residual: scaled last, after every other part
     for v in [p for p in PRIMITIVES if p not in suppressed and p not in last]:
         x = base[v].to_numpy(float)
-        P = np.array([(w * np.where(x > 0, x, 0))[grp == g].sum() for g in range(N_G)])
-        N = np.array([(w * np.where(x < 0, x, 0))[grp == g].sum() for g in range(N_G)])
+        P, N = signed(x)
         T = nets[v].to_numpy(float)
         fld = SPLIT_PARTS.get(v)
         B = float(book.loc[fld, 'amount_positive']) if fld else None
@@ -414,13 +414,12 @@ def scale_all(base, w, grp, nets, book, hold=False):
     v = 'other_agi_remainder'
     fs = out['filing_status'] if 'filing_status' in out else None
     got = common.allowed_capital_gain(out['kg_st'].to_numpy(float) + out['kg_lt'].to_numpy(float), fs)
-    short = nets['sched_d_allowed'].to_numpy(float) - np.array([(w * got)[grp == g].sum() for g in range(N_G)])
+    short = nets['sched_d_allowed'].to_numpy(float) - by_group(got)
     note = ('held parts short of their nets, moved into it: ' + ', '.join(f'{GROUPS[g]} ${short[g] / 1e6:,.1f}m'
                                                                             for g in range(N_G) if abs(short[g]) > 1))
     # taxable Social Security comes from the worksheet on each record, so the residual moves by the raw record's
     # E02500 less the group's worksheet total. The worksheet reads AGI, which includes the residual, so the two are
     # repeated until the group totals settle within a dollar
-    by_group = lambda x: np.array([(w * x)[grp == g].sum() for g in range(N_G)])
     raw_ss = nets['ss_taxable'].to_numpy(float)
     out[v] = base[v].to_numpy(float)
     ss = puf_totals(out)['ss_taxable'].to_numpy(float)
@@ -436,9 +435,7 @@ def scale_all(base, w, grp, nets, book, hold=False):
             row = {'part': v, 'notes': ['held so each record\'s AGI stays in its group', note] + notes}
         else:
             x = base[v].to_numpy(float)
-            P = np.array([(w * np.where(x > 0, x, 0))[grp == g].sum() for g in range(N_G)])
-            N = np.array([(w * np.where(x < 0, x, 0))[grp == g].sum() for g in range(N_G)])
-            a, b, notes = solve_field(P, N, T)
+            a, b, notes = solve_field(*signed(x), T)
             out[v] = apply_factors(x, grp, a, b)
             row = {'part': v, **{f'positive factor, {GROUPS[g]}': a[g] for g in range(N_G)},
                    **{f'negative factor, {GROUPS[g]}': b[g] for g in range(N_G)}, 'notes': [note] + notes}
@@ -523,14 +520,9 @@ def draw_candidates(models, factors):
     return pd.concat(parts, ignore_index=True)
 
 
-def puf_maps(year):
-    m = pd.read_parquet(f'{common.MAPS}/map_puf_{year}.parquet')
-    return {v: g for v, g in m.groupby('variable')}
-
-
 def dollars_2015(stack):
     """The PUF items of stack in 2015 dollars, from the 2015 map and the stored picks."""
-    maps = puf_maps(PY)
+    maps = {v: g for v, g in pd.read_parquet(f'{common.MAPS}/map_puf_{PY}.parquet').groupby('variable')}
     cols = [c for v in D.ORDER if v in maps for c in (f'{v}_band', f'u_{v}') if c in stack] + ['filing_status']
     d = D.draw_dollars(stack[cols].reset_index(drop=True), maps)   # filing status sets the capital loss limit
     missing = [v for v in PRIMITIVES if v not in d]
@@ -560,37 +552,21 @@ def reband(frame2015):
     return pd.DataFrame(out)
 
 
-def redraw_wealth(rows, models, factors, maps):
+def redraw_wealth(rows, models, by_seed, maps):
     """Each rebuilt return's balance sheet drawn again given its final income items (top_billionaires.redraw_records),
     keeping the first try below wealth_cap, else the lowest. rows are the rebuilt returns in the stack's coding, with
     PUF bands from their final 2015 dollars. Returns the new SCF slot values, the kept try's dollars, the try accepted
     (-1 where every try reached the cap), every try's net worth, and the try kept."""
-    from generate import generate as G
     from pretrain import model as M
     from generate import top_billionaires as TB
-    P = M.PREDICTED
-    scf_cols = [M.column(v) for v in G.SCF_SLOTS]
-    cap, tries = float(S['wealth_cap']), int(S['wealth_tries'])
+    n = len(rows)
     device = next(models[0]['network'].parameters()).device
     coded = np.column_stack([rows[M.column(v)].to_numpy().astype(np.int64) if M.column(v) in rows
-                             else np.zeros(len(rows), np.int64) for v in P])
-    scf_year_idx = rows['scf_year'].map(M.YEARS.index).to_numpy()
-    model_of, waves, rids = rows['model'].to_numpy(), rows['scf_wave'].to_numpy(), rows['record_id'].to_numpy()
-    tried, kept, ok, bands, dol = np.zeros((len(rows), tries)), np.zeros(len(rows), int), np.zeros(len(rows), bool), [], []
-    for mod in models:
-        m = np.flatnonzero(model_of == mod['seed'])
-        if not len(m):
-            continue
-        got, dd, tried[m], kept[m], ok[m] = TB.redraw_records(
-            mod['network'], factors[mod['run']], coded[m], np.full(len(m), M.SOURCES.index('puf')),
-            np.full(len(m), M.YEARS.index(PY)), scf_year_idx[m], waves[m], rids[m], maps, cap, tries,
-            int(S['wealth_seed']), int(S['wealth_salt']), device)
-        bands.append(got.set_index(m))
-        dol.append(dd.set_index(m))
-    new = rows[scf_cols].copy()
-    for c in scf_cols:
-        new[c] = pd.concat(bands).sort_index()[c].to_numpy()
-    dol = pd.concat(dol).sort_index().set_index(rows.index)
+                             else np.zeros(n, np.int64) for v in M.PREDICTED])
+    new, dol, tried, kept, ok = TB.redraw_many(models, by_seed, rows, coded, np.full(n, M.SOURCES.index('puf')),
+                                               np.full(n, M.YEARS.index(PY)), maps, float(S['wealth_cap']), int(S['wealth_tries']),
+                                               int(S['wealth_seed']), int(S['wealth_salt']), device)
+    dol = dol.set_index(rows.index)
     assert not dol.isna().any().any(), 'a record with no balance sheet drawn'
     return new, dol, np.where(ok, kept, -1), tried, kept
 
@@ -607,7 +583,7 @@ def build():
     from generate import top_billionaires as TB
     by_seed, note = TB.offset_factors(models)
     common.say(note)
-    factors = {m['run']: by_seed[m['seed']] for m in models}
+    factors = {m['run']: by_seed[m['seed']] for m in models}   # by run, as generation keys them
     agg, ordinary = read_raw()
     common.say('translation check against build_table.puf_rows:\n' + check_translation(ordinary).to_string(index=False))
     n_ret, means, nets = raw_targets(agg)
@@ -679,19 +655,14 @@ def build():
             if not need:
                 continue
             side = 1 if T > 0 else -1
-            pool_g = np.flatnonzero((lines_pool == g) & (side * x > 0))
-            pool_g = np.setdiff1d(pool_g, keep)
-            if not len(pool_g):
-                added.append({'part': v, 'group': GROUPS[g], 'sign': 'positive' if side > 0 else 'negative',
-                              'added': 0, 'note': 'no candidate in the pool has it'})
-                continue
+            pool_g = np.setdiff1d(np.flatnonzero((lines_pool == g) & (side * x > 0)), keep)
             top = pool_g[np.argsort(-side * x[pool_g])[:int(S['targeted_per_gap'])]]
             grp_all[top] = g
             for i in top:
                 reasons.setdefault(int(i), []).append(f'targeted:{v}:{"positive" if side > 0 else "negative"}')
             keep = np.concatenate([keep, top])
             added.append({'part': v, 'group': GROUPS[g], 'sign': 'positive' if side > 0 else 'negative',
-                          'added': len(top), 'note': ''})
+                          'added': len(top), 'note': '' if len(top) else 'no candidate in the pool has it'})
     added = pd.DataFrame(added, columns=['part', 'group', 'sign', 'added', 'note'])
     common.say('targeted donors:\n' + (added.to_string(index=False) if len(added) else 'none needed'))
     keep = np.unique(keep)
@@ -799,7 +770,7 @@ def build():
               ).to_csv(f'{out}/check_selection.csv', header=['value'])
 
     # 7-8: the target year
-    rows = target_year_rows(h15, cand.iloc[donor].reset_index(drop=True), models, factors, out)
+    rows = target_year_rows(h15, cand.iloc[donor].reset_index(drop=True), models, by_seed, out)
     return rows
 
 
@@ -885,7 +856,7 @@ def checks_2015(h15, donor, w, grp, nets, n_ret, book, counts, out, agg):
     item_mix(h15, out)
 
 
-def target_year_rows(h15, donors, models, factors, out):
+def target_year_rows(h15, donors, models, by_seed, out):
     """Steps 7 and 8: the balance sheet drawn again, the PUF items grown to the target year and every total
     recomputed, as rows in the generated file's schema."""
     from scale import start as START
@@ -904,7 +875,7 @@ def target_year_rows(h15, donors, models, factors, out):
     stk['record_id'] = int(S['id_block']) + np.arange(len(stk))
     nw_before = D.draw_dollars(donors.reset_index(drop=True), maps, Y)['net_worth'].to_numpy(float)   # the donors' own
     # 7. wealth: the SCF slots drawn again; their stored picks are the kept try's (keyed by record id)
-    new, dol, accepted, tried, kept = redraw_wealth(stk, models, factors, maps)
+    new, dol, accepted, tried, kept = redraw_wealth(stk, models, by_seed, maps)
     for c in new:
         stk[c] = new[c].to_numpy().astype(stk[c].dtype)
     from generate import top_billionaires as TB

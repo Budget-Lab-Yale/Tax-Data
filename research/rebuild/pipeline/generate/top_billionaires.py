@@ -61,19 +61,13 @@ def wealth_parts(p):
     return p, known
 
 
-def last_list_year():
-    """The latest year with a Forbes list in settings tilt.top.billionaire_lists, or None."""
-    years = [int(y) for y in S['billionaire_lists']]
-    return max(years) if years else None
-
-
 def list_for_year(year):
     """The list for tax year year and how it is used: ('list', the year's own list, year); after the last list,
     ('grown', the last list grown to the year, the last list's year); otherwise (None, None, None)."""
     lst = read_list(year)
     if lst is not None:
         return 'list', lst, year
-    last = last_list_year()
+    last = max((int(y) for y in S['billionaire_lists']), default=None)   # the latest year with a list
     if last is not None and year > last:
         return 'grown', grow_list(read_list(last), last, year), last
     return None, None, None
@@ -89,24 +83,20 @@ def growth_factors(s, t):
     from scale import projection_growth as PG
     from scale import projection_steps as PS
     assert 2024 <= s < t, f'billionaires grown from {s} to {t}: only forward from a list year after 2023'
-    cols = {'public': 'value.equities', 'private_pt': 'value.pass_throughs', 'private_re': 'value.re_fund'}
     tab, add = PS.items_table(), PS.add_factors_table()
     R = PG.returns_growth(s, t)
-    out, scf = {}, None
-    for k, c in cols.items():
-        if k != 'private_re':
-            spec = tab.loc[c, 'series']
-            assert spec.startswith('file:') and tab.loc[c, 'kind'] == 'total', f'{c}: the items table row is {spec}, not a file series of kind total'
-            assert not (add['column'] == c).any(), f'{c}: add factors on a column the billionaires are grown by'
-            g, what = PS.series_growth(spec, s, t)
-            out[k] = (g / R, f'{c}: {what} (growth in total) over the growth in returns {R:.5f}')
-            continue
-        if scf is None:   # as grow_dollars: the SCF rows of the training table
-            scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)
-            scf = scf[scf.source == 'scf']
-        f = MP.scf_growth(scf, s - 1, t - 1)[c]
-        assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
-        out[k] = (float(f), f'{c}: SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
+    out = {}
+    for k, c in [('public', 'value.equities'), ('private_pt', 'value.pass_throughs')]:
+        spec = tab.loc[c, 'series']
+        assert spec.startswith('file:') and tab.loc[c, 'kind'] == 'total', f'{c}: the items table row is {spec}, not a file series of kind total'
+        assert not (add['column'] == c).any(), f'{c}: add factors on a column the billionaires are grown by'
+        g, what = PS.series_growth(spec, s, t)
+        out[k] = (g / R, f'{c}: {what} (growth in total) over the growth in returns {R:.5f}')
+    c = 'value.re_fund'
+    scf = pd.read_parquet(common.TABLE, columns=['source', 'year', 'weight'] + BT.SCF_AMOUNTS)   # as grow_dollars: the SCF rows of the training table
+    f = MP.scf_growth(scf[scf.source == 'scf'], s - 1, t - 1)[c]
+    assert np.isfinite(f) and f > 0, f'{c}: no SCF growth factor {s} to {t}'
+    out['private_re'] = (float(f), f'{c}: SCF mean per tax unit, wave of {t - 1} over wave of {s - 1} (growth.yaml, as grow_dollars)')
     return out
 
 
@@ -519,13 +509,13 @@ def offset_factors(models):
 
 def balance_sheet_dollars(rows, maps, salt):
     """The balance sheet in target-year dollars from rows' SCF bands: each amount from the map of the row's wave, with
-    a pick keyed by record id and salt plus the amount's position (salt may be one number per row); then the items made
-    from a share, and net worth."""
+    a pick keyed by record id and salt (one number per row) plus the amount's position; then the items made from a
+    share, and net worth."""
     from shared import ages
     out = pd.DataFrame(index=rows.index)
-    salt = np.asarray(salt, dtype=np.uint64) if np.ndim(salt) else int(salt)
+    salt = np.asarray(salt, dtype=np.uint64)
     for i, v in enumerate(D.META['scf_amounts']):
-        u = ages.uniform_by_id(rows['record_id'].to_numpy(), salt + np.uint64(i) if np.ndim(salt) else salt + i)
+        u = ages.uniform_by_id(rows['record_id'].to_numpy(), salt + np.uint64(i))
         out[v] = D.draw_by_wave(rows, v, maps, None, u)
     for slot, (item, base) in D.RATIOS.items():
         if slot in out and base in out:
@@ -605,6 +595,26 @@ def redraw_records(network, factors, coded, label_idx, year_idx, scf_year_idx, w
             dd.iloc[at].reset_index(drop=True), nw, kept, ok)
 
 
+def redraw_many(models, factors, r, coded, label_idx, year_idx, maps, ceiling, tries, seed, salt, device):
+    """redraw_records on the records r (columns record_id, scf_wave, scf_year, model), each by the model that drew it.
+    factors: each model's offset factors by training seed. Returns the kept tries' SCF slots and dollars (frames in r's
+    order), every try's net worth [records, tries], the try kept and whether any try was below the ceiling."""
+    from pretrain import model as M
+    rids, waves, model_of = r['record_id'].to_numpy().astype(np.int64), r['scf_wave'].to_numpy(), r['model'].to_numpy()
+    scf_year_idx = r['scf_year'].map(M.YEARS.index).to_numpy()
+    nw, kept, ok, bands, dol = np.zeros((len(r), tries)), np.zeros(len(r), int), np.zeros(len(r), bool), [], []
+    for mod in models:
+        m = np.flatnonzero(model_of == mod['seed'])
+        if not len(m):
+            continue
+        got, dd, nw[m], kept[m], ok[m] = redraw_records(
+            mod['network'], factors[mod['seed']], coded[m], label_idx[m], year_idx[m], scf_year_idx[m], waves[m], rids[m],
+            maps, ceiling, tries, seed, salt, device)
+        bands.append(got.set_index(m))
+        dol.append(dd.set_index(m))
+    return pd.concat(bands).sort_index(), pd.concat(dol).sort_index(), nw, kept, ok
+
+
 SCF_MADE = ['net_worth', 'value.primary_mortgage', 'w_dc_stocks', 'elective1', 'elective2', 'trad_contr_er1',
             'trad_contr_er2', 'trad_deferrals', 'medicare_wages']   # made from the SCF amounts (draw_dollars)
 
@@ -629,23 +639,12 @@ def redraw_balance_sheets(df, raw, year, ceiling, notes):
     models = G.load_models(device)
     factors, fnote = offset_factors(models)
     maps = D.load_maps(year)
-    P = M.PREDICTED
     scf_cols = [M.column(x) for x in G.SCF_SLOTS]
     r = raw.iloc[todo].reset_index(drop=True)
     rids = r['record_id'].to_numpy().astype(np.int64)
-    coded = np.column_stack([r[M.column(x)].to_numpy().astype(np.int64) for x in P])
-    label_idx, year_idx = r['source'].map(M.SOURCES.index).to_numpy(), r['year'].map(M.YEARS.index).to_numpy()
-    scf_year_idx, waves, model_of = r['scf_year'].map(M.YEARS.index).to_numpy(), r['scf_wave'].to_numpy(), r['model'].to_numpy()
-    nw_tries, kept, ok, bands = np.zeros((len(r), tries)), np.zeros(len(r), int), np.zeros(len(r), bool), []
-    for mod in models:
-        m = np.flatnonzero(model_of == mod['seed'])
-        if not len(m):
-            continue
-        got, _, nw_tries[m], kept[m], ok[m] = redraw_records(
-            mod['network'], factors[mod['seed']], coded[m], label_idx[m], year_idx[m], scf_year_idx[m], waves[m], rids[m],
-            maps, ceiling, tries, seed, salt, device)
-        bands.append(got.set_index(m))
-    bands = pd.concat(bands).sort_index()
+    coded = np.column_stack([r[M.column(x)].to_numpy().astype(np.int64) for x in M.PREDICTED])
+    bands, _, nw_tries, kept, ok = redraw_many(models, factors, r, coded, r['source'].map(M.SOURCES.index).to_numpy(),
+                                               r['year'].map(M.YEARS.index).to_numpy(), maps, ceiling, tries, seed, salt, device)
     for c in scf_cols:
         r[c] = bands[c].to_numpy()
     picks = {c: u for c, u in kept_picks(rids, kept, salt).items() if c in r}

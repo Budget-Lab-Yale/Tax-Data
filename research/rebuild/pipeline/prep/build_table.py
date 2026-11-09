@@ -21,7 +21,6 @@ from prep import soi as TG
 from shared import translate as TR
 from shared.common import PUF_YEAR, TARGET_YEAR
 
-RAW = common.RAW
 # ---- constants -------------------------------------------------------------------
 WAVE_2013_ID_OFFSET = 2.013e12
 # band layout: 0 zero; 1-10 losses (shares of loss weight from the least negative); 11-83 positives
@@ -105,7 +104,7 @@ PUF_AMOUNTS = ['wages', 'txbl_int', 'dividends', 'capital_gains'] + KG_PIECES + 
     ['other_agi']
 CEX_CATS = ['c_clothing', 'c_motor_vehicles', 'c_durables', 'c_other_nondurables', 'c_food_off_premises',
             'c_gasoline', 'c_housing_utilities', 'c_other_services_health']
-CEX_AMOUNTS = list(CEX_CATS)
+CEX_AMOUNTS = CEX_CATS
 # CPS-only amounts, cut into bands within each year: the spouse's share of the couple's wages, each adult's weeks
 # worked, usual weekly hours and overtime pay (overtime_cps.R), and childcare. Overtime is missing on the units not
 # asked the earnings questions, about three quarters of them.
@@ -238,7 +237,7 @@ PUF_FIELDS = ['RECID', 'S006', 'MARS', 'N24', 'EIC', 'XOCAH', 'XOCAWH', 'XOPAR',
 def read_puf():
     """The PUF, read once for the table and for ages.py, without its four aggregate records."""
     fields = list(dict.fromkeys(PUF_FIELDS + ages.PUF_FIELDS + ES.PUF_FIELDS))
-    raw = pd.read_csv(RAW['puf'], usecols=fields)
+    raw = pd.read_csv(common.RAW['puf'], usecols=fields)
     return raw[raw.RECID < 999996].reset_index(drop=True)
 
 
@@ -321,8 +320,6 @@ def puf_rows(puf):
     df = pd.DataFrame(out)
     for v in PUF_AMOUNTS:
         df[v] = df[v].astype(float)
-    for v in SCF_AMOUNTS:
-        df[v] = np.nan
     df['age_range'] = rng.age_range.to_numpy()
     for k in range(ages.N_RANGES):
         df[f'age_p{k}'] = probs[:, k]
@@ -358,15 +355,7 @@ COMPUTED = {'capital_gains': {p: 1 for p in KG_PIECES},
             'sche_rent': {p: PARTS[p][1] for p in RENT_PARTS}, 'sche_rest': {p: PARTS[p][1] for p in REST_PARTS}}
 
 
-_GROWTH = {}
-
-
-def growth(v, y):
-    """(factor for positive values, for negative values) of PUF amount v, PUF year to y, by v's line in the target
-    year's growth.yaml (growth.factors)."""
-    if (v, y) not in _GROWTH:
-        _GROWTH[(v, y)] = GR.factors(v, y)
-    return _GROWTH[(v, y)]
+growth = GR.factors   # (factor for positive values, for negative values) of a PUF amount, PUF year to y, by the target year's growth.yaml
 
 
 def grown(df, y, base=PUF_YEAR, columns=None):
@@ -432,12 +421,11 @@ def tax_data(t, y):
     # other gains has a net loss in 2012)
     surveys = sorted(set(t.loc[(t.year == y) & (t.source != 'puf'), 'source']))
     assert surveys, f'no survey of year {y}'
-    shared = sorted({r['variable'] for src in surveys for r in TR.rows(src, amounts_only=True)})
+    rows = [r for src in surveys for r in TR.rows(src, amounts_only=True)]
     # and the totals a row is ranked against, which can be a sum (the CPS's pensions against taxable pensions plus
     # taxable IRA distributions)
-    sums = {TR.against_name(r): TR.against(r) for src in surveys for r in TR.rows(src, amounts_only=True)
-            if len(TR.against(r)) > 1}
-    shared = sorted(set(shared) | {a for src in surveys for r in TR.rows(src, amounts_only=True) for a in TR.against(r)})
+    sums = {TR.against_name(r): TR.against(r) for r in rows if len(TR.against(r)) > 1}
+    shared = sorted({r['variable'] for r in rows} | {a for r in rows for a in TR.against(r)})
     needed = sorted({p for v in shared for p in COMPUTED.get(v, {v: 1})})
     filers = grown(puf, y, columns=needed).assign(weight=puf.weight.to_numpy() * f)
     for k in range(common.ADULT_RANGES):
@@ -473,15 +461,36 @@ def tax_data(t, y):
     return out
 
 
+def unit_frame(src, s, record_id, household_id, male1, male2, **columns):
+    """The table's columns of a survey's units s: the common ones (a category the survey lacks is -1, the person
+    items as the survey's person 1 and 2 until the primary rule), the survey's raw columns, and columns, the
+    survey's own or its values of the common ones."""
+    return pd.DataFrame({'source': src, 'year': s['year'], 'record_id': record_id, 'household_id': household_id,
+                         'weight': s['weight'].astype(float), 'married': s['married'].astype(np.int64),
+                         'n_dep': s['n_dep'].clip(upper=3).astype(np.int64), 'filer': -1, 'filer_p': -1.0,
+                         **{c: -1 for c in TAX_CATEGORIES}, 'k1_owner': -1, 'owns_business': -1,
+                         **survey_items(s, src),
+                         'svy_age1': s['age1'].astype(float), 'svy_age2': s['age2'].astype(float),
+                         'male1': male1.astype(float), 'male2': male2.astype(float), 'age_key': household_id, **columns})
+
+
+def read_units(src, years):
+    """The survey's units of every year, stacked, after the checks every survey's file passes."""
+    rows = []
+    for y in years:
+        s = pd.read_csv(f'{common.DATA}/{src}_units_{y}.csv.gz')
+        assert (s['year'] == y).all() and not s['record_id'].duplicated().any()
+        rows.append(s)
+    return pd.concat(rows, ignore_index=True)
+
+
 def cex_rows():
     """The CEX tax units (build_cex.R), every year in settings "cex"."""
-    rows = []
+    s = read_units('cex', CX['years'])
+    assert (s['weight'] > 0).all()
     for y in CX['years']:
-        s = pd.read_csv(f'{common.DATA}/cex_units_{y}.csv.gz')
-        assert (s['year'] == y).all() and (s['weight'] > 0).all() and not s['record_id'].duplicated().any()
-        common.say(f'CEX {y}: {len(s):,} rows, {s.weight.sum() / 1e6:.1f} million units')
-        rows.append(s)
-    s = pd.concat(rows, ignore_index=True)
+        d = s[s['year'] == y]
+        common.say(f'CEX {y}: {len(d):,} rows, {d.weight.sum() / 1e6:.1f} million units')
     need = sorted({c for r in TR.rows('cex', amounts_only=True) for c in r['items']}) + CEX_CATS
     n_missing = s[need].isna().sum()
     assert not n_missing.any(), f'missing values in the CEX units:\n{n_missing[n_missing > 0]}'
@@ -489,20 +498,8 @@ def cex_rows():
     # record ids unique across years; the household id is not offset, so a consumer unit interviewed in two
     # survey years falls on one side of the held-back split
     off = (s['year'] - 2000) * CEX_YEAR_ID_OFFSET
-    df = pd.DataFrame({'source': 'cex', 'year': s['year'], 'record_id': s['record_id'] + off,
-                       'household_id': s['household_id'].astype(float), 'weight': s['weight'].astype(float),
-                       'married': s['married'].astype(np.int64), 'n_dep': s['n_dep'].clip(upper=3).astype(np.int64),
-                       'filer': -1, 'filer_p': -1.0, 'k1_owner': -1, 'owns_business': -1,
-                       **{c: -1 for c in TAX_CATEGORIES},
-                       **survey_items(s, 'cex'),
-                       'svy_age1': s['age1'], 'svy_age2': s['age2'], 'male1': s['male1'], 'male2': s['male2'],
-                       'age_key': s['household_id'].astype(float)})
-    for c in CEX_CATS:
-        df[c] = s[c].astype(float)
-    for v in AMOUNTS:
-        if v not in df:
-            df[v] = np.nan
-    return df
+    return unit_frame('cex', s, s['record_id'] + off, s['household_id'].astype(float), s['male1'], s['male2'],
+                      **{c: s[c].astype(float) for c in CEX_CATS})
 
 
 def shares(survey, variable):
@@ -514,13 +511,11 @@ def cps_rows():
     """The CPS tax units (build_cps.R), every year in settings "cps", filers and non-filers. filer_p is the unit's
     calibrated filing chance. The person items stay as person 1 and person 2 (p1_..., p2_...) until cps_person_slots
     puts them in primary-filer order."""
-    rows = []
+    s = read_units('cps', CP['years'])
+    assert (s['weight'] > 0).all()
     for y in CP['years']:
-        s = pd.read_csv(f'{common.DATA}/cps_units_{y}.csv.gz')
-        assert (s['year'] == y).all() and (s['weight'] > 0).all() and not s['record_id'].duplicated().any()
-        common.say(f'CPS {y}: {len(s):,} rows, {s.weight.sum() / 1e6:.1f} million units')
-        rows.append(s)
-    s = pd.concat(rows, ignore_index=True)
+        d = s[s['year'] == y]
+        common.say(f'CPS {y}: {len(d):,} rows, {d.weight.sum() / 1e6:.1f} million units')
     person = ['wages1', 'wages2', 'se1', 'se2', 'weeks_worked1', 'weeks_worked2', 'usual_hours1', 'usual_hours2']
     need = sorted({c for r in TR.rows('cps', amounts_only=True) for c in r['items']}) + person + \
         ['married', 'n_dep', 'filer', 'p_file', 'filing_status', 'n_dep_ctc', 'n_dep_eitc', 'age1', 'age2', 'sex1', 'sex2', 'dep_age1', 'dep_age2', 'dep_age3', 'care_exp',
@@ -565,29 +560,17 @@ def cps_rows():
     assert s['record_id'].max() < 1e9 and s['household_id'].max() < 1e9
     rid = CPS_ID_OFFSET + (s['year'] - 2000) * 1e9 + s['record_id'].astype(float)
     hh = CPS_ID_OFFSET + (s['year'] - 2000) * 1e9 + s['household_id'].astype(float)
-    df = pd.DataFrame({'source': 'cps', 'year': s['year'], 'record_id': rid, 'household_id': hh,
-                       'weight': s['weight'].astype(float), 'married': s['married'].astype(np.int64),
-                       'n_dep': s['n_dep'].clip(upper=3).astype(np.int64),
-                       'filer': s['filer'].astype(np.int64) if shares('cps', 'filer') else -1,
-                       'filer_p': s['p_file'].astype(float),
-                       **{c: s[c].astype(np.int64) if shares('cps', c) else -1 for c in TAX_CATEGORIES},
-                       'k1_owner': -1, 'owns_business': -1,
-                       **survey_items(s, 'cps'),
-                       'svy_age1': s['age1'].astype(float), 'svy_age2': s['age2'].astype(float),
-                       'male1': (s['sex1'] == 1).astype(float), 'male2': (s['sex2'] == 1).astype(float),
-                       'age_key': hh,
-                       **{f'p{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2)
-                          for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']},
-                       **{f'p{k}_ot': s[f'ot{k}'].astype(float) for k in (1, 2)},
-                       **{f'p{k}_ssn_status': s[f'ssn_status{k}'].astype(np.int64) for k in (1, 2)},
-                       **{f'svy_dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
-                       **{f'dep_ssn_status{k}': s[f'dep_ssn_status{k}'].astype(np.int64) for k in (1, 2, 3)},
-                       'cps_childcare': s['care_exp'].astype(float),
-                       'svy_statefip': s['statefip'].astype(np.int64)})
-    for v in AMOUNTS:
-        if v not in df:
-            df[v] = np.nan
-    return df
+    return unit_frame('cps', s, rid, hh, s['sex1'] == 1, s['sex2'] == 1,
+                      filer=s['filer'].astype(np.int64) if shares('cps', 'filer') else -1,
+                      filer_p=s['p_file'].astype(float),
+                      **{c: s[c].astype(np.int64) if shares('cps', c) else -1 for c in TAX_CATEGORIES},
+                      **{f'p{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2)
+                         for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']},
+                      **{f'p{k}_ot': s[f'ot{k}'].astype(float) for k in (1, 2)},
+                      **{f'p{k}_ssn_status': s[f'ssn_status{k}'].astype(np.int64) for k in (1, 2)},
+                      **{f'svy_dep_age{k}': s[f'dep_age{k}'].astype(np.int64) for k in (1, 2, 3)},
+                      **{f'dep_ssn_status{k}': s[f'dep_ssn_status{k}'].astype(np.int64) for k in (1, 2, 3)},
+                      cps_childcare=s['care_exp'].astype(float), svy_statefip=s['statefip'].astype(np.int64))
 
 
 PERSON_COLUMNS = [f'p{k}_{c}' for k in (1, 2) for c in ['age', 'sex', 'wages', 'se', 'weeks_worked', 'usual_hours']] + \
@@ -643,9 +626,7 @@ def cps_person_slots(t, primary_is_2):
                f'{w[has_e].sum() / 1e6:.2f} million of {w[sel].sum() / 1e6:.2f} million asked (weighted, all CPS years); '
                f'earn_split among married units (%): ' + ', '.join(
                    f'{k} {100 * w[married_ & (out["earn_split"] == k)].sum() / w[married_].sum():.1f}' for k in range(4)))
-    t = pd.concat([t, pd.DataFrame({v: np.nan for v in out if v not in t}, index=t.index)], axis=1)
-    for v, x in out.items():
-        t.loc[c, v] = x
+    t = put_rows(t, c, out)
     # what generation enforces (generate.structural) holds in the data
     d = t[c]
     married = (d.married == 1).to_numpy()
@@ -697,15 +678,13 @@ SIPP_PERSON_COLUMNS = [f'q{k}_{c}' for k in (1, 2) for c in SIPP_PERSON]
 def sipp_rows():
     """The SIPP's tax units (roster_sipp.py), every year in settings "sipp". The person items stay as person 1 and
     person 2 (q1_..., q2_...) until sipp_person_slots puts them in primary-filer order."""
-    rows = []
+    s = read_units('sipp', SP['years'])
     for y in SP['years']:
-        s = pd.read_csv(f'{common.DATA}/sipp_units_{y}.csv.gz')
-        assert (s['year'] == y).all() and not s['record_id'].duplicated().any()
-        zero = int((s['weight'] <= 0).sum())
-        common.say(f'SIPP {y}: {len(s):,} rows, {s.weight.sum() / 1e6:.1f} million units; rows with weight 0 left out '
+        d = s[s['year'] == y]
+        zero = int((d['weight'] <= 0).sum())
+        common.say(f'SIPP {y}: {len(d):,} rows, {d.weight.sum() / 1e6:.1f} million units; rows with weight 0 left out '
                    f'(the SIPP gives them no weight in the reference year\'s last month): {zero}')
-        rows.append(s[s['weight'] > 0])
-    s = pd.concat(rows, ignore_index=True)
+    s = s[s['weight'] > 0].reset_index(drop=True)
     need = sorted({c for r in TR.rows('sipp', amounts_only=True) for c in r['items']}) + \
         ['married', 'n_dep', 'age1', 'age2', 'sex1', 'sex2', 'wages1', 'wages2', 'tips1', 'tips2', 'tips_lh1', 'tips_lh2']
     n_missing = s[need].isna().sum()
@@ -728,19 +707,8 @@ def sipp_rows():
     assert s['record_id'].max() < 1e10 and s['household_id'].max() < 1e10
     rid = SIPP_ID_OFFSET + (s['year'] - 2000) * 1e10 + s['record_id'].astype(float)
     hh = SIPP_ID_OFFSET + (s['year'] - 2000) * 1e10 + s['household_id'].astype(float)
-    df = pd.DataFrame({'source': 'sipp', 'year': s['year'], 'record_id': rid, 'household_id': hh,
-                       'weight': s['weight'].astype(float), 'married': s['married'].astype(np.int64),
-                       'n_dep': s['n_dep'].clip(upper=3).astype(np.int64), 'filer': -1, 'filer_p': -1.0,
-                       **{c: -1 for c in TAX_CATEGORIES}, 'k1_owner': -1, 'owns_business': -1,
-                       **survey_items(s, 'sipp'),
-                       'svy_age1': s['age1'].astype(float), 'svy_age2': s['age2'].astype(float),
-                       'male1': (s['sex1'] == 1).astype(float), 'male2': (s['sex2'] == 1).astype(float),
-                       'age_key': hh,
-                       **{f'q{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2) for c in SIPP_PERSON}})
-    for v in AMOUNTS:
-        if v not in df:
-            df[v] = np.nan
-    return df
+    return unit_frame('sipp', s, rid, hh, s['sex1'] == 1, s['sex2'] == 1,
+                      **{f'q{k}_{c}': s[f'{c}{k}'].astype(float) for k in (1, 2) for c in SIPP_PERSON})
 
 
 def sipp_person_slots(t, primary_is_2):
@@ -761,9 +729,7 @@ def sipp_person_slots(t, primary_is_2):
     out['spouse_wage_share'] = np.where(married_ & (total > 0), pick('wages', 2) / np.where(total > 0, total, 1.0), np.nan)
     for who in ['primary', 'spouse']:
         assert (out[f'tips_{who}'] == out[f'tips_{who}_reported']).all(), f'{who}: SIPP tips without wages'
-    t = pd.concat([t, pd.DataFrame({v: np.nan for v in out if v not in t}, index=t.index)], axis=1)
-    for v, x in out.items():
-        t.loc[c, v] = x
+    t = put_rows(t, c, out)
     d = t[c]
     married = (d.married == 1).to_numpy()
     assert (d.loc[~married, SIPP_SPOUSE_SLOTS] == 0).all().all() and d.loc[~married, 'spouse_wage_share'].isna().all()
@@ -777,6 +743,14 @@ def sipp_person_slots(t, primary_is_2):
     return t.drop(columns=[c for c in out if c.endswith('_reported')])
 
 
+def put_rows(t, c, out):
+    """The columns of out (arrays on the rows c of t) written into t; a new column is missing on the other rows."""
+    t = pd.concat([t, pd.DataFrame({v: np.nan for v in out if v not in t}, index=t.index)], axis=1)
+    for v, x in out.items():
+        t.loc[c, v] = x
+    return t
+
+
 def scf_person_slots(t, primary_is_2):
     """The SCF's spouse_deferral_share: the spouse's share of the unit's elective deferrals, primary filer first. 0
     on a unit that is not married or has no deferrals; missing where the SCF does not ask."""
@@ -787,7 +761,7 @@ def scf_person_slots(t, primary_is_2):
     married = (d['married'] == 1).to_numpy()
     asked = ~np.isnan(e)
     share = np.where(married & (e > 0), spouse / np.where(e > 0, e, 1.0), 0.0)
-    t.loc[c, 'spouse_deferral_share'] = np.where(asked, share, np.nan)
+    t = put_rows(t, c, {'spouse_deferral_share': np.where(asked, share, np.nan)})
     s = t.loc[c, 'spouse_deferral_share'].to_numpy(float)
     assert (np.isnan(s) == ~asked).all() and ((s[asked] >= 0) & (s[asked] <= 1 + 1e-9)).all()
     w = d['weight'].to_numpy(float)
@@ -860,11 +834,7 @@ def scf_rows():
         raw = survey_items(s, 'scf')
         s = s.drop(columns=[c for c in s if c in PUF_AMOUNTS]).assign(**raw)
         waves.append(s)
-    s = pd.concat(waves, ignore_index=True)
-    for v in AMOUNTS:
-        if v not in s:
-            s[v] = np.nan
-    return s
+    return pd.concat(waves, ignore_index=True)
 
 
 # ---- the AGI group label (qgroups.py) --------------------------------------------------------
