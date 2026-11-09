@@ -354,6 +354,24 @@ def read_roster(year):
     return r
 
 
+# ---- The units ----
+
+def build(year):
+    """The SIPP's units for one reference year. Couples are split into separate returns by the CEX's rule: every
+    joint couple is a candidate, and couples are taken in the order of a keyed draw until their weight reaches half
+    of SOI Table 1.6's separate returns."""
+    from prep import soi as TG
+    r = read_roster(year)
+    persons, units = T.build_units(r, year)
+    target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
+    mu = units[~units.dep_return].reset_index(drop=True)
+    chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, salt=int(S['mfs_salt']))
+    common.say(f'SIPP {year}: SOI Table 1.6 separate returns {target / 1e6:.3f} m; {len(chosen)} couples split '
+               f'({share:.4f} of joint couples by weight)')
+    units['mfs_split'] = units.uid.isin(chosen)
+    return persons, units, mfs
+
+
 # ---- The units file ----
 
 def unit_rows(units, persons, mfs, year):
@@ -416,24 +434,6 @@ def unit_rows(units, persons, mfs, year):
     assert not out.drop(columns=['elective1', 'elective2', 'elective_deferrals']).isna().any().any()
     assert asked == out.elective_deferrals.notna().all() and not out.record_id.duplicated().any()
     return out
-
-
-# ---- The units ----
-
-def build(year):
-    """The SIPP's units for one reference year. Couples are split into separate returns by the CEX's rule: every
-    joint couple is a candidate, and couples are taken in the order of a keyed draw until their weight reaches half
-    of SOI Table 1.6's separate returns."""
-    from prep import soi as TG
-    r = read_roster(year)
-    persons, units = T.build_units(r, year)
-    target = sum(TG.table_1_6(year)[('separate', k)] for k in range(6))
-    mu = units[~units.dep_return].reset_index(drop=True)
-    chosen, share, mfs = T.mfs_split(mu, persons, np.ones(len(mu), bool), target, salt=int(S['mfs_salt']))
-    common.say(f'SIPP {year}: SOI Table 1.6 separate returns {target / 1e6:.3f} m; {len(chosen)} couples split '
-               f'({share:.4f} of joint couples by weight)')
-    units['mfs_split'] = units.uid.isin(chosen)
-    return persons, units, mfs
 
 
 # ---- Summaries ----
