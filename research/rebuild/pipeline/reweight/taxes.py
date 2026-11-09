@@ -1,24 +1,8 @@
-"""Taxes computed inside the model: each record's federal income and payroll taxes under the target year's law, from
-tax-simulator-gpu, on the year's start, before the reweighting.
-
-The tilt moves weights only, so a record's computed taxes are fixed once computed and the computed items can be
-targeted like any drawn item (kind "calculator" in targets_config/; target_list.expand). tilt.py calls compute() on
-the start after the top of the file and the non-microdata imputations.
-
-1. The batch command (run_batch). The file becomes the calculator's input frame (calculator_input.convert: the contract,
-   one row per column the calculator reads, with Tax-Simulator's names), written as a parquet file keyed by record
-   id. tax-simulator-gpu's batch command (`python -m taxmodel.run.batch`) runs it under the year's law in the
-   calculator's own Python environment, from a copy of
-   the repository at the commit in settings taxes.commit (pin: written once with git archive under
-   <out>/lib/tax-simulator-gpu_<first 12 characters>). Its output, one row per record keyed by the same id, is read
-   back, and the columns in OUTPUTS are joined to the file by record id. Every record must come back, with no
-   missing value.
-2. Marginal rates on wages: with settings wage_increment, the batch command reruns the chain with the primary
-   earner's wages raised by that many dollars; calc_mtr_wages_iit and calc_mtr_wages_payroll are the change in
-   income tax after every credit and in payroll tax, per dollar.
-
-Writes in <tilt>/taxes/: the calculator's input and output files of the run with their manifests, the conversion
-notes and taxes_summary.md.
+"""Each record's federal income and payroll taxes under the target year's law, from tax-simulator-gpu's batch command,
+computed on the start before the reweighting and joined by record id as the calc_* columns. Also the rules applied with
+the calculator's help first: repealed adjustments, the refund rule and the Schedule A step. The reweighting moves
+weights only, so the taxes stay right after it. Writes the calculator's inputs and outputs and taxes_summary.md to
+<tilt>/taxes/. See FEATURES.md, "Taxes from the calculator".
 """
 import json
 import os
@@ -155,11 +139,10 @@ SCHEDULE_A = {   # Table 2.1's category: (the file's input columns, the calculat
 
 
 def apply_repealed_adjustments(df, year, w, ctx):
-    """Adjustments the law has repealed by the year, set to zero (settings taxes.repealed_adjustments: item -> first
-    tax year without it): the domestic production activities deduction from 2018, the tuition and fees deduction from
-    2021. The draw carries 2015's claims into every year; the calculator ignores them under the year's law, so without
-    this the file's adjustments and AGI disagree with its own. The adjustments total and other_agi (adjustments sign
-    -1 in dollars.FOLD) move by the removed dollars, then taxable Social Security is computed again on the new AGI."""
+    """Adjustments the law has repealed by the year set to zero (settings taxes.repealed_adjustments: item -> first tax
+    year without it). The draw carries 2015's claims into every year and the calculator ignores them under the year's
+    law, so without this the file's adjustments and AGI would disagree with the calculator's. The adjustments total and
+    other_agi move by the removed dollars, and taxable Social Security is computed again on the new AGI."""
     rep = {k: int(v) for k, v in S['repealed_adjustments'].items() if not k.startswith('_')}
     gone = [k for k, y0 in rep.items() if year >= y0 and k in df]
     if not gone:
@@ -204,11 +187,10 @@ def apply_refund_rule(df, year, w, folder, ctx, C):
     if int(year) >= int(S['refund_tax_benefit_from']):
         # The tax benefit rule (IRS Publication 525, worksheet 2): a refund of state income tax is taxable only to the
         # extent that deducting the tax lowered tax. Two limits on an itemizer: (1) the taxes deduction the return
-        # claimed less the one it would have claimed had it paid the refund less tax; under a cap on the deduction
-        # (2018 on) a return whose taxes paid exceed the cap by more than the refund got no benefit, so its refund is
-        # not taxable; (2) the itemized deductions less the standard deduction. The current year's taxes paid and
-        # deductions stand in for last year's, as the itemizing flag does above. The cap is read from the calculator's
-        # own result (claimed taxes below taxes paid), so the rule needs no parameter of the year's law.
+        # claimed less the one it would have claimed had it paid the refund less tax, so under the cap a return whose
+        # taxes paid exceed the cap by more than the refund has no taxable refund; (2) the itemized deductions less the
+        # standard deduction. The current year's taxes paid and deductions stand in for last year's. The cap is read
+        # from the calculator's own result, so the rule needs no parameter of the year's law.
         paid = df['salt_inc_sales'].to_numpy(float) + df['salt_prop'].to_numpy(float)
         claimed = out['claimed_taxes'].to_numpy(float)
         excess = np.maximum(out['item_ded'].to_numpy(float) - out['std_ded'].to_numpy(float), 0.0)
@@ -279,9 +261,9 @@ def prior_factor(col, year):
 
 
 def greedy_schedule_a(df, year, w, folder, ctx, C):
-    """Each Schedule A category's input factor s is scaled by the ratio of Table 2.1's dollars per claiming return to the
-    start's, passes times through the calculator, s kept within one plus or minus max_move of the prior (s = 1). Returns the frame with the inputs multiplied, or the frame unchanged
-    where the year has no Table 2.1."""
+    """Multiplies each Schedule A category's inputs by one factor s so that the start's dollars per claiming return match
+    Table 2.1's, over settings passes runs of the calculator, with s held within 1 plus or minus max_move. Returns the
+    frame with the inputs multiplied, or unchanged where the year has no Table 2.1."""
     G = S['greedy_schedule_a']
     target = table21_averages(year)
     if target is None:
@@ -336,12 +318,12 @@ def greedy_schedule_a(df, year, w, folder, ctx, C):
 
 # ---- the stage inside the tilt ---------------------------------------------------------------------------------
 def compute(df, year, w, folder):
-    """Every record's computed taxes joined to the file (module docstring). df: the start, after the non-microdata
-    imputations; w: the start's weights. Returns the frame with OUTPUTS and a context for the summary."""
+    """Every record's computed taxes joined to the file. df: the start, after the non-microdata imputations; w: the
+    start's weights. Returns the frame with OUTPUTS and a context for the summary."""
     from shared import calculator_input as C
     ctx = {'notes': [], 'runs': {}}
-    # A start from an earlier year's tilted file (targets.yaml start: from_year) carries that year's computed columns,
-    # computed under that year's law on that year's dollars. They are dropped and computed again here.
+    # A start from an earlier year's file carries that year's computed columns, under that year's law and dollars; they
+    # are dropped and computed again.
     stale = [c for c in OUTPUTS if c in df]
     if stale:
         df = df.drop(columns=stale)
@@ -357,10 +339,9 @@ def compute(df, year, w, folder):
     ctx['runs']['final'] = man
     cols = joined_columns(out)
     assert (inp['id'].to_numpy() == df['record_id'].to_numpy()).all(), 'record order'
-    # the deductible half of self-employment tax is the calculator's (liab_seca_er, computed from each person's
-    # self-employment income and wages), not the drawn one: the calculator never reads the drawn deduction. The
-    # adjustments total and other_agi (adjustments sign -1 in dollars.FOLD) move with it, then taxable Social Security
-    # is computed again, so the file's AGI is the calculator's.
+    # The deductible half of self-employment tax is the calculator's, computed from each person's self-employment
+    # income and wages; the calculator never reads the drawn deduction. The adjustments total and other_agi move with
+    # it and taxable Social Security is computed again, so the file's AGI is the calculator's.
     new_se = out['liab_seca_er'].to_numpy(float)
     assert np.isfinite(new_se).all() and (new_se >= 0).all(), 'liab_seca_er: a missing or negative value'
     old_se = df['se_tax_ded'].to_numpy(float)
